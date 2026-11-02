@@ -29,7 +29,7 @@ export function selectCsharpTargetCallEmission(input: CsharpTargetCallEmissionIn
     const condition = selection.condition;
     const property = condition.property;
     const parameter = member.parameters[condition.targetParameterIndex];
-    if (instance || input.optional || member.static !== true || member.kind !== "method" || member.declaringType === undefined ||
+    if (selected !== undefined || instance || input.optional || member.static !== true || member.kind !== "method" || member.declaringType === undefined ||
       !selection.discardResult || count !== 1 || condition.targetParameterIndex !== 0 || parameter === undefined || passing[0] ||
       parameter.passingMode !== "by-value" || member.parameters.length !== 1 ||
       property.kind !== "property" || property.readonly !== true || property.static === true || property.parameters.length !== 0 ||
