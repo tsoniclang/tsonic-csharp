@@ -104,7 +104,8 @@ export interface CsharpStructuralInterfaceImplementation {
 export type TargetTypeRef =
   | { readonly kind: "source-primitive"; readonly name: SourcePrimitiveKind }
   | { readonly kind: "target-named"; readonly id: string; readonly typeArguments?: readonly TargetTypeRef[];
-      readonly csharpAllowsRefLikeTypeArguments: readonly boolean[] }
+      readonly csharpAllowsRefLikeTypeArguments: readonly boolean[];
+      readonly csharpRuntimeUnionSemantics?: "native-ordered" | "source-sum" }
   | { readonly kind: "type-parameter"; readonly identity: string; readonly name: string;
       readonly csharpDeclaration?: Node;
       readonly csharpConstraints?: import("./generic-constraints.js").CsharpTypeParameterConstraintResolution;
@@ -570,5 +571,6 @@ export type CsharpTaskTargetTypeRef = CsharpTargetNamedTypeRef & {
 
 export type CsharpRuntimeUnionTargetTypeRef = CsharpTargetNamedTypeRef & {
   readonly csharpRuntimeUnionArms: readonly TargetTypeRef[];
+  readonly csharpRuntimeUnionSemantics: "native-ordered" | "source-sum";
   readonly csharpRuntimeUnionObjectShapes?: readonly (CsharpObjectShapeFact | undefined)[];
 };

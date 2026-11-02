@@ -1,4 +1,5 @@
 import type { TargetTypeRef } from "./model.js";
+import { targetTypeRefEquals } from "./equality.js";
 import { csharpTargetTypeComponents } from "./components.js";
 import { snapshotCsharpMetadata, csharpMetadataDescriptors, createCsharpMetadataBudget, maximumCsharpMetadataEntries, maximumCsharpMetadataDepth } from "../metadata/immutable.js";
 
@@ -90,7 +91,13 @@ export function isCsharpTargetTypeRef(value: unknown): value is TargetTypeRef {
             type.csharpConstraintRequiresReferenceType === true && type.csharpValueType !== true && type.csharpByRefLike !== true &&
               (type.csharpSourceDeclarationKind === undefined || type.csharpSourceDeclarationKind === "class")) &&
           (type.typeArguments === undefined || list(type.typeArguments, depth)) &&
-          permissions(type.csharpAllowsRefLikeTypeArguments, Array.isArray(type.typeArguments) ? type.typeArguments.length : 0);
+          permissions(type.csharpAllowsRefLikeTypeArguments, Array.isArray(type.typeArguments) ? type.typeArguments.length : 0) &&
+          (type.csharpRuntimeUnionArms === undefined ? type.csharpRuntimeUnionSemantics === undefined
+            : (type.csharpRuntimeUnionSemantics === "native-ordered" || type.csharpRuntimeUnionSemantics === "source-sum") &&
+              Array.isArray(type.csharpRuntimeUnionArms) && list(type.csharpRuntimeUnionArms, depth) && Array.isArray(type.typeArguments) &&
+              type.csharpRuntimeUnionArms.length === type.typeArguments.length &&
+              type.csharpRuntimeUnionArms.every((arm, index) =>
+                targetTypeRefEquals(arm, (type.typeArguments as readonly TargetTypeRef[])[index]!)));
         break;
       case "type-parameter": valid = string(type.identity) && string(type.name) &&
         (type.csharpDeclaration === undefined || typeof type.csharpDeclaration === "object" && type.csharpDeclaration !== null) &&
