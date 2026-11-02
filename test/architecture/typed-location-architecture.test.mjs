@@ -195,3 +195,35 @@ function forbiddenNeutralAliasImports(path) {
   }
   return failures;
 }
+
+test("native backing uses one neutral identity relation without the legacy layout-demand API", () => {
+  const forbidden = /\b(?:createTsonicPointerBackingDemands|TsonicPointerBackingDemand|TsonicPointerBackingDemands|createTsonicPointerBackingQueries|TsonicPointerBackingQueries)\b/u;
+  const failures = sourceFiles(sourceRoot)
+    .filter(path => forbidden.test(readFileSync(path, "utf8")))
+    .map(path => path.slice(repositoryRoot.length + 1));
+  assert.deepEqual(failures, []);
+  const analysis = readFileSync(join(sourceRoot, "analysis/source-evidence/analyze.ts"), "utf8");
+  assert.match(analysis, /createTsonicDeclaredPointerBackingDemands\(source\)/u);
+  assert.match(analysis, /pointerBackingUses: pointerBacking\.uses\(\)/u);
+  const neutral = readFileSync(resolve(repositoryRoot,
+    "../tsonic/packages/source-core/src/pointers/backing/declared-demands.ts"), "utf8");
+  assert.equal([...neutral.matchAll(/createTsonicPointerBackingQueries\(source,/gu)].length, 1);
+  assert.match(neutral, /identities\.resolve\(selected\.expression\)/u);
+  assert.doesNotMatch(neutral, /sameBackingLayout|demands\.set|createTsonicPointerBackingDemands/u);
+});
+
+test("scalar and scalar-array backing consumes declared geometry and only checks later descriptors", () => {
+  const backing = readFileSync(join(sourceRoot, "analysis/storage/native-backing.ts"), "utf8");
+  assert.match(backing, /const declared = selectCsharpDeclaredNativeMemoryLayout\(policy, operation\.pointeeType,/u);
+  assert.match(backing, /declared\.stride !== layout\.stride \|\| !csharpNativeMemoryLayoutsEqual\(declared\.layout, descriptor\)/u);
+  assert.match(backing, /const selected = declared\.kind === "declared" \? declared\.layout : descriptor/u);
+  assert.match(backing, /const stride = declared\.kind === "declared" \? declared\.stride : layout\.stride/u);
+  assert.match(backing, /declared\.kind === "deferred-struct" && !retainLayout/u);
+  const owner = readFileSync(join(sourceRoot, "analysis/operations/pointers/native-memory.ts"), "utf8");
+  const declared = owner.slice(owner.indexOf("export function selectCsharpDeclaredNativeMemoryLayout("),
+    owner.indexOf("function csharpNativeScalarByteSize("));
+  assert.match(declared, /input\.types\.selectFixedArray\(selectedType, sourceFile\)/u);
+  assert.match(declared, /csharpNativeScalarByteSize\(carrier, dataLayout\.addressWidth\)/u);
+  assert.doesNotMatch(declared, /TsonicMemoryLayoutFact|byteSize|byteAlignment|layout\.stride|selectCsharpNativeMemoryLayout/u);
+});
+

@@ -5,7 +5,7 @@ import { abi } from "test:abi";
 import { addressof, memorylayout, torawptr, reinterpretrawptr, offsetrawptr,
   loadptr, storeptr, equalptr, unsafecontext } from "@tsonic/core/lang.js";
 import type { Pointer, uint32, int32 } from "@tsonic/core/types.js";
-const word = memorylayout<uint32>({ datalayout: abi, bytesize: 4, bytealignment: 4, stride: 8, fields: [] });
+const word = memorylayout<uint32>({ datalayout: abi, bytesize: 4, bytealignment: 4, stride: 4, fields: [] });
 function replace(pointer: Pointer<uint32>): uint32 { storeptr(pointer, 20); return 2; }
 function retained(index: int32): Pointer<uint32> {
   unsafecontext();
@@ -27,7 +27,7 @@ function retained(index: int32): Pointer<uint32> {
   alias[index] += replace(pointer);
   if (alias[index] !== 16) throw new Error("compound read occurred after rhs");
   alias[index] = 14;
-  const neighbor = reinterpretrawptr(offsetrawptr(raw, 8, abi), word);
+  const neighbor = reinterpretrawptr(offsetrawptr(raw, 4, abi), word);
   if (neighbor === undefined || loadptr(neighbor) !== 8) throw new Error("element stride");
   values = [99];
   if (loadptr(pointer) !== 14 || values[0] !== 99) throw new Error("element retargeted");

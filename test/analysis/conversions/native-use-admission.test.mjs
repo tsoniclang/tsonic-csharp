@@ -154,7 +154,7 @@ test("flow admission consumes the completed actual shape view and publishes pure
 });
 
 test("early backing exposes no incomplete field store and finalizes exactly once", () => {
-  const prepared = prepareCsharpNativeBacking({ ast: {} }, { pointerBackingDemands: [],
+  const prepared = prepareCsharpNativeBacking({ ast: {} }, { pointerBackingUses: [],
     typeParameterConstraints: { get: () => undefined } }, {});
   for (const name of ["nativeField", "nativeFields", "nativeLocation", "closedNativeContracts"]) {
     assert.equal(Object.hasOwn(prepared, name), false, `${name}: no partial physical-field reader is advertised`);
