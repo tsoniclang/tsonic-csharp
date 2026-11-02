@@ -3,7 +3,7 @@ import type { CsharpTypeResolutionState } from "./model.js";
 import type { Node, Type } from "@tsonic/tsts";
 import { sourceExpressionCallArgument, type SourceFileSemantics } from "@tsonic/target-api/source";
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../../target-model/types/model.js";
-import { csharpSourcePrimitiveTargetType } from "../../../../target-model/types/carriers/scalar-types.js";
+import { csharpSourcePrimitiveTargetType, isCsharpIntegralTargetType } from "../../../../target-model/types/carriers/scalar-types.js";
 
 import { nextState } from "./state.js";
 import { resolveBinaryTargetRepresentation, commonTargetRepresentation } from "../../../../policy/types/resolution/representation.js";
@@ -25,6 +25,7 @@ import { combineCsharpTargetUnionMembers, isCsharpJsValueTargetType } from "../.
 import { getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
 import { resolveCsharpContextualLiteralCarrier } from "./contextual-literals.js";
 import { resolveCsharpSourceLiteralTargetType } from "../../../../policy/conversions/source-literals.js";
+import { csharpLiteralIsRepresentableAs } from "../../../../policy/conversions/literals.js";
 
 export function resolveSelectedExpressionType(
   scope: CsharpTypeResolutionScope,
@@ -147,7 +148,7 @@ function resolveSelectedExpressionCarrier(
   ) {
     const literal = host.literalValues.literalValue.get(node);
     const literalType = literal?.numeric?.kind === "authored"
-      ? resolveCsharpSourceLiteralCarrier({ host, resolveSourceCallArgumentParameter, resolveSelectedType }, node, queries) : undefined;
+      ? resolveCsharpSourceLiteralCarrier({ host, resolveSourceCallArgumentParameter, resolveSelectedType, resolveReadStorage }, node, queries) : undefined;
     if (literalType !== undefined) return literalType;
     const operand = host.ast.is.IsPrefixUnaryExpression(node)
       ? host.ast.as.AsPrefixUnaryExpression(node)?.Operand
@@ -179,14 +180,27 @@ function resolveSelectedExpressionCarrier(
 }
 
 export function resolveCsharpSourceLiteralCarrier(
-  { host, resolveSourceCallArgumentParameter, resolveSelectedType }: Pick<CsharpTypeResolutionScope,
-    "host" | "resolveSourceCallArgumentParameter" | "resolveSelectedType">,
+  { host, resolveSourceCallArgumentParameter, resolveSelectedType, resolveReadStorage }: Pick<CsharpTypeResolutionScope,
+    "host" | "resolveSourceCallArgumentParameter" | "resolveSelectedType" | "resolveReadStorage">,
   node: Node,
   queries: SourceFileSemantics,
 ): TargetTypeRef | undefined {
   const literal = host.literalValues.literalValue.get(node);
   const defaultType = resolveCsharpSourceLiteralTargetType(literal);
   if (literal?.numeric === undefined) return defaultType;
+  let current = node;
+  while (host.ast.is.IsParenthesizedExpression(host.ast.parent(current))) current = host.ast.parent(current)!;
+  const parent = host.ast.parent(current);
+  const binary = parent === undefined ? undefined : host.ast.as.AsBinaryExpression(parent);
+  const operator = parent === undefined ? undefined : sourceOperatorFromKindName(host.ast.operatorKindName(parent));
+  if (binary?.Right === current && operator !== undefined && isCsharpAssignmentOperator(operator)) {
+    const target = resolveReadStorage(binary.Left, queries.sourceFile);
+    const present = getCsharpNullableElementTargetType(target) ?? target;
+    return present?.kind === "source-primitive" && present.name !== "bool" &&
+      !(defaultType?.kind === "source-primitive" && defaultType.name === "float64" && isCsharpIntegralTargetType(present)) &&
+      csharpLiteralIsRepresentableAs(literal, present)
+      ? present : defaultType;
+  }
   const argument = sourceExpressionCallArgument(node, { ast: host.ast, semantics: { forNode: host.semanticsFor } });
   if (argument === undefined) {
     const contextual = queries.types.contextualValueSelection(node);
