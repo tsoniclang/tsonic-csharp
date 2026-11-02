@@ -10,6 +10,7 @@ import {
   isCsharpRecordDictionaryTargetType,
   isCsharpStringTargetType,
   resolveCsharpObjectShapeMemberBySelectedSubject,
+  targetTypeRefEquals,
   targetTypeRefKey,
 } from "../../target-model/types/index.js";
 import { csharpUnionLeaves } from "../../target-model/types/union-relations.js";
@@ -51,8 +52,18 @@ export function selectCsharpPropertyProjections(
     }
     const shape = shapes.resolveTarget(selected);
     if (shape?.sourceType === undefined) return undefined;
-    const sourceType = semantics.types.expressionType(expression);
-    if (sourceType === undefined) return undefined;
+    const checked = semantics.types.expressionType(expression);
+    const presentSource = checked === undefined ? undefined : semantics.types.nonNullableType(checked);
+    if (presentSource === undefined) return undefined;
+    let sourceType = presentSource;
+    if (semantics.types.isUnion(presentSource)) {
+      const candidates = semantics.types.unionOrIntersectionTypes(presentSource).filter(member => {
+        const retained = policy.types.selectSourceUnionMember(source, member, semantics.sourceFile);
+        return retained.kind === "resolved" && targetTypeRefEquals(retained.carrier, selected);
+      });
+      if (candidates.length !== 1) return undefined;
+      sourceType = candidates[0]!;
+    }
     const correspondence = semantics.types.structuralMembers(sourceType, destinationType, "read");
     if (correspondence.kind !== "available" || correspondence.destination.calls.length !== 0 ||
       correspondence.destination.constructs.length !== 0 || correspondence.destination.indexes.length !== 0) return undefined;
