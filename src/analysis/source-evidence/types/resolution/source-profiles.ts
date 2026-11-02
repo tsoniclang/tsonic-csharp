@@ -210,7 +210,11 @@ export function resolveSignatureParameterEvidence(
   const entry = parameter.declaration === undefined ? undefined : host.sourceStorage.subject(parameter.declaration, "input");
   const contextual = parameter.declaration === undefined || use !== "callable" || host.ast.typeNode(parameter.declaration) !== undefined
     ? undefined : selectCsharpContextualParameterCarrier(scope, parameter.declaration, queries, state);
-  const resolved = contextual?.kind === "unresolved" ? undefined : contextual?.kind === "resolved" ? contextual.type
+  const initialized = parameter.declaration !== undefined && parameter.omissionKind === "initializer" &&
+    host.ast.typeNode(parameter.declaration) === undefined;
+  const resolved = initialized ? scope.resolveNodeWithState(parameter.declaration,
+    host.ast.getSourceFile(parameter.declaration) ?? queries.sourceFile, nextState(state))
+    : contextual?.kind === "unresolved" ? undefined : contextual?.kind === "resolved" ? contextual.type
     : resolveSourceTypeComponentEvidence(
     {
       selectedType: parameter.type,

@@ -1,5 +1,5 @@
 import { providerVirtualDeclarationFactKey, type Node, type SourceFile, type Type } from "@tsonic/tsts";
-import { Node_Initializer, sourceDeclarationIsModuleScoped, sourceEnclosingCallable,
+import { Node_Initializer, sourceCallableValueParameters, sourceDeclarationIsModuleScoped, sourceEnclosingCallable,
   type SourceFileSemantics, type SourceTypeComponentEvidence } from "@tsonic/target-api/source";
 import type { CsharpObjectShapeFact, TargetTypeRef } from "../../target-model/types/model.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
@@ -18,6 +18,7 @@ type LiteralContextHost = Pick<CsharpTypePolicyBaseHost, "ast" | "navigation" | 
 interface CsharpLiteralContext {
   readonly component: SourceTypeComponentEvidence;
   readonly own: boolean;
+  readonly parameterDefault?: Node;
   readonly declarations: readonly Node[];
   readonly source: Node;
   readonly returnedFrom?: Node;
@@ -90,6 +91,24 @@ export function selectCsharpLiteralDeclarationContext(
     if (selected !== undefined) return selected;
   }
   const direct = queries.types.contextualValueSelection(current);
+  if (declaration !== undefined && ast.is.IsParameterDeclaration(declaration) &&
+    ast.typeNode(declaration) === undefined && Node_Initializer(ast, declaration) === current) {
+    const owner = ast.parent(declaration);
+    const creation = owner !== undefined && (ast.is.IsArrowFunction(owner) || ast.is.IsFunctionExpression(owner))
+      ? selectCsharpLiteralDeclarationContext(owner, host.semanticsFor(owner), host) : undefined;
+    if (creation?.own === true && owner !== undefined) {
+      const ownerQueries = host.semanticsFor(owner);
+      const index = sourceCallableValueParameters(ast, owner, ownerQueries)?.indexOf(declaration) ?? -1;
+      const parameter = index < 0 ? undefined : ownerQueries.types.callable(creation.component.selectedType)?.parameters[index];
+      if (parameter === undefined) return undefined;
+      const authoredTypeNode = parameter.declaration === undefined ? undefined : ast.typeNode(parameter.declaration);
+      return { component: { selectedType: parameter.type,
+        ...(parameter.declaration === undefined ? {} : { declaration: parameter.declaration }),
+        ...(authoredTypeNode === undefined ? {} : { authoredTypeNode }) },
+        own: true, parameterDefault: declaration, declarations, source: expression };
+    }
+    return direct.kind === "selected" ? { component: direct.component, own: false, declarations, source: expression } : undefined;
+  }
   if (direct.kind === "selected") return { component: direct.component,
     own: variable?.Initializer !== current || variable.Type !== undefined, declarations, source: expression };
   if (declarations.length === 0) return undefined;

@@ -27,6 +27,8 @@ import { csharpSourceStorageContext, csharpSourceStorageComponentContext } from 
 import { bindCsharpSourceTypeArguments } from "./generic-arguments.js";
 import { csharpTargetParameterValueType } from "../../../../target-model/types/member-facts.js";
 import { getCsharpCallableValueSignature } from "../../../../target-model/types/carriers/delegates.js";
+import { getCsharpGenericOptionalParts } from "../../../../target-model/types/projections.js";
+import { selectCsharpLiteralDeclarationContext } from "../../../objects/native-construction-demand.js";
 
 export function resolveTypeReferenceNode(
   { host, resolveCheckerTransformedSourceType, resolveCompositionalSourceTypeAlias, resolveDirectSourceFacts, resolveNodeWithState, resolveProjectSourceType, resolveProviderType, resolveSourceProfileType, resolveStandardSourceTypeTransformation, resolveTypeWithState, targetPreservesAuthoredSourcePrimitiveFacts }: CsharpTypeResolutionScope,
@@ -482,14 +484,17 @@ export function selectCsharpContextualParameterCarrier(
   const { host } = scope;
   if (!host.ast.is.IsParameterDeclaration(declaration)) return { kind: "not-applicable" };
   const syntax = scope.sourceValueDeclarationSyntax(declaration);
-  if (syntax.type !== undefined || syntax.initializer !== undefined) return { kind: "not-applicable" };
+  if (syntax.type !== undefined) return { kind: "not-applicable" };
   const owner = host.ast.parent(declaration);
   if (owner === undefined || !host.ast.is.IsArrowFunction(owner) && !host.ast.is.IsFunctionExpression(owner)) {
     return { kind: "not-applicable" };
   }
   const parameters = sourceCallableValueParameters(host.ast, owner, queries);
   const index = parameters?.indexOf(declaration) ?? -1;
-  const contextual = queries.types.contextualValueSelection(owner);
+  const creation = syntax.initializer === undefined ? undefined : selectCsharpLiteralDeclarationContext(owner, queries, host);
+  if (syntax.initializer !== undefined && creation?.own !== true) return { kind: "not-applicable" };
+  const contextual = creation === undefined ? queries.types.contextualValueSelection(owner)
+    : { kind: "selected" as const, component: creation.component };
   if (contextual.kind === "ambiguous") return { kind: "unresolved" };
   if (contextual.kind !== "selected") return { kind: "not-applicable" };
   const callable = queries.types.callable(contextual.component.selectedType);
@@ -572,6 +577,12 @@ export function resolveSourceValueResult(
     return csharpSourceValueResult(host.bindingProjection(declaration, sourceFile)?.bindingCarrier);
   }
   const declarationQueries = host.semantics(sourceFile);
+  if (syntax.type === undefined && syntax.initializer !== undefined && host.ast.is.IsParameterDeclaration(declaration)) {
+    const contextual = selectCsharpContextualParameterCarrier(scope, declaration, declarationQueries, state);
+    if (contextual.kind === "unresolved") return undefined;
+    if (contextual.kind === "resolved") return csharpSourceValueResult(resolveCsharpNativeParameterCarrier(scope, declaration,
+      getCsharpGenericOptionalParts(contextual.type)?.element ?? getCsharpNullableElementTargetType(contextual.type) ?? contextual.type, state));
+  }
   const numericInitializer = syntax.type === undefined && syntax.initializer !== undefined &&
     host.literalValues.literalValue.get(syntax.initializer)?.numeric !== undefined;
   const induction = numericInitializer ? undefined : sourceIntegerInduction(declaration, host.ast, host.navigation, {

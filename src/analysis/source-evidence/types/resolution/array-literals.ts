@@ -203,7 +203,9 @@ function selectArrayElementDestination(
     const element = collectionElement(selected);
     return element === undefined ? { kind: "unavailable" } : { kind: "resolved", carrier: element };
   }
-  const selected = scope.resolveSourceTypeComponentEvidence(context.component, queries, nextState(state));
+  const selected = context.parameterDefault === undefined
+    ? scope.resolveSourceTypeComponentEvidence(context.component, queries, nextState(state))
+    : scope.resolveNodeWithState(context.parameterDefault, queries.sourceFile, nextState(state));
   const returned = context.component.declaration !== undefined &&
     scope.host.ast.hasModifierKind(context.component.declaration, "async")
     ? getCsharpTaskResultTargetType(selected) : selected;

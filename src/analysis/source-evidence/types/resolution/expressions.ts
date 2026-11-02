@@ -213,7 +213,9 @@ export function resolveCsharpSourceLiteralCarrier(
   if (argument === undefined) {
     const context = selectCsharpLiteralDeclarationContext(node, queries, host);
     if (context?.own !== true) return defaultType;
-    const selected = scope.resolveSourceTypeComponentEvidence(context.component, queries, { depth: 0 });
+    const selected = context.parameterDefault === undefined
+      ? scope.resolveSourceTypeComponentEvidence(context.component, queries, { depth: 0 })
+      : scope.resolveNodeWithState(context.parameterDefault, queries.sourceFile, { depth: 0 });
     const destination = context.returnedFrom !== undefined && host.ast.hasModifierKind(context.returnedFrom, "async")
       ? getCsharpTaskResultTargetType(selected) : selected;
     const present = getCsharpNullableElementTargetType(destination) ?? destination;

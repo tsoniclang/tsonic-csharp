@@ -330,7 +330,9 @@ export function inferSourceCallTargetTypeArguments(
     binding.sourceArgumentIndex === argumentContext.argumentIndex && binding.sourceForm === "value") ?? [];
   const parameterContext = outerCall === undefined || argumentContext === undefined || outerBindings.length !== 1 ? undefined
     : scope.resolveSourceCallArgumentParameter(outerCall, outerBindings[0]!, sourceFile, new Set([argumentContext.argumentIndex]));
-  const declaredContext = authoredContext === undefined || contextFile === undefined ? parameterContext
+  const declaredContext = context?.parameterDefault !== undefined
+    ? scope.resolveNodeWithState(context.parameterDefault, sourceFile, nextState(state))
+    : authoredContext === undefined || contextFile === undefined ? parameterContext
     : scope.resolveNodeWithState(authoredContext, contextFile, nextState(state));
   const resultNode = queries.operations.callResult(source)?.authoredTypeNode;
   const resultFile = resultNode === undefined ? undefined : scope.host.ast.getSourceFile(resultNode);
