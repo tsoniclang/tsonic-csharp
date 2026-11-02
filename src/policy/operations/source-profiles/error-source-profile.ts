@@ -1,7 +1,7 @@
 import type { CsharpSourceProfileCallPolicy, CsharpSourceProfileCallPolicyContext, CsharpSourceProfileCallPolicyResult, CsharpSourceProfileIdentitySelector, CsharpSourceProfilePropertyPolicy, CsharpSourceProfilePropertyPolicyContext } from "../../model/source-profiles.js";
 import type { CsharpSourceProfilePropertyPolicyResult } from "../../../target-model/records/program/source-profile-invocations.js";
 import { csharpSourceProfileCall, csharpSourceProfileDiagnostic } from "./source-profile-policy.js";
-import type { CsharpSourceProfileOwner } from "../../identities/selected-source.js";
+import type { CsharpSourceProfileDeclarationIdentity, CsharpSourceProfileOwner } from "../../identities/selected-source.js";
 import { csharpRuntimeErrorTargetType, csharpExceptionTargetType, csharpStringTargetType, csharpVoidTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
@@ -132,39 +132,58 @@ export const csharpErrorSourceProfilePropertyPolicies:
         native,
       }) => Object.freeze({
         source: errorIdentity(owner, "member", sourceName),
-        select: (context: CsharpSourceProfilePropertyPolicyContext): CsharpSourceProfilePropertyPolicyResult | undefined => {
-          const exception = context.host.providers.publishNativeIdentities(exceptionType);
-          if (exception.kind === "rejected") return exception;
-          if (exception.kind !== "resolved") return undefined;
-          const receiver = getCsharpNullableElementTargetType(context.receiverType) ?? context.receiverType;
-          if (receiver !== undefined && targetTypeRefEquals(receiver, exception.value)) {
-            if (context.source.accessMode !== "read") return {
-              kind: "rejected",
-              diagnostic: csharpSourceProfileDiagnostic("CSHARP_ERROR_READONLY_STORAGE", 9100953,
-                "The selected native Exception storage does not admit source Error field mutation.", []),
-            };
-            const published = context.host.providers.publishNativeIdentities(native);
-            return published.kind === "resolved" ? published.value : published.kind === "rejected" ? published : undefined;
-          }
-          const published = context.host.providers.publishNativeIdentities({
-            kind: "resolved" as const,
-            targetMember: Object.freeze({
-              id: targetId,
-              sourceName,
-              targetName,
-              kind: "property" as const,
-              declaringType: errorType,
-              parameters: Object.freeze([]),
-              returnType: targetType,
-            }),
-            receiver: instanceReceiver,
-            invocation: { kind: "member" as const },
-          });
-          return published.kind === "resolved" ? published.value : published.kind === "rejected" ? published : undefined;
-        },
+        select: (context: CsharpSourceProfilePropertyPolicyContext): CsharpSourceProfilePropertyPolicyResult | undefined =>
+          selectErrorProperty(context.host, { targetId, targetName, targetType, native }, context.receiverType, context.source.accessMode),
       })),
     ),
   );
+
+export function selectCsharpErrorNativeProperty(
+  host: Pick<CsharpSourceProfilePropertyPolicyContext["host"], "providers">,
+  identity: CsharpSourceProfileDeclarationIdentity,
+  receiverType: TargetTypeRef,
+): CsharpSourceProfilePropertyPolicyResult | { readonly kind: "unresolved" } | undefined {
+  if (!owners.includes(identity.owner) || identity.kind !== "member" || identity.declaringName !== "Error") return undefined;
+  const property = errorProperties.find(property => property.sourceName === identity.name);
+  return property === undefined ? undefined : selectErrorProperty(host, property, receiverType, "read") ?? { kind: "unresolved" };
+}
+
+function selectErrorProperty(
+  host: Pick<CsharpSourceProfilePropertyPolicyContext["host"], "providers">,
+  property: Pick<typeof errorProperties[number], "targetId" | "targetName" | "targetType" | "native">,
+  receiverType: TargetTypeRef | undefined,
+  accessMode: CsharpSourceProfilePropertyPolicyContext["source"]["accessMode"],
+): CsharpSourceProfilePropertyPolicyResult | undefined {
+  const { targetId, targetName, targetType, native } = property;
+  const exception = host.providers.publishNativeIdentities(exceptionType);
+  if (exception.kind === "rejected") return exception;
+  if (exception.kind !== "resolved") return undefined;
+  const receiver = getCsharpNullableElementTargetType(receiverType) ?? receiverType;
+  if (receiver !== undefined && targetTypeRefEquals(receiver, exception.value)) {
+    if (accessMode !== "read") return {
+      kind: "rejected",
+      diagnostic: csharpSourceProfileDiagnostic("CSHARP_ERROR_READONLY_STORAGE", 9100953,
+        "The selected native Exception storage does not admit source Error field mutation.", []),
+    };
+    const published = host.providers.publishNativeIdentities(native);
+    return published.kind === "resolved" ? published.value : published.kind === "rejected" ? published : undefined;
+  }
+  const published = host.providers.publishNativeIdentities({
+    kind: "resolved" as const,
+    targetMember: Object.freeze({
+      id: targetId,
+      sourceName: targetName,
+      targetName,
+      kind: "property" as const,
+      declaringType: errorType,
+      parameters: Object.freeze([]),
+      returnType: targetType,
+    }),
+    receiver: instanceReceiver,
+    invocation: { kind: "member" as const },
+  });
+  return published.kind === "resolved" ? published.value : published.kind === "rejected" ? published : undefined;
+}
 
 function errorCallPolicy(
   owner: CsharpSourceProfileOwner,

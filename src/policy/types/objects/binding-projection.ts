@@ -1,5 +1,5 @@
 import type {
-  CsharpBindingElementProjection, CsharpBindingPatternSource, CsharpTupleDefaultUse, CsharpDefaultValueContract,
+  CsharpBindingElementProjection, CsharpBindingPatternSource, CsharpTupleDefaultUse, CsharpDefaultValueContract, CsharpNativeBindingProperty,
 } from "../../../target-model/records/objects/value-projections.js";
 
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
@@ -16,12 +16,15 @@ import { tryCsharpIdentifier } from "../../../target-model/names/identifiers.js"
 import type { TargetTypeRef, CsharpObjectShapeFact, CsharpObjectShapeMemberFact } from "../../../target-model/types/model.js";
 import { type CsharpArrayBindingCarrier } from "../../../target-model/types/carriers/binding-array-carrier.js";
 import { csharpArrayBindingProjectionTarget, resolveCsharpArrayBindingCarrier } from "../collections/binding-array-carrier.js";
+import { csharpTargetTypeRenderingRejection } from "../model/renderability.js";
 
 type BindingPatternProjectionRequest =
   | { readonly kind: "array-source"; readonly carrier: TargetTypeRef | undefined }
   | { readonly kind: "array-element"; readonly carrier: CsharpArrayBindingCarrier; readonly index: number;
       readonly rest: boolean; readonly hasDefault: boolean }
   | { readonly kind: "object-source"; readonly shape: CsharpObjectShapeFact | undefined; readonly sourceOwned: boolean }
+  | { readonly kind: "native-source"; readonly carrier: TargetTypeRef | undefined }
+  | { readonly kind: "native-member"; readonly property: CsharpNativeBindingProperty }
   | { readonly kind: "object-member"; readonly shape: CsharpObjectShapeFact; readonly sourceName: string;
       readonly description: string; readonly permitsAbsence: boolean }
   | { readonly kind: "object-rest"; readonly source: CsharpObjectShapeFact; readonly rest: CsharpObjectShapeFact;
@@ -83,6 +86,22 @@ export function selectCsharpBindingPatternProjection(input: BindingPatternProjec
     case "object-source":
       return input.shape !== undefined ? source({ kind: "object-shape-source", shape: input.shape })
         : input.sourceOwned ? source({ kind: "source-owned-source" }) : unresolved();
+    case "native-source":
+      return input.carrier === undefined || csharpTargetTypeRenderingRejection(input.carrier) !== undefined ? unresolved()
+        : source({ kind: "native-source", carrier: input.carrier });
+    case "native-member": {
+      const { member, receiver, invocation } = input.property;
+      if (csharpTargetTypeRenderingRejection(member.returnType) !== undefined) return unresolved();
+      if (invocation.kind === "member") {
+        return receiver.kind === "instance" && (member.kind === "property" || member.kind === "field")
+          ? element({ kind: "native-member", property: input.property }) : unresolved();
+      }
+      return receiver.kind === "target-parameter" && receiver.targetParameterIndex === 0 && member.kind === "method" &&
+        member.static === true && member.declaringType !== undefined && member.parameters.length === 1 &&
+        (member.parameters[0]!.passingMode === undefined || member.parameters[0]!.passingMode === "by-value") &&
+        csharpTargetTypeRenderingRejection(member.declaringType) === undefined
+        ? element({ kind: "native-member", property: input.property }) : unresolved();
+    }
     case "object-member": {
       if (typeof input.permitsAbsence !== "boolean") return unresolved("An object binding requires its checked absence permission.");
       const selected = resolveCsharpObjectShapeMemberBySourceContract(input.shape, input.sourceName, "checked-object-binding-property");
