@@ -20,6 +20,7 @@ import { getCsharpGenericOptionalParts } from "../../../../target-model/types/pr
 import { csharpUnionLeaves } from "../../../../target-model/types/union-relations.js";
 import { csharpSourceUnionIdentity } from "../../../../target-model/types/source-union-definitions.js";
 import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
+import { resolveCsharpSourceLiteralTargetType } from "../../../../policy/conversions/source-literals.js";
 
 const unavailable: CsharpArrayLiteralSelection = Object.freeze({ kind: "unavailable" });
 type ArrayContribution = Parameters<typeof selectCsharpInferredNumericArrayElement>[0][number] & { readonly source: Type };
@@ -89,7 +90,15 @@ export function resolveCsharpArrayLiteralSelection(
   const contributions = selected.flatMap(group => group ?? []);
   const elements = contributions.map(member => member.carrier);
   const context = selectCsharpLiteralDeclarationContext(node, queries, host);
-  const destination = selectArrayElementDestination(scope, node, queries, state, context, sourceElements.length === 0);
+  const unannotatedBinding = context?.declarations.some(declaration => host.ast.is.IsVariableDeclaration(declaration) &&
+    host.ast.typeNode(declaration) === undefined) === true;
+  const authoredInteger = contributions.some(contribution => {
+    const selected = contribution.literal?.numeric?.kind === "authored"
+      ? resolveCsharpSourceLiteralTargetType(contribution.literal) : undefined;
+    return selected?.kind === "source-primitive" && selected.name === "int64";
+  });
+  const destination = unannotatedBinding && authoredInteger ? unavailable
+    : selectArrayElementDestination(scope, node, queries, state, context, sourceElements.length === 0);
   if (elements.length === 0) {
     if (sourceElements.length === 0 && destination.kind === "unavailable" &&
       context === undefined) {
