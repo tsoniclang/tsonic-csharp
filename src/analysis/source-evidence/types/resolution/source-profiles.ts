@@ -246,7 +246,8 @@ export function resolveSourceTypeComponentEvidence(
   }
   const authoredSourceFile = component.authoredTypeNode === undefined
     ? queries.sourceFile : host.ast.getSourceFile(component.authoredTypeNode);
-  if (authoredSourceFile === undefined || !host.hasSemantics(authoredSourceFile)) return undefined;
+  if (authoredSourceFile === undefined ||
+    (component.authoredTypeNode !== undefined && component.declaration === undefined && !host.hasSemantics(authoredSourceFile))) return undefined;
   return component.authoredTypeNode === undefined
     ? resolveTypeWithState(
         component.selectedType,
