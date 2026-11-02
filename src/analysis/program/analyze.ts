@@ -9,7 +9,7 @@ import { analyzeCsharpProjectCallableAdapters } from "../project-types/callable-
 
 import { analyzeSourceLiteralValues } from "@tsonic/target-api/source";
 
-import { createTsonicPointerReturnQueries, createTsonicMemoryBindingIndex } from "@tsonic/source-core/facts";
+import { createTsonicPointerStorageRelation, createTsonicMemoryBindingIndex } from "@tsonic/source-core/facts";
 import { rejectedTargetStage, resolvedTargetStage, failTargetAnalysisInvariant, targetDiagnosticFromExtension } from "@tsonic/target-api/artifacts";
 import { resolveTargetContractFixedPoint } from "@tsonic/target-api/analysis";
 import type { TargetStageResult, TargetDiagnostic } from "@tsonic/target-api/artifacts";
@@ -119,7 +119,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
     sourceFacts: source.sourceFacts,
     navigation: source.navigation,
     providers,
-    pointerReturns: createTsonicPointerReturnQueries(source),
+    pointerStorage: createTsonicPointerStorageRelation(source, sourceStorage),
     memoryBindings,
     target: input.target,
     semantics: source.semantics.forFile,
