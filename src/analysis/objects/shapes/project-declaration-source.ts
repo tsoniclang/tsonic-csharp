@@ -9,7 +9,7 @@ import type { CsharpObjectShapeMemberProofInput } from "./member-instantiation.j
 import { bindCsharpObjectShapeMembersSource, type CsharpObjectShapeMemberSource,
   type CsharpObjectShapeMembersSource, type CsharpCollectedObjectShapeMembers } from "./member-source.js";
 import { projectClassIsObjectInitializable } from "./source-evidence.js";
-import type { CsharpStructuralTypeSource } from "../../source-evidence/types/resolution/structural-applications.js";
+import type { CsharpStructuralTypeCapture, CsharpStructuralTypeSource } from "../../source-evidence/types/resolution/structural-applications.js";
 
 export interface CsharpProjectDeclarationMemberSource extends CsharpObjectShapeMemberProofInput {
   readonly member: CsharpObjectShapeMemberSource;
@@ -23,6 +23,7 @@ export interface CsharpProjectDeclarationSource {
   readonly definition: CsharpCurrentProjectDeclaration;
   readonly declaredType: Type;
   readonly collection: CsharpObjectShapeMembersSource;
+  readonly children: CsharpStructuralTypeCapture;
   readonly members: readonly CsharpProjectDeclarationMemberSource[];
   readonly initializable: boolean;
 }
@@ -54,6 +55,7 @@ export function createCsharpProjectDeclarationShapeSource(
       if (declaredType === undefined) return undefined;
       const collection = formMembersSource(declaredType, queries, host.ast.typeNode(definition.declaration));
       if (collection === undefined) return undefined;
+      const children = host.structuralTypeCapture(collection);
       const members: CsharpProjectDeclarationMemberSource[] = [];
       for (const member of collection.members) {
         const input = member.proofInput;
@@ -89,7 +91,7 @@ export function createCsharpProjectDeclarationShapeSource(
           inherited: Object.freeze({ source: inherited, member: original }),
         }));
       }
-      return Object.freeze({ definition, declaredType, collection, members: Object.freeze(members),
+      return Object.freeze({ definition, declaredType, collection, children, members: Object.freeze(members),
         initializable: definition.kind === "class" && projectClassIsObjectInitializable(declaredType, queries, host),
       });
     } finally {
@@ -97,7 +99,7 @@ export function createCsharpProjectDeclarationShapeSource(
     }
   }
 
-  function formProjectDeclarationFromSource(
+  function bindProjectDeclarationSource(
     source: CsharpProjectDeclarationSource,
     inputState: CsharpTypeResolutionState,
   ): CsharpProjectDeclarationShapeSource {
@@ -106,7 +108,7 @@ export function createCsharpProjectDeclarationShapeSource(
     ], inputState);
     const collection = bindCsharpObjectShapeMembersSource(source.collection, nextState(state));
     return Object.freeze({ ...source, source, inputState, state, collection,
-      application: host.structuralTypeApplication(collection),
+      application: host.bindStructuralTypeCapture(source.children, collection),
     });
   }
 
@@ -115,8 +117,8 @@ export function createCsharpProjectDeclarationShapeSource(
     state: CsharpTypeResolutionState,
   ): CsharpProjectDeclarationShapeSource | undefined {
     const source = captureProjectDeclarationSource(declaration);
-    return source === undefined ? undefined : formProjectDeclarationFromSource(source, state);
+    return source === undefined ? undefined : bindProjectDeclarationSource(source, state);
   }
 
-  return { captureProjectDeclarationSource, formProjectDeclarationFromSource, formProjectDeclarationSource };
+  return { captureProjectDeclarationSource, bindProjectDeclarationSource, formProjectDeclarationSource };
 }

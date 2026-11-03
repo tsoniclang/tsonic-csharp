@@ -229,6 +229,8 @@ function createCsharpTypeSystem(
     projectTypes: requireProjectTypes,
     typeResolver: typeResolution.recursive,
     structuralTypeApplication: typeResolution.structuralTypeApplication,
+    structuralTypeCapture: typeResolution.structuralTypeCapture,
+    bindStructuralTypeCapture: typeResolution.bindStructuralTypeCapture,
     bindStructuralTypeApplication: typeResolution.bindStructuralTypeApplication,
     projectSemanticSource: typeResolution.projectSemanticSource,
     completeAuthoredSelection: typeResolution.completeAuthoredSelection,

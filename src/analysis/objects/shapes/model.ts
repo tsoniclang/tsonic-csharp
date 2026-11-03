@@ -31,6 +31,8 @@ export interface CsharpObjectShapePolicyHost extends CsharpTypePolicyBaseHost {
   projectTypes(): CsharpProjectTypePolicy;
   readonly typeResolver: CsharpRecursiveTypeResolver;
   structuralTypeApplication(collection: CsharpCollectedObjectShapeMembers): CsharpStructuralTypeSource;
+  readonly structuralTypeCapture: CsharpTypeResolutionServices["structuralTypeCapture"];
+  readonly bindStructuralTypeCapture: CsharpTypeResolutionServices["bindStructuralTypeCapture"];
   bindStructuralTypeApplication(source: CsharpStructuralTypeSource, receiver: TargetTypeRef | undefined): CsharpStructuralTypeApplication;
   projectSemanticSource(type: Type, queries: SourceFileSemantics, state: CsharpTypeResolutionState): CsharpProjectSemanticSource;
   completeAuthoredSelection(source: CsharpAuthoredTypeSelectionEvidence): TargetTypeRef | undefined;

@@ -61,7 +61,7 @@ export function createCsharpProjectDeclarationApplications(
         nextState(csharpSourceTemplateState([...definition.outerTypeParameters, ...definition.typeParameters], state)));
       return template === undefined ? undefined : Object.freeze({ kind: "instance", targetType, template, source: template.source });
     }
-    const declaration = formation.formProjectDeclarationFromSource(source.declaration, state);
+    const declaration = formation.bindProjectDeclarationSource(source.declaration, state);
     const inherited: (Extract<CsharpProjectDeclarationApplication, { readonly kind: "declaration" }>["inherited"][number])[] = [];
     for (const [index, selectedSource] of declaration.members.entries()) {
       const member = selectedSource.member;
