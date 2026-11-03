@@ -58,8 +58,9 @@ export function completeCsharpSelectedReceiver(
   if (receiver?.expression === undefined || host.ast.kindName(receiver.expression) !== "KindThisKeyword") {
     return undefined;
   }
-  const owner = host.projectTypeCatalog.definitionContainingDeclaration(receiver.expression);
+  const catalog = host.projectTypeABI().catalog;
+  const owner = catalog.definitionContainingDeclaration(receiver.expression);
   const type = owner === undefined ? undefined
-    : host.projectTypeCatalog.targetTypeForDeclaration(owner.declaration, owner.typeParameterBindings);
+    : catalog.targetTypeForDeclaration(owner.declaration, owner.typeParameterBindings);
   return type === undefined || owner === undefined ? undefined : Object.freeze({ input, kind: "declared-this", owner, type });
 }

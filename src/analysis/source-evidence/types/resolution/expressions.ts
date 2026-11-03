@@ -413,12 +413,13 @@ function projectInstanceTargetTypeAt(
       ) {
         return undefined;
       }
-      const owner = host.projectTypeCatalog.definitionForDeclaration(
+      const catalog = host.projectTypeABI().catalog;
+      const owner = catalog.definitionForDeclaration(
         ownerNode,
       );
       return owner === undefined
         ? undefined
-        : host.projectTypeCatalog.targetTypeForDeclaration(
+        : catalog.targetTypeForDeclaration(
             owner.declaration,
             owner.typeParameterBindings,
           );

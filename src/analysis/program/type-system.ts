@@ -137,6 +137,7 @@ function createCsharpTypeSystem(
         return objectShapes;
       },
       projectTypes: requireProjectTypes,
+      projectTypeABI: requireProjectTypeABI,
       targetTypeComponents(type) {
         return csharpTargetTypeComponents(
           type,

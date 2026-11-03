@@ -65,6 +65,7 @@ export interface CsharpTypePolicyHost extends CsharpTypePolicyBaseHost {
   readonly representations: CsharpPlanningRepresentationQueries;
   readonly projectTypeCatalog: CsharpProjectTypeCatalog;
   readonly objectShapes: CsharpObjectShapePolicy;
+  projectTypeABI(): import("../../../../target-model/records/types/project-types.js").CsharpProjectTypeABIPolicy;
   projectTypes(): CsharpProjectTypePolicy;
   targetTypeComponents(type: TargetTypeRef): readonly TargetTypeRef[];
   readonly structuralTypes: {

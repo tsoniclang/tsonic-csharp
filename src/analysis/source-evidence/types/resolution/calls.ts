@@ -296,7 +296,7 @@ export function completeCsharpSourceCallableType(
         completion: completeSourceCallReceiver(request.receiverInput) }));
     } else if (request.kind === "declaration") {
       step = completion.next(Object.freeze({ kind: "declaration", request,
-        result: host.projectTypes().instantiateDeclarationType(input.callable.nativeSignature.receiverTypeOwner,
+        result: host.projectTypeABI().instantiateDeclarationType(input.callable.nativeSignature.receiverTypeOwner,
           request.receiverType, request.substituted) }));
     } else {
       step = completion.next(Object.freeze({ kind: "shape", request,
