@@ -1,7 +1,7 @@
 import type { Node, Type } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
-import type { CsharpCollectedObjectShapeMembers } from "../../../objects/shapes/member-source.js";
+import type { CsharpCollectedObjectShapeMembers, CsharpObjectShapeMembersSource } from "../../../objects/shapes/member-source.js";
 import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { CsharpTypePolicyBaseHost, CsharpTypeResolutionState } from "./model.js";
 import { resolveFormedCsharpTypeParameterConstraints, type CsharpTypeParameterConstraintSource } from "./type-parameter-constraints.js";
@@ -10,21 +10,31 @@ import type { CsharpProjectMemberTypeInstantiation } from "../../../../target-mo
 import type { CsharpTypeParameterConstraintResolution } from "../../../../target-model/types/generic-constraints.js";
 import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
 import { isCsharpIntegralTargetType } from "../../../../target-model/types/carriers/scalar-types.js";
-import { formAuthoredAndSelectedSourceType, resolveFormedAuthoredAndSelectedSourceType,
-  resolveSourceTypeDependency, type CsharpAuthoredTypeSelectionEvidence,
+import { formCsharpAuthoredTypeSelectionSource, bindCsharpAuthoredTypeSelectionSource, resolveFormedAuthoredAndSelectedSourceType,
+  resolveSourceTypeDependency, type CsharpAuthoredTypeSelectionSource, type CsharpAuthoredTypeSelectionEvidence,
   type CsharpSourceTypeDependency } from "./selected-values.js";
 import { nextState } from "./state.js";
 
 type CollectedMember = CsharpCollectedObjectShapeMembers["members"][number];
 
+export interface CsharpStructuralPropertySource {
+  readonly kind: "property";
+  readonly sourceType: Type;
+  readonly queries: SourceFileSemantics;
+  readonly authored: readonly CsharpAuthoredTypeSelectionSource[];
+  readonly numericInitializers: readonly (Node | undefined)[] | undefined;
+}
+
 export interface CsharpStructuralPropertyApplication {
   readonly kind: "property";
+  readonly source: CsharpStructuralPropertySource;
   readonly authored: readonly CsharpAuthoredTypeSelectionEvidence[];
   readonly numericInitializers: readonly (CsharpSourceTypeDependency | undefined)[] | undefined;
   readonly selected: CsharpSourceTypeDependency;
 }
 
 export interface CsharpStructuralMemberApplication {
+  readonly capture: CsharpStructuralMemberSource;
   readonly source: CollectedMember;
   readonly type:
     | { readonly kind: "method"; readonly dependency: CsharpSourceTypeDependency }
@@ -36,7 +46,18 @@ export interface CsharpStructuralMemberApplication {
   }[];
 }
 
+export interface CsharpStructuralMemberSource {
+  readonly source: CsharpObjectShapeMembersSource["members"][number];
+  readonly type: { readonly kind: "method"; readonly type: Type } | CsharpStructuralPropertySource;
+}
+
+export interface CsharpStructuralTypeCapture {
+  readonly collection: CsharpObjectShapeMembersSource;
+  readonly members: readonly CsharpStructuralMemberSource[];
+}
+
 export interface CsharpStructuralTypeSource {
+  readonly capture: CsharpStructuralTypeCapture;
   readonly collection: CsharpCollectedObjectShapeMembers;
   readonly members: readonly CsharpStructuralMemberApplication[];
 }
@@ -76,16 +97,44 @@ export function formCsharpStructuralPropertyApplication(
     readonly declarationValues: readonly { readonly declaration: Node; readonly value: Node | undefined }[];
   },
 ): CsharpStructuralPropertyApplication {
+  return bindCsharpStructuralPropertySource(formCsharpStructuralPropertySource(scope, {
+    ...source, sourceStorageSubject: source.state.sourceStorageSubject,
+  }), source.state);
+}
+
+export function formCsharpStructuralPropertySource(
+  scope: { readonly host: CsharpTypePolicyBaseHost },
+  source: {
+    readonly sourceType: Type;
+    readonly queries: SourceFileSemantics;
+    readonly sourceStorageSubject: CsharpTypeResolutionState["sourceStorageSubject"];
+    readonly authoredTypeNodes: readonly Node[];
+    readonly numeric: boolean;
+    readonly declarationValues: readonly { readonly declaration: Node; readonly value: Node | undefined }[];
+  },
+): CsharpStructuralPropertySource {
   const { sourceType, queries } = source;
   const sourceFile = queries.sourceFile;
-  const state = Object.freeze(nextState(source.state));
-  return Object.freeze({ kind: "property",
-    authored: Object.freeze(source.authoredTypeNodes.map(node => formAuthoredAndSelectedSourceType(
-      scope, node, scope.host.ast.getSourceFile(node) ?? sourceFile, sourceType, sourceFile, state))),
+  return Object.freeze({ kind: "property", sourceType, queries,
+    authored: Object.freeze(source.authoredTypeNodes.map(node => formCsharpAuthoredTypeSelectionSource(
+      scope, node, scope.host.ast.getSourceFile(node) ?? sourceFile, sourceType, sourceFile, source.sourceStorageSubject))),
     numericInitializers: !source.numeric ? undefined : Object.freeze(source.declarationValues.map(({ value }) =>
       value === undefined || scope.host.literalValues.literalValue.get(value)?.number !== undefined
-        ? undefined : Object.freeze({ kind: "node" as const, node: value, sourceFile, state }))),
-    selected: Object.freeze({ kind: "type", type: sourceType, sourceFile, state }),
+        ? undefined : value)),
+  });
+}
+
+export function bindCsharpStructuralPropertySource(
+  source: CsharpStructuralPropertySource,
+  state: CsharpTypeResolutionState,
+): CsharpStructuralPropertyApplication {
+  const childState = Object.freeze(nextState(state));
+  const sourceFile = source.queries.sourceFile;
+  return Object.freeze({ kind: "property", source,
+    authored: Object.freeze(source.authored.map(authored => bindCsharpAuthoredTypeSelectionSource(authored, childState))),
+    numericInitializers: source.numericInitializers === undefined ? undefined : Object.freeze(source.numericInitializers.map(node =>
+      node === undefined ? undefined : Object.freeze({ kind: "node" as const, node, sourceFile, state: childState }))),
+    selected: Object.freeze({ kind: "type", type: source.sourceType, sourceFile, state: childState }),
   });
 }
 
@@ -93,20 +142,43 @@ export function formCsharpStructuralTypeApplication(
   scope: Pick<CsharpTypeResolutionScope, "host">,
   collection: CsharpCollectedObjectShapeMembers,
 ): CsharpStructuralTypeSource {
-  const { sourceFile } = collection;
-  const valueState = Object.freeze(nextState(collection.state));
-  const members = collection.members.map((source): CsharpStructuralMemberApplication => {
-    const type: CsharpStructuralMemberApplication["type"] = source.method
-      ? Object.freeze({ kind: "method", dependency: Object.freeze({ kind: "type", type: source.propertyType,
-          sourceFile, state: Object.freeze(nextState(source.state)),
-        }) })
-      : formCsharpStructuralPropertyApplication(scope, {
-          sourceType: source.propertyType, queries: collection.queries, state: source.state,
+  return bindCsharpStructuralTypeCapture(formCsharpStructuralTypeCapture(scope, collection.source), collection);
+}
+
+export function formCsharpStructuralTypeCapture(
+  scope: Pick<CsharpTypeResolutionScope, "host">,
+  collection: CsharpObjectShapeMembersSource,
+): CsharpStructuralTypeCapture {
+  const members = collection.members.map((source): CsharpStructuralMemberSource => Object.freeze({ source,
+    type: source.method ? Object.freeze({ kind: "method", type: source.propertyType })
+      : formCsharpStructuralPropertySource(scope, {
+          sourceType: source.propertyType, queries: collection.queries, sourceStorageSubject: source.sourceStorageSubject,
           authoredTypeNodes: source.authoredTypeNodes, declarationValues: source.declarationValues,
           numeric: source.authoredTypeNodes.length === 0 &&
             (collection.queries.types.isNumberLike(source.propertyType) || collection.queries.types.isBigIntLike(source.propertyType)),
-        });
-    return Object.freeze({ source, type,
+        }),
+  }));
+  return Object.freeze({ collection, members: Object.freeze(members) });
+}
+
+export function bindCsharpStructuralTypeCapture(
+  capture: CsharpStructuralTypeCapture,
+  collection: CsharpCollectedObjectShapeMembers,
+): CsharpStructuralTypeSource {
+  if (collection.source !== capture.collection || collection.members.length !== capture.members.length ||
+    collection.members.some((member, index) => member.source !== capture.members[index]?.source)) {
+    return failTargetAnalysisInvariant("tsonic-csharp", "Structural state binding requires its exact ordered source collection.");
+  }
+  const { sourceFile } = collection;
+  const valueState = Object.freeze(nextState(collection.state));
+  const members = collection.members.map((source, index): CsharpStructuralMemberApplication => {
+    const member = capture.members[index]!;
+    const type: CsharpStructuralMemberApplication["type"] = member.type.kind === "method"
+      ? Object.freeze({ kind: "method", dependency: Object.freeze({ kind: "type", type: member.type.type,
+          sourceFile, state: Object.freeze(nextState(source.state)),
+        }) })
+      : bindCsharpStructuralPropertySource(member.type, source.state);
+    return Object.freeze({ capture: member, source, type,
       value: source.value === undefined ? undefined : Object.freeze({
         kind: "node" as const, node: source.value, sourceFile, state: valueState,
       }),
@@ -115,7 +187,7 @@ export function formCsharpStructuralTypeApplication(
       }))),
     });
   });
-  return Object.freeze({ collection, members: Object.freeze(members) });
+  return Object.freeze({ capture, collection, members: Object.freeze(members) });
 }
 
 export function bindCsharpStructuralTypeApplication(
@@ -152,8 +224,10 @@ export function resolveCsharpStructuralMemberChildren(
 ): CsharpCompletedStructuralMemberChildren | undefined {
   const member = application.members[memberIndex];
   if (application.source.collection !== application.collection || application.source.members !== application.members ||
+    application.source.capture !== application.capture || application.capture.collection !== application.collection.source ||
     application.members.length !== application.collection.members.length ||
-    member === undefined || application.collection.members[memberIndex] !== member.source) {
+    member === undefined || application.collection.members[memberIndex] !== member.source ||
+    member.capture !== application.capture.members[memberIndex] || member.capture.source !== member.source.source) {
     failTargetAnalysisInvariant("tsonic-csharp", "Structural child completion requires its exact ordered source member.");
   }
   const inheritance = scope.host.structuralTypes.memberInheritance(application, memberIndex);

@@ -36,6 +36,7 @@ import { resolveSelectedDeclarationResult as resolveSelectedDeclarationResultImp
 import { resolveFormedCsharpTypeReferenceNode as resolveTypeReferenceNodeImplementation, resolveCheckerTransformedSourceType as resolveCheckerTransformedSourceTypeImplementation, resolveStandardSourceTypeTransformation as resolveStandardSourceTypeTransformationImplementation, resolveSignatureParameterListTarget as resolveSignatureParameterListTargetImplementation, resolveEvidenceNodesToCommonTarget as resolveEvidenceNodesToCommonTargetImplementation, resolveCompositionalSourceTypeAlias as resolveCompositionalSourceTypeAliasImplementation, targetPreservesAuthoredSourcePrimitiveFacts as targetPreservesAuthoredSourcePrimitiveFactsImplementation, collectTargetSourcePrimitiveNames as collectTargetSourcePrimitiveNamesImplementation, resolveSourceValueDeclaration as resolveSourceValueDeclarationImplementation } from "./source-references.js";
 import { resolveSourceCallInstantiation as resolveSourceCallInstantiationImplementation, resolveSourceCallSelectedType as resolveSourceCallSelectedTypeImplementation, resolveSourceCallableContractType as resolveSourceCallableContractTypeImplementation, inferSourceCallTargetTypeArguments as inferSourceCallTargetTypeArgumentsImplementation, sourceCallSelectedDeclaration as sourceCallSelectedDeclarationImplementation, resolveSourceCallReceiverTargetType as resolveSourceCallReceiverTargetTypeImplementation, sourceCallableTypeParametersMatch as sourceCallableTypeParametersMatchImplementation, sourceValueDeclaration as sourceValueDeclarationImplementation, sourceValueDeclarationSyntax as sourceValueDeclarationSyntaxImplementation } from "./calls.js";
 import { resolveAuthoredAndSelectedSourceType as resolveAuthoredAndSelectedSourceTypeImplementation,
+  formCsharpAuthoredTypeSelectionSource, bindCsharpAuthoredTypeSelectionSource,
   resolveFormedAuthoredAndSelectedSourceType, type CsharpAuthoredTypeSelectionEvidence } from "./selected-values.js";
 import { resolveFormedCsharpSemanticTypeSource, resolveProviderType as resolveProviderTypeImplementation, resolveFormedCsharpSemanticTypeArguments } from "./semantic-types.js";
 import { resolveSourceProfileType as resolveSourceProfileTypeImplementation, resolveUnionType as resolveUnionTypeImplementation, resolveCallableType as resolveCallableTypeImplementation, resolveCallableEvidence as resolveCallableEvidenceImplementation, resolveSignatureParameterEvidence as resolveSignatureParameterEvidenceImplementation, resolveSourceTypeComponentEvidence as resolveSourceTypeComponentEvidenceImplementation } from "./source-profiles.js";
@@ -46,6 +47,7 @@ import { formCsharpProjectSemanticSource, resolveFormedCsharpProjectSemanticType
   formCsharpSelectedSymbolSource, resolveFormedCsharpSelectedSymbolType } from "./project-types.js";
 import { createCsharpTypeResolutionQueryCache } from "./query-cache.js";
 import { bindCsharpStructuralTypeApplication, formCsharpStructuralTypeApplication,
+  formCsharpStructuralTypeCapture, bindCsharpStructuralTypeCapture,
   resolveCsharpStructuralMemberChildren, resolveCsharpStructuralPropertyType } from "./structural-applications.js";
 import { formCsharpNodeQuerySource, formCsharpTypeQuerySource,
   formCsharpNodeTypeSource, formCsharpSemanticTypeSource,
@@ -61,6 +63,12 @@ type DropScope<Arguments extends readonly unknown[]> =
   Arguments extends readonly [unknown, ...infer Rest] ? Rest : never;
 
 export interface CsharpTypeResolutionServices {
+  readonly authoredSelectionSource: (...args: DropScope<Parameters<typeof formCsharpAuthoredTypeSelectionSource>>) =>
+    ReturnType<typeof formCsharpAuthoredTypeSelectionSource>;
+  readonly bindAuthoredSelection: typeof bindCsharpAuthoredTypeSelectionSource;
+  readonly structuralTypeCapture: (...args: DropScope<Parameters<typeof formCsharpStructuralTypeCapture>>) =>
+    ReturnType<typeof formCsharpStructuralTypeCapture>;
+  readonly bindStructuralTypeCapture: typeof bindCsharpStructuralTypeCapture;
   readonly directFactsSource: (...args: DropScope<Parameters<typeof formCsharpDirectSourceEvidence>>) =>
     ReturnType<typeof formCsharpDirectSourceEvidence>;
   readonly completeDirectFacts: typeof completeCsharpDirectSourceEvidence;
@@ -413,6 +421,12 @@ export function createCsharpTypeResolutionServices(
     },
   });
   return Object.freeze({ policy, recursive,
+    authoredSelectionSource: (...args: DropScope<Parameters<typeof formCsharpAuthoredTypeSelectionSource>>) =>
+      formCsharpAuthoredTypeSelectionSource(scope, ...args),
+    bindAuthoredSelection: bindCsharpAuthoredTypeSelectionSource,
+    structuralTypeCapture: (...args: DropScope<Parameters<typeof formCsharpStructuralTypeCapture>>) =>
+      formCsharpStructuralTypeCapture(scope, ...args),
+    bindStructuralTypeCapture: bindCsharpStructuralTypeCapture,
     directFactsSource: (...args: DropScope<Parameters<typeof formCsharpDirectSourceEvidence>>) =>
       formCsharpDirectSourceEvidence(scope, ...args),
     completeDirectFacts: completeCsharpDirectSourceEvidence,
