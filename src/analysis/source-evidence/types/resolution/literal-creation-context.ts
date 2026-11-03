@@ -50,7 +50,7 @@ export function formCsharpLiteralCreationContextSource(
 ): CsharpLiteralCreationContextSource {
   if (context !== undefined && context.creation !== creation) return failTargetAnalysisInvariant("tsonic-csharp",
     "Literal completion requires the canonical selection from its exact source occurrence.", creation.expression);
-  if (inputs.length !== creation.contexts.length || inputs.some((input, index) => input.context !== creation.contexts[index])) {
+  if (inputs.length !== creation.contexts.length || creation.contexts.some((original, index) => inputs[index]?.context !== original)) {
     return failTargetAnalysisInvariant("tsonic-csharp",
       "Literal context completion requires every ordered original source context.", creation.expression);
   }
