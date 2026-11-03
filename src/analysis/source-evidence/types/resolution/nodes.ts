@@ -28,6 +28,8 @@ import { resolveFormedCsharpProjectInstanceTargetType } from "./project-instance
 import { resolveFormedCsharpCallableType } from "./source-profiles.js";
 import { assertCsharpTupleTypeNodeSource,
   type CsharpTupleTypeNodeSource } from "./tuple-node-source.js";
+import { assertCsharpNodeSyntaxChildSource, assertCsharpNodeTypeSyntaxSource,
+  type CsharpNodeSyntaxChildSource } from "./node-syntax-source.js";
 import type { CsharpSourceCallResult } from "../../../../target-model/operations/source-call-results.js";
 import { csharpSourceValueResult, refineCsharpSourceValueResult } from "./call-results.js";
 export function resolveNodeValueWithState(
@@ -91,6 +93,12 @@ export function resolveFormedCsharpNodeTypeSource(
       "A tuple-type node requires its exact ordered syntax and bound Source children.", source.node);
   }
   if (source.kind === "node") assertCsharpTupleTypeNodeSource(source.tupleType);
+  if (source.kind === "node" && (source.syntax === undefined || source.syntax.node !== source.node ||
+      source.syntax.queries !== source.queries || source.syntax.state !== source.state)) {
+    return failTargetAnalysisInvariant("tsonic-csharp",
+      "A node requires its exact annotation and nested-type Source selections.", source.node);
+  }
+  if (source.kind === "node") assertCsharpNodeTypeSyntaxSource(source.syntax);
   if (source.kind === "node" && (source.value === undefined || (source.selectedType === undefined ? source.selectedValue !== undefined
     : source.selectedValue === undefined || source.selectedValue.node !== source.node ||
       source.selectedValue.queries !== source.queries || source.selectedValue.selectedType !== source.selectedType ||
@@ -129,15 +137,7 @@ function resolveNodeResultWithState(
       code: "CSHARP_ARRAY_ELEMENT_CARRIER_MISMATCH", reason: selection.reason }));
     return selection.kind === "resolved" ? csharpSourceValueResult(selection.carrier) : undefined;
   }
-  if (host.ast.is.IsPropertyDeclaration(node) || host.ast.is.IsPropertySignatureDeclaration(node) ||
-    host.ast.is.IsParameterDeclaration(node)) {
-    const typeNode = host.ast.typeNode(node);
-    if (typeNode !== undefined) {
-      const declared = resolveNodeWithState(typeNode, queries.sourceFile, nextState(state));
-      return csharpSourceValueResult(declared === undefined || host.ast.questionToken(node) === undefined
-        ? declared : csharpNullableTargetType(declared));
-    }
-  }
+  if (source.syntax.annotation !== undefined) return resolveFormedCsharpNodeSyntaxChild(scope, source.syntax.annotation);
   const contextualParameter = resolveFormedCsharpContextualParameterCarrier(scope, source.contextualParameter, state);
   if (contextualParameter.kind !== "not-applicable") return contextualParameter.kind === "resolved"
     ? csharpSourceValueResult(contextualParameter.type) : undefined;
@@ -184,45 +184,7 @@ function resolveNodeResultWithState(
     return csharpSourceValueResult(scope.sourceUnions.retain(carrier,
       members.map((member, index) => ({ source: sourceMembers[index]!, carrier: member! })), queries, state));
   }
-  if (host.ast.is.IsNamedTupleMember(node)) {
-    return scope.resolveNodeValueWithState(
-      host.ast.as.AsNamedTupleMember(node)!.Type,
-      queries.sourceFile,
-      nextState(state),
-    );
-  }
-  if (host.ast.is.IsParenthesizedTypeNode(node)) {
-    return scope.resolveNodeValueWithState(
-      host.ast.as.AsParenthesizedTypeNode(node)!.Type,
-      queries.sourceFile,
-      nextState(state),
-    );
-  }
-  if (host.ast.is.IsOptionalTypeNode(node)) {
-    const inner = resolveNodeWithState(
-      host.ast.as.AsOptionalTypeNode(node)!.Type,
-      queries.sourceFile,
-      nextState(state),
-    );
-    return inner === undefined ? undefined : csharpSourceValueResult(csharpNullableTargetType(inner));
-  }
-  if (host.ast.is.IsRestTypeNode(node)) {
-    return scope.resolveNodeValueWithState(
-      host.ast.as.AsRestTypeNode(node)!.Type,
-      queries.sourceFile,
-      nextState(state),
-    );
-  }
-  if (
-    host.ast.is.IsTypeOperatorNode(node) &&
-    host.ast.operatorKindName(node) === "KindReadonlyKeyword"
-  ) {
-    return scope.resolveNodeValueWithState(
-      host.ast.as.AsTypeOperatorNode(node)!.Type,
-      queries.sourceFile,
-      nextState(state),
-    );
-  }
+  if (source.syntax.nested !== undefined) return resolveFormedCsharpNodeSyntaxChild(scope, source.syntax.nested);
   if (host.ast.is.IsTypeQueryNode(node)) {
     const expression = host.ast.as.AsTypeQueryNode(node)?.ExprName;
     const reference = host.navigation.referenceFor(expression);
@@ -273,6 +235,20 @@ export function resolveFormedCsharpArrayTypeNode(
     ? resolveTypeWithState(source.fallback.type, source.fallback.sourceFile, source.fallback.state)
     : selectedCsharpSourceProfileOwner(host.target) === "js" ? csharpJsArrayTargetType(element)
       : { kind: "array", element };
+}
+
+export function resolveFormedCsharpNodeSyntaxChild(
+  scope: Pick<CsharpTypeResolutionScope, "resolveNodeWithState" | "resolveNodeValueWithState">,
+  source: CsharpNodeSyntaxChildSource,
+): CsharpSourceCallResult | undefined {
+  assertCsharpNodeSyntaxChildSource(source);
+  const { child } = source;
+  if (source.kind === "annotation" || source.kind === "optional") {
+    const type = scope.resolveNodeWithState(child.node, child.sourceFile, child.state);
+    return csharpSourceValueResult(type === undefined || source.kind === "annotation" && !source.nullable
+      ? type : csharpNullableTargetType(type));
+  }
+  return scope.resolveNodeValueWithState(child.node, child.sourceFile, child.state);
 }
 
 function resolveFallbackNodeCarrier(
