@@ -216,6 +216,7 @@ export function finalizeCsharpNativeEmission(
   if (callableParameters.issues.length !== 0) return rejectedTargetStage(callableParameters.issues);
   const boxSites: { readonly node: Node; readonly carrier: TargetTypeRef }[] = [];
   const objectShapeClosure = analyzeCsharpNativeArtifactDemand({
+    runtimeSources: request.project.runtimeSources,
     ast: source.ast, sourceFiles, propertyNames: sourceSyntax.propertyNames,
     nativeDemand, participation: nativeParticipation.participation,
     sourceStorage,
