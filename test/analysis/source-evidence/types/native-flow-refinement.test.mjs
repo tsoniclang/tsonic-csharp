@@ -11,6 +11,7 @@ import { csharpRuntimeUnionTargetType, getCsharpRuntimeUnionArms } from "../../.
 import { resolveCsharpInstanceType } from "../../../../dist/analysis/source-evidence/types/resolution/instance-tests.js";
 import { resolveSelectedValueWithState, resolveSelectedValueResultWithState } from "../../../../dist/analysis/source-evidence/types/resolution/public-api.js";
 import { csharpSourceValueResult } from "../../../../dist/analysis/source-evidence/types/resolution/call-results.js";
+import { sourceValueDeclarationSyntax } from "../../../../dist/analysis/source-evidence/types/resolution/calls.js";
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../../dist/target-model/types/carriers/nullable.js";
 import { targetTypeRefEquals } from "../../../../dist/target-model/types/equality.js";
 import { createCsharpSourceUnionIndex } from "../../../../dist/analysis/source-evidence/types/resolution/source-unions.js";
@@ -149,6 +150,7 @@ test("selected native values materialize all surviving exact union arms and reta
     host: {
       ast: source.ast, navigation: source.navigation, sourceFacts: source.sourceFacts,
       semantics: selectedFile => source.semantics.forFile(selectedFile),
+      hasSemantics: selectedFile => selectedFile === file,
       semanticsFor: node => source.semantics.forNode(node),
       representations: { genericProjections: () => [], scopedTargetType: node => node === declaration ? storage : undefined },
       structuralTypes: { resolveTarget: carrier => targetTypeRefEquals(carrier, packet) ? shape : undefined },
@@ -156,9 +158,10 @@ test("selected native values materialize all surviving exact union arms and reta
       closedTypeGuard: () => undefined,
     },
     sourceValueDeclaration: (_node, referenced) => referenced,
+    sourceValueDeclarationSyntax: node => sourceValueDeclarationSyntax({ host: scope.host }, node),
     resolveSelectedValueResultWithState: (...args) => resolveSelectedValueResultWithState(scope, ...args),
-    resolveSourceValueResult(node) {
-      assert.equal(source.navigation.referenceFor(node)?.declaration === declaration, true,
+    resolveFormedSourceValueResult(input) {
+      assert.equal(input.selection.declaration === declaration, true,
         "the completed native result belongs to this checked parameter read");
       return csharpSourceValueResult(storage);
     },
@@ -215,6 +218,7 @@ function guardedArraySelection(body) {
     host: {
       ast: source.ast, navigation: source.navigation, sourceFacts: source.sourceFacts,
       semantics: selectedFile => source.semantics.forFile(selectedFile),
+      hasSemantics: selectedFile => selectedFile === file,
       semanticsFor: node => source.semantics.forNode(node),
       representations: { genericProjections: () => [], scopedTargetType: node => node === declaration ? storage : undefined },
       structuralTypes: { resolveTarget: () => undefined },
@@ -227,9 +231,10 @@ function guardedArraySelection(body) {
       },
     },
     sourceValueDeclaration: (_node, referenced) => referenced,
+    sourceValueDeclarationSyntax: node => sourceValueDeclarationSyntax({ host: scope.host }, node),
     resolveSelectedValueResultWithState: (...args) => resolveSelectedValueResultWithState(scope, ...args),
-    resolveSourceValueResult(node) {
-      assert.equal(source.navigation.referenceFor(node)?.declaration === declaration, true,
+    resolveFormedSourceValueResult(input) {
+      assert.equal(input.selection.declaration === declaration, true,
         "the completed native result belongs to this checked parameter read");
       return csharpSourceValueResult(storage);
     },
@@ -295,17 +300,19 @@ test("exact nominal subclass evidence remains authoritative inside a native guar
     host: {
       ast: source.ast, navigation: source.navigation, sourceFacts: source.sourceFacts,
       semantics: selectedFile => source.semantics.forFile(selectedFile),
+      hasSemantics: selectedFile => selectedFile === file,
       semanticsFor: node => source.semantics.forNode(node),
       representations: { genericProjections: () => [], scopedTargetType: node => node === declaration ? storage : undefined },
-      projectTypeCatalog: { definitionForTarget: carrier => targetTypeRefEquals(carrier, child) ? { kind: "class" } : undefined },
+      projectTypeCatalog: { declarationForTarget: carrier => targetTypeRefEquals(carrier, child) ? { kind: "class" } : undefined },
       structuralTypes: { resolveTarget: () => undefined },
       sourceStorage: createSourceStorageQuery(source, [file]),
       closedTypeGuard: () => undefined,
     },
     sourceValueDeclaration: (_node, referenced) => referenced,
+    sourceValueDeclarationSyntax: node => sourceValueDeclarationSyntax({ host: scope.host }, node),
     resolveSelectedValueResultWithState: (...args) => resolveSelectedValueResultWithState(scope, ...args),
-    resolveSourceValueResult(node) {
-      assert.equal(source.navigation.referenceFor(node)?.declaration === declaration, true,
+    resolveFormedSourceValueResult(input) {
+      assert.equal(input.selection.declaration === declaration, true,
         "the completed native result belongs to this checked parameter read");
       return csharpSourceValueResult(storage);
     },
