@@ -35,6 +35,9 @@ import { resolveSelectedExpressionType as resolveSelectedExpressionTypeImplement
 import { resolveSelectedDeclarationResult as resolveSelectedDeclarationResultImplementation, resolveProjectEnumMemberTarget as resolveProjectEnumMemberTargetImplementation, declarationResultTypeNode as declarationResultTypeNodeImplementation } from "./declarations.js";
 import { resolveFormedCsharpTypeReferenceNode as resolveTypeReferenceNodeImplementation, resolveCheckerTransformedSourceType as resolveCheckerTransformedSourceTypeImplementation, resolveStandardSourceTypeTransformation as resolveStandardSourceTypeTransformationImplementation, resolveSignatureParameterListTarget as resolveSignatureParameterListTargetImplementation, resolveEvidenceNodesToCommonTarget as resolveEvidenceNodesToCommonTargetImplementation, resolveCompositionalSourceTypeAlias as resolveCompositionalSourceTypeAliasImplementation, targetPreservesAuthoredSourcePrimitiveFacts as targetPreservesAuthoredSourcePrimitiveFactsImplementation, collectTargetSourcePrimitiveNames as collectTargetSourcePrimitiveNamesImplementation, resolveSourceValueDeclaration as resolveSourceValueDeclarationImplementation } from "./source-references.js";
 import { resolveSourceCallInstantiation as resolveSourceCallInstantiationImplementation, resolveSourceCallSelectedType as resolveSourceCallSelectedTypeImplementation, resolveSourceCallableContractType as resolveSourceCallableContractTypeImplementation, inferSourceCallTargetTypeArguments as inferSourceCallTargetTypeArgumentsImplementation, sourceCallSelectedDeclaration as sourceCallSelectedDeclarationImplementation, resolveSourceCallReceiverTargetType as resolveSourceCallReceiverTargetTypeImplementation, sourceCallableTypeParametersMatch as sourceCallableTypeParametersMatchImplementation, sourceValueDeclaration as sourceValueDeclarationImplementation, sourceValueDeclarationSyntax as sourceValueDeclarationSyntaxImplementation } from "./calls.js";
+import { completeCsharpSourceCallableType, completeCsharpSourceCallReceiver } from "./calls.js";
+import { completeCsharpSourceCallableTypeSource } from "./call-type-source.js";
+import { completeCsharpSelectedReceiver } from "./receiver-completions.js";
 import { resolveAuthoredAndSelectedSourceType as resolveAuthoredAndSelectedSourceTypeImplementation,
   formCsharpAuthoredTypeSelectionSource, bindCsharpAuthoredTypeSelectionSource,
   resolveFormedAuthoredAndSelectedSourceType, type CsharpAuthoredTypeSelectionEvidence } from "./selected-values.js";
@@ -98,6 +101,9 @@ export interface CsharpTypeResolutionServices {
   readonly completeCallArgumentParameter: (...args: DropScope<Parameters<typeof completeCsharpSourceCallArgumentParameter>>) =>
     ReturnType<typeof completeCsharpSourceCallArgumentParameter>;
   readonly completeCallArgumentParameterSource: typeof completeCsharpSourceCallArgumentParameterSource;
+  readonly completeSourceCallableType: (...args: DropScope<Parameters<typeof completeCsharpSourceCallableType>>) =>
+    ReturnType<typeof completeCsharpSourceCallableType>;
+  readonly completeSourceCallableTypeSource: typeof completeCsharpSourceCallableTypeSource;
   readonly literalCreationContextSource: typeof formCsharpLiteralCreationContextSource;
   readonly completeLiteralCreationContext: (...args: DropScope<Parameters<typeof resolveFormedCsharpLiteralCreationContext>>) =>
     ReturnType<typeof resolveFormedCsharpLiteralCreationContext>;
@@ -260,6 +266,8 @@ export function createCsharpTypeResolutionServices(
       resolveProjectThisTargetTypeImplementation(scope, ...args),
     resolveSelectedReceiverTargetType: (...args: DropScope<Parameters<typeof resolveSelectedReceiverTargetTypeImplementation>>) =>
       resolveSelectedReceiverTargetTypeImplementation(scope, ...args),
+    completeSelectedReceiver: (...args: DropScope<Parameters<typeof completeCsharpSelectedReceiver>>) =>
+      completeCsharpSelectedReceiver(scope, ...args),
     resolveSourceOwnedConstructionResult: (...args: DropScope<Parameters<typeof resolveSourceOwnedConstructionResultImplementation>>) =>
       resolveSourceOwnedConstructionResultImplementation(scope, ...args),
     optionalAccessTargetType: optionalAccessTargetTypeImplementation,
@@ -295,12 +303,16 @@ export function createCsharpTypeResolutionServices(
       resolveSourceCallSelectedTypeImplementation(scope, ...args),
     resolveSourceCallableContractType: (...args: DropScope<Parameters<typeof resolveSourceCallableContractTypeImplementation>>) =>
       resolveSourceCallableContractTypeImplementation(scope, ...args),
+    completeSourceCallableType: (...args: DropScope<Parameters<typeof completeCsharpSourceCallableType>>) =>
+      completeCsharpSourceCallableType(scope, ...args),
     inferSourceCallTargetTypeArguments: (...args: DropScope<Parameters<typeof inferSourceCallTargetTypeArgumentsImplementation>>) =>
       inferSourceCallTargetTypeArgumentsImplementation(scope, ...args),
     sourceCallSelectedDeclaration: (...args: DropScope<Parameters<typeof sourceCallSelectedDeclarationImplementation>>) =>
       sourceCallSelectedDeclarationImplementation(scope, ...args),
     resolveSourceCallReceiverTargetType: (...args: DropScope<Parameters<typeof resolveSourceCallReceiverTargetTypeImplementation>>) =>
       resolveSourceCallReceiverTargetTypeImplementation(scope, ...args),
+    completeSourceCallReceiver: (...args: DropScope<Parameters<typeof completeCsharpSourceCallReceiver>>) =>
+      completeCsharpSourceCallReceiver(scope, ...args),
     resolveSourceCallContract: (...args: DropScope<Parameters<typeof resolveSourceCallContractImplementation>>) =>
       resolveSourceCallContractImplementation(scope, ...args),
     sourceCallableTypeParametersMatch: (...args: DropScope<Parameters<typeof sourceCallableTypeParametersMatchImplementation>>) =>
@@ -464,6 +476,8 @@ export function createCsharpTypeResolutionServices(
     completeCallArgumentParameter: (...args: DropScope<Parameters<typeof completeCsharpSourceCallArgumentParameter>>) =>
       completeCsharpSourceCallArgumentParameter(scope, ...args),
     completeCallArgumentParameterSource: completeCsharpSourceCallArgumentParameterSource,
+    completeSourceCallableType: methods.completeSourceCallableType,
+    completeSourceCallableTypeSource: completeCsharpSourceCallableTypeSource,
     literalCreationContextSource: formCsharpLiteralCreationContextSource,
     completeLiteralCreationContext: (...args: DropScope<Parameters<typeof resolveFormedCsharpLiteralCreationContext>>) =>
       resolveFormedCsharpLiteralCreationContext(scope, ...args),

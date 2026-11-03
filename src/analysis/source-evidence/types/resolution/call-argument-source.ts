@@ -6,6 +6,7 @@ import { csharpTargetParameterValueType } from "../../../../target-model/types/m
 import { csharpSourceCallArgumentParameter } from "../../../../policy/types/callables/source-callable-contract.js";
 import type { CsharpSourceCallContractSelection, CsharpSourceCallContractSource } from "./call-contracts.js";
 import type { CsharpTypeResolutionState } from "./model.js";
+import type { CsharpSourceCallableTypeInput, CsharpSourceCallableTypeCompletion } from "./call-type-source.js";
 
 type SelectedContract = Exclude<CsharpSourceCallContractSelection, { readonly kind: "rejected" }>;
 type NativeParameter = NonNullable<ReturnType<typeof csharpSourceCallArgumentParameter>>;
@@ -23,7 +24,8 @@ export type CsharpSourceCallArgumentParameterRequest = {
   | { readonly kind: "contract"; readonly state: CsharpTypeResolutionState }
   | { readonly kind: "parameters"; readonly selection: SelectedContract; readonly callable: SourceCallableContract }
   | { readonly kind: "contracted"; readonly selection: SelectedContract; readonly callable: SourceCallableContract;
-      readonly parameter: NativeParameter; readonly state: CsharpTypeResolutionState }
+      readonly parameter: NativeParameter; readonly state: CsharpTypeResolutionState;
+      readonly typeInput: CsharpSourceCallableTypeInput }
   | { readonly kind: "checked"; readonly selection: SelectedContract; readonly state: CsharpTypeResolutionState }
 );
 
@@ -32,7 +34,8 @@ export type CsharpCompletedSourceCallArgumentParameterRequest = {
 } & (
   | { readonly kind: "contract"; readonly selection: CsharpSourceCallContractSelection }
   | { readonly kind: "parameters"; readonly matches: boolean }
-  | { readonly kind: "contracted" | "checked"; readonly type: TargetTypeRef | undefined }
+  | { readonly kind: "contracted"; readonly completion: CsharpSourceCallableTypeCompletion | undefined }
+  | { readonly kind: "checked"; readonly type: TargetTypeRef | undefined }
 );
 
 export type CsharpSourceCallArgumentParameterCompletion = {
@@ -40,7 +43,7 @@ export type CsharpSourceCallArgumentParameterCompletion = {
   readonly selection: SelectedContract;
   readonly type: TargetTypeRef;
 } & (
-  | { readonly kind: "contracted"; readonly parameter: NativeParameter }
+  | { readonly kind: "contracted"; readonly parameter: NativeParameter; readonly completion: CsharpSourceCallableTypeCompletion }
   | { readonly kind: "checked" }
 );
 
@@ -71,14 +74,20 @@ export function* completeCsharpSourceCallArgumentParameterSource(
     if (parameters.request !== parametersRequest || parameters.kind !== "parameters") return failTargetAnalysisInvariant("tsonic-csharp",
       "Argument completion requires its exact checked parameter dependency.", input.source.call);
     if (!parameters.matches) return undefined;
+    const state = Object.freeze({ depth: 0 });
+    const typeInput = Object.freeze({ source: input.source, callable, type: contractedParameter.targetParameter.type,
+      sourceFile: input.sourceFile, state, excludedSourceArgumentIndexes });
     const typeRequest = Object.freeze({ kind: "contracted" as const, association, selection, callable,
-      parameter: contractedParameter, state: Object.freeze({ depth: 0 }) });
+      parameter: contractedParameter, state, typeInput });
     const completed = yield typeRequest;
     if (completed.request !== typeRequest || completed.kind !== "contracted") return failTargetAnalysisInvariant("tsonic-csharp",
       "Argument completion requires its exact contracted type dependency.", input.source.call);
-    if (completed.type === undefined) return undefined;
-    const type = csharpTargetParameterValueType({ ...contractedParameter.targetParameter, type: completed.type }, binding.sourceForm);
-    return Object.freeze({ association, selection, kind: "contracted", parameter: contractedParameter, type });
+    const completion = completed.completion;
+    if (completion === undefined) return undefined;
+    if (completion.input !== typeInput) return failTargetAnalysisInvariant("tsonic-csharp",
+      "Argument completion requires its exact retained callable type input.", input.source.call);
+    const type = csharpTargetParameterValueType({ ...contractedParameter.targetParameter, type: completion.type }, binding.sourceForm);
+    return Object.freeze({ association, selection, kind: "contracted", parameter: contractedParameter, completion, type });
   }
   if (callable !== undefined) return undefined;
   if (selection.kind === "value") return undefined;
