@@ -1,12 +1,12 @@
 import { canonicalCsharpObjectShapeImplementedTypes, canonicalCsharpObjectShapeMembers, csharpObjectMethodValueStorageKey, csharpObjectShapeMemberContractKey } from "./object-shape-identity.js";
 import { targetTypeRefEquals } from "./equality.js";
-import type { CsharpObjectShapeFact, TargetTypeRef } from "./model.js";
+import type { CsharpObjectShapeContract, TargetTypeRef } from "./model.js";
 import { csharpSourceMemberKeysEqual } from "./source-member-keys.js";
 import { csharpOwnerTypeParameterConstraintKey } from "./generic-constraints.js";
 
 export function csharpObjectShapesEqual(
-  left: CsharpObjectShapeFact,
-  right: CsharpObjectShapeFact,
+  left: CsharpObjectShapeContract,
+  right: CsharpObjectShapeContract,
 ): boolean {
   const leftMembers = canonicalCsharpObjectShapeMembers(left.members);
   const rightMembers = canonicalCsharpObjectShapeMembers(right.members);

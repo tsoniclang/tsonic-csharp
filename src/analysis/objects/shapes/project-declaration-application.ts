@@ -12,6 +12,7 @@ import type { CsharpObjectShapePolicyHost, CsharpRecursiveObjectShapePolicy } fr
 import type { CsharpDeclaredObjectShapeSource, CsharpObjectShapeSourceMember } from "./shape-source.js";
 import type { CsharpProjectDeclarationShapeSource } from "./project-declaration-source.js";
 import type { createCsharpObjectShapeSourceFormation } from "./type-source.js";
+import { completeCsharpObjectShapeOwnerHeader } from "../../../target-model/types/object-shape-header.js";
 
 export type CsharpProjectDeclarationApplication = {
   readonly targetType: CsharpTargetNamedTypeRef;
@@ -31,14 +32,8 @@ export function createCsharpProjectDeclarationApplications(
 ) {
   function nativeOwner(type: CsharpTargetNamedTypeRef): CsharpTargetNamedTypeRef | undefined {
     const definition = host.projectTypeCatalog.definitionForTarget(type);
-    if (definition?.kind !== "class" && definition?.kind !== "interface" || type.typeArguments === undefined) return type;
-    const arguments_ = type.typeArguments.map(argument => {
-      if (argument.kind !== "type-parameter") return argument;
-      const constraints = host.typeParameterConstraints(argument);
-      return constraints.kind === "resolved" ? Object.freeze({ ...argument, csharpConstraints: constraints }) : undefined;
-    });
-    return arguments_.some(argument => argument === undefined) ? undefined
-      : { ...type, typeArguments: Object.freeze(arguments_ as readonly TargetTypeRef[]) };
+    return completeCsharpObjectShapeOwnerHeader(type, definition?.kind === "class" || definition?.kind === "interface",
+      host.typeParameterConstraints);
   }
 
   function formDeclarationApplication(

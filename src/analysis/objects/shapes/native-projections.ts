@@ -10,7 +10,8 @@ import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../../target
 import { csharpObjectShapeMethodDeclaration, csharpPresentObjectShapeMethod } from "../../../target-model/types/method-values.js";
 import { csharpObjectMethodHasFixedNativeExposure } from "../../../policy/types/objects/object-members.js";
 import { createStructuralObjectShapeTarget, formCsharpObjectShapeMergeInput,
-  formCsharpObjectShapeSourceMerge, mergeCsharpObjectShapeSubjects } from "./construction.js";
+  formCsharpObjectShapeProofRows, formCsharpObjectShapeSourceMerge, mergeCsharpObjectShapeSubjects } from "./construction.js";
+import { formCsharpObjectShapeHeader } from "../../../target-model/types/object-shape-header.js";
 import { csharpObjectMethodValueIsExtracted, resolveCsharpWritableMethodContract } from "./method-values.js";
 import { projectCsharpNativeSourceStorageCarrier } from "../value-domain-carriers.js";
 import { createCsharpMetadataBudget } from "../../../target-model/metadata/immutable.js";
@@ -127,8 +128,10 @@ export function createCsharpNativeShapeProjections(
         ...(signature.sourceDeclarations === undefined ? {} : { sourceDeclarations: signature.sourceDeclarations }),
         ...(signature.sourceTypes === undefined ? {} : { sourceTypes: signature.sourceTypes }),
       }) };
-      const source = formCsharpObjectShapeSourceMerge(formCsharpObjectShapeMergeInput(protocol, correspondence));
-      protocols.set(key, mergeCsharpObjectShapeSubjects(source));
+      const header = formCsharpObjectShapeMergeInput(formCsharpObjectShapeHeader(protocol), formCsharpObjectShapeHeader(correspondence));
+      const source = formCsharpObjectShapeSourceMerge(header,
+        formCsharpObjectShapeProofRows(header.left, protocol), formCsharpObjectShapeProofRows(header.right, correspondence));
+      protocols.set(key, mergeCsharpObjectShapeSubjects(source, protocol, correspondence));
     }
     for (const protocol of protocols.values()) rememberTargetShape(protocol);
     const members = shape.members.map(member => {

@@ -1,41 +1,125 @@
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpObjectShapeFact, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
+import type { CsharpObjectShapeInstantiationHeader } from "../../../policy/types/objects/instantiation.js";
+import { requireCsharpObjectShapeHeader, type CsharpObjectShapeHeader } from "../../../target-model/types/object-shape-header.js";
 import { formCsharpObjectShapeMergeInput, formCsharpObjectShapeSourceMerge,
-  mergeCsharpObjectShapeSubjects, type CsharpObjectShapeSourceMerge } from "./construction.js";
+  formCsharpObjectShapeProofRows, requireCsharpObjectShapeProofRows, mergeCsharpObjectShapeSubjects, type CsharpObjectShapeMergeInput,
+  type CsharpObjectShapeProofRows, type CsharpObjectShapeSourceMerge } from "./construction.js";
+import { formMemberInstantiationEvidence, type CsharpObjectShapeMemberInstantiationSource } from "./member-instantiation.js";
+import type { Type } from "@tsonic/tsts";
+import type { SourceFileSemantics } from "@tsonic/target-api/source";
 
-export type CsharpObjectShapePublicationInput =
-  | { readonly kind: "initial"; readonly incoming: CsharpObjectShapeFact }
-  | { readonly kind: "merge"; readonly incoming: CsharpObjectShapeFact;
-      readonly previous: CsharpObjectShapeFact; readonly merge: CsharpObjectShapeSourceMerge };
+export type CsharpObjectShapePublicationHeader =
+  | { readonly kind: "initial"; readonly incoming: CsharpObjectShapeHeader; readonly output: CsharpObjectShapeHeader }
+  | { readonly kind: "merge"; readonly incoming: CsharpObjectShapeHeader;
+      readonly previous: CsharpObjectShapeHeader; readonly merge: CsharpObjectShapeMergeInput;
+      readonly output: CsharpObjectShapeHeader };
+
+export type CsharpObjectShapePublicationSource = {
+  readonly header: CsharpObjectShapePublicationHeader;
+  readonly incoming: CsharpObjectShapeProofRows;
+  readonly output: CsharpObjectShapeProofRows;
+} & (
+  | { readonly kind: "initial" }
+  | { readonly kind: "merge"; readonly previous: CsharpObjectShapeProofRows;
+      readonly merge: CsharpObjectShapeSourceMerge }
+);
 
 export interface CsharpObjectShapePublication {
-  readonly input: CsharpObjectShapePublicationInput;
+  readonly header: CsharpObjectShapeHeader;
+  readonly source: CsharpObjectShapePublicationSource;
   readonly shape: CsharpObjectShapeFact;
 }
 
 export type CsharpObjectShapeTargetSelection = {
   readonly type: TargetTypeRef;
-  readonly shape: CsharpObjectShapeFact;
+  readonly header: CsharpObjectShapeHeader;
 } & (
   | { readonly kind: "canonical"; readonly publication: CsharpObjectShapePublication }
   | { readonly kind: "template"; readonly template: CsharpObjectShapePublication;
-      readonly owner: CsharpTargetNamedTypeRef; readonly instance: CsharpObjectShapeFact }
+      readonly owner: CsharpTargetNamedTypeRef; readonly instantiation: CsharpObjectShapeInstantiationHeader }
   | { readonly kind: "attached"; readonly shapes: readonly (CsharpObjectShapeFact | undefined)[]; readonly index: number }
   | { readonly kind: "nullable"; readonly selection: CsharpObjectShapeTargetSelection }
 );
 
-export function formCsharpObjectShapePublication(
-  incoming: CsharpObjectShapeFact,
-  previous: CsharpObjectShapePublication | undefined,
-): CsharpObjectShapePublicationInput {
-  if (previous === undefined) return Object.freeze({ kind: "initial", incoming });
-  const merge = formCsharpObjectShapeSourceMerge(formCsharpObjectShapeMergeInput(previous.shape, incoming));
-  return Object.freeze({ kind: "merge", incoming, previous: previous.shape, merge });
+export interface CsharpObjectShapeTargetSource {
+  readonly selection: CsharpObjectShapeTargetSelection;
+  readonly rows: CsharpObjectShapeProofRows;
+  readonly instantiation: CsharpObjectShapeMemberInstantiationSource | undefined;
 }
 
-export function completeCsharpObjectShapePublication(input: CsharpObjectShapePublicationInput): CsharpObjectShapePublication {
-  if (input.kind === "merge" && (input.merge.input.left !== input.previous || input.merge.input.right !== input.incoming)) {
-    return failTargetAnalysisInvariant("tsonic-csharp", "Shape publication requires the same selected previous and incoming occurrences.");
+function selectedSourceRows(selection: CsharpObjectShapeTargetSelection): CsharpObjectShapeProofRows {
+  if (selection.kind === "nullable") return selectedSourceRows(selection.selection);
+  if (selection.kind === "canonical") return selection.publication.source.output;
+  if (selection.kind === "attached") {
+    const shape = selection.shapes[selection.index];
+    if (shape === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+      "Attached shape source requires the exact header-selected slot.");
+    return formCsharpObjectShapeProofRows(selection.header, shape);
   }
-  return Object.freeze({ input, shape: input.kind === "initial" ? input.incoming : mergeCsharpObjectShapeSubjects(input.merge) });
+  const template = selection.template.source.output;
+  return formCsharpObjectShapeProofRows(selection.header, { sourceType: template.sourceType,
+    members: template.members, declarationTemplate: template.declarationTemplate ?? template,
+  });
+}
+
+export function formCsharpObjectShapeTargetSource(
+  selection: CsharpObjectShapeTargetSelection,
+  type: Type | undefined,
+  queries: SourceFileSemantics | undefined,
+): CsharpObjectShapeTargetSource {
+  const rows = selectedSourceRows(selection);
+  if (rows.header !== selection.header) return failTargetAnalysisInvariant("tsonic-csharp",
+    "Selected shape source requires the identical immutable header occurrence.");
+  if (type !== undefined && queries === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+    "Selected shape proof requires its original checked query owner.");
+  const instantiation = type === undefined ? undefined : formMemberInstantiationEvidence(Object.freeze({
+    members: rows.members, type, queries: queries!, previousSourceType: rows.sourceType,
+  }));
+  return Object.freeze({ selection, rows, instantiation });
+}
+
+export function formCsharpObjectShapePublication(
+  incoming: CsharpObjectShapeHeader,
+  previous: CsharpObjectShapeHeader | undefined,
+): CsharpObjectShapePublicationHeader {
+  if (previous === undefined) return Object.freeze({ kind: "initial", incoming, output: incoming });
+  const merge = formCsharpObjectShapeMergeInput(previous, incoming);
+  return Object.freeze({ kind: "merge", incoming, previous, merge, output: merge.output });
+}
+
+export function formCsharpObjectShapePublicationSource(
+  header: CsharpObjectShapePublicationHeader,
+  incoming: CsharpObjectShapeProofRows,
+  previous: CsharpObjectShapeProofRows | undefined,
+): CsharpObjectShapePublicationSource {
+  if (incoming.header !== header.incoming) return failTargetAnalysisInvariant("tsonic-csharp",
+    "Shape source publication requires its exact incoming header.");
+  if (header.kind === "initial") {
+    if (previous !== undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+      "Initial shape source publication requires genuine previous absence.");
+    return Object.freeze({ kind: "initial", header, incoming, output: incoming });
+  }
+  if (previous?.header !== header.previous) return failTargetAnalysisInvariant("tsonic-csharp",
+    "Shape source publication requires the same selected previous header.");
+  const merge = formCsharpObjectShapeSourceMerge(header.merge, previous, incoming);
+  return Object.freeze({ kind: "merge", header, incoming, previous, merge, output: merge.output });
+}
+
+export function completeCsharpObjectShapePublication(
+  source: CsharpObjectShapePublicationSource,
+  incoming: CsharpObjectShapeFact,
+  previous: CsharpObjectShapeFact | undefined,
+): CsharpObjectShapePublication {
+  requireCsharpObjectShapeHeader(source.header.incoming, incoming);
+  requireCsharpObjectShapeProofRows(source.incoming, incoming);
+  if (source.kind === "initial") {
+    if (previous !== undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+      "Initial native shape publication requires genuine previous absence.");
+    return Object.freeze({ header: source.header.output, source, shape: incoming });
+  }
+  if (previous === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+    "Native shape publication requires its original selected previous occurrence.");
+  return Object.freeze({ header: source.header.output, source,
+    shape: mergeCsharpObjectShapeSubjects(source.merge, previous, incoming) });
 }

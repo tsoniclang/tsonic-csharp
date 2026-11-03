@@ -15,6 +15,7 @@ import type { CsharpCollectedObjectShapeMembers } from "./member-source.js";
 import type { CsharpObjectShapeNodeSource } from "./node-source.js";
 import type { CsharpObjectShapeTypeSource } from "./type-source.js";
 import type { CsharpStructuralNodeSourceInput, CsharpStructuralTypeSourceInput } from "../../source-evidence/types/resolution/root-sources.js";
+import type { CsharpNativeConstructionRetention } from "../native-construction-source.js";
 import type { CsharpCompletedStructuralMemberChildren, CsharpStructuralMemberInheritance,
   CsharpStructuralTypeApplication, CsharpStructuralTypeSource } from "../../source-evidence/types/resolution/structural-applications.js";
 
@@ -57,7 +58,8 @@ export interface CsharpRecursiveObjectShapePolicy extends CsharpObjectShapePolic
     contextNode: Node, sourceFile: SourceFile): CsharpProjectConstructionSource;
   completeProjectConstructionSource(source: CsharpProjectConstructionSource,
     targetType: TargetTypeRef): CsharpProjectConstructibleTypeProjection;
-  retainConstructionSource(node: Node, type: Type, shape: CsharpObjectShapeFact, sourceFile: SourceFile): CsharpObjectShapeFact | undefined;
+  retainConstructionSource(source: CsharpNativeConstructionRetention<CsharpStructuralTypeSourceInput>,
+    shape: CsharpObjectShapeFact): CsharpObjectShapeFact | undefined;
   resolveReference(type: Type): TargetTypeRef | undefined;
   resolveUnion(type: Type, sourceFile: SourceFile, state: CsharpTypeResolutionState): CsharpStructuralUnionResolution;
   resolveNodeWithState(

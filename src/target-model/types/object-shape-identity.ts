@@ -1,4 +1,4 @@
-import type { CsharpObjectMethodValueStorage, CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "./model.js";
+import type { CsharpObjectMethodValueStorage, CsharpObjectShapeContract, CsharpObjectShapeMemberContract, TargetTypeRef } from "./model.js";
 
 export const csharpStructuralObjectShapeIdPrefix = "tsonic.shape:";
 
@@ -17,7 +17,7 @@ import { getCsharpDelegateSignature } from "./carriers/delegates.js";
 import { getCsharpNullableElementTargetType } from "./carriers/nullable.js";
 
 export function csharpObjectShapeMemberContractParts(
-  member: CsharpObjectShapeMemberFact,
+  member: CsharpObjectShapeMemberContract,
 ): readonly string[] {
   return [
     ...csharpSourceMemberKeyParts(member.sourceKey),
@@ -35,7 +35,7 @@ export function csharpObjectShapeMemberContractParts(
   ];
 }
 
-export function csharpObjectShapeMemberTypeKey(member: CsharpObjectShapeMemberFact): string {
+export function csharpObjectShapeMemberTypeKey(member: CsharpObjectShapeMemberContract): string {
   const parameters = member.typeParameters ?? [];
   const boundParameters = new Map(parameters.map((parameter, index) => [parameter.identity, index]));
   const physical = scopedTargetTypeRefKey(member.type, boundParameters);
@@ -57,7 +57,7 @@ export function csharpObjectShapeMemberTypeKey(member: CsharpObjectShapeMemberFa
 }
 
 export function csharpObjectShapeMemberContractKey(
-  member: CsharpObjectShapeMemberFact,
+  member: CsharpObjectShapeMemberContract,
 ): string {
   return JSON.stringify(csharpObjectShapeMemberContractParts(member));
 }
@@ -68,7 +68,7 @@ export function csharpObjectMethodValueStorageKey(storage: CsharpObjectMethodVal
 }
 
 export function csharpObjectShapeContractKey(
-  shape: CsharpObjectShapeFact,
+  shape: CsharpObjectShapeContract,
 ): string {
   return JSON.stringify([
     targetTypeRefKey(shape.targetType),
@@ -87,9 +87,9 @@ export function csharpObjectShapeContractKey(
   ]);
 }
 
-export function canonicalCsharpObjectShapeMembers(
-  members: readonly CsharpObjectShapeMemberFact[],
-): readonly CsharpObjectShapeMemberFact[] {
+export function canonicalCsharpObjectShapeMembers<Member extends CsharpObjectShapeMemberContract>(
+  members: readonly Member[],
+): readonly Member[] {
   return [...members].sort((left, right) =>
     csharpObjectShapeMemberContractKey(left).localeCompare(
       csharpObjectShapeMemberContractKey(right),

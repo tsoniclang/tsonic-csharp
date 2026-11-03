@@ -24,7 +24,8 @@ import { retainCsharpGenericCallableValue } from "../../callables/generics/gener
 
 import type { CsharpObjectShapePolicyHost, CsharpRecursiveObjectShapePolicy } from "./model.js";
 
-import { instantiateCsharpObjectShape } from "../../../policy/types/objects/instantiation.js";
+import { completeCsharpObjectShapeInstantiation, formCsharpObjectShapeInstantiationHeader,
+  instantiateCsharpObjectShape } from "../../../policy/types/objects/instantiation.js";
 
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { createCsharpLiteralShapeResolver } from "./literal-construction.js";
@@ -36,7 +37,12 @@ import { createCsharpProjectDeclarationApplications } from "./project-declaratio
 import { completeCsharpStructShapeSource, type CsharpStructShapeSource } from "./struct-source.js";
 import type { CsharpStructuralNodeSourceInput, CsharpStructuralTypeSourceInput } from "../../source-evidence/types/resolution/root-sources.js";
 import { completeCsharpObjectShapePublication, formCsharpObjectShapePublication,
-  type CsharpObjectShapePublication, type CsharpObjectShapeTargetSelection } from "./publication.js";
+  formCsharpObjectShapePublicationSource, formCsharpObjectShapeTargetSource,
+  type CsharpObjectShapePublication, type CsharpObjectShapeTargetSelection,
+  type CsharpObjectShapeTargetSource } from "./publication.js";
+import { completeCsharpObjectShapeOwnerHeader, formCsharpObjectShapeHeader } from "../../../target-model/types/object-shape-header.js";
+import { formCsharpObjectShapeProofRows, requireCsharpObjectShapeProofRows } from "./construction.js";
+import type { CsharpNativeConstructionRetention } from "../native-construction-source.js";
 
 export function createCsharpObjectShapePolicy(
   host: CsharpObjectShapePolicyHost,
@@ -107,12 +113,14 @@ export function createCsharpObjectShapePolicy(
       const selectedTarget = input.classDeclaration
         ? host.typeResolver.resolveType(source.type, queries.sourceFile, input.nativeState)
         : host.typeResolver.resolveNode(node, queries.sourceFile, input.nativeState);
-      const selectedShape = resolveTarget(selectedTarget);
-      if (selectedShape !== undefined && source.type !== undefined &&
-        (!input.objectLiteral || selectedShape.constructible === true)) {
-        const actualType = input.objectLiteral ? input.selection.type : source.type;
-        const members = actualType === undefined ? undefined
-          : instantiateMemberEvidence(selectedShape.members, actualType, queries, selectedShape.sourceType);
+      const header = resolveTargetSelection(selectedTarget);
+      const actualType = header === undefined || source.type === undefined ||
+        input.objectLiteral && header.header.contract.constructible !== true
+        ? undefined : input.objectLiteral ? input.selection.type : source.type;
+      const selectedSource = header === undefined ? undefined : formCsharpObjectShapeTargetSource(header, actualType, queries);
+      const selectedShape = selectedSource === undefined ? undefined : completeTargetSelection(selectedSource);
+      if (selectedShape !== undefined && selectedSource?.instantiation !== undefined) {
+        const members = instantiateMemberEvidence(selectedShape.members, selectedSource.instantiation);
         if (members !== undefined) return state.sourceBindings === undefined
           ? remember(node, { ...selectedShape, sourceType: actualType, members })
           : rememberTargetShape({ ...selectedShape, sourceType: actualType, members });
@@ -135,7 +143,20 @@ export function createCsharpObjectShapePolicy(
   function resolveTarget(
     type: TargetTypeRef | undefined,
   ): CsharpObjectShapeFact | undefined {
-    return resolveTargetSelection(type)?.shape;
+    const header = resolveTargetSelection(type);
+    return header === undefined ? undefined : completeTargetSelection(formCsharpObjectShapeTargetSource(header, undefined, undefined));
+  }
+
+  function completeTargetSelection(source: CsharpObjectShapeTargetSource): CsharpObjectShapeFact {
+    const complete = (selection: CsharpObjectShapeTargetSelection): CsharpObjectShapeFact => {
+      if (selection.kind === "nullable") return complete(selection.selection);
+      if (selection.kind === "canonical") return selection.publication.shape;
+      if (selection.kind === "attached") return selection.shapes[selection.index]!;
+      return rememberTargetShape(completeCsharpObjectShapeInstantiation(selection.instantiation, selection.template.shape));
+    };
+    const shape = complete(source.selection);
+    requireCsharpObjectShapeProofRows(source.rows, shape);
+    return shape;
   }
 
   function resolveTargetSelection(type: TargetTypeRef | undefined): CsharpObjectShapeTargetSelection | undefined {
@@ -145,22 +166,23 @@ export function createCsharpObjectShapePolicy(
     const nullableElement = getCsharpNullableElementTargetType(type);
     if (nullableElement !== undefined) {
       const selection = resolveTargetSelection(nullableElement);
-      return selection === undefined ? undefined : Object.freeze({ kind: "nullable", type, selection, shape: selection.shape });
+      return selection === undefined ? undefined : Object.freeze({ kind: "nullable", type, selection, header: selection.header });
     }
     const direct = targetShapes.get(targetTypeRefKey(type));
     if (direct !== undefined) {
-      return Object.freeze({ kind: "canonical", type, publication: direct, shape: direct.shape });
+      return Object.freeze({ kind: "canonical", type, publication: direct, header: direct.header });
     }
     if (type.kind !== "target-named") {
       return undefined;
     }
     const template = genericShapes.get(type.id);
     if (template !== undefined) {
-      const owner = nativeProjectOwner(type);
+      const owner = completeCsharpObjectShapeOwnerHeader(type,
+        type.csharpSourceDeclarationKind === "class" || type.csharpSourceDeclarationKind === "interface", environment);
       if (owner === undefined) return undefined;
-      const selected = instantiateCsharpObjectShape(template.shape, owner);
-      if (selected !== undefined) return Object.freeze({ kind: "template", type, template, owner,
-        instance: selected, shape: rememberTargetShape(selected) });
+      const instantiation = formCsharpObjectShapeInstantiationHeader(template.header, owner);
+      if (instantiation !== undefined) return Object.freeze({ kind: "template", type, template, owner,
+        instantiation, header: instantiation.header });
     }
     const union = type as Partial<CsharpRuntimeUnionTargetTypeRef>;
     const arms = union.csharpRuntimeUnionArms;
@@ -172,7 +194,7 @@ export function createCsharpObjectShapePolicy(
       (shape): shape is CsharpObjectShapeFact => shape !== undefined,
     );
     return present.length === 1 ? Object.freeze({ kind: "attached", type, shapes,
-      index: shapes.indexOf(present[0]!), shape: present[0]! }) : undefined;
+      index: shapes.indexOf(present[0]!), header: formCsharpObjectShapeHeader(present[0]!) }) : undefined;
   }
 
   function resolveType(
@@ -272,7 +294,10 @@ export function createCsharpObjectShapePolicy(
         `excerpt ${JSON.stringify(existingContract.slice(start, end))}; ` +
         `incoming length ${incomingContract.length}, excerpt ${JSON.stringify(incomingContract.slice(start, end))}.`);
     }
-    const completed = completeCsharpObjectShapePublication(formCsharpObjectShapePublication(shape, publication));
+    const header = formCsharpObjectShapePublication(formCsharpObjectShapeHeader(shape), publication?.header);
+    const source = formCsharpObjectShapePublicationSource(header,
+      formCsharpObjectShapeProofRows(header.incoming, shape), publication?.source.output);
+    const completed = completeCsharpObjectShapePublication(source, shape, existing);
     const canonical = completed.shape;
     targetShapes.set(key, completed);
     if (canonical.targetType.kind === "target-named" &&
@@ -424,10 +449,6 @@ export function createCsharpObjectShapePolicy(
     return resolveProjectDeclarationShape(targetType, state);
   }
 
-  function nativeProjectOwner(type: CsharpTargetNamedTypeRef): CsharpTargetNamedTypeRef | undefined {
-    return declarationApplications.nativeOwner(type);
-  }
-
   function resolveProjectDeclarationShape(
     targetType: CsharpTargetNamedTypeRef,
     state: CsharpTypeResolutionState,
@@ -474,8 +495,11 @@ export function createCsharpObjectShapePolicy(
     completeSourceMembers,
     resolveNativeParameter,
     resolveNativeReturn,
-    retainConstructionSource(node: Node, type: Type, shape: CsharpObjectShapeFact, sourceFile: SourceFile): CsharpObjectShapeFact | undefined {
-      const queries = host.semantics(sourceFile);
+    retainConstructionSource(input: CsharpNativeConstructionRetention<CsharpStructuralTypeSourceInput>, shape: CsharpObjectShapeFact): CsharpObjectShapeFact | undefined {
+      const { node, queries, presentTypes } = input.publication;
+      if (presentTypes.length !== 1) return failTargetAnalysisInvariant("tsonic-csharp",
+        "Construction source retention requires its exact single-component publication.", node);
+      const type = presentTypes[0]!;
       const members = instantiateMemberEvidence(shape.members, type, queries, shape.sourceType);
       return members === undefined ? undefined : remember(node, { ...shape, sourceType: type, members });
     },

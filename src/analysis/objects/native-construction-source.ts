@@ -4,7 +4,7 @@ import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpTypePolicyBaseHost } from "../source-evidence/types/resolution/model.js";
 import { formCsharpLiteralCreationSource, selectCsharpLiteralCreationContext,
   type CsharpLiteralCreationSelection, type CsharpLiteralCreationSource } from "./literal-creation-source.js";
-import type { CsharpLiteralCreationContextSource } from "../source-evidence/types/resolution/literal-creation-context.js";
+import type { CsharpLiteralCreationContextSource, CsharpLiteralCreationContextTarget } from "../source-evidence/types/resolution/literal-creation-context.js";
 import { formCsharpNativeConstructionPublicationSource,
   type CsharpNativeConstructionPublicationInput, type CsharpNativeConstructionPublicationSource } from "./native-construction-publication.js";
 import { formCsharpNativeConstructionMemberSource,
@@ -15,6 +15,11 @@ type CsharpNativeConstructionSourceHost = Pick<CsharpTypePolicyBaseHost,
 
 export interface CsharpNativeConstructionPublication<ShapeSource extends object> extends CsharpNativeConstructionPublicationSource {
   readonly originalShape: ShapeSource | undefined;
+}
+
+export interface CsharpNativeConstructionRetention<ShapeSource extends object> {
+  readonly publication: CsharpNativeConstructionPublication<ShapeSource>;
+  readonly context: CsharpLiteralCreationContextTarget | undefined;
 }
 
 export interface CsharpLocalConstructionSource<ShapeSource extends object> {

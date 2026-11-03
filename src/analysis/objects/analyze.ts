@@ -17,7 +17,8 @@ import type { CsharpTargetOperationClassifications } from "../../target-model/re
 import type { CsharpObjectShapeAnalysis, CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
 import { collectCsharpInheritedInterfaces, selectCsharpStructuralInterface, type CsharpStructuralInterfaceRegistration } from "./structural-interfaces.js";
 import { formCsharpObjectShapeMergeInput, formCsharpObjectShapeSourceMerge,
-  mergeCsharpObjectShapeSubjects } from "./shapes/construction.js";
+  formCsharpObjectShapeProofRows, mergeCsharpObjectShapeSubjects } from "./shapes/construction.js";
+import { formCsharpObjectShapeHeader } from "../../target-model/types/object-shape-header.js";
 import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
 import { csharpTargetTypeComponents } from "../../target-model/types/components.js";
 import type { CsharpStructuralInterfaceImplementation, CsharpTargetNamedTypeRef } from "../../target-model/types/model.js";
@@ -142,8 +143,10 @@ export function analyzeCsharpObjectShapes(
       reserveClassification();
       byTarget.set(key, shape);
     } else {
-      const source = formCsharpObjectShapeSourceMerge(formCsharpObjectShapeMergeInput(previous, shape));
-      const merged = mergeCsharpObjectShapeSubjects(source);
+      const header = formCsharpObjectShapeMergeInput(formCsharpObjectShapeHeader(previous), formCsharpObjectShapeHeader(shape));
+      const source = formCsharpObjectShapeSourceMerge(header,
+        formCsharpObjectShapeProofRows(header.left, previous), formCsharpObjectShapeProofRows(header.right, shape));
+      const merged = mergeCsharpObjectShapeSubjects(source, previous, shape);
       byTarget.set(key, merged);
     }
     enqueuePhysicalType(shape.targetType);
@@ -174,8 +177,10 @@ export function analyzeCsharpObjectShapes(
       reserveClassification();
       byTarget.set(key, shape);
     } else {
-      const source = formCsharpObjectShapeSourceMerge(formCsharpObjectShapeMergeInput(previous, shape));
-      const merged = mergeCsharpObjectShapeSubjects(source);
+      const header = formCsharpObjectShapeMergeInput(formCsharpObjectShapeHeader(previous), formCsharpObjectShapeHeader(shape));
+      const source = formCsharpObjectShapeSourceMerge(header,
+        formCsharpObjectShapeProofRows(header.left, previous), formCsharpObjectShapeProofRows(header.right, shape));
+      const merged = mergeCsharpObjectShapeSubjects(source, previous, shape);
       byTarget.set(key, merged);
     }
     enqueuePhysicalType(type);

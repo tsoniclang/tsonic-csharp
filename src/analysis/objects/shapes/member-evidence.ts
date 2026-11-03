@@ -1,7 +1,7 @@
 import type { Node, Type, TypePropertyInfo } from "@tsonic/tsts";
 import { ObjectLiteralProperty_Value, sourcePropertyTypeEvidenceNodes, sourceTransformedTypeFactEvidenceNodes, type SourceFileSemantics } from "@tsonic/target-api/source";
 import type { CsharpObjectShapePolicyHost } from "./model.js";
-import type { CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../target-model/types/model.js";
+import type { CsharpObjectShapeMemberContract, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpTypePolicyBaseHost, CsharpTypeResolutionState } from "../../source-evidence/types/resolution/model.js";
 import { csharpNullableTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
@@ -19,6 +19,25 @@ import type { CsharpCompletedStructuralMemberChildren, CsharpStructuralMemberApp
   CsharpStructuralTypeSource } from "../../source-evidence/types/resolution/structural-applications.js";
 import { formCsharpStructuralPropertyApplication } from "../../source-evidence/types/resolution/structural-applications.js";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
+
+export interface CsharpStructuralMemberHeader {
+  readonly application: CsharpStructuralTypeApplication;
+  readonly memberIndex: number;
+  readonly member: CsharpStructuralMemberApplication;
+  readonly children: CsharpCompletedStructuralMemberChildren;
+  readonly contract: CsharpObjectShapeMemberContract;
+}
+
+export interface CsharpStructuralMemberProofSource {
+  readonly header: CsharpStructuralMemberHeader;
+  readonly proof: CsharpObjectShapeMemberProofInput;
+}
+
+export function formCsharpStructuralMemberProofSource(
+  header: CsharpStructuralMemberHeader,
+): CsharpStructuralMemberProofSource {
+  return Object.freeze({ header, proof: header.member.source.proofInput });
+}
 
 export function formCsharpObjectShapePropertySource(
   host: CsharpTypePolicyBaseHost,
@@ -117,11 +136,11 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
     });
   }
 
-  function completeMember(
+  function formMemberHeader(
     application: CsharpStructuralTypeApplication,
     memberIndex: number,
     children: CsharpCompletedStructuralMemberChildren,
-  ): CsharpObjectShapeMemberFact | undefined {
+  ): CsharpStructuralMemberHeader | undefined {
     const member = memberApplication(application, memberIndex);
     const input = member.source;
     const { property, declarations, sourceKey, targetName, method, getters, setters, methodDeclaration, bound } = input;
@@ -153,15 +172,11 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
     const typeParameters = completeCsharpCallableTypeParameters(callableDeclaration,
       methodDeclaration === undefined ? [] : host.representations.genericProjections(methodDeclaration));
     if (typeParameters === undefined) return undefined;
-    const sourceDeclarations = input.proofInput.sourceDeclarations;
     const optional = property.optional;
     if (bound && (optional || input.nullish || method || getters.length !== 0 || setters.length !== 0)) return undefined;
-    const completed: CsharpObjectShapeMemberFact = {
+    const contract: CsharpObjectShapeMemberContract = Object.freeze({
       sourceKey,
       sourceName: csharpSourceMemberDisplayName(sourceKey),
-      sourceSubjects: input.proofInput.sourceSubjects,
-      ...(sourceDeclarations === undefined ? {} : { sourceDeclarations }),
-      sourceTypes: input.proofInput.sourceTypes,
       targetName,
       memberKind: method ? "method" : "property",
       type: optional ? csharpNullableTargetType(memberType) : memberType,
@@ -172,8 +187,31 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
       ...(property.readonly ? { readonly: true } : {}),
       ...(bound ? { bound: true as const } : {}),
       ...(getters.length === 0 ? {} : { accessor: { getter: true as const, setter: setters.length === 1 } }),
+    });
+    return Object.freeze({ application, memberIndex, member, children, contract });
+  }
+
+  function completeMemberSource(source: CsharpStructuralMemberProofSource): CsharpObjectShapeMemberFact | undefined {
+    const { header, proof } = source;
+    const member = header.member;
+    if (member.source.proofInput !== proof || header.application.members[header.memberIndex] !== member) {
+      return failTargetAnalysisInvariant("tsonic-csharp", "Member completion requires its exact header and retained source proof.");
+    }
+    const completed: CsharpObjectShapeMemberFact = { ...header.contract,
+      sourceSubjects: proof.sourceSubjects,
+      ...(proof.sourceDeclarations === undefined ? {} : { sourceDeclarations: proof.sourceDeclarations }),
+      sourceTypes: proof.sourceTypes,
     };
-    return retainMemberDeclarationEvidence([completed], [input.proofInput])?.[0];
+    return retainMemberDeclarationEvidence([completed], [proof])?.[0];
+  }
+
+  function completeMember(
+    application: CsharpStructuralTypeApplication,
+    memberIndex: number,
+    children: CsharpCompletedStructuralMemberChildren,
+  ): CsharpObjectShapeMemberFact | undefined {
+    const header = formMemberHeader(application, memberIndex, children);
+    return header === undefined ? undefined : completeMemberSource(formCsharpStructuralMemberProofSource(header));
   }
 
   function completeMembers(
@@ -253,7 +291,8 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
       : { kind: "unresolved", reason: "Inherited project member declarations have incompatible native carrier instantiations." };
   }
 
-  return { formMembersSource, collectMembers, memberInheritance, completeMember, completeMembers, completeSourceMembers,
+  return { formMembersSource, collectMembers, memberInheritance, formMemberHeader, completeMemberSource,
+    completeMember, completeMembers, completeSourceMembers,
     formMemberInstantiationEvidence, completeMemberInstantiationEvidence, instantiateMemberEvidence,
     formLiteralMemberEvidence: (node: Node, queries: SourceFileSemantics) => formLiteralMemberEvidence(host, node, queries),
     projectLiteralMemberEvidence, retainMemberDeclarationEvidence, resolvePropertyType, retainLiteralMemberEvidence };

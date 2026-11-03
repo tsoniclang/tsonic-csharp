@@ -29,13 +29,9 @@ export interface CsharpObjectShapeMemberEvidence {
   readonly correspondence: SourceStructuralMemberPair;
 }
 
-export interface CsharpObjectShapeMemberFact {
+export interface CsharpObjectShapeMemberContract {
   readonly sourceKey: CsharpSourceMemberKey;
   readonly sourceName: string;
-  readonly sourceSubjects?: readonly ExtensionFactSubject[];
-  readonly sourceDeclarations?: readonly Node[];
-  readonly sourceTypes?: readonly Type[];
-  readonly sourceMemberEvidence?: readonly CsharpObjectShapeMemberEvidence[];
   readonly targetName: string;
   readonly memberKind: "property" | "method";
   readonly type: TargetTypeRef;
@@ -57,12 +53,18 @@ export interface CsharpObjectShapeMemberFact {
   readonly bound?: true;
 }
 
-export interface CsharpObjectShapeFact {
+export interface CsharpObjectShapeMemberFact extends CsharpObjectShapeMemberContract {
+  readonly sourceSubjects?: readonly ExtensionFactSubject[];
+  readonly sourceDeclarations?: readonly Node[];
+  readonly sourceTypes?: readonly Type[];
+  readonly sourceMemberEvidence?: readonly CsharpObjectShapeMemberEvidence[];
+}
+
+export interface CsharpObjectShapeContract {
   readonly targetType: TargetTypeRef;
-  readonly sourceType?: Type;
-  readonly declarationTemplate?: CsharpObjectShapeFact;
+  readonly declarationTemplate?: CsharpObjectShapeContract;
   readonly covariantTypeParameterIdentities?: readonly string[];
-  readonly members: readonly CsharpObjectShapeMemberFact[];
+  readonly members: readonly CsharpObjectShapeMemberContract[];
   readonly implements?: readonly TargetTypeRef[];
   readonly constructible?: boolean;
   readonly methodImplementation?: {
@@ -78,6 +80,12 @@ export interface CsharpObjectShapeFact {
       readonly initialization: CsharpCaptureInitialization;
     }[];
   };
+}
+
+export interface CsharpObjectShapeFact extends CsharpObjectShapeContract {
+  readonly sourceType?: Type;
+  readonly declarationTemplate?: CsharpObjectShapeFact;
+  readonly members: readonly CsharpObjectShapeMemberFact[];
 }
 
 export interface CsharpSourceTargetTypeBinding {

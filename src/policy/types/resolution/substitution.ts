@@ -1,5 +1,5 @@
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpRuntimeUnionTargetTypeRef, CsharpTargetNamedTypeRef, CsharpTaskTargetTypeRef } from "../../../target-model/types/model.js";
+import type { CsharpObjectShapeContract, CsharpObjectShapeMemberContract, CsharpRuntimeUnionTargetTypeRef, CsharpTargetNamedTypeRef, CsharpTaskTargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpNullableTargetType, isCsharpNullableReferenceTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { getCsharpRuntimeUnionArms, isCsharpAbsenceTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
@@ -268,10 +268,10 @@ function stringListsEqual(
     leftValues.every((value, index) => value === rightValues[index]);
 }
 
-export function substituteObjectShapeFactTargetTypeParameters(
-  objectShape: CsharpObjectShapeFact | undefined,
+export function substituteObjectShapeFactTargetTypeParameters<Shape extends CsharpObjectShapeContract>(
+  objectShape: Shape | undefined,
   substitutions: ReadonlyMap<string, TargetTypeRef>,
-): CsharpObjectShapeFact | undefined {
+): Shape | undefined {
   return objectShape === undefined
     ? undefined
     : Object.freeze({
@@ -292,10 +292,10 @@ export function substituteObjectShapeFactTargetTypeParameters(
       });
 }
 
-export function substituteObjectShapeMemberTargetTypeParameters(
-  member: CsharpObjectShapeMemberFact,
+export function substituteObjectShapeMemberTargetTypeParameters<Member extends CsharpObjectShapeMemberContract>(
+  member: Member,
   substitutions: ReadonlyMap<string, TargetTypeRef>,
-): CsharpObjectShapeMemberFact {
+): Member {
   const boundParameters = new Set(member.typeParameters?.map(parameter => parameter.identity));
   const freeSubstitutions = boundParameters.size === 0 ? substitutions
     : new Map([...substitutions].filter(([identity]) => !boundParameters.has(identity)));
