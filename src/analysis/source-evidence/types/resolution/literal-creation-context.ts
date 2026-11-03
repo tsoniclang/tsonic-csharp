@@ -3,6 +3,8 @@ import type { CsharpLiteralContext, CsharpLiteralCreationSelection,
   CsharpLiteralCreationSource } from "../../../objects/literal-creation-source.js";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
+import { getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
+import { getCsharpCallableValueSignature, getCsharpTaskResultTargetType } from "../../../../target-model/types/carriers/delegates.js";
 import type { CsharpSourceCallContractSource } from "./call-contracts.js";
 import { completeCsharpSourceCallArgumentParameter } from "./call-api.js";
 import type { CsharpStructuralTypeSourceInput } from "./root-sources.js";
@@ -11,16 +13,18 @@ import type { CsharpTypeResolutionScope } from "./scope.js";
 export type CsharpLiteralCreationContextInput = {
   readonly context: CsharpLiteralContext;
 } & (
-  | { readonly kind: "argument"; readonly contract: CsharpSourceCallContractSource }
+  | { readonly kind: "argument"; readonly contract: CsharpSourceCallContractSource; readonly asynchronous: boolean }
   | { readonly kind: "component"; readonly source: CsharpStructuralTypeSourceInput }
+  | { readonly kind: "unavailable"; readonly selectedType: undefined }
 );
 
 export type CsharpLiteralCreationContextDependency =
   | { readonly kind: "argument"; readonly context: CsharpLiteralContext;
       readonly argument: NonNullable<CsharpLiteralContext["argument"]>;
-      readonly contract: CsharpSourceCallContractSource }
+      readonly contract: CsharpSourceCallContractSource; readonly asynchronous: boolean }
   | { readonly kind: "component"; readonly context: CsharpLiteralContext;
-      readonly source: CsharpStructuralTypeSourceInput };
+      readonly source: CsharpStructuralTypeSourceInput }
+  | { readonly kind: "unavailable"; readonly context: CsharpLiteralContext; readonly selectedType: undefined };
 
 export interface CsharpLiteralCreationContextSource {
   readonly creation: CsharpLiteralCreationSource;
@@ -53,16 +57,20 @@ export function formCsharpLiteralCreationContextSource(
   const dependencies = inputs.map((input): CsharpLiteralCreationContextDependency => {
     const argument = input.context.argument;
     if (input.kind === "argument") {
-      if (argument === undefined || input.contract.source !== argument.source ||
+      if (argument === undefined || input.asynchronous && input.context.returnedFrom === undefined ||
+        input.contract.source !== argument.source ||
         input.contract.callableSource.source !== argument.source ||
         input.contract.callableSource.sourceFile !== input.contract.sourceFile) {
         return failTargetAnalysisInvariant("tsonic-csharp",
           "Literal argument completion requires its exact checked call source.", creation.expression);
       }
-      return Object.freeze({ kind: "argument", context: input.context, argument, contract: input.contract });
+      return Object.freeze({ kind: "argument", context: input.context, argument, contract: input.contract,
+        asynchronous: input.asynchronous });
     }
     if (argument !== undefined) return failTargetAnalysisInvariant("tsonic-csharp",
       "An argument context cannot substitute a checked component for its native formal.", creation.expression);
+    if (input.kind === "unavailable") return Object.freeze({ kind: "unavailable", context: input.context,
+      selectedType: input.selectedType });
     return Object.freeze({ kind: "component", context: input.context, source: input.source });
   });
   return Object.freeze({ creation, context, dependencies: Object.freeze(dependencies) });
@@ -92,10 +100,14 @@ export function resolveFormedCsharpLiteralCreationContext(
   let step = completion.next();
   while (!step.done) {
     const request = step.value;
-    const type = request.kind === "argument"
-      ? completeCsharpSourceCallArgumentParameter(scope, request.contract,
-          request.argument.correspondence.binding, request.argument.excludedSourceArgumentIndexes)
-      : scope.host.structuralTypes.completeTypeSource(request.source);
+    let type: TargetTypeRef | undefined;
+    if (request.kind === "argument") {
+      const parameter = completeCsharpSourceCallArgumentParameter(scope, request.contract,
+        request.argument.correspondence.binding, request.argument.excludedSourceArgumentIndexes);
+      const result = request.context.returnedFrom === undefined ? parameter
+        : getCsharpCallableValueSignature(getCsharpNullableElementTargetType(parameter) ?? parameter)?.returnType;
+      type = request.asynchronous ? getCsharpTaskResultTargetType(result) : result;
+    } else if (request.kind === "component") type = scope.host.structuralTypes.completeTypeSource(request.source);
     step = completion.next(Object.freeze({ request, type }));
   }
   return step.value;
