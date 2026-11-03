@@ -24,6 +24,7 @@ import type { CsharpCollectedObjectShapeMembers } from "../../../objects/shapes/
 import type { CsharpCompletedStructuralMemberChildren, CsharpStructuralPropertyApplication,
   CsharpStructuralTypeApplication, CsharpStructuralTypeSource } from "./structural-applications.js";
 import type { CsharpNodeQuerySource, CsharpTypeQuerySource, CsharpNodeTypeSource, CsharpSemanticTypeSource } from "./root-sources.js";
+import type { CsharpTypeReferenceSource } from "./type-reference-source.js";
 export interface CsharpTypeResolutionScope {
   nodeQuerySource(node: Node | undefined, sourceFile?: SourceFile): CsharpNodeQuerySource;
   completeNodeQuery(source: CsharpNodeQuerySource): CsharpNodeTypeResolution | undefined;
@@ -208,10 +209,8 @@ export interface CsharpTypeResolutionScope {
   declarationResultTypeNode(
   declaration: Node | undefined,
 ): Node | undefined;
-  resolveTypeReferenceNode(
-  node: Node,
-  queries: SourceFileSemantics,
-  state: CsharpTypeResolutionState,
+  resolveFormedTypeReferenceNode(
+  source: CsharpTypeReferenceSource,
 ): TargetTypeRef | undefined;
   resolveCheckerTransformedSourceType(
   authoredRoot: Node,

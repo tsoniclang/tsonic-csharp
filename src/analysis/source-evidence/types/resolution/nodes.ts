@@ -48,7 +48,7 @@ function resolveNodeResultWithState(
   scope: CsharpTypeResolutionScope,
   source: CsharpNodeTypeSource,
 ): CsharpSourceCallResult | undefined {
-  const { host, resolveCallableType, resolveDirectSourceFacts, resolveNodeWithState, resolveProjectThisTargetType, resolveSelectedExpressionResult, resolveSourceValueResult, resolveTupleTypeNode, resolveTypeReferenceNode, resolveTypeWithState } = scope;
+  const { host, resolveCallableType, resolveDirectSourceFacts, resolveNodeWithState, resolveProjectThisTargetType, resolveSelectedExpressionResult, resolveSourceValueResult, resolveTupleTypeNode, resolveFormedTypeReferenceNode, resolveTypeWithState } = scope;
   if (source.node === undefined) return undefined;
   if (source.state.depth > maximumTypeResolutionDepth) failTargetCompilerResourceLimit("tsonic-csharp",
     "Selected native source-node type resolution", "depth", maximumTypeResolutionDepth, source.node);
@@ -198,8 +198,8 @@ function resolveNodeResultWithState(
       ));
     }
   }
-  if (host.ast.is.IsTypeReferenceNode(node)) {
-    const resolved = resolveTypeReferenceNode(node, queries, state);
+  if (source.reference !== undefined) {
+    const resolved = resolveFormedTypeReferenceNode(source.reference);
     if (resolved !== undefined) {
       return csharpSourceValueResult(resolved);
     }
