@@ -1,4 +1,5 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 
 import type { CsharpConversionMode, CsharpConversionSelection } from "../../target-model/conversions/selection.js";
@@ -11,7 +12,7 @@ import { resolveCsharpObjectShapeMemberBySourceContract } from "../../target-mod
 import type { CsharpExpectedTypeClassifications } from "../../target-model/records/types/expected-types.js";
 import type { CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
 import type { CsharpStructuralInterfaceRegistration } from "../objects/structural-interfaces.js";
-import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
+import type { CsharpCallClassification, CsharpConstructionClassification, CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
 import type { CsharpTargetCallSelection } from "../../target-model/records/operations/member-selections.js";
 import type { CsharpBorrowedSequenceInput } from "../../target-model/records/storage/borrowed-sequences.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
@@ -27,7 +28,7 @@ import { csharpSourceTypeParameter } from "../../source/extension/type-parameter
 
 import { selectCsharpPropertyProjections } from "./property-projections.js";
 
-import { type CsharpCallConversionRequests } from "./use-admission.js";
+import type { CsharpCallConversionRequests, CsharpCallConversionRequestIndex } from "./use-admission.js";
 import type { CsharpNativeCompletion } from "../../target-model/records/native/native-demand.js";
 
 import type { CsharpExactLiteralRequestCollector } from "./literal-requests.js";
@@ -48,7 +49,76 @@ interface CsharpConversionRequirementInput {
   readonly issues: CsharpConversionIssue[];
   readonly propertyProjectionRoots: Map<Node, Map<string, TargetTypeRef>>;
   readonly propertyProjections: WeakMap<Node, ReadonlyMap<string, readonly CsharpClosedShapeMemberProjection[]>>;
-  readonly callConversions: Map<Node, CsharpCallConversionRequests>;
+  readonly callConversions: CsharpCallConversionRequestIndex;
+}
+
+export function collectCsharpInvocationConversionRequests(
+  policy: Pick<CsharpPolicyContext, "ast" | "semanticsFor">,
+  evidence: Pick<CsharpSourceEvidenceIndex, "typeParameterConstraints">,
+  node: Node,
+  call: CsharpCallClassification | undefined,
+  construction: CsharpConstructionClassification | undefined,
+): CsharpCallConversionRequests | undefined {
+  const classification = call ?? construction;
+  if (classification === undefined) return undefined;
+  const requests: CsharpCallConversionRequests["requests"][number][] = [];
+  let completion: CsharpCallConversionRequests["completion"];
+  const omitted: CsharpCallConversionRequests["omitted"][number][] = [];
+  if (call?.sourceResult !== undefined) requestPair(call.sourceResult.nativeType, call.sourceResult.selectedType, "explicit");
+  if (call !== undefined && (call.optionalCallee !== undefined || call.optionalReceiver !== undefined)) {
+    const source = call.sourceResult?.selectedType ?? (call.target?.kind === "resolved"
+      ? call.target.call.targetMember.returnType : undefined);
+    const target = call.selectedResultType;
+    if (source !== undefined && target !== undefined) {
+      requestPair(source, target, "implicit");
+      completion = Object.freeze({ source, target });
+    }
+  }
+  const source = call?.source ?? (classification.target?.kind === "source-owned" ? classification.target.source : undefined);
+  if (source !== undefined) {
+    const queries = policy.semanticsFor(node);
+    const selectedArguments = source.sourceSelectedMethodTypeArguments ?? [];
+    const parameters = selectedArguments.map(argument => {
+      const symbol = queries.declarations.typeSymbol(argument.typeParameter);
+      const declarations = symbol === undefined ? [] : queries.declarations.symbolDeclarations(symbol)
+        .filter(declaration => policy.ast.is.IsTypeParameterDeclaration(declaration));
+      return declarations.length === 1 ? declarations[0] : undefined;
+    });
+    const substitutions = new Map(parameters.flatMap((parameter, index) => {
+      const type = call?.sourceTypeArguments?.[index];
+      const identity = parameter === undefined ? undefined : csharpSourceTypeParameter(parameter, policy.ast)?.identity;
+      return identity === undefined || type === undefined ? [] : [[identity, type] as const];
+    }));
+    for (const [index, argument] of selectedArguments.entries()) {
+      const parameter = parameters[index];
+      const type = call?.sourceTypeArguments?.[index];
+      const requirements = parameter === undefined ? undefined : evidence.typeParameterConstraints.get(parameter);
+      if (type === undefined || requirements?.kind !== "resolved") continue;
+      for (const constraint of requirements.constraints) {
+        if (constraint.kind === "type") requests.push(Object.freeze({ kind: "structural", source: type,
+          target: substituteTargetTypeParameters(constraint.type, substitutions), sourceType: argument.selectedType }));
+      }
+    }
+    const boundParameterIndexes = new Set(source.sourceArgumentBindings.map(binding => binding.sourceParameterIndex));
+    for (let parameterIndex = 0; parameterIndex < source.sourceSelectedSignatureParameters.length; parameterIndex += 1) {
+      const parameter = source.sourceSelectedSignatureParameters[parameterIndex];
+      if (boundParameterIndexes.has(parameterIndex) || parameter === undefined || parameter.rest || !parameter.acceptsOmission) continue;
+      requestPair(csharpAbsenceTargetType(), classification.sourceParameterTypes?.[parameterIndex], "implicit");
+    }
+  }
+  const grouping = classification.target?.kind === "source-owned" ? classification.sourceArgumentGrouping : undefined;
+  if (grouping?.kind === "grouped") for (const group of grouping.groups) {
+    if (group.collect || group.arguments.length > 0) continue;
+    const absence = csharpAbsenceTargetType();
+    requestPair(absence, group.type, "implicit");
+    omitted.push(Object.freeze({ source: absence, target: group.type }));
+  }
+  return Object.freeze({ call, construction, requests: Object.freeze(requests),
+    ...(completion === undefined ? {} : { completion }), omitted: Object.freeze(omitted) });
+
+  function requestPair(source: TargetTypeRef | undefined, target: TargetTypeRef | undefined, mode: CsharpConversionMode): void {
+    requests.push(Object.freeze({ kind: "pair", source, target, mode }));
+  }
 }
 
 export function collectCsharpConversionRequirements(input: CsharpConversionRequirementInput): void {
@@ -235,86 +305,18 @@ export function collectCsharpConversionRequirements(input: CsharpConversionRequi
     operations: CsharpTargetOperationClassifications,
   ): void {
     const call = operations.selectedCall.get(node);
-    const classification = call ?? operations.selectedConstruction.get(node);
-    if (classification === undefined) {
+    const construction = operations.selectedConstruction.get(node);
+    const source = callConversions.get(node);
+    if (source === undefined) {
+      if (call !== undefined || construction !== undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+        "An invocation requires its completed current conversion DATA.", node);
       return;
     }
-    let completion: CsharpCallConversionRequests["completion"];
-    const omitted: { readonly source: TargetTypeRef; readonly target: TargetTypeRef | undefined }[] = [];
-    if (call?.sourceResult !== undefined) {
-      classifyPair(call.sourceResult.nativeType, call.sourceResult.selectedType, "explicit", node);
-    }
-    if (call !== undefined && (call.optionalCallee !== undefined || call.optionalReceiver !== undefined)) {
-      const source = call.sourceResult?.selectedType ?? (call.target?.kind === "resolved"
-        ? call.target.call.targetMember.returnType : undefined);
-      const target = call.selectedResultType;
-      if (source !== undefined && target !== undefined) {
-        classifyPair(source, target, "implicit", node);
-        completion = Object.freeze({ source, target });
-      }
-    }
-    const source = call?.source ?? (classification.target?.kind === "source-owned"
-      ? classification.target.source
-      : undefined);
-    if (source !== undefined) {
-      const queries = policy.semanticsFor(node);
-      const selectedArguments = source.sourceSelectedMethodTypeArguments ?? [];
-      const parameters = selectedArguments.map(argument => {
-        const symbol = queries.declarations.typeSymbol(argument.typeParameter);
-        const declarations = symbol === undefined ? [] : queries.declarations.symbolDeclarations(symbol)
-          .filter(declaration => policy.ast.is.IsTypeParameterDeclaration(declaration));
-        return declarations.length === 1 ? declarations[0] : undefined;
-      });
-      const substitutions = new Map(parameters.flatMap((parameter, index) => {
-        const type = call?.sourceTypeArguments?.[index];
-        const identity = parameter === undefined ? undefined : csharpSourceTypeParameter(parameter, policy.ast)?.identity;
-        return identity === undefined || type === undefined ? [] : [[identity, type] as const];
-      }));
-      for (const [index, argument] of selectedArguments.entries()) {
-        const parameter = parameters[index];
-        const type = call?.sourceTypeArguments?.[index];
-        const requirements = parameter === undefined ? undefined : evidence.typeParameterConstraints.get(parameter);
-        if (type === undefined || requirements?.kind !== "resolved") continue;
-        for (const constraint of requirements.constraints) {
-          if (constraint.kind === "type") objectShapes.registerStructuralInterface(node, type,
-            substituteTargetTypeParameters(constraint.type, substitutions), argument.selectedType);
-        }
-      }
-      const boundParameterIndexes = new Set(
-        source.sourceArgumentBindings.map((binding) =>
-          binding.sourceParameterIndex),
-      );
-      for (
-        let parameterIndex = 0;
-        parameterIndex < source.sourceSelectedSignatureParameters.length;
-        parameterIndex += 1
-      ) {
-        const parameter = source.sourceSelectedSignatureParameters[
-          parameterIndex
-        ];
-        if (
-          boundParameterIndexes.has(parameterIndex) ||
-          parameter === undefined ||
-          parameter.rest ||
-          !parameter.acceptsOmission
-        ) {
-          continue;
-        }
-        const absence = csharpAbsenceTargetType();
-        const target = classification.sourceParameterTypes?.[parameterIndex];
-        classifyPair(absence, target, "implicit", node);
-      }
-    }
-    const grouping = classification.target?.kind === "source-owned" ? classification.sourceArgumentGrouping : undefined;
-    if (grouping?.kind === "grouped") for (const group of grouping.groups) {
-      if (group.collect || group.arguments.length > 0) continue;
-      const absence = csharpAbsenceTargetType();
-      classifyPair(absence, group.type, "implicit", node);
-      omitted.push(Object.freeze({ source: absence, target: group.type }));
-    }
-    if (completion !== undefined || omitted.length > 0) {
-      callConversions.set(node, Object.freeze({ ...(completion === undefined ? {} : { completion }),
-        omitted: Object.freeze(omitted) }));
+    if (source.call !== call || source.construction !== construction) return failTargetAnalysisInvariant("tsonic-csharp",
+      "Invocation conversion preparation requires its exact selected call and construction.", node);
+    for (const request of source.requests) {
+      if (request.kind === "pair") classifyPair(request.source, request.target, request.mode, node);
+      else objectShapes.registerStructuralInterface(node, request.source, request.target, request.sourceType);
     }
   }
 

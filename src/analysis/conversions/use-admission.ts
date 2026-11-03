@@ -1,4 +1,4 @@
-import type { Node } from "@tsonic/tsts";
+import type { Node, Type } from "@tsonic/tsts";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { sourceEnclosingCallable } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
@@ -8,7 +8,7 @@ import type { CsharpConversionMode, CsharpConversionSelection } from "../../targ
 import type { CsharpConversionIssue, CsharpExpressionConversionClassification } from "../../target-model/records/operations/conversions.js";
 import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native/native-demand.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
-import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
+import type { CsharpCallClassification, CsharpConstructionClassification, CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
 import type { CsharpTargetCallSelection } from "../../target-model/records/operations/member-selections.js";
 import { csharpSelectedTargetArgumentBindings } from "../../policy/operations/members/native-use-arguments.js";
 import { csharpNativeUseSite } from "../../target-model/records/native/native-demand.js";
@@ -16,8 +16,20 @@ import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/recor
 import type { CsharpNativeCompletion } from "../../target-model/records/native/native-demand.js";
 
 export interface CsharpCallConversionRequests {
+  readonly call: CsharpCallClassification | undefined;
+  readonly construction: CsharpConstructionClassification | undefined;
+  readonly requests: readonly (
+    | { readonly kind: "pair"; readonly source: TargetTypeRef | undefined;
+        readonly target: TargetTypeRef | undefined; readonly mode: CsharpConversionMode }
+    | { readonly kind: "structural"; readonly source: TargetTypeRef;
+        readonly target: TargetTypeRef; readonly sourceType: Type }
+  )[];
   readonly completion?: { readonly source: TargetTypeRef; readonly target: TargetTypeRef };
   readonly omitted: readonly { readonly source: TargetTypeRef; readonly target: TargetTypeRef | undefined }[];
+}
+
+export interface CsharpCallConversionRequestIndex {
+  get(node: Node): CsharpCallConversionRequests | undefined;
 }
 
 export type CsharpConversionUseRequest =
@@ -36,7 +48,7 @@ export interface CsharpConversionUseRequests {
 export function collectCsharpConversionUses(
   demand: Pick<CsharpNativeDemandAnalysis, "entries" | "nativeUse">,
   operations: Pick<CsharpTargetOperationClassifications, "selectedCall" | "selectedConstruction">,
-  callConversions: ReadonlyMap<Node, CsharpCallConversionRequests>,
+  callConversions: CsharpCallConversionRequestIndex,
 ): CsharpConversionUseRequests {
   const requests: CsharpConversionUseRequest[] = [];
   const calls = new Set<Node>();

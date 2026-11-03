@@ -178,6 +178,7 @@ export function analyzeCsharpRepresentationIteration(
     sourceEvidence,
     objectShapes,
     operations,
+    operations.invocationConversions,
   );
   const callableResult = analyzeCsharpCallableContracts(
     policy,

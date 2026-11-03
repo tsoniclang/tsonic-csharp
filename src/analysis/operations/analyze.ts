@@ -16,6 +16,8 @@ import { optionalResultType } from "../../policy/operations/members/optional-res
 
 import { createCsharpOperationProducer, type CsharpOperationProducer } from "../program/records/operations/operations.js";
 import { analyzeCsharpOperationConstruct } from "./constructs.js";
+import { collectCsharpInvocationConversionRequests } from "../conversions/requirements.js";
+import type { CsharpCallConversionRequests, CsharpCallConversionRequestIndex } from "../conversions/use-admission.js";
 
 export function analyzeCsharpTargetOperations(
   policy: CsharpPolicyContext,
@@ -23,11 +25,12 @@ export function analyzeCsharpTargetOperations(
   erasureIndexes: CsharpOperationErasureIndexes,
   nodes: readonly Node[],
   requirements: CsharpRequiredRecord[],
-): CsharpTargetOperationClassifications {
+): CsharpTargetOperationClassifications & { readonly invocationConversions: CsharpCallConversionRequestIndex } {
   const producer = createCsharpOperationProducer();
   const classPropertyStorage = classifyCsharpClassPropertyStorage(policy, evidence);
   const binaryExecutionDrivers: import("../../target-model/types/model.js").CsharpTargetBinaryExecutionDriver[] = [];
   const issues: CsharpOperationIssue[] = [];
+  const invocationConversions = new WeakMap<Node, CsharpCallConversionRequests>();
   const erasure = createCsharpOperationErasure(policy.ast, erasureIndexes, issues);
   for (const sourceFile of policy.sourceFiles) analyzeCsharpOperationConstruct(sourceFile, sourceFile,
     policy, evidence, erasure, producer, binaryExecutionDrivers, issues);
@@ -39,11 +42,16 @@ export function analyzeCsharpTargetOperations(
     typedLocation: producer.typedLocation,
   }, requirements);
   for (const subject of producer.resultSubjects) {
+    const conversion = collectCsharpInvocationConversionRequests(policy, evidence, subject,
+      producer.call.get(subject), producer.construction.get(subject));
+    if (conversion !== undefined) invocationConversions.set(subject, conversion);
     producer.operationResult.selected(subject, operationResultType(producer, subject));
     producer.sourceMember.selected(subject, producer.property.get(subject)?.sourceOwned ?? producer.element.get(subject)?.sourceOwned);
   }
-  return producer.seal({ issues, classPropertyStorage, nativeHandler,
-    binaryExecutionDriver: composeCsharpBinaryExecutionDriver(...binaryExecutionDrivers) });
+  return Object.freeze({ ...producer.seal({ issues, classPropertyStorage, nativeHandler,
+    binaryExecutionDriver: composeCsharpBinaryExecutionDriver(...binaryExecutionDrivers) }),
+    invocationConversions: Object.freeze({ get: (node: Node) => invocationConversions.get(node) }),
+  });
 }
 
 function operationResultType(

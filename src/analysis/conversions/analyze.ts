@@ -25,7 +25,7 @@ import { admitCsharpConversionSelection } from "./validation.js";
 import { selectCsharpUnionInjection } from "../../policy/conversions/union-relations.js";
 
 import { createCsharpExactLiteralRequestCollector } from "./literal-requests.js";
-import { collectCsharpConversionUses, sealCsharpConversionUses, type CsharpCallConversionRequests,
+import { collectCsharpConversionUses, sealCsharpConversionUses, type CsharpCallConversionRequestIndex,
   type CsharpConversionUseRequests } from "./use-admission.js";
 import type { CsharpNativeCompletion } from "../../target-model/records/native/native-demand.js";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
@@ -86,6 +86,7 @@ export function analyzeCsharpConversions(
   evidence: CsharpSourceEvidenceIndex,
   objectShapes: CsharpObjectShapeClassifications & CsharpStructuralInterfaceRegistration,
   selectedOperations: CsharpTargetOperationClassifications,
+  callConversions: CsharpCallConversionRequestIndex,
 ): CsharpConversionAnalysis {
   const pairSelections = new Map<string, CsharpConversionSelection>();
   const delegateContracts = createCsharpDelegateContractProducer();
@@ -93,7 +94,6 @@ export function analyzeCsharpConversions(
     Node,
     Map<string, CsharpExpressionConversionClassification>
   >();
-  const callConversions = new Map<Node, CsharpCallConversionRequests>();
   let delegateAdapters: ReturnType<typeof sealCsharpDelegateAdapterIdentities> = new Map();
   const issues: CsharpConversionIssue[] = [];
   const propertyProjections = new WeakMap<Node, ReadonlyMap<string, readonly CsharpClosedShapeMemberProjection[]>>();
