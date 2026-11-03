@@ -1,5 +1,5 @@
 import { createCsharpObjectShapeMemberResolver } from "./member-evidence.js";
-import { createStructuralObjectShapeTarget, mergeCsharpObjectShapeSubjects } from "./construction.js";
+import { createStructuralObjectShapeTarget } from "./construction.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { csharpObjectShapesEqual } from "../../../target-model/types/object-shape-equality.js";
 import { csharpObjectShapeContractKey } from "../../../target-model/types/object-shape-identity.js";
@@ -36,6 +36,8 @@ import { createCsharpProjectDeclarationApplications } from "./project-declaratio
 import { completeCsharpStructShapeSource, type CsharpStructShapeSource } from "./struct-source.js";
 import { formInstantiatedObjectShapeSource } from "./shape-source.js";
 import type { CsharpStructuralNodeSourceInput, CsharpStructuralTypeSourceInput } from "../../source-evidence/types/resolution/root-sources.js";
+import { completeCsharpObjectShapePublication, formCsharpObjectShapePublication,
+  type CsharpObjectShapePublication, type CsharpObjectShapeTargetSelection } from "./publication.js";
 
 export function createCsharpObjectShapePolicy(
   host: CsharpObjectShapePolicyHost,
@@ -48,8 +50,8 @@ export function createCsharpObjectShapePolicy(
   const activeNodes = new WeakSet<object>();
   const activeTypes = new WeakSet<object>();
   const nodeShapes = new WeakMap<object, CsharpObjectShapeFact>();
-  const targetShapes = new Map<string, CsharpObjectShapeFact>();
-  const genericShapes = new Map<string, CsharpObjectShapeFact>();
+  const targetShapes = new Map<string, CsharpObjectShapePublication>();
+  const genericShapes = new Map<string, CsharpObjectShapePublication>();
   const declarationApplications = createCsharpProjectDeclarationApplications(host, formation, completeSourceMembers, rememberTargetShape);
   const unionDefinitions = createCsharpStructuralUnionDefinitions(host, (type, file, state) =>
     resolveTypeWithState(type, file, undefined, state), environment);
@@ -134,16 +136,21 @@ export function createCsharpObjectShapePolicy(
   function resolveTarget(
     type: TargetTypeRef | undefined,
   ): CsharpObjectShapeFact | undefined {
+    return resolveTargetSelection(type)?.shape;
+  }
+
+  function resolveTargetSelection(type: TargetTypeRef | undefined): CsharpObjectShapeTargetSelection | undefined {
     if (type === undefined) {
       return undefined;
     }
     const nullableElement = getCsharpNullableElementTargetType(type);
     if (nullableElement !== undefined) {
-      return resolveTarget(nullableElement);
+      const selection = resolveTargetSelection(nullableElement);
+      return selection === undefined ? undefined : Object.freeze({ kind: "nullable", type, selection, shape: selection.shape });
     }
     const direct = targetShapes.get(targetTypeRefKey(type));
     if (direct !== undefined) {
-      return direct;
+      return Object.freeze({ kind: "canonical", type, publication: direct, shape: direct.shape });
     }
     if (type.kind !== "target-named") {
       return undefined;
@@ -152,8 +159,9 @@ export function createCsharpObjectShapePolicy(
     if (template !== undefined) {
       const owner = nativeProjectOwner(type);
       if (owner === undefined) return undefined;
-      const selected = instantiateCsharpObjectShape(template, owner);
-      if (selected !== undefined) return rememberTargetShape(selected);
+      const selected = instantiateCsharpObjectShape(template.shape, owner);
+      if (selected !== undefined) return Object.freeze({ kind: "template", type, template, owner,
+        instance: selected, shape: rememberTargetShape(selected) });
     }
     const union = type as Partial<CsharpRuntimeUnionTargetTypeRef>;
     const arms = union.csharpRuntimeUnionArms;
@@ -164,7 +172,8 @@ export function createCsharpObjectShapePolicy(
     const present = shapes.filter(
       (shape): shape is CsharpObjectShapeFact => shape !== undefined,
     );
-    return present.length === 1 ? present[0] : undefined;
+    return present.length === 1 ? Object.freeze({ kind: "attached", type, shapes,
+      index: shapes.indexOf(present[0]!), shape: present[0]! }) : undefined;
   }
 
   function resolveType(
@@ -246,7 +255,8 @@ export function createCsharpObjectShapePolicy(
     }
     shape = retainCsharpMethodValueContracts(shape, rememberTargetShape, environment, host.sourceStorage);
     const key = targetTypeRefKey(shape.targetType);
-    const existing = targetShapes.get(key);
+    const publication = targetShapes.get(key);
+    const existing = publication?.shape;
     if (existing !== undefined && !csharpObjectShapesEqual(existing, shape)) {
       const existingContract = csharpObjectShapeContractKey(existing);
       const incomingContract = csharpObjectShapeContractKey(shape);
@@ -263,21 +273,20 @@ export function createCsharpObjectShapePolicy(
         `excerpt ${JSON.stringify(existingContract.slice(start, end))}; ` +
         `incoming length ${incomingContract.length}, excerpt ${JSON.stringify(incomingContract.slice(start, end))}.`);
     }
-    const canonical = existing === undefined
-      ? shape
-      : mergeCsharpObjectShapeSubjects(existing, shape);
-    targetShapes.set(key, canonical);
+    const completed = completeCsharpObjectShapePublication(formCsharpObjectShapePublication(shape, publication));
+    const canonical = completed.shape;
+    targetShapes.set(key, completed);
     if (canonical.targetType.kind === "target-named" &&
       (canonical.targetType.typeArguments?.length ?? 0) > 0 &&
       canonical.targetType.typeArguments!.every(argument => argument.kind === "type-parameter")) {
       const existingTemplate = genericShapes.get(canonical.targetType.id);
-      if (existingTemplate?.targetType.kind === "target-named") {
-        const instantiated = instantiateCsharpObjectShape(existingTemplate, canonical.targetType);
+      if (existingTemplate?.shape.targetType.kind === "target-named") {
+        const instantiated = instantiateCsharpObjectShape(existingTemplate.shape, canonical.targetType);
         if (instantiated === undefined || !csharpObjectShapesEqual(instantiated, canonical)) {
           failTargetAnalysisInvariant("tsonic-csharp", "C# structural generic template resolved to contradictory contracts.");
         }
       } else {
-        genericShapes.set(canonical.targetType.id, canonical);
+        genericShapes.set(canonical.targetType.id, completed);
       }
     }
     return shape;

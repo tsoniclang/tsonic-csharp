@@ -9,7 +9,8 @@ import { csharpObjectShapeMemberContractKey } from "../../../target-model/types/
 import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../../target-model/types/object-shape-members.js";
 import { csharpObjectShapeMethodDeclaration, csharpPresentObjectShapeMethod } from "../../../target-model/types/method-values.js";
 import { csharpObjectMethodHasFixedNativeExposure } from "../../../policy/types/objects/object-members.js";
-import { createStructuralObjectShapeTarget, mergeCsharpObjectShapeSubjects } from "./construction.js";
+import { createStructuralObjectShapeTarget, formCsharpObjectShapeMergeInput,
+  formCsharpObjectShapeSourceMerge, mergeCsharpObjectShapeSubjects } from "./construction.js";
 import { csharpObjectMethodValueIsExtracted, resolveCsharpWritableMethodContract } from "./method-values.js";
 import { projectCsharpNativeSourceStorageCarrier } from "../value-domain-carriers.js";
 import { createCsharpMetadataBudget } from "../../../target-model/metadata/immutable.js";
@@ -126,7 +127,8 @@ export function createCsharpNativeShapeProjections(
         ...(signature.sourceDeclarations === undefined ? {} : { sourceDeclarations: signature.sourceDeclarations }),
         ...(signature.sourceTypes === undefined ? {} : { sourceTypes: signature.sourceTypes }),
       }) };
-      protocols.set(key, mergeCsharpObjectShapeSubjects(protocol, correspondence));
+      const source = formCsharpObjectShapeSourceMerge(formCsharpObjectShapeMergeInput(protocol, correspondence));
+      protocols.set(key, mergeCsharpObjectShapeSubjects(source));
     }
     for (const protocol of protocols.values()) rememberTargetShape(protocol);
     const members = shape.members.map(member => {

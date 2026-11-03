@@ -16,7 +16,8 @@ import type { CsharpSourceEvidenceIndex } from "../../target-model/records/progr
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
 import type { CsharpObjectShapeAnalysis, CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
 import { collectCsharpInheritedInterfaces, selectCsharpStructuralInterface, type CsharpStructuralInterfaceRegistration } from "./structural-interfaces.js";
-import { mergeCsharpObjectShapeSubjects } from "./shapes/construction.js";
+import { formCsharpObjectShapeMergeInput, formCsharpObjectShapeSourceMerge,
+  mergeCsharpObjectShapeSubjects } from "./shapes/construction.js";
 import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
 import { csharpTargetTypeComponents } from "../../target-model/types/components.js";
 import type { CsharpStructuralInterfaceImplementation, CsharpTargetNamedTypeRef } from "../../target-model/types/model.js";
@@ -120,7 +121,8 @@ export function analyzeCsharpObjectShapes(
       reserveClassification();
       byTarget.set(key, shape);
     } else {
-      const merged = mergeCsharpObjectShapeSubjects(previous, shape);
+      const source = formCsharpObjectShapeSourceMerge(formCsharpObjectShapeMergeInput(previous, shape));
+      const merged = mergeCsharpObjectShapeSubjects(source);
       byTarget.set(key, merged);
     }
     enqueuePhysicalType(shape.targetType);
@@ -151,7 +153,8 @@ export function analyzeCsharpObjectShapes(
       reserveClassification();
       byTarget.set(key, shape);
     } else {
-      const merged = mergeCsharpObjectShapeSubjects(previous, shape);
+      const source = formCsharpObjectShapeSourceMerge(formCsharpObjectShapeMergeInput(previous, shape));
+      const merged = mergeCsharpObjectShapeSubjects(source);
       byTarget.set(key, merged);
     }
     enqueuePhysicalType(type);
