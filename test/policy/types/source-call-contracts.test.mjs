@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { resolveSourceCallContract } from "../../../dist/analysis/source-evidence/types/resolution/call-contracts.js";
+import { formCsharpSourceCallableSource } from "../../../dist/analysis/program/source-callable-source.js";
 import { resolveSourceCallParameter, resolveSourceCallParameters, resolveSourceCallArgumentParameter, resolveSourceCallResultWithState, resolveSourceCallTypeArguments } from "../../../dist/analysis/source-evidence/types/resolution/call-api.js";
 import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
 import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
@@ -88,15 +89,19 @@ function fixture(carrier = csharpDelegateTargetType("System.Func", [integer], in
       IsMethodDeclaration: () => false, IsClassDeclaration: () => false,
       IsVariableDeclaration: node => node?.kind === "variable" },
       parent: () => undefined, name: node => node?.name, kindName: node => node?.kind },
-    navigation: { sourceReferenceFor: () => ({ declaration }), isProjectDeclaration: node => direct && node === declaration },
-    semantics: () => ({ declarations: { signatureDeclaration: () => signatureDeclaration }, operations: {
+    navigation: { sourceReferenceFor: () => ({ declaration }), isProjectDeclaration: node => direct && node === declaration,
+      callableImplementation: () => undefined },
+    semantics: sourceFile => ({ sourceFile, declarations: { signatureDeclaration: () => signatureDeclaration }, operations: {
       callResult: () => undefined, callParameterSlots: selected => selectSourceCallParameterSlots(selected, { isTuple: () => false }),
     } }),
     projectTypes: () => ({ catalog: { definitionForTarget: () => undefined } }),
     projectTypeCatalog: { definitionForTarget: () => undefined },
     typeDefinitions: { sourceUnionArms: () => undefined },
     representations: { genericProjections: () => [], closedInputContract: () => undefined,
-      sourceCallable: () => { assert.equal(direct, true, "stored invocation must never select the creation ABI"); return openContract; } },
+      sourceCallableSource: (selected, sourceFile) => formCsharpSourceCallableSource({ ast: scope.host.ast,
+        navigation: scope.host.navigation, semantics: { forFile: scope.host.semantics } },
+        scope.host.moduleCallables, selected, sourceFile),
+      completeSourceCallable: () => { assert.equal(direct, true, "stored invocation must never select the creation ABI"); return openContract; } },
   }, resolveSelectedValueWithState: () => carrier,
     sourceCallableTypeParametersMatch: () => true,
     resolveSourceCallSelectedType: () => assert.fail("the closed stored contract must not fall back to source templates"),
@@ -113,7 +118,7 @@ test("declared parameter reads require their explicit domain without admitting a
   const file = {};
   let declarationReads = 0;
   let calleeReads = 0;
-  scope.host.representations.sourceCallable = (selected, sourceFile, selection) => {
+  scope.host.representations.completeSourceCallable = ({ source: selected, sourceFile }, selection) => {
     assert.equal(selected === source && sourceFile === file && selection === "checked", true,
       "the original checked declaration is the only parameter authority");
     declarationReads++;
