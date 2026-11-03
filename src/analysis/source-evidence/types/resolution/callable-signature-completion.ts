@@ -82,10 +82,10 @@ export function* completeCsharpCallableSignatureSource(
 ): Generator<CsharpCallableSignatureRequest, CsharpCompletedCallableSignature | undefined,
   CsharpCompletedCallableSignatureRequest> {
   const source = input.source;
-  if (input.resultSource === undefined || input.resultSource.component !== source.callable.result ||
+  if (source === undefined || input.resultSource === undefined || input.resultSource.component !== source.callable.result ||
       input.resultSource.queries !== source.queries || input.resultSource.inputState !== input.returnState) {
     return failTargetAnalysisInvariant("tsonic-csharp",
-      "Callable signature completion requires its exact retained return Source.", source.callable.result.declaration);
+      "Callable signature completion requires its exact retained return Source.", source?.callable.result.declaration);
   }
   const parameters: CsharpTargetParameter[] = [];
   const completedParameters: Extract<CsharpCompletedCallableSignatureRequest, { readonly kind: "parameter" }>[] = [];
