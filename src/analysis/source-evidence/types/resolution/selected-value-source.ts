@@ -118,6 +118,8 @@ export function resolveFormedCsharpSelectedValueResult(
   source: CsharpSelectedValueSource,
 ): CsharpSourceCallResult | undefined {
   if (source.kind !== "selected-value" || source.node === undefined || source.selection?.node !== source.node ||
+    source.selectedType === undefined || source.queries === undefined || source.storage === undefined ||
+    source.inputState === undefined || source.state === undefined || source.valueState === undefined ||
     source.value === undefined || source.value.selection !== source.selection || source.value.node !== source.node ||
     source.value.queries !== source.queries || source.value.state !== source.valueState ||
     source.value.selectedType !== source.selectedType || source.queries.sourceFile !== source.sourceFile ||
