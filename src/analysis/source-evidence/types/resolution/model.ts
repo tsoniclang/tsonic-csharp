@@ -11,6 +11,8 @@ import type { SourceCallableContract, SourceCallableSourceContract } from "../..
 import type { TargetTypeRef, CsharpSourceTargetTypeBinding, CsharpObjectShapeFact } from "../../../../target-model/types/model.js";
 import type { CsharpObjectShapePolicy } from "../../../../target-model/records/objects/object-shapes.js";
 import type { CsharpObjectMethodSources } from "../../../../target-model/records/native/native-value-carriers.js";
+import type { CsharpCompletedStructuralMemberChildren, CsharpStructuralMemberInheritance,
+  CsharpStructuralPropertyApplication, CsharpStructuralTypeApplication } from "./structural-applications.js";
 
 export type ResolvedSourceCallInfo = NonNullable<
   ReturnType<SourceFileSemantics["operations"]["call"]>
@@ -60,6 +62,7 @@ export interface CsharpTypePolicyHost extends CsharpTypePolicyBaseHost {
   projectTypes(): CsharpProjectTypePolicy;
   targetTypeComponents(type: TargetTypeRef): readonly TargetTypeRef[];
   readonly structuralTypes: {
+    memberInheritance(application: CsharpStructuralTypeApplication, memberIndex: number): CsharpStructuralMemberInheritance;
     resolveReference(type: Type): TargetTypeRef | undefined;
     resolveUnion(type: Type, sourceFile: SourceFile, state: CsharpTypeResolutionState): import("../../../objects/shapes/model.js").CsharpStructuralUnionResolution;
     resolveTarget(type: TargetTypeRef): CsharpObjectShapeFact | undefined;
@@ -111,6 +114,9 @@ export interface CsharpTypeResolutionState {
 }
 
 export interface CsharpRecursiveTypeResolver {
+  resolveStructuralPropertyType(application: CsharpStructuralPropertyApplication): TargetTypeRef | undefined;
+  resolveStructuralMemberChildren(application: CsharpStructuralTypeApplication,
+    memberIndex: number): CsharpCompletedStructuralMemberChildren | undefined;
   resolveNode(
     node: Node | undefined,
     sourceFile: SourceFile | undefined,

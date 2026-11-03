@@ -1,4 +1,4 @@
-import type { Type } from "@tsonic/tsts";
+import type { Node, Type } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import type { CsharpObjectShapeFact, CsharpRuntimeUnionTargetTypeRef, TargetTypeRef } from "../../../../target-model/types/model.js";
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
@@ -13,6 +13,14 @@ export function sourceRefinementOnlyRemovesNullish(
   queries: SourceFileSemantics,
 ): boolean {
   const refinement = queries.types.refinement(declaredType, selectedType);
+  return refinementOnlyRemovesNullish(declaredType, refinement, queries);
+}
+
+function refinementOnlyRemovesNullish(
+  declaredType: Type,
+  refinement: ReturnType<SourceFileSemantics["types"]["refinement"]>,
+  queries: SourceFileSemantics,
+): boolean {
   if (refinement.kind !== "members" || refinement.types.length === 0 ||
     refinement.types.some(type => queries.types.isNullish(type))) return false;
   const declaredMembers = queries.types.unionOrIntersectionTypes(declaredType);
@@ -20,6 +28,38 @@ export function sourceRefinementOnlyRemovesNullish(
   const present = declaredMembers.filter((type): type is Type => type !== undefined && !queries.types.isNullish(type));
   return present.length < declaredMembers.length && present.length === refinement.types.length &&
     present.every(type => refinement.types.includes(type));
+}
+
+export interface CsharpAuthoredUnionRefinementEvidence {
+  readonly kind: "exact" | "members" | "not-applicable";
+  readonly onlyRemovesNullish: boolean;
+  readonly members: readonly {
+    readonly sourceType: Type;
+    readonly nullish: boolean;
+    readonly voidLike: boolean;
+    readonly declarations: readonly ReadonlySet<Node>[];
+  }[];
+}
+
+export function formCsharpAuthoredUnionRefinement(
+  declaredType: Type,
+  selectedType: Type,
+  queries: SourceFileSemantics,
+): CsharpAuthoredUnionRefinementEvidence {
+  const refinement = queries.types.refinement(declaredType, selectedType);
+  return Object.freeze({
+    kind: refinement.kind === "exact" ? "exact" : refinement.kind === "members" ? "members" : "not-applicable",
+    onlyRemovesNullish: refinementOnlyRemovesNullish(declaredType, refinement, queries),
+    members: Object.freeze(refinement.kind !== "members" ? [] : refinement.types.map(sourceType => Object.freeze({
+      sourceType,
+      nullish: queries.types.isNullish(sourceType),
+      voidLike: queries.types.isVoidLike(sourceType),
+      declarations: Object.freeze(queries.types.propertyInfos(sourceType).map(property => new Set([
+        ...queries.declarations.symbolDeclarations(property.symbol),
+        ...property.rootSymbols.flatMap(symbol => queries.declarations.symbolDeclarations(symbol)),
+      ]))),
+    }))),
+  });
 }
 
 export function retainCsharpUnionObjectShapes(
@@ -45,11 +85,23 @@ export function selectCsharpAuthoredUnionRefinement(
   definitions?: CsharpTypeDefinitions,
 ): { readonly kind: "not-applicable" } | { readonly kind: "rejected" } |
   { readonly kind: "resolved"; readonly type: TargetTypeRef } {
+  return completeCsharpAuthoredUnionRefinement(authored,
+    formCsharpAuthoredUnionRefinement(declaredType, selectedType, queries), resolveType, resolveShape, definitions);
+}
+
+export function completeCsharpAuthoredUnionRefinement(
+  authored: TargetTypeRef,
+  evidence: CsharpAuthoredUnionRefinementEvidence,
+  resolveType: (type: Type) => TargetTypeRef | undefined,
+  resolveShape: (type: TargetTypeRef) => CsharpObjectShapeFact | undefined,
+  definitions?: CsharpTypeDefinitions,
+): { readonly kind: "not-applicable" } | { readonly kind: "rejected" } |
+  { readonly kind: "resolved"; readonly type: TargetTypeRef } {
   const nullableElement = getCsharpNullableElementTargetType(authored);
   const base = nullableElement ?? authored;
   const optional = getCsharpGenericOptionalParts(base);
   if ((nullableElement !== undefined || optional !== undefined) &&
-    sourceRefinementOnlyRemovesNullish(declaredType, selectedType, queries)) {
+    evidence.onlyRemovesNullish) {
     const type = nullableElement ?? optional?.element;
     if (type !== undefined) {
       const presentArms = getCsharpRuntimeUnionArms(type, definitions);
@@ -58,29 +110,24 @@ export function selectCsharpAuthoredUnionRefinement(
   }
   const arms = getCsharpRuntimeUnionArms(base, definitions);
   if (arms === undefined) return { kind: "not-applicable" };
-  const refinement = queries.types.refinement(declaredType, selectedType);
   const shapes = arms.map(resolveShape);
-  if (refinement.kind === "exact") return { kind: "resolved", type: authored };
-  if (refinement.kind !== "members") return { kind: "not-applicable" };
+  if (evidence.kind === "exact") return { kind: "resolved", type: authored };
+  if (evidence.kind !== "members") return { kind: "not-applicable" };
   const indexes = new Set<number>();
   let nullish = false;
-  for (const member of refinement.types) {
-    if (queries.types.isNullish(member) || csharpCarrierAdmitsSourceAbsence(authored) && queries.types.isVoidLike(member)) {
+  for (const member of evidence.members) {
+    if (member.nullish || csharpCarrierAdmitsSourceAbsence(authored) && member.voidLike) {
       nullish = true;
       continue;
     }
-    const properties = queries.types.propertyInfos(member);
-    const declarations = properties.map(property => new Set([
-      ...queries.declarations.symbolDeclarations(property.symbol),
-      ...property.rootSymbols.flatMap(symbol => queries.declarations.symbolDeclarations(symbol)),
-    ]));
-    const resolved = resolveType(member);
+    const declarations = member.declarations;
+    const resolved = resolveType(member.sourceType);
     const matches = arms.flatMap((arm, index) => {
       const shape = shapes[index];
       if (shape === undefined) {
         return resolved !== undefined && targetTypeRefEquals(arm, resolved) ? [index] : [];
       }
-      if (shape.members.length !== properties.length || declarations.some(nodes => nodes.size === 0)) return [];
+      if (shape.members.length !== declarations.length || declarations.some(nodes => nodes.size === 0)) return [];
       const matched = new Set<number>();
       for (const field of shape.members) {
         const candidates = declarations.flatMap((nodes, position) =>

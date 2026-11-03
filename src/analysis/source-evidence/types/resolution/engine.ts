@@ -37,6 +37,8 @@ import { resolveSourceProfileType as resolveSourceProfileTypeImplementation, res
 import { generatorProtocol as generatorProtocolImplementation, generatorResultProtocol as generatorResultProtocolImplementation } from "../../../../policy/operations/source-profiles/type-carriers.js";
 import { resolveSelectedSymbolType as resolveSelectedSymbolTypeImplementation, resolveProjectSourceSemanticType as resolveProjectSourceSemanticTypeImplementation, resolveProjectSourceType as resolveProjectSourceTypeImplementation, projectSourceDeclarationTargetType as projectSourceDeclarationTargetTypeImplementation } from "./project-types.js";
 import { createCsharpTypeResolutionQueryCache } from "./query-cache.js";
+import { bindCsharpStructuralTypeApplication, formCsharpStructuralTypeApplication,
+  resolveCsharpStructuralMemberChildren, resolveCsharpStructuralPropertyType } from "./structural-applications.js";
 
 import type { CsharpTypeResolutionScope } from "./scope.js";
 type DropScope<Arguments extends readonly unknown[]> =
@@ -45,6 +47,9 @@ type DropScope<Arguments extends readonly unknown[]> =
 export interface CsharpTypeResolutionServices {
   readonly policy: CsharpTypePolicy;
   readonly recursive: CsharpRecursiveTypeResolver;
+  readonly structuralTypeApplication: CsharpTypeResolutionScope["formStructuralTypeApplication"];
+  readonly bindStructuralTypeApplication: typeof bindCsharpStructuralTypeApplication;
+  readonly structuralMemberChildren: CsharpTypeResolutionScope["resolveStructuralMemberChildren"];
 }
 
 export function createCsharpTypeResolutionServices(
@@ -54,6 +59,12 @@ export function createCsharpTypeResolutionServices(
   const queryCache = createCsharpTypeResolutionQueryCache();
   const activeTypes = new WeakSet<Type>();
   const methods = {
+    formStructuralTypeApplication: (...args: DropScope<Parameters<typeof formCsharpStructuralTypeApplication>>) =>
+      formCsharpStructuralTypeApplication(scope, ...args),
+    resolveStructuralPropertyType: (...args: DropScope<Parameters<typeof resolveCsharpStructuralPropertyType>>) =>
+      resolveCsharpStructuralPropertyType(scope, ...args),
+    resolveStructuralMemberChildren: (...args: DropScope<Parameters<typeof resolveCsharpStructuralMemberChildren>>) =>
+      resolveCsharpStructuralMemberChildren(scope, ...args),
     resolveArrayLiteralWithState: (node: Node, queries: SourceFileSemantics, state: CsharpTypeResolutionState) =>
       queryCache.resolveArrayLiteral(node, queries.sourceFile, state.depth === 0 && state.sourceBindings === undefined,
         () => resolveCsharpArrayLiteralSelection(scope, node, queries, state)),
@@ -320,6 +331,8 @@ export function createCsharpTypeResolutionServices(
     ...methods,
   });
   const recursive: CsharpRecursiveTypeResolver = Object.freeze({
+    resolveStructuralPropertyType: methods.resolveStructuralPropertyType,
+    resolveStructuralMemberChildren: methods.resolveStructuralMemberChildren,
     resolveNode: methods.resolveNodeWithState,
     resolveType: methods.resolveTypeWithState,
     resolveSelectedType(
@@ -339,7 +352,11 @@ export function createCsharpTypeResolutionServices(
       );
     },
   });
-  return Object.freeze({ policy, recursive });
+  return Object.freeze({ policy, recursive,
+    structuralTypeApplication: methods.formStructuralTypeApplication,
+    bindStructuralTypeApplication: bindCsharpStructuralTypeApplication,
+    structuralMemberChildren: methods.resolveStructuralMemberChildren,
+  });
 }
 
 export function createCsharpTypePolicy(
