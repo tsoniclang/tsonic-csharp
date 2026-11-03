@@ -178,7 +178,27 @@ GC.KeepAlive(retained); GC.KeepAlive(options); GC.KeepAlive(alias);
         "the completed physical operand carrier is transported without reselection");
     }
     assert.doesNotMatch([...compiled.artifacts.values()].join("\n"), /ErrorObject|Tsonic\.CSharp\.Runtime\.Error\b|ConditionalWeakTable|Reflection/u);
-    executeCsharpConstruction(compiled, `native-error-guarded-capture-${surface ?? "native"}`, false, false, [], `
+    assert.equal(compiled.artifacts.has("ref/Index.cs"), false, "the handwritten counterpart has its own source file");
+    const reference = `
+using System;
+using System.Runtime.ExceptionServices;
+
+namespace Tsonic.Reference
+{
+    public static class Index
+    {
+        public static void capture(Exception error)
+        {
+            if (error.StackTrace is null)
+            {
+                ExceptionDispatchInfo.SetCurrentStackTrace(error);
+            }
+        }
+    }
+}
+`;
+    executeCsharpConstruction({ ...compiled, artifacts: new Map([...compiled.artifacts, ["ref/Index.cs", reference]]) },
+      `native-error-guarded-capture-${surface ?? "native"}`, false, false, [], `
 using System;
 using System.Runtime.ExceptionServices;
 using Generated = Tsonic.Generated.Index;
@@ -238,13 +258,6 @@ static long Measure(Action<Exception> action, Exception? existing, out Exception
         GC.KeepAlive(value);
     }
     return GC.GetAllocatedBytesForCurrentThread() - before;
-}
-namespace Tsonic.Reference {
-    public static class Index {
-        public static void capture(Exception error) {
-            if (error.StackTrace is null) ExceptionDispatchInfo.SetCurrentStackTrace(error);
-        }
-    }
 }
 `);
   });

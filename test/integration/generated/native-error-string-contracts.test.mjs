@@ -125,7 +125,11 @@ try { throw value; } catch (InvalidOperationException caught) {
 }
 if (Generated.template(value) != $"prefix:{value}:suffix" || Generated.count() != 2 || value.StackTrace is null ||
     !ReferenceEquals(value.InnerException, cause)) throw new Exception("native template after throw");
-Check(() => GC.KeepAlive(Generated.template(value)), () => GC.KeepAlive($"prefix:{value}:suffix"));
+var generatedCount = Generated.count();
+var nativeCount = Tsonic.Reference.Index.count();
+Check(() => GC.KeepAlive(Generated.template(value)), () => GC.KeepAlive(Tsonic.Reference.Index.template(value)));
+if (Generated.count() - generatedCount != Tsonic.Reference.Index.count() - nativeCount)
+    throw new Exception("native template argument evaluation count");
 Check(() => GC.KeepAlive(Generated.construct("message")), () => GC.KeepAlive(new Exception("message")));
 static void Check(Action actual, Action reference) {
     for (var index = 0; index < 1024; index++) { actual(); reference(); }
@@ -144,6 +148,14 @@ static void Check(Action actual, Action reference) {
     Console.Error.WriteLine($"native template allocation forward={actualBytes}/{nativeBytes}, reverse={actualSecondBytes}/{nativeFirstBytes}");
     if (actualBytes != nativeBytes) throw new Exception($"native template allocation {actualBytes} != {nativeBytes}");
     if (actualSecondBytes != nativeFirstBytes) throw new Exception($"native template reversed allocation {actualSecondBytes} != {nativeFirstBytes}");
+}
+namespace Tsonic.Reference {
+    public static class Index {
+        private static double evaluations { get; set; }
+        private static Exception selected(Exception value) { evaluations += 1; return value; }
+        public static string template(Exception value) { return $"prefix:{selected(value)}:suffix"; }
+        public static double count() { return evaluations; }
+    }
 }
 `);
 });
