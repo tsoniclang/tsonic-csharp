@@ -8,6 +8,7 @@ import type { CsharpObjectShapePolicyHost } from "./model.js";
 import type { CsharpObjectShapeMemberProofInput } from "./member-instantiation.js";
 import type { CsharpCollectedObjectShapeMember, CsharpCollectedObjectShapeMembers } from "./member-source.js";
 import { projectClassIsObjectInitializable } from "./source-evidence.js";
+import type { CsharpStructuralTypeSource } from "../../source-evidence/types/resolution/structural-applications.js";
 
 export interface CsharpProjectDeclarationMemberSource extends CsharpObjectShapeMemberProofInput {
   readonly member: CsharpCollectedObjectShapeMember;
@@ -22,6 +23,7 @@ export interface CsharpProjectDeclarationShapeSource {
   readonly state: CsharpTypeResolutionState;
   readonly declaredType: Type;
   readonly collection: CsharpCollectedObjectShapeMembers;
+  readonly application: CsharpStructuralTypeSource;
   readonly members: readonly CsharpProjectDeclarationMemberSource[];
   readonly initializable: boolean;
 }
@@ -47,6 +49,7 @@ export function createCsharpProjectDeclarationShapeSource(
       if (declaredType === undefined) return undefined;
       const collection = collectMembers(declaredType, queries, nextState(state), host.ast.typeNode(definition.declaration));
       if (collection === undefined) return undefined;
+      const application = host.structuralTypeApplication(collection);
       const members: CsharpProjectDeclarationMemberSource[] = [];
       for (const member of collection.members) {
         const input = member.proofInput;
@@ -82,7 +85,7 @@ export function createCsharpProjectDeclarationShapeSource(
           inherited: Object.freeze({ source: inherited, member: original }),
         }));
       }
-      return Object.freeze({ definition, state, declaredType, collection, members: Object.freeze(members),
+      return Object.freeze({ definition, state, declaredType, collection, application, members: Object.freeze(members),
         initializable: definition.kind === "class" && projectClassIsObjectInitializable(declaredType, queries, host),
       });
     } finally {

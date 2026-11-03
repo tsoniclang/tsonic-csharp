@@ -5,6 +5,7 @@ import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef 
 import type { CsharpProjectTypeCatalog, CsharpProjectTypePolicy } from "../../../target-model/records/types/project-types.js";
 import type { CsharpPlanningRepresentationQueries, CsharpRecursiveTypeResolver, CsharpTypePolicyBaseHost, CsharpTypeResolutionState } from "../../source-evidence/types/resolution/model.js";
 import type { CsharpCurrentProjectDeclarations } from "../../source-evidence/model.js";
+import type { CsharpProjectSemanticSource } from "../../source-evidence/types/resolution/project-types.js";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import type { CsharpCollectedObjectShapeMembers } from "./member-source.js";
 import type { CsharpCompletedStructuralMemberChildren, CsharpStructuralMemberInheritance,
@@ -24,6 +25,7 @@ export interface CsharpObjectShapePolicyHost extends CsharpTypePolicyBaseHost {
   readonly typeResolver: CsharpRecursiveTypeResolver;
   structuralTypeApplication(collection: CsharpCollectedObjectShapeMembers): CsharpStructuralTypeSource;
   bindStructuralTypeApplication(source: CsharpStructuralTypeSource, receiver: TargetTypeRef | undefined): CsharpStructuralTypeApplication;
+  projectSemanticSource(type: Type, queries: SourceFileSemantics, state: CsharpTypeResolutionState): CsharpProjectSemanticSource;
 }
 
 export interface CsharpRecursiveObjectShapePolicy extends CsharpObjectShapePolicy {

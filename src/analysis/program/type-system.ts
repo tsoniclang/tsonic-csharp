@@ -225,6 +225,7 @@ function createCsharpTypeSystem(
     typeResolver: typeResolution.recursive,
     structuralTypeApplication: typeResolution.structuralTypeApplication,
     bindStructuralTypeApplication: typeResolution.bindStructuralTypeApplication,
+    projectSemanticSource: typeResolution.projectSemanticSource,
   });
   bindingProjections = createCsharpBindingProjectionPolicy({
     ...host,
