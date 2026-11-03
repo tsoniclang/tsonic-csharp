@@ -18,6 +18,7 @@ import { rebindCsharpMethodValueTypeParameters, selectCsharpNativeQuantifierArgu
 import { csharpSourceTypeParameter } from "../../../../source/extension/type-parameters.js";
 import { csharpTypeProjection } from "../../../../target-model/types/projections.js";
 import { resolveTypeParameter } from "./source-evidence.js";
+import type { CsharpSourceCallableSource } from "../../../program/source-callable-source.js";
 
 export type CsharpSourceCallContractSelection =
   | { readonly kind: "declaration"; readonly contract: SourceCallableContract | undefined; readonly closedInput?: true }
@@ -27,6 +28,7 @@ export type CsharpSourceCallContractSelection =
 export type CsharpSourceCallContractSource = {
   readonly source: ResolvedSourceCallInfo;
   readonly sourceFile: SourceFile;
+  readonly callableSource: CsharpSourceCallableSource;
 } & (
   | { readonly kind: "direct" }
   | { readonly kind: "callee"; readonly callee: CsharpSourceCalleeSource }
@@ -37,9 +39,10 @@ export function formCsharpSourceCallContractSource(
   source: ResolvedSourceCallInfo,
   sourceFile: SourceFile,
 ): CsharpSourceCallContractSource {
+  const callableSource = host.representations.sourceCallableSource(source, sourceFile);
   return host.ast.is.IsNewExpression(source.call) || host.ast.kindName(source.sourceCallee.expression) === "KindSuperKeyword"
-    ? Object.freeze({ source, sourceFile, kind: "direct" })
-    : Object.freeze({ source, sourceFile, kind: "callee", callee: formCsharpSourceCalleeSource(host, source, sourceFile) });
+    ? Object.freeze({ source, sourceFile, callableSource, kind: "direct" })
+    : Object.freeze({ source, sourceFile, callableSource, kind: "callee", callee: formCsharpSourceCalleeSource(host, source, sourceFile) });
 }
 
 export function resolveSourceCallContract(
@@ -60,8 +63,12 @@ export function resolveFormedSourceCallContract(
 ): CsharpSourceCallContractSelection {
   const { host, resolveSelectedValueWithState, resolveReadStorage, sourceCallableTypeParametersMatch } = scope;
   const { source, sourceFile } = input;
+  if (input.callableSource.source !== source || input.callableSource.sourceFile !== sourceFile) {
+    return failTargetAnalysisInvariant("tsonic-csharp",
+      "Source call contract completion requires its exact retained callable selection.", source.call);
+  }
   const direct = (): CsharpSourceCallContractSelection => Object.freeze({ kind: "declaration",
-    contract: host.representations.sourceCallable(source, sourceFile, selection) });
+    contract: host.representations.completeSourceCallable(input.callableSource, selection) });
   if (input.kind === "direct") return direct();
   if (input.callee.source !== source || input.callee.sourceFile !== sourceFile) failTargetAnalysisInvariant("tsonic-csharp",
     "Source call contract completion requires its exact retained callee observations.", source.call);

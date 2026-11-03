@@ -5,6 +5,14 @@ import type { CsharpProviderCallSourceEvidence } from "../../../operations/membe
 import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import { formCsharpSourceCallResultSource, type CsharpSourceCallResultSource } from "./call-result-source.js";
+import { formCsharpSourceCallContractSource, type CsharpSourceCallContractSource } from "./call-contracts.js";
+
+export interface CsharpSourceOwnedConstructionSource {
+  readonly contract: CsharpSourceCallContractSource;
+  readonly queries: SourceFileSemantics;
+  readonly projectDeclaration: boolean;
+  readonly resultSource: CsharpSourceCallResultSource | undefined;
+}
 
 export type CsharpSelectedExpressionSource = {
   readonly node: Node;
@@ -13,6 +21,8 @@ export type CsharpSelectedExpressionSource = {
 } & (
   | { readonly kind: "transparent"; readonly expression: Node | undefined }
   | { readonly kind: "call"; readonly isNew: boolean; readonly selection: CsharpProviderCallSourceEvidence;
+      readonly contract: CsharpSourceCallContractSource | undefined;
+      readonly construction: CsharpSourceOwnedConstructionSource | undefined;
       readonly resultSource: CsharpSourceCallResultSource | undefined }
   | { readonly kind: "other" }
 );
@@ -34,9 +44,24 @@ export function formCsharpSelectedExpressionSource(
     const selection = formCsharpTargetCallSource(host, {
       call: node, sourceFile: queries.sourceFile, source: queries.operations.call(node),
     });
-    const resultSource = isNew || selection.kind === "missing" ? undefined
-      : formCsharpSourceCallResultSource(scope, selection.source, queries.sourceFile);
-    return Object.freeze({ kind: "call", node, queries, state, isNew, selection, resultSource });
+    const contract = selection.kind === "missing" ? undefined
+      : formCsharpSourceCallContractSource(scope, selection.source, queries.sourceFile);
+    const resultSource = isNew || contract === undefined ? undefined : formCsharpSourceCallResultSource(scope, contract);
+    const construction = !isNew || contract === undefined || selection.kind === "missing" ? undefined
+      : formCsharpSourceOwnedConstructionSource(scope, contract, queries, selection.projectDeclaration);
+    return Object.freeze({ kind: "call", node, queries, state, isNew, selection, contract, construction, resultSource });
   }
   return Object.freeze({ kind: "other", node, queries, state });
+}
+
+export function formCsharpSourceOwnedConstructionSource(
+  scope: Pick<CsharpTypeResolutionScope, "sourceCallSelectedDeclaration">,
+  contract: CsharpSourceCallContractSource,
+  queries: SourceFileSemantics,
+  projectDeclaration: boolean,
+): CsharpSourceOwnedConstructionSource {
+  return Object.freeze({ contract, queries, projectDeclaration,
+    resultSource: contract.callableSource.constructorDeclaration !== undefined && projectDeclaration
+      ? undefined : formCsharpSourceCallResultSource(scope, contract),
+  });
 }
