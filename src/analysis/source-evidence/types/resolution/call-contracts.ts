@@ -1,6 +1,8 @@
 import type { SourceFile, Type } from "@tsonic/tsts";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { SourceCallableContract } from "../../../../target-model/records/callables/source-callable-contract.js";
-import { classifyCsharpSourceCallee } from "../../../callables/calls/source-callees.js";
+import { classifyFormedCsharpSourceCallee, formCsharpSourceCalleeSource,
+  type CsharpSourceCalleeSource } from "../../../callables/calls/source-callees.js";
 import { selectCsharpSourceCallableValueAbi } from "../../../callables/calls/source-callable-abi.js";
 import { getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
 import type { CsharpTypeResolutionScope } from "./scope.js";
@@ -22,6 +24,24 @@ export type CsharpSourceCallContractSelection =
   | { readonly kind: "value"; readonly contract: SourceCallableContract }
   | { readonly kind: "rejected" };
 
+export type CsharpSourceCallContractSource = {
+  readonly source: ResolvedSourceCallInfo;
+  readonly sourceFile: SourceFile;
+} & (
+  | { readonly kind: "direct" }
+  | { readonly kind: "callee"; readonly callee: CsharpSourceCalleeSource }
+);
+
+export function formCsharpSourceCallContractSource(
+  { host }: Pick<CsharpTypeResolutionScope, "host">,
+  source: ResolvedSourceCallInfo,
+  sourceFile: SourceFile,
+): CsharpSourceCallContractSource {
+  return host.ast.is.IsNewExpression(source.call) || host.ast.kindName(source.sourceCallee.expression) === "KindSuperKeyword"
+    ? Object.freeze({ source, sourceFile, kind: "direct" })
+    : Object.freeze({ source, sourceFile, kind: "callee", callee: formCsharpSourceCalleeSource(host, source, sourceFile) });
+}
+
 export function resolveSourceCallContract(
   scope: CsharpTypeResolutionScope,
   source: ResolvedSourceCallInfo,
@@ -29,17 +49,28 @@ export function resolveSourceCallContract(
   state: CsharpTypeResolutionState,
   selection: "checked" | "implementation",
 ): CsharpSourceCallContractSelection {
+  return resolveFormedSourceCallContract(scope, formCsharpSourceCallContractSource(scope, source, sourceFile), state, selection);
+}
+
+export function resolveFormedSourceCallContract(
+  scope: CsharpTypeResolutionScope,
+  input: CsharpSourceCallContractSource,
+  state: CsharpTypeResolutionState,
+  selection: "checked" | "implementation",
+): CsharpSourceCallContractSelection {
   const { host, resolveSelectedValueWithState, resolveReadStorage, sourceCallableTypeParametersMatch } = scope;
+  const { source, sourceFile } = input;
   const direct = (): CsharpSourceCallContractSelection => Object.freeze({ kind: "declaration",
     contract: host.representations.sourceCallable(source, sourceFile, selection) });
-  if (host.ast.is.IsNewExpression(source.call) || host.ast.kindName(source.sourceCallee.expression) === "KindSuperKeyword") return direct();
-  const callee = classifyCsharpSourceCallee({ ast: host.ast, navigation: host.navigation,
-    moduleCallables: host.moduleCallables,
+  if (input.kind === "direct") return direct();
+  if (input.callee.source !== source || input.callee.sourceFile !== sourceFile) failTargetAnalysisInvariant("tsonic-csharp",
+    "Source call contract completion requires its exact retained callee observations.", source.call);
+  const callee = classifyFormedCsharpSourceCallee({
     projectTypes: host.projectTypes(),
     typeDefinitions: host.typeDefinitions,
     types: { resolveReadStorage, resolveSelectedValue: (expression, type, file) =>
       resolveSelectedValueWithState(expression, type, file, nextState(state)) },
-  }, source, sourceFile);
+  }, input.callee);
   if (callee.kind === "function" || callee.kind === "method" || callee.kind === "union-method") return direct();
   const reject = (): CsharpSourceCallContractSelection => Object.freeze({ kind: "rejected" });
   if (callee.kind === "rejected") return reject();

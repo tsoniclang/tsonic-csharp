@@ -2,7 +2,8 @@ import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import { sourceTypeSyntaxRoot, sourceNodeIsNativeUnreachable } from "@tsonic/target-api/source";
 
-import { resolveSourceCallContract as resolveSourceCallContractImplementation } from "./call-contracts.js";
+import { formCsharpSourceCallContractSource, resolveFormedSourceCallContract,
+  resolveSourceCallContract as resolveSourceCallContractImplementation } from "./call-contracts.js";
 
 import { resolveCsharpPointerReturnContract } from "../../../callables/ownership/pointer-return.js";
 
@@ -49,6 +50,10 @@ type DropScope<Arguments extends readonly unknown[]> =
   Arguments extends readonly [unknown, ...infer Rest] ? Rest : never;
 
 export interface CsharpTypeResolutionServices {
+  readonly callContractSource: (...args: DropScope<Parameters<typeof formCsharpSourceCallContractSource>>) =>
+    ReturnType<typeof formCsharpSourceCallContractSource>;
+  readonly completeCallContract: (...args: DropScope<Parameters<typeof resolveFormedSourceCallContract>>) =>
+    ReturnType<typeof resolveFormedSourceCallContract>;
   readonly projectSemanticSource: (...args: DropScope<Parameters<typeof formCsharpProjectSemanticSource>>) =>
     ReturnType<typeof formCsharpProjectSemanticSource>;
   readonly completeProjectSemantic: (...args: DropScope<Parameters<typeof resolveFormedCsharpProjectSemanticType>>) =>
@@ -370,6 +375,10 @@ export function createCsharpTypeResolutionServices(
     },
   });
   return Object.freeze({ policy, recursive,
+    callContractSource: (...args: DropScope<Parameters<typeof formCsharpSourceCallContractSource>>) =>
+      formCsharpSourceCallContractSource(scope, ...args),
+    completeCallContract: (...args: DropScope<Parameters<typeof resolveFormedSourceCallContract>>) =>
+      resolveFormedSourceCallContract(scope, ...args),
     projectSemanticSource: (...args: DropScope<Parameters<typeof formCsharpProjectSemanticSource>>) =>
       formCsharpProjectSemanticSource(scope, ...args),
     completeProjectSemantic: (...args: DropScope<Parameters<typeof resolveFormedCsharpProjectSemanticType>>) =>

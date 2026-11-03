@@ -9,6 +9,7 @@ import type { CsharpProjectSemanticSource } from "../../source-evidence/types/re
 import type { CsharpAuthoredTypeSelectionEvidence } from "../../source-evidence/types/resolution/selected-values.js";
 import type { CsharpProjectConstructionSource } from "./project-construction-source.js";
 import type { CsharpProjectConstructibleTypeProjection } from "../../../target-model/records/objects/object-shapes.js";
+import type { CsharpTypeResolutionServices } from "../../source-evidence/types/resolution/engine.js";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import type { CsharpCollectedObjectShapeMembers } from "./member-source.js";
 import type { CsharpCompletedStructuralMemberChildren, CsharpStructuralMemberInheritance,
@@ -30,6 +31,8 @@ export interface CsharpObjectShapePolicyHost extends CsharpTypePolicyBaseHost {
   bindStructuralTypeApplication(source: CsharpStructuralTypeSource, receiver: TargetTypeRef | undefined): CsharpStructuralTypeApplication;
   projectSemanticSource(type: Type, queries: SourceFileSemantics, state: CsharpTypeResolutionState): CsharpProjectSemanticSource;
   completeAuthoredSelection(source: CsharpAuthoredTypeSelectionEvidence): TargetTypeRef | undefined;
+  readonly callContractSource: CsharpTypeResolutionServices["callContractSource"];
+  readonly completeCallContract: CsharpTypeResolutionServices["completeCallContract"];
 }
 
 export interface CsharpRecursiveObjectShapePolicy extends CsharpObjectShapePolicy {
