@@ -34,6 +34,7 @@ test("sealed shape catalogs retain actual generic instances and read undemanded 
   const builder = analyzeCsharpObjectShapes(policy, {
     targetTypes: [demanded], compileTimeMetadata: { get: () => false },
   }, { selectedCall: { get: () => undefined }, selectedConstruction: { get: () => undefined } });
+  builder.completeFormation();
   const shapes = builder.seal();
   closed = true;
   const queries = nativeQueries;

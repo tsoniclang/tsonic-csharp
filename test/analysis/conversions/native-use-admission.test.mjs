@@ -459,7 +459,9 @@ function nativeCreationInputs(value) {
     };
   };
   const contracts = { get: identity => contract(identity.declaration), closedInputType: () => undefined };
-  const captures = analyzeCsharpCaptureStorage(value.source, value.program.objectShapes, records, records,
+  const methods = value.program.objectShapes.knownShapes().flatMap(shape =>
+    (shape.declarationTemplate ?? shape).methodImplementation ?? []);
+  const captures = analyzeCsharpCaptureStorage(value.source, methods, records, records,
     [], contracts, records.erasedStatement, records);
   assert.equal(captures.issues.length, 0, "the original fixture supplies its actual completed capture owner");
   return { records, contracts, captures };

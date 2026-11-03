@@ -64,6 +64,7 @@ function harness({ resolvesComponent, shapeTemplate = template, aliases = [] }) 
   };
   const builder = analyzeCsharpObjectShapes(policy, { targetTypes: aliases, compileTimeMetadata: { get: () => false } },
     { selectedCall: { get: () => undefined }, selectedConstruction: { get: () => undefined } });
+  builder.completeFormation();
   const sealed = builder.seal();
   closed = true;
   return { builder, sealed, files, counts };
@@ -191,6 +192,7 @@ test("structural implementations are materialized at seal and an unrecorded inst
   const builder = analyzeCsharpObjectShapes(policy, { targetTypes: [], compileTimeMetadata: { get: () => false } },
     { selectedCall: { get: () => undefined }, selectedConstruction: { get: () => undefined } });
   assert.equal(builder.registerStructuralInterface({}, source.targetType, destination.targetType), true, "structural interface admitted");
+  builder.completeFormation();
   const sealed = builder.seal();
   closed = true;
   const before = queries;
@@ -288,6 +290,7 @@ test("a generic structural implementation is substituted once at seal into froze
   const builder = analyzeCsharpObjectShapes(policy, { targetTypes: [], compileTimeMetadata: { get: () => false } },
     { selectedCall: { get: () => undefined }, selectedConstruction: { get: () => undefined } });
   assert.equal(builder.registerStructuralInterface({}, source.targetType, destination.targetType), true, "generic structural interface admitted");
+  builder.completeFormation();
   const sealed = builder.seal();
   closed = true;
   const before = queries;

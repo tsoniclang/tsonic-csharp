@@ -332,6 +332,7 @@ test("repeated carriers classify published occurrences and the final merge, neve
     assert.equal(builder.registerStructuralInterface({}, targetType, targetType), false,
       "a Boolean-only registration does not publish its intermediate merge inputs");
   }
+  builder.completeFormation();
   const classifications = builder.seal();
   assert.equal(parentReads, 4 * occurrences.length,
     "three exact occurrence owner reads plus one final merged declaration read each; no quadratic history retention");

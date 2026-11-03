@@ -332,6 +332,7 @@ test("structural publication closes late inherited obligations through its singl
   const analyzed = analyzeCsharpObjectShapes(policy, { targetTypes: [] }, {});
   assert.equal(analyzed.registerStructuralInterface({}, body.targetType, view.targetType, body.sourceType), true, "the original checked body/view edge");
   assert.equal(analyzed.registerStructuralInterface({}, view.targetType, base.targetType, view.sourceType), true, "a later native base obligation");
+  analyzed.completeFormation();
   const published = analyzed.knownShapes().find(shape => shape.targetType === body.targetType);
   assert.equal(published.implements.length, 2, "both native interface obligations are closed before publication");
   assert.equal(analyzed.structuralImplementations(body.targetType).some(selected => selected.interfaceType === base.targetType), true,

@@ -83,7 +83,7 @@ function fixture(body, quotation = false) {
     returnType: scalar });
   const contracts = { get: identity => identity.declaration === lambda ? contract : undefined, closedInputType: () => undefined };
   const selectedOperations = { selectedCall: { get: node => operations.get(node) }, selectedConstruction: { get: () => undefined } };
-  const selected = analyzeCsharpCaptureStorage(source, { knownShapes: () => [] }, storage, evidence,
+  const selected = analyzeCsharpCaptureStorage(source, [], storage, evidence,
     [], contracts, { get: () => false }, selectedOperations);
   assert.equal(selected.issues.length === 0, true, "closed capture storage");
   const creationResult = analyzeCsharpCallableCreations({ source, nodes, captures: selected,

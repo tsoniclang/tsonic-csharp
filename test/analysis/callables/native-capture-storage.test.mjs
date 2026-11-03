@@ -58,7 +58,7 @@ function fixture(text) {
     return source.ast.as.AsVariableDeclaration(selected)?.Initializer ??
       source.ast.as.AsParameterDeclaration(selected)?.Initializer ?? selected;
   };
-  const evaluate = () => analyzeCsharpCaptureStorage(source, { knownShapes: () => [] }, {
+  const evaluate = () => analyzeCsharpCaptureStorage(source, [], {
     nativeBacking: { get: () => undefined }, nativeArray: { get: () => undefined },
     storageType: { get: declaration => storageTypes.get(declaration) },
     typedLocationIdentity: { get: () => false },
