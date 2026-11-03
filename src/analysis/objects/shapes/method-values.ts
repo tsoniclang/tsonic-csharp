@@ -1,7 +1,7 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import type { SourceStorageDomainBoundary, SourceStorageQueries } from "@tsonic/target-api/analysis";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
-import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetNamedTypeRef } from "../../../target-model/types/model.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../target-model/types/equality.js";
 import { createStructuralObjectShapeTarget } from "./construction.js";
 import { csharpObjectMethodValueStorageKey, csharpStructuralObjectShapeIdentity } from "../../../target-model/types/object-shape-identity.js";
@@ -130,6 +130,51 @@ function formCsharpObjectMethodValueFacts(
   }));
 }
 
+type CsharpObjectMethodValueStoragePlan =
+  | { readonly kind: "retained"; readonly member: CsharpObjectShapeMemberFact }
+  | {
+      readonly kind: "protocol";
+      readonly source: Extract<CsharpObjectMethodValueFacts, { readonly kind: "method" }>;
+      readonly member: CsharpObjectShapeMemberFact;
+      readonly contract: TargetTypeRef;
+      readonly created: boolean;
+      readonly required: boolean;
+    };
+
+function formCsharpObjectMethodValueStoragePlan(
+  source: readonly CsharpObjectMethodValueFacts[],
+  selfContract: boolean,
+  environment: CsharpTypeParameterEnvironment,
+): readonly CsharpObjectMethodValueStoragePlan[] {
+  return Object.freeze(source.map((input): CsharpObjectMethodValueStoragePlan => {
+    const { member } = input;
+    if (input.kind === "unchanged") return Object.freeze({ kind: "retained", member });
+    const { signature, declaration, requiresProtocol, nativeMethod, needsValue } = input;
+    if (!requiresProtocol && !nativeMethod && (member.optional === true || needsValue || declaration !== undefined)) {
+      const { methodValueContract: _contract, ...value } = member;
+      return Object.freeze({ kind: "retained", member: Object.freeze({ ...value,
+        methodValueStorage: Object.freeze({ kind: "delegate" as const,
+          type: member.optional === true ? csharpNullableTargetType(member.type) : member.type }) }) });
+    }
+    if (!requiresProtocol && !nativeMethod && declaration === undefined && !selfContract) {
+      return Object.freeze({ kind: "retained", member });
+    }
+    const required = csharpObjectShapeMethodRequiresProtocol(member);
+    if (member.methodValueContract === undefined && !required && !nativeMethod && !selfContract) {
+      return Object.freeze({ kind: "retained", member: declaration === undefined ? member : Object.freeze({
+        ...member, methodValueStorage: Object.freeze({ kind: "delegate" as const, type: member.type }),
+      }) });
+    }
+    const contract = member.methodValueContract ?? createStructuralObjectShapeTarget([signature], undefined, environment, true);
+    const storage = declaration === undefined || nativeMethod ? member.methodValueStorage
+      : Object.freeze({ kind: "protocol" as const, type: member.optional === true ? csharpNullableTargetType(contract) : contract,
+        invocationName: objectShapeMethodInvocationName(member) });
+    return Object.freeze({ kind: "protocol", source: input, contract, created: member.methodValueContract === undefined,
+      required, member: Object.freeze({ ...member, methodValueContract: contract,
+        ...(storage === undefined ? {} : { methodValueStorage: storage }) }) });
+  }));
+}
+
 export function resolveCsharpWritableMethodContract(
   shape: CsharpObjectShapeFact,
   writtenMembers: readonly CsharpObjectShapeMemberFact[],
@@ -208,38 +253,22 @@ export function retainCsharpMethodValueContracts(
   const implemented = new Map((shape.implements ?? []).filter(type => !shape.members.some(member =>
     member.methodValueContract !== undefined && targetTypeRefEquals(member.methodValueContract, type)))
     .map(type => [targetTypeRefKey(type), type]));
-  const members = source.map(input => {
-    const { member } = input;
-    if (input.kind === "unchanged") return member;
-    const { signature, declaration, requiresProtocol, nativeMethod, needsValue } = input;
-    if (!requiresProtocol && !nativeMethod && (member.optional === true || needsValue || declaration !== undefined)) {
-      const { methodValueContract: _contract, ...value } = member;
-      return { ...value, methodValueStorage: Object.freeze({ kind: "delegate" as const,
-        type: member.optional === true ? csharpNullableTargetType(member.type) : member.type }) };
-    }
-    const selfContract = shape.members.length === 1 && shape.targetType.kind === "target-named" &&
-      (shape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract === true;
-    if (!requiresProtocol && !nativeMethod && declaration === undefined && !selfContract) return member;
-    let contract = member.methodValueContract;
-    if (contract === undefined) {
-      const required = csharpObjectShapeMethodRequiresProtocol(member);
-      if (!required && !nativeMethod && !selfContract) return declaration === undefined ? member : {
+  const selfContract = shape.members.length === 1 && shape.targetType.kind === "target-named" &&
+    (shape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract === true;
+  const plan = formCsharpObjectMethodValueStoragePlan(source, selfContract, environment);
+  const members = plan.map(input => {
+    if (input.kind === "retained") return input.member;
+    const { contract, source: { signature, declaration, nativeMethod, member } } = input;
+    const ownProtocol = targetTypeRefEquals(shape.targetType, contract);
+    if (input.created) {
+      if (!input.required && !nativeMethod && !ownProtocol) return declaration === undefined ? member : {
         ...member, methodValueStorage: Object.freeze({ kind: "delegate", type: member.type }) };
-      const protocol = createStructuralObjectShapeTarget([signature], undefined, environment, true);
-      const ownProtocol = targetTypeRefEquals(shape.targetType, protocol);
-      if (!required && !nativeMethod && !ownProtocol) return declaration === undefined ? member : {
-        ...member, methodValueStorage: Object.freeze({ kind: "delegate", type: member.type }) };
-      contract = protocol;
       if (!ownProtocol) remember({ targetType: contract, members: [{ ...signature, methodValueContract: contract }] });
     }
-    if (!targetTypeRefEquals(shape.targetType, contract) &&
-      (member.optional !== true || declaration !== undefined)) {
+    if (!ownProtocol && (member.optional !== true || declaration !== undefined)) {
       implemented.set(targetTypeRefKey(contract), contract);
     }
-    const storage = declaration === undefined || nativeMethod ? member.methodValueStorage
-      : Object.freeze({ kind: "protocol" as const, type: member.optional === true ? csharpNullableTargetType(contract) : contract,
-        invocationName: objectShapeMethodInvocationName(member) });
-    return { ...member, methodValueContract: contract, ...(storage === undefined ? {} : { methodValueStorage: storage }) };
+    return input.member;
   });
   const { implements: _implemented, ...retained } = shape;
   const contracts = implemented.size === 0 ? undefined : [...implemented.values()];
