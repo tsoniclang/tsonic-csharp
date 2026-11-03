@@ -7,6 +7,8 @@ import type { CsharpPlanningRepresentationQueries, CsharpRecursiveTypeResolver, 
 import type { CsharpCurrentProjectDeclarations } from "../../source-evidence/model.js";
 import type { CsharpProjectSemanticSource } from "../../source-evidence/types/resolution/project-types.js";
 import type { CsharpAuthoredTypeSelectionEvidence } from "../../source-evidence/types/resolution/selected-values.js";
+import type { CsharpProjectConstructionSource } from "./project-construction-source.js";
+import type { CsharpProjectConstructibleTypeProjection } from "../../../target-model/records/objects/object-shapes.js";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import type { CsharpCollectedObjectShapeMembers } from "./member-source.js";
 import type { CsharpCompletedStructuralMemberChildren, CsharpStructuralMemberInheritance,
@@ -40,6 +42,10 @@ export interface CsharpRecursiveObjectShapePolicy extends CsharpObjectShapePolic
     members: readonly CsharpObjectShapeMemberFact[]): readonly CsharpObjectShapeMemberFact[];
   completeSourceMembers(source: CsharpStructuralTypeSource,
     receiver: TargetTypeRef | undefined): readonly CsharpObjectShapeMemberFact[] | undefined;
+  formProjectConstructionSource(explicitTypeNode: Node | undefined, selectedType: Type,
+    contextNode: Node, sourceFile: SourceFile): CsharpProjectConstructionSource;
+  completeProjectConstructionSource(source: CsharpProjectConstructionSource,
+    targetType: TargetTypeRef): CsharpProjectConstructibleTypeProjection;
   retainConstructionSource(node: Node, type: Type, shape: CsharpObjectShapeFact, sourceFile: SourceFile): CsharpObjectShapeFact | undefined;
   resolveReference(type: Type): TargetTypeRef | undefined;
   resolveUnion(type: Type, sourceFile: SourceFile, state: CsharpTypeResolutionState): CsharpStructuralUnionResolution;

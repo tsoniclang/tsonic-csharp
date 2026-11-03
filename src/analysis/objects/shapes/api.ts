@@ -217,7 +217,7 @@ export function createCsharpObjectShapePolicy(
   }
 
   const resolveObjectLiteralTargetShape = createCsharpLiteralShapeResolver(host, { resolveNode, retainLiteralMemberEvidence, instantiateMemberEvidence, rememberTargetShape });
-  const resolveProjectConstructibleSelectedType = createCsharpProjectShapeProjection(host, deriveMembers);
+  const projectConstruction = createCsharpProjectShapeProjection(host, { collectMembers, completeSourceMembers });
 
   function remember(
     node: Node,
@@ -662,6 +662,8 @@ export function createCsharpObjectShapePolicy(
     resolveTypeMember,
     resolveTypeWithState,
     resolveObjectLiteralTargetShape,
-    resolveProjectConstructibleSelectedType,
+    formProjectConstructionSource: projectConstruction.formSource,
+    completeProjectConstructionSource: projectConstruction.completeSource,
+    resolveProjectConstructibleSelectedType: projectConstruction.resolve,
   });
 }
