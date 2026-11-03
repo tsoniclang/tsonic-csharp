@@ -4,7 +4,7 @@ import type { CsharpSourceMemberKey } from "../../../target-model/types/model.js
 import { formMemberInstantiationEvidence, type CsharpObjectShapeMemberInstantiationSource,
   type CsharpObjectShapeMemberProofInput } from "./member-instantiation.js";
 import { retainCheckedMemberDeclarationEvidence, type CsharpCollectedObjectShapeMembers } from "./member-source.js";
-import type { CsharpProjectDeclarationMemberSource, CsharpProjectDeclarationShapeSource } from "./project-declaration-source.js";
+import type { CsharpProjectDeclarationMemberSource, CsharpProjectDeclarationSource } from "./project-declaration-source.js";
 import type { CsharpProviderObjectLiteralSource } from "./provider-construction.js";
 import type { CsharpStructShapeSource } from "./struct-source.js";
 
@@ -14,12 +14,19 @@ export interface CsharpObjectShapeSourceMember {
   readonly proof: CsharpObjectShapeMemberProofInput;
 }
 
-export type CsharpObjectShapeSource = {
+interface CsharpObjectShapeSourceData {
   readonly sourceType: Type;
   readonly members: readonly CsharpObjectShapeSourceMember[];
-} & (
+}
+
+export interface CsharpDeclaredObjectShapeSource extends CsharpObjectShapeSourceData {
+  readonly kind: "declaration";
+  readonly declaration: CsharpProjectDeclarationSource;
+  readonly inherited: readonly (CsharpDeclaredObjectShapeSource | undefined)[];
+}
+
+export type CsharpObjectShapeSource = CsharpDeclaredObjectShapeSource | CsharpObjectShapeSourceData & (
   | { readonly kind: "collected"; readonly collection: CsharpCollectedObjectShapeMembers }
-  | { readonly kind: "declaration"; readonly declaration: CsharpProjectDeclarationShapeSource }
   | { readonly kind: "provider"; readonly provider: CsharpProviderObjectLiteralSource }
   | { readonly kind: "struct"; readonly struct: CsharpStructShapeSource }
   | { readonly kind: "instantiated"; readonly previous: CsharpObjectShapeSource;
@@ -41,8 +48,10 @@ function declaredSourceMemberKey(member: CsharpProjectDeclarationMemberSource): 
   return selected.member.sourceKey;
 }
 
-export function formDeclaredObjectShapeSource(declaration: CsharpProjectDeclarationShapeSource): CsharpObjectShapeSource {
+export function formDeclaredObjectShapeSource(declaration: CsharpProjectDeclarationSource): CsharpDeclaredObjectShapeSource {
   return Object.freeze({ kind: "declaration", declaration, sourceType: declaration.declaredType,
+    inherited: Object.freeze(declaration.members.map(member => member.inherited === undefined ? undefined
+      : formDeclaredObjectShapeSource(member.inherited.source))),
     members: Object.freeze(declaration.members.map(member => Object.freeze({
       sourceKey: declaredSourceMemberKey(member), memberKind: member.member.method ? "method" as const : "property" as const, proof: member,
     }))),

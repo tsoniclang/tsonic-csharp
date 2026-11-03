@@ -34,7 +34,7 @@ import { createCsharpObjectShapeSourceFormation, type CsharpObjectShapeTypeSourc
 import { formCsharpObjectShapeNodeSource } from "./node-source.js";
 import { createCsharpProjectDeclarationApplications } from "./project-declaration-application.js";
 import { completeCsharpStructShapeSource, type CsharpStructShapeSource } from "./struct-source.js";
-import { formInstantiatedObjectShapeSource } from "./shape-source.js";
+import { formDeclaredObjectShapeSource } from "./shape-source.js";
 import type { CsharpStructuralNodeSourceInput, CsharpStructuralTypeSourceInput } from "../../source-evidence/types/resolution/root-sources.js";
 import { completeCsharpObjectShapePublication, formCsharpObjectShapePublication,
   type CsharpObjectShapePublication, type CsharpObjectShapeTargetSelection } from "./publication.js";
@@ -349,10 +349,12 @@ export function createCsharpObjectShapePolicy(
       if (declaredKind === "enum") {
         return undefined;
       }
-      const application = contextualProjectType !== undefined && (declaredKind === "class" || declaredKind === "interface")
-        ? declarationApplications.formDeclarationApplication(contextualProjectType, state) : undefined;
-      const instantiated = application === undefined ? undefined
-        : formInstantiatedObjectShapeSource(application.source, type, queries);
+      const projectSource = contextualProjectType === undefined ? undefined
+        : input.projects.find(project => project.definition.id === contextualProjectType.id);
+      const application = contextualProjectType !== undefined && (declaredKind === "class" || declaredKind === "interface") &&
+          projectSource?.declared !== undefined
+        ? declarationApplications.formDeclarationApplication(contextualProjectType, projectSource.declared, state) : undefined;
+      const instantiated = application === undefined ? undefined : projectSource?.instantiated;
       const declaredShape = declaredKind === "class" && application !== undefined
         ? declarationApplications.completeDeclarationApplication(application) : undefined;
       if (declaredKind === "class" && declaredShape === undefined) return undefined;
@@ -431,8 +433,11 @@ export function createCsharpObjectShapePolicy(
     targetType: CsharpTargetNamedTypeRef,
     state: CsharpTypeResolutionState,
   ): CsharpObjectShapeFact | undefined {
-    const source = declarationApplications.formDeclarationApplication(targetType, state);
-    return source === undefined ? undefined : declarationApplications.completeDeclarationApplication(source);
+    const definition = host.projectDeclarations.declarationForTarget(targetType);
+    const source = definition === undefined ? undefined : formation.captureProjectDeclarationSource(definition.declaration);
+    const application = source === undefined ? undefined : declarationApplications.formDeclarationApplication(
+      targetType, formDeclaredObjectShapeSource(source), state);
+    return application === undefined ? undefined : declarationApplications.completeDeclarationApplication(application);
   }
 
   function resolveTypeMember(

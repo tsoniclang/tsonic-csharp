@@ -9,13 +9,13 @@ import { csharpSourceTemplateState } from "../../source-evidence/types/resolutio
 import { nextState } from "../../source-evidence/types/resolution/state.js";
 import type { CsharpTypeResolutionState } from "../../source-evidence/types/resolution/model.js";
 import type { CsharpObjectShapePolicyHost, CsharpRecursiveObjectShapePolicy } from "./model.js";
-import type { CsharpObjectShapeSource, CsharpObjectShapeSourceMember } from "./shape-source.js";
+import type { CsharpDeclaredObjectShapeSource, CsharpObjectShapeSourceMember } from "./shape-source.js";
 import type { CsharpProjectDeclarationShapeSource } from "./project-declaration-source.js";
 import type { createCsharpObjectShapeSourceFormation } from "./type-source.js";
 
 export type CsharpProjectDeclarationApplication = {
   readonly targetType: CsharpTargetNamedTypeRef;
-  readonly source: CsharpObjectShapeSource;
+  readonly source: CsharpDeclaredObjectShapeSource;
 } & (
   | { readonly kind: "instance"; readonly template: CsharpProjectDeclarationApplication }
   | { readonly kind: "declaration"; readonly declaration: CsharpProjectDeclarationShapeSource;
@@ -43,35 +43,32 @@ export function createCsharpProjectDeclarationApplications(
 
   function formDeclarationApplication(
     target: CsharpTargetNamedTypeRef,
+    source: CsharpDeclaredObjectShapeSource,
     state: CsharpTypeResolutionState,
   ): CsharpProjectDeclarationApplication | undefined {
     const definition = host.projectTypeCatalog.definitionForTarget(target);
     if (definition?.kind !== "class" && definition?.kind !== "interface" ||
       (target.typeArguments?.length ?? 0) !== definition.typeParameterBindings.length) return undefined;
     const checked = host.projectDeclarations.declarationForId(definition.id);
-    if (checked?.declaration !== definition.declaration) return failTargetAnalysisInvariant("tsonic-csharp",
+    if (checked?.declaration !== definition.declaration || source.declaration.definition !== checked) return failTargetAnalysisInvariant("tsonic-csharp",
       "A native declaration header requires its exact checked declaration occurrence.", definition.declaration);
     const targetType = nativeOwner(target);
     if (targetType === undefined) return undefined;
     const declarationType = host.projectTypeCatalog.targetTypeForDeclaration(definition.declaration, definition.typeParameterBindings);
     if (declarationType === undefined) return undefined;
     if (!targetTypeRefEquals(declarationType, targetType)) {
-      const template = formDeclarationApplication(declarationType,
+      const template = formDeclarationApplication(declarationType, source,
         nextState(csharpSourceTemplateState([...definition.outerTypeParameters, ...definition.typeParameters], state)));
       return template === undefined ? undefined : Object.freeze({ kind: "instance", targetType, template, source: template.source });
     }
-    const declaration = formation.formProjectDeclarationSource(definition.declaration, state);
-    if (declaration === undefined) return undefined;
+    const declaration = formation.formProjectDeclarationFromSource(source.declaration, state);
     const inherited: (Extract<CsharpProjectDeclarationApplication, { readonly kind: "declaration" }>["inherited"][number])[] = [];
-    const members: CsharpObjectShapeSourceMember[] = [];
-    for (const selectedSource of declaration.members) {
+    for (const [index, selectedSource] of declaration.members.entries()) {
       const member = selectedSource.member;
       const input = member.proofInput;
       const owner = selectedSource.inherited?.source.definition;
       if (owner === undefined) {
         inherited.push(undefined);
-        members.push(Object.freeze({ sourceKey: member.sourceKey,
-          memberKind: member.method ? "method" as const : "property" as const, proof: input }));
         continue;
       }
       const native = host.projectTypeCatalog.definitionForDeclaration(owner.declaration);
@@ -80,28 +77,20 @@ export function createCsharpProjectDeclarationApplications(
       const selectedOwner = ownerType === undefined ? undefined
         : host.projectTypes().instantiateDeclarationType(owner.declaration, targetType, ownerType);
       if (selectedOwner?.kind !== "resolved" || selectedOwner.type.kind !== "target-named") return undefined;
-      const application = formDeclarationApplication(selectedOwner.type, nextState(declaration.state));
+      const inheritedSource = source.inherited[index];
+      if (inheritedSource?.declaration !== selectedSource.inherited!.source) return failTargetAnalysisInvariant("tsonic-csharp",
+        "Inherited native binding requires its original retained declaration source.", member.methodDeclaration);
+      const application = formDeclarationApplication(selectedOwner.type, inheritedSource, nextState(declaration.state));
       if (application === undefined) return undefined;
       const selected = resolveCsharpObjectShapeMemberBySelectedSubject({
         members: application.source.members.map(row => row.proof),
       }, [...input.sourceSubjects ?? [], ...input.sourceDeclarations ?? []]);
       if (selected.kind !== "resolved") return undefined;
       const row = application.source.members.find(candidate => candidate.proof === selected.member);
-      if (row === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+      if (row === undefined || row.proof !== selectedSource.inherited!.member) return failTargetAnalysisInvariant("tsonic-csharp",
         "Inherited source proof selection requires its exact published member row.", member.methodDeclaration);
       inherited.push(Object.freeze({ application, member: row }));
-      members.push(Object.freeze({ sourceKey: row.sourceKey, memberKind: row.memberKind, proof: Object.freeze({
-        sourceSubjects: Object.freeze([...new Set([...selected.member.sourceSubjects ?? [], ...input.sourceSubjects ?? []])]),
-        sourceDeclarations: selected.member.sourceDeclarations,
-        sourceTypes: input.sourceTypes === undefined ? selected.member.sourceTypes : input.sourceTypes,
-        sourceMemberEvidence: Object.freeze([...new Set([
-          ...selected.member.sourceMemberEvidence ?? [], ...input.sourceMemberEvidence ?? [],
-        ])]),
-        optional: selected.member.optional,
-      }) }));
     }
-    const source: CsharpObjectShapeSource = Object.freeze({ kind: "declaration", declaration,
-      sourceType: declaration.declaredType, members: Object.freeze(members) });
     return Object.freeze({ kind: "declaration", targetType, declaration, source, inherited: Object.freeze(inherited) });
   }
 

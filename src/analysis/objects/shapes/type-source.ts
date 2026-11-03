@@ -13,7 +13,8 @@ import { formCsharpObjectLiteralShapeSource, type CsharpObjectLiteralShapeSource
 import { formProviderObjectLiteralSource, type CsharpProviderObjectLiteralSource } from "./provider-construction.js";
 import { createCsharpProjectDeclarationShapeSource, type CsharpProjectDeclarationShapeSource } from "./project-declaration-source.js";
 import { formCollectedObjectShapeSource, formDeclaredObjectShapeSource, formInstantiatedObjectShapeSource,
-  formProviderObjectShapeSource, formStructObjectShapeSource, type CsharpObjectShapeSource } from "./shape-source.js";
+  formProviderObjectShapeSource, formStructObjectShapeSource, type CsharpDeclaredObjectShapeSource,
+  type CsharpObjectShapeSource } from "./shape-source.js";
 import { requiresUnresolvedStructuralProjection, typeHasProjectOwnedShapeDeclaration,
   typeIsExcludedFromObjectShape } from "./source-evidence.js";
 import { selectCsharpObjectMethodImplementationSource,
@@ -24,7 +25,7 @@ import type { CsharpSourceCallContractSource } from "../../source-evidence/types
 export interface CsharpObjectShapeProjectSource {
   readonly definition: CsharpCurrentProjectDeclaration;
   readonly declaration: CsharpProjectDeclarationShapeSource | undefined;
-  readonly declared: CsharpObjectShapeSource | undefined;
+  readonly declared: CsharpDeclaredObjectShapeSource | undefined;
   readonly instantiated: CsharpObjectShapeSource | undefined;
   readonly instanceType: Type | undefined;
   readonly struct: CsharpStructShapeSource | undefined;
@@ -92,7 +93,7 @@ export function createCsharpObjectShapeSourceFormation(
         const definition = host.projectDeclarations.declarationForNode(selected);
         if (definition === undefined) continue;
         const declaration = formProjectDeclarationSource(selected, state);
-        const declared = declaration === undefined ? undefined : formDeclaredObjectShapeSource(declaration);
+        const declared = declaration === undefined ? undefined : formDeclaredObjectShapeSource(declaration.source);
         const instantiated = declared === undefined ? undefined : formInstantiatedObjectShapeSource(declared, type, queries);
         const struct = definition.kind === "struct" ? formCsharpStructShapeSource(host, collectMembers,
           definition.declaration, host.semantics(definition.sourceFile), nextState(state)) : undefined;
