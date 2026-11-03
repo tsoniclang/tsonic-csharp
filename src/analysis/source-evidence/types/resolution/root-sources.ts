@@ -1,5 +1,5 @@
 import type { ExtensionFactSubject, Node, SourceFile, Type } from "@tsonic/tsts";
-import { sourceTypeSyntaxRoot, type SourceFileSemantics } from "@tsonic/target-api/source";
+import { sourceTypeSyntaxRoot, type SourceFileSemantics, type SourceStandardTypeTransformation } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpObjectShapeNodeSource } from "../../../objects/shapes/node-source.js";
 import type { CsharpObjectShapeTypeSource } from "../../../objects/shapes/type-source.js";
@@ -24,6 +24,7 @@ import { formCsharpCallableTypeInput, type CsharpCallableTypeInput } from "./cal
 import { formCsharpNativeParameterSource, type CsharpNativeParameterSource } from "./native-parameter-source.js";
 import { formCsharpProjectThisSource, type CsharpProjectInstanceSource } from "./project-instance-source.js";
 import { formCsharpContextualParameterSource, type CsharpContextualParameterSource } from "./contextual-parameter-source.js";
+import { formCsharpSourceTypeComponentSource, type CsharpSourceTypeComponentSource } from "./type-component-source.js";
 
 export interface CsharpStructuralNodeSourceInput {
   readonly node: Node;
@@ -49,6 +50,8 @@ export type CsharpSemanticTypeSource = {
   | { readonly kind: "type"; readonly type: Type; readonly queries: SourceFileSemantics;
       readonly nonPrimitive: boolean; readonly binding: CsharpSourceTypeBindingEvidence | undefined;
       readonly subjects: readonly ExtensionFactSubject[]; readonly direct: CsharpDirectSourceEvidence;
+      readonly transformation: SourceStandardTypeTransformation | undefined;
+      readonly transformationComponent: CsharpSourceTypeComponentSource | undefined;
       readonly callable: CsharpCallableTypeInput;
       readonly arguments: CsharpSemanticTypeArgumentsSource;
       readonly project: CsharpProjectSemanticSource; readonly structural: CsharpStructuralTypeSourceInput }
@@ -131,7 +134,10 @@ export function formCsharpSemanticTypeSource(
   const binding = nonPrimitive || state.sourceBindings === undefined ? undefined
     : formCsharpSourceTypeBindingEvidence(type, queries);
   const subjects = queries.facts.typeSubjects(type);
-  return Object.freeze({ kind: "type", type, sourceFile, state, queries, nonPrimitive, binding,
+  const transformation = queries.types.standardTransformation(undefined, type);
+  const transformationComponent = transformation?.kind !== "component" ? undefined
+    : formCsharpSourceTypeComponentSource(scope, transformation.component, queries, nextState(state));
+  return Object.freeze({ kind: "type", type, sourceFile, state, queries, nonPrimitive, binding, transformation, transformationComponent,
     subjects, direct: formCsharpDirectSourceEvidence(scope, subjects, sourceFile, state),
     callable: formCsharpCallableTypeInput(scope.host, formCsharpCallableTypeSource(scope.host.ast, type, queries), state),
     arguments: formCsharpSemanticTypeArgumentsSource(scope, type, queries, state),

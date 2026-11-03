@@ -72,10 +72,18 @@ export function resolveFormedCsharpSemanticTypeSource(
       nextState(state),
     );
   }
-  const transformation = queries.types.standardTransformation(undefined, type);
-  if (transformation !== undefined) return transformation.kind === "component"
-    ? scope.resolveSourceTypeComponentEvidence(transformation.component, queries, nextState(state))
-    : undefined;
+  const transformation = source.transformation;
+  if (transformation?.kind === "component") {
+    const component = source.transformationComponent;
+    if (component === undefined || component.component !== transformation.component || component.queries !== queries) {
+      return failTargetAnalysisInvariant("tsonic-csharp", "A semantic transformation requires its exact retained component Source.", sourceFile);
+    }
+    return scope.resolveFormedSourceTypeComponentEvidence(component);
+  }
+  if (source.transformationComponent !== undefined) {
+    return failTargetAnalysisInvariant("tsonic-csharp", "A semantic transformation cannot invent a component Source.", sourceFile);
+  }
+  if (transformation !== undefined) return undefined;
   const application = queries.types.aliasApplication(type);
   if (application?.kind === "direct" && sourceTypeSyntaxIsCompositional(host.ast, application.typeNode) &&
     host.navigation.isProjectDeclaration(application.declaration)) {
