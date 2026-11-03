@@ -12,7 +12,7 @@ export function csharpObjectShapeMethodRequiresProtocol(member: CsharpObjectShap
 }
 
 export function csharpObjectShapeMethodDeclaration(
-  shape: CsharpObjectShapeFact, member: CsharpObjectShapeMemberFact,
+  shape: Pick<CsharpObjectShapeFact, "methodImplementation">, member: CsharpObjectShapeMemberFact,
 ): Node | undefined {
   const methods = shape.methodImplementation?.methods;
   if (methods === undefined || member.memberKind !== "method") return undefined;

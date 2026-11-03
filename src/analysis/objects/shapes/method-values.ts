@@ -90,6 +90,46 @@ export function csharpObjectMethodValueIsExtracted(storage: SourceStorageQueries
   return selectMethodValueUses(storage).extracted.has(declaration);
 }
 
+type CsharpObjectMethodValueFacts =
+  | { readonly kind: "unchanged"; readonly member: CsharpObjectShapeMemberFact }
+  | {
+      readonly kind: "method";
+      readonly member: CsharpObjectShapeMemberFact;
+      readonly signature: CsharpObjectShapeMemberFact;
+      readonly declaration: Node | undefined;
+      readonly subject: ReturnType<SourceStorageQueries["memberSubjectFor"]> | undefined;
+      readonly writes: ReturnType<SourceStorageQueries["memberWritesFor"]> | undefined;
+      readonly valueUses: ReadonlySet<Node> | undefined;
+      readonly requiresProtocol: boolean;
+      readonly nativeMethod: boolean;
+      readonly needsValue: boolean;
+    };
+
+function formCsharpObjectMethodValueFacts(
+  input: Pick<CsharpObjectShapeFact, "members" | "methodImplementation">,
+  nativeInterface: boolean,
+  sourceStorage: SourceStorageQueries,
+): readonly CsharpObjectMethodValueFacts[] {
+  return Object.freeze(input.members.map((member): CsharpObjectMethodValueFacts => {
+    const signature = csharpPresentObjectShapeMethod(member);
+    if (signature === undefined || member.methodValueContract === undefined && member.methodValueStorage?.kind === "delegate") {
+      return Object.freeze({ kind: "unchanged", member });
+    }
+    const declaration = csharpObjectShapeMethodDeclaration(input, member);
+    const subject = declaration === undefined ? undefined : sourceStorage.memberSubjectFor(declaration);
+    const writes = subject?.kind === "resolved" ? sourceStorage.memberWritesFor(subject.subject) : undefined;
+    const quantified = (member.typeParameters?.length ?? 0) > 0;
+    const requiresProtocol = quantified || member.methodValueContract !== undefined;
+    const nativeMethod = csharpObjectMethodHasFixedNativeExposure(writes);
+    const valueUses = !nativeInterface && !requiresProtocol && !nativeMethod && (member.sourceDeclarations?.length ?? 0) > 0
+      ? selectMethodValueUses(sourceStorage).retained : undefined;
+    const needsValue = member.methodValueStorage?.kind === "delegate" ||
+      member.sourceDeclarations?.some(source => valueUses?.has(source) === true) === true;
+    return Object.freeze({ kind: "method", member, signature, declaration, subject, writes, valueUses,
+      requiresProtocol, nativeMethod, needsValue });
+  }));
+}
+
 export function resolveCsharpWritableMethodContract(
   shape: CsharpObjectShapeFact,
   writtenMembers: readonly CsharpObjectShapeMemberFact[],
@@ -164,23 +204,14 @@ export function retainCsharpMethodValueContracts(
     (shape.targetType as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind !== "interface") return shape;
   const nativeInterface = shape.targetType.kind === "target-named" &&
     (shape.targetType as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind === "interface";
+  const source = formCsharpObjectMethodValueFacts(shape, nativeInterface, sourceStorage);
   const implemented = new Map((shape.implements ?? []).filter(type => !shape.members.some(member =>
     member.methodValueContract !== undefined && targetTypeRefEquals(member.methodValueContract, type)))
     .map(type => [targetTypeRefKey(type), type]));
-  const members = shape.members.map(member => {
-    const signature = csharpPresentObjectShapeMethod(member);
-    if (signature === undefined) return member;
-    if (member.methodValueContract === undefined && member.methodValueStorage?.kind === "delegate") return member;
-    const declaration = csharpObjectShapeMethodDeclaration(shape, member);
-    const subject = declaration === undefined ? undefined : sourceStorage.memberSubjectFor(declaration);
-    const writes = subject?.kind === "resolved" ? sourceStorage.memberWritesFor(subject.subject) : undefined;
-    const quantified = (member.typeParameters?.length ?? 0) > 0;
-    const requiresProtocol = quantified || member.methodValueContract !== undefined;
-    const nativeMethod = csharpObjectMethodHasFixedNativeExposure(writes);
-    const valueUses = !nativeInterface && !requiresProtocol && !nativeMethod && (member.sourceDeclarations?.length ?? 0) > 0
-      ? selectMethodValueUses(sourceStorage).retained : undefined;
-    const needsValue = member.methodValueStorage?.kind === "delegate" ||
-      member.sourceDeclarations?.some(source => valueUses?.has(source) === true) === true;
+  const members = source.map(input => {
+    const { member } = input;
+    if (input.kind === "unchanged") return member;
+    const { signature, declaration, requiresProtocol, nativeMethod, needsValue } = input;
     if (!requiresProtocol && !nativeMethod && (member.optional === true || needsValue || declaration !== undefined)) {
       const { methodValueContract: _contract, ...value } = member;
       return { ...value, methodValueStorage: Object.freeze({ kind: "delegate" as const,
@@ -202,7 +233,7 @@ export function retainCsharpMethodValueContracts(
       if (!ownProtocol) remember({ targetType: contract, members: [{ ...signature, methodValueContract: contract }] });
     }
     if (!targetTypeRefEquals(shape.targetType, contract) &&
-      (member.optional !== true || csharpObjectShapeMethodDeclaration(shape, member) !== undefined)) {
+      (member.optional !== true || declaration !== undefined)) {
       implemented.set(targetTypeRefKey(contract), contract);
     }
     const storage = declaration === undefined || nativeMethod ? member.methodValueStorage
