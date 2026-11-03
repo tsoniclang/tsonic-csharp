@@ -9,6 +9,7 @@ import type { CsharpProviderObjectLiteralSource } from "./provider-construction.
 
 export interface CsharpObjectShapeSourceMember {
   readonly sourceKey: CsharpSourceMemberKey;
+  readonly memberKind: "method" | "property";
   readonly proof: CsharpObjectShapeMemberProofInput;
 }
 
@@ -27,6 +28,7 @@ export function formCollectedObjectShapeSource(collection: CsharpCollectedObject
   return Object.freeze({ kind: "collected", collection, sourceType: collection.ownerType,
     members: Object.freeze(collection.members.map(member => Object.freeze({
       sourceKey: member.sourceKey, proof: member.proofInput,
+      memberKind: member.method ? "method" as const : "property" as const,
     }))),
   });
 }
@@ -40,7 +42,7 @@ function declaredSourceMemberKey(member: CsharpProjectDeclarationMemberSource): 
 export function formDeclaredObjectShapeSource(declaration: CsharpProjectDeclarationShapeSource): CsharpObjectShapeSource {
   return Object.freeze({ kind: "declaration", declaration, sourceType: declaration.declaredType,
     members: Object.freeze(declaration.members.map(member => Object.freeze({
-      sourceKey: declaredSourceMemberKey(member), proof: member,
+      sourceKey: declaredSourceMemberKey(member), memberKind: member.member.method ? "method" as const : "property" as const, proof: member,
     }))),
   });
 }
@@ -57,7 +59,7 @@ export function formProviderObjectShapeSource(provider: CsharpProviderObjectLite
   if (members === undefined) return undefined;
   return Object.freeze({ kind: "provider", provider, sourceType: provider.type,
     members: Object.freeze(provider.members.map((member, index) => Object.freeze({
-      sourceKey: member.sourceKey!, proof: members[index]!,
+      sourceKey: member.sourceKey!, memberKind: "property" as const, proof: members[index]!,
     }))),
   });
 }
@@ -74,7 +76,7 @@ export function formInstantiatedObjectShapeSource(
   if (instantiation === undefined) return undefined;
   const members = instantiation.kind === "empty" ? Object.freeze([])
     : Object.freeze(instantiation.members.map((member, index) => Object.freeze({
-        sourceKey: previous.members[index]!.sourceKey, proof: member.output,
+        sourceKey: previous.members[index]!.sourceKey, memberKind: previous.members[index]!.memberKind, proof: member.output,
       })));
   return Object.freeze({ kind: "instantiated", previous, instantiation, sourceType: type, members });
 }

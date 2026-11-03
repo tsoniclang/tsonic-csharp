@@ -75,7 +75,8 @@ export function createCsharpProjectDeclarationApplications(
       const owner = owners.values().next().value;
       if (owner === undefined || owner.id === definition.id) {
         inherited.push(undefined);
-        members.push(Object.freeze({ sourceKey: member.sourceKey, proof: input }));
+        members.push(Object.freeze({ sourceKey: member.sourceKey,
+          memberKind: member.method ? "method" as const : "property" as const, proof: input }));
         continue;
       }
       const native = host.projectTypeCatalog.definitionForDeclaration(owner.declaration);
@@ -94,7 +95,7 @@ export function createCsharpProjectDeclarationApplications(
       if (row === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
         "Inherited source proof selection requires its exact published member row.", member.methodDeclaration);
       inherited.push(Object.freeze({ application, member: row }));
-      members.push(Object.freeze({ sourceKey: row.sourceKey, proof: Object.freeze({
+      members.push(Object.freeze({ sourceKey: row.sourceKey, memberKind: row.memberKind, proof: Object.freeze({
         sourceSubjects: Object.freeze([...new Set([...selected.member.sourceSubjects ?? [], ...input.sourceSubjects ?? []])]),
         sourceDeclarations: selected.member.sourceDeclarations,
         sourceTypes: input.sourceTypes === undefined ? selected.member.sourceTypes : input.sourceTypes,

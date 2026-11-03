@@ -1,25 +1,37 @@
-
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { createStructuralObjectShapeTarget } from "./construction.js";
-
-
-import { selectSourceObjectLiteralAccessors, AsSpreadAssignment } from "@tsonic/target-api/source";
-
-import type { CsharpObjectShapeFact, CsharpTargetNamedTypeRef } from "../../../target-model/types/model.js";
-import type { Node, SourceFile } from "@tsonic/tsts";
-
+import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetNamedTypeRef } from "../../../target-model/types/model.js";
 import { csharpSourceMemberKeysEqual } from "../../../target-model/types/source-member-keys.js";
-
 import { selectCsharpObjectMethodImplementation } from "./method-implementations.js";
 import { selectCsharpMethodValueEnvironment } from "../../../policy/types/objects/method-environments.js";
-
 import { csharpObjectShapeMethodRequiresProtocol } from "../../../target-model/types/method-values.js";
-
 import { selectCsharpCopiedMethodReceiver } from "../copied-methods.js";
-
 import type { CsharpObjectShapePolicyHost, CsharpRecursiveObjectShapePolicy } from "./model.js";
 import type { CsharpObjectLiteralTargetShapeResolution } from "../../../target-model/records/objects/object-shapes.js";
-
 import type { createCsharpObjectShapeMemberResolver } from "./member-evidence.js";
+import type { CsharpObjectLiteralConstructionSource } from "./literal-source.js";
+import type { CsharpObjectShapeSource } from "./shape-source.js";
+import type { CsharpObjectShapeMemberProofInput } from "./member-instantiation.js";
+
+function requiresSourceProof(member: CsharpObjectShapeMemberFact, source: CsharpObjectShapeMemberProofInput): void {
+  if (member.sourceSubjects !== source.sourceSubjects || member.sourceDeclarations !== source.sourceDeclarations ||
+    member.sourceTypes !== source.sourceTypes || member.sourceMemberEvidence !== source.sourceMemberEvidence ||
+    member.optional !== source.optional) failTargetAnalysisInvariant("tsonic-csharp",
+      "Literal completion requires its exact retained selected source proof row.");
+}
+
+function requiresShapeSource(shape: CsharpObjectShapeFact, source: CsharpObjectShapeSource): void {
+  if (shape.sourceType !== source.sourceType || shape.members.length !== source.members.length) {
+    return failTargetAnalysisInvariant("tsonic-csharp", "Literal completion requires the same selected source occurrence.");
+  }
+  for (const [index, member] of shape.members.entries()) {
+    const selected = source.members[index]!;
+    if (!csharpSourceMemberKeysEqual(member.sourceKey, selected.sourceKey) || member.memberKind !== selected.memberKind) {
+      return failTargetAnalysisInvariant("tsonic-csharp", "Literal completion requires every original selected member in order.");
+    }
+    requiresSourceProof(member, selected.proof);
+  }
+}
 
 export function createCsharpLiteralShapeResolver(
   host: CsharpObjectShapePolicyHost,
@@ -29,200 +41,128 @@ export function createCsharpLiteralShapeResolver(
     readonly instantiateMemberEvidence: ReturnType<typeof createCsharpObjectShapeMemberResolver>["instantiateMemberEvidence"];
     readonly rememberTargetShape: (shape: CsharpObjectShapeFact) => CsharpObjectShapeFact;
   },
-): CsharpRecursiveObjectShapePolicy["resolveObjectLiteralTargetShape"] {
+) {
   const { resolveNode, retainLiteralMemberEvidence, instantiateMemberEvidence, rememberTargetShape } = dependencies;
   const environment = host.typeParameterConstraints;
-  function resolveObjectLiteralTargetShape(
+
+  function completeObjectLiteralTargetShape(
+    source: CsharpObjectLiteralConstructionSource,
     expectedShape: CsharpObjectShapeFact | undefined,
-    objectLiteral: Node,
-    sourceFile: SourceFile,
+    actualShape: CsharpObjectShapeFact | undefined,
   ): CsharpObjectLiteralTargetShapeResolution {
-    const accessors = selectSourceObjectLiteralAccessors(
-      host.ast,
-      host.semantics(sourceFile),
-      objectLiteral,
-    );
-    if (accessors.kind === "rejected") {
-      return {
-        kind: "rejected",
-        subject: accessors.element,
-        reason: accessors.reason,
-      };
-    }
+    const { objectLiteral, queries, accessors } = source.literal;
+    if (accessors.kind === "rejected") return {
+      kind: "rejected", subject: accessors.element, reason: accessors.reason,
+    };
     if (expectedShape === undefined) {
-      if (accessors.kind === "none") {
-        return { kind: "not-applicable" };
-      }
-      const setterOnly = accessors.members.find((member) =>
-        member.getter === undefined
-      );
+      if (source.expected !== undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+        "Literal completion requires its genuinely absent expected source occurrence.", objectLiteral);
+      if (accessors.kind === "none") return { kind: "not-applicable" };
+      const setterOnly = accessors.members.find(member => member.getter === undefined);
       return setterOnly === undefined
-        ? {
-            kind: "rejected",
-            subject: accessors.members[0]!.getter!.element,
-            reason:
-              "Object-literal accessor has no exact finalized property-shape contract.",
-          }
-        : {
-            kind: "rejected",
-            subject: setterOnly.setter!.element,
-            reason: `Object-literal setter '${setterOnly.sourceName}' has no getter and therefore no exact native read carrier.`,
-          };
+        ? { kind: "rejected", subject: accessors.members[0]!.getter!.element,
+            reason: "Object-literal accessor has no exact finalized property-shape contract." }
+        : { kind: "rejected", subject: setterOnly.setter!.element,
+            reason: `Object-literal setter '${setterOnly.sourceName}' has no getter and therefore no exact native read carrier.` };
+    }
+    if (source.expected === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+      "Literal completion requires its retained expected source occurrence.", objectLiteral);
+    requiresShapeSource(expectedShape, source.expected);
+    if (source.actual.kind === "absent") {
+      if (actualShape !== undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+        "Literal completion cannot replace a completed absent actual occurrence.", objectLiteral);
+    } else {
+      if (actualShape === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+        "Literal completion requires its exact selected actual native child.", objectLiteral);
+      requiresShapeSource(actualShape, source.actual.source);
     }
     const implemented = expectedShape.targetType.kind === "target-named" &&
         ((expectedShape.targetType as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind === "interface" ||
           (expectedShape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract === true)
-      ? [expectedShape.targetType]
-      : expectedShape.implements;
-    const actualShape = expectedShape.targetType.kind === "target-named" &&
-      (expectedShape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract === true
-      ? resolveNode(objectLiteral, sourceFile) : undefined;
-    const queries = host.semantics(sourceFile);
-    const sourceType = actualShape?.sourceType ?? expectedShape.sourceType;
-    const expectedMembers = actualShape === undefined ? expectedShape.members : sourceType === undefined ? undefined
-      : instantiateMemberEvidence(expectedShape.members, sourceType, queries, expectedShape.sourceType);
-    if (sourceType === undefined || expectedMembers === undefined) return {
+      ? [expectedShape.targetType] : expectedShape.implements;
+    const selected = source.selected;
+    const sourceType = selected?.sourceType;
+    const expectedMembers = source.actual.kind === "absent" ? expectedShape.members
+      : selected?.kind === "instantiated" ? instantiateMemberEvidence(expectedShape.members, selected.instantiation) : undefined;
+    if (sourceType === undefined || expectedMembers === undefined || source.members === undefined) return {
       kind: "rejected", subject: objectLiteral,
       reason: "Object-literal construction requires exact member correspondence with its declared native contract.",
     };
-    const additionalMembers = actualShape?.members.filter(actual =>
-      !expectedShape.members.some(expected => csharpSourceMemberKeysEqual(expected.sourceKey, actual.sourceKey))) ?? [];
-    const members = [...retainLiteralMemberEvidence([...expectedMembers, ...additionalMembers], objectLiteral, queries)];
-    const nativeMethodLiteral = members.some(member => member.memberKind === "method" &&
-      member.sourceDeclarations?.some(declaration => host.ast.is.IsMethodDeclaration(declaration) &&
-        host.ast.body(declaration) !== undefined && host.ast.parent(declaration) === objectLiteral) === true);
-    const copiedMethods = host.ast.properties(objectLiteral).some(property => property !== undefined &&
-      host.ast.is.IsSpreadAssignment(property)) && expectedShape.members.some(csharpObjectShapeMethodRequiresProtocol);
+    const additionalMembers = source.additional.map(selection => {
+      const member = actualShape?.members[selection.index];
+      if (member === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+        "Literal completion requires every retained additional actual member.", objectLiteral);
+      requiresSourceProof(member, selection.member.proof);
+      return member;
+    });
+    const members = [...retainLiteralMemberEvidence([...expectedMembers, ...additionalMembers], source.members)];
+    const nativeMethodLiteral = source.nativeMethodLiteral;
+    const copiedMethods = source.literal.spreads.length !== 0 && expectedShape.members.some(csharpObjectShapeMethodRequiresProtocol);
     const ownsImplementation = expectedShape.methodImplementation?.declaration === objectLiteral;
     if (additionalMembers.length === 0 && accessors.kind === "none" && implemented === expectedShape.implements &&
       (!nativeMethodLiteral || ownsImplementation) && !copiedMethods) {
       return { kind: "resolved", shape: rememberTargetShape({ ...expectedShape, sourceType, members }) };
     }
     if (copiedMethods) {
-      const sources: { readonly property: Node; readonly shape: CsharpObjectShapeFact }[] = [];
-      for (const property of host.ast.properties(objectLiteral)) {
-        if (property === undefined || !host.ast.is.IsSpreadAssignment(property)) continue;
-        const source = resolveNode(AsSpreadAssignment(host.ast, property)?.Expression, sourceFile);
-        if (source === undefined) return { kind: "rejected", subject: property,
+      const sources: CsharpObjectShapeFact[] = [];
+      for (const spread of source.literal.spreads) {
+        const shape = resolveNode(spread.expression, queries.sourceFile);
+        if (shape === undefined) return { kind: "rejected", subject: spread.property,
           reason: "Copied generic methods require an exact source object environment." };
-        sources.push({ property, shape: source });
+        sources.push(shape);
       }
-      const receiver = selectCsharpCopiedMethodReceiver(members, sources.map(source => source.shape), host.ast);
+      const receiver = selectCsharpCopiedMethodReceiver(members, sources, host.ast);
       if (receiver.kind === "rejected") return { kind: "rejected", subject: objectLiteral,
         reason: "Copied receiver-dependent methods require their exact native receiver and authored implementation." };
       if (receiver.kind === "selected") return { kind: "resolved", shape: receiver.shape };
-      for (const { shape: source } of sources) {
-        for (const sourceMember of source.members) {
-          const environment = selectCsharpMethodValueEnvironment(source, sourceMember);
+      for (const shape of sources) {
+        for (const sourceMember of shape.members) {
+          const environment = selectCsharpMethodValueEnvironment(shape, sourceMember);
           if (environment === undefined) continue;
           const index = members.findIndex(member => csharpSourceMemberKeysEqual(member.sourceKey, sourceMember.sourceKey));
-          if (index < 0) continue;
+          if (index < 0 || source.ownedMembers[index] === true) continue;
           const member = members[index]!;
-          if (member.sourceDeclarations?.some(declaration => host.ast.parent(declaration) === objectLiteral)) continue;
           members[index] = { ...member, methodValueContract: sourceMember.methodValueContract, methodValueStorage: environment.storage };
         }
       }
     }
-    if (accessors.kind === "resolved") {
-      for (const accessor of accessors.members) {
-        const selectedSubjects = [
-          accessor.sourceSelectedSymbol,
-          ...accessor.sourceSelectedDeclarations,
-        ];
-        const selectedTypes = [
-          ...(accessor.getter === undefined
-            ? []
-            : [accessor.getter.sourceSelectedType]),
-          ...(accessor.setter === undefined
-            ? []
-            : [accessor.setter.sourceSelectedType]),
-        ];
-        const matches = members
-          .map((member, index) => ({ member, index }))
-          .filter(({ member }) =>
-            member.sourceSubjects?.some((subject) =>
-              selectedSubjects.some((selected) => selected === subject)
-            ) === true &&
-            selectedTypes.every((selectedType) =>
-              member.sourceTypes?.some((sourceType) =>
-                sourceType === selectedType
-              ) === true
-            )
-          );
-        if (matches.length !== 1 || matches[0]!.member.memberKind !== "property") {
-          return {
-            kind: "rejected",
-            subject: accessor.getter?.element ?? accessor.setter!.element,
-            reason: `Object-literal accessor '${accessor.sourceName}' does not match one exact finalized property-shape member.`,
-          };
-        }
-        const matched = matches[0]!;
-        if (accessor.getter === undefined) {
-          return {
-            kind: "rejected",
-            subject: accessor.setter!.element,
-            reason: `Object-literal setter '${accessor.sourceName}' has no getter and therefore no exact native read carrier.`,
-          };
-        }
-        if (matched.member.readonly !== true && accessor.setter === undefined) {
-          return {
-            kind: "rejected",
-            subject: accessor.getter.element,
-            reason: `Object-literal getter '${accessor.sourceName}' cannot satisfy the selected writable property contract without an exact setter.`,
-          };
-        }
-        members[matched.index] = {
-          ...matched.member,
-          sourceSubjects: Object.freeze([
-            ...(matched.member.sourceSubjects ?? []),
-            accessor.sourceSelectedSymbol,
-            ...accessor.sourceSelectedDeclarations,
-            accessor.getter.element,
-            ...(accessor.setter === undefined ? [] : [accessor.setter.element]),
-          ]),
-          sourceDeclarations: Object.freeze([...new Set([
-            ...(matched.member.sourceDeclarations ?? []),
-            accessor.getter.element,
-            ...(accessor.setter === undefined ? [] : [accessor.setter.element]),
-          ])]),
-          sourceTypes: Object.freeze([
-            ...(matched.member.sourceTypes ?? []),
-            accessor.getter.sourceSelectedType,
-            accessor.getter.sourceElementType,
-            ...(accessor.setter === undefined
-              ? []
-              : [
-                  accessor.setter.sourceSelectedType,
-                  accessor.setter.sourceElementType,
-                ]),
-          ]),
-          accessor: {
-            getter: true,
-            setter: accessor.setter !== undefined,
-          },
-        };
-      }
+    for (const selection of source.accessors) {
+      const { accessor, index, input, output } = selection;
+      const member = index === undefined ? undefined : members[index];
+      if (member === undefined || input === undefined || member.memberKind !== "property") return {
+        kind: "rejected", subject: accessor.getter?.element ?? accessor.setter!.element,
+        reason: `Object-literal accessor '${accessor.sourceName}' does not match one exact finalized property-shape member.`,
+      };
+      requiresSourceProof(member, input);
+      if (accessor.getter === undefined) return {
+        kind: "rejected", subject: accessor.setter!.element,
+        reason: `Object-literal setter '${accessor.sourceName}' has no getter and therefore no exact native read carrier.`,
+      };
+      if (member.readonly !== true && accessor.setter === undefined) return {
+        kind: "rejected", subject: accessor.getter.element,
+        reason: `Object-literal getter '${accessor.sourceName}' cannot satisfy the selected writable property contract without an exact setter.`,
+      };
+      if (output === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+        "Literal accessor completion requires its retained source output proof.", accessor.getter.element);
+      members[index!] = { ...member, sourceSubjects: output.sourceSubjects,
+        sourceDeclarations: output.sourceDeclarations, sourceTypes: output.sourceTypes,
+        accessor: { getter: true, setter: accessor.setter !== undefined },
+      };
     }
-    const methodImplementation = selectCsharpObjectMethodImplementation(members, host, { depth: 0 }, objectLiteral);
+    const methodImplementation = selectCsharpObjectMethodImplementation(source.implementation,
+      members.map(member => member.targetName), source.captures.map(request =>
+        host.typeResolver.resolveNode(request.node, request.sourceFile, request.state)));
     if (nativeMethodLiteral && methodImplementation === undefined) return {
       kind: "rejected", subject: objectLiteral,
       reason: "Native object methods require one exact authored implementation and closed lexical capture types.",
     };
-    const shape = rememberTargetShape({
-      targetType: createStructuralObjectShapeTarget(
-        members,
-        implemented,
-        environment,
-        false,
-        methodImplementation,
-      ),
-      members,
-      ...(sourceType === undefined ? {} : { sourceType }),
+    return { kind: "resolved", shape: rememberTargetShape({
+      targetType: createStructuralObjectShapeTarget(members, implemented, environment, false, methodImplementation),
+      members, sourceType,
       ...(methodImplementation === undefined ? {} : { methodImplementation }),
       ...(implemented === undefined ? {} : { implements: implemented }),
-    });
-    return { kind: "resolved", shape };
+    }) };
   }
 
-  return resolveObjectLiteralTargetShape;
+  return completeObjectLiteralTargetShape;
 }
