@@ -21,7 +21,7 @@ import { resolveCsharpUnionMemberCarrier } from "./source-evidence.js";
 import { selectCsharpConditionalNumericCarrier } from "../../../../policy/types/conditional-numeric-carrier.js";
 import { getCsharpGenericOptionalParts } from "../../../../target-model/types/projections.js";
 import { resolveCsharpStaticMemberReceiver } from "../../../../policy/types/project/static-members.js";
-import { combineCsharpTargetUnionMembers, isCsharpJsValueTargetType } from "../../../../target-model/types/carriers/runtime-carriers.js";
+import { csharpAbsenceTargetType, combineCsharpTargetUnionMembers, isCsharpJsValueTargetType } from "../../../../target-model/types/carriers/runtime-carriers.js";
 import { getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
 import { resolveCsharpContextualLiteralCarrier } from "./contextual-literals.js";
 import { resolveCsharpSourceLiteralTargetType } from "../../../../policy/conversions/source-literals.js";
@@ -224,6 +224,10 @@ export function resolveMemberAccessTargetType(
   const selectedSourceType = mode === "selected"
     ? selectedType ?? selection.source.sourceReadType ?? selection.source.sourceWriteType
     : undefined;
+  if (selectedSourceType !== undefined && queries.types.isNullish(selectedSourceType) &&
+    selection.source.sourceReadType !== undefined && queries.types.isNullish(selection.source.sourceReadType)) {
+    return csharpAbsenceTargetType();
+  }
   const declaredMemberType = queries.types.typeOfSymbol(selection.source.selectedSymbol);
   if (selection.source.selectedDeclaration !== undefined && host.ast.is.IsBindingElement(selection.source.selectedDeclaration)) {
     const selected = selectedSourceType ?? declaredMemberType;
@@ -239,12 +243,11 @@ export function resolveMemberAccessTargetType(
       host.ast.questionToken(declaration) === undefined
       ? getCsharpMethodValue(type)?.contract ?? type : type;
   };
-  if (host.projectTypeCatalog.definitionContainingDeclaration(selection.source.selectedDeclaration) !== undefined) {
-    const member = resolveSelectedDeclarationResult(selection.source.selectedDeclaration, selectedSourceType ?? declaredMemberType, queries, state, receiverType,
-      declaredMemberType);
-    return member === undefined ? undefined : optionalAccessTargetType(invocationType(member), selection.source.optionalChain);
-  }
-  const structuralMemberType = host.structuralTypes.resolveSelectedProperty(
+  const nominalMethod = host.projectTypeCatalog.definitionContainingDeclaration(selection.source.selectedDeclaration) !== undefined &&
+    (host.ast.is.IsMethodDeclaration(selection.source.selectedDeclaration) ||
+      host.ast.is.IsMethodSignatureDeclaration(selection.source.selectedDeclaration));
+  const nominalReceiver = host.projectTypeCatalog.definitionForTarget(receiverType)?.kind === "class";
+  const structuralMemberType = nominalReceiver || nominalMethod ? undefined : host.structuralTypes.resolveSelectedProperty(
     receiverType,
     queries.facts.selectedSubjects(
       selection.source.selectedSymbol,
@@ -254,6 +257,14 @@ export function resolveMemberAccessTargetType(
     queries.sourceFile,
     declaredMemberType,
   );
+  if (structuralMemberType !== undefined) {
+    return optionalAccessTargetType(invocationType(structuralMemberType), selection.source.optionalChain);
+  }
+  if (host.projectTypeCatalog.definitionContainingDeclaration(selection.source.selectedDeclaration) !== undefined) {
+    const member = resolveSelectedDeclarationResult(selection.source.selectedDeclaration, selectedSourceType ?? declaredMemberType, queries, state, receiverType,
+      declaredMemberType);
+    return member === undefined ? undefined : optionalAccessTargetType(invocationType(member), selection.source.optionalChain);
+  }
   const selectedSymbolType = selectedSourceType === undefined ||
       selection.source.selectedSymbol === undefined
     ? undefined
@@ -264,7 +275,7 @@ export function resolveMemberAccessTargetType(
         state,
       );
   return optionalAccessTargetType(
-    invocationType(structuralMemberType ?? selectedSymbolType ??
+    invocationType(selectedSymbolType ??
       resolveSelectedDeclarationResult(
         selection.source.selectedDeclaration,
         selectedSourceType ?? declaredMemberType,
