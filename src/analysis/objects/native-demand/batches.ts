@@ -6,7 +6,6 @@ import type { CsharpConversionClassifications } from "../../../target-model/reco
 import type { CsharpObjectShapeAnalysis, CsharpObjectShapeClassifications } from "../../../target-model/records/objects/object-shapes.js";
 import type { CsharpProjectTypeClassifications } from "../../../target-model/records/types/project-types.js";
 import type { CsharpTypeDefinitions } from "../../../target-model/types/source-union-definitions.js";
-import type { CsharpRuntimeSourceProject } from "../../../target-model/project/runtime.js";
 
 import type { TargetTypeRef, CsharpObjectShapeProjectionKind } from "../../../target-model/types/model.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeCapability, CsharpObjectShapeProjection } from "../../../target-model/types/index.js";
@@ -30,7 +29,7 @@ export const maximumJsonClosureDepth = 256;
 
 export interface CsharpObjectShapeDemandHost {
   readonly ast: AstReader;
-  readonly runtimeSources: readonly CsharpRuntimeSourceProject[];
+  readonly hasJsRuntime: boolean;
   readonly captureStorage: Pick<CsharpCaptureStorage, "captureFrameShape">;
   readonly conversions: Pick<CsharpConversionClassifications, "conversion">;
   readonly objectShapes: CsharpObjectShapeClassifications & Pick<CsharpObjectShapeAnalysis, "targetShapes">;
