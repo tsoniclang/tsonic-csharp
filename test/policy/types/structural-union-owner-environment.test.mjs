@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { CsharpMetadataResourceLimitFailure } from "../../../dist/target-model/metadata/immutable.js";
+import { TargetCompilerResourceLimitFailure } from "@tsonic/target-api/artifacts";
+import { csharpMetadataResourceFailure } from "../../../dist/backend/compile.js";
 import { createCsharpStructuralUnionDefinitions } from "../../../dist/analysis/objects/shapes/union-definitions.js";
 import { getCsharpRuntimeUnionArms } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
 import { renderObjectShapeTypeParameters } from "../../../dist/backend/planner/objects/type-parameters.js";
@@ -61,6 +64,13 @@ function scenario(arguments_, environment) {
   }, environment);
   return { policy, shapes, resolve: () => policy.resolve(union, file, { depth: 0 }),
     reference: () => policy.reference(union), recursion: () => recursion };
+}
+
+function metadataResourceLimit(failure, dimension, limit) {
+  const resource = csharpMetadataResourceFailure(failure);
+  return failure instanceof CsharpMetadataResourceLimitFailure && failure.dimension === dimension && failure.limit === limit &&
+    resource instanceof TargetCompilerResourceLimitFailure && resource.diagnostic.code === "TSONIC_COMPILER_RESOURCE_LIMIT" &&
+    resource.diagnostic.evidence?.[0] === `${dimension}=${limit}`;
 }
 
 test("recursive arm producers seal exact generic binders before publishing references", () => {
@@ -132,7 +142,7 @@ test("recursive generic argument traversal retains the existing finite depth bou
   let excessive = parameter("value");
   for (let depth = 0; depth < 130; depth += 1) excessive = { kind: "array", element: excessive };
   const selected = scenario([excessive], () => resolved([]));
-  assert.throws(() => selected.resolve(), /budget/u);
+  assert.throws(() => selected.resolve(), failure => metadataResourceLimit(failure, "depth", 128));
   assert.equal(selected.reference() === undefined, true, "over-budget native contract is unpublished");
 });
 

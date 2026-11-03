@@ -108,3 +108,20 @@ export async function run(values: int32[], pending: Promise<int32>): Promise<int
       "if (await Tsonic.Generated.Index.run(new int[] { 7, 9 }, System.Threading.Tasks.Task.FromResult(3)) != 5) throw new System.Exception(\"native full-expression lifetime\");");
   });
 }
+
+test("finite ref-like flow exhaustion is a named compiler resource error, not unsupported source", async () => {
+  const { analyzeCsharpRefLikeLiveness } = await import("../../../dist/analysis/storage/ref-like-liveness.js");
+  const checked = createCompilerSessionFromFiles({ currentDirectory: "/project", files: { "/project/index.ts":
+    `export function finite(): void { ${"{".repeat(270)} let local = 1; ${"}".repeat(270)} }` },
+    compilerOptions: { strict: true, target: "es2022", module: "esnext" } }).checkSource();
+  assert.equal(checked.diagnostics.length, 0, "a finite supported checked function");
+  const source = createTargetSourceProgram(checked);
+  const declaration = source.navigation.nodes.find(node => source.ast.is.IsFunctionDeclaration(node));
+  assert.equal(declaration !== undefined, true, "the exact checked declaration");
+  const issues = [];
+  analyzeCsharpRefLikeLiveness(source, declaration, new Set(), (node, code, message) => issues.push({ node, code, message }));
+  assert.equal(issues.length, 1, "one resource failure, no partial liveness result");
+  assert.equal(issues[0].code, "TSONIC_COMPILER_RESOURCE_LIMIT");
+  assert.equal(issues[0].node === declaration, true, "the original owning function");
+  assert.match(issues[0].message, /finite.*maximumDepth=256/u);
+});

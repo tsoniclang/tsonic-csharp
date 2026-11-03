@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { CsharpMetadataResourceLimitFailure } from "../../../dist/target-model/metadata/immutable.js";
+import { TargetCompilerResourceLimitFailure } from "@tsonic/target-api/artifacts";
+import { csharpMetadataResourceFailure } from "../../../dist/backend/compile.js";
 import { closeCsharpOwnerTypeParameterEnvironment, csharpObjectShapeTypeParameters } from "../../../dist/analysis/source-evidence/types/resolution/owner-type-parameter-environment.js";
 import { csharpFreeTypeParameterIdentities, visitCsharpTargetTypeParameters } from "../../../dist/target-model/types/generic-references.js";
 import { isCsharpTargetTypeRef, snapshotCsharpTargetTypes } from "../../../dist/target-model/types/snapshot.js";
@@ -30,6 +33,13 @@ const container = element => ({ kind: "target-named", csharpAllowsRefLikeTypeArg
   csharpRender: { kind: "named", name: "Container" } });
 const field = type => ({ sourceKey: { kind: "property", name: "value" }, sourceName: "value", targetName: "value", memberKind: "property", type });
 const typeConstraint = type => ({ kind: "type", type });
+
+function metadataResourceLimit(failure, dimension, limit) {
+  const resource = csharpMetadataResourceFailure(failure);
+  return failure instanceof CsharpMetadataResourceLimitFailure && failure.dimension === dimension && failure.limit === limit &&
+    resource instanceof TargetCompilerResourceLimitFailure && resource.diagnostic.code === "TSONIC_COMPILER_RESOURCE_LIMIT" &&
+    resource.diagnostic.evidence?.[0] === `${dimension}=${limit}`;
+}
 
 test("nongeneric owners do not allocate or query a generic constraint environment", () => {
   const environment = () => { throw new Error("Nongeneric owners have no generic constraint query."); };
@@ -328,18 +338,18 @@ test("generic traversal and constraint snapshots share the existing finite work 
   budget.reserve(maximumCsharpMetadataEntries - 1);
   assert.equal(budget.remaining(), 1, "one reservation remains before the snapshot");
   assert.throws(() => snapshotCsharpTargetTypes([parameter("outer")], budget),
-    { name: "TypeError", message: "C# immutable metadata requires bounded dense arrays." },
+    failure => metadataResourceLimit(failure, "entries", maximumCsharpMetadataEntries),
     "snapshots do not reset a selected traversal budget");
   assert.equal(budget.remaining(), 0, "the same budget reserved the root before rejecting its dense entries");
-  assert.throws(() => budget.reserve(1), /finite resource budget/u, "the selected budget remains exhausted after rejection");
+  assert.throws(() => budget.reserve(1), failure => metadataResourceLimit(failure, "entries", maximumCsharpMetadataEntries), "the selected budget remains exhausted after rejection");
   const excessive = new Array(maximumCsharpMetadataEntries + 1);
-  assert.throws(() => csharpFreeTypeParameterIdentities(excessive), TypeError, "reject before pending allocation");
-  assert.throws(() => closeCsharpOwnerTypeParameterEnvironment(excessive, () => resolved([])), TypeError);
-  assert.throws(() => csharpTargetTypeComponents({ kind: "tuple", elements: excessive }), TypeError);
+  assert.throws(() => csharpFreeTypeParameterIdentities(excessive), failure => metadataResourceLimit(failure, "entries", maximumCsharpMetadataEntries), "reject before pending allocation");
+  assert.throws(() => closeCsharpOwnerTypeParameterEnvironment(excessive, () => resolved([])), failure => metadataResourceLimit(failure, "entries", maximumCsharpMetadataEntries));
+  assert.throws(() => csharpTargetTypeComponents({ kind: "tuple", elements: excessive }), failure => metadataResourceLimit(failure, "entries", maximumCsharpMetadataEntries));
   let nested = parameter("outer");
   for (let depth = 0; depth <= maximumCsharpMetadataDepth; depth += 1) nested = { kind: "array", element: nested };
-  assert.throws(() => visitCsharpTargetTypeParameters(nested, () => {}), TypeError, "physical walk depth guard");
-  assert.throws(() => csharpFreeTypeParameterIdentities([nested]), TypeError, "scoped free walk depth guard");
+  assert.throws(() => visitCsharpTargetTypeParameters(nested, () => {}), failure => metadataResourceLimit(failure, "depth", maximumCsharpMetadataDepth), "physical walk depth guard");
+  assert.throws(() => csharpFreeTypeParameterIdentities([nested]), failure => metadataResourceLimit(failure, "depth", maximumCsharpMetadataDepth), "scoped free walk depth guard");
   const cyclic = { kind: "array" };
   cyclic.element = cyclic;
   const parameters = [];

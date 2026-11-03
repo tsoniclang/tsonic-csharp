@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { compileCsharpTarget } from "../../dist/backend/compile.js";
+import { csharpMetadataResourceFailure, compileCsharpTarget } from "../../dist/backend/compile.js";
+import { resolvedTargetStage, runTargetCompilationStages } from "@tsonic/target-api/artifacts";
+import { CsharpMetadataResourceLimitFailure } from "../../dist/target-model/metadata/immutable.js";
 import { compileCsharpSource } from "../helpers/direct-csharp-session.mjs";
 
 const mutation = Object.freeze({ extensionId: "fixture", extensionCode: "REFERENCES_CHANGED",
@@ -39,3 +41,32 @@ test("compilation rechecks reference integrity before returning generated artifa
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.equal(checkedHook, true, "the session ran both compilations");
 });
+
+for (const phase of ["analysis", "planning", "materialization"]) {
+  test(`pure metadata ${phase} exhaustion becomes a named resource diagnostic without partial output`, () => {
+    const warning = Object.freeze({ code: "FIXTURE_WARNING", category: "warning", message: "retained" });
+    const fail = () => { throw new CsharpMetadataResourceLimitFailure("C# immutable metadata snapshot", "depth", 128); };
+    const result = runTargetCompilationStages({
+      analyze: () => phase === "analysis" ? fail() : resolvedTargetStage({}, [warning]),
+      plan: () => phase === "planning" ? fail() : resolvedTargetStage({}, [warning]),
+      materialize: () => phase === "materialization" ? fail() : { artifacts: [] },
+      compilerResourceFailure: csharpMetadataResourceFailure,
+    });
+    assert.equal(result.kind, "rejected");
+    assert.equal("value" in result, false, "resource exhaustion cannot publish partial output");
+    assert.deepEqual(result.diagnostics.slice(0, -1), phase === "analysis" ? [] : phase === "planning" ? [warning] : [warning, warning]);
+    const diagnostic = result.diagnostics.at(-1);
+    assert.equal(diagnostic.code, "TSONIC_COMPILER_RESOURCE_LIMIT");
+    assert.equal(diagnostic.source, "tsonic-csharp");
+    assert.deepEqual(diagnostic.evidence, ["depth=128"]);
+    assert.equal(diagnostic.sourceNode, undefined, "standalone metadata does not acquire compiler subjects");
+    assert.equal(csharpMetadataResourceFailure(new TypeError("malformed")), undefined, "malformed metadata is not resource exhaustion");
+    const unexpected = new Error("unexpected");
+    assert.throws(() => runTargetCompilationStages({
+      analyze: () => { throw unexpected; },
+      plan: () => assert.fail("unexpected errors cannot continue"),
+      materialize: () => assert.fail("unexpected errors cannot publish"),
+      compilerResourceFailure: csharpMetadataResourceFailure,
+    }), failure => failure === unexpected);
+  });
+}
