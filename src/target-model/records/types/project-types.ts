@@ -77,6 +77,7 @@ export interface CsharpProjectTypeCatalog {
   declarationForNode(declaration: Node | undefined): CsharpProjectTypeDeclaration | undefined;
   declarationContaining(declaration: Node | undefined): CsharpProjectTypeDeclaration | undefined;
   declarationForTarget(type: TargetTypeRef | undefined): CsharpProjectTypeDeclaration | undefined;
+  genericProjections(declaration: Node): readonly import("../../types/projections.js").CsharpProjectedType[];
   definitionForId(id: string): CsharpProjectTypeDefinition | undefined;
   definitionForDeclaration(
     declaration: Node | undefined,

@@ -181,7 +181,7 @@ export function resolveCallableEvidence(
   const completedDeclaration = completeCsharpCallableDeclaration(declaration, constraints);
   if (completedDeclaration === undefined) return undefined;
   const abi = completeCsharpCallableABI(completedDeclaration,
-    declaration.declaration === undefined ? [] : host.representations.genericProjections(declaration.declaration));
+    declaration.declaration === undefined ? [] : host.projectTypeCatalog.genericProjections(declaration.declaration));
   return abi === undefined ? undefined : abi.typeParameters.length === 0 ? signature
     : host.objectShapes.resolveCallableValue(signature, abi.typeParameters);
 }

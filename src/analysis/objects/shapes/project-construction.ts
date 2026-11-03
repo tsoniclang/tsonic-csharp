@@ -9,9 +9,10 @@ import { formCsharpProjectConstructionSource, type CsharpProjectConstructionSour
 
 export function createCsharpProjectShapeProjection(
   host: CsharpObjectShapePolicyHost,
-  dependencies: Pick<ReturnType<typeof createCsharpObjectShapeMemberResolver>, "collectMembers" | "completeSourceMembers">,
+  dependencies: Pick<ReturnType<typeof createCsharpObjectShapeMemberResolver>,
+    "collectMembers" | "formSourceMembersHeader" | "completeSourceMembers">,
 ) {
-  const { collectMembers, completeSourceMembers } = dependencies;
+  const { collectMembers, formSourceMembersHeader, completeSourceMembers } = dependencies;
 
   function completeSource(
     source: CsharpProjectConstructionSource,
@@ -27,7 +28,8 @@ export function createCsharpProjectShapeProjection(
     }
     if (!source.projectOwned) return { kind: "rejected",
       reason: "The selected C# project type argument has no exact project-owned source declaration." };
-    const members = source.members === undefined ? undefined : completeSourceMembers(source.members, targetType);
+    const header = source.members === undefined ? undefined : formSourceMembersHeader(source.members, targetType);
+    const members = header === undefined ? undefined : completeSourceMembers(header);
     if (members === undefined) return { kind: "rejected",
       reason: "The selected C# project type argument has no closed object-shape member projection." };
     if (targetType.csharpSourceDeclarationKind === "class") {

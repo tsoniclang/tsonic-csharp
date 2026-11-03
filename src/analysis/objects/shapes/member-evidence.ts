@@ -35,6 +35,12 @@ export interface CsharpStructuralMemberProofSource {
   readonly proof: CsharpObjectShapeMemberProofInput;
 }
 
+export interface CsharpStructuralMembersHeader {
+  readonly source: CsharpStructuralTypeSource;
+  readonly application: CsharpStructuralTypeApplication;
+  readonly members: readonly CsharpStructuralMemberHeader[];
+}
+
 export function formCsharpStructuralMemberProofSource(
   header: CsharpStructuralMemberHeader,
 ): CsharpStructuralMemberProofSource {
@@ -172,7 +178,7 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
       children.constraints.map(constraint => Object.freeze({ source: constraint.request.source, resolution: constraint.resolution })));
     if (callableDeclaration === undefined) return undefined;
     const callableABI = completeCsharpCallableABI(callableDeclaration,
-      methodDeclaration === undefined ? [] : host.representations.genericProjections(methodDeclaration));
+      methodDeclaration === undefined ? [] : host.projectTypeCatalog.genericProjections(methodDeclaration));
     if (callableABI === undefined) return undefined;
     const typeParameters = callableABI.typeParameters;
     const optional = property.optional;
@@ -211,15 +217,6 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
     return retainMemberDeclarationEvidence([completed], [proof])?.[0];
   }
 
-  function completeMember(
-    application: CsharpStructuralTypeApplication,
-    memberIndex: number,
-    children: CsharpCompletedStructuralMemberChildren,
-  ): CsharpObjectShapeMemberFact | undefined {
-    const header = formMemberHeader(application, memberIndex, children);
-    return header === undefined ? undefined : completeMemberSource(formCsharpStructuralMemberProofSource(header));
-  }
-
   function completeMembers(
     application: CsharpStructuralTypeApplication,
     members: readonly CsharpObjectShapeMemberFact[],
@@ -240,18 +237,36 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
     return Object.freeze([...members]);
   }
 
-  function completeSourceMembers(
+  function formSourceMembersHeader(
     source: CsharpStructuralTypeSource,
     receiver: TargetTypeRef | undefined,
-  ): readonly CsharpObjectShapeMemberFact[] | undefined {
+  ): CsharpStructuralMembersHeader | undefined {
     const application = host.bindStructuralTypeApplication(source, receiver);
-    const members: CsharpObjectShapeMemberFact[] = [];
+    const members: CsharpStructuralMemberHeader[] = [];
     for (const [index] of application.members.entries()) {
       const children = host.typeResolver.resolveStructuralMemberChildren(application, index);
       if (children === undefined) return undefined;
-      const member = completeMember(application, index, children);
+      const member = formMemberHeader(application, index, children);
       if (member === undefined) return undefined;
       members.push(member);
+    }
+    return Object.freeze({ source, application, members: Object.freeze(members) });
+  }
+
+  function completeSourceMembers(
+    header: CsharpStructuralMembersHeader,
+  ): readonly CsharpObjectShapeMemberFact[] | undefined {
+    const { application } = header;
+    if (application.source !== header.source || header.members.length !== application.members.length ||
+      application.members.some((member, index) => header.members[index]?.application !== application ||
+        header.members[index]?.memberIndex !== index || header.members[index]?.member !== member)) {
+      return failTargetAnalysisInvariant("tsonic-csharp", "Native member completion requires every exact ordered member header.");
+    }
+    const members: CsharpObjectShapeMemberFact[] = [];
+    for (const member of header.members) {
+      const completed = completeMemberSource(formCsharpStructuralMemberProofSource(member));
+      if (completed === undefined) return undefined;
+      members.push(completed);
     }
     return completeMembers(application, members);
   }
@@ -298,7 +313,7 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
   }
 
   return { formMembersSource, collectMembers, memberInheritance, formMemberHeader, completeMemberSource,
-    completeMember, completeMembers, completeSourceMembers,
+    completeMembers, formSourceMembersHeader, completeSourceMembers,
     formMemberInstantiationEvidence, completeMemberInstantiationEvidence, instantiateMemberEvidence,
     formLiteralMemberEvidence: (node: Node, queries: SourceFileSemantics) => formLiteralMemberEvidence(host, node, queries),
     projectLiteralMemberEvidence, retainMemberDeclarationEvidence, resolvePropertyType, retainLiteralMemberEvidence };

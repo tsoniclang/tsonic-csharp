@@ -13,6 +13,7 @@ import type { CsharpDeclaredObjectShapeSource, CsharpObjectShapeSourceMember } f
 import type { CsharpProjectDeclarationShapeSource } from "./project-declaration-source.js";
 import type { createCsharpObjectShapeSourceFormation } from "./type-source.js";
 import { completeCsharpObjectShapeOwnerHeader } from "../../../target-model/types/object-shape-header.js";
+import type { CsharpStructuralMembersHeader } from "./member-evidence.js";
 
 export type CsharpProjectDeclarationApplication = {
   readonly targetType: CsharpTargetNamedTypeRef;
@@ -20,6 +21,7 @@ export type CsharpProjectDeclarationApplication = {
 } & (
   | { readonly kind: "instance"; readonly template: CsharpProjectDeclarationApplication }
   | { readonly kind: "declaration"; readonly declaration: CsharpProjectDeclarationShapeSource;
+      readonly members: CsharpStructuralMembersHeader;
       readonly inherited: readonly ({ readonly application: CsharpProjectDeclarationApplication;
         readonly member: CsharpObjectShapeSourceMember } | undefined)[] }
 );
@@ -27,7 +29,7 @@ export type CsharpProjectDeclarationApplication = {
 export function createCsharpProjectDeclarationApplications(
   host: CsharpObjectShapePolicyHost,
   formation: ReturnType<typeof createCsharpObjectShapeSourceFormation>,
-  completeSourceMembers: CsharpRecursiveObjectShapePolicy["completeSourceMembers"],
+  memberResolver: Pick<CsharpRecursiveObjectShapePolicy, "formSourceMembersHeader" | "completeSourceMembers">,
   rememberTargetShape: (shape: CsharpObjectShapeFact) => CsharpObjectShapeFact,
 ) {
   function nativeOwner(type: CsharpTargetNamedTypeRef): CsharpTargetNamedTypeRef | undefined {
@@ -57,6 +59,8 @@ export function createCsharpProjectDeclarationApplications(
       return template === undefined ? undefined : Object.freeze({ kind: "instance", targetType, template, source: template.source });
     }
     const declaration = formation.bindProjectDeclarationSource(source.declaration, state);
+    const headers = memberResolver.formSourceMembersHeader(declaration.application, targetType);
+    if (headers === undefined) return undefined;
     const inherited: (Extract<CsharpProjectDeclarationApplication, { readonly kind: "declaration" }>["inherited"][number])[] = [];
     for (const [index, selectedSource] of declaration.members.entries()) {
       const member = selectedSource.member;
@@ -82,7 +86,8 @@ export function createCsharpProjectDeclarationApplications(
         "Inherited source proof selection requires its exact published member row.", member.methodDeclaration);
       inherited.push(Object.freeze({ application, member: row }));
     }
-    return Object.freeze({ kind: "declaration", targetType, declaration, source, inherited: Object.freeze(inherited) });
+    return Object.freeze({ kind: "declaration", targetType, declaration, source, members: headers,
+      inherited: Object.freeze(inherited) });
   }
 
   function completeDeclarationApplication(
@@ -96,7 +101,11 @@ export function createCsharpProjectDeclarationApplications(
     const definition = host.projectTypeCatalog.definitionForDeclaration(declaration.definition.declaration);
     if (definition === undefined || definition.id !== declaration.definition.id) return failTargetAnalysisInvariant("tsonic-csharp",
       "Declaration completion requires its same published native header.", declaration.definition.declaration);
-    const declared = completeSourceMembers(declaration.application, targetType);
+    if (application.members.source !== declaration.application || application.members.application.receiver !== targetType) {
+      return failTargetAnalysisInvariant("tsonic-csharp",
+        "Declaration completion requires its exact current member headers and receiver.", declaration.definition.declaration);
+    }
+    const declared = memberResolver.completeSourceMembers(application.members);
     if (declared === undefined) return undefined;
     const substitutions = new Map(definition.typeParameterBindings.map((parameter, index) =>
       [parameter.identity, targetType.typeArguments![index]!]));

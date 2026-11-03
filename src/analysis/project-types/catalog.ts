@@ -33,6 +33,7 @@ export function createCsharpProjectTypeCatalog(
   const byDeclaration = new WeakMap<Node, CsharpProjectTypeCatalogEntry>();
   const byId = new Map<string, CsharpProjectTypeCatalogEntry>();
   let abiDefinitions: readonly CsharpProjectTypeDefinition[] | undefined;
+  let publishedProjections: CsharpGenericProjectionIndex | undefined;
   let completedDefinitions: readonly CsharpProjectTypeDefinition[] | undefined;
 
   for (const sourceFile of host.navigation.sourceFiles) {
@@ -123,6 +124,10 @@ export function createCsharpProjectTypeCatalog(
     declarationForNode: (declaration: Node | undefined) => declaration === undefined ? undefined : byDeclaration.get(declaration)?.declared,
     declarationContaining: (declaration: Node | undefined) => containing(declaration, byDeclaration)?.declared,
     declarationForTarget: (type: TargetTypeRef | undefined) => type?.kind === "target-named" ? byId.get(type.id)?.declared : undefined,
+    genericProjections(declaration: Node) {
+      requirePublished("abi");
+      return publishedProjections!.genericProjection.get(declaration);
+    },
     definitionForId(id: string) {
       requirePublished("abi");
       return byId.get(id)?.abi;
@@ -147,6 +152,7 @@ export function createCsharpProjectTypeCatalog(
         "Current project callable ABIs are published exactly once.");
       const selected = Object.freeze(selectedDefinitions.map(declared => completeCsharpProjectTypeABI(declared, projections)));
       for (const definition of selected) byDeclaration.get(definition.declaration)!.abi = definition;
+      publishedProjections = projections;
       abiDefinitions = selected;
       return Object.freeze({
         declarationForId: (id: string) => byId.get(id)?.abi,

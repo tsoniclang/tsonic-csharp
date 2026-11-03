@@ -16,8 +16,9 @@ import type { CsharpObjectShapeNodeSource } from "./node-source.js";
 import type { CsharpObjectShapeTypeSource } from "./type-source.js";
 import type { CsharpStructuralNodeSourceInput, CsharpStructuralTypeSourceInput } from "../../source-evidence/types/resolution/root-sources.js";
 import type { CsharpNativeConstructionRetention } from "../native-construction-source.js";
-import type { CsharpCompletedStructuralMemberChildren, CsharpStructuralMemberInheritance,
+import type { CsharpStructuralMemberInheritance,
   CsharpStructuralTypeApplication, CsharpStructuralTypeSource } from "../../source-evidence/types/resolution/structural-applications.js";
+import type { CsharpStructuralMembersHeader } from "./member-evidence.js";
 
 export type CsharpStructuralUnionResolution =
   | { readonly kind: "not-applicable" }
@@ -48,12 +49,11 @@ export interface CsharpRecursiveObjectShapePolicy extends CsharpObjectShapePolic
   collectMembers(type: Type, queries: SourceFileSemantics, state: CsharpTypeResolutionState,
     authoredTypeRoot?: Node): CsharpCollectedObjectShapeMembers | undefined;
   memberInheritance(application: CsharpStructuralTypeApplication, memberIndex: number): CsharpStructuralMemberInheritance;
-  completeMember(application: CsharpStructuralTypeApplication, memberIndex: number,
-    children: CsharpCompletedStructuralMemberChildren): CsharpObjectShapeMemberFact | undefined;
   completeMembers(application: CsharpStructuralTypeApplication,
     members: readonly CsharpObjectShapeMemberFact[]): readonly CsharpObjectShapeMemberFact[];
-  completeSourceMembers(source: CsharpStructuralTypeSource,
-    receiver: TargetTypeRef | undefined): readonly CsharpObjectShapeMemberFact[] | undefined;
+  formSourceMembersHeader(source: CsharpStructuralTypeSource,
+    receiver: TargetTypeRef | undefined): CsharpStructuralMembersHeader | undefined;
+  completeSourceMembers(header: CsharpStructuralMembersHeader): readonly CsharpObjectShapeMemberFact[] | undefined;
   formProjectConstructionSource(explicitTypeNode: Node | undefined, selectedType: Type,
     contextNode: Node, sourceFile: SourceFile): CsharpProjectConstructionSource;
   completeProjectConstructionSource(source: CsharpProjectConstructionSource,

@@ -12,6 +12,7 @@ import type { CsharpObjectShapePolicyHost, CsharpRecursiveObjectShapePolicy } fr
 import type { CsharpObjectShapeMemberProofInput } from "./member-instantiation.js";
 import type { CsharpCollectedObjectShapeMembers } from "./member-source.js";
 import { sourceSubjects } from "./source-evidence.js";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 
 interface CsharpStructFieldSource {
   readonly field: NonNullable<ReturnType<typeof readCsharpSourceStruct>>["fields"][number];
@@ -86,11 +87,15 @@ export function formCsharpStructShapeSource(
 export function completeCsharpStructShapeSource(
   host: CsharpObjectShapePolicyHost,
   source: CsharpStructShapeSource,
+  header: import("./member-evidence.js").CsharpStructuralMembersHeader | undefined,
   completeSourceMembers: CsharpRecursiveObjectShapePolicy["completeSourceMembers"],
 ): CsharpObjectShapeFact | undefined {
   const targetType = host.projectTypeCatalog.targetTypeForDeclaration(source.definition.declaration, []);
   if (targetType === undefined) return undefined;
-  const selectedMembers = source.members === undefined ? undefined : completeSourceMembers(source.members, undefined);
+  if (header !== undefined && (header.source !== source.members || header.application.receiver !== undefined)) {
+    return failTargetAnalysisInvariant("tsonic-csharp", "Struct completion requires its exact current member headers.", source.definition.declaration);
+  }
+  const selectedMembers = header === undefined ? undefined : completeSourceMembers(header);
   const members = source.fields.map(({ field, sourceKey, state, selectedIndex, targetName, proof }) => {
     const type = host.typeResolver.resolveNode(field.sourceType, source.queries.sourceFile, state);
     const selected = selectedIndex === undefined ? undefined : selectedMembers?.[selectedIndex];

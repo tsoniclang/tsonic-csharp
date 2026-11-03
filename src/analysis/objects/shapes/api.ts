@@ -48,7 +48,7 @@ export function createCsharpObjectShapePolicy(
   host: CsharpObjectShapePolicyHost,
 ): CsharpRecursiveObjectShapePolicy {
   const environment = host.typeParameterConstraints;
-  const { formMembersSource, collectMembers, memberInheritance, completeMember, completeMembers, completeSourceMembers,
+  const { formMembersSource, collectMembers, memberInheritance, completeMembers, formSourceMembersHeader, completeSourceMembers,
     instantiateMemberEvidence, retainMemberDeclarationEvidence,
     retainLiteralMemberEvidence } = createCsharpObjectShapeMemberResolver(host);
   const formation = createCsharpObjectShapeSourceFormation(host, { collectMembers, formMembersSource });
@@ -57,7 +57,8 @@ export function createCsharpObjectShapePolicy(
   const nodeShapes = new WeakMap<object, CsharpObjectShapeFact>();
   const targetShapes = new Map<string, CsharpObjectShapePublication>();
   const genericShapes = new Map<string, CsharpObjectShapePublication>();
-  const declarationApplications = createCsharpProjectDeclarationApplications(host, formation, completeSourceMembers, rememberTargetShape);
+  const declarationApplications = createCsharpProjectDeclarationApplications(host, formation,
+    { formSourceMembersHeader, completeSourceMembers }, rememberTargetShape);
   const unionDefinitions = createCsharpStructuralUnionDefinitions(host, (type, file, state) =>
     resolveTypeWithState(type, file, undefined, state), environment);
 
@@ -247,7 +248,7 @@ export function createCsharpObjectShapePolicy(
   }
 
   const resolveObjectLiteralTargetShape = createCsharpLiteralShapeResolver(host, { resolveNode, retainLiteralMemberEvidence, instantiateMemberEvidence, rememberTargetShape });
-  const projectConstruction = createCsharpProjectShapeProjection(host, { collectMembers, completeSourceMembers });
+  const projectConstruction = createCsharpProjectShapeProjection(host, { collectMembers, formSourceMembersHeader, completeSourceMembers });
 
   function remember(
     node: Node,
@@ -319,7 +320,8 @@ export function createCsharpObjectShapePolicy(
   function resolveStructShape(
     source: CsharpStructShapeSource | undefined,
   ): CsharpObjectShapeFact | undefined {
-    return source === undefined ? undefined : completeCsharpStructShapeSource(host, source, completeSourceMembers);
+    const header = source?.members === undefined ? undefined : formSourceMembersHeader(source.members, undefined);
+    return source === undefined ? undefined : completeCsharpStructShapeSource(host, source, header, completeSourceMembers);
   }
 
   function resolveSemanticShape(
@@ -382,8 +384,10 @@ export function createCsharpObjectShapePolicy(
       const declaredShape = declaredKind === "class" && application !== undefined
         ? declarationApplications.completeDeclarationApplication(application) : undefined;
       if (declaredKind === "class" && declaredShape === undefined) return undefined;
+      const memberHeaders = declaredShape !== undefined || input.members === undefined ? undefined
+        : formSourceMembersHeader(input.members, contextualProjectType);
       const members = declaredShape === undefined
-        ? input.members === undefined ? undefined : completeSourceMembers(input.members, contextualProjectType)
+        ? memberHeaders === undefined ? undefined : completeSourceMembers(memberHeaders)
         : instantiated === undefined ? undefined : instantiateMemberEvidence(declaredShape.members, instantiated.instantiation);
       if (members === undefined) {
         return undefined;
@@ -473,7 +477,8 @@ export function createCsharpObjectShapePolicy(
     try {
       const collection = collectMembers(type, queries, Object.freeze({ depth: 0 }));
       const source = collection === undefined ? undefined : host.structuralTypeApplication(collection);
-      const members = source === undefined ? undefined : completeSourceMembers(source, undefined);
+      const headers = source === undefined ? undefined : formSourceMembersHeader(source, undefined);
+      const members = headers === undefined ? undefined : completeSourceMembers(headers);
       const matches = members?.filter((member) =>
         csharpSourceMemberKeysEqual(member.sourceKey, sourceKey)
       ) ?? [];
@@ -490,8 +495,8 @@ export function createCsharpObjectShapePolicy(
     completeTypeSource,
     collectMembers,
     memberInheritance,
-    completeMember,
     completeMembers,
+    formSourceMembersHeader,
     completeSourceMembers,
     resolveNativeParameter,
     resolveNativeReturn,
