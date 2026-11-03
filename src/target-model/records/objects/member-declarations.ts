@@ -9,7 +9,7 @@ export interface CsharpObjectMemberDeclarationSource {
   readonly queries: SourceFileSemantics;
   readonly declarations: readonly Node[];
   readonly subjects: readonly ExtensionFactSubject[];
-  readonly authoredTypeNodes: readonly Node[];
+  readonly declaredTypeNodes: readonly Node[];
   readonly sourceKey: CsharpSourceMemberKey;
   readonly targetName: string;
   readonly method: boolean;

@@ -1,6 +1,5 @@
 import type { Node, TypePropertyInfo } from "@tsonic/tsts";
-import { sourcePresentCallableType, sourcePropertyTypeEvidenceNodes,
-  sourceTransformedTypeFactEvidenceNodes, type SourceFileSemantics } from "@tsonic/target-api/source";
+import { sourcePresentCallableType, type SourceFileSemantics } from "@tsonic/target-api/source";
 import type { CsharpObjectMemberDeclarationSource } from "../../../target-model/records/objects/member-declarations.js";
 import type { CsharpTypePolicyBaseHost } from "../../source-evidence/types/resolution/model.js";
 import { formCsharpCallableDeclaration } from "../../source-evidence/types/resolution/callable-type-parameters.js";
@@ -12,7 +11,6 @@ export function formCsharpObjectMemberDeclarationSource(
   host: Pick<CsharpTypePolicyBaseHost, "ast" | "semanticsFor">,
   property: TypePropertyInfo,
   queries: SourceFileSemantics,
-  authoredTypeRoot: Node | undefined,
   literalOwner: Node | undefined,
 ): CsharpObjectMemberDeclarationSource | undefined {
   const declarations = Object.freeze([...new Set([
@@ -38,13 +36,16 @@ export function formCsharpObjectMemberDeclarationSource(
   const callable = callableType === undefined ? undefined : queries.types.callable(callableType);
   const callableSignature = callable === undefined || callable.result.declaration !== methodDeclaration ? undefined
     : formCsharpCallableSignatureSource(host.ast, callable, queries, callableDeclaration);
-  const authoredTypeNodes = Object.freeze([
-    ...sourcePropertyTypeEvidenceNodes(host.ast, queries, property),
-    ...(authoredTypeRoot === undefined ? []
-      : sourceTransformedTypeFactEvidenceNodes(host.ast, queries, authoredTypeRoot, sourceType)),
-  ]);
+  const declaredTypeNodes = Object.freeze([...new Set(declarations.flatMap(declaration => {
+    const direct = host.ast.typeNode(declaration);
+    if (direct !== undefined) return [direct];
+    if (!host.ast.is.IsSetAccessorDeclaration(declaration)) return [];
+    const parameters = host.ast.parameters(declaration).filter((parameter): parameter is Node => parameter !== undefined);
+    const typeNode = parameters.length !== 1 ? undefined : host.ast.typeNode(parameters[0]!);
+    return typeNode === undefined ? [] : [typeNode];
+  }))]);
   return Object.freeze({ property, propertyType: sourceType, queries, declarations,
-    subjects: Object.freeze([property.symbol, ...declarations]), authoredTypeNodes,
+    subjects: Object.freeze([property.symbol, ...declarations]), declaredTypeNodes,
     sourceKey, targetName, method, getters, setters, methodDeclaration, callableDeclaration, callableSignature,
   });
 }

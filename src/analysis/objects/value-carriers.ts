@@ -139,7 +139,7 @@ export function analyzeCsharpObjectMethodSources(
     const declaredReceiver = type === undefined ? undefined : Object.freeze({
       self: Object.freeze({ kind: "object-occurrence" as const, declaration: literal, identity }), queries, type,
       members: members!, declaredMembers: Object.freeze(members!.map(property =>
-        formCsharpObjectMemberDeclarationSource(memberHost, property, queries, undefined, literal))), methods,
+        formCsharpObjectMemberDeclarationSource(memberHost, property, queries, literal))), methods,
     });
     producer.publish(Object.freeze({ literal, identity, selected: captures, declaredReceiver }));
   }

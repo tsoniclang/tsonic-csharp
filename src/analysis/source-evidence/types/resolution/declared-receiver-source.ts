@@ -55,5 +55,5 @@ function formMembers(
 ): Pick<Extract<CsharpDeclaredObjectReceiverTypeSource, { readonly kind: "type" }>, "members" | "declarations"> {
   const members = queries.types.propertyInfos(type);
   return Object.freeze({ members, declarations: Object.freeze(members.map(property =>
-    formCsharpObjectMemberDeclarationSource(host, property, queries, undefined, literal))) });
+    formCsharpObjectMemberDeclarationSource(host, property, queries, literal))) });
 }

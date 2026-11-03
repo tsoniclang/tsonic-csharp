@@ -1,5 +1,6 @@
 import type { Node, SourceFile, Type, TypePropertyInfo } from "@tsonic/tsts";
 import { ObjectLiteralProperty_Value, sourceClassFieldIsTypeOnly,
+  sourcePropertyTypeEvidenceNodes, sourceTransformedTypeFactEvidenceNodes,
   type SourceFileSemantics, type SourceStructuralMemberPair } from "@tsonic/target-api/source";
 import type { CsharpObjectShapePolicyHost } from "./model.js";
 import type { CsharpTypeResolutionState } from "../../source-evidence/types/resolution/model.js";
@@ -17,6 +18,7 @@ export interface CsharpInheritedObjectShapeMemberSource {
 }
 
 export interface CsharpObjectShapeMemberSource extends CsharpObjectMemberDeclarationSource {
+  readonly authoredTypeNodes: readonly Node[];
   readonly declarationValues: readonly { readonly declaration: Node; readonly value: Node | undefined }[];
   readonly sourceStorageSubject: CsharpTypeResolutionState["sourceStorageSubject"];
   readonly inheritedDeclarations: readonly CsharpInheritedObjectShapeMemberSource[];
@@ -137,9 +139,14 @@ export function createCsharpObjectShapeMemberSource(host: CsharpObjectShapePolic
     authoredTypeRoot: Node | undefined,
     literalOwner: Node | undefined,
   ): Omit<CsharpObjectShapeMemberSource, "correspondence" | "proofInput"> | undefined {
-    const declared = formCsharpObjectMemberDeclarationSource(host, property, queries, authoredTypeRoot, literalOwner);
+    const declared = formCsharpObjectMemberDeclarationSource(host, property, queries, literalOwner);
     if (declared === undefined) return undefined;
     const { declarations, propertyType: sourceType, method } = declared;
+    const authoredTypeNodes = Object.freeze([
+      ...sourcePropertyTypeEvidenceNodes(host.ast, queries, property),
+      ...(authoredTypeRoot === undefined ? []
+        : sourceTransformedTypeFactEvidenceNodes(host.ast, queries, authoredTypeRoot, sourceType)),
+    ]);
     const selection = declarations.length !== 1 ? undefined : host.sourceStorage.memberSubjectFor(declarations[0]!);
     const inheritedDeclarations = declarations.flatMap(declaration => {
       const owner = host.projectDeclarations.declarationForNode(host.ast.parent(declaration));
@@ -154,7 +161,7 @@ export function createCsharpObjectShapeMemberSource(host: CsharpObjectShapePolic
         ? ObjectLiteralProperty_Value(host.ast, declaration) : undefined,
     })));
     const sourceStorageSubject = selection?.kind === "resolved" ? selection.subject : undefined;
-    return Object.freeze({ ...declared, declarationValues, sourceStorageSubject,
+    return Object.freeze({ ...declared, authoredTypeNodes, declarationValues, sourceStorageSubject,
       inheritedDeclarations: Object.freeze(inheritedDeclarations),
       value: !method && declarationValues.length === 1 ? declarationValues[0]!.value : undefined,
       bound: host.memoryBindings.hasBoundField([property.symbol, ...declarations]),
