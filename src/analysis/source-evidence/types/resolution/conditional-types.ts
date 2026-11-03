@@ -7,6 +7,7 @@ import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import { csharpBoundSourceType, csharpSourceBindings } from "./type-bindings.js";
 import { nextState } from "./state.js";
+import { resolveDirectSourceFacts } from "./semantic-types.js";
 
 export function resolveCsharpConditionalApplication(
   scope: CsharpTypeResolutionScope,
@@ -38,7 +39,7 @@ export function resolveCsharpConditionalApplication(
       const index = application.bindings.findIndex(candidate => candidate.parameter === binding.applicationParameter);
       const sourceType = index < 0 ? binding.argument : application.bindings[index]!.argument;
       const targetType = index < 0
-        ? scope.resolveDirectSourceFacts(queries.facts.typeSubjects(sourceType), queries.sourceFile, nextState(bound)) ??
+        ? resolveDirectSourceFacts(scope, queries.facts.typeSubjects(sourceType), queries.sourceFile, nextState(bound)) ??
           scope.resolveEvidenceNodesToCommonTarget(
             sourceTransformedTypeFactEvidenceNodes(scope.host.ast, queries, authoredRoot, sourceType),
             sourceType, queries, nextState(bound),

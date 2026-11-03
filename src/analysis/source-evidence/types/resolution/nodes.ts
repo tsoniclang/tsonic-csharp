@@ -14,7 +14,6 @@ import { nextState } from "./state.js";
 import { resolveCsharpSourceLiteralTargetType } from "../../../../policy/conversions/source-literals.js";
 import { resolveKeywordType } from "../../../../policy/types/resolution/source-primitives.js";
 import { selectedCsharpSourceProfileOwner } from "../../../../policy/identities/source-types.js";
-import { sourceFactSubjectsForNode } from "./source-evidence.js";
 
 import { retainCsharpUnionObjectShapes } from "./source-union-refinement.js";
 import { resolveCsharpProviderIndexedAccess } from "./indexed-access.js";
@@ -48,7 +47,7 @@ function resolveNodeResultWithState(
   scope: CsharpTypeResolutionScope,
   source: CsharpNodeTypeSource,
 ): CsharpSourceCallResult | undefined {
-  const { host, resolveCallableType, resolveDirectSourceFacts, resolveNodeWithState, resolveProjectThisTargetType, resolveFormedSelectedExpressionResult, resolveSourceValueResult, resolveTupleTypeNode, resolveFormedTypeReferenceNode, resolveTypeWithState } = scope;
+  const { host, resolveCallableType, resolveFormedDirectSourceFacts, resolveNodeWithState, resolveProjectThisTargetType, resolveFormedSelectedExpressionResult, resolveSourceValueResult, resolveTupleTypeNode, resolveFormedTypeReferenceNode, resolveTypeWithState } = scope;
   if (source.node === undefined) return undefined;
   if (source.state.depth > maximumTypeResolutionDepth) failTargetCompilerResourceLimit("tsonic-csharp",
     "Selected native source-node type resolution", "depth", maximumTypeResolutionDepth, source.node);
@@ -60,11 +59,7 @@ function resolveNodeResultWithState(
     return selected === undefined ? csharpSourceValueResult(scopedTargetType)
       : scope.resolveSelectedValueResultWithState(node, selected, queries.sourceFile, state);
   }
-  const syntaxFact = resolveCsharpProviderIndexedAccess(scope, node, queries, state) ?? resolveDirectSourceFacts(
-    [node],
-    queries.sourceFile,
-    state,
-  );
+  const syntaxFact = resolveCsharpProviderIndexedAccess(scope, node, queries, state) ?? resolveFormedDirectSourceFacts(source.directSyntax);
   if (syntaxFact !== undefined) {
     return csharpSourceValueResult(syntaxFact);
   }
@@ -90,11 +85,7 @@ function resolveNodeResultWithState(
   if (selectedExpression !== undefined) {
     return selectedExpression;
   }
-  const direct = resolveDirectSourceFacts(
-    sourceFactSubjectsForNode(node, host.navigation),
-    queries.sourceFile,
-    state,
-  );
+  const direct = resolveFormedDirectSourceFacts(source.directValue);
   if (direct !== undefined) {
     return csharpSourceValueResult(direct);
   }

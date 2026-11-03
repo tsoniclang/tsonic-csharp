@@ -37,7 +37,7 @@ import { resolveFormedCsharpTypeReferenceNode as resolveTypeReferenceNodeImpleme
 import { resolveSourceCallInstantiation as resolveSourceCallInstantiationImplementation, resolveSourceCallSelectedType as resolveSourceCallSelectedTypeImplementation, resolveSourceCallableContractType as resolveSourceCallableContractTypeImplementation, inferSourceCallTargetTypeArguments as inferSourceCallTargetTypeArgumentsImplementation, sourceCallSelectedDeclaration as sourceCallSelectedDeclarationImplementation, resolveSourceCallReceiverTargetType as resolveSourceCallReceiverTargetTypeImplementation, sourceCallableTypeParametersMatch as sourceCallableTypeParametersMatchImplementation, sourceValueDeclaration as sourceValueDeclarationImplementation, sourceValueDeclarationSyntax as sourceValueDeclarationSyntaxImplementation } from "./calls.js";
 import { resolveAuthoredAndSelectedSourceType as resolveAuthoredAndSelectedSourceTypeImplementation,
   resolveFormedAuthoredAndSelectedSourceType, type CsharpAuthoredTypeSelectionEvidence } from "./selected-values.js";
-import { resolveFormedCsharpSemanticTypeSource, resolveDirectSourceFacts as resolveDirectSourceFactsImplementation, resolveProviderType as resolveProviderTypeImplementation, resolveFormedCsharpSemanticTypeArguments } from "./semantic-types.js";
+import { resolveFormedCsharpSemanticTypeSource, resolveProviderType as resolveProviderTypeImplementation, resolveFormedCsharpSemanticTypeArguments } from "./semantic-types.js";
 import { resolveSourceProfileType as resolveSourceProfileTypeImplementation, resolveUnionType as resolveUnionTypeImplementation, resolveCallableType as resolveCallableTypeImplementation, resolveCallableEvidence as resolveCallableEvidenceImplementation, resolveSignatureParameterEvidence as resolveSignatureParameterEvidenceImplementation, resolveSourceTypeComponentEvidence as resolveSourceTypeComponentEvidenceImplementation } from "./source-profiles.js";
 import { generatorProtocol as generatorProtocolImplementation, generatorResultProtocol as generatorResultProtocolImplementation } from "../../../../policy/operations/source-profiles/type-carriers.js";
 import { resolveSelectedSymbolType as resolveSelectedSymbolTypeImplementation, resolveProjectSourceSemanticType as resolveProjectSourceSemanticTypeImplementation, resolveProjectSourceType as resolveProjectSourceTypeImplementation, projectSourceDeclarationTargetType as projectSourceDeclarationTargetTypeImplementation } from "./project-types.js";
@@ -53,12 +53,17 @@ import { formCsharpNodeQuerySource, formCsharpTypeQuerySource,
   type CsharpNodeTypeSource, type CsharpSemanticTypeSource } from "./root-sources.js";
 import { formCsharpSourceDeclarationArguments, resolveFormedCsharpSourceDeclarationArguments } from "./generic-arguments.js";
 import { formCsharpSemanticTypeArgumentsSource } from "./semantic-argument-source.js";
+import { formCsharpDirectSourceEvidence, completeCsharpDirectSourceEvidence,
+  resolveFormedCsharpDirectSourceFacts } from "./direct-source-evidence.js";
 
 import type { CsharpTypeResolutionScope } from "./scope.js";
 type DropScope<Arguments extends readonly unknown[]> =
   Arguments extends readonly [unknown, ...infer Rest] ? Rest : never;
 
 export interface CsharpTypeResolutionServices {
+  readonly directFactsSource: (...args: DropScope<Parameters<typeof formCsharpDirectSourceEvidence>>) =>
+    ReturnType<typeof formCsharpDirectSourceEvidence>;
+  readonly completeDirectFacts: typeof completeCsharpDirectSourceEvidence;
   readonly semanticTypeArguments: (...args: DropScope<Parameters<typeof formCsharpSemanticTypeArgumentsSource>>) =>
     ReturnType<typeof formCsharpSemanticTypeArgumentsSource>;
   readonly completeSemanticTypeArguments: (...args: DropScope<Parameters<typeof resolveFormedCsharpSemanticTypeArguments>>) =>
@@ -307,8 +312,8 @@ export function createCsharpTypeResolutionServices(
         activeTypes.delete(type);
       }
     },
-    resolveDirectSourceFacts: (...args: DropScope<Parameters<typeof resolveDirectSourceFactsImplementation>>) =>
-      resolveDirectSourceFactsImplementation(scope, ...args),
+    resolveFormedDirectSourceFacts: (...args: DropScope<Parameters<typeof resolveFormedCsharpDirectSourceFacts>>) =>
+      resolveFormedCsharpDirectSourceFacts(scope, ...args),
     resolveProviderType: (...args: DropScope<Parameters<typeof resolveProviderTypeImplementation>>) =>
       resolveProviderTypeImplementation(scope, ...args),
     resolveFormedSemanticTypeArguments: (...args: DropScope<Parameters<typeof resolveFormedCsharpSemanticTypeArguments>>) =>
@@ -408,6 +413,9 @@ export function createCsharpTypeResolutionServices(
     },
   });
   return Object.freeze({ policy, recursive,
+    directFactsSource: (...args: DropScope<Parameters<typeof formCsharpDirectSourceEvidence>>) =>
+      formCsharpDirectSourceEvidence(scope, ...args),
+    completeDirectFacts: completeCsharpDirectSourceEvidence,
     semanticTypeArguments: (...args: DropScope<Parameters<typeof formCsharpSemanticTypeArgumentsSource>>) =>
       formCsharpSemanticTypeArgumentsSource(scope, ...args),
     completeSemanticTypeArguments: methods.resolveFormedSemanticTypeArguments,

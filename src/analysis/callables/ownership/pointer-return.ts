@@ -3,21 +3,23 @@ import type { Node } from "@tsonic/tsts";
 import type { CsharpTypeResolutionScope } from "../../source-evidence/types/resolution/scope.js";
 import type { CsharpTypeResolutionState } from "../../source-evidence/types/resolution/model.js";
 import { nextState } from "../../source-evidence/types/resolution/state.js";
+import { resolveDirectSourceFacts } from "../../source-evidence/types/resolution/semantic-types.js";
 
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { combineCsharpTargetUnionMembers, csharpRuntimeLocationTargetType, csharpRuntimeLocationPointee } from "../../../target-model/types/carriers/runtime-carriers.js";
 
 export function resolveCsharpPointerReturnContract(
-  { host, resolveAuthoredAndSelectedSourceType, resolveDirectSourceFacts, resolveTypeWithState }: CsharpTypeResolutionScope,
+  scope: CsharpTypeResolutionScope,
   declaration: Node,
   state: CsharpTypeResolutionState,
 ): CsharpPointerReturnContract | undefined {
+  const { host, resolveAuthoredAndSelectedSourceType, resolveTypeWithState } = scope;
   const evidence = host.pointerReturns.resolve(declaration);
   if (evidence === undefined) {
     return undefined;
   }
   const pointees = evidence.pointees.map((value) => csharpRuntimeLocationPointee(
-    resolveDirectSourceFacts([value.subject], host.ast.getSourceFile(value.subject)!, nextState(state)),
+    resolveDirectSourceFacts(scope, [value.subject], host.ast.getSourceFile(value.subject)!, nextState(state)),
   ) ?? resolveAuthoredAndSelectedSourceType(
     value.typeNode,
     host.ast.getSourceFile(value.typeNode ?? value.subject)!,
