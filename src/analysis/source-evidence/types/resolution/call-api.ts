@@ -15,7 +15,7 @@ import { nextState } from "./state.js";
 import { getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
 
 import { formCsharpSourceCallContractSource, resolveFormedSourceCallContract,
-  type CsharpSourceCallContractSelection } from "./call-contracts.js";
+  type CsharpSourceCallContractSelection, type CsharpSourceCallContractSource } from "./call-contracts.js";
 import { csharpSourceCallArgumentParameter } from "../../../../policy/types/callables/source-callable-contract.js";
 import { getCsharpRuntimeUnionArms } from "../../../../target-model/types/carriers/runtime-carriers.js";
 import { selectCsharpConversion } from "../../../../policy/conversions/core.js";
@@ -144,19 +144,31 @@ export function resolveSourceCallParameters(
 }
 
 export function resolveSourceCallArgumentParameter(
-  { resolveSourceCallContract, resolveSourceCallableContractType, resolveSourceCallSelectedType, sourceCallableTypeParametersMatch }: CsharpTypeResolutionScope,
+  scope: CsharpTypeResolutionScope,
   source: ResolvedSourceCallInfo,
   binding: ResolvedSourceCallInfo["sourceArgumentBindings"][number],
   sourceFile: SourceFile,
   excludedSourceArgumentIndexes?: ReadonlySet<number>,
 ): TargetTypeRef | undefined {
+  return completeCsharpSourceCallArgumentParameter(scope, formCsharpSourceCallContractSource(scope, source, sourceFile),
+    binding, excludedSourceArgumentIndexes);
+}
+
+export function completeCsharpSourceCallArgumentParameter(
+  scope: CsharpTypeResolutionScope,
+  input: CsharpSourceCallContractSource,
+  binding: ResolvedSourceCallInfo["sourceArgumentBindings"][number],
+  excludedSourceArgumentIndexes?: ReadonlySet<number>,
+): TargetTypeRef | undefined {
+  const { resolveSourceCallableContractType, resolveSourceCallSelectedType, sourceCallableTypeParametersMatch } = scope;
+  const { source, sourceFile } = input;
   const parameter = source.sourceSelectedSignatureParameters[
     binding.sourceParameterIndex
   ];
   if (parameter === undefined) {
     return undefined;
   }
-  const selected = resolveSourceCallContract(source, sourceFile, { depth: 0 }, "implementation");
+  const selected = resolveFormedSourceCallContract(scope, input, { depth: 0 }, "implementation");
   if (selected.kind === "rejected") return undefined;
   const callable = selected.contract;
   const contractedParameter = callable === undefined ? undefined : csharpSourceCallArgumentParameter(callable, binding.effectiveArgumentIndex);
