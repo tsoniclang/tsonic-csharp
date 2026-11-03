@@ -22,6 +22,9 @@ import { completeCsharpSourceCallInference, type CsharpSourceCallInference } fro
 import { completeCsharpSourceCallableTypeSource, type CsharpSourceCallableTypeInput,
   type CsharpSourceCallableTypeCompletion } from "./call-type-source.js";
 import type { CsharpSourceCallReceiverInput, CsharpSourceCallReceiverCompletion } from "./receiver-completions.js";
+import { formCsharpSourceCallConstructionSource } from "./expression-source.js";
+import { formCsharpSourceCallContractSource } from "./call-contracts.js";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 
 export function resolveSourceCallInstantiation(
   scope: CsharpTypeResolutionScope,
@@ -268,8 +271,12 @@ export function resolveSourceCallableContractType(
   state: CsharpTypeResolutionState,
   excludedSourceArgumentIndexes?: ReadonlySet<number>,
 ): TargetTypeRef | undefined {
+  const construction = scope.host.ast.kindName(source.sourceCallee.expression) !== "KindSuperKeyword" &&
+    scope.host.ast.is.IsNewExpression(source.call)
+    ? formCsharpSourceCallConstructionSource(scope, formCsharpSourceCallContractSource(scope, source, selectedSourceFile))
+    : undefined;
   return completeCsharpSourceCallableType(scope, Object.freeze({ source, callable, type,
-    sourceFile: selectedSourceFile, state, excludedSourceArgumentIndexes }))?.type;
+    sourceFile: selectedSourceFile, state, excludedSourceArgumentIndexes, construction }))?.type;
 }
 
 export function completeCsharpSourceCallableType(
@@ -325,14 +332,18 @@ export function resolveSourceCallReceiverTargetType(
   selectedSourceFile: SourceFile,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
-  return completeCsharpSourceCallReceiver(scope, Object.freeze({ source, sourceFile: selectedSourceFile, state }))?.type;
+  const construction = scope.host.ast.kindName(source.sourceCallee.expression) !== "KindSuperKeyword" &&
+    scope.host.ast.is.IsNewExpression(source.call)
+    ? formCsharpSourceCallConstructionSource(scope, formCsharpSourceCallContractSource(scope, source, selectedSourceFile))
+    : undefined;
+  return completeCsharpSourceCallReceiver(scope, Object.freeze({ source, sourceFile: selectedSourceFile, state, construction }))?.type;
 }
 
 export function completeCsharpSourceCallReceiver(
   scope: CsharpTypeResolutionScope,
   input: CsharpSourceCallReceiverInput,
 ): CsharpSourceCallReceiverCompletion | undefined {
-  const { host, completeSelectedReceiver, resolveSourceOwnedConstructionResult, resolveTypeWithState, resolveNodeWithState } = scope;
+  const { host, completeSelectedReceiver, resolveFormedSourceOwnedConstructionResult, resolveTypeWithState, resolveNodeWithState } = scope;
   const { source, sourceFile, state } = input;
   if (host.ast.kindName(source.sourceCallee.expression) === "KindSuperKeyword") {
     const type = resolveProjectConstructingReceiverTargetType(scope, source.sourceCallee.expression);
@@ -344,7 +355,13 @@ export function completeCsharpSourceCallReceiver(
     const factory = projectClass ? undefined
       : getCsharpClassFactory(resolveNodeWithState(source.sourceCallee.expression, sourceFile, nextState(state)));
     if (projectClass || factory !== undefined) {
-      const type = resolveSourceOwnedConstructionResult(source, host.semantics(sourceFile), nextState(state));
+      const construction = input.construction;
+      if (construction === undefined || construction.contract.source !== source ||
+        construction.contract.sourceFile !== sourceFile) {
+        return failTargetAnalysisInvariant("tsonic-csharp",
+          "Construction receiver completion requires its exact retained source input.", source.call);
+      }
+      const type = resolveFormedSourceOwnedConstructionResult(construction, nextState(state));
       return type === undefined ? undefined : Object.freeze({ input, kind: "owned-construction", projectClass, factory, type });
     }
   }

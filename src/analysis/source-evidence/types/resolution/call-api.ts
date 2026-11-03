@@ -21,6 +21,7 @@ import { csharpConversionIsApplicable } from "../../../../policy/conversions/app
 import { selectCsharpUnionCallMethods } from "./union-call-methods.js";
 import { formCsharpSourceCallResultSource, type CsharpSourceCallResultSource } from "./call-result-source.js";
 import { completeCsharpSourceCallArgumentParameterSource, type CsharpSourceCallArgumentParameterCompletion } from "./call-argument-source.js";
+import { formCsharpSourceCallConstructionSource, type CsharpSourceOwnedConstructionSource } from "./expression-source.js";
 
 export function resolveSourceCallTypeArguments(
   { resolveSourceCallContract, resolveSourceCallInstantiation }: CsharpTypeResolutionScope,
@@ -149,17 +150,19 @@ export function resolveSourceCallArgumentParameter(
   sourceFile: SourceFile,
   excludedSourceArgumentIndexes?: ReadonlySet<number>,
 ): TargetTypeRef | undefined {
-  return completeCsharpSourceCallArgumentParameter(scope, formCsharpSourceCallContractSource(scope, source, sourceFile),
-    binding, excludedSourceArgumentIndexes)?.type;
+  const input = formCsharpSourceCallContractSource(scope, source, sourceFile);
+  return completeCsharpSourceCallArgumentParameter(scope, input,
+    binding, formCsharpSourceCallConstructionSource(scope, input), excludedSourceArgumentIndexes)?.type;
 }
 
 export function completeCsharpSourceCallArgumentParameter(
   scope: CsharpTypeResolutionScope,
   input: CsharpSourceCallContractSource,
   binding: ResolvedSourceCallInfo["sourceArgumentBindings"][number],
+  construction: CsharpSourceOwnedConstructionSource | undefined,
   excludedSourceArgumentIndexes?: ReadonlySet<number>,
 ): CsharpSourceCallArgumentParameterCompletion | undefined {
-  const completion = completeCsharpSourceCallArgumentParameterSource(input, binding, excludedSourceArgumentIndexes);
+  const completion = completeCsharpSourceCallArgumentParameterSource(input, binding, construction, excludedSourceArgumentIndexes);
   let step = completion.next();
   while (!step.done) {
     const request = step.value;

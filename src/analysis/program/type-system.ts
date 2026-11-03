@@ -308,7 +308,8 @@ export function createCsharpTypeAnalysis(
           return failTargetAnalysisInvariant("tsonic-csharp",
             "Literal arguments require their retained checked Root call contract.", call.call);
         }
-        return Object.freeze({ kind: "argument", context: selected, contract: expression.contract, asynchronous });
+        return Object.freeze({ kind: "argument", context: selected, contract: expression.contract,
+          construction: expression.construction, asynchronous });
       }
       const type = asynchronous ? creation.queries.types.typeArguments(selected.component.selectedType)[0]
         : selected.component.selectedType;

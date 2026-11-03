@@ -65,3 +65,13 @@ export function formCsharpSourceOwnedConstructionSource(
       ? undefined : formCsharpSourceCallResultSource(scope, contract),
   });
 }
+
+export function formCsharpSourceCallConstructionSource(
+  scope: Pick<CsharpTypeResolutionScope, "host" | "sourceCallSelectedDeclaration">,
+  contract: CsharpSourceCallContractSource,
+): CsharpSourceOwnedConstructionSource | undefined {
+  if (!scope.host.ast.is.IsNewExpression(contract.source.call)) return undefined;
+  const declaration = contract.callableSource.constructorDeclaration;
+  const projectDeclaration = declaration !== undefined && scope.host.navigation.isProjectDeclaration(declaration);
+  return formCsharpSourceOwnedConstructionSource(scope, contract, contract.callableSource.queries, projectDeclaration);
+}
