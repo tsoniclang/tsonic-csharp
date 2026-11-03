@@ -24,9 +24,8 @@ import type { CsharpTypeResolutionState } from "./model.js";
 import type { CsharpTypeResolutionScope } from "./scope.js";
 import { nextState } from "./state.js";
 
-export type CsharpDirectSourceDependency = {
+export type CsharpDirectSourceRequest = {
   readonly sourceFile: SourceFile;
-  readonly state: CsharpTypeResolutionState;
 } & (
   | { readonly kind: "node"; readonly node: Node | undefined }
   | { readonly kind: "type"; readonly type: Type | undefined }
@@ -34,25 +33,37 @@ export type CsharpDirectSourceDependency = {
   | { readonly kind: "typed-location-pointee"; readonly operation: CsharpSourceTypedLocationOperation }
 );
 
-type CsharpDirectSourceCandidate =
+export type CsharpDirectSourceDependency = CsharpDirectSourceRequest & {
+  readonly source: CsharpDirectSourceRequest;
+  readonly state: CsharpTypeResolutionState;
+};
+
+type CsharpDirectSourceCandidate<Dependency = CsharpDirectSourceDependency> =
   | { readonly kind: "unavailable" | "layout-query" | "keep-alive" | "js-string" }
   | { readonly kind: "raw-pointer"; readonly nullable: boolean }
   | { readonly kind: "primitive"; readonly primitive: SourcePrimitiveKind }
   | { readonly kind: "raw-address"; readonly operation: NonNullable<ReturnType<typeof readCsharpSourceRawAddress>> }
-  | { readonly kind: "dependency"; readonly dependency: CsharpDirectSourceDependency;
+  | { readonly kind: "dependency"; readonly dependency: Dependency;
       readonly representation: "type" | "location" | "nullable-location" | "nullable-array-location";
       readonly stopOnMissing: boolean }
   | { readonly kind: "fixed-array"; readonly source: NonNullable<ReturnType<typeof readCsharpSourceFixedArrayType>>;
-      readonly dependency: CsharpDirectSourceDependency }
+      readonly dependency: Dependency }
   | { readonly kind: "typed-location"; readonly operation: CsharpSourceTypedLocationOperation;
-      readonly pointee: CsharpDirectSourceDependency; readonly sourceLocation: CsharpDirectSourceDependency | undefined }
-  | { readonly kind: "native-pointer"; readonly dependency: CsharpDirectSourceDependency;
+      readonly pointee: Dependency; readonly sourceLocation: Dependency | undefined }
+  | { readonly kind: "native-pointer"; readonly dependency: Dependency;
       readonly operation: NonNullable<ReturnType<typeof readCsharpSourceNativePointerOperation>>["operation"] }
-  | { readonly kind: "function-pointer"; readonly parameters: readonly CsharpDirectSourceDependency[];
-      readonly result: CsharpDirectSourceDependency;
+  | { readonly kind: "function-pointer"; readonly parameters: readonly Dependency[];
+      readonly result: Dependency;
       readonly abi: NonNullable<ReturnType<typeof readCsharpSourceFunctionPointerType>>["abi"] };
 
+export interface CsharpDirectSourceCapture {
+  readonly subjects: readonly ExtensionFactSubject[];
+  readonly sourceFile: SourceFile;
+  readonly candidates: readonly CsharpDirectSourceCandidate<CsharpDirectSourceRequest>[];
+}
+
 export interface CsharpDirectSourceEvidence {
+  readonly capture: CsharpDirectSourceCapture;
   readonly subjects: readonly ExtensionFactSubject[];
   readonly sourceFile: SourceFile;
   readonly state: CsharpTypeResolutionState;
@@ -65,26 +76,33 @@ export interface CsharpCompletedDirectSourceDependency {
 }
 
 export function formCsharpDirectSourceEvidence(
-  { host }: Pick<CsharpTypeResolutionScope, "host">,
+  scope: Pick<CsharpTypeResolutionScope, "host">,
   subjects: readonly ExtensionFactSubject[],
   sourceFile: SourceFile,
   state: CsharpTypeResolutionState,
 ): CsharpDirectSourceEvidence {
-  const candidates: CsharpDirectSourceCandidate[] = [];
-  const complete = (): CsharpDirectSourceEvidence => Object.freeze({ subjects, sourceFile, state,
+  return bindCsharpDirectSourceCapture(formCsharpDirectSourceCapture(scope, subjects, sourceFile), state);
+}
+
+export function formCsharpDirectSourceCapture(
+  { host }: Pick<CsharpTypeResolutionScope, "host">,
+  subjects: readonly ExtensionFactSubject[],
+  sourceFile: SourceFile,
+): CsharpDirectSourceCapture {
+  const candidates: CsharpDirectSourceCandidate<CsharpDirectSourceRequest>[] = [];
+  const complete = (): CsharpDirectSourceCapture => Object.freeze({ subjects, sourceFile,
     candidates: Object.freeze(candidates) });
-  const terminal = (candidate: CsharpDirectSourceCandidate): CsharpDirectSourceEvidence => {
+  const terminal = (candidate: CsharpDirectSourceCandidate<CsharpDirectSourceRequest>): CsharpDirectSourceCapture => {
     candidates.push(Object.freeze(candidate));
     return complete();
   };
-  const nodeDependency = (node: Node | undefined): CsharpDirectSourceDependency => Object.freeze({
-    kind: "node", node, sourceFile, state: Object.freeze(nextState(state)),
+  const nodeDependency = (node: Node | undefined): CsharpDirectSourceRequest => Object.freeze({
+    kind: "node", node, sourceFile,
   });
-  const selectedType = (node: Node | undefined, type: Type | undefined, file = sourceFile): CsharpDirectSourceDependency =>
-    node === undefined ? Object.freeze({ kind: "type", type, sourceFile: file, state: Object.freeze(nextState(state)) })
-      : Object.freeze({ kind: "node", node, sourceFile: host.ast.getSourceFile(node) ?? file,
-        state: Object.freeze(nextState(state)) });
-  const dependency = (child: CsharpDirectSourceDependency, representation: Extract<CsharpDirectSourceCandidate,
+  const selectedType = (node: Node | undefined, type: Type | undefined, file = sourceFile): CsharpDirectSourceRequest =>
+    node === undefined ? Object.freeze({ kind: "type", type, sourceFile: file })
+      : Object.freeze({ kind: "node", node, sourceFile: host.ast.getSourceFile(node) ?? file });
+  const dependency = (child: CsharpDirectSourceRequest, representation: Extract<CsharpDirectSourceCandidate,
     { readonly kind: "dependency" }>["representation"], stopOnMissing: boolean) => candidates.push(Object.freeze({
     kind: "dependency", dependency: child, representation, stopOnMissing,
   }));
@@ -136,16 +154,16 @@ export function formCsharpDirectSourceEvidence(
     const pointerOperation = readCsharpSourceTypedLocationOperation(host.sourceFacts, subject);
     if (pointerOperation !== undefined) candidates.push(Object.freeze({ kind: "typed-location", operation: pointerOperation,
       pointee: Object.freeze({ kind: "typed-location-pointee", operation: pointerOperation,
-        sourceFile, state: Object.freeze(nextState(state)) }),
+        sourceFile }),
       sourceLocation: pointerOperation.kind !== "location-project" ? undefined : Object.freeze({
         kind: "selected", node: pointerOperation.locationExpression, selectedType: pointerOperation.locationType,
-        sourceFile, state: Object.freeze(nextState(state)),
+        sourceFile,
       }),
     }));
     const nativePointer = readCsharpSourceNativePointerOperation(host.sourceFacts, subject);
     if (nativePointer !== undefined) candidates.push(Object.freeze({ kind: "native-pointer", operation: nativePointer.operation,
       dependency: Object.freeze({ kind: "selected", node: nativePointer.pointerExpression, selectedType: nativePointer.pointerType,
-        sourceFile, state: Object.freeze(nextState(state)) }),
+        sourceFile }),
     }));
     const functionPointer = readCsharpSourceFunctionPointerType(host.sourceFacts, subject);
     if (functionPointer !== undefined) candidates.push(Object.freeze({ kind: "function-pointer", abi: functionPointer.abi,
@@ -154,6 +172,31 @@ export function formCsharpDirectSourceEvidence(
     }));
   }
   return complete();
+}
+
+export function bindCsharpDirectSourceCapture(
+  capture: CsharpDirectSourceCapture,
+  state: CsharpTypeResolutionState,
+): CsharpDirectSourceEvidence {
+  if (capture.candidates === undefined || capture.subjects === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+    "Direct source binding requires its retained Source capture.");
+  const bind = (source: CsharpDirectSourceRequest): CsharpDirectSourceDependency => Object.freeze({
+    ...source, source, state: Object.freeze(nextState(state)),
+  });
+  const candidates = capture.candidates.map((candidate): CsharpDirectSourceCandidate => {
+    switch (candidate.kind) {
+      case "dependency":
+      case "fixed-array":
+      case "native-pointer": return Object.freeze({ ...candidate, dependency: bind(candidate.dependency) });
+      case "typed-location": return Object.freeze({ ...candidate, pointee: bind(candidate.pointee),
+        sourceLocation: candidate.sourceLocation === undefined ? undefined : bind(candidate.sourceLocation) });
+      case "function-pointer": return Object.freeze({ ...candidate, parameters: Object.freeze(candidate.parameters.map(bind)),
+        result: bind(candidate.result) });
+      default: return candidate;
+    }
+  });
+  return Object.freeze({ capture, subjects: capture.subjects, sourceFile: capture.sourceFile, state,
+    candidates: Object.freeze(candidates) });
 }
 
 type CsharpDirectSourceCompletion = Generator<CsharpDirectSourceDependency,
