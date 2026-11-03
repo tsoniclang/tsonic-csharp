@@ -13,7 +13,7 @@ import type { CsharpProjectMemberTypeInstantiation } from "../../../target-model
 import { completeMemberInstantiationEvidence, formMemberInstantiationEvidence, instantiateMemberEvidence,
   matchesMemberSubjects, type CsharpObjectShapeMemberProofInput } from "./member-instantiation.js";
 import { createCsharpObjectShapeMemberSource, formLiteralMemberEvidence, projectLiteralMemberEvidence,
-  type CsharpLiteralMemberEvidenceProjection } from "./member-source.js";
+  type CsharpInheritedObjectShapeMemberSource, type CsharpLiteralMemberEvidenceProjection } from "./member-source.js";
 import type { CsharpCompletedStructuralMemberChildren, CsharpStructuralMemberApplication,
   CsharpStructuralMemberInheritance, CsharpStructuralTypeApplication } from "../../source-evidence/types/resolution/structural-applications.js";
 import { formCsharpStructuralPropertyApplication } from "../../source-evidence/types/resolution/structural-applications.js";
@@ -111,7 +111,7 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
     const member = memberApplication(application, memberIndex);
     const source = member.source;
     return Object.freeze({ application, member,
-      selection: resolveInheritedMemberType(source.declarations, application.receiver,
+      selection: resolveInheritedMemberType(source.inheritedDeclarations, application.receiver,
         source.state, source.method, source.property.optional),
     });
   }
@@ -207,7 +207,7 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
   }
 
   function resolveInheritedMemberType(
-    declarations: readonly Node[],
+    declarations: readonly CsharpInheritedObjectShapeMemberSource[],
     receiver: TargetTypeRef | undefined,
     state: CsharpTypeResolutionState,
     method: boolean,
@@ -216,19 +216,12 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
     if (receiver === undefined) return { kind: "not-project-member" };
     const receiverDefinition = host.projectTypeCatalog.definitionForTarget(receiver);
     if (receiverDefinition === undefined) return { kind: "not-project-member" };
-    const inherited = declarations.filter(declaration => {
-      const owner = host.projectTypeCatalog.definitionForDeclaration(host.ast.parent(declaration));
-      return owner !== undefined && owner.id !== receiverDefinition.id && !host.ast.hasModifierKind(declaration, "static");
-    });
+    const inherited = declarations.filter(source => source.owner.id !== receiverDefinition.id);
     if (inherited.length === 0) return { kind: "not-project-member" };
     const selected: TargetTypeRef[] = [];
-    for (const declaration of inherited) {
-      const owner = host.projectTypeCatalog.definitionForDeclaration(host.ast.parent(declaration))!;
-      const typeNode = host.ast.typeNode(declaration) ??
-        (host.ast.is.IsSetAccessorDeclaration(declaration) ? host.ast.typeNode(host.ast.parameters(declaration)[0]) : undefined);
-      const semantics = host.semantics(owner.sourceFile);
+    for (const { declaration, owner, typeNode, methodType } of inherited) {
       const declared = method
-        ? host.typeResolver.resolveType(semantics.types.expressionType(declaration), owner.sourceFile, nextState(state))
+        ? host.typeResolver.resolveType(methodType, owner.sourceFile, nextState(state))
         : host.typeResolver.resolveNode(typeNode ?? declaration, owner.sourceFile, nextState(state));
       if (declared === undefined) return { kind: "unresolved",
         reason: `Inherited project member of '${owner.sourceName}' has no exact authored native carrier.` };
