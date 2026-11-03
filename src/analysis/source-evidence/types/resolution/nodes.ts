@@ -68,6 +68,7 @@ export function resolveFormedCsharpNodeTypeSource(
       "A contextual parameter requires its exact retained Source occurrence.", source.node);
   }
   if (source.kind === "node" && (source.functionType === undefined || source.functionType.node !== source.node ||
+      source.functionType.kind !== "not-function" && source.functionType.kind !== "function" ||
       source.functionType.queries !== source.queries || source.functionType.state !== source.state ||
       source.functionType.kind === "function" && (source.functionType.type === undefined
         ? source.functionType.callable !== undefined
