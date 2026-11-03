@@ -261,7 +261,7 @@ export function resolveCsharpStructuralMemberChildren(
     resolution: resolveFormedCsharpTypeParameterConstraints(request.source, dependency => {
       const declared = scope.resolveNodeWithState(dependency.node, dependency.sourceFile, request.state);
       if (declared === undefined || receiver === undefined) return declared;
-      const selected = scope.host.projectTypes().instantiateMemberType(member.source.methodDeclaration, receiver, declared);
+      const selected = scope.host.projectTypeABI().instantiateMemberType(member.source.methodDeclaration, receiver, declared);
       return selected.kind === "resolved" ? selected.type : selected.kind === "not-project-member" ? declared : undefined;
     }),
   }));

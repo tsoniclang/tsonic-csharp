@@ -417,11 +417,11 @@ export function createCsharpObjectShapePolicy(
         !objectLiteral
       ) {
         const declared = application === undefined ? undefined : declarationApplications.completeDeclarationApplication(application);
-        if (declared === undefined) return {
-          targetType: contextualProjectType,
+        if (declared === undefined) return formTargetShape({
+          target: Object.freeze({ kind: "existing", type: contextualProjectType }),
           sourceType: type,
           members,
-        };
+        });
         const instantiatedMembers = instantiated === undefined ? undefined : instantiateMemberEvidence(declared.members, instantiated.instantiation);
         return instantiatedMembers === undefined ? undefined : { ...declared, sourceType: type, members: instantiatedMembers };
       }
