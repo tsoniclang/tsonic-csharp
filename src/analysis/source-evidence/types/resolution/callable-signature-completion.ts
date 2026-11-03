@@ -9,9 +9,17 @@ import { selectCsharpSourceParameterVector } from "../../../../policy/types/call
 import { completeCsharpCallableDeclaration,
   type CsharpCompletedCallableConstraint, type CsharpCompletedCallableDeclaration } from "./callable-type-parameters.js";
 import type { CsharpTypePolicyBaseHost, CsharpTypeResolutionState } from "./model.js";
-import { formCsharpSourceTypeComponentSource, type CsharpSourceTypeComponentSource } from "./type-component-source.js";
+import { formCsharpSourceTypeComponentCapture, bindCsharpSourceTypeComponentCapture,
+  type CsharpSourceTypeComponentCapture, type CsharpSourceTypeComponentSource } from "./type-component-source.js";
+
+export interface CsharpCallableSignatureCapture {
+  readonly source: CsharpCallableSignatureSource;
+  readonly returnSubject: CsharpTypeResolutionState["sourceStorageSubject"];
+  readonly result: CsharpSourceTypeComponentCapture;
+}
 
 export interface CsharpCallableSignatureInput {
+  readonly capture: CsharpCallableSignatureCapture;
   readonly source: CsharpCallableSignatureSource;
   readonly state: CsharpTypeResolutionState;
   readonly returnState: CsharpTypeResolutionState;
@@ -58,12 +66,35 @@ export function formCsharpCallableSignatureInput(
   source: CsharpCallableSignatureSource,
   state: CsharpTypeResolutionState,
 ): CsharpCallableSignatureInput {
+  return bindCsharpCallableSignatureCapture(formCsharpCallableSignatureCapture(host, source), state);
+}
+
+export function formCsharpCallableSignatureCapture(
+  host: CsharpTypePolicyBaseHost,
+  source: CsharpCallableSignatureSource,
+): CsharpCallableSignatureCapture {
   const returned = source.callable.result.declaration === undefined ? undefined
     : host.sourceStorage.subject(source.callable.result.declaration, "return");
+  const returnSubject = returned?.kind === "resolved" ? returned.subject : undefined;
+  return Object.freeze({ source, returnSubject,
+    result: formCsharpSourceTypeComponentCapture({ host }, source.callable.result, source.queries, returnSubject),
+  });
+}
+
+export function bindCsharpCallableSignatureCapture(
+  capture: CsharpCallableSignatureCapture,
+  state: CsharpTypeResolutionState,
+): CsharpCallableSignatureInput {
+  const { source, returnSubject } = capture;
+  if (capture.result.component !== source.callable.result || capture.result.queries !== source.queries ||
+      capture.result.storage.inputSubject !== returnSubject) {
+    return failTargetAnalysisInvariant("tsonic-csharp",
+      "Signature binding requires its exact captured return input.", source.callable.result.declaration);
+  }
   const returnState = Object.freeze({ ...state,
-    sourceStorageSubject: returned?.kind === "resolved" ? returned.subject : undefined });
-  return Object.freeze({ source, state, returnState,
-    resultSource: formCsharpSourceTypeComponentSource({ host }, source.callable.result, source.queries, returnState),
+    sourceStorageSubject: returnSubject });
+  return Object.freeze({ capture, source, state, returnState,
+    resultSource: bindCsharpSourceTypeComponentCapture(capture.result, returnState),
   });
 }
 
@@ -82,7 +113,9 @@ export function* completeCsharpCallableSignatureSource(
 ): Generator<CsharpCallableSignatureRequest, CsharpCompletedCallableSignature | undefined,
   CsharpCompletedCallableSignatureRequest> {
   const source = input.source;
-  if (source === undefined || input.resultSource === undefined || input.resultSource.component !== source.callable.result ||
+  if (source === undefined || input.capture === undefined || input.capture.source !== source ||
+      input.capture.returnSubject !== input.returnState.sourceStorageSubject || input.resultSource === undefined ||
+      input.resultSource.capture !== input.capture.result || input.resultSource.component !== source.callable.result ||
       input.resultSource.queries !== source.queries || input.resultSource.inputState !== input.returnState) {
     return failTargetAnalysisInvariant("tsonic-csharp",
       "Callable signature completion requires its exact retained return Source.", source?.callable.result.declaration);
