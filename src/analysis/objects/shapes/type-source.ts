@@ -16,6 +16,9 @@ import { formCollectedObjectShapeSource, formDeclaredObjectShapeSource, formInst
   formProviderObjectShapeSource, type CsharpObjectShapeSource } from "./shape-source.js";
 import { requiresUnresolvedStructuralProjection, typeHasProjectOwnedShapeDeclaration,
   typeIsExcludedFromObjectShape } from "./source-evidence.js";
+import { selectCsharpObjectMethodImplementationSource,
+  type CsharpObjectMethodImplementationSource } from "./method-implementations.js";
+import type { CsharpSourceTypeDependency } from "../../source-evidence/types/resolution/selected-values.js";
 
 export interface CsharpObjectShapeProjectSource {
   readonly definition: CsharpCurrentProjectDeclaration;
@@ -42,6 +45,8 @@ export interface CsharpObjectShapeTypeSource {
   readonly constructs: boolean;
   readonly literal: CsharpObjectLiteralShapeSource | undefined;
   readonly creation: CsharpLiteralCreationSource | undefined;
+  readonly implementation: CsharpObjectMethodImplementationSource | undefined;
+  readonly implementationCaptures: readonly CsharpSourceTypeDependency[];
   readonly structuralContract: boolean;
 }
 
@@ -89,6 +94,15 @@ export function createCsharpObjectShapeSourceFormation(
     const authoredLiteral = objectLiteral ? node : literals.length === 1 ? literals[0] : undefined;
     const collection = collectMembers(type, queries, nextState(state), authoredTypeRoot);
     const members = collection === undefined ? undefined : host.structuralTypeApplication(collection);
+    const implementation = collection === undefined ? undefined : selectCsharpObjectMethodImplementationSource(
+      collection.members.map(member => Object.freeze({ memberKind: member.method ? "method" as const : "property" as const,
+        sourceDeclarations: member.proofInput.sourceDeclarations,
+      })), host, state, authoredLiteral);
+    const implementationCaptures = implementation === undefined ? [] : implementation.captures.map(capture =>
+      Object.freeze({ kind: "node" as const, node: capture.declaration,
+        sourceFile: capture.sourceFile ?? host.semanticsFor(capture.declaration).sourceFile,
+        state: Object.freeze(nextState(state)),
+      }));
     return Object.freeze({ type, node, queries, state, authoredTypeRoot, project, provider, providerShape,
       projects: Object.freeze([...projects.values()]), members,
       collected: collection === undefined ? undefined : formCollectedObjectShapeSource(collection),
@@ -96,6 +110,7 @@ export function createCsharpObjectShapeSourceFormation(
       objectLiteral, constructs: queries.types.constructSignatures(type).length > 0,
       literal: authoredLiteral === undefined ? undefined : formCsharpObjectLiteralShapeSource(host, authoredLiteral, queries),
       creation: authoredLiteral === undefined ? undefined : formCsharpLiteralCreationSource(authoredLiteral, queries, host),
+      implementation, implementationCaptures: Object.freeze(implementationCaptures),
       structuralContract: !objectLiteral && (queries.types.isIntersection(type) || symbol !== undefined &&
         declarations.some(declaration => host.ast.is.IsTypeLiteralNode(declaration) || host.ast.is.IsMappedTypeNode(declaration))),
     });
