@@ -9,7 +9,8 @@ import type { CsharpTypeResolutionScope } from "./scope.js";
 import { maximumTypeResolutionDepth, type CsharpTypeResolutionState } from "./model.js";
 import { formCsharpProjectReferenceSource, formCsharpProjectSemanticSource,
   type CsharpProjectReferenceSource, type CsharpProjectSemanticSource } from "./project-types.js";
-import { csharpSourceStorageContext } from "./source-storage-projection.js";
+import { bindCsharpSourceStorageContext, csharpSourceStorageContext, formCsharpSourceStorageComponentContext,
+  type CsharpSourceStorageContextSource } from "./source-storage-projection.js";
 import { nextState } from "./state.js";
 import { formCsharpTypeReferenceSource, type CsharpTypeReferenceSource } from "./type-reference-source.js";
 import { formCsharpSourceTypeBindingEvidence, type CsharpSourceTypeBindingEvidence } from "./type-bindings.js";
@@ -53,6 +54,18 @@ export type CsharpFunctionTypeNodeSource = {
   | { readonly kind: "function"; readonly type: Type | undefined; readonly callable: CsharpCallableTypeInput | undefined }
 );
 
+export type CsharpArrayTypeNodeSource = {
+  readonly node: Node;
+  readonly queries: SourceFileSemantics;
+  readonly state: CsharpTypeResolutionState;
+} & (
+  | { readonly kind: "not-array" }
+  | { readonly kind: "array"; readonly elementNode: Node | undefined; readonly fallbackType: Type | undefined;
+      readonly storage: CsharpSourceStorageContextSource;
+      readonly element: { readonly node: Node | undefined; readonly sourceFile: SourceFile; readonly state: CsharpTypeResolutionState };
+      readonly fallback: { readonly type: Type | undefined; readonly sourceFile: SourceFile; readonly state: CsharpTypeResolutionState } }
+);
+
 export type CsharpSemanticTypeSource = {
   readonly type: Type | undefined;
   readonly sourceFile: SourceFile;
@@ -83,6 +96,7 @@ export type CsharpNodeTypeSource = {
       readonly nativeParameter: CsharpNativeParameterSource;
       readonly contextualParameter: CsharpContextualParameterSource;
       readonly functionType: CsharpFunctionTypeNodeSource;
+      readonly arrayType: CsharpArrayTypeNodeSource;
       readonly projectInstance: CsharpProjectInstanceSource;
       readonly selectedType: Type | undefined; readonly project: CsharpProjectReferenceSource | undefined;
       readonly reference: CsharpTypeReferenceSource | undefined;
@@ -150,6 +164,46 @@ export function formCsharpFunctionTypeNodeSource(
   });
 }
 
+export function formCsharpArrayTypeNodeSource(
+  { host }: Pick<CsharpTypeResolutionScope, "host">,
+  node: Node,
+  queries: SourceFileSemantics,
+  state: CsharpTypeResolutionState,
+): CsharpArrayTypeNodeSource {
+  if (!host.ast.is.IsArrayTypeNode(node)) return Object.freeze({ kind: "not-array", node, queries, state });
+  const elementNode = host.ast.as.AsArrayTypeNode(node)!.ElementType;
+  const storage = formCsharpSourceStorageComponentContext(host, state.sourceStorageSubject, { kind: "array-element" });
+  const fallbackType = queries.types.authoredType(node);
+  return Object.freeze({ kind: "array", node, queries, state, elementNode, fallbackType, storage,
+    element: Object.freeze({ node: elementNode, sourceFile: queries.sourceFile,
+      state: Object.freeze(nextState(bindCsharpSourceStorageContext(storage, state))) }),
+    fallback: Object.freeze({ type: fallbackType, sourceFile: queries.sourceFile, state: Object.freeze(nextState(state)) }),
+  });
+}
+
+export function assertCsharpArrayTypeNodeSource(source: CsharpArrayTypeNodeSource): void {
+  if (source === undefined || source.node === undefined || source.queries === undefined || source.state === undefined ||
+      source.kind !== "not-array" && source.kind !== "array" ||
+      source.kind === "array" && (source.storage === undefined || source.element === undefined || source.fallback === undefined ||
+        source.element.state === undefined || source.fallback.state === undefined ||
+        source.storage.inputSubject !== source.state.sourceStorageSubject ||
+        source.element.node !== source.elementNode || source.element.sourceFile !== source.queries.sourceFile ||
+        source.element.state.depth !== source.state.depth + 1 ||
+        source.element.state.sourceStorageSubject !== source.storage.subject ||
+        source.element.state.sourceBindings !== source.state.sourceBindings ||
+        source.element.state.sourceStorageBindings !== source.state.sourceStorageBindings ||
+        source.element.state.rejectNativeResolution !== source.state.rejectNativeResolution ||
+        source.fallback.type !== source.fallbackType || source.fallback.sourceFile !== source.queries.sourceFile ||
+        source.fallback.state.depth !== source.state.depth + 1 ||
+        source.fallback.state.sourceStorageSubject !== source.state.sourceStorageSubject ||
+        source.fallback.state.sourceBindings !== source.state.sourceBindings ||
+        source.fallback.state.sourceStorageBindings !== source.state.sourceStorageBindings ||
+        source.fallback.state.rejectNativeResolution !== source.state.rejectNativeResolution)) {
+    return failTargetAnalysisInvariant("tsonic-csharp",
+      "An array-type node requires its exact element, fallback and captured storage Source.", source?.node);
+  }
+}
+
 export function formCsharpSemanticTypeSource(
   scope: CsharpTypeResolutionScope,
   type: Type | undefined,
@@ -214,6 +268,7 @@ export function formCsharpNodeTypeSource(
     nativeParameter: formCsharpNativeParameterSource(host.ast, node),
     contextualParameter: formCsharpContextualParameterSource(scope, node, queries),
     functionType: formCsharpFunctionTypeNodeSource(scope, node, queries, state),
+    arrayType: formCsharpArrayTypeNodeSource(scope, node, queries, state),
     projectInstance: formCsharpProjectThisSource(host.ast, node),
     directSyntax: formCsharpDirectSourceEvidence(scope, Object.freeze([node]), queries.sourceFile, state),
     directValue: formCsharpDirectSourceEvidence(scope, sourceFactSubjectsForNode(node, host.navigation), queries.sourceFile, state),

@@ -44,8 +44,16 @@ export function csharpSourceStorageComponentContext(
   state: CsharpTypeResolutionState,
   component: SourceStorageProjection,
 ): CsharpTypeResolutionState {
-  const subject = state.sourceStorageSubject;
-  const selection = subject === undefined ? undefined : host.sourceStorage.subject(
-    subject.node, subject.kind, [...subject.projection, component]);
-  return { ...state, sourceStorageSubject: selection?.kind === "resolved" ? selection.subject : undefined };
+  return bindCsharpSourceStorageContext(formCsharpSourceStorageComponentContext(host,
+    state.sourceStorageSubject, component), state);
+}
+
+export function formCsharpSourceStorageComponentContext(
+  host: CsharpTypePolicyBaseHost,
+  inputSubject: CsharpTypeResolutionState["sourceStorageSubject"],
+  component: SourceStorageProjection,
+): CsharpSourceStorageContextSource {
+  const selection = inputSubject === undefined ? undefined : host.sourceStorage.subject(
+    inputSubject.node, inputSubject.kind, [...inputSubject.projection, component]);
+  return Object.freeze({ inputSubject, subject: selection?.kind === "resolved" ? selection.subject : undefined });
 }

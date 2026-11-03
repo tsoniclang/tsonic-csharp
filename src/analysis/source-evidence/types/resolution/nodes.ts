@@ -18,7 +18,8 @@ import { selectedCsharpSourceProfileOwner } from "../../../../policy/identities/
 import { retainCsharpUnionObjectShapes } from "./source-union-refinement.js";
 import { resolveCsharpProviderIndexedAccess } from "./indexed-access.js";
 import { csharpSourceStorageComponentContext } from "./source-storage-projection.js";
-import { formCsharpNodeTypeSource, type CsharpNodeTypeSource } from "./root-sources.js";
+import { assertCsharpArrayTypeNodeSource, formCsharpNodeTypeSource,
+  type CsharpArrayTypeNodeSource, type CsharpNodeTypeSource } from "./root-sources.js";
 import { resolveFormedCsharpProjectReference } from "./project-types.js";
 
 import { selectCsharpParameterListCarrier } from "../../../../policy/types/callables/parameter-list.js";
@@ -77,6 +78,12 @@ export function resolveFormedCsharpNodeTypeSource(
     return failTargetAnalysisInvariant("tsonic-csharp",
       "A function-type node requires its exact authored callable Source and original state.", source.node);
   }
+  if (source.kind === "node" && (source.arrayType === undefined || source.arrayType.node !== source.node ||
+      source.arrayType.queries !== source.queries || source.arrayType.state !== source.state)) {
+    return failTargetAnalysisInvariant("tsonic-csharp",
+      "An array-type node requires its exact element, fallback and captured storage Source.", source.node);
+  }
+  if (source.kind === "node") assertCsharpArrayTypeNodeSource(source.arrayType);
   if (source.kind === "node" && (source.value === undefined || (source.selectedType === undefined ? source.selectedValue !== undefined
     : source.selectedValue === undefined || source.selectedValue.node !== source.node ||
       source.selectedValue.queries !== source.queries || source.selectedValue.selectedType !== source.selectedType ||
@@ -144,17 +151,8 @@ function resolveNodeResultWithState(
     const callable = source.functionType.callable;
     return callable === undefined ? undefined : csharpSourceValueResult(resolveFormedCsharpCallableType(scope, callable));
   }
-  if (host.ast.is.IsArrayTypeNode(node)) {
-    const element = resolveNodeWithState(
-      host.ast.as.AsArrayTypeNode(node)!.ElementType,
-      queries.sourceFile,
-      nextState(csharpSourceStorageComponentContext(host, state, { kind: "array-element" })),
-    );
-    const carrier = element === undefined
-      ? resolveTypeWithState(queries.types.authoredType(node), queries.sourceFile, nextState(state))
-      : selectedCsharpSourceProfileOwner(host.target) === "js" ? csharpJsArrayTargetType(element)
-        : { kind: "array" as const, element };
-    return csharpSourceValueResult(carrier);
+  if (source.arrayType.kind === "array") {
+    return csharpSourceValueResult(resolveFormedCsharpArrayTypeNode(scope, source.arrayType));
   }
   if (host.ast.is.IsTupleTypeNode(node)) {
     return csharpSourceValueResult(resolveTupleTypeNode(node, queries, state));
@@ -253,6 +251,21 @@ function resolveNodeResultWithState(
     return declaredValue;
   }
   return csharpSourceValueResult(resolveFallbackNodeCarrier(scope, source));
+}
+
+export function resolveFormedCsharpArrayTypeNode(
+  scope: Pick<CsharpTypeResolutionScope,
+    "host" | "resolveNodeWithState" | "resolveTypeWithState">,
+  source: CsharpArrayTypeNodeSource,
+): TargetTypeRef | undefined {
+  assertCsharpArrayTypeNodeSource(source);
+  if (source.kind === "not-array") return undefined;
+  const { host, resolveNodeWithState, resolveTypeWithState } = scope;
+  const element = resolveNodeWithState(source.element.node, source.element.sourceFile, source.element.state);
+  return element === undefined
+    ? resolveTypeWithState(source.fallback.type, source.fallback.sourceFile, source.fallback.state)
+    : selectedCsharpSourceProfileOwner(host.target) === "js" ? csharpJsArrayTargetType(element)
+      : { kind: "array", element };
 }
 
 function resolveFallbackNodeCarrier(
