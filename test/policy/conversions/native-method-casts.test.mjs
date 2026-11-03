@@ -9,7 +9,7 @@ import { executeCsharpConstruction } from "../../helpers/native-construction.mjs
 const refusal = "A boxed value cannot project a native structural method contract. Pass a value with its declared native method interface instead.";
 
 test("boxed METHOD admission uses the completed named contract rather than a generated shape prefix", () => {
-  const target = { kind: "target-named", id: "project.Api", csharpSourceDeclarationKind: "interface", csharpStructuralContract: true, csharpAllowsRefLikeTypeArguments: [] };
+  const target = { kind: "target-named", id: "project.Api", csharpSourceDeclarationKind: "interface", csharpAllowsRefLikeTypeArguments: [] };
   const member = { memberKind: "method", targetName: "run" };
   const shape = { targetType: target, members: [member] };
   const policy = { objectShapes: { resolveTarget: selected => selected !== undefined && targetTypeRefEquals(selected, target) ? shape : undefined } };
@@ -26,7 +26,7 @@ test("boxed METHOD admission uses the completed named contract rather than a gen
 
 test("boxed data and function-PROPERTY contracts do not acquire the METHOD projection refusal", () => {
   for (const memberKind of ["field", "property"]) {
-    const target = { kind: "target-named", id: `project.${memberKind}`, csharpSourceDeclarationKind: "interface", csharpStructuralContract: true, csharpAllowsRefLikeTypeArguments: [] };
+    const target = { kind: "target-named", id: `project.${memberKind}`, csharpSourceDeclarationKind: "interface", csharpAllowsRefLikeTypeArguments: [] };
     const policy = { objectShapes: { resolveTarget: selected => selected !== undefined && targetTypeRefEquals(selected, target) ? {
       targetType: target, members: [{ memberKind, targetName: "run" }],
     } : undefined } };
