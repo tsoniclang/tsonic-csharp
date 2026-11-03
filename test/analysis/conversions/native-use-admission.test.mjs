@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createCsharpTypeParameterEnvironment } from "../../../dist/analysis/source-evidence/types/resolution/type-parameter-environment.js";
 import { createTargetSourceProgram, analyzeSourceLiteralValues } from "@tsonic/target-api/source";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { analyzeCsharpExpectedTypes } from "../../../dist/analysis/expected-types/analyze.js";
@@ -206,7 +207,7 @@ test("native field closure retains authored keys for every transitive and instan
   const floating = csharpSourcePrimitiveTargetType("float64");
   const boolean = csharpSourcePrimitiveTargetType("bool");
   const constraints = Object.freeze({ kind: "resolved", constraints: Object.freeze([]) });
-  const environment = () => constraints;
+  const environment = createCsharpTypeParameterEnvironment(() => constraints);
   const member = (name, type) => Object.freeze({ sourceKey: Object.freeze({ kind: "property", name }),
     sourceName: name, targetName: name, memberKind: "property", type });
   const value = member("value", integer);

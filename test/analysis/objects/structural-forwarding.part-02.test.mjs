@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createCsharpTypeParameterEnvironment } from "../../../dist/analysis/source-evidence/types/resolution/type-parameter-environment.js";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
@@ -89,12 +90,12 @@ test("a native rest-copy layout stores the required invocation protocol without 
   const signature = Object.freeze({ sourceKey: Object.freeze({ kind: "property", name: "run" }),
     sourceName: "run", targetName: "run", memberKind: "method", type: csharpDelegateTargetType("System.Func", [integer], integer) });
   const selectedContract = createStructuralObjectShapeTarget([signature], undefined,
-    () => assert.fail("the selected monomorphic protocol has no free native binder"), true);
+    createCsharpTypeParameterEnvironment(() => assert.fail("the selected monomorphic protocol has no free native binder")), true);
   const schema = Object.freeze({ targetType: Object.freeze({ kind: "target-named", id: "tsonic.shape:rest-schema",
     csharpGeneratedStructuralStorage: true, csharpAllowsRefLikeTypeArguments: Object.freeze([]) }),
     sourceType, members: Object.freeze([Object.freeze({ ...signature, methodValueContract: selectedContract })]) });
   const policy = createCsharpObjectShapePolicy({
-    typeParameterConstraints: () => assert.fail("the monomorphic rest layout has no free native binder"),
+    typeParameterConstraints: createCsharpTypeParameterEnvironment(() => assert.fail("the monomorphic rest layout has no free native binder")),
     ast: { is: {} }, sourceStorage: noAuthoredNativeMethod,
   });
   const copy = policy.resolveCopyShape(schema);
@@ -123,7 +124,7 @@ test("a raw interface copy admits its method protocol before selecting native st
     typeParameters: Object.freeze([Object.freeze({ declaration, identity: parameter.identity, name: parameter.name,
       csharpAllowsRefLike: false, constraints: Object.freeze([]) })]) })]) });
   const policy = createCsharpObjectShapePolicy({
-    typeParameterConstraints: () => assert.fail("method-local binders never become copy-owner generic parameters"),
+    typeParameterConstraints: createCsharpTypeParameterEnvironment(() => assert.fail("method-local binders never become copy-owner generic parameters")),
     ast: { is: {} },
   });
   const copied = policy.resolveCopyShape(shape);

@@ -40,7 +40,7 @@ import {
 import type {
   TargetTypeRef,
 } from "../../target-model/types/model.js";
-import { createCsharpTypeParameterEnvironment } from "../source-evidence/types/resolution/type-parameter-environment.js";
+import { createCsharpSourceTypeParameterEnvironment } from "../source-evidence/types/resolution/type-parameter-environment.js";
 import { resolveCsharpTypeParameterConstraints } from "../source-evidence/types/resolution/type-parameter-constraints.js";
 import { csharpNativeInheritanceLookup } from "../../target-model/types/native-inheritance.js";
 import { csharpTargetTypeFromBinding } from "../../policy/types/storage/bindings.js";
@@ -69,7 +69,7 @@ function createCsharpTypeSystem(
     if (projectTypes === undefined) failTargetAnalysisInvariant("tsonic-csharp", "C# project heritage was requested before the type system was fully initialized.");
     return projectTypes;
   };
-  const typeParameterConstraints = createCsharpTypeParameterEnvironment(host.ast, (declaration, parameter, source) => {
+  const typeParameterConstraints = createCsharpSourceTypeParameterEnvironment(host.ast, (declaration, parameter, source) => {
     const sourceFile = source?.sourceFile ?? host.ast.getSourceFile(declaration);
     if (sourceFile === undefined || !host.hasSemantics(sourceFile)) return undefined;
     const sourceType = source?.sourceType ?? host.semantics(sourceFile).declarations.declaredType(declaration);

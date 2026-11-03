@@ -33,6 +33,7 @@ import { objectShapeProjectionConversions,
 import { prepareCsharpObjectShapeDeclarationNames } from "../../names/object-shapes.js";
 import { csharpJsonValueProjectionMethodName, csharpJsonValueWriterMethodName } from "../../../target-model/names/object-members.js";
 import { isCsharpRefLikeTargetType } from "../../../target-model/types/ref-like.js";
+import { createCsharpTypeParameterEnvironment } from "../../source-evidence/types/resolution/type-parameter-environment.js";
 import {
   collectShapeDependencies,
   prepareObjectShapeBatch,
@@ -478,6 +479,8 @@ export function closeObjectShapeArtifacts(
       if (!visited.has(implemented)) pending.push(implemented);
     }
   }
+  const environment = createCsharpTypeParameterEnvironment(parameter => parameter.csharpConstraints ??
+    failTargetAnalysisInvariant("tsonic-csharp", "An admitted object projection requires exact sealed native generic constraints."));
   const declarations = new Map<string, {
     readonly capabilities: Set<CsharpObjectShapeCapability>;
     readonly projections: Map<string, CsharpPreparedObjectShapeProjection>;
@@ -495,7 +498,7 @@ export function closeObjectShapeArtifacts(
     for (const capability of record.capabilities) declaration.capabilities.add(capability);
     for (const projection of record.projections.values()) {
       const selected = prepareCsharpObjectShapeProjectionDeclaration(record.fact, projection.selection,
-        declaration.naming.parameters, projection.conversions, projection.emission);
+        declaration.naming.parameters, projection.conversions, projection.emission, environment);
       declaration.projections.set(selected.methodName, selected);
     }
     declarations.set(key, declaration);

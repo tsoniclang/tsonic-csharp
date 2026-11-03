@@ -2,9 +2,9 @@ import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
 import { canonicalCsharpObjectShapeMembers } from "../../../target-model/types/object-shape-identity.js";
 import { createStructuralObjectShapeTarget } from "./construction.js";
-import type { CsharpTypeParameterConstraintResolver } from "../../../target-model/types/generic-references.js";
+import type { CsharpTypeParameterEnvironment } from "../../../target-model/records/types/type-parameter-constraints.js";
 
-export function parameterizeCsharpStructuralContract(shape: CsharpObjectShapeFact, environment: CsharpTypeParameterConstraintResolver): CsharpObjectShapeFact {
+export function parameterizeCsharpStructuralContract(shape: CsharpObjectShapeFact, environment: CsharpTypeParameterEnvironment): CsharpObjectShapeFact {
   if (shape.targetType.kind !== "target-named" || (shape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract !== true || shape.members.length === 0 ||
     shape.members.some(member => member.memberKind !== "property" || member.bound === true) ||
     (shape.implements?.length ?? 0) !== 0) return shape;

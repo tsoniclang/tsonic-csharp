@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createCsharpTypeParameterEnvironment } from "../../../dist/analysis/source-evidence/types/resolution/type-parameter-environment.js";
 import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { compileCsharpRequiredRecordSource } from "../../helpers/required-records.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
@@ -31,7 +32,7 @@ test("native value storage preserves the selected generic vector and its declara
   const member = Object.freeze({ sourceKey: Object.freeze({ kind: "property", name: "item" }), sourceName: "item",
     targetName: "item", memberKind: "property", type: parameter });
   const open = Object.freeze(createStructuralObjectShapeTarget(Object.freeze([member]), undefined,
-    () => Object.freeze({ kind: "resolved", constraints: Object.freeze([]) })));
+    createCsharpTypeParameterEnvironment(() => Object.freeze({ kind: "resolved", constraints: Object.freeze([]) }))));
   const permissions = open.csharpAllowsRefLikeTypeArguments;
   const template = Object.freeze({ targetType: open, members: Object.freeze([member]) });
   const vector = Object.freeze([selected]);

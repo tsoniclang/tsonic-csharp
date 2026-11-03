@@ -1,7 +1,7 @@
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpObjectShapeContract, CsharpObjectShapeMemberContract, CsharpTargetNamedTypeRef, TargetTypeRef } from "./model.js";
 import { csharpObjectShapeMemberContractKey } from "./object-shape-identity.js";
-import type { CsharpTypeParameterConstraintResolver } from "./generic-references.js";
+import type { CsharpTypeParameterEnvironment } from "../records/types/type-parameter-constraints.js";
 
 export interface CsharpObjectShapeHeader {
   readonly contract: CsharpObjectShapeContract;
@@ -12,13 +12,13 @@ export interface CsharpObjectShapeHeader {
 export function completeCsharpObjectShapeOwnerHeader(
   type: CsharpTargetNamedTypeRef,
   projectOwner: boolean,
-  environment: CsharpTypeParameterConstraintResolver,
+  environment: CsharpTypeParameterEnvironment,
 ): CsharpTargetNamedTypeRef | undefined {
   if (!projectOwner || type.typeArguments === undefined) return type;
   const arguments_ = type.typeArguments.map(argument => {
     if (argument.kind !== "type-parameter") return argument;
-    const constraints = environment(argument);
-    return constraints.kind === "resolved" ? Object.freeze({ ...argument, csharpConstraints: constraints }) : undefined;
+    const selected = environment.resolve(argument);
+    return selected.csharpConstraints.kind === "resolved" ? selected : undefined;
   });
   return arguments_.some(argument => argument === undefined) ? undefined
     : { ...type, typeArguments: Object.freeze(arguments_ as readonly TargetTypeRef[]) };

@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createCsharpTypeParameterEnvironment } from "../../../dist/analysis/source-evidence/types/resolution/type-parameter-environment.js";
 import { createCsharpNativeFieldBacking } from "../../../dist/analysis/storage/native-field-backing.js";
 
 const integer = { kind: "source-primitive", name: "uint32" };
-const noFreeParameters = () => { throw new Error("Nongeneric native field backing must not query generic constraints."); };
+const noFreeParameters = createCsharpTypeParameterEnvironment(() => { throw new Error("Nongeneric native field backing must not query generic constraints."); });
 const field = {
   sourceKey: { kind: "property", name: "value" }, sourceName: "value", targetName: "value",
   memberKind: "property", type: integer,

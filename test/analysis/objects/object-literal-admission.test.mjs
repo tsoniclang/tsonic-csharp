@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createCsharpTypeParameterEnvironment } from "../../../dist/analysis/source-evidence/types/resolution/type-parameter-environment.js";
 import { createCompilerSessionFromFiles, formatDiagnostics } from "@tsonic/tsts";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { requiredNode } from "../../../../tsonic/test/fixtures/source-navigation.mjs";
@@ -24,7 +25,7 @@ test("object spread admission rejects an actually missing finalized member carri
     sourceName: name, targetName: name, memberKind: "property", type });
   const value = member("value", csharpSourcePrimitiveTargetType("float64"));
   const label = member("label", csharpStringTargetType());
-  const environment = () => assert.fail("the monomorphic checked spread has no generic binder");
+  const environment = createCsharpTypeParameterEnvironment(() => assert.fail("the monomorphic checked spread has no generic binder"));
   const target = Object.freeze({ targetType: createStructuralObjectShapeTarget([value], undefined, environment),
     members: Object.freeze([value]) });
   const original = Object.freeze({ targetType: createStructuralObjectShapeTarget([value, label], undefined, environment),

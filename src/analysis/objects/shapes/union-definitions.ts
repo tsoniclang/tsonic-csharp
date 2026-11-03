@@ -10,7 +10,8 @@ import { csharpStructuralObjectShapeIdPrefix } from "../../../target-model/types
 import { targetTypeRefKey } from "../../../target-model/types/equality.js";
 import { nextState } from "../../source-evidence/types/resolution/state.js";
 import { substituteTargetTypeParameters } from "../../../policy/types/resolution/substitution.js";
-import { visitCsharpTargetTypeParameters, type CsharpTypeParameterConstraintResolver } from "../../../target-model/types/generic-references.js";
+import { visitCsharpTargetTypeParameters } from "../../../target-model/types/generic-references.js";
+import type { CsharpTypeParameterEnvironment } from "../../../target-model/records/types/type-parameter-constraints.js";
 import { closeCsharpOwnerTypeParameterEnvironment } from "../../source-evidence/types/resolution/owner-type-parameter-environment.js";
 
 interface Definition {
@@ -23,7 +24,7 @@ interface Definition {
 export function createCsharpStructuralUnionDefinitions(
   host: CsharpObjectShapePolicyHost,
   define: (type: Type, sourceFile: SourceFile, state: CsharpTypeResolutionState) => CsharpObjectShapeFact | undefined,
-  environment: CsharpTypeParameterConstraintResolver,
+  environment: CsharpTypeParameterEnvironment,
 ) {
   const definitions = new Map<string, Definition>();
   const selected = new WeakMap<Type, Definition>();

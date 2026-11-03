@@ -6,7 +6,7 @@ import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { createSourceStorageQuery } from "@tsonic/target-api/analysis";
 import { createCsharpProjectTypeCatalog } from "../../../dist/analysis/project-types/catalog.js";
 import { createCsharpObjectShapePolicy } from "../../../dist/analysis/objects/shapes/api.js";
-import { createCsharpTypeParameterEnvironment } from "../../../dist/analysis/source-evidence/types/resolution/type-parameter-environment.js";
+import { createCsharpSourceTypeParameterEnvironment } from "../../../dist/analysis/source-evidence/types/resolution/type-parameter-environment.js";
 import { resolveCsharpTypeParameterConstraints } from "../../../dist/analysis/source-evidence/types/resolution/type-parameter-constraints.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
 
@@ -39,7 +39,7 @@ function fixture() {
     semantics: file => source.semantics.forFile(file),
     hasSemantics: source.semantics.includes,
     semanticsFor,
-    typeParameterConstraints: createCsharpTypeParameterEnvironment(source.ast, (declaration, parameter) => {
+    typeParameterConstraints: createCsharpSourceTypeParameterEnvironment(source.ast, (declaration, parameter) => {
       const sourceFile = source.ast.getSourceFile(declaration);
       return sourceFile === undefined ? undefined : resolveCsharpTypeParameterConstraints(declaration, parameter, sourceFile, {
         ast: source.ast,
@@ -79,7 +79,7 @@ test("class declaration shapes select checked instances rather than constructor 
     const shape = policy.resolveNodeWithState(definition.declaration, definition.sourceFile, { depth: 3 });
     const original = types.get(declaredType);
     const completed = { ...original, typeArguments: original.typeArguments.map(argument => ({ ...argument,
-      csharpConstraints: host.typeParameterConstraints(argument) })) };
+      csharpConstraints: host.typeParameterConstraints.resolve(argument).csharpConstraints })) };
     assert.equal(shape !== undefined && targetTypeRefEquals(shape.targetType, completed), true,
       `exact checked nominal instance carrier ${definition.sourceName}: ${shape?.targetType?.id ?? "absent"}, expected ${original.id}`);
     for (const [index, argument] of shape.targetType.typeArguments.entries()) {

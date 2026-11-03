@@ -4,9 +4,9 @@ import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/
 import { csharpNativeMemoryLayoutsEqual, type CsharpNativeMemoryLayout } from "../../target-model/operations/native-memory.js";
 import type { CsharpNativeObjectField } from "../../target-model/records/storage/storage.js";
 import { createStructuralObjectShapeTarget } from "../objects/shapes/construction.js";
-import type { CsharpTypeParameterConstraintResolver } from "../../target-model/types/generic-references.js";
+import type { CsharpTypeParameterEnvironment } from "../../target-model/records/types/type-parameter-constraints.js";
 
-export function createCsharpNativeFieldBacking(shapes: readonly CsharpObjectShapeFact[], environment: CsharpTypeParameterConstraintResolver) {
+export function createCsharpNativeFieldBacking(shapes: readonly CsharpObjectShapeFact[], environment: CsharpTypeParameterEnvironment) {
   const fields = new Map<string, CsharpNativeObjectField>();
   const closedContracts = new Map<string, TargetTypeRef>();
   const dependents = new Map<string, { readonly base: TargetTypeRef; readonly shape: CsharpObjectShapeFact }[]>();

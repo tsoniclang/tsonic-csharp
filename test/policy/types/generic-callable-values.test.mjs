@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createCsharpTypeParameterEnvironment } from "../../../dist/analysis/source-evidence/types/resolution/type-parameter-environment.js";
 import { retainCsharpGenericCallableValue } from "../../../dist/analysis/callables/generics/generic-values.js";
 import { csharpDelegateTargetType, getCsharpCallableValueSignature, getCsharpDelegateSignature } from "../../../dist/target-model/types/carriers/delegates.js";
 import { csharpMethodValueType, getCsharpMethodValue } from "../../../dist/target-model/types/method-values.js";
@@ -11,7 +12,7 @@ import { csharpFreeTypeParameterIdentities } from "../../../dist/target-model/ty
 import { csharpProjectedType } from "../../../dist/target-model/types/projections.js";
 import { csharpTypeEmissionKey } from "../../../dist/target-model/records/types/type-emission.js";
 
-const unconstrainedEnvironment = () => ({ kind: "resolved", constraints: [] });
+const unconstrainedEnvironment = createCsharpTypeParameterEnvironment(() => ({ kind: "resolved", constraints: [] }));
 
 function quantifiedChoice(identity, constraints = []) {
   const parameter = { kind: "type-parameter", identity, name: identity,
@@ -164,7 +165,7 @@ test("full native projection vectors rebind independent of order and keep unused
   const value = retainCsharpGenericCallableValue(signature,
     sourceParameters.map(parameter => ({ identity: parameter.identity, name: parameter.name, declaration: {},
       constraints: parameter.csharpConstraints.constraints })), shape => { shapes.push(shape); return shape; },
-    parameter => parameter.csharpConstraints ?? unconstrainedEnvironment());
+    createCsharpTypeParameterEnvironment(parameter => parameter.csharpConstraints ?? unconstrainedEnvironment.resolve(parameter).csharpConstraints));
   assert.equal(value !== undefined, true, "actual full native protocol fixture");
   const permissions = [false, true, false, true, false];
   const source = Object.freeze({ ...value, csharpMethodValue: Object.freeze({ ...getCsharpMethodValue(value),
