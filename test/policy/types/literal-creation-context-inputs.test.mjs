@@ -84,7 +84,7 @@ test("UNIT literal context generator visits every request after an earlier unres
   let count = 0;
   while (!step.done) {
     assert.equal(step.value === source.dependencies[count], true, "the original ordered request is yielded");
-    step = completion.next({ request: step.value, type: count++ === 0 ? undefined : integer });
+    step = completion.next({ request: step.value, type: count++ === 0 ? undefined : integer, argument: undefined });
   }
   assert.equal(count === 3 && step.value === undefined, true);
 });
@@ -96,7 +96,7 @@ test("UNIT literal native context agreement never chooses the first conflicting 
     const completion = completeCsharpLiteralCreationContextSource(source);
     let step = completion.next();
     let index = 0;
-    while (!step.done) step = completion.next({ request: step.value, type: types[index++] });
+    while (!step.done) step = completion.next({ request: step.value, type: types[index++], argument: undefined });
     return step.value;
   };
   const agreed = run([integer, integer, integer]);
@@ -110,7 +110,7 @@ test("UNIT literal context replies must retain the exact requested dependency", 
   const completion = completeCsharpLiteralCreationContextSource(source);
   const step = completion.next();
   assert.equal(step.done, false);
-  assert.throws(() => completion.next({ request: source.dependencies[1], type: integer }), /exact chosen native dependency/);
+  assert.throws(() => completion.next({ request: source.dependencies[1], type: integer, argument: undefined }), /exact chosen native dependency/);
 });
 
 test("UNIT literal arguments cannot substitute checked or unavailable component requests", () => {
@@ -149,5 +149,11 @@ test("UNIT literal formal completion retains exclusions and exact synchronous an
     const completed = resolveFormedCsharpLiteralCreationContext(scope, source);
     assert.equal(completed?.destinationType === integer && completed.context === current.selection, true, mode);
     assert.equal(source.dependencies[0].argument === call.argument, true);
+    const receipt = completed.completions[0].argument;
+    assert.equal(receipt?.association.source === call.contract && receipt.association.binding === call.argument.correspondence.binding &&
+      receipt.association.checkedParameter === call.contract.source.sourceSelectedSignatureParameters[0] &&
+      receipt.association.excludedSourceArgumentIndexes === call.argument.excludedSourceArgumentIndexes &&
+      receipt.selection.contract === native && receipt.kind === "contracted" && receipt.parameter === native.nativeParameters[0], true,
+      "the one actual native driver publishes its same chosen association");
   }
 });
