@@ -3,6 +3,15 @@ import test from "node:test";
 import { createCompilerSessionFromFiles, formatDiagnostics } from "@tsonic/tsts";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { createCsharpProjectTypeCatalog } from "../../../dist/analysis/project-types/catalog.js";
+import { analyzeCsharpProjectTypePolicy } from "../../../dist/analysis/project-types/catalog/resolution.js";
+import { createCsharpTypeProjectionRecords } from "../../../dist/analysis/program/records/types/type-projections.js";
+
+function completeUnitCatalog(host) {
+  const owner = createCsharpProjectTypeCatalog(host);
+  owner.publishABI(createCsharpTypeProjectionRecords([]));
+  owner.complete(analyzeCsharpProjectTypePolicy(host, owner.catalog));
+  return owner.catalog;
+}
 
 function fixture() {
   const checked = createCompilerSessionFromFiles({
@@ -27,7 +36,7 @@ function fixture() {
 
 test("C# project declaration scopes preserve colliding authored names and exact module identities", () => {
   const { host } = fixture();
-  const catalog = createCsharpProjectTypeCatalog(host);
+  const catalog = completeUnitCatalog(host);
   assert.equal(catalog.issues.length, 0);
   const scopes = new Map();
   for (const definition of catalog.definitions) {
@@ -53,7 +62,7 @@ test("C# project declaration scopes preserve colliding authored names and exact 
   }
   assert.equal(scopes.size, 2);
   assert.equal(new Set(scopes.values()).size, 2, "separate source modules retain distinct native scopes");
-  const reversed = createCsharpProjectTypeCatalog({ ...host, navigation: { ...host.navigation,
+  const reversed = completeUnitCatalog({ ...host, navigation: { ...host.navigation,
     sourceFiles: [...host.navigation.sourceFiles].reverse() } });
   for (const definition of catalog.definitions) {
     assert.equal(reversed.definitionForDeclaration(definition.declaration)?.scopeName, definition.scopeName,
@@ -63,7 +72,7 @@ test("C# project declaration scopes preserve colliding authored names and exact 
 
 test("C# module scope allocation fails closed without exact source identity", () => {
   const { host } = fixture();
-  const catalog = createCsharpProjectTypeCatalog({ ...host, ast: { ...host.ast, getPath: () => undefined } });
+  const catalog = completeUnitCatalog({ ...host, ast: { ...host.ast, getPath: () => undefined } });
   assert.equal(catalog.definitions.length, 0, "no admitted declaration without its exact identity");
   for (const file of host.navigation.sourceFiles) {
     for (const declaration of host.ast.statements(file)) {

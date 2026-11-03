@@ -4,6 +4,15 @@ import { createCompilerSessionFromFiles } from "@tsonic/tsts";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { createCsharpProjectTypeCatalog } from "../../../dist/analysis/project-types/catalog.js";
 import { projectTypeDefinition } from "../../../dist/analysis/project-types/type-policy.js";
+import { analyzeCsharpProjectTypePolicy } from "../../../dist/analysis/project-types/catalog/resolution.js";
+import { createCsharpTypeProjectionRecords } from "../../../dist/analysis/program/records/types/type-projections.js";
+
+function completeUnitCatalog(host) {
+  const owner = createCsharpProjectTypeCatalog(host);
+  owner.publishABI(createCsharpTypeProjectionRecords([]));
+  owner.complete(analyzeCsharpProjectTypePolicy(host, owner.catalog));
+  return owner.catalog;
+}
 
 function fixture(text) {
   const checked = createCompilerSessionFromFiles({ currentDirectory: "/project",
@@ -23,7 +32,7 @@ export enum Bounds { Low = -9223372036854775808, High = 9223372036854775807 }
 export class Ordinary {}
 `);
   const calls = new Map();
-  const catalog = createCsharpProjectTypeCatalog({ ...host, enumConstants: Object.freeze({ ...host.enumConstants,
+  const catalog = completeUnitCatalog({ ...host, enumConstants: Object.freeze({ ...host.enumConstants,
     integerWidth(declaration) {
       calls.set(declaration, (calls.get(declaration) ?? 0) + 1);
       return host.enumConstants.integerWidth(declaration);
@@ -52,7 +61,7 @@ export enum Resource { Value = 2 ** 1000000000 }
 export enum Incoherent { Exact = 9007199254740993, Next }
 export enum Collision { Low = 9007199254740992, High = 9007199254740993 }
 `);
-  const catalog = createCsharpProjectTypeCatalog(host);
+  const catalog = completeUnitCatalog(host);
   assert.equal(catalog.definitions.length, 0, "no refused enum acquires a native type definition");
   assert.equal(catalog.issues.length, 6, "one precise issue per refused native declaration");
   const owners = new Set();
