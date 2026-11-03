@@ -56,6 +56,11 @@ interface CsharpProviderObjectLiteralMemberSource {
   readonly sourceKey: ReturnType<typeof resolveObjectShapeSourceMemberKey>;
   readonly relations: readonly CsharpProviderMemberRelation[] | undefined;
   readonly optional: boolean;
+  readonly numericStorage: CsharpProviderNumericStorageSource;
+}
+
+export interface CsharpProviderNumericStorageSource {
+  readonly property: TypePropertyInfo;
   readonly implicitNumericStorage: boolean;
 }
 
@@ -229,7 +234,7 @@ function formProviderObjectLiteralMemberSource(
     sourceTypes: Object.freeze([property.type]),
     subjects, sourceKey, relations: available ? Object.freeze(relations) : undefined,
     optional: property.optional || typeIncludesNullish(property.type, input.queries),
-    implicitNumericStorage: providerPropertyHasImplicitNumericStorage(property, input) });
+    numericStorage: formCsharpProviderNumericStorageSource(property, input) });
 }
 
 function* deriveProviderObjectLiteralMember(
@@ -290,7 +295,7 @@ function* deriveProviderObjectLiteralMember(
       );
   const targetReadonly = relation.targetMember.readonly === true;
   const exactNumericStorage = sourceTarget !== undefined && memberTarget !== undefined &&
-    providerNumericStoragePairMatches(sourceTarget, memberTarget) && source.implicitNumericStorage;
+    csharpProviderSelectsNumericStorage(source.numericStorage, sourceTarget, memberTarget);
   if (
     sourceTarget === undefined ||
     memberTarget === undefined ||
@@ -319,16 +324,22 @@ function* deriveProviderObjectLiteralMember(
   };
 }
 
-export function csharpProviderSelectsNumericStorage(
+export function formCsharpProviderNumericStorageSource(
   property: TypePropertyInfo,
-  source: TargetTypeRef,
-  target: TargetTypeRef,
   input: {
     readonly queries: SourceFileSemantics;
     readonly host: Pick<CsharpTypePolicyBaseHost, "ast" | "sourceFacts">;
   },
+): CsharpProviderNumericStorageSource {
+  return Object.freeze({ property, implicitNumericStorage: providerPropertyHasImplicitNumericStorage(property, input) });
+}
+
+export function csharpProviderSelectsNumericStorage(
+  source: CsharpProviderNumericStorageSource,
+  sourceType: TargetTypeRef,
+  targetType: TargetTypeRef,
 ): boolean {
-  return providerNumericStoragePairMatches(source, target) && providerPropertyHasImplicitNumericStorage(property, input);
+  return providerNumericStoragePairMatches(sourceType, targetType) && source.implicitNumericStorage;
 }
 
 function providerNumericStoragePairMatches(source: TargetTypeRef, target: TargetTypeRef): boolean {
