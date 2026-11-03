@@ -280,12 +280,13 @@ export function resolveSourceCallableContractType(
   state: CsharpTypeResolutionState,
   excludedSourceArgumentIndexes?: ReadonlySet<number>,
 ): TargetTypeRef | undefined {
+  const input = formCsharpSourceCallContractSource(scope, source, selectedSourceFile);
   const construction = scope.host.ast.kindName(source.sourceCallee.expression) !== "KindSuperKeyword" &&
     scope.host.ast.is.IsNewExpression(source.call)
-    ? formCsharpSourceCallConstructionSource(scope, formCsharpSourceCallContractSource(scope, source, selectedSourceFile))
+    ? formCsharpSourceCallConstructionSource(scope, input)
     : undefined;
   return completeCsharpSourceCallableType(scope, Object.freeze({ source, callable, type,
-    sourceFile: selectedSourceFile, state, excludedSourceArgumentIndexes, construction }))?.type;
+    sourceFile: selectedSourceFile, state, excludedSourceArgumentIndexes, construction, receiverSource: input.receiverSource }))?.type;
 }
 
 export function completeCsharpSourceCallableType(
@@ -341,11 +342,13 @@ export function resolveSourceCallReceiverTargetType(
   selectedSourceFile: SourceFile,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
+  const input = formCsharpSourceCallContractSource(scope, source, selectedSourceFile);
   const construction = scope.host.ast.kindName(source.sourceCallee.expression) !== "KindSuperKeyword" &&
     scope.host.ast.is.IsNewExpression(source.call)
-    ? formCsharpSourceCallConstructionSource(scope, formCsharpSourceCallContractSource(scope, source, selectedSourceFile))
+    ? formCsharpSourceCallConstructionSource(scope, input)
     : undefined;
-  return completeCsharpSourceCallReceiver(scope, Object.freeze({ source, sourceFile: selectedSourceFile, state, construction }))?.type;
+  return completeCsharpSourceCallReceiver(scope, Object.freeze({ source, sourceFile: selectedSourceFile, state, construction,
+    receiverSource: input.receiverSource }))?.type;
 }
 
 export function completeCsharpSourceCallReceiver(
@@ -354,6 +357,9 @@ export function completeCsharpSourceCallReceiver(
 ): CsharpSourceCallReceiverCompletion | undefined {
   const { host, completeSelectedReceiver, resolveFormedSourceOwnedConstructionResult, resolveTypeWithState, resolveNodeWithState } = scope;
   const { source, sourceFile, state } = input;
+  if (input.receiverSource === undefined || input.receiverSource.receiver !== source.sourceReceiver ||
+      input.receiverSource.queries.sourceFile !== sourceFile) return failTargetAnalysisInvariant("tsonic-csharp",
+    "Call receiver completion requires its exact retained Source receiver.", source.call);
   if (host.ast.kindName(source.sourceCallee.expression) === "KindSuperKeyword") {
     const type = resolveProjectConstructingReceiverTargetType(scope, source.sourceCallee.expression);
     return type === undefined ? undefined : Object.freeze({ input, kind: "super", type });
@@ -378,7 +384,7 @@ export function completeCsharpSourceCallReceiver(
     const type = resolveTypeWithState(source.sourceResultType, sourceFile, nextState(state));
     return type === undefined ? undefined : Object.freeze({ input, kind: "construction-result", type });
   }
-  const selected = completeSelectedReceiver(Object.freeze({ receiver: source.sourceReceiver, queries: host.semantics(sourceFile), state }));
+  const selected = completeSelectedReceiver(Object.freeze({ source: input.receiverSource, state }));
   return selected === undefined ? undefined : Object.freeze({ input, kind: "selected", selected, type: selected.type });
 }
 

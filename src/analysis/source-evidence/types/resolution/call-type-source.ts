@@ -8,7 +8,7 @@ import { inferCsharpTargetTypeParameterBindings, substituteTargetTypeParameters 
 import type { CsharpTypeResolutionState } from "./model.js";
 import type { CsharpTypeResolutionScope } from "./scope.js";
 import { nextState } from "./state.js";
-import type { CsharpSourceCallReceiverInput, CsharpSourceCallReceiverCompletion } from "./receiver-completions.js";
+import type { CsharpSelectedReceiverSource, CsharpSourceCallReceiverInput, CsharpSourceCallReceiverCompletion } from "./receiver-completions.js";
 import type { CsharpSourceOwnedConstructionSource } from "./expression-source.js";
 
 export interface CsharpSourceCallableTypeInput {
@@ -19,6 +19,7 @@ export interface CsharpSourceCallableTypeInput {
   readonly state: CsharpTypeResolutionState;
   readonly excludedSourceArgumentIndexes: ReadonlySet<number> | undefined;
   readonly construction: CsharpSourceOwnedConstructionSource | undefined;
+  readonly receiverSource: CsharpSelectedReceiverSource;
 }
 
 type Instantiation = NonNullable<ReturnType<CsharpTypeResolutionScope["resolveSourceCallInstantiation"]>>;
@@ -61,6 +62,9 @@ export function* completeCsharpSourceCallableTypeSource(
   input: CsharpSourceCallableTypeInput,
 ): Generator<CsharpSourceCallableTypeRequest, CsharpSourceCallableTypeCompletion | undefined,
   CsharpCompletedSourceCallableTypeRequest> {
+  if (input.receiverSource === undefined || input.receiverSource.receiver !== input.source.sourceReceiver ||
+      input.receiverSource.queries.sourceFile !== input.sourceFile) return failTargetAnalysisInvariant("tsonic-csharp",
+    "Callable type completion requires its exact retained Source receiver.", input.source.call);
   const instantiationRequest = Object.freeze({ kind: "instantiation" as const, input, state: nextState(input.state) });
   const instantiated = yield instantiationRequest;
   if (instantiated.request !== instantiationRequest || instantiated.kind !== "instantiation") {
@@ -71,7 +75,7 @@ export function* completeCsharpSourceCallableTypeSource(
   if (instantiation === undefined) return undefined;
   const substituted = substituteTargetTypeParameters(input.type, instantiation.substitutions);
   const receiverInput = Object.freeze({ source: input.source, sourceFile: input.sourceFile, state: input.state,
-    construction: input.construction });
+    construction: input.construction, receiverSource: input.receiverSource });
   const receiverRequest = Object.freeze({ kind: "receiver" as const, input, instantiation, substituted, receiverInput });
   const completedReceiver = yield receiverRequest;
   if (completedReceiver.request !== receiverRequest || completedReceiver.kind !== "receiver") {

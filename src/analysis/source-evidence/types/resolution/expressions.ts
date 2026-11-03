@@ -29,7 +29,7 @@ import { formCsharpSelectedExpressionSource,
   type CsharpSelectedExpressionSource, type CsharpSourceOwnedConstructionSource } from "./expression-source.js";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { ResolvedSourceCallInfo } from "../../../../target-model/records/calls/source-calls.js";
-import { completeCsharpSelectedReceiver } from "./receiver-completions.js";
+import { formCsharpSelectedReceiverSource, completeCsharpSelectedReceiver } from "./receiver-completions.js";
 import { formCsharpProjectInstanceSource, resolveFormedCsharpProjectInstanceTargetType } from "./project-instance-source.js";
 
 export function resolveSelectedExpressionType(
@@ -382,7 +382,7 @@ export function resolveSelectedReceiverTargetType(
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
-  return completeCsharpSelectedReceiver(scope, Object.freeze({ receiver, queries, state }))?.type;
+  return completeCsharpSelectedReceiver(scope, Object.freeze({ source: formCsharpSelectedReceiverSource(scope.host, receiver, queries), state }))?.type;
 }
 
 export function resolveFormedCsharpSourceOwnedConstructionResult(

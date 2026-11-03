@@ -81,7 +81,7 @@ export function* completeCsharpSourceCallArgumentParameterSource(
     if (!parameters.matches) return undefined;
     const state = Object.freeze({ depth: 0 });
     const typeInput = Object.freeze({ source: input.source, callable, type: contractedParameter.targetParameter.type,
-      sourceFile: input.sourceFile, state, excludedSourceArgumentIndexes, construction });
+      sourceFile: input.sourceFile, state, excludedSourceArgumentIndexes, construction, receiverSource: input.receiverSource });
     const typeRequest = Object.freeze({ kind: "contracted" as const, association, selection, callable,
       parameter: contractedParameter, state, typeInput });
     const completed = yield typeRequest;
