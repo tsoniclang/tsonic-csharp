@@ -6,6 +6,10 @@ import { csharpPropertySourceMemberKey } from "../../../dist/target-model/types/
 import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
 import { csharpStringTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
+import { csharpJsRuntimeSource, csharpRuntimeSourceContributions } from "../../../dist/providers/runtime/source-projects.js";
+import { classifyCsharpRuntimeSource } from "../../../dist/providers/runtime/projects.js";
+
+const jsRuntimeSources = Object.freeze(csharpRuntimeSourceContributions(csharpJsRuntimeSource).references.map(classifyCsharpRuntimeSource));
 
 function shape(name, members = []) {
   return Object.freeze({ targetType: Object.freeze({ kind: "target-named", id: "Example." + name, csharpAllowsRefLikeTypeArguments: [] }),
@@ -19,7 +23,7 @@ function property(name, type) {
 function fixture(shapes) {
   const definitions = new Map(shapes.map(entry => [targetTypeRefKey(entry.targetType), entry]));
   const forbidden = () => assert.fail("declared JSON writers never inspect runtime value flow or caller bindings");
-  const engine = createCsharpObjectShapeDemandEngine({ ast: {}, names: { typeParameterNames: [] },
+  const engine = createCsharpObjectShapeDemandEngine({ runtimeSources: jsRuntimeSources, ast: {}, names: { typeParameterNames: [] },
     captureStorage: { captureFrameShape: { get() {} } }, conversions: { conversion: { get() {} } },
     sourceStorage: { get nodes() { return forbidden(); }, subjectFor: forbidden, storageProducersFor: forbidden,
       boundValueFrontierFor: forbidden, bindingsForInvocation: forbidden },

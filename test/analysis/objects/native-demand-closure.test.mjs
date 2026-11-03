@@ -3,6 +3,8 @@ import { collectJsonType } from "../../../dist/analysis/objects/native-demand/cl
 import { maximumJsonClosureDepth } from "../../../dist/analysis/objects/native-demand/batches.js";
 import { csharpAbsenceTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
 import test from "node:test";
+import { csharpJsRuntimeSource, csharpRuntimeSourceContributions } from "../../../dist/providers/runtime/source-projects.js";
+import { classifyCsharpRuntimeSource } from "../../../dist/providers/runtime/projects.js";
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { compileCsharpRequiredRecordSource, csharpRecordInput } from "../../helpers/required-records.mjs";
 import { createCsharpProgramRecords } from "../../../dist/analysis/program/records/create.js";
@@ -16,6 +18,8 @@ import { csharpObjectShapeArtifact } from "../../../dist/backend/planner/artifac
 import { csharpObjectShapeMemberContractKey } from "../../../dist/target-model/types/object-shape-identity.js";
 import { monomorphicStructuralOptionalFiles } from "../../../../tsonic/test/fixtures/generic-structural-methods.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
+
+const jsRuntimeSources = Object.freeze(csharpRuntimeSourceContributions(csharpJsRuntimeSource).references.map(classifyCsharpRuntimeSource));
 
 test("closed JSON admits one exact native absence without admitting foreign or unbounded data", () => {
   const scope = {
@@ -217,7 +221,7 @@ test("artifact demand seals once and the backend cannot reach the native query o
   const type = { kind: "target-named", id: "tsonic.shape:Leaf", csharpAllowsRefLikeTypeArguments: [], csharpRender: { kind: "named", name: "Leaf" } };
   const fact = Object.freeze({ targetType: type, members: Object.freeze([]) });
   const targetShapes = Object.freeze({ [targetTypeRefKey(type)]: fact });
-  const engine = createCsharpObjectShapeDemandEngine({ objectShapes: {
+  const engine = createCsharpObjectShapeDemandEngine({ runtimeSources: jsRuntimeSources, objectShapes: {
     targetShapes,
     resolveTarget(selected) { assert.equal(closed, false, "queries run before publication"); reads += 1; return selected === type ? fact : undefined; },
     knownShapes: () => [fact],
@@ -242,7 +246,7 @@ test("artifact demand seals once and the backend cannot reach the native query o
 
 test("artifact demand requires its canonical immutable completed shape index at sealing", () => {
   for (const targetShapes of [undefined, {}]) {
-    const engine = createCsharpObjectShapeDemandEngine({ objectShapes: { targetShapes, resolveTarget() {} },
+    const engine = createCsharpObjectShapeDemandEngine({ runtimeSources: jsRuntimeSources, objectShapes: { targetShapes, resolveTarget() {} },
       ast: {}, captureStorage: { captureFrameShape: { get() {} } },
       conversions: { conversion: { get() {} } } });
     assert.throws(() => engine.close(), /immutable completed target-shape index/u,
@@ -350,7 +354,7 @@ test("general native JSON declarations propagate through exact native inheritanc
   const derived = Object.freeze({ targetType: { kind: "target-named", id: "Example.JsonDerived", csharpAllowsRefLikeTypeArguments: [] },
     members: [], implements: [base.targetType] });
   const shapes = new Map([base, derived].map(shape => [targetTypeRefKey(shape.targetType), shape]));
-  const engine = createCsharpObjectShapeDemandEngine({ ast: {}, names: { typeParameterNames: [] },
+  const engine = createCsharpObjectShapeDemandEngine({ runtimeSources: jsRuntimeSources, ast: {}, names: { typeParameterNames: [] },
     captureStorage: { captureFrameShape: { get() {} } }, conversions: { conversion: { get() {} } },
     objectShapes: { targetShapes: Object.freeze(Object.fromEntries(shapes)), knownShapes: () => [...shapes.values()],
       resolveTarget(type) { return type === undefined ? undefined : shapes.get(targetTypeRefKey(type)); } } });
@@ -367,7 +371,7 @@ test("general native JSON metadata cannot make legal pointer fields acquire an i
   const pointer = { kind: "pointer", pointee: { kind: "source-primitive", name: "uint8" } };
   const shape = Object.freeze({ targetType: { kind: "target-named", id: "Example.NativeAddress", csharpAllowsRefLikeTypeArguments: [] },
     members: [{ sourceKey: { kind: "property", name: "address" }, sourceName: "address", targetName: "address", memberKind: "property", type: pointer }] });
-  const engine = createCsharpObjectShapeDemandEngine({ ast: {}, names: { typeParameterNames: [] },
+  const engine = createCsharpObjectShapeDemandEngine({ runtimeSources: jsRuntimeSources, ast: {}, names: { typeParameterNames: [] },
     captureStorage: { captureFrameShape: { get() {} } }, conversions: { conversion: { get() {} } },
     objectShapes: { targetShapes: Object.freeze({ [targetTypeRefKey(shape.targetType)]: shape }),
       resolveTarget(type) { return type === shape.targetType ? shape : undefined; } } });
@@ -377,4 +381,28 @@ test("general native JSON metadata cannot make legal pointer fields acquire an i
   assert.equal(artifact.fact === shape && artifact.fact.members[0].type === pointer, true, "native pointer identity and storage are unchanged");
   assert.equal(artifact.jsonContract === undefined && !artifact.capabilities.includes("json-serialization"), true,
     "no pointer-to-object conversion, wrapper or false native writer is manufactured");
+});
+
+for (const surface of ["native", "js"]) test(`general JSON writers follow the selected runtime without changing native identity on ${surface}`, () => {
+  const type = { kind: "target-named", id: "Example.NativeIdentity", csharpAllowsRefLikeTypeArguments: [] };
+  const shape = Object.freeze({ targetType: type, members: Object.freeze([]) });
+  const runtimeSources = surface === "js" ? jsRuntimeSources : Object.freeze([]);
+  const engine = createCsharpObjectShapeDemandEngine({ runtimeSources, ast: {}, names: { typeParameterNames: [] },
+    captureStorage: { captureFrameShape: { get() {} } }, conversions: { conversion: { get() {} } },
+    objectShapes: { targetShapes: Object.freeze({ [targetTypeRefKey(type)]: shape }),
+      resolveTarget: selected => selected === type ? shape : undefined } });
+  assert.equal(engine.registerObjectShape(shape, "synthetic").kind, "accepted", "the same native identity is admitted");
+  assert.equal(engine.requireObjectShapeCapability(undefined, type, {}, "reference-identity", "value").kind,
+    "accepted", "the existing native reference identity form does not depend on JSON");
+  const foreign = { ...shape, targetType: { ...type, id: "Example.Foreign" } };
+  assert.throws(() => engine.registerGeneralJsonWriter(foreign), /exact admitted native shape/u,
+    "absence of the optional runtime never relaxes exact native shape validation");
+  engine.registerGeneralJsonWriter(shape);
+  const closure = engine.close();
+  assert.equal(closure.artifacts.length, 1, "no copy, adapter or alternate identity artifact");
+  const artifact = closure.artifacts[0];
+  assert.equal(artifact.fact === shape && artifact.fact.targetType === type, true, "the original native identity is unchanged");
+  assert.equal(artifact.capabilities.includes("reference-identity"), true, "native identity remains available on both surfaces");
+  assert.equal(artifact.jsonContract !== undefined, surface === "js", "only the selected JS runtime admits the J6 writer");
+  assert.equal(artifact.capabilities.includes("json-serialization"), surface === "js", "no unreferenced JS capability reaches native emission");
 });

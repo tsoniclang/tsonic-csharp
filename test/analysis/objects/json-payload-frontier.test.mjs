@@ -6,6 +6,10 @@ import { selectCsharpObjectShapePublication } from "../../../dist/analysis/names
 import { objectShapeArtifactKey } from "../../../dist/target-model/records/objects/object-shape-keys.js";
 import { csharpPropertySourceMemberKey } from "../../../dist/target-model/types/source-member-keys.js";
 import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
+import { csharpJsRuntimeSource, csharpRuntimeSourceContributions } from "../../../dist/providers/runtime/source-projects.js";
+import { classifyCsharpRuntimeSource } from "../../../dist/providers/runtime/projects.js";
+
+const jsRuntimeSources = Object.freeze(csharpRuntimeSourceContributions(csharpJsRuntimeSource).references.map(classifyCsharpRuntimeSource));
 
 test("JSON serializer demand retains exact immutable declaration contracts without querying source origins", () => {
   const carrier = Object.freeze({ kind: "source-primitive", name: "int32" });
@@ -16,7 +20,7 @@ test("JSON serializer demand retains exact immutable declaration contracts witho
   let reads = 0;
   let closed = false;
   const forbidden = () => assert.fail("JSON publication must not query source nodes, invocation bindings or value frontiers");
-  const engine = createCsharpObjectShapeDemandEngine({
+  const engine = createCsharpObjectShapeDemandEngine({ runtimeSources: jsRuntimeSources,
     ast: {}, names: { typeParameterNames: [] }, captureStorage: { captureFrameShape: { get() {} } },
     conversions: { conversion: { get() {} } },
     sourceStorage: { get nodes() { return forbidden(); }, subjectFor: forbidden, boundValueFrontierFor: forbidden, emptyBindings: forbidden },

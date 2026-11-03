@@ -12,6 +12,10 @@ import {
   csharpPropertySourceMemberKey,
   targetTypeRefKey,
 } from "../../../../dist/policy/types/index.js";
+import { csharpJsRuntimeSource, csharpRuntimeSourceContributions } from "../../../../dist/providers/runtime/source-projects.js";
+import { classifyCsharpRuntimeSource } from "../../../../dist/providers/runtime/projects.js";
+
+const jsRuntimeSources = Object.freeze(csharpRuntimeSourceContributions(csharpJsRuntimeSource).references.map(classifyCsharpRuntimeSource));
 function publishDemand(demand) {
   return publishCsharpNativeArtifactDemand(selectCsharpObjectShapePublication(demand.close(), { typeParameterNames: [] }));
 }
@@ -43,7 +47,7 @@ test("target-owned object shapes reconstruct from canonical artifact state", () 
     [targetTypeRefKey(innerType), inner],
     [targetTypeRefKey(outerType), outer],
   ]);
-  const demand = createCsharpObjectShapeDemandEngine({
+  const demand = createCsharpObjectShapeDemandEngine({ runtimeSources: jsRuntimeSources,
     ast: {},
     names: { typeParameterNames: [] }, captureStorage: { captureFrameShape: { get() {} } },
     conversions: { conversion: { get() {} } },
@@ -90,7 +94,7 @@ test("object-shape receiver requirements are complete and immutable before publi
   const method = { sourceKey: csharpPropertySourceMemberKey("read"), sourceName: "read", targetName: "read", memberKind: "method",
     type: csharpDelegateTargetType("System.Func", [], { kind: "source-primitive", name: "int32" }) };
   const shape = { targetType: { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "Example.Counter" }, members: [method] };
-  const host = { ast: {}, names: { typeParameterNames: [] }, captureStorage: { captureFrameShape: { get() {} } },
+  const host = { runtimeSources: jsRuntimeSources, ast: {}, names: { typeParameterNames: [] }, captureStorage: { captureFrameShape: { get() {} } },
     conversions: { conversion: { get() {} } }, navigation: {},
     objectShapes: { targetShapes: Object.freeze({ [targetTypeRefKey(shape.targetType)]: shape }), resolveTarget() { return shape; } } };
   const before = createCsharpObjectShapeDemandEngine(host);
@@ -122,7 +126,7 @@ function genericReceiverArtifacts() {
   const declaration = { targetType: target(parameter), members: [member(parameter)] };
   const instance = { targetType: target(integer), members: [member(integer)], declarationTemplate: declaration };
   const shapes = new Map([declaration, instance].map(shape => [targetTypeRefKey(shape.targetType), shape]));
-  const demand = createCsharpObjectShapeDemandEngine({ ast: {}, names: { typeParameterNames: [] },
+  const demand = createCsharpObjectShapeDemandEngine({ runtimeSources: jsRuntimeSources, ast: {}, names: { typeParameterNames: [] },
     captureStorage: { captureFrameShape: { get() {} } }, conversions: { conversion: { get() {} } }, objectShapes: {
     targetShapes: Object.freeze(Object.fromEntries(shapes)),
     resolveTarget: type => shapes.get(targetTypeRefKey(type)), knownShapes: () => [declaration, instance],
@@ -181,7 +185,7 @@ function genericCapabilityArtifacts() {
   const unrelated = { targetType: { ...target(integer), id: "tsonic.shape:UnrelatedCapability" }, members: [] };
   const facts = [declaration, first, second, unrelated];
   const byTarget = new Map(facts.map(fact => [targetTypeRefKey(fact.targetType), fact]));
-  const demand = createCsharpObjectShapeDemandEngine({ ast: {}, names: { typeParameterNames: [] },
+  const demand = createCsharpObjectShapeDemandEngine({ runtimeSources: jsRuntimeSources, ast: {}, names: { typeParameterNames: [] },
     captureStorage: { captureFrameShape: { get() {} } }, conversions: { conversion: { get() {} } }, objectShapes: {
     targetShapes: Object.freeze(Object.fromEntries(byTarget)),
     resolveTarget: type => type === undefined ? undefined : byTarget.get(targetTypeRefKey(type)),
@@ -240,7 +244,7 @@ test("one exact native declaration retains every selected projection and each so
 });
 
 test("source-file artifacts have no object-shape publication or reconstruction route", () => {
-  const demand = createCsharpObjectShapeDemandEngine({ ast: {}, names: { typeParameterNames: [] },
+  const demand = createCsharpObjectShapeDemandEngine({ runtimeSources: jsRuntimeSources, ast: {}, names: { typeParameterNames: [] },
     captureStorage: { captureFrameShape: { get() {} } }, conversions: { conversion: { get() {} } },
     navigation: {}, objectShapes: { targetShapes: Object.freeze({}), resolveTarget() {} } });
   const publication = publishDemand(demand);
