@@ -9,7 +9,7 @@ import type { CsharpNodeTypeResolution } from "../../policy/model/type-resolutio
 import type { CsharpNativeConstructionPublicationSource } from "../objects/native-construction-publication.js";
 
 type CurrentProjectDeclaration<Definition extends CsharpProjectTypeDefinition> = Definition extends unknown
-  ? Omit<Definition, "typeParameterBindings" | "typeProjections" | "outerTypeProjections"> : never;
+  ? Omit<Definition, "declared" | "authoredTypeParameterBindings" | "typeParameterBindings" | "typeProjections" | "outerTypeProjections"> : never;
 
 export type CsharpCurrentProjectDeclaration = CurrentProjectDeclaration<CsharpProjectTypeDefinition>;
 

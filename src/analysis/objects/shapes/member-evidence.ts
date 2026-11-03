@@ -7,7 +7,8 @@ import { csharpNullableTargetType } from "../../../target-model/types/carriers/n
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { csharpSourceMemberDisplayName } from "../../../target-model/types/source-member-keys.js";
 import { nextState } from "../../source-evidence/types/resolution/state.js";
-import { completeCsharpCallableDeclaration, completeCsharpCallableTypeParameters } from "../../source-evidence/types/resolution/callable-type-parameters.js";
+import { completeCsharpCallableDeclaration, completeCsharpCallableABI,
+  type CsharpCallableABI } from "../../source-evidence/types/resolution/callable-type-parameters.js";
 import { csharpMethodValueCoversContract, getCsharpMethodValue } from "../../../target-model/types/method-values.js";
 import type { CsharpProjectMemberTypeInstantiation } from "../../../target-model/records/types/project-types.js";
 import { completeMemberInstantiationEvidence, formMemberInstantiationEvidence, instantiateMemberEvidence,
@@ -25,6 +26,7 @@ export interface CsharpStructuralMemberHeader {
   readonly memberIndex: number;
   readonly member: CsharpStructuralMemberApplication;
   readonly children: CsharpCompletedStructuralMemberChildren;
+  readonly callableABI: CsharpCallableABI;
   readonly contract: CsharpObjectShapeMemberContract;
 }
 
@@ -169,9 +171,10 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
     const callableDeclaration = completeCsharpCallableDeclaration(input.callableDeclaration,
       children.constraints.map(constraint => Object.freeze({ source: constraint.request.source, resolution: constraint.resolution })));
     if (callableDeclaration === undefined) return undefined;
-    const typeParameters = completeCsharpCallableTypeParameters(callableDeclaration,
+    const callableABI = completeCsharpCallableABI(callableDeclaration,
       methodDeclaration === undefined ? [] : host.representations.genericProjections(methodDeclaration));
-    if (typeParameters === undefined) return undefined;
+    if (callableABI === undefined) return undefined;
+    const typeParameters = callableABI.typeParameters;
     const optional = property.optional;
     if (bound && (optional || input.nullish || method || getters.length !== 0 || setters.length !== 0)) return undefined;
     const contract: CsharpObjectShapeMemberContract = Object.freeze({
@@ -188,13 +191,16 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
       ...(bound ? { bound: true as const } : {}),
       ...(getters.length === 0 ? {} : { accessor: { getter: true as const, setter: setters.length === 1 } }),
     });
-    return Object.freeze({ application, memberIndex, member, children, contract });
+    return Object.freeze({ application, memberIndex, member, children, callableABI, contract });
   }
 
   function completeMemberSource(source: CsharpStructuralMemberProofSource): CsharpObjectShapeMemberFact | undefined {
     const { header, proof } = source;
     const member = header.member;
-    if (member.source.proofInput !== proof || header.application.members[header.memberIndex] !== member) {
+    if (member.source.proofInput !== proof || header.application.members[header.memberIndex] !== member ||
+      header.callableABI.declared.source !== member.source.callableDeclaration ||
+      (header.callableABI.typeParameters.length === 0 ? header.contract.typeParameters !== undefined
+        : header.contract.typeParameters !== header.callableABI.typeParameters)) {
       return failTargetAnalysisInvariant("tsonic-csharp", "Member completion requires its exact header and retained source proof.");
     }
     const completed: CsharpObjectShapeMemberFact = { ...header.contract,
@@ -269,7 +275,7 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
     optional: boolean,
   ): CsharpProjectMemberTypeInstantiation {
     if (receiver === undefined) return { kind: "not-project-member" };
-    const receiverDefinition = host.projectTypeCatalog.definitionForTarget(receiver);
+    const receiverDefinition = host.projectTypeCatalog.declarationForTarget(receiver);
     if (receiverDefinition === undefined) return { kind: "not-project-member" };
     const inherited = declarations.filter(source => source.owner.id !== receiverDefinition.id);
     if (inherited.length === 0) return { kind: "not-project-member" };

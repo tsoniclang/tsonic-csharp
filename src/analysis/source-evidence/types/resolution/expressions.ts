@@ -278,10 +278,10 @@ export function resolveMemberAccessTargetType(
       host.ast.questionToken(declaration) === undefined
       ? getCsharpMethodValue(type)?.contract ?? type : type;
   };
-  const nominalMethod = host.projectTypeCatalog.definitionContainingDeclaration(selection.source.selectedDeclaration) !== undefined &&
+  const nominalMethod = host.projectTypeCatalog.declarationContaining(selection.source.selectedDeclaration) !== undefined &&
     (host.ast.is.IsMethodDeclaration(selection.source.selectedDeclaration) ||
       host.ast.is.IsMethodSignatureDeclaration(selection.source.selectedDeclaration));
-  const nominalReceiver = host.projectTypeCatalog.definitionForTarget(receiverType)?.kind === "class";
+  const nominalReceiver = host.projectTypeCatalog.declarationForTarget(receiverType)?.kind === "class";
   const structuralMemberType = nominalReceiver || nominalMethod ? undefined : host.structuralTypes.resolveSelectedProperty(
     receiverType,
     queries.facts.selectedSubjects(
@@ -295,7 +295,7 @@ export function resolveMemberAccessTargetType(
   if (structuralMemberType !== undefined) {
     return optionalAccessTargetType(invocationType(structuralMemberType), selection.source.optionalChain);
   }
-  if (host.projectTypeCatalog.definitionContainingDeclaration(selection.source.selectedDeclaration) !== undefined) {
+  if (host.projectTypeCatalog.declarationContaining(selection.source.selectedDeclaration) !== undefined) {
     const member = resolveSelectedDeclarationResult(selection.source.selectedDeclaration, selectedSourceType ?? declaredMemberType, queries, state, receiverType,
       declaredMemberType);
     return member === undefined ? undefined : optionalAccessTargetType(invocationType(member), selection.source.optionalChain);

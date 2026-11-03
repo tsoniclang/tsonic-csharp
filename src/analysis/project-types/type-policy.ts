@@ -1,4 +1,4 @@
-import type { CsharpProjectTypeCatalog, CsharpProjectTypePolicy, CsharpProjectMemberTypeInstantiation, CsharpProjectTypeDefinitionSelection } from "../../target-model/records/types/project-types.js";
+import type { CsharpProjectTypeCatalog, CsharpProjectTypePolicy, CsharpProjectMemberTypeInstantiation, CsharpProjectTypeDeclarationSelection } from "../../target-model/records/types/project-types.js";
 
 import { csharpProjectHeritageKindIssue } from "../../policy/types/project/relationships.js";
 import { csharpProviderBindingFromResolution } from "../../providers/model/relation-resolver.js";
@@ -227,7 +227,7 @@ function projectMemberOwner(
 export function projectTypeDefinition(
   host: CsharpProjectTypeCatalogHost,
   declaration: Node,
-): CsharpProjectTypeDefinitionSelection {
+): CsharpProjectTypeDeclarationSelection {
   const kind = declarationKind(host, declaration);
   const sourceFile = host.ast.getSourceFile(declaration);
   const name = host.ast.name(declaration);
@@ -280,14 +280,12 @@ export function projectTypeDefinition(
     ...(enumWidth === undefined ? { kind: kind as "class" | "interface" | "struct" }
       : { kind: "enum" as const, integerWidth: enumWidth.integerWidth }),
     sourceTypeParameterCount: typeParameters.length,
-    typeProjections: Object.freeze([]),
-    outerTypeProjections: Object.freeze([]),
     outerTypeParameters: Object.freeze(outerTypeParameters),
     typeParameters: Object.freeze(typeParameters),
     staticCompanion: kind === "class" && typeParameterBindings.length > 0 &&
       host.ast.is.IsSourceFile(host.ast.parent(declaration)!) && host.ast.members(declaration).some(member =>
         member !== undefined && (host.ast.hasModifierKind(member, "static") || host.ast.is.IsClassStaticBlockDeclaration(member))),
-    typeParameterBindings: Object.freeze(
+    authoredTypeParameterBindings: Object.freeze(
       typeParameterBindings as readonly Extract<TargetTypeRef, { readonly kind: "type-parameter" }>[],
     ),
     abstract:
@@ -416,7 +414,7 @@ function targetDeclarationKind(
   catalog: CsharpProjectTypeCatalog,
   type: TargetTypeRef,
 ): CsharpProjectTypeDefinition["kind"] | undefined {
-  const project = catalog.definitionForTarget(type);
+  const project = catalog.declarationForTarget(type);
   if (project !== undefined) {
     return project.kind;
   }

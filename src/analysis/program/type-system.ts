@@ -259,8 +259,10 @@ function createCsharpTypeSystem(
     publishProjectTypes(projections: CsharpGenericProjectionIndex): void {
       if (projectTypes !== undefined) return failTargetAnalysisInvariant("tsonic-csharp",
         "Current native project types are published exactly once.");
-      declarations.publish(projections);
-      projectTypes = analyzeCsharpProjectTypePolicy({ ...host, types }, projectTypeCatalog);
+      declarations.publishABI(projections);
+      const completed = analyzeCsharpProjectTypePolicy({ ...host, types }, projectTypeCatalog);
+      declarations.complete(completed);
+      projectTypes = completed;
     },
   });
 }

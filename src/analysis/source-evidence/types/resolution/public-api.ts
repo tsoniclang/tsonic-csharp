@@ -204,7 +204,7 @@ export function resolveSelectedValueResultWithState(
       if (symbol !== undefined && queries.declarations.symbolDeclarations(symbol).some(candidate =>
         host.navigation.isProjectDeclaration(candidate) && (host.ast.is.IsClassDeclaration(candidate) || host.ast.is.IsClassExpression(candidate)))) {
         const nominal = resolveTypeWithState(selectedType, sourceFile, nextState(state));
-        if (host.projectTypeCatalog.definitionForTarget(nominal)?.kind === "class") return csharpSourceValueResult(nominal);
+        if (host.projectTypeCatalog.declarationForTarget(nominal)?.kind === "class") return csharpSourceValueResult(nominal);
       }
       if (storage !== undefined && queries.types.refinement(declaredType, selectedType).kind === "members") {
         const refinement = selectCsharpAuthoredUnionRefinement(

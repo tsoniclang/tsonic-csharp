@@ -17,7 +17,7 @@ import { csharpTargetTypeFromBinding } from "../../../../policy/types/storage/bi
 import { definedValues } from "./source-evidence.js";
 import { nextState } from "./state.js";
 import { csharpRuntimeParameterDefault } from "../../../../policy/types/storage/parameter-defaults.js";
-import { completeCsharpCallableDeclaration, completeCsharpCallableTypeParameters, formCsharpCallableDeclaration } from "./callable-type-parameters.js";
+import { completeCsharpCallableDeclaration, completeCsharpCallableABI, formCsharpCallableDeclaration } from "./callable-type-parameters.js";
 import { resolveFormedCsharpTypeParameterConstraints } from "./type-parameter-constraints.js";
 import { csharpSourceStorageContext } from "./source-storage-projection.js";
 import { resolveCsharpNativeParameterCarrier, selectCsharpContextualParameterCarrier } from "./source-references.js";
@@ -180,10 +180,10 @@ export function resolveCallableEvidence(
   }));
   const completedDeclaration = completeCsharpCallableDeclaration(declaration, constraints);
   if (completedDeclaration === undefined) return undefined;
-  const typeParameters = completeCsharpCallableTypeParameters(completedDeclaration,
+  const abi = completeCsharpCallableABI(completedDeclaration,
     declaration.declaration === undefined ? [] : host.representations.genericProjections(declaration.declaration));
-  return typeParameters === undefined ? undefined : typeParameters.length === 0 ? signature
-    : host.objectShapes.resolveCallableValue(signature, typeParameters);
+  return abi === undefined ? undefined : abi.typeParameters.length === 0 ? signature
+    : host.objectShapes.resolveCallableValue(signature, abi.typeParameters);
 }
 
 export function resolveSignatureParameterEvidence(

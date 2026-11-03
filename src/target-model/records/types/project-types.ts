@@ -25,14 +25,12 @@ export interface CsharpProjectTypeIssue {
   readonly message: string;
 }
 
-interface CsharpProjectTypeDefinitionData {
+interface CsharpProjectTypeDeclarationData {
   readonly id: string;
   readonly declaration: Node;
   readonly sourceFile: SourceFile;
   readonly sourceName: string;
-  readonly typeParameterBindings: readonly Extract<TargetTypeRef, { readonly kind: "type-parameter" }>[];
-  readonly typeProjections: readonly import("../../types/projections.js").CsharpProjectedType[];
-  readonly outerTypeProjections: readonly import("../../types/projections.js").CsharpProjectedType[];
+  readonly authoredTypeParameterBindings: readonly Extract<TargetTypeRef, { readonly kind: "type-parameter" }>[];
   readonly outerTypeParameters: readonly Node[];
   readonly typeParameters: readonly Node[];
   readonly sourceTypeParameterCount: number;
@@ -45,10 +43,17 @@ interface CsharpProjectTypeDefinitionData {
   readonly factoryIdentityName?: string;
 }
 
-export type CsharpProjectTypeDefinition = CsharpProjectTypeDefinitionData & (
+export type CsharpProjectTypeDeclaration = CsharpProjectTypeDeclarationData & (
   | { readonly kind: "class" | "interface" | "struct" }
   | { readonly kind: "enum"; readonly integerWidth: 32 | 64 }
 );
+
+export type CsharpProjectTypeDefinition = CsharpProjectTypeDeclaration & {
+  readonly declared: CsharpProjectTypeDeclaration;
+  readonly typeParameterBindings: readonly Extract<TargetTypeRef, { readonly kind: "type-parameter" }>[];
+  readonly typeProjections: readonly import("../../types/projections.js").CsharpProjectedType[];
+  readonly outerTypeProjections: readonly import("../../types/projections.js").CsharpProjectedType[];
+};
 
 export interface CsharpProjectTypeHeritage {
   readonly definition: CsharpProjectTypeDefinition;
@@ -64,8 +69,14 @@ export interface CsharpProjectForwardingConstructor {
 }
 
 export interface CsharpProjectTypeCatalog {
+  readonly declaredDefinitions: readonly CsharpProjectTypeDeclaration[];
+  readonly abiDefinitions: readonly CsharpProjectTypeDefinition[];
   readonly definitions: readonly CsharpProjectTypeDefinition[];
   readonly issues: readonly CsharpProjectTypeIssue[];
+  declarationForId(id: string): CsharpProjectTypeDeclaration | undefined;
+  declarationForNode(declaration: Node | undefined): CsharpProjectTypeDeclaration | undefined;
+  declarationContaining(declaration: Node | undefined): CsharpProjectTypeDeclaration | undefined;
+  declarationForTarget(type: TargetTypeRef | undefined): CsharpProjectTypeDeclaration | undefined;
   definitionForId(id: string): CsharpProjectTypeDefinition | undefined;
   definitionForDeclaration(
     declaration: Node | undefined,
@@ -116,8 +127,8 @@ export type CsharpProjectMemberTypeInstantiation =
   | { readonly kind: "resolved"; readonly type: TargetTypeRef }
   | { readonly kind: "unresolved"; readonly reason: string };
 
-export type CsharpProjectTypeDefinitionSelection =
-  | { readonly kind: "resolved"; readonly definition: CsharpProjectTypeDefinition }
+export type CsharpProjectTypeDeclarationSelection =
+  | { readonly kind: "resolved"; readonly definition: CsharpProjectTypeDeclaration }
   | { readonly kind: "not-project-type" }
   | { readonly kind: "rejected"; readonly selection: Extract<SourceEnumIntegerWidthSelection, { readonly kind: "rejected" }> };
 

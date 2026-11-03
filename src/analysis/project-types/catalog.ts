@@ -4,28 +4,36 @@ import type { AstReader, Node } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpProjectTypeCatalog } from "../../target-model/records/types/project-types.js";
 import type { CsharpProjectTypeCatalogHost } from "./type-policy.js";
-import type { CsharpProjectTypeDefinition, CsharpProjectTypeIssue } from "../../target-model/records/types/project-types.js";
+import type { CsharpProjectTypeDeclaration, CsharpProjectTypeDefinition, CsharpProjectTypeIssue, CsharpProjectTypePolicy } from "../../target-model/records/types/project-types.js";
 import { projectDefinitionTargetType } from "../../policy/types/project/declaration-carriers.js";
 import { projectTypeDefinition } from "./type-policy.js";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpCurrentProjectDeclaration, CsharpCurrentProjectDeclarations } from "../source-evidence/model.js";
 import type { CsharpGenericProjectionIndex } from "../../target-model/records/types/type-projections.js";
 import type { CsharpProviderProjectDeclarations } from "../../policy/model/provider-calls.js";
+import { completeCsharpProjectTypeABI, requireCsharpProjectTypeABI } from "./catalog/abi.js";
+
+interface CsharpProjectTypeCatalogEntry {
+  readonly declared: CsharpProjectTypeDeclaration;
+  abi: CsharpProjectTypeDefinition | undefined;
+}
 
 export function createCsharpProjectTypeCatalog(
   host: CsharpProjectTypeCatalogHost,
 ): {
   readonly declarations: CsharpCurrentProjectDeclarations;
   readonly catalog: CsharpProjectTypeCatalog;
-  publish(projections: CsharpGenericProjectionIndex): CsharpProviderProjectDeclarations;
+  publishABI(projections: CsharpGenericProjectionIndex): CsharpProviderProjectDeclarations;
+  complete(policy: CsharpProjectTypePolicy): void;
 } {
-  const sourceDefinitions: CsharpProjectTypeDefinition[] = [];
+  const sourceDefinitions: CsharpProjectTypeDeclaration[] = [];
   const issues: CsharpProjectTypeIssue[] = [];
-  const sourceByDeclaration = new WeakMap<Node, CsharpProjectTypeDefinition>();
-  const sourceById = new Map<string, CsharpProjectTypeDefinition>();
-  const byDeclaration = new WeakMap<Node, CsharpProjectTypeDefinition>();
-  const byId = new Map<string, CsharpProjectTypeDefinition>();
-  let publishedDefinitions: readonly CsharpProjectTypeDefinition[] | undefined;
+  const sourceByDeclaration = new WeakMap<Node, CsharpProjectTypeDeclaration>();
+  const sourceById = new Map<string, CsharpProjectTypeDeclaration>();
+  const byDeclaration = new WeakMap<Node, CsharpProjectTypeCatalogEntry>();
+  const byId = new Map<string, CsharpProjectTypeCatalogEntry>();
+  let abiDefinitions: readonly CsharpProjectTypeDefinition[] | undefined;
+  let completedDefinitions: readonly CsharpProjectTypeDefinition[] | undefined;
 
   for (const sourceFile of host.navigation.sourceFiles) {
     visitSourceTree(host.ast, sourceFile, (declaration) => {
@@ -63,8 +71,10 @@ export function createCsharpProjectTypeCatalog(
   const declarationByNode = new WeakMap<Node, CsharpCurrentProjectDeclaration>();
   const declarationById = new Map<string, CsharpCurrentProjectDeclaration>();
   const declarations = Object.freeze(selectedDefinitions.map(definition => {
-    const { typeProjections: _typeProjections, outerTypeProjections: _outerTypeProjections,
-      typeParameterBindings: _typeParameterBindings, ...sourceDeclaration } = definition;
+    const entry: CsharpProjectTypeCatalogEntry = { declared: definition, abi: undefined };
+    byDeclaration.set(definition.declaration, entry);
+    byId.set(definition.id, entry);
+    const { authoredTypeParameterBindings: _authoredTypeParameterBindings, ...sourceDeclaration } = definition;
     const declaration = Object.freeze(sourceDeclaration);
     declarationByNode.set(definition.declaration, declaration);
     declarationById.set(definition.id, declaration);
@@ -84,17 +94,19 @@ export function createCsharpProjectTypeCatalog(
     declarationContaining: (node: Node | undefined) => containing(node, declarationByNode),
     declarationForTarget: (type: TargetTypeRef | undefined) => type?.kind === "target-named" ? declarationById.get(type.id) : undefined,
   });
-  const requirePublished = (): readonly CsharpProjectTypeDefinition[] => {
-    if (publishedDefinitions === undefined) failTargetAnalysisInvariant("tsonic-csharp",
-      "Native project binders require their completed current declaration projection publication.");
-    return publishedDefinitions;
+  const requirePublished = (phase: "abi" | "completed"): readonly CsharpProjectTypeDefinition[] => {
+    const selected = phase === "abi" ? abiDefinitions : completedDefinitions;
+    if (selected === undefined) failTargetAnalysisInvariant("tsonic-csharp", phase === "abi"
+      ? "Physical project binders require their current callable ABI publication."
+      : "Completed project definitions require their native representation publication.");
+    return selected;
   };
   const nativeTypeForDeclaration = (
     declaration: Node | undefined,
     typeArguments: readonly TargetTypeRef[],
   ) => {
-    requirePublished();
-    const definition = declaration === undefined ? undefined : byDeclaration.get(declaration);
+    requirePublished("abi");
+    const definition = declaration === undefined ? undefined : byDeclaration.get(declaration)?.abi;
     return definition === undefined || typeArguments.length !== definition.typeParameterBindings.length
       ? undefined
       : projectDefinitionTargetType(definition, typeArguments.map((argument, index) =>
@@ -103,49 +115,53 @@ export function createCsharpProjectTypeCatalog(
           : argument));
   };
   const catalog: CsharpProjectTypeCatalog = Object.freeze({
-    get definitions() { return requirePublished(); },
+    declaredDefinitions: selectedDefinitions,
+    get abiDefinitions() { return requirePublished("abi"); },
+    get definitions() { return requirePublished("completed"); },
     issues: frozenIssues,
+    declarationForId: (id: string) => byId.get(id)?.declared,
+    declarationForNode: (declaration: Node | undefined) => declaration === undefined ? undefined : byDeclaration.get(declaration)?.declared,
+    declarationContaining: (declaration: Node | undefined) => containing(declaration, byDeclaration)?.declared,
+    declarationForTarget: (type: TargetTypeRef | undefined) => type?.kind === "target-named" ? byId.get(type.id)?.declared : undefined,
     definitionForId(id: string) {
-      requirePublished();
-      return byId.get(id);
+      requirePublished("abi");
+      return byId.get(id)?.abi;
     },
     definitionForDeclaration(declaration: Node | undefined) {
-      requirePublished();
-      return declaration === undefined ? undefined : byDeclaration.get(declaration);
+      requirePublished("abi");
+      return declaration === undefined ? undefined : byDeclaration.get(declaration)?.abi;
     },
     definitionContainingDeclaration(declaration: Node | undefined) {
-      requirePublished();
-      return containing(declaration, byDeclaration);
+      requirePublished("abi");
+      return containing(declaration, byDeclaration)?.abi;
     },
     definitionForTarget(type: TargetTypeRef | undefined) {
-      requirePublished();
-      return type?.kind === "target-named" ? byId.get(type.id) : undefined;
+      requirePublished("abi");
+      return type?.kind === "target-named" ? byId.get(type.id)?.abi : undefined;
     },
     targetTypeForDeclaration: nativeTypeForDeclaration,
   });
   return Object.freeze({ declarations: currentDeclarations, catalog,
-    publish(projections: CsharpGenericProjectionIndex): CsharpProviderProjectDeclarations {
-      if (publishedDefinitions !== undefined) failTargetAnalysisInvariant("tsonic-csharp",
-        "Native project declaration binders are published exactly once.");
-      const completed = selectedDefinitions.map(definition => {
-        const typeProjections = projections.genericProjection.get(definition.declaration);
-        const outerTypeProjections = projections.outerGenericProjection.get(definition.declaration);
-        const outerCount = definition.outerTypeParameters.length;
-        const selected = Object.freeze({ ...definition, typeProjections, outerTypeProjections,
-          typeParameterBindings: Object.freeze([
-            ...definition.typeParameterBindings.slice(0, outerCount), ...outerTypeProjections,
-            ...definition.typeParameterBindings.slice(outerCount), ...typeProjections,
-          ]) });
-        byDeclaration.set(selected.declaration, selected);
-        byId.set(selected.id, selected);
-        return selected;
-      });
-      publishedDefinitions = Object.freeze(completed);
+    publishABI(projections: CsharpGenericProjectionIndex): CsharpProviderProjectDeclarations {
+      if (abiDefinitions !== undefined) failTargetAnalysisInvariant("tsonic-csharp",
+        "Current project callable ABIs are published exactly once.");
+      const selected = Object.freeze(selectedDefinitions.map(declared => completeCsharpProjectTypeABI(declared, projections)));
+      for (const definition of selected) byDeclaration.get(definition.declaration)!.abi = definition;
+      abiDefinitions = selected;
       return Object.freeze({
-        declarationForId: (id: string) => byId.get(id),
-        declarationForTarget: (type: TargetTypeRef | undefined) => type?.kind === "target-named" ? byId.get(type.id) : undefined,
+        declarationForId: (id: string) => byId.get(id)?.abi,
+        declarationForTarget: (type: TargetTypeRef | undefined) => type?.kind === "target-named" ? byId.get(type.id)?.abi : undefined,
         declaredTypeForDeclaration: nativeTypeForDeclaration,
       });
+    },
+    complete(policy: CsharpProjectTypePolicy): void {
+      if (completedDefinitions !== undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+        "Native project representation definitions are completed exactly once.");
+      if (policy.catalog !== catalog) return failTargetAnalysisInvariant("tsonic-csharp",
+        "Native project completion requires its same owning catalog and completed policy.");
+      const selected = requirePublished("abi");
+      for (const definition of selected) requireCsharpProjectTypeABI(byDeclaration.get(definition.declaration)!.declared, definition);
+      completedDefinitions = selected;
     },
   });
 }

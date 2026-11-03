@@ -30,6 +30,12 @@ export interface CsharpCompletedCallableDeclaration {
   readonly typeParameters: CallableParameters;
 }
 
+export interface CsharpCallableABI {
+  readonly declared: CsharpCompletedCallableDeclaration;
+  readonly projections: readonly CsharpProjectedType[];
+  readonly typeParameters: CallableParameters;
+}
+
 export function formCsharpCallableDeclaration(
   declaration: Node | undefined,
   sourceFile: SourceFile,
@@ -67,21 +73,31 @@ export function completeCsharpCallableDeclaration(
   return Object.freeze({ source, typeParameters: Object.freeze(parameters) });
 }
 
-export function completeCsharpCallableTypeParameters(
+export function completeCsharpCallableABI(
   header: CsharpCompletedCallableDeclaration,
   projections: readonly CsharpProjectedType[],
-): CallableParameters | undefined {
+): CsharpCallableABI | undefined {
   const declaration = header.source.declaration;
   if (declaration === undefined) {
     if (projections.length !== 0) failTargetAnalysisInvariant("tsonic-csharp",
       "A native callable projection requires its exact owning declaration header.");
-    return header.typeParameters;
+    return Object.freeze({ declared: header, projections, typeParameters: header.typeParameters });
   }
   const parameters = [...header.typeParameters,
     ...projections.map(parameter => Object.freeze({
       declaration, identity: parameter.identity, name: parameter.name,
       constraints: parameter.csharpProjectionConstraints,
     }))];
-  return new Set(parameters.map(parameter => parameter.identity)).size !== parameters.length
-    ? undefined : Object.freeze(parameters);
+  if (new Set(parameters.map(parameter => parameter.identity)).size !== parameters.length) return undefined;
+  const typeParameters = Object.freeze(parameters);
+  if (header.typeParameters.some((parameter, index) => typeParameters[index] !== parameter) ||
+    projections.some((projection, index) => {
+      const parameter = typeParameters[header.typeParameters.length + index];
+      return parameter?.declaration !== declaration || parameter.identity !== projection.identity ||
+        parameter.constraints !== projection.csharpProjectionConstraints;
+    })) {
+    return failTargetAnalysisInvariant("tsonic-csharp",
+      "A callable ABI extends its exact authored binders and constraints with the published projections in order.", declaration);
+  }
+  return Object.freeze({ declared: header, projections, typeParameters });
 }

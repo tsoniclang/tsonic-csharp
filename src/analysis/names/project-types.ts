@@ -2,13 +2,13 @@ import { createHash } from "node:crypto";
 import { sourceFileIdentity } from "@tsonic/target-api/source";
 
 import type { CsharpProjectTypeCatalogHost } from "../project-types/type-policy.js";
-import type { CsharpProjectTypeDefinition, CsharpProjectTypeIssue } from "../../target-model/records/types/project-types.js";
+import type { CsharpProjectTypeDeclaration, CsharpProjectTypeIssue } from "../../target-model/records/types/project-types.js";
 
 export function analyzeCsharpProjectNames(
   host: CsharpProjectTypeCatalogHost,
-  definitions: readonly CsharpProjectTypeDefinition[],
+  definitions: readonly CsharpProjectTypeDeclaration[],
   issues: CsharpProjectTypeIssue[],
-  replaceDefinition: (definition: CsharpProjectTypeDefinition) => void,
+  replaceDefinition: (definition: CsharpProjectTypeDeclaration) => void,
 ): void {
   const occupiedNames = new Set(definitions.filter(definition => !definition.local).map(definition => definition.sourceName));
   const allocate = (preferred: string): string => {
@@ -17,14 +17,14 @@ export function analyzeCsharpProjectNames(
     occupiedNames.add(name);
     return name;
   };
-  const filesByName = new Map<string, Set<CsharpProjectTypeDefinition["sourceFile"]>>();
+  const filesByName = new Map<string, Set<CsharpProjectTypeDeclaration["sourceFile"]>>();
   for (const definition of definitions) {
     if (definition.local) continue;
-    const files = filesByName.get(definition.sourceName) ?? new Set<CsharpProjectTypeDefinition["sourceFile"]>();
+    const files = filesByName.get(definition.sourceName) ?? new Set<CsharpProjectTypeDeclaration["sourceFile"]>();
     files.add(definition.sourceFile);
     filesByName.set(definition.sourceName, files);
   }
-  const moduleScopes = new Map<CsharpProjectTypeDefinition["sourceFile"], string>();
+  const moduleScopes = new Map<CsharpProjectTypeDeclaration["sourceFile"], string>();
   const colliding = definitions.filter(definition => !definition.local &&
     (filesByName.get(definition.sourceName)?.size ?? 0) > 1).sort((left, right) => left.id.localeCompare(right.id));
   for (const definition of colliding) {

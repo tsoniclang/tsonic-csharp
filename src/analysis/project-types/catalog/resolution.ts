@@ -17,7 +17,7 @@ export function analyzeCsharpProjectTypePolicy(
 ): CsharpProjectTypePolicy {
   const issues: CsharpProjectTypeIssue[] = [...catalog.issues];
   const heritageById = new Map<string, CsharpProjectTypeHeritage>();
-  for (const definition of catalog.definitions) {
+  for (const definition of catalog.abiDefinitions) {
     const selected = selectCsharpProjectTypeHeritage(host, catalog, definition);
     if (selected.kind === "resolved") {
       heritageById.set(definition.id, selected.heritage);
@@ -36,7 +36,7 @@ export function analyzeCsharpProjectTypePolicy(
   };
   const constructorIssues: CsharpProjectTypeIssue[] = [];
   const definitionsById = new Map(
-    catalog.definitions.map(definition => [definition.id, definition]),
+    catalog.abiDefinitions.map(definition => [definition.id, definition]),
   );
   const constructorsByDeclaration = new WeakMap<
     Node,
@@ -46,7 +46,7 @@ export function analyzeCsharpProjectTypePolicy(
     Node,
     ReadonlyMap<Signature, CsharpProjectForwardingConstructor>
   >();
-  for (const definition of catalog.definitions) {
+  for (const definition of catalog.abiDefinitions) {
     if (definition.kind !== "class") continue;
     const heritage = heritageById.get(definition.id);
     if (heritage?.baseType === undefined) {
