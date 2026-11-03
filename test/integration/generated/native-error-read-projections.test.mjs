@@ -38,14 +38,15 @@ for (const surface of [undefined, "js"]) {
     const compiled = compileCsharpSource({ surface, sourceText: `
       interface NativeView { readonly name: string; readonly message: string; readonly detail: string; }
       class Failure extends Error { detail: string = "own"; }
+      function read(value: NativeView): string { return value.detail; }
       export function view(value: Failure): NativeView { return value; }
       export function make(): Failure { return new Failure("message"); }
       export function run(): boolean {
         const original = new Failure("message");
         const retained = view(original);
-        if (retained.name !== "Failure" || retained.message !== "message" || retained.detail !== "own") return false;
+        if (retained.name !== "Failure" || retained.message !== "message" || read(retained) !== "own") return false;
         original.detail = "changed";
-        return retained.detail === "changed" && retained === original && original.stack === undefined;
+        return read(retained) === "changed" && retained === original && original.stack === undefined;
       }
     ` });
     assertCsharpCompilationSucceeded(compiled);

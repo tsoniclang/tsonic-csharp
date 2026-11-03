@@ -57,12 +57,13 @@ for (const surface of [undefined, "js"]) {
   test(`a non-Error project message field remains mutable native storage (${label})`, { timeout: 300_000 }, () => {
     const compiled = compileCsharpSource({ surface, sourceText: `
       class OwnMessage { message: string = "project"; }
+      function read(value: OwnMessage): string { return value.message; }
       export function run(): boolean {
         const original = new OwnMessage();
         const alias = original;
-        if (original.message !== "project") return false;
+        if (read(original) !== "project") return false;
         alias.message = "changed";
-        return alias === original && original.message === "changed";
+        return alias === original && read(original) === "changed";
       }
     ` });
     assertCsharpCompilationSucceeded(compiled);

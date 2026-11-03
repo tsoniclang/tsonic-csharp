@@ -135,7 +135,15 @@ static void Check(Action actual, Action reference) {
     before = GC.GetAllocatedBytesForCurrentThread();
     for (var index = 0; index < 4096; index++) reference();
     var nativeBytes = GC.GetAllocatedBytesForCurrentThread() - before;
+    before = GC.GetAllocatedBytesForCurrentThread();
+    for (var index = 0; index < 4096; index++) reference();
+    var nativeFirstBytes = GC.GetAllocatedBytesForCurrentThread() - before;
+    before = GC.GetAllocatedBytesForCurrentThread();
+    for (var index = 0; index < 4096; index++) actual();
+    var actualSecondBytes = GC.GetAllocatedBytesForCurrentThread() - before;
+    Console.Error.WriteLine($"native template allocation forward={actualBytes}/{nativeBytes}, reverse={actualSecondBytes}/{nativeFirstBytes}");
     if (actualBytes != nativeBytes) throw new Exception($"native template allocation {actualBytes} != {nativeBytes}");
+    if (actualSecondBytes != nativeFirstBytes) throw new Exception($"native template reversed allocation {actualSecondBytes} != {nativeFirstBytes}");
 }
 `);
 });

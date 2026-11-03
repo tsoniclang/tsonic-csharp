@@ -37,6 +37,7 @@ function fixture() {
     sourceFiles: source.navigation.sourceFiles,
     sourceStorage: createSourceStorageQuery(source, source.navigation.sourceFiles),
     semantics: file => source.semantics.forFile(file),
+    hasSemantics: source.semantics.includes,
     semanticsFor,
     typeParameterConstraints: createCsharpTypeParameterEnvironment(source.ast, (declaration, parameter) => {
       const sourceFile = source.ast.getSourceFile(declaration);

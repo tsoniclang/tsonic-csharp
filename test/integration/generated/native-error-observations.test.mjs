@@ -218,16 +218,23 @@ for (var iteration = 0; iteration < 1024; iteration++) {
     handwritten(original);
 }
 foreach (var existing in new Exception?[] { null, original, thrown }) {
-    var generatedBytes = Measure(actual, existing);
-    var nativeBytes = Measure(handwritten, existing);
+    var generatedBytes = Measure(actual, existing, out var generatedSample);
+    var nativeBytes = Measure(handwritten, existing, out var nativeSample);
+    Console.Error.WriteLine($"capture allocation generated={generatedBytes}, handwritten={nativeBytes}, first={existing is null}");
+    if (existing is null) {
+        Console.Error.WriteLine($"generated capture trace: {generatedSample?.StackTrace}");
+        Console.Error.WriteLine($"handwritten capture trace: {nativeSample?.StackTrace}");
+    }
     if (generatedBytes != nativeBytes)
         throw new Exception($"native guard and capture allocation {generatedBytes} != {nativeBytes}, first={existing is null}");
 }
-static long Measure(Action<Exception> action, Exception? existing) {
+static long Measure(Action<Exception> action, Exception? existing, out Exception? sample) {
+    sample = null;
     var before = GC.GetAllocatedBytesForCurrentThread();
     for (var iteration = 0; iteration < 4096; iteration++) {
         var value = existing ?? new Exception("capture");
         action(value);
+        sample ??= value;
         GC.KeepAlive(value);
     }
     return GC.GetAllocatedBytesForCurrentThread() - before;

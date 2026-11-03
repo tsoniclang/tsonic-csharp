@@ -2,16 +2,22 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
+import { csharpJsRuntimeSource, csharpRuntimeSourceContributions } from "../../../dist/providers/runtime/source-projects.js";
+
+const jsonRuntime = Object.freeze({ kind: "target-capability", id: "native-error-json-proof", targetId: "csharp",
+  displayName: "Native Error JSON proof", moduleOwnership: [],
+  runtimeContributions: () => csharpRuntimeSourceContributions(csharpJsRuntimeSource) });
 
 for (const surface of [undefined, "js"]) {
   const label = surface ?? "native";
   test(`native Error synthetic JSON writer and projection share only real inherited project storage (${label})`, { timeout: 300_000 }, () => {
-    const compiled = compileCsharpSource({ surface, sourceText: `
+    const compiled = compileCsharpSource({ surface, capabilities: [jsonRuntime], sourceText: `
       export class BaseFailure extends Error { inherited: number = 17; }
       export class Failure extends BaseFailure { code: number = 19; detail: string = "own"; }
       export class Container { error: Failure; constructor(error: Failure) { this.error = error; } }
       export function make(): Failure { return new Failure("original"); }
       export function contain(value: Failure): Container { return new Container(value); }
+      export function box(value: Container): unknown { return value; }
     ` });
     assertCsharpCompilationSucceeded(compiled);
     const emitted = [...compiled.artifacts.values()].join("\n");
@@ -35,6 +41,7 @@ if (keys.Length != 3 || !keys.Contains("inherited") || !keys.Contains("code") ||
     root.GetProperty("inherited").GetInt32() != 17 || root.GetProperty("code").GetInt32() != 19 ||
     root.GetProperty("detail").GetString() != "own") throw new Exception("real project storage");
 var container = Generated.contain(original);
+if (!ReferenceEquals(Generated.box(container).unwrap(), container)) throw new Exception("declared JSON root preserves its stored carrier");
 if (!ReferenceEquals(container.error, original)) throw new Exception("containing slot identity");
 using var nested = JsonDocument.Parse(JSON.stringify(container));
 if (nested.RootElement.GetProperty("error").GetRawText() != writer) throw new Exception("containing Error slot serialization");
@@ -64,7 +71,7 @@ if (original.Message != "original" || original.StackTrace is not null || origina
   });
 
   test(`native Error custom toJSON retains its selected override and property-key ABI (${label})`, { timeout: 300_000 }, () => {
-    const compiled = compileCsharpSource({ surface, sourceText: `
+    const compiled = compileCsharpSource({ surface, capabilities: [jsonRuntime], sourceText: `
       let calls: number = 0;
       let seen: string = "";
       class Failure extends Error {
@@ -73,6 +80,7 @@ if (original.Message != "original" || original.StackTrace is not null || origina
       }
       export class Container { constructor(readonly error: Failure) {} }
       export function make(): Container { return new Container(new Failure("original")); }
+      export function box(value: Container): unknown { return value; }
       export function callCount(): number { return calls; }
       export function selectedKey(): string { return seen; }
     ` });
@@ -81,6 +89,7 @@ if (original.Message != "original" || original.StackTrace is not null || origina
 using System;
 using Generated = Tsonic.Generated.Index;
 var container = Generated.make();
+if (!ReferenceEquals(Generated.box(container).unwrap(), container)) throw new Exception("declared custom JSON root preserves its stored carrier");
 var text = Tsonic.CSharp.Js.JSON.stringify(container);
 if (text != "{\\\"error\\\":{\\\"selected\\\":17}}" || Generated.callCount() != 1 || Generated.selectedKey() != "error" ||
     container.error.StackTrace is not null) throw new Exception("native custom JSON identity, key or evaluation count");
