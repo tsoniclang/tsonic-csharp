@@ -149,11 +149,11 @@ export function resolveFormedCsharpSemanticTypeSource(
   if (projectType !== undefined) {
     return projectType;
   }
-  if (source.callable.type !== type || source.callable.queries !== queries) {
+  if (source.callable.source.type !== type || source.callable.source.queries !== queries || source.callable.state !== state) {
     return failTargetAnalysisInvariant("tsonic-csharp",
       "Callable type completion requires its exact retained semantic Source occurrence.", sourceFile);
   }
-  const callable = resolveFormedCsharpCallableType(scope, source.callable, state);
+  const callable = resolveFormedCsharpCallableType(scope, source.callable);
   if (callable !== undefined) {
     return callable;
   }

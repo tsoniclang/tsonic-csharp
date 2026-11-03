@@ -1,5 +1,5 @@
 import { csharpProviderBindingFromResolution } from "../../../../providers/model/relation-resolver.js";
-import type { CsharpTargetParameter, TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import { retainCsharpUnionObjectShapes } from "./source-union-refinement.js";
@@ -8,26 +8,24 @@ import type { AstReader, Type } from "@tsonic/tsts";
 
 import { classifyCsharpSourceProfileType } from "../../../../policy/identities/source-types.js";
 import { combineCsharpTargetUnionMembers } from "../../../../target-model/types/carriers/runtime-carriers.js";
-import { csharpDelegateTargetType } from "../../../../target-model/types/carriers/delegates.js";
 
 import { csharpNullableTargetType } from "../../../../target-model/types/carriers/nullable.js";
 import { csharpSourceErrorTargetType } from "../../../../target-model/types/carriers/scalar-types.js";
-import { isCsharpVoidTargetType } from "../../../../target-model/types/identity.js";
 import { csharpTargetTypeFromBinding } from "../../../../policy/types/storage/bindings.js";
 import { definedValues } from "./source-evidence.js";
 import { nextState } from "./state.js";
 import { csharpRuntimeParameterDefault } from "../../../../policy/types/storage/parameter-defaults.js";
-import { completeCsharpCallableDeclaration, completeCsharpCallableABI, formCsharpCallableDeclaration,
-  type CsharpCompletedCallableDeclaration } from "./callable-type-parameters.js";
+import { completeCsharpCallableABI, formCsharpCallableDeclaration } from "./callable-type-parameters.js";
 import { formCsharpCallableSignatureSource, formCsharpCallableTypeSource } from "./callable-signature-source.js";
-import type { CsharpCallableSignatureSource, CsharpCallableTypeSource } from "../../../../target-model/records/types/callable-source.js";
+import type { CsharpCallableSignatureSource } from "../../../../target-model/records/types/callable-source.js";
 import { resolveFormedCsharpTypeParameterConstraints } from "./type-parameter-constraints.js";
 import { formCsharpSourceTypeComponentSource, resolveFormedCsharpSourceTypeComponent } from "./type-component-source.js";
+import { completeCsharpCallableSignatureSource, formCsharpCallableSignatureInput, formCsharpCallableTypeInput,
+  type CsharpCallableSignatureInput, type CsharpCallableTypeInput, type CsharpCompletedCallableSignature } from "./callable-signature-completion.js";
 import { resolveCsharpNativeParameterCarrier, selectCsharpContextualParameterCarrier } from "./source-references.js";
 
 import { selectCsharpSourceProfileCarrier } from "../../../../policy/operations/source-profiles/type-carriers.js";
 import type { CsharpProviderRelationResolver } from "../../../../providers/model/relation-resolver.js";
-import { selectCsharpSourceParameterVector } from "../../../../policy/types/callables/parameter-vector.js";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 export function resolveCsharpSourceProfileBaseType(
   type: Type,
@@ -85,18 +83,24 @@ export function resolveCallableType(
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
-  return resolveFormedCsharpCallableType(scope, formCsharpCallableTypeSource(scope.host.ast, type, queries), state);
+  return resolveFormedCsharpCallableType(scope, formCsharpCallableTypeInput(scope.host,
+    formCsharpCallableTypeSource(scope.host.ast, type, queries), state));
 }
 
 export function resolveFormedCsharpCallableType(
   scope: CsharpTypeResolutionScope,
-  source: CsharpCallableTypeSource,
-  state: CsharpTypeResolutionState,
+  input: CsharpCallableTypeInput,
 ): TargetTypeRef | undefined {
-  if (source.kind === "not-callable") return undefined;
-  if (source.signature.queries !== source.queries) return failTargetAnalysisInvariant("tsonic-csharp",
-    "Callable completion requires its same checked signature query input.", source.signature.callable.result.declaration);
-  const declared = resolveFormedCsharpCallableDeclarationSignature(scope, source.signature, state);
+  if (input.kind === "not-callable") {
+    if (input.source.kind !== "not-callable") return failTargetAnalysisInvariant("tsonic-csharp",
+      "Callable completion requires its exact retained eligibility decision.");
+    return undefined;
+  }
+  if (input.source.kind !== "callable" || input.signature.source !== input.source.signature ||
+      input.signature.state !== input.state || input.source.signature.queries !== input.source.queries) {
+    return failTargetAnalysisInvariant("tsonic-csharp", "Callable completion requires its exact bound signature Source input.");
+  }
+  const declared = resolveCsharpCallableSignatureInput(scope, input.signature);
   return declared === undefined ? undefined : completeCsharpCallableSignatureABI(scope, declared);
 }
 
@@ -112,88 +116,35 @@ export function resolveCallableEvidence(
   return declared === undefined ? undefined : completeCsharpCallableSignatureABI(scope, declared);
 }
 
-export interface CsharpCompletedCallableSignature {
-  readonly source: CsharpCallableSignatureSource;
-  readonly state: CsharpTypeResolutionState;
-  readonly signature: TargetTypeRef;
-  readonly declaration: CsharpCompletedCallableDeclaration;
-}
-
 export function resolveFormedCsharpCallableDeclarationSignature(
-  { host, resolveNodeWithState, resolveSignatureParameterEvidence, resolveSourceTypeComponentEvidence }: CsharpTypeResolutionScope,
+  scope: CsharpTypeResolutionScope,
   source: CsharpCallableSignatureSource,
   state: CsharpTypeResolutionState,
 ): CsharpCompletedCallableSignature | undefined {
-  const { callable, queries } = source;
-  const parameters: CsharpTargetParameter[] = [];
-  for (const { index, parameter, tupleElements } of source.parameters) {
-    const type = resolveSignatureParameterEvidence(parameter, queries, state, "callable");
-    if (type === undefined) return undefined;
-    const rest = parameter.parameterKind === "rest";
-    const vector = selectCsharpSourceParameterVector({ name: `parameter${index}`, type, passingMode: "by-value",
-      ...(parameter.acceptsOmission && !rest ? { optional: true } : {}),
-      ...(rest ? { paramsArray: true } : {}),
-    }, rest && type.kind === "tuple" ? tupleElements : undefined);
-    if (vector === undefined) return undefined;
-    parameters.push(...vector);
+  return resolveCsharpCallableSignatureInput(scope, formCsharpCallableSignatureInput(scope.host, source, state));
+}
+
+function resolveCsharpCallableSignatureInput(
+  scope: CsharpTypeResolutionScope,
+  input: CsharpCallableSignatureInput,
+): CsharpCompletedCallableSignature | undefined {
+  const completion = completeCsharpCallableSignatureSource(input);
+  let selected = completion.next();
+  while (!selected.done) {
+    const request = selected.value;
+    if (request.kind === "parameter") {
+      const type = scope.resolveSignatureParameterEvidence(request.parameter.parameter, input.source.queries, input.state, "callable");
+      selected = completion.next(Object.freeze({ kind: "parameter", request, type }));
+    } else if (request.kind === "result") {
+      const type = scope.resolveSourceTypeComponentEvidence(input.source.callable.result, input.source.queries, input.returnState);
+      selected = completion.next(Object.freeze({ kind: "result", request, type }));
+    } else {
+      const resolution = resolveFormedCsharpTypeParameterConstraints(request.source, dependency =>
+        scope.resolveNodeWithState(dependency.node, dependency.sourceFile, nextState(input.state)));
+      selected = completion.next(Object.freeze({ kind: "constraint", request, resolution }));
+    }
   }
-  const parameterTypes = parameters.map(parameter => parameter.type);
-  const returned = callable.result.declaration === undefined ? undefined
-    : host.sourceStorage.subject(callable.result.declaration, "return");
-  const returnType = resolveSourceTypeComponentEvidence(
-    callable.result,
-    queries,
-    { ...state, sourceStorageSubject: returned?.kind === "resolved" ? returned.subject : undefined },
-  );
-  if (returnType === undefined) {
-    return undefined;
-  }
-  const optionalParameterIndexes = parameters.flatMap(
-    (parameter, index) =>
-      parameter.optional === true && parameter.paramsArray !== true
-        ? [index]
-        : [],
-  );
-  const restParameterIndexes = parameters.flatMap(
-    (parameter, index) => parameter.paramsArray === true ? [index] : [],
-  );
-  if (
-    restParameterIndexes.length > 1 ||
-    restParameterIndexes[0] !== undefined &&
-      restParameterIndexes[0] !== parameters.length - 1
-  ) {
-    return undefined;
-  }
-  const delegateOptions = {
-    ...(optionalParameterIndexes.length === 0
-      ? {}
-      : { optionalParameterIndexes }),
-    ...(restParameterIndexes[0] === undefined
-      ? {}
-      : { restParameterIndex: restParameterIndexes[0] }),
-  };
-  const signature = isCsharpVoidTargetType(returnType)
-    ? csharpDelegateTargetType(
-        "System.Action",
-        parameterTypes,
-        undefined,
-        delegateOptions,
-      )
-    : csharpDelegateTargetType(
-        "System.Func",
-        parameterTypes,
-        returnType,
-        delegateOptions,
-      );
-  const declaration = source.declaration;
-  if (declaration === undefined) return undefined;
-  const constraints = declaration.typeParameters.map(parameter => Object.freeze({ source: parameter.constraint,
-    resolution: resolveFormedCsharpTypeParameterConstraints(parameter.constraint, dependency =>
-      resolveNodeWithState(dependency.node, dependency.sourceFile, nextState(state))),
-  }));
-  const completedDeclaration = completeCsharpCallableDeclaration(declaration, constraints);
-  if (completedDeclaration === undefined) return undefined;
-  return Object.freeze({ source, state, signature, declaration: completedDeclaration });
+  return selected.value;
 }
 
 function completeCsharpCallableSignatureABI(
