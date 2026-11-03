@@ -12,10 +12,13 @@ test("checked component transformations do not require native carriers for disca
   const component = { selectedType: {} };
   const carrier = { kind: "source-primitive", name: "int64" };
   for (const kind of ["component", "non-nullish", "parameter-list", "callable", "unresolved"]) {
-    const transformation = { kind, component };
+    const transformation = { kind, component,
+      ...(kind === "parameter-list" ? { parameters: [] } : {}),
+      ...(kind === "callable" ? { callable: { parameters: [], result: component } } : {}),
+    };
     const queries = {
       sourceFile,
-      types: { authoredType: () => selectedType, standardTransformation: () => transformation },
+      types: { authoredType: () => selectedType, standardTransformation: () => transformation, isNever: () => false },
       facts: { typeSubjects: () => [] },
     };
     let selections = 0;
@@ -25,8 +28,9 @@ test("checked component transformations do not require native carriers for disca
           typeArguments: () => assert.fail("a checked projection must not resolve its discarded input carrier") },
         navigation: { sourceReferenceFor: () => undefined },
       },
-      resolveDirectSourceFacts: () => undefined,
-      resolveStandardSourceTypeTransformation: (actual, actualQueries, state, root, selected) => {
+      resolveFormedDirectSourceFacts: () => undefined,
+      resolveFormedStandardSourceTypeTransformation: input => {
+        const { transformation: actual, queries: actualQueries, state, authoredRoot: root, selectedType: selected } = input;
         selections += 1;
         assert.equal(actual === transformation, true, kind);
         assert.equal(actualQueries === queries, true, kind);

@@ -413,4 +413,11 @@ export const producersCarrierRegistry = Object.freeze([
     responsibility: "producers/resolve-target-type-ref",
     frozen: false,
   },
+  {
+    id: "src/analysis/source-evidence/types/resolution/standard-transformation-source.ts#resolveFormedCsharpStandardTypeTransformation",
+    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
+    declaration: { module: "src/analysis/source-evidence/types/resolution/standard-transformation-source.ts", symbol: "resolveFormedCsharpStandardTypeTransformation" },
+    responsibility: "producers/resolve-standard-source-type-transformation",
+    frozen: false,
+  },
 ]);
