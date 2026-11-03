@@ -26,6 +26,8 @@ import { getCsharpNullableElementTargetType } from "../../../../target-model/typ
 import { resolveCsharpContextualLiteralCarrier } from "./contextual-literals.js";
 import { resolveCsharpSourceLiteralTargetType } from "../../../../policy/conversions/source-literals.js";
 import { formCsharpSelectedExpressionSource, type CsharpSelectedExpressionSource } from "./expression-source.js";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
+import type { ResolvedSourceCallInfo } from "../../../../target-model/records/calls/source-calls.js";
 
 export function resolveSelectedExpressionType(
   scope: CsharpTypeResolutionScope,
@@ -49,7 +51,7 @@ export function resolveFormedCsharpSelectedExpressionResult(
   scope: CsharpTypeResolutionScope,
   source: CsharpSelectedExpressionSource,
 ): CsharpSourceCallResult | undefined {
-  const { host, policy, optionalAccessTargetType, resolveSourceOwnedConstructionResult, resolveSourceCallResultWithState } = scope;
+  const { host, policy, optionalAccessTargetType, resolveSourceOwnedConstructionResult } = scope;
   const { node, queries, state } = source;
   if (source.kind === "transparent") {
     return scope.resolveNodeValueWithState(source.expression, queries.sourceFile, nextState(state));
@@ -61,17 +63,31 @@ export function resolveFormedCsharpSelectedExpressionResult(
         ? selection.call.targetMember.declaringType ?? selection.call.targetMember.returnType
         : selection.call.discardResult ? csharpVoidTargetType() : selection.call.targetMember.returnType;
       if (source.isNew) return csharpSourceValueResult(result);
-      const selected = resolveSourceCallResultWithState(selection.source, queries.sourceFile, state, result);
+      const selected = resolveSelectedCallResult(scope, source, selection.source, result);
       return refineCsharpSourceValueResult(selected, optionalAccessTargetType(selected?.selectedType, selection.source.optionalChain));
     }
     if (selection.kind === "source-owned") {
       if (source.isNew) return csharpSourceValueResult(resolveSourceOwnedConstructionResult(selection.source, queries, state));
-      const selected = resolveSourceCallResultWithState(selection.source, queries.sourceFile, state, undefined);
+      const selected = resolveSelectedCallResult(scope, source, selection.source, undefined);
       return refineCsharpSourceValueResult(selected, optionalAccessTargetType(selected?.selectedType, selection.source.optionalChain));
     }
     return undefined;
   }
   return csharpSourceValueResult(resolveSelectedExpressionCarrier(scope, node, queries, state));
+}
+
+function resolveSelectedCallResult(
+  scope: CsharpTypeResolutionScope,
+  source: Extract<CsharpSelectedExpressionSource, { readonly kind: "call" }>,
+  checked: ResolvedSourceCallInfo,
+  nativeType: TargetTypeRef | undefined,
+): CsharpSourceCallResult | undefined {
+  const input = source.resultSource;
+  if (input === undefined || input.source !== checked || input.sourceFile !== source.queries.sourceFile) {
+    return failTargetAnalysisInvariant("tsonic-csharp",
+      "Call result completion requires its exact retained checked occurrence.", source.node);
+  }
+  return scope.resolveFormedSourceCallResultWithState(input, source.state, nativeType);
 }
 
 function resolveSelectedExpressionCarrier(

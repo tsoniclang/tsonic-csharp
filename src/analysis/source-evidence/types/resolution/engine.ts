@@ -21,7 +21,8 @@ import { resolveCsharpArrayLiteralSelection } from "./array-literals.js";
 import { resolveCsharpInstanceType } from "./instance-tests.js";
 import type { SourceNativeValueGuard } from "@tsonic/target-api/source";
 
-import { resolveSourceCallTypeArguments as resolveSourceCallTypeArgumentsImplementation, resolveSourceCallParameter as resolveSourceCallParameterImplementation, resolveSourceCallParameters as resolveSourceCallParametersImplementation, resolveSourceCallArgumentParameter as resolveSourceCallArgumentParameterImplementation, resolveSourceCallResult as resolveSourceCallResultImplementation, resolveSourceCallResultWithState as resolveSourceCallResultWithStateImplementation } from "./call-api.js";
+import { resolveSourceCallTypeArguments as resolveSourceCallTypeArgumentsImplementation, resolveSourceCallParameter as resolveSourceCallParameterImplementation, resolveSourceCallParameters as resolveSourceCallParametersImplementation, resolveSourceCallArgumentParameter as resolveSourceCallArgumentParameterImplementation, resolveSourceCallResult as resolveSourceCallResultImplementation, resolveSourceCallResultWithState as resolveSourceCallResultWithStateImplementation,
+  resolveFormedCsharpSourceCallResultWithState } from "./call-api.js";
 import { resolveNode as resolveNodeImplementation, resolveType as resolveTypeImplementation, resolveStorage as resolveStorageImplementation, resolveReadStorage as resolveReadStorageImplementation, catchVariableStorageCarrier as catchVariableStorageCarrierImplementation, resolveValue as resolveValueImplementation, resolveSelectedValue as resolveSelectedValueImplementation, resolveSelectedValueWithState as resolveSelectedValueWithStateImplementation, resolveSelectedType as resolveSelectedTypeImplementation, resolveSelectedResult as resolveSelectedResultImplementation, resolveTypedLocationOperationPointee as resolveTypedLocationOperationPointeeImplementation, resolveTypedLocationOperationPointeeWithState as resolveTypedLocationOperationPointeeWithStateImplementation, withSourceTargetBindings as withSourceTargetBindingsImplementation } from "./public-api.js";
 import { resolveFormedCsharpNodeTypeSource, resolveTupleTypeNode as resolveTupleTypeNodeImplementation, tupleElementIsRest as tupleElementIsRestImplementation } from "./nodes.js";
 import { csharpSourceValueResult } from "./call-results.js";
@@ -185,6 +186,8 @@ export function createCsharpTypeResolutionServices(
       resolveSourceCallResultImplementation(scope, ...args),
     resolveSourceCallResultWithState: (...args: DropScope<Parameters<typeof resolveSourceCallResultWithStateImplementation>>) =>
       resolveSourceCallResultWithStateImplementation(scope, ...args),
+    resolveFormedSourceCallResultWithState: (...args: DropScope<Parameters<typeof resolveFormedCsharpSourceCallResultWithState>>) =>
+      resolveFormedCsharpSourceCallResultWithState(scope, ...args),
     withSourceTargetBindings: (...args: DropScope<Parameters<typeof withSourceTargetBindingsImplementation>>) =>
       withSourceTargetBindingsImplementation(scope, ...args),
     resolveNodeWithState: (

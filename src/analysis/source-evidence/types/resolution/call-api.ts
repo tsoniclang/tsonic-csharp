@@ -19,6 +19,7 @@ import { getCsharpRuntimeUnionArms } from "../../../../target-model/types/carrie
 import { selectCsharpConversion } from "../../../../policy/conversions/core.js";
 import { csharpConversionIsApplicable } from "../../../../policy/conversions/applicability.js";
 import { selectCsharpUnionCallMethods } from "./union-call-methods.js";
+import { formCsharpSourceCallResultSource, type CsharpSourceCallResultSource } from "./call-result-source.js";
 
 export function resolveSourceCallTypeArguments(
   { resolveSourceCallContract, resolveSourceCallInstantiation }: CsharpTypeResolutionScope,
@@ -213,16 +214,24 @@ export function resolveSourceCallResult(
 }
 
 export function resolveSourceCallResultWithState(
-  { host, resolveSourceCallContract, resolveSourceCallableContractType, resolveSourceCallSelectedType, sourceCallableTypeParametersMatch, sourceCallSelectedDeclaration,
-    resolveSelectedValueWithState, resolveSourceCallInstantiation, resolveNodeWithState }: CsharpTypeResolutionScope,
+  scope: CsharpTypeResolutionScope,
   source: ResolvedSourceCallInfo,
   sourceFile: SourceFile,
   state: CsharpTypeResolutionState,
   nativeType: TargetTypeRef | undefined,
 ): CsharpSourceCallResult | undefined {
-  const declaration = sourceCallSelectedDeclaration(source);
-  const queries = host.semantics(sourceFile);
-  const result = queries.operations.callResult(source);
+  return resolveFormedCsharpSourceCallResultWithState(scope,
+    formCsharpSourceCallResultSource(scope, source, sourceFile), state, nativeType);
+}
+
+export function resolveFormedCsharpSourceCallResultWithState(
+  { host, resolveSourceCallContract, resolveSourceCallableContractType, resolveSourceCallSelectedType, sourceCallableTypeParametersMatch,
+    resolveSelectedValueWithState, resolveSourceCallInstantiation, resolveNodeWithState }: CsharpTypeResolutionScope,
+  input: CsharpSourceCallResultSource,
+  state: CsharpTypeResolutionState,
+  nativeType: TargetTypeRef | undefined,
+): CsharpSourceCallResult | undefined {
+  const { source, sourceFile, queries, declaration, result } = input;
   const access = source.sourceCalleeAccess;
   if (nativeType === undefined && access?.kind === "property") {
     const receiver = resolveSelectedValueWithState(access.receiver.expression, access.receiver.type, sourceFile, nextState(state));
