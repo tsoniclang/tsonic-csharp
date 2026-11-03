@@ -22,7 +22,8 @@ import { formCsharpNodeTypeSource, type CsharpNodeTypeSource } from "./root-sour
 import { resolveFormedCsharpProjectReference } from "./project-types.js";
 
 import { selectCsharpParameterListCarrier } from "../../../../policy/types/callables/parameter-list.js";
-import { resolveCsharpNativeParameterCarrier, selectCsharpContextualParameterCarrier } from "./source-references.js";
+import { selectCsharpContextualParameterCarrier } from "./source-references.js";
+import { resolveFormedCsharpNativeParameterCarrier } from "./native-parameter-source.js";
 import type { CsharpSourceCallResult } from "../../../../target-model/operations/source-call-results.js";
 import { csharpSourceValueResult, refineCsharpSourceValueResult } from "./call-results.js";
 export function resolveNodeValueWithState(
@@ -55,9 +56,11 @@ export function resolveFormedCsharpNodeTypeSource(
         "A declared receiver view requires the exact selected Source type and ordered declaration rows.", source.node);
     }
   }
+  if (source.kind === "node" && (source.nativeParameter === undefined || source.nativeParameter.parameter !== source.node)) return failTargetAnalysisInvariant("tsonic-csharp",
+    "A native parameter projection requires its exact retained Source node.", source.node);
   const selected = resolveNodeResultWithState(scope, source);
-  return source.node === undefined ? selected : refineCsharpSourceValueResult(selected,
-    resolveCsharpNativeParameterCarrier(scope, source.node, selected?.selectedType, source.originalState));
+  return source.kind === "unavailable" ? selected : refineCsharpSourceValueResult(selected,
+    resolveFormedCsharpNativeParameterCarrier(scope, source.nativeParameter, selected?.selectedType, source.originalState));
 }
 
 function resolveNodeResultWithState(

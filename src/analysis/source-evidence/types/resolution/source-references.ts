@@ -30,6 +30,7 @@ import { formCsharpTypeReferenceSource, type CsharpTypeReferenceSource } from ".
 import { resolveFormedCsharpProjectReference } from "./project-types.js";
 import { resolveSelectedExpressionResult } from "./expressions.js";
 import { resolveDirectSourceFacts } from "./semantic-types.js";
+import { formCsharpNativeParameterSource, resolveFormedCsharpNativeParameterCarrier } from "./native-parameter-source.js";
 
 export function resolveTypeReferenceNode(
   scope: CsharpTypeResolutionScope,
@@ -448,13 +449,8 @@ export function resolveCsharpNativeParameterCarrier(
   type: TargetTypeRef | undefined,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
-  if (type === undefined || !scope.host.ast.is.IsParameterDeclaration(parameter)) return type;
-  const declaration = scope.host.ast.parent(parameter);
-  if (declaration === undefined) return undefined;
-  const selected = scope.host.objectShapes.resolveNativeParameter(declaration, parameter, type);
-  if (selected.kind === "resolved") return selected.type;
-  state.rejectNativeResolution?.(selected);
-  return undefined;
+  if (type === undefined) return undefined;
+  return resolveFormedCsharpNativeParameterCarrier(scope, formCsharpNativeParameterSource(scope.host.ast, parameter), type, state);
 }
 
 export function selectCsharpContextualParameterCarrier(

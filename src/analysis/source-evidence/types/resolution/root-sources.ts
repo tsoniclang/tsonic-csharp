@@ -21,6 +21,7 @@ import { formCsharpDeclaredObjectReceiverInput,
   type CsharpDeclaredObjectReceiverInput } from "./declared-receiver-source.js";
 import { formCsharpCallableTypeSource } from "./callable-signature-source.js";
 import { formCsharpCallableTypeInput, type CsharpCallableTypeInput } from "./callable-signature-completion.js";
+import { formCsharpNativeParameterSource, type CsharpNativeParameterSource } from "./native-parameter-source.js";
 
 export interface CsharpStructuralNodeSourceInput {
   readonly node: Node;
@@ -61,6 +62,7 @@ export type CsharpNodeTypeSource = {
   | { readonly kind: "unavailable" }
   | { readonly kind: "node"; readonly node: Node; readonly queries: SourceFileSemantics;
       readonly declaredReceiver: CsharpDeclaredObjectReceiverInput | undefined;
+      readonly nativeParameter: CsharpNativeParameterSource;
       readonly selectedType: Type | undefined; readonly project: CsharpProjectReferenceSource | undefined;
       readonly reference: CsharpTypeReferenceSource | undefined;
       readonly selectedExpression: CsharpSelectedExpressionSource;
@@ -166,6 +168,7 @@ export function formCsharpNodeTypeSource(
       "A structural node root requires its exact retained source occurrence.", node);
   }
   return Object.freeze({ kind: "node", node, sourceFile, queries, state, originalState, selectedType, declaredReceiver,
+    nativeParameter: formCsharpNativeParameterSource(host.ast, node),
     directSyntax: formCsharpDirectSourceEvidence(scope, Object.freeze([node]), queries.sourceFile, state),
     directValue: formCsharpDirectSourceEvidence(scope, sourceFactSubjectsForNode(node, host.navigation), queries.sourceFile, state),
     cycle: reference ? Object.freeze({ type: queries.types.authoredType(node) }) : undefined,
