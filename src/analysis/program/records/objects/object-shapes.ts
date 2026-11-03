@@ -48,7 +48,7 @@ export function sealCsharpObjectShapeClassifications(input: {
   const literals = new WeakMap(input.literals.map(entry =>
     [entry.literal, { results: new Map(entry.results), unions: new Map(entry.unions) }] as const));
   const targetShapes = Object.freeze({ ...input.targetShapes });
-  const knownShapes = Object.freeze([...input.knownShapes]);
+  const knownShapes = input.knownShapes;
   return Object.freeze({
     issues: Object.freeze([...input.issues]),
     propertyOrder: input.propertyOrders.propertyOrder,
