@@ -2,13 +2,13 @@ import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef 
 import { getCsharpDelegateSignature } from "../../../target-model/types/carriers/delegates.js";
 import { csharpMethodValueType } from "../../../target-model/types/method-values.js";
 import { createStructuralObjectShapeTarget } from "../../objects/shapes/construction.js";
-import type { CsharpTypeParameterConstraintResolver } from "../../../target-model/types/generic-references.js";
+import type { CsharpTypeParameterEnvironment } from "../../../target-model/records/types/type-parameter-constraints.js";
 import { objectShapeMethodInvocationName } from "../../../target-model/names/object-members.js";
 
 export function retainCsharpGenericCallableValue(
   signature: TargetTypeRef, typeParameters: NonNullable<CsharpObjectShapeMemberFact["typeParameters"]>,
   remember: (shape: CsharpObjectShapeFact) => CsharpObjectShapeFact,
-  environment: CsharpTypeParameterConstraintResolver,
+  environment: CsharpTypeParameterEnvironment,
 ): TargetTypeRef | undefined {
   if (typeParameters.length === 0 || getCsharpDelegateSignature(signature) === undefined) return undefined;
   const member: CsharpObjectShapeMemberFact = Object.freeze({

@@ -501,8 +501,8 @@ export function createCsharpObjectShapePolicy(
     if (definition?.kind !== "class" && definition?.kind !== "interface" || type.typeArguments === undefined) return type;
     const arguments_ = type.typeArguments.map(argument => {
       if (argument.kind !== "type-parameter") return argument;
-      const constraints = environment(argument);
-      return constraints.kind === "resolved" ? Object.freeze({ ...argument, csharpConstraints: constraints }) : undefined;
+      const selected = environment.resolve(argument);
+      return selected.csharpConstraints.kind === "resolved" ? selected : undefined;
     });
     return arguments_.some(argument => argument === undefined) ? undefined
       : { ...type, typeArguments: Object.freeze(arguments_ as readonly TargetTypeRef[]) };

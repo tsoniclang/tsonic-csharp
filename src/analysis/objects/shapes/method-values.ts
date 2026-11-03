@@ -6,7 +6,7 @@ import { targetTypeRefEquals, targetTypeRefKey } from "../../../target-model/typ
 import { createStructuralObjectShapeTarget } from "./construction.js";
 import { csharpObjectMethodValueStorageKey, csharpStructuralObjectShapeIdentity } from "../../../target-model/types/object-shape-identity.js";
 import { csharpObjectShapeMethodDeclaration, csharpObjectShapeMethodRequiresProtocol, csharpPresentObjectShapeMethod } from "../../../target-model/types/method-values.js";
-import type { CsharpTypeParameterConstraintResolver } from "../../../target-model/types/generic-references.js";
+import type { CsharpTypeParameterEnvironment } from "../../../target-model/records/types/type-parameter-constraints.js";
 import { selectCsharpCopiedMethodReceiver } from "../copied-methods.js";
 
 import { csharpCopiedObjectShapeMembers } from "../../../policy/types/objects/method-environments.js";
@@ -93,7 +93,7 @@ export function csharpObjectMethodValueIsExtracted(storage: SourceStorageQueries
 export function resolveCsharpWritableMethodContract(
   shape: CsharpObjectShapeFact,
   writtenMembers: readonly CsharpObjectShapeMemberFact[],
-  environment: CsharpTypeParameterConstraintResolver,
+  environment: CsharpTypeParameterEnvironment,
 ): CsharpObjectShapeFact | undefined {
   const members = selectCsharpWritableMethodMembers(shape, writtenMembers);
   if (members === undefined) return undefined;
@@ -110,7 +110,7 @@ export function resolveCsharpWritableMethodContract(
 export function resolveCsharpCopiedObjectShape(
   shape: CsharpObjectShapeFact,
   ast: AstReader,
-  environment: CsharpTypeParameterConstraintResolver,
+  environment: CsharpTypeParameterEnvironment,
   resolveNode: (node: Node) => CsharpObjectShapeFact | undefined,
   rememberTargetShape: (shape: CsharpObjectShapeFact) => CsharpObjectShapeFact,
   sourceStorage: SourceStorageQueries,
@@ -157,7 +157,7 @@ export function resolveCsharpCopiedObjectShape(
 
 export function retainCsharpMethodValueContracts(
   shape: CsharpObjectShapeFact, remember: (shape: CsharpObjectShapeFact) => CsharpObjectShapeFact,
-  environment: CsharpTypeParameterConstraintResolver,
+  environment: CsharpTypeParameterEnvironment,
   sourceStorage: SourceStorageQueries,
 ): CsharpObjectShapeFact {
   if (csharpStructuralObjectShapeIdentity(shape.targetType) === undefined &&

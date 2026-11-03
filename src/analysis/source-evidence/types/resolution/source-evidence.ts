@@ -62,8 +62,7 @@ export function resolveTypeParameter(
       continue;
     }
     const parameter = csharpSourceTypeParameter(declaration, ast);
-    if (parameter !== undefined) return Object.freeze({ ...parameter,
-      csharpConstraints: constraints(parameter, { sourceFile: queries.sourceFile, sourceType: type }) });
+    if (parameter !== undefined) return constraints.resolve(parameter, { sourceFile: queries.sourceFile, sourceType: type });
   }
   return undefined;
 }
