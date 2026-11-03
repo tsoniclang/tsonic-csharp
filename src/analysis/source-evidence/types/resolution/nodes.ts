@@ -75,7 +75,7 @@ function resolveNodeResultWithState(
   scope: CsharpTypeResolutionScope,
   source: CsharpNodeTypeSource,
 ): CsharpSourceCallResult | undefined {
-  const { host, resolveCallableType, resolveFormedDirectSourceFacts, resolveNodeWithState, resolveFormedSelectedExpressionResult, resolveSourceValueResult, resolveTupleTypeNode, resolveFormedTypeReferenceNode, resolveTypeWithState } = scope;
+  const { host, resolveCallableType, resolveFormedDirectSourceFacts, resolveNodeWithState, resolveFormedSelectedExpressionResult, resolveFormedSourceValueResult, resolveTupleTypeNode, resolveFormedTypeReferenceNode, resolveTypeWithState } = scope;
   if (source.node === undefined) return undefined;
   if (source.state.depth > maximumTypeResolutionDepth) failTargetCompilerResourceLimit("tsonic-csharp",
     "Selected native source-node type resolution", "depth", maximumTypeResolutionDepth, source.node);
@@ -224,10 +224,13 @@ function resolveNodeResultWithState(
     return csharpSourceValueResult(projectThis);
   }
   const selectedType = host.ast.is.IsIdentifier(node) ? source.selectedType : undefined;
-  const declaration = selectedType === undefined ? undefined : host.navigation.referenceFor(node)?.declaration;
-  const declaredValue = selectedType !== undefined && scope.sourceValueDeclaration(node, declaration) !== undefined
+  const value = source.value;
+  if (value === undefined || value.node !== node || value.queries !== queries || value.state !== state || value.selectedType !== undefined) {
+    return failTargetAnalysisInvariant("tsonic-csharp", "A node value requires its exact retained declaration Source.", node);
+  }
+  const declaredValue = selectedType !== undefined && value.selection.declaration !== undefined
     ? scope.resolveSelectedValueResultWithState(node, selectedType, queries.sourceFile, state)
-    : resolveSourceValueResult(node, queries, state);
+    : resolveFormedSourceValueResult(value);
   if (declaredValue !== undefined) {
     return declaredValue;
   }

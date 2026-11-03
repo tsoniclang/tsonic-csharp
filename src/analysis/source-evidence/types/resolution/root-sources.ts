@@ -26,6 +26,7 @@ import { formCsharpProjectThisSource, type CsharpProjectInstanceSource } from ".
 import { formCsharpContextualParameterSource, type CsharpContextualParameterSource } from "./contextual-parameter-source.js";
 import { formCsharpSourceTypeComponentSource, type CsharpSourceTypeComponentSource } from "./type-component-source.js";
 import { formCsharpSemanticConditionalSource, type CsharpSemanticConditionalSource } from "./semantic-conditional-source.js";
+import { formCsharpSourceValueDeclarationSource, formCsharpSourceValueSource, type CsharpSourceValueSource } from "./value-source.js";
 
 export interface CsharpStructuralNodeSourceInput {
   readonly node: Node;
@@ -75,6 +76,7 @@ export type CsharpNodeTypeSource = {
       readonly selectedType: Type | undefined; readonly project: CsharpProjectReferenceSource | undefined;
       readonly reference: CsharpTypeReferenceSource | undefined;
       readonly selectedExpression: CsharpSelectedExpressionSource;
+      readonly value: CsharpSourceValueSource;
       readonly directSyntax: CsharpDirectSourceEvidence; readonly directValue: CsharpDirectSourceEvidence;
       readonly structural: CsharpStructuralNodeSourceInput; readonly semantic: CsharpSemanticTypeSource }
 );
@@ -190,6 +192,7 @@ export function formCsharpNodeTypeSource(
     cycle: reference ? Object.freeze({ type: queries.types.authoredType(node) }) : undefined,
     reference: host.ast.is.IsTypeReferenceNode(node) ? formCsharpTypeReferenceSource(scope, node, queries, state) : undefined,
     selectedExpression: formCsharpSelectedExpressionSource(scope, node, queries, state),
+    value: formCsharpSourceValueSource(scope, formCsharpSourceValueDeclarationSource(scope, node), queries, state, undefined),
     project: formCsharpProjectReferenceSource(scope, node, queries.sourceFile, state),
     structural: Object.freeze({ node, queries, state: childState, source }),
     semantic: formCsharpSemanticTypeSource(scope, selectedType, queries.sourceFile, childState),

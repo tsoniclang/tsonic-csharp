@@ -22,6 +22,7 @@ import type { CsharpNodeTypeResolution } from "../../../../policy/model/type-res
 import type { CsharpSourceCallResult } from "../../../../target-model/operations/source-call-results.js";
 import { csharpSourceValueResult, refineCsharpSourceValueResult } from "./call-results.js";
 import type { CsharpNodeQuerySource, CsharpTypeQuerySource } from "./root-sources.js";
+import { formCsharpSourceValueDeclarationSource, formCsharpSourceValueSource } from "./value-source.js";
 
 export function resolveNode(
   scope: CsharpTypeResolutionScope,
@@ -177,17 +178,18 @@ export function resolveSelectedValueResultWithState(
   sourceFile: SourceFile,
   state: CsharpTypeResolutionState,
 ): CsharpSourceCallResult | undefined {
-  const { host, resolveNodeWithState, resolveNodeValueWithState, resolveMemberAccessTargetType, resolveSourceValueResult, resolveTypeWithState, sourceValueDeclaration } = scope;
-  const reference = host.navigation.referenceFor(node);
-  const declaration = sourceValueDeclaration(node, reference?.declaration);
+  const { host, resolveNodeWithState, resolveNodeValueWithState, resolveMemberAccessTargetType, resolveFormedSourceValueResult, resolveTypeWithState } = scope;
+  const selection = formCsharpSourceValueDeclarationSource(scope, node);
+  const declaration = selection.declaration;
   const storage = host.sourceStorage.subjectFor(node);
   state = { ...state, sourceStorageSubject: storage.kind === "resolved" ? storage.subject : undefined };
+  const queries = host.semantics(sourceFile);
+  const valueSource = formCsharpSourceValueSource(scope, selection, queries, nextState(state), selectedType);
   const scopedTarget = host.representations.scopedTargetType(
     declaration ?? node,
   ) ?? host.representations.scopedTargetType(node) ??
     (declaration !== undefined && host.ast.is.IsBindingElement(declaration)
       ? host.bindingProjection(declaration, sourceFile)?.bindingCarrier : undefined);
-  const queries = host.semantics(sourceFile);
   const declaredType = declaration === undefined ? undefined : queries.declarations.declaredValueType(declaration);
   if (scopedTarget !== undefined && getCsharpNullableElementTargetType(scopedTarget) !== undefined &&
     sourceAbsenceUse(node, host) !== undefined) return csharpSourceValueResult(scopedTarget);
@@ -262,16 +264,11 @@ export function resolveSelectedValueResultWithState(
       ));
     }
     return declaration === undefined ? csharpSourceValueResult(scopedTarget)
-      : refineCsharpSourceValueResult(resolveSourceValueResult(node, queries, nextState(state), selectedType), scopedTarget);
+      : refineCsharpSourceValueResult(resolveFormedSourceValueResult(valueSource), scopedTarget);
   }
   const member = host.ast.is.IsPropertyAccessExpression(node) || host.ast.is.IsElementAccessExpression(node);
   if (!member && declaration !== undefined) {
-    const declared = resolveSourceValueResult(
-      node,
-      host.semantics(sourceFile),
-      nextState(state),
-      selectedType,
-    );
+    const declared = resolveFormedSourceValueResult(valueSource);
     if (declared !== undefined) {
       return declared;
     }
