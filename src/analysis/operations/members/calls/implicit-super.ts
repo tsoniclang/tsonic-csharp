@@ -3,13 +3,14 @@ import type { CsharpProviderCallSelectionHost } from "../../../../policy/model/p
 import type { ResolvedSourceCallInfo } from "../../../../target-model/records/calls/source-calls.js";
 
 export function selectCsharpInheritedConstructorTarget(
-  host: CsharpProviderCallSelectionHost,
+  host: Pick<CsharpProviderCallSelectionHost, "projectTypes">,
   source: ResolvedSourceCallInfo,
   member: CsharpTargetMember,
+  projectDeclaration: boolean,
 ): { readonly kind: "resolved"; readonly member: CsharpTargetMember }
   | { readonly kind: "missing"; readonly reason: string } {
   const declaration = source.sourceCallee.selectedDeclaration;
-  if (declaration === undefined || !host.navigation.isProjectDeclaration(declaration)) return { kind: "resolved", member };
+  if (declaration === undefined || !projectDeclaration) return { kind: "resolved", member };
   const constructor = host.projectTypes.implicitConstructorForSignature(
     declaration, source.selectedSignature, source.sourceSelectedSignatureParameters);
   if (constructor === undefined && member.kind !== "constructor") return { kind: "resolved", member };

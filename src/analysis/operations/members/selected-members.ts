@@ -2,7 +2,9 @@ import type { CsharpTargetCallSelection, CsharpTargetElementSelection, CsharpTar
 import type { Node, SourceFile } from "@tsonic/tsts";
 
 import type { CsharpProviderCallSelectionHost } from "../../../policy/model/provider-calls.js";
-import { selectCsharpProviderCall } from "./calls/selection.js";
+import { formCsharpProviderCallSource, selectFormedCsharpProviderCall,
+  type CsharpProviderCallSourceEvidence, type CsharpProviderCallSourceHost,
+  type CsharpProviderCallSourceInput } from "./calls/selection.js";
 import { selectCsharpProviderElement } from "./element-selection.js";
 import { selectCsharpProviderProperty } from "./property-selection.js";
 import { selectCsharpProjectElement } from "./project-indexers.js";
@@ -18,7 +20,24 @@ export function selectCsharpTargetCall(
   call: Node,
   sourceFile: SourceFile,
 ): CsharpTargetCallSelection {
-  const provider = selectCsharpProviderCall(host, call, sourceFile);
+  return selectFormedCsharpTargetCall(host, formCsharpTargetCallSource(host, {
+    call, sourceFile, source: host.semantics(sourceFile).operations.call(call),
+  }));
+}
+
+export function formCsharpTargetCallSource(
+  host: CsharpProviderCallSourceHost,
+  input: CsharpProviderCallSourceInput,
+): CsharpProviderCallSourceEvidence {
+  return formCsharpProviderCallSource(host, input);
+}
+
+export function selectFormedCsharpTargetCall(
+  host: CsharpProviderCallSelectionHost,
+  source: CsharpProviderCallSourceEvidence,
+): CsharpTargetCallSelection {
+  if (source.kind === "missing") return source;
+  const provider = selectFormedCsharpProviderCall(host, source);
   if (provider.kind === "resolved") {
     return provider;
   }
@@ -28,7 +47,7 @@ export function selectCsharpTargetCall(
   const profile = selectCsharpComposedSourceProfileCall(
     host,
     provider.source,
-    sourceFile,
+    source.sourceFile,
   );
   if (profile === undefined) {
     return {
@@ -38,7 +57,7 @@ export function selectCsharpTargetCall(
     };
   }
   if (profile.kind === "rejected") return profile;
-  const forwarding = selectCsharpInheritedConstructorTarget(host, provider.source, profile.call.targetMember);
+  const forwarding = selectCsharpInheritedConstructorTarget(host, provider.source, profile.call.targetMember, source.projectDeclaration);
   return forwarding.kind === "missing" ? forwarding : {
         kind: "resolved",
         source: provider.source,
