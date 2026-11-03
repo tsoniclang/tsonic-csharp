@@ -25,7 +25,8 @@ import { admitCsharpConversionSelection } from "./validation.js";
 import { selectCsharpUnionInjection } from "../../policy/conversions/union-relations.js";
 
 import { createCsharpExactLiteralRequestCollector } from "./literal-requests.js";
-import { sealCsharpConversionUses, type CsharpCallConversionRequests } from "./use-admission.js";
+import { collectCsharpConversionUses, sealCsharpConversionUses, type CsharpCallConversionRequests,
+  type CsharpConversionUseRequests } from "./use-admission.js";
 import type { CsharpNativeCompletion } from "../../target-model/records/native/native-demand.js";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { csharpDelegateSignatureHasSupportedPassingModes, getCsharpDelegateSignature } from "../../target-model/types/carriers/delegates.js";
@@ -102,6 +103,7 @@ export function analyzeCsharpConversions(
   let closed = false;
   let preparedClassifications: CsharpPreparedConversionClassifications | undefined;
   let preparedValueReads: CsharpValueReadClassifications | undefined;
+  let nativeUseSource: CsharpConversionUseRequests | undefined;
   let sealedClassifications: CsharpConversionClassifications | undefined;
   const literalRequests = createCsharpExactLiteralRequestCollector(policy.literalValues);
   const conversionPolicy = Object.freeze({
@@ -154,10 +156,20 @@ export function analyzeCsharpConversions(
       preparedClassifications = Object.freeze({ ...classifications, exactLiteralRequests: literalRequests.seal() });
       return preparedClassifications;
     },
-    close(nativeDemand, requiredRecords, captures, creations) {
+    formNativeUseSource(demand) {
+      if (nativeUseSource !== undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+        "Native conversion-use DATA forms exactly once per current body.");
+      if (preparedClassifications === undefined || preparedValueReads === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+        "Native conversion-use DATA requires its completed current preparation.");
+      nativeUseSource = collectCsharpConversionUses(demand, selectedOperations, callConversions);
+      return nativeUseSource;
+    },
+    close(source, requiredRecords, captures, creations) {
       if (closed) return failTargetAnalysisInvariant("tsonic-csharp", "Native conversion preparation closes exactly once.");
       if (preparedClassifications === undefined || preparedValueReads === undefined) failTargetAnalysisInvariant("tsonic-csharp", "Native conversion uses require completed preparation.");
-      const admitted = sealCsharpConversionUses(nativeDemand, selectedOperations, (expression, source, target, mode, exactInteger, boundary, sourceCompletion) => {
+      if (nativeUseSource === undefined || source !== nativeUseSource) return failTargetAnalysisInvariant("tsonic-csharp",
+        "Native conversion admission requires its exact completed current-use DATA packet.");
+      const admitted = sealCsharpConversionUses(source.requests, (expression, source, target, mode, exactInteger, boundary, sourceCompletion) => {
         const selected = boundary === undefined ? classifyExpression(expression, source, target, mode, exactInteger, sourceCompletion) : boundary.selection;
         if (selected === undefined) return undefined;
         admitCsharpDelegateEmission(delegateContracts, source, target, selected);
@@ -176,7 +188,7 @@ export function analyzeCsharpConversions(
       }, (expression, source, target) => {
         const selected = classifyPair(source, target, "implicit", expression);
         return selected;
-      }, requiredRecords, issues, callConversions, { ast: policy.ast, navigation: policy.navigation,
+      }, requiredRecords, issues, { ast: policy.ast, navigation: policy.navigation,
         semanticsFor: policy.semanticsFor, objectShapes });
       issues.push(...admitted.issues);
       delegateAdapters = sealCsharpDelegateAdapterIdentities(policy, preparedValueReads, admitted.expressions, issues);

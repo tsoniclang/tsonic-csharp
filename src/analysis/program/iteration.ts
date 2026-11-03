@@ -311,8 +311,9 @@ export function analyzeCsharpRepresentationIteration(
   const requiredSourceRefusals = nativeDemand.unadmitted.flatMap(use =>
     use.kind === "source-refusal" && sourceResolutionIssues.has(use.diagnostic) ? [use.diagnostic] : []);
   if (requiredSourceRefusals.length !== 0) return rejectedTargetStage<never>(requiredSourceRefusals);
+  const nativeUseSource = conversionAnalysis.formNativeUseSource(nativeDemand);
   const bindingPatterns = admitCsharpBindingPatterns(bindingCandidates, nativeDemand.requiredBindingRoots, requiredRecords);
-  conversionAnalysis.close(nativeDemand, requiredRecords, captureStorage, callableCreations);
+  conversionAnalysis.close(nativeUseSource, requiredRecords, captureStorage, callableCreations);
   const conversions = conversionAnalysis.seal();
   const refLikeDiagnostics = analyzeCsharpRefLikePlacements({
     source, nodes: sourceStorage.nodes, callables, captureStorage,

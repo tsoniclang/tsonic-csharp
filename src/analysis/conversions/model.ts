@@ -4,6 +4,7 @@ import type { CsharpExactLiteralRequest } from "../../target-model/conversions/e
 import type { CsharpExpectedTypeClassifications } from "../../target-model/records/types/expected-types.js";
 import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native/native-demand.js";
 import type { CsharpRequiredRecord } from "../program/records/objects/required-records.js";
+import type { CsharpConversionUseRequests } from "./use-admission.js";
 
 export interface CsharpPreparedConversionClassifications extends CsharpConversionClassifications {
   readonly exactLiteralRequests: readonly CsharpExactLiteralRequest[];
@@ -15,7 +16,8 @@ export interface CsharpConversionAnalysis {
     readonly expectedTypes: CsharpExpectedTypeClassifications;
     readonly valueReads: CsharpValueReadClassifications;
   }): CsharpPreparedConversionClassifications;
-  close(nativeDemand: CsharpNativeDemandAnalysis, requiredRecords: CsharpRequiredRecord[],
+  formNativeUseSource(demand: Pick<CsharpNativeDemandAnalysis, "entries" | "nativeUse">): CsharpConversionUseRequests;
+  close(source: CsharpConversionUseRequests, requiredRecords: CsharpRequiredRecord[],
     captures: import("../../target-model/records/callables/capture-storage.js").CsharpCaptureStorage,
     creations: import("../../target-model/records/callables/callable-values.js").CsharpCallableCreationIndex): void;
   seal(): CsharpConversionClassifications;

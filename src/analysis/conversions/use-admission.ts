@@ -20,27 +20,25 @@ export interface CsharpCallConversionRequests {
   readonly omitted: readonly { readonly source: TargetTypeRef; readonly target: TargetTypeRef | undefined }[];
 }
 
-export function sealCsharpConversionUses(
-  demand: CsharpNativeDemandAnalysis,
+export type CsharpConversionUseRequest =
+  | { readonly kind: "value"; readonly expression: Node; readonly source: TargetTypeRef;
+      readonly target: TargetTypeRef | undefined }
+  | { readonly kind: "expression"; readonly expression: Node; readonly source: TargetTypeRef;
+      readonly target: TargetTypeRef; readonly mode: CsharpConversionMode; readonly exactInteger: boolean;
+      readonly boundary?: { readonly selection: CsharpConversionSelection; readonly identityRequired: boolean };
+      readonly sourceCompletion?: CsharpNativeCompletion };
+
+export interface CsharpConversionUseRequests {
+  readonly demand: Pick<CsharpNativeDemandAnalysis, "entries" | "nativeUse">;
+  readonly requests: readonly CsharpConversionUseRequest[];
+}
+
+export function collectCsharpConversionUses(
+  demand: Pick<CsharpNativeDemandAnalysis, "entries" | "nativeUse">,
   operations: Pick<CsharpTargetOperationClassifications, "selectedCall" | "selectedConstruction">,
-  classify: (expression: Node, source: TargetTypeRef, target: TargetTypeRef, mode: CsharpConversionMode,
-    exactInteger: boolean,
-    boundary?: { readonly selection: CsharpConversionSelection; readonly identityRequired: boolean },
-    sourceCompletion?: CsharpNativeCompletion) =>
-    { readonly key: string; readonly classification: CsharpExpressionConversionClassification } | undefined,
-  classifyValue: (expression: Node, source: TargetTypeRef, target: TargetTypeRef | undefined) => CsharpConversionSelection | undefined,
-  requiredRecords: CsharpRequiredRecord[],
-  preparationIssues: readonly CsharpConversionIssue[],
   callConversions: ReadonlyMap<Node, CsharpCallConversionRequests>,
-  context: Pick<CsharpPolicyContext, "ast" | "navigation" | "semanticsFor"> & {
-    readonly objectShapes: Pick<CsharpPolicyContext["objectShapes"], "resolveTarget">;
-  },
-): {
-  readonly expressions: Map<Node, Map<string, CsharpExpressionConversionClassification>>;
-  readonly issues: readonly CsharpConversionIssue[];
-} {
-  const expressions = new Map<Node, Map<string, CsharpExpressionConversionClassification>>();
-  const issues: CsharpConversionIssue[] = [];
+): CsharpConversionUseRequests {
+  const requests: CsharpConversionUseRequest[] = [];
   const calls = new Set<Node>();
   const completedCalls = new Set<Node>();
   for (const entry of demand.entries) {
@@ -48,13 +46,13 @@ export function sealCsharpConversionUses(
     if (use.kind === "erased") continue;
     const defaultValue = use.defaultValue;
     if (defaultValue !== undefined) {
-      if (defaultValue.normalize) admitValue(use.expression, defaultValue.source, defaultValue.storage);
-      if (defaultValue.kind !== "absence") admitValue(use.expression, defaultValue.present, defaultValue.target);
+      if (defaultValue.normalize) requestValue(use.expression, defaultValue.source, defaultValue.storage);
+      if (defaultValue.kind !== "absence") requestValue(use.expression, defaultValue.present, defaultValue.target);
     }
     if (!calls.has(use.expression)) {
       calls.add(use.expression);
       for (const omitted of callConversions.get(use.expression)?.omitted ?? []) {
-        admitValue(use.expression, omitted.source, omitted.target);
+        requestValue(use.expression, omitted.source, omitted.target);
       }
       selectedArgumentUses(use.expression, operations.selectedCall.get(use.expression)?.target);
       selectedArgumentUses(use.expression, operations.selectedConstruction.get(use.expression)?.target);
@@ -64,30 +62,26 @@ export function sealCsharpConversionUses(
     const completion = callConversions.get(use.expression)?.completion;
     if (completion !== undefined && sourceCompletion.kind === "value" && !completedCalls.has(use.expression)) {
       completedCalls.add(use.expression);
-      admitValue(use.expression, completion.source, completion.target);
+      requestValue(use.expression, completion.source, completion.target);
     }
     const source = use.kind === "converted" && use.input.kind === "value" ? use.input.type : use.carrier;
     const target = use.kind === "converted" ? use.target : use.carrier;
     const mode = use.kind === "converted" ? use.mode : "implicit";
-    admit(use.expression, source, target, mode, undefined, use.exactInteger === true, sourceCompletion);
+    requestExpression(use.expression, source, target, mode, undefined, use.exactInteger === true, sourceCompletion);
   }
-  return Object.freeze({ expressions, issues: Object.freeze(issues) });
+  return Object.freeze({ demand, requests: Object.freeze(requests) });
 
-  function admitValue(expression: Node, source: TargetTypeRef, target: TargetTypeRef | undefined): void {
-    const selected = classifyValue(expression, source, target);
-    if (selected === undefined) {
-      if (preparationIssues.some(issue => issue.code === "CSHARP_CONVERSION_CLASSIFICATION_LIMIT_EXCEEDED")) return;
-      return failTargetAnalysisInvariant("tsonic-csharp", "A consumed native default requires its completed conversion classification.", expression);
-    }
-    if (selected.kind === "rejected" || selected.kind === "ambiguous") {
-      issues.push(Object.freeze({ node: expression, code: selected.kind === "rejected" ? selected.code ?? "CSHARP_UNSUPPORTED_AST" : "CSHARP_UNSUPPORTED_AST",
-        message: selected.reason }));
-      return;
-    }
-    if (target === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
-      "An admitted native value conversion requires its exact closed destination.", expression);
-    requireCsharpRecord(requiredRecords, { family: "conversion", subject: expression, source, target, mode: "implicit",
-      construct: "consumed native value conversion", producer: "sealCsharpConversionUses" });
+  function requestValue(expression: Node, source: TargetTypeRef, target: TargetTypeRef | undefined): void {
+    requests.push(Object.freeze({ kind: "value", expression, source, target }));
+  }
+
+  function requestExpression(expression: Node, source: TargetTypeRef, target: TargetTypeRef, mode: CsharpConversionMode,
+    boundary?: { readonly selection: CsharpConversionSelection; readonly identityRequired: boolean }, exactInteger = false,
+    sourceCompletion?: CsharpNativeCompletion): void {
+    requests.push(Object.freeze({ kind: "expression", expression, source, target, mode, exactInteger,
+      ...(boundary === undefined ? {} : { boundary: Object.freeze(boundary) }),
+      ...(sourceCompletion === undefined ? {} : { sourceCompletion }),
+    }));
   }
 
   function selectedArgumentUses(owner: Node, selection: CsharpTargetCallSelection | undefined): void {
@@ -110,18 +104,62 @@ export function sealCsharpConversionUses(
       let conversion = mapping.conversion;
       const retainedIdentity = selection.call.targetMember.csharpInvocation?.kind === "native-event-remove";
       const sourceCompletion = actual.use.kind === "converted" ? actual.use.input : actual.use.completion;
-      admit(expression, source, target, "implicit", { selection: conversion,
+      requestExpression(expression, source, target, "implicit", { selection: conversion,
         identityRequired: retainedIdentity && conversion.kind === "delegate-adapter" && conversion.strategy === "adaptation" },
       false, sourceCompletion);
       while (conversion.kind === "nullable-map") {
         source = conversion.sourceElement;
         target = conversion.targetElement;
         conversion = conversion.conversion;
-        admit(expression, source, target, "implicit", { selection: conversion,
+        requestExpression(expression, source, target, "implicit", { selection: conversion,
           identityRequired: retainedIdentity && conversion.kind === "delegate-adapter" && conversion.strategy === "adaptation" },
         false, sourceCompletion);
       }
     }
+  }
+}
+
+export function sealCsharpConversionUses(
+  requests: readonly CsharpConversionUseRequest[],
+  classify: (expression: Node, source: TargetTypeRef, target: TargetTypeRef, mode: CsharpConversionMode,
+    exactInteger: boolean,
+    boundary?: { readonly selection: CsharpConversionSelection; readonly identityRequired: boolean },
+    sourceCompletion?: CsharpNativeCompletion) =>
+    { readonly key: string; readonly classification: CsharpExpressionConversionClassification } | undefined,
+  classifyValue: (expression: Node, source: TargetTypeRef, target: TargetTypeRef | undefined) => CsharpConversionSelection | undefined,
+  requiredRecords: CsharpRequiredRecord[],
+  preparationIssues: readonly CsharpConversionIssue[],
+  context: Pick<CsharpPolicyContext, "ast" | "navigation" | "semanticsFor"> & {
+    readonly objectShapes: Pick<CsharpPolicyContext["objectShapes"], "resolveTarget">;
+  },
+): {
+  readonly expressions: Map<Node, Map<string, CsharpExpressionConversionClassification>>;
+  readonly issues: readonly CsharpConversionIssue[];
+} {
+  const expressions = new Map<Node, Map<string, CsharpExpressionConversionClassification>>();
+  const issues: CsharpConversionIssue[] = [];
+  for (const request of requests) {
+    if (request.kind === "value") admitValue(request.expression, request.source, request.target);
+    else admit(request.expression, request.source, request.target, request.mode, request.boundary,
+      request.exactInteger, request.sourceCompletion);
+  }
+  return Object.freeze({ expressions, issues: Object.freeze(issues) });
+
+  function admitValue(expression: Node, source: TargetTypeRef, target: TargetTypeRef | undefined): void {
+    const selected = classifyValue(expression, source, target);
+    if (selected === undefined) {
+      if (preparationIssues.some(issue => issue.code === "CSHARP_CONVERSION_CLASSIFICATION_LIMIT_EXCEEDED")) return;
+      return failTargetAnalysisInvariant("tsonic-csharp", "A consumed native default requires its completed conversion classification.", expression);
+    }
+    if (selected.kind === "rejected" || selected.kind === "ambiguous") {
+      issues.push(Object.freeze({ node: expression, code: selected.kind === "rejected" ? selected.code ?? "CSHARP_UNSUPPORTED_AST" : "CSHARP_UNSUPPORTED_AST",
+        message: selected.reason }));
+      return;
+    }
+    if (target === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+      "An admitted native value conversion requires its exact closed destination.", expression);
+    requireCsharpRecord(requiredRecords, { family: "conversion", subject: expression, source, target, mode: "implicit",
+      construct: "consumed native value conversion", producer: "sealCsharpConversionUses" });
   }
 
   function admit(expression: Node, source: TargetTypeRef, target: TargetTypeRef, mode: CsharpConversionMode,
