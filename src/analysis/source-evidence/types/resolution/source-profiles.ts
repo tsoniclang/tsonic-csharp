@@ -22,7 +22,10 @@ import { formCsharpSourceTypeComponentSource, resolveFormedCsharpSourceTypeCompo
   type CsharpSourceTypeComponentSource } from "./type-component-source.js";
 import { completeCsharpCallableSignatureSource, formCsharpCallableSignatureInput, formCsharpCallableTypeInput,
   type CsharpCallableSignatureInput, type CsharpCallableTypeInput, type CsharpCompletedCallableSignature } from "./callable-signature-completion.js";
-import { resolveCsharpNativeParameterCarrier, selectCsharpContextualParameterCarrier } from "./source-references.js";
+import { resolveFormedCsharpContextualParameterCarrier } from "./contextual-parameter-source.js";
+import { resolveFormedCsharpNativeParameterCarrier } from "./native-parameter-source.js";
+import { formCsharpSignatureParameterCapture, bindCsharpSignatureParameterCapture,
+  type CsharpSignatureParameterInput } from "./signature-parameter-source.js";
 
 import { selectCsharpSourceProfileCarrier } from "../../../../policy/operations/source-profiles/type-carriers.js";
 import type { CsharpProviderRelationResolver } from "../../../../providers/model/relation-resolver.js";
@@ -132,7 +135,7 @@ export function resolveFormedCsharpCallableDeclarationSignature(
   while (!selected.done) {
     const request = selected.value;
     if (request.kind === "parameter") {
-      const type = scope.resolveSignatureParameterEvidence(request.parameter.parameter, input.source.queries, input.state, "callable");
+      const type = scope.resolveFormedSignatureParameterEvidence(request.source);
       selected = completion.next(Object.freeze({ kind: "parameter", request, type }));
     } else if (request.kind === "result") {
       const type = scope.resolveFormedSourceTypeComponentEvidence(request.source);
@@ -166,32 +169,30 @@ export function resolveSignatureParameterEvidence(
   state: CsharpTypeResolutionState,
   use: "callable" | "parameter-list",
 ): TargetTypeRef | undefined {
-  const { host, resolveSourceTypeComponentEvidence } = scope;
-  const entry = parameter.declaration === undefined ? undefined : host.sourceStorage.subject(parameter.declaration, "input");
-  const contextual = parameter.declaration === undefined || use !== "callable" || host.ast.typeNode(parameter.declaration) !== undefined
-    ? undefined : selectCsharpContextualParameterCarrier(scope, parameter.declaration, queries, state);
+  return resolveFormedCsharpSignatureParameterEvidence(scope, bindCsharpSignatureParameterCapture(
+    formCsharpSignatureParameterCapture(scope.host, parameter, queries, use, state.sourceStorageSubject), state));
+}
+
+export function resolveFormedCsharpSignatureParameterEvidence(
+  scope: CsharpTypeResolutionScope,
+  input: CsharpSignatureParameterInput,
+): TargetTypeRef | undefined {
+  const capture = input.capture;
+  if (capture === undefined || input.component === undefined || input.component.capture !== capture.component ||
+      input.component.inputState !== input.componentState || input.component.queries !== capture.queries ||
+      input.component.component.selectedType !== capture.parameter.type ||
+      input.component.component.declaration !== capture.parameter.declaration ||
+      capture.contextual !== undefined && (capture.contextual.declaration !== capture.parameter.declaration ||
+        capture.contextual.queries !== capture.queries) ||
+      capture.nativeParameter !== undefined && capture.nativeParameter.parameter !== capture.parameter.declaration) {
+    return failTargetAnalysisInvariant("tsonic-csharp",
+      "Signature parameter completion requires its exact retained Source input.", capture?.parameter.declaration);
+  }
+  const { parameter, use } = capture;
+  const contextual = capture.contextual === undefined ? undefined
+    : resolveFormedCsharpContextualParameterCarrier(scope, capture.contextual, input.state);
   const resolved = contextual?.kind === "unresolved" ? undefined : contextual?.kind === "resolved" ? contextual.type
-    : resolveSourceTypeComponentEvidence(
-    {
-      selectedType: parameter.type,
-      ...(parameter.declaration === undefined
-        ? {}
-        : {
-            declaration: parameter.declaration,
-            ...(host.ast.typeNode(parameter.declaration) === undefined
-              ? {}
-              : {
-                  authoredTypeNode: host.ast.typeNode(
-                    parameter.declaration,
-                  ),
-                }),
-          }),
-    },
-    queries,
-    use === "callable"
-      ? { ...state, sourceStorageSubject: entry?.kind === "resolved" ? entry.subject : undefined }
-      : state,
-  );
+    : scope.resolveFormedSourceTypeComponentEvidence(input.component);
   const runtimeDefault = parameter.omissionKind === "initializer" && resolved !== undefined
     ? csharpRuntimeParameterDefault(resolved) : undefined;
   const nullable = use === "parameter-list"
@@ -200,11 +201,8 @@ export function resolveSignatureParameterEvidence(
   const carrier = runtimeDefault?.parameterType ?? (resolved === undefined || !nullable
     ? resolved
     : csharpNullableTargetType(resolved));
-  const declaration = parameter.declaration;
-  if (use !== "callable" || declaration === undefined) return carrier;
-  const owner = host.ast.parent(declaration);
-  return owner !== undefined && host.ast.body(owner) !== undefined
-    ? resolveCsharpNativeParameterCarrier(scope, declaration, carrier, state) : carrier;
+  return capture.nativeParameter === undefined ? carrier
+    : resolveFormedCsharpNativeParameterCarrier(scope, capture.nativeParameter, carrier, input.state);
 }
 
 export function resolveSourceTypeComponentEvidence(

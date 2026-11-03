@@ -481,7 +481,7 @@ export function sourceValueDeclaration(
 }
 
 export function sourceValueDeclarationSyntax(
-  { host }: CsharpTypeResolutionScope,
+  { host }: { readonly host: Pick<CsharpTypeResolutionScope["host"], "ast"> },
   declaration: Node,
 ): {
   readonly type?: Node;

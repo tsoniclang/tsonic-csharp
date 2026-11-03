@@ -399,6 +399,9 @@ export interface CsharpTypeResolutionScope {
   state: CsharpTypeResolutionState,
   use: "callable" | "parameter-list",
 ): TargetTypeRef | undefined;
+  resolveFormedSignatureParameterEvidence(
+    input: import("./signature-parameter-source.js").CsharpSignatureParameterInput,
+  ): TargetTypeRef | undefined;
   resolveSourceTypeComponentEvidence(
   component: SourceTypeComponentEvidence,
   queries: SourceFileSemantics,

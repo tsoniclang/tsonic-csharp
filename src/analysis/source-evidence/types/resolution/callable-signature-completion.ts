@@ -11,9 +11,12 @@ import { completeCsharpCallableDeclaration,
 import type { CsharpTypePolicyBaseHost, CsharpTypeResolutionState } from "./model.js";
 import { formCsharpSourceTypeComponentCapture, bindCsharpSourceTypeComponentCapture,
   type CsharpSourceTypeComponentCapture, type CsharpSourceTypeComponentSource } from "./type-component-source.js";
+import { formCsharpSignatureParameterCapture, bindCsharpSignatureParameterCapture,
+  type CsharpSignatureParameterCapture, type CsharpSignatureParameterInput } from "./signature-parameter-source.js";
 
 export interface CsharpCallableSignatureCapture {
   readonly source: CsharpCallableSignatureSource;
+  readonly parameters: readonly CsharpSignatureParameterCapture[];
   readonly returnSubject: CsharpTypeResolutionState["sourceStorageSubject"];
   readonly result: CsharpSourceTypeComponentCapture;
 }
@@ -22,6 +25,7 @@ export interface CsharpCallableSignatureInput {
   readonly capture: CsharpCallableSignatureCapture;
   readonly source: CsharpCallableSignatureSource;
   readonly state: CsharpTypeResolutionState;
+  readonly parameters: readonly CsharpSignatureParameterInput[];
   readonly returnState: CsharpTypeResolutionState;
   readonly resultSource: CsharpSourceTypeComponentSource;
 }
@@ -37,7 +41,8 @@ export type CsharpCallableTypeInput = {
 export type CsharpCallableSignatureRequest = {
   readonly input: CsharpCallableSignatureInput;
 } & (
-  | { readonly kind: "parameter"; readonly parameter: CsharpCallableSignatureSource["parameters"][number] }
+  | { readonly kind: "parameter"; readonly parameter: CsharpCallableSignatureSource["parameters"][number];
+      readonly source: CsharpSignatureParameterInput }
   | { readonly kind: "result"; readonly source: CsharpSourceTypeComponentSource }
   | { readonly kind: "constraint"; readonly source: CsharpTypeParameterConstraintSource }
 );
@@ -77,6 +82,8 @@ export function formCsharpCallableSignatureCapture(
     : host.sourceStorage.subject(source.callable.result.declaration, "return");
   const returnSubject = returned?.kind === "resolved" ? returned.subject : undefined;
   return Object.freeze({ source, returnSubject,
+    parameters: Object.freeze(source.parameters.map(parameter =>
+      formCsharpSignatureParameterCapture(host, parameter.parameter, source.queries, "callable", undefined))),
     result: formCsharpSourceTypeComponentCapture({ host }, source.callable.result, source.queries, returnSubject),
   });
 }
@@ -91,9 +98,16 @@ export function bindCsharpCallableSignatureCapture(
     return failTargetAnalysisInvariant("tsonic-csharp",
       "Signature binding requires its exact captured return input.", source.callable.result.declaration);
   }
+  if (capture.parameters === undefined || capture.parameters.length !== source.parameters.length ||
+      source.parameters.some((parameter, index) => capture.parameters[index]?.parameter !== parameter.parameter ||
+        capture.parameters[index]?.queries !== source.queries || capture.parameters[index]?.use !== "callable")) {
+    return failTargetAnalysisInvariant("tsonic-csharp",
+      "Signature binding requires its exact ordered parameter captures.", source.callable.result.declaration);
+  }
   const returnState = Object.freeze({ ...state,
     sourceStorageSubject: returnSubject });
   return Object.freeze({ capture, source, state, returnState,
+    parameters: Object.freeze(capture.parameters.map(parameter => bindCsharpSignatureParameterCapture(parameter, state))),
     resultSource: bindCsharpSourceTypeComponentCapture(capture.result, returnState),
   });
 }
@@ -120,10 +134,17 @@ export function* completeCsharpCallableSignatureSource(
     return failTargetAnalysisInvariant("tsonic-csharp",
       "Callable signature completion requires its exact retained return Source.", source?.callable.result.declaration);
   }
+  if (input.capture.parameters === undefined || input.capture.parameters.length !== source.parameters.length ||
+      input.parameters === undefined || input.parameters.length !== source.parameters.length ||
+      source.parameters.some((parameter, index) => input.parameters[index]?.capture !== input.capture.parameters[index] ||
+        input.parameters[index]?.capture.parameter !== parameter.parameter || input.parameters[index]?.state !== input.state)) {
+    return failTargetAnalysisInvariant("tsonic-csharp",
+      "Callable signature completion requires its exact ordered parameter Source.", source.callable.result.declaration);
+  }
   const parameters: CsharpTargetParameter[] = [];
   const completedParameters: Extract<CsharpCompletedCallableSignatureRequest, { readonly kind: "parameter" }>[] = [];
-  for (const parameter of source.parameters) {
-    const request = Object.freeze({ kind: "parameter" as const, input, parameter });
+  for (const [index, parameter] of source.parameters.entries()) {
+    const request = Object.freeze({ kind: "parameter" as const, input, parameter, source: input.parameters[index]! });
     const completed = yield request;
     if (completed.request !== request || completed.kind !== "parameter") return failTargetAnalysisInvariant("tsonic-csharp",
       "Callable signature completion requires its exact ordered parameter dependency.", source.callable.result.declaration);
