@@ -23,7 +23,8 @@ export function closeCsharpOwnerTypeParameterEnvironment(
   const enqueue = (parameter: TypeParameter): void => {
     budget.reserve(1);
     const resolution = resolve(parameter);
-    const finalized = snapshotCsharpTargetTypes([{ ...parameter, csharpConstraints: resolution }], budget)[0]!;
+    const finalized = parameter.csharpConstraints === resolution ? parameter
+      : snapshotCsharpTargetTypes([{ ...parameter, csharpConstraints: resolution }], budget)[0]!;
     if (finalized.kind !== "type-parameter") throw new TypeError("A native generic owner requires exact parameter carriers.");
     const previous = selected.get(parameter.identity);
     if (previous !== undefined) {
