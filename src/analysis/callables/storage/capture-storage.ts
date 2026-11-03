@@ -4,8 +4,7 @@ import type { Node } from "@tsonic/tsts";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
 import { sourceCallableDefinitionIsDiscarded, sourceBindingScope, sourceNodeIdentity } from "@tsonic/target-api/source";
 import { createHash } from "node:crypto";
-import type { CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../target-model/types/model.js";
-import type { CsharpObjectShapeClassifications } from "../../../target-model/records/objects/object-shapes.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpStorageIssue } from "../../../target-model/records/storage/storage.js";
 import type { CsharpCaptureStorageQueries } from "../../storage/index.js";
 import { createStructuralObjectShapeTarget } from "../../objects/shapes/construction.js";
@@ -29,7 +28,7 @@ import { readCsharpSelectedWritingReference } from "../values/argument-passing.j
 
 export function analyzeCsharpCaptureStorage(
   source: TargetSourceProgram,
-  shapes: CsharpObjectShapeClassifications,
+  methodImplementations: readonly NonNullable<CsharpObjectShapeFact["methodImplementation"]>[],
   storage: CsharpCaptureStorageQueries,
   evidence: CsharpSourceEvidenceIndex,
   classCaptures: readonly import("../../../target-model/records/objects/class-factories.js").CsharpClassCapture[],
@@ -59,8 +58,8 @@ export function analyzeCsharpCaptureStorage(
     physicalTypes.set(declaration, selected ?? null);
     return selected ?? logicalType;
   };
-  for (const shape of shapes.knownShapes()) {
-    for (const capture of (shape.declarationTemplate ?? shape).methodImplementation?.captures ?? []) {
+  for (const implementation of methodImplementations) {
+    for (const capture of implementation.captures) {
       physicalType(capture.declaration, capture.type);
       const writtenArgument = source.navigation.declarationUseSummary(capture.declaration).uses.some(use =>
         readCsharpSelectedWritingReference(source, evidence, selectedCalls, use.reference) !== undefined);
@@ -81,7 +80,7 @@ export function analyzeCsharpCaptureStorage(
       }
       bindings.set(capture.declaration, selected);
       groups.set(scope, bindings);
-      retainProtocol(scope, { kind: "method", declaration: (shape.declarationTemplate ?? shape).methodImplementation!.declaration });
+      retainProtocol(scope, { kind: "method", declaration: implementation.declaration });
     }
   }
   for (const capture of classCaptures) {

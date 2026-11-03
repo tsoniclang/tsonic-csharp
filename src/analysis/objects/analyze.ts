@@ -26,6 +26,7 @@ import { createCsharpObjectShapePropertyOrderIndex } from "./property-order.js";
 import { instantiateCsharpObjectShape } from "../../policy/types/objects/instantiation.js";
 import type { CsharpProjectTypeIssue } from "../../target-model/records/types/project-types.js";
 import { namedTargetTypeImplicitlyAccepts } from "../../policy/conversions/carriers.js";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 
 const noExpectedShape = "<none>";
 const maximumObjectShapeClassifications = 131_072;
@@ -34,7 +35,11 @@ export function analyzeCsharpObjectShapes(
   policy: CsharpPolicyContext,
   evidence: CsharpSourceEvidenceIndex,
   operations: CsharpTargetOperationClassifications,
-): CsharpObjectShapeClassifications & CsharpStructuralInterfaceRegistration & { seal(): CsharpObjectShapeAnalysis } {
+): CsharpObjectShapeClassifications & CsharpStructuralInterfaceRegistration & {
+  methodImplementations(): readonly NonNullable<CsharpObjectShapeFact["methodImplementation"]>[];
+  completeFormation(): readonly CsharpObjectShapeFact[];
+  seal(): CsharpObjectShapeAnalysis;
+} {
   const byNode = new Map<Node, CsharpObjectShapeFact>();
   const byTarget = new Map<string, CsharpObjectShapeFact>();
   const templates = new Map<string, CsharpObjectShapeFact>();
@@ -58,8 +63,9 @@ export function analyzeCsharpObjectShapes(
   let classificationCount = 0;
   let sealed = false;
   let published: CsharpObjectShapeAnalysis | undefined;
-  let knownShapes: readonly CsharpObjectShapeFact[] = Object.freeze([]);
+  let knownShapes: readonly CsharpObjectShapeFact[] | undefined;
   let targetShapes: CsharpObjectShapeAnalysis["targetShapes"] = Object.freeze({});
+  const structuralImplementationTypes: TargetTypeRef[] = [];
   const structuralInterfaces = new Map<string, Map<string, {
     readonly selected: CsharpStructuralInterfaceImplementation;
     readonly source: TargetTypeRef;
@@ -101,6 +107,19 @@ export function analyzeCsharpObjectShapes(
       : { ...shape, ...(interfaces.size === 0 ? {} : { implements: Object.freeze([...interfaces.values()]) }),
         ...(declarationTemplate === undefined ? {} : { declarationTemplate }) };
   };
+  const freezeShape = (shape: CsharpObjectShapeFact): CsharpObjectShapeFact => {
+    for (const member of shape.members) Object.freeze(member);
+    Object.freeze(shape.members);
+    return Object.freeze(shape);
+  };
+  const completeShape = (shape: CsharpObjectShapeFact): CsharpObjectShapeFact => {
+    const canonical = byTarget.get(targetTypeRefKey(shape.targetType)) ?? shape;
+    const existing = completedShapes.get(canonical);
+    if (existing !== undefined) return existing;
+    const selected = freezeShape(withInterfaces(canonical)!);
+    completedShapes.set(canonical, selected);
+    return selected;
+  };
 
   const rememberShape = (shape: CsharpObjectShapeFact | undefined): void => {
     if (
@@ -110,6 +129,8 @@ export function analyzeCsharpObjectShapes(
     ) {
       return;
     }
+    if (knownShapes !== undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+      "Object-shape registration must join the current formation before its inventory is published.");
     const key = targetTypeRefKey(shape.targetType);
     const previous = byTarget.get(key);
     if (previous !== undefined && !csharpObjectShapesEqual(previous, shape)) {
@@ -352,15 +373,25 @@ export function analyzeCsharpObjectShapes(
     return result;
   }
 
-  const classifications: CsharpObjectShapeClassifications & CsharpStructuralInterfaceRegistration & { seal(): CsharpObjectShapeAnalysis } = {
+  const classifications: CsharpObjectShapeClassifications & CsharpStructuralInterfaceRegistration & {
+    methodImplementations(): readonly NonNullable<CsharpObjectShapeFact["methodImplementation"]>[];
+    completeFormation(): readonly CsharpObjectShapeFact[];
+    seal(): CsharpObjectShapeAnalysis;
+  } = {
     propertyOrder: propertyOrders.propertyOrder,
     assignmentSourceOrder: propertyOrders.assignmentSourceOrder,
     structuralImplementations,
-    knownShapes() {
-      if (sealed) return knownShapes;
+    methodImplementations() {
       closeStructuralShapes();
       for (const shape of byTarget.values()) admittedShapes.add(shape);
-      return Object.freeze([...byTarget.values()].map(shape => withInterfaces(shape)!));
+      return Object.freeze([...byTarget.values()].flatMap(shape => {
+        const implementation = (shape.declarationTemplate ?? shape).methodImplementation;
+        return implementation === undefined ? [] : [implementation];
+      }));
+    },
+    knownShapes() {
+      return knownShapes ?? failTargetAnalysisInvariant("tsonic-csharp",
+        "Object-shape inventory requires the completed current formation.");
     },
     methodImplementationHasCopies(shape) {
       const implementation = (shape.declarationTemplate ?? shape).methodImplementation;
@@ -368,6 +399,8 @@ export function analyzeCsharpObjectShapes(
     },
     registerStructuralInterface(expression, source, destination, sourceType) {
       if (sealed) throw new Error("C# structural-interface analysis is sealed.");
+      if (knownShapes !== undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+        "Structural implementation DATA must join the current formation before its inventory is published.", expression);
       if (getCsharpNullableElementTargetType(source) !== undefined &&
         getCsharpNullableElementTargetType(destination) === undefined) return false;
       source = getCsharpNullableElementTargetType(source) ?? source;
@@ -404,28 +437,10 @@ export function analyzeCsharpObjectShapes(
       }
       return true;
     },
-    seal() {
-      if (sealed) throw new Error("C# object-shape analysis is sealed.");
+    completeFormation() {
+      if (knownShapes !== undefined) return knownShapes;
       closeStructuralShapes();
       for (const shape of byTarget.values()) admittedShapes.add(shape);
-      for (const shape of admittedShapes) {
-        propertyOrders.record(shape);
-        if (shape.declarationTemplate !== undefined) admittedShapes.add(shape.declarationTemplate);
-      }
-      for (const literal of objectLiterals.keys()) propertyOrders.recordEmptyLiteral(literal);
-      const freezeShape = (shape: CsharpObjectShapeFact): CsharpObjectShapeFact => {
-        for (const member of shape.members) Object.freeze(member);
-        Object.freeze(shape.members);
-        return Object.freeze(shape);
-      };
-      const completeShape = (shape: CsharpObjectShapeFact): CsharpObjectShapeFact => {
-        const canonical = byTarget.get(targetTypeRefKey(shape.targetType)) ?? shape;
-        const existing = completedShapes.get(canonical);
-        if (existing !== undefined) return existing;
-        const selected = freezeShape(withInterfaces(canonical)!);
-        completedShapes.set(canonical, selected);
-        return selected;
-      };
       for (const literal of objectLiterals.keys()) {
         const shape = byNode.get(literal);
         if (shape !== undefined) freezeShape(shape);
@@ -434,12 +449,7 @@ export function analyzeCsharpObjectShapes(
         }
       }
       for (const shape of admittedShapes) completeShape(shape);
-      for (const [node, shape] of byNode) {
-        const completed = completeShape(shape);
-        propertyOrders.recordOccurrence(node, shape, completed);
-        byNode.set(node, completed);
-      }
-      propertyOrders.seal();
+      for (const shape of byNode.values()) completeShape(shape);
       for (const shape of byTarget.values()) {
         const selected = completeShape(shape);
         if (selected.targetType.kind === "target-named" && (selected.targetType.typeArguments?.length ?? 0) > 0 &&
@@ -454,7 +464,7 @@ export function analyzeCsharpObjectShapes(
             Object.freeze({ ...result, shape: completeShape(result.shape) }));
         }
       }
-      const publishedShapes = [...byTarget.values()].map(completeShape).concat([...byNode.values()], [...copies.values()],
+      const publishedShapes = [...byTarget.values()].map(completeShape).concat([...byNode.values()].map(completeShape), [...copies.values()],
         [...objectLiterals.keys()].flatMap(literal =>
           [...literalResults.get(literal)?.values() ?? []].flatMap(result => result.kind === "resolved" ? [result.shape] : [])));
       const demandedTypes = [...evidence.targetTypes, ...operationTypes, ...physicalTypes];
@@ -495,7 +505,6 @@ export function analyzeCsharpObjectShapes(
         shapeQueue.push(instance);
       }
       const returnedShapes = [...publishedShapes, ...instantiatedShapes.values()];
-      const structuralImplementationTypes: TargetTypeRef[] = [];
       for (const shape of returnedShapes) {
         const type = shape.targetType;
         const key = targetTypeRefKey(type);
@@ -517,6 +526,23 @@ export function analyzeCsharpObjectShapes(
         ...instantiatedShapes,
         ...[...byTarget].map(([key, shape]) => [key, completeShape(shape)] as const),
       ]));
+      return knownShapes;
+    },
+    seal() {
+      if (sealed) throw new Error("C# object-shape analysis is sealed.");
+      if (knownShapes === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+        "Physical object-shape sealing requires the completed current formation.");
+      for (const shape of admittedShapes) {
+        propertyOrders.record(shape);
+        if (shape.declarationTemplate !== undefined) admittedShapes.add(shape.declarationTemplate);
+      }
+      for (const literal of objectLiterals.keys()) propertyOrders.recordEmptyLiteral(literal);
+      for (const [node, shape] of byNode) {
+        const completed = completeShape(shape);
+        propertyOrders.recordOccurrence(node, shape, completed);
+        byNode.set(node, completed);
+      }
+      propertyOrders.seal();
       admittedShapes.clear();
       sealed = true;
       published = sealCsharpObjectShapeClassifications({
@@ -542,7 +568,7 @@ export function analyzeCsharpObjectShapes(
       return literalUnionCarriers.get(node)?.get(targetTypeRefKey(type));
     },
     resolveCopyShape(shape) {
-      if (!sealed) {
+      if (knownShapes === undefined) {
         preparePhysicalShapes();
       }
       const copy = copies.get(targetTypeRefKey(shape.targetType));
@@ -551,11 +577,12 @@ export function analyzeCsharpObjectShapes(
     },
     resolveNode(node: Node | undefined) {
       const shape = node === undefined ? undefined : byNode.get(node);
-      return sealed ? shape : withInterfaces(shape);
+      return knownShapes === undefined ? withInterfaces(shape) : shape === undefined ? undefined : completeShape(shape);
     },
     resolveTarget(type) {
       if (type === undefined) return undefined;
       if (published !== undefined) return published.resolveTarget(type);
+      if (knownShapes !== undefined) return targetShapes[targetTypeRefKey(getCsharpNullableElementTargetType(type) ?? type)];
       let shape = byTarget.get(targetTypeRefKey(type));
       if (shape === undefined && !sealed) {
         shape = policy.objectShapes.resolveTarget(type);
@@ -571,8 +598,9 @@ export function analyzeCsharpObjectShapes(
       const key = original === undefined
         ? noExpectedShape
         : csharpObjectShapeContractKey(original);
-      const result = literalResults.get(objectLiteral)?.get(key) ?? classifyLiteral(original, objectLiteral);
-      return result?.kind === "resolved"
+      const result = literalResults.get(objectLiteral)?.get(key) ??
+        (knownShapes === undefined ? classifyLiteral(original, objectLiteral) : undefined);
+      return result?.kind === "resolved" && knownShapes === undefined
         ? { ...result, shape: withInterfaces(result.shape)! } : result;
     },
   };

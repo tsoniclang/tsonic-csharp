@@ -9,9 +9,9 @@ import { csharpNativeMemoryLayoutsEqual } from "../../target-model/operations/na
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { csharpStructuralObjectShapeIdentity } from "../../target-model/types/object-shape-identity.js";
 import type { CsharpSourceEvidenceAnalysis } from "../source-evidence/model.js";
-import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
+import type { CsharpPropertyClassification, CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
 import type { CsharpNativeArrayStorage, CsharpStorageIssue } from "../../target-model/records/storage/storage.js";
-import type { CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
+import type { CsharpObjectShapeFact } from "../../target-model/types/model.js";
 import { createCsharpNativeFieldBacking } from "./native-field-backing.js";
 import { createCsharpTypeParameterEnvironment } from "../source-evidence/types/resolution/type-parameter-environment.js";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
@@ -21,6 +21,7 @@ interface CsharpNativeFieldDemand {
   readonly expression: Node;
   readonly layout: CsharpNativeMemoryLayout;
   readonly stride: bigint;
+  readonly source: CsharpPropertyClassification["sourceOwned"];
 }
 
 interface CsharpNativeBackingGeometry {
@@ -147,7 +148,9 @@ export function prepareCsharpNativeBacking(
         }
         if (storage.kind === "reference-property-storage") {
           if (!fieldDemands.some(demand => demand.call === origin.call)) {
-            fieldDemands.push(Object.freeze({ call: origin.call, expression: storage.expression, layout: selected, stride }));
+            fieldDemands.push(Object.freeze({ call: origin.call, expression: storage.expression, layout: selected, stride,
+              source: operations.selectedProperty.get(storage.expression)?.sourceOwned,
+            }));
           }
           continue;
         }
@@ -183,15 +186,20 @@ export function prepareCsharpNativeBacking(
       } else backings.set(subject, declared);
     }
   }
-  let finalized = false;
+  let fields: ReturnType<typeof finalizeCsharpNativeFieldBacking> | undefined;
   Object.freeze(fieldDemands);
   return Object.freeze({ issues: Object.freeze(issues),
     arrays: Object.freeze([...arrays].map(([subject, storage]) => Object.freeze({ subject, storage }))),
     array: (node: Node) => arrays.get(node),
-    finalize(objectShapes: CsharpObjectShapeClassifications) {
-      if (finalized) return failTargetAnalysisInvariant("tsonic-csharp", "Native field backing finalizes exactly once per complete representation iteration.");
-      finalized = true;
-      return finalizeCsharpNativeFieldBacking(policy, evidence, operations, objectShapes, fieldDemands);
+    publishFields(shapes: readonly CsharpObjectShapeFact[]): void {
+      if (fields !== undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+        "Current native field layout consumes one complete implementing-shape publication.");
+      fields = finalizeCsharpNativeFieldBacking(policy, evidence, shapes, fieldDemands);
+    },
+    get fields() {
+      if (fields === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+        "Native storage reads require completed current field-layout publication.");
+      return fields;
     },
     entries: Object.freeze([...backings].map(([subject, geometry]) => Object.freeze({ subject, layout: geometry.layout }))),
     get: (subject: Node) => backings.get(subject)?.layout });
@@ -200,17 +208,18 @@ export function prepareCsharpNativeBacking(
 function finalizeCsharpNativeFieldBacking(
   policy: CsharpPolicyContext,
   evidence: CsharpSourceEvidenceAnalysis,
-  operations: CsharpTargetOperationClassifications,
-  objectShapes: CsharpObjectShapeClassifications,
+  shapes: readonly CsharpObjectShapeFact[],
   fieldDemands: readonly CsharpNativeFieldDemand[],
 ) {
   const demands = fieldDemands.map(demand => {
-    const source = operations.selectedProperty.get(demand.expression)?.sourceOwned;
-    const shape = source?.objectShape === undefined ? undefined : objectShapes.resolveTarget(source.objectShape.targetType);
+    const source = demand.source;
+    const targetType = source?.objectShape?.targetType;
+    const shape = targetType === undefined ? undefined
+      : shapes.find(shape => targetTypeRefEquals(shape.targetType, targetType));
     const member = source?.shapeMember?.kind === "resolved" ? source.shapeMember.member : undefined;
     return Object.freeze({ ...demand, shape, member });
   });
-  const fields = createCsharpNativeFieldBacking(objectShapes.knownShapes(),
+  const fields = createCsharpNativeFieldBacking(shapes,
     createCsharpTypeParameterEnvironment(policy.ast, declaration => evidence.typeParameterConstraints.get(declaration)));
   const issues: CsharpStorageIssue[] = [];
   for (const demand of demands) {

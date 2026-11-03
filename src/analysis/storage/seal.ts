@@ -48,7 +48,7 @@ export function sealCsharpStorage(
   preparation: CsharpStoragePreparation,
 ): CsharpStorageClassifications {
   const { representations, backing } = preparation;
-  const fields = backing.finalize(objectShapes);
+  const fields = backing.fields;
   const issues = [...representations.issues, ...backing.issues, ...fields.issues];
   const nativeLocations = new WeakMap<Node, ReturnType<typeof classifyCsharpNativeLocation>>();
   const sourceFiles = policy.sourceFiles;

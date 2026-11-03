@@ -227,7 +227,7 @@ export function analyzeCsharpRepresentationIteration(
   const storagePreparation = prepareCsharpStorage(policy, backingEvidence, operations, storageRepresentations, valueReads.valueRead);
   const classFactories = analyzeCsharpClassFactories(source, typeSystem.projectTypes.catalog, sourceEvidence,
     storagePreparation.captures, names, operations, requiredRecords);
-  const captureStorage = analyzeCsharpCaptureStorage(source, objectShapes, storagePreparation.captures, sourceEvidence,
+  const captureStorage = analyzeCsharpCaptureStorage(source, objectShapes.methodImplementations(), storagePreparation.captures, sourceEvidence,
     classFactories.factories.flatMap(factory => factory.captures), callables, operations.erasedStatement, operations);
   const callableCreationResult = analyzeCsharpCallableCreations({
     source, nodes: sourceStorage.nodes, captures: captureStorage, contracts: callables,
@@ -325,6 +325,7 @@ export function analyzeCsharpRepresentationIteration(
     bindingCarrierFor: declaration => storageRepresentations.storageType.get(declaration),
     expressionCarrierFor: expression => valueReads.valueRead.get(expression)?.value,
   });
+  storagePreparation.backing.publishFields(objectShapes.completeFormation());
   const sealedObjectShapes = objectShapes.seal();
   const storage = sealCsharpStorage(policy, backingEvidence, operations, sealedObjectShapes, storagePreparation);
   return resolvedTargetStage(Object.freeze({
