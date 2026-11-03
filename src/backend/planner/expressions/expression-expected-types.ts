@@ -80,39 +80,6 @@ export function planCsharpNativeExpression(
       return literal.kind === "resolved" ? complete(literal.expression)
         : failCsharpPlannerInvariant("An admitted native literal requires its renderable exact recipe.", node);
     }
-    if (use.dynamicObject !== undefined) {
-      const type = csharpTypeFromTargetTypeRef(use.carrier, input.scope.typeParameterNames)
-        ?? failCsharpPlannerInvariant("An admitted broad literal requires its selected native value owner.", node);
-      const selected = use.dynamicObject;
-      const backingType = csharpTypeFromTargetTypeRef(selected.backingType, input.scope.typeParameterNames)
-        ?? failCsharpPlannerInvariant("An admitted broad literal requires its existing native object backing.", node);
-      const name = input.names.temporaryName(`__tsonic_object_${input.program.source.ast.pos(node)}`);
-      const receiver = { kind: "IdentifierName" as const, name };
-      const prelude: CsharpStatement[] = [{ kind: "LocalDeclarationStatement", name, type: backingType,
-        initializer: { kind: "ObjectCreationExpression", type: backingType, arguments: [] } }];
-      for (const member of selected.members) {
-        const value = mapCsharpPlannedValue(
-          planners.planExpression(member.initializer, sourceFile, input, diagnostics, state), selected.argumentType,
-          (expression, conversionPrelude) => applyCsharpConversionSelection(member.initializer, sourceFile, input, diagnostics,
-            member.carrier, selected.argumentType, member.conversion, expression, conversionPrelude, readCsharpExpressionOperandStability(member.initializer, input, member.carrier, selected.argumentType, "implicit", member.conversion)));
-        if (value === undefined) return undefined;
-        prelude.push(...value.prelude);
-        if (value.completion.kind === "never") return { prelude, completion: value.completion };
-        if (value.completion.kind !== "value") return failCsharpPlannerInvariant(
-          "An admitted broad native property requires its selected argument value.", member.initializer);
-        prelude.push({ kind: "ExpressionStatement", expression: {
-          kind: "InvocationExpression", callee: { kind: "SimpleMemberAccessExpression", receiver, name: selected.writeMember },
-          arguments: [
-            { kind: "Argument", expression: { kind: "LiteralExpression", value: member.name } },
-            { kind: "Argument", expression: value.completion.expression },
-          ],
-        } });
-      }
-      return csharpPlannedValue(use.carrier, { kind: "InvocationExpression",
-        callee: { kind: "SimpleMemberAccessExpression", receiver: type, name: selected.resultMember },
-        arguments: [{ kind: "Argument", expression: receiver }],
-      }, prelude);
-    }
     if (use.discardedPresence !== undefined) return renderDiscarded(use.discardedPresence);
     if (use.binary !== undefined) return planSelectedCsharpBinaryOperation(node, use.binary, sourceFile, input, diagnostics, planners.planExpression, state);
     const ast = input.program.source.ast;
