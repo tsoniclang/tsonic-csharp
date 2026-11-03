@@ -237,8 +237,6 @@ function createCsharpTypeSystem(
     bindStructuralTypeApplication: typeResolution.bindStructuralTypeApplication,
     projectSemanticSource: typeResolution.projectSemanticSource,
     completeAuthoredSelection: typeResolution.completeAuthoredSelection,
-    callContractSource: typeResolution.callContractSource,
-    completeCallContract: typeResolution.completeCallContract,
   });
   bindingProjections = createCsharpBindingProjectionPolicy({
     ...host,
