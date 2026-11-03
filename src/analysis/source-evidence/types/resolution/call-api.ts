@@ -168,14 +168,13 @@ export function completeCsharpSourceCallArgumentParameter(
       selection: resolveFormedSourceCallContract(scope, request.association.source, request.state, "implementation") }));
     else if (request.kind === "parameters") step = completion.next(Object.freeze({ kind: "parameters", request,
       matches: scope.sourceCallableTypeParametersMatch(source, request.callable, request.selection.kind) }));
+    else if (request.kind === "contracted") step = completion.next(Object.freeze({ kind: "contracted", request,
+      completion: scope.completeSourceCallableType(request.typeInput) }));
     else {
       const parameter = request.association.checkedParameter;
-      const type = request.kind === "contracted"
-        ? scope.resolveSourceCallableContractType(source, request.callable, request.parameter.targetParameter.type,
-          sourceFile, request.state, request.association.excludedSourceArgumentIndexes)
-        : scope.resolveSourceCallSelectedType(source, parameter.parameterDeclaration, parameter.authoredTypeNode,
-          parameter.rest ? parameter.selectedType : request.association.binding.selectedParameterType,
-          sourceFile, request.state, request.association.excludedSourceArgumentIndexes);
+      const type = scope.resolveSourceCallSelectedType(source, parameter.parameterDeclaration, parameter.authoredTypeNode,
+        parameter.rest ? parameter.selectedType : request.association.binding.selectedParameterType,
+        sourceFile, request.state, request.association.excludedSourceArgumentIndexes);
       step = completion.next(Object.freeze({ kind: request.kind, request, type }));
     }
   }

@@ -30,6 +30,9 @@ import type { CsharpSourceCallResultSource } from "./call-result-source.js";
 import type { CsharpSemanticTypeArgumentsSource } from "./semantic-argument-source.js";
 import type { CsharpDirectSourceEvidence } from "./direct-source-evidence.js";
 import type { CsharpSourceCallInference } from "./call-inference.js";
+import type { CsharpSourceCallableTypeInput, CsharpSourceCallableTypeCompletion } from "./call-type-source.js";
+import type { CsharpSelectedReceiverInput, CsharpSelectedReceiverCompletion,
+  CsharpSourceCallReceiverInput, CsharpSourceCallReceiverCompletion } from "./receiver-completions.js";
 export interface CsharpTypeResolutionScope {
   nodeQuerySource(node: Node | undefined, sourceFile?: SourceFile): CsharpNodeQuerySource;
   completeNodeQuery(source: CsharpNodeQuerySource): CsharpNodeTypeResolution | undefined;
@@ -193,6 +196,7 @@ export interface CsharpTypeResolutionScope {
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined;
+  completeSelectedReceiver(input: CsharpSelectedReceiverInput): CsharpSelectedReceiverCompletion | undefined;
   resolveSourceOwnedConstructionResult(
   source: NonNullable<
     ReturnType<SourceFileSemantics["operations"]["call"]>
@@ -313,6 +317,7 @@ export interface CsharpTypeResolutionScope {
   state: CsharpTypeResolutionState,
   excludedSourceArgumentIndexes?: ReadonlySet<number>,
 ): TargetTypeRef | undefined;
+  completeSourceCallableType(input: CsharpSourceCallableTypeInput): CsharpSourceCallableTypeCompletion | undefined;
   inferSourceCallTargetTypeArguments(
   source: ResolvedSourceCallInfo,
   callable: SourceCallableContract | undefined,
@@ -329,6 +334,7 @@ export interface CsharpTypeResolutionScope {
   selectedSourceFile: SourceFile,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined;
+  completeSourceCallReceiver(input: CsharpSourceCallReceiverInput): CsharpSourceCallReceiverCompletion | undefined;
   resolveSourceCallContract(
   source: ResolvedSourceCallInfo,
   sourceFile: SourceFile,

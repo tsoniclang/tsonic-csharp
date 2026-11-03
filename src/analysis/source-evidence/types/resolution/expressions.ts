@@ -30,6 +30,7 @@ import { formCsharpSelectedExpressionSource, formCsharpSourceOwnedConstructionSo
 import { formCsharpSourceCallContractSource } from "./call-contracts.js";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { ResolvedSourceCallInfo } from "../../../../target-model/records/calls/source-calls.js";
+import { completeCsharpSelectedReceiver } from "./receiver-completions.js";
 
 export function resolveSelectedExpressionType(
   scope: CsharpTypeResolutionScope,
@@ -432,7 +433,7 @@ function projectInstanceTargetTypeAt(
 }
 
 export function resolveSelectedReceiverTargetType(
-  { host, resolveNodeWithState, resolveTypeWithState }: CsharpTypeResolutionScope,
+  scope: CsharpTypeResolutionScope,
   receiver: {
     readonly expression?: Node;
     readonly type?: Type;
@@ -440,37 +441,7 @@ export function resolveSelectedReceiverTargetType(
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
-  const expressionTarget = resolveNodeWithState(
-    receiver?.expression,
-    queries.sourceFile,
-    nextState(state),
-  );
-  if (expressionTarget !== undefined) {
-    return expressionTarget;
-  }
-  const semanticTarget = resolveTypeWithState(
-    receiver?.type,
-    queries.sourceFile,
-    nextState(state),
-  );
-  if (semanticTarget !== undefined) {
-    return semanticTarget;
-  }
-  if (
-    receiver?.expression === undefined ||
-    host.ast.kindName(receiver.expression) !== "KindThisKeyword"
-  ) {
-    return undefined;
-  }
-  const owner = host.projectTypeCatalog.definitionContainingDeclaration(
-    receiver.expression,
-  );
-  return owner === undefined
-    ? undefined
-    : host.projectTypeCatalog.targetTypeForDeclaration(
-        owner.declaration,
-        owner.typeParameterBindings,
-      );
+  return completeCsharpSelectedReceiver(scope, Object.freeze({ receiver, queries, state }))?.type;
 }
 
 export function resolveSourceOwnedConstructionResult(

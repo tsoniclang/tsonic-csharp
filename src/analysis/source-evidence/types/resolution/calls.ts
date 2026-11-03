@@ -6,7 +6,7 @@ import type { CsharpTypeResolutionState } from "./model.js";
 import type { ResolvedSourceCallInfo } from "../../../../target-model/records/calls/source-calls.js";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 
-import { inferCsharpTargetTypeParameterBindings, substituteTargetTypeParameters } from "../../../../policy/types/resolution/substitution.js";
+import { substituteTargetTypeParameters } from "../../../../policy/types/resolution/substitution.js";
 import { nextState } from "./state.js";
 
 import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
@@ -19,6 +19,9 @@ import { csharpSourceTypeParameter } from "../../../../source/extension/type-par
 import { bindCsharpSourceDeclarationArguments, bindCsharpSourceTypeArguments } from "./generic-arguments.js";
 import { getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
 import { completeCsharpSourceCallInference, type CsharpSourceCallInference } from "./call-inference.js";
+import { completeCsharpSourceCallableTypeSource, type CsharpSourceCallableTypeInput,
+  type CsharpSourceCallableTypeCompletion } from "./call-type-source.js";
+import type { CsharpSourceCallReceiverInput, CsharpSourceCallReceiverCompletion } from "./receiver-completions.js";
 
 export function resolveSourceCallInstantiation(
   scope: CsharpTypeResolutionScope,
@@ -257,7 +260,7 @@ export function resolveSourceCallSelectedType(
 }
 
 export function resolveSourceCallableContractType(
-  { host, resolveSourceCallInstantiation, resolveSourceCallReceiverTargetType }: CsharpTypeResolutionScope,
+  scope: CsharpTypeResolutionScope,
   source: ResolvedSourceCallInfo,
   callable: SourceCallableContract,
   type: TargetTypeRef,
@@ -265,44 +268,35 @@ export function resolveSourceCallableContractType(
   state: CsharpTypeResolutionState,
   excludedSourceArgumentIndexes?: ReadonlySet<number>,
 ): TargetTypeRef | undefined {
-  const instantiation = resolveSourceCallInstantiation(
-    source,
-    selectedSourceFile,
-    nextState(state),
-    callable.nativeSignature.methodTypeParameterIdentities,
-    callable,
-    excludedSourceArgumentIndexes,
-  );
-  if (instantiation === undefined) {
-    return undefined;
+  return completeCsharpSourceCallableType(scope, Object.freeze({ source, callable, type,
+    sourceFile: selectedSourceFile, state, excludedSourceArgumentIndexes }))?.type;
+}
+
+export function completeCsharpSourceCallableType(
+  { host, resolveSourceCallInstantiation, completeSourceCallReceiver }: CsharpTypeResolutionScope,
+  input: CsharpSourceCallableTypeInput,
+): CsharpSourceCallableTypeCompletion | undefined {
+  const completion = completeCsharpSourceCallableTypeSource(input);
+  let step = completion.next();
+  while (!step.done) {
+    const request = step.value;
+    if (request.kind === "instantiation") {
+      step = completion.next(Object.freeze({ kind: "instantiation", request,
+        instantiation: resolveSourceCallInstantiation(input.source, input.sourceFile, request.state,
+          input.callable.nativeSignature.methodTypeParameterIdentities, input.callable, input.excludedSourceArgumentIndexes) }));
+    } else if (request.kind === "receiver") {
+      step = completion.next(Object.freeze({ kind: "receiver", request,
+        completion: completeSourceCallReceiver(request.receiverInput) }));
+    } else if (request.kind === "declaration") {
+      step = completion.next(Object.freeze({ kind: "declaration", request,
+        result: host.projectTypes().instantiateDeclarationType(input.callable.nativeSignature.receiverTypeOwner,
+          request.receiverType, request.substituted) }));
+    } else {
+      step = completion.next(Object.freeze({ kind: "shape", request,
+        shape: host.structuralTypes.resolveTarget(request.receiverType) }));
+    }
   }
-  const substituted = substituteTargetTypeParameters(
-    type,
-    instantiation.substitutions,
-  );
-  const receiverType = resolveSourceCallReceiverTargetType(
-    source,
-    selectedSourceFile,
-    state,
-  );
-  const receiverInstantiation = callable.nativeSignature.receiverTypeOwner === undefined
-    ? { kind: "not-project-member" as const }
-    : host.projectTypes().instantiateDeclarationType(
-        callable.nativeSignature.receiverTypeOwner,
-        receiverType,
-        substituted,
-      );
-  if (receiverInstantiation.kind === "unresolved") {
-    return undefined;
-  }
-  if (receiverInstantiation.kind === "resolved") return receiverInstantiation.type;
-  const shape = receiverType === undefined ? undefined : host.structuralTypes.resolveTarget(receiverType);
-  const template = shape?.declarationTemplate?.targetType;
-  if (template?.kind !== "target-named" || receiverType === undefined) return substituted;
-  const names = new Set((template.typeArguments ?? []).flatMap(argument =>
-    argument.kind === "type-parameter" ? [argument.identity] : []));
-  const bindings = inferCsharpTargetTypeParameterBindings(template, receiverType, names);
-  return bindings === undefined ? undefined : substituteTargetTypeParameters(substituted, bindings);
+  return step.value;
 }
 
 export function inferSourceCallTargetTypeArguments(
@@ -331,27 +325,35 @@ export function resolveSourceCallReceiverTargetType(
   selectedSourceFile: SourceFile,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
-  const { host, resolveSelectedReceiverTargetType, resolveSourceOwnedConstructionResult, resolveTypeWithState, resolveNodeWithState } = scope;
+  return completeCsharpSourceCallReceiver(scope, Object.freeze({ source, sourceFile: selectedSourceFile, state }))?.type;
+}
+
+export function completeCsharpSourceCallReceiver(
+  scope: CsharpTypeResolutionScope,
+  input: CsharpSourceCallReceiverInput,
+): CsharpSourceCallReceiverCompletion | undefined {
+  const { host, completeSelectedReceiver, resolveSourceOwnedConstructionResult, resolveTypeWithState, resolveNodeWithState } = scope;
+  const { source, sourceFile, state } = input;
   if (host.ast.kindName(source.sourceCallee.expression) === "KindSuperKeyword") {
-    return resolveProjectConstructingReceiverTargetType(scope, source.sourceCallee.expression);
+    const type = resolveProjectConstructingReceiverTargetType(scope, source.sourceCallee.expression);
+    return type === undefined ? undefined : Object.freeze({ input, kind: "super", type });
   }
-  if (host.ast.is.IsNewExpression(source.call) && (
-    host.ast.is.IsClassDeclaration(source.sourceCallee.selectedDeclaration) &&
-    host.navigation.isProjectDeclaration(source.sourceCallee.selectedDeclaration) ||
-    getCsharpClassFactory(resolveNodeWithState(source.sourceCallee.expression, selectedSourceFile, nextState(state))) !== undefined)) {
-    return resolveSourceOwnedConstructionResult(source, host.semantics(selectedSourceFile), nextState(state));
+  if (host.ast.is.IsNewExpression(source.call)) {
+    const projectClass = host.ast.is.IsClassDeclaration(source.sourceCallee.selectedDeclaration) &&
+      host.navigation.isProjectDeclaration(source.sourceCallee.selectedDeclaration);
+    const factory = projectClass ? undefined
+      : getCsharpClassFactory(resolveNodeWithState(source.sourceCallee.expression, sourceFile, nextState(state)));
+    if (projectClass || factory !== undefined) {
+      const type = resolveSourceOwnedConstructionResult(source, host.semantics(sourceFile), nextState(state));
+      return type === undefined ? undefined : Object.freeze({ input, kind: "owned-construction", projectClass, factory, type });
+    }
   }
-  return host.ast.is.IsNewExpression(source.call)
-    ? resolveTypeWithState(
-        source.sourceResultType,
-        selectedSourceFile,
-        nextState(state),
-      )
-    : resolveSelectedReceiverTargetType(
-        source.sourceReceiver,
-        host.semantics(selectedSourceFile),
-        state,
-      );
+  if (host.ast.is.IsNewExpression(source.call)) {
+    const type = resolveTypeWithState(source.sourceResultType, sourceFile, nextState(state));
+    return type === undefined ? undefined : Object.freeze({ input, kind: "construction-result", type });
+  }
+  const selected = completeSelectedReceiver(Object.freeze({ receiver: source.sourceReceiver, queries: host.semantics(sourceFile), state }));
+  return selected === undefined ? undefined : Object.freeze({ input, kind: "selected", selected, type: selected.type });
 }
 
 export function sourceCallableTypeParametersMatch(
