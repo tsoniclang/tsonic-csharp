@@ -17,9 +17,9 @@ import { nextState } from "./state.js";
 import { csharpRuntimeParameterDefault } from "../../../../policy/types/storage/parameter-defaults.js";
 import { completeCsharpCallableABI, formCsharpCallableDeclaration } from "./callable-type-parameters.js";
 import { formCsharpCallableSignatureSource, formCsharpCallableTypeSource } from "./callable-signature-source.js";
-import type { CsharpCallableSignatureSource } from "../../../../target-model/records/types/callable-source.js";
 import { resolveFormedCsharpTypeParameterConstraints } from "./type-parameter-constraints.js";
-import { formCsharpSourceTypeComponentSource, resolveFormedCsharpSourceTypeComponent } from "./type-component-source.js";
+import { formCsharpSourceTypeComponentSource, resolveFormedCsharpSourceTypeComponent,
+  type CsharpSourceTypeComponentSource } from "./type-component-source.js";
 import { completeCsharpCallableSignatureSource, formCsharpCallableSignatureInput, formCsharpCallableTypeInput,
   type CsharpCallableSignatureInput, type CsharpCallableTypeInput, type CsharpCompletedCallableSignature } from "./callable-signature-completion.js";
 import { resolveCsharpNativeParameterCarrier, selectCsharpContextualParameterCarrier } from "./source-references.js";
@@ -100,7 +100,7 @@ export function resolveFormedCsharpCallableType(
       input.signature.state !== input.state || input.source.signature.queries !== input.source.queries) {
     return failTargetAnalysisInvariant("tsonic-csharp", "Callable completion requires its exact bound signature Source input.");
   }
-  const declared = resolveCsharpCallableSignatureInput(scope, input.signature);
+  const declared = resolveFormedCsharpCallableDeclarationSignature(scope, input.signature);
   return declared === undefined ? undefined : completeCsharpCallableSignatureABI(scope, declared);
 }
 
@@ -111,20 +111,13 @@ export function resolveCallableEvidence(
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
   const declared = resolveFormedCsharpCallableDeclarationSignature(scope,
-    formCsharpCallableSignatureSource(scope.host.ast, callable, queries,
-      formCsharpCallableDeclaration(callable.result.declaration, queries.sourceFile, scope.host.ast)), state);
+    formCsharpCallableSignatureInput(scope.host,
+      formCsharpCallableSignatureSource(scope.host.ast, callable, queries,
+        formCsharpCallableDeclaration(callable.result.declaration, queries.sourceFile, scope.host.ast)), state));
   return declared === undefined ? undefined : completeCsharpCallableSignatureABI(scope, declared);
 }
 
 export function resolveFormedCsharpCallableDeclarationSignature(
-  scope: CsharpTypeResolutionScope,
-  source: CsharpCallableSignatureSource,
-  state: CsharpTypeResolutionState,
-): CsharpCompletedCallableSignature | undefined {
-  return resolveCsharpCallableSignatureInput(scope, formCsharpCallableSignatureInput(scope.host, source, state));
-}
-
-function resolveCsharpCallableSignatureInput(
   scope: CsharpTypeResolutionScope,
   input: CsharpCallableSignatureInput,
 ): CsharpCompletedCallableSignature | undefined {
@@ -136,7 +129,7 @@ function resolveCsharpCallableSignatureInput(
       const type = scope.resolveSignatureParameterEvidence(request.parameter.parameter, input.source.queries, input.state, "callable");
       selected = completion.next(Object.freeze({ kind: "parameter", request, type }));
     } else if (request.kind === "result") {
-      const type = scope.resolveSourceTypeComponentEvidence(input.source.callable.result, input.source.queries, input.returnState);
+      const type = scope.resolveFormedSourceTypeComponentEvidence(request.source);
       selected = completion.next(Object.freeze({ kind: "result", request, type }));
     } else {
       const resolution = resolveFormedCsharpTypeParameterConstraints(request.source, dependency =>
@@ -214,10 +207,17 @@ export function resolveSourceTypeComponentEvidence(
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
-  const source = formCsharpSourceTypeComponentSource(scope, component, queries, state);
-  const pointer = component.declaration === undefined
+  return resolveFormedCsharpSourceTypeComponentEvidence(scope,
+    formCsharpSourceTypeComponentSource(scope, component, queries, state));
+}
+
+export function resolveFormedCsharpSourceTypeComponentEvidence(
+  scope: CsharpTypeResolutionScope,
+  source: CsharpSourceTypeComponentSource,
+): TargetTypeRef | undefined {
+  const pointer = source.component.declaration === undefined
     ? undefined
-    : scope.resolvePointerReturn(component.declaration, source.state);
+    : scope.resolvePointerReturn(source.component.declaration, source.state);
   if (pointer !== undefined) {
     return pointer.type;
   }

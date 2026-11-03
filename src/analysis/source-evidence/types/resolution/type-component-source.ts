@@ -1,7 +1,7 @@
 import type { SourceFileSemantics, SourceTypeComponentEvidence } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import type { CsharpTypeResolutionScope } from "./scope.js";
-import type { CsharpTypeResolutionState } from "./model.js";
+import type { CsharpTypePolicyBaseHost, CsharpTypeResolutionState } from "./model.js";
 import { formAuthoredAndSelectedSourceType, resolveFormedAuthoredAndSelectedSourceType,
   resolveSourceTypeDependency, type CsharpAuthoredTypeSelectionEvidence,
   type CsharpSourceTypeDependency } from "./selected-values.js";
@@ -21,7 +21,7 @@ export interface CsharpSourceTypeComponentSource {
 }
 
 export function formCsharpSourceTypeComponentSource(
-  { host }: Pick<CsharpTypeResolutionScope, "host">,
+  { host }: { readonly host: CsharpTypePolicyBaseHost },
   component: SourceTypeComponentEvidence,
   queries: SourceFileSemantics,
   inputState: CsharpTypeResolutionState,

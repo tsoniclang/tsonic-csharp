@@ -401,6 +401,9 @@ export interface CsharpTypeResolutionScope {
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined;
+  resolveFormedSourceTypeComponentEvidence(
+    source: import("./type-component-source.js").CsharpSourceTypeComponentSource,
+  ): TargetTypeRef | undefined;
   resolveSelectedSymbolType(
   symbol: Symbol,
   selectedType: Type | undefined,

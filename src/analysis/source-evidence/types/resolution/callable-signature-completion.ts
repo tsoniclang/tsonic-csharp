@@ -9,11 +9,13 @@ import { selectCsharpSourceParameterVector } from "../../../../policy/types/call
 import { completeCsharpCallableDeclaration,
   type CsharpCompletedCallableConstraint, type CsharpCompletedCallableDeclaration } from "./callable-type-parameters.js";
 import type { CsharpTypePolicyBaseHost, CsharpTypeResolutionState } from "./model.js";
+import { formCsharpSourceTypeComponentSource, type CsharpSourceTypeComponentSource } from "./type-component-source.js";
 
 export interface CsharpCallableSignatureInput {
   readonly source: CsharpCallableSignatureSource;
   readonly state: CsharpTypeResolutionState;
   readonly returnState: CsharpTypeResolutionState;
+  readonly resultSource: CsharpSourceTypeComponentSource;
 }
 
 export type CsharpCallableTypeInput = {
@@ -28,7 +30,7 @@ export type CsharpCallableSignatureRequest = {
   readonly input: CsharpCallableSignatureInput;
 } & (
   | { readonly kind: "parameter"; readonly parameter: CsharpCallableSignatureSource["parameters"][number] }
-  | { readonly kind: "result" }
+  | { readonly kind: "result"; readonly source: CsharpSourceTypeComponentSource }
   | { readonly kind: "constraint"; readonly source: CsharpTypeParameterConstraintSource }
 );
 
@@ -52,19 +54,21 @@ export interface CsharpCompletedCallableSignature {
 }
 
 export function formCsharpCallableSignatureInput(
-  host: Pick<CsharpTypePolicyBaseHost, "sourceStorage">,
+  host: CsharpTypePolicyBaseHost,
   source: CsharpCallableSignatureSource,
   state: CsharpTypeResolutionState,
 ): CsharpCallableSignatureInput {
   const returned = source.callable.result.declaration === undefined ? undefined
     : host.sourceStorage.subject(source.callable.result.declaration, "return");
-  return Object.freeze({ source, state, returnState: Object.freeze({ ...state,
-    sourceStorageSubject: returned?.kind === "resolved" ? returned.subject : undefined }),
+  const returnState = Object.freeze({ ...state,
+    sourceStorageSubject: returned?.kind === "resolved" ? returned.subject : undefined });
+  return Object.freeze({ source, state, returnState,
+    resultSource: formCsharpSourceTypeComponentSource({ host }, source.callable.result, source.queries, returnState),
   });
 }
 
 export function formCsharpCallableTypeInput(
-  host: Pick<CsharpTypePolicyBaseHost, "sourceStorage">,
+  host: CsharpTypePolicyBaseHost,
   source: CsharpCallableTypeSource,
   state: CsharpTypeResolutionState,
 ): CsharpCallableTypeInput {
@@ -78,6 +82,11 @@ export function* completeCsharpCallableSignatureSource(
 ): Generator<CsharpCallableSignatureRequest, CsharpCompletedCallableSignature | undefined,
   CsharpCompletedCallableSignatureRequest> {
   const source = input.source;
+  if (input.resultSource === undefined || input.resultSource.component !== source.callable.result ||
+      input.resultSource.queries !== source.queries || input.resultSource.inputState !== input.returnState) {
+    return failTargetAnalysisInvariant("tsonic-csharp",
+      "Callable signature completion requires its exact retained return Source.", source.callable.result.declaration);
+  }
   const parameters: CsharpTargetParameter[] = [];
   const completedParameters: Extract<CsharpCompletedCallableSignatureRequest, { readonly kind: "parameter" }>[] = [];
   for (const parameter of source.parameters) {
@@ -96,7 +105,7 @@ export function* completeCsharpCallableSignatureSource(
     parameters.push(...vector);
     completedParameters.push(completed);
   }
-  const resultRequest = Object.freeze({ kind: "result" as const, input });
+  const resultRequest = Object.freeze({ kind: "result" as const, input, source: input.resultSource });
   const result = yield resultRequest;
   if (result.request !== resultRequest || result.kind !== "result") return failTargetAnalysisInvariant("tsonic-csharp",
     "Callable signature completion requires its exact return dependency.", source.callable.result.declaration);
