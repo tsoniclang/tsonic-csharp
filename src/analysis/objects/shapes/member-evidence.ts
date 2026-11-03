@@ -349,6 +349,17 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
         const first = carriers[0];
         if (first !== undefined && isCsharpIntegralTargetType(first) &&
           carriers.every(carrier => carrier !== undefined && targetTypeRefEquals(carrier, first))) return first;
+      } else {
+        const declarations = [...new Set([property.symbol, ...property.rootSymbols].flatMap(symbol =>
+          queries.declarations.symbolDeclarations(symbol)))];
+        if (declarations.length > 0 && declarations.every(declaration =>
+          host.ast.is.IsPropertyAssignment(declaration) || host.ast.is.IsShorthandPropertyAssignment(declaration))) {
+          const carriers = declarations.map(declaration =>
+            host.typeResolver.resolveNode(declaration, queries.sourceFile, nextState(state)));
+          const first = carriers[0];
+          return first !== undefined && carriers.every(carrier => carrier !== undefined && targetTypeRefEquals(carrier, first))
+            ? first : undefined;
+        }
       }
       return host.typeResolver.resolveType(
         sourceType,

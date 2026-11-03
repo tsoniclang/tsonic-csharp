@@ -538,7 +538,9 @@ export function sourceValueDeclaration(
     host.ast.is.IsVariableDeclaration(node) ||
     host.ast.is.IsBindingElement(node) ||
     host.ast.is.IsParameterDeclaration(node) ||
-    host.ast.is.IsPropertyDeclaration(node)
+    host.ast.is.IsPropertyDeclaration(node) ||
+    host.ast.is.IsPropertyAssignment(node) ||
+    host.ast.is.IsShorthandPropertyAssignment(node)
   ) {
     return node;
   }
@@ -552,7 +554,9 @@ export function sourceValueDeclaration(
         host.ast.is.IsVariableDeclaration(referenced) ||
         host.ast.is.IsBindingElement(referenced) ||
         host.ast.is.IsParameterDeclaration(referenced) ||
-        host.ast.is.IsPropertyDeclaration(referenced)
+        host.ast.is.IsPropertyDeclaration(referenced) ||
+        host.ast.is.IsPropertyAssignment(referenced) ||
+        host.ast.is.IsShorthandPropertyAssignment(referenced)
       )
     ? referenced
     : undefined;
@@ -565,6 +569,10 @@ export function sourceValueDeclarationSyntax(
   readonly type?: Node;
   readonly initializer?: Node;
 } {
+  if (host.ast.is.IsPropertyAssignment(declaration) || host.ast.is.IsShorthandPropertyAssignment(declaration)) {
+    const initializer = ObjectLiteralProperty_Value(host.ast, declaration);
+    return initializer === undefined ? {} : { initializer };
+  }
   if (host.ast.is.IsVariableDeclaration(declaration)) {
     const value = host.ast.as.AsVariableDeclaration(declaration);
     return {
