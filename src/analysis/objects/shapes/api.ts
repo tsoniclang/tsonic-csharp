@@ -1,22 +1,16 @@
 import { createCsharpObjectShapeMemberResolver } from "./member-evidence.js";
-import { objectShapeMemberTargetName } from "../../../policy/identities/source-member-names.js";
 import { createStructuralObjectShapeTarget, mergeCsharpObjectShapeSubjects } from "./construction.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { csharpObjectShapesEqual } from "../../../target-model/types/object-shape-equality.js";
 import { csharpObjectShapeContractKey } from "../../../target-model/types/object-shape-identity.js";
-import { completeSelectedObjectShapeSource, isCsharpNativeSourceProfileMemberDeclaration, isProjectSourceTargetType, projectClassIsObjectInitializable, requiresUnresolvedStructuralProjection, sourceSubjects, typeHasProjectOwnedShapeDeclaration, typeIsExcludedFromObjectShape } from "./source-evidence.js";
-import { readCsharpSourceField, readCsharpSourceStruct } from "../../../source/extension/markers.js";
-import { Node_Initializer } from "@tsonic/target-api/source";
+import { completeSelectedObjectShapeSource, isCsharpNativeSourceProfileMemberDeclaration, isProjectSourceTargetType } from "./source-evidence.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../target-model/types/equality.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpRuntimeUnionTargetTypeRef, CsharpSourceMemberKey, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
-import type { Node, ExtensionFactSubject, SourceFile, Type } from "@tsonic/tsts";
+import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import type { CsharpTypeResolutionState } from "../../source-evidence/types/resolution/model.js";
-import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import { nextState } from "../../source-evidence/types/resolution/state.js";
-import { csharpSourceTemplateState } from "../../source-evidence/types/resolution/type-bindings.js";
-import { substituteObjectShapeMemberTargetTypeParameters } from "../../../policy/types/resolution/substitution.js";
 import { isCsharpJsValueTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
-import { csharpPropertySourceMemberKey, csharpSourceMemberKeysEqual } from "../../../target-model/types/source-member-keys.js";
+import { csharpSourceMemberKeysEqual } from "../../../target-model/types/source-member-keys.js";
 import { resolveProviderObjectLiteralShape } from "./provider-construction.js";
 import { createCsharpStructuralUnionDefinitions } from "./union-definitions.js";
 import { selectCsharpObjectMethodImplementation } from "./method-implementations.js";
@@ -30,7 +24,6 @@ import { retainCsharpGenericCallableValue } from "../../callables/generics/gener
 import type { CsharpObjectShapePolicyHost, CsharpRecursiveObjectShapePolicy } from "./model.js";
 
 import { instantiateCsharpObjectShape } from "../../../policy/types/objects/instantiation.js";
-import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../../target-model/types/object-shape-members.js";
 
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { createCsharpLiteralShapeResolver } from "./literal-construction.js";
@@ -47,8 +40,8 @@ export function createCsharpObjectShapePolicy(
 ): CsharpRecursiveObjectShapePolicy {
   const environment = host.typeParameterConstraints;
   const { collectMembers, memberInheritance, completeMember, completeMembers, completeSourceMembers,
-    formMemberInstantiationEvidence, instantiateMemberEvidence, retainMemberDeclarationEvidence,
-    resolvePropertyType, retainLiteralMemberEvidence } = createCsharpObjectShapeMemberResolver(host);
+    instantiateMemberEvidence, retainMemberDeclarationEvidence,
+    retainLiteralMemberEvidence } = createCsharpObjectShapeMemberResolver(host);
   const formation = createCsharpObjectShapeSourceFormation(host, collectMembers);
   const activeNodes = new WeakSet<object>();
   const activeTypes = new WeakSet<object>();
@@ -429,7 +422,9 @@ export function createCsharpObjectShapePolicy(
     const queries = host.semantics(sourceFile);
     activeTypes.add(type);
     try {
-      const members = deriveMembers(type, queries, { depth: 0 });
+      const collection = collectMembers(type, queries, Object.freeze({ depth: 0 }));
+      const source = collection === undefined ? undefined : host.structuralTypeApplication(collection);
+      const members = source === undefined ? undefined : completeSourceMembers(source, undefined);
       const matches = members?.filter((member) =>
         csharpSourceMemberKeysEqual(member.sourceKey, sourceKey)
       ) ?? [];
