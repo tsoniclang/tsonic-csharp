@@ -16,6 +16,10 @@ const sourceFile = Object.freeze({});
 const queries = Object.freeze({ sourceFile });
 const state = Object.freeze({ depth: 3, sourceBindings: new Map(), rejectNativeResolution: () => assert.fail("these synthetic leaves have no refusal") });
 const ast = Object.freeze({ typeParameters: () => Object.freeze([]) });
+const sourceHost = { ast: { is: { IsTypeAliasDeclaration: () => false, IsInterfaceDeclaration: () => false,
+  IsTypeParameterDeclaration: () => false } }, sourceStorage: {
+  subject: () => ({ kind: "unresolved" }), storageSubjectFor: () => ({ kind: "unresolved" }),
+} };
 const parameter = () => Object.freeze({ type: Object.freeze({}), parameterKind: "required", omissionKind: "required", acceptsOmission: false });
 const callable = (parameters, declaration) => Object.freeze({ parameters: Object.freeze(parameters),
   result: Object.freeze({ selectedType: Object.freeze({}), ...(declaration === undefined ? {} : { declaration }) }) });
@@ -49,6 +53,7 @@ test("checked signature Source retains the original tuple-rest group and declara
 test("authored signature completion keeps the original children without reading A", () => {
   const input = callable([parameter()], Object.freeze({}));
   const source = signatureSource(input);
+  const bound = formCsharpCallableSignatureInput(sourceHost, source, state);
   const children = [];
   const completed = resolveFormedCsharpCallableDeclarationSignature({
     host: { sourceStorage: { subject: () => ({ kind: "unresolved" }) },
@@ -59,14 +64,15 @@ test("authored signature completion keeps the original children without reading 
         "the original parameter occurrence and state reach the sole child");
       return integer;
     },
-    resolveSourceTypeComponentEvidence(value, actualQueries, actualState) {
+    resolveFormedSourceTypeComponentEvidence(resultSource) {
+      const { component: value, queries: actualQueries, inputState: actualState } = resultSource;
       children.push("return");
       assert.equal(value === input.result && actualQueries === queries && actualState.sourceBindings === state.sourceBindings, true,
         "the original result and bindings reach the return child");
       return csharpVoidTargetType();
     },
     resolveNodeWithState: () => assert.fail("this explicitly monomorphic declaration has no constraint child"),
-  }, source, state);
+  }, bound);
   assert.deepEqual(children, ["parameter", "return"]);
   assert.equal(completed?.source === source && completed.state === state && completed.declaration.source === source.declaration, true,
     "the intermediate retains the actual Source and authored declaration receipt");
@@ -74,12 +80,13 @@ test("authored signature completion keeps the original children without reading 
 
 test("an unavailable signature child stops later Native children without compacting Source rows", () => {
   const source = signatureSource(callable([parameter(), parameter()]));
+  const bound = formCsharpCallableSignatureInput(sourceHost, source, state);
   let visited = 0;
   const completed = resolveFormedCsharpCallableDeclarationSignature({ host: { sourceStorage: { subject: () => ({ kind: "unresolved" }) } },
     resolveSignatureParameterEvidence: () => { visited += 1; return undefined; },
-    resolveSourceTypeComponentEvidence: () => assert.fail("the original unavailable parameter stops the return child"),
+    resolveFormedSourceTypeComponentEvidence: () => assert.fail("the original unavailable parameter stops the return child"),
     resolveNodeWithState: () => assert.fail("the original unavailable parameter stops constraints"),
-  }, source, state);
+  }, bound);
   assert.equal(source.parameters.length, 2, "the actual Source vector is not compacted");
   assert.equal(completed === undefined && visited === 1, true, "only the original first Native child is visited");
 });
@@ -88,14 +95,14 @@ test("the normal callable wrapper appends the current A only after the same sign
   const declaration = Object.freeze({});
   const input = callable([parameter()], declaration);
   const children = [];
-  const completed = resolveCallableEvidence({ host: { ast, sourceStorage: { subject: () => ({ kind: "unresolved" }) },
+  const completed = resolveCallableEvidence({ host: { ast, sourceStorage: sourceHost.sourceStorage,
     projectTypeCatalog: { genericProjections(actual) {
       children.push("A");
       assert.equal(actual === declaration, true, "the real selected declaration owns the projection input");
       return Object.freeze([]);
     } }, objectShapes: { resolveCallableValue: () => assert.fail("the explicit empty synthetic ABI has no generic protocol") } },
     resolveSignatureParameterEvidence: () => { children.push("parameter"); return integer; },
-    resolveSourceTypeComponentEvidence: () => { children.push("return"); return csharpVoidTargetType(); },
+    resolveFormedSourceTypeComponentEvidence: () => { children.push("return"); return csharpVoidTargetType(); },
     resolveNodeWithState: () => assert.fail("the explicit monomorphic Source has no constraints"),
   }, input, queries, state);
   assert.deepEqual(children, ["parameter", "return", "A"]);
@@ -200,7 +207,7 @@ test("a bound callable retains the return storage input and refuses a foreign st
   const source = signatureSource(callable([], declaration));
   let reads = 0;
   const raw = Object.freeze({ kind: "callable", type: Object.freeze({}), queries, signature: source });
-  const input = formCsharpCallableTypeInput({ sourceStorage: { subject(actual, kind) {
+  const input = formCsharpCallableTypeInput({ ast: sourceHost.ast, sourceStorage: { subject(actual, kind) {
     reads += 1;
     assert.equal(actual === declaration && kind === "return", true, "the original selected return declaration owns its H0 input");
     return { kind: "resolved", subject };
