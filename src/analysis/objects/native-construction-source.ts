@@ -1,4 +1,4 @@
-import type { Node, Type } from "@tsonic/tsts";
+import { providerVirtualDeclarationFactKey, type Node, type Type } from "@tsonic/tsts";
 import { sourceDeclarationIsModuleScoped, type SourceFileSemantics } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpTypePolicyBaseHost } from "../source-evidence/types/resolution/model.js";
@@ -6,9 +6,11 @@ import { formCsharpLiteralCreationSource, selectCsharpLiteralCreationContext,
   type CsharpLiteralContext, type CsharpLiteralCreationSource } from "./literal-creation-source.js";
 import { formCsharpNativeConstructionPublicationSource,
   type CsharpNativeConstructionPublicationInput, type CsharpNativeConstructionPublicationSource } from "./native-construction-publication.js";
+import { formCsharpNativeConstructionMemberSource,
+  type CsharpNativeConstructionMemberSource } from "./native-construction-members.js";
 
 type CsharpNativeConstructionSourceHost = Pick<CsharpTypePolicyBaseHost,
-  "ast" | "navigation" | "sourceFiles" | "semanticsFor">;
+  "ast" | "navigation" | "sourceFiles" | "semanticsFor" | "providers" | "sourceFacts">;
 
 export interface CsharpNativeConstructionPublication<ShapeSource extends object> extends CsharpNativeConstructionPublicationSource {
   readonly originalShape: ShapeSource | undefined;
@@ -36,6 +38,8 @@ export interface CsharpLiteralConstructionSource<ShapeSource extends object> {
   readonly untyped: boolean;
   readonly unknown: boolean;
   readonly selectedSubjects: ReturnType<SourceFileSemantics["facts"]["typeSubjects"]>;
+  readonly nativeProvider: boolean;
+  readonly correspondence: CsharpNativeConstructionMemberSource | undefined;
   readonly expectedShape: ShapeSource | undefined;
   readonly originalShape: ShapeSource;
   readonly local: CsharpLocalConstructionSource<ShapeSource> | undefined;
@@ -101,13 +105,23 @@ export function formCsharpNativeConstructionSource<ShapeSource extends object>(
         const selectedType = contextual !== undefined && asynchronous ? queries.types.typeArguments(contextual)[0] : contextual;
         const any = selectedType !== undefined && queries.types.isAny(selectedType);
         const untyped = !any && host.ast.properties(node).length === 0 && selectedType === undefined;
+        const selectedSubjects = Object.freeze(!any && !untyped && selectedType !== undefined
+          ? queries.facts.typeSubjects(selectedType) : []);
+        const nativeProvider = selectedType !== undefined && selectedSubjects.some(subject => {
+          const fact = host.sourceFacts?.getFact(subject, providerVirtualDeclarationFactKey);
+          if (fact === undefined) return false;
+          const provider = host.providers.resolveType(fact);
+          return provider.kind === "resolved" && provider.relations.some(relation =>
+            relation.kind === "type" && relation.objectLiteralConstruction?.kind === "object-initializer");
+        });
         const declaration = !any && !untyped && context === undefined ? host.ast.parent(node) : undefined;
         const variable = declaration === undefined || !host.ast.is.IsVariableDeclaration(declaration)
           ? undefined : host.ast.as.AsVariableDeclaration(declaration);
         tasks.push(Object.freeze({ kind: "literal", node, queries, type, creation, context, selectedType, asynchronous, any, untyped,
           unknown: !any && !untyped && selectedType !== undefined && queries.types.isUnknown(selectedType),
-          selectedSubjects: Object.freeze(!any && !untyped && selectedType !== undefined
-            ? queries.facts.typeSubjects(selectedType) : []),
+          selectedSubjects, nativeProvider,
+          correspondence: nativeProvider && selectedType !== undefined
+            ? formCsharpNativeConstructionMemberSource(type, selectedType, queries) : undefined,
           expectedShape: any || untyped || selectedType === undefined ? undefined
             : shapeInput(selectedType, queries, asynchronous ? undefined : context?.component.authoredTypeNode),
           originalShape: selected.presentTypes.length === 1 && selected.presentTypes[0] === type
@@ -128,6 +142,7 @@ export function formCsharpNativeConstructionSource<ShapeSource extends object>(
   };
   for (const sourceFile of host.sourceFiles) visit(sourceFile);
   return Object.freeze({ input: Object.freeze({ ast: host.ast, navigation: host.navigation,
-    sourceFiles: host.sourceFiles, semanticsFor: host.semanticsFor }), tasks: Object.freeze(tasks),
+    sourceFiles: host.sourceFiles, semanticsFor: host.semanticsFor, providers: host.providers,
+    sourceFacts: host.sourceFacts }), tasks: Object.freeze(tasks),
     publicationFor: (node: Node) => publications.get(node) });
 }

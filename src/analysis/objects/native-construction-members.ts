@@ -9,24 +9,43 @@ import type { CsharpTypePolicyBaseHost } from "../source-evidence/types/resoluti
 import { csharpProviderSelectsNumericStorage } from "./shapes/provider-construction.js";
 import { csharpObjectShapesEqual } from "../../target-model/types/object-shape-equality.js";
 
-export function csharpNativeConstructionMembersMatch(
+export interface CsharpNativeConstructionMemberSource {
+  readonly sourceType: Type;
+  readonly destinationType: Type;
+  readonly queries: SourceFileSemantics;
+  readonly identical: boolean;
+  readonly correspondence: ReturnType<SourceFileSemantics["types"]["structuralMembers"]>;
+}
+
+export function formCsharpNativeConstructionMemberSource(
   sourceType: Type,
+  destinationType: Type,
+  queries: SourceFileSemantics,
+): CsharpNativeConstructionMemberSource {
+  return Object.freeze({ sourceType, destinationType, queries,
+    identical: queries.types.isIdentical(sourceType, destinationType),
+    correspondence: queries.types.structuralMembers(sourceType, destinationType, "read"),
+  });
+}
+
+export function csharpNativeConstructionMembersMatch(
+  input: CsharpNativeConstructionMemberSource,
   source: CsharpObjectShapeFact | undefined,
   destination: CsharpObjectShapeFact,
-  queries: SourceFileSemantics,
   host: Pick<CsharpTypePolicyBaseHost, "ast" | "sourceFacts">,
   reserve: (cost: number) => void,
 ): boolean {
+  const { sourceType, queries } = input;
   reserve((source?.members.length ?? 0) + destination.members.length);
-  if (source?.sourceType !== sourceType || destination.sourceType === undefined ||
+  if (source?.sourceType !== sourceType || destination.sourceType !== input.destinationType ||
     destination.constructible !== true || source.methodImplementation !== undefined || source.members.some(member =>
       member.memberKind !== "property" || member.bound === true || member.accessor !== undefined)) return false;
   const declaredKind = source.targetType.kind === "target-named"
     ? (source.targetType as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind : undefined;
   if ((declaredKind === "class" || declaredKind === "struct" || declaredKind === "enum") &&
     !targetTypeRefEquals(source.targetType, destination.targetType)) return false;
-  if (queries.types.isIdentical(sourceType, destination.sourceType) && csharpObjectShapesEqual(source, destination)) return true;
-  const selected = queries.types.structuralMembers(sourceType, destination.sourceType, "read");
+  if (input.identical && csharpObjectShapesEqual(source, destination)) return true;
+  const selected = input.correspondence;
   if (selected.kind !== "available" || selected.source.calls.length !== 0 || selected.source.constructs.length !== 0 ||
     selected.source.indexes.length !== 0 || selected.destination.calls.length !== 0 ||
     selected.destination.constructs.length !== 0 ||

@@ -1,4 +1,4 @@
-import { providerVirtualDeclarationFactKey, type Node, type SourceFile, type Type } from "@tsonic/tsts";
+import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import { formCsharpLiteralCreationSource, selectCsharpLiteralCreationContext,
   type CsharpLiteralContext, type CsharpLiteralContextHost } from "./literal-creation-source.js";
@@ -43,7 +43,8 @@ export function createCsharpNativeConstructionDemandQuery<ShapeSource extends ob
   sourcePlan: CsharpNativeConstructionSource<ShapeSource>,
 ): CsharpNativeConstructionDemandQueries {
   if (sourcePlan.input.ast !== host.ast || sourcePlan.input.navigation !== host.navigation ||
-    sourcePlan.input.sourceFiles !== host.sourceFiles || sourcePlan.input.semanticsFor !== host.semanticsFor) {
+    sourcePlan.input.sourceFiles !== host.sourceFiles || sourcePlan.input.semanticsFor !== host.semanticsFor ||
+    sourcePlan.input.providers !== host.providers || sourcePlan.input.sourceFacts !== host.sourceFacts) {
     return failTargetAnalysisInvariant("tsonic-csharp", "Native construction requires its original source program input.");
   }
   const constructions = new Map<Node, CsharpNativeConstructionSelection>();
@@ -87,20 +88,18 @@ export function createCsharpNativeConstructionDemandQuery<ShapeSource extends ob
       issues.push(csharpUntypedObjectLiteralIssue(node));
       return;
     }
-    const native = selected !== undefined && input.selectedSubjects.some(subject => {
-      const fact = host.sourceFacts?.getFact(subject, providerVirtualDeclarationFactKey);
-      if (fact === undefined) return false;
-      const provider = host.providers.resolveType(fact);
-      return provider.kind === "resolved" && provider.relations.some(relation =>
-        relation.kind === "type" && relation.objectLiteralConstruction?.kind === "object-initializer");
-    });
-    if (native && selected !== undefined) {
+    if (input.nativeProvider && selected !== undefined) {
+      const correspondence = input.correspondence;
+      if (correspondence?.sourceType !== source || correspondence.destinationType !== selected || correspondence.queries !== queries) {
+        return failTargetAnalysisInvariant("tsonic-csharp",
+          "Native construction requires its exact retained checked member comparison.", node);
+      }
       const shape = input.expectedShape === undefined ? undefined : host.completeShapeSource(input.expectedShape);
       const original = host.completeShapeSource(input.originalShape);
       const budget = createCsharpMetadataBudget();
       let compatible = false;
       try {
-        compatible = shape !== undefined && csharpNativeConstructionMembersMatch(source, original, shape, queries, host, budget.reserve);
+        compatible = shape !== undefined && csharpNativeConstructionMembersMatch(correspondence, original, shape, host, budget.reserve);
       } catch (error) {
         if (!(error instanceof CsharpMetadataResourceLimitFailure)) throw error;
         issue(node, "TSONIC_COMPILER_RESOURCE_LIMIT",
