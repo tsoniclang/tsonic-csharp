@@ -37,6 +37,7 @@ import { resolveSourceProfileType as resolveSourceProfileTypeImplementation, res
 import { generatorProtocol as generatorProtocolImplementation, generatorResultProtocol as generatorResultProtocolImplementation } from "../../../../policy/operations/source-profiles/type-carriers.js";
 import { resolveSelectedSymbolType as resolveSelectedSymbolTypeImplementation, resolveProjectSourceSemanticType as resolveProjectSourceSemanticTypeImplementation, resolveProjectSourceType as resolveProjectSourceTypeImplementation, projectSourceDeclarationTargetType as projectSourceDeclarationTargetTypeImplementation } from "./project-types.js";
 import { createCsharpTypeResolutionQueryCache } from "./query-cache.js";
+import { resolveCsharpPointerStoragePointee } from "./pointer-storage.js";
 
 import type { CsharpTypeResolutionScope } from "./scope.js";
 type DropScope<Arguments extends readonly unknown[]> =
@@ -302,6 +303,7 @@ export function createCsharpTypeResolutionServices(
     resolveSelectedType: methods.resolveSelectedType,
     resolveSelectedResult: methods.resolveSelectedResult,
     resolvePointerReturn: (declaration: Node) => methods.resolvePointerReturn(declaration, { depth: 0 }),
+    resolvePointerStoragePointee: producer => resolveCsharpPointerStoragePointee(scope, producer, { depth: 0 }),
     resolveTypedLocationOperationPointee: methods.resolveTypedLocationOperationPointee,
     resolveSourceCallTypeArguments: methods.resolveSourceCallTypeArguments,
     resolveSourceCallParameter: methods.resolveSourceCallParameter,
