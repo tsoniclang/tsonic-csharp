@@ -455,4 +455,11 @@ export const producersCarrierRegistry = Object.freeze([
     responsibility: "producers/resolve-conditional-application",
     frozen: false,
   },
+  {
+    id: "src/analysis/source-evidence/types/resolution/nodes.ts#resolveFormedCsharpArrayTypeNode",
+    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
+    declaration: { module: "src/analysis/source-evidence/types/resolution/nodes.ts", symbol: "resolveFormedCsharpArrayTypeNode" },
+    responsibility: "producers/resolve-array-type-node",
+    frozen: false,
+  },
 ]);
