@@ -22,7 +22,7 @@ import { resolveCsharpInstanceType } from "./instance-tests.js";
 import type { SourceNativeValueGuard } from "@tsonic/target-api/source";
 
 import { resolveSourceCallTypeArguments as resolveSourceCallTypeArgumentsImplementation, resolveSourceCallParameter as resolveSourceCallParameterImplementation, resolveSourceCallParameters as resolveSourceCallParametersImplementation, resolveSourceCallArgumentParameter as resolveSourceCallArgumentParameterImplementation, resolveSourceCallResult as resolveSourceCallResultImplementation, resolveSourceCallResultWithState as resolveSourceCallResultWithStateImplementation,
-  resolveFormedCsharpSourceCallResultWithState } from "./call-api.js";
+  resolveFormedCsharpSourceCallResultWithState, completeCsharpSourceCallArgumentParameter } from "./call-api.js";
 import { resolveNode as resolveNodeImplementation, resolveType as resolveTypeImplementation, resolveStorage as resolveStorageImplementation, resolveReadStorage as resolveReadStorageImplementation, catchVariableStorageCarrier as catchVariableStorageCarrierImplementation, resolveValue as resolveValueImplementation, resolveSelectedValue as resolveSelectedValueImplementation, resolveSelectedValueWithState as resolveSelectedValueWithStateImplementation, resolveSelectedType as resolveSelectedTypeImplementation, resolveSelectedResult as resolveSelectedResultImplementation, resolveTypedLocationOperationPointee as resolveTypedLocationOperationPointeeImplementation, resolveTypedLocationOperationPointeeWithState as resolveTypedLocationOperationPointeeWithStateImplementation, withSourceTargetBindings as withSourceTargetBindingsImplementation } from "./public-api.js";
 import { resolveFormedCsharpNodeTypeSource, resolveTupleTypeNode as resolveTupleTypeNodeImplementation, tupleElementIsRest as tupleElementIsRestImplementation } from "./nodes.js";
 import { csharpSourceValueResult } from "./call-results.js";
@@ -93,6 +93,8 @@ export interface CsharpTypeResolutionServices {
     ReturnType<typeof formCsharpSourceCallContractSource>;
   readonly completeCallContract: (...args: DropScope<Parameters<typeof resolveFormedSourceCallContract>>) =>
     ReturnType<typeof resolveFormedSourceCallContract>;
+  readonly completeCallArgumentParameter: (...args: DropScope<Parameters<typeof completeCsharpSourceCallArgumentParameter>>) =>
+    ReturnType<typeof completeCsharpSourceCallArgumentParameter>;
   readonly projectSemanticSource: (...args: DropScope<Parameters<typeof formCsharpProjectSemanticSource>>) =>
     ReturnType<typeof formCsharpProjectSemanticSource>;
   readonly completeProjectSemantic: (...args: DropScope<Parameters<typeof resolveFormedCsharpProjectSemanticType>>) =>
@@ -453,6 +455,8 @@ export function createCsharpTypeResolutionServices(
       formCsharpSourceCallContractSource(scope, ...args),
     completeCallContract: (...args: DropScope<Parameters<typeof resolveFormedSourceCallContract>>) =>
       resolveFormedSourceCallContract(scope, ...args),
+    completeCallArgumentParameter: (...args: DropScope<Parameters<typeof completeCsharpSourceCallArgumentParameter>>) =>
+      completeCsharpSourceCallArgumentParameter(scope, ...args),
     projectSemanticSource: (...args: DropScope<Parameters<typeof formCsharpProjectSemanticSource>>) =>
       formCsharpProjectSemanticSource(scope, ...args),
     completeProjectSemantic: (...args: DropScope<Parameters<typeof resolveFormedCsharpProjectSemanticType>>) =>
