@@ -26,6 +26,7 @@ import type { CsharpCompletedStructuralMemberChildren, CsharpStructuralPropertyA
 import type { CsharpNodeQuerySource, CsharpTypeQuerySource, CsharpNodeTypeSource, CsharpSemanticTypeSource } from "./root-sources.js";
 import type { CsharpTypeReferenceSource } from "./type-reference-source.js";
 import type { CsharpSelectedExpressionSource } from "./expression-source.js";
+import type { CsharpSourceCallResultSource } from "./call-result-source.js";
 export interface CsharpTypeResolutionScope {
   nodeQuerySource(node: Node | undefined, sourceFile?: SourceFile): CsharpNodeQuerySource;
   completeNodeQuery(source: CsharpNodeQuerySource): CsharpNodeTypeResolution | undefined;
@@ -140,6 +141,11 @@ export interface CsharpTypeResolutionScope {
   state: CsharpTypeResolutionState,
   nativeType: TargetTypeRef | undefined,
 ): import("../../../../target-model/operations/source-call-results.js").CsharpSourceCallResult | undefined;
+  resolveFormedSourceCallResultWithState(
+  source: CsharpSourceCallResultSource,
+  state: CsharpTypeResolutionState,
+  nativeType: TargetTypeRef | undefined,
+): CsharpSourceCallResult | undefined;
   withSourceTargetBindings(
   bindings: readonly CsharpSourceTargetTypeBinding[],
 ): CsharpScopedTypePolicyResult;
