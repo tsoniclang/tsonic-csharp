@@ -31,7 +31,8 @@ import { resolveSelectedExpressionType as resolveSelectedExpressionTypeImplement
 import { resolveSelectedDeclarationResult as resolveSelectedDeclarationResultImplementation, resolveProjectEnumMemberTarget as resolveProjectEnumMemberTargetImplementation, declarationResultTypeNode as declarationResultTypeNodeImplementation } from "./declarations.js";
 import { resolveTypeReferenceNode as resolveTypeReferenceNodeImplementation, resolveCheckerTransformedSourceType as resolveCheckerTransformedSourceTypeImplementation, resolveStandardSourceTypeTransformation as resolveStandardSourceTypeTransformationImplementation, resolveSignatureParameterListTarget as resolveSignatureParameterListTargetImplementation, resolveEvidenceNodesToCommonTarget as resolveEvidenceNodesToCommonTargetImplementation, resolveCompositionalSourceTypeAlias as resolveCompositionalSourceTypeAliasImplementation, targetPreservesAuthoredSourcePrimitiveFacts as targetPreservesAuthoredSourcePrimitiveFactsImplementation, collectTargetSourcePrimitiveNames as collectTargetSourcePrimitiveNamesImplementation, resolveSourceValueDeclaration as resolveSourceValueDeclarationImplementation } from "./source-references.js";
 import { resolveSourceCallInstantiation as resolveSourceCallInstantiationImplementation, resolveSourceCallSelectedType as resolveSourceCallSelectedTypeImplementation, resolveSourceCallableContractType as resolveSourceCallableContractTypeImplementation, inferSourceCallTargetTypeArguments as inferSourceCallTargetTypeArgumentsImplementation, sourceCallSelectedDeclaration as sourceCallSelectedDeclarationImplementation, resolveSourceCallReceiverTargetType as resolveSourceCallReceiverTargetTypeImplementation, sourceCallableTypeParametersMatch as sourceCallableTypeParametersMatchImplementation, sourceValueDeclaration as sourceValueDeclarationImplementation, sourceValueDeclarationSyntax as sourceValueDeclarationSyntaxImplementation } from "./calls.js";
-import { resolveAuthoredAndSelectedSourceType as resolveAuthoredAndSelectedSourceTypeImplementation } from "./selected-values.js";
+import { resolveAuthoredAndSelectedSourceType as resolveAuthoredAndSelectedSourceTypeImplementation,
+  resolveFormedAuthoredAndSelectedSourceType, type CsharpAuthoredTypeSelectionEvidence } from "./selected-values.js";
 import { resolveTypeWithState as resolveTypeWithStateImplementation, resolveDirectSourceFacts as resolveDirectSourceFactsImplementation, resolveProviderType as resolveProviderTypeImplementation, resolveSemanticTypeArguments as resolveSemanticTypeArgumentsImplementation } from "./semantic-types.js";
 import { resolveSourceProfileType as resolveSourceProfileTypeImplementation, resolveUnionType as resolveUnionTypeImplementation, resolveCallableType as resolveCallableTypeImplementation, resolveCallableEvidence as resolveCallableEvidenceImplementation, resolveSignatureParameterEvidence as resolveSignatureParameterEvidenceImplementation, resolveSourceTypeComponentEvidence as resolveSourceTypeComponentEvidenceImplementation } from "./source-profiles.js";
 import { generatorProtocol as generatorProtocolImplementation, generatorResultProtocol as generatorResultProtocolImplementation } from "../../../../policy/operations/source-profiles/type-carriers.js";
@@ -60,6 +61,7 @@ export interface CsharpTypeResolutionServices {
     ReturnType<typeof formCsharpSelectedSymbolSource>;
   readonly completeSelectedSymbol: (...args: DropScope<Parameters<typeof resolveFormedCsharpSelectedSymbolType>>) =>
     ReturnType<typeof resolveFormedCsharpSelectedSymbolType>;
+  readonly completeAuthoredSelection: (source: CsharpAuthoredTypeSelectionEvidence) => TargetTypeRef | undefined;
   readonly policy: CsharpTypePolicy;
   readonly recursive: CsharpRecursiveTypeResolver;
   readonly structuralTypeApplication: CsharpTypeResolutionScope["formStructuralTypeApplication"];
@@ -380,6 +382,8 @@ export function createCsharpTypeResolutionServices(
       formCsharpSelectedSymbolSource(scope, ...args),
     completeSelectedSymbol: (...args: DropScope<Parameters<typeof resolveFormedCsharpSelectedSymbolType>>) =>
       resolveFormedCsharpSelectedSymbolType(scope, ...args),
+    completeAuthoredSelection: (source: CsharpAuthoredTypeSelectionEvidence) =>
+      resolveFormedAuthoredAndSelectedSourceType(scope, source),
     structuralTypeApplication: methods.formStructuralTypeApplication,
     bindStructuralTypeApplication: bindCsharpStructuralTypeApplication,
     structuralMemberChildren: methods.resolveStructuralMemberChildren,

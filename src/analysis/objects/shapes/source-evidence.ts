@@ -3,33 +3,49 @@ import type { CsharpObjectShapePolicyHost } from "./model.js";
 import type { CsharpTypeResolutionState } from "../../source-evidence/types/resolution/model.js";
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
 import type { ExtensionFactSubject, Node, Type } from "@tsonic/tsts";
-import type { SourceFileSemantics } from "@tsonic/target-api/source";
+import type { SourceFileSemantics, SourceTypeComponentEvidence } from "@tsonic/target-api/source";
 import { sourceTypeIsAuthoredEmptyObject } from "@tsonic/target-api/source";
 import { nextState } from "../../source-evidence/types/resolution/state.js";
 import { classifyCsharpSourceProfileDeclaration, classifyCsharpSourceProfileType } from "../../../policy/identities/source-types.js";
 import { csharpSourceProfileDeclarationIdentity } from "../../../policy/identities/selected-source.js";
+import { formAuthoredAndSelectedSourceType,
+  type CsharpAuthoredTypeSelectionEvidence } from "../../source-evidence/types/resolution/selected-values.js";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 
 interface SelectedObjectShapeSource {
   readonly type: Type | undefined;
   readonly contextualTarget?: TargetTypeRef;
+  readonly origin: "semantic" | "contextual";
 }
 
-export function selectedObjectShapeSource(
+export interface CsharpContextualObjectShapeSource {
+  readonly component: SourceTypeComponentEvidence;
+  readonly projectDeclaration: boolean;
+  readonly selection: CsharpAuthoredTypeSelectionEvidence;
+}
+
+export interface CsharpObjectShapeSourceFormation {
+  readonly node: Node;
+  readonly type: Type | undefined;
+  readonly contextual: CsharpContextualObjectShapeSource | undefined;
+}
+
+export function formSelectedObjectShapeSource(
   node: Node,
   queries: SourceFileSemantics,
   host: CsharpObjectShapePolicyHost,
   state: CsharpTypeResolutionState,
-): SelectedObjectShapeSource {
+): CsharpObjectShapeSourceFormation {
   if (host.ast.is.IsClassDeclaration(node) || host.ast.is.IsClassExpression(node)) {
-    return { type: queries.declarations.declaredType(node) };
+    return Object.freeze({ node, type: queries.declarations.declaredType(node), contextual: undefined });
   }
   const semanticType = queries.types.expressionType(node);
   if (!host.ast.is.IsObjectLiteralExpression(node)) {
-    return { type: semanticType };
+    return Object.freeze({ node, type: semanticType, contextual: undefined });
   }
   const contextual = queries.types.contextualValueSelection(node);
   if (contextual.kind !== "selected") {
-    return { type: semanticType };
+    return Object.freeze({ node, type: semanticType, contextual: undefined });
   }
   const contextualType = contextual.component.selectedType;
   const contextualSymbol = queries.declarations.typeAliasSymbol(contextualType) ??
@@ -58,20 +74,36 @@ export function selectedObjectShapeSource(
     ) !== undefined
   );
   if (!projectDeclaration && !providerDeclaration) {
-    return { type: semanticType };
+    return Object.freeze({ node, type: semanticType, contextual: undefined });
   }
-  const contextualTarget = host.typeResolver.resolveSelectedType(
-    contextual.component.authoredTypeNode, contextualType,
-    queries.sourceFile,
-    nextState(state),
-  );
+  return Object.freeze({ node, type: semanticType, contextual: Object.freeze({
+    component: contextual.component, projectDeclaration,
+    selection: formAuthoredAndSelectedSourceType({ host }, contextual.component.authoredTypeNode,
+      queries.sourceFile, contextualType, queries.sourceFile, nextState(state)),
+  }) });
+}
+
+export function completeSelectedObjectShapeSource(
+  source: CsharpObjectShapeSourceFormation,
+  completed: { readonly dependency: CsharpContextualObjectShapeSource;
+    readonly targetType: TargetTypeRef | undefined } | undefined,
+): SelectedObjectShapeSource {
+  const contextual = source.contextual;
+  if (contextual === undefined) {
+    if (completed !== undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+      "A semantic object-shape origin has no contextual native child.", source.node);
+    return Object.freeze({ type: source.type, origin: "semantic" });
+  }
+  if (completed?.dependency !== contextual) return failTargetAnalysisInvariant("tsonic-csharp",
+    "An object-shape origin requires its exact contextual native child.", source.node);
+  const contextualTarget = completed.targetType;
   if (contextualTarget === undefined) {
-    return { type: semanticType };
+    return Object.freeze({ type: source.type, origin: "semantic" });
   }
-  if (projectDeclaration && !isProjectSourceTargetType(contextualTarget)) {
-    return { type: semanticType };
+  if (contextual.projectDeclaration && !isProjectSourceTargetType(contextualTarget)) {
+    return Object.freeze({ type: source.type, origin: "semantic" });
   }
-  return { type: contextualType, contextualTarget };
+  return Object.freeze({ type: contextual.component.selectedType, contextualTarget, origin: "contextual" });
 }
 
 export function sourceSubjects(

@@ -4,7 +4,7 @@ import { createStructuralObjectShapeTarget, mergeCsharpObjectShapeSubjects } fro
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { csharpObjectShapesEqual } from "../../../target-model/types/object-shape-equality.js";
 import { csharpObjectShapeContractKey } from "../../../target-model/types/object-shape-identity.js";
-import { isCsharpNativeSourceProfileMemberDeclaration, isProjectSourceTargetType, projectClassIsObjectInitializable, requiresUnresolvedStructuralProjection, selectedObjectShapeSource, sourceSubjects, typeHasProjectOwnedShapeDeclaration, typeIsExcludedFromObjectShape } from "./source-evidence.js";
+import { completeSelectedObjectShapeSource, isCsharpNativeSourceProfileMemberDeclaration, isProjectSourceTargetType, projectClassIsObjectInitializable, requiresUnresolvedStructuralProjection, sourceSubjects, typeHasProjectOwnedShapeDeclaration, typeIsExcludedFromObjectShape } from "./source-evidence.js";
 import { readCsharpSourceField, readCsharpSourceStruct } from "../../../source/extension/markers.js";
 import { Node_Initializer } from "@tsonic/target-api/source";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../target-model/types/equality.js";
@@ -36,6 +36,8 @@ import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { createCsharpLiteralShapeResolver } from "./literal-construction.js";
 import { createCsharpProjectShapeProjection } from "./project-construction.js";
 import { createCsharpNativeShapeProjections } from "./native-projections.js";
+import { createCsharpObjectShapeSourceFormation } from "./type-source.js";
+import { formCsharpObjectShapeNodeSource } from "./node-source.js";
 
 export function createCsharpObjectShapePolicy(
   host: CsharpObjectShapePolicyHost,
@@ -44,6 +46,7 @@ export function createCsharpObjectShapePolicy(
   const { collectMembers, memberInheritance, completeMember, completeMembers, completeSourceMembers,
     formMemberInstantiationEvidence, instantiateMemberEvidence, retainMemberDeclarationEvidence,
     resolvePropertyType, retainLiteralMemberEvidence } = createCsharpObjectShapeMemberResolver(host);
+  const formation = createCsharpObjectShapeSourceFormation(host, collectMembers);
   const activeNodes = new WeakSet<object>();
   const activeTypes = new WeakSet<object>();
   const nodeShapes = new WeakMap<object, CsharpObjectShapeFact>();
@@ -90,12 +93,16 @@ export function createCsharpObjectShapePolicy(
       const queries = sourceFile === undefined
         ? host.semanticsFor(node)
         : host.semantics(sourceFile);
+      const input = formCsharpObjectShapeNodeSource(host, formation, node, queries, state);
+      if (input === undefined) return undefined;
       const directStruct = resolveStructShape(node, queries, state);
       if (directStruct !== undefined) {
         remember(node, directStruct);
         return directStruct;
       }
-      const source = selectedObjectShapeSource(node, queries, host, state);
+      const source = completeSelectedObjectShapeSource(input.selection, input.selection.contextual === undefined ? undefined
+        : { dependency: input.selection.contextual,
+            targetType: host.completeAuthoredSelection(input.selection.contextual.selection) });
       const selectedTarget = host.ast.is.IsClassDeclaration(node) || host.ast.is.IsClassExpression(node)
         ? host.typeResolver.resolveType(source.type, queries.sourceFile, nextState(state))
         : host.typeResolver.resolveNode(node, queries.sourceFile, nextState(state));

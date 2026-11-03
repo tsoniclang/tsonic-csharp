@@ -6,6 +6,7 @@ import type { CsharpProjectTypeCatalog, CsharpProjectTypePolicy } from "../../..
 import type { CsharpPlanningRepresentationQueries, CsharpRecursiveTypeResolver, CsharpTypePolicyBaseHost, CsharpTypeResolutionState } from "../../source-evidence/types/resolution/model.js";
 import type { CsharpCurrentProjectDeclarations } from "../../source-evidence/model.js";
 import type { CsharpProjectSemanticSource } from "../../source-evidence/types/resolution/project-types.js";
+import type { CsharpAuthoredTypeSelectionEvidence } from "../../source-evidence/types/resolution/selected-values.js";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import type { CsharpCollectedObjectShapeMembers } from "./member-source.js";
 import type { CsharpCompletedStructuralMemberChildren, CsharpStructuralMemberInheritance,
@@ -26,6 +27,7 @@ export interface CsharpObjectShapePolicyHost extends CsharpTypePolicyBaseHost {
   structuralTypeApplication(collection: CsharpCollectedObjectShapeMembers): CsharpStructuralTypeSource;
   bindStructuralTypeApplication(source: CsharpStructuralTypeSource, receiver: TargetTypeRef | undefined): CsharpStructuralTypeApplication;
   projectSemanticSource(type: Type, queries: SourceFileSemantics, state: CsharpTypeResolutionState): CsharpProjectSemanticSource;
+  completeAuthoredSelection(source: CsharpAuthoredTypeSelectionEvidence): TargetTypeRef | undefined;
 }
 
 export interface CsharpRecursiveObjectShapePolicy extends CsharpObjectShapePolicy {
