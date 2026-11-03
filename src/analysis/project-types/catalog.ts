@@ -64,8 +64,8 @@ export function createCsharpProjectTypeCatalog(
   const declarationById = new Map<string, CsharpCurrentProjectDeclaration>();
   const declarations = Object.freeze(selectedDefinitions.map(definition => {
     const { typeProjections: _typeProjections, outerTypeProjections: _outerTypeProjections,
-      typeParameterBindings, ...sourceDeclaration } = definition;
-    const declaration = Object.freeze({ ...sourceDeclaration, parameterBindings: typeParameterBindings });
+      typeParameterBindings: _typeParameterBindings, ...sourceDeclaration } = definition;
+    const declaration = Object.freeze(sourceDeclaration);
     declarationByNode.set(definition.declaration, declaration);
     declarationById.set(definition.id, declaration);
     return declaration;
@@ -83,11 +83,6 @@ export function createCsharpProjectTypeCatalog(
     declarationForNode: (node: Node | undefined) => node === undefined ? undefined : declarationByNode.get(node),
     declarationContaining: (node: Node | undefined) => containing(node, declarationByNode),
     declarationForTarget: (type: TargetTypeRef | undefined) => type?.kind === "target-named" ? declarationById.get(type.id) : undefined,
-    declaredTypeForDeclaration(node: Node | undefined, arguments_: readonly TargetTypeRef[]) {
-      const definition = node === undefined ? undefined : sourceByDeclaration.get(node);
-      return definition === undefined || arguments_.length !== definition.typeParameterBindings.length
-        ? undefined : projectDefinitionTargetType(definition, arguments_);
-    },
   });
   const requirePublished = (): readonly CsharpProjectTypeDefinition[] => {
     if (publishedDefinitions === undefined) failTargetAnalysisInvariant("tsonic-csharp",
