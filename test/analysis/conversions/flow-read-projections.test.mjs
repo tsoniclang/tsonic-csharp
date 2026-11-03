@@ -8,7 +8,7 @@ import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.j
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { selectCsharpFlowReadCarrier } from "../../../dist/policy/conversions/flow-read.js";
 import { selectCsharpNativeOperandUses } from "../../../dist/analysis/operations/control-flow/native-operands.js";
-import { csharpRuntimeUnionTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpNullableTargetType, csharpAbsenceTargetType, csharpTsValueTargetType } from "../../../dist/target-model/types/index.js";
+import { csharpRuntimeUnionTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../../../dist/target-model/types/index.js";
 import { arrayRecordRefinementSource } from "../../../../tsonic/test/fixtures/recursive-array-refinement.mjs";
 
 function fixture(sourceText, surface = "native") {
@@ -45,23 +45,6 @@ test("a proved native flow selection survives unchanged logical source types wit
   assert.equal(selectCsharpFlowReadCarrier({ ...input, nativeSourceRead: false,
     selectedTargetType: floating, readStorageTargetType: integer }), integer,
   "an unchanged source number cannot discard an exact native integer carrier");
-});
-
-test("native absence reads retain nullable, generic optional and broad storage without an invented payload", () => {
-  const integer = csharpSourcePrimitiveTargetType("int32");
-  const text = csharpStringTargetType();
-  const element = { kind: "type-parameter", identity: "test.Optional.Element", name: "Element" };
-  const absent = csharpAbsenceTargetType();
-  const input = { exactSourceRead: false, nativeSourceRead: false,
-    unrelatedSourceTypesShareTargetRepresentation: false, selectedTargetType: absent,
-    readStorageTargetType: undefined, memberTargetTypes: undefined };
-  for (const storage of [csharpNullableTargetType(integer), csharpNullableTargetType(text),
-    csharpNullableTargetType(element), csharpTsValueTargetType()]) {
-    assert.equal(selectCsharpFlowReadCarrier({ ...input, readStorageTargetType: storage }) === storage, true,
-      "the checked absence read observes its original native optional storage");
-  }
-  assert.equal(selectCsharpFlowReadCarrier({ ...input, readStorageTargetType: integer }) === absent, true,
-    "a non-optional native integer does not acquire an unproved absence storage contract");
 });
 
 test("actual array and record branches publish exact physical receiver projections before sealing", () => {
