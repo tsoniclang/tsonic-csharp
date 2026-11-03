@@ -6,8 +6,10 @@ import { csharpObjectShapeMemberRetainsNativeReference } from "../../policy/type
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
 import type { CsharpTypePolicyBaseHost } from "../source-evidence/types/resolution/model.js";
-import { csharpProviderSelectsNumericStorage } from "./shapes/provider-construction.js";
+import { csharpProviderSelectsNumericStorage, formCsharpProviderNumericStorageSource,
+  type CsharpProviderNumericStorageSource } from "./shapes/provider-construction.js";
 import { csharpObjectShapesEqual } from "../../target-model/types/object-shape-equality.js";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 
 export interface CsharpNativeConstructionMemberSource {
   readonly sourceType: Type;
@@ -15,16 +17,21 @@ export interface CsharpNativeConstructionMemberSource {
   readonly queries: SourceFileSemantics;
   readonly identical: boolean;
   readonly correspondence: ReturnType<SourceFileSemantics["types"]["structuralMembers"]>;
+  readonly numericStorage: readonly (CsharpProviderNumericStorageSource | undefined)[];
 }
 
 export function formCsharpNativeConstructionMemberSource(
   sourceType: Type,
   destinationType: Type,
   queries: SourceFileSemantics,
+  host: Pick<CsharpTypePolicyBaseHost, "ast" | "sourceFacts">,
 ): CsharpNativeConstructionMemberSource {
+  const identical = queries.types.isIdentical(sourceType, destinationType);
+  const correspondence = queries.types.structuralMembers(sourceType, destinationType, "read");
   return Object.freeze({ sourceType, destinationType, queries,
-    identical: queries.types.isIdentical(sourceType, destinationType),
-    correspondence: queries.types.structuralMembers(sourceType, destinationType, "read"),
+    identical, correspondence,
+    numericStorage: Object.freeze(correspondence.kind !== "available" ? [] : correspondence.members.map(pair =>
+      pair.kind !== "present" ? undefined : formCsharpProviderNumericStorageSource(pair.source.property, { queries, host }))),
   });
 }
 
@@ -32,10 +39,9 @@ export function csharpNativeConstructionMembersMatch(
   input: CsharpNativeConstructionMemberSource,
   source: CsharpObjectShapeFact | undefined,
   destination: CsharpObjectShapeFact,
-  host: Pick<CsharpTypePolicyBaseHost, "ast" | "sourceFacts">,
   reserve: (cost: number) => void,
 ): boolean {
-  const { sourceType, queries } = input;
+  const { sourceType } = input;
   reserve((source?.members.length ?? 0) + destination.members.length);
   if (source?.sourceType !== sourceType || destination.sourceType !== input.destinationType ||
     destination.constructible !== true || source.methodImplementation !== undefined || source.members.some(member =>
@@ -51,13 +57,17 @@ export function csharpNativeConstructionMembersMatch(
     selected.destination.constructs.length !== 0 ||
     selected.destination.indexes.length !== 0 && (source.members.length !== 0 || destination.members.length !== 0) ||
     selected.members.length !== destination.members.length) return false;
+  if (input.numericStorage.length !== selected.members.length || selected.members.some((pair, index) =>
+    pair.kind === "present" ? input.numericStorage[index]?.property !== pair.source.property
+      : input.numericStorage[index] !== undefined)) return failTargetAnalysisInvariant("tsonic-csharp",
+        "Construction member completion requires the same ordered numeric source facts.");
   const sourceMembers = new Set<number>();
   const destinationMembers = new Set<number>();
   const selectionCost = (shape: CsharpObjectShapeFact): number => shape.members.reduce(
     (total, member) => total + 1 + (member.sourceSubjects?.length ?? 0), shape.members.length);
   const sourceSelectionCost = selectionCost(source);
   const destinationSelectionCost = selectionCost(destination);
-  for (const pair of selected.members) {
+  for (const [index, pair] of selected.members.entries()) {
     if (pair.destination.read !== "property") return false;
     reserve(destinationSelectionCost * (1 + pair.destination.property.rootSymbols.length + pair.destination.declarations.length));
     const expected = resolveCsharpObjectShapeMemberBySelectedSubject(destination,
@@ -83,8 +93,7 @@ export function csharpNativeConstructionMembersMatch(
     if (sourceElement !== undefined && destinationElement === undefined) return false;
     if (!targetTypeRefEquals(sourceElement ?? actual.member.type, destinationElement ?? expected.member.type) &&
       !(expected.member.exactNumericStorage === true && csharpProviderSelectsNumericStorage(
-        pair.source.property, sourceElement ?? actual.member.type, destinationElement ?? expected.member.type,
-        { queries, host })) &&
+        input.numericStorage[index]!, sourceElement ?? actual.member.type, destinationElement ?? expected.member.type)) &&
       !csharpObjectShapeMemberRetainsNativeReference(sourceElement ?? actual.member.type,
         destinationElement ?? expected.member.type)) return false;
   }

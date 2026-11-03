@@ -121,7 +121,7 @@ export function formCsharpNativeConstructionSource<ShapeSource extends object>(
           unknown: !any && !untyped && selectedType !== undefined && queries.types.isUnknown(selectedType),
           selectedSubjects, nativeProvider,
           correspondence: nativeProvider && selectedType !== undefined
-            ? formCsharpNativeConstructionMemberSource(type, selectedType, queries) : undefined,
+            ? formCsharpNativeConstructionMemberSource(type, selectedType, queries, host) : undefined,
           expectedShape: any || untyped || selectedType === undefined ? undefined
             : shapeInput(selectedType, queries, asynchronous ? undefined : context?.component.authoredTypeNode),
           originalShape: selected.presentTypes.length === 1 && selected.presentTypes[0] === type

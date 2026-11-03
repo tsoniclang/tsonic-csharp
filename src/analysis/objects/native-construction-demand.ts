@@ -99,7 +99,7 @@ export function createCsharpNativeConstructionDemandQuery<ShapeSource extends ob
       const budget = createCsharpMetadataBudget();
       let compatible = false;
       try {
-        compatible = shape !== undefined && csharpNativeConstructionMembersMatch(correspondence, original, shape, host, budget.reserve);
+        compatible = shape !== undefined && csharpNativeConstructionMembersMatch(correspondence, original, shape, budget.reserve);
       } catch (error) {
         if (!(error instanceof CsharpMetadataResourceLimitFailure)) throw error;
         issue(node, "TSONIC_COMPILER_RESOURCE_LIMIT",
