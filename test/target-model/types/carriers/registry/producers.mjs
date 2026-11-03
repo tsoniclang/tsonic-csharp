@@ -420,4 +420,32 @@ export const producersCarrierRegistry = Object.freeze([
     responsibility: "producers/resolve-standard-source-type-transformation",
     frozen: false,
   },
+  {
+    id: "src/analysis/source-evidence/types/resolution/checker-transformation-source.ts#resolveFormedCsharpCheckerTransformation",
+    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
+    declaration: { module: "src/analysis/source-evidence/types/resolution/checker-transformation-source.ts", symbol: "resolveFormedCsharpCheckerTransformation" },
+    responsibility: "producers/resolve-checker-transformed-type",
+    frozen: false,
+  },
+  {
+    id: "src/analysis/source-evidence/types/resolution/evidence-node-source.ts#resolveFormedCsharpEvidenceNodesToCommonTarget",
+    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
+    declaration: { module: "src/analysis/source-evidence/types/resolution/evidence-node-source.ts", symbol: "resolveFormedCsharpEvidenceNodesToCommonTarget" },
+    responsibility: "producers/resolve-selected-type",
+    frozen: false,
+  },
+  {
+    id: "src/analysis/source-evidence/types/resolution/source-references.ts#resolveEvidenceNodesToCommonTarget",
+    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
+    declaration: { module: "src/analysis/source-evidence/types/resolution/source-references.ts", symbol: "resolveEvidenceNodesToCommonTarget" },
+    responsibility: "producers/resolve-selected-type",
+    frozen: false,
+  },
+  {
+    id: "src/analysis/source-evidence/types/resolution/selected-values.ts#resolveFormedAuthoredAndSelectedSourceType",
+    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
+    declaration: { module: "src/analysis/source-evidence/types/resolution/selected-values.ts", symbol: "resolveFormedAuthoredAndSelectedSourceType" },
+    responsibility: "producers/resolve-selected-type",
+    frozen: false,
+  },
 ]);

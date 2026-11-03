@@ -31,6 +31,18 @@ function fixture(alias = "export type View<Value> = { readonly [Key in keyof Val
   return { source, file, node, typeName, reference, parameters, queries, selectedType, sourceArguments, targets };
 }
 
+function sourceHost(selected) {
+  return {
+    ast: selected.source.ast,
+    navigation: selected.source.navigation,
+    hasSemantics: file => selected.source.semantics.includes(file),
+    semantics: file => file === selected.file ? selected.queries
+      : assert.fail("selected types must not switch to their declaration checker"),
+    sourceStorage: { storageSubjectFor: () => undefined },
+    structuralTypes: { formTypeSource: () => undefined },
+  };
+}
+
 test("cross-file transformed aliases retain the selected checker and exact generic bindings", () => {
   const selected = fixture();
   const resultType = { kind: "source-primitive", name: "int64" };
@@ -38,10 +50,8 @@ test("cross-file transformed aliases retain the selected checker and exact gener
   const inheritedBinding = { sourceType: {}, targetType: { kind: "source-primitive", name: "uint64" } };
   const state = { depth: 4, sourceBindings: new Map([[inherited, inheritedBinding]]) };
   let selections = 0;
-  const result = resolveCompositionalSourceTypeAlias({ host: {
-    ast: selected.source.ast, navigation: selected.source.navigation,
-    semantics: () => { assert.fail("selected types must not switch to their declaration checker"); },
-  }, resolveCheckerTransformedSourceType: (root, type, queries, bound) => {
+  const result = resolveCompositionalSourceTypeAlias({ host: sourceHost(selected), resolveFormedCheckerTransformation: input => {
+    const { authoredRoot: root, selectedType: type, queries, state: bound } = input;
     selections += 1;
     assert.equal(root === selected.source.ast.typeNode(selected.reference.declaration), true, "original authored alias root");
     assert.equal(type === selected.selectedType && queries === selected.queries, true, "one exact caller checker");
@@ -62,7 +72,7 @@ test("compositional cross-file alias syntax retains its declaration owner and pa
   const carrier = { kind: "tuple", elements: selected.targets };
   const result = resolveCompositionalSourceTypeAlias({ host: {
     ast: selected.source.ast, navigation: selected.source.navigation,
-  }, resolveCheckerTransformedSourceType: () => assert.fail("tuple syntax already has its exact owner"),
+  }, resolveFormedCheckerTransformation: () => assert.fail("tuple syntax already has its exact owner"),
   resolveNodeWithState: (root, file, state) => {
     assert.equal(root === selected.source.ast.typeNode(selected.reference.declaration), true, "authored tuple root");
     assert.equal(file === selected.reference.sourceFile, true, "syntax stays with its declaration source file");
@@ -78,7 +88,7 @@ test("compositional cross-file alias syntax retains its declaration owner and pa
 test("alias selection rejects incomplete arguments and duplicate declaration identities before resolution", () => {
   const selected = fixture();
   const host = { ast: selected.source.ast, navigation: selected.source.navigation };
-  const scope = { host, resolveCheckerTransformedSourceType: () => assert.fail("malformed binders cannot select a native result"),
+  const scope = { host, resolveFormedCheckerTransformation: () => assert.fail("malformed binders cannot select a native result"),
     resolveNodeWithState: () => assert.fail("malformed binders cannot resolve declaration syntax") };
   for (const [targets, arguments_] of [[[], []], [selected.targets, [undefined]], [selected.targets, []]]) {
     assert.equal(resolveCompositionalSourceTypeAlias(scope, selected.typeName, targets, selected.selectedType,
@@ -94,8 +104,8 @@ test("alias selection rejects incomplete arguments and duplicate declaration ide
 
 test("unresolved transformed evidence does not invent a selected native carrier", () => {
   const selected = fixture();
-  const result = resolveCompositionalSourceTypeAlias({ host: { ast: selected.source.ast, navigation: selected.source.navigation },
-    resolveCheckerTransformedSourceType: () => undefined,
+  const result = resolveCompositionalSourceTypeAlias({ host: sourceHost(selected),
+    resolveFormedCheckerTransformation: () => undefined,
   }, selected.typeName, selected.targets, selected.selectedType, selected.queries, { depth: 0 }, selected.sourceArguments);
   assert.equal(result.kind, "checker-transformed-alias", "unavailable exact evidence remains unavailable");
 });
