@@ -11,6 +11,8 @@ import { formCsharpSourceTypeBindingEvidence, type CsharpSourceTypeBindingEviden
 import { csharpSourceStorageComponentContext } from "./source-storage-projection.js";
 import { nextState } from "./state.js";
 import { formCsharpDirectSourceEvidence, type CsharpDirectSourceEvidence } from "./direct-source-evidence.js";
+import { formCsharpStandardTypeTransformationSource,
+  type CsharpStandardTypeTransformationSource } from "./standard-transformation-source.js";
 
 type Transformation = NonNullable<ReturnType<SourceFileSemantics["types"]["standardTransformation"]>>;
 
@@ -27,6 +29,7 @@ interface CsharpTypeReferenceObservations extends CsharpTypeReferenceSourceBase 
   readonly subjects: readonly ExtensionFactSubject[];
   readonly direct: CsharpDirectSourceEvidence;
   readonly transformation: Transformation | undefined;
+  readonly transformationSource: CsharpStandardTypeTransformationSource | undefined;
 }
 
 export type CsharpTypeReferenceSource =
@@ -35,6 +38,7 @@ export type CsharpTypeReferenceSource =
       readonly kind: "transformation";
       readonly semanticType: Type;
       readonly transformation: Transformation;
+      readonly transformationSource: CsharpStandardTypeTransformationSource;
     }
   | CsharpTypeReferenceObservations & {
       readonly kind: "reference";
@@ -65,11 +69,13 @@ export function formCsharpTypeReferenceSource(
     ...(semanticType === undefined ? [] : queries.facts.typeSubjects(semanticType)),
   ]);
   const transformation = semanticType === undefined ? undefined : queries.types.standardTransformation(node, semanticType);
-  const observations = { node, queries, state, typeName, semanticType, binding, subjects, transformation,
+  const transformationSource = transformation === undefined || semanticType === undefined ? undefined
+    : formCsharpStandardTypeTransformationSource(scope, transformation, queries, state, node, semanticType);
+  const observations = { node, queries, state, typeName, semanticType, binding, subjects, transformation, transformationSource,
     direct: formCsharpDirectSourceEvidence(scope, subjects, queries.sourceFile, state) };
-  if (transformation !== undefined && semanticType !== undefined &&
+  if (transformation !== undefined && semanticType !== undefined && transformationSource !== undefined &&
       (transformation.kind !== "structural" || queries.types.indexInfos(semanticType).length === 0)) {
-    return Object.freeze({ ...observations, kind: "transformation", semanticType, transformation });
+    return Object.freeze({ ...observations, kind: "transformation", semanticType, transformation, transformationSource });
   }
   const argumentNodes = csharpSourceTypeArgumentNodes(host.ast, node);
   const arguments_ = Object.freeze(argumentNodes.map(argument => {

@@ -226,14 +226,8 @@ export interface CsharpTypeResolutionScope {
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined;
-  resolveStandardSourceTypeTransformation(
-  transformation: NonNullable<
-    ReturnType<SourceFileSemantics["types"]["standardTransformation"]>
-  >,
-  queries: SourceFileSemantics,
-  state: CsharpTypeResolutionState,
-  authoredRoot: Node,
-  selectedType: Type,
+  resolveFormedStandardSourceTypeTransformation(
+  source: import("./standard-transformation-source.js").CsharpStandardTypeTransformationSource,
 ): TargetTypeRef | undefined;
   resolveSignatureParameterListTarget(
   parameters: SourceCallableTypeEvidence["parameters"],

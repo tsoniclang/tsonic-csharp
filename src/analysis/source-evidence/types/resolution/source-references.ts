@@ -10,7 +10,6 @@ import { selectedCsharpSourceProfileOwner } from "../../../../policy/identities/
 import { csharpSourceTypeParameter } from "../../../../source/extension/type-parameters.js";
 
 import { getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
-import { csharpNeverTargetType } from "../../../../target-model/types/carriers/scalar-types.js";
 import { nextState } from "./state.js";
 import { definedValues, resolveCsharpUnionMemberCarrier } from "./source-evidence.js";
 import { sourcePrimitiveFactKey } from "@tsonic/tsts";
@@ -31,6 +30,7 @@ import { resolveDirectSourceFacts } from "./semantic-types.js";
 import { formCsharpNativeParameterSource, resolveFormedCsharpNativeParameterCarrier } from "./native-parameter-source.js";
 import { formCsharpContextualParameterSource, resolveFormedCsharpContextualParameterCarrier,
   type CsharpContextualParameterSelection } from "./contextual-parameter-source.js";
+import { formCsharpStandardTypeTransformationSource, resolveFormedCsharpStandardTypeTransformation } from "./standard-transformation-source.js";
 
 export function resolveTypeReferenceNode(
   scope: CsharpTypeResolutionScope,
@@ -45,7 +45,7 @@ export function resolveFormedCsharpTypeReferenceNode(
   scope: CsharpTypeResolutionScope,
   source: CsharpTypeReferenceSource,
 ): TargetTypeRef | undefined {
-  const { resolveCheckerTransformedSourceType, resolveCompositionalSourceTypeAlias, resolveFormedDirectSourceFacts, resolveNodeWithState, resolveProviderType, resolveSourceProfileType, resolveStandardSourceTypeTransformation, resolveTypeWithState, targetPreservesAuthoredSourcePrimitiveFacts } = scope;
+  const { resolveCheckerTransformedSourceType, resolveCompositionalSourceTypeAlias, resolveFormedDirectSourceFacts, resolveNodeWithState, resolveProviderType, resolveSourceProfileType, resolveFormedStandardSourceTypeTransformation, resolveTypeWithState, targetPreservesAuthoredSourcePrimitiveFacts } = scope;
   if (source.kind === "missing-name") return undefined;
   const { node, typeName, semanticType, queries, state, subjects } = source;
   const bound = completeCsharpBoundSourceType(source.binding, state);
@@ -55,14 +55,14 @@ export function resolveFormedCsharpTypeReferenceNode(
     return direct;
   }
   const standardTransformation = source.transformation;
+  if (standardTransformation === undefined ? source.transformationSource !== undefined
+    : source.transformationSource === undefined || source.transformationSource.transformation !== standardTransformation ||
+      source.transformationSource.queries !== queries || source.transformationSource.state !== state ||
+      source.transformationSource.authoredRoot !== node || source.transformationSource.selectedType !== semanticType) {
+    return failTargetAnalysisInvariant("tsonic-csharp", "A type reference requires its exact checked transformation Source.", node);
+  }
   if (source.kind === "transformation") {
-    return resolveStandardSourceTypeTransformation(
-      source.transformation,
-      queries,
-      state,
-      node,
-      source.semanticType,
-    );
+    return resolveFormedStandardSourceTypeTransformation(source.transformationSource);
   }
   const typeArguments = source.arguments.map(argument =>
     resolveNodeWithState(argument.node, queries.sourceFile, argument.state));
@@ -98,13 +98,7 @@ export function resolveFormedCsharpTypeReferenceNode(
     standardTransformation !== undefined &&
     semanticType !== undefined
   ) {
-    return resolveStandardSourceTypeTransformation(
-      standardTransformation,
-      queries,
-      state,
-      node,
-      semanticType,
-    );
+    return resolveFormedStandardSourceTypeTransformation(source.transformationSource!);
   }
   const sourceAlias = resolveCompositionalSourceTypeAlias(
     typeName,
@@ -155,13 +149,14 @@ export function resolveCheckerTransformedSourceType(
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
-  const { host, resolveCallableType, resolveEvidenceNodesToCommonTarget, resolveStandardSourceTypeTransformation, resolveTypeWithState } = scope;
+  const { host, resolveCallableType, resolveEvidenceNodesToCommonTarget, resolveTypeWithState } = scope;
   const standard = queries.types.standardTransformation(
     authoredRoot,
     selectedType,
   );
   if (standard !== undefined) {
     return resolveStandardSourceTypeTransformation(
+      scope,
       standard,
       queries,
       state,
@@ -236,46 +231,8 @@ export function resolveStandardSourceTypeTransformation(
   authoredRoot: Node,
   selectedType: Type,
 ): TargetTypeRef | undefined {
-  const { resolveCallableEvidence, resolveSignatureParameterEvidence, resolveSignatureParameterListTarget, resolveSourceTypeComponentEvidence } = scope;
-  if (transformation.kind === "unresolved") {
-    return undefined;
-  }
-  if (transformation.kind === "non-nullish") {
-    if (queries.types.isNever(selectedType)) return csharpNeverTargetType();
-    const input = resolveSourceTypeComponentEvidence(transformation.component, queries, state);
-    return getCsharpNullableElementTargetType(input) ?? input;
-  }
-  if (transformation.kind === "component") {
-    return resolveSourceTypeComponentEvidence(
-      transformation.component,
-      queries,
-      state,
-    );
-  }
-  if (transformation.kind === "parameter-list") {
-    const elements = transformation.parameters.map((element) =>
-      resolveSignatureParameterEvidence(element, queries, state, "parameter-list")
-    );
-    return elements.some((element) => element === undefined)
-      ? undefined
-      : resolveSignatureParameterListTarget(
-          transformation.parameters,
-          elements as readonly TargetTypeRef[],
-        );
-  }
-  if (transformation.kind === "structural") {
-    return resolveStructuralTypeWithState(scope,
-      selectedType,
-      queries.sourceFile,
-      nextState(state),
-      authoredRoot,
-    );
-  }
-  return resolveCallableEvidence(
-    transformation.callable,
-    queries,
-    state,
-  );
+  return resolveFormedCsharpStandardTypeTransformation(scope,
+    formCsharpStandardTypeTransformationSource(scope, transformation, queries, state, authoredRoot, selectedType));
 }
 
 export function resolveSignatureParameterListTarget(
