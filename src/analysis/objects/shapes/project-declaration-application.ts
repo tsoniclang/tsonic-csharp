@@ -14,6 +14,7 @@ import type { CsharpProjectDeclarationShapeSource } from "./project-declaration-
 import type { createCsharpObjectShapeSourceFormation } from "./type-source.js";
 import { completeCsharpObjectShapeOwnerHeader } from "../../../target-model/types/object-shape-header.js";
 import type { CsharpStructuralMembersHeader } from "./member-evidence.js";
+import type { CsharpObjectShapeTargetInput } from "./method-values.js";
 
 export type CsharpProjectDeclarationApplication = {
   readonly targetType: CsharpTargetNamedTypeRef;
@@ -30,8 +31,12 @@ export function createCsharpProjectDeclarationApplications(
   host: CsharpObjectShapePolicyHost,
   formation: ReturnType<typeof createCsharpObjectShapeSourceFormation>,
   memberResolver: Pick<CsharpRecursiveObjectShapePolicy, "formSourceMembersHeader" | "completeSourceMembers">,
-  rememberTargetShape: (shape: CsharpObjectShapeFact) => CsharpObjectShapeFact,
+  owner: {
+    readonly formTargetShape: (input: CsharpObjectShapeTargetInput) => CsharpObjectShapeFact;
+    readonly rememberTargetShape: (shape: CsharpObjectShapeFact) => CsharpObjectShapeFact;
+  },
 ) {
+  const { formTargetShape, rememberTargetShape } = owner;
   function nativeOwner(type: CsharpTargetNamedTypeRef): CsharpTargetNamedTypeRef | undefined {
     const definition = host.projectTypeCatalog.definitionForTarget(type);
     return completeCsharpObjectShapeOwnerHeader(type, definition?.kind === "class" || definition?.kind === "interface",
@@ -95,7 +100,10 @@ export function createCsharpProjectDeclarationApplications(
   ): CsharpObjectShapeFact | undefined {
     if (application.kind === "instance") {
       const template = completeDeclarationApplication(application.template);
-      return template === undefined ? undefined : instantiateCsharpObjectShape(rememberTargetShape(template), application.targetType);
+      const instance = template === undefined ? undefined : instantiateCsharpObjectShape(rememberTargetShape(template), application.targetType);
+      if (instance === undefined) return undefined;
+      const { targetType, ...shape } = instance;
+      return formTargetShape({ ...shape, target: Object.freeze({ kind: "existing", type: targetType }) });
     }
     const { declaration, targetType } = application;
     const definition = host.projectTypeCatalog.definitionForDeclaration(declaration.definition.declaration);
@@ -135,10 +143,11 @@ export function createCsharpProjectDeclarationApplications(
       }
       members.push(member);
     }
-    return { targetType, sourceType: declaration.declaredType, members: Object.freeze(members),
+    return formTargetShape({ target: Object.freeze({ kind: "existing", type: targetType }),
+      sourceType: declaration.declaredType, members: Object.freeze(members),
       ...(definition.kind !== "class" ? {} : { constructible: declaration.initializable }),
       ...(implemented.length === 0 ? {} : { implements: implemented }),
-    };
+    });
   }
 
   return Object.freeze({ nativeOwner, formDeclarationApplication, completeDeclarationApplication });

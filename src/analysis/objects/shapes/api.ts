@@ -1,5 +1,4 @@
 import { createCsharpObjectShapeMemberResolver } from "./member-evidence.js";
-import { createStructuralObjectShapeTarget } from "./construction.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { csharpObjectShapesEqual } from "../../../target-model/types/object-shape-equality.js";
 import { csharpObjectShapeContractKey } from "../../../target-model/types/object-shape-identity.js";
@@ -16,7 +15,8 @@ import { resolveProviderObjectLiteralShape } from "./provider-construction.js";
 import { createCsharpStructuralUnionDefinitions } from "./union-definitions.js";
 import { selectCsharpObjectMethodImplementation } from "./method-implementations.js";
 
-import { resolveCsharpCopiedObjectShape, retainCsharpMethodValueContracts } from "./method-values.js";
+import { resolveCsharpCopiedObjectShape, retainCsharpMethodValueContracts,
+  type CsharpObjectShapeTargetInput } from "./method-values.js";
 
 import { parameterizeCsharpStructuralContract } from "./structural-contracts.js";
 
@@ -58,7 +58,7 @@ export function createCsharpObjectShapePolicy(
   const targetShapes = new Map<string, CsharpObjectShapePublication>();
   const genericShapes = new Map<string, CsharpObjectShapePublication>();
   const declarationApplications = createCsharpProjectDeclarationApplications(host, formation,
-    { formSourceMembersHeader, completeSourceMembers }, rememberTargetShape);
+    { formSourceMembersHeader, completeSourceMembers }, { formTargetShape, rememberTargetShape });
   const unionDefinitions = createCsharpStructuralUnionDefinitions(host, (type, file, state) =>
     resolveTypeWithState(type, file, undefined, state), environment);
 
@@ -122,9 +122,12 @@ export function createCsharpObjectShapePolicy(
       const selectedShape = selectedSource === undefined ? undefined : completeTargetSelection(selectedSource);
       if (selectedShape !== undefined && selectedSource?.instantiation !== undefined) {
         const members = instantiateMemberEvidence(selectedShape.members, selectedSource.instantiation);
-        if (members !== undefined) return state.sourceBindings === undefined
-          ? remember(node, { ...selectedShape, sourceType: actualType, members })
-          : rememberTargetShape({ ...selectedShape, sourceType: actualType, members });
+        if (members !== undefined) {
+          const { targetType, ...selected } = selectedShape;
+          const completed = formTargetShape({ ...selected, sourceType: actualType, members,
+            target: Object.freeze({ kind: "existing", type: targetType }) });
+          return state.sourceBindings === undefined ? remember(node, completed) : rememberTargetShape(completed);
+        }
       }
       const semantic = source.origin === "contextual" ? input.contextual : input.semantic;
       const shape = semantic === undefined ? undefined
@@ -153,7 +156,8 @@ export function createCsharpObjectShapePolicy(
       if (selection.kind === "nullable") return complete(selection.selection);
       if (selection.kind === "canonical") return selection.publication.shape;
       if (selection.kind === "attached") return selection.shapes[selection.index]!;
-      return rememberTargetShape(completeCsharpObjectShapeInstantiation(selection.instantiation, selection.template.shape));
+      const { targetType, ...shape } = completeCsharpObjectShapeInstantiation(selection.instantiation, selection.template.shape);
+      return rememberTargetShape(formTargetShape({ ...shape, target: Object.freeze({ kind: "existing", type: targetType }) }));
     };
     const shape = complete(source.selection);
     requireCsharpObjectShapeProofRows(source.rows, shape);
@@ -247,8 +251,14 @@ export function createCsharpObjectShapePolicy(
     return shape === undefined ? undefined : rememberTargetShape(shape);
   }
 
-  const resolveObjectLiteralTargetShape = createCsharpLiteralShapeResolver(host, { resolveNode, retainLiteralMemberEvidence, instantiateMemberEvidence, rememberTargetShape });
-  const projectConstruction = createCsharpProjectShapeProjection(host, { collectMembers, formSourceMembersHeader, completeSourceMembers });
+  const resolveObjectLiteralTargetShape = createCsharpLiteralShapeResolver(host, { resolveNode, retainLiteralMemberEvidence,
+    instantiateMemberEvidence, formTargetShape, rememberTargetShape });
+  const projectConstruction = createCsharpProjectShapeProjection(host,
+    { collectMembers, formSourceMembersHeader, completeSourceMembers, formTargetShape });
+
+  function formTargetShape(input: CsharpObjectShapeTargetInput): CsharpObjectShapeFact {
+    return retainCsharpMethodValueContracts(input, rememberTargetShape, environment, host.sourceStorage);
+  }
 
   function remember(
     node: Node,
@@ -275,7 +285,6 @@ export function createCsharpObjectShapePolicy(
     if (shape.declarationTemplate !== undefined) {
       shape = { ...shape, declarationTemplate: rememberTargetShape(shape.declarationTemplate) };
     }
-    shape = retainCsharpMethodValueContracts(shape, rememberTargetShape, environment, host.sourceStorage);
     const key = targetTypeRefKey(shape.targetType);
     const publication = targetShapes.get(key);
     const existing = publication?.shape;
@@ -425,13 +434,15 @@ export function createCsharpObjectShapePolicy(
       const methodImplementation = structuralContract ? undefined : selectCsharpObjectMethodImplementation(input.implementation,
         members.map(member => member.targetName), input.implementationCaptures.map(request =>
           host.typeResolver.resolveNode(request.node, request.sourceFile, request.state)));
-      const shape: CsharpObjectShapeFact = {
-        targetType: unionDefinitions.reference(type) ?? createStructuralObjectShapeTarget(members, implemented, environment, structuralContract, methodImplementation),
+      const reference = unionDefinitions.reference(type);
+      const shape = formTargetShape({
+        target: reference === undefined ? Object.freeze({ kind: "structural", contract: structuralContract })
+          : Object.freeze({ kind: "existing", type: reference }),
         sourceType: type,
         members: unionDefinitions.substituteMembers(type, members),
         ...(methodImplementation === undefined ? {} : { methodImplementation }),
         ...(implemented === undefined ? {} : { implements: implemented }),
-      };
+      });
       if (authoredLiteral !== undefined) {
         const selected = resolveObjectLiteralTargetShape(shape, authoredLiteral, queries.sourceFile);
         if (selected.kind !== "resolved") return undefined;

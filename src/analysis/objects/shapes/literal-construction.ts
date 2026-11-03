@@ -1,5 +1,4 @@
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
-import { createStructuralObjectShapeTarget } from "./construction.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetNamedTypeRef } from "../../../target-model/types/model.js";
 import { csharpSourceMemberKeysEqual } from "../../../target-model/types/source-member-keys.js";
 import { selectCsharpObjectMethodImplementation } from "./method-implementations.js";
@@ -12,6 +11,7 @@ import type { createCsharpObjectShapeMemberResolver } from "./member-evidence.js
 import type { CsharpObjectLiteralConstructionSource } from "./literal-source.js";
 import type { CsharpObjectShapeSource } from "./shape-source.js";
 import type { CsharpObjectShapeMemberProofInput } from "./member-instantiation.js";
+import type { CsharpObjectShapeTargetInput } from "./method-values.js";
 
 function requiresSourceProof(member: CsharpObjectShapeMemberFact, source: CsharpObjectShapeMemberProofInput): void {
   if (member.sourceSubjects !== source.sourceSubjects || member.sourceDeclarations !== source.sourceDeclarations ||
@@ -40,10 +40,10 @@ export function createCsharpLiteralShapeResolver(
     readonly retainLiteralMemberEvidence: ReturnType<typeof createCsharpObjectShapeMemberResolver>["retainLiteralMemberEvidence"];
     readonly instantiateMemberEvidence: ReturnType<typeof createCsharpObjectShapeMemberResolver>["instantiateMemberEvidence"];
     readonly rememberTargetShape: (shape: CsharpObjectShapeFact) => CsharpObjectShapeFact;
+    readonly formTargetShape: (input: CsharpObjectShapeTargetInput) => CsharpObjectShapeFact;
   },
 ) {
-  const { resolveNode, retainLiteralMemberEvidence, instantiateMemberEvidence, rememberTargetShape } = dependencies;
-  const environment = host.typeParameterConstraints;
+  const { resolveNode, retainLiteralMemberEvidence, instantiateMemberEvidence, formTargetShape, rememberTargetShape } = dependencies;
 
   function completeObjectLiteralTargetShape(
     source: CsharpObjectLiteralConstructionSource,
@@ -101,7 +101,9 @@ export function createCsharpLiteralShapeResolver(
     const ownsImplementation = expectedShape.methodImplementation?.declaration === objectLiteral;
     if (additionalMembers.length === 0 && accessors.kind === "none" && implemented === expectedShape.implements &&
       (!nativeMethodLiteral || ownsImplementation) && !copiedMethods) {
-      return { kind: "resolved", shape: rememberTargetShape({ ...expectedShape, sourceType, members }) };
+      const { targetType, ...selected } = expectedShape;
+      return { kind: "resolved", shape: rememberTargetShape(formTargetShape({ ...selected, sourceType, members,
+        target: Object.freeze({ kind: "existing", type: targetType }) })) };
     }
     if (copiedMethods) {
       const sources: CsharpObjectShapeFact[] = [];
@@ -156,12 +158,12 @@ export function createCsharpLiteralShapeResolver(
       kind: "rejected", subject: objectLiteral,
       reason: "Native object methods require one exact authored implementation and closed lexical capture types.",
     };
-    return { kind: "resolved", shape: rememberTargetShape({
-      targetType: createStructuralObjectShapeTarget(members, implemented, environment, false, methodImplementation),
+    return { kind: "resolved", shape: rememberTargetShape(formTargetShape({
+      target: Object.freeze({ kind: "structural", contract: false }),
       members, sourceType,
       ...(methodImplementation === undefined ? {} : { methodImplementation }),
       ...(implemented === undefined ? {} : { implements: implemented }),
-    }) };
+    })) };
   }
 
   return completeObjectLiteralTargetShape;

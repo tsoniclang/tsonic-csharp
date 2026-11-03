@@ -1,16 +1,18 @@
 import type { CsharpObjectShapeFact, TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpProjectConstructibleTypeProjection } from "../../../target-model/records/objects/object-shapes.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
-import { createStructuralObjectShapeTarget } from "./construction.js";
 import { isProjectSourceTargetType } from "./source-evidence.js";
 import type { CsharpObjectShapePolicyHost, CsharpRecursiveObjectShapePolicy } from "./model.js";
 import type { createCsharpObjectShapeMemberResolver } from "./member-evidence.js";
 import { formCsharpProjectConstructionSource, type CsharpProjectConstructionSource } from "./project-construction-source.js";
+import type { CsharpObjectShapeTargetInput } from "./method-values.js";
 
 export function createCsharpProjectShapeProjection(
   host: CsharpObjectShapePolicyHost,
   dependencies: Pick<ReturnType<typeof createCsharpObjectShapeMemberResolver>,
-    "collectMembers" | "formSourceMembersHeader" | "completeSourceMembers">,
+    "collectMembers" | "formSourceMembersHeader" | "completeSourceMembers"> & {
+    readonly formTargetShape: (input: CsharpObjectShapeTargetInput) => CsharpObjectShapeFact;
+  },
 ) {
   const { collectMembers, formSourceMembersHeader, completeSourceMembers } = dependencies;
 
@@ -39,10 +41,10 @@ export function createCsharpProjectShapeProjection(
     }
     if (targetType.csharpSourceDeclarationKind !== "interface") return { kind: "rejected",
       reason: "The selected C# project type argument is not a class, interface, struct, or enum." };
-    const shape: CsharpObjectShapeFact = {
-      targetType: createStructuralObjectShapeTarget(members, [targetType], host.typeParameterConstraints),
+    const shape = dependencies.formTargetShape({
+      target: Object.freeze({ kind: "structural", contract: false }),
       members, implements: [targetType],
-    };
+    });
     return { kind: "resolved", shape };
   }
 
