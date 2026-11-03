@@ -1,4 +1,4 @@
-import type { Node, SourceFile, Type } from "@tsonic/tsts";
+import type { ExtensionFactSubject, Node, SourceFile, Type } from "@tsonic/tsts";
 import { sourceTypeSyntaxRoot, type SourceFileSemantics } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpObjectShapeNodeSource } from "../../../objects/shapes/node-source.js";
@@ -15,6 +15,8 @@ import { formCsharpTypeReferenceSource, type CsharpTypeReferenceSource } from ".
 import { formCsharpSourceTypeBindingEvidence, type CsharpSourceTypeBindingEvidence } from "./type-bindings.js";
 import { formCsharpSelectedExpressionSource, type CsharpSelectedExpressionSource } from "./expression-source.js";
 import { formCsharpSemanticTypeArgumentsSource, type CsharpSemanticTypeArgumentsSource } from "./semantic-argument-source.js";
+import { formCsharpDirectSourceEvidence, type CsharpDirectSourceEvidence } from "./direct-source-evidence.js";
+import { sourceFactSubjectsForNode } from "./source-evidence.js";
 
 export interface CsharpStructuralNodeSourceInput {
   readonly node: Node;
@@ -39,6 +41,7 @@ export type CsharpSemanticTypeSource = {
   | { readonly kind: "unavailable" }
   | { readonly kind: "type"; readonly type: Type; readonly queries: SourceFileSemantics;
       readonly nonPrimitive: boolean; readonly binding: CsharpSourceTypeBindingEvidence | undefined;
+      readonly subjects: readonly ExtensionFactSubject[]; readonly direct: CsharpDirectSourceEvidence;
       readonly arguments: CsharpSemanticTypeArgumentsSource;
       readonly project: CsharpProjectSemanticSource; readonly structural: CsharpStructuralTypeSourceInput }
 );
@@ -55,6 +58,7 @@ export type CsharpNodeTypeSource = {
       readonly selectedType: Type | undefined; readonly project: CsharpProjectReferenceSource | undefined;
       readonly reference: CsharpTypeReferenceSource | undefined;
       readonly selectedExpression: CsharpSelectedExpressionSource;
+      readonly directSyntax: CsharpDirectSourceEvidence; readonly directValue: CsharpDirectSourceEvidence;
       readonly structural: CsharpStructuralNodeSourceInput; readonly semantic: CsharpSemanticTypeSource }
 );
 
@@ -114,7 +118,9 @@ export function formCsharpSemanticTypeSource(
   const nonPrimitive = queries.types.isNonPrimitive(type);
   const binding = nonPrimitive || state.sourceBindings === undefined ? undefined
     : formCsharpSourceTypeBindingEvidence(type, queries);
+  const subjects = queries.facts.typeSubjects(type);
   return Object.freeze({ kind: "type", type, sourceFile, state, queries, nonPrimitive, binding,
+    subjects, direct: formCsharpDirectSourceEvidence(scope, subjects, sourceFile, state),
     arguments: formCsharpSemanticTypeArgumentsSource(scope, type, queries, state),
     project: formCsharpProjectSemanticSource(scope, type, queries, state),
     structural: formCsharpStructuralTypeSourceInput(scope, type, queries, nextState(state)),
@@ -149,6 +155,8 @@ export function formCsharpNodeTypeSource(
       "A structural node root requires its exact retained source occurrence.", node);
   }
   return Object.freeze({ kind: "node", node, sourceFile, queries, state, originalState, selectedType,
+    directSyntax: formCsharpDirectSourceEvidence(scope, Object.freeze([node]), queries.sourceFile, state),
+    directValue: formCsharpDirectSourceEvidence(scope, sourceFactSubjectsForNode(node, host.navigation), queries.sourceFile, state),
     cycle: reference ? Object.freeze({ type: queries.types.authoredType(node) }) : undefined,
     reference: host.ast.is.IsTypeReferenceNode(node) ? formCsharpTypeReferenceSource(scope, node, queries, state) : undefined,
     selectedExpression: formCsharpSelectedExpressionSource(scope, node, queries, state),

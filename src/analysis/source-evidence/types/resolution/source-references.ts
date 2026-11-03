@@ -29,6 +29,7 @@ import { getCsharpCallableValueSignature } from "../../../../target-model/types/
 import { formCsharpTypeReferenceSource, type CsharpTypeReferenceSource } from "./type-reference-source.js";
 import { resolveFormedCsharpProjectReference } from "./project-types.js";
 import { resolveSelectedExpressionResult } from "./expressions.js";
+import { resolveDirectSourceFacts } from "./semantic-types.js";
 
 export function resolveTypeReferenceNode(
   scope: CsharpTypeResolutionScope,
@@ -43,12 +44,12 @@ export function resolveFormedCsharpTypeReferenceNode(
   scope: CsharpTypeResolutionScope,
   source: CsharpTypeReferenceSource,
 ): TargetTypeRef | undefined {
-  const { resolveCheckerTransformedSourceType, resolveCompositionalSourceTypeAlias, resolveDirectSourceFacts, resolveNodeWithState, resolveProviderType, resolveSourceProfileType, resolveStandardSourceTypeTransformation, resolveTypeWithState, targetPreservesAuthoredSourcePrimitiveFacts } = scope;
+  const { resolveCheckerTransformedSourceType, resolveCompositionalSourceTypeAlias, resolveFormedDirectSourceFacts, resolveNodeWithState, resolveProviderType, resolveSourceProfileType, resolveStandardSourceTypeTransformation, resolveTypeWithState, targetPreservesAuthoredSourcePrimitiveFacts } = scope;
   if (source.kind === "missing-name") return undefined;
   const { node, typeName, semanticType, queries, state, subjects } = source;
   const bound = completeCsharpBoundSourceType(source.binding, state);
   if (bound !== undefined) return bound.targetType;
-  const direct = resolveDirectSourceFacts(subjects, queries.sourceFile, state);
+  const direct = resolveFormedDirectSourceFacts(source.direct);
   if (direct !== undefined) {
     return direct;
   }
@@ -524,7 +525,7 @@ export function resolveSourceValueResult(
   state: CsharpTypeResolutionState,
   selectedType?: Type,
 ): CsharpSourceCallResult | undefined {
-  const { host, resolveAuthoredAndSelectedSourceType, resolveDirectSourceFacts, resolveNodeWithState, resolveNodeValueWithState, resolveTypeWithState, sourceValueDeclaration, sourceValueDeclarationSyntax } = scope;
+  const { host, resolveAuthoredAndSelectedSourceType, resolveNodeWithState, resolveNodeValueWithState, resolveTypeWithState, sourceValueDeclaration, sourceValueDeclarationSyntax } = scope;
   const reference = host.navigation.referenceFor(node);
   const declaration = sourceValueDeclaration(node, reference?.declaration);
   if (declaration === undefined) {
@@ -607,7 +608,7 @@ export function resolveSourceValueResult(
   const initializerResult = arrayInitializer
     ? resolveNodeValueWithState(syntax.initializer, sourceFile, nextState(state))
     : widenedInitializer ? csharpSourceValueResult(declaredTarget)
-    : csharpSourceValueResult(resolveDirectSourceFacts([syntax.initializer], sourceFile, nextState(state))) ??
+    : csharpSourceValueResult(resolveDirectSourceFacts(scope, [syntax.initializer], sourceFile, nextState(state))) ??
       resolveSelectedExpressionResult(scope, syntax.initializer, declarationQueries, nextState(state)) ??
       (declaredTarget !== undefined && (declaredCallable || !mutableVariable && declarationKind !== "const")
         ? csharpSourceValueResult(declaredTarget)

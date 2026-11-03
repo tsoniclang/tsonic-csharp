@@ -28,6 +28,7 @@ import type { CsharpTypeReferenceSource } from "./type-reference-source.js";
 import type { CsharpSelectedExpressionSource } from "./expression-source.js";
 import type { CsharpSourceCallResultSource } from "./call-result-source.js";
 import type { CsharpSemanticTypeArgumentsSource } from "./semantic-argument-source.js";
+import type { CsharpDirectSourceEvidence } from "./direct-source-evidence.js";
 export interface CsharpTypeResolutionScope {
   nodeQuerySource(node: Node | undefined, sourceFile?: SourceFile): CsharpNodeQuerySource;
   completeNodeQuery(source: CsharpNodeQuerySource): CsharpNodeTypeResolution | undefined;
@@ -352,10 +353,8 @@ export interface CsharpTypeResolutionScope {
   sourceFile: SourceFile,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined;
-  resolveDirectSourceFacts(
-  subjects: readonly ExtensionFactSubject[],
-  sourceFile: SourceFile,
-  state: CsharpTypeResolutionState,
+  resolveFormedDirectSourceFacts(
+  source: CsharpDirectSourceEvidence,
 ): TargetTypeRef | undefined;
   resolveProviderType(
   subjects: readonly ExtensionFactSubject[],

@@ -10,6 +10,7 @@ import { sourceFactSubjectsForNode } from "./source-evidence.js";
 import { formCsharpSourceTypeBindingEvidence, type CsharpSourceTypeBindingEvidence } from "./type-bindings.js";
 import { csharpSourceStorageComponentContext } from "./source-storage-projection.js";
 import { nextState } from "./state.js";
+import { formCsharpDirectSourceEvidence, type CsharpDirectSourceEvidence } from "./direct-source-evidence.js";
 
 type Transformation = NonNullable<ReturnType<SourceFileSemantics["types"]["standardTransformation"]>>;
 
@@ -24,6 +25,7 @@ interface CsharpTypeReferenceObservations extends CsharpTypeReferenceSourceBase 
   readonly semanticType: Type | undefined;
   readonly binding: CsharpSourceTypeBindingEvidence | undefined;
   readonly subjects: readonly ExtensionFactSubject[];
+  readonly direct: CsharpDirectSourceEvidence;
   readonly transformation: Transformation | undefined;
 }
 
@@ -63,7 +65,8 @@ export function formCsharpTypeReferenceSource(
     ...(semanticType === undefined ? [] : queries.facts.typeSubjects(semanticType)),
   ]);
   const transformation = semanticType === undefined ? undefined : queries.types.standardTransformation(node, semanticType);
-  const observations = { node, queries, state, typeName, semanticType, binding, subjects, transformation };
+  const observations = { node, queries, state, typeName, semanticType, binding, subjects, transformation,
+    direct: formCsharpDirectSourceEvidence(scope, subjects, queries.sourceFile, state) };
   if (transformation !== undefined && semanticType !== undefined &&
       (transformation.kind !== "structural" || queries.types.indexInfos(semanticType).length === 0)) {
     return Object.freeze({ ...observations, kind: "transformation", semanticType, transformation });
