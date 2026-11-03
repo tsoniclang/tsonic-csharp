@@ -6,52 +6,54 @@ import { nextState } from "../../source-evidence/types/resolution/state.js";
 import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../../target-model/types/object-shape-members.js";
 import type { CsharpObjectShapePolicyHost } from "./model.js";
 import type { CsharpObjectShapeMemberProofInput } from "./member-instantiation.js";
-import type { CsharpCollectedObjectShapeMember, CsharpCollectedObjectShapeMembers } from "./member-source.js";
+import { bindCsharpObjectShapeMembersSource, type CsharpObjectShapeMemberSource,
+  type CsharpObjectShapeMembersSource, type CsharpCollectedObjectShapeMembers } from "./member-source.js";
 import { projectClassIsObjectInitializable } from "./source-evidence.js";
 import type { CsharpStructuralTypeSource } from "../../source-evidence/types/resolution/structural-applications.js";
 
 export interface CsharpProjectDeclarationMemberSource extends CsharpObjectShapeMemberProofInput {
-  readonly member: CsharpCollectedObjectShapeMember;
+  readonly member: CsharpObjectShapeMemberSource;
   readonly inherited: {
-    readonly source: CsharpProjectDeclarationShapeSource;
+    readonly source: CsharpProjectDeclarationSource;
     readonly member: CsharpProjectDeclarationMemberSource;
   } | undefined;
 }
 
-export interface CsharpProjectDeclarationShapeSource {
+export interface CsharpProjectDeclarationSource {
   readonly definition: CsharpCurrentProjectDeclaration;
-  readonly inputState: CsharpTypeResolutionState;
-  readonly state: CsharpTypeResolutionState;
   readonly declaredType: Type;
-  readonly collection: CsharpCollectedObjectShapeMembers;
-  readonly application: CsharpStructuralTypeSource;
+  readonly collection: CsharpObjectShapeMembersSource;
   readonly members: readonly CsharpProjectDeclarationMemberSource[];
   readonly initializable: boolean;
 }
 
+export interface CsharpProjectDeclarationShapeSource extends CsharpProjectDeclarationSource {
+  readonly source: CsharpProjectDeclarationSource;
+  readonly inputState: CsharpTypeResolutionState;
+  readonly state: CsharpTypeResolutionState;
+  readonly collection: CsharpCollectedObjectShapeMembers;
+  readonly application: CsharpStructuralTypeSource;
+}
+
 export function createCsharpProjectDeclarationShapeSource(
   host: CsharpObjectShapePolicyHost,
-  collectMembers: (type: Type, queries: CsharpCollectedObjectShapeMembers["queries"],
-    state: CsharpTypeResolutionState, authoredTypeRoot?: Node) => CsharpCollectedObjectShapeMembers | undefined,
+  formMembersSource: (type: Type, queries: CsharpObjectShapeMembersSource["queries"],
+    authoredTypeRoot?: Node) => CsharpObjectShapeMembersSource | undefined,
 ) {
   const active = new Set<Node>();
 
-  function formProjectDeclarationSource(
+  function captureProjectDeclarationSource(
     declaration: Node,
-    state: CsharpTypeResolutionState,
-  ): CsharpProjectDeclarationShapeSource | undefined {
+  ): CsharpProjectDeclarationSource | undefined {
     const definition = host.projectDeclarations.declarationForNode(declaration);
     if (definition?.kind !== "class" && definition?.kind !== "interface" || active.has(declaration)) return undefined;
     active.add(declaration);
     try {
-      const inputState = state;
-      state = csharpSourceTemplateState([...definition.outerTypeParameters, ...definition.typeParameters], state);
       const queries = host.semantics(definition.sourceFile);
       const declaredType = queries.declarations.declaredType(definition.declaration);
       if (declaredType === undefined) return undefined;
-      const collection = collectMembers(declaredType, queries, nextState(state), host.ast.typeNode(definition.declaration));
+      const collection = formMembersSource(declaredType, queries, host.ast.typeNode(definition.declaration));
       if (collection === undefined) return undefined;
-      const application = host.structuralTypeApplication(collection);
       const members: CsharpProjectDeclarationMemberSource[] = [];
       for (const member of collection.members) {
         const input = member.proofInput;
@@ -69,7 +71,7 @@ export function createCsharpProjectDeclarationShapeSource(
           members.push(Object.freeze({ ...input, member, inherited: undefined }));
           continue;
         }
-        const inherited = formProjectDeclarationSource(owner.declaration, nextState(state));
+        const inherited = captureProjectDeclarationSource(owner.declaration);
         if (inherited === undefined) return undefined;
         const selected = resolveCsharpObjectShapeMemberBySelectedSubject(inherited,
           [...input.sourceSubjects ?? [], ...input.sourceDeclarations ?? []]);
@@ -87,7 +89,7 @@ export function createCsharpProjectDeclarationShapeSource(
           inherited: Object.freeze({ source: inherited, member: original }),
         }));
       }
-      return Object.freeze({ definition, inputState, state, declaredType, collection, application, members: Object.freeze(members),
+      return Object.freeze({ definition, declaredType, collection, members: Object.freeze(members),
         initializable: definition.kind === "class" && projectClassIsObjectInitializable(declaredType, queries, host),
       });
     } finally {
@@ -95,5 +97,26 @@ export function createCsharpProjectDeclarationShapeSource(
     }
   }
 
-  return { formProjectDeclarationSource };
+  function formProjectDeclarationFromSource(
+    source: CsharpProjectDeclarationSource,
+    inputState: CsharpTypeResolutionState,
+  ): CsharpProjectDeclarationShapeSource {
+    const state = csharpSourceTemplateState([
+      ...source.definition.outerTypeParameters, ...source.definition.typeParameters,
+    ], inputState);
+    const collection = bindCsharpObjectShapeMembersSource(source.collection, nextState(state));
+    return Object.freeze({ ...source, source, inputState, state, collection,
+      application: host.structuralTypeApplication(collection),
+    });
+  }
+
+  function formProjectDeclarationSource(
+    declaration: Node,
+    state: CsharpTypeResolutionState,
+  ): CsharpProjectDeclarationShapeSource | undefined {
+    const source = captureProjectDeclarationSource(declaration);
+    return source === undefined ? undefined : formProjectDeclarationFromSource(source, state);
+  }
+
+  return { captureProjectDeclarationSource, formProjectDeclarationFromSource, formProjectDeclarationSource };
 }

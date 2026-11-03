@@ -7,7 +7,7 @@ import type { CsharpProjectSemanticSource } from "../../source-evidence/types/re
 import type { CsharpStructuralTypeSource } from "../../source-evidence/types/resolution/structural-applications.js";
 import { nextState } from "../../source-evidence/types/resolution/state.js";
 import { formCsharpLiteralCreationSource, type CsharpLiteralCreationSource } from "../literal-creation-source.js";
-import type { CsharpCollectedObjectShapeMembers } from "./member-source.js";
+import type { createCsharpObjectShapeMemberResolver } from "./member-evidence.js";
 import type { CsharpObjectShapePolicyHost } from "./model.js";
 import { formCsharpObjectLiteralShapeSource, type CsharpObjectLiteralShapeSource } from "./literal-source.js";
 import { formProviderObjectLiteralSource, type CsharpProviderObjectLiteralSource } from "./provider-construction.js";
@@ -61,10 +61,11 @@ export interface CsharpObjectShapeTypeSource {
 
 export function createCsharpObjectShapeSourceFormation(
   host: CsharpObjectShapePolicyHost,
-  collectMembers: (type: Type, queries: SourceFileSemantics, state: CsharpTypeResolutionState,
-    authoredTypeRoot?: Node) => CsharpCollectedObjectShapeMembers | undefined,
+  memberSources: Pick<ReturnType<typeof createCsharpObjectShapeMemberResolver>, "collectMembers" | "formMembersSource">,
 ) {
-  const { formProjectDeclarationSource } = createCsharpProjectDeclarationShapeSource(host, collectMembers);
+  const { collectMembers, formMembersSource } = memberSources;
+  const declarationSources = createCsharpProjectDeclarationShapeSource(host, formMembersSource);
+  const { formProjectDeclarationSource } = declarationSources;
 
   function formTypeSource(
     type: Type,
@@ -139,7 +140,7 @@ export function createCsharpObjectShapeSourceFormation(
     });
   }
 
-  return Object.freeze({ formTypeSource, formProjectDeclarationSource,
+  return Object.freeze({ formTypeSource, ...declarationSources,
     formStructSource: (node: Node, queries: SourceFileSemantics, state: CsharpTypeResolutionState) =>
       formCsharpStructShapeSource(host, collectMembers, node, queries, state),
   });
