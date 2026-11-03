@@ -1,7 +1,7 @@
 import type { ExtensionFactSubject, Node, Type, TypePropertyInfo } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import type { CsharpSourceMemberKey } from "../../types/model.js";
-import type { CsharpCallableDeclarationEvidence } from "../types/callable-source.js";
+import type { CsharpCallableDeclarationEvidence, CsharpCallableSignatureSource } from "../types/callable-source.js";
 
 export interface CsharpObjectMemberDeclarationSource {
   readonly property: TypePropertyInfo;
@@ -17,4 +17,5 @@ export interface CsharpObjectMemberDeclarationSource {
   readonly setters: readonly Node[];
   readonly methodDeclaration: Node | undefined;
   readonly callableDeclaration: CsharpCallableDeclarationEvidence;
+  readonly callableSignature: CsharpCallableSignatureSource | undefined;
 }

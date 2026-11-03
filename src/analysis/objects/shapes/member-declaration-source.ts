@@ -4,6 +4,7 @@ import { sourcePresentCallableType, sourcePropertyTypeEvidenceNodes,
 import type { CsharpObjectMemberDeclarationSource } from "../../../target-model/records/objects/member-declarations.js";
 import type { CsharpTypePolicyBaseHost } from "../../source-evidence/types/resolution/model.js";
 import { formCsharpCallableDeclaration } from "../../source-evidence/types/resolution/callable-type-parameters.js";
+import { formCsharpCallableSignatureSource } from "../../source-evidence/types/resolution/callable-signature-source.js";
 import { objectShapeMemberTargetNameForKey } from "../../../policy/identities/source-member-names.js";
 import { resolveObjectShapeSourceMemberKey } from "../../../source/extension/member-keys.js";
 
@@ -34,6 +35,9 @@ export function formCsharpObjectMemberDeclarationSource(
   const methodDeclaration = signatures.length === 1 ? queries.declarations.signatureDeclaration(signatures[0]!) : undefined;
   const callableDeclaration = formCsharpCallableDeclaration(methodDeclaration, queries.sourceFile, host.ast);
   if (callableDeclaration === undefined) return undefined;
+  const callable = callableType === undefined ? undefined : queries.types.callable(callableType);
+  const callableSignature = callable === undefined || callable.result.declaration !== methodDeclaration ? undefined
+    : formCsharpCallableSignatureSource(host.ast, callable, queries, callableDeclaration);
   const authoredTypeNodes = Object.freeze([
     ...sourcePropertyTypeEvidenceNodes(host.ast, queries, property),
     ...(authoredTypeRoot === undefined ? []
@@ -41,6 +45,6 @@ export function formCsharpObjectMemberDeclarationSource(
   ]);
   return Object.freeze({ property, propertyType: sourceType, queries, declarations,
     subjects: Object.freeze([property.symbol, ...declarations]), authoredTypeNodes,
-    sourceKey, targetName, method, getters, setters, methodDeclaration, callableDeclaration,
+    sourceKey, targetName, method, getters, setters, methodDeclaration, callableDeclaration, callableSignature,
   });
 }

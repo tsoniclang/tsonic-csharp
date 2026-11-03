@@ -19,6 +19,8 @@ import { formCsharpDirectSourceEvidence, type CsharpDirectSourceEvidence } from 
 import { sourceFactSubjectsForNode } from "./source-evidence.js";
 import { formCsharpDeclaredObjectReceiverInput,
   type CsharpDeclaredObjectReceiverInput } from "./declared-receiver-source.js";
+import { formCsharpCallableTypeSource } from "./callable-signature-source.js";
+import type { CsharpCallableTypeSource } from "../../../../target-model/records/types/callable-source.js";
 
 export interface CsharpStructuralNodeSourceInput {
   readonly node: Node;
@@ -44,6 +46,7 @@ export type CsharpSemanticTypeSource = {
   | { readonly kind: "type"; readonly type: Type; readonly queries: SourceFileSemantics;
       readonly nonPrimitive: boolean; readonly binding: CsharpSourceTypeBindingEvidence | undefined;
       readonly subjects: readonly ExtensionFactSubject[]; readonly direct: CsharpDirectSourceEvidence;
+      readonly callable: CsharpCallableTypeSource;
       readonly arguments: CsharpSemanticTypeArgumentsSource;
       readonly project: CsharpProjectSemanticSource; readonly structural: CsharpStructuralTypeSourceInput }
 );
@@ -124,6 +127,7 @@ export function formCsharpSemanticTypeSource(
   const subjects = queries.facts.typeSubjects(type);
   return Object.freeze({ kind: "type", type, sourceFile, state, queries, nonPrimitive, binding,
     subjects, direct: formCsharpDirectSourceEvidence(scope, subjects, sourceFile, state),
+    callable: formCsharpCallableTypeSource(scope.host.ast, type, queries),
     arguments: formCsharpSemanticTypeArgumentsSource(scope, type, queries, state),
     project: formCsharpProjectSemanticSource(scope, type, queries, state),
     structural: formCsharpStructuralTypeSourceInput(scope, type, queries, nextState(state)),

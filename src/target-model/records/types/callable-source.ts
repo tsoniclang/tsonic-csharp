@@ -1,4 +1,5 @@
-import type { Node, SourceFile } from "@tsonic/tsts";
+import type { Node, SourceFile, Type } from "@tsonic/tsts";
+import type { SourceCallableTypeEvidence, SourceFileSemantics } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../types/model.js";
 
 export interface CsharpConstraintTypeDependency {
@@ -35,3 +36,25 @@ export interface CsharpCallableDeclarationEvidence {
     readonly constraint: CsharpTypeParameterConstraintSource;
   }[];
 }
+
+export interface CsharpCallableSignatureParameterSource {
+  readonly index: number;
+  readonly selected: SourceCallableTypeEvidence["parameters"][number];
+  readonly parameter: SourceCallableTypeEvidence["parameters"][number];
+  readonly tupleElements: ReturnType<SourceFileSemantics["types"]["tupleElementInfos"]> | undefined;
+}
+
+export interface CsharpCallableSignatureSource {
+  readonly callable: SourceCallableTypeEvidence;
+  readonly queries: SourceFileSemantics;
+  readonly parameters: readonly CsharpCallableSignatureParameterSource[];
+  readonly declaration: CsharpCallableDeclarationEvidence | undefined;
+}
+
+export type CsharpCallableTypeSource = {
+  readonly type: Type;
+  readonly queries: SourceFileSemantics;
+} & (
+  | { readonly kind: "not-callable" }
+  | { readonly kind: "callable"; readonly signature: CsharpCallableSignatureSource }
+);

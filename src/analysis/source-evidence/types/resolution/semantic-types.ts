@@ -25,6 +25,7 @@ import { formCsharpSemanticTypeSource, type CsharpSemanticTypeSource } from "./r
 import { resolveFormedCsharpProjectSemanticType } from "./project-types.js";
 import { formCsharpSemanticTypeArgumentsSource, type CsharpSemanticTypeArgumentsSource } from "./semantic-argument-source.js";
 import { formCsharpDirectSourceEvidence, resolveFormedCsharpDirectSourceFacts } from "./direct-source-evidence.js";
+import { resolveFormedCsharpCallableType } from "./source-profiles.js";
 
 export function resolveTypeWithState(
   scope: CsharpTypeResolutionScope,
@@ -39,7 +40,7 @@ export function resolveFormedCsharpSemanticTypeSource(
   scope: CsharpTypeResolutionScope,
   source: CsharpSemanticTypeSource,
 ): TargetTypeRef | undefined {
-  const { host, policy, resolveCallableType, resolveCompositionalSourceTypeAlias, resolveFormedDirectSourceFacts, resolveNodeWithState, resolveProviderType, resolveFormedSemanticTypeArguments, resolveSourceProfileType, resolveTypeWithState, resolveUnionType } = scope;
+  const { host, policy, resolveCompositionalSourceTypeAlias, resolveFormedDirectSourceFacts, resolveNodeWithState, resolveProviderType, resolveFormedSemanticTypeArguments, resolveSourceProfileType, resolveTypeWithState, resolveUnionType } = scope;
   if (source.type === undefined) return undefined;
   if (source.state.depth > maximumTypeResolutionDepth) failTargetCompilerResourceLimit("tsonic-csharp",
     `Native type resolution in ${host.ast.getFileName(source.sourceFile)}`, "depth", maximumTypeResolutionDepth, source.sourceFile);
@@ -148,7 +149,11 @@ export function resolveFormedCsharpSemanticTypeSource(
   if (projectType !== undefined) {
     return projectType;
   }
-  const callable = resolveCallableType(type, queries, state);
+  if (source.callable.type !== type || source.callable.queries !== queries) {
+    return failTargetAnalysisInvariant("tsonic-csharp",
+      "Callable type completion requires its exact retained semantic Source occurrence.", sourceFile);
+  }
+  const callable = resolveFormedCsharpCallableType(scope, source.callable, state);
   if (callable !== undefined) {
     return callable;
   }
