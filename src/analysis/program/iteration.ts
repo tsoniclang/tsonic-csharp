@@ -155,6 +155,7 @@ export function analyzeCsharpRepresentationIteration(
     sourceFiles,
     typeSystem.analysisTypes,
     policy,
+    typeSystem,
   );
   const sourceEvidence = evidence.index;
   if (sourceEvidence.fixedArrayIssues.length > 0) return rejectCsharpAnalysisIssues(sourceEvidence.fixedArrayIssues);

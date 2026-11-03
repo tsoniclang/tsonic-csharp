@@ -16,7 +16,8 @@ import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { csharpSourceTypeParameter } from "../../source/extension/type-parameters.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpSemanticTypeClassification, CsharpContextualTupleClassification, CsharpContextualTypeEvidence, CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
-import type { CsharpSourceEvidenceResult } from "./model.js";
+import type { CsharpSourceEvidenceResult, CsharpCurrentNativeNodeInput, CsharpCurrentNativeTypeInput } from "./model.js";
+import type { CsharpTypeResolutionServices } from "./types/resolution/engine.js";
 import type { CsharpTypeParameterConstraintResolution } from "../../policy/constraints/index.js";
 import { selectCsharpSourceArgument } from "../../source/extension/arguments.js";
 import { csharpFixedArrayRepresentationRejection } from "../../policy/types/collections/fixed-arrays.js";
@@ -33,6 +34,7 @@ export function analyzeCsharpSourceEvidence(
   sourceFiles: readonly SourceFile[],
   types: CsharpTypePolicy,
   policy: CsharpPolicyContext,
+  typeQueries: Pick<CsharpTypeResolutionServices, "nodeQuerySource" | "completeNodeQuery" | "typeQuerySource" | "completeTypeQuery">,
 ): CsharpSourceEvidenceResult {
   const memoryMetadata = createTsonicMemoryMetadataIndex(source);
   const pointerBacking = createTsonicDeclaredPointerBackingDemands(source);
@@ -49,6 +51,8 @@ export function analyzeCsharpSourceEvidence(
   const rejectedFixedArrayTypes = new Set<Type>();
   const expressionTypes = new WeakMap<Node, Cached<Type>>();
   const nodeTargetTypes = new WeakMap<Node, Cached<TargetTypeRef>>();
+  const currentNodeInputs: CsharpCurrentNativeNodeInput[] = [];
+  const currentTypeInputs: CsharpCurrentNativeTypeInput[] = [];
   const bindingProjections = new WeakMap<Node, import("../../target-model/records/storage/binding-projection-policy.js").CsharpBindingProjection>();
   const classConstructorTypes = new WeakMap<Node, Cached<TargetTypeRef>>();
   const storageTargetTypes = new WeakMap<Node, Cached<TargetTypeRef>>();
@@ -136,7 +140,9 @@ export function analyzeCsharpSourceEvidence(
                   : semantics.types.isVoidLike(type)
                     ? "void"
                     : "other";
-    const targetType = recordTargetType(types.resolveType(type, sourceFile));
+    const typeQuery = typeQueries.typeQuerySource(type, sourceFile);
+    const targetType = recordTargetType(typeQueries.completeTypeQuery(typeQuery));
+    currentTypeInputs.push(Object.freeze({ source: typeQuery, type: targetType }));
     const symbol = semantics.declarations.typeSymbol(type);
     const typeParameters = symbol === undefined ? [] : semantics.declarations.symbolDeclarations(symbol)
       .filter(declaration => source.ast.is.IsTypeParameterDeclaration(declaration));
@@ -207,6 +213,7 @@ export function analyzeCsharpSourceEvidence(
       return;
     }
     const semantics = source.semantics.forFile(sourceFile);
+    const nodeQuery = typeQueries.nodeQuerySource(node, sourceFile);
     if (source.ast.is.IsBindingElement(node)) {
       const projection = types.resolveBindingProjection(node, sourceFile);
       if (projection !== undefined) {
@@ -266,7 +273,7 @@ export function analyzeCsharpSourceEvidence(
     ) {
       providerVirtualDeclarations.add(node);
     }
-    const nodeSelection = types.resolveNode(node, sourceFile);
+    const nodeSelection = typeQueries.completeNodeQuery(nodeQuery);
     nodeTargetTypes.set(node, recordTargetType(nodeSelection?.kind === "resolved" ? nodeSelection.sourceResult.selectedType : undefined) ?? missing);
     const nodeTargetType = cachedValue(nodeTargetTypes.get(node));
     if (!typeOnly && nodeSelection?.kind === "rejected") {
@@ -293,6 +300,9 @@ export function analyzeCsharpSourceEvidence(
       node,
       recordTargetType(types.resolveReadStorage(node, sourceFile)) ?? missing,
     );
+    currentNodeInputs.push(Object.freeze({ source: nodeQuery, resolution: nodeSelection,
+      storageType: cachedValue(storageTargetTypes.get(node)), readStorageType: cachedValue(readStorageTargetTypes.get(node)),
+    }));
     const expressionType = semantics.types.expressionType(node);
     expressionTypes.set(node, expressionType ?? missing);
     if (expressionType !== undefined) {
@@ -573,7 +583,8 @@ export function analyzeCsharpSourceEvidence(
       return sourceOwnedProjectShapes.get(node);
     } }),
   };
-  return Object.freeze({ index: Object.freeze(index), nativeExpressionIssues: Object.freeze([...nativeExpressionIssues].map(([sourceNode, issue]) =>
+  return Object.freeze({ index: Object.freeze(index), currentNodeInputs: Object.freeze(currentNodeInputs),
+    currentTypeInputs: Object.freeze(currentTypeInputs), nativeExpressionIssues: Object.freeze([...nativeExpressionIssues].map(([sourceNode, issue]) =>
     Object.freeze({ ...issue.diagnostic, sourceNode, requiredBy: Object.freeze([...issue.requiredBy]) }))), inspectClosedArrayStorage: arrayStorage.resolve,
     eraseCompileTimeDeclaration(declaration: Node): void {
       if (!compileTimeDeclarationsOpen) failTargetAnalysisInvariant("tsonic-csharp",
