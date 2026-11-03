@@ -25,6 +25,7 @@ import type { CsharpCompletedStructuralMemberChildren, CsharpStructuralPropertyA
   CsharpStructuralTypeApplication, CsharpStructuralTypeSource } from "./structural-applications.js";
 import type { CsharpNodeQuerySource, CsharpTypeQuerySource, CsharpNodeTypeSource, CsharpSemanticTypeSource } from "./root-sources.js";
 import type { CsharpTypeReferenceSource } from "./type-reference-source.js";
+import type { CsharpSelectedExpressionSource } from "./expression-source.js";
 export interface CsharpTypeResolutionScope {
   nodeQuerySource(node: Node | undefined, sourceFile?: SourceFile): CsharpNodeQuerySource;
   completeNodeQuery(source: CsharpNodeQuerySource): CsharpNodeTypeResolution | undefined;
@@ -38,8 +39,7 @@ export interface CsharpTypeResolutionScope {
     state: CsharpTypeResolutionState): CsharpSourceCallResult | undefined;
   resolveFormedNodeTypeSource(source: CsharpNodeTypeSource): CsharpSourceCallResult | undefined;
   resolveFormedSemanticTypeSource(source: CsharpSemanticTypeSource): TargetTypeRef | undefined;
-  resolveSelectedExpressionResult(node: Node, queries: SourceFileSemantics,
-    state: CsharpTypeResolutionState): CsharpSourceCallResult | undefined;
+  resolveFormedSelectedExpressionResult(source: CsharpSelectedExpressionSource): CsharpSourceCallResult | undefined;
   resolveSelectedValueResultWithState(node: Node, selectedType: Type, sourceFile: SourceFile,
     state: CsharpTypeResolutionState): CsharpSourceCallResult | undefined;
   resolveSourceValueResult(node: Node, queries: SourceFileSemantics, state: CsharpTypeResolutionState,
