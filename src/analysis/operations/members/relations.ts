@@ -3,6 +3,7 @@ import type { ExtensionDiagnostic, Node, ProviderVirtualDeclarationFact, SourceF
 
 import type { CsharpProviderTargetRelation } from "../../../target-model/identities/provider-relations.js";
 import { resolveCsharpProviderDeclarationEvidence, resolveCsharpProviderDeclarationEvidenceKinds } from "../../../source/extension/provider-identities.js";
+import type { ResolvedSourceCallInfo } from "../../../target-model/records/calls/source-calls.js";
 
 export type CsharpProviderOperationResolution =
   | {
@@ -26,17 +27,10 @@ export type CsharpProviderOperationResolution =
 
 export function resolveCsharpProviderCallRelations(
   host: CsharpProviderOperationHost,
-  call: Node,
+  source: ResolvedSourceCallInfo,
   sourceFile: SourceFile,
 ): CsharpProviderOperationResolution {
   const semantics = host.semantics(sourceFile);
-  const source = semantics.operations.call(call);
-  if (source === undefined) {
-    return {
-      kind: "missing",
-      reason: "The checker did not resolve an exact source call.",
-    };
-  }
   if (source.sourceSelectedSignatureKind !== "resolved") {
     return {
       kind: "missing",
