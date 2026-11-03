@@ -1,7 +1,7 @@
 import { createCsharpNativeValueProducer, createCsharpObjectMethodSourceProducer } from "../program/records/native/native-value-carriers.js";
 import { createHash } from "node:crypto";
 import type { AstReader, Node } from "@tsonic/tsts";
-import { sourceLexicalCaptures, type SourceCallOnlyAlias, type SourceFileSemantics, type SourceProgramNavigation } from "@tsonic/target-api/source";
+import { sourceLexicalCaptures, type SourceCallOnlyAlias, type SourceFileSemantics, type TargetSourceProgram } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { csharpNativePropertyNameIssue } from "./computed-field-names.js";
 import type { CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
@@ -104,17 +104,19 @@ export function analyzeCsharpNativeValueCarriers(
 }
 
 export function analyzeCsharpObjectMethodSources(
-  ast: AstReader,
+  source: Pick<TargetSourceProgram, "ast" | "navigation" | "semantics">,
   nodes: readonly Node[],
-  navigation: SourceProgramNavigation,
   callOnlyAlias: (declaration: Node) => SourceCallOnlyAlias | undefined,
 ): CsharpObjectMethodSources {
+  const { ast, navigation } = source;
   const producer = createCsharpObjectMethodSourceProducer();
   for (const literal of nodes) {
     if (!ast.is.IsObjectLiteralExpression(literal)) continue;
-    const methods = ast.properties(literal).filter((method): method is Node =>
-      method !== undefined && ast.is.IsMethodDeclaration(method) && ast.body(method) !== undefined);
-    if (methods.length === 0) continue;
+    const bodyMembers = ast.properties(literal).filter((member): member is Node => member !== undefined &&
+      (ast.is.IsMethodDeclaration(member) || ast.is.IsGetAccessorDeclaration(member) || ast.is.IsSetAccessorDeclaration(member)) &&
+      ast.body(member) !== undefined);
+    if (bodyMembers.length === 0) continue;
+    const methods = Object.freeze(bodyMembers.filter(member => ast.is.IsMethodDeclaration(member)));
     const captures = new Map<Node, readonly CsharpObjectMethodSourceCapture[]>();
     for (const method of methods) {
       const lexical = sourceLexicalCaptures(literal, [method], ast, navigation, "source");
@@ -129,7 +131,13 @@ export function analyzeCsharpObjectMethodSources(
     const identity = createHash("sha256").update(JSON.stringify([
       ast.getFileName(file), ast.pos(literal), ast.end(literal),
     ])).digest("hex");
-    producer.publish(literal, identity, captures);
+    const queries = source.semantics.forNode(literal);
+    const type = queries.types.expressionType(literal);
+    const declaredReceiver = type === undefined ? undefined : Object.freeze({
+      self: Object.freeze({ kind: "object-occurrence" as const, declaration: literal, identity }), queries, type,
+      members: queries.types.propertyInfos(type), methods,
+    });
+    producer.publish(Object.freeze({ literal, identity, selected: captures, declaredReceiver }));
   }
   return producer.seal();
 }

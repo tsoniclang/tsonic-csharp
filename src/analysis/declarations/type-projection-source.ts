@@ -1,6 +1,7 @@
 import type { Node } from "@tsonic/tsts";
 import { IsTypeSyntaxNode, type TargetSourceProgram } from "@tsonic/target-api/source";
 import { csharpSourceTypeParameter, csharpSourceTypeParameters } from "../../source/extension/type-parameters.js";
+import type { CsharpDeclaredObjectReceiverSource, CsharpObjectMethodSources } from "../../target-model/records/native/native-value-carriers.js";
 
 export interface CsharpTypeProjectionScopeSource {
   readonly declaration: Node;
@@ -15,13 +16,17 @@ export interface CsharpTypeProjectionNodeSource {
   readonly scopes: CsharpTypeProjectionScopeSource | undefined;
   readonly declarationOnly: boolean;
   readonly name: boolean;
+  readonly declaredReceiver: CsharpDeclaredObjectReceiverSource | undefined;
 }
 
 export interface CsharpTypeProjectionSource {
   readonly nodes: readonly CsharpTypeProjectionNodeSource[];
 }
 
-export function formCsharpTypeProjectionSource(source: TargetSourceProgram): CsharpTypeProjectionSource {
+export function formCsharpTypeProjectionSource(
+  source: TargetSourceProgram,
+  objectMethods: CsharpObjectMethodSources,
+): CsharpTypeProjectionSource {
   const { ast } = source;
   const nodes: CsharpTypeProjectionNodeSource[] = [];
   const visit = (node: Node, parent: CsharpTypeProjectionNodeSource | undefined): void => {
@@ -43,8 +48,15 @@ export function formCsharpTypeProjectionSource(source: TargetSourceProgram): Csh
       capturedParameterIdentities: Object.freeze(capturedParameterIdentities), parent: parent?.scopes,
     });
     const astParent = ast.parent(node);
+    const memberBody = ast.is.IsMethodDeclaration(node) || ast.is.IsGetAccessorDeclaration(node) || ast.is.IsSetAccessorDeclaration(node);
+    const receiverBoundary = memberBody || classDeclaration || ast.is.IsInterfaceDeclaration(node) ||
+      ast.is.IsFunctionDeclaration(node) || ast.is.IsFunctionExpression(node);
+    const declaredReceiver = memberBody && astParent !== undefined && ast.is.IsObjectLiteralExpression(astParent)
+      ? objectMethods.get(astParent)?.declaredReceiver
+      : receiverBoundary ? undefined : parent?.declaredReceiver;
     const selected = Object.freeze({ node, parent, scopes, declarationOnly,
       name: astParent !== undefined && ast.name(astParent) === node,
+      declaredReceiver,
     });
     nodes.push(selected);
     if (IsTypeSyntaxNode(ast, node)) return;

@@ -2,13 +2,15 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import type { CsharpCaptureInitialization, CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpObjectShapePolicyHost } from "./model.js";
 import type { CsharpTypeResolutionState } from "../../source-evidence/types/resolution/model.js";
-import type { CsharpObjectMethodSourceCapture } from "../../../target-model/records/native/native-value-carriers.js";
+import type { CsharpObjectMethodSourceCapture,
+  CsharpDeclaredObjectReceiverSource } from "../../../target-model/records/native/native-value-carriers.js";
 import { csharpCapturedBindingInitialization } from "../../callables/values/capture-initialization.js";
 
 export interface CsharpObjectMethodImplementationSource {
   readonly declaration: Node;
   readonly identity: string;
   readonly methods: readonly Node[];
+  readonly declaredReceiver: CsharpDeclaredObjectReceiverSource | undefined;
   readonly state: CsharpTypeResolutionState;
   readonly captures: readonly {
     readonly declaration: Node;
@@ -51,7 +53,7 @@ export function selectCsharpObjectMethodImplementationSource(
     initialization: csharpCapturedBindingInitialization(capture.declaration, host.ast, host.navigation),
   }));
   return Object.freeze({ declaration: literal, identity: selected.identity, methods: Object.freeze(methods),
-    state, captures: Object.freeze(captures),
+    declaredReceiver: selected.declaredReceiver, state, captures: Object.freeze(captures),
   });
 }
 

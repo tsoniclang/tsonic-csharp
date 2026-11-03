@@ -81,7 +81,7 @@ export function analyzeCsharpRepresentationIteration(
 ) {
   const requiredRecords: CsharpRequiredRecord[] = [];
   const source = input.source;
-  const projectionSource = formCsharpTypeProjectionSource(source);
+  const projectionSource = formCsharpTypeProjectionSource(source, typeHost.objectMethodSources);
   const names = createCsharpSourceNameBuilder(nameHost);
   let typeSystem: CsharpTypeAnalysis | undefined;
   const planningRepresentations: CsharpPlanningRepresentationQueries = {

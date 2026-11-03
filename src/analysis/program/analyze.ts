@@ -115,7 +115,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
     literalValues,
     sourceStorage,
     callOnlyAlias,
-    objectMethodSources: analyzeCsharpObjectMethodSources(source.ast, sourceNodes, source.navigation, callOnlyAlias),
+    objectMethodSources: analyzeCsharpObjectMethodSources(source, sourceNodes, callOnlyAlias),
     ast: source.ast,
     sourceFiles,
     sourceFacts: source.sourceFacts,

@@ -1,4 +1,5 @@
-import type { Node } from "@tsonic/tsts";
+import type { Node, Type, TypePropertyInfo } from "@tsonic/tsts";
+import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../types/model.js";
 import type { CsharpSourceField, CsharpSourceStruct } from "../program/source-markers.js";
 import type { CsharpProjectTypeIssue } from "../types/project-types.js";
@@ -30,8 +31,17 @@ export interface CsharpObjectMethodSourceCapture {
   readonly mutable: boolean;
 }
 
+export interface CsharpDeclaredObjectReceiverSource {
+  readonly self: { readonly kind: "object-occurrence"; readonly declaration: Node; readonly identity: string };
+  readonly queries: SourceFileSemantics;
+  readonly type: Type;
+  readonly members: readonly TypePropertyInfo[];
+  readonly methods: readonly Node[];
+}
+
 export interface CsharpObjectMethodSource {
   readonly identity: string;
+  readonly declaredReceiver: CsharpDeclaredObjectReceiverSource | undefined;
   captures(method: Node): readonly CsharpObjectMethodSourceCapture[] | undefined;
 }
 
