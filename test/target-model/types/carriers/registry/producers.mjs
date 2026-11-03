@@ -344,6 +344,13 @@ export const producersCarrierRegistry = Object.freeze([
     frozen: false,
   },
   {
+    id: "src/analysis/source-evidence/types/resolution/direct-source-evidence.ts#resolveFormedCsharpDirectSourceFacts",
+    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
+    declaration: { module: "src/analysis/source-evidence/types/resolution/direct-source-evidence.ts", symbol: "resolveFormedCsharpDirectSourceFacts" },
+    responsibility: "producers/resolve-direct-source-facts",
+    frozen: false,
+  },
+  {
     id: "src/analysis/source-evidence/types/resolution/semantic-types.ts#resolveProviderType",
     kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
     declaration: { module: "src/analysis/source-evidence/types/resolution/semantic-types.ts", symbol: "resolveProviderType" },

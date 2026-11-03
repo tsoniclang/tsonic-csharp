@@ -25,7 +25,7 @@ test("checked component transformations do not require native carriers for disca
           typeArguments: () => assert.fail("a checked projection must not resolve its discarded input carrier") },
         navigation: { sourceReferenceFor: () => undefined },
       },
-      resolveDirectSourceFacts: () => undefined,
+      resolveFormedDirectSourceFacts: () => undefined,
       resolveStandardSourceTypeTransformation: (actual, actualQueries, state, root, selected) => {
         selections += 1;
         assert.equal(actual === transformation, true, kind);
