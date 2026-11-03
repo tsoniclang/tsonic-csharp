@@ -351,6 +351,13 @@ export const producersCarrierRegistry = Object.freeze([
     frozen: false,
   },
   {
+    id: "src/policy/conversions/flow-read.ts#selectCsharpFlowReadCarrier",
+    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
+    declaration: { module: "src/policy/conversions/flow-read.ts", symbol: "selectCsharpFlowReadCarrier" },
+    responsibility: "producers/flow-read-value",
+    frozen: false,
+  },
+  {
     id: "src/policy/types/resolution/semantic-types.ts#selectCsharpSemanticCarrier",
     kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
     declaration: { module: "src/policy/types/resolution/semantic-types.ts", symbol: "selectCsharpSemanticCarrier" },
