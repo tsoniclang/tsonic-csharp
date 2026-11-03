@@ -30,6 +30,7 @@ import { formCsharpSelectedExpressionSource,
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { ResolvedSourceCallInfo } from "../../../../target-model/records/calls/source-calls.js";
 import { completeCsharpSelectedReceiver } from "./receiver-completions.js";
+import { formCsharpProjectInstanceSource, resolveFormedCsharpProjectInstanceTargetType } from "./project-instance-source.js";
 
 export function resolveSelectedExpressionType(
   scope: CsharpTypeResolutionScope,
@@ -362,16 +363,6 @@ export function resolveNonNullExpressionType(
   return refinement.kind === "resolved" ? refinement.type : undefined;
 }
 
-export function resolveProjectThisTargetType(
-  scope: CsharpTypeResolutionScope,
-  node: Node,
-): TargetTypeRef | undefined {
-  if (scope.host.ast.kindName(node) !== "KindThisKeyword" && !scope.host.ast.is.IsThisTypeNode(node)) {
-    return undefined;
-  }
-  return projectInstanceTargetTypeAt(scope, node);
-}
-
 // The receiver of a 'super(...)' call is the instance under construction: the enclosing class's own this, which
 // reaches the base constructor through its heritage path. (The checked type of the super keyword in call position is
 // the base constructor function, not an instance.)
@@ -379,57 +370,7 @@ export function resolveProjectConstructingReceiverTargetType(
   scope: CsharpTypeResolutionScope,
   superKeyword: Node,
 ): TargetTypeRef | undefined {
-  return projectInstanceTargetTypeAt(scope, superKeyword);
-}
-
-function projectInstanceTargetTypeAt(
-  { host }: CsharpTypeResolutionScope,
-  node: Node,
-): TargetTypeRef | undefined {
-  let current = host.ast.parent(node);
-  while (current !== undefined) {
-    if (host.ast.is.IsArrowFunction(current)) {
-      current = host.ast.parent(current);
-      continue;
-    }
-    if (
-      host.ast.is.IsFunctionDeclaration(current) ||
-      host.ast.is.IsFunctionExpression(current)
-    ) {
-      return undefined;
-    }
-    if (
-      host.ast.is.IsMethodDeclaration(current) ||
-      host.ast.is.IsGetAccessorDeclaration(current) ||
-      host.ast.is.IsSetAccessorDeclaration(current) ||
-      host.ast.is.IsConstructorDeclaration(current) ||
-      host.ast.is.IsPropertyDeclaration(current)
-    ) {
-      const ownerNode = host.ast.parent(current);
-      if (
-        ownerNode === undefined ||
-        !host.ast.is.IsClassDeclaration(ownerNode) && !host.ast.is.IsClassExpression(ownerNode) ||
-        host.ast.hasModifierKind(current, "static")
-      ) {
-        return undefined;
-      }
-      const catalog = host.projectTypeABI().catalog;
-      const owner = catalog.definitionForDeclaration(
-        ownerNode,
-      );
-      return owner === undefined
-        ? undefined
-        : catalog.targetTypeForDeclaration(
-            owner.declaration,
-            owner.typeParameterBindings,
-          );
-    }
-    if (host.ast.kindName(current) === "KindClassStaticBlockDeclaration") {
-      return undefined;
-    }
-    current = host.ast.parent(current);
-  }
-  return undefined;
+  return resolveFormedCsharpProjectInstanceTargetType(scope, formCsharpProjectInstanceSource(scope.host.ast, superKeyword));
 }
 
 export function resolveSelectedReceiverTargetType(

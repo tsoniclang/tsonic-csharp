@@ -186,9 +186,6 @@ export interface CsharpTypeResolutionScope {
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined;
-  resolveProjectThisTargetType(
-  node: Node,
-): TargetTypeRef | undefined;
   resolveSelectedReceiverTargetType(
   receiver: {
     readonly expression?: Node;

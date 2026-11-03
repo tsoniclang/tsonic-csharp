@@ -24,6 +24,7 @@ import { resolveFormedCsharpProjectReference } from "./project-types.js";
 import { selectCsharpParameterListCarrier } from "../../../../policy/types/callables/parameter-list.js";
 import { selectCsharpContextualParameterCarrier } from "./source-references.js";
 import { resolveFormedCsharpNativeParameterCarrier } from "./native-parameter-source.js";
+import { resolveFormedCsharpProjectInstanceTargetType } from "./project-instance-source.js";
 import type { CsharpSourceCallResult } from "../../../../target-model/operations/source-call-results.js";
 import { csharpSourceValueResult, refineCsharpSourceValueResult } from "./call-results.js";
 export function resolveNodeValueWithState(
@@ -58,6 +59,8 @@ export function resolveFormedCsharpNodeTypeSource(
   }
   if (source.kind === "node" && (source.nativeParameter === undefined || source.nativeParameter.parameter !== source.node)) return failTargetAnalysisInvariant("tsonic-csharp",
     "A native parameter projection requires its exact retained Source node.", source.node);
+  if (source.kind === "node" && (source.projectInstance === undefined || source.projectInstance.node !== source.node)) return failTargetAnalysisInvariant("tsonic-csharp",
+    "A project instance requires its exact retained Source node.", source.node);
   const selected = resolveNodeResultWithState(scope, source);
   return source.kind === "unavailable" ? selected : refineCsharpSourceValueResult(selected,
     resolveFormedCsharpNativeParameterCarrier(scope, source.nativeParameter, selected?.selectedType, source.originalState));
@@ -67,7 +70,7 @@ function resolveNodeResultWithState(
   scope: CsharpTypeResolutionScope,
   source: CsharpNodeTypeSource,
 ): CsharpSourceCallResult | undefined {
-  const { host, resolveCallableType, resolveFormedDirectSourceFacts, resolveNodeWithState, resolveProjectThisTargetType, resolveFormedSelectedExpressionResult, resolveSourceValueResult, resolveTupleTypeNode, resolveFormedTypeReferenceNode, resolveTypeWithState } = scope;
+  const { host, resolveCallableType, resolveFormedDirectSourceFacts, resolveNodeWithState, resolveFormedSelectedExpressionResult, resolveSourceValueResult, resolveTupleTypeNode, resolveFormedTypeReferenceNode, resolveTypeWithState } = scope;
   if (source.node === undefined) return undefined;
   if (source.state.depth > maximumTypeResolutionDepth) failTargetCompilerResourceLimit("tsonic-csharp",
     "Selected native source-node type resolution", "depth", maximumTypeResolutionDepth, source.node);
@@ -211,7 +214,7 @@ function resolveNodeResultWithState(
       return csharpSourceValueResult(resolved);
     }
   }
-  const projectThis = resolveProjectThisTargetType(node);
+  const projectThis = resolveFormedCsharpProjectInstanceTargetType(scope, source.projectInstance);
   if (projectThis !== undefined) {
     return csharpSourceValueResult(projectThis);
   }
