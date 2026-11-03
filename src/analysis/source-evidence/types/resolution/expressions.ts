@@ -243,7 +243,10 @@ export function resolveMemberAccessTargetType(
       host.ast.questionToken(declaration) === undefined
       ? getCsharpMethodValue(type)?.contract ?? type : type;
   };
-  const structuralMemberType = host.structuralTypes.resolveSelectedProperty(
+  const nominalMethod = host.projectTypeCatalog.definitionContainingDeclaration(selection.source.selectedDeclaration) !== undefined &&
+    (host.ast.is.IsMethodDeclaration(selection.source.selectedDeclaration) ||
+      host.ast.is.IsMethodSignatureDeclaration(selection.source.selectedDeclaration));
+  const structuralMemberType = nominalMethod ? undefined : host.structuralTypes.resolveSelectedProperty(
     receiverType,
     queries.facts.selectedSubjects(
       selection.source.selectedSymbol,
