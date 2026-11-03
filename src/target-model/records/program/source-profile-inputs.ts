@@ -1,6 +1,7 @@
 import type { Node, Type } from "@tsonic/tsts";
 import type { CsharpObjectShapeFact, TargetTypeRef } from "../../types/model.js";
 import type { CsharpDelegateSignatureShape } from "../../types/model.js";
+import type { CsharpCallArgumentProjection } from "../objects/members.js";
 export type CustomRegExpProtocolKind = "match" | "match-all" | "replace" | "search" | "split";
 export interface CsharpCustomRegExpProtocol {
   readonly receiverType: TargetTypeRef;
@@ -8,12 +9,15 @@ export interface CsharpCustomRegExpProtocol {
   readonly signature: CsharpDelegateSignatureShape;
 }
 export interface CsharpSourceProfileInputRequirements {
+  readonly errorCause?: true;
   readonly regexpProtocol?: true;
   readonly regexpExecution?: true;
   readonly sourceTypeRelations?: true;
   readonly objectShapes?: true;
 }
 export interface CsharpSourceProfileInputFacts {
+  readonly errorCause?: { readonly kind: "resolved"; readonly projection: CsharpCallArgumentProjection }
+    | { readonly kind: "unresolved"; readonly reason: string };
   readonly numberLikeTypes: ReadonlySet<Type>;
   readonly identicalTypes: ReadonlyMap<Type, ReadonlySet<Type>>;
   readonly nativeRegExpReceivers: ReadonlySet<Node>;

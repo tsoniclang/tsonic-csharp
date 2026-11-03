@@ -4,18 +4,20 @@ import type { CsharpTargetOperationClassifications } from "../../target-model/re
 import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native/native-demand.js";
 import type { CsharpAdmittedElementClassification, CsharpElementEmission, CsharpElementRead } from "../../target-model/records/objects/element-admission.js";
 import type { CsharpMemberReceiverRecords } from "../../target-model/records/objects/member-receivers.js";
-import type { SourceProgramNavigation } from "@tsonic/target-api/source";
+import { selectedSourceIndexedDeclarations, type SourceProgramNavigation } from "@tsonic/target-api/source";
+import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { csharpNullableTargetType, getCsharpNullableElementTargetType, getCsharpReadOnlyIndexableCollectionElementTargetType,
   isCsharpDenseMutableCollectionTargetType, targetTypeRefEquals } from "../../target-model/types/index.js";
 import { getCsharpGenericOptionalParts } from "../../target-model/types/projections.js";
 import { csharpCollectionElementRead } from "../../policy/operations/collections/element-reads.js";
 import { selectCsharpTypeEmission } from "../../policy/types/resolution/type-emission.js";
 import { createCsharpElementAdmissionRecords } from "../program/records/objects/element-admission.js";
+import { resolveCsharpNativePropertyRead } from "./native-property-reads.js";
 
 export function analyzeCsharpElementAdmission(input: { readonly ast: AstReader; readonly nodes: readonly Node[];
   readonly operations: CsharpTargetOperationClassifications; readonly demand: CsharpNativeDemandAnalysis;
   readonly admitted: (node: Node) => boolean; readonly receivers: CsharpMemberReceiverRecords;
-  readonly navigation: SourceProgramNavigation }) {
+  readonly navigation: SourceProgramNavigation; readonly policy: CsharpPolicyContext }) {
   const values = new Map<Node, CsharpAdmittedElementClassification>();
   const issues: TargetDiagnostic[] = [];
   const { ast } = input;
@@ -28,6 +30,20 @@ export function analyzeCsharpElementAdmission(input: { readonly ast: AstReader; 
     if (classification === undefined) { refuse(node, "C# planning received an element access without a sealed target classification.", "CSHARP_TARGET_ELEMENT_CLASSIFICATION_MISSING"); continue; }
     const jsValue = classification.jsValue;
     if (jsValue.kind === "rejected") { refuse(node, jsValue.reason); continue; }
+    const syntax = ast.as.AsElementAccessExpression(node);
+    if (classification.receiverType !== undefined && syntax?.ArgumentExpression !== undefined &&
+      ast.is.IsStringLiteral(syntax.ArgumentExpression)) {
+      const semantics = input.policy.semanticsFor(node);
+      const source = semantics.operations.elementAccess(node);
+      const declarations = source?.accessMode !== "read" ? undefined : selectedSourceIndexedDeclarations(semantics,
+        semantics.types.selectIndexedAccess(source.receiver.type, source.argument.type));
+      if (declarations !== undefined && resolveCsharpNativePropertyRead(declarations.declarations,
+        classification.receiverType, semantics, input.policy).kind === "resolved") {
+        refuse(node, "Literal-key access to an inherited native Error property is unsupported in v1; use the declared property access instead.",
+          "CSHARP_ERROR_LITERAL_PROPERTY_UNSUPPORTED");
+        continue;
+      }
+    }
     const use = input.demand.nativeUse.expression(node)?.use;
     if (use === undefined || use.kind === "erased") { refuse(node, "An admitted element access requires its exact native result representation."); continue; }
     const result = use.carrier;

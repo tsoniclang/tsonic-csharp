@@ -93,6 +93,17 @@ export function analyzeCsharpTargetArguments(input: { readonly ast: AstReader; r
     for (const entry of selection.arguments) {
       const expression = source.sourceArguments[entry.sourceArgumentIndex]?.expression;
       if (expression === undefined) { refuse(node, `Selected target argument ${entry.effectiveArgumentIndex} has no exact checker-owned source expression.`); return; }
+      if (entry.projection !== undefined) {
+        const projection = entry.projection;
+        if (projection.source !== expression || entry.sourceForm !== "value" || entry.targetParameter.passingMode !== "by-value" ||
+          !targetTypeRefEquals(projection.target, entry.targetParameter.type) || projection.resultIndex !== undefined &&
+          (!Number.isInteger(projection.resultIndex) || projection.resultIndex < 0 || projection.resultIndex >= projection.values.length)) {
+          refuse(node, "A native argument projection requires its exact original source, scalar slot and complete checked result correspondence."); return;
+        }
+        operands.push({ operand: { kind: "projection", projection, parameter: entry.targetParameter },
+          parameter: entry.targetParameterIndex, order: entry.sourceArgumentIndex, sequence: false });
+        continue;
+      }
       const sequence = sequences.get(entry.sourceArgumentIndex);
       if (sequence !== undefined) {
         if (planned.has(sequence.sourceArgumentIndex)) continue;

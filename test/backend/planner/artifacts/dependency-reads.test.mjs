@@ -4,6 +4,15 @@ import { collectShapeDependencies } from "../../../../dist/analysis/objects/nati
 import { objectShapeArtifactKey } from "../../../../dist/target-model/records/objects/object-shape-keys.js";
 import { targetTypeRefKey } from "../../../../dist/target-model/types/equality.js";
 import { createCsharpObjectShapeDemandEngine } from "../../../../dist/analysis/objects/native-demand/requests.js";
+import { csharpJsRuntimeSource, csharpRuntimeSourceContributions } from "../../../../dist/providers/runtime/source-projects.js";
+import { createCsharpTargetConfiguration } from "../../../../dist/compilation/configuration.js";
+import { classifyCsharpProjectConfiguration } from "../../../../dist/compilation/project.js";
+
+const runtimeConfiguration = createCsharpTargetConfiguration({ id: "csharp" }, process.cwd(), process.cwd());
+const jsRuntimeProject = classifyCsharpProjectConfiguration(runtimeConfiguration,
+  csharpRuntimeSourceContributions(csharpJsRuntimeSource).references, process.cwd());
+assert.equal(jsRuntimeProject.kind, "resolved", "the actual JS runtime source graph is classified");
+const { hasJsRuntime } = jsRuntimeProject.value;
 
 test("artifact closure includes exact generic declaration-template parents alongside concrete components", () => {
   const integer = { kind: "source-primitive", name: "int32" };
@@ -30,7 +39,7 @@ test("artifact closure includes exact generic declaration-template parents along
 });
 
 test("unavailable object-shape capabilities fail at their exact owner without publication", () => {
-  const demand = createCsharpObjectShapeDemandEngine({ objectShapes: { targetShapes: Object.freeze({}), resolveTarget() {}, resolveNode() {} },
+  const demand = createCsharpObjectShapeDemandEngine({ hasJsRuntime, objectShapes: { targetShapes: Object.freeze({}), resolveTarget() {}, resolveNode() {} },
     ast: {}, names: { typeParameterNames: [] }, captureStorage: { captureFrameShape: { get() {} } },
     conversions: { conversion: { get() {} } } });
   const requested = demand.requireObjectShapeCapability(undefined,

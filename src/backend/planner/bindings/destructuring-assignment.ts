@@ -24,7 +24,7 @@ import { runtimeArrayHelperCall } from "../expressions/array-helpers.js";
 import { qualifiedCsharpType } from "../types/index.js";
 import type { CsharpDestructuringAssignmentPattern, CsharpDestructuringAssignmentTarget } from "../../../target-model/records/objects/value-projections.js";
 import { planCsharpAbsentValue } from "../expressions/optional-storage.js";
-import { planNativeBindingProperty } from "./native-binding-properties.js";
+import { planNativePropertyRead } from "../expressions/native-property-reads.js";
 
 export function isDestructuringAssignmentExpression(
   node: Node | undefined,
@@ -201,7 +201,7 @@ function planAssignmentPatternFromExpression(
       })) }, element.sourceNode);
     }
     if (projection?.kind === "native-member") {
-      const value = planNativeBindingProperty(projection.property, sourceExpression, element.sourceNode, input);
+      const value = planNativePropertyRead(projection.property, sourceExpression, element.sourceNode);
       if (element.initializer === undefined) return target(element.target, value, element.sourceNode);
       const contract = input.program.records.bindingPatternProjection.get(element.sourceNode)?.defaultValue;
       if (contract === undefined) return failCsharpPlannerInvariant(

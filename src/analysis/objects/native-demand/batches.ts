@@ -29,6 +29,7 @@ export const maximumJsonClosureDepth = 256;
 
 export interface CsharpObjectShapeDemandHost {
   readonly ast: AstReader;
+  readonly hasJsRuntime: boolean;
   readonly captureStorage: Pick<CsharpCaptureStorage, "captureFrameShape">;
   readonly conversions: Pick<CsharpConversionClassifications, "conversion">;
   readonly objectShapes: CsharpObjectShapeClassifications & Pick<CsharpObjectShapeAnalysis, "targetShapes">;

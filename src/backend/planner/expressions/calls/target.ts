@@ -18,6 +18,7 @@ import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import { qualifiedCsharpType } from "../../types/index.js";
 import { planCsharpDiscardedStatement } from "../../statements/statement-output.js";
 import { readCsharpNativeDiscardEvaluation } from "../native-uses.js";
+import { csharpPlannedEffect } from "../planned-values.js";
 
 export function translateSelectedTargetCall(node: Node, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner, planCallArgument: CallArgumentPlanner): CsharpPlannedValue | undefined {
@@ -29,20 +30,23 @@ export function translateSelectedTargetCall(node: Node, sourceFile: SourceFile, 
     translateCsharpSelectedReceiver(selected.source.sourceReceiver, sourceFile, input, diagnostics, planExpression);
   if (selected.instance && receiver?.kind !== "value") failCsharpPlannerInvariant("An admitted instance call requires its exact native receiver acquisition.", node);
   return composeCsharpPlannedCall(node, sourceFile, input, diagnostics, receiver?.kind === "value" ? receiver.value : undefined, arguments_, (value, args) => {
+    if (selected.invocation.kind === "guarded-method") {
+      return planGuardedTargetCall(node, selected.invocation, selected.result, args, input);
+    }
     const prelude: CsharpStatement[] = [];
-    const expression = buildSelectedTargetCall(node, selected, args, sourceFile, input, diagnostics, value, prelude);
+    const expression = buildSelectedTargetCall(node, selected, selected.invocation, args, sourceFile, input, diagnostics, value, prelude);
     return planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, expression, selected.result, prelude);
   });
 }
 
-function buildSelectedTargetCall(node: Node, selected: CsharpTargetCallEmission, arguments_: readonly CsharpArgument[],
+function buildSelectedTargetCall(node: Node, selected: CsharpTargetCallEmission,
+  invocation: Exclude<CsharpTargetInvocationEmission, { readonly kind: "guarded-method" }>, arguments_: readonly CsharpArgument[],
   sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], receiver: CsharpExpression | undefined,
   prelude: CsharpStatement[]): CsharpExpression {
   const nativeType = (carrier: TargetTypeRef): CsharpTypeNode => csharpTypeFromTargetTypeRef(carrier, input.scope.typeParameterNames) ??
     failCsharpPlannerInvariant("An admitted target call requires its exact rendered native carrier.", node);
   const instance = (): CsharpExpression => receiver ?? failCsharpPlannerInvariant("An admitted instance operation requires its native receiver.", node);
   const generic = () => renderSelectedCsharpTargetMethodTypeArguments(selected.selection, node, sourceFile, input, diagnostics);
-  const invocation = selected.invocation;
   switch (invocation.kind) {
     case "value-identity": return arguments_[0]!.expression;
     case "native-task-resolution": {
@@ -111,6 +115,32 @@ function buildSelectedTargetCall(node: Node, selected: CsharpTargetCallEmission,
         ...(typeArguments.length === 0 ? {} : { typeArguments }) }, arguments: arguments_ };
     }
   }
+}
+
+function planGuardedTargetCall(
+  node: Node,
+  invocation: Extract<CsharpTargetInvocationEmission, { readonly kind: "guarded-method" }>,
+  result: TargetTypeRef,
+  arguments_: readonly CsharpArgument[],
+  input: CsharpPlanningContext,
+): CsharpPlannedValue {
+  const type = csharpTypeFromTargetTypeRef(invocation.argumentType, input.scope.typeParameterNames);
+  const owner = csharpTypeFromTargetTypeRef(invocation.owner, input.scope.typeParameterNames);
+  const argument = arguments_[invocation.argumentIndex];
+  if (type === undefined || owner === undefined || argument === undefined) return failCsharpPlannerInvariant(
+    "An admitted guarded call requires its exact native argument and owner.", node);
+  const name = input.names.temporaryName(`__tsonic_guardedArgument_${input.program.source.ast.pos(node)}`);
+  const value: CsharpExpression = { kind: "IdentifierName", name };
+  return csharpPlannedEffect(result, [
+    { kind: "LocalDeclarationStatement", name, type, initializer: argument.expression },
+    { kind: "IfStatement", condition: { kind: "BinaryExpression", operatorToken: { kind: "EqualsEqualsToken" },
+      left: { kind: "SimpleMemberAccessExpression", receiver: value, name: invocation.propertyName },
+      right: { kind: "LiteralExpression", value: null } }, thenBody: { kind: "Block", statements: [
+        { kind: "ExpressionStatement", expression: { kind: "InvocationExpression",
+          callee: { kind: "SimpleMemberAccessExpression", receiver: owner, name: invocation.name },
+          arguments: arguments_.map((entry, index) => index === invocation.argumentIndex ? { ...entry, expression: value } : entry) } },
+      ] } },
+  ]);
 }
 
 function planProtocolCall(node: Node, selected: Extract<CsharpTargetInvocationEmission, { readonly kind: "protocol" }>, arguments_: readonly CsharpArgument[],

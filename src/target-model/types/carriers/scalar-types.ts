@@ -127,6 +127,10 @@ export function csharpExceptionTargetType(): CsharpTargetNamedTypeRef {
   });
 }
 
+export function csharpSourceErrorTargetType(name: CsharpSourceErrorName = "Error"): CsharpTargetNamedTypeRef {
+  return name === "Error" ? csharpExceptionTargetType() : csharpRuntimeErrorTargetType(name);
+}
+
 export function csharpRuntimeErrorTargetType(name: CsharpSourceErrorName = "Error"): CsharpTargetNamedTypeRef {
   return csharpTargetNamedType(
     `Tsonic.CSharp.Runtime.${name}`,

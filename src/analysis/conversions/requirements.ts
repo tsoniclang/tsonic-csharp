@@ -364,11 +364,13 @@ export function collectCsharpConversionRequirements(input: CsharpConversionRequi
         const members: CsharpClosedShapeMemberProjection[] = [];
         for (const member of projection.members) {
           if (!reserveClassification(subject)) return;
-          const conversion = classifyPair(member.type, csharpTsValueTargetType(), "implicit", subject);
+          const conversion = classifyPair(member.native === undefined ? member.type : member.native.member.returnType,
+            csharpTsValueTargetType(), "implicit", subject);
           if (conversion === undefined) continue;
           const selected = selectCsharpClosedShapeConversion(conversion, csharpTsValueTargetType());
           if (selected.kind === "rejected") issues.push({ node: subject, code: "CSHARP_UNSUPPORTED_AST", message: selected.reason });
-          else members.push(Object.freeze({ member, conversion: selected.value }));
+          else members.push(Object.freeze(member.native === undefined ? { member, conversion: selected.value }
+            : { native: member.native, sourceName: member.sourceName, conversion: selected.value }));
         }
         orders.set(targetTypeRefKey(projection.source), Object.freeze(members));
       }

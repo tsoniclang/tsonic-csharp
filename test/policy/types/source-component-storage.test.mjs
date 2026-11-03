@@ -134,20 +134,15 @@ test("callable parameters establish their exact entry input while tuple transfor
   }
 });
 
-test("recognized Error profiles reject unavailable checked storage instead of manufacturing an object shape", () => {
-  const file = {};
-  const owner = subject({}, "input");
-  let queries = 0;
-  const scope = { host: { providers: createSourceErrorProviderFixture(), ast: { getSourceFile(node) { assert.equal(node === owner.node, true); return file; }, parent: () => undefined,
-    is: { IsExpressionWithTypeArguments: () => false } }, hasSemantics: () => true,
-    errorStorageDemands: { storageFor(selected) { queries += 1; assert.equal(selected === owner, true);
-      return { kind: "unresolved", reason: "exact storage unavailable" }; } } } };
+test("recognized Error profiles retain exact native identity without a storage-history owner", () => {
+  const scope = { host: { providers: createSourceErrorProviderFixture() } };
   const identity = { kind: "error", sourceName: "Error", errorName: "Error", baseException: true };
-  assert.equal(resolveSourceProfileType(scope, identity, [], owner) === undefined, true);
-  assert.equal(queries, 1);
-  scope.host.hasSemantics = () => false;
-  assert.equal(resolveSourceProfileType(scope, identity, [], owner)?.id, "System.Exception");
-  assert.equal(queries, 1, "provider signature evidence is not a checked runtime storage subject");
+  assert.equal(resolveSourceProfileType(scope, identity, [])?.id, "System.Exception");
+  for (const kind of ["missing", "rejected"]) {
+    scope.host.providers = { publishNativeIdentities: () => ({ kind }) };
+    assert.equal(resolveSourceProfileType(scope, identity, []) === undefined, true,
+      "missing or rejected native publication cannot manufacture an Error carrier");
+  }
 });
 
 test("callable results establish their own storage owner rather than retaining the enclosing delegate owner", () => {

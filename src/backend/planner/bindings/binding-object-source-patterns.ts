@@ -8,7 +8,7 @@ import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import type { ExpressionPlanner } from "../expressions/expression-planner-types.js";
 import { planCsharpBindingDefaultValue } from "./optional-values.js";
 import { consumeCsharpPlannedValue } from "../statements/statement-output.js";
-import { planNativeBindingProperty } from "./native-binding-properties.js";
+import { planNativePropertyRead } from "../expressions/native-property-reads.js";
 
 export function planObjectBindingElement(
   elementNode: Node,
@@ -25,7 +25,7 @@ export function planObjectBindingElement(
   if (element?.name === undefined || selected?.kind !== "source-owned-member" && selected?.kind !== "native-member") return failCsharpPlannerInvariant(
     "Source-owned binding requires its admitted direct member projection.", elementNode);
   if (selected.kind === "native-member") {
-    const value = planNativeBindingProperty(selected.property, sourceExpression, elementNode, input);
+    const value = planNativePropertyRead(selected.property, sourceExpression, elementNode);
     if (element.Initializer === undefined) return planBindingNameFromProjection(element.name, value,
       elementNode, sourceFile, input, diagnostics, state);
     const contract = input.program.records.bindingPatternProjection.get(elementNode)?.defaultValue;

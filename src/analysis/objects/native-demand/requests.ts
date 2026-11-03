@@ -625,6 +625,7 @@ export function createCsharpObjectShapeDemandEngine(host: CsharpObjectShapeDeman
       if (registered === undefined || !csharpObjectShapesEqual(registered.fact, fact)) {
         return failTargetAnalysisInvariant("tsonic-csharp", "A general JSON writer requires its exact admitted native shape.");
       }
+      if (!host.hasJsRuntime) return;
       generalJsonDeclarations.add(objectShapeArtifactKey(registered.fact));
     },
     close(): CsharpObjectShapeDemandClosure {

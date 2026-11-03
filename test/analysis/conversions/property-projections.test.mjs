@@ -17,7 +17,7 @@ function fixture() {
   const member = { read: "property", property: { symbol, rootSymbols: [], optional: false }, declarations: [declaration] };
   const correspondence = { kind: "available", destination: { calls: [], constructs: [], indexes: [] },
     members: [{ kind: "present", source: member, destination: member }] };
-  const policy = { semanticsFor: () => ({ types: { nonNullableType: type => type, expressionType: () => sourceType, isUnion: () => false,
+  const policy = { ast: { getSourceFile: () => undefined }, semanticsFor: () => ({ types: { nonNullableType: type => type, expressionType: () => sourceType, isUnion: () => false,
     structuralMembers(actual, required, purpose) {
       assert.equal(purpose, "read", "property projection requires readable source values");
       assert.equal(actual === sourceType && required === destination, true, "exact selected source and destination identity");
@@ -64,7 +64,7 @@ test("selected property projection accepts genuinely absent optional destination
 
 test("native dictionary slots need no nominal field projection and unrelated carriers still reject", () => {
   const destination = {};
-  const policy = { semanticsFor: () => ({ types: { nonNullableType: type => type } }) };
+  const policy = { semanticsFor: () => ({ types: { nonNullableType: type => type, expressionType: () => undefined } }) };
   const dictionary = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [false, false], id: "NativeDictionary", csharpCollectionSurface: "record",
     typeArguments: [csharpStringTargetType(), csharpTsValueTargetType()] };
   const exact = selectCsharpPropertyProjections({}, dictionary, destination, policy, {
