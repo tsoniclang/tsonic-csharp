@@ -141,9 +141,9 @@ export const callablesCarrierRegistry = Object.freeze([
     frozen: false,
   },
   {
-    id: "src/analysis/source-evidence/types/resolution/expressions.ts#resolveSourceOwnedConstructionResult",
+    id: "src/analysis/source-evidence/types/resolution/expressions.ts#resolveFormedCsharpSourceOwnedConstructionResult",
     kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
-    declaration: { module: "src/analysis/source-evidence/types/resolution/expressions.ts", symbol: "resolveSourceOwnedConstructionResult" },
+    declaration: { module: "src/analysis/source-evidence/types/resolution/expressions.ts", symbol: "resolveFormedCsharpSourceOwnedConstructionResult" },
     responsibility: "callables/resolve-construct-instance",
     frozen: false,
   },

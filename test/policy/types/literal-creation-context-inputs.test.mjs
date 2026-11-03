@@ -121,7 +121,7 @@ test("UNIT literal arguments cannot substitute checked or unavailable component 
   assert.throws(() => formCsharpLiteralCreationContextSource(current.creation, current.selection,
     [{ context: current.contexts[0], kind: "unavailable", selectedType: undefined }]), /cannot substitute/);
   assert.throws(() => formCsharpLiteralCreationContextSource(current.creation, current.selection,
-    [{ context: current.contexts[0], kind: "argument", contract: call.contract, asynchronous: true }]), /exact checked call source/);
+    [{ context: current.contexts[0], kind: "argument", contract: call.contract, construction: undefined, asynchronous: true }]), /exact checked call source/);
 });
 
 test("UNIT literal formal completion retains exclusions and exact synchronous and async callback returns", () => {
@@ -129,7 +129,7 @@ test("UNIT literal formal completion retains exclusions and exact synchronous an
     const call = callSource();
     const current = fixture(1, call.argument, mode === "argument" ? undefined : {});
     const source = formCsharpLiteralCreationContextSource(current.creation, current.selection,
-      [{ context: current.contexts[0], kind: "argument", contract: call.contract, asynchronous: mode === "async-return" }]);
+      [{ context: current.contexts[0], kind: "argument", contract: call.contract, construction: undefined, asynchronous: mode === "async-return" }]);
     const formal = mode === "argument" ? integer
       : csharpDelegateTargetType("System.Func", [], mode === "return" ? integer : csharpTaskTargetType(integer));
     const native = { nativeParameters: [{ sourceParameter: call.parameter,

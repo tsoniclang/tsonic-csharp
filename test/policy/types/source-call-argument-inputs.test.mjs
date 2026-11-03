@@ -30,7 +30,7 @@ function fixture() {
 
 test("UNIT argument selection exposes the same checked and native association before its type child", () => {
   const current = fixture();
-  const completion = completeCsharpSourceCallArgumentParameterSource(current.input, current.binding, current.excluded);
+  const completion = completeCsharpSourceCallArgumentParameterSource(current.input, current.binding, undefined, current.excluded);
   const contract = completion.next();
   assert.equal(contract.done === false && contract.value.kind === "contract", true);
   const association = contract.value.association;
@@ -53,24 +53,24 @@ test("UNIT argument selection exposes the same checked and native association be
 test("UNIT argument dependency short circuits retain rejection and the checked fallback without another selector", () => {
   const current = fixture();
   const missing = completeCsharpSourceCallArgumentParameterSource(current.input,
-    { ...current.binding, sourceParameterIndex: 9 }, current.excluded).next();
+    { ...current.binding, sourceParameterIndex: 9 }, undefined, current.excluded).next();
   assert.equal(missing.done && missing.value === undefined, true);
-  const rejected = completeCsharpSourceCallArgumentParameterSource(current.input, current.binding, current.excluded);
+  const rejected = completeCsharpSourceCallArgumentParameterSource(current.input, current.binding, undefined, current.excluded);
   const rejectedRequest = rejected.next().value;
   const rejectedResult = rejected.next({ kind: "contract", request: rejectedRequest, selection: { kind: "rejected" } });
   assert.equal(rejectedResult.done && rejectedResult.value === undefined, true);
-  const mismatch = completeCsharpSourceCallArgumentParameterSource(current.input, current.binding, current.excluded);
+  const mismatch = completeCsharpSourceCallArgumentParameterSource(current.input, current.binding, undefined, current.excluded);
   const mismatchContract = mismatch.next().value;
   const mismatchParameters = mismatch.next({ kind: "contract", request: mismatchContract, selection: current.selection }).value;
   const mismatched = mismatch.next({ kind: "parameters", request: mismatchParameters, matches: false });
   assert.equal(mismatched.done && mismatched.value === undefined, true);
-  const foreign = completeCsharpSourceCallArgumentParameterSource(current.input, current.binding, current.excluded);
+  const foreign = completeCsharpSourceCallArgumentParameterSource(current.input, current.binding, undefined, current.excluded);
   const foreignContract = foreign.next().value;
   const foreignResult = foreign.next({ kind: "contract", request: foreignContract,
     selection: { kind: "value", contract: { nativeParameters: [{ ...current.parameter, sourceParameter: {} }] } } });
   assert.equal(foreignResult.done && foreignResult.value === undefined, true,
     "a foreign stored parameter refuses before the parameter-check and type children");
-  const checked = completeCsharpSourceCallArgumentParameterSource(current.input, current.binding, current.excluded);
+  const checked = completeCsharpSourceCallArgumentParameterSource(current.input, current.binding, undefined, current.excluded);
   const checkedContract = checked.next().value;
   const checkedType = checked.next({ kind: "contract", request: checkedContract,
     selection: { kind: "declaration", contract: undefined } });
@@ -82,10 +82,10 @@ test("UNIT argument dependency short circuits retain rejection and the checked f
 
 test("UNIT argument child replies require the exact request and operation kind", () => {
   const current = fixture();
-  const wrongRequest = completeCsharpSourceCallArgumentParameterSource(current.input, current.binding, current.excluded);
+  const wrongRequest = completeCsharpSourceCallArgumentParameterSource(current.input, current.binding, undefined, current.excluded);
   const request = wrongRequest.next().value;
   assert.throws(() => wrongRequest.next({ kind: "contract", request: { ...request }, selection: current.selection }), /exact selected contract/);
-  const wrongKind = completeCsharpSourceCallArgumentParameterSource(current.input, current.binding, current.excluded);
+  const wrongKind = completeCsharpSourceCallArgumentParameterSource(current.input, current.binding, undefined, current.excluded);
   const original = wrongKind.next().value;
   assert.throws(() => wrongKind.next({ kind: "parameters", request: original, matches: true }), /exact selected contract/);
 });

@@ -14,7 +14,7 @@ function fixture(owner = {}) {
   const callable = Object.freeze({ nativeSignature: { methodTypeParameterIdentities: [parameter.identity], receiverTypeOwner: owner } });
   const state = Object.freeze({ depth: 2 });
   const excluded = new Set([1]);
-  const input = Object.freeze({ source, callable, type: parameter, sourceFile, state, excludedSourceArgumentIndexes: excluded });
+  const input = Object.freeze({ source, callable, type: parameter, sourceFile, state, excludedSourceArgumentIndexes: excluded, construction: undefined });
   const inference = Object.freeze({ source, callable, excludedSourceArgumentIndexes: excluded, bindings: new Map() });
   const instantiation = Object.freeze({ arguments: [integer], substitutions: new Map([[parameter.identity, integer]]),
     sourceArguments: [], inference });
