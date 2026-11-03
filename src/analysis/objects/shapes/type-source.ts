@@ -18,6 +18,7 @@ import { requiresUnresolvedStructuralProjection, typeHasProjectOwnedShapeDeclara
   typeIsExcludedFromObjectShape } from "./source-evidence.js";
 import { selectCsharpObjectMethodImplementationSource,
   type CsharpObjectMethodImplementationSource } from "./method-implementations.js";
+import { formCsharpStructShapeSource, type CsharpStructShapeSource } from "./struct-source.js";
 
 export interface CsharpObjectShapeProjectSource {
   readonly definition: CsharpCurrentProjectDeclaration;
@@ -25,6 +26,7 @@ export interface CsharpObjectShapeProjectSource {
   readonly declared: CsharpObjectShapeSource | undefined;
   readonly instantiated: CsharpObjectShapeSource | undefined;
   readonly instanceType: Type | undefined;
+  readonly struct: CsharpStructShapeSource | undefined;
 }
 
 export interface CsharpObjectShapeTypeSource {
@@ -87,6 +89,8 @@ export function createCsharpObjectShapeSourceFormation(
         const instantiated = declared === undefined ? undefined : formInstantiatedObjectShapeSource(declared, type, queries);
         projects.set(selected, Object.freeze({ definition, declaration, declared, instantiated,
           instanceType: definition.kind === "class" ? queries.declarations.declaredType(selected) : undefined,
+          struct: definition.kind === "struct" ? formCsharpStructShapeSource(host, collectMembers,
+            definition.declaration, host.semantics(definition.sourceFile), nextState(state)) : undefined,
         }));
       }
     }
@@ -118,5 +122,8 @@ export function createCsharpObjectShapeSourceFormation(
     });
   }
 
-  return Object.freeze({ formTypeSource, formProjectDeclarationSource });
+  return Object.freeze({ formTypeSource, formProjectDeclarationSource,
+    formStructSource: (node: Node, queries: SourceFileSemantics, state: CsharpTypeResolutionState) =>
+      formCsharpStructShapeSource(host, collectMembers, node, queries, state),
+  });
 }
