@@ -1,4 +1,4 @@
-import type { SourceFile, Type } from "@tsonic/tsts";
+import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { SourceCallableContract } from "../../../../target-model/records/callables/source-callable-contract.js";
 import { classifyFormedCsharpSourceCallee, formCsharpSourceCalleeSource,
@@ -29,6 +29,7 @@ export type CsharpSourceCallContractSource = {
   readonly source: ResolvedSourceCallInfo;
   readonly sourceFile: SourceFile;
   readonly callableSource: CsharpSourceCallableSource;
+  readonly checkedTypeParameterDeclarations: readonly (Node | undefined)[] | undefined;
 } & (
   | { readonly kind: "direct" }
   | { readonly kind: "callee"; readonly callee: CsharpSourceCalleeSource }
@@ -40,9 +41,12 @@ export function formCsharpSourceCallContractSource(
   sourceFile: SourceFile,
 ): CsharpSourceCallContractSource {
   const callableSource = host.representations.sourceCallableSource(source, sourceFile);
+  const checked = callableSource.checked.declaration;
+  const checkedTypeParameterDeclarations = checked === undefined ? undefined : Object.freeze([...host.ast.typeParameters(checked)]);
   return host.ast.is.IsNewExpression(source.call) || host.ast.kindName(source.sourceCallee.expression) === "KindSuperKeyword"
-    ? Object.freeze({ source, sourceFile, callableSource, kind: "direct" })
-    : Object.freeze({ source, sourceFile, callableSource, kind: "callee", callee: formCsharpSourceCalleeSource(host, source, sourceFile) });
+    ? Object.freeze({ source, sourceFile, callableSource, checkedTypeParameterDeclarations, kind: "direct" })
+    : Object.freeze({ source, sourceFile, callableSource, checkedTypeParameterDeclarations,
+      kind: "callee", callee: formCsharpSourceCalleeSource(host, source, sourceFile) });
 }
 
 export function resolveSourceCallContract(
@@ -82,7 +86,7 @@ export function resolveFormedSourceCallContract(
   const reject = (): CsharpSourceCallContractSelection => Object.freeze({ kind: "rejected" });
   if (callee.kind === "rejected") return reject();
   const selectedArguments = source.sourceSelectedMethodTypeArguments ?? [];
-  const type = checkedValueInvocationCarrier(scope, source, sourceFile,
+  const type = checkedValueInvocationCarrier(scope, input,
     getCsharpNullableElementTargetType(callee.type) ?? callee.type, selectedArguments);
   if (type === undefined) return reject();
   const closed = host.representations.closedInputContract(source.sourceCallee.expression);
@@ -104,8 +108,7 @@ type NativeQuantifier = Parameters<typeof rebindCsharpMethodValueTypeParameters>
 
 function checkedValueInvocationCarrier(
   { host }: CsharpTypeResolutionScope,
-  source: ResolvedSourceCallInfo,
-  sourceFile: SourceFile,
+  input: CsharpSourceCallContractSource,
   type: TargetTypeRef,
   selected: readonly { readonly typeParameter: Type }[],
 ): TargetTypeRef | undefined {
@@ -124,11 +127,11 @@ function checkedValueInvocationCarrier(
   const canonical = csharpMethodValueType(value.owner, value.method, value.identity, member.type,
     native.map(parameter => parameter.identity));
   if (canonical === undefined || !csharpMethodValueContractsEqual(type, canonical)) return undefined;
-  const queries = host.semantics(sourceFile);
-  const declaration = queries.declarations.signatureDeclaration(source.selectedSignature);
+  const queries = input.callableSource.queries;
+  const declaration = input.callableSource.checked.declaration;
   if (declaration === undefined) return undefined;
-  const declarations = host.ast.typeParameters(declaration);
-  if (declarations.length !== selected.length) return undefined;
+  const declarations = input.checkedTypeParameterDeclarations;
+  if (declarations === undefined || declarations.length !== selected.length) return undefined;
   const authored = selected.map((argument, index): NativeQuantifier | undefined => {
     const sourceParameter = declarations[index] === undefined ? undefined
       : csharpSourceTypeParameter(declarations[index]!, host.ast);
