@@ -16,6 +16,7 @@ import { createCsharpNativeConstructionRecords } from "../program/records/native
 import type { CsharpLiteralConstructionSource, CsharpLocalConstructionSource,
   CsharpNativeConstructionSource } from "./native-construction-source.js";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
+import type { CsharpLiteralCreationContextSource, CsharpLiteralCreationContextTarget } from "../source-evidence/types/resolution/literal-creation-context.js";
 
 export function selectCsharpLiteralDeclarationContext(
   expression: Node,
@@ -28,6 +29,8 @@ export function selectCsharpLiteralDeclarationContext(
 interface CsharpNativeConstructionHost<ShapeSource extends object> extends Pick<CsharpTypePolicyBaseHost,
   "ast" | "navigation" | "providers" | "sourceFacts" | "sourceFiles" | "semanticsFor"> {
   completeShapeSource(source: ShapeSource): CsharpObjectShapeFact | undefined;
+  completeContextSource(source: CsharpLiteralCreationContextSource): CsharpLiteralCreationContextTarget | undefined;
+  resolveTargetShape(type: TargetTypeRef): CsharpObjectShapeFact | undefined;
   resolveLiteralShape(shape: CsharpObjectShapeFact, node: Node, file: SourceFile): CsharpObjectLiteralTargetShapeResolution;
   retainSourceShape(node: Node, type: Type, shape: CsharpObjectShapeFact, file: SourceFile): CsharpObjectShapeFact | undefined;
   scopedTargetType(node: Node): TargetTypeRef | undefined;
@@ -88,13 +91,19 @@ export function createCsharpNativeConstructionDemandQuery<ShapeSource extends ob
       issues.push(csharpUntypedObjectLiteralIssue(node));
       return;
     }
+    const destination = host.completeContextSource(input.contextSource);
+    if (destination !== undefined && (destination.source !== input.contextSource || destination.context !== context)) {
+      return failTargetAnalysisInvariant("tsonic-csharp",
+        "Construction destination requires its exact completed source context.", node);
+    }
+    const expected = destination === undefined ? undefined : host.resolveTargetShape(destination.destinationType);
     if (input.nativeProvider && selected !== undefined) {
       const correspondence = input.correspondence;
       if (correspondence?.sourceType !== source || correspondence.destinationType !== selected || correspondence.queries !== queries) {
         return failTargetAnalysisInvariant("tsonic-csharp",
           "Native construction requires its exact retained checked member comparison.", node);
       }
-      const shape = input.expectedShape === undefined ? undefined : host.completeShapeSource(input.expectedShape);
+      const shape = expected;
       const original = host.completeShapeSource(input.originalShape);
       const budget = createCsharpMetadataBudget();
       let compatible = false;
@@ -115,7 +124,6 @@ export function createCsharpNativeConstructionDemandQuery<ShapeSource extends ob
       return;
     }
     if (selected !== undefined && !input.unknown) {
-      const expected = input.expectedShape === undefined ? undefined : host.completeShapeSource(input.expectedShape);
       const resolved = expected === undefined ? undefined : host.resolveLiteralShape(expected, node, queries.sourceFile);
       if (resolved?.kind === "rejected") {
         issue(resolved.subject, "CSHARP_NATIVE_CONSTRUCTION_NOT_PROVEN", resolved.reason);

@@ -3,7 +3,8 @@ import { sourceDeclarationIsModuleScoped, type SourceFileSemantics } from "@tson
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpTypePolicyBaseHost } from "../source-evidence/types/resolution/model.js";
 import { formCsharpLiteralCreationSource, selectCsharpLiteralCreationContext,
-  type CsharpLiteralContext, type CsharpLiteralCreationSource } from "./literal-creation-source.js";
+  type CsharpLiteralCreationSelection, type CsharpLiteralCreationSource } from "./literal-creation-source.js";
+import type { CsharpLiteralCreationContextSource } from "../source-evidence/types/resolution/literal-creation-context.js";
 import { formCsharpNativeConstructionPublicationSource,
   type CsharpNativeConstructionPublicationInput, type CsharpNativeConstructionPublicationSource } from "./native-construction-publication.js";
 import { formCsharpNativeConstructionMemberSource,
@@ -31,7 +32,8 @@ export interface CsharpLiteralConstructionSource<ShapeSource extends object> {
   readonly queries: SourceFileSemantics;
   readonly type: Type;
   readonly creation: CsharpLiteralCreationSource;
-  readonly context: CsharpLiteralContext | undefined;
+  readonly context: CsharpLiteralCreationSelection | undefined;
+  readonly contextSource: CsharpLiteralCreationContextSource;
   readonly selectedType: Type | undefined;
   readonly asynchronous: boolean;
   readonly any: boolean;
@@ -40,7 +42,6 @@ export interface CsharpLiteralConstructionSource<ShapeSource extends object> {
   readonly selectedSubjects: ReturnType<SourceFileSemantics["facts"]["typeSubjects"]>;
   readonly nativeProvider: boolean;
   readonly correspondence: CsharpNativeConstructionMemberSource | undefined;
-  readonly expectedShape: ShapeSource | undefined;
   readonly originalShape: ShapeSource;
   readonly local: CsharpLocalConstructionSource<ShapeSource> | undefined;
   readonly publications: readonly CsharpNativeConstructionPublication<ShapeSource>[];
@@ -57,6 +58,7 @@ export function formCsharpNativeConstructionSource<ShapeSource extends object>(
   host: CsharpNativeConstructionSourceHost,
   publicationInput: (node: Node, queries: SourceFileSemantics) => CsharpNativeConstructionPublicationInput,
   shapeInput: (type: Type, queries: SourceFileSemantics, authoredTypeRoot: Node | undefined) => ShapeSource,
+  contextInput: (creation: CsharpLiteralCreationSource, context: CsharpLiteralCreationSelection | undefined) => CsharpLiteralCreationContextSource,
 ): CsharpNativeConstructionSource<ShapeSource> {
   const publications = new Map<Node, CsharpNativeConstructionPublication<ShapeSource>>();
   const tasks: CsharpNativeConstructionSource<ShapeSource>["tasks"][number][] = [];
@@ -98,8 +100,12 @@ export function formCsharpNativeConstructionSource<ShapeSource extends object>(
       const { queries, type } = selected;
       if (type !== undefined && queries.types.constructSignatures(type).length === 0) {
         const creation = formCsharpLiteralCreationSource(node, queries, host);
-        const selectedContext = selectCsharpLiteralCreationContext(creation);
-        const context = selectedContext === undefined ? undefined : Object.freeze(selectedContext);
+        const context = selectCsharpLiteralCreationContext(creation);
+        const contextSource = contextInput(creation, context);
+        if (contextSource.creation !== creation || contextSource.context !== context) {
+          return failTargetAnalysisInvariant("tsonic-csharp",
+            "Construction completion requires the same retained literal creation and canonical context.", node);
+        }
         const contextual = context?.component.selectedType;
         const asynchronous = context?.returnedFrom !== undefined && host.ast.hasModifierKind(context.returnedFrom, "async");
         const selectedType = contextual !== undefined && asynchronous ? queries.types.typeArguments(contextual)[0] : contextual;
@@ -117,13 +123,11 @@ export function formCsharpNativeConstructionSource<ShapeSource extends object>(
         const declaration = !any && !untyped && context === undefined ? host.ast.parent(node) : undefined;
         const variable = declaration === undefined || !host.ast.is.IsVariableDeclaration(declaration)
           ? undefined : host.ast.as.AsVariableDeclaration(declaration);
-        tasks.push(Object.freeze({ kind: "literal", node, queries, type, creation, context, selectedType, asynchronous, any, untyped,
+        tasks.push(Object.freeze({ kind: "literal", node, queries, type, creation, context, contextSource, selectedType, asynchronous, any, untyped,
           unknown: !any && !untyped && selectedType !== undefined && queries.types.isUnknown(selectedType),
           selectedSubjects, nativeProvider,
           correspondence: nativeProvider && selectedType !== undefined
             ? formCsharpNativeConstructionMemberSource(type, selectedType, queries, host) : undefined,
-          expectedShape: any || untyped || selectedType === undefined ? undefined
-            : shapeInput(selectedType, queries, asynchronous ? undefined : context?.component.authoredTypeNode),
           originalShape: selected.presentTypes.length === 1 && selected.presentTypes[0] === type
             ? selected.originalShape! : shapeInput(type, queries, node),
           local: variable?.Initializer === node ? local(declaration!, type, node) : undefined,

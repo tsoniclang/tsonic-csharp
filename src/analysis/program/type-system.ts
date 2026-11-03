@@ -1,10 +1,12 @@
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
+import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import {
   createCsharpNativeConstructionDemandQuery,
 } from "../objects/native-construction-demand.js";
 import type { CsharpNativeConstructionDemandQueries } from "../../target-model/records/native/native-construction.js";
 import { formCsharpNativeConstructionSource, type CsharpNativeConstructionSource } from "../objects/native-construction-source.js";
 import type { CsharpStructuralTypeSourceInput } from "../source-evidence/types/resolution/root-sources.js";
+import type { CsharpLiteralCreationContextInput } from "../source-evidence/types/resolution/literal-creation-context.js";
 import type {
   ExtensionFactSubject,
   Node,
@@ -45,7 +47,8 @@ import { csharpTargetTypeFromBinding } from "../../policy/types/storage/bindings
 import type { CsharpTypeParameterConstraint } from "../../target-model/types/generic-constraints.js";
 
 export interface CsharpTypeSystem extends Pick<CsharpTypeResolutionServices,
-  "nodeQuerySource" | "completeNodeQuery" | "typeQuerySource" | "completeTypeQuery"> {
+  "nodeQuerySource" | "completeNodeQuery" | "typeQuerySource" | "completeTypeQuery" |
+  "literalCreationContextSource" | "completeLiteralCreationContext"> {
   readonly typeDefinitions: import("../../target-model/types/source-union-definitions.js").CsharpTypeDefinitions;
   readonly analysisTypes: CsharpTypePolicy;
   readonly objectShapes: CsharpRecursiveObjectShapePolicy;
@@ -253,6 +256,8 @@ function createCsharpTypeSystem(
     completeNodeQuery: typeResolution.completeNodeQuery,
     typeQuerySource: typeResolution.typeQuerySource,
     completeTypeQuery: typeResolution.completeTypeQuery,
+    literalCreationContextSource: typeResolution.literalCreationContextSource,
+    completeLiteralCreationContext: typeResolution.completeLiteralCreationContext,
     publishProjectTypes(projections: CsharpGenericProjectionIndex): void {
       if (projectTypes !== undefined) return failTargetAnalysisInvariant("tsonic-csharp",
         "Current native project types are published exactly once.");
@@ -281,15 +286,37 @@ export function createCsharpTypeAnalysis(
     },
   });
   const system = createCsharpTypeSystem(host, catalog, selectedRepresentations);
+  const shapeSource = (type: Type, queries: SourceFileSemantics,
+    authoredTypeRoot: Node | undefined): CsharpStructuralTypeSourceInput => {
+    const state = Object.freeze({ depth: 0 });
+    return Object.freeze({ type, queries, state, authoredTypeRoot,
+      source: system.objectShapes.formTypeSource(type, queries, state, authoredTypeRoot) });
+  };
   const nativeConstructionSource = formCsharpNativeConstructionSource(host, (node, queries) => {
     const source = system.nodeQuerySource(node, queries.sourceFile).root;
     if (source.kind !== "node") return failTargetAnalysisInvariant("tsonic-csharp",
       "Construction publication requires its genuine checked node source occurrence.", node);
     return source;
-  }, (type, queries, authoredTypeRoot) => {
-    const state = Object.freeze({ depth: 0 });
-    return Object.freeze({ type, queries, state, authoredTypeRoot,
-      source: system.objectShapes.formTypeSource(type, queries, state, authoredTypeRoot) });
+  }, shapeSource, (creation, context) => {
+    const inputs = creation.contexts.map((selected): CsharpLiteralCreationContextInput => {
+      const asynchronous = selected.returnedFrom !== undefined && host.ast.hasModifierKind(selected.returnedFrom, "async");
+      if (selected.argument !== undefined) {
+        const call = selected.argument.source;
+        const source = system.nodeQuerySource(call.call, host.semanticsFor(call.call).sourceFile).root;
+        const expression = source.kind === "node" ? source.selectedExpression : undefined;
+        if (expression?.kind !== "call" || expression.contract?.source !== call) {
+          return failTargetAnalysisInvariant("tsonic-csharp",
+            "Literal arguments require their retained checked Root call contract.", call.call);
+        }
+        return Object.freeze({ kind: "argument", context: selected, contract: expression.contract, asynchronous });
+      }
+      const type = asynchronous ? creation.queries.types.typeArguments(selected.component.selectedType)[0]
+        : selected.component.selectedType;
+      return type === undefined ? Object.freeze({ kind: "unavailable", context: selected, selectedType: undefined })
+        : Object.freeze({ kind: "component", context: selected,
+          source: shapeSource(type, creation.queries, asynchronous ? undefined : selected.component.authoredTypeNode) });
+    });
+    return system.literalCreationContextSource(creation, context, inputs);
   });
   return Object.freeze({
     typeDefinitions: system.typeDefinitions,
@@ -300,6 +327,8 @@ export function createCsharpTypeAnalysis(
     completeNodeQuery: system.completeNodeQuery,
     typeQuerySource: system.typeQuerySource,
     completeTypeQuery: system.completeTypeQuery,
+    literalCreationContextSource: system.literalCreationContextSource,
+    completeLiteralCreationContext: system.completeLiteralCreationContext,
     publishProjectTypes: system.publishProjectTypes,
     nativeConstructionSource,
     get nativeConstruction() {
@@ -316,6 +345,8 @@ export function createCsharpTypeAnalysis(
         ...host,
         scopedTargetType: representations.scopedTargetType,
         completeShapeSource: system.objectShapes.completeTypeSource,
+        completeContextSource: system.completeLiteralCreationContext,
+        resolveTargetShape: system.objectShapes.resolveTarget,
         resolveLiteralShape: system.objectShapes.resolveObjectLiteralTargetShape,
         retainSourceShape: system.objectShapes.retainConstructionSource,
       }, source);
