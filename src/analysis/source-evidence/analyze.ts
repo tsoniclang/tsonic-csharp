@@ -146,17 +146,18 @@ export function analyzeCsharpSourceEvidence(
                     ? "void"
                     : "other";
     const typeQuery = typeQueries.typeQuerySource(type, sourceFile);
-    const targetType = recordTargetType(typeQueries.completeTypeQuery(typeQuery));
-    currentTypeInputs.push(Object.freeze({ source: typeQuery, type: targetType }));
     const symbol = semantics.declarations.typeSymbol(type);
     const typeParameters = symbol === undefined ? [] : semantics.declarations.symbolDeclarations(symbol)
       .filter(declaration => source.ast.is.IsTypeParameterDeclaration(declaration));
     const typeParameter = typeParameters.length === 1
       ? csharpSourceTypeParameter(typeParameters[0]!, source.ast) : undefined;
+    const nullish = semantics.types.isNullish(type);
+    const targetType = recordTargetType(typeQueries.completeTypeQuery(typeQuery));
+    currentTypeInputs.push(Object.freeze({ source: typeQuery, type: targetType }));
     const classification = Object.freeze({
       carrier: selectCsharpSemanticCarrier({ intrinsic, targetType, typeParameter }),
       intrinsic,
-      nullish: semantics.types.isNullish(type),
+      nullish,
       ...(targetType === undefined ? {} : { targetType }),
       ...(typeParameter === undefined ? {} : { typeParameter }),
     });
