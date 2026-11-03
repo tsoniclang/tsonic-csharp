@@ -58,6 +58,7 @@ import { formCsharpSemanticTypeArgumentsSource } from "./semantic-argument-sourc
 import { formCsharpDirectSourceEvidence, completeCsharpDirectSourceEvidence,
   resolveFormedCsharpDirectSourceFacts } from "./direct-source-evidence.js";
 import { resolveCsharpPointerStoragePointee } from "./pointer-storage.js";
+import { formCsharpLiteralCreationContextSource, resolveFormedCsharpLiteralCreationContext } from "./literal-creation-context.js";
 
 import type { CsharpTypeResolutionScope } from "./scope.js";
 type DropScope<Arguments extends readonly unknown[]> =
@@ -95,6 +96,9 @@ export interface CsharpTypeResolutionServices {
     ReturnType<typeof resolveFormedSourceCallContract>;
   readonly completeCallArgumentParameter: (...args: DropScope<Parameters<typeof completeCsharpSourceCallArgumentParameter>>) =>
     ReturnType<typeof completeCsharpSourceCallArgumentParameter>;
+  readonly literalCreationContextSource: typeof formCsharpLiteralCreationContextSource;
+  readonly completeLiteralCreationContext: (...args: DropScope<Parameters<typeof resolveFormedCsharpLiteralCreationContext>>) =>
+    ReturnType<typeof resolveFormedCsharpLiteralCreationContext>;
   readonly projectSemanticSource: (...args: DropScope<Parameters<typeof formCsharpProjectSemanticSource>>) =>
     ReturnType<typeof formCsharpProjectSemanticSource>;
   readonly completeProjectSemantic: (...args: DropScope<Parameters<typeof resolveFormedCsharpProjectSemanticType>>) =>
@@ -457,6 +461,9 @@ export function createCsharpTypeResolutionServices(
       resolveFormedSourceCallContract(scope, ...args),
     completeCallArgumentParameter: (...args: DropScope<Parameters<typeof completeCsharpSourceCallArgumentParameter>>) =>
       completeCsharpSourceCallArgumentParameter(scope, ...args),
+    literalCreationContextSource: formCsharpLiteralCreationContextSource,
+    completeLiteralCreationContext: (...args: DropScope<Parameters<typeof resolveFormedCsharpLiteralCreationContext>>) =>
+      resolveFormedCsharpLiteralCreationContext(scope, ...args),
     projectSemanticSource: (...args: DropScope<Parameters<typeof formCsharpProjectSemanticSource>>) =>
       formCsharpProjectSemanticSource(scope, ...args),
     completeProjectSemantic: (...args: DropScope<Parameters<typeof resolveFormedCsharpProjectSemanticType>>) =>

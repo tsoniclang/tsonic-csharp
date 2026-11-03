@@ -29,9 +29,13 @@ export interface CsharpLiteralCreationSource {
   readonly blocked: boolean;
 }
 
+export interface CsharpLiteralCreationSelection extends CsharpLiteralContext {
+  readonly creation: CsharpLiteralCreationSource;
+}
+
 export function selectCsharpLiteralCreationContext(
   observed: CsharpLiteralCreationSource,
-): CsharpLiteralContext | undefined {
+): CsharpLiteralCreationSelection | undefined {
   const first = observed.contexts[0];
   if (observed.blocked || observed.uncontextualizedArguments.length !== 0 || observed.untypedReturns.length !== 0 ||
     first === undefined || observed.contexts.some(context =>
@@ -41,7 +45,7 @@ export function selectCsharpLiteralCreationContext(
     context.component.contextualCall !== first.component.contextualCall ||
     context.argument?.correspondence.binding !== first.argument?.correspondence.binding ||
     context.returnedFrom !== first.returnedFrom)) return undefined;
-  return { authority: first.authority, component: first.component, declarations: first.declarations, source: first.source,
+  return { creation: observed, authority: first.authority, component: first.component, declarations: first.declarations, source: first.source,
     ...(first.argument === undefined ? {} : { argument: first.argument }),
     ...(first.returnedFrom === undefined ? {} : { returnedFrom: first.returnedFrom }) };
 }
