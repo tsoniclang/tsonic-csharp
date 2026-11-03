@@ -39,6 +39,15 @@ export interface CsharpDeclaredObjectReceiverSource {
   readonly methods: readonly Node[];
 }
 
+export interface CsharpDeclaredObjectReceiverContextSource {
+  readonly member: Node;
+  readonly receiver: CsharpDeclaredObjectReceiverSource;
+}
+
+export interface CsharpDeclaredObjectReceiverSources {
+  get(node: Node): CsharpDeclaredObjectReceiverContextSource | undefined;
+}
+
 export interface CsharpObjectMethodSource {
   readonly identity: string;
   readonly declaredReceiver: CsharpDeclaredObjectReceiverSource | undefined;

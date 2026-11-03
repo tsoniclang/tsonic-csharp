@@ -44,6 +44,7 @@ import type {
 import { createCsharpSourceTypeParameterEnvironment } from "../source-evidence/types/resolution/type-parameter-environment.js";
 import { resolveCsharpTypeParameterConstraints } from "../source-evidence/types/resolution/type-parameter-constraints.js";
 import { csharpNativeInheritanceLookup } from "../../target-model/types/native-inheritance.js";
+import type { CsharpDeclaredObjectReceiverSources } from "../../target-model/records/native/native-value-carriers.js";
 import { csharpTargetTypeFromBinding } from "../../policy/types/storage/bindings.js";
 import type { CsharpTypeParameterConstraint } from "../../target-model/types/generic-constraints.js";
 
@@ -62,6 +63,7 @@ function createCsharpTypeSystem(
   host: CsharpTypePolicyBaseHost,
   declarations: ReturnType<typeof createCsharpProjectTypeCatalog>,
   representations: CsharpPlanningRepresentationQueries,
+  declaredObjectReceivers: CsharpDeclaredObjectReceiverSources,
 ): CsharpTypeSystem {
   const projectTypeCatalog = declarations.catalog;
   let objectShapes: CsharpRecursiveObjectShapePolicy | undefined;
@@ -119,6 +121,7 @@ function createCsharpTypeSystem(
     representations: CsharpPlanningRepresentationQueries,
   ) => createCsharpTypeResolutionServices({
       ...host,
+      declaredObjectReceivers,
       typeParameterConstraints,
       representations,
       projectTypeCatalog,
@@ -289,6 +292,7 @@ export function createCsharpTypeAnalysis(
   host: CsharpTypePolicyBaseHost,
   catalog: ReturnType<typeof createCsharpProjectTypeCatalog>,
   representations: CsharpPlanningRepresentationQueries,
+  declaredObjectReceivers: CsharpDeclaredObjectReceiverSources,
 ): CsharpTypeAnalysis {
   let nativeConstruction: CsharpNativeConstructionDemandQueries | undefined;
   const selectedRepresentations: CsharpPlanningRepresentationQueries = Object.freeze({
@@ -297,7 +301,7 @@ export function createCsharpTypeAnalysis(
       return nativeConstruction?.constructionFor(node)?.targetType ?? representations.scopedTargetType(node);
     },
   });
-  const system = createCsharpTypeSystem(host, catalog, selectedRepresentations);
+  const system = createCsharpTypeSystem(host, catalog, selectedRepresentations, declaredObjectReceivers);
   const shapeSource = (type: Type, queries: SourceFileSemantics,
     authoredTypeRoot: Node | undefined): CsharpStructuralTypeSourceInput => {
     const state = Object.freeze({ depth: 0 });

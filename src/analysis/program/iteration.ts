@@ -133,6 +133,7 @@ export function analyzeCsharpRepresentationIteration(
     { ...typeHost, typeDefinitions },
     createCsharpProjectTypeCatalog(typeHost),
     representations,
+    projectionSource.declaredReceivers,
   );
   const policyContext = createCsharpAnalysisPolicyContext({
     moduleCallables: typeHost.moduleCallables,

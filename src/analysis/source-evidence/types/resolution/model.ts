@@ -10,7 +10,8 @@ import type { SourceCallableContract, SourceCallableSourceContract } from "../..
 
 import type { TargetTypeRef, CsharpSourceTargetTypeBinding, CsharpObjectShapeFact } from "../../../../target-model/types/model.js";
 import type { CsharpObjectShapePolicy } from "../../../../target-model/records/objects/object-shapes.js";
-import type { CsharpObjectMethodSources } from "../../../../target-model/records/native/native-value-carriers.js";
+import type { CsharpObjectMethodSources,
+  CsharpDeclaredObjectReceiverSources } from "../../../../target-model/records/native/native-value-carriers.js";
 import type { CsharpCompletedStructuralMemberChildren, CsharpStructuralMemberInheritance,
   CsharpStructuralPropertyApplication, CsharpStructuralTypeApplication } from "./structural-applications.js";
 import type { CsharpObjectShapeNodeSource } from "../../../objects/shapes/node-source.js";
@@ -59,6 +60,7 @@ export interface CsharpTypePolicyBaseHost {
 }
 
 export interface CsharpTypePolicyHost extends CsharpTypePolicyBaseHost {
+  readonly declaredObjectReceivers: CsharpDeclaredObjectReceiverSources;
   readonly typeParameterConstraints: import("../../../../target-model/records/types/type-parameter-constraints.js").CsharpTypeParameterEnvironment;
   closedTypeGuard(node: Node): import("@tsonic/target-api/source").SourceNativeGuard<import("../../../../target-model/operations/type-tests.js").CsharpClosedTypePredicate> | undefined;
   bindingProjection(node: Node, sourceFile: SourceFile): import("../../../../target-model/records/storage/binding-projection-policy.js").CsharpBindingProjection | undefined;

@@ -1,7 +1,8 @@
 import type { Node } from "@tsonic/tsts";
 import { IsTypeSyntaxNode, type TargetSourceProgram } from "@tsonic/target-api/source";
 import { csharpSourceTypeParameter, csharpSourceTypeParameters } from "../../source/extension/type-parameters.js";
-import type { CsharpDeclaredObjectReceiverSource, CsharpObjectMethodSources } from "../../target-model/records/native/native-value-carriers.js";
+import type { CsharpDeclaredObjectReceiverSource, CsharpObjectMethodSources,
+  CsharpDeclaredObjectReceiverContextSource, CsharpDeclaredObjectReceiverSources } from "../../target-model/records/native/native-value-carriers.js";
 
 export interface CsharpTypeProjectionScopeSource {
   readonly declaration: Node;
@@ -17,10 +18,12 @@ export interface CsharpTypeProjectionNodeSource {
   readonly declarationOnly: boolean;
   readonly name: boolean;
   readonly declaredReceiver: CsharpDeclaredObjectReceiverSource | undefined;
+  readonly receiverContext: CsharpDeclaredObjectReceiverContextSource | undefined;
 }
 
 export interface CsharpTypeProjectionSource {
   readonly nodes: readonly CsharpTypeProjectionNodeSource[];
+  readonly declaredReceivers: CsharpDeclaredObjectReceiverSources;
 }
 
 export function formCsharpTypeProjectionSource(
@@ -29,6 +32,7 @@ export function formCsharpTypeProjectionSource(
 ): CsharpTypeProjectionSource {
   const { ast } = source;
   const nodes: CsharpTypeProjectionNodeSource[] = [];
+  const receivers = new WeakMap<Node, CsharpDeclaredObjectReceiverContextSource>();
   const visit = (node: Node, parent: CsharpTypeProjectionNodeSource | undefined): void => {
     if (ast.is.IsTypeAliasDeclaration(node) || ast.is.IsImportDeclaration(node)) return;
     const declarationOnly = ast.is.IsClassDeclaration(node) || ast.is.IsClassExpression(node) || ast.is.IsInterfaceDeclaration(node);
@@ -54,14 +58,20 @@ export function formCsharpTypeProjectionSource(
     const declaredReceiver = memberBody && astParent !== undefined && ast.is.IsObjectLiteralExpression(astParent)
       ? objectMethods.get(astParent)?.declaredReceiver
       : receiverBoundary ? undefined : parent?.declaredReceiver;
+    const receiverContext = receiverBoundary
+      ? declaredReceiver === undefined ? undefined : Object.freeze({ member: node, receiver: declaredReceiver })
+      : parent?.receiverContext;
     const selected = Object.freeze({ node, parent, scopes, declarationOnly,
       name: astParent !== undefined && ast.name(astParent) === node,
-      declaredReceiver,
+      declaredReceiver, receiverContext,
     });
+    if (receiverContext !== undefined) receivers.set(node, receiverContext);
     nodes.push(selected);
     if (IsTypeSyntaxNode(ast, node)) return;
     ast.forEachChild(node, child => { if (child !== undefined) visit(child, selected); });
   };
   source.navigation.sourceFiles.forEach(sourceFile => visit(sourceFile, undefined));
-  return Object.freeze({ nodes: Object.freeze(nodes) });
+  return Object.freeze({ nodes: Object.freeze(nodes),
+    declaredReceivers: Object.freeze({ get: (node: Node) => receivers.get(node) }),
+  });
 }

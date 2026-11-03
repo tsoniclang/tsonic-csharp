@@ -17,6 +17,14 @@ import { formCsharpSelectedExpressionSource, type CsharpSelectedExpressionSource
 import { formCsharpSemanticTypeArgumentsSource, type CsharpSemanticTypeArgumentsSource } from "./semantic-argument-source.js";
 import { formCsharpDirectSourceEvidence, type CsharpDirectSourceEvidence } from "./direct-source-evidence.js";
 import { sourceFactSubjectsForNode } from "./source-evidence.js";
+import type { CsharpDeclaredObjectReceiverContextSource } from "../../../../target-model/records/native/native-value-carriers.js";
+
+export interface CsharpDeclaredObjectReceiverInput {
+  readonly node: Node;
+  readonly queries: SourceFileSemantics;
+  readonly state: CsharpTypeResolutionState;
+  readonly context: CsharpDeclaredObjectReceiverContextSource;
+}
 
 export interface CsharpStructuralNodeSourceInput {
   readonly node: Node;
@@ -55,6 +63,7 @@ export type CsharpNodeTypeSource = {
 } & (
   | { readonly kind: "unavailable" }
   | { readonly kind: "node"; readonly node: Node; readonly queries: SourceFileSemantics;
+      readonly declaredReceiver: CsharpDeclaredObjectReceiverInput | undefined;
       readonly selectedType: Type | undefined; readonly project: CsharpProjectReferenceSource | undefined;
       readonly reference: CsharpTypeReferenceSource | undefined;
       readonly selectedExpression: CsharpSelectedExpressionSource;
@@ -147,6 +156,9 @@ export function formCsharpNodeTypeSource(
   }
   const queries = sourceFile === undefined ? host.semanticsFor(node) : host.semantics(sourceFile);
   state = csharpSourceStorageContext(host, state, node);
+  const receiverContext = host.declaredObjectReceivers.get(node);
+  const declaredReceiver = receiverContext === undefined ? undefined
+    : Object.freeze({ node, queries, state, context: receiverContext });
   const childState = Object.freeze(nextState(state));
   const selectedType = queries.types.expressionType(node);
   const source = host.structuralTypes.formNodeSource(node, queries, childState);
@@ -154,7 +166,7 @@ export function formCsharpNodeTypeSource(
     return failTargetAnalysisInvariant("tsonic-csharp",
       "A structural node root requires its exact retained source occurrence.", node);
   }
-  return Object.freeze({ kind: "node", node, sourceFile, queries, state, originalState, selectedType,
+  return Object.freeze({ kind: "node", node, sourceFile, queries, state, originalState, selectedType, declaredReceiver,
     directSyntax: formCsharpDirectSourceEvidence(scope, Object.freeze([node]), queries.sourceFile, state),
     directValue: formCsharpDirectSourceEvidence(scope, sourceFactSubjectsForNode(node, host.navigation), queries.sourceFile, state),
     cycle: reference ? Object.freeze({ type: queries.types.authoredType(node) }) : undefined,
