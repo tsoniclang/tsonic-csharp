@@ -26,7 +26,7 @@ import { resolveFormedCsharpContextualParameterCarrier } from "./contextual-para
 import { resolveFormedCsharpNativeParameterCarrier } from "./native-parameter-source.js";
 import { resolveFormedCsharpProjectInstanceTargetType } from "./project-instance-source.js";
 import { resolveFormedCsharpCallableType } from "./source-profiles.js";
-import { assertCsharpTupleTypeNodeSource, formCsharpTupleTypeNodeSource,
+import { assertCsharpTupleTypeNodeSource,
   type CsharpTupleTypeNodeSource } from "./tuple-node-source.js";
 import type { CsharpSourceCallResult } from "../../../../target-model/operations/source-call-results.js";
 import { csharpSourceValueResult, refineCsharpSourceValueResult } from "./call-results.js";
@@ -294,15 +294,6 @@ function resolveFallbackNodeCarrier(
     return structuralType;
   }
   return scope.resolveFormedSemanticTypeSource(source.semantic);
-}
-
-export function resolveTupleTypeNode(
-  scope: CsharpTypeResolutionScope,
-  node: Node,
-  queries: SourceFileSemantics,
-  state: CsharpTypeResolutionState,
-): TargetTypeRef | undefined {
-  return resolveFormedCsharpTupleTypeNode(scope, formCsharpTupleTypeNodeSource(scope, node, queries, state));
 }
 
 export function resolveFormedCsharpTupleTypeNode(
