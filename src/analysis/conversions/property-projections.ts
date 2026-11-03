@@ -14,7 +14,7 @@ import {
   targetTypeRefKey,
 } from "../../target-model/types/index.js";
 import { csharpUnionLeaves } from "../../target-model/types/union-relations.js";
-import { resolveCsharpCheckedNativePropertyRead } from "../objects/native-property-reads.js";
+import { resolveCsharpNativePropertyRead } from "../objects/native-property-reads.js";
 
 export function selectCsharpPropertyProjections(
   expression: Node,
@@ -83,7 +83,7 @@ export function selectCsharpPropertyProjections(
         continue;
       }
       if (member !== undefined && member.reason !== "not-in-finalized-shape") return undefined;
-      const native = resolveCsharpCheckedNativePropertyRead(sourceType, pair.source.property.name, selected, semantics, policy);
+      const native = resolveCsharpNativePropertyRead(pair.source.declarations, selected, semantics, policy);
       if (native.kind !== "resolved") return undefined;
       members.push(Object.freeze({ native: native.property, sourceName: pair.source.property.name }));
     }
