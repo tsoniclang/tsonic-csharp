@@ -6,7 +6,6 @@ import type { CsharpTypeResolutionState } from "../../source-evidence/types/reso
 import type { CsharpProjectSemanticSource } from "../../source-evidence/types/resolution/project-types.js";
 import type { CsharpStructuralTypeSource } from "../../source-evidence/types/resolution/structural-applications.js";
 import { nextState } from "../../source-evidence/types/resolution/state.js";
-import { formCsharpLiteralCreationSource, type CsharpLiteralCreationSource } from "../literal-creation-source.js";
 import type { createCsharpObjectShapeMemberResolver } from "./member-evidence.js";
 import type { CsharpObjectShapePolicyHost } from "./model.js";
 import { formCsharpObjectLiteralShapeSource, type CsharpObjectLiteralShapeSource } from "./literal-source.js";
@@ -20,13 +19,11 @@ import { requiresUnresolvedStructuralProjection, typeHasProjectOwnedShapeDeclara
 import { selectCsharpObjectMethodImplementationSource,
   type CsharpObjectMethodImplementationSource } from "./method-implementations.js";
 import { formCsharpStructShapeSource, type CsharpStructShapeSource } from "./struct-source.js";
-import type { CsharpSourceCallContractSource } from "../../source-evidence/types/resolution/call-contracts.js";
 
 export interface CsharpObjectShapeProjectSource {
   readonly definition: CsharpCurrentProjectDeclaration;
   readonly declared: CsharpDeclaredObjectShapeSource | undefined;
   readonly instantiated: CsharpObjectShapeSource | undefined;
-  readonly instanceType: Type | undefined;
   readonly struct: CsharpStructShapeSource | undefined;
   readonly structShape: CsharpObjectShapeSource | undefined;
 }
@@ -46,10 +43,7 @@ export interface CsharpObjectShapeTypeSource {
   readonly collected: CsharpObjectShapeSource | undefined;
   readonly projectOwned: boolean;
   readonly objectLiteral: boolean;
-  readonly constructs: boolean;
   readonly literal: CsharpObjectLiteralShapeSource | undefined;
-  readonly creation: CsharpLiteralCreationSource | undefined;
-  readonly creationCalls: readonly CsharpSourceCallContractSource[];
   readonly implementation: CsharpObjectMethodImplementationSource | undefined;
   readonly implementationCaptures: readonly {
     readonly node: Node;
@@ -96,7 +90,6 @@ export function createCsharpObjectShapeSourceFormation(
         const struct = definition.kind === "struct" ? formCsharpStructShapeSource(host, collectMembers,
           definition.declaration, host.semantics(definition.sourceFile), nextState(state)) : undefined;
         projects.set(selected, Object.freeze({ definition, declared, instantiated,
-          instanceType: definition.kind === "class" ? queries.declarations.declaredType(selected) : undefined,
           struct, structShape: struct === undefined ? undefined : formStructObjectShapeSource(struct),
         }));
       }
@@ -116,23 +109,12 @@ export function createCsharpObjectShapeSourceFormation(
       Object.freeze({ node: capture.declaration, sourceFile: capture.sourceFile,
         state: Object.freeze(nextState(state)),
       }));
-    const creation = authoredLiteral === undefined ? undefined : formCsharpLiteralCreationSource(authoredLiteral, queries, host);
-    const creationCalls: CsharpSourceCallContractSource[] = [];
-    if (creation !== undefined) {
-      const arguments_ = [...creation.contexts.flatMap(context => context.argument === undefined ? [] : [context.argument]),
-        ...creation.uncontextualizedArguments];
-      for (const argument of arguments_) {
-        if (creationCalls.some(input => input.source === argument.source)) continue;
-        creationCalls.push(host.callContractSource(argument.source, host.semanticsFor(argument.source.call).sourceFile));
-      }
-    }
     return Object.freeze({ type, node, queries, state, authoredTypeRoot, selectedTypeRoot, project, provider, providerShape,
       projects: Object.freeze([...projects.values()]), members,
       collected: collection === undefined ? undefined : formCollectedObjectShapeSource(collection),
       projectOwned: typeHasProjectOwnedShapeDeclaration(type, node ?? authoredTypeRoot, queries, host),
-      objectLiteral, constructs: queries.types.constructSignatures(type).length > 0,
+      objectLiteral,
       literal: authoredLiteral === undefined ? undefined : formCsharpObjectLiteralShapeSource(host, authoredLiteral, queries),
-      creation, creationCalls: Object.freeze(creationCalls),
       implementation, implementationCaptures: Object.freeze(implementationCaptures),
       structuralContract: !objectLiteral && (queries.types.isIntersection(type) || symbol !== undefined &&
         declarations.some(declaration => host.ast.is.IsTypeLiteralNode(declaration) || host.ast.is.IsMappedTypeNode(declaration))),
