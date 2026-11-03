@@ -132,7 +132,8 @@ export function formCsharpSourceValueSource(
   selectedType: Type | undefined,
 ): CsharpSourceValueSource {
   const { host } = scope;
-  if (selection.node === undefined || !Object.hasOwn(selection, "reference") || !Object.hasOwn(selection, "declaration")) {
+  if (selection.node === undefined || !Object.prototype.hasOwnProperty.call(selection, "reference") ||
+      !Object.prototype.hasOwnProperty.call(selection, "declaration")) {
     return failTargetAnalysisInvariant("tsonic-csharp", "Value Source formation requires its retained declaration selection.", selection.node);
   }
   const { node, declaration } = selection;
