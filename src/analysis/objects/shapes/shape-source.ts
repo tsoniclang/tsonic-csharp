@@ -1,4 +1,5 @@
 import type { Type } from "@tsonic/tsts";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import type { CsharpSourceMemberKey } from "../../../target-model/types/model.js";
 import { formMemberInstantiationEvidence, type CsharpObjectShapeMemberInstantiationSource,
@@ -48,10 +49,16 @@ function declaredSourceMemberKey(member: CsharpProjectDeclarationMemberSource): 
   return selected.member.sourceKey;
 }
 
-export function formDeclaredObjectShapeSource(declaration: CsharpProjectDeclarationSource): CsharpDeclaredObjectShapeSource {
+export function formDeclaredObjectShapeSource(
+  declaration: CsharpProjectDeclarationSource,
+  inherited: readonly (CsharpDeclaredObjectShapeSource | undefined)[],
+): CsharpDeclaredObjectShapeSource {
+  if (inherited.length !== declaration.members.length || declaration.members.some((member, index) =>
+    member.inherited === undefined ? inherited[index] !== undefined
+      : inherited[index]?.declaration !== member.inherited.source)) return failTargetAnalysisInvariant("tsonic-csharp",
+        "Declaration source publication requires its exact ordered inherited source occurrences.", declaration.definition.declaration);
   return Object.freeze({ kind: "declaration", declaration, sourceType: declaration.declaredType,
-    inherited: Object.freeze(declaration.members.map(member => member.inherited === undefined ? undefined
-      : formDeclaredObjectShapeSource(member.inherited.source))),
+    inherited,
     members: Object.freeze(declaration.members.map(member => Object.freeze({
       sourceKey: declaredSourceMemberKey(member), memberKind: member.member.method ? "method" as const : "property" as const, proof: member,
     }))),

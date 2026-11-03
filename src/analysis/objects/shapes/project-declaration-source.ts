@@ -10,6 +10,7 @@ import { bindCsharpObjectShapeMembersSource, type CsharpObjectShapeMemberSource,
   type CsharpObjectShapeMembersSource, type CsharpCollectedObjectShapeMembers } from "./member-source.js";
 import { projectClassIsObjectInitializable } from "./source-evidence.js";
 import type { CsharpStructuralTypeCapture, CsharpStructuralTypeSource } from "../../source-evidence/types/resolution/structural-applications.js";
+import { formDeclaredObjectShapeSource, type CsharpDeclaredObjectShapeSource } from "./shape-source.js";
 
 export interface CsharpProjectDeclarationMemberSource extends CsharpObjectShapeMemberProofInput {
   readonly member: CsharpObjectShapeMemberSource;
@@ -42,13 +43,16 @@ export function createCsharpProjectDeclarationShapeSource(
     authoredTypeRoot?: Node) => CsharpObjectShapeMembersSource | undefined,
 ) {
   const active = new Set<Node>();
-  const sources = new Map<Node, CsharpProjectDeclarationSource | undefined>();
+  const sources = new Map<Node, CsharpDeclaredObjectShapeSource | undefined>();
 
   function captureProjectDeclarationSource(
     declaration: Node,
-  ): CsharpProjectDeclarationSource | undefined {
+  ): CsharpDeclaredObjectShapeSource | undefined {
     if (sources.has(declaration)) return sources.get(declaration);
-    const source = formProjectDeclarationSource(declaration);
+    const captured = formProjectDeclarationSource(declaration);
+    const source = captured === undefined ? undefined : formDeclaredObjectShapeSource(captured,
+      Object.freeze(captured.members.map(member => member.inherited === undefined ? undefined
+        : sources.get(member.inherited.source.definition.declaration))));
     sources.set(declaration, source);
     return source;
   }
@@ -83,7 +87,7 @@ export function createCsharpProjectDeclarationShapeSource(
           members.push(Object.freeze({ ...input, member, inherited: undefined }));
           continue;
         }
-        const inherited = captureProjectDeclarationSource(owner.declaration);
+        const inherited = captureProjectDeclarationSource(owner.declaration)?.declaration;
         if (inherited === undefined) return undefined;
         const selected = resolveCsharpObjectShapeMemberBySelectedSubject(inherited,
           [...input.sourceSubjects ?? [], ...input.sourceDeclarations ?? []]);

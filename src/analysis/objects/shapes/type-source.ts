@@ -12,7 +12,7 @@ import type { CsharpObjectShapePolicyHost } from "./model.js";
 import { formCsharpObjectLiteralShapeSource, type CsharpObjectLiteralShapeSource } from "./literal-source.js";
 import { formProviderObjectLiteralSource, type CsharpProviderObjectLiteralSource } from "./provider-construction.js";
 import { createCsharpProjectDeclarationShapeSource } from "./project-declaration-source.js";
-import { formCollectedObjectShapeSource, formDeclaredObjectShapeSource, formInstantiatedObjectShapeSource,
+import { formCollectedObjectShapeSource, formInstantiatedObjectShapeSource,
   formProviderObjectShapeSource, formStructObjectShapeSource, type CsharpDeclaredObjectShapeSource,
   type CsharpObjectShapeSource } from "./shape-source.js";
 import { requiresUnresolvedStructuralProjection, typeHasProjectOwnedShapeDeclaration,
@@ -91,8 +91,7 @@ export function createCsharpObjectShapeSourceFormation(
         if (projects.has(selected)) continue;
         const definition = host.projectDeclarations.declarationForNode(selected);
         if (definition === undefined) continue;
-        const declaration = projectDeclarationSource(selected);
-        const declared = declaration === undefined ? undefined : formDeclaredObjectShapeSource(declaration);
+        const declared = projectDeclarationSource(selected);
         const instantiated = declared === undefined ? undefined : formInstantiatedObjectShapeSource(declared, type, queries);
         const struct = definition.kind === "struct" ? formCsharpStructShapeSource(host, collectMembers,
           definition.declaration, host.semantics(definition.sourceFile), nextState(state)) : undefined;

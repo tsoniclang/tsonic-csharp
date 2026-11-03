@@ -34,7 +34,6 @@ import { createCsharpObjectShapeSourceFormation, type CsharpObjectShapeTypeSourc
 import { formCsharpObjectShapeNodeSource } from "./node-source.js";
 import { createCsharpProjectDeclarationApplications } from "./project-declaration-application.js";
 import { completeCsharpStructShapeSource, type CsharpStructShapeSource } from "./struct-source.js";
-import { formDeclaredObjectShapeSource } from "./shape-source.js";
 import type { CsharpStructuralNodeSourceInput, CsharpStructuralTypeSourceInput } from "../../source-evidence/types/resolution/root-sources.js";
 import { completeCsharpObjectShapePublication, formCsharpObjectShapePublication,
   type CsharpObjectShapePublication, type CsharpObjectShapeTargetSelection } from "./publication.js";
@@ -436,7 +435,7 @@ export function createCsharpObjectShapePolicy(
     const definition = host.projectDeclarations.declarationForTarget(targetType);
     const source = definition === undefined ? undefined : formation.projectDeclarationSource(definition.declaration);
     const application = source === undefined ? undefined : declarationApplications.formDeclarationApplication(
-      targetType, formDeclaredObjectShapeSource(source), state);
+      targetType, source, state);
     return application === undefined ? undefined : declarationApplications.completeDeclarationApplication(application);
   }
 
