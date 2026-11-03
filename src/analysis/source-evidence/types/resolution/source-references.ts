@@ -6,86 +6,73 @@ import type { SourceCallableTypeEvidence, SourceFileSemantics } from "@tsonic/ta
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../../target-model/types/model.js";
 import type { CsharpSourceCallResult } from "../../../../target-model/operations/source-call-results.js";
 import { csharpSourceValueResult, refineCsharpSourceValueResult } from "./call-results.js";
-import { classifyCsharpSourceProfileDeclaration, classifyCsharpSourceProfileType, selectedCsharpSourceProfileOwner } from "../../../../policy/identities/source-types.js";
-
-import { csharpSourceTypeArgumentNodes } from "../../../../target-model/syntax/type-arguments.js";
+import { selectedCsharpSourceProfileOwner } from "../../../../policy/identities/source-types.js";
 import { csharpSourceTypeParameter } from "../../../../source/extension/type-parameters.js";
 
 import { getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
 import { csharpNeverTargetType } from "../../../../target-model/types/carriers/scalar-types.js";
 import { nextState } from "./state.js";
-import { sourceFactSubjectsForNode, definedValues, resolveCsharpUnionMemberCarrier } from "./source-evidence.js";
+import { definedValues, resolveCsharpUnionMemberCarrier } from "./source-evidence.js";
 import { sourcePrimitiveFactKey } from "@tsonic/tsts";
 import { sourceTransformedTypeFactEvidenceNodes, sourceTupleElementTypeEvidenceNodes, sourceTypeSyntaxIsCompositional, sourceTypeSyntaxRoot, sourceIntegerInduction, sourceCallableValueParameters } from "@tsonic/target-api/source";
 import { substituteTargetTypeParameters } from "../../../../policy/types/resolution/substitution.js";
 import { targetTypeRefKey, targetTypeRefEquals } from "../../../../target-model/types/equality.js";
 import { reconcileCsharpSelectedTargetType, retainCsharpBroadValueCarrier } from "../../../../policy/types/resolution/selected-type-evidence.js";
 import { selectCsharpAuthoredUnionRefinement } from "./source-union-refinement.js";
-import { csharpBoundSourceType, csharpSourceBindings, csharpSourceTemplateState } from "./type-bindings.js";
+import { completeCsharpBoundSourceType, csharpBoundSourceType, csharpSourceBindings, csharpSourceTemplateState } from "./type-bindings.js";
 import { csharpConditionalDeclaration, resolveCsharpConditionalApplication } from "./conditional-types.js";
 import { resolveStructuralTypeWithState } from "./root-sources.js";
 import { csharpSourceStorageComponentContext } from "./source-storage-projection.js";
 import { bindCsharpSourceTypeArguments } from "./generic-arguments.js";
 import { csharpTargetParameterValueType } from "../../../../target-model/types/member-facts.js";
 import { getCsharpCallableValueSignature } from "../../../../target-model/types/carriers/delegates.js";
+import { formCsharpTypeReferenceSource, type CsharpTypeReferenceSource } from "./type-reference-source.js";
+import { resolveFormedCsharpProjectReference } from "./project-types.js";
 
 export function resolveTypeReferenceNode(
-  { host, resolveCheckerTransformedSourceType, resolveCompositionalSourceTypeAlias, resolveDirectSourceFacts, resolveNodeWithState, resolveProjectSourceType, resolveProviderType, resolveSourceProfileType, resolveStandardSourceTypeTransformation, resolveTypeWithState, targetPreservesAuthoredSourcePrimitiveFacts }: CsharpTypeResolutionScope,
+  scope: CsharpTypeResolutionScope,
   node: Node,
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
-  const reference = host.ast.as.AsTypeReferenceNode(node)!;
-  const typeName = reference.TypeName;
-  if (typeName === undefined) {
-    return undefined;
-  }
-  const semanticType = queries.types.authoredType(node);
-  const bound = semanticType === undefined ? undefined : csharpBoundSourceType(semanticType, queries, state);
+  return resolveFormedCsharpTypeReferenceNode(scope, formCsharpTypeReferenceSource(scope, node, queries, state));
+}
+
+export function resolveFormedCsharpTypeReferenceNode(
+  scope: CsharpTypeResolutionScope,
+  source: CsharpTypeReferenceSource,
+): TargetTypeRef | undefined {
+  const { resolveCheckerTransformedSourceType, resolveCompositionalSourceTypeAlias, resolveDirectSourceFacts, resolveNodeWithState, resolveProviderType, resolveSourceProfileType, resolveStandardSourceTypeTransformation, resolveTypeWithState, targetPreservesAuthoredSourcePrimitiveFacts } = scope;
+  if (source.kind === "missing-name") return undefined;
+  const { node, typeName, semanticType, queries, state, subjects } = source;
+  const bound = completeCsharpBoundSourceType(source.binding, state);
   if (bound !== undefined) return bound.targetType;
-  const subjects = [
-    ...sourceFactSubjectsForNode(typeName, host.navigation, node),
-    ...(semanticType === undefined
-      ? []
-      : queries.facts.typeSubjects(semanticType)),
-  ];
   const direct = resolveDirectSourceFacts(subjects, queries.sourceFile, state);
   if (direct !== undefined) {
     return direct;
   }
-  const standardTransformation = semanticType === undefined
-    ? undefined
-    : queries.types.standardTransformation(node, semanticType);
-  if (
-    standardTransformation !== undefined &&
-    semanticType !== undefined &&
-    (standardTransformation.kind !== "structural" || queries.types.indexInfos(semanticType).length === 0)
-  ) {
+  const standardTransformation = source.transformation;
+  if (source.kind === "transformation") {
     return resolveStandardSourceTypeTransformation(
-      standardTransformation,
+      source.transformation,
       queries,
       state,
       node,
-      semanticType,
+      source.semanticType,
     );
   }
-  const typeArguments = csharpSourceTypeArgumentNodes(host.ast, node).map((argument) =>
-    resolveNodeWithState(argument, queries.sourceFile, nextState(semanticType !== undefined &&
-      queries.types.isArrayLike(semanticType) && !queries.types.isTuple(semanticType)
-      ? csharpSourceStorageComponentContext(host, state, { kind: "array-element" }) : state))
-  );
+  const typeArguments = source.arguments.map(argument =>
+    resolveNodeWithState(argument.node, queries.sourceFile, argument.state));
   if (typeArguments.some((argument) => argument === undefined)) {
     return undefined;
   }
-  const projectType = resolveProjectSourceType(
-    typeName,
-    queries.sourceFile,
-    state,
+  const sourceArguments = source.arguments.map(argument => argument.sourceType === undefined ? undefined
+    : completeCsharpBoundSourceType(argument.binding, state)?.sourceType ?? argument.sourceType);
+  const projectType = source.project === undefined ? undefined : resolveFormedCsharpProjectReference(
+    scope,
+    source.project,
     typeArguments as readonly TargetTypeRef[],
-    csharpSourceTypeArgumentNodes(host.ast, node).map(argument => {
-      const selected = queries.types.authoredType(argument);
-      return selected === undefined ? undefined : csharpBoundSourceType(selected, queries, state)?.sourceType ?? selected;
-    }),
+    sourceArguments,
   );
   if (projectType !== undefined) {
     return projectType;
@@ -97,10 +84,7 @@ export function resolveTypeReferenceNode(
   if (providerType !== undefined) {
     return providerType;
   }
-  const selectedDeclaration = host.navigation.sourceReferenceFor(typeName)?.declaration;
-  const profileIdentity = selectedDeclaration === undefined
-    ? semanticType === undefined ? undefined : classifyCsharpSourceProfileType(semanticType, queries, host.ast)
-    : classifyCsharpSourceProfileDeclaration(selectedDeclaration, host.ast);
+  const profileIdentity = source.profileIdentity;
   if (profileIdentity !== undefined) {
     return resolveSourceProfileType(
         profileIdentity,
@@ -125,10 +109,7 @@ export function resolveTypeReferenceNode(
     semanticType,
     queries,
     state,
-    csharpSourceTypeArgumentNodes(host.ast, node).map(argument => {
-      const selected = queries.types.authoredType(argument);
-      return selected === undefined ? undefined : csharpBoundSourceType(selected, queries, state)?.sourceType ?? selected;
-    }),
+    sourceArguments,
   );
   if (sourceAlias.kind === "resolved") {
     return sourceAlias.type;
