@@ -6,6 +6,7 @@ import type { CsharpObjectShapePolicyHost } from "./model.js";
 import { formSelectedObjectShapeSource, type CsharpObjectShapeSourceFormation } from "./source-evidence.js";
 import type { createCsharpObjectShapeSourceFormation, CsharpObjectShapeTypeSource } from "./type-source.js";
 import type { CsharpStructShapeSource } from "./struct-source.js";
+import { formStructObjectShapeSource, type CsharpObjectShapeSource } from "./shape-source.js";
 
 export interface CsharpObjectShapeNodeSource {
   readonly node: Node;
@@ -13,6 +14,7 @@ export interface CsharpObjectShapeNodeSource {
   readonly state: CsharpTypeResolutionState;
   readonly nativeState: CsharpTypeResolutionState;
   readonly struct: CsharpStructShapeSource | undefined;
+  readonly structShape: CsharpObjectShapeSource | undefined;
   readonly selection: CsharpObjectShapeSourceFormation;
   readonly semantic: CsharpObjectShapeTypeSource | undefined;
   readonly contextual: CsharpObjectShapeTypeSource | undefined;
@@ -40,6 +42,7 @@ export function formCsharpObjectShapeNodeSource(
   const contextualType = selection.contextual?.component.selectedType;
   const contextual = contextualType === selection.type ? semantic : formType(contextualType);
   return Object.freeze({ node, queries, state, nativeState: Object.freeze(nextState(state)), struct, selection, semantic, contextual,
+    structShape: struct === undefined ? undefined : formStructObjectShapeSource(struct),
     classDeclaration: host.ast.is.IsClassDeclaration(node) || host.ast.is.IsClassExpression(node),
     objectLiteral: host.ast.is.IsObjectLiteralExpression(node),
   });

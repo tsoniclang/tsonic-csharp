@@ -6,6 +6,7 @@ import { formMemberInstantiationEvidence, type CsharpObjectShapeMemberInstantiat
 import { retainCheckedMemberDeclarationEvidence, type CsharpCollectedObjectShapeMembers } from "./member-source.js";
 import type { CsharpProjectDeclarationMemberSource, CsharpProjectDeclarationShapeSource } from "./project-declaration-source.js";
 import type { CsharpProviderObjectLiteralSource } from "./provider-construction.js";
+import type { CsharpStructShapeSource } from "./struct-source.js";
 
 export interface CsharpObjectShapeSourceMember {
   readonly sourceKey: CsharpSourceMemberKey;
@@ -20,6 +21,7 @@ export type CsharpObjectShapeSource = {
   | { readonly kind: "collected"; readonly collection: CsharpCollectedObjectShapeMembers }
   | { readonly kind: "declaration"; readonly declaration: CsharpProjectDeclarationShapeSource }
   | { readonly kind: "provider"; readonly provider: CsharpProviderObjectLiteralSource }
+  | { readonly kind: "struct"; readonly struct: CsharpStructShapeSource }
   | { readonly kind: "instantiated"; readonly previous: CsharpObjectShapeSource;
       readonly instantiation: CsharpObjectShapeMemberInstantiationSource }
 );
@@ -62,6 +64,15 @@ export function formProviderObjectShapeSource(provider: CsharpProviderObjectLite
       sourceKey: member.sourceKey!, memberKind: "property" as const, proof: members[index]!,
     }))),
   });
+}
+
+export function formStructObjectShapeSource(struct: CsharpStructShapeSource): CsharpObjectShapeSource | undefined {
+  const members: CsharpObjectShapeSourceMember[] = [];
+  for (const field of struct.fields) {
+    if (field.proof === undefined || field.targetName === undefined || field.selectedIndex === undefined) return undefined;
+    members.push(Object.freeze({ sourceKey: field.sourceKey, memberKind: "property", proof: field.proof }));
+  }
+  return Object.freeze({ kind: "struct", struct, sourceType: struct.selectedType, members: Object.freeze(members) });
 }
 
 export function formInstantiatedObjectShapeSource(

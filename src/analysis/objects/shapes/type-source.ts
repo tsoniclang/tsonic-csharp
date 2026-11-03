@@ -13,7 +13,7 @@ import { formCsharpObjectLiteralShapeSource, type CsharpObjectLiteralShapeSource
 import { formProviderObjectLiteralSource, type CsharpProviderObjectLiteralSource } from "./provider-construction.js";
 import { createCsharpProjectDeclarationShapeSource, type CsharpProjectDeclarationShapeSource } from "./project-declaration-source.js";
 import { formCollectedObjectShapeSource, formDeclaredObjectShapeSource, formInstantiatedObjectShapeSource,
-  formProviderObjectShapeSource, type CsharpObjectShapeSource } from "./shape-source.js";
+  formProviderObjectShapeSource, formStructObjectShapeSource, type CsharpObjectShapeSource } from "./shape-source.js";
 import { requiresUnresolvedStructuralProjection, typeHasProjectOwnedShapeDeclaration,
   typeIsExcludedFromObjectShape } from "./source-evidence.js";
 import { selectCsharpObjectMethodImplementationSource,
@@ -28,6 +28,7 @@ export interface CsharpObjectShapeProjectSource {
   readonly instantiated: CsharpObjectShapeSource | undefined;
   readonly instanceType: Type | undefined;
   readonly struct: CsharpStructShapeSource | undefined;
+  readonly structShape: CsharpObjectShapeSource | undefined;
 }
 
 export interface CsharpObjectShapeTypeSource {
@@ -92,10 +93,11 @@ export function createCsharpObjectShapeSourceFormation(
         const declaration = formProjectDeclarationSource(selected, state);
         const declared = declaration === undefined ? undefined : formDeclaredObjectShapeSource(declaration);
         const instantiated = declared === undefined ? undefined : formInstantiatedObjectShapeSource(declared, type, queries);
+        const struct = definition.kind === "struct" ? formCsharpStructShapeSource(host, collectMembers,
+          definition.declaration, host.semantics(definition.sourceFile), nextState(state)) : undefined;
         projects.set(selected, Object.freeze({ definition, declaration, declared, instantiated,
           instanceType: definition.kind === "class" ? queries.declarations.declaredType(selected) : undefined,
-          struct: definition.kind === "struct" ? formCsharpStructShapeSource(host, collectMembers,
-            definition.declaration, host.semantics(definition.sourceFile), nextState(state)) : undefined,
+          struct, structShape: struct === undefined ? undefined : formStructObjectShapeSource(struct),
         }));
       }
     }

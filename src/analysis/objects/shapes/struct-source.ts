@@ -6,7 +6,7 @@ import type { CsharpStructuralTypeSource } from "../../source-evidence/types/res
 import { nextState } from "../../source-evidence/types/resolution/state.js";
 import { readCsharpSourceField, readCsharpSourceStruct } from "../../../source/extension/markers.js";
 import { csharpPropertySourceMemberKey } from "../../../target-model/types/source-member-keys.js";
-import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact } from "../../../target-model/types/model.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpSourceMemberKey } from "../../../target-model/types/model.js";
 import { objectShapeMemberTargetName } from "../../../policy/identities/source-member-names.js";
 import type { CsharpObjectShapePolicyHost, CsharpRecursiveObjectShapePolicy } from "./model.js";
 import type { CsharpObjectShapeMemberProofInput } from "./member-instantiation.js";
@@ -15,6 +15,7 @@ import { sourceSubjects } from "./source-evidence.js";
 
 interface CsharpStructFieldSource {
   readonly field: NonNullable<ReturnType<typeof readCsharpSourceStruct>>["fields"][number];
+  readonly sourceKey: CsharpSourceMemberKey;
   readonly state: CsharpTypeResolutionState;
   readonly selectedIndex: number | undefined;
   readonly targetName: string | undefined;
@@ -72,7 +73,8 @@ export function formCsharpStructShapeSource(
         sourceDeclarations: input.sourceDeclarations, sourceMemberEvidence: input.sourceMemberEvidence,
         sourceTypes: sourceType === undefined ? undefined : Object.freeze([sourceType]), optional: undefined,
       });
-      return Object.freeze({ field, state: Object.freeze(nextState(state)), selectedIndex: selected?.index,
+      return Object.freeze({ field, sourceKey: csharpPropertySourceMemberKey(field.sourceName),
+        state: Object.freeze(nextState(state)), selectedIndex: selected?.index,
         targetName: objectShapeMemberTargetName(field.sourceName), proof });
     });
     return Object.freeze({ definition, queries, state, selectedType,
@@ -89,12 +91,12 @@ export function completeCsharpStructShapeSource(
   const targetType = host.projectTypeCatalog.targetTypeForDeclaration(source.definition.declaration, []);
   if (targetType === undefined) return undefined;
   const selectedMembers = source.members === undefined ? undefined : completeSourceMembers(source.members, undefined);
-  const members = source.fields.map(({ field, state, selectedIndex, targetName, proof }) => {
+  const members = source.fields.map(({ field, sourceKey, state, selectedIndex, targetName, proof }) => {
     const type = host.typeResolver.resolveNode(field.sourceType, source.queries.sourceFile, state);
     const selected = selectedIndex === undefined ? undefined : selectedMembers?.[selectedIndex];
     if (type === undefined || selected === undefined || targetName === undefined || proof === undefined) return undefined;
     return {
-      sourceKey: csharpPropertySourceMemberKey(field.sourceName), sourceName: field.sourceName,
+      sourceKey, sourceName: field.sourceName,
       sourceSubjects: proof.sourceSubjects,
       ...(proof.sourceDeclarations === undefined ? {} : { sourceDeclarations: proof.sourceDeclarations }),
       ...(proof.sourceMemberEvidence === undefined ? {} : { sourceMemberEvidence: proof.sourceMemberEvidence }),
