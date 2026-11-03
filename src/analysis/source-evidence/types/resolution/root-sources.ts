@@ -27,6 +27,7 @@ import { formCsharpContextualParameterSource, type CsharpContextualParameterSour
 import { formCsharpSourceTypeComponentSource, type CsharpSourceTypeComponentSource } from "./type-component-source.js";
 import { formCsharpSemanticConditionalSource, type CsharpSemanticConditionalSource } from "./semantic-conditional-source.js";
 import { formCsharpSourceValueDeclarationSource, formCsharpSourceValueSource, type CsharpSourceValueSource } from "./value-source.js";
+import { formCsharpSelectedValueSource, type CsharpSelectedValueSource } from "./selected-value-source.js";
 
 export interface CsharpStructuralNodeSourceInput {
   readonly node: Node;
@@ -77,6 +78,7 @@ export type CsharpNodeTypeSource = {
       readonly reference: CsharpTypeReferenceSource | undefined;
       readonly selectedExpression: CsharpSelectedExpressionSource;
       readonly value: CsharpSourceValueSource;
+      readonly selectedValue: CsharpSelectedValueSource | undefined;
       readonly directSyntax: CsharpDirectSourceEvidence; readonly directValue: CsharpDirectSourceEvidence;
       readonly structural: CsharpStructuralNodeSourceInput; readonly semantic: CsharpSemanticTypeSource }
 );
@@ -183,6 +185,7 @@ export function formCsharpNodeTypeSource(
     return failTargetAnalysisInvariant("tsonic-csharp",
       "A structural node root requires its exact retained source occurrence.", node);
   }
+  const selection = formCsharpSourceValueDeclarationSource(scope, node);
   return Object.freeze({ kind: "node", node, sourceFile, queries, state, originalState, selectedType, declaredReceiver,
     nativeParameter: formCsharpNativeParameterSource(host.ast, node),
     contextualParameter: formCsharpContextualParameterSource(scope, node, queries),
@@ -192,7 +195,8 @@ export function formCsharpNodeTypeSource(
     cycle: reference ? Object.freeze({ type: queries.types.authoredType(node) }) : undefined,
     reference: host.ast.is.IsTypeReferenceNode(node) ? formCsharpTypeReferenceSource(scope, node, queries, state) : undefined,
     selectedExpression: formCsharpSelectedExpressionSource(scope, node, queries, state),
-    value: formCsharpSourceValueSource(scope, formCsharpSourceValueDeclarationSource(scope, node), queries, state, undefined),
+    value: formCsharpSourceValueSource(scope, selection, queries, state, undefined),
+    selectedValue: selectedType === undefined ? undefined : formCsharpSelectedValueSource(scope, selection, selectedType, queries, state),
     project: formCsharpProjectReferenceSource(scope, node, queries.sourceFile, state),
     structural: Object.freeze({ node, queries, state: childState, source }),
     semantic: formCsharpSemanticTypeSource(scope, selectedType, queries.sourceFile, childState),

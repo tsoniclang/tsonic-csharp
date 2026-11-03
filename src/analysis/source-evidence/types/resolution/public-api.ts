@@ -5,24 +5,16 @@ import type { CsharpScopedTypePolicyResult, CsharpTypeResolutionState } from "./
 
 import type { CsharpSourceTargetTypeBinding } from "../../../../target-model/types/model.js";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
-import { combineCsharpTargetUnionMembers, csharpAbsenceTargetType, csharpRuntimeLocationPointee, csharpTsValueTargetType } from "../../../../target-model/types/carriers/runtime-carriers.js";
+import { csharpRuntimeLocationPointee, csharpTsValueTargetType } from "../../../../target-model/types/carriers/runtime-carriers.js";
 
 import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
 import { getCsharpDelegateSignature } from "../../../../target-model/types/carriers/delegates.js";
 import { nextState } from "./state.js";
-import { reconcileCsharpSelectedTargetType } from "../../../../policy/types/resolution/selected-type-evidence.js";
-import { retainCsharpUnionObjectShapes, selectCsharpAuthoredUnionRefinement } from "./source-union-refinement.js";
-import { resolveCsharpUnionMemberCarrier } from "./source-evidence.js";
-import { getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
-import { Node_Expression, sourceAbsenceUse } from "@tsonic/target-api/source";
-import { selectCsharpNativeFlowMembers } from "./native-flow-refinement.js";
-import { csharpUnionLeaves } from "../../../../target-model/types/union-relations.js";
-import { resolveCsharpInstanceType } from "./instance-tests.js";
 import type { CsharpNodeTypeResolution } from "../../../../policy/model/type-resolution.js";
 import type { CsharpSourceCallResult } from "../../../../target-model/operations/source-call-results.js";
-import { csharpSourceValueResult, refineCsharpSourceValueResult } from "./call-results.js";
 import type { CsharpNodeQuerySource, CsharpTypeQuerySource } from "./root-sources.js";
-import { formCsharpSourceValueDeclarationSource, formCsharpSourceValueSource } from "./value-source.js";
+import { formCsharpSourceValueDeclarationSource } from "./value-source.js";
+import { formCsharpSelectedValueSource, resolveFormedCsharpSelectedValueResult } from "./selected-value-source.js";
 
 export function resolveNode(
   scope: CsharpTypeResolutionScope,
@@ -168,7 +160,7 @@ export function resolveSelectedValueWithState(
   sourceFile: SourceFile,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
-  return scope.resolveSelectedValueResultWithState(node, selectedType, sourceFile, state)?.selectedType;
+  return resolveSelectedValueResultWithState(scope, node, selectedType, sourceFile, state)?.selectedType;
 }
 
 export function resolveSelectedValueResultWithState(
@@ -178,122 +170,9 @@ export function resolveSelectedValueResultWithState(
   sourceFile: SourceFile,
   state: CsharpTypeResolutionState,
 ): CsharpSourceCallResult | undefined {
-  const { host, resolveNodeWithState, resolveNodeValueWithState, resolveMemberAccessTargetType, resolveFormedSourceValueResult, resolveTypeWithState } = scope;
   const selection = formCsharpSourceValueDeclarationSource(scope, node);
-  const declaration = selection.declaration;
-  const storage = host.sourceStorage.subjectFor(node);
-  state = { ...state, sourceStorageSubject: storage.kind === "resolved" ? storage.subject : undefined };
-  const queries = host.semantics(sourceFile);
-  const valueSource = formCsharpSourceValueSource(scope, selection, queries, nextState(state), selectedType);
-  const scopedTarget = host.representations.scopedTargetType(
-    declaration ?? node,
-  ) ?? host.representations.scopedTargetType(node) ??
-    (declaration !== undefined && host.ast.is.IsBindingElement(declaration)
-      ? host.bindingProjection(declaration, sourceFile)?.bindingCarrier : undefined);
-  const declaredType = declaration === undefined ? undefined : queries.declarations.declaredValueType(declaration);
-  if (scopedTarget !== undefined && getCsharpNullableElementTargetType(scopedTarget) !== undefined &&
-    sourceAbsenceUse(node, host) !== undefined) return csharpSourceValueResult(scopedTarget);
-  if (declaredType !== undefined && queries.types.isUnion(declaredType)) {
-    const storage = scopedTarget ?? resolveNodeWithState(declaration, sourceFile, nextState(state));
-    const guarded = storage === undefined ? undefined : selectCsharpNativeFlowMembers(host, node, storage,
-      guard => {
-        const semantics = host.semanticsFor(guard.sourceConstructor);
-        return resolveCsharpInstanceType(semantics, guard.sourceConstructor,
-          type => resolveTypeWithState(type, semantics.sourceFile, nextState(state)));
-      });
-    if (guarded !== undefined && guarded.length > 0) {
-      const symbol = queries.declarations.typeSymbol(selectedType);
-      if (symbol !== undefined && queries.declarations.symbolDeclarations(symbol).some(candidate =>
-        host.navigation.isProjectDeclaration(candidate) && (host.ast.is.IsClassDeclaration(candidate) || host.ast.is.IsClassExpression(candidate)))) {
-        const nominal = resolveTypeWithState(selectedType, sourceFile, nextState(state));
-        if (host.projectTypeCatalog.declarationForTarget(nominal)?.kind === "class") return csharpSourceValueResult(nominal);
-      }
-      if (storage !== undefined && queries.types.refinement(declaredType, selectedType).kind === "members") {
-        const refinement = selectCsharpAuthoredUnionRefinement(
-          storage, declaredType, selectedType, queries,
-          type => resolveCsharpUnionMemberCarrier(scope, storage, type, queries, state),
-          host.structuralTypes.resolveTarget, host.typeDefinitions,
-        );
-        if (refinement.kind === "resolved") {
-          const present = getCsharpNullableElementTargetType(refinement.type) ?? refinement.type;
-          const checkedMembers = csharpUnionLeaves(present, host.typeDefinitions)?.map(member => member.carrier) ?? [present];
-          if (present !== refinement.type) checkedMembers.push(csharpAbsenceTargetType());
-          const selected = guarded.filter(member => checkedMembers.some(checked => targetTypeRefEquals(member, checked)));
-          return csharpSourceValueResult(retainCsharpUnionObjectShapes(combineCsharpTargetUnionMembers(selected), host.structuralTypes.resolveTarget));
-        }
-      }
-      return csharpSourceValueResult(retainCsharpUnionObjectShapes(combineCsharpTargetUnionMembers(guarded), host.structuralTypes.resolveTarget));
-    }
-  }
-  if (declaredType !== undefined && declaredType !== selectedType &&
-    queries.types.apparentType(declaredType) === selectedType) {
-    const storage = scopedTarget ?? resolveNodeWithState(declaration, sourceFile, nextState(state));
-    if (storage?.kind === "type-parameter") return csharpSourceValueResult(storage);
-  }
-  if (scopedTarget !== undefined) {
-    if (declaredType !== undefined) {
-      const payload = getCsharpNullableElementTargetType(scopedTarget);
-      if (payload !== undefined && declaration !== undefined && host.ast.is.IsBindingElement(declaration) &&
-        queries.types.refinement(declaredType, selectedType).kind === "exact") {
-        let value = node;
-        let parent = host.ast.parent(value);
-        while (parent !== undefined && (host.ast.is.IsParenthesizedExpression(parent) || host.ast.is.IsSatisfiesExpression(parent)) &&
-          Node_Expression(host.ast, parent) === value) {
-          value = parent;
-          parent = host.ast.parent(value);
-        }
-        const members = queries.types.isUnion(selectedType) ? queries.types.unionOrIntersectionTypes(selectedType) : [selectedType];
-        if (!members.some(member => queries.types.isNullish(member)) && !host.ast.is.IsTypeOfExpression(parent)) return csharpSourceValueResult(payload);
-      }
-      const refinement = selectCsharpAuthoredUnionRefinement(
-        scopedTarget, declaredType, selectedType, queries,
-        type => resolveCsharpUnionMemberCarrier(scope, scopedTarget, type, queries, state),
-        host.structuralTypes.resolveTarget,
-        host.typeDefinitions,
-      );
-      if (refinement.kind !== "not-applicable") {
-        return refinement.kind === "resolved" ? csharpSourceValueResult(refinement.type) : undefined;
-      }
-    }
-    if (declaredType !== undefined && queries.types.refinement(declaredType, selectedType).kind === "unrelated") {
-      return csharpSourceValueResult(reconcileCsharpSelectedTargetType(
-        scopedTarget,
-        resolveTypeWithState(selectedType, sourceFile, nextState(state)),
-        queries.types.relationship(declaredType, selectedType),
-        queries.types.isNonPrimitive(selectedType),
-      ));
-    }
-    return declaration === undefined ? csharpSourceValueResult(scopedTarget)
-      : refineCsharpSourceValueResult(resolveFormedSourceValueResult(valueSource), scopedTarget);
-  }
-  const member = host.ast.is.IsPropertyAccessExpression(node) || host.ast.is.IsElementAccessExpression(node);
-  if (!member && declaration !== undefined) {
-    const declared = resolveFormedSourceValueResult(valueSource);
-    if (declared !== undefined) {
-      return declared;
-    }
-    return undefined;
-  }
-  const selected = member
-    ? csharpSourceValueResult(resolveMemberAccessTargetType(node, queries, nextState(state), "selected", selectedType))
-    : resolveNodeValueWithState(node, sourceFile, nextState(state));
-  const resolved = selected?.selectedType;
-  const expressionType = queries.types.expressionType(node);
-  if (resolved !== undefined && expressionType !== undefined) {
-    const refinement = selectCsharpAuthoredUnionRefinement(
-      resolved, expressionType, selectedType, queries,
-      type => resolveCsharpUnionMemberCarrier(scope, resolved, type, queries, state),
-      host.structuralTypes.resolveTarget, host.typeDefinitions,
-    );
-    if (refinement.kind !== "not-applicable") return refinement.kind === "resolved"
-      ? refineCsharpSourceValueResult(selected, refinement.type) : undefined;
-  }
-  if (member) return selected;
-  return selected ?? csharpSourceValueResult(resolveTypeWithState(
-    selectedType,
-    sourceFile,
-    nextState(state),
-  ));
+  return resolveFormedCsharpSelectedValueResult(scope, formCsharpSelectedValueSource(
+    scope, selection, selectedType, scope.host.semantics(sourceFile), state));
 }
 
 export function resolveSelectedType(

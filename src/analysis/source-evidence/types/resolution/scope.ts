@@ -35,6 +35,7 @@ import type { CsharpSelectedReceiverInput, CsharpSelectedReceiverCompletion,
   CsharpSourceCallReceiverInput, CsharpSourceCallReceiverCompletion } from "./receiver-completions.js";
 import type { CsharpSourceOwnedConstructionSource } from "./expression-source.js";
 import type { CsharpSourceValueSource } from "./value-source.js";
+import type { CsharpSelectedValueSource } from "./selected-value-source.js";
 export interface CsharpTypeResolutionScope {
   nodeQuerySource(node: Node | undefined, sourceFile?: SourceFile): CsharpNodeQuerySource;
   completeNodeQuery(source: CsharpNodeQuerySource): CsharpNodeTypeResolution | undefined;
@@ -49,8 +50,7 @@ export interface CsharpTypeResolutionScope {
   resolveFormedNodeTypeSource(source: CsharpNodeTypeSource): CsharpSourceCallResult | undefined;
   resolveFormedSemanticTypeSource(source: CsharpSemanticTypeSource): TargetTypeRef | undefined;
   resolveFormedSelectedExpressionResult(source: CsharpSelectedExpressionSource): CsharpSourceCallResult | undefined;
-  resolveSelectedValueResultWithState(node: Node, selectedType: Type, sourceFile: SourceFile,
-    state: CsharpTypeResolutionState): CsharpSourceCallResult | undefined;
+  resolveFormedSelectedValueResult(source: CsharpSelectedValueSource): CsharpSourceCallResult | undefined;
   resolveFormedSourceValueResult(source: CsharpSourceValueSource): CsharpSourceCallResult | undefined;
   resolveArrayLiteralWithState(node: Node, queries: SourceFileSemantics, state: CsharpTypeResolutionState): CsharpArrayLiteralSelection;
   resolvePointerReturn(

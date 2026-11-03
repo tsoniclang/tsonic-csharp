@@ -46,7 +46,15 @@ export function formCsharpAuthoredUnionRefinement(
   selectedType: Type,
   queries: SourceFileSemantics,
 ): CsharpAuthoredUnionRefinementEvidence {
-  const refinement = queries.types.refinement(declaredType, selectedType);
+  return formCsharpAuthoredUnionRefinementFromChecked(declaredType,
+    queries.types.refinement(declaredType, selectedType), queries);
+}
+
+export function formCsharpAuthoredUnionRefinementFromChecked(
+  declaredType: Type,
+  refinement: ReturnType<SourceFileSemantics["types"]["refinement"]>,
+  queries: SourceFileSemantics,
+): CsharpAuthoredUnionRefinementEvidence {
   return Object.freeze({
     kind: refinement.kind === "exact" ? "exact" : refinement.kind === "members" ? "members" : "not-applicable",
     onlyRemovesNullish: refinementOnlyRemovesNullish(declaredType, refinement, queries),

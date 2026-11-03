@@ -26,10 +26,11 @@ import { resolveSourceCallTypeArguments as resolveSourceCallTypeArgumentsImpleme
 import { resolveNode as resolveNodeImplementation, resolveType as resolveTypeImplementation, resolveStorage as resolveStorageImplementation, resolveReadStorage as resolveReadStorageImplementation, catchVariableStorageCarrier as catchVariableStorageCarrierImplementation, resolveValue as resolveValueImplementation, resolveSelectedValue as resolveSelectedValueImplementation, resolveSelectedValueWithState as resolveSelectedValueWithStateImplementation, resolveSelectedType as resolveSelectedTypeImplementation, resolveSelectedResult as resolveSelectedResultImplementation, resolveTypedLocationOperationPointee as resolveTypedLocationOperationPointeeImplementation, resolveTypedLocationOperationPointeeWithState as resolveTypedLocationOperationPointeeWithStateImplementation, withSourceTargetBindings as withSourceTargetBindingsImplementation } from "./public-api.js";
 import { resolveFormedCsharpNodeTypeSource, resolveTupleTypeNode as resolveTupleTypeNodeImplementation, tupleElementIsRest as tupleElementIsRestImplementation } from "./nodes.js";
 import { csharpSourceValueResult } from "./call-results.js";
-import { resolveSelectedValueResultWithState, resolveFormedCsharpNodeQuerySource,
+import { resolveFormedCsharpNodeQuerySource,
   resolveFormedCsharpTypeQuerySource } from "./public-api.js";
 import { resolveFormedCsharpSelectedExpressionResult } from "./expressions.js";
 import { resolveFormedCsharpSourceValueResult } from "./value-source.js";
+import { resolveFormedCsharpSelectedValueResult } from "./selected-value-source.js";
 import { optionalAccessTargetType as optionalAccessTargetTypeImplementation } from "../../../../policy/types/storage/optional-access.js";
 import { resolveSelectedExpressionType as resolveSelectedExpressionTypeImplementation, resolveMemberAccessTargetType as resolveMemberAccessTargetTypeImplementation, resolveNonNullExpressionType as resolveNonNullExpressionTypeImplementation, resolveSelectedReceiverTargetType as resolveSelectedReceiverTargetTypeImplementation, resolveFormedCsharpSourceOwnedConstructionResult } from "./expressions.js";
 import { resolveSelectedDeclarationResult as resolveSelectedDeclarationResultImplementation, resolveProjectEnumMemberTarget as resolveProjectEnumMemberTargetImplementation, declarationResultTypeNode as declarationResultTypeNodeImplementation } from "./declarations.js";
@@ -204,8 +205,8 @@ export function createCsharpTypeResolutionServices(
       resolveSelectedValueImplementation(scope, ...args),
     resolveSelectedValueWithState: (...args: DropScope<Parameters<typeof resolveSelectedValueWithStateImplementation>>) =>
       resolveSelectedValueWithStateImplementation(scope, ...args),
-    resolveSelectedValueResultWithState: (...args: DropScope<Parameters<typeof resolveSelectedValueResultWithState>>) =>
-      resolveSelectedValueResultWithState(scope, ...args),
+    resolveFormedSelectedValueResult: (...args: DropScope<Parameters<typeof resolveFormedCsharpSelectedValueResult>>) =>
+      resolveFormedCsharpSelectedValueResult(scope, ...args),
     resolveFormedSelectedExpressionResult: (...args: DropScope<Parameters<typeof resolveFormedCsharpSelectedExpressionResult>>) =>
       resolveFormedCsharpSelectedExpressionResult(scope, ...args),
     resolveFormedSourceValueResult: (...args: DropScope<Parameters<typeof resolveFormedCsharpSourceValueResult>>) =>

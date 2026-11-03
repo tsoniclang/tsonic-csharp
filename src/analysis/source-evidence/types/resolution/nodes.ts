@@ -66,6 +66,13 @@ export function resolveFormedCsharpNodeTypeSource(
     return failTargetAnalysisInvariant("tsonic-csharp",
       "A contextual parameter requires its exact retained Source occurrence.", source.node);
   }
+  if (source.kind === "node" && (source.value === undefined || (source.selectedType === undefined ? source.selectedValue !== undefined
+    : source.selectedValue === undefined || source.selectedValue.node !== source.node ||
+      source.selectedValue.queries !== source.queries || source.selectedValue.selectedType !== source.selectedType ||
+      source.selectedValue.inputState !== source.state || source.selectedValue.selection !== source.value.selection))) {
+    return failTargetAnalysisInvariant("tsonic-csharp",
+      "A selected node value requires its exact retained Source occurrence and declaration selection.", source.node);
+  }
   const selected = resolveNodeResultWithState(scope, source);
   return source.kind === "unavailable" ? selected : refineCsharpSourceValueResult(selected,
     resolveFormedCsharpNativeParameterCarrier(scope, source.nativeParameter, selected?.selectedType, source.originalState));
@@ -85,7 +92,7 @@ function resolveNodeResultWithState(
   if (scopedTargetType !== undefined) {
     const selected = source.selectedType;
     return selected === undefined ? csharpSourceValueResult(scopedTargetType)
-      : scope.resolveSelectedValueResultWithState(node, selected, queries.sourceFile, state);
+      : scope.resolveFormedSelectedValueResult(source.selectedValue!);
   }
   const syntaxFact = resolveCsharpProviderIndexedAccess(scope, node, queries, state) ?? resolveFormedDirectSourceFacts(source.directSyntax);
   if (syntaxFact !== undefined) {
@@ -229,7 +236,7 @@ function resolveNodeResultWithState(
     return failTargetAnalysisInvariant("tsonic-csharp", "A node value requires its exact retained declaration Source.", node);
   }
   const declaredValue = selectedType !== undefined && value.selection.declaration !== undefined
-    ? scope.resolveSelectedValueResultWithState(node, selectedType, queries.sourceFile, state)
+    ? scope.resolveFormedSelectedValueResult(source.selectedValue!)
     : resolveFormedSourceValueResult(value);
   if (declaredValue !== undefined) {
     return declaredValue;
