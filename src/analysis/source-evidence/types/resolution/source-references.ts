@@ -14,7 +14,7 @@ import { csharpNeverTargetType } from "../../../../target-model/types/carriers/s
 import { nextState } from "./state.js";
 import { definedValues, resolveCsharpUnionMemberCarrier } from "./source-evidence.js";
 import { sourcePrimitiveFactKey } from "@tsonic/tsts";
-import { sourceTransformedTypeFactEvidenceNodes, sourceTupleElementTypeEvidenceNodes, sourceTypeSyntaxIsCompositional, sourceTypeSyntaxRoot, sourceIntegerInduction, sourceCallableValueParameters } from "@tsonic/target-api/source";
+import { sourceTransformedTypeFactEvidenceNodes, sourceTupleElementTypeEvidenceNodes, sourceTypeSyntaxIsCompositional, sourceTypeSyntaxRoot, sourceIntegerInduction } from "@tsonic/target-api/source";
 import { substituteTargetTypeParameters } from "../../../../policy/types/resolution/substitution.js";
 import { targetTypeRefKey, targetTypeRefEquals } from "../../../../target-model/types/equality.js";
 import { reconcileCsharpSelectedTargetType, retainCsharpBroadValueCarrier } from "../../../../policy/types/resolution/selected-type-evidence.js";
@@ -23,14 +23,14 @@ import { completeCsharpBoundSourceType, csharpBoundSourceType, csharpSourceBindi
 import { csharpConditionalDeclaration, resolveCsharpConditionalApplication } from "./conditional-types.js";
 import { resolveStructuralTypeWithState } from "./root-sources.js";
 import { csharpSourceStorageComponentContext } from "./source-storage-projection.js";
-import { bindCsharpSourceTypeArguments } from "./generic-arguments.js";
-import { csharpTargetParameterValueType } from "../../../../target-model/types/member-facts.js";
 import { getCsharpCallableValueSignature } from "../../../../target-model/types/carriers/delegates.js";
 import { formCsharpTypeReferenceSource, type CsharpTypeReferenceSource } from "./type-reference-source.js";
 import { resolveFormedCsharpProjectReference } from "./project-types.js";
 import { resolveSelectedExpressionResult } from "./expressions.js";
 import { resolveDirectSourceFacts } from "./semantic-types.js";
 import { formCsharpNativeParameterSource, resolveFormedCsharpNativeParameterCarrier } from "./native-parameter-source.js";
+import { formCsharpContextualParameterSource, resolveFormedCsharpContextualParameterCarrier,
+  type CsharpContextualParameterSelection } from "./contextual-parameter-source.js";
 
 export function resolveTypeReferenceNode(
   scope: CsharpTypeResolutionScope,
@@ -458,50 +458,9 @@ export function selectCsharpContextualParameterCarrier(
   declaration: Node,
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
-): { readonly kind: "not-applicable" } | { readonly kind: "unresolved" } |
-  { readonly kind: "resolved"; readonly type: TargetTypeRef } {
-  const { host } = scope;
-  if (!host.ast.is.IsParameterDeclaration(declaration)) return { kind: "not-applicable" };
-  const syntax = scope.sourceValueDeclarationSyntax(declaration);
-  if (syntax.type !== undefined || syntax.initializer !== undefined) return { kind: "not-applicable" };
-  const owner = host.ast.parent(declaration);
-  if (owner === undefined || !host.ast.is.IsArrowFunction(owner) && !host.ast.is.IsFunctionExpression(owner)) {
-    return { kind: "not-applicable" };
-  }
-  const parameters = sourceCallableValueParameters(host.ast, owner, queries);
-  const index = parameters?.indexOf(declaration) ?? -1;
-  const contextual = queries.types.contextualValueSelection(owner);
-  if (contextual.kind === "ambiguous") return { kind: "unresolved" };
-  if (contextual.kind !== "selected") return { kind: "not-applicable" };
-  const callable = queries.types.callable(contextual.component.selectedType);
-  const restBinding = host.ast.as.AsParameterDeclaration(declaration)?.DotDotDotToken !== undefined;
-  if (index < 0 || callable === undefined) return { kind: "not-applicable" };
-  let parameterState = bindCsharpSourceTypeArguments(scope, contextual.component.selectedType, queries, nextState(state));
-  const ownParameters = host.ast.typeParameters(owner);
-  if (ownParameters.length !== 0) {
-    const contextualParameters = callable?.result.declaration === undefined ? []
-      : host.ast.typeParameters(callable.result.declaration);
-    const ownSources = ownParameters.map(parameter => parameter === undefined ? undefined
-      : queries.declarations.declaredType(parameter));
-    const ownTargets = ownParameters.map(parameter => parameter === undefined ? undefined
-      : csharpSourceTypeParameter(parameter, host.ast));
-    if (parameterState === undefined || contextualParameters.length !== ownParameters.length ||
-      contextualParameters.some(parameter => parameter === undefined) ||
-      ownSources.some(type => type === undefined) || ownTargets.some(type => type === undefined)) return { kind: "unresolved" };
-    parameterState = csharpSourceBindings(contextualParameters as readonly Node[], ownSources as readonly Type[],
-      ownTargets as readonly TargetTypeRef[], parameterState);
-  }
-  const nativeContract = parameterState === undefined ? undefined : scope.resolveCallableEvidence(callable, queries, parameterState);
-  const signature = getCsharpCallableValueSignature(nativeContract);
-  const restIndex = signature?.restParameterIndex;
-  const nativeParameter = signature?.parameters[restIndex !== undefined && index >= restIndex ? restIndex : index];
-  const native = signature === undefined ? undefined : restBinding
-    ? restIndex === undefined ? Object.freeze({ kind: "tuple" as const, elements: Object.freeze(signature.parameters.slice(index)) })
-      : index === restIndex ? nativeParameter : undefined
-    : restIndex !== undefined && index >= restIndex && nativeParameter !== undefined
-      ? csharpTargetParameterValueType({ name: "", type: nativeParameter, passingMode: "by-value", paramsArray: true }, "value")
-      : nativeParameter;
-  return native === undefined ? { kind: "unresolved" } : { kind: "resolved", type: native };
+): CsharpContextualParameterSelection {
+  return resolveFormedCsharpContextualParameterCarrier(scope,
+    formCsharpContextualParameterSource(scope, declaration, queries), state);
 }
 
 export function resolveSourceValueDeclaration(

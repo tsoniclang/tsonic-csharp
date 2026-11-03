@@ -100,8 +100,7 @@ export function resolveFormedCsharpCallableType(
       input.signature.state !== input.state || input.source.signature.queries !== input.source.queries) {
     return failTargetAnalysisInvariant("tsonic-csharp", "Callable completion requires its exact bound signature Source input.");
   }
-  const declared = resolveFormedCsharpCallableDeclarationSignature(scope, input.signature);
-  return declared === undefined ? undefined : completeCsharpCallableSignatureABI(scope, declared);
+  return resolveFormedCsharpCallableEvidence(scope, input.signature);
 }
 
 export function resolveCallableEvidence(
@@ -110,10 +109,17 @@ export function resolveCallableEvidence(
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
-  const declared = resolveFormedCsharpCallableDeclarationSignature(scope,
+  return resolveFormedCsharpCallableEvidence(scope,
     formCsharpCallableSignatureInput(scope.host,
       formCsharpCallableSignatureSource(scope.host.ast, callable, queries,
         formCsharpCallableDeclaration(callable.result.declaration, queries.sourceFile, scope.host.ast)), state));
+}
+
+export function resolveFormedCsharpCallableEvidence(
+  scope: CsharpTypeResolutionScope,
+  input: CsharpCallableSignatureInput,
+): TargetTypeRef | undefined {
+  const declared = resolveFormedCsharpCallableDeclarationSignature(scope, input);
   return declared === undefined ? undefined : completeCsharpCallableSignatureABI(scope, declared);
 }
 

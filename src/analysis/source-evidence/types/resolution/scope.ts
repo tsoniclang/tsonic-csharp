@@ -390,6 +390,9 @@ export interface CsharpTypeResolutionScope {
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined;
+  resolveFormedCallableEvidence(
+    input: import("./callable-signature-completion.js").CsharpCallableSignatureInput,
+  ): TargetTypeRef | undefined;
   resolveSignatureParameterEvidence(
   parameter: SourceCallableTypeEvidence["parameters"][number],
   queries: SourceFileSemantics,

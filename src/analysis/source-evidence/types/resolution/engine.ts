@@ -42,7 +42,8 @@ import { resolveAuthoredAndSelectedSourceType as resolveAuthoredAndSelectedSourc
   formCsharpAuthoredTypeSelectionSource, bindCsharpAuthoredTypeSelectionSource,
   resolveFormedAuthoredAndSelectedSourceType, type CsharpAuthoredTypeSelectionEvidence } from "./selected-values.js";
 import { resolveFormedCsharpSemanticTypeSource, resolveProviderType as resolveProviderTypeImplementation, resolveFormedCsharpSemanticTypeArguments } from "./semantic-types.js";
-import { resolveSourceProfileType as resolveSourceProfileTypeImplementation, resolveUnionType as resolveUnionTypeImplementation, resolveCallableType as resolveCallableTypeImplementation, resolveCallableEvidence as resolveCallableEvidenceImplementation, resolveSignatureParameterEvidence as resolveSignatureParameterEvidenceImplementation, resolveSourceTypeComponentEvidence as resolveSourceTypeComponentEvidenceImplementation, resolveFormedCsharpSourceTypeComponentEvidence } from "./source-profiles.js";
+import { resolveSourceProfileType as resolveSourceProfileTypeImplementation, resolveUnionType as resolveUnionTypeImplementation, resolveCallableType as resolveCallableTypeImplementation, resolveCallableEvidence as resolveCallableEvidenceImplementation, resolveSignatureParameterEvidence as resolveSignatureParameterEvidenceImplementation, resolveSourceTypeComponentEvidence as resolveSourceTypeComponentEvidenceImplementation, resolveFormedCsharpSourceTypeComponentEvidence,
+  resolveFormedCsharpCallableEvidence } from "./source-profiles.js";
 import { generatorProtocol as generatorProtocolImplementation, generatorResultProtocol as generatorResultProtocolImplementation } from "../../../../policy/operations/source-profiles/type-carriers.js";
 import { resolveSelectedSymbolType as resolveSelectedSymbolTypeImplementation, resolveProjectSourceSemanticType as resolveProjectSourceSemanticTypeImplementation, resolveProjectSourceType as resolveProjectSourceTypeImplementation, projectSourceDeclarationTargetType as projectSourceDeclarationTargetTypeImplementation } from "./project-types.js";
 import { formCsharpProjectSemanticSource, resolveFormedCsharpProjectSemanticType,
@@ -365,6 +366,8 @@ export function createCsharpTypeResolutionServices(
       resolveCallableTypeImplementation(scope, ...args),
     resolveCallableEvidence: (...args: DropScope<Parameters<typeof resolveCallableEvidenceImplementation>>) =>
       resolveCallableEvidenceImplementation(scope, ...args),
+    resolveFormedCallableEvidence: (...args: DropScope<Parameters<typeof resolveFormedCsharpCallableEvidence>>) =>
+      resolveFormedCsharpCallableEvidence(scope, ...args),
     resolveSignatureParameterEvidence: (...args: DropScope<Parameters<typeof resolveSignatureParameterEvidenceImplementation>>) =>
       resolveSignatureParameterEvidenceImplementation(scope, ...args),
     resolveSourceTypeComponentEvidence: (...args: DropScope<Parameters<typeof resolveSourceTypeComponentEvidenceImplementation>>) =>

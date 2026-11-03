@@ -22,7 +22,7 @@ import { formCsharpNodeTypeSource, type CsharpNodeTypeSource } from "./root-sour
 import { resolveFormedCsharpProjectReference } from "./project-types.js";
 
 import { selectCsharpParameterListCarrier } from "../../../../policy/types/callables/parameter-list.js";
-import { selectCsharpContextualParameterCarrier } from "./source-references.js";
+import { resolveFormedCsharpContextualParameterCarrier } from "./contextual-parameter-source.js";
 import { resolveFormedCsharpNativeParameterCarrier } from "./native-parameter-source.js";
 import { resolveFormedCsharpProjectInstanceTargetType } from "./project-instance-source.js";
 import type { CsharpSourceCallResult } from "../../../../target-model/operations/source-call-results.js";
@@ -61,6 +61,11 @@ export function resolveFormedCsharpNodeTypeSource(
     "A native parameter projection requires its exact retained Source node.", source.node);
   if (source.kind === "node" && (source.projectInstance === undefined || source.projectInstance.node !== source.node)) return failTargetAnalysisInvariant("tsonic-csharp",
     "A project instance requires its exact retained Source node.", source.node);
+  if (source.kind === "node" && (source.contextualParameter === undefined ||
+      source.contextualParameter.declaration !== source.node || source.contextualParameter.queries !== source.queries)) {
+    return failTargetAnalysisInvariant("tsonic-csharp",
+      "A contextual parameter requires its exact retained Source occurrence.", source.node);
+  }
   const selected = resolveNodeResultWithState(scope, source);
   return source.kind === "unavailable" ? selected : refineCsharpSourceValueResult(selected,
     resolveFormedCsharpNativeParameterCarrier(scope, source.nativeParameter, selected?.selectedType, source.originalState));
@@ -101,7 +106,7 @@ function resolveNodeResultWithState(
         ? declared : csharpNullableTargetType(declared));
     }
   }
-  const contextualParameter = selectCsharpContextualParameterCarrier(scope, node, queries, state);
+  const contextualParameter = resolveFormedCsharpContextualParameterCarrier(scope, source.contextualParameter, state);
   if (contextualParameter.kind !== "not-applicable") return contextualParameter.kind === "resolved"
     ? csharpSourceValueResult(contextualParameter.type) : undefined;
   const selectedExpression = resolveFormedSelectedExpressionResult(source.selectedExpression);
