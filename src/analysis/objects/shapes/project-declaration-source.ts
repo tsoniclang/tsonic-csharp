@@ -112,13 +112,5 @@ export function createCsharpProjectDeclarationShapeSource(
     });
   }
 
-  function formProjectDeclarationSource(
-    declaration: Node,
-    state: CsharpTypeResolutionState,
-  ): CsharpProjectDeclarationShapeSource | undefined {
-    const source = captureProjectDeclarationSource(declaration);
-    return source === undefined ? undefined : bindProjectDeclarationSource(source, state);
-  }
-
-  return { captureProjectDeclarationSource, bindProjectDeclarationSource, formProjectDeclarationSource };
+  return { captureProjectDeclarationSource, bindProjectDeclarationSource };
 }
