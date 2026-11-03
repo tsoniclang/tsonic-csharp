@@ -4,7 +4,8 @@ import { maximumJsonClosureDepth } from "../../../dist/analysis/objects/native-d
 import { csharpAbsenceTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
 import test from "node:test";
 import { csharpJsRuntimeSource, csharpRuntimeSourceContributions } from "../../../dist/providers/runtime/source-projects.js";
-import { classifyCsharpRuntimeSource } from "../../../dist/providers/runtime/projects.js";
+import { createCsharpTargetConfiguration } from "../../../dist/compilation/configuration.js";
+import { classifyCsharpProjectConfiguration } from "../../../dist/compilation/project.js";
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { compileCsharpRequiredRecordSource, csharpRecordInput } from "../../helpers/required-records.mjs";
 import { createCsharpProgramRecords } from "../../../dist/analysis/program/records/create.js";
@@ -19,7 +20,11 @@ import { csharpObjectShapeMemberContractKey } from "../../../dist/target-model/t
 import { monomorphicStructuralOptionalFiles } from "../../../../tsonic/test/fixtures/generic-structural-methods.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 
-const jsRuntimeSources = Object.freeze(csharpRuntimeSourceContributions(csharpJsRuntimeSource).references.map(classifyCsharpRuntimeSource));
+const runtimeConfiguration = createCsharpTargetConfiguration({ id: "csharp" }, process.cwd(), process.cwd());
+const jsRuntimeProject = classifyCsharpProjectConfiguration(runtimeConfiguration,
+  csharpRuntimeSourceContributions(csharpJsRuntimeSource).references, process.cwd());
+assert.equal(jsRuntimeProject.kind, "resolved", "the actual JS runtime source graph is classified");
+const { hasJsRuntime } = jsRuntimeProject.value;
 
 test("closed JSON admits one exact native absence without admitting foreign or unbounded data", () => {
   const scope = {
@@ -221,7 +226,7 @@ test("artifact demand seals once and the backend cannot reach the native query o
   const type = { kind: "target-named", id: "tsonic.shape:Leaf", csharpAllowsRefLikeTypeArguments: [], csharpRender: { kind: "named", name: "Leaf" } };
   const fact = Object.freeze({ targetType: type, members: Object.freeze([]) });
   const targetShapes = Object.freeze({ [targetTypeRefKey(type)]: fact });
-  const engine = createCsharpObjectShapeDemandEngine({ runtimeSources: jsRuntimeSources, objectShapes: {
+  const engine = createCsharpObjectShapeDemandEngine({ hasJsRuntime, objectShapes: {
     targetShapes,
     resolveTarget(selected) { assert.equal(closed, false, "queries run before publication"); reads += 1; return selected === type ? fact : undefined; },
     knownShapes: () => [fact],
@@ -246,7 +251,7 @@ test("artifact demand seals once and the backend cannot reach the native query o
 
 test("artifact demand requires its canonical immutable completed shape index at sealing", () => {
   for (const targetShapes of [undefined, {}]) {
-    const engine = createCsharpObjectShapeDemandEngine({ runtimeSources: jsRuntimeSources, objectShapes: { targetShapes, resolveTarget() {} },
+    const engine = createCsharpObjectShapeDemandEngine({ hasJsRuntime, objectShapes: { targetShapes, resolveTarget() {} },
       ast: {}, captureStorage: { captureFrameShape: { get() {} } },
       conversions: { conversion: { get() {} } } });
     assert.throws(() => engine.close(), /immutable completed target-shape index/u,
@@ -354,7 +359,7 @@ test("general native JSON declarations propagate through exact native inheritanc
   const derived = Object.freeze({ targetType: { kind: "target-named", id: "Example.JsonDerived", csharpAllowsRefLikeTypeArguments: [] },
     members: [], implements: [base.targetType] });
   const shapes = new Map([base, derived].map(shape => [targetTypeRefKey(shape.targetType), shape]));
-  const engine = createCsharpObjectShapeDemandEngine({ runtimeSources: jsRuntimeSources, ast: {}, names: { typeParameterNames: [] },
+  const engine = createCsharpObjectShapeDemandEngine({ hasJsRuntime, ast: {}, names: { typeParameterNames: [] },
     captureStorage: { captureFrameShape: { get() {} } }, conversions: { conversion: { get() {} } },
     objectShapes: { targetShapes: Object.freeze(Object.fromEntries(shapes)), knownShapes: () => [...shapes.values()],
       resolveTarget(type) { return type === undefined ? undefined : shapes.get(targetTypeRefKey(type)); } } });
@@ -371,7 +376,7 @@ test("general native JSON metadata cannot make legal pointer fields acquire an i
   const pointer = { kind: "pointer", pointee: { kind: "source-primitive", name: "uint8" } };
   const shape = Object.freeze({ targetType: { kind: "target-named", id: "Example.NativeAddress", csharpAllowsRefLikeTypeArguments: [] },
     members: [{ sourceKey: { kind: "property", name: "address" }, sourceName: "address", targetName: "address", memberKind: "property", type: pointer }] });
-  const engine = createCsharpObjectShapeDemandEngine({ runtimeSources: jsRuntimeSources, ast: {}, names: { typeParameterNames: [] },
+  const engine = createCsharpObjectShapeDemandEngine({ hasJsRuntime, ast: {}, names: { typeParameterNames: [] },
     captureStorage: { captureFrameShape: { get() {} } }, conversions: { conversion: { get() {} } },
     objectShapes: { targetShapes: Object.freeze({ [targetTypeRefKey(shape.targetType)]: shape }),
       resolveTarget(type) { return type === shape.targetType ? shape : undefined; } } });
@@ -386,8 +391,10 @@ test("general native JSON metadata cannot make legal pointer fields acquire an i
 for (const surface of ["native", "js"]) test(`general JSON writers follow the selected runtime without changing native identity on ${surface}`, () => {
   const type = { kind: "target-named", id: "Example.NativeIdentity", csharpAllowsRefLikeTypeArguments: [] };
   const shape = Object.freeze({ targetType: type, members: Object.freeze([]) });
-  const runtimeSources = surface === "js" ? jsRuntimeSources : Object.freeze([]);
-  const engine = createCsharpObjectShapeDemandEngine({ runtimeSources, ast: {}, names: { typeParameterNames: [] },
+  const runtimeProject = surface === "js" ? jsRuntimeProject
+    : classifyCsharpProjectConfiguration(runtimeConfiguration, [], process.cwd());
+  assert.equal(runtimeProject.kind, "resolved", "the actual selected runtime source graph is classified");
+  const engine = createCsharpObjectShapeDemandEngine({ hasJsRuntime: runtimeProject.value.hasJsRuntime, ast: {}, names: { typeParameterNames: [] },
     captureStorage: { captureFrameShape: { get() {} } }, conversions: { conversion: { get() {} } },
     objectShapes: { targetShapes: Object.freeze({ [targetTypeRefKey(type)]: shape }),
       resolveTarget: selected => selected === type ? shape : undefined } });
