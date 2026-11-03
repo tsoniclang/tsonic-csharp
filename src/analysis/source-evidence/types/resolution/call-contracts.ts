@@ -20,6 +20,7 @@ import { csharpTypeProjection } from "../../../../target-model/types/projections
 import { formCsharpTypeParameterSource, resolveFormedCsharpTypeParameterSource,
   type CsharpTypeParameterSource } from "./source-evidence.js";
 import type { CsharpSourceCallableSource } from "../../../program/source-callable-source.js";
+import { formCsharpSourceTypeArguments, type CsharpSourceTypeArgumentsSource } from "./generic-arguments.js";
 
 export type CsharpSourceCallContractSelection =
   | { readonly kind: "declaration"; readonly contract: SourceCallableContract | undefined; readonly closedInput?: true }
@@ -32,6 +33,7 @@ export type CsharpSourceCallContractSource = {
   readonly callableSource: CsharpSourceCallableSource;
   readonly checkedTypeParameters: readonly ReturnType<typeof csharpSourceTypeParameter>[] | undefined;
   readonly selectedTypeParameters: readonly CsharpTypeParameterSource[];
+  readonly receiverTypeArguments: CsharpSourceTypeArgumentsSource | undefined;
 } & (
   | { readonly kind: "direct" }
   | { readonly kind: "callee"; readonly callee: CsharpSourceCalleeSource }
@@ -48,9 +50,11 @@ export function formCsharpSourceCallContractSource(
     declaration === undefined ? undefined : csharpSourceTypeParameter(declaration, host.ast)));
   const selectedTypeParameters = Object.freeze((source.sourceSelectedMethodTypeArguments ?? []).map(argument =>
     formCsharpTypeParameterSource(argument.typeParameter, callableSource.queries, host.ast)));
+  const receiver = source.sourceReceiver ?? source.sourceCalleeAccess?.receiver;
+  const receiverTypeArguments = receiver === undefined ? undefined : formCsharpSourceTypeArguments(receiver.type, callableSource.queries);
   return host.ast.is.IsNewExpression(source.call) || host.ast.kindName(source.sourceCallee.expression) === "KindSuperKeyword"
-    ? Object.freeze({ source, sourceFile, callableSource, checkedTypeParameters, selectedTypeParameters, kind: "direct" })
-    : Object.freeze({ source, sourceFile, callableSource, checkedTypeParameters, selectedTypeParameters,
+    ? Object.freeze({ source, sourceFile, callableSource, checkedTypeParameters, selectedTypeParameters, receiverTypeArguments, kind: "direct" })
+    : Object.freeze({ source, sourceFile, callableSource, checkedTypeParameters, selectedTypeParameters, receiverTypeArguments,
       kind: "callee", callee: formCsharpSourceCalleeSource(host, source, sourceFile) });
 }
 

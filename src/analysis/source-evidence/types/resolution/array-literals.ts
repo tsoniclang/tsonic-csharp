@@ -5,6 +5,9 @@ import { sourceExpressionCallArgument, sourceSequenceInputChoice, sourceSequence
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { CsharpTypeResolutionState } from "./model.js";
+import { formCsharpSourceCallContractSource } from "./call-contracts.js";
+import { formCsharpSourceCallConstructionSource } from "./expression-source.js";
+import { completeCsharpSourceCallArgumentParameter } from "./call-api.js";
 import { nextState } from "./state.js";
 import { getCsharpCollectionElementTargetType } from "../../../../target-model/types/carriers/collections.js";
 import { combineCsharpTargetUnionMembers, isCsharpJsValueTargetType } from "../../../../target-model/types/carriers/runtime-carriers.js";
@@ -154,7 +157,9 @@ function selectArrayElementDestination(
       const declaration = host.navigation.referenceFor(argument.expression)?.declaration;
       return declaration !== undefined && context?.declarations.includes(declaration) === true ? [index] : [];
     })]);
-    const parameter = scope.resolveSourceCallArgumentParameter(call, bindings[0]!, callQueries.sourceFile, excluded);
+    const contract = formCsharpSourceCallContractSource(scope, call, callQueries.sourceFile);
+    const construction = formCsharpSourceCallConstructionSource(scope, contract);
+    const parameter = completeCsharpSourceCallArgumentParameter(scope, contract, bindings[0]!, construction, excluded)?.type;
     const result = context?.returnedFrom === undefined ? parameter
       : getCsharpCallableValueSignature(getCsharpNullableElementTargetType(parameter) ?? parameter)?.returnType;
     const selected = context?.returnedFrom !== undefined && host.ast.hasModifierKind(context.returnedFrom, "async")
@@ -162,8 +167,8 @@ function selectArrayElementDestination(
     if (csharpSourceUnionIdentity(getCsharpNullableElementTargetType(selected) ?? selected) !== undefined) {
       const declaration = call.sourceSelectedSignatureParameters[bindings[0]!.sourceParameterIndex];
       if (declaration?.authoredTypeNode === undefined) return { kind: "unavailable" };
-      const declared = scope.resolveSourceCallSelectedType(call, declaration.parameterDeclaration,
-        declaration.authoredTypeNode, bindings[0]!.selectedParameterType, callQueries.sourceFile,
+      const declared = scope.resolveSourceCallSelectedType(contract, declaration.parameterDeclaration,
+        declaration.authoredTypeNode, bindings[0]!.selectedParameterType,
         nextState(state), excluded);
       if (declared === undefined || parameter === undefined || !targetTypeRefEquals(declared, parameter)) {
         return { kind: "unavailable" };

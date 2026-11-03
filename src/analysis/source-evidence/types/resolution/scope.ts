@@ -3,7 +3,7 @@ import type { SourceCallableTypeEvidence, SourceFileSemantics, SourceTypeCompone
 
 import type { SourceCallableContract } from "../../../../target-model/records/callables/source-callable-contract.js";
 
-import type { CsharpSourceCallContractSelection } from "./call-contracts.js";
+import type { CsharpSourceCallContractSelection, CsharpSourceCallContractSource } from "./call-contracts.js";
 
 import type { CsharpPointerReturnContract } from "../../../../target-model/records/calls/pointer-return.js";
 import type { CsharpSourceTypedLocationOperation } from "../../../../source/extension/typed-locations.js";
@@ -299,11 +299,10 @@ export interface CsharpTypeResolutionScope {
     }
   | undefined;
   resolveSourceCallSelectedType(
-  source: ResolvedSourceCallInfo,
+  input: CsharpSourceCallContractSource,
   declaration: Node | undefined,
   authoredTypeNode: Node | undefined,
   selectedType: Type | undefined,
-  selectedSourceFile: SourceFile,
   state: CsharpTypeResolutionState,
   excludedSourceArgumentIndexes?: ReadonlySet<number>,
 ): TargetTypeRef | undefined;

@@ -57,7 +57,7 @@ import { formCsharpNodeQuerySource, formCsharpTypeQuerySource,
   type CsharpNodeQuerySource, type CsharpTypeQuerySource,
   type CsharpNodeTypeSource, type CsharpSemanticTypeSource } from "./root-sources.js";
 import { formCsharpSourceDeclarationArguments, resolveFormedCsharpSourceDeclarationArguments,
-  formCsharpSourceTypeArguments, resolveFormedCsharpSourceTypeArguments } from "./generic-arguments.js";
+  formCsharpSourceTypeArguments, bindCsharpSourceTypeArgumentsSource, resolveFormedCsharpSourceTypeArguments } from "./generic-arguments.js";
 import { formCsharpSemanticTypeArgumentsSource } from "./semantic-argument-source.js";
 import { formCsharpDirectSourceEvidence, completeCsharpDirectSourceEvidence,
   resolveFormedCsharpDirectSourceFacts } from "./direct-source-evidence.js";
@@ -72,6 +72,7 @@ type DropScope<Arguments extends readonly unknown[]> =
 
 export interface CsharpTypeResolutionServices {
   readonly sourceTypeArguments: typeof formCsharpSourceTypeArguments;
+  readonly bindSourceTypeArguments: typeof bindCsharpSourceTypeArgumentsSource;
   readonly completeSourceTypeArguments: (...args: DropScope<Parameters<typeof resolveFormedCsharpSourceTypeArguments>>) =>
     ReturnType<typeof resolveFormedCsharpSourceTypeArguments>;
   readonly sourceTypeComponentSource: (...args: DropScope<Parameters<typeof formCsharpSourceTypeComponentSource>>) =>
@@ -455,6 +456,7 @@ export function createCsharpTypeResolutionServices(
     sourceTypeComponentSource: (...args: DropScope<Parameters<typeof formCsharpSourceTypeComponentSource>>) =>
       formCsharpSourceTypeComponentSource(scope, ...args),
     sourceTypeArguments: formCsharpSourceTypeArguments,
+    bindSourceTypeArguments: bindCsharpSourceTypeArgumentsSource,
     completeSourceTypeArguments: (...args: DropScope<Parameters<typeof resolveFormedCsharpSourceTypeArguments>>) =>
       resolveFormedCsharpSourceTypeArguments(scope, ...args),
     completeSourceTypeComponent: (...args: DropScope<Parameters<typeof resolveFormedCsharpSourceTypeComponent>>) =>

@@ -49,20 +49,20 @@ export function resolveSourceCallParameter(
 ): TargetTypeRef | undefined {
   if (domain !== "declared" && domain !== "callable") return undefined;
   if (domain === "declared" && source.sourceSelectedSignatureKind !== "resolved") return undefined;
-  return resolveSelectedSourceCallParameter(scope, source, parameterIndex, sourceFile,
+  const input = formCsharpSourceCallContractSource(scope, source, sourceFile);
+  return resolveSelectedSourceCallParameter(scope, input, parameterIndex,
     domain === "declared" ? Object.freeze({ kind: "declaration",
-      contract: scope.host.representations.completeSourceCallable(
-        scope.host.representations.sourceCallableSource(source, sourceFile), "checked") })
-      : scope.resolveSourceCallContract(source, sourceFile, { depth: 0 }, "checked"));
+      contract: scope.host.representations.completeSourceCallable(input.callableSource, "checked") })
+      : resolveFormedSourceCallContract(scope, input, { depth: 0 }, "checked"));
 }
 
 function resolveSelectedSourceCallParameter(
   { host, resolveSourceCallableContractType, resolveSourceCallSelectedType, sourceCallableTypeParametersMatch }: CsharpTypeResolutionScope,
-  source: ResolvedSourceCallInfo,
+  input: CsharpSourceCallContractSource,
   parameterIndex: number,
-  sourceFile: SourceFile,
   selected: CsharpSourceCallContractSelection,
 ): TargetTypeRef | undefined {
+  const { source, sourceFile } = input;
   const parameter = source.sourceSelectedSignatureParameters[parameterIndex];
   if (parameter === undefined) {
     return undefined;
@@ -107,11 +107,10 @@ function resolveSelectedSourceCallParameter(
   }
   if (selected.kind === "value") return undefined;
   return resolveSourceCallSelectedType(
-        source,
+        input,
         parameter.parameterDeclaration,
         parameter.authoredTypeNode,
         parameter.selectedType,
-        sourceFile,
         { depth: 0 },
       );
 }
@@ -121,7 +120,8 @@ export function resolveSourceCallParameters(
   source: ResolvedSourceCallInfo,
   sourceFile: SourceFile,
 ): readonly import("../../../../target-model/types/model.js").CsharpTargetParameter[] | undefined {
-  const selected = scope.resolveSourceCallContract(source, sourceFile, { depth: 0 }, "implementation");
+  const input = formCsharpSourceCallContractSource(scope, source, sourceFile);
+  const selected = resolveFormedSourceCallContract(scope, input, { depth: 0 }, "implementation");
   if (selected.kind === "rejected") return undefined;
   const callable = selected.contract;
   if (callable !== undefined) {
@@ -133,7 +133,7 @@ export function resolveSourceCallParameters(
     return parameters.some(parameter => parameter === undefined) ? undefined : Object.freeze(parameters as import("../../../../target-model/types/model.js").CsharpTargetParameter[]);
   }
   const parameters = source.sourceSelectedSignatureParameters.map((parameter, index) => {
-    const type = resolveSelectedSourceCallParameter(scope, source, index, sourceFile, selected);
+    const type = resolveSelectedSourceCallParameter(scope, input, index, selected);
     return type === undefined ? undefined : {
       name: parameter.parameterName, passingMode: "by-value" as const,
       optional: parameter.acceptsOmission && !parameter.rest, paramsArray: parameter.rest, type,
@@ -166,7 +166,7 @@ export function completeCsharpSourceCallArgumentParameter(
   let step = completion.next();
   while (!step.done) {
     const request = step.value;
-    const { source, sourceFile } = request.association.source;
+    const { source } = request.association.source;
     if (request.kind === "contract") step = completion.next(Object.freeze({ kind: "contract", request,
       selection: resolveFormedSourceCallContract(scope, request.association.source, request.state, "implementation") }));
     else if (request.kind === "parameters") step = completion.next(Object.freeze({ kind: "parameters", request,
@@ -175,9 +175,9 @@ export function completeCsharpSourceCallArgumentParameter(
       completion: scope.completeSourceCallableType(request.typeInput) }));
     else {
       const parameter = request.association.checkedParameter;
-      const type = scope.resolveSourceCallSelectedType(source, parameter.parameterDeclaration, parameter.authoredTypeNode,
+      const type = scope.resolveSourceCallSelectedType(request.association.source, parameter.parameterDeclaration, parameter.authoredTypeNode,
         parameter.rest ? parameter.selectedType : request.association.binding.selectedParameterType,
-        sourceFile, request.state, request.association.excludedSourceArgumentIndexes);
+        request.state, request.association.excludedSourceArgumentIndexes);
       step = completion.next(Object.freeze({ kind: request.kind, request, type }));
     }
   }
@@ -252,8 +252,8 @@ export function resolveFormedCsharpSourceCallResultWithState(
     ? input.contract.callableSource.checked.declaration : undefined;
   const retain = (nativeType: TargetTypeRef | undefined): CsharpSourceCallResult | undefined => {
     const selected = selectCsharpSourceCallResult(host, nativeType, () => {
-      const checked = result === undefined ? undefined : resolveSourceCallSelectedType(source, declaration,
-        result.authoredTypeNode, result.selectedReturnType, sourceFile, nextState(state));
+      const checked = result === undefined ? undefined : resolveSourceCallSelectedType(input.contract, declaration,
+        result.authoredTypeNode, result.selectedReturnType, nextState(state));
       return result?.authoredTypeNode === undefined && getCsharpNullableElementTargetType(nativeType) !== undefined && checked !== undefined
         ? combineCsharpTargetUnionMembers([checked, csharpAbsenceTargetType()]) : checked;
     });
@@ -286,11 +286,10 @@ export function resolveFormedCsharpSourceCallResultWithState(
     return undefined;
   }
   return completeCsharpSourceDeclarationCallAdoption(host, completionDeclaration, retain(resolveSourceCallSelectedType(
-    source,
+    input.contract,
     declaration,
     result.authoredTypeNode,
     result.selectedReturnType,
-    sourceFile,
     state,
   )));
 }

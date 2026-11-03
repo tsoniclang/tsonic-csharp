@@ -16,14 +16,15 @@ import { resolveTypeParameter } from "./source-evidence.js";
 import { resolveCsharpProjectionArguments } from "./projection-arguments.js";
 import { getCsharpClassFactory } from "../../../../target-model/types/carriers/class-factories.js";
 import { csharpSourceTypeParameter } from "../../../../source/extension/type-parameters.js";
-import { bindCsharpSourceDeclarationArguments, bindCsharpSourceTypeArguments } from "./generic-arguments.js";
+import { bindCsharpSourceDeclarationArguments, bindCsharpSourceTypeArgumentsSource,
+  resolveFormedCsharpSourceTypeArguments } from "./generic-arguments.js";
 import { getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
 import { completeCsharpSourceCallInference, type CsharpSourceCallInference } from "./call-inference.js";
 import { completeCsharpSourceCallableTypeSource, type CsharpSourceCallableTypeInput,
   type CsharpSourceCallableTypeCompletion } from "./call-type-source.js";
 import type { CsharpSourceCallReceiverInput, CsharpSourceCallReceiverCompletion } from "./receiver-completions.js";
 import { formCsharpSourceCallConstructionSource } from "./expression-source.js";
-import { formCsharpSourceCallContractSource } from "./call-contracts.js";
+import { formCsharpSourceCallContractSource, type CsharpSourceCallContractSource } from "./call-contracts.js";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 
 export function resolveSourceCallInstantiation(
@@ -157,15 +158,24 @@ export function resolveSourceCallInstantiation(
 }
 export function resolveSourceCallSelectedType(
   scope: CsharpTypeResolutionScope,
-  source: ResolvedSourceCallInfo,
+  input: CsharpSourceCallContractSource,
   declaration: Node | undefined,
   authoredTypeNode: Node | undefined,
   selectedType: Type | undefined,
-  selectedSourceFile: SourceFile,
   state: CsharpTypeResolutionState,
   excludedSourceArgumentIndexes?: ReadonlySet<number>,
 ): TargetTypeRef | undefined {
   const { host, resolveAuthoredAndSelectedSourceType, resolveNodeWithState, resolveSourceCallInstantiation, resolveSourceCallReceiverTargetType } = scope;
+  if (input.callableSource === undefined || input.callableSource.source !== input.source ||
+      input.callableSource.sourceFile !== input.sourceFile || !("receiverTypeArguments" in input)) {
+    return failTargetAnalysisInvariant("tsonic-csharp", "Selected call types require their exact retained contract source.");
+  }
+  const { source, sourceFile: selectedSourceFile, receiverTypeArguments } = input;
+  const receiver = source.sourceReceiver ?? source.sourceCalleeAccess?.receiver;
+  if (receiver === undefined ? receiverTypeArguments !== undefined : receiverTypeArguments === undefined ||
+      receiverTypeArguments.type !== receiver.type || receiverTypeArguments.queries !== input.callableSource.queries) {
+    return failTargetAnalysisInvariant("tsonic-csharp", "Selected call types require their exact checked receiver arguments.", source.call);
+  }
   const instantiation = resolveSourceCallInstantiation(
     source,
     selectedSourceFile,
@@ -177,9 +187,8 @@ export function resolveSourceCallSelectedType(
   if (instantiation === undefined) {
     return undefined;
   }
-  const receiver = source.sourceReceiver ?? source.sourceCalleeAccess?.receiver;
   if (receiver !== undefined && (declaration === undefined || !host.navigation.isProjectDeclaration(declaration))) {
-    const bound = bindCsharpSourceTypeArguments(scope, receiver.type, host.semantics(selectedSourceFile), state);
+    const bound = resolveFormedCsharpSourceTypeArguments(scope, bindCsharpSourceTypeArgumentsSource(receiverTypeArguments!, state));
     if (bound === undefined) return undefined;
     state = bound;
   }
