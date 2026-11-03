@@ -5,10 +5,11 @@ import { csharpProjectedType } from "../../../../target-model/types/projections.
 import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
 import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { CsharpTypeResolutionState } from "./model.js";
-import { csharpBoundSourceType, csharpSourceBindings } from "./type-bindings.js";
+import { csharpSourceBindings } from "./type-bindings.js";
 import { nextState } from "./state.js";
 import { resolveDirectSourceFacts } from "./semantic-types.js";
 import { resolveEvidenceNodesToCommonTarget } from "./source-references.js";
+import { formCsharpSemanticConditionalSource, resolveFormedCsharpSemanticConditionalType } from "./semantic-conditional-source.js";
 
 export function resolveCsharpConditionalApplication(
   scope: CsharpTypeResolutionScope,
@@ -64,24 +65,12 @@ export function resolveCsharpConditionalApplication(
 export function resolveCsharpSemanticConditionalType(
   scope: CsharpTypeResolutionScope, type: Type, queries: SourceFileSemantics, state: CsharpTypeResolutionState,
 ): { readonly type: TargetTypeRef | undefined } | undefined {
-  let application = queries.types.aliasApplication(type);
-  if (application?.kind !== "conditional" || csharpConditionalDeclaration(scope, application) === undefined) return undefined;
-  const selectedSources = application.bindings.map(binding => csharpBoundSourceType(binding.argument, queries, state)?.sourceType ?? binding.argument);
-  if (selectedSources.some((argument, index) => argument !== application!.bindings[index]!.argument)) {
-    const declaration = csharpConditionalDeclaration(scope, application);
-    if (declaration === undefined) return { type: undefined };
-    application = queries.types.instantiateAlias(declaration, selectedSources);
-    if (application === undefined) return { type: undefined };
-  }
-  const arguments_ = application.bindings.map(binding =>
-    csharpBoundSourceType(binding.argument, queries, state)?.targetType ??
-    scope.resolveTypeWithState(binding.argument, queries.sourceFile, nextState(state)));
-  return { type: arguments_.some(argument => argument === undefined) ? undefined
-    : resolveCsharpConditionalApplication(scope, application, arguments_ as readonly TargetTypeRef[], queries, state) };
+  return resolveFormedCsharpSemanticConditionalType(scope,
+    formCsharpSemanticConditionalSource(scope, type, queries, state, queries.types.aliasApplication(type)));
 }
 
 export function csharpConditionalDeclaration(
-  scope: CsharpTypeResolutionScope,
+  scope: Pick<CsharpTypeResolutionScope, "host">,
   application: TypeAliasApplicationInfo,
 ): Node | undefined {
   const { ast, navigation } = scope.host;

@@ -2,7 +2,7 @@ import type { CsharpTypeResolutionScope } from "./scope.js";
 import { resolveCsharpConstructorValueType } from "./constructors.js";
 import { sourceTypeSyntaxIsCompositional } from "@tsonic/target-api/source";
 import { completeCsharpBoundSourceType } from "./type-bindings.js";
-import { resolveCsharpSemanticConditionalType } from "./conditional-types.js";
+import { resolveFormedCsharpSemanticConditionalType } from "./semantic-conditional-source.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import type { ExtensionFactSubject, SourceFile, Type } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
@@ -49,7 +49,11 @@ export function resolveFormedCsharpSemanticTypeSource(
   if (source.nonPrimitive) return csharpObjectTargetType();
   const bound = completeCsharpBoundSourceType(source.binding, state);
   if (bound !== undefined) return bound.targetType;
-  const conditional = resolveCsharpSemanticConditionalType(scope, type, queries, state);
+  if (source.conditional === undefined || source.conditional.type !== type || source.conditional.queries !== queries ||
+      source.conditional.state !== state || source.conditional.sourceApplication !== source.aliasApplication) {
+    return failTargetAnalysisInvariant("tsonic-csharp", "A semantic root requires its exact retained conditional Source.", sourceFile);
+  }
+  const conditional = resolveFormedCsharpSemanticConditionalType(scope, source.conditional);
   if (conditional !== undefined) return conditional.type;
   const subjects = source.subjects;
   const direct = resolveFormedDirectSourceFacts(source.direct);
@@ -84,7 +88,7 @@ export function resolveFormedCsharpSemanticTypeSource(
     return failTargetAnalysisInvariant("tsonic-csharp", "A semantic transformation cannot invent a component Source.", sourceFile);
   }
   if (transformation !== undefined) return undefined;
-  const application = queries.types.aliasApplication(type);
+  const application = source.aliasApplication;
   if (application?.kind === "direct" && sourceTypeSyntaxIsCompositional(host.ast, application.typeNode) &&
     host.navigation.isProjectDeclaration(application.declaration)) {
     const typeName = host.ast.name(application.declaration);
