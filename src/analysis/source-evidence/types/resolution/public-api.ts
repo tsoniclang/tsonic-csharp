@@ -449,8 +449,11 @@ export function withSourceTargetBindings(
         closedInputContract(node) {
           return host.representations.closedInputContract(node);
         },
-        sourceCallable(source, sourceFile, selection) {
-          return host.representations.sourceCallable(source, sourceFile, selection);
+        sourceCallableSource(source, sourceFile) {
+          return host.representations.sourceCallableSource(source, sourceFile);
+        },
+        completeSourceCallable(source, selection) {
+          return host.representations.completeSourceCallable(source, selection);
         },
       },
     }),

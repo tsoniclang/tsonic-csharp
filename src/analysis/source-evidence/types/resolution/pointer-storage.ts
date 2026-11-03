@@ -22,18 +22,25 @@ function pointerStorageStates(
   if (owner === undefined) return [{ ...state, sourceStorageBindings: bindings }];
   const selected = host.sourceStorage.boundActivationsFor(owner, bindings);
   if (selected.kind === "unresolved") return undefined;
-  const states: CsharpTypeResolutionState[] = [];
-  for (const activation of selected.activations) {
-    if (activation.kind === "declaration") {
-      states.push({ ...state, sourceStorageBindings: activation.bindings });
-      continue;
-    }
-    const callerStates = pointerStorageStates(scope, activation.invocation, activation.callerBindings, nextState(state));
-    if (callerStates === undefined) return undefined;
+  const inputs = selected.activations.map(activation => {
+    if (activation.kind === "declaration") return Object.freeze({ kind: "declaration" as const, activation });
     const queries = host.semanticsFor(activation.invocation);
     const call = queries.operations.call(activation.invocation);
-    if (call === undefined) return undefined;
-    const callable = host.representations.sourceCallable(call, queries.sourceFile, "checked");
+    return Object.freeze({ kind: "invocation" as const, activation, queries, call,
+      callableSource: call === undefined ? undefined : host.representations.sourceCallableSource(call, queries.sourceFile),
+    });
+  });
+  const states: CsharpTypeResolutionState[] = [];
+  for (const input of inputs) {
+    if (input.kind === "declaration") {
+      states.push({ ...state, sourceStorageBindings: input.activation.bindings });
+      continue;
+    }
+    const { activation, queries, call, callableSource } = input;
+    const callerStates = pointerStorageStates(scope, activation.invocation, activation.callerBindings, nextState(state));
+    if (callerStates === undefined) return undefined;
+    if (call === undefined || callableSource === undefined) return undefined;
+    const callable = host.representations.completeSourceCallable(callableSource, "checked");
     for (const callerState of callerStates) {
       const vector = scope.resolveSourceCallInstantiation(call, queries.sourceFile, nextState(callerState),
         callable?.nativeSignature.methodTypeParameterIdentities, callable);

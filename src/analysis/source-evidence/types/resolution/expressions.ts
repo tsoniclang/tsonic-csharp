@@ -25,7 +25,9 @@ import { csharpAbsenceTargetType, combineCsharpTargetUnionMembers, isCsharpJsVal
 import { getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
 import { resolveCsharpContextualLiteralCarrier } from "./contextual-literals.js";
 import { resolveCsharpSourceLiteralTargetType } from "../../../../policy/conversions/source-literals.js";
-import { formCsharpSelectedExpressionSource, type CsharpSelectedExpressionSource } from "./expression-source.js";
+import { formCsharpSelectedExpressionSource, formCsharpSourceOwnedConstructionSource,
+  type CsharpSelectedExpressionSource, type CsharpSourceOwnedConstructionSource } from "./expression-source.js";
+import { formCsharpSourceCallContractSource } from "./call-contracts.js";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { ResolvedSourceCallInfo } from "../../../../target-model/records/calls/source-calls.js";
 
@@ -51,7 +53,7 @@ export function resolveFormedCsharpSelectedExpressionResult(
   scope: CsharpTypeResolutionScope,
   source: CsharpSelectedExpressionSource,
 ): CsharpSourceCallResult | undefined {
-  const { host, policy, optionalAccessTargetType, resolveSourceOwnedConstructionResult } = scope;
+  const { host, policy, optionalAccessTargetType } = scope;
   const { node, queries, state } = source;
   if (source.kind === "transparent") {
     return scope.resolveNodeValueWithState(source.expression, queries.sourceFile, nextState(state));
@@ -67,7 +69,15 @@ export function resolveFormedCsharpSelectedExpressionResult(
       return refineCsharpSourceValueResult(selected, optionalAccessTargetType(selected?.selectedType, selection.source.optionalChain));
     }
     if (selection.kind === "source-owned") {
-      if (source.isNew) return csharpSourceValueResult(resolveSourceOwnedConstructionResult(selection.source, queries, state));
+      if (source.isNew) {
+        const construction = source.construction;
+        if (construction === undefined || construction.contract !== source.contract ||
+          construction.contract.source !== selection.source || construction.queries !== queries) {
+          return failTargetAnalysisInvariant("tsonic-csharp",
+            "Construction completion requires its exact retained callable source.", node);
+        }
+        return csharpSourceValueResult(resolveFormedCsharpSourceOwnedConstructionResult(scope, construction, state));
+      }
       const selected = resolveSelectedCallResult(scope, source, selection.source, undefined);
       return refineCsharpSourceValueResult(selected, optionalAccessTargetType(selected?.selectedType, selection.source.optionalChain));
     }
@@ -83,7 +93,8 @@ function resolveSelectedCallResult(
   nativeType: TargetTypeRef | undefined,
 ): CsharpSourceCallResult | undefined {
   const input = source.resultSource;
-  if (input === undefined || input.source !== checked || input.sourceFile !== source.queries.sourceFile) {
+  if (input === undefined || input.contract !== source.contract || input.source !== checked ||
+    input.sourceFile !== source.queries.sourceFile) {
     return failTargetAnalysisInvariant("tsonic-csharp",
       "Call result completion requires its exact retained checked occurrence.", source.node);
   }
@@ -463,30 +474,49 @@ export function resolveSelectedReceiverTargetType(
 }
 
 export function resolveSourceOwnedConstructionResult(
-  { host, projectSourceDeclarationTargetType, resolveSourceCallResultWithState,
-    resolveNodeWithState, resolveSourceCallInstantiation }: CsharpTypeResolutionScope,
+  scope: CsharpTypeResolutionScope,
   source: NonNullable<
     ReturnType<SourceFileSemantics["operations"]["call"]>
   >,
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
+  const contract = formCsharpSourceCallContractSource(scope, source, queries.sourceFile);
+  const declaration = contract.callableSource.constructorDeclaration;
+  const projectDeclaration = declaration !== undefined && scope.host.navigation.isProjectDeclaration(declaration);
+  return resolveFormedCsharpSourceOwnedConstructionResult(scope,
+    formCsharpSourceOwnedConstructionSource(scope, contract, queries, projectDeclaration), state);
+}
+
+function resolveFormedCsharpSourceOwnedConstructionResult(
+  { host, projectSourceDeclarationTargetType, resolveFormedSourceCallResultWithState,
+    resolveNodeWithState, resolveSourceCallInstantiation }: CsharpTypeResolutionScope,
+  input: CsharpSourceOwnedConstructionSource,
+  state: CsharpTypeResolutionState,
+): TargetTypeRef | undefined {
+  const { contract, queries } = input;
+  const { source, sourceFile, callableSource } = contract;
+  if (callableSource.source !== source || callableSource.sourceFile !== sourceFile || queries.sourceFile !== sourceFile) {
+    return failTargetAnalysisInvariant("tsonic-csharp",
+      "Construction completion requires its exact checked callable occurrence.", source.call);
+  }
   const factory = getCsharpClassFactory(resolveNodeWithState(source.sourceCallee.expression, queries.sourceFile, nextState(state)));
   if (factory !== undefined) {
-    const callable = host.representations.sourceCallable(source, queries.sourceFile, "checked");
+    const callable = host.representations.completeSourceCallable(callableSource, "checked");
     const instantiation = resolveSourceCallInstantiation(source, queries.sourceFile, nextState(state), undefined, callable);
     return instantiation === undefined ? undefined : substituteTargetTypeParameters(factory.instance, instantiation.substitutions);
   }
-  const declaration = source.sourceCallee.selectedDeclaration;
-  if (
-    declaration === undefined ||
-    !host.ast.is.IsClassDeclaration(declaration) ||
-    !host.navigation.isProjectDeclaration(declaration)
-  ) {
-    return resolveSourceCallResultWithState(source, queries.sourceFile, state, undefined)?.selectedType;
+  const declaration = callableSource.constructorDeclaration;
+  if (declaration === undefined || !input.projectDeclaration) {
+    const result = input.resultSource;
+    if (result === undefined || result.contract !== contract) {
+      return failTargetAnalysisInvariant("tsonic-csharp",
+        "Construction fallback requires its exact retained result request.", source.call);
+    }
+    return resolveFormedSourceCallResultWithState(result, state, undefined)?.selectedType;
   }
   const selectedArguments = source.sourceSelectedMethodTypeArguments ?? [];
-  const callable = host.representations.sourceCallable(source, queries.sourceFile, "checked");
+  const callable = host.representations.completeSourceCallable(callableSource, "checked");
   const instantiation = resolveSourceCallInstantiation(source, queries.sourceFile, nextState(state), undefined, callable);
   return instantiation === undefined
     ? undefined

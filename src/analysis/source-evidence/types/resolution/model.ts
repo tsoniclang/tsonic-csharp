@@ -27,9 +27,12 @@ export interface CsharpPlanningRepresentationQueries {
   requiresClosedStructuralContract(type: TargetTypeRef): boolean;
   scopedTargetType(node: Node): TargetTypeRef | undefined;
   closedInputContract(node: Node): SourceCallableSourceContract | undefined;
-  sourceCallable(
+  sourceCallableSource(
     source: ResolvedSourceCallInfo,
     sourceFile: SourceFile,
+  ): import("../../../program/source-callable-source.js").CsharpSourceCallableSource;
+  completeSourceCallable(
+    source: import("../../../program/source-callable-source.js").CsharpSourceCallableSource,
     selection: "checked" | "implementation",
   ): SourceCallableContract | undefined;
 }

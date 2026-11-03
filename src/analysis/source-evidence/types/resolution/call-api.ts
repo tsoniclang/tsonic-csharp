@@ -3,6 +3,7 @@ import type { SourceFile } from "@tsonic/tsts";
 import type { CsharpTypeResolutionState } from "./model.js";
 import type { CsharpSourceCallParameterReadDomain, ResolvedSourceCallInfo } from "../../../../target-model/records/calls/source-calls.js";
 import type { CsharpSourceCallResult } from "../../../../target-model/operations/source-call-results.js";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { completeCsharpSourceDeclarationCallAdoption, selectCsharpSourceCallResult } from "./call-results.js";
 
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
@@ -13,7 +14,8 @@ import { nextState } from "./state.js";
 
 import { getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
 
-import type { CsharpSourceCallContractSelection } from "./call-contracts.js";
+import { formCsharpSourceCallContractSource, resolveFormedSourceCallContract,
+  type CsharpSourceCallContractSelection } from "./call-contracts.js";
 import { csharpSourceCallArgumentParameter } from "../../../../policy/types/callables/source-callable-contract.js";
 import { getCsharpRuntimeUnionArms } from "../../../../target-model/types/carriers/runtime-carriers.js";
 import { selectCsharpConversion } from "../../../../policy/conversions/core.js";
@@ -49,7 +51,8 @@ export function resolveSourceCallParameter(
   if (domain === "declared" && source.sourceSelectedSignatureKind !== "resolved") return undefined;
   return resolveSelectedSourceCallParameter(scope, source, parameterIndex, sourceFile,
     domain === "declared" ? Object.freeze({ kind: "declaration",
-      contract: scope.host.representations.sourceCallable(source, sourceFile, "checked") })
+      contract: scope.host.representations.completeSourceCallable(
+        scope.host.representations.sourceCallableSource(source, sourceFile), "checked") })
       : scope.resolveSourceCallContract(source, sourceFile, { depth: 0 }, "checked"));
 }
 
@@ -221,17 +224,23 @@ export function resolveSourceCallResultWithState(
   nativeType: TargetTypeRef | undefined,
 ): CsharpSourceCallResult | undefined {
   return resolveFormedCsharpSourceCallResultWithState(scope,
-    formCsharpSourceCallResultSource(scope, source, sourceFile), state, nativeType);
+    formCsharpSourceCallResultSource(scope, formCsharpSourceCallContractSource(scope, source, sourceFile)), state, nativeType);
 }
 
 export function resolveFormedCsharpSourceCallResultWithState(
-  { host, resolveSourceCallContract, resolveSourceCallableContractType, resolveSourceCallSelectedType, sourceCallableTypeParametersMatch,
-    resolveSelectedValueWithState, resolveSourceCallInstantiation, resolveNodeWithState }: CsharpTypeResolutionScope,
+  scope: CsharpTypeResolutionScope,
   input: CsharpSourceCallResultSource,
   state: CsharpTypeResolutionState,
   nativeType: TargetTypeRef | undefined,
 ): CsharpSourceCallResult | undefined {
+  const { host, resolveSourceCallableContractType, resolveSourceCallSelectedType, sourceCallableTypeParametersMatch,
+    resolveSelectedValueWithState, resolveSourceCallInstantiation, resolveNodeWithState } = scope;
   const { source, sourceFile, queries, declaration, result } = input;
+  if (input.contract.source !== source || input.contract.sourceFile !== sourceFile ||
+    input.contract.callableSource.queries !== queries) {
+    return failTargetAnalysisInvariant("tsonic-csharp",
+      "Call result completion requires its exact retained callable source.", source.call);
+  }
   const access = source.sourceCalleeAccess;
   if (nativeType === undefined && access?.kind === "property") {
     const receiver = resolveSelectedValueWithState(access.receiver.expression, access.receiver.type, sourceFile, nextState(state));
@@ -258,7 +267,7 @@ export function resolveFormedCsharpSourceCallResultWithState(
     }
   }
   const completionDeclaration = source.sourceSelectedSignatureKind === "resolved"
-    ? queries.declarations.signatureDeclaration(source.selectedSignature) : undefined;
+    ? input.contract.callableSource.checked.declaration : undefined;
   const retain = (nativeType: TargetTypeRef | undefined): CsharpSourceCallResult | undefined => {
     const selected = selectCsharpSourceCallResult(host, nativeType, () => {
       const checked = result === undefined ? undefined : resolveSourceCallSelectedType(source, declaration,
@@ -269,7 +278,7 @@ export function resolveFormedCsharpSourceCallResultWithState(
     return selected;
   };
   if (nativeType !== undefined) return completeCsharpSourceDeclarationCallAdoption(host, completionDeclaration, retain(nativeType));
-  const selection = resolveSourceCallContract(source, sourceFile, state, "implementation");
+  const selection = resolveFormedSourceCallContract(scope, input.contract, state, "implementation");
   if (selection.kind === "rejected") return undefined;
   const callable = selection.contract;
   if (callable !== undefined) {
