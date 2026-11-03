@@ -7,6 +7,7 @@ import type { getCsharpClassFactory } from "../../../../target-model/types/carri
 import type { CsharpTypeResolutionState } from "./model.js";
 import type { CsharpTypeResolutionScope } from "./scope.js";
 import { nextState } from "./state.js";
+import type { CsharpSourceOwnedConstructionSource } from "./expression-source.js";
 
 export interface CsharpSelectedReceiverInput {
   readonly receiver: { readonly expression?: Node; readonly type?: Type } | undefined;
@@ -26,6 +27,7 @@ export interface CsharpSourceCallReceiverInput {
   readonly source: ResolvedSourceCallInfo;
   readonly sourceFile: SourceFile;
   readonly state: CsharpTypeResolutionState;
+  readonly construction: CsharpSourceOwnedConstructionSource | undefined;
 }
 
 export type CsharpSourceCallReceiverCompletion = {

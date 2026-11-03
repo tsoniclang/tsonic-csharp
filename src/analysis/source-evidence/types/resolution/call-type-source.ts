@@ -9,6 +9,7 @@ import type { CsharpTypeResolutionState } from "./model.js";
 import type { CsharpTypeResolutionScope } from "./scope.js";
 import { nextState } from "./state.js";
 import type { CsharpSourceCallReceiverInput, CsharpSourceCallReceiverCompletion } from "./receiver-completions.js";
+import type { CsharpSourceOwnedConstructionSource } from "./expression-source.js";
 
 export interface CsharpSourceCallableTypeInput {
   readonly source: ResolvedSourceCallInfo;
@@ -17,6 +18,7 @@ export interface CsharpSourceCallableTypeInput {
   readonly sourceFile: SourceFile;
   readonly state: CsharpTypeResolutionState;
   readonly excludedSourceArgumentIndexes: ReadonlySet<number> | undefined;
+  readonly construction: CsharpSourceOwnedConstructionSource | undefined;
 }
 
 type Instantiation = NonNullable<ReturnType<CsharpTypeResolutionScope["resolveSourceCallInstantiation"]>>;
@@ -68,7 +70,8 @@ export function* completeCsharpSourceCallableTypeSource(
   const instantiation = instantiated.instantiation;
   if (instantiation === undefined) return undefined;
   const substituted = substituteTargetTypeParameters(input.type, instantiation.substitutions);
-  const receiverInput = Object.freeze({ source: input.source, sourceFile: input.sourceFile, state: input.state });
+  const receiverInput = Object.freeze({ source: input.source, sourceFile: input.sourceFile, state: input.state,
+    construction: input.construction });
   const receiverRequest = Object.freeze({ kind: "receiver" as const, input, instantiation, substituted, receiverInput });
   const completedReceiver = yield receiverRequest;
   if (completedReceiver.request !== receiverRequest || completedReceiver.kind !== "receiver") {

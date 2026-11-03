@@ -7,6 +7,7 @@ import { csharpSourceCallArgumentParameter } from "../../../../policy/types/call
 import type { CsharpSourceCallContractSelection, CsharpSourceCallContractSource } from "./call-contracts.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import type { CsharpSourceCallableTypeInput, CsharpSourceCallableTypeCompletion } from "./call-type-source.js";
+import type { CsharpSourceOwnedConstructionSource } from "./expression-source.js";
 
 type SelectedContract = Exclude<CsharpSourceCallContractSelection, { readonly kind: "rejected" }>;
 type NativeParameter = NonNullable<ReturnType<typeof csharpSourceCallArgumentParameter>>;
@@ -16,6 +17,7 @@ export interface CsharpSourceCallArgumentAssociation {
   readonly binding: ResolvedSourceCallInfo["sourceArgumentBindings"][number];
   readonly checkedParameter: ResolvedSourceCallInfo["sourceSelectedSignatureParameters"][number];
   readonly excludedSourceArgumentIndexes: ReadonlySet<number> | undefined;
+  readonly construction: CsharpSourceOwnedConstructionSource | undefined;
 }
 
 export type CsharpSourceCallArgumentParameterRequest = {
@@ -50,12 +52,15 @@ export type CsharpSourceCallArgumentParameterCompletion = {
 export function* completeCsharpSourceCallArgumentParameterSource(
   input: CsharpSourceCallContractSource,
   binding: ResolvedSourceCallInfo["sourceArgumentBindings"][number],
+  construction: CsharpSourceOwnedConstructionSource | undefined,
   excludedSourceArgumentIndexes?: ReadonlySet<number>,
 ): Generator<CsharpSourceCallArgumentParameterRequest, CsharpSourceCallArgumentParameterCompletion | undefined,
   CsharpCompletedSourceCallArgumentParameterRequest> {
   const parameter = input.source.sourceSelectedSignatureParameters[binding.sourceParameterIndex];
   if (parameter === undefined) return undefined;
-  const association = Object.freeze({ source: input, binding, checkedParameter: parameter, excludedSourceArgumentIndexes });
+  if (construction !== undefined && construction.contract !== input) return failTargetAnalysisInvariant("tsonic-csharp",
+    "Argument completion requires its exact retained construction source.", input.source.call);
+  const association = Object.freeze({ source: input, binding, checkedParameter: parameter, excludedSourceArgumentIndexes, construction });
   const contractRequest = Object.freeze({ kind: "contract" as const, association, state: Object.freeze({ depth: 0 }) });
   const selected = yield contractRequest;
   if (selected.request !== contractRequest || selected.kind !== "contract") return failTargetAnalysisInvariant("tsonic-csharp",
@@ -76,7 +81,7 @@ export function* completeCsharpSourceCallArgumentParameterSource(
     if (!parameters.matches) return undefined;
     const state = Object.freeze({ depth: 0 });
     const typeInput = Object.freeze({ source: input.source, callable, type: contractedParameter.targetParameter.type,
-      sourceFile: input.sourceFile, state, excludedSourceArgumentIndexes });
+      sourceFile: input.sourceFile, state, excludedSourceArgumentIndexes, construction });
     const typeRequest = Object.freeze({ kind: "contracted" as const, association, selection, callable,
       parameter: contractedParameter, state, typeInput });
     const completed = yield typeRequest;

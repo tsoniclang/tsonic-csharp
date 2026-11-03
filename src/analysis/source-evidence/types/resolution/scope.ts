@@ -33,6 +33,7 @@ import type { CsharpSourceCallInference } from "./call-inference.js";
 import type { CsharpSourceCallableTypeInput, CsharpSourceCallableTypeCompletion } from "./call-type-source.js";
 import type { CsharpSelectedReceiverInput, CsharpSelectedReceiverCompletion,
   CsharpSourceCallReceiverInput, CsharpSourceCallReceiverCompletion } from "./receiver-completions.js";
+import type { CsharpSourceOwnedConstructionSource } from "./expression-source.js";
 export interface CsharpTypeResolutionScope {
   nodeQuerySource(node: Node | undefined, sourceFile?: SourceFile): CsharpNodeQuerySource;
   completeNodeQuery(source: CsharpNodeQuerySource): CsharpNodeTypeResolution | undefined;
@@ -197,11 +198,8 @@ export interface CsharpTypeResolutionScope {
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined;
   completeSelectedReceiver(input: CsharpSelectedReceiverInput): CsharpSelectedReceiverCompletion | undefined;
-  resolveSourceOwnedConstructionResult(
-  source: NonNullable<
-    ReturnType<SourceFileSemantics["operations"]["call"]>
-  >,
-  queries: SourceFileSemantics,
+  resolveFormedSourceOwnedConstructionResult(
+  source: CsharpSourceOwnedConstructionSource,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined;
   optionalAccessTargetType(

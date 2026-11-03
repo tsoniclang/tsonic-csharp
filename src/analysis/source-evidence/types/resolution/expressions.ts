@@ -25,9 +25,8 @@ import { csharpAbsenceTargetType, combineCsharpTargetUnionMembers, isCsharpJsVal
 import { getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
 import { resolveCsharpContextualLiteralCarrier } from "./contextual-literals.js";
 import { resolveCsharpSourceLiteralTargetType } from "../../../../policy/conversions/source-literals.js";
-import { formCsharpSelectedExpressionSource, formCsharpSourceOwnedConstructionSource,
+import { formCsharpSelectedExpressionSource,
   type CsharpSelectedExpressionSource, type CsharpSourceOwnedConstructionSource } from "./expression-source.js";
-import { formCsharpSourceCallContractSource } from "./call-contracts.js";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { ResolvedSourceCallInfo } from "../../../../target-model/records/calls/source-calls.js";
 import { completeCsharpSelectedReceiver } from "./receiver-completions.js";
@@ -444,22 +443,7 @@ export function resolveSelectedReceiverTargetType(
   return completeCsharpSelectedReceiver(scope, Object.freeze({ receiver, queries, state }))?.type;
 }
 
-export function resolveSourceOwnedConstructionResult(
-  scope: CsharpTypeResolutionScope,
-  source: NonNullable<
-    ReturnType<SourceFileSemantics["operations"]["call"]>
-  >,
-  queries: SourceFileSemantics,
-  state: CsharpTypeResolutionState,
-): TargetTypeRef | undefined {
-  const contract = formCsharpSourceCallContractSource(scope, source, queries.sourceFile);
-  const declaration = contract.callableSource.constructorDeclaration;
-  const projectDeclaration = declaration !== undefined && scope.host.navigation.isProjectDeclaration(declaration);
-  return resolveFormedCsharpSourceOwnedConstructionResult(scope,
-    formCsharpSourceOwnedConstructionSource(scope, contract, queries, projectDeclaration), state);
-}
-
-function resolveFormedCsharpSourceOwnedConstructionResult(
+export function resolveFormedCsharpSourceOwnedConstructionResult(
   { host, projectSourceDeclarationTargetType, resolveFormedSourceCallResultWithState,
     resolveNodeWithState, resolveSourceCallInstantiation }: CsharpTypeResolutionScope,
   input: CsharpSourceOwnedConstructionSource,
