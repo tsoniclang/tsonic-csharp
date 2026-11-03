@@ -12,24 +12,21 @@ export interface CsharpLiteralContext {
   readonly declarations: readonly Node[];
   readonly source: Node;
   readonly returnedFrom?: Node;
-}
-
-export interface CsharpLiteralCreationSource {
-  readonly expression: Node;
-  readonly queries: SourceFileSemantics;
-  readonly contexts: readonly CsharpLiteralConstructionContext[];
-  readonly uncontextualizedArguments: readonly NonNullable<CsharpLiteralConstructionContext["argument"]>[];
-  readonly untypedReturns: readonly Node[];
-  readonly declarations: readonly Node[];
-  readonly blocked: boolean;
-}
-
-export interface CsharpLiteralConstructionContext extends CsharpLiteralContext {
   readonly argument?: {
     readonly source: ResolvedSourceCallInfo;
     readonly correspondence: NonNullable<ReturnType<typeof sourceCallArgumentCorrespondences>>[number];
     readonly excludedSourceArgumentIndexes: ReadonlySet<number>;
   };
+}
+
+export interface CsharpLiteralCreationSource {
+  readonly expression: Node;
+  readonly queries: SourceFileSemantics;
+  readonly contexts: readonly CsharpLiteralContext[];
+  readonly uncontextualizedArguments: readonly NonNullable<CsharpLiteralContext["argument"]>[];
+  readonly untypedReturns: readonly Node[];
+  readonly declarations: readonly Node[];
+  readonly blocked: boolean;
 }
 
 export function selectCsharpLiteralCreationContext(
@@ -45,6 +42,7 @@ export function selectCsharpLiteralCreationContext(
     context.argument?.correspondence.binding !== first.argument?.correspondence.binding ||
     context.returnedFrom !== first.returnedFrom)) return undefined;
   return { authority: first.authority, component: first.component, declarations: first.declarations, source: first.source,
+    ...(first.argument === undefined ? {} : { argument: first.argument }),
     ...(first.returnedFrom === undefined ? {} : { returnedFrom: first.returnedFrom }) };
 }
 
@@ -54,15 +52,15 @@ export function formCsharpLiteralCreationSource(
   host: CsharpLiteralContextHost,
 ): CsharpLiteralCreationSource {
   const { ast, navigation } = host;
-  const uncontextualizedArguments: NonNullable<CsharpLiteralConstructionContext["argument"]>[] = [];
+  const uncontextualizedArguments: NonNullable<CsharpLiteralContext["argument"]>[] = [];
   const untypedReturns: Node[] = [];
-  const observed = (contexts: readonly CsharpLiteralConstructionContext[], declarations: readonly Node[], blocked = false):
+  const observed = (contexts: readonly CsharpLiteralContext[], declarations: readonly Node[], blocked = false):
     CsharpLiteralCreationSource => Object.freeze({ expression, queries,
       contexts: Object.freeze(contexts.map(context => Object.freeze({ ...context,
         declarations: Object.freeze(context.declarations) }))),
       uncontextualizedArguments: Object.freeze(uncontextualizedArguments),
       untypedReturns: Object.freeze(untypedReturns), declarations: Object.freeze(declarations), blocked });
-  const callArgument = (reference: Node, declarations: readonly Node[]): CsharpLiteralConstructionContext["argument"] => {
+  const callArgument = (reference: Node, declarations: readonly Node[]): CsharpLiteralContext["argument"] => {
     const argument = sourceExpressionCallArgument(reference, { ast, semantics: { forNode: host.semanticsFor } });
     if (argument === undefined) return undefined;
     const semantics = host.semanticsFor(argument.call);
@@ -84,7 +82,7 @@ export function formCsharpLiteralCreationSource(
     }
     return Object.freeze({ source, correspondence: bindings[0]!, excludedSourceArgumentIndexes });
   };
-  const selfDerivedArgument = (argument: NonNullable<CsharpLiteralConstructionContext["argument"]>): boolean => {
+  const selfDerivedArgument = (argument: NonNullable<CsharpLiteralContext["argument"]>): boolean => {
     const authoredTypeNode = argument.correspondence.parameter.authoredTypeNode;
     const declared = authoredTypeNode === undefined ? undefined
       : host.semanticsFor(authoredTypeNode).types.authoredType(authoredTypeNode);
@@ -129,7 +127,7 @@ export function formCsharpLiteralCreationSource(
   }
   const declarations = variable?.Initializer === current ? [declaration!] : [];
   const returnContext = (callable: Node, locals: readonly Node[], source: Node,
-    authority: "own" | "later-use"): CsharpLiteralConstructionContext | undefined => {
+    authority: "own" | "later-use"): CsharpLiteralContext | undefined => {
     const argument = callArgument(callable, locals);
     const authoredTypeNode = ast.typeNode(callable);
     if (authoredTypeNode !== undefined) {
@@ -168,7 +166,7 @@ export function formCsharpLiteralCreationSource(
   }
   const flow = navigation.expressionValueFlow(expression);
   const locals = flow.aliasDeclarations.filter(local => ast.typeNode(local) === undefined);
-  const contexts: CsharpLiteralConstructionContext[] = [];
+  const contexts: CsharpLiteralContext[] = [];
   let blocked = false;
   for (const local of flow.aliasDeclarations) {
     if (!ast.is.IsVariableDeclaration(local)) {
