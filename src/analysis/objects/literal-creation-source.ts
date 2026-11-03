@@ -45,9 +45,9 @@ export function selectCsharpLiteralCreationContext(
     context.component.contextualCall !== first.component.contextualCall ||
     context.argument?.correspondence.binding !== first.argument?.correspondence.binding ||
     context.returnedFrom !== first.returnedFrom)) return undefined;
-  return { creation: observed, authority: first.authority, component: first.component, declarations: first.declarations, source: first.source,
+  return Object.freeze({ creation: observed, authority: first.authority, component: first.component, declarations: first.declarations, source: first.source,
     ...(first.argument === undefined ? {} : { argument: first.argument }),
-    ...(first.returnedFrom === undefined ? {} : { returnedFrom: first.returnedFrom }) };
+    ...(first.returnedFrom === undefined ? {} : { returnedFrom: first.returnedFrom }) });
 }
 
 export function formCsharpLiteralCreationSource(
