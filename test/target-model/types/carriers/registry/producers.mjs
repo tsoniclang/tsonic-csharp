@@ -281,6 +281,13 @@ export const producersCarrierRegistry = Object.freeze([
     frozen: false,
   },
   {
+    id: "src/analysis/source-evidence/types/resolution/source-references.ts#resolveFormedCsharpTypeReferenceNode",
+    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
+    declaration: { module: "src/analysis/source-evidence/types/resolution/source-references.ts", symbol: "resolveFormedCsharpTypeReferenceNode" },
+    responsibility: "producers/resolve-type-reference-node",
+    frozen: false,
+  },
+  {
     id: "src/analysis/source-evidence/types/resolution/source-references.ts#resolveCheckerTransformedSourceType",
     kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
     declaration: { module: "src/analysis/source-evidence/types/resolution/source-references.ts", symbol: "resolveCheckerTransformedSourceType" },
@@ -319,6 +326,13 @@ export const producersCarrierRegistry = Object.freeze([
     id: "src/analysis/source-evidence/types/resolution/semantic-types.ts#resolveTypeWithState",
     kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
     declaration: { module: "src/analysis/source-evidence/types/resolution/semantic-types.ts", symbol: "resolveTypeWithState" },
+    responsibility: "producers/resolve-type",
+    frozen: false,
+  },
+  {
+    id: "src/analysis/source-evidence/types/resolution/semantic-types.ts#resolveFormedCsharpSemanticTypeSource",
+    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
+    declaration: { module: "src/analysis/source-evidence/types/resolution/semantic-types.ts", symbol: "resolveFormedCsharpSemanticTypeSource" },
     responsibility: "producers/resolve-type",
     frozen: false,
   },

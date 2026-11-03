@@ -293,7 +293,9 @@ test("array queries never publish an in-progress nested result", () => {
   const file = {};
   const nested = Object.freeze({ kind: "unavailable" });
   const final = Object.freeze({ kind: "rejected", reason: "completed exact selection" });
-  cache.resolveNode({}, file, () => {
+  const unitNode = {};
+  const unitSource = cache.nodeQuerySource(unitNode, file, () => Object.freeze({ node: unitNode, sourceFile: file }));
+  cache.resolveNode(unitSource, () => {
     const selection = cache.resolveArrayLiteral(expression, file, true, () => nested);
     assert.equal(selection === nested, true, "the nested invocation sees its own result without publishing it");
     return { kind: "resolved", sourceResult: csharpSourceValueResult(primitive("int32")) };
