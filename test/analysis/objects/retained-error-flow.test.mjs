@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { Node_Expression } from "@tsonic/target-api/source";
-import { createSourceStorageQuery } from "@tsonic/target-api/analysis";
+import { createSourceErrorStorageDemandQuery, createSourceStorageQuery } from "@tsonic/target-api/analysis";
 import { requiredStorageSubject } from "../../../../tsonic/test/fixtures/source-navigation.mjs";
 import { nativeRetainedErrorFlowSource } from "../../../../tsonic/test/fixtures/native-retained-errors.mjs";
 import { createTsonicPlugin } from "../../../../csharp-nodejs/dist/index.js";
@@ -10,7 +10,7 @@ import {
   analyzeCsharpSource,
   compileCsharpSource,
 } from "../../helpers/direct-csharp-session.mjs";
-import { createCsharpErrorStorageDemandQuery } from "../../../dist/analysis/objects/error-storage-demands.js";
+import { sourceErrorProtocolFixture } from "../../fixtures/dotnet-provider/source-error-bindings.mjs";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/index.js";
 
 test("retained-provider catch reads select exact readonly C# Error flow and observation facts", () => {
@@ -21,7 +21,7 @@ test("retained-provider catch reads select exact readonly C# Error flow and obse
   assert.equal(analysis.diagnostics.length, 0, "C# retained Error analysis has no diagnostics");
   const program = analysis.value;
   const storage = createSourceStorageQuery(source, source.navigation.sourceFiles);
-  const demands = createCsharpErrorStorageDemandQuery(source, storage);
+  const demands = createSourceErrorStorageDemandQuery(source, sourceErrorProtocolFixture(source), storage);
   const { ast } = source;
   const nativeException = providers.findTargetBindingByMetadataName("System.Exception", "ordinary");
   assert.equal(nativeException.kind, "resolved", "the same session's native metadata supplies the exact Exception owner");
@@ -61,7 +61,7 @@ test("retained-provider catch reads select exact readonly C# Error flow and obse
   }
   assert.deepEqual(properties.map(property => property.targetMember.sourceName).sort(), ["message", "name", "stack"]);
   assert.deepEqual(properties.map(property => property.targetMember.id).sort(), [
-    "System.Exception.Message", "Tsonic.CSharp.Runtime.ErrorObject.name", "Tsonic.CSharp.Runtime.ErrorObject.stack",
+    "System.Exception.Message", "System.Exception.StackTrace", "System.Type.Name",
   ]);
   for (const property of properties) {
     assert.equal(property.origin, "source-profile", "Error observation uses the selected source profile");

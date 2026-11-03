@@ -5,6 +5,7 @@ import type { CsharpProjectReference } from "../target-model/project/references.
 import type { CsharpProjectClassifications } from "../target-model/project/plan.js";
 import type { CsharpRuntimeSourceProject } from "../target-model/project/runtime.js";
 import { classifyCsharpRuntimeSource, instantiateCsharpRuntimeSources, validateCsharpRuntimeSources } from "../providers/runtime/projects.js";
+import { csharpJsRuntimeSource } from "../providers/runtime/source-projects.js";
 import { canonicalProjectReferences, csharpAssemblyName, csharpNamespace, csharpProjectProperties, projectDiagnostic } from "../options/project.js";
 
 export function classifyCsharpProjectConfiguration(
@@ -73,6 +74,7 @@ export function classifyCsharpProjectConfiguration(
     properties,
     references,
     runtimeSources,
+    hasJsRuntime: runtimeSources.some(source => source.projectPath === csharpJsRuntimeSource.projectPath),
     runtimeProjects: instantiateCsharpRuntimeSources(runtimeSources, configuration.targetFramework, cacheRoot),
   }));
 }

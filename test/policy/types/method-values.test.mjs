@@ -11,7 +11,7 @@ import { csharpDelegateTargetType } from "../../../dist/target-model/types/carri
 import { substituteTargetTypeParameters, substituteObjectShapeFactTargetTypeParameters } from "../../../dist/policy/types/resolution/substitution.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
 import { csharpTypeFromTargetTypeRef } from "../../../dist/backend/planner/types/render.js";
-import { retainCsharpMethodValueContracts, selectCsharpWritableMethodContract } from "../../../dist/analysis/objects/shapes/method-values.js";
+import { retainCsharpMethodValueContracts, resolveCsharpWritableMethodContract } from "../../../dist/analysis/objects/shapes/method-values.js";
 import { csharpCopiedObjectShapeMembers } from "../../../dist/policy/types/objects/method-environments.js";
 import { selectCsharpObjectMemberEmission, selectCsharpObjectMethodSignature } from "../../../dist/policy/types/objects/object-members.js";
 import { csharpOptionalStorageProjection, csharpProjectedType } from "../../../dist/target-model/types/projections.js";
@@ -46,7 +46,7 @@ test("native writable method contracts derive from the unchanged read-only ident
       memberKind: "method", type: optional ? csharpNullableTargetType(signature) : signature,
       ...(optional ? { optional: true } : {}) };
     const base = { targetType: createStructuralObjectShapeTarget([member], undefined, unconstrained, true), members: [member] };
-    const selected = selectCsharpWritableMethodContract(base, [member], unconstrained);
+    const selected = resolveCsharpWritableMethodContract(base, [member], unconstrained);
     assert.equal(selected !== undefined, true, "an exact writable destination has a native derived contract");
     assert.equal(targetTypeRefEquals(selected.targetType, base.targetType), false, "write capability has distinct physical native identity");
     assert.equal(targetTypeRefEquals(selected.implements[0], base.targetType), true, "the writable native contract inherits the same base");
@@ -54,13 +54,13 @@ test("native writable method contracts derive from the unchanged read-only ident
     assert.equal(selected.members[0].methodValueStorage.kind, "delegate", "a native monomorphic slot retains its exact delegate");
     assert.equal(targetTypeRefEquals(selected.members[0].methodValueStorage.type, member.type), true,
       "optional method storage has exactly the original single absence");
-    assert.equal(selectCsharpWritableMethodContract(selected, [selected.members[0]], unconstrained), selected,
+    assert.equal(resolveCsharpWritableMethodContract(selected, [selected.members[0]], unconstrained), selected,
       "selecting an already writable destination is idempotent");
-    assert.equal(selectCsharpWritableMethodContract(base, [], unconstrained), base, "call-only destination remains the exact base");
-    assert.equal(selectCsharpWritableMethodContract(base, [{ ...member }], unconstrained), undefined,
+    assert.equal(resolveCsharpWritableMethodContract(base, [], unconstrained), base, "call-only destination remains the exact base");
+    assert.equal(resolveCsharpWritableMethodContract(base, [{ ...member }], unconstrained), undefined,
       "foreign member identity is rejected rather than matched by spelling");
     const readonly = { ...member, readonly: true };
-    assert.equal(selectCsharpWritableMethodContract({ ...base, members: [readonly] }, [readonly], unconstrained), undefined,
+    assert.equal(resolveCsharpWritableMethodContract({ ...base, members: [readonly] }, [readonly], unconstrained), undefined,
       "the derived native facet cannot override a real readonly source contract");
   }
 });
@@ -121,7 +121,7 @@ test("native write-consuming interfaces require real producer slots and emit rea
   const member = { sourceKey: { kind: "property", name: "read" }, sourceName: "read", targetName: "read",
     memberKind: "method", type: csharpDelegateTargetType("System.Func", [], scalar) };
   const base = { targetType: createStructuralObjectShapeTarget([member], undefined, unconstrained, true), members: [member] };
-  const writable = selectCsharpWritableMethodContract(base, [member], unconstrained);
+  const writable = resolveCsharpWritableMethodContract(base, [member], unconstrained);
   const stored = { ...member, methodValueStorage: { kind: "delegate", type: member.type } };
   const makeProducer = current => ({ targetType: createStructuralObjectShapeTarget([current], [writable.targetType], unconstrained),
     members: [current], implements: [writable.targetType] });
@@ -170,7 +170,7 @@ test("an optional native method keeps its immutable present body distinct from i
   const protocolShape = { targetType: protocol, members: [present] };
   const optional = { ...present, optional: true };
   const base = { targetType: createStructuralObjectShapeTarget([optional], undefined, unconstrained, true), members: [optional] };
-  const writable = selectCsharpWritableMethodContract(base, [optional], unconstrained);
+  const writable = resolveCsharpWritableMethodContract(base, [optional], unconstrained);
   const stored = { ...optional, methodValueStorage: { kind: "protocol", type: csharpNullableTargetType(protocol),
     invocationName: objectShapeMethodInvocationName(optional) } };
   const producer = { targetType: createStructuralObjectShapeTarget([stored], [writable.targetType, protocol], unconstrained),

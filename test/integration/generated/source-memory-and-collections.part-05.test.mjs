@@ -8,7 +8,7 @@ import { valueRecordMemoryProofFiles } from "../../../../tsonic/test/fixtures/va
 import { memoryAbiCapability } from "../../helpers/memory-abi.mjs";
 import { closedGenericDispatchProofFiles, closedGenericDispatchPackageFiles, closedGenericDispatchPackageGraph } from "../../../../tsonic/test/fixtures/closed-generic-dispatch.mjs";
 import { fixedArrayMemoryProofFiles } from "../../../../tsonic/test/fixtures/fixed-array-memory.mjs";
-import { caughtErrorProofFiles } from "../../../../tsonic/test/fixtures/caught-errors.mjs";
+import { nativeCaughtErrorProofFiles } from "../../fixtures/native-error-contracts.mjs";
 import { numberBoxingProof, numberBoxingOutput } from "../../../../tsonic/test/fixtures/number-boxing.mjs";
 import { genericBaseConstructorFiles } from "../../../../tsonic/test/fixtures/generic-base-constructors.mjs";
 import { pointerViewFiles } from "../../../../tsonic/test/fixtures/pointer-views.mjs";
@@ -28,7 +28,7 @@ import { executeCsharpConstruction } from "../../helpers/native-construction.mjs
 
 for (const surface of Array.from([undefined, "js"]).slice(0, 2)){
 test(`caught builtin Errors retain identity and stack in ${surface ?? "native"} source`, { timeout: 300_000 }, () => {
-    executeCsharpConstruction(compileCsharpSource({ surface, sourceText: caughtErrorProofFiles["index.ts"],
-      files: { "failures.ts": caughtErrorProofFiles["failures.ts"] } }), `caught-errors-${surface ?? "native"}`);
+    executeCsharpConstruction(compileCsharpSource({ surface, sourceText: nativeCaughtErrorProofFiles["index.ts"],
+      files: { "failures.ts": nativeCaughtErrorProofFiles["failures.ts"] } }), `caught-errors-${surface ?? "native"}`);
   });
 }

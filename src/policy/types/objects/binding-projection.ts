@@ -1,6 +1,7 @@
 import type {
-  CsharpBindingElementProjection, CsharpBindingPatternSource, CsharpTupleDefaultUse, CsharpDefaultValueContract, CsharpNativeBindingProperty,
+  CsharpBindingElementProjection, CsharpBindingPatternSource, CsharpTupleDefaultUse, CsharpDefaultValueContract,
 } from "../../../target-model/records/objects/value-projections.js";
+import type { CsharpNativePropertyRead } from "../../../target-model/records/program/source-profile-invocations.js";
 
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 
@@ -18,9 +19,9 @@ import { type CsharpArrayBindingCarrier } from "../../../target-model/types/carr
 import { csharpArrayBindingProjectionTarget, resolveCsharpArrayBindingCarrier } from "../collections/binding-array-carrier.js";
 import { csharpTargetTypeRenderingRejection } from "../model/renderability.js";
 
-type NativeBindingPropertyCandidate = Omit<CsharpNativeBindingProperty, "member"> & { readonly member: CsharpTargetMember };
+type NativeBindingPropertyCandidate = Omit<CsharpNativePropertyRead, "member"> & { readonly member: CsharpTargetMember };
 
-function nativeBindingPropertyHasValue(property: NativeBindingPropertyCandidate): property is CsharpNativeBindingProperty {
+function nativeBindingPropertyHasValue(property: NativeBindingPropertyCandidate): property is CsharpNativePropertyRead {
   return property.member.returnType !== undefined;
 }
 
@@ -103,9 +104,12 @@ export function selectCsharpBindingPatternProjection(input: BindingPatternProjec
         return receiver.kind === "instance" && (member.kind === "property" || member.kind === "field")
           ? element({ kind: "native-member", property: input.property }) : unresolved();
       }
-      return receiver.kind === "target-parameter" && receiver.targetParameterIndex === 0 && member.kind === "method" &&
-        member.static === true && member.declaringType !== undefined && member.parameters.length === 1 &&
-        (member.parameters[0]!.passingMode === undefined || member.parameters[0]!.passingMode === "by-value") &&
+      const call = invocation.call;
+      return receiver.kind === "instance" && member.kind === "property" && member.static !== true && member.readonly === true &&
+        member.declaringType !== undefined && member.parameters.length === 0 && call.kind === "method" && call.static !== true &&
+        call.parameters.length === 0 && (call.typeParameters?.length ?? 0) === 0 && call.declaringType !== undefined &&
+        call.returnType !== undefined && targetTypeRefEquals(call.returnType, member.declaringType) &&
+        csharpTargetTypeRenderingRejection(call.declaringType) === undefined &&
         csharpTargetTypeRenderingRejection(member.declaringType) === undefined
         ? element({ kind: "native-member", property: input.property }) : unresolved();
     }

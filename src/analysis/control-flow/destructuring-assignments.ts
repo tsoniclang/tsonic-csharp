@@ -9,7 +9,7 @@ import type { CsharpBindingElementProjection, CsharpBindingPatternSource, Csharp
   CsharpDestructuringAssignmentArrayElement, CsharpDestructuringAssignmentObjectElement,
   CsharpDestructuringAssignmentPattern, CsharpDestructuringAssignmentTarget } from "../../target-model/records/objects/value-projections.js";
 import type { CsharpBindingPatternAnalysisInput } from "./binding-patterns.js";
-import { resolveCsharpNativeBindingProperty } from "./native-binding-properties.js";
+import { resolveCsharpCheckedNativePropertyRead } from "../objects/native-property-reads.js";
 
 interface CheckedAssignmentSource {
   readonly type: Type;
@@ -147,13 +147,13 @@ export function createCsharpDestructuringAssignmentAnalysis(input: CsharpBinding
   ): void {
     const shape = sourceCarrier === undefined ? input.objectShapes.resolveNode(sourceNode, sourceFile)
       : input.objectShapes.resolveTarget(sourceCarrier);
-    const nativeProperties = new Map<Node, ReturnType<typeof resolveCsharpNativeBindingProperty>>();
+    const nativeProperties = new Map<Node, ReturnType<typeof resolveCsharpCheckedNativePropertyRead>>();
     const semantics = input.semanticsFor(pattern.sourceNode);
     for (const element of pattern.elements) {
       if (element.kind !== "object-property") continue;
       const sourceName = assignmentPropertyName(element)?.sourceName;
       if (sourceName === undefined) continue;
-      nativeProperties.set(element.sourceNode, resolveCsharpNativeBindingProperty(checked?.type, sourceName,
+      nativeProperties.set(element.sourceNode, resolveCsharpCheckedNativePropertyRead(checked?.type, sourceName,
         sourceCarrier, semantics, { ...input.conversionPolicy, ast, sourceFacts: input.sourceFacts }));
     }
     if (shape === undefined && ![...nativeProperties.values()].some(property => property.kind === "resolved")) {

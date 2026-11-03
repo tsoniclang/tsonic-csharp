@@ -25,7 +25,7 @@ test("JS source profile closes Error heritage and URI globals", () => {
   assert.deepEqual(compiled.extensionDiagnostics, []);
   assert.deepEqual(compiled.targetDiagnostics, []);
   const source = compiled.artifacts.get("src/Index.cs") ?? "";
-  assert.match(source, /public class NamedError : Tsonic\.CSharp\.Runtime\.Error/u);
+  assert.match(source, /public class NamedError : System\.Exception/u);
   assert.match(source, /public NamedError\(string message\) : base\(message\)/u);
   assert.match(source, /Tsonic\.CSharp\.Js\.Globals\.encodeURIComponent\(value\)/u);
   assert.match(source, /Tsonic\.CSharp\.Js\.Globals\.decodeURIComponent/u);

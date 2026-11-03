@@ -6,13 +6,18 @@ import type { CsharpSourceProfilePropertyPolicyResult } from "../../../target-mo
 import { getCsharpRuntimeUnionArms } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { selectCsharpSourceProfilePropertyForCarrier } from "../source-profiles/selection.js";
+import { sourceProfilePropertyIdentities } from "../source-profiles/policy-selection.js";
+import { selectCsharpErrorNativeProperty } from "../../../policy/operations/source-profiles/error-source-profile.js";
+import { csharpSourceProfileDiagnostic } from "../../../policy/operations/source-profiles/source-profile-policy.js";
 
 export function selectCsharpUnionProperty(
   host: CsharpProviderCallSelectionHost,
   source: ResolvedSourcePropertyAccessInfo,
   sourceFile: SourceFile,
-): CsharpUnionProperty | undefined {
+): CsharpUnionProperty | Extract<CsharpSourceProfilePropertyPolicyResult, { readonly kind: "rejected" }> | undefined {
   if (source.accessMode !== "read" || source.optionalChain || source.callCallee) return undefined;
+  const selectedCarrier = host.types.resolveSelectedValue(source.receiver.expression, source.receiver.type, sourceFile);
+  if (selectedCarrier !== undefined && getCsharpRuntimeUnionArms(selectedCarrier, host.typeDefinitions) === undefined) return undefined;
   const carrier = host.types.resolveStorage(source.receiver.expression, sourceFile);
   const variants = getCsharpRuntimeUnionArms(carrier, host.typeDefinitions);
   if (carrier === undefined || variants === undefined) return undefined;
@@ -21,6 +26,13 @@ export function selectCsharpUnionProperty(
   const indexes = variants.flatMap((variant, index) => guarded === undefined ||
     guarded.some(member => targetTypeRefEquals(member, variant)) ? [index] : []);
   if (indexes.length === 0) return undefined;
+  const identities = sourceProfilePropertyIdentities(host, source, sourceFile);
+  if (indexes.some(index => identities.some(identity =>
+    selectCsharpErrorNativeProperty(host, identity, variants[index]!)?.kind === "resolved"))) return {
+    kind: "rejected",
+    diagnostic: csharpSourceProfileDiagnostic("CSHARP_ERROR_UNION_PROPERTY_UNSUPPORTED", 9100961,
+      "A common inherited native Error property on an un-narrowed runtime union is unsupported in v1; narrow the Error subtype before reading the property.", []),
+  };
   const operations = new Map<number, Extract<CsharpSourceProfilePropertyPolicyResult, { readonly kind: "resolved" }>>();
   for (const index of indexes) {
     const selected = selectCsharpSourceProfilePropertyForCarrier(host, source, sourceFile, variants[index]!);
