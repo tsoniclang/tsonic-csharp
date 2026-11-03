@@ -1,34 +1,33 @@
 import type { CsharpGenericProjectionIndex } from "../../target-model/records/types/type-projections.js";
 import type { Node } from "@tsonic/tsts";
-import { IsTypeSyntaxNode, type TargetSourceProgram } from "@tsonic/target-api/source";
 import { csharpTargetTypeComponents } from "../../target-model/types/components.js";
 import { csharpTypeProjection, getCsharpGenericOptionalParts, type CsharpProjectedType } from "../../target-model/types/projections.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
-import { csharpSourceTypeParameter, csharpSourceTypeParameters } from "../../source/extension/type-parameters.js";
 import { targetTypeRefKey } from "../../target-model/types/equality.js";
 import { csharpFreeTypeParameterIdentities } from "../../target-model/types/generic-references.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
 import { createCsharpTypeProjectionRecords } from "../program/records/types/type-projections.js";
 import type { CsharpOptionalLocalPlan } from "../storage/optional-locals.js";
+import type { CsharpTypeProjectionNodeSource, CsharpTypeProjectionSource } from "./type-projection-source.js";
 
 export function analyzeCsharpTypeProjections(
-  source: TargetSourceProgram, evidence: CsharpSourceEvidenceIndex, operations: CsharpTargetOperationClassifications,
+  source: CsharpTypeProjectionSource, evidence: CsharpSourceEvidenceIndex, operations: CsharpTargetOperationClassifications,
   optionalLocals: Pick<CsharpOptionalLocalPlan, "removesProjection">,
 ): CsharpGenericProjectionIndex {
   const byDeclaration = new Map<Node, Map<string, CsharpProjectedType>>();
   const outerByDeclaration = new Map<Node, Map<string, CsharpProjectedType>>();
-  const { ast } = source;
   const record = (index: Map<Node, Map<string, CsharpProjectedType>>, owner: Node, projection: CsharpProjectedType): void => {
     let parameters = index.get(owner);
     if (parameters === undefined) { parameters = new Map(); index.set(owner, parameters); }
     parameters.set(projection.identity, projection);
   };
-  const visit = (node: Node): void => {
-    if (ast.is.IsTypeAliasDeclaration(node) || ast.is.IsImportDeclaration(node) || evidence.compileTimeMetadata.get(node)) return;
-    const parent = ast.parent(node);
-    const isName = parent !== undefined && ast.name(parent) === node;
-    const declarationOnly = ast.is.IsClassDeclaration(node) || ast.is.IsClassExpression(node) || ast.is.IsInterfaceDeclaration(node);
-    const pending = isName || declarationOnly ? [] : [
+  const excluded = new Map<CsharpTypeProjectionNodeSource, boolean>();
+  for (const occurrence of source.nodes) {
+    const { node } = occurrence;
+    const omitted = evidence.compileTimeMetadata.get(node) || occurrence.parent !== undefined && excluded.get(occurrence.parent) === true;
+    excluded.set(occurrence, omitted);
+    if (omitted) continue;
+    const pending = occurrence.name || occurrence.declarationOnly ? [] : [
       ...[evidence.nodeTargetType.get(node), evidence.storageTargetType.get(node), evidence.bindingProjection.get(node)?.storageCarrier]
         .map(type => ({ type, local: true })),
       ...(operations.selectedCall.get(node)?.sourceTypeArguments ?? []).map(type => ({ type, local: false })),
@@ -51,30 +50,16 @@ export function analyzeCsharpTypeProjections(
       if (optional !== undefined) pending.push({ type: optional.operations, local });
       const free = csharpFreeTypeParameterIdentities(projection.csharpProjection.arguments);
       if (free.size === 0) continue;
-      for (let owner: Node | undefined = node; owner !== undefined; owner = ast.parent(owner)) {
-        const parameters = csharpSourceTypeParameters(owner, ast).flatMap(parameter => {
-          const identity = parameter === undefined ? undefined : csharpSourceTypeParameter(parameter, ast)?.identity;
-          return identity === undefined ? [] : [identity];
-        });
-        if (ast.is.IsTypeAliasDeclaration(owner)) break;
-        if (parameters.some(name => free.has(name))) {
-          record(byDeclaration, owner, projection);
+      for (let scope = occurrence.scopes; scope !== undefined; scope = scope.parent) {
+        if (scope.parameterIdentities.some(identity => free.has(identity))) {
+          record(byDeclaration, scope.declaration, projection);
           break;
         }
-        if (ast.is.IsClassDeclaration(owner) || ast.is.IsClassExpression(owner)) {
-          const queries = source.semantics.forNode(owner);
-          const declared = queries.declarations.declaredType(owner);
-          const outer = declared === undefined ? [] : queries.types.typeArgumentBindings(declared)
-            ?.filter(binding => binding.scope === "outer")
-            .map(binding => csharpSourceTypeParameter(binding.declaration, ast)?.identity) ?? [];
-          if ([...free].every(name => outer.includes(name))) record(outerByDeclaration, owner, projection);
-        }
+        if ([...free].every(identity => scope.capturedParameterIdentities.includes(identity)))
+          record(outerByDeclaration, scope.declaration, projection);
       }
     }
-    if (IsTypeSyntaxNode(ast, node)) return;
-    ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
-  };
-  source.navigation.sourceFiles.forEach(visit);
+  }
   const sorted = (parameters: Map<string, CsharpProjectedType> | undefined): readonly CsharpProjectedType[] =>
     Object.freeze([...(parameters?.values() ?? [])].sort((left, right) => left.name.localeCompare(right.name)));
   const entries = [...new Set([...byDeclaration.keys(), ...outerByDeclaration.keys()])].map(declaration => Object.freeze({

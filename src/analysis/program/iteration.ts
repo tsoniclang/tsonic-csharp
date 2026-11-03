@@ -13,6 +13,7 @@ import { sourceDeclarationHasOnlyTypeUses, sourceDeclarationIsModuleScoped, sour
 import { analyzeCsharpExactLiteralSelections } from "../conversions/literal-plans.js";
 
 import { analyzeCsharpTypeProjections, csharpTypeProjectionIndexesEqual } from "../declarations/type-projections.js";
+import { formCsharpTypeProjectionSource } from "../declarations/type-projection-source.js";
 import { type CsharpGenericProjectionIndex } from "../../target-model/records/types/type-projections.js";
 import { csharpCallableValueType } from "../../policy/types/callables/value-type.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
@@ -80,6 +81,7 @@ export function analyzeCsharpRepresentationIteration(
 ) {
   const requiredRecords: CsharpRequiredRecord[] = [];
   const source = input.source;
+  const projectionSource = formCsharpTypeProjectionSource(source);
   const names = createCsharpSourceNameBuilder(nameHost);
   let typeSystem: CsharpTypeAnalysis | undefined;
   const planningRepresentations: CsharpPlanningRepresentationQueries = {
@@ -159,7 +161,7 @@ export function analyzeCsharpRepresentationIteration(
   const operations = analyzeCsharpTargetOperations(policy, sourceEvidence, statementErasure, sourceStorage.nodes, requiredRecords);
   const valueReadStages = analyzeCsharpValueReadStages(policy, sourceEvidence, operations);
   const optionalLocals = analyzeCsharpOptionalLocals(policy, sourceEvidence, sourceStorage.nodes, names, operations);
-  const typeProjections = analyzeCsharpTypeProjections(input.source, sourceEvidence, operations, optionalLocals);
+  const typeProjections = analyzeCsharpTypeProjections(projectionSource, sourceEvidence, operations, optionalLocals);
   const declarations = analyzeCsharpDeclarations(
     policy,
     sourceEvidence,
