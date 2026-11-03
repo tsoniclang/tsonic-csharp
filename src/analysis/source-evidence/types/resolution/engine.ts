@@ -59,6 +59,7 @@ import { formCsharpDirectSourceEvidence, completeCsharpDirectSourceEvidence,
   resolveFormedCsharpDirectSourceFacts } from "./direct-source-evidence.js";
 import { resolveCsharpPointerStoragePointee } from "./pointer-storage.js";
 import { formCsharpLiteralCreationContextSource, resolveFormedCsharpLiteralCreationContext } from "./literal-creation-context.js";
+import { completeCsharpSourceCallArgumentParameterSource } from "./call-argument-source.js";
 
 import type { CsharpTypeResolutionScope } from "./scope.js";
 type DropScope<Arguments extends readonly unknown[]> =
@@ -96,6 +97,7 @@ export interface CsharpTypeResolutionServices {
     ReturnType<typeof resolveFormedSourceCallContract>;
   readonly completeCallArgumentParameter: (...args: DropScope<Parameters<typeof completeCsharpSourceCallArgumentParameter>>) =>
     ReturnType<typeof completeCsharpSourceCallArgumentParameter>;
+  readonly completeCallArgumentParameterSource: typeof completeCsharpSourceCallArgumentParameterSource;
   readonly literalCreationContextSource: typeof formCsharpLiteralCreationContextSource;
   readonly completeLiteralCreationContext: (...args: DropScope<Parameters<typeof resolveFormedCsharpLiteralCreationContext>>) =>
     ReturnType<typeof resolveFormedCsharpLiteralCreationContext>;
@@ -461,6 +463,7 @@ export function createCsharpTypeResolutionServices(
       resolveFormedSourceCallContract(scope, ...args),
     completeCallArgumentParameter: (...args: DropScope<Parameters<typeof completeCsharpSourceCallArgumentParameter>>) =>
       completeCsharpSourceCallArgumentParameter(scope, ...args),
+    completeCallArgumentParameterSource: completeCsharpSourceCallArgumentParameterSource,
     literalCreationContextSource: formCsharpLiteralCreationContextSource,
     completeLiteralCreationContext: (...args: DropScope<Parameters<typeof resolveFormedCsharpLiteralCreationContext>>) =>
       resolveFormedCsharpLiteralCreationContext(scope, ...args),

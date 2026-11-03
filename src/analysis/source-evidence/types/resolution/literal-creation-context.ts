@@ -7,6 +7,7 @@ import { getCsharpNullableElementTargetType } from "../../../../target-model/typ
 import { getCsharpCallableValueSignature, getCsharpTaskResultTargetType } from "../../../../target-model/types/carriers/delegates.js";
 import type { CsharpSourceCallContractSource } from "./call-contracts.js";
 import { completeCsharpSourceCallArgumentParameter } from "./call-api.js";
+import type { CsharpSourceCallArgumentParameterCompletion } from "./call-argument-source.js";
 import type { CsharpStructuralTypeSourceInput } from "./root-sources.js";
 import type { CsharpTypeResolutionScope } from "./scope.js";
 
@@ -36,11 +37,13 @@ export interface CsharpLiteralCreationContextTarget {
   readonly source: CsharpLiteralCreationContextSource;
   readonly context: CsharpLiteralCreationSelection;
   readonly destinationType: TargetTypeRef;
+  readonly completions: readonly CsharpCompletedLiteralCreationContext[];
 }
 
 export interface CsharpCompletedLiteralCreationContext {
   readonly request: CsharpLiteralCreationContextDependency;
   readonly type: TargetTypeRef | undefined;
+  readonly argument: CsharpSourceCallArgumentParameterCompletion | undefined;
 }
 
 export function formCsharpLiteralCreationContextSource(
@@ -80,16 +83,24 @@ export function* completeCsharpLiteralCreationContextSource(
   source: CsharpLiteralCreationContextSource,
 ): Generator<CsharpLiteralCreationContextDependency, CsharpLiteralCreationContextTarget | undefined, CsharpCompletedLiteralCreationContext> {
   if (source.context === undefined) return undefined;
-  const types: (TargetTypeRef | undefined)[] = [];
+  const completions: CsharpCompletedLiteralCreationContext[] = [];
   for (const request of source.dependencies) {
     const completed = yield request;
     if (completed.request !== request) return failTargetAnalysisInvariant("tsonic-csharp",
       "Literal context completion requires its exact chosen native dependency.", source.creation.expression);
-    types.push(completed.type);
+    const association = completed.argument?.association;
+    const argumentMatches = request.kind === "argument"
+      ? association === undefined ? completed.type === undefined : association.source === request.contract &&
+        association.binding === request.argument.correspondence.binding &&
+        association.excludedSourceArgumentIndexes === request.argument.excludedSourceArgumentIndexes
+      : completed.argument === undefined;
+    if (!argumentMatches) return failTargetAnalysisInvariant("tsonic-csharp",
+      "Literal context completion requires its exact retained argument association.", source.creation.expression);
+    completions.push(completed);
   }
-  const first = types[0];
-  return first !== undefined && types.every(type => type !== undefined && targetTypeRefEquals(type, first))
-    ? Object.freeze({ source, context: source.context, destinationType: first }) : undefined;
+  const first = completions[0]?.type;
+  return first !== undefined && completions.every(completed => completed.type !== undefined && targetTypeRefEquals(completed.type, first))
+    ? Object.freeze({ source, context: source.context, destinationType: first, completions: Object.freeze(completions) }) : undefined;
 }
 
 export function resolveFormedCsharpLiteralCreationContext(
@@ -101,14 +112,16 @@ export function resolveFormedCsharpLiteralCreationContext(
   while (!step.done) {
     const request = step.value;
     let type: TargetTypeRef | undefined;
+    let argument: CsharpSourceCallArgumentParameterCompletion | undefined;
     if (request.kind === "argument") {
-      const parameter = completeCsharpSourceCallArgumentParameter(scope, request.contract,
+      argument = completeCsharpSourceCallArgumentParameter(scope, request.contract,
         request.argument.correspondence.binding, request.argument.excludedSourceArgumentIndexes);
+      const parameter = argument?.type;
       const result = request.context.returnedFrom === undefined ? parameter
         : getCsharpCallableValueSignature(getCsharpNullableElementTargetType(parameter) ?? parameter)?.returnType;
       type = request.asynchronous ? getCsharpTaskResultTargetType(result) : result;
     } else if (request.kind === "component") type = scope.host.structuralTypes.completeTypeSource(request.source);
-    step = completion.next(Object.freeze({ request, type }));
+    step = completion.next(Object.freeze({ request, type, argument }));
   }
   return step.value;
 }

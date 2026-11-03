@@ -8,7 +8,6 @@ import { completeCsharpSourceDeclarationCallAdoption, selectCsharpSourceCallResu
 
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import { combineCsharpTargetUnionMembers, csharpAbsenceTargetType } from "../../../../target-model/types/carriers/runtime-carriers.js";
-import { csharpTargetParameterValueType } from "../../../../target-model/types/member-facts.js";
 
 import { nextState } from "./state.js";
 
@@ -16,12 +15,12 @@ import { getCsharpNullableElementTargetType } from "../../../../target-model/typ
 
 import { formCsharpSourceCallContractSource, resolveFormedSourceCallContract,
   type CsharpSourceCallContractSelection, type CsharpSourceCallContractSource } from "./call-contracts.js";
-import { csharpSourceCallArgumentParameter } from "../../../../policy/types/callables/source-callable-contract.js";
 import { getCsharpRuntimeUnionArms } from "../../../../target-model/types/carriers/runtime-carriers.js";
 import { selectCsharpConversion } from "../../../../policy/conversions/core.js";
 import { csharpConversionIsApplicable } from "../../../../policy/conversions/applicability.js";
 import { selectCsharpUnionCallMethods } from "./union-call-methods.js";
 import { formCsharpSourceCallResultSource, type CsharpSourceCallResultSource } from "./call-result-source.js";
+import { completeCsharpSourceCallArgumentParameterSource, type CsharpSourceCallArgumentParameterCompletion } from "./call-argument-source.js";
 
 export function resolveSourceCallTypeArguments(
   { resolveSourceCallContract, resolveSourceCallInstantiation }: CsharpTypeResolutionScope,
@@ -151,7 +150,7 @@ export function resolveSourceCallArgumentParameter(
   excludedSourceArgumentIndexes?: ReadonlySet<number>,
 ): TargetTypeRef | undefined {
   return completeCsharpSourceCallArgumentParameter(scope, formCsharpSourceCallContractSource(scope, source, sourceFile),
-    binding, excludedSourceArgumentIndexes);
+    binding, excludedSourceArgumentIndexes)?.type;
 }
 
 export function completeCsharpSourceCallArgumentParameter(
@@ -159,59 +158,28 @@ export function completeCsharpSourceCallArgumentParameter(
   input: CsharpSourceCallContractSource,
   binding: ResolvedSourceCallInfo["sourceArgumentBindings"][number],
   excludedSourceArgumentIndexes?: ReadonlySet<number>,
-): TargetTypeRef | undefined {
-  const { resolveSourceCallableContractType, resolveSourceCallSelectedType, sourceCallableTypeParametersMatch } = scope;
-  const { source, sourceFile } = input;
-  const parameter = source.sourceSelectedSignatureParameters[
-    binding.sourceParameterIndex
-  ];
-  if (parameter === undefined) {
-    return undefined;
-  }
-  const selected = resolveFormedSourceCallContract(scope, input, { depth: 0 }, "implementation");
-  if (selected.kind === "rejected") return undefined;
-  const callable = selected.contract;
-  const contractedParameter = callable === undefined ? undefined : csharpSourceCallArgumentParameter(callable, binding.effectiveArgumentIndex);
-  if (callable !== undefined && contractedParameter !== undefined) {
-    if (
-      selected.kind === "value" && contractedParameter.sourceParameter !== parameter.parameterDeclaration &&
-        !(callable.kind === "source" && callable.bodyInputs?.parameters.some(slot => slot.sourceParameter === parameter.parameterDeclaration)) ||
-      !sourceCallableTypeParametersMatch(source, callable, selected.kind)
-    ) {
-      return undefined;
+): CsharpSourceCallArgumentParameterCompletion | undefined {
+  const completion = completeCsharpSourceCallArgumentParameterSource(input, binding, excludedSourceArgumentIndexes);
+  let step = completion.next();
+  while (!step.done) {
+    const request = step.value;
+    const { source, sourceFile } = request.association.source;
+    if (request.kind === "contract") step = completion.next(Object.freeze({ kind: "contract", request,
+      selection: resolveFormedSourceCallContract(scope, request.association.source, request.state, "implementation") }));
+    else if (request.kind === "parameters") step = completion.next(Object.freeze({ kind: "parameters", request,
+      matches: scope.sourceCallableTypeParametersMatch(source, request.callable, request.selection.kind) }));
+    else {
+      const parameter = request.association.checkedParameter;
+      const type = request.kind === "contracted"
+        ? scope.resolveSourceCallableContractType(source, request.callable, request.parameter.targetParameter.type,
+          sourceFile, request.state, request.association.excludedSourceArgumentIndexes)
+        : scope.resolveSourceCallSelectedType(source, parameter.parameterDeclaration, parameter.authoredTypeNode,
+          parameter.rest ? parameter.selectedType : request.association.binding.selectedParameterType,
+          sourceFile, request.state, request.association.excludedSourceArgumentIndexes);
+      step = completion.next(Object.freeze({ kind: request.kind, request, type }));
     }
-    const contracted = resolveSourceCallableContractType(
-      source,
-      callable,
-      contractedParameter.targetParameter.type,
-      sourceFile,
-      { depth: 0 },
-      excludedSourceArgumentIndexes,
-    );
-    return contracted === undefined
-      ? undefined
-      : csharpTargetParameterValueType(
-          {
-            ...contractedParameter.targetParameter,
-            type: contracted,
-          },
-          binding.sourceForm,
-        );
   }
-  if (callable !== undefined) return undefined;
-  if (selected.kind === "value") return undefined;
-  const selectedType = resolveSourceCallSelectedType(
-    source,
-    parameter.parameterDeclaration,
-    parameter.authoredTypeNode,
-    parameter.rest ? parameter.selectedType : binding.selectedParameterType,
-    sourceFile,
-    { depth: 0 },
-    excludedSourceArgumentIndexes,
-  );
-  return selectedType === undefined ? undefined : csharpTargetParameterValueType({
-    name: parameter.parameterName, type: selectedType, passingMode: "by-value", paramsArray: parameter.rest,
-  }, binding.sourceForm);
+  return step.value;
 }
 
 export function resolveSourceCallResult(
