@@ -56,7 +56,8 @@ import { formCsharpNodeQuerySource, formCsharpTypeQuerySource,
   formCsharpNodeTypeSource, formCsharpSemanticTypeSource,
   type CsharpNodeQuerySource, type CsharpTypeQuerySource,
   type CsharpNodeTypeSource, type CsharpSemanticTypeSource } from "./root-sources.js";
-import { formCsharpSourceDeclarationArguments, resolveFormedCsharpSourceDeclarationArguments } from "./generic-arguments.js";
+import { formCsharpSourceDeclarationArguments, resolveFormedCsharpSourceDeclarationArguments,
+  formCsharpSourceTypeArguments, resolveFormedCsharpSourceTypeArguments } from "./generic-arguments.js";
 import { formCsharpSemanticTypeArgumentsSource } from "./semantic-argument-source.js";
 import { formCsharpDirectSourceEvidence, completeCsharpDirectSourceEvidence,
   resolveFormedCsharpDirectSourceFacts } from "./direct-source-evidence.js";
@@ -70,6 +71,9 @@ type DropScope<Arguments extends readonly unknown[]> =
   Arguments extends readonly [unknown, ...infer Rest] ? Rest : never;
 
 export interface CsharpTypeResolutionServices {
+  readonly sourceTypeArguments: typeof formCsharpSourceTypeArguments;
+  readonly completeSourceTypeArguments: (...args: DropScope<Parameters<typeof resolveFormedCsharpSourceTypeArguments>>) =>
+    ReturnType<typeof resolveFormedCsharpSourceTypeArguments>;
   readonly sourceTypeComponentSource: (...args: DropScope<Parameters<typeof formCsharpSourceTypeComponentSource>>) =>
     ReturnType<typeof formCsharpSourceTypeComponentSource>;
   readonly completeSourceTypeComponent: (...args: DropScope<Parameters<typeof resolveFormedCsharpSourceTypeComponent>>) =>
@@ -450,6 +454,9 @@ export function createCsharpTypeResolutionServices(
   return Object.freeze({ policy, recursive,
     sourceTypeComponentSource: (...args: DropScope<Parameters<typeof formCsharpSourceTypeComponentSource>>) =>
       formCsharpSourceTypeComponentSource(scope, ...args),
+    sourceTypeArguments: formCsharpSourceTypeArguments,
+    completeSourceTypeArguments: (...args: DropScope<Parameters<typeof resolveFormedCsharpSourceTypeArguments>>) =>
+      resolveFormedCsharpSourceTypeArguments(scope, ...args),
     completeSourceTypeComponent: (...args: DropScope<Parameters<typeof resolveFormedCsharpSourceTypeComponent>>) =>
       resolveFormedCsharpSourceTypeComponent(scope, ...args),
     authoredSelectionSource: (...args: DropScope<Parameters<typeof formCsharpAuthoredTypeSelectionSource>>) =>

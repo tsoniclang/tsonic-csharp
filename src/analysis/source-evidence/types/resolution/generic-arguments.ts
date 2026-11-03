@@ -6,6 +6,23 @@ import { csharpSourceBindings, formCsharpSourceTypeBindingEvidence, completeCsha
   type CsharpSourceTypeBindingEvidence } from "./type-bindings.js";
 import { nextState } from "./state.js";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
+
+type SourceArgumentBindings = ReturnType<SourceFileSemantics["types"]["typeArgumentBindings"]>;
+
+export type CsharpSourceTypeArguments = {
+  readonly type: Type;
+  readonly queries: SourceFileSemantics;
+  readonly state: CsharpTypeResolutionState;
+  readonly bindings: SourceArgumentBindings;
+} & (
+  | { readonly kind: "unchanged" | "invalid" }
+  | { readonly kind: "arguments"; readonly bindings: NonNullable<SourceArgumentBindings>;
+      readonly arguments: readonly {
+        readonly binding: NonNullable<SourceArgumentBindings>[number];
+        readonly state: CsharpTypeResolutionState;
+      }[] }
+);
 
 interface CsharpSourceArgumentType {
   readonly type: Type;
@@ -39,10 +56,34 @@ export function bindCsharpSourceTypeArguments(
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
 ): CsharpTypeResolutionState | undefined {
+  return resolveFormedCsharpSourceTypeArguments(scope, formCsharpSourceTypeArguments(type, queries, state));
+}
+
+export function formCsharpSourceTypeArguments(
+  type: Type,
+  queries: SourceFileSemantics,
+  state: CsharpTypeResolutionState,
+): CsharpSourceTypeArguments {
   const bindings = queries.types.typeArgumentBindings(type);
-  if (bindings === undefined || bindings.length === 0) return state;
-  if (new Set(bindings.map(binding => binding.declaration)).size !== bindings.length) return undefined;
-  const targets = bindings.map(binding => scope.resolveTypeWithState(binding.argumentType, queries.sourceFile, nextState(state)));
+  if (bindings === undefined || bindings.length === 0) return Object.freeze({ kind: "unchanged", type, queries, state, bindings });
+  if (new Set(bindings.map(binding => binding.declaration)).size !== bindings.length) {
+    return Object.freeze({ kind: "invalid", type, queries, state, bindings });
+  }
+  return Object.freeze({ kind: "arguments", type, queries, state, bindings,
+    arguments: Object.freeze(bindings.map(binding => Object.freeze({ binding, state: Object.freeze(nextState(state)) }))),
+  });
+}
+
+export function resolveFormedCsharpSourceTypeArguments(
+  scope: Pick<CsharpTypeResolutionScope, "resolveTypeWithState">,
+  input: CsharpSourceTypeArguments,
+): CsharpTypeResolutionState | undefined {
+  if (input.kind !== "arguments") return input.kind === "unchanged" ? input.state : undefined;
+  const { bindings, queries, state } = input;
+  if (input.arguments.length !== bindings.length || bindings.some((binding, index) => input.arguments[index]?.binding !== binding)) {
+    return failTargetAnalysisInvariant("tsonic-csharp", "Type argument binding requires every exact checked argument in order.");
+  }
+  const targets = input.arguments.map(argument => scope.resolveTypeWithState(argument.binding.argumentType, queries.sourceFile, argument.state));
   if (targets.some(target => target === undefined)) return undefined;
   return csharpSourceBindings(bindings.map(binding => binding.declaration),
     bindings.map(binding => binding.argumentType), targets as readonly TargetTypeRef[], state);
