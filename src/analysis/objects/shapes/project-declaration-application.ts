@@ -65,7 +65,6 @@ export function createCsharpProjectDeclarationApplications(
     const inherited: (Extract<CsharpProjectDeclarationApplication, { readonly kind: "declaration" }>["inherited"][number])[] = [];
     for (const [index, selectedSource] of declaration.members.entries()) {
       const member = selectedSource.member;
-      const input = member.proofInput;
       const owner = selectedSource.inherited?.source.definition;
       if (owner === undefined) {
         inherited.push(undefined);
@@ -82,12 +81,9 @@ export function createCsharpProjectDeclarationApplications(
         "Inherited native binding requires its original retained declaration source.", member.methodDeclaration);
       const application = formDeclarationApplication(selectedOwner.type, inheritedSource, nextState(declaration.state));
       if (application === undefined) return undefined;
-      const selected = resolveCsharpObjectShapeMemberBySelectedSubject({
-        members: application.source.members.map(row => row.proof),
-      }, [...input.sourceSubjects ?? [], ...input.sourceDeclarations ?? []]);
-      if (selected.kind !== "resolved") return undefined;
-      const row = application.source.members.find(candidate => candidate.proof === selected.member);
-      if (row === undefined || row.proof !== selectedSource.inherited!.member) return failTargetAnalysisInvariant("tsonic-csharp",
+      const row = application.source.members[selectedSource.inherited!.index];
+      if (application.source !== inheritedSource || row === undefined ||
+        row.proof !== selectedSource.inherited!.member) return failTargetAnalysisInvariant("tsonic-csharp",
         "Inherited source proof selection requires its exact published member row.", member.methodDeclaration);
       inherited.push(Object.freeze({ application, member: row }));
     }

@@ -17,6 +17,7 @@ export interface CsharpProjectDeclarationMemberSource extends CsharpObjectShapeM
   readonly inherited: {
     readonly source: CsharpProjectDeclarationSource;
     readonly member: CsharpProjectDeclarationMemberSource;
+    readonly index: number;
   } | undefined;
 }
 
@@ -102,7 +103,7 @@ export function createCsharpProjectDeclarationShapeSource(
           ])]),
           optional: original.optional,
           member,
-          inherited: Object.freeze({ source: inherited, member: original }),
+          inherited: Object.freeze({ source: inherited, member: original, index: inherited.members.indexOf(original) }),
         }));
       }
       return Object.freeze({ definition, declaredType, collection, children, members: Object.freeze(members),

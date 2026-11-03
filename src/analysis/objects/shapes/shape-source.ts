@@ -55,7 +55,8 @@ export function formDeclaredObjectShapeSource(
 ): CsharpDeclaredObjectShapeSource {
   if (inherited.length !== declaration.members.length || declaration.members.some((member, index) =>
     member.inherited === undefined ? inherited[index] !== undefined
-      : inherited[index]?.declaration !== member.inherited.source)) return failTargetAnalysisInvariant("tsonic-csharp",
+      : inherited[index]?.declaration !== member.inherited.source ||
+        inherited[index]?.members[member.inherited.index]?.proof !== member.inherited.member)) return failTargetAnalysisInvariant("tsonic-csharp",
         "Declaration source publication requires its exact ordered inherited source occurrences.", declaration.definition.declaration);
   return Object.freeze({ kind: "declaration", declaration, sourceType: declaration.declaredType,
     inherited,
