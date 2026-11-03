@@ -274,7 +274,7 @@ test("object method source evidence separates own this, method locals and outer 
   const navigation = { ...source.navigation,
     sourceReferenceFor(node) { reads += 1; return source.navigation.sourceReferenceFor(node); },
   };
-  const index = analyzeCsharpObjectMethodSources(source.ast, nodes, navigation, () => undefined);
+  const index = analyzeCsharpObjectMethodSources({ ...source, navigation }, nodes, () => undefined);
   const completedReads = reads;
   assert.equal(completedReads > 0, true, "canonical checked lexical evidence is consumed during analysis");
   const selected = index.get(literal);
