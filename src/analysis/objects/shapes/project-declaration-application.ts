@@ -12,7 +12,6 @@ import type { CsharpObjectShapePolicyHost, CsharpRecursiveObjectShapePolicy } fr
 import type { CsharpObjectShapeSource, CsharpObjectShapeSourceMember } from "./shape-source.js";
 import type { CsharpProjectDeclarationShapeSource } from "./project-declaration-source.js";
 import type { createCsharpObjectShapeSourceFormation } from "./type-source.js";
-import type { CsharpCurrentProjectDeclaration } from "../../source-evidence/model.js";
 
 export type CsharpProjectDeclarationApplication = {
   readonly targetType: CsharpTargetNamedTypeRef;
@@ -65,15 +64,11 @@ export function createCsharpProjectDeclarationApplications(
     if (declaration === undefined) return undefined;
     const inherited: (Extract<CsharpProjectDeclarationApplication, { readonly kind: "declaration" }>["inherited"][number])[] = [];
     const members: CsharpObjectShapeSourceMember[] = [];
-    for (const member of declaration.collection.members) {
+    for (const selectedSource of declaration.members) {
+      const member = selectedSource.member;
       const input = member.proofInput;
-      const owners = new Map<string, CsharpCurrentProjectDeclaration>(!member.method ? [] : (input.sourceDeclarations ?? []).flatMap(selected => {
-        const owner = host.projectDeclarations.declarationForNode(host.ast.parent(selected));
-        return owner === undefined ? [] : [[owner.id, owner] as const];
-      }));
-      if (owners.size > 1) return undefined;
-      const owner = owners.values().next().value;
-      if (owner === undefined || owner.id === definition.id) {
+      const owner = selectedSource.inherited?.source.definition;
+      if (owner === undefined) {
         inherited.push(undefined);
         members.push(Object.freeze({ sourceKey: member.sourceKey,
           memberKind: member.method ? "method" as const : "property" as const, proof: input }));

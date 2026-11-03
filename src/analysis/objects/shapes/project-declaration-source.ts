@@ -20,6 +20,7 @@ export interface CsharpProjectDeclarationMemberSource extends CsharpObjectShapeM
 
 export interface CsharpProjectDeclarationShapeSource {
   readonly definition: CsharpCurrentProjectDeclaration;
+  readonly inputState: CsharpTypeResolutionState;
   readonly state: CsharpTypeResolutionState;
   readonly declaredType: Type;
   readonly collection: CsharpCollectedObjectShapeMembers;
@@ -43,6 +44,7 @@ export function createCsharpProjectDeclarationShapeSource(
     if (definition?.kind !== "class" && definition?.kind !== "interface" || active.has(declaration)) return undefined;
     active.add(declaration);
     try {
+      const inputState = state;
       state = csharpSourceTemplateState([...definition.outerTypeParameters, ...definition.typeParameters], state);
       const queries = host.semantics(definition.sourceFile);
       const declaredType = queries.declarations.declaredType(definition.declaration);
@@ -85,7 +87,7 @@ export function createCsharpProjectDeclarationShapeSource(
           inherited: Object.freeze({ source: inherited, member: original }),
         }));
       }
-      return Object.freeze({ definition, state, declaredType, collection, application, members: Object.freeze(members),
+      return Object.freeze({ definition, inputState, state, declaredType, collection, application, members: Object.freeze(members),
         initializable: definition.kind === "class" && projectClassIsObjectInitializable(declaredType, queries, host),
       });
     } finally {
