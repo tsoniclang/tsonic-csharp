@@ -42,8 +42,18 @@ export function createCsharpProjectDeclarationShapeSource(
     authoredTypeRoot?: Node) => CsharpObjectShapeMembersSource | undefined,
 ) {
   const active = new Set<Node>();
+  const sources = new Map<Node, CsharpProjectDeclarationSource | undefined>();
 
   function captureProjectDeclarationSource(
+    declaration: Node,
+  ): CsharpProjectDeclarationSource | undefined {
+    if (sources.has(declaration)) return sources.get(declaration);
+    const source = formProjectDeclarationSource(declaration);
+    sources.set(declaration, source);
+    return source;
+  }
+
+  function formProjectDeclarationSource(
     declaration: Node,
   ): CsharpProjectDeclarationSource | undefined {
     const definition = host.projectDeclarations.declarationForNode(declaration);
@@ -112,5 +122,8 @@ export function createCsharpProjectDeclarationShapeSource(
     });
   }
 
-  return { captureProjectDeclarationSource, bindProjectDeclarationSource };
+  for (const definition of host.projectDeclarations.declarations) {
+    if (definition.kind === "class" || definition.kind === "interface") captureProjectDeclarationSource(definition.declaration);
+  }
+  return Object.freeze({ projectDeclarationSource: (declaration: Node) => sources.get(declaration), bindProjectDeclarationSource });
 }

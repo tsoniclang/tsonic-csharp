@@ -65,7 +65,7 @@ export function createCsharpObjectShapeSourceFormation(
 ) {
   const { collectMembers, formMembersSource } = memberSources;
   const declarationSources = createCsharpProjectDeclarationShapeSource(host, formMembersSource);
-  const { captureProjectDeclarationSource } = declarationSources;
+  const { projectDeclarationSource } = declarationSources;
 
   function formTypeSource(
     type: Type,
@@ -91,7 +91,7 @@ export function createCsharpObjectShapeSourceFormation(
         if (projects.has(selected)) continue;
         const definition = host.projectDeclarations.declarationForNode(selected);
         if (definition === undefined) continue;
-        const declaration = captureProjectDeclarationSource(selected);
+        const declaration = projectDeclarationSource(selected);
         const declared = declaration === undefined ? undefined : formDeclaredObjectShapeSource(declaration);
         const instantiated = declared === undefined ? undefined : formInstantiatedObjectShapeSource(declared, type, queries);
         const struct = definition.kind === "struct" ? formCsharpStructShapeSource(host, collectMembers,

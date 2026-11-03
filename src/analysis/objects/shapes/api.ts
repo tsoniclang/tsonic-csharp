@@ -434,7 +434,7 @@ export function createCsharpObjectShapePolicy(
     state: CsharpTypeResolutionState,
   ): CsharpObjectShapeFact | undefined {
     const definition = host.projectDeclarations.declarationForTarget(targetType);
-    const source = definition === undefined ? undefined : formation.captureProjectDeclarationSource(definition.declaration);
+    const source = definition === undefined ? undefined : formation.projectDeclarationSource(definition.declaration);
     const application = source === undefined ? undefined : declarationApplications.formDeclarationApplication(
       targetType, formDeclaredObjectShapeSource(source), state);
     return application === undefined ? undefined : declarationApplications.completeDeclarationApplication(application);
