@@ -45,9 +45,17 @@ export function formCsharpContextualParameterSource(
   declaration: Node,
   queries: SourceFileSemantics,
 ): CsharpContextualParameterSource {
-  const { host } = scope;
+  if (!scope.host.ast.is.IsParameterDeclaration(declaration)) return Object.freeze({ kind: "not-applicable", declaration, queries });
+  return formCsharpContextualParameterSourceFromSyntax(scope, declaration, queries, scope.sourceValueDeclarationSyntax(declaration));
+}
+
+export function formCsharpContextualParameterSourceFromSyntax(
+  { host }: { readonly host: CsharpTypePolicyBaseHost },
+  declaration: Node,
+  queries: SourceFileSemantics,
+  syntax: ReturnType<CsharpTypeResolutionScope["sourceValueDeclarationSyntax"]>,
+): CsharpContextualParameterSource {
   if (!host.ast.is.IsParameterDeclaration(declaration)) return Object.freeze({ kind: "not-applicable", declaration, queries });
-  const syntax = scope.sourceValueDeclarationSyntax(declaration);
   if (syntax.type !== undefined || syntax.initializer !== undefined) return Object.freeze({ kind: "not-applicable", declaration, queries });
   const owner = host.ast.parent(declaration);
   if (owner === undefined || !host.ast.is.IsArrowFunction(owner) && !host.ast.is.IsFunctionExpression(owner)) {

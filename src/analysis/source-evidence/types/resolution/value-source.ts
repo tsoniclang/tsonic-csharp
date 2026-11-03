@@ -14,7 +14,7 @@ import { formAuthoredAndSelectedSourceType, resolveFormedAuthoredAndSelectedSour
   type CsharpAuthoredTypeSelectionEvidence } from "./selected-values.js";
 import { formCsharpNativeParameterSource, resolveFormedCsharpNativeParameterCarrier,
   type CsharpNativeParameterSource } from "./native-parameter-source.js";
-import { formCsharpContextualParameterSource, resolveFormedCsharpContextualParameterCarrier,
+import { formCsharpContextualParameterSourceFromSyntax, resolveFormedCsharpContextualParameterCarrier,
   type CsharpContextualParameterSource } from "./contextual-parameter-source.js";
 import { formCsharpDirectSourceEvidence, resolveFormedCsharpDirectSourceFacts,
   type CsharpDirectSourceEvidence } from "./direct-source-evidence.js";
@@ -142,7 +142,7 @@ export function formCsharpSourceValueSource(
   const selected = Object.freeze({ type: selectedSource, sourceFile: queries.sourceFile, state: Object.freeze(nextState(state)) });
   let tail: CsharpValueTailSource;
   if (syntax.initializer === undefined) {
-    tail = Object.freeze({ kind: "uninitialized", contextual: formCsharpContextualParameterSource(scope, declaration, declarationQueries),
+    tail = Object.freeze({ kind: "uninitialized", contextual: formCsharpContextualParameterSourceFromSyntax(scope, declaration, declarationQueries, syntax),
       refinement: formRefinement(declaredSource, selectedSource, queries, false, false) });
   } else {
     const initializer = syntax.initializer;
