@@ -105,13 +105,13 @@ export function createCsharpObjectShapePolicy(
       const source = completeSelectedObjectShapeSource(input.selection, input.selection.contextual === undefined ? undefined
         : { dependency: input.selection.contextual,
             targetType: host.completeAuthoredSelection(input.selection.contextual.selection) });
-      const selectedTarget = host.ast.is.IsClassDeclaration(node) || host.ast.is.IsClassExpression(node)
-        ? host.typeResolver.resolveType(source.type, queries.sourceFile, nextState(state))
-        : host.typeResolver.resolveNode(node, queries.sourceFile, nextState(state));
+      const selectedTarget = input.classDeclaration
+        ? host.typeResolver.resolveType(source.type, queries.sourceFile, input.nativeState)
+        : host.typeResolver.resolveNode(node, queries.sourceFile, input.nativeState);
       const selectedShape = resolveTarget(selectedTarget);
       if (selectedShape !== undefined && source.type !== undefined &&
-        (!host.ast.is.IsObjectLiteralExpression(node) || selectedShape.constructible === true)) {
-        const actualType = host.ast.is.IsObjectLiteralExpression(node) ? queries.types.expressionType(node) : source.type;
+        (!input.objectLiteral || selectedShape.constructible === true)) {
+        const actualType = input.objectLiteral ? input.selection.type : source.type;
         const members = actualType === undefined ? undefined
           : instantiateMemberEvidence(selectedShape.members, actualType, queries, selectedShape.sourceType);
         if (members !== undefined) return state.sourceBindings === undefined
