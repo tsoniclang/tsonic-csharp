@@ -39,6 +39,11 @@ const abstractMethodStorage = Object.freeze({
   memberWritesFor: () => assert.fail("a quantified abstract contract needs no ordinary-method exposure proof"),
 });
 
+function unitMethodTargetInput(shape) {
+  const { targetType, ...input } = shape;
+  return { ...input, target: { kind: "existing", type: targetType } };
+}
+
 test("native writable method contracts derive from the unchanged read-only identity", () => {
   const scalar = { kind: "source-primitive", name: "int32" };
   for (const optional of [false, true]) {
@@ -344,13 +349,13 @@ test("optional native method storage retains a required present protocol without
     memberKind: "method", optional: true, type: csharpNullableTargetType(contract("Item")),
     typeParameters: [{ csharpAllowsRefLike: false, identity: "Item", name: "Item", declaration: {}, constraints: [] }] };
   const recorded = [];
-  const shape = retainCsharpMethodValueContracts({ targetType: { ...owner, csharpStructuralContract: true }, members: [member] },
+  const shape = retainCsharpMethodValueContracts(unitMethodTargetInput({ targetType: { ...owner, csharpStructuralContract: true }, members: [member] }),
     fact => { recorded.push(fact); return fact; }, unconstrained, abstractMethodStorage);
   assert.equal(shape.members[0].optional, true);
   assert.equal(recorded[0].members[0].optional, undefined);
   assert.equal(getCsharpNullableElementTargetType(recorded[0].members[0].type), undefined);
   assert.equal(shape.implements, undefined);
-  const repeated = retainCsharpMethodValueContracts({ ...shape, implements: [recorded[0].targetType] },
+  const repeated = retainCsharpMethodValueContracts(unitMethodTargetInput({ ...shape, implements: [recorded[0].targetType] }),
     fact => fact, unconstrained, abstractMethodStorage);
   assert.equal(repeated.implements, undefined, "an optional interface cannot acquire its present-only invocation protocol from a prior decoration");
   assert.equal(csharpObjectShapesEqual(shape, repeated), true, "repeated publication preserves the same complete physical interface contract");
@@ -369,8 +374,8 @@ test("copied generic methods retain only the exact original environment and mini
   const member = { sourceKey: { kind: "property", name: "identity" }, sourceName: "identity", targetName: "identity",
     memberKind: "method", type: contract("Item"), typeParameters: [{ csharpAllowsRefLike: false, identity: "Item", name: "Item", declaration: {}, constraints: [] }] };
   const recorded = [];
-  const shape = retainCsharpMethodValueContracts({ targetType: owner, members: [member],
-    methodImplementation: { declaration: {}, identity: "body", methods: [], captures: [] } }, fact => { recorded.push(fact); return fact; },
+  const shape = retainCsharpMethodValueContracts(unitMethodTargetInput({ targetType: owner, members: [member],
+    methodImplementation: { declaration: {}, identity: "body", methods: [], captures: [] } }), fact => { recorded.push(fact); return fact; },
   unconstrained, abstractMethodStorage);
   assert.equal(recorded.length, 1);
   assert.equal(recorded[0].members.length, 1);
@@ -389,9 +394,9 @@ test("copied generic methods retain only the exact original environment and mini
     "the implemented protocol has a separately selected immutable entry");
   assert.equal(targetTypeRefEquals(copiedSelection.value.declaration.interface, shape.members[0].methodValueContract), true,
     "an explicit protocol implementation never mistakes the concrete native environment for an interface");
-  const abstract = retainCsharpMethodValueContracts({ targetType: { ...owner, id: "tsonic.shape:interface", csharpStructuralContract: true },
+  const abstract = retainCsharpMethodValueContracts(unitMethodTargetInput({ targetType: { ...owner, id: "tsonic.shape:interface", csharpStructuralContract: true },
     members: [member, { sourceKey: { kind: "property", name: "extra" }, sourceName: "extra", targetName: "extra",
-      memberKind: "property", type: { kind: "source-primitive", name: "float64" } }] }, fact => fact, unconstrained, abstractMethodStorage);
+      memberKind: "property", type: { kind: "source-primitive", name: "float64" } }] }), fact => fact, unconstrained, abstractMethodStorage);
   const copied = csharpCopiedObjectShapeMembers(abstract);
   assert.equal(targetTypeRefEquals(copied[0].methodValueStorage.type, shape.members[0].methodValueContract), true);
   assert.equal(copied[0].methodValueStorage.invocationName, "__tsonic_invoke_body_identity", "a protocol copy retains its immutable entry");

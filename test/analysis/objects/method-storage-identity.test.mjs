@@ -12,6 +12,11 @@ import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.j
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 
+function unitMethodTargetInput(shape) {
+  const { targetType, ...input } = shape;
+  return { ...input, target: { kind: "existing", type: targetType } };
+}
+
 test("selected structural method storage participates in the sole published carrier identity", () => {
   const declaration = Object.freeze({});
   const number = csharpSourcePrimitiveTargetType("float64");
@@ -33,7 +38,7 @@ test("selected structural method storage participates in the sole published carr
     nodes: Object.freeze([declaration]),
     memberSubjectFor: () => Object.freeze({ kind: "unresolved", reason: "external method value" }),
   });
-  const selected = retainCsharpMethodValueContracts({ targetType, members: [member] },
+  const selected = retainCsharpMethodValueContracts(unitMethodTargetInput({ targetType, members: [member] }),
     shape => shape, environment, storage);
   assert.equal(selected.members[0].methodValueStorage?.kind, "delegate",
     "the actual first-class method use selects delegate storage");
@@ -42,7 +47,7 @@ test("selected structural method storage participates in the sole published carr
   const expected = createStructuralObjectShapeTarget(selected.members, selected.implements, environment, true);
   assert.equal(targetTypeRefEquals(selected.targetType, expected), true,
     "the published carrier is constructed from its final physical members");
-  const repeated = retainCsharpMethodValueContracts(selected, shape => shape, environment, storage);
+  const repeated = retainCsharpMethodValueContracts(unitMethodTargetInput(selected), shape => shape, environment, storage);
   assert.equal(repeated.targetType === selected.targetType, true,
     "already selected storage keeps one exact published carrier without another identity path");
 });
@@ -94,7 +99,7 @@ test("a closed readonly method signature retains the same native invocation cont
       methods: [declaration], captures: [] };
     const shape = { targetType: createStructuralObjectShapeTarget([removed, member], undefined, environment, false, implementation),
       members: [removed, member], methodImplementation: implementation };
-    const selected = retainCsharpMethodValueContracts(shape, value => value, environment, storage);
+    const selected = retainCsharpMethodValueContracts(unitMethodTargetInput(shape), value => value, environment, storage);
     const method = selected.members.find(value => value.sourceName === "run");
     assert.equal(method.methodValueStorage === undefined, !replacement,
       "first-class copying cannot manufacture a writable delegate slot for a proven readonly native method view");
@@ -138,7 +143,7 @@ test("a nonphysical checked method signature publishes neither physical writes n
     memberKind: "property", type: number };
   const environment = createCsharpTypeParameterEnvironment(() => assert.fail("the checked monomorphic signature has no generic constraints"));
   const selected = retainCsharpMethodValueContracts({
-    targetType: createStructuralObjectShapeTarget([removed, member], undefined, environment, true), members: [removed, member],
+    target: { kind: "existing", type: createStructuralObjectShapeTarget([removed, member], undefined, environment, true) }, members: [removed, member],
   }, () => assert.fail("an abstract signature cannot manufacture a native method protocol"), environment, storage);
   const method = selected.members.find(value => value.sourceName === "run");
   assert.equal(selected.methodImplementation === undefined, true, "an abstract signature never fabricates a native body");
