@@ -4,13 +4,9 @@ import { csharpTargetTypeComponents } from "./components.js";
 import { csharpTypeProjection } from "./projections.js";
 
 import { createCsharpMetadataBudget } from "../metadata/immutable.js";
-import { type CsharpTypeParameterConstraintResolution } from "./generic-constraints.js";
 
 type TypeParameter = Extract<TargetTypeRef, { readonly kind: "type-parameter" }>;
 type TraversalBudget = ReturnType<typeof createCsharpMetadataBudget>;
-
-export type CsharpTypeParameterConstraintResolver =
-  (parameter: TypeParameter) => CsharpTypeParameterConstraintResolution;
 
 export function csharpFreeTypeParameterIdentities(types: readonly TargetTypeRef[]): ReadonlySet<string> {
   const budget = createCsharpMetadataBudget();

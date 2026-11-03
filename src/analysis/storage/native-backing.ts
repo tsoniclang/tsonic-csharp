@@ -13,7 +13,7 @@ import type { CsharpTargetOperationClassifications } from "../../target-model/re
 import type { CsharpNativeArrayStorage, CsharpStorageIssue } from "../../target-model/records/storage/storage.js";
 import type { CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
 import { createCsharpNativeFieldBacking } from "./native-field-backing.js";
-import { createCsharpTypeParameterEnvironment } from "../source-evidence/types/resolution/type-parameter-environment.js";
+import { createCsharpSourceTypeParameterEnvironment } from "../source-evidence/types/resolution/type-parameter-environment.js";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 
 interface CsharpNativeFieldDemand {
@@ -211,7 +211,7 @@ function finalizeCsharpNativeFieldBacking(
     return Object.freeze({ ...demand, shape, member });
   });
   const fields = createCsharpNativeFieldBacking(objectShapes.knownShapes(),
-    createCsharpTypeParameterEnvironment(policy.ast, declaration => evidence.typeParameterConstraints.get(declaration)));
+    createCsharpSourceTypeParameterEnvironment(policy.ast, declaration => evidence.typeParameterConstraints.get(declaration)));
   const issues: CsharpStorageIssue[] = [];
   for (const demand of demands) {
     const { shape, member, layout } = demand;

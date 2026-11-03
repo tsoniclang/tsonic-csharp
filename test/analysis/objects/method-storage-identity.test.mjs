@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createCsharpTypeParameterEnvironment } from "../../../dist/analysis/source-evidence/types/resolution/type-parameter-environment.js";
 import { createCompilerSessionFromFiles } from "@tsonic/tsts";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { createSourceStorageQuery } from "@tsonic/target-api/analysis";
@@ -18,7 +19,7 @@ test("selected structural method storage participates in the sole published carr
     sourceName: "read", targetName: "read", memberKind: "method",
     type: csharpDelegateTargetType("System.Func", [number], number),
     sourceDeclarations: Object.freeze([declaration]) });
-  const environment = () => assert.fail("the monomorphic method has no generic constraint");
+  const environment = createCsharpTypeParameterEnvironment(() => assert.fail("the monomorphic method has no generic constraint"));
   const targetType = createStructuralObjectShapeTarget([member], undefined, environment, true);
   const storage = Object.freeze({
     source: Object.freeze({ ast: Object.freeze({ is: Object.freeze({
@@ -59,7 +60,7 @@ export function run(): boolean { return invoke({ read(value: number) { return va
 
 test("a closed readonly method signature retains the same native invocation contract as its actual producers", () => {
   const number = csharpSourcePrimitiveTargetType("float64");
-  const environment = () => assert.fail("the closed monomorphic view needs no invented generic constraints");
+  const environment = createCsharpTypeParameterEnvironment(() => assert.fail("the closed monomorphic view needs no invented generic constraints"));
   for (const replacement of [false, true]) {
     const checked = createCompilerSessionFromFiles({ currentDirectory: "/src",
       compilerOptions: { strict: true, target: "es2022", module: "esnext", moduleResolution: "bundler" },
@@ -135,7 +136,7 @@ test("a nonphysical checked method signature publishes neither physical writes n
     memberKind: "method", type: csharpDelegateTargetType("System.Func", [number], number), sourceDeclarations: [declaration] };
   const removed = { sourceKey: { kind: "property", name: "removed" }, sourceName: "removed", targetName: "removed",
     memberKind: "property", type: number };
-  const environment = () => assert.fail("the checked monomorphic signature has no generic constraints");
+  const environment = createCsharpTypeParameterEnvironment(() => assert.fail("the checked monomorphic signature has no generic constraints"));
   const selected = retainCsharpMethodValueContracts({
     targetType: createStructuralObjectShapeTarget([removed, member], undefined, environment, true), members: [removed, member],
   }, () => assert.fail("an abstract signature cannot manufacture a native method protocol"), environment, storage);

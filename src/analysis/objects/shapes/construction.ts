@@ -3,7 +3,7 @@ import { canonicalCsharpObjectShapeImplementedTypes, canonicalCsharpObjectShapeM
 import { csharpEmptyObjectTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 
 import { targetTypeRefKey } from "../../../target-model/types/equality.js";
-import { type CsharpTypeParameterConstraintResolver } from "../../../target-model/types/generic-references.js";
+import type { CsharpTypeParameterEnvironment } from "../../../target-model/records/types/type-parameter-constraints.js";
 import { csharpObjectShapeTypeParameters, closeCsharpOwnerTypeParameterEnvironment } from "../../source-evidence/types/resolution/owner-type-parameter-environment.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../target-model/types/model.js";
 
@@ -11,7 +11,7 @@ import { selectCsharpStructuralObjectCarrier } from "../../../policy/types/objec
 export function createStructuralObjectShapeTarget(
   members: readonly CsharpObjectShapeMemberFact[],
   implemented: readonly TargetTypeRef[] | undefined,
-  environment: CsharpTypeParameterConstraintResolver,
+  environment: CsharpTypeParameterEnvironment,
   contract = false,
   implementation?: CsharpObjectShapeFact["methodImplementation"],
 ): TargetTypeRef {

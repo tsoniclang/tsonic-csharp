@@ -77,8 +77,8 @@ export function resolveFormedCsharpTypeParameterSource(
   constraints: import("../../../../target-model/records/types/type-parameter-constraints.js").CsharpTypeParameterEnvironment,
 ): TargetTypeRef | undefined {
   const { parameter, type, queries } = source;
-  return parameter === undefined ? undefined : Object.freeze({ ...parameter,
-    csharpConstraints: constraints(parameter, { sourceFile: queries.sourceFile, sourceType: type }) });
+  return parameter === undefined ? undefined
+    : constraints.resolve(parameter, { sourceFile: queries.sourceFile, sourceType: type });
 }
 
 export function resolveTypeParameter(

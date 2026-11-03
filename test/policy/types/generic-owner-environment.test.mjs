@@ -9,7 +9,7 @@ import { isCsharpTargetTypeRef, snapshotCsharpTargetTypes } from "../../../dist/
 import { csharpTargetTypeComponents } from "../../../dist/target-model/types/components.js";
 import { createCsharpMetadataBudget, maximumCsharpMetadataEntries, maximumCsharpMetadataDepth } from "../../../dist/target-model/metadata/immutable.js";
 import { csharpSourceTypeParameter } from "../../../dist/source/extension/type-parameters.js";
-import { createCsharpTypeParameterEnvironment } from "../../../dist/analysis/source-evidence/types/resolution/type-parameter-environment.js";
+import { createCsharpTypeParameterEnvironment, createCsharpSourceTypeParameterEnvironment } from "../../../dist/analysis/source-evidence/types/resolution/type-parameter-environment.js";
 import { createStructuralObjectShapeTarget } from "../../../dist/analysis/objects/shapes/construction.js";
 import { substituteTargetTypeParameters } from "../../../dist/policy/types/resolution/substitution.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
@@ -42,7 +42,7 @@ function metadataResourceLimit(failure, dimension, limit) {
 }
 
 test("nongeneric owners do not allocate or query a generic constraint environment", () => {
-  const environment = () => { throw new Error("Nongeneric owners have no generic constraint query."); };
+  const environment = createCsharpTypeParameterEnvironment(() => { throw new Error("Nongeneric owners have no generic constraint query."); });
   const first = closeCsharpOwnerTypeParameterEnvironment([], environment);
   assert.equal(closeCsharpOwnerTypeParameterEnvironment([], environment) === first, true, "one immutable empty environment");
   assert.equal(Object.isFrozen(first), true);
@@ -131,17 +131,17 @@ test("a captured binder retains transitive constraint parameters before native o
   const outer = parameter("outer", "Outer");
   const payload = parameter("payload", "Payload");
   const calls = [];
-  const environment = selected => {
+  const environment = createCsharpTypeParameterEnvironment(selected => {
     calls.push(selected.identity);
     return resolved(selected.identity === outer.identity ? [typeConstraint(container(payload))] : []);
-  };
+  });
   const owner = createStructuralObjectShapeTarget([field(outer)], undefined, environment);
   assert.deepEqual(owner.typeArguments.map(type => type.identity), ["outer", "payload"]);
   assert.equal(owner.typeArguments[0].csharpConstraints.constraints[0].type.typeArguments[0].identity, payload.identity);
   assert.equal(Object.isFrozen(owner.typeArguments), true, "immutable owner argument environment");
   assert.equal(Object.isFrozen(owner.typeArguments[0].csharpConstraints.constraints[0].type.typeArguments), true);
   assert.equal(calls.includes(payload.identity), true, "constraint dependency classified at the producer");
-  const different = createStructuralObjectShapeTarget([field(outer)], undefined, () => resolved([]));
+  const different = createStructuralObjectShapeTarget([field(outer)], undefined, createCsharpTypeParameterEnvironment(() => resolved([])));
   assert.notEqual(owner.id, different.id, "native constraints identify the generated owner contract");
 });
 
@@ -156,7 +156,7 @@ test("transitive dependency diamonds and self-bounds are finite and keep source 
     ["right", resolved([typeConstraint(container(leaf))])],
     ["leaf", resolved([])],
   ]);
-  const selected = closeCsharpOwnerTypeParameterEnvironment([outer], parameter => facts.get(parameter.identity));
+  const selected = closeCsharpOwnerTypeParameterEnvironment([outer], createCsharpTypeParameterEnvironment(parameter => facts.get(parameter.identity)));
   assert.deepEqual(selected.map(parameter => parameter.identity), ["leaf", "left", "outer", "right"]);
   assert.equal(selected.every(parameter => Object.isFrozen(parameter.csharpConstraints)), true, "one finalized environment");
 });
@@ -167,7 +167,7 @@ test("carrier identity remains binder identity while contradictory native owner 
   const right = { ...outer, csharpConstraints: resolved([{ kind: "keyword", keyword: "struct" }]) };
   assert.equal(targetTypeRefEquals(left, right), true, "same exact native binder");
   assert.equal(targetTypeRefKey(left), targetTypeRefKey(right), "no replacement carrier identity");
-  assert.throws(() => closeCsharpOwnerTypeParameterEnvironment([left, right], parameter => parameter.csharpConstraints),
+  assert.throws(() => closeCsharpOwnerTypeParameterEnvironment([left, right], createCsharpTypeParameterEnvironment(parameter => parameter.csharpConstraints)),
     /conflicting constraint evidence/u);
   assert.throws(() => csharpObjectShapeTypeParameters([field({ kind: "tuple", elements: [left, right] })], []),
     /conflicting constraint evidence/u);
@@ -215,7 +215,7 @@ test("malformed constraints, cycles, sparse arrays and executable metadata rejec
     assert.equal(isCsharpTargetTypeRef({ ...outer, csharpConstraints: malformed }), false,
       "the public carrier predicate independently rejects executable or malformed constraints");
     assert.throws(() => snapshotCsharpTargetTypes([{ ...outer, csharpConstraints: malformed }]), TypeError);
-    assert.throws(() => closeCsharpOwnerTypeParameterEnvironment([outer], () => malformed), TypeError);
+    assert.throws(() => closeCsharpOwnerTypeParameterEnvironment([outer], createCsharpTypeParameterEnvironment(() => malformed)), TypeError);
   }
   assert.equal(reads, 0, "constraint getters never execute");
   assert.throws(() => snapshotCsharpTargetTypes([{ ...outer, csharpDeclaration: null }]), TypeError);
@@ -232,15 +232,15 @@ test("source constraint resolution uses exact declaration identity once and seal
   const outer = csharpSourceTypeParameter(declaration, ast);
   const input = resolved([typeConstraint(container(integer))]);
   let calls = 0;
-  const environment = createCsharpTypeParameterEnvironment(ast, (node, parameter) => {
+  const environment = createCsharpSourceTypeParameterEnvironment(ast, (node, parameter) => {
     assert.equal(node === declaration, true, "selected source declaration");
     assert.equal(parameter.identity, outer.identity, "exact selected binder");
     calls += 1;
     return input;
   });
-  const first = environment(outer);
+  const first = environment.resolve(outer).csharpConstraints;
   input.constraints[0].type.typeArguments[0] = parameter("wrong");
-  assert.equal(environment({ ...outer }) === first, true, "one cached native constraint contract");
+  assert.equal(environment.resolve({ ...outer }).csharpConstraints === first, true, "one cached native constraint contract");
   assert.equal(first.constraints[0].type.typeArguments[0].name, "int32", "immutable native constraint snapshot");
   assert.equal(calls, 1, "one producer query");
   const sourceType = Object.freeze({});
@@ -258,8 +258,8 @@ test("source constraint resolution uses exact declaration identity once and seal
   assert.equal(calls, 1, "source resolution does not create a second constraint parser or cache");
   assert.throws(() => resolveTypeParameter(sourceType, queries, ast), TypeError,
     "the superseded source resolver without its mandatory selected-constraint input is rejected");
-  assert.equal(environment({ ...outer, identity: "wrong" }).kind, "unsupported", "identity mismatch fails closed");
-  assert.equal(environment(parameter("missing")).kind, "unsupported", "no guessed unconstrained binder");
+  assert.equal(environment.resolve({ ...outer, identity: "wrong" }).csharpConstraints.kind, "unsupported", "identity mismatch fails closed");
+  assert.equal(environment.resolve(parameter("missing")).csharpConstraints.kind, "unsupported", "no guessed unconstrained binder");
 });
 
 test("virtual generic declarations retain their checked consumer and do not cache missing-context failures", () => {
@@ -280,7 +280,7 @@ test("virtual generic declarations retain their checked consumer and do not cach
   const bound = typeConstraint(container(integer));
   const constraints = resolved([{ kind: "keyword", keyword: "class" }, bound]);
   let sourceQueries = 0;
-  const environment = createCsharpTypeParameterEnvironment(ast, (node, selected, source) => {
+  const environment = createCsharpSourceTypeParameterEnvironment(ast, (node, selected, source) => {
     assert.equal(node === declaration, true, "virtual declaration identity is never normalized to another binder");
     if (source === undefined) return undefined;
     assert.equal(source.sourceFile === consumerFile, true, "the included checked consumer, not the virtual declaration file");
@@ -290,23 +290,25 @@ test("virtual generic declarations retain their checked consumer and do not cach
     return constraints;
   });
   const selected = csharpSourceTypeParameter(declaration, ast);
-  assert.equal(environment(selected).kind, "unsupported", "missing request evidence is not a guessed empty native bound");
+  assert.equal(environment.resolve(selected).csharpConstraints.kind, "unsupported", "missing request evidence is not a guessed empty native bound");
   const first = resolveTypeParameter(sourceType, queries, ast, environment);
   const second = resolveTypeParameter(sourceType, queries, ast, environment);
   assert.equal(first.csharpConstraints.kind, "resolved", "a later real consumer is not poisoned by the missing-context request");
   assert.equal(first.csharpConstraints.constraints.length, 2, "all actual keyword and selected interface constraints remain");
   assert.equal(first.csharpConstraints.constraints[1].type.typeArguments[0].name, "int32", "the selected native bound is unchanged");
   assert.equal(second.csharpConstraints === first.csharpConstraints, true, "one canonical immutable constraint result");
-  assert.equal(environment(selected) === first.csharpConstraints, true, "later owner reads consume the same completed native evidence");
+  assert.equal(environment.resolve(selected).csharpConstraints === first.csharpConstraints, true, "later owner reads consume the same completed native evidence");
   assert.equal(sourceQueries, 1, "one checked producer query for this exact binder");
 });
 
 test("retained native clauses never depend on the virtual source declaration's token shape", () => {
-  const retained = resolved([{ kind: "keyword", keyword: "unmanaged" }, typeConstraint(container(integer))]);
-  const environment = createCsharpTypeParameterEnvironment({}, () => {
+  const retained = createCsharpTypeParameterEnvironment(() => resolved([
+    { kind: "keyword", keyword: "unmanaged" }, typeConstraint(container(integer)),
+  ])).resolve(parameter("native")).csharpConstraints;
+  const environment = createCsharpSourceTypeParameterEnvironment({}, () => {
     assert.fail("already selected native constraints are not reparsed from source syntax");
   });
-  assert.equal(environment({ ...parameter("native"), csharpConstraints: retained }) === retained, true,
+  assert.equal(environment.resolve({ ...parameter("native"), csharpConstraints: retained }).csharpConstraints === retained, true,
     "unmanaged, value, class and interface evidence is authoritative before source-context resolution");
   const ast = { as: { AsTypeParameterDeclaration: () => undefined } };
   const unreadable = resolveCsharpTypeParameterConstraints({}, parameter("unknown"), {}, { ast, types: {} });
@@ -344,7 +346,7 @@ test("generic traversal and constraint snapshots share the existing finite work 
   assert.throws(() => budget.reserve(1), failure => metadataResourceLimit(failure, "entries", maximumCsharpMetadataEntries), "the selected budget remains exhausted after rejection");
   const excessive = new Array(maximumCsharpMetadataEntries + 1);
   assert.throws(() => csharpFreeTypeParameterIdentities(excessive), failure => metadataResourceLimit(failure, "entries", maximumCsharpMetadataEntries), "reject before pending allocation");
-  assert.throws(() => closeCsharpOwnerTypeParameterEnvironment(excessive, () => resolved([])), failure => metadataResourceLimit(failure, "entries", maximumCsharpMetadataEntries));
+  assert.throws(() => closeCsharpOwnerTypeParameterEnvironment(excessive, createCsharpTypeParameterEnvironment(() => resolved([]))), failure => metadataResourceLimit(failure, "entries", maximumCsharpMetadataEntries));
   assert.throws(() => csharpTargetTypeComponents({ kind: "tuple", elements: excessive }), failure => metadataResourceLimit(failure, "entries", maximumCsharpMetadataEntries));
   let nested = parameter("outer");
   for (let depth = 0; depth <= maximumCsharpMetadataDepth; depth += 1) nested = { kind: "array", element: nested };

@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { resolveSourceCallContract } from "../../../dist/analysis/source-evidence/types/resolution/call-contracts.js";
-import { formCsharpSourceCallableSource } from "../../../dist/analysis/program/source-callable-source.js";
 import { resolveSourceCallParameter, resolveSourceCallParameters, resolveSourceCallArgumentParameter, resolveSourceCallResultWithState, resolveSourceCallTypeArguments } from "../../../dist/analysis/source-evidence/types/resolution/call-api.js";
 import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
 import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
@@ -14,7 +13,7 @@ import { csharpProjectedType } from "../../../dist/target-model/types/projection
 import { csharpSourceTypeParameter } from "../../../dist/source/extension/type-parameters.js";
 import { selectSourceCallParameterSlots } from "../../../../tsonic/packages/target-api/dist/source-semantics/call-parameter-slots.js";
 import { resolveCallableEvidence } from "../../../dist/analysis/source-evidence/types/resolution/source-profiles.js";
-import { createCsharpTypeParameterEnvironment } from "../../../dist/analysis/source-evidence/types/resolution/type-parameter-environment.js";
+import { createCsharpTypeParameterEnvironment, createCsharpSourceTypeParameterEnvironment } from "../../../dist/analysis/source-evidence/types/resolution/type-parameter-environment.js";
 import { instantiateCsharpObjectShape } from "../../../dist/policy/types/objects/instantiation.js";
 import { csharpMethodValueType } from "../../../dist/target-model/types/method-values.js";
 
@@ -53,20 +52,20 @@ test("independent checked arguments infer native destinations before the body AB
   const excluded = new Set([1]);
   const selected = inferSourceCallTargetTypeArguments(scope, source, undefined, file,
     new Set([selectedParameter.identity]), { depth: 0 }, excluded);
-  assert.equal(selected?.bindings.get(selectedParameter.identity)?.type === floating && originalQueries === 1, true,
+  assert.equal(selected?.get(selectedParameter.identity) === floating && originalQueries === 1, true,
     "the actual independent input selects float64 through its original checked formal");
   const absent = inferSourceCallTargetTypeArguments(scope, source, undefined, file,
     new Set([selectedParameter.identity]), { depth: 0 }, new Set([0, 1]));
-  assert.equal(absent?.bindings.size, 0, "no independent input is not an inferred rounding authority");
+  assert.equal(absent?.size, 0, "no independent input is not an inferred rounding authority");
   scope.host.ast.getSourceFile = () => undefined;
   const foreign = inferSourceCallTargetTypeArguments(scope, source, undefined, file,
     new Set([selectedParameter.identity]), { depth: 0 }, excluded);
-  assert.equal(foreign?.bindings.size === 0 && originalQueries === 1, true,
+  assert.equal(foreign?.size === 0 && originalQueries === 1, true,
     "missing original declaration provenance cannot manufacture a formal or use the selected array's type");
   const complete = { nativeParameters: [{ targetParameter: { name: "sample", type: nativeParameter, passingMode: "by-value" } }] };
   const native = inferSourceCallTargetTypeArguments(scope, source, complete, file,
     new Set([nativeParameter.identity]), { depth: 0 }, excluded);
-  assert.equal(native?.bindings.get(nativeParameter.identity)?.type === floating && originalQueries === 1, true,
+  assert.equal(native?.get(nativeParameter.identity) === floating && originalQueries === 1, true,
     "a completed native ABI keeps its own binder identity and never reselects an authored formal");
 });
 
@@ -89,24 +88,19 @@ function fixture(carrier = csharpDelegateTargetType("System.Func", [integer], in
       IsMethodDeclaration: () => false, IsClassDeclaration: () => false,
       IsVariableDeclaration: node => node?.kind === "variable" },
       parent: () => undefined, name: node => node?.name, kindName: node => node?.kind },
-    navigation: { sourceReferenceFor: () => ({ declaration }), isProjectDeclaration: node => direct && node === declaration,
-      callableImplementation: () => undefined },
-    semantics: sourceFile => ({ sourceFile, declarations: { signatureDeclaration: () => signatureDeclaration }, operations: {
+    navigation: { sourceReferenceFor: () => ({ declaration }), isProjectDeclaration: node => direct && node === declaration },
+    semantics: () => ({ declarations: { signatureDeclaration: () => signatureDeclaration }, operations: {
       callResult: () => undefined, callParameterSlots: selected => selectSourceCallParameterSlots(selected, { isTuple: () => false }),
     } }),
     projectTypes: () => ({ catalog: { definitionForTarget: () => undefined } }),
     projectTypeCatalog: { definitionForTarget: () => undefined },
     typeDefinitions: { sourceUnionArms: () => undefined },
     representations: { genericProjections: () => [], closedInputContract: () => undefined,
-      sourceCallableSource: (selected, sourceFile) => formCsharpSourceCallableSource({ ast: scope.host.ast,
-        navigation: scope.host.navigation, semantics: { forFile: scope.host.semantics } },
-        scope.host.moduleCallables, selected, sourceFile),
-      completeSourceCallable: () => { assert.equal(direct, true, "stored invocation must never select the creation ABI"); return openContract; } },
+      sourceCallable: () => { assert.equal(direct, true, "stored invocation must never select the creation ABI"); return openContract; } },
   }, resolveSelectedValueWithState: () => carrier,
     sourceCallableTypeParametersMatch: () => true,
     resolveSourceCallSelectedType: () => assert.fail("the closed stored contract must not fall back to source templates"),
     resolveSourceCallableContractType: (_source, _callable, type) => type,
-    completeSourceCallableType: input => ({ input, type: input.type }),
     sourceCallSelectedDeclaration: () => signatureDeclaration,
   };
   scope.resolveSourceCallContract = (...arguments_) => resolveSourceCallContract(scope, ...arguments_);
@@ -119,7 +113,7 @@ test("declared parameter reads require their explicit domain without admitting a
   const file = {};
   let declarationReads = 0;
   let calleeReads = 0;
-  scope.host.representations.completeSourceCallable = ({ source: selected, sourceFile }, selection) => {
+  scope.host.representations.sourceCallable = (selected, sourceFile, selection) => {
     assert.equal(selected === source && sourceFile === file && selection === "checked", true,
       "the original checked declaration is the only parameter authority");
     declarationReads++;
@@ -316,7 +310,7 @@ function checkedBinders(current, count = 2) {
     pos: node => node.position, end: node => node.position + 1, name: () => ({}), text: () => "Item" });
   ast.is.IsTypeParameterDeclaration = node => node?.kind === "parameter";
   ast.typeParameters = node => node === current.signatureDeclaration ? [parameters[0]] : [];
-  current.scope.host.typeParameterConstraints = createCsharpTypeParameterEnvironment(ast,
+  current.scope.host.typeParameterConstraints = createCsharpSourceTypeParameterEnvironment(ast,
     () => Object.freeze({ kind: "resolved", constraints: Object.freeze([]) }));
   const original = current.scope.host.semantics();
   current.scope.host.semantics = () => ({ ...original, declarations: { ...original.declarations,
@@ -329,7 +323,7 @@ function checkedBinders(current, count = 2) {
 function retainedProtocol(current, signature, parameters) {
   let protocol;
   const value = retainCsharpGenericCallableValue(signature, parameters, shape => { protocol = shape; return shape; },
-    () => ({ kind: "resolved", constraints: [] }));
+    createCsharpTypeParameterEnvironment(() => ({ kind: "resolved", constraints: [] })));
   current.scope.host.structuralTypes = { resolveTarget: owner => protocol === undefined ? undefined
     : instantiateCsharpObjectShape(protocol, owner) };
   return value;

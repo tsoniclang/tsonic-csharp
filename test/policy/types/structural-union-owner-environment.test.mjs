@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createCsharpTypeParameterEnvironment } from "../../../dist/analysis/source-evidence/types/resolution/type-parameter-environment.js";
 import { CsharpMetadataResourceLimitFailure } from "../../../dist/target-model/metadata/immutable.js";
 import { TargetCompilerResourceLimitFailure } from "@tsonic/target-api/artifacts";
 import { csharpMetadataResourceFailure } from "../../../dist/backend/compile.js";
@@ -61,7 +62,7 @@ function scenario(arguments_, environment) {
       targetName: "value", memberKind: "property", type: targetType.typeArguments?.[0] ?? integer }] };
     shapes.push(shape);
     return shape;
-  }, environment);
+  }, createCsharpTypeParameterEnvironment(environment));
   return { policy, shapes, resolve: () => policy.resolve(union, file, { depth: 0 }),
     reference: () => policy.reference(union), recursion: () => recursion };
 }

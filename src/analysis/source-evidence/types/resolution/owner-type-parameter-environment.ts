@@ -1,19 +1,18 @@
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../../target-model/types/model.js";
 import { targetTypeRefKey } from "../../../../target-model/types/equality.js";
 
-import { snapshotCsharpTargetTypes } from "../../../../target-model/types/snapshot.js";
-import { createCsharpMetadataBudget } from "../../../../target-model/metadata/immutable.js";
+import { csharpMetadataDescriptors, createCsharpMetadataBudget } from "../../../../target-model/metadata/immutable.js";
 import { csharpTypeParameterConstraintResolutionKey } from "../../../../target-model/types/generic-constraints.js";
 
 type TypeParameter = Extract<TargetTypeRef, { readonly kind: "type-parameter" }>;
 const noTypeParameters: readonly TypeParameter[] = Object.freeze([]);
 
-import type { CsharpTypeParameterConstraintResolver } from "../../../../target-model/types/generic-references.js";
+import type { CsharpTypeParameterEnvironment } from "../../../../target-model/records/types/type-parameter-constraints.js";
 
 import { visitCsharpTargetTypeParameters } from "../../../../target-model/types/generic-references.js";
 export function closeCsharpOwnerTypeParameterEnvironment(
   parameters: readonly TypeParameter[],
-  resolve: CsharpTypeParameterConstraintResolver,
+  environment: CsharpTypeParameterEnvironment,
 ): readonly TypeParameter[] {
   if (parameters.length === 0) return noTypeParameters;
   const budget = createCsharpMetadataBudget();
@@ -22,9 +21,7 @@ export function closeCsharpOwnerTypeParameterEnvironment(
   const selected = new Map<string, TypeParameter>();
   const enqueue = (parameter: TypeParameter): void => {
     budget.reserve(1);
-    const resolution = resolve(parameter);
-    const finalized = snapshotCsharpTargetTypes([{ ...parameter, csharpConstraints: resolution }], budget)[0]!;
-    if (finalized.kind !== "type-parameter") throw new TypeError("A native generic owner requires exact parameter carriers.");
+    const finalized = environment.resolve(parameter, undefined, budget);
     const previous = selected.get(parameter.identity);
     if (previous !== undefined) {
       if (csharpTypeParameterConstraintResolutionKey(previous.csharpConstraints) !==
@@ -36,8 +33,14 @@ export function closeCsharpOwnerTypeParameterEnvironment(
     selected.set(parameter.identity, finalized);
     pending.push(finalized);
   };
-  for (const parameter of snapshotCsharpTargetTypes(parameters, budget)) {
-    if (parameter.kind !== "type-parameter") throw new TypeError("A native generic owner requires exact parameter carriers.");
+  const descriptors = csharpMetadataDescriptors(parameters);
+  if (!Array.isArray(parameters) || Object.keys(descriptors).length !== parameters.length + 1) {
+    throw new TypeError("C# immutable metadata requires bounded dense arrays.");
+  }
+  for (let index = 0; index < parameters.length; index += 1) {
+    const descriptor = descriptors[String(index)];
+    if (descriptor === undefined) throw new TypeError("C# immutable metadata requires dense arrays.");
+    const parameter = descriptor.value as TypeParameter;
     enqueue(parameter);
   }
   for (let index = 0; index < pending.length; index += 1) {

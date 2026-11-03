@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createCsharpTypeParameterEnvironment } from "../../../dist/analysis/source-evidence/types/resolution/type-parameter-environment.js";
 import { analyzeCsharpAuthoredObjectMethods } from "../../../dist/analysis/objects/authored-methods.js";
 import { analyzeCsharpCaptureMethods } from "../../../dist/analysis/objects/capture-methods.js";
 import { selectCsharpObjectMemberEmission } from "../../../dist/policy/types/objects/object-members.js";
@@ -25,7 +26,7 @@ test("authored copied and captured method owners seal the implemented nullable b
       memberKind: "method", type: signature, sourceDeclarations: [declaration],
       typeParameters: [{ declaration, identity: parameter.identity, name: parameter.name, constraints: control.constraints }] };
     const protocol = createStructuralObjectShapeTarget([member], undefined,
-      () => ({ kind: "resolved", constraints: control.constraints }), true);
+      createCsharpTypeParameterEnvironment(() => ({ kind: "resolved", constraints: control.constraints })), true);
     const selectedMember = { ...member, methodValueContract: protocol };
     const shape = { targetType: protocol, members: [selectedMember],
       methodImplementation: { declaration: literal, identity: control.name, methods: [declaration], captures: [] } };

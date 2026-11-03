@@ -1,5 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createCsharpTypeParameterEnvironment } from "../../../dist/analysis/source-evidence/types/resolution/type-parameter-environment.js";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
+
+const environment = createCsharpTypeParameterEnvironment(parameter => parameter.csharpConstraints ??
+  failTargetAnalysisInvariant("tsonic-csharp", "An admitted object projection requires exact sealed native generic constraints."));
 import { createCsharpObjectShapeDemandEngine } from "../../../dist/analysis/objects/native-demand/requests.js";
 import { publishCsharpNativeArtifactDemand } from "../../../dist/analysis/program/records/native/native-demand.js";
 import { renderObjectShapeProjectionMethods } from "../../../dist/backend/planner/objects/closed-object-shapes.js";
@@ -204,7 +209,7 @@ test("a projected parameter already owned by the declaration is not redeclared b
   const selected = { kind: "has-own", resultType: { kind: "source-primitive", name: "bool" }, propertyOrder: ["value"] };
   const declarations = [{ identity: projected.identity, name: "Storage" }];
   const binding = publishCsharpObjectShapeProjectionDeclaration(prepareCsharpObjectShapeProjectionDeclaration(
-    receiver, selected, declarations, [], { kind: "has-own", keys: ["value"] }), declarations);
+    receiver, selected, declarations, [], { kind: "has-own", keys: ["value"] }, environment), declarations);
   assert.equal(binding.typeParameters.length, 0, "the existing class binder satisfies the emitted physical parameter");
   const diagnostics = [];
   const methods = renderObjectShapeProjectionMethods(planning({ typeParameterNames: new Map([[projected.identity, "Storage"]]) }), [binding], diagnostics);
@@ -216,7 +221,7 @@ test("physical projection publication refuses missing native binder constraints"
   const projected = csharpProjectedType({ kind: "optional", part: "storage", arguments: [parameter] });
   const receiver = { targetType: target(projected), members: [field(projected)] };
   assert.throws(() => prepareCsharpObjectShapeProjectionDeclaration(receiver,
-    { kind: "has-own", resultType: { kind: "source-primitive", name: "bool" }, propertyOrder: ["value"] }, [], [], { kind: "has-own", keys: ["value"] }),
+    { kind: "has-own", resultType: { kind: "source-primitive", name: "bool" }, propertyOrder: ["value"] }, [], [], { kind: "has-own", keys: ["value"] }, environment),
   /exact sealed native generic constraints/u, "source projection evidence does not manufacture an unconstrained native binder");
 });
 
@@ -232,7 +237,7 @@ test("null checks are selected only for exact native reference receivers, never 
   ]) {
     const receiver = { targetType: type, members: [] };
     const binding = publishCsharpObjectShapeProjectionDeclaration(prepareCsharpObjectShapeProjectionDeclaration(receiver,
-      { kind: "has-own", resultType: { kind: "source-primitive", name: "bool" }, propertyOrder: [] }, [], [], { kind: "has-own", keys: [] }), []);
+      { kind: "has-own", resultType: { kind: "source-primitive", name: "bool" }, propertyOrder: [] }, [], [], { kind: "has-own", keys: [] }, environment), []);
     assert.equal(binding.receiverRequiresNullCheck, expected, `${name}: one pre-seal reference obligation`);
     const diagnostics = [];
     const methods = renderObjectShapeProjectionMethods(planning({ typeParameterNames: new Map() }), [binding], diagnostics);
@@ -268,7 +273,7 @@ test("actual optional and conditional physical projection methods compile and re
   ];
   const inverses = inverseTypes.map(([name, type]) => ({ name, binding: publishCsharpObjectShapeProjectionDeclaration(prepareCsharpObjectShapeProjectionDeclaration({ targetType: type, members: [] },
     { kind: "has-own", resultType: { kind: "source-primitive", name: "bool" }, propertyOrder: [] },
-    [{ identity: parameter.identity, name: "Value" }], [], { kind: "has-own", keys: [] }), [{ identity: parameter.identity, name: "Value" }]) }));
+    [{ identity: parameter.identity, name: "Value" }], [], { kind: "has-own", keys: [] }, environment), [{ identity: parameter.identity, name: "Value" }]) }));
   for (const { binding } of inverses) assert.equal(binding.receiverRequiresNullCheck, false,
     "native struct, ref-like and unconstrained physical receivers never acquire a boxing null check");
   const diagnostics = [];

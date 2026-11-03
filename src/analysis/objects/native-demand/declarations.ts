@@ -7,6 +7,7 @@ import type { CsharpObjectShapeFact, CsharpObjectShapeProjection, TargetTypeRef 
 
 import { visitCsharpTargetTypeParameters } from "../../../target-model/types/generic-references.js";
 import { closeCsharpOwnerTypeParameterEnvironment } from "../../source-evidence/types/resolution/owner-type-parameter-environment.js";
+import type { CsharpTypeParameterEnvironment } from "../../../target-model/records/types/type-parameter-constraints.js";
 import { isCsharpReferenceCarrier } from "../../../target-model/types/identity.js";
 import { csharpObjectShapeAssignmentMembers, csharpObjectShapeProjectionMembers, csharpObjectShapeProjectionMethodName } from "../../../target-model/types/object-shape-projection.js";
 import { getCsharpJsArrayElementTargetType } from "../../../target-model/types/carriers/collections.js";
@@ -48,14 +49,14 @@ export function prepareCsharpObjectShapeProjectionDeclaration(
   declarationParameters: readonly { readonly identity: string }[],
   conversions: CsharpObjectShapeProjectionDeclaration["conversions"],
   emission: CsharpObjectShapeProjectionDeclaration["emission"],
+  environment: CsharpTypeParameterEnvironment,
 ): CsharpPreparedObjectShapeProjection {
   const types = [receiver.targetType, selection.resultType, ...(selection.kind === "assign" ? [selection.sourceShape.targetType] : [])];
   const parameters: Extract<TargetTypeRef, { readonly kind: "type-parameter" }>[] = [];
   for (const type of types) visitCsharpTargetTypeParameters(type, parameter => {
     parameters.push(parameter);
   });
-  const closed = closeCsharpOwnerTypeParameterEnvironment(parameters, parameter => parameter.csharpConstraints ??
-    failTargetAnalysisInvariant("tsonic-csharp", "An admitted object projection requires exact sealed native generic constraints."));
+  const closed = closeCsharpOwnerTypeParameterEnvironment(parameters, environment);
   const classIdentities = new Set(declarationParameters.map(parameter => parameter.identity));
   const typeParameters = Object.freeze(closed.filter(parameter => !classIdentities.has(parameter.identity)));
   for (const parameter of typeParameters) {

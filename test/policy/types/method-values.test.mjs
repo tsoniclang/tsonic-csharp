@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createCsharpTypeParameterEnvironment } from "../../../dist/analysis/source-evidence/types/resolution/type-parameter-environment.js";
 import {
   csharpMethodValueType, csharpMethodValueCoversContract, csharpMethodValueContractsEqual,
   csharpPresentObjectShapeMethod,
@@ -32,7 +33,7 @@ function contract(name) {
   return csharpDelegateTargetType("System.Func", [type], type);
 }
 const methodValue = (name, method = "identity") => csharpMethodValueType(owner, method, method, contract(name), [name]);
-const unconstrained = () => ({ kind: "resolved", constraints: [] });
+const unconstrained = createCsharpTypeParameterEnvironment(() => ({ kind: "resolved", constraints: [] }));
 const abstractMethodStorage = Object.freeze({
   memberSubjectFor: () => assert.fail("a quantified abstract contract has no ordinary authored method slot"),
   memberWritesFor: () => assert.fail("a quantified abstract contract needs no ordinary-method exposure proof"),
