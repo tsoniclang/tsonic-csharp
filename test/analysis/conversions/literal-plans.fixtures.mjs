@@ -96,7 +96,7 @@ function sealedProviderCallConversions(fixture) {
       forEachChild: (node, visit) => { if (node === sourceFile) visit(call); else if (node === call) visit(literal); } },
     navigation: { ...host.navigation, referenceFor: () => undefined },
     semanticsFor: () => host.semantics(sourceFile) };
-  const evidence = { compileTimeMetadata: Object.freeze({ get: () => false }), storageTargetType: none, yield: none };
+  const evidence = { nodeTargetType: Object.freeze({ get: node => node === literal ? read : undefined }), compileTimeMetadata: Object.freeze({ get: () => false }), storageTargetType: none, yield: none };
   const shapes = { resolveNode: () => undefined, resolveTarget: () => undefined, registerStructuralInterface: () => false };
   const operations = { nativeUnreachable: Object.freeze({ get: () => false }), borrowedSequence: none, binaryOperation: none, selectedConstruction: none,
       unaryOperation: none, selectedCall: Object.freeze({ get: node => node === call ? { target: selected } : undefined }) };

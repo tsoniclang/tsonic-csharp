@@ -54,7 +54,7 @@ test("sequence completion demand is sealed independently of its checked value ca
 });
 
 test("conditional values preserve finite native arms, exact width and one absence", () => {
-  const expected = csharpNullableTargetType(csharpRuntimeUnionTargetType([boolean, integer]));
+  const expected = csharpNullableTargetType(combineCsharpTargetUnionMembers([boolean, integer]));
   const combined = combineCsharpTargetUnionMembers([boolean, csharpNullableTargetType(integer), csharpAbsenceTargetType()]);
   assert.ok(targetTypeRefEquals(combined, expected));
   assert.equal(getCsharpRuntimeUnionArms(combined), undefined);

@@ -1,14 +1,20 @@
-import type { Node, SourceFile } from "@tsonic/tsts";
+import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import { AsBinaryExpression, AsObjectLiteralExpression, AsPropertyAssignment, AsShorthandPropertyAssignment,
   AsSpreadAssignment, AsSpreadElement, HasSourceKind, KindArrayLiteralExpression, KindBinaryExpression, KindEqualsToken,
   KindIdentifier, KindObjectLiteralExpression, KindOmittedExpression, KindPropertyAssignment, KindShorthandPropertyAssignment,
-  KindSpreadAssignment, KindSpreadElement, Node_Expression } from "@tsonic/target-api/source";
+  KindSpreadAssignment, KindSpreadElement, Node_Expression, sourceArrayElementType } from "@tsonic/target-api/source";
 import { selectCsharpBindingPatternProjection } from "../../policy/types/objects/binding-projection.js";
 import type { CsharpObjectShapeFact, TargetTypeRef } from "../../target-model/types/index.js";
 import type { CsharpBindingElementProjection, CsharpBindingPatternSource, CsharpBindingProjectionFact,
   CsharpDestructuringAssignmentArrayElement, CsharpDestructuringAssignmentObjectElement,
   CsharpDestructuringAssignmentPattern, CsharpDestructuringAssignmentTarget } from "../../target-model/records/objects/value-projections.js";
 import type { CsharpBindingPatternAnalysisInput } from "./binding-patterns.js";
+import { resolveCsharpNativeBindingProperty } from "./native-binding-properties.js";
+
+interface CheckedAssignmentSource {
+  readonly type: Type;
+  readonly tupleOffset?: number;
+}
 
 export function createCsharpDestructuringAssignmentAnalysis(input: CsharpBindingPatternAnalysisInput, callbacks: {
   readonly completesWithValue: (source: Node) => boolean;
@@ -41,7 +47,9 @@ export function createCsharpDestructuringAssignmentAnalysis(input: CsharpBinding
     recordAssignment(node, pattern);
     if (!completesWithValue(selected.source)) return;
     admitSource(selected.pattern, selected.source, sourceFile, "Destructuring assignment source");
-    analyzeAssignmentPattern(pattern, selected.source, sourceFile, input.valueReads.valueRead.get(selected.source)?.value);
+    const checked = input.semanticsFor(selected.source).types.expressionType(selected.source);
+    analyzeAssignmentPattern(pattern, selected.source, sourceFile, input.valueReads.valueRead.get(selected.source)?.value,
+      checked === undefined ? undefined : { type: checked });
   }
 
   function analyzeAssignmentPattern(
@@ -49,12 +57,13 @@ export function createCsharpDestructuringAssignmentAnalysis(input: CsharpBinding
     sourceNode: Node,
     sourceFile: SourceFile,
     sourceCarrier: TargetTypeRef | undefined,
+    checked: CheckedAssignmentSource | undefined,
   ): void {
     recordAssignment(pattern.sourceNode, pattern);
     if (pattern.kind === "array") {
-      analyzeArrayAssignmentPattern(pattern, sourceNode, sourceFile, sourceCarrier);
+      analyzeArrayAssignmentPattern(pattern, sourceNode, sourceFile, sourceCarrier, checked);
     } else {
-      analyzeObjectAssignmentPattern(pattern, sourceNode, sourceFile);
+      analyzeObjectAssignmentPattern(pattern, sourceNode, sourceFile, sourceCarrier, checked);
     }
   }
 
@@ -63,6 +72,7 @@ export function createCsharpDestructuringAssignmentAnalysis(input: CsharpBinding
     sourceNode: Node,
     sourceFile: SourceFile,
     sourceCarrier: TargetTypeRef | undefined,
+    checked: CheckedAssignmentSource | undefined,
   ): void {
     const selected = selectCsharpBindingPatternProjection({ kind: "array-source", carrier: sourceCarrier });
     if (selected.kind !== "source" || selected.source.kind !== "array-source") {
@@ -78,37 +88,87 @@ export function createCsharpDestructuringAssignmentAnalysis(input: CsharpBinding
         index, rest: element.rest, hasDefault: element.initializer !== undefined });
       if (projection.kind !== "element") continue;
       recordElement(element.sourceNode, projection.element, element.initializer, bindingCarrier.kind === "array");
+      const child = arrayAssignmentSource(checked, index, element.rest, pattern.sourceNode);
       if (projection.element.kind === "array-rest" || projection.element.kind === "tuple-rest") {
-        analyzeAssignmentTarget(element.target, element.sourceNode, sourceFile, projection.element.restCarrier);
+        analyzeAssignmentTarget(element.target, element.sourceNode, sourceFile, projection.element.restCarrier, child);
         continue;
       }
       if (projection.element.kind !== "array-element") continue;
       const { elementCarrier, tupleDefault } = projection.element;
       if (elementCarrier === undefined) continue;
       if (element.initializer === undefined) {
-        analyzeAssignmentTarget(element.target, element.sourceNode, sourceFile, elementCarrier);
+        analyzeAssignmentTarget(element.target, element.sourceNode, sourceFile, elementCarrier, child);
       } else if (tupleDefault !== undefined) {
-        analyzeAssignmentTarget(element.target, element.sourceNode, sourceFile, tupleDefault.kind === "planned" ? tupleDefault.carrier : elementCarrier);
+        analyzeAssignmentTarget(element.target, element.sourceNode, sourceFile,
+          tupleDefault.kind === "planned" ? tupleDefault.carrier : elementCarrier,
+          tupleDefault.kind === "unused" ? child : presentAssignmentSource(child, element.sourceNode));
       } else if (bindingCarrier.kind === "array") {
         const defaultValue = draftFor(element.sourceNode)?.defaultValue;
         if (defaultValue !== undefined) {
-          analyzeAssignmentTarget(element.target, element.sourceNode, sourceFile, defaultValue.target);
+          analyzeAssignmentTarget(element.target, element.sourceNode, sourceFile, defaultValue.target,
+            presentAssignmentSource(child, element.sourceNode));
         }
       }
     }
+  }
+
+  function arrayAssignmentSource(
+    source: CheckedAssignmentSource | undefined,
+    index: number,
+    rest: boolean,
+    node: Node,
+  ): CheckedAssignmentSource | undefined {
+    if (source === undefined) return undefined;
+    const semantics = input.semanticsFor(node);
+    if (semantics.types.isTuple(source.type)) {
+      const offset = (source.tupleOffset ?? 0) + index;
+      if (rest) return { type: source.type, tupleOffset: offset };
+      const type = semantics.types.tupleElementInfos(source.type)[offset]?.type;
+      return type === undefined ? undefined : { type };
+    }
+    if (rest) return source;
+    const type = sourceArrayElementType(source.type, semantics);
+    return type === undefined ? undefined : { type };
+  }
+
+  function presentAssignmentSource(source: CheckedAssignmentSource | undefined, node: Node): CheckedAssignmentSource | undefined {
+    if (source === undefined) return undefined;
+    const type = input.semanticsFor(node).types.withoutMissingOrUndefined(source.type);
+    return type === undefined ? undefined : { type,
+      ...(source.tupleOffset === undefined ? {} : { tupleOffset: source.tupleOffset }) };
   }
 
   function analyzeObjectAssignmentPattern(
     pattern: Extract<CsharpDestructuringAssignmentPattern, { readonly kind: "object" }>,
     sourceNode: Node,
     sourceFile: SourceFile,
+    sourceCarrier: TargetTypeRef | undefined,
+    checked: CheckedAssignmentSource | undefined,
   ): void {
-    const shape = input.objectShapes.resolveNode(sourceNode, sourceFile);
-    if (shape === undefined) {
+    const shape = sourceCarrier === undefined ? input.objectShapes.resolveNode(sourceNode, sourceFile)
+      : input.objectShapes.resolveTarget(sourceCarrier);
+    const nativeProperties = new Map<Node, ReturnType<typeof resolveCsharpNativeBindingProperty>>();
+    const semantics = input.semanticsFor(pattern.sourceNode);
+    for (const element of pattern.elements) {
+      if (element.kind !== "object-property") continue;
+      const sourceName = assignmentPropertyName(element)?.sourceName;
+      if (sourceName === undefined) continue;
+      nativeProperties.set(element.sourceNode, resolveCsharpNativeBindingProperty(checked?.type, sourceName,
+        sourceCarrier, semantics, { ...input.conversionPolicy, ast, sourceFacts: input.sourceFacts }));
+    }
+    if (shape === undefined && ![...nativeProperties.values()].some(property => property.kind === "resolved")) {
       issue(pattern.sourceNode, "Object destructuring assignment requires finalized provider object-shape facts before C# emission.");
       return;
     }
-    recordSource(pattern.sourceNode, { kind: "object-shape-source", shape });
+    if (shape !== undefined) recordSource(pattern.sourceNode, { kind: "object-shape-source", shape });
+    else {
+      const selected = selectCsharpBindingPatternProjection({ kind: "native-source", carrier: sourceCarrier });
+      if (selected.kind !== "source") {
+        issue(pattern.sourceNode, "Native destructuring assignment requires its exact renderable receiver carrier.");
+        return;
+      }
+      recordSource(pattern.sourceNode, selected.source);
+    }
     const extractedSourceNames = new Set<string>();
     for (const element of pattern.elements) {
       if (element.kind === "object-rest") continue;
@@ -117,7 +177,8 @@ export function createCsharpDestructuringAssignmentAnalysis(input: CsharpBinding
     }
     for (const element of pattern.elements) {
       if (element.kind === "object-rest") {
-        analyzeObjectAssignmentRest(element, shape, extractedSourceNames, sourceFile);
+        if (shape === undefined) issue(element.sourceNode, "Object rest destructuring assignment requires finalized provider object-shape facts before C# emission.");
+        else analyzeObjectAssignmentRest(element, shape, extractedSourceNames, sourceFile);
         continue;
       }
       const property = assignmentPropertyName(element);
@@ -130,21 +191,38 @@ export function createCsharpDestructuringAssignmentAnalysis(input: CsharpBinding
         issue(element.sourceNode, "Object destructuring assignment property must match a finalized provider object-shape member.");
         continue;
       }
-      const selected = selectCsharpBindingPatternProjection({ kind: "object-member", shape, sourceName: property.sourceName,
-        description: "Object destructuring assignment property", permitsAbsence: false });
-      if (selected.kind !== "element" || selected.element.kind !== "object-shape-member" && selected.element.kind !== "object-shape-absence") {
+      const native = nativeProperties.get(element.sourceNode);
+      if (native?.kind === "unresolved") {
+        issue(element.sourceNode, "Native destructuring assignment property requires its exact admitted native read projection.");
+        continue;
+      }
+      const selected = native?.kind === "resolved" ? { kind: "element" as const,
+        element: { kind: "native-member" as const, property: native.property } }
+        : shape === undefined ? undefined : selectCsharpBindingPatternProjection({ kind: "object-member", shape,
+          sourceName: property.sourceName, description: "Object destructuring assignment property", permitsAbsence: false });
+      if (selected === undefined) {
+        issue(element.sourceNode, "Object destructuring assignment property requires finalized provider object-shape facts before C# emission.");
+        continue;
+      }
+      if (selected.kind !== "element") {
         if (selected.kind === "unresolved") for (const reason of selected.reasons) issue(element.sourceNode, reason);
         continue;
       }
-      const carrier = selected.element.kind === "object-shape-member" ? selected.element.member.type : selected.element.carrier;
+      if (selected.element.kind !== "object-shape-member" && selected.element.kind !== "object-shape-absence" &&
+          selected.element.kind !== "native-member") continue;
+      const carrier = selected.element.kind === "object-shape-member" ? selected.element.member.type
+        : selected.element.kind === "native-member" ? selected.element.property.member.returnType : selected.element.carrier;
+      const child = native !== undefined && native.sourceType !== undefined
+        ? { type: native.sourceType } : undefined;
       recordElement(element.sourceNode, selected.element, element.initializer);
       if (element.initializer === undefined) {
-        analyzeAssignmentTarget(element.target, element.sourceNode, sourceFile, carrier);
+        analyzeAssignmentTarget(element.target, element.sourceNode, sourceFile, carrier, child);
         continue;
       }
       const defaultValue = draftFor(element.sourceNode)?.defaultValue;
       if (defaultValue !== undefined) {
-        analyzeAssignmentTarget(element.target, element.sourceNode, sourceFile, defaultValue.target);
+        analyzeAssignmentTarget(element.target, element.sourceNode, sourceFile, defaultValue.target,
+          presentAssignmentSource(child, element.sourceNode));
       }
     }
   }
@@ -182,10 +260,11 @@ export function createCsharpDestructuringAssignmentAnalysis(input: CsharpBinding
     projectionNode: Node,
     sourceFile: SourceFile,
     carrier: TargetTypeRef | undefined,
+    checked: CheckedAssignmentSource | undefined,
   ): void {
     if (target.kind === "pattern") {
       recordBinding(projectionNode, target.pattern.sourceNode, carrier);
-      analyzeAssignmentPattern(target.pattern, projectionNode, sourceFile, carrier);
+      analyzeAssignmentPattern(target.pattern, projectionNode, sourceFile, carrier, checked);
     } else if (!HasSourceKind(ast, target.node, KindIdentifier)) {
       issue(target.node, "Destructuring assignment target supports source-owned identifiers and nested destructuring patterns only.");
     } else {

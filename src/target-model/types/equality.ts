@@ -16,6 +16,7 @@ export function targetTypeRefEquals(
     case "target-named":
       return right.kind === "target-named" &&
         left.id === right.id &&
+        left.csharpRuntimeUnionSemantics === right.csharpRuntimeUnionSemantics &&
         targetTypeRefListEquals(left.typeArguments ?? [], right.typeArguments ?? []);
     case "type-parameter":
       return right.kind === "type-parameter" && left.identity === right.identity;
@@ -76,7 +77,7 @@ export function scopedTargetTypeRefKey(type: TargetTypeRef, boundParameters: Rea
     case "source-primitive":
       return `${nullablePrefix}source:${type.name}`;
     case "target-named":
-      return `${nullablePrefix}target:${type.id}<${(type.typeArguments ?? []).map(key).join(",")}>`;
+      return `${nullablePrefix}target:${type.id}${type.csharpRuntimeUnionSemantics === undefined ? "" : `:${type.csharpRuntimeUnionSemantics}`}<${(type.typeArguments ?? []).map(key).join(",")}>`;
     case "type-parameter":
       return boundParameters.has(type.identity)
         ? `${nullablePrefix}bound-type-parameter:${boundParameters.get(type.identity)}`

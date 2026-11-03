@@ -13,6 +13,7 @@ import { planObjectShapeDefaultProjection } from "../objects/object-shape-defaul
 import { consumeCsharpPlannedValue } from "../statements/statement-output.js";
 import { planCsharpAbsentValue } from "../expressions/optional-storage.js";
 import { planCsharpBindingDefaultValue } from "./optional-values.js";
+import { planObjectBindingElement } from "./binding-object-source-patterns.js";
 
 export function planObjectShapeBindingPattern(
   patternNode: Node,
@@ -31,6 +32,8 @@ export function planObjectShapeBindingPattern(
     const projection = input.program.records.bindingPatternProjection.get(elementNode)?.element;
     if (element?.name === undefined || projection === undefined) return failCsharpPlannerInvariant(
       "Object binding requires its admitted native element projection.", elementNode);
+    if (projection.kind === "native-member") return planObjectBindingElement(elementNode, sourceExpression, sourceFile,
+      input, diagnostics, state, planBindingNameFromProjection, planExpression);
     if (projection.kind === "object-shape-rest") {
       const type = csharpConstructibleTypeFromObjectShapeFact(input, projection.restShape, diagnostics, elementNode);
       if (type === undefined) failCsharpPlannerInvariant("An admitted structural rest binding requires its native storage type.", elementNode);

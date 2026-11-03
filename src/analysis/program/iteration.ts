@@ -242,7 +242,7 @@ export function analyzeCsharpRepresentationIteration(
     ...preparedConversions.exactLiteralRequests,
     ...expectedTypes.constructions.propertyKeyRequests,
     ...expectedTypes.nativeUseSites.requests.flatMap(request => request.kind === "requested"
-      ? [{ expression: request.expression, target: request.targetType }] : []),
+      ? [{ expression: request.expression, source: valueReads.valueRead.get(request.expression)?.source, target: request.targetType }] : []),
   ], sourceStorage.nodes);
   const expectedUse = admitCsharpExpectedNativeUses(expectedTypes, {
     ast: source.ast, exactLiteral: exactLiterals.exactLiteral, callableCreation: callableCreations.callableCreation,
@@ -252,7 +252,7 @@ export function analyzeCsharpRepresentationIteration(
   for (const entry of expectedUse.entries) if (entry.site.role === "initializer")
     initializerUses.set(entry.site.subject, initializerUses.has(entry.site.subject) ? null : entry.use);
   const bindingCandidates = analyzeCsharpBindingPatterns({
-    ast: source.ast, semanticsFor: source.semantics.forNode, sourceFiles, participation: nativeParticipation.participation,
+    ast: source.ast, sourceFacts: policy.sourceFacts, semanticsFor: source.semantics.forNode, sourceFiles, participation: nativeParticipation.participation,
     evidence: sourceEvidence, operations, valueReads, objectShapes, initializerUses,
     typePolicy: policy.types, conversionPolicy: Object.freeze({ ...policy, objectShapes }), storage: storageRepresentations,
   });

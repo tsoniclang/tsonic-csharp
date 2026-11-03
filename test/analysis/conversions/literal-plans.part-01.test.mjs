@@ -23,7 +23,7 @@ import { primitive, primitives, literals, checkedPropertyKeys, providerAdapterCa
 
 test("native property-key literals retain exact tokens and the identical source enum entry", () => {
   const value = checkedPropertyKeys();
-  const requests = value.names.map((expression, index) => ({ expression,
+  const requests = value.names.map((expression, index) => ({ expression, source: undefined,
     target: index < 2 ? csharpStringTargetType() : primitive(index === 4 ? "decimal" : "int64"), propertyKey: value.selections[index] }));
   const index = analyzeCsharpExactLiteralSelections(analyzeSourceLiteralValues(value.source.ast, value.source.navigation.sourceFiles), requests, value.nodes);
   const selected = requests.map(request => index.exactLiteral.get(request.expression, request.target, "property-key"));
@@ -51,7 +51,7 @@ test("an exact property-key requirement cannot borrow the same node's value lite
   const expression = value.names[2];
   const target = primitive("int64");
   const literalValues = analyzeSourceLiteralValues(value.source.ast, value.source.navigation.sourceFiles);
-  const onlyValue = analyzeCsharpExactLiteralSelections(literalValues, [{ expression, target }], value.nodes);
+  const onlyValue = analyzeCsharpExactLiteralSelections(literalValues, [{ expression, source: target, target }], value.nodes);
   assert.equal(onlyValue.exactLiteral.get(expression, target)?.kind, "resolved", "the sibling value-purpose record really exists");
   assert.equal(onlyValue.exactLiteral.get(expression, target, "property-key") === undefined, true,
     "the property-key purpose never falls back to value evidence");
@@ -98,7 +98,7 @@ test("Half authored midpoint neighbors follow native Double-to-Half semantics in
   const expected = [0x3c00, 0x3c00, 0x8000, 1];
   const nodeBits = spellings.map(token => new Uint16Array(new Float16Array([Math.f16round(Number(token))]).buffer)[0]);
   assert.deepEqual(nodeBits, expected, "Node parses each authored Double before rounding it to native Half");
-  const selected = checkedSourceLiteralValues(spellings).map(value => selectCsharpExactLiteralConversion(value, primitive("float16")));
+  const selected = checkedSourceLiteralValues(spellings).map(value => selectCsharpExactLiteralConversion(value, primitive("float64"), primitive("float16")));
   const expressions = selected.map((selection, index) => {
     assert.equal(selection.kind === "resolved" && selection.recipe.kind === "float" && selection.recipe.bits === expected[index], true,
       `${index}: the checked Double-to-Half value is selected before rendering`);
@@ -166,7 +166,7 @@ test("checked wide key recipes render and execute in an actual native Dictionary
   const value = checkedPropertyKeys();
   const target = primitive("int64");
   const index = analyzeCsharpExactLiteralSelections(analyzeSourceLiteralValues(value.source.ast, value.source.navigation.sourceFiles),
-    [2, 3].map(position => ({ expression: value.names[position], target, propertyKey: value.selections[position] })), value.nodes);
+    [2, 3].map(position => ({ expression: value.names[position], source: undefined, target, propertyKey: value.selections[position] })), value.nodes);
   const expressions = [2, 3].map(position => {
     const admitted = index.exactLiteral.get(value.names[position], target, "property-key");
     assert.equal(admitted?.kind === "resolved" && admitted.recipe.kind === "integer" && admitted.recipe.width === "int64" &&

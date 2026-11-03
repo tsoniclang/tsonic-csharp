@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
 import test from "node:test";
 import {
-  csharpAbsenceTargetType, csharpNullableTargetType, csharpRuntimeUnionTargetType,
+  combineCsharpTargetUnionMembers, csharpAbsenceTargetType, csharpNullableTargetType, csharpRuntimeUnionTargetType,
   csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpTaskTargetType,
   csharpVoidTargetType, targetTypeRefEquals, csharpTsValueTargetType,
 } from "../../../dist/target-model/types/index.js";
@@ -69,8 +69,8 @@ test("finite await preserves synchronous values and nullable Task result absence
 
 test("finite await joins multiple closed results and retains exact nested union maps", () => {
   const boolean = csharpSourcePrimitiveTargetType("bool");
-  const first = csharpRuntimeUnionTargetType([integer, string]);
-  const second = csharpRuntimeUnionTargetType([integer, boolean]);
+  const first = combineCsharpTargetUnionMembers([integer, string]);
+  const second = combineCsharpTargetUnionMembers([integer, boolean]);
   const completion = selectCsharpAwaitCompletion(csharpRuntimeUnionTargetType([
     csharpTaskTargetType(first), csharpTaskTargetType(second),
   ]));

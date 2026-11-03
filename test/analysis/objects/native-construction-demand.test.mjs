@@ -12,6 +12,44 @@ import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.j
 import { maximumCsharpMetadataEntries } from "../../../dist/target-model/metadata/immutable.js";
 import { csharpStringTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { csharpTsValueTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
+import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
+
+test("completed native literal inventories are immutable canonical snapshots", () => {
+  const compiled = compileCsharpSource({ sourceText: `
+import type { int32 } from "@tsonic/core/types.js";
+export function run(): boolean {
+  const value: { count: int32; label: string } = { count: 7 as int32, label: "ready" };
+  return value.count === 7 && value.label === "ready";
+}
+` });
+  assert.equal(compiled.sourceDiagnosticsText, "", "the declared source remains valid");
+  assert.equal(compiled.targetDiagnostics.length, 0,
+    compiled.targetDiagnostics.map(({ code, message }) => `${code}: ${message}`).join("; "));
+  const program = compiled.result.program;
+  assert.equal(program !== undefined, true, "the native literal is admitted");
+  const ast = program.source.ast;
+  const literals = [];
+  const visit = node => {
+    if (ast.is.IsObjectLiteralExpression(node)) literals.push(node);
+    ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+  };
+  csharpProgramSourceFiles(program).forEach(visit);
+  assert.equal(literals.length, 1, "one actual native construction is retained");
+  const physical = program.records.nativeExpression.get(literals[0])?.physical;
+  const shape = physical?.objectShape;
+  assert.equal(shape !== undefined && Object.isFrozen(shape) && Object.isFrozen(shape.members), true,
+    "the completed shape and its ordered inventory are immutable");
+  assert.equal(shape.members.map(member => member.sourceName).join(","), "count,label");
+  assert.equal(shape.members.every(member => Object.isFrozen(member)), true,
+    "the snapshot retains immutable checked member records");
+  const count = shape.members[0];
+  assert.equal(count.type.kind === "source-primitive" && count.type.name === "int32", true,
+    "the completed inventory preserves the authored native width");
+  assert.equal(Reflect.set(shape.members, "0", count), false, "even an identical write cannot mutate the inventory");
+  assert.equal(program.records.nativeExpression.get(literals[0])?.physical?.objectShape === shape &&
+    shape.members[0] === count, true, "repeated reads retain the same canonical shape and member identities");
+  executeCsharpConstruction(compiled, "immutable-completed-native-literal");
+});
 
 const integer = Object.freeze({ kind: "source-primitive", name: "int64" });
 const floating = Object.freeze({ kind: "source-primitive", name: "float64" });

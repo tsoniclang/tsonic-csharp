@@ -3,6 +3,7 @@ import type { SourceLiteralIndex } from "@tsonic/target-api/source";
 import { selectCsharpExactLiteralConversion, selectCsharpExactPropertyKeyConversion } from "../../policy/conversions/literals.js";
 import type { CsharpExactLiteralRequest, CsharpExactLiteralSelectionIndex } from "../../target-model/conversions/exact-literals.js";
 import { createCsharpExactLiteralProducer } from "../program/records/operations/exact-literals.js";
+import { coalesceCsharpExactLiteralRequests } from "./literal-requests.js";
 
 export function analyzeCsharpExactLiteralSelections(
   literalValues: SourceLiteralIndex,
@@ -13,13 +14,13 @@ export function analyzeCsharpExactLiteralSelections(
   for (const node of nodes) {
     if (literalValues.literalValue.get(node) === undefined) producer.nonLiteral(node);
   }
-  for (const request of requests) {
+  for (const request of coalesceCsharpExactLiteralRequests(requests)) {
     const literal = literalValues.literalValue.get(request.expression);
     if (literal === undefined && request.propertyKey === undefined) continue;
     const role = request.propertyKey === undefined ? "value" : "property-key";
-    if (producer.has(request.expression, request.target, role)) continue;
-    producer.select(request.expression, request.target, role,
-      request.propertyKey === undefined ? selectCsharpExactLiteralConversion(literal, request.target)
+    if (producer.has(request.expression, request.target, role, request.source)) continue;
+    producer.select(request.expression, request.target, role, request.source,
+      request.propertyKey === undefined ? selectCsharpExactLiteralConversion(literal, request.source, request.target)
         : selectCsharpExactPropertyKeyConversion(request.propertyKey, request.target));
   }
   return producer.seal();

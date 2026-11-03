@@ -318,7 +318,8 @@ for (const wrapper of ["direct", "delegate", "tuple", "native-generic"]) test(wr
       return true;
     } };
   const operations = { selectedCall: none, selectedConstruction: none };
-  const analysis = analyzeCsharpConversions(policy, {}, shapes, operations);
+  const analysis = analyzeCsharpConversions(policy,
+    { nodeTargetType: { get: node => node === expression ? sourceUse : undefined } }, shapes, operations);
   const prepared = analysis.prepare({ expectedTypes: {}, valueReads: {} });
   assert.throws(() => analysis.seal(), /closed preparation/u, "final publication cannot compute or close preparation itself");
   const site = csharpNativeUseSite(expression, { kind: "return" });
@@ -369,7 +370,7 @@ function owners(sourceText, surface) {
   const exact = analyzeCsharpExactLiteralSelections(literalValues, [
     ...expected.constructions.propertyKeyRequests,
     ...expected.nativeUseSites.requests.flatMap(request =>
-      request.expression === undefined ? [] : [{ expression: request.expression, target: request.targetType }]),
+      request.expression === undefined ? [] : [{ expression: request.expression, source: records.valueRead.get(request.expression)?.source, target: request.targetType }]),
   ], nodes);
   const final = { ast, exactLiteral: exact.exactLiteral, callableCreation: { get: () => undefined }, valueRead: records.valueRead,
     absentValue: { get: () => false }, operations: records };

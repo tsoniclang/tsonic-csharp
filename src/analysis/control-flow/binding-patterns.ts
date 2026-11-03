@@ -5,7 +5,7 @@ import { csharpNativePropertyNameIssue } from "../objects/computed-field-names.j
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { tryCsharpIdentifier } from "../../target-model/names/identifiers.js";
-import { getCsharpNullableElementTargetType, isCsharpValueTypeTargetType } from "../../target-model/types/index.js";
+import { getCsharpNullableElementTargetType, isCsharpValueTypeTargetType, targetTypeRefEquals } from "../../target-model/types/index.js";
 import {
   AsBinaryExpression,
   AsBindingElement,
@@ -49,9 +49,11 @@ import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpStorageClassifications } from "../../target-model/records/storage/storage.js";
 import { selectCsharpConversion } from "../../policy/conversions/core.js";
 import { admitCsharpConversionSelection } from "../conversions/validation.js";
+import { resolveCsharpBindingSourceType } from "./binding-source-types.js";
 
 export interface CsharpBindingPatternAnalysisInput {
   readonly ast: AstReader;
+  readonly sourceFacts?: CsharpPolicyContext["sourceFacts"];
   readonly semanticsFor: (node: Node) => SourceFileSemantics;
   readonly sourceFiles: readonly SourceFile[];
   readonly participation: CsharpNativeParticipationInput["participation"];
@@ -206,6 +208,7 @@ export function analyzeCsharpBindingPatterns(
     roots.set(node, root);
     const source = element.kind === "array-element" ? element.elementCarrier
       : element.kind === "object-shape-member" ? element.member.type
+      : element.kind === "native-member" ? element.property.member.returnType
       : element.kind === "object-shape-absence" ? element.carrier : undefined;
     const tupleDefault = element.kind === "array-element" ? element.tupleDefault : undefined;
     const initialType = initializer === undefined ? undefined : input.evidence.nodeTargetType.get(initializer);
@@ -337,6 +340,21 @@ export function analyzeCsharpBindingPatterns(
   function analyzeObjectPattern(pattern: Node, sourceNode: Node, sourceFile: SourceFile, sourceCarrier: TargetTypeRef | undefined): void {
     const shape = sourceCarrier === undefined ? input.objectShapes.resolveNode(sourceNode, sourceFile)
       : input.objectShapes.resolveTarget(sourceCarrier);
+    const elements = ast.elements(pattern);
+    if (elements.length > 0 && elements.every(element => element !== undefined &&
+      input.evidence.bindingProjection.get(element)?.nativeRead !== undefined)) {
+      const carrier = sourceCarrier ?? input.evidence.nodeTargetType.get(sourceNode);
+      const native = selectCsharpBindingPatternProjection({ kind: "native-source", carrier });
+      if (native.kind !== "source" || native.source.kind !== "native-source") {
+        issue(pattern, "A native member binding requires its exact finalized input carrier.");
+        return;
+      }
+      recordSource(pattern, native.source);
+      for (const element of elements) {
+        if (element !== undefined) analyzeNativeElement(element, sourceFile, native.source.carrier);
+      }
+      return;
+    }
     const selected = selectCsharpBindingPatternProjection({ kind: "object-source", shape,
       sourceOwned: input.evidence.sourceOwnedProjectShape.get(sourceNode) === true });
     if (selected.kind === "source" && selected.source.kind === "object-shape-source") {
@@ -344,10 +362,23 @@ export function analyzeCsharpBindingPatterns(
       return;
     }
     if (selected.kind === "source" && selected.source.kind === "source-owned-source") {
-      analyzeSourceOwnedPattern(pattern, sourceNode, sourceFile);
+      analyzeSourceOwnedPattern(pattern, sourceNode, sourceFile, sourceCarrier ?? input.evidence.nodeTargetType.get(sourceNode));
       return;
     }
     issue(pattern, "Object destructuring requires an exact source-owned declaration or target object-shape policy.");
+  }
+
+  function analyzeNativeElement(elementNode: Node, sourceFile: SourceFile, carrier: TargetTypeRef): void {
+    const element = AsBindingElement(ast, elementNode);
+    const projection = input.evidence.bindingProjection.get(elementNode)?.nativeRead;
+    if (element?.name === undefined || projection === undefined || projection.node !== elementNode ||
+      !targetTypeRefEquals(projection.receiverCarrier, carrier)) {
+      issue(elementNode, "A native member binding requires its exact checked element and receiver carrier.");
+      return;
+    }
+    recordElement(elementNode, { kind: "native-member", property: projection.property }, element.Initializer);
+    const target = element.Initializer === undefined ? projection.property.member.returnType : facts.get(elementNode)?.defaultValue?.target;
+    analyzeNested(element.name, elementNode, sourceFile, target);
   }
 
   function objectShapePropertyName(elementNode: Node): { readonly node: Node; readonly sourceName?: string; readonly reason?: string } | undefined {
@@ -392,6 +423,10 @@ export function analyzeCsharpBindingPatterns(
         continue;
       }
       if (name === undefined) continue;
+      if (input.evidence.bindingProjection.get(elementNode)?.nativeRead !== undefined) {
+        analyzeNativeElement(elementNode, sourceFile, shape.targetType);
+        continue;
+      }
       const property = objectShapePropertyName(elementNode);
       if (property?.sourceName === undefined) {
         if (property?.reason !== undefined) {
@@ -425,42 +460,9 @@ export function analyzeCsharpBindingPatterns(
 
   function checkedPatternType(pattern: Node): Type | undefined {
     if (checkedPatternTypes.has(pattern)) return checkedPatternTypes.get(pattern);
-    const selected = selectCheckedPatternType(pattern);
+    const selected = resolveCsharpBindingSourceType(pattern, ast, input.semanticsFor);
     checkedPatternTypes.set(pattern, selected);
     return selected;
-  }
-
-  function selectCheckedPatternType(pattern: Node): Type | undefined {
-    const owner = ast.parent(pattern);
-    if (owner === undefined) return undefined;
-    const semantics = input.semanticsFor(owner);
-    const element = AsBindingElement(ast, owner);
-    if (element !== undefined) {
-      const parentPattern = ast.parent(owner);
-      const parentType = parentPattern === undefined ? undefined : checkedPatternType(parentPattern);
-      if (parentPattern === undefined || parentType === undefined) return undefined;
-      let selected: Type | undefined;
-      if (HasSourceKind(ast, parentPattern, KindObjectBindingPattern)) {
-        const name = objectShapePropertyName(owner)?.sourceName;
-        const members = name === undefined ? [] : semantics.types.propertyInfos(parentType).filter(member => member.name === name);
-        selected = members.length === 1 ? members[0]!.type : undefined;
-      } else if (HasSourceKind(ast, parentPattern, KindArrayBindingPattern)) {
-        const index = AsBindingPattern(ast, parentPattern)?.Elements?.Nodes.indexOf(owner);
-        if (index === undefined || index < 0) return undefined;
-        if (semantics.types.isTuple(parentType)) selected = semantics.types.tupleElementInfos(parentType)[index]?.type;
-        else {
-          const indices = semantics.types.indexInfos(parentType).filter(info => info.keyType !== undefined && semantics.types.isNumberLike(info.keyType));
-          selected = indices.length === 1 ? indices[0]!.valueType : undefined;
-        }
-      }
-      return selected === undefined || element.Initializer === undefined ? selected
-        : semantics.types.withoutMissingOrUndefined(selected);
-    }
-    const declaration = AsVariableDeclaration(ast, owner) ?? AsParameterDeclaration(ast, owner);
-    if (declaration?.Type !== undefined) return semantics.types.authoredType(declaration.Type);
-    const iteration = forOfHeadStatement(owner);
-    if (iteration !== undefined) return semantics.operations.iteration(iteration)?.sourceElementType;
-    return declaration?.Initializer === undefined ? undefined : semantics.types.expressionType(declaration.Initializer);
   }
 
   function analyzeObjectShapeRest(
@@ -493,7 +495,7 @@ export function analyzeCsharpBindingPatterns(
     else if (selected.kind === "unresolved") for (const reason of selected.reasons) issue(elementNode, reason);
   }
 
-  function analyzeSourceOwnedPattern(pattern: Node, sourceNode: Node, sourceFile: SourceFile): void {
+  function analyzeSourceOwnedPattern(pattern: Node, sourceNode: Node, sourceFile: SourceFile, receiverCarrier: TargetTypeRef | undefined): void {
     recordSource(pattern, { kind: "source-owned-source" });
     const semantics = input.semanticsFor(sourceNode);
     const sourceType = ast.is.IsParameterDeclaration(sourceNode) || ast.is.IsBindingElement(sourceNode)
@@ -505,6 +507,11 @@ export function analyzeCsharpBindingPatterns(
       if (elementNode === undefined || element === undefined) continue;
       const name = element.name;
       if (name === undefined) continue;
+      if (input.evidence.bindingProjection.get(elementNode)?.nativeRead !== undefined) {
+        if (receiverCarrier === undefined) issue(elementNode, "A native member binding requires its exact finalized input carrier.");
+        else analyzeNativeElement(elementNode, sourceFile, receiverCarrier);
+        continue;
+      }
       const propertyName = element.PropertyName ?? name;
       const identifier = HasSourceKind(ast, propertyName, KindIdentifier);
       const property = bindingPropertySourceName(propertyName);
