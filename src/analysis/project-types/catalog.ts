@@ -7,15 +7,25 @@ import type { CsharpProjectTypeCatalogHost } from "./type-policy.js";
 import type { CsharpProjectTypeDefinition, CsharpProjectTypeIssue } from "../../target-model/records/types/project-types.js";
 import { projectDefinitionTargetType } from "../../policy/types/project/declaration-carriers.js";
 import { projectTypeDefinition } from "./type-policy.js";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
+import type { CsharpCurrentProjectDeclaration, CsharpCurrentProjectDeclarations } from "../source-evidence/model.js";
+import type { CsharpGenericProjectionIndex } from "../../target-model/records/types/type-projections.js";
+import type { CsharpProviderProjectDeclarations } from "../../policy/model/provider-calls.js";
 
 export function createCsharpProjectTypeCatalog(
   host: CsharpProjectTypeCatalogHost,
-  projections?: import("../../target-model/records/types/type-projections.js").CsharpGenericProjectionIndex,
-): CsharpProjectTypeCatalog {
-  const definitions: CsharpProjectTypeDefinition[] = [];
+): {
+  readonly declarations: CsharpCurrentProjectDeclarations;
+  readonly catalog: CsharpProjectTypeCatalog;
+  publish(projections: CsharpGenericProjectionIndex): CsharpProviderProjectDeclarations;
+} {
+  const sourceDefinitions: CsharpProjectTypeDefinition[] = [];
   const issues: CsharpProjectTypeIssue[] = [];
+  const sourceByDeclaration = new WeakMap<Node, CsharpProjectTypeDefinition>();
+  const sourceById = new Map<string, CsharpProjectTypeDefinition>();
   const byDeclaration = new WeakMap<Node, CsharpProjectTypeDefinition>();
   const byId = new Map<string, CsharpProjectTypeDefinition>();
+  let publishedDefinitions: readonly CsharpProjectTypeDefinition[] | undefined;
 
   for (const sourceFile of host.navigation.sourceFiles) {
     visitSourceTree(host.ast, sourceFile, (declaration) => {
@@ -28,77 +38,121 @@ export function createCsharpProjectTypeCatalog(
         return;
       }
       const sourceDefinition = selected.definition;
-      const selectedProjections = projections?.genericProjection.get(declaration) ?? [];
-      const outerProjections = projections?.outerGenericProjection.get(declaration) ?? [];
-      const outerCount = sourceDefinition.outerTypeParameters.length;
-      const definition = Object.freeze({ ...sourceDefinition, typeProjections: selectedProjections, outerTypeProjections: outerProjections,
-        typeParameterBindings: Object.freeze([
-        ...sourceDefinition.typeParameterBindings.slice(0, outerCount), ...outerProjections,
-        ...sourceDefinition.typeParameterBindings.slice(outerCount), ...selectedProjections,
-      ]) });
-      const existing = byId.get(definition.id);
+      const existing = sourceById.get(sourceDefinition.id);
       if (existing !== undefined && existing.declaration !== declaration) {
         issues.push({
           node: declaration,
           code: "CSHARP_PROJECT_TYPE_IDENTITY_CONFLICT",
           message:
-            `Project declarations '${existing.sourceName}' and '${definition.sourceName}' produced the same canonical source identity '${definition.id}'.`,
+            `Project declarations '${existing.sourceName}' and '${sourceDefinition.sourceName}' produced the same canonical source identity '${sourceDefinition.id}'.`,
         });
         return;
       }
-      definitions.push(definition);
-      byDeclaration.set(declaration, definition);
-      byId.set(definition.id, definition);
+      sourceDefinitions.push(sourceDefinition);
+      sourceByDeclaration.set(declaration, sourceDefinition);
+      sourceById.set(sourceDefinition.id, sourceDefinition);
     });
   }
 
-  analyzeCsharpProjectNames(host, definitions, issues, replaceDefinition);
-  const frozenDefinitions = Object.freeze(definitions.map(definition => byDeclaration.get(definition.declaration)!));
+  analyzeCsharpProjectNames(host, sourceDefinitions, issues, definition => {
+    sourceByDeclaration.set(definition.declaration, definition);
+    sourceById.set(definition.id, definition);
+  });
+  const selectedDefinitions = Object.freeze(sourceDefinitions.map(definition => sourceByDeclaration.get(definition.declaration)!));
   const frozenIssues = Object.freeze(issues);
-  return Object.freeze({
-    definitions: frozenDefinitions,
+  const declarationByNode = new WeakMap<Node, CsharpCurrentProjectDeclaration>();
+  const declarationById = new Map<string, CsharpCurrentProjectDeclaration>();
+  const declarations = Object.freeze(selectedDefinitions.map(definition => {
+    const { typeProjections: _typeProjections, outerTypeProjections: _outerTypeProjections,
+      typeParameterBindings, ...sourceDeclaration } = definition;
+    const declaration = Object.freeze({ ...sourceDeclaration, parameterBindings: typeParameterBindings });
+    declarationByNode.set(definition.declaration, declaration);
+    declarationById.set(definition.id, declaration);
+    return declaration;
+  }));
+  const containing = <Value>(node: Node | undefined, index: WeakMap<Node, Value>): Value | undefined => {
+    for (let current = node; current !== undefined; current = host.ast.parent(current)) {
+      const selected = index.get(current);
+      if (selected !== undefined) return selected;
+    }
+    return undefined;
+  };
+  const currentDeclarations: CsharpCurrentProjectDeclarations = Object.freeze({
+    declarations, issues: frozenIssues,
+    declarationForId: (id: string) => declarationById.get(id),
+    declarationForNode: (node: Node | undefined) => node === undefined ? undefined : declarationByNode.get(node),
+    declarationContaining: (node: Node | undefined) => containing(node, declarationByNode),
+    declarationForTarget: (type: TargetTypeRef | undefined) => type?.kind === "target-named" ? declarationById.get(type.id) : undefined,
+    declaredTypeForDeclaration(node: Node | undefined, arguments_: readonly TargetTypeRef[]) {
+      const definition = node === undefined ? undefined : sourceByDeclaration.get(node);
+      return definition === undefined || arguments_.length !== definition.typeParameterBindings.length
+        ? undefined : projectDefinitionTargetType(definition, arguments_);
+    },
+  });
+  const requirePublished = (): readonly CsharpProjectTypeDefinition[] => {
+    if (publishedDefinitions === undefined) failTargetAnalysisInvariant("tsonic-csharp",
+      "Native project binders require their completed current declaration projection publication.");
+    return publishedDefinitions;
+  };
+  const nativeTypeForDeclaration = (
+    declaration: Node | undefined,
+    typeArguments: readonly TargetTypeRef[],
+  ) => {
+    requirePublished();
+    const definition = declaration === undefined ? undefined : byDeclaration.get(declaration);
+    return definition === undefined || typeArguments.length !== definition.typeParameterBindings.length
+      ? undefined
+      : projectDefinitionTargetType(definition, typeArguments.map((argument, index) =>
+        argument.kind === "type-parameter" && argument.identity === definition.typeParameterBindings[index]?.identity
+          ? [...definition.outerTypeProjections, ...definition.typeProjections].find(projection => projection.identity === argument.identity) ?? argument
+          : argument));
+  };
+  const catalog: CsharpProjectTypeCatalog = Object.freeze({
+    get definitions() { return requirePublished(); },
     issues: frozenIssues,
     definitionForId(id: string) {
+      requirePublished();
       return byId.get(id);
     },
     definitionForDeclaration(declaration: Node | undefined) {
+      requirePublished();
       return declaration === undefined ? undefined : byDeclaration.get(declaration);
     },
     definitionContainingDeclaration(declaration: Node | undefined) {
-      let current = declaration;
-      while (current !== undefined) {
-        const definition = byDeclaration.get(current);
-        if (definition !== undefined) {
-          return definition;
-        }
-        current = host.ast.parent(current);
-      }
-      return undefined;
+      requirePublished();
+      return containing(declaration, byDeclaration);
     },
     definitionForTarget(type: TargetTypeRef | undefined) {
+      requirePublished();
       return type?.kind === "target-named" ? byId.get(type.id) : undefined;
     },
-    targetTypeForDeclaration(
-      declaration: Node | undefined,
-      typeArguments: readonly TargetTypeRef[],
-    ) {
-      const definition = declaration === undefined
-        ? undefined
-        : byDeclaration.get(declaration);
-      return definition === undefined ||
-          typeArguments.length !== definition.typeParameterBindings.length
-        ? undefined
-        : projectDefinitionTargetType(definition, typeArguments.map((argument, index) =>
-          argument.kind === "type-parameter" && argument.identity === definition.typeParameterBindings[index]?.identity
-            ? [...definition.outerTypeProjections, ...definition.typeProjections].find(projection => projection.identity === argument.identity) ?? argument
-            : argument));
+    targetTypeForDeclaration: nativeTypeForDeclaration,
+  });
+  return Object.freeze({ declarations: currentDeclarations, catalog,
+    publish(projections: CsharpGenericProjectionIndex): CsharpProviderProjectDeclarations {
+      if (publishedDefinitions !== undefined) failTargetAnalysisInvariant("tsonic-csharp",
+        "Native project declaration binders are published exactly once.");
+      const completed = selectedDefinitions.map(definition => {
+        const typeProjections = projections.genericProjection.get(definition.declaration);
+        const outerTypeProjections = projections.outerGenericProjection.get(definition.declaration);
+        const outerCount = definition.outerTypeParameters.length;
+        const selected = Object.freeze({ ...definition, typeProjections, outerTypeProjections,
+          typeParameterBindings: Object.freeze([
+            ...definition.typeParameterBindings.slice(0, outerCount), ...outerTypeProjections,
+            ...definition.typeParameterBindings.slice(outerCount), ...typeProjections,
+          ]) });
+        byDeclaration.set(selected.declaration, selected);
+        byId.set(selected.id, selected);
+        return selected;
+      });
+      publishedDefinitions = Object.freeze(completed);
+      return Object.freeze({
+        declarationForId: (id: string) => byId.get(id),
+        declarationForTarget: (type: TargetTypeRef | undefined) => type?.kind === "target-named" ? byId.get(type.id) : undefined,
+        declaredTypeForDeclaration: nativeTypeForDeclaration,
+      });
     },
   });
-
-  function replaceDefinition(selected: CsharpProjectTypeDefinition): void {
-    byDeclaration.set(selected.declaration, selected);
-    byId.set(selected.id, selected);
-  }
 }
 
 function visitSourceTree(

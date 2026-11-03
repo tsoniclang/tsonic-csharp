@@ -2,6 +2,25 @@ import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { TsonicClosedArrayStorage } from "@tsonic/source-core/facts";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
+import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
+import type { CsharpProjectTypeDefinition, CsharpProjectTypeIssue } from "../../target-model/records/types/project-types.js";
+
+type CurrentProjectDeclaration<Definition extends CsharpProjectTypeDefinition> = Definition extends unknown
+  ? Omit<Definition, "typeParameterBindings" | "typeProjections" | "outerTypeProjections"> & {
+    readonly parameterBindings: Definition["typeParameterBindings"];
+  } : never;
+
+export type CsharpCurrentProjectDeclaration = CurrentProjectDeclaration<CsharpProjectTypeDefinition>;
+
+export interface CsharpCurrentProjectDeclarations {
+  readonly declarations: readonly CsharpCurrentProjectDeclaration[];
+  readonly issues: readonly CsharpProjectTypeIssue[];
+  declarationForId(id: string): CsharpCurrentProjectDeclaration | undefined;
+  declarationForNode(node: Node | undefined): CsharpCurrentProjectDeclaration | undefined;
+  declarationContaining(node: Node | undefined): CsharpCurrentProjectDeclaration | undefined;
+  declarationForTarget(type: TargetTypeRef | undefined): CsharpCurrentProjectDeclaration | undefined;
+  declaredTypeForDeclaration(node: Node | undefined, arguments_: readonly TargetTypeRef[]): CsharpTargetNamedTypeRef | undefined;
+}
 
 export interface CsharpSourceEvidenceResult {
   readonly index: CsharpSourceEvidenceIndex;

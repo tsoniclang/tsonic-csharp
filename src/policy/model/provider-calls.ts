@@ -1,12 +1,22 @@
-import type { AstReader, ReadonlySourceFactResolver, SourceFile } from "@tsonic/tsts";
+import type { AstReader, Node, ReadonlySourceFactResolver, SourceFile } from "@tsonic/tsts";
 import type { TargetSelection } from "@tsonic/target-api";
 import type { SourceFileSemantics, SourceProgramNavigation, SourceLiteralIndex } from "@tsonic/target-api/source";
 import type { SourceStorageQueries } from "@tsonic/target-api/analysis";
 import type { CsharpProviderRelationResolver } from "../../providers/model/relation-resolver.js";
 import type { CsharpValueDomainCarrierQueries } from "../../target-model/records/types/value-domains.js";
 import type { CsharpObjectShapePolicy } from "../../target-model/records/objects/object-shapes.js";
-import type { CsharpProjectTypePolicy } from "../../target-model/records/types/project-types.js";
+import type { CsharpProjectTypeDefinition, CsharpProjectTypePolicy } from "../../target-model/records/types/project-types.js";
+import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpTypeQueries } from "./type-resolution.js";
+
+export type CsharpProviderProjectDeclaration = Pick<CsharpProjectTypeDefinition,
+  "declaration" | "sourceFile" | "kind" | "abstract" | "publicParameterlessConstructor">;
+
+export interface CsharpProviderProjectDeclarations {
+  declarationForId(id: string): CsharpProviderProjectDeclaration | undefined;
+  declarationForTarget(type: TargetTypeRef | undefined): CsharpProviderProjectDeclaration | undefined;
+  declaredTypeForDeclaration(declaration: Node | undefined, arguments_: readonly TargetTypeRef[]): CsharpTargetNamedTypeRef | undefined;
+}
 export interface CsharpProviderOperationHost {
   readonly sourceStorage?: SourceStorageQueries;
   readonly valueDomainCarriers?: CsharpValueDomainCarrierQueries;
