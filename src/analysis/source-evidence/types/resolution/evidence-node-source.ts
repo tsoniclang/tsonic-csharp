@@ -66,11 +66,15 @@ export function bindCsharpEvidenceNodesCapture(
   state: CsharpTypeResolutionState,
 ): CsharpEvidenceNodesSource {
   if (capture.storageSubject !== state.sourceStorageSubject || capture.nodes === undefined || capture.requests === undefined ||
-      capture.nodes.length !== capture.requests.length || capture.nodes.some((node, index) =>
+      capture.nodes.length !== capture.requests.length) {
+    return failTargetAnalysisInvariant("tsonic-csharp", "Evidence node binding requires its exact captured Source and storage subject.",
+      capture.nodes?.[0]);
+  }
+  for (const [index, node] of capture.nodes.entries()) if (node === undefined ||
         capture.requests[index]?.node !== node || capture.requests[index]?.source?.authoredTypeNode !== node ||
         capture.requests[index]?.source?.selectedType !== capture.selectedType ||
         capture.requests[index]?.source?.selectedSourceFile !== capture.queries.sourceFile ||
-        capture.requests[index]?.source?.storage.inputSubject !== capture.storageSubject)) {
+        capture.requests[index]?.source?.storage.inputSubject !== capture.storageSubject) {
     return failTargetAnalysisInvariant("tsonic-csharp", "Evidence node binding requires its exact captured Source and storage subject.",
       capture.nodes?.[0]);
   }

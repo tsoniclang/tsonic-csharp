@@ -180,6 +180,8 @@ export function bindCsharpDirectSourceCapture(
 ): CsharpDirectSourceEvidence {
   if (capture.candidates === undefined || capture.subjects === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
     "Direct source binding requires its retained Source capture.");
+  for (const candidate of capture.candidates) if (candidate === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+    "Direct source binding requires every ordered captured candidate.");
   const bind = (source: CsharpDirectSourceRequest): CsharpDirectSourceDependency => Object.freeze({
     ...source, source, state: Object.freeze(nextState(state)),
   });
