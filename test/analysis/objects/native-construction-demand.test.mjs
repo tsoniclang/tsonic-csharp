@@ -3,6 +3,7 @@ import test from "node:test";
 import { providerVirtualDeclarationFactKey, sourcePrimitiveFactKey } from "@tsonic/tsts";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { createCsharpNativeConstructionDemandQuery } from "../../../dist/analysis/objects/native-construction-demand.js";
+import { formCsharpNativeConstructionSource } from "../../../dist/analysis/objects/native-construction-source.js";
 import { createCsharpObjectShapeMemberResolver } from "../../../dist/analysis/objects/shapes/member-evidence.js";
 import { mergeCsharpObjectShapeSubjects } from "../../../dist/analysis/objects/shapes/construction.js";
 import { checkCsharpSource, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
@@ -162,7 +163,7 @@ function fixture() {
         : key === sourcePrimitiveFactKey && explicit.has(value) ? { name: "float64" } : undefined;
     } },
     semanticsFor: () => semantics,
-    resolveShape: type => {
+    completeShapeSource: ({ type }) => {
       const shape = rows.get(canonical(type))?.shape;
       return shape === undefined || canonical(type) === type ? shape : { ...shape, sourceType: type };
     },
@@ -178,7 +179,9 @@ function fixture() {
       types.set(declaration, types.get(literal));
       return declaration;
     },
-    freeze: () => createCsharpNativeConstructionDemandQuery(host),
+    freeze: () => createCsharpNativeConstructionDemandQuery(host, formCsharpNativeConstructionSource(host,
+      (node, queries) => Object.freeze({ node, queries, selectedType: queries.types.expressionType(node) }),
+      (type, queries, authoredTypeRoot) => Object.freeze({ type, queries, authoredTypeRoot }))),
     queryCount: () => relationshipQueries,
   };
 }
@@ -314,7 +317,7 @@ test("constructor-valued expressions do not instantiate object-literal fields", 
   const value = fixture();
   const constructor = value.row([], native, { provider: true, constructs: [{}] });
   const literal = value.node(constructor, constructor);
-  value.host.resolveShape = () => { throw new Error("constructor must not instantiate instance fields"); };
+  value.host.completeShapeSource = () => { throw new Error("constructor must not instantiate instance fields"); };
   const selected = value.freeze();
   assert.equal(selected.issues.length, 0);
   assert.equal(selected.constructionFor(literal) === undefined, true);
@@ -323,7 +326,7 @@ test("constructor-valued expressions do not instantiate object-literal fields", 
 test("unrelated checked values never instantiate native object shapes", () => {
   const value = fixture();
   const unrelated = value.node(value.row([{ identity: "field" }]), undefined, "parameter");
-  value.host.resolveShape = () => { throw new Error("unrelated value cannot instantiate a shape"); };
+  value.host.completeShapeSource = () => { throw new Error("unrelated value cannot instantiate a shape"); };
   const selected = value.freeze();
   assert.equal(selected.issues.length, 0);
   assert.equal(selected.constructionFor(unrelated) === undefined, true);
