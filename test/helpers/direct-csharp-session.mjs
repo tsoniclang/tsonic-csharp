@@ -23,6 +23,7 @@ import {
   createCsharpTargetPack,
 } from "../../dist/public/index.js";
 import { createCsharpCompilationSession } from "../../dist/compilation/session.js";
+import { collectTargetRuntimeContributions } from "../../../tsonic/packages/host/dist/target/runtime-contributions.js";
 import {
   resolvedTargetStage,
   runTargetCompilationStages,
@@ -162,6 +163,22 @@ function createCheckedCsharpSource(options) {
     sourcePackages,
     targetPack,
     targetSession,
+    runtimeContributions() {
+      const runtime = collectTargetRuntimeContributions({
+        project,
+        projectDirectory: sessionContext.projectDirectory,
+        target,
+        targetPackId: targetPack.id,
+        selectedCapabilities,
+        selectedSurfaces,
+        paths,
+        targetContributions: targetSession.runtimeContributions(),
+      });
+      if (runtime.diagnostics.length !== 0) {
+        throw new Error(runtime.diagnostics.map(diagnostic => diagnostic.message).join("\n"));
+      }
+      return runtime;
+    },
     project,
     target,
     paths,
@@ -189,7 +206,7 @@ export function analyzeCsharpSource(options) {
     return analysis.kind === "rejected" ? analysis : { kind: "resolved", diagnostics: analysis.diagnostics, value: { artifacts: [] } };
   } });
   try {
-    const runtime = checked.targetSession.runtimeContributions();
+    const runtime = checked.runtimeContributions();
     checked.targetSession.compile({
       source: createTargetSourceProgram(checked.source),
       sourcePackages: checked.sourcePackages,
@@ -236,7 +253,7 @@ export function compileCsharpSource(options) {
     if (sourceDiagnostics.some(diagnostic => diagnostic.category === "error")) {
       compiled = { kind: "rejected", diagnostics: sourceDiagnostics };
     } else {
-      const runtime = checked.targetSession.runtimeContributions();
+      const runtime = checked.runtimeContributions();
       compiled = checked.targetSession.compile({
         source: createTargetSourceProgram(checked.source),
         sourcePackages: checked.sourcePackages,
