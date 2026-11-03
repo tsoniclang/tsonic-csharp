@@ -9,7 +9,7 @@ import { csharpJsArrayTargetType } from "../../../../target-model/types/carriers
 
 import { csharpNullableTargetType } from "../../../../target-model/types/carriers/nullable.js";
 import { maximumTypeResolutionDepth } from "./model.js";
-import { failTargetCompilerResourceLimit } from "@tsonic/target-api/artifacts";
+import { failTargetAnalysisInvariant, failTargetCompilerResourceLimit } from "@tsonic/target-api/artifacts";
 import { nextState } from "./state.js";
 import { resolveCsharpSourceLiteralTargetType } from "../../../../policy/conversions/source-literals.js";
 import { resolveKeywordType } from "../../../../policy/types/resolution/source-primitives.js";
@@ -38,6 +38,14 @@ export function resolveFormedCsharpNodeTypeSource(
   scope: CsharpTypeResolutionScope,
   source: CsharpNodeTypeSource,
 ): CsharpSourceCallResult | undefined {
+  if (source.kind === "node" && source.declaredReceiver !== undefined) {
+    const receiver = source.declaredReceiver;
+    if (receiver.node !== source.node || receiver.queries !== source.queries || receiver.state !== source.state ||
+      receiver.context !== scope.host.declaredObjectReceivers.get(source.node)) {
+      return failTargetAnalysisInvariant("tsonic-csharp",
+        "A declared receiver requires its exact Source occurrence, lexical context and bound state.", source.node);
+    }
+  }
   const selected = resolveNodeResultWithState(scope, source);
   return source.node === undefined ? selected : refineCsharpSourceValueResult(selected,
     resolveCsharpNativeParameterCarrier(scope, source.node, selected?.selectedType, source.originalState));
