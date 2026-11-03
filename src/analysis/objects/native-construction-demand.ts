@@ -1,7 +1,7 @@
 import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import { formCsharpLiteralCreationSource, selectCsharpLiteralCreationContext,
-  type CsharpLiteralContext, type CsharpLiteralContextHost } from "./literal-creation-source.js";
+  type CsharpLiteralContextHost } from "./literal-creation-source.js";
 import type { CsharpObjectShapeFact, TargetTypeRef } from "../../target-model/types/model.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { csharpNullableTargetType } from "../../target-model/types/carriers/nullable.js";
@@ -21,7 +21,7 @@ export function selectCsharpLiteralDeclarationContext(
   expression: Node,
   queries: SourceFileSemantics,
   host: CsharpLiteralContextHost,
-): CsharpLiteralContext | undefined {
+): ReturnType<typeof selectCsharpLiteralCreationContext> {
   return selectCsharpLiteralCreationContext(formCsharpLiteralCreationSource(expression, queries, host));
 }
 
