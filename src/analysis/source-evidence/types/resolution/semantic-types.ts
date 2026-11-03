@@ -32,6 +32,8 @@ import { resolveTypeParameter, definedValues } from "./source-evidence.js";
 import { tsonicMemoryFieldBindingFactKey, tsonicMemoryRecordBindingFactKey, selectTsonicMemoryFieldBinding, selectTsonicMemoryRecordBinding } from "@tsonic/source-core/facts";
 
 import { csharpSourceStorageComponentContext } from "./source-storage-projection.js";
+import { formCsharpSemanticTypeSource, type CsharpSemanticTypeSource } from "./root-sources.js";
+import { resolveFormedCsharpProjectSemanticType } from "./project-types.js";
 
 export function resolveTypeWithState(
   scope: CsharpTypeResolutionScope,
@@ -39,11 +41,19 @@ export function resolveTypeWithState(
   sourceFile: SourceFile,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
-  const { host, policy, resolveCallableType, resolveCompositionalSourceTypeAlias, resolveDirectSourceFacts, resolveNodeWithState, resolveProjectSourceSemanticType, resolveProviderType, resolveSemanticTypeArguments, resolveSourceProfileType, resolveTypeWithState, resolveUnionType } = scope;
-  if (type === undefined) return undefined;
-  if (state.depth > maximumTypeResolutionDepth) failTargetCompilerResourceLimit("tsonic-csharp",
-    `Native type resolution in ${host.ast.getFileName(sourceFile)}`, "depth", maximumTypeResolutionDepth, sourceFile);
-  const queries = host.semantics(sourceFile);
+  return resolveFormedCsharpSemanticTypeSource(scope, formCsharpSemanticTypeSource(scope, type, sourceFile, state));
+}
+
+export function resolveFormedCsharpSemanticTypeSource(
+  scope: CsharpTypeResolutionScope,
+  source: CsharpSemanticTypeSource,
+): TargetTypeRef | undefined {
+  const { host, policy, resolveCallableType, resolveCompositionalSourceTypeAlias, resolveDirectSourceFacts, resolveNodeWithState, resolveProviderType, resolveSemanticTypeArguments, resolveSourceProfileType, resolveTypeWithState, resolveUnionType } = scope;
+  if (source.type === undefined) return undefined;
+  if (source.state.depth > maximumTypeResolutionDepth) failTargetCompilerResourceLimit("tsonic-csharp",
+    `Native type resolution in ${host.ast.getFileName(source.sourceFile)}`, "depth", maximumTypeResolutionDepth, source.sourceFile);
+  if (source.kind === "unavailable") return undefined;
+  const { type, sourceFile, state, queries } = source;
   if (queries.types.isNonPrimitive(type)) return csharpObjectTargetType();
   const bound = csharpBoundSourceType(type, queries, state);
   if (bound !== undefined) return bound.targetType;
@@ -139,12 +149,7 @@ export function resolveTypeWithState(
   }
   const constructor = resolveCsharpConstructorValueType(scope, type, queries, state);
   if (constructor !== undefined) return constructor;
-  const projectType = resolveProjectSourceSemanticType(
-    type,
-    queries,
-    targetTypeArguments,
-    state,
-  );
+  const projectType = resolveFormedCsharpProjectSemanticType(scope, source.project, targetTypeArguments);
   if (projectType !== undefined) {
     return projectType;
   }
@@ -175,11 +180,7 @@ export function resolveTypeWithState(
     queries.types.indexInfos(type).length === 0) {
     return csharpEmptyObjectTargetType();
   }
-  return host.structuralTypes.resolveType(
-    type,
-    sourceFile,
-    nextState(state),
-  );
+  return host.structuralTypes.completeTypeSource(source.structural);
 }
 
 export function resolveDirectSourceFacts(

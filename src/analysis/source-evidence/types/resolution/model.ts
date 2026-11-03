@@ -13,6 +13,9 @@ import type { CsharpObjectShapePolicy } from "../../../../target-model/records/o
 import type { CsharpObjectMethodSources } from "../../../../target-model/records/native/native-value-carriers.js";
 import type { CsharpCompletedStructuralMemberChildren, CsharpStructuralMemberInheritance,
   CsharpStructuralPropertyApplication, CsharpStructuralTypeApplication } from "./structural-applications.js";
+import type { CsharpObjectShapeNodeSource } from "../../../objects/shapes/node-source.js";
+import type { CsharpObjectShapeTypeSource } from "../../../objects/shapes/type-source.js";
+import type { CsharpStructuralNodeSourceInput, CsharpStructuralTypeSourceInput } from "./root-sources.js";
 
 export type ResolvedSourceCallInfo = NonNullable<
   ReturnType<SourceFileSemantics["operations"]["call"]>
@@ -66,17 +69,19 @@ export interface CsharpTypePolicyHost extends CsharpTypePolicyBaseHost {
     resolveReference(type: Type): TargetTypeRef | undefined;
     resolveUnion(type: Type, sourceFile: SourceFile, state: CsharpTypeResolutionState): import("../../../objects/shapes/model.js").CsharpStructuralUnionResolution;
     resolveTarget(type: TargetTypeRef): CsharpObjectShapeFact | undefined;
-    resolveNode(
+    formNodeSource(
       node: Node,
-      sourceFile: SourceFile,
+      queries: SourceFileSemantics,
       state: CsharpTypeResolutionState,
-    ): TargetTypeRef | undefined;
-    resolveType(
+    ): CsharpObjectShapeNodeSource | undefined;
+    completeNodeSource(source: CsharpStructuralNodeSourceInput): TargetTypeRef | undefined;
+    formTypeSource(
       type: Type,
-      sourceFile: SourceFile,
+      queries: SourceFileSemantics,
       state: CsharpTypeResolutionState,
       authoredTypeRoot?: Node,
-    ): TargetTypeRef | undefined;
+    ): CsharpObjectShapeTypeSource | undefined;
+    completeTypeSource(source: CsharpStructuralTypeSourceInput): TargetTypeRef | undefined;
     resolveSelectedProperty(
       receiverType: TargetTypeRef | undefined,
       selectedSubjects: readonly ExtensionFactSubject[],
