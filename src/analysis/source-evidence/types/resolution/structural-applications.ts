@@ -23,6 +23,7 @@ export interface CsharpStructuralPropertySource {
   readonly queries: SourceFileSemantics;
   readonly authored: readonly CsharpAuthoredTypeSelectionSource[];
   readonly numericInitializers: readonly (Node | undefined)[] | undefined;
+  readonly dataDeclarations: readonly Node[] | undefined;
 }
 
 export interface CsharpStructuralPropertyApplication {
@@ -30,6 +31,7 @@ export interface CsharpStructuralPropertyApplication {
   readonly source: CsharpStructuralPropertySource;
   readonly authored: readonly CsharpAuthoredTypeSelectionEvidence[];
   readonly numericInitializers: readonly (CsharpSourceTypeDependency | undefined)[] | undefined;
+  readonly dataDeclarations: readonly CsharpSourceTypeDependency[] | undefined;
   readonly selected: CsharpSourceTypeDependency;
 }
 
@@ -121,6 +123,10 @@ export function formCsharpStructuralPropertySource(
     numericInitializers: !source.numeric ? undefined : Object.freeze(source.declarationValues.map(({ value }) =>
       value === undefined || scope.host.literalValues.literalValue.get(value)?.number !== undefined
         ? undefined : value)),
+    dataDeclarations: source.authoredTypeNodes.length !== 0 || source.numeric || source.declarationValues.length === 0 ||
+      !source.declarationValues.every(({ declaration }) => scope.host.ast.is.IsPropertyAssignment(declaration) ||
+        scope.host.ast.is.IsShorthandPropertyAssignment(declaration))
+      ? undefined : Object.freeze(source.declarationValues.map(({ declaration }) => declaration)),
   });
 }
 
@@ -134,6 +140,8 @@ export function bindCsharpStructuralPropertySource(
     authored: Object.freeze(source.authored.map(authored => bindCsharpAuthoredTypeSelectionSource(authored, childState))),
     numericInitializers: source.numericInitializers === undefined ? undefined : Object.freeze(source.numericInitializers.map(node =>
       node === undefined ? undefined : Object.freeze({ kind: "node" as const, node, sourceFile, state: childState }))),
+    dataDeclarations: source.dataDeclarations === undefined ? undefined : Object.freeze(source.dataDeclarations.map(node =>
+      Object.freeze({ kind: "node" as const, node, sourceFile, state: childState }))),
     selected: Object.freeze({ kind: "type", type: source.sourceType, sourceFile, state: childState }),
   });
 }
@@ -208,6 +216,12 @@ export function resolveCsharpStructuralPropertyType(
       const first = carriers[0];
       if (first !== undefined && isCsharpIntegralTargetType(first) &&
         carriers.every(carrier => carrier !== undefined && targetTypeRefEquals(carrier, first))) return first;
+    }
+    if (application.dataDeclarations !== undefined) {
+      const carriers = application.dataDeclarations.map(dependency => resolveSourceTypeDependency(scope, dependency));
+      const first = carriers[0];
+      return first !== undefined && carriers.every(carrier => carrier !== undefined && targetTypeRefEquals(carrier, first))
+        ? first : undefined;
     }
     return resolveSourceTypeDependency(scope, application.selected);
   }
