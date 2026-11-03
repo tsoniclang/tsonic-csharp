@@ -28,6 +28,7 @@ import { csharpTargetParameterValueType } from "../../../../target-model/types/m
 import { getCsharpCallableValueSignature } from "../../../../target-model/types/carriers/delegates.js";
 import { formCsharpTypeReferenceSource, type CsharpTypeReferenceSource } from "./type-reference-source.js";
 import { resolveFormedCsharpProjectReference } from "./project-types.js";
+import { resolveSelectedExpressionResult } from "./expressions.js";
 
 export function resolveTypeReferenceNode(
   scope: CsharpTypeResolutionScope,
@@ -523,7 +524,7 @@ export function resolveSourceValueResult(
   state: CsharpTypeResolutionState,
   selectedType?: Type,
 ): CsharpSourceCallResult | undefined {
-  const { host, resolveAuthoredAndSelectedSourceType, resolveDirectSourceFacts, resolveNodeWithState, resolveNodeValueWithState, resolveSelectedExpressionResult, resolveTypeWithState, sourceValueDeclaration, sourceValueDeclarationSyntax } = scope;
+  const { host, resolveAuthoredAndSelectedSourceType, resolveDirectSourceFacts, resolveNodeWithState, resolveNodeValueWithState, resolveTypeWithState, sourceValueDeclaration, sourceValueDeclarationSyntax } = scope;
   const reference = host.navigation.referenceFor(node);
   const declaration = sourceValueDeclaration(node, reference?.declaration);
   if (declaration === undefined) {
@@ -607,7 +608,7 @@ export function resolveSourceValueResult(
     ? resolveNodeValueWithState(syntax.initializer, sourceFile, nextState(state))
     : widenedInitializer ? csharpSourceValueResult(declaredTarget)
     : csharpSourceValueResult(resolveDirectSourceFacts([syntax.initializer], sourceFile, nextState(state))) ??
-      resolveSelectedExpressionResult(syntax.initializer, declarationQueries, nextState(state)) ??
+      resolveSelectedExpressionResult(scope, syntax.initializer, declarationQueries, nextState(state)) ??
       (declaredTarget !== undefined && (declaredCallable || !mutableVariable && declarationKind !== "const")
         ? csharpSourceValueResult(declaredTarget)
         : resolveNodeValueWithState(syntax.initializer, sourceFile, nextState(state)));
