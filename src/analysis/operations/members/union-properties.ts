@@ -16,6 +16,8 @@ export function selectCsharpUnionProperty(
   sourceFile: SourceFile,
 ): CsharpUnionProperty | Extract<CsharpSourceProfilePropertyPolicyResult, { readonly kind: "rejected" }> | undefined {
   if (source.accessMode !== "read" || source.optionalChain || source.callCallee) return undefined;
+  const selectedCarrier = host.types.resolveSelectedValue(source.receiver.expression, source.receiver.type, sourceFile);
+  if (selectedCarrier !== undefined && getCsharpRuntimeUnionArms(selectedCarrier, host.typeDefinitions) === undefined) return undefined;
   const carrier = host.types.resolveStorage(source.receiver.expression, sourceFile);
   const variants = getCsharpRuntimeUnionArms(carrier, host.typeDefinitions);
   if (carrier === undefined || variants === undefined) return undefined;

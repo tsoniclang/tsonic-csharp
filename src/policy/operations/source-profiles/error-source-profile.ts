@@ -44,6 +44,14 @@ const errorConstructor: CsharpTargetMember = Object.freeze({
   returnType: errorType,
 });
 
+const nativeStackProperty: Extract<CsharpSourceProfilePropertyPolicyResult, { readonly kind: "resolved" }> = snapshotCsharpMetadata({
+  kind: "resolved",
+  targetMember: { id: "System.Exception.StackTrace", sourceName: "stack", targetName: "StackTrace",
+    kind: "property", readonly: true, declaringType: exceptionType, parameters: [],
+    returnType: csharpNullableTargetType(stringType) },
+  receiver: instanceReceiver, invocation: { kind: "member" },
+});
+
 const errorProperties: readonly {
   readonly sourceName: "name" | "message" | "stack" | "cause";
   readonly native: Extract<CsharpSourceProfilePropertyPolicyResult, { readonly kind: "resolved" }>;
@@ -71,13 +79,7 @@ const errorProperties: readonly {
   },
   {
     sourceName: "stack",
-    native: {
-      kind: "resolved",
-      targetMember: { id: "System.Exception.StackTrace", sourceName: "stack", targetName: "StackTrace",
-        kind: "property", readonly: true, declaringType: exceptionType, parameters: [],
-        returnType: csharpNullableTargetType(stringType) },
-      receiver: instanceReceiver, invocation: { kind: "member" },
-    },
+    native: nativeStackProperty,
   },
   {
     sourceName: "cause",
@@ -118,8 +120,7 @@ function errorCapturePolicy(owner: CsharpSourceProfileOwner): CsharpSourceProfil
         returnType: exceptionType,
       });
       if (member.kind === "rejected") return member;
-      const stack = errorProperties.find(property => property.sourceName === "stack")!;
-      const property = context.host.providers.publishNativeIdentities(stack.native.targetMember);
+      const property = context.host.providers.publishNativeIdentities(nativeStackProperty.targetMember);
       if (property.kind === "rejected") return property;
       if (member.kind !== "resolved" || property.kind !== "resolved") return unresolved();
       const call = csharpSourceProfileCall(context.source, member.value, noReceiver);
