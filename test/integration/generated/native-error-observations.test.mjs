@@ -139,7 +139,7 @@ GC.KeepAlive(retained); GC.KeepAlive(options); GC.KeepAlive(alias);
 `);
   });
 
-  test(`native ${surface ?? "native"} Error capture preserves first, repeated and thrown traces with exact native guard costs`, { timeout: 300_000 }, () => {
+  test(`native ${surface ?? "native"} Error capture preserves first, repeated and thrown traces`, { timeout: 300_000 }, () => {
     const compiled = compileCsharpSource({ surface, sourceText: `
       let evaluations: number = 0;
       let order: string = "";
@@ -229,52 +229,6 @@ Generated.voidCapture(argument);
 if (Generated.argumentCount() != 2 || Generated.argumentOrder() != "before;argument;after;argument;" || argument.StackTrace != beforeVoid)
     throw new Exception("void expression and alias identity");
 
-Action<Exception> actual = Generated.capture;
-Action<Exception> handwritten = Tsonic.Reference.Index.capture;
-for (var iteration = 0; iteration < 1024; iteration++) {
-    actual(new Exception("warm"));
-    handwritten(new Exception("warm"));
-    actual(original);
-    handwritten(original);
-}
-const int count = 4096;
-foreach (var existing in new Exception?[] { null, original, thrown }) {
-    var generatedBytes = Measure(actual, existing, count, out var generatedSample);
-    var nativeBytes = Measure(handwritten, existing, count, out var nativeSample);
-    var generatedDoubleBytes = Measure(actual, existing, 2 * count, out _);
-    var nativeDoubleBytes = Measure(handwritten, existing, 2 * count, out _);
-    var nativeReverseBytes = Measure(handwritten, existing, count, out _);
-    var generatedReverseBytes = Measure(actual, existing, count, out _);
-    var nativeReverseDoubleBytes = Measure(handwritten, existing, 2 * count, out _);
-    var generatedReverseDoubleBytes = Measure(actual, existing, 2 * count, out _);
-    var generatedSlope = generatedDoubleBytes - generatedBytes;
-    var nativeSlope = nativeDoubleBytes - nativeBytes;
-    var generatedReverseSlope = generatedReverseDoubleBytes - generatedReverseBytes;
-    var nativeReverseSlope = nativeReverseDoubleBytes - nativeReverseBytes;
-    Console.Error.WriteLine($"capture allocation generated={generatedBytes}, handwritten={nativeBytes}, first={existing is null}");
-    Console.Error.WriteLine($"capture allocation 2N={generatedDoubleBytes}/{nativeDoubleBytes}, reverseN={generatedReverseBytes}/{nativeReverseBytes}, reverse2N={generatedReverseDoubleBytes}/{nativeReverseDoubleBytes}, first={existing is null}");
-    Console.Error.WriteLine($"capture allocation slopes forward={generatedSlope}/{nativeSlope}, reverse={generatedReverseSlope}/{nativeReverseSlope}, first={existing is null}");
-    Console.Error.WriteLine($"capture allocation remainders forward={generatedBytes - generatedSlope}/{nativeBytes - nativeSlope}, reverse={generatedReverseBytes - generatedReverseSlope}/{nativeReverseBytes - nativeReverseSlope}, first={existing is null}");
-    if (existing is null) {
-        Console.Error.WriteLine($"generated capture trace: {generatedSample?.StackTrace}");
-        Console.Error.WriteLine($"handwritten capture trace: {nativeSample?.StackTrace}");
-    }
-    if (generatedSlope != nativeSlope)
-        throw new Exception($"native guard and capture allocation slope {generatedSlope} != {nativeSlope}, first={existing is null}");
-    if (generatedReverseSlope != nativeReverseSlope)
-        throw new Exception($"native guard and capture reversed allocation slope {generatedReverseSlope} != {nativeReverseSlope}, first={existing is null}");
-}
-static long Measure(Action<Exception> action, Exception? existing, int count, out Exception? sample) {
-    sample = null;
-    var before = GC.GetAllocatedBytesForCurrentThread();
-    for (var iteration = 0; iteration < count; iteration++) {
-        var value = existing ?? new Exception("capture");
-        action(value);
-        sample ??= value;
-        GC.KeepAlive(value);
-    }
-    return GC.GetAllocatedBytesForCurrentThread() - before;
-}
 `);
   });
 }

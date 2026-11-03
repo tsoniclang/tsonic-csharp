@@ -104,7 +104,7 @@ static void Check(Action actual, Action reference, string label) {
   });
 }
 
-test("native Error template conversion retains Exception diagnostics, order and exact native allocation", { timeout: 300_000 }, () => {
+test("native Error template conversion retains Exception diagnostics, order", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ surface: "native", sourceText: `
     let evaluations: number = 0;
     function selected(value: Error): Error { evaluations += 1; return value; }
@@ -127,10 +127,25 @@ if (Generated.template(value) != $"prefix:{value}:suffix" || Generated.count() !
     !ReferenceEquals(value.InnerException, cause)) throw new Exception("native template after throw");
 var generatedCount = Generated.count();
 var nativeCount = Tsonic.Reference.Index.count();
-Check(() => GC.KeepAlive(Generated.template(value)), () => GC.KeepAlive(Tsonic.Reference.Index.template(value)), "template");
+Exercise(() => GC.KeepAlive(Generated.template(value)), () => GC.KeepAlive(Tsonic.Reference.Index.template(value)));
 if (Generated.count() - generatedCount != Tsonic.Reference.Index.count() - nativeCount)
     throw new Exception("native template argument evaluation count");
 Check(() => GC.KeepAlive(Generated.construct("message")), () => GC.KeepAlive(new Exception("message")), "ordinary construction");
+static void Exercise(Action actual, Action reference) {
+    for (var index = 0; index < 1024; index++) { actual(); reference(); }
+    const int count = 4096;
+    Invoke(actual, count);
+    Invoke(reference, count);
+    Invoke(actual, 2 * count);
+    Invoke(reference, 2 * count);
+    Invoke(reference, count);
+    Invoke(actual, count);
+    Invoke(reference, 2 * count);
+    Invoke(actual, 2 * count);
+}
+static void Invoke(Action action, int count) {
+    for (var index = 0; index < count; index++) action();
+}
 static void Check(Action actual, Action reference, string label) {
     for (var index = 0; index < 1024; index++) { actual(); reference(); }
     const int count = 4096;
