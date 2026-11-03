@@ -185,7 +185,7 @@ const expectedDiagnostics = {
   "shorthand field preserves the pointee domain and rejects signed layout substitution": [
     {
       "code": "CSHARP_NATIVE_POINTER_OPERATION_NOT_MAPPED",
-      "message": "C# native-pointer 'raw-location' is not mapped: The raw conversion operand has no exact native carrier.",
+      "message": "C# native-pointer 'raw-location' is not mapped: The typed location and selected memory layout have different C# pointee representations.",
       "text": "torawptr(holder.pointer, layout)",
       "file": "/src/index.ts"
     },
