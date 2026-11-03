@@ -141,10 +141,11 @@ test("UNIT literal formal completion retains exclusions and exact synchronous an
         return native;
       },
     } }, sourceCallableTypeParametersMatch: () => true,
-    resolveSourceCallableContractType: (actual, contract, type, file, state, excluded) => {
+    completeSourceCallableType: input => {
+      const { source: actual, callable: contract, type, sourceFile: file, state, excludedSourceArgumentIndexes: excluded } = input;
       assert.equal(actual === call.argument.source && contract === native && type === formal &&
         file === call.contract.sourceFile && state.depth === 0 && excluded === call.argument.excludedSourceArgumentIndexes, true);
-      return type;
+      return { input, type };
     }, resolveSourceCallSelectedType: () => assert.fail("UNIT completed formal must not fall back to a checked width") };
     const completed = resolveFormedCsharpLiteralCreationContext(scope, source);
     assert.equal(completed?.destinationType === integer && completed.context === current.selection, true, mode);

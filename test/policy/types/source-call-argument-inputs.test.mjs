@@ -44,7 +44,8 @@ test("UNIT argument selection exposes the same checked and native association be
     type.value.parameter === current.parameter && type.value.association === association, true,
     "the exact chosen association is observable before the native type child is answered");
   assert.equal(contract.value.state.depth === 0 && type.value.state.depth === 0 && type.value.state !== contract.value.state, true);
-  const completed = completion.next({ kind: "contracted", request: type.value, type: integer });
+  const completed = completion.next({ kind: "contracted", request: type.value,
+    completion: { input: type.value.typeInput, type: integer } });
   assert.equal(completed.done && completed.value?.type === integer && completed.value.association === association &&
     completed.value.selection === current.selection && completed.value.parameter === current.parameter, true);
 });

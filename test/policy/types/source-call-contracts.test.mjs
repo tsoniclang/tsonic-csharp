@@ -106,6 +106,7 @@ function fixture(carrier = csharpDelegateTargetType("System.Func", [integer], in
     sourceCallableTypeParametersMatch: () => true,
     resolveSourceCallSelectedType: () => assert.fail("the closed stored contract must not fall back to source templates"),
     resolveSourceCallableContractType: (_source, _callable, type) => type,
+    completeSourceCallableType: input => ({ input, type: input.type }),
     sourceCallSelectedDeclaration: () => signatureDeclaration,
   };
   scope.resolveSourceCallContract = (...arguments_) => resolveSourceCallContract(scope, ...arguments_);
