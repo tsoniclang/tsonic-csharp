@@ -5,6 +5,8 @@ import type { CsharpTypePolicy } from "./model.js";
 import type { CsharpTypeParameterConstraint, CsharpTypeParameterConstraintResolution } from "../../../../target-model/types/generic-constraints.js";
 
 import { csharpTypeParameterConstraintKey, csharpTypeParameterConstraintOrder, selectCsharpNativeTypeParameterConstraint } from "../../../../policy/constraints/type-parameter-constraints.js";
+import type { CsharpConstraintTypeDependency, CsharpNumericConstraintSource, CsharpConstraintSource,
+  CsharpTypeParameterConstraintSource } from "../../../../target-model/records/types/callable-source.js";
 export interface CsharpTypeParameterConstraintPolicyHost {
   readonly ast: AstReader;
   readonly types: Pick<CsharpTypePolicy, "resolveNode">;
@@ -28,30 +30,6 @@ const numericSourcePrimitives = new Set([
   "int128",
   "uint128",
 ]);
-
-export interface CsharpConstraintTypeDependency {
-  readonly node: Node;
-  readonly sourceFile: SourceFile;
-}
-
-type CsharpNumericConstraintSource =
-  | { readonly kind: "unavailable" }
-  | { readonly kind: "members"; readonly members: readonly CsharpNumericConstraintSource[] }
-  | { readonly kind: "type"; readonly dependency: CsharpConstraintTypeDependency };
-
-type CsharpConstraintSource =
-  | { readonly kind: "unsupported"; readonly reason: string }
-  | { readonly kind: "intersection"; readonly parts: readonly CsharpConstraintSource[] }
-  | { readonly kind: "type"; readonly objectKeyword: boolean; readonly numeric: CsharpNumericConstraintSource;
-      readonly dependency: CsharpConstraintTypeDependency };
-
-export interface CsharpTypeParameterConstraintSource {
-  readonly declaration: Node;
-  readonly parameter: Extract<TargetTypeRef, { readonly kind: "type-parameter" }>;
-  readonly sourceFile: SourceFile;
-  readonly constraint: CsharpConstraintSource;
-  readonly dependencies: readonly CsharpConstraintTypeDependency[];
-}
 
 export function formCsharpTypeParameterConstraints(
   typeParameter: Node,

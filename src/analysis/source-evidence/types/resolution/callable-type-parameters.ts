@@ -1,24 +1,14 @@
 import type { AstReader, Node, SourceFile } from "@tsonic/tsts";
 import type { CsharpObjectShapeMemberFact } from "../../../../target-model/types/model.js";
 import { csharpSourceTypeParameter } from "../../../../source/extension/type-parameters.js";
-import { formCsharpTypeParameterConstraints,
-  type CsharpTypeParameterConstraintSource } from "./type-parameter-constraints.js";
+import { formCsharpTypeParameterConstraints } from "./type-parameter-constraints.js";
+import type { CsharpCallableDeclarationEvidence,
+  CsharpTypeParameterConstraintSource } from "../../../../target-model/records/types/callable-source.js";
 import type { CsharpProjectedType } from "../../../../target-model/types/projections.js";
 import type { CsharpTypeParameterConstraintResolution } from "../../../../target-model/types/generic-constraints.js";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 
 type CallableParameters = NonNullable<CsharpObjectShapeMemberFact["typeParameters"]>;
-
-export interface CsharpCallableDeclarationEvidence {
-  readonly declaration: Node | undefined;
-  readonly sourceFile: SourceFile;
-  readonly typeParameters: readonly {
-    readonly declaration: Node;
-    readonly identity: string;
-    readonly name: string;
-    readonly constraint: CsharpTypeParameterConstraintSource;
-  }[];
-}
 
 export interface CsharpCompletedCallableConstraint {
   readonly source: CsharpTypeParameterConstraintSource;

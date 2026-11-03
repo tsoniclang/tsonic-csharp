@@ -17,6 +17,7 @@ import type { CsharpProjectTypeIssue } from "../../target-model/records/types/pr
 import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/objects/required-records.js";
 import { csharpTargetTypeRenderingRejection } from "../../policy/types/model/renderability.js";
 import { csharpRuntimeRecordFieldTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
+import { formCsharpObjectMemberDeclarationSource } from "./shapes/member-declaration-source.js";
 
 export function analyzeCsharpNativeValueCarriers(
   ast: AstReader,
@@ -109,6 +110,7 @@ export function analyzeCsharpObjectMethodSources(
   callOnlyAlias: (declaration: Node) => SourceCallOnlyAlias | undefined,
 ): CsharpObjectMethodSources {
   const { ast, navigation } = source;
+  const memberHost = Object.freeze({ ast, semanticsFor: source.semantics.forNode });
   const producer = createCsharpObjectMethodSourceProducer();
   for (const literal of nodes) {
     if (!ast.is.IsObjectLiteralExpression(literal)) continue;
@@ -133,9 +135,11 @@ export function analyzeCsharpObjectMethodSources(
     ])).digest("hex");
     const queries = source.semantics.forNode(literal);
     const type = queries.types.expressionType(literal);
+    const members = type === undefined ? undefined : queries.types.propertyInfos(type);
     const declaredReceiver = type === undefined ? undefined : Object.freeze({
       self: Object.freeze({ kind: "object-occurrence" as const, declaration: literal, identity }), queries, type,
-      members: queries.types.propertyInfos(type), methods,
+      members: members!, declaredMembers: Object.freeze(members!.map(property =>
+        formCsharpObjectMemberDeclarationSource(memberHost, property, queries, undefined, literal))), methods,
     });
     producer.publish(Object.freeze({ literal, identity, selected: captures, declaredReceiver }));
   }

@@ -1,16 +1,13 @@
 import type { Node, SourceFile, Type, TypePropertyInfo } from "@tsonic/tsts";
-import { ObjectLiteralProperty_Value, sourceClassFieldIsTypeOnly, sourcePropertyTypeEvidenceNodes,
-  sourceTransformedTypeFactEvidenceNodes, sourcePresentCallableType,
+import { ObjectLiteralProperty_Value, sourceClassFieldIsTypeOnly,
   type SourceFileSemantics, type SourceStructuralMemberPair } from "@tsonic/target-api/source";
 import type { CsharpObjectShapePolicyHost } from "./model.js";
 import type { CsharpTypeResolutionState } from "../../source-evidence/types/resolution/model.js";
-import { formCsharpCallableDeclaration,
-  type CsharpCallableDeclarationEvidence } from "../../source-evidence/types/resolution/callable-type-parameters.js";
-import { objectShapeMemberTargetNameForKey } from "../../../policy/identities/source-member-names.js";
-import { resolveObjectShapeSourceMemberKey } from "../../../source/extension/member-keys.js";
 import { isCsharpNativeSourceProfileMemberDeclaration, typeIncludesNullish } from "./source-evidence.js";
 import { matchesMemberSubjects, type CsharpObjectShapeMemberProofInput } from "./member-instantiation.js";
 import type { CsharpCurrentProjectDeclaration } from "../../source-evidence/model.js";
+import type { CsharpObjectMemberDeclarationSource } from "../../../target-model/records/objects/member-declarations.js";
+import { formCsharpObjectMemberDeclarationSource } from "./member-declaration-source.js";
 
 export interface CsharpInheritedObjectShapeMemberSource {
   readonly declaration: Node;
@@ -19,20 +16,9 @@ export interface CsharpInheritedObjectShapeMemberSource {
   readonly methodType: Type | undefined;
 }
 
-export interface CsharpObjectShapeMemberSource {
-  readonly property: TypePropertyInfo;
-  readonly propertyType: Type;
-  readonly declarations: readonly Node[];
+export interface CsharpObjectShapeMemberSource extends CsharpObjectMemberDeclarationSource {
   readonly declarationValues: readonly { readonly declaration: Node; readonly value: Node | undefined }[];
-  readonly authoredTypeNodes: readonly Node[];
   readonly sourceStorageSubject: CsharpTypeResolutionState["sourceStorageSubject"];
-  readonly sourceKey: NonNullable<ReturnType<typeof resolveObjectShapeSourceMemberKey>>;
-  readonly targetName: string;
-  readonly method: boolean;
-  readonly getters: readonly Node[];
-  readonly setters: readonly Node[];
-  readonly methodDeclaration: Node | undefined;
-  readonly callableDeclaration: CsharpCallableDeclarationEvidence;
   readonly inheritedDeclarations: readonly CsharpInheritedObjectShapeMemberSource[];
   readonly value: Node | undefined;
   readonly bound: boolean;
@@ -151,27 +137,10 @@ export function createCsharpObjectShapeMemberSource(host: CsharpObjectShapePolic
     authoredTypeRoot: Node | undefined,
     literalOwner: Node | undefined,
   ): Omit<CsharpObjectShapeMemberSource, "correspondence" | "proofInput"> | undefined {
-    const declarations = [...new Set([
-      ...queries.declarations.symbolDeclarations(property.symbol),
-      ...property.rootSymbols.flatMap(symbol => queries.declarations.symbolDeclarations(symbol)),
-    ])].filter((declaration): declaration is Node => declaration !== undefined);
+    const declared = formCsharpObjectMemberDeclarationSource(host, property, queries, authoredTypeRoot, literalOwner);
+    if (declared === undefined) return undefined;
+    const { declarations, propertyType: sourceType, method } = declared;
     const selection = declarations.length !== 1 ? undefined : host.sourceStorage.memberSubjectFor(declarations[0]!);
-    const sourceType = property.type;
-    const sourceKey = resolveObjectShapeSourceMemberKey(declarations, property.name, host.ast, host.semanticsFor);
-    const targetName = sourceKey === undefined ? undefined : objectShapeMemberTargetNameForKey(sourceKey);
-    if (sourceKey === undefined || targetName === undefined) return undefined;
-    const method = declarations.some(declaration =>
-      host.ast.is.IsMethodDeclaration(declaration) || host.ast.is.IsMethodSignatureDeclaration(declaration));
-    const getters = declarations.filter(declaration => host.ast.is.IsGetAccessorDeclaration(declaration) &&
-      (literalOwner === undefined || host.ast.parent(declaration) === literalOwner));
-    const setters = declarations.filter(declaration => host.ast.is.IsSetAccessorDeclaration(declaration) &&
-      (literalOwner === undefined || host.ast.parent(declaration) === literalOwner));
-    if (getters.length > 1 || setters.length > 1 || getters.length === 0 && setters.length > 0) return undefined;
-    const callableType = method ? sourcePresentCallableType(sourceType, queries) : undefined;
-    const signatures = callableType === undefined ? [] : queries.types.callSignatures(callableType);
-    const methodDeclaration = signatures.length === 1 ? queries.declarations.signatureDeclaration(signatures[0]!) : undefined;
-    const callableDeclaration = formCsharpCallableDeclaration(methodDeclaration, queries.sourceFile, host.ast);
-    if (callableDeclaration === undefined) return undefined;
     const inheritedDeclarations = declarations.flatMap(declaration => {
       const owner = host.projectDeclarations.declarationForNode(host.ast.parent(declaration));
       if (owner === undefined || host.ast.hasModifierKind(declaration, "static")) return [];
@@ -184,16 +153,9 @@ export function createCsharpObjectShapeMemberSource(host: CsharpObjectShapePolic
       value: host.ast.is.IsPropertyAssignment(declaration) || host.ast.is.IsShorthandPropertyAssignment(declaration)
         ? ObjectLiteralProperty_Value(host.ast, declaration) : undefined,
     })));
-    const authoredTypeNodes = Object.freeze([
-      ...sourcePropertyTypeEvidenceNodes(host.ast, queries, property),
-      ...(authoredTypeRoot === undefined ? []
-        : sourceTransformedTypeFactEvidenceNodes(host.ast, queries, authoredTypeRoot, sourceType)),
-    ]);
     const sourceStorageSubject = selection?.kind === "resolved" ? selection.subject : undefined;
-    return Object.freeze({ property, propertyType: sourceType, declarations: Object.freeze(declarations), declarationValues,
-      authoredTypeNodes, sourceStorageSubject,
-      sourceKey, targetName, method, getters: Object.freeze(getters), setters: Object.freeze(setters), methodDeclaration,
-      callableDeclaration, inheritedDeclarations: Object.freeze(inheritedDeclarations),
+    return Object.freeze({ ...declared, declarationValues, sourceStorageSubject,
+      inheritedDeclarations: Object.freeze(inheritedDeclarations),
       value: !method && declarationValues.length === 1 ? declarationValues[0]!.value : undefined,
       bound: host.memoryBindings.hasBoundField([property.symbol, ...declarations]),
       nullish: typeIncludesNullish(sourceType, queries),

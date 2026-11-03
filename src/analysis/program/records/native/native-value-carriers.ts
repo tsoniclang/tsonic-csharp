@@ -40,7 +40,10 @@ export function createCsharpObjectMethodSourceProducer() {
       const methods = [...selected.keys()];
       if (declaredReceiver !== undefined && (declaredReceiver.self.declaration !== literal ||
         declaredReceiver.self.identity !== identity || declaredReceiver.methods.length !== selected.size ||
-        declaredReceiver.methods.some((method, index) => methods[index] !== method))) {
+        declaredReceiver.methods.some((method, index) => methods[index] !== method) ||
+        declaredReceiver.declaredMembers.length !== declaredReceiver.members.length ||
+        declaredReceiver.declaredMembers.some((member, index) => member !== undefined &&
+          (member.property !== declaredReceiver.members[index] || member.queries !== declaredReceiver.queries)))) {
         return failTargetAnalysisInvariant("tsonic-csharp",
           "A declared receiver requires its identical object occurrence and ordered authored methods.", literal);
       }

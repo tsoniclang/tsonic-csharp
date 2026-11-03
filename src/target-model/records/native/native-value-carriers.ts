@@ -3,6 +3,7 @@ import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../types/model.js";
 import type { CsharpSourceField, CsharpSourceStruct } from "../program/source-markers.js";
 import type { CsharpProjectTypeIssue } from "../types/project-types.js";
+import type { CsharpObjectMemberDeclarationSource } from "../objects/member-declarations.js";
 
 export interface CsharpNativeValueField {
   readonly source: CsharpSourceField;
@@ -36,6 +37,7 @@ export interface CsharpDeclaredObjectReceiverSource {
   readonly queries: SourceFileSemantics;
   readonly type: Type;
   readonly members: readonly TypePropertyInfo[];
+  readonly declaredMembers: readonly (CsharpObjectMemberDeclarationSource | undefined)[];
   readonly methods: readonly Node[];
 }
 
