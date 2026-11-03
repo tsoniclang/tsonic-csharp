@@ -8,7 +8,7 @@ import { inferCsharpTargetTypeParameterBindings, substituteTargetTypeParameters 
 import type { CsharpTypeResolutionState } from "./model.js";
 import type { CsharpTypeResolutionScope } from "./scope.js";
 import { nextState } from "./state.js";
-import type { CsharpSelectedReceiverSource, CsharpSourceCallReceiverInput, CsharpSourceCallReceiverCompletion } from "./receiver-completions.js";
+import type { CsharpSourceCallReceiverSource, CsharpSourceCallReceiverInput, CsharpSourceCallReceiverCompletion } from "./receiver-completions.js";
 import type { CsharpSourceOwnedConstructionSource } from "./expression-source.js";
 
 export interface CsharpSourceCallableTypeInput {
@@ -19,7 +19,7 @@ export interface CsharpSourceCallableTypeInput {
   readonly state: CsharpTypeResolutionState;
   readonly excludedSourceArgumentIndexes: ReadonlySet<number> | undefined;
   readonly construction: CsharpSourceOwnedConstructionSource | undefined;
-  readonly receiverSource: CsharpSelectedReceiverSource;
+  readonly receiverSource: CsharpSourceCallReceiverSource;
 }
 
 type Instantiation = NonNullable<ReturnType<CsharpTypeResolutionScope["resolveSourceCallInstantiation"]>>;
@@ -62,8 +62,10 @@ export function* completeCsharpSourceCallableTypeSource(
   input: CsharpSourceCallableTypeInput,
 ): Generator<CsharpSourceCallableTypeRequest, CsharpSourceCallableTypeCompletion | undefined,
   CsharpCompletedSourceCallableTypeRequest> {
-  if (input.receiverSource === undefined || input.receiverSource.receiver !== input.source.sourceReceiver ||
-      input.receiverSource.queries.sourceFile !== input.sourceFile) return failTargetAnalysisInvariant("tsonic-csharp",
+  if (input.receiverSource === undefined || input.receiverSource.source !== input.source ||
+      input.receiverSource.queries.sourceFile !== input.sourceFile ||
+      input.receiverSource.selected.receiver !== input.source.sourceReceiver ||
+      input.receiverSource.selected.queries !== input.receiverSource.queries) return failTargetAnalysisInvariant("tsonic-csharp",
     "Callable type completion requires its exact retained Source receiver.", input.source.call);
   const instantiationRequest = Object.freeze({ kind: "instantiation" as const, input, state: nextState(input.state) });
   const instantiated = yield instantiationRequest;

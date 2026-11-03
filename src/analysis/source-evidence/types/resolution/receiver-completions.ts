@@ -9,6 +9,7 @@ import type { CsharpTypeResolutionScope } from "./scope.js";
 import { nextState } from "./state.js";
 import type { CsharpSourceOwnedConstructionSource } from "./expression-source.js";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
+import { formCsharpProjectInstanceSource, type CsharpProjectInstanceSource } from "./project-instance-source.js";
 
 export interface CsharpSelectedReceiverSource {
   readonly receiver: { readonly expression?: Node; readonly type?: Type } | undefined;
@@ -32,12 +33,22 @@ export type CsharpSelectedReceiverCompletion = {
   | { readonly kind: "declared-this"; readonly owner: CsharpProjectTypeDefinition }
 );
 
+export type CsharpSourceCallReceiverSource = {
+  readonly source: ResolvedSourceCallInfo;
+  readonly queries: SourceFileSemantics;
+  readonly selected: CsharpSelectedReceiverSource;
+} & (
+  | { readonly kind: "super"; readonly instance: CsharpProjectInstanceSource }
+  | { readonly kind: "construction"; readonly projectClass: boolean }
+  | { readonly kind: "selected" }
+);
+
 export interface CsharpSourceCallReceiverInput {
   readonly source: ResolvedSourceCallInfo;
   readonly sourceFile: SourceFile;
   readonly state: CsharpTypeResolutionState;
   readonly construction: CsharpSourceOwnedConstructionSource | undefined;
-  readonly receiverSource: CsharpSelectedReceiverSource;
+  readonly receiverSource: CsharpSourceCallReceiverSource;
 }
 
 export type CsharpSourceCallReceiverCompletion = {
@@ -61,6 +72,26 @@ export function formCsharpSelectedReceiverSource(
   const declaredThis = expression === undefined || host.ast.kindName(expression) !== "KindThisKeyword" ? undefined
     : Object.freeze({ catalog: host.projectTypeCatalog, owner: host.projectTypeCatalog.declarationContaining(expression) });
   return Object.freeze({ receiver, queries, declaredThis });
+}
+
+export function formCsharpSourceCallReceiverSource(
+  host: Pick<CsharpTypeResolutionScope["host"], "ast" | "navigation"> & {
+    readonly projectTypeCatalog: Pick<CsharpProjectTypeCatalog, "declarationContaining">;
+  },
+  source: ResolvedSourceCallInfo,
+  queries: SourceFileSemantics,
+): CsharpSourceCallReceiverSource {
+  const selected = formCsharpSelectedReceiverSource(host, source.sourceReceiver, queries);
+  if (host.ast.kindName(source.sourceCallee.expression) === "KindSuperKeyword") {
+    return Object.freeze({ source, queries, selected, kind: "super",
+      instance: formCsharpProjectInstanceSource(host.ast, source.sourceCallee.expression) });
+  }
+  if (host.ast.is.IsNewExpression(source.call)) {
+    const projectClass = host.ast.is.IsClassDeclaration(source.sourceCallee.selectedDeclaration) &&
+      host.navigation.isProjectDeclaration(source.sourceCallee.selectedDeclaration);
+    return Object.freeze({ source, queries, selected, kind: "construction", projectClass });
+  }
+  return Object.freeze({ source, queries, selected, kind: "selected" });
 }
 
 export function completeCsharpSelectedReceiver(
