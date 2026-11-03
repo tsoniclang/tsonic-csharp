@@ -50,12 +50,17 @@ import { formCsharpNodeQuerySource, formCsharpTypeQuerySource,
   formCsharpNodeTypeSource, formCsharpSemanticTypeSource,
   type CsharpNodeQuerySource, type CsharpTypeQuerySource,
   type CsharpNodeTypeSource, type CsharpSemanticTypeSource } from "./root-sources.js";
+import { formCsharpSourceDeclarationArguments, resolveFormedCsharpSourceDeclarationArguments } from "./generic-arguments.js";
 
 import type { CsharpTypeResolutionScope } from "./scope.js";
 type DropScope<Arguments extends readonly unknown[]> =
   Arguments extends readonly [unknown, ...infer Rest] ? Rest : never;
 
 export interface CsharpTypeResolutionServices {
+  readonly sourceDeclarationArguments: (...args: DropScope<Parameters<typeof formCsharpSourceDeclarationArguments>>) =>
+    ReturnType<typeof formCsharpSourceDeclarationArguments>;
+  readonly completeSourceDeclarationArguments: (...args: DropScope<Parameters<typeof resolveFormedCsharpSourceDeclarationArguments>>) =>
+    ReturnType<typeof resolveFormedCsharpSourceDeclarationArguments>;
   readonly nodeQuerySource: (...args: DropScope<Parameters<typeof formCsharpNodeQuerySource>>) => CsharpNodeQuerySource;
   readonly completeNodeQuery: (source: CsharpNodeQuerySource) => ReturnType<typeof resolveFormedCsharpNodeQuerySource>;
   readonly typeQuerySource: (...args: DropScope<Parameters<typeof formCsharpTypeQuerySource>>) => CsharpTypeQuerySource;
@@ -395,6 +400,10 @@ export function createCsharpTypeResolutionServices(
     },
   });
   return Object.freeze({ policy, recursive,
+    sourceDeclarationArguments: (...args: DropScope<Parameters<typeof formCsharpSourceDeclarationArguments>>) =>
+      formCsharpSourceDeclarationArguments(scope, ...args),
+    completeSourceDeclarationArguments: (...args: DropScope<Parameters<typeof resolveFormedCsharpSourceDeclarationArguments>>) =>
+      resolveFormedCsharpSourceDeclarationArguments(scope, ...args),
     nodeQuerySource: methods.nodeQuerySource,
     completeNodeQuery: methods.completeNodeQuery,
     typeQuerySource: methods.typeQuerySource,
