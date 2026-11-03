@@ -36,9 +36,11 @@ import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { createCsharpLiteralShapeResolver } from "./literal-construction.js";
 import { createCsharpProjectShapeProjection } from "./project-construction.js";
 import { createCsharpNativeShapeProjections } from "./native-projections.js";
-import { createCsharpObjectShapeSourceFormation } from "./type-source.js";
+import { createCsharpObjectShapeSourceFormation, type CsharpObjectShapeTypeSource } from "./type-source.js";
 import { formCsharpObjectShapeNodeSource } from "./node-source.js";
 import { createCsharpProjectDeclarationApplications } from "./project-declaration-application.js";
+import { completeCsharpStructShapeSource, type CsharpStructShapeSource } from "./struct-source.js";
+import { formInstantiatedObjectShapeSource } from "./shape-source.js";
 
 export function createCsharpObjectShapePolicy(
   host: CsharpObjectShapePolicyHost,
@@ -97,7 +99,7 @@ export function createCsharpObjectShapePolicy(
         : host.semantics(sourceFile);
       const input = formCsharpObjectShapeNodeSource(host, formation, node, queries, state);
       if (input === undefined) return undefined;
-      const directStruct = resolveStructShape(node, queries, state);
+      const directStruct = resolveStructShape(input.struct);
       if (directStruct !== undefined) {
         remember(node, directStruct);
         return directStruct;
@@ -118,18 +120,9 @@ export function createCsharpObjectShapePolicy(
           ? remember(node, { ...selectedShape, sourceType: actualType, members })
           : rememberTargetShape({ ...selectedShape, sourceType: actualType, members });
       }
-      const declaration = host.navigation.declarationFor(node);
-      const authoredTypeRoot = declaration === undefined
-        ? undefined
-        : host.ast.typeNode(declaration);
-      const shape = resolveSemanticShape(
-        source.type,
-        node,
-        queries,
-        state,
-        source.contextualTarget ?? selectedTarget,
-        authoredTypeRoot,
-      );
+      const semantic = source.origin === "contextual" ? input.contextual : input.semantic;
+      const shape = semantic === undefined ? undefined
+        : resolveSemanticShape(semantic, source.contextualTarget ?? selectedTarget);
       if (shape !== undefined) {
         return state.sourceBindings === undefined ? remember(node, shape) : rememberTargetShape(shape);
       }
@@ -207,14 +200,11 @@ export function createCsharpObjectShapePolicy(
       const expressionType = queries.types.expressionType(authoredLiteral);
       if (expressionType === undefined || !queries.types.isIdentical(expressionType, type)) return undefined;
     }
-    const shape = resolveSemanticShape(
-      type,
-      authoredLiteral,
-      host.semantics(sourceFile),
-      state,
-      undefined,
-      authoredLiteral === undefined ? authoredTypeRoot : undefined,
-    );
+    if (activeTypes.has(type)) return undefined;
+    const queries = host.semantics(sourceFile);
+    const source = formation.formTypeSource(type, authoredLiteral, queries, state,
+      authoredLiteral === undefined ? authoredTypeRoot : undefined, host.projectSemanticSource(type, queries, state));
+    const shape = source === undefined ? undefined : resolveSemanticShape(source);
     return shape === undefined ? undefined : rememberTargetShape(shape);
   }
 
@@ -286,98 +276,17 @@ export function createCsharpObjectShapePolicy(
   }
 
   function resolveStructShape(
-    node: Node,
-    queries: SourceFileSemantics,
-    state: CsharpTypeResolutionState,
+    source: CsharpStructShapeSource | undefined,
   ): CsharpObjectShapeFact | undefined {
-    const parent = host.ast.parent(node);
-    const declaration = host.ast.is.IsVariableDeclaration(node) ? node
-      : parent !== undefined && host.ast.is.IsVariableDeclaration(parent) &&
-        Node_Initializer(host.ast, parent) === node ? parent : undefined;
-    const definition = host.projectTypeCatalog.definitionForDeclaration(declaration);
-    if (definition?.kind !== "struct") return undefined;
-    for (const subject of sourceSubjects(node, queries)) {
-      const fact = readCsharpSourceStruct(host.sourceFacts, subject);
-      if (fact === undefined) {
-        continue;
-      }
-      const targetType = host.projectTypeCatalog.targetTypeForDeclaration(definition.declaration, []);
-      if (targetType === undefined) {
-        return undefined;
-      }
-      const selectedType = queries.types.expressionType(definition.declaration) ?? queries.types.authoredType(definition.declaration);
-      if (selectedType === undefined) return undefined;
-      const selectedMembers = deriveMembers(selectedType, queries, state);
-      const initializer = Node_Initializer(host.ast, definition.declaration);
-      const shapeNode = initializer === undefined || readCsharpSourceStruct(host.sourceFacts, initializer) === undefined
-        ? undefined : host.ast.arguments(initializer)[0];
-      const shapeType = shapeNode === undefined ? undefined : queries.types.expressionType(shapeNode);
-      const correspondence = selectedType === undefined || shapeType === undefined
-        ? undefined : queries.types.structuralMembers(shapeType, selectedType, "correspondence");
-      if (correspondence?.kind !== "available") return undefined;
-      const members = fact.fields.map((field) => {
-        const type = host.typeResolver.resolveNode(
-          field.sourceType,
-          queries.sourceFile,
-          nextState(state),
-        );
-        const sourceType = queries.types.authoredType(field.sourceType);
-        const sourceMembers = correspondence.members.filter(member => member.kind === "present" &&
-          readCsharpSourceField(host.sourceFacts, [member.source.property.symbol,
-            ...member.source.declarations])?.sourceType === field.sourceType);
-        const destination = sourceMembers.length === 1 ? sourceMembers[0]!.destination : undefined;
-        const subjects: readonly ExtensionFactSubject[] = destination === undefined
-          ? [] : [destination.property.symbol, ...destination.declarations];
-        const selected = selectedMembers?.filter(member =>
-          member.sourceSubjects?.some(subject => subjects.includes(subject)) === true);
-        const selectedMember = selected?.length === 1 ? selected[0] : undefined;
-        const targetName = objectShapeMemberTargetName(field.sourceName);
-        return type === undefined || selectedMember === undefined || targetName === undefined
-          ? undefined
-          : {
-              sourceKey: csharpPropertySourceMemberKey(field.sourceName),
-              sourceName: field.sourceName,
-              sourceSubjects: [field.sourceType, ...(selectedMember?.sourceSubjects ?? [])],
-              ...(selectedMember?.sourceDeclarations === undefined ? {} : { sourceDeclarations: selectedMember.sourceDeclarations }),
-              ...(selectedMember.sourceMemberEvidence === undefined ? {} : { sourceMemberEvidence: selectedMember.sourceMemberEvidence }),
-              ...(selectedMember?.bound === true ? { bound: true as const } : {}),
-              ...(sourceType === undefined
-                ? {}
-                : { sourceTypes: [sourceType] }),
-              targetName,
-              memberKind: "property" as const,
-              type,
-              ...(field.readonly ? { readonly: true } : {}),
-            };
-      });
-      return members.some((member) => member === undefined)
-        ? undefined
-        : {
-            targetType,
-            sourceType: selectedType,
-            members: members as readonly CsharpObjectShapeMemberFact[],
-            constructible: true,
-          };
-    }
-    return undefined;
+    return source === undefined ? undefined : completeCsharpStructShapeSource(host, source, completeSourceMembers);
   }
 
   function resolveSemanticShape(
-    type: Type | undefined,
-    node: Node | undefined,
-    queries: SourceFileSemantics,
-    state: CsharpTypeResolutionState,
+    input: CsharpObjectShapeTypeSource,
     selectedTarget?: TargetTypeRef,
-    authoredTypeRoot?: Node,
   ): CsharpObjectShapeFact | undefined {
-    if (
-      type === undefined ||
-      activeTypes.has(type) ||
-      requiresUnresolvedStructuralProjection(type, node, queries, host) ||
-      typeIsExcludedFromObjectShape(type, queries, host)
-    ) {
-      return undefined;
-    }
+    const { type, queries, state, authoredTypeRoot } = input;
+    if (activeTypes.has(type)) return undefined;
     activeTypes.add(type);
     try {
       const selectedType = selectedTarget ?? (authoredTypeRoot === undefined
@@ -390,52 +299,49 @@ export function createCsharpObjectShapePolicy(
       const targetType = selectedType === undefined
         ? undefined
         : getCsharpNullableElementTargetType(selectedType) ?? selectedType;
-      const providerShape = resolveProviderObjectLiteralShape({
-        type,
-        queries,
-        state,
-        selectedTarget: targetType,
-        authoredTypeRoot,
-        host,
-        resolvePropertyType,
-      });
+      let providerShape: CsharpObjectShapeFact | undefined;
+      if (input.provider !== undefined) {
+        const completion = resolveProviderObjectLiteralShape(input.provider, targetType);
+        let step = completion.next();
+        while (!step.done) {
+          const dependency = step.value;
+          step = completion.next({ ...dependency,
+            type: host.typeResolver.resolveStructuralPropertyType(dependency.application) });
+        }
+        providerShape = step.value;
+      }
       if (providerShape !== undefined) {
-        const members = retainMemberDeclarationEvidence(providerShape.members, type, queries);
+        const members = input.providerShape === undefined ? undefined
+          : retainMemberDeclarationEvidence(providerShape.members, input.providerShape.members.map(member => member.proof));
         return members === undefined ? undefined : { ...providerShape, members };
       }
       const contextualProjectType = targetType !== undefined &&
           isProjectSourceTargetType(targetType)
         ? targetType
         : undefined;
-      const objectLiteral = node !== undefined &&
-        host.ast.is.IsObjectLiteralExpression(node);
+      const objectLiteral = input.objectLiteral;
       const declaredKind = contextualProjectType?.csharpSourceDeclarationKind;
       if (declaredKind === "struct" && contextualProjectType !== undefined) {
-        const definition = host.projectTypeCatalog.definitionForTarget(contextualProjectType);
-        const shape = definition?.kind === "struct"
-          ? resolveStructShape(definition.declaration, host.semantics(definition.sourceFile), nextState(state)) : undefined;
+        const project = input.projects.find(project => project.definition.id === contextualProjectType.id);
+        const shape = resolveStructShape(project?.struct);
         return shape !== undefined && targetTypeRefEquals(shape.targetType, contextualProjectType) ? shape : undefined;
       }
-      if (!typeHasProjectOwnedShapeDeclaration(type, node ?? authoredTypeRoot, queries, host)) {
+      if (!input.projectOwned) {
         return undefined;
       }
       if (declaredKind === "enum") {
         return undefined;
       }
-      if (declaredKind === "class" && contextualProjectType !== undefined &&
-        queries.types.constructSignatures(type).length > 0) {
-        const definition = host.projectTypeCatalog.definitionForTarget(contextualProjectType);
-        const instance = definition === undefined ? undefined
-          : queries.declarations.declaredType(definition.declaration);
-        if (instance === undefined || instance === type) return undefined;
-        return resolveSemanticShape(instance, undefined, queries, nextState(state), contextualProjectType);
-      }
-      const declaredShape = contextualProjectType !== undefined && declaredKind === "class"
-        ? resolveProjectDeclarationShape(contextualProjectType, state) : undefined;
+      const application = contextualProjectType !== undefined && (declaredKind === "class" || declaredKind === "interface")
+        ? declarationApplications.formDeclarationApplication(contextualProjectType, state) : undefined;
+      const instantiated = application === undefined ? undefined
+        : formInstantiatedObjectShapeSource(application.source, type, queries);
+      const declaredShape = declaredKind === "class" && application !== undefined
+        ? declarationApplications.completeDeclarationApplication(application) : undefined;
       if (declaredKind === "class" && declaredShape === undefined) return undefined;
       const members = declaredShape === undefined
-        ? deriveMembers(type, queries, nextState(state), authoredTypeRoot, contextualProjectType)
-        : instantiateMemberEvidence(declaredShape.members, type, queries, declaredShape.sourceType);
+        ? input.members === undefined ? undefined : completeSourceMembers(input.members, contextualProjectType)
+        : instantiated === undefined ? undefined : instantiateMemberEvidence(declaredShape.members, instantiated.instantiation);
       if (members === undefined) {
         return undefined;
       }
@@ -454,31 +360,24 @@ export function createCsharpObjectShapePolicy(
         declaredKind === "interface" &&
         !objectLiteral
       ) {
-        const declared = resolveProjectInterfaceShape(
-          contextualProjectType,
-          state,
-        );
+        const declared = application === undefined ? undefined : declarationApplications.completeDeclarationApplication(application);
         if (declared === undefined) return {
           targetType: contextualProjectType,
           sourceType: type,
           members,
         };
-        const instantiatedMembers = instantiateMemberEvidence(declared.members, type, queries, declared.sourceType);
+        const instantiatedMembers = instantiated === undefined ? undefined : instantiateMemberEvidence(declared.members, instantiated.instantiation);
         return instantiatedMembers === undefined ? undefined : { ...declared, sourceType: type, members: instantiatedMembers };
       }
       const implemented = contextualProjectType !== undefined &&
           declaredKind === "interface"
         ? [contextualProjectType]
         : undefined;
-      const symbol = queries.declarations.typeSymbol(type);
-      const literals = symbol === undefined ? [] : queries.declarations.symbolDeclarations(symbol)
-        .filter(declaration => host.ast.is.IsObjectLiteralExpression(declaration));
-      const authoredLiteral = objectLiteral ? node : literals.length === 1 ? literals[0] : undefined;
-      const structuralContract = !objectLiteral && !members.some(member => member.bound === true) &&
-        (queries.types.isIntersection(type) || symbol !== undefined &&
-          queries.declarations.symbolDeclarations(symbol).some(declaration =>
-            host.ast.is.IsTypeLiteralNode(declaration) || host.ast.is.IsMappedTypeNode(declaration)));
-      const methodImplementation = structuralContract ? undefined : selectCsharpObjectMethodImplementation(members, host, state, authoredLiteral);
+      const authoredLiteral = input.literal?.objectLiteral;
+      const structuralContract = input.structuralContract && !members.some(member => member.bound === true);
+      const methodImplementation = structuralContract ? undefined : selectCsharpObjectMethodImplementation(input.implementation,
+        members.map(member => member.targetName), input.implementationCaptures.map(request =>
+          host.typeResolver.resolveNode(request.node, request.sourceFile, request.state)));
       const shape: CsharpObjectShapeFact = {
         targetType: unionDefinitions.reference(type) ?? createStructuralObjectShapeTarget(members, implemented, environment, structuralContract, methodImplementation),
         sourceType: type,

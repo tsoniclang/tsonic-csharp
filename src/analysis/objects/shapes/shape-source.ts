@@ -66,7 +66,7 @@ export function formInstantiatedObjectShapeSource(
   previous: CsharpObjectShapeSource,
   type: Type,
   queries: SourceFileSemantics,
-): CsharpObjectShapeSource | undefined {
+): Extract<CsharpObjectShapeSource, { readonly kind: "instantiated" }> | undefined {
   const instantiation = formMemberInstantiationEvidence(Object.freeze({
     members: Object.freeze(previous.members.map(member => member.proof)),
     type, queries, previousSourceType: previous.sourceType,
