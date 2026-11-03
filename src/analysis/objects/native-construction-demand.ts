@@ -13,6 +13,8 @@ import type { CsharpNativeConstructionDemandQueries, CsharpNativeConstructionIss
   CsharpNativeConstructionSelection } from "../../target-model/records/native/native-construction.js";
 import type { CsharpObjectLiteralTargetShapeResolution } from "../../target-model/records/objects/object-shapes.js";
 import { createCsharpNativeConstructionRecords } from "../program/records/native/native-construction.js";
+import type { CsharpNativeConstructionPublicationSource } from "./native-construction-publication.js";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 
 export function selectCsharpLiteralDeclarationContext(
   expression: Node,
@@ -37,17 +39,28 @@ export function csharpUntypedObjectLiteralIssue(node: Node): CsharpNativeConstru
 
 export function createCsharpNativeConstructionDemandQuery(
   host: CsharpNativeConstructionHost,
+  publicationSources: readonly CsharpNativeConstructionPublicationSource[],
 ): CsharpNativeConstructionDemandQueries {
+  const publications = new Map<Node, CsharpNativeConstructionPublicationSource>();
+  for (const source of publicationSources) {
+    const existing = publications.get(source.node);
+    if (source.input.node !== source.node || source.input.queries !== source.queries || source.input.selectedType !== source.type ||
+      existing !== undefined && existing.input !== source.input) {
+      return failTargetAnalysisInvariant("tsonic-csharp",
+        "Native construction publication requires its original checked node query.", source.node);
+    }
+    publications.set(source.node, source);
+  }
   const constructions = new Map<Node, CsharpNativeConstructionSelection>();
   const issues: CsharpNativeConstructionIssue[] = [];
   const issue = (node: Node, code: CsharpNativeConstructionIssue["code"], message: string): void => {
     issues.push(Object.freeze({ node, code, message }));
   };
   const publish = (node: Node, shape: CsharpObjectShapeFact): void => {
-    const queries = host.semanticsFor(node);
-    const source = queries.types.expressionType(node);
-    const members = source === undefined ? [] : queries.types.isUnion(source)
-      ? queries.types.unionOrIntersectionTypes(source).filter(type => !queries.types.isNullish(type)) : [source];
+    const input = publications.get(node);
+    if (input === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+      "Native construction publication requires its retained checked source input.", node);
+    const { queries, type: source, presentTypes: members } = input;
     if (members.length !== 1) return;
     const existing = host.scopedTargetType(node);
     if (existing !== undefined && !targetTypeRefEquals(existing, shape.targetType)) {

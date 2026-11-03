@@ -3,6 +3,7 @@ import {
   createCsharpNativeConstructionDemandQuery,
 } from "../objects/native-construction-demand.js";
 import type { CsharpNativeConstructionDemandQueries } from "../../target-model/records/native/native-construction.js";
+import type { CsharpNativeConstructionPublicationSource } from "../objects/native-construction-publication.js";
 import type {
   ExtensionFactSubject,
   Node,
@@ -260,7 +261,7 @@ function createCsharpTypeSystem(
 
 export interface CsharpTypeAnalysis extends CsharpTypeSystem {
   readonly nativeConstruction: CsharpNativeConstructionDemandQueries;
-  completeNativeConstruction(): void;
+  completeNativeConstruction(publicationSources: readonly CsharpNativeConstructionPublicationSource[]): void;
 }
 
 export function createCsharpTypeAnalysis(
@@ -291,7 +292,7 @@ export function createCsharpTypeAnalysis(
         "Native construction records require their completed current demand publication.");
       return nativeConstruction;
     },
-    completeNativeConstruction(): void {
+    completeNativeConstruction(publicationSources: readonly CsharpNativeConstructionPublicationSource[]): void {
       if (nativeConstruction !== undefined) return failTargetAnalysisInvariant("tsonic-csharp",
         "Native construction records are completed exactly once.");
       nativeConstruction = createCsharpNativeConstructionDemandQuery({
@@ -300,7 +301,7 @@ export function createCsharpTypeAnalysis(
         resolveShape: system.objectShapes.resolveType,
         resolveLiteralShape: system.objectShapes.resolveObjectLiteralTargetShape,
         retainSourceShape: system.objectShapes.retainConstructionSource,
-      });
+      }, publicationSources);
     },
   });
 }

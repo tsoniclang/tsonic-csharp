@@ -18,6 +18,7 @@ import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpSemanticTypeClassification, CsharpContextualTupleClassification, CsharpContextualTypeEvidence, CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
 import type { CsharpSourceEvidenceResult, CsharpCurrentNativeNodeInput, CsharpCurrentNativeTypeInput } from "./model.js";
 import type { CsharpTypeResolutionServices } from "./types/resolution/engine.js";
+import { formCsharpNativeConstructionPublicationSource } from "../objects/native-construction-publication.js";
 import type { CsharpTypeParameterConstraintResolution } from "../../policy/constraints/index.js";
 import { selectCsharpSourceArgument } from "../../source/extension/arguments.js";
 import { csharpFixedArrayRepresentationRejection } from "../../policy/types/collections/fixed-arrays.js";
@@ -214,6 +215,8 @@ export function analyzeCsharpSourceEvidence(
     }
     const semantics = source.semantics.forFile(sourceFile);
     const nodeQuery = typeQueries.nodeQuerySource(node, sourceFile);
+    const constructionSource = nodeQuery.root.kind === "node"
+      ? formCsharpNativeConstructionPublicationSource(nodeQuery.root) : undefined;
     if (source.ast.is.IsBindingElement(node)) {
       const projection = types.resolveBindingProjection(node, sourceFile);
       if (projection !== undefined) {
@@ -300,7 +303,7 @@ export function analyzeCsharpSourceEvidence(
       node,
       recordTargetType(types.resolveReadStorage(node, sourceFile)) ?? missing,
     );
-    currentNodeInputs.push(Object.freeze({ source: nodeQuery, resolution: nodeSelection,
+    currentNodeInputs.push(Object.freeze({ source: nodeQuery, constructionSource, resolution: nodeSelection,
       storageType: cachedValue(storageTargetTypes.get(node)), readStorageType: cachedValue(readStorageTargetTypes.get(node)),
     }));
     const expressionType = semantics.types.expressionType(node);

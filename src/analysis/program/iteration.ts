@@ -164,7 +164,8 @@ export function analyzeCsharpRepresentationIteration(
   const optionalLocals = analyzeCsharpOptionalLocals(policy, sourceEvidence, sourceStorage.nodes, names, operations);
   const typeProjections = analyzeCsharpTypeProjections(projectionSource, sourceEvidence, operations, optionalLocals);
   typeSystem.publishProjectTypes(typeProjections);
-  typeSystem.completeNativeConstruction();
+  typeSystem.completeNativeConstruction(evidence.currentNodeInputs.flatMap(input =>
+    input.constructionSource === undefined ? [] : [input.constructionSource]));
   const declarations = analyzeCsharpDeclarations(
     policy,
     sourceEvidence,

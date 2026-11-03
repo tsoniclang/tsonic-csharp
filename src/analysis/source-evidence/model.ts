@@ -6,6 +6,7 @@ import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model
 import type { CsharpProjectTypeDefinition, CsharpProjectTypeIssue } from "../../target-model/records/types/project-types.js";
 import type { CsharpNodeQuerySource, CsharpTypeQuerySource } from "./types/resolution/root-sources.js";
 import type { CsharpNodeTypeResolution } from "../../policy/model/type-resolution.js";
+import type { CsharpNativeConstructionPublicationSource } from "../objects/native-construction-publication.js";
 
 type CurrentProjectDeclaration<Definition extends CsharpProjectTypeDefinition> = Definition extends unknown
   ? Omit<Definition, "typeParameterBindings" | "typeProjections" | "outerTypeProjections"> & {
@@ -26,6 +27,7 @@ export interface CsharpCurrentProjectDeclarations {
 
 export interface CsharpCurrentNativeNodeInput {
   readonly source: CsharpNodeQuerySource;
+  readonly constructionSource: CsharpNativeConstructionPublicationSource | undefined;
   readonly resolution: CsharpNodeTypeResolution | undefined;
   readonly storageType: TargetTypeRef | undefined;
   readonly readStorageType: TargetTypeRef | undefined;
