@@ -29,6 +29,7 @@ import type { CsharpSelectedExpressionSource } from "./expression-source.js";
 import type { CsharpSourceCallResultSource } from "./call-result-source.js";
 import type { CsharpSemanticTypeArgumentsSource } from "./semantic-argument-source.js";
 import type { CsharpDirectSourceEvidence } from "./direct-source-evidence.js";
+import type { CsharpSourceCallInference } from "./call-inference.js";
 export interface CsharpTypeResolutionScope {
   nodeQuerySource(node: Node | undefined, sourceFile?: SourceFile): CsharpNodeQuerySource;
   completeNodeQuery(source: CsharpNodeQuerySource): CsharpNodeTypeResolution | undefined;
@@ -292,6 +293,7 @@ export interface CsharpTypeResolutionScope {
       readonly arguments: readonly TargetTypeRef[];
       readonly substitutions: ReadonlyMap<string, TargetTypeRef>;
       readonly sourceArguments: readonly Type[];
+      readonly inference: CsharpSourceCallInference | undefined;
     }
   | undefined;
   resolveSourceCallSelectedType(
@@ -318,7 +320,7 @@ export interface CsharpTypeResolutionScope {
   parameterNames: ReadonlySet<string>,
   state: CsharpTypeResolutionState,
   excludedSourceArgumentIndexes?: ReadonlySet<number>,
-): ReadonlyMap<string, TargetTypeRef> | undefined;
+): CsharpSourceCallInference | undefined;
   sourceCallSelectedDeclaration(
   source: ResolvedSourceCallInfo,
 ): Node | undefined;

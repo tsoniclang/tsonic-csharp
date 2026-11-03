@@ -1,28 +1,24 @@
 import type { SourceCallableContract } from "../../../../target-model/records/callables/source-callable-contract.js";
 import { resolveProjectConstructingReceiverTargetType } from "./expressions.js";
-import { csharpSourceCallArgumentParameter } from "../../../../policy/types/callables/source-callable-contract.js";
 import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import type { CsharpTypeResolutionState } from "./model.js";
 import type { ResolvedSourceCallInfo } from "../../../../target-model/records/calls/source-calls.js";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 
-import { csharpTargetParameterValueType } from "../../../../target-model/types/member-facts.js";
 import { inferCsharpTargetTypeParameterBindings, substituteTargetTypeParameters } from "../../../../policy/types/resolution/substitution.js";
 import { nextState } from "./state.js";
 
 import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
 
-import { Node_Expression, ObjectLiteralProperty_Value, sourceCallableValueParameters } from "@tsonic/target-api/source";
-import { getCsharpCallableValueSignature } from "../../../../target-model/types/carriers/delegates.js";
-import { selectCsharpObjectLiteralUnionCarrier, csharpObjectLiteralDestinationDeclarations } from "../../../objects/shapes/union-construction.js";
-import { getCsharpArrayLiteralElementTargetType } from "../../../../target-model/types/carriers/collections.js";
+import { ObjectLiteralProperty_Value } from "@tsonic/target-api/source";
 import { resolveTypeParameter } from "./source-evidence.js";
 import { resolveCsharpProjectionArguments } from "./projection-arguments.js";
 import { getCsharpClassFactory } from "../../../../target-model/types/carriers/class-factories.js";
 import { csharpSourceTypeParameter } from "../../../../source/extension/type-parameters.js";
 import { bindCsharpSourceDeclarationArguments, bindCsharpSourceTypeArguments } from "./generic-arguments.js";
 import { getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
+import { completeCsharpSourceCallInference, type CsharpSourceCallInference } from "./call-inference.js";
 
 export function resolveSourceCallInstantiation(
   scope: CsharpTypeResolutionScope,
@@ -37,6 +33,7 @@ export function resolveSourceCallInstantiation(
       readonly arguments: readonly TargetTypeRef[];
       readonly substitutions: ReadonlyMap<string, TargetTypeRef>;
       readonly sourceArguments: readonly Type[];
+      readonly inference: CsharpSourceCallInference | undefined;
     }
   | undefined {
   const { host, inferSourceCallTargetTypeArguments, resolveAuthoredAndSelectedSourceType } = scope;
@@ -49,6 +46,7 @@ export function resolveSourceCallInstantiation(
       arguments: Object.freeze([]),
       substitutions: new Map(),
       sourceArguments,
+      inference: undefined,
     };
   }
   const parameterIdentities = sourceCallTypeParameterIdentities(scope, source, callable,
@@ -74,23 +72,23 @@ export function resolveSourceCallInstantiation(
       arguments: Object.freeze([]),
       substitutions: new Map(),
       sourceArguments,
+      inference: undefined,
     };
   }
   const inferredParameterIdentities = new Set(
     selectedArguments.flatMap((argument, index) => argument.explicitTypeNode === undefined ? [parameterIdentities[index]!] : []),
   );
-  const inferredTargetArguments = inferredParameterIdentities.size === 0 ||
-      callable === undefined && excludedSourceArgumentIndexes === undefined
-    ? new Map<string, TargetTypeRef>()
-    : inferSourceCallTargetTypeArguments(
-        source,
-        callable,
-        sourceFile,
-        inferredParameterIdentities,
-        nextState(state),
-        excludedSourceArgumentIndexes,
-      );
-  if (inferredTargetArguments === undefined) {
+  const inferenceRequired = inferredParameterIdentities.size !== 0 &&
+    (callable !== undefined || excludedSourceArgumentIndexes !== undefined);
+  const inference = inferenceRequired ? inferSourceCallTargetTypeArguments(
+    source,
+    callable,
+    sourceFile,
+    inferredParameterIdentities,
+    nextState(state),
+    excludedSourceArgumentIndexes,
+  ) : undefined;
+  if (inferenceRequired && inference === undefined) {
     return undefined;
   }
   const selectedParameters = new Set<Type>();
@@ -106,7 +104,7 @@ export function resolveSourceCallInstantiation(
       return undefined;
     }
     let targetArgument = selected.explicitTypeNode === undefined
-      ? inferredTargetArguments.get(parameterIdentity) ??
+      ? inference?.bindings.get(parameterIdentity)?.type ??
         (excludedSourceArgumentIndexes === undefined ? resolveAuthoredAndSelectedSourceType(
           undefined,
           sourceFile,
@@ -148,6 +146,7 @@ export function resolveSourceCallInstantiation(
     arguments: Object.freeze((expectedTypeParameterIdentities ?? identities).map(identity => substitutions.get(identity)!)),
     substitutions,
     sourceArguments,
+    inference,
   };
 }
 export function resolveSourceCallSelectedType(
@@ -314,121 +313,8 @@ export function inferSourceCallTargetTypeArguments(
   parameterIdentities: ReadonlySet<string>,
   state: CsharpTypeResolutionState,
   excludedSourceArgumentIndexes?: ReadonlySet<number>,
-): ReadonlyMap<string, TargetTypeRef> | undefined {
-  const inferred = new Map<string, TargetTypeRef>();
-  const contextual = (binding: ResolvedSourceCallInfo["sourceArgumentBindings"][number]): boolean => {
-    const argument = source.sourceArguments[binding.sourceArgumentIndex]?.expression;
-    const parameter = callable === undefined ? undefined
-      : csharpSourceCallArgumentParameter(callable, binding.effectiveArgumentIndex)?.targetParameter;
-    return parameter !== undefined && getCsharpCallableValueSignature(csharpTargetParameterValueType(parameter, binding.sourceForm)) !== undefined ||
-      argument !== undefined && (scope.host.ast.is.IsArrowFunction(argument) || scope.host.ast.is.IsFunctionExpression(argument));
-  };
-  const bindings = source.sourceArgumentBindings.filter(binding =>
-    excludedSourceArgumentIndexes?.has(binding.sourceArgumentIndex) !== true).sort((left, right) =>
-    Number(contextual(left)) - Number(contextual(right)));
-  for (const binding of bindings) {
-    let parameter = callable === undefined ? undefined
-      : csharpSourceCallArgumentParameter(callable, binding.effectiveArgumentIndex)?.targetParameter;
-    if (callable === undefined) {
-      const selected = source.sourceSelectedSignatureParameters[binding.sourceParameterIndex];
-      if (selected === undefined) return undefined;
-      const authored = selected.authoredTypeNode;
-      const file = authored === undefined ? undefined : scope.host.ast.getSourceFile(authored);
-      const type = authored === undefined || file === undefined ? undefined
-        : scope.resolveNodeWithState(authored, file, nextState(state));
-      if (type === undefined) continue;
-      parameter = { name: selected.parameterName, type, passingMode: "by-value", paramsArray: selected.rest };
-    }
-    const argument = source.sourceArguments[binding.sourceArgumentIndex];
-    if (parameter === undefined || argument === undefined) {
-      return undefined;
-    }
-    const pattern = csharpTargetParameterValueType(
-      parameter,
-      binding.sourceForm,
-    );
-    const pairs = sourceArgumentInferencePairs(scope, argument.expression, pattern, sourceFile, state);
-    if (pairs === undefined) continue;
-    for (const pair of pairs) {
-      const candidates = inferCsharpTargetTypeParameterBindings(pair.pattern, pair.actual, parameterIdentities);
-      if (candidates === undefined) continue;
-      for (const [name, candidate] of candidates) {
-        const existing = inferred.get(name);
-        if (existing !== undefined && !targetTypeRefEquals(existing, candidate)) return undefined;
-        inferred.set(name, candidate);
-      }
-    }
-  }
-  return inferred;
-}
-
-function sourceArgumentInferencePairs(
-  scope: CsharpTypeResolutionScope,
-  literal: Node,
-  pattern: TargetTypeRef,
-  sourceFile: SourceFile,
-  state: CsharpTypeResolutionState,
-): readonly { readonly pattern: TargetTypeRef; readonly actual: TargetTypeRef }[] | undefined {
-  const { host, resolveSelectedValueWithState } = scope;
-  const literalValue = host.literalValues.literalValue.get(literal);
-  if (literalValue?.number !== undefined || literalValue?.integer !== undefined) return [];
-  if (host.ast.is.IsParenthesizedExpression(literal) || host.ast.is.IsSatisfiesExpression(literal)) {
-    const inner = Node_Expression(host.ast, literal);
-    return inner === undefined ? undefined : sourceArgumentInferencePairs(scope, inner, pattern, sourceFile, nextState(state));
-  }
-  const expected = getCsharpCallableValueSignature(pattern);
-  const inline = host.ast.is.IsArrowFunction(literal) || host.ast.is.IsFunctionExpression(literal);
-  if (inline || expected !== undefined) {
-    const type = host.semantics(sourceFile).types.expressionType(literal);
-    const actual = type === undefined ? undefined : resolveSelectedValueWithState(literal, type, sourceFile, nextState(state));
-    const selected = getCsharpCallableValueSignature(actual);
-    const parameters = inline ? sourceCallableValueParameters(host.ast, literal, host.semantics(sourceFile)) : undefined;
-    if (expected === undefined || selected === undefined || expected.parameters.length !== selected.parameters.length ||
-      inline && (parameters === undefined || parameters.some(parameter => parameter === undefined))) return undefined;
-    return [{ pattern: expected.returnType, actual: selected.returnType }];
-  }
-  if (host.ast.is.IsArrayLiteralExpression(literal)) {
-    const element = getCsharpArrayLiteralElementTargetType(pattern);
-    const pairs: { readonly pattern: TargetTypeRef; readonly actual: TargetTypeRef }[] = [];
-    for (const [index, expression] of host.ast.elements(literal).entries()) {
-      const selected = pattern.kind === "tuple" ? pattern.elements[index] : element;
-      if (expression === undefined || selected === undefined) return undefined;
-      const spread = host.ast.is.IsSpreadElement(expression);
-      const value = spread ? Node_Expression(host.ast, expression) : expression;
-      if (value === undefined || spread && element === undefined) return undefined;
-      const children = sourceArgumentInferencePairs(scope, value, spread ? pattern : selected, sourceFile, nextState(state));
-      if (children === undefined) return undefined;
-      pairs.push(...children);
-    }
-    return pairs;
-  }
-  if (!host.ast.is.IsObjectLiteralExpression(literal)) {
-    const type = host.semantics(sourceFile).types.expressionType(literal);
-    const actual = type === undefined ? undefined : resolveSelectedValueWithState(literal, type, sourceFile, nextState(state));
-    return actual === undefined ? undefined : [{ pattern, actual }];
-  }
-  const elements = host.ast.properties(literal).map(element => {
-    if (element === undefined) return undefined;
-    const initializer = ObjectLiteralProperty_Value(host.ast, element);
-    const evidence = host.semantics(sourceFile).operations.objectLiteralElement(element);
-    return initializer === undefined || evidence === undefined ? undefined : { initializer, evidence };
-  });
-  if (elements.some(element => element === undefined)) return undefined;
-  const carrier = selectCsharpObjectLiteralUnionCarrier(pattern, elements.map(element => element!.evidence), host.structuralTypes.resolveTarget,
-    (element, candidate) => csharpObjectLiteralDestinationDeclarations(element, candidate, host.semantics(sourceFile)), host.typeDefinitions);
-  const shape = host.structuralTypes.resolveTarget(carrier ?? pattern);
-  if (shape === undefined) return undefined;
-  const pairs: { readonly pattern: TargetTypeRef; readonly actual: TargetTypeRef }[] = [];
-  for (const element of elements) {
-    const declarations = csharpObjectLiteralDestinationDeclarations(element!.evidence, shape, host.semantics(sourceFile));
-    const fields = declarations === undefined ? [] : shape.members.filter(member => member.sourceDeclarations?.some(declaration =>
-      declarations.includes(declaration)) === true);
-    if (fields.length !== 1) return undefined;
-    const children = sourceArgumentInferencePairs(scope, element!.initializer, fields[0]!.type, sourceFile, nextState(state));
-    if (children === undefined) return undefined;
-    pairs.push(...children);
-  }
-  return pairs;
+): CsharpSourceCallInference | undefined {
+  return completeCsharpSourceCallInference(scope, source, callable, sourceFile, parameterIdentities, state, excludedSourceArgumentIndexes);
 }
 
 export function sourceCallSelectedDeclaration(
