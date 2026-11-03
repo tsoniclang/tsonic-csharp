@@ -38,6 +38,7 @@ import { createCsharpProjectShapeProjection } from "./project-construction.js";
 import { createCsharpNativeShapeProjections } from "./native-projections.js";
 import { createCsharpObjectShapeSourceFormation } from "./type-source.js";
 import { formCsharpObjectShapeNodeSource } from "./node-source.js";
+import { createCsharpProjectDeclarationApplications } from "./project-declaration-application.js";
 
 export function createCsharpObjectShapePolicy(
   host: CsharpObjectShapePolicyHost,
@@ -52,6 +53,7 @@ export function createCsharpObjectShapePolicy(
   const nodeShapes = new WeakMap<object, CsharpObjectShapeFact>();
   const targetShapes = new Map<string, CsharpObjectShapeFact>();
   const genericShapes = new Map<string, CsharpObjectShapeFact>();
+  const declarationApplications = createCsharpProjectDeclarationApplications(host, formation, completeSourceMembers, rememberTargetShape);
   const unionDefinitions = createCsharpStructuralUnionDefinitions(host, (type, file, state) =>
     resolveTypeWithState(type, file, undefined, state), environment);
 
@@ -506,112 +508,15 @@ export function createCsharpObjectShapePolicy(
   }
 
   function nativeProjectOwner(type: CsharpTargetNamedTypeRef): CsharpTargetNamedTypeRef | undefined {
-    const definition = host.projectTypeCatalog.definitionForTarget(type);
-    if (definition?.kind !== "class" && definition?.kind !== "interface" || type.typeArguments === undefined) return type;
-    const arguments_ = type.typeArguments.map(argument => {
-      if (argument.kind !== "type-parameter") return argument;
-      const constraints = environment(argument);
-      return constraints.kind === "resolved" ? Object.freeze({ ...argument, csharpConstraints: constraints }) : undefined;
-    });
-    return arguments_.some(argument => argument === undefined) ? undefined
-      : { ...type, typeArguments: Object.freeze(arguments_ as readonly TargetTypeRef[]) };
+    return declarationApplications.nativeOwner(type);
   }
 
   function resolveProjectDeclarationShape(
     targetType: CsharpTargetNamedTypeRef,
     state: CsharpTypeResolutionState,
   ): CsharpObjectShapeFact | undefined {
-    const definition = host.projectTypeCatalog.definitionForTarget(targetType);
-    const typeArguments = targetType.typeArguments ?? [];
-    if (
-      (definition?.kind !== "interface" && definition?.kind !== "class") ||
-      typeArguments.length !== definition.typeParameterBindings.length
-    ) {
-      return undefined;
-    }
-    state = csharpSourceTemplateState([...definition.outerTypeParameters, ...definition.typeParameters], state);
-    const owner = nativeProjectOwner(targetType);
-    if (owner === undefined) return undefined;
-    targetType = owner;
-    const declarationType = host.projectTypeCatalog.targetTypeForDeclaration(
-      definition.declaration,
-      definition.typeParameterBindings,
-    );
-    if (declarationType === undefined) return undefined;
-    if (!targetTypeRefEquals(declarationType, targetType)) {
-      const existing = resolveTarget(declarationType);
-      const declared = existing ?? resolveProjectDeclarationShape(declarationType, nextState(state));
-      return declared === undefined ? undefined
-        : instantiateCsharpObjectShape(rememberTargetShape(declared), targetType);
-    }
-    const queries = host.semantics(definition.sourceFile);
-    const declaredType = queries.declarations.declaredType(
-      definition.declaration,
-    );
-    if (declaredType === undefined) {
-      return undefined;
-    }
-    const declaredMembers = deriveMembers(
-      declaredType,
-      queries,
-      nextState(state),
-      host.ast.typeNode(definition.declaration),
-      targetType,
-    );
-    if (declaredMembers === undefined) {
-      return undefined;
-    }
-    const substitutions = new Map(
-      definition.typeParameterBindings.map((parameter, index) => [
-        parameter.identity,
-        targetType.typeArguments![index]!,
-      ]),
-    );
-    const implemented = definition.kind === "interface" ? host.projectTypes().directSupertypes(targetType) : [];
-    if (implemented === undefined) return undefined;
-    const members: CsharpObjectShapeMemberFact[] = [];
-    for (const declared of declaredMembers) {
-      let member = substituteObjectShapeMemberTargetTypeParameters(declared, substitutions);
-      if (member.memberKind === "method") {
-        const owners = new Map((member.sourceDeclarations ?? []).flatMap(declaration => {
-          const owner = host.projectTypeCatalog.definitionForDeclaration(host.ast.parent(declaration));
-          return owner === undefined ? [] : [[owner.id, owner] as const];
-        }));
-        if (owners.size > 1) return undefined;
-        const owner = owners.values().next().value;
-        if (owner !== undefined && owner.id !== definition.id) {
-          const ownerType = host.projectTypeCatalog.targetTypeForDeclaration(owner.declaration, owner.typeParameterBindings);
-          const selectedOwner = ownerType === undefined ? undefined
-            : host.projectTypes().instantiateDeclarationType(owner.declaration, targetType, ownerType);
-          if (selectedOwner?.kind !== "resolved" || selectedOwner.type.kind !== "target-named") return undefined;
-          const existing = resolveTarget(selectedOwner.type);
-          const inherited = existing ?? resolveProjectDeclarationShape(selectedOwner.type, nextState(state));
-          if (inherited === undefined) return undefined;
-          const completed = rememberTargetShape(inherited);
-          const selected = resolveCsharpObjectShapeMemberBySelectedSubject(completed,
-            [...member.sourceSubjects ?? [], ...member.sourceDeclarations ?? []]);
-          if (selected.kind !== "resolved" || selected.member.memberKind !== "method") return undefined;
-          member = Object.freeze({ ...selected.member,
-            sourceSubjects: Object.freeze([...new Set([...selected.member.sourceSubjects ?? [], ...member.sourceSubjects ?? []])]),
-            sourceMemberEvidence: Object.freeze([...new Set([
-              ...selected.member.sourceMemberEvidence ?? [], ...member.sourceMemberEvidence ?? [],
-            ])]),
-            ...(member.sourceTypes === undefined ? {} : { sourceTypes: member.sourceTypes }),
-          });
-        }
-      }
-      members.push(member);
-    }
-    return {
-      targetType,
-      sourceType: declaredType,
-      members: Object.freeze(members),
-      ...(definition.kind !== "class" ? {} : {
-        constructible: projectClassIsObjectInitializable(declaredType, queries, host),
-      }),
-      ...(implemented.length === 0 ? {} : { implements: implemented }),
-    };
-
+    const source = declarationApplications.formDeclarationApplication(targetType, state);
+    return source === undefined ? undefined : declarationApplications.completeDeclarationApplication(source);
   }
 
   function resolveTypeMember(
