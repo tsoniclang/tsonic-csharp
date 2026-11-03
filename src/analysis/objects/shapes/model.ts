@@ -12,6 +12,9 @@ import type { CsharpProjectConstructibleTypeProjection } from "../../../target-m
 import type { CsharpTypeResolutionServices } from "../../source-evidence/types/resolution/engine.js";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import type { CsharpCollectedObjectShapeMembers } from "./member-source.js";
+import type { CsharpObjectShapeNodeSource } from "./node-source.js";
+import type { CsharpObjectShapeTypeSource } from "./type-source.js";
+import type { CsharpStructuralNodeSourceInput, CsharpStructuralTypeSourceInput } from "../../source-evidence/types/resolution/root-sources.js";
 import type { CsharpCompletedStructuralMemberChildren, CsharpStructuralMemberInheritance,
   CsharpStructuralTypeApplication, CsharpStructuralTypeSource } from "../../source-evidence/types/resolution/structural-applications.js";
 
@@ -36,6 +39,11 @@ export interface CsharpObjectShapePolicyHost extends CsharpTypePolicyBaseHost {
 }
 
 export interface CsharpRecursiveObjectShapePolicy extends CsharpObjectShapePolicy {
+  formNodeSource(node: Node, queries: SourceFileSemantics, state: CsharpTypeResolutionState): CsharpObjectShapeNodeSource | undefined;
+  completeNodeSource(input: CsharpStructuralNodeSourceInput): CsharpObjectShapeFact | undefined;
+  formTypeSource(type: Type, queries: SourceFileSemantics, state: CsharpTypeResolutionState,
+    authoredTypeRoot?: Node): CsharpObjectShapeTypeSource | undefined;
+  completeTypeSource(input: CsharpStructuralTypeSourceInput): CsharpObjectShapeFact | undefined;
   collectMembers(type: Type, queries: SourceFileSemantics, state: CsharpTypeResolutionState,
     authoredTypeRoot?: Node): CsharpCollectedObjectShapeMembers | undefined;
   memberInheritance(application: CsharpStructuralTypeApplication, memberIndex: number): CsharpStructuralMemberInheritance;

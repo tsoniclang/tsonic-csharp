@@ -7,6 +7,7 @@ import { completeSelectedObjectShapeSource, isCsharpNativeSourceProfileMemberDec
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../target-model/types/equality.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpRuntimeUnionTargetTypeRef, CsharpSourceMemberKey, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
 import type { Node, SourceFile, Type } from "@tsonic/tsts";
+import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import type { CsharpTypeResolutionState } from "../../source-evidence/types/resolution/model.js";
 import { nextState } from "../../source-evidence/types/resolution/state.js";
 import { isCsharpJsValueTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
@@ -34,6 +35,7 @@ import { formCsharpObjectShapeNodeSource } from "./node-source.js";
 import { createCsharpProjectDeclarationApplications } from "./project-declaration-application.js";
 import { completeCsharpStructShapeSource, type CsharpStructShapeSource } from "./struct-source.js";
 import { formInstantiatedObjectShapeSource } from "./shape-source.js";
+import type { CsharpStructuralNodeSourceInput, CsharpStructuralTypeSourceInput } from "../../source-evidence/types/resolution/root-sources.js";
 
 export function createCsharpObjectShapePolicy(
   host: CsharpObjectShapePolicyHost,
@@ -70,13 +72,19 @@ export function createCsharpObjectShapePolicy(
     if (node === undefined) {
       return undefined;
     }
-    if (
-      host.ast.is.IsSourceFile(node) ||
-      host.ast.is.IsImportDeclaration(node) ||
-      host.ast.is.IsImportClause(node) ||
-      host.ast.kindName(node) === "KindEndOfFile"
-    ) {
-      return undefined;
+    const queries = sourceFile === undefined ? host.semanticsFor(node) : host.semantics(sourceFile);
+    return completeNodeSource(Object.freeze({ node, queries, state, source: formNodeSource(node, queries, state) }));
+  }
+
+  function formNodeSource(node: Node, queries: SourceFileSemantics, state: CsharpTypeResolutionState) {
+    return formCsharpObjectShapeNodeSource(host, formation, node, queries, state);
+  }
+
+  function completeNodeSource(request: CsharpStructuralNodeSourceInput): CsharpObjectShapeFact | undefined {
+    const { node, queries, state, source: input } = request;
+    if (input === undefined) return undefined;
+    if (input.node !== node || input.queries !== queries || input.state !== state) {
+      return failTargetAnalysisInvariant("tsonic-csharp", "Shape completion requires its exact original node source occurrence.", node);
     }
     const cached = state.sourceBindings === undefined ? nodeShapes.get(node) : undefined;
     if (cached !== undefined) {
@@ -87,11 +95,6 @@ export function createCsharpObjectShapePolicy(
     }
     activeNodes.add(node);
     try {
-      const queries = sourceFile === undefined
-        ? host.semanticsFor(node)
-        : host.semantics(sourceFile);
-      const input = formCsharpObjectShapeNodeSource(host, formation, node, queries, state);
-      if (input === undefined) return undefined;
       const directStruct = resolveStructShape(input.struct);
       if (directStruct !== undefined) {
         remember(node, directStruct);
@@ -186,17 +189,29 @@ export function createCsharpObjectShapePolicy(
     if (type === undefined) {
       return undefined;
     }
+    const queries = host.semantics(sourceFile);
+    return completeTypeSource(Object.freeze({ type, queries, state, authoredTypeRoot,
+      source: formTypeSource(type, queries, state, authoredTypeRoot) }));
+  }
+
+  function formTypeSource(type: Type, queries: SourceFileSemantics, state: CsharpTypeResolutionState,
+    authoredTypeRoot?: Node): CsharpObjectShapeTypeSource | undefined {
     const authoredLiteral = authoredTypeRoot !== undefined && host.ast.is.IsObjectLiteralExpression(authoredTypeRoot)
       ? authoredTypeRoot : undefined;
     if (authoredLiteral !== undefined) {
-      const queries = host.semanticsFor(authoredLiteral);
-      const expressionType = queries.types.expressionType(authoredLiteral);
-      if (expressionType === undefined || !queries.types.isIdentical(expressionType, type)) return undefined;
+      const literalQueries = host.semanticsFor(authoredLiteral);
+      const expressionType = literalQueries.types.expressionType(authoredLiteral);
+      if (expressionType === undefined || !literalQueries.types.isIdentical(expressionType, type)) return undefined;
     }
-    if (activeTypes.has(type)) return undefined;
-    const queries = host.semantics(sourceFile);
-    const source = formation.formTypeSource(type, authoredLiteral, queries, state,
-      authoredLiteral === undefined ? authoredTypeRoot : undefined, host.projectSemanticSource(type, queries, state));
+    return formation.formTypeSource(type, authoredLiteral, queries, state, authoredTypeRoot,
+      host.projectSemanticSource(type, queries, state));
+  }
+
+  function completeTypeSource(request: CsharpStructuralTypeSourceInput): CsharpObjectShapeFact | undefined {
+    const { type, queries, state, authoredTypeRoot, source } = request;
+    if (source !== undefined && (source.type !== type || source.queries !== queries || source.state !== state ||
+      source.authoredTypeRoot !== authoredTypeRoot)) return failTargetAnalysisInvariant("tsonic-csharp",
+      "Shape completion requires its exact original semantic source occurrence.", authoredTypeRoot);
     const shape = source === undefined ? undefined : resolveSemanticShape(source);
     return shape === undefined ? undefined : rememberTargetShape(shape);
   }
@@ -278,7 +293,7 @@ export function createCsharpObjectShapePolicy(
     input: CsharpObjectShapeTypeSource,
     selectedTarget?: TargetTypeRef,
   ): CsharpObjectShapeFact | undefined {
-    const { type, queries, state, authoredTypeRoot } = input;
+    const { type, queries, state, selectedTypeRoot: authoredTypeRoot } = input;
     if (activeTypes.has(type)) return undefined;
     activeTypes.add(type);
     try {
@@ -435,6 +450,10 @@ export function createCsharpObjectShapePolicy(
   }
 
   return Object.freeze({
+    formNodeSource,
+    completeNodeSource,
+    formTypeSource,
+    completeTypeSource,
     collectMembers,
     memberInheritance,
     completeMember,

@@ -36,6 +36,7 @@ export interface CsharpObjectShapeTypeSource {
   readonly queries: SourceFileSemantics;
   readonly state: CsharpTypeResolutionState;
   readonly authoredTypeRoot: Node | undefined;
+  readonly selectedTypeRoot: Node | undefined;
   readonly project: CsharpProjectSemanticSource;
   readonly provider: CsharpProviderObjectLiteralSource | undefined;
   readonly providerShape: CsharpObjectShapeSource | undefined;
@@ -78,7 +79,9 @@ export function createCsharpObjectShapeSourceFormation(
     }
     if (requiresUnresolvedStructuralProjection(type, node, queries, host) ||
       typeIsExcludedFromObjectShape(type, queries, host)) return undefined;
-    const provider = formProviderObjectLiteralSource({ type, queries, state, authoredTypeRoot, host });
+    const selectedTypeRoot = node === authoredTypeRoot && node !== undefined && host.ast.is.IsObjectLiteralExpression(node)
+      ? undefined : authoredTypeRoot;
+    const provider = formProviderObjectLiteralSource({ type, queries, state, authoredTypeRoot: selectedTypeRoot, host });
     const providerShape = provider === undefined ? undefined : formProviderObjectShapeSource(provider);
     const projects = new Map<Node, CsharpObjectShapeProjectSource>();
     for (const owner of project.owners) {
@@ -101,7 +104,7 @@ export function createCsharpObjectShapeSourceFormation(
     const declarations = symbol === undefined ? [] : queries.declarations.symbolDeclarations(symbol);
     const literals = declarations.filter(declaration => host.ast.is.IsObjectLiteralExpression(declaration));
     const authoredLiteral = objectLiteral ? node : literals.length === 1 ? literals[0] : undefined;
-    const collection = collectMembers(type, queries, nextState(state), authoredTypeRoot);
+    const collection = collectMembers(type, queries, nextState(state), selectedTypeRoot);
     const members = collection === undefined ? undefined : host.structuralTypeApplication(collection);
     const implementation = collection === undefined ? undefined : selectCsharpObjectMethodImplementationSource(
       collection.members.map(member => Object.freeze({ memberKind: member.method ? "method" as const : "property" as const,
@@ -121,7 +124,7 @@ export function createCsharpObjectShapeSourceFormation(
         creationCalls.push(host.callContractSource(argument.source, host.semanticsFor(argument.source.call).sourceFile));
       }
     }
-    return Object.freeze({ type, node, queries, state, authoredTypeRoot, project, provider, providerShape,
+    return Object.freeze({ type, node, queries, state, authoredTypeRoot, selectedTypeRoot, project, provider, providerShape,
       projects: Object.freeze([...projects.values()]), members,
       collected: collection === undefined ? undefined : formCollectedObjectShapeSource(collection),
       projectOwned: typeHasProjectOwnedShapeDeclaration(type, node ?? authoredTypeRoot, queries, host),

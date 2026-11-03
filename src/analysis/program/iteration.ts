@@ -133,7 +133,7 @@ export function analyzeCsharpRepresentationIteration(
   const typeDefinitions = createCsharpTypeDefinitionRegistry(id => csharpProviderBindingFromResolution(providers.findTargetBindingByTargetId(id, "ordinary")));
   typeSystem = createCsharpTypeAnalysis(
     { ...typeHost, typeDefinitions },
-    createCsharpProjectTypeCatalog(typeHost, previous?.typeProjections),
+    createCsharpProjectTypeCatalog(typeHost),
     representations,
   );
   const policyContext = createCsharpAnalysisPolicyContext({
@@ -162,6 +162,8 @@ export function analyzeCsharpRepresentationIteration(
   const valueReadStages = analyzeCsharpValueReadStages(policy, sourceEvidence, operations);
   const optionalLocals = analyzeCsharpOptionalLocals(policy, sourceEvidence, sourceStorage.nodes, names, operations);
   const typeProjections = analyzeCsharpTypeProjections(projectionSource, sourceEvidence, operations, optionalLocals);
+  typeSystem.publishProjectTypes(typeProjections);
+  typeSystem.completeNativeConstruction();
   const declarations = analyzeCsharpDeclarations(
     policy,
     sourceEvidence,

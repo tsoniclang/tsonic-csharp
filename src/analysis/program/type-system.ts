@@ -21,7 +21,10 @@ import { resolveCsharpObjectShapeMemberReadTargetType } from "../operations/memb
 import { isCsharpJsValueTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 import type { CsharpPlanningRepresentationQueries, CsharpTypePolicy, CsharpTypePolicyBaseHost } from "../source-evidence/types/resolution/model.js";
 import { createCsharpTypeResolutionServices } from "../source-evidence/types/resolution/engine.js";
-import type { CsharpProjectTypeCatalog, CsharpProjectTypePolicy } from "../../target-model/records/types/project-types.js";
+import type { CsharpTypeResolutionServices } from "../source-evidence/types/resolution/engine.js";
+import type { CsharpProjectTypePolicy } from "../../target-model/records/types/project-types.js";
+import type { createCsharpProjectTypeCatalog } from "../project-types/catalog.js";
+import type { CsharpGenericProjectionIndex } from "../../target-model/records/types/type-projections.js";
 import {
   analyzeCsharpProjectTypePolicy,
 } from "../project-types/catalog/resolution.js";
@@ -39,18 +42,21 @@ import { csharpNativeInheritanceLookup } from "../../target-model/types/native-i
 import { csharpTargetTypeFromBinding } from "../../policy/types/storage/bindings.js";
 import type { CsharpTypeParameterConstraint } from "../../target-model/types/generic-constraints.js";
 
-export interface CsharpTypeSystem {
+export interface CsharpTypeSystem extends Pick<CsharpTypeResolutionServices,
+  "nodeQuerySource" | "completeNodeQuery" | "typeQuerySource" | "completeTypeQuery"> {
   readonly typeDefinitions: import("../../target-model/types/source-union-definitions.js").CsharpTypeDefinitions;
   readonly analysisTypes: CsharpTypePolicy;
   readonly objectShapes: CsharpRecursiveObjectShapePolicy;
   readonly projectTypes: CsharpProjectTypePolicy;
+  publishProjectTypes(projections: CsharpGenericProjectionIndex): void;
 }
 
 function createCsharpTypeSystem(
   host: CsharpTypePolicyBaseHost,
-  projectTypeCatalog: CsharpProjectTypeCatalog,
+  declarations: ReturnType<typeof createCsharpProjectTypeCatalog>,
   representations: CsharpPlanningRepresentationQueries,
 ): CsharpTypeSystem {
+  const projectTypeCatalog = declarations.catalog;
   let objectShapes: CsharpRecursiveObjectShapePolicy | undefined;
   let bindingProjections: CsharpBindingProjectionPolicy | undefined;
   let projectTypes: CsharpProjectTypePolicy | undefined;
@@ -144,35 +150,31 @@ function createCsharpTypeSystem(
           }
           return objectShapes.resolveTarget(type);
         },
-        resolveNode(
-          node: Node,
-          sourceFile: SourceFile,
-          state,
-        ) {
+        formNodeSource(node, queries, state) {
           if (objectShapes === undefined) {
-            failTargetAnalysisInvariant("tsonic-csharp", "C# structural type resolution ran before the type system was fully initialized.");
+            return failTargetAnalysisInvariant("tsonic-csharp", "Structural source capture requires its initialized shape owner.", node);
           }
+          return objectShapes.formNodeSource(node, queries, state);
+        },
+        completeNodeSource(input) {
+          if (objectShapes === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+            "Structural native completion requires its initialized shape owner.", input.node);
           if (bindingProjections === undefined) {
             failTargetAnalysisInvariant("tsonic-csharp", "C# binding projection ran before the type system was fully initialized.");
           }
-          return bindingProjections.resolveNode(node, sourceFile, state) ??
-            objectShapes.resolveNodeWithState(node, sourceFile, state)?.targetType;
+          return bindingProjections.resolveNode(input.node, input.queries.sourceFile, input.state) ??
+            objectShapes.completeNodeSource(input)?.targetType;
         },
-        resolveType(
-          type: Type,
-          sourceFile: SourceFile,
-          state,
-          authoredTypeRoot?: Node,
-        ) {
+        formTypeSource(type, queries, state, authoredTypeRoot) {
           if (objectShapes === undefined) {
-            failTargetAnalysisInvariant("tsonic-csharp", "C# structural type resolution ran before the type system was fully initialized.");
+            return failTargetAnalysisInvariant("tsonic-csharp", "Structural source capture requires its initialized shape owner.", authoredTypeRoot);
           }
-          return objectShapes.resolveTypeWithState(
-            type,
-            sourceFile,
-            authoredTypeRoot,
-            state,
-          )?.targetType;
+          return objectShapes.formTypeSource(type, queries, state, authoredTypeRoot);
+        },
+        completeTypeSource(input) {
+          if (objectShapes === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+            "Structural native completion requires its initialized shape owner.", input.authoredTypeRoot);
+          return objectShapes.completeTypeSource(input)?.targetType;
         },
         resolveSelectedProperty(
           receiverType: TargetTypeRef | undefined,
@@ -221,6 +223,7 @@ function createCsharpTypeSystem(
     typeParameterConstraints,
     representations,
     projectTypeCatalog,
+    projectDeclarations: declarations.declarations,
     projectTypes: requireProjectTypes,
     typeResolver: typeResolution.recursive,
     structuralTypeApplication: typeResolution.structuralTypeApplication,
@@ -237,25 +240,32 @@ function createCsharpTypeSystem(
     objectShapes,
     scopedTargetType: representations.scopedTargetType,
   });
-  projectTypes = analyzeCsharpProjectTypePolicy(
-    { ...host, types },
-    projectTypeCatalog,
-  );
   return Object.freeze({
     typeDefinitions: host.typeDefinitions ?? emptyCsharpTypeDefinitions,
     analysisTypes: types,
     objectShapes,
-    projectTypes,
+    get projectTypes() { return requireProjectTypes(); },
+    nodeQuerySource: typeResolution.nodeQuerySource,
+    completeNodeQuery: typeResolution.completeNodeQuery,
+    typeQuerySource: typeResolution.typeQuerySource,
+    completeTypeQuery: typeResolution.completeTypeQuery,
+    publishProjectTypes(projections: CsharpGenericProjectionIndex): void {
+      if (projectTypes !== undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+        "Current native project types are published exactly once.");
+      declarations.publish(projections);
+      projectTypes = analyzeCsharpProjectTypePolicy({ ...host, types }, projectTypeCatalog);
+    },
   });
 }
 
 export interface CsharpTypeAnalysis extends CsharpTypeSystem {
   readonly nativeConstruction: CsharpNativeConstructionDemandQueries;
+  completeNativeConstruction(): void;
 }
 
 export function createCsharpTypeAnalysis(
   host: CsharpTypePolicyBaseHost,
-  catalog: CsharpProjectTypeCatalog,
+  catalog: ReturnType<typeof createCsharpProjectTypeCatalog>,
   representations: CsharpPlanningRepresentationQueries,
 ): CsharpTypeAnalysis {
   let nativeConstruction: CsharpNativeConstructionDemandQueries | undefined;
@@ -266,13 +276,32 @@ export function createCsharpTypeAnalysis(
     },
   });
   const system = createCsharpTypeSystem(host, catalog, selectedRepresentations);
-  nativeConstruction = createCsharpNativeConstructionDemandQuery({
-    ...host,
-    scopedTargetType: representations.scopedTargetType,
-    resolveShape: system.objectShapes.resolveType,
-    resolveLiteralShape: system.objectShapes.resolveObjectLiteralTargetShape,
-    retainSourceShape: system.objectShapes.retainConstructionSource,
+  return Object.freeze({
+    typeDefinitions: system.typeDefinitions,
+    analysisTypes: system.analysisTypes,
+    objectShapes: system.objectShapes,
+    get projectTypes() { return system.projectTypes; },
+    nodeQuerySource: system.nodeQuerySource,
+    completeNodeQuery: system.completeNodeQuery,
+    typeQuerySource: system.typeQuerySource,
+    completeTypeQuery: system.completeTypeQuery,
+    publishProjectTypes: system.publishProjectTypes,
+    get nativeConstruction() {
+      if (nativeConstruction === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+        "Native construction records require their completed current demand publication.");
+      return nativeConstruction;
+    },
+    completeNativeConstruction(): void {
+      if (nativeConstruction !== undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+        "Native construction records are completed exactly once.");
+      nativeConstruction = createCsharpNativeConstructionDemandQuery({
+        ...host,
+        scopedTargetType: representations.scopedTargetType,
+        resolveShape: system.objectShapes.resolveType,
+        resolveLiteralShape: system.objectShapes.resolveObjectLiteralTargetShape,
+        retainSourceShape: system.objectShapes.retainConstructionSource,
+      });
+    },
   });
-  return Object.freeze({ ...system, nativeConstruction });
 }
 import { csharpSourceValueResult } from "../source-evidence/types/resolution/call-results.js";
