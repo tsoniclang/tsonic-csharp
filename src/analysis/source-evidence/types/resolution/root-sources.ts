@@ -14,6 +14,7 @@ import { nextState } from "./state.js";
 import { formCsharpTypeReferenceSource, type CsharpTypeReferenceSource } from "./type-reference-source.js";
 import { formCsharpSourceTypeBindingEvidence, type CsharpSourceTypeBindingEvidence } from "./type-bindings.js";
 import { formCsharpSelectedExpressionSource, type CsharpSelectedExpressionSource } from "./expression-source.js";
+import { formCsharpSemanticTypeArgumentsSource, type CsharpSemanticTypeArgumentsSource } from "./semantic-argument-source.js";
 
 export interface CsharpStructuralNodeSourceInput {
   readonly node: Node;
@@ -38,6 +39,7 @@ export type CsharpSemanticTypeSource = {
   | { readonly kind: "unavailable" }
   | { readonly kind: "type"; readonly type: Type; readonly queries: SourceFileSemantics;
       readonly nonPrimitive: boolean; readonly binding: CsharpSourceTypeBindingEvidence | undefined;
+      readonly arguments: CsharpSemanticTypeArgumentsSource;
       readonly project: CsharpProjectSemanticSource; readonly structural: CsharpStructuralTypeSourceInput }
 );
 
@@ -113,6 +115,7 @@ export function formCsharpSemanticTypeSource(
   const binding = nonPrimitive || state.sourceBindings === undefined ? undefined
     : formCsharpSourceTypeBindingEvidence(type, queries);
   return Object.freeze({ kind: "type", type, sourceFile, state, queries, nonPrimitive, binding,
+    arguments: formCsharpSemanticTypeArgumentsSource(scope, type, queries, state),
     project: formCsharpProjectSemanticSource(scope, type, queries, state),
     structural: formCsharpStructuralTypeSourceInput(scope, type, queries, nextState(state)),
   });
