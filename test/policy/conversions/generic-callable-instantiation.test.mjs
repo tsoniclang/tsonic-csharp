@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createCsharpTypeParameterEnvironment } from "../../../dist/analysis/source-evidence/types/resolution/type-parameter-environment.js";
 import { selectCsharpCallableInstantiation } from "../../../dist/policy/conversions/generic-callable.js";
 import { selectCsharpConversion } from "../../../dist/policy/conversions/core.js";
 import { admitCsharpConversionSelection } from "../../../dist/analysis/conversions/validation.js";
@@ -25,7 +26,7 @@ function callable(parameter, parameters = [parameter]) {
     sourceName: "Invoke", targetName: "Invoke", memberKind: "method", type: signature,
     typeParameters: [{ declaration: {}, identity: parameter.identity, name: parameter.name,
       csharpAllowsRefLike: false, constraints: parameter.csharpConstraints.constraints }] }], undefined,
-  () => ({ kind: "resolved", constraints: [] }), true);
+  createCsharpTypeParameterEnvironment(() => ({ kind: "resolved", constraints: [] })), true);
   return csharpMethodValueType(owner, "Invoke", "generic.identity", signature, [parameter.identity]);
 }
 

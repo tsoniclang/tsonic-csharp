@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createCsharpTypeParameterEnvironment } from "../../../dist/analysis/source-evidence/types/resolution/type-parameter-environment.js";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
@@ -35,7 +36,7 @@ import { unexpectedNativeDispatchRead, emptyNativeDispatch, integer, noAuthoredN
 test("a single native method contract and its extracted protocol publish the same canonical shape", () => {
   const member = Object.freeze({ sourceKey: { kind: "property", name: "run" }, sourceName: "run",
     targetName: "run", memberKind: "method", type: csharpDelegateTargetType("System.Func", [integer], integer) });
-  const environment = () => assert.fail("a monomorphic protocol has no native constraint query");
+  const environment = createCsharpTypeParameterEnvironment(() => assert.fail("a monomorphic protocol has no native constraint query"));
   const targetType = createStructuralObjectShapeTarget([member], undefined, environment, true);
   const remember = () => assert.fail("an existing method contract cannot allocate or register a second self protocol");
   const logical = retainCsharpMethodValueContracts({ targetType, members: Object.freeze([member]) }, remember, environment,
@@ -181,7 +182,7 @@ test("every actual authored native method uses the same body and copy protocol",
     sourceDeclarations: Object.freeze([declaration]) });
   const implementation = Object.freeze({ declaration: literal, identity: "authored-body", methods: Object.freeze([declaration]),
     captures: Object.freeze([]) });
-  const environment = () => assert.fail("a monomorphic native method has no free generic constraint to resolve");
+  const environment = createCsharpTypeParameterEnvironment(() => assert.fail("a monomorphic native method has no free generic constraint to resolve"));
   const subject = Object.freeze({ node: declaration });
   const sourceStorage = Object.freeze({
     source: Object.freeze({ ast: Object.freeze({ is: Object.freeze({}) }) }),

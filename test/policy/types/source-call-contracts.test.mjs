@@ -13,7 +13,7 @@ import { csharpProjectedType } from "../../../dist/target-model/types/projection
 import { csharpSourceTypeParameter } from "../../../dist/source/extension/type-parameters.js";
 import { selectSourceCallParameterSlots } from "../../../../tsonic/packages/target-api/dist/source-semantics/call-parameter-slots.js";
 import { resolveCallableEvidence } from "../../../dist/analysis/source-evidence/types/resolution/source-profiles.js";
-import { createCsharpTypeParameterEnvironment } from "../../../dist/analysis/source-evidence/types/resolution/type-parameter-environment.js";
+import { createCsharpTypeParameterEnvironment, createCsharpSourceTypeParameterEnvironment } from "../../../dist/analysis/source-evidence/types/resolution/type-parameter-environment.js";
 import { instantiateCsharpObjectShape } from "../../../dist/policy/types/objects/instantiation.js";
 import { csharpMethodValueType } from "../../../dist/target-model/types/method-values.js";
 
@@ -310,7 +310,7 @@ function checkedBinders(current, count = 2) {
     pos: node => node.position, end: node => node.position + 1, name: () => ({}), text: () => "Item" });
   ast.is.IsTypeParameterDeclaration = node => node?.kind === "parameter";
   ast.typeParameters = node => node === current.signatureDeclaration ? [parameters[0]] : [];
-  current.scope.host.typeParameterConstraints = createCsharpTypeParameterEnvironment(ast,
+  current.scope.host.typeParameterConstraints = createCsharpSourceTypeParameterEnvironment(ast,
     () => Object.freeze({ kind: "resolved", constraints: Object.freeze([]) }));
   const original = current.scope.host.semantics();
   current.scope.host.semantics = () => ({ ...original, declarations: { ...original.declarations,
@@ -323,7 +323,7 @@ function checkedBinders(current, count = 2) {
 function retainedProtocol(current, signature, parameters) {
   let protocol;
   const value = retainCsharpGenericCallableValue(signature, parameters, shape => { protocol = shape; return shape; },
-    () => ({ kind: "resolved", constraints: [] }));
+    createCsharpTypeParameterEnvironment(() => ({ kind: "resolved", constraints: [] })));
   current.scope.host.structuralTypes = { resolveTarget: owner => protocol === undefined ? undefined
     : instantiateCsharpObjectShape(protocol, owner) };
   return value;

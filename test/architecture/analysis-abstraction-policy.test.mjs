@@ -340,7 +340,7 @@ test("architecture validator rejects executable hooks in policy-like records", (
     "const row = { sourceIdentity: \"Array.map\", targetIdentity: \"Tsonic.CSharp.Js.Array.map\" };",
     "function call(diagnostics: TargetDiagnostic[], result: CsharpSourceCallResult, invocation: Value): void {}",
     "function select(ast: AstReader, resolve: (node: Node) => TargetTypeRef | undefined): void {}",
-    "function select(parameters: readonly TypeParameter[], resolve: CsharpTypeParameterConstraintResolver): void {}",
+    "function select(parameters: readonly TypeParameter[], environment: CsharpTypeParameterEnvironment): void {}",
     "const select = (resolve: (node: Node) => TargetTypeRef) => resolve(node);",
     "const row = { select: (resolve: (node: Node) => TargetTypeRef) => resolve(node) };",
   ];
