@@ -30,7 +30,7 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { createCsharpTypeAnalysis } from "./type-system.js";
 import type { CsharpTypeAnalysis } from "./type-system.js";
 import type { CsharpPlanningRepresentationQueries } from "../source-evidence/types/resolution/model.js";
-import type { ResolvedSourceCallInfo } from "../../target-model/records/calls/source-calls.js";
+import { formCsharpSourceCallableSource, completeCsharpSourceCallableSource } from "./source-callable-source.js";
 import { analyzeCsharpAttributeApplications } from "../attributes/application-index.js";
 
 import type { CsharpTargetAnalysisRequest } from "./model.js";
@@ -117,16 +117,14 @@ export function analyzeCsharpRepresentationIteration(
       const declaration = source.navigation.sourceReferenceFor(value)?.declaration ?? value;
       return previous?.callables.closedInputContract(declaration);
     },
-    sourceCallable(source, sourceFile, selection) {
-      return sourceCallableContract(
-        input,
-        typeHost.moduleCallables,
-        source,
-        sourceFile,
-        typeSystem,
-        previous?.callables,
-        selection,
-      );
+    sourceCallableSource(source, sourceFile) {
+      return formCsharpSourceCallableSource(input.source, typeHost.moduleCallables, source, sourceFile);
+    },
+    completeSourceCallable(source, selection) {
+      return completeCsharpSourceCallableSource(source, selection, {
+        contracts: previous?.callables,
+        projectTypes: () => typeSystem?.projectTypes,
+      });
     },
   };
   const representations = Object.freeze(planningRepresentations);
@@ -356,58 +354,6 @@ export function analyzeCsharpRepresentationIteration(
     bindingPatterns,
     refLikeDiagnostics,
   }));
-}
-
-function sourceCallableContract(
-  input: CsharpTargetAnalysisRequest["input"],
-  moduleCallables: import("../../target-model/records/callables/module-callables.js").CsharpModuleCallableIdentities,
-  source: ResolvedSourceCallInfo,
-  sourceFile: SourceFile,
-  typeSystem: CsharpTypeAnalysis | undefined,
-  callables: CsharpCallableContractIndex | undefined,
-  selection: "checked" | "implementation",
-) {
-  if (callables === undefined) {
-    return undefined;
-  }
-  if (selection === "implementation") {
-    const reference = input.source.navigation.sourceReferenceFor(source.sourceCallee.expression);
-    const declaration = reference?.declaration ?? source.sourceCalleeAccess?.declaration ?? source.sourceCallee.declaration;
-    const initializer = declaration === undefined ? undefined : moduleCallables.get(declaration)?.callable;
-    if (initializer !== undefined) {
-      const selected = source.sourceCalleeAccess?.selectedDeclaration ?? source.sourceCallee.selectedDeclaration;
-      if (selected === undefined || selected !== declaration && selected !== initializer ||
-        !input.source.navigation.isProjectDeclaration(selected)) return undefined;
-      return callables.get({ kind: "declaration", declaration: initializer });
-    }
-  }
-  const selectedCallee = source.sourceCallee.selectedDeclaration;
-  if (
-    selectedCallee !== undefined &&
-    input.source.ast.is.IsClassDeclaration(selectedCallee)
-  ) {
-    const constructor = typeSystem?.projectTypes.implicitConstructorForSignature(
-      selectedCallee,
-      source.selectedSignature,
-      source.sourceSelectedSignatureParameters,
-    );
-    if (constructor !== undefined) {
-      return callables.get({
-        kind: "project-constructor",
-        targetMemberId: constructor.targetMember.id,
-      });
-    }
-  }
-  const selectedDeclaration = input.source.semantics.forFile(sourceFile)
-    .declarations.signatureDeclaration(source.selectedSignature);
-  const implementation = selection !== "implementation" || selectedDeclaration === undefined
-    ? undefined : input.source.navigation.callableImplementation(selectedDeclaration);
-  const declaration = implementation?.kind === "resolved"
-    ? implementation.implementation.declaration : selectedDeclaration;
-  return declaration !== undefined &&
-      input.source.navigation.isProjectDeclaration(declaration)
-    ? callables.get({ kind: "declaration", declaration })
-    : undefined;
 }
 
 export function representationContractsEqual(
