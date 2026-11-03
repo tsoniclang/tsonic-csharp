@@ -61,6 +61,12 @@ type CsharpValueTailSource =
       | { readonly array: false; readonly direct: CsharpDirectSourceEvidence; readonly expression: CsharpSelectedExpressionSource }
     ));
 
+type CsharpValueBodySource =
+  | { readonly kind: "unavailable"; readonly sourceFile: SourceFile; readonly error: unknown }
+  | { readonly kind: "available"; readonly queries: SourceFileSemantics; readonly induction: ReturnType<typeof sourceIntegerInduction>;
+      readonly inductionState: CsharpTypeResolutionState; readonly declared: CsharpValueTypeRequest;
+      readonly selected: CsharpValueTypeRequest; readonly nonPrimitive: boolean; readonly tail: CsharpValueTailSource };
+
 export type CsharpSourceValueSource = {
   readonly selection: CsharpSourceValueDeclarationSource;
   readonly node: Node;
@@ -73,15 +79,23 @@ export type CsharpSourceValueSource = {
       readonly syntax: ReturnType<CsharpTypeResolutionScope["sourceValueDeclarationSyntax"]>;
       readonly selectedSourceType: Type | undefined;
       readonly authored: CsharpAuthoredTypeSelectionEvidence | undefined; readonly nativeParameter: CsharpNativeParameterSource;
-      readonly body: {
-        readonly queries: SourceFileSemantics; readonly induction: ReturnType<typeof sourceIntegerInduction>;
-        readonly inductionState: CsharpTypeResolutionState; readonly declared: CsharpValueTypeRequest;
-        readonly selected: CsharpValueTypeRequest; readonly nonPrimitive: boolean; readonly tail: CsharpValueTailSource;
-      } | undefined }
+      readonly body: CsharpValueBodySource | undefined }
 );
 
 type ValueSourceScope = Pick<CsharpTypeResolutionScope,
   "host" | "sourceValueDeclaration" | "sourceValueDeclarationSyntax" | "sourceCallSelectedDeclaration">;
+
+function declarationQueries(
+  { host }: Pick<CsharpTypeResolutionScope, "host">,
+  sourceFile: SourceFile,
+): { readonly kind: "available"; readonly queries: SourceFileSemantics } | Extract<CsharpValueBodySource, { readonly kind: "unavailable" }> {
+  if (host.hasSemantics(sourceFile)) return Object.freeze({ kind: "available", queries: host.semantics(sourceFile) });
+  try {
+    return Object.freeze({ kind: "available", queries: host.semantics(sourceFile) });
+  } catch (error: unknown) {
+    return Object.freeze({ kind: "unavailable", sourceFile, error });
+  }
+}
 
 export function formCsharpSourceValueDeclarationSource(
   scope: Pick<CsharpTypeResolutionScope, "host" | "sourceValueDeclaration">,
@@ -133,16 +147,19 @@ export function formCsharpSourceValueSource(
   const nativeParameter = formCsharpNativeParameterSource(host.ast, declaration);
   if (binding) return Object.freeze({ ...input, kind: "binding",
     declaration, sourceFile, syntax, authored, nativeParameter, selectedSourceType: selectedSource, body: undefined });
-  const declarationQueries = host.semantics(sourceFile);
+  const checker = declarationQueries(scope, sourceFile);
+  if (checker.kind === "unavailable") return Object.freeze({ ...input, kind: "value", declaration, sourceFile, syntax, authored,
+    nativeParameter, selectedSourceType: selectedSource, body: checker });
+  const declaredQueries = checker.queries;
   const induction = sourceIntegerInduction(declaration, host.ast, host.navigation, {
     sourceFacts: host.sourceFacts, semanticsFor: host.semanticsFor,
   });
-  const declaredSource = declarationQueries.declarations.declaredValueType(declaration);
+  const declaredSource = declaredQueries.declarations.declaredValueType(declaration);
   const declared = Object.freeze({ type: declaredSource, sourceFile, state: Object.freeze(nextState(state)) });
   const selected = Object.freeze({ type: selectedSource, sourceFile: queries.sourceFile, state: Object.freeze(nextState(state)) });
   let tail: CsharpValueTailSource;
   if (syntax.initializer === undefined) {
-    tail = Object.freeze({ kind: "uninitialized", contextual: formCsharpContextualParameterSourceFromSyntax(scope, declaration, declarationQueries, syntax),
+    tail = Object.freeze({ kind: "uninitialized", contextual: formCsharpContextualParameterSourceFromSyntax(scope, declaration, declaredQueries, syntax),
       refinement: formRefinement(declaredSource, selectedSource, queries, false, false) });
   } else {
     const initializer = syntax.initializer;
@@ -150,21 +167,21 @@ export function formCsharpSourceValueSource(
     const declarationKind = host.ast.variableDeclarationKind(declaration);
     const mutable = syntax.type === undefined && host.ast.is.IsVariableDeclaration(declaration) &&
       (declarationKind === "let" || declarationKind === "var");
-    const initializerType = mutable ? declarationQueries.types.expressionType(initializer) : undefined;
-    const literalBase = initializerType === undefined ? undefined : declarationQueries.types.literalBaseType(initializerType);
+    const initializerType = mutable ? declaredQueries.types.expressionType(initializer) : undefined;
+    const literalBase = initializerType === undefined ? undefined : declaredQueries.types.literalBaseType(initializerType);
     const widening = declaredSource !== undefined && initializerType !== undefined && literalBase !== undefined &&
-      !declarationQueries.types.isIdentical(initializerType, literalBase) && declarationQueries.types.isIdentical(declaredSource, literalBase);
+      !declaredQueries.types.isIdentical(initializerType, literalBase) && declaredQueries.types.isIdentical(declaredSource, literalBase);
     const children = array ? { array: true as const, direct: undefined, expression: undefined }
       : { array: false as const,
           direct: formCsharpDirectSourceEvidence(scope, Object.freeze([initializer]), sourceFile, Object.freeze(nextState(state))),
-          expression: formCsharpSelectedExpressionSource(scope, initializer, declarationQueries, Object.freeze(nextState(state))) };
+          expression: formCsharpSelectedExpressionSource(scope, initializer, declaredQueries, Object.freeze(nextState(state))) };
     tail = Object.freeze({ kind: "initialized", initializer, ...children, mutable, declarationKind, widening,
-      preservation: !mutable || !widening ? undefined : formCsharpPrimitivePreservationSource(scope, initializer, declarationQueries),
+      preservation: !mutable || !widening ? undefined : formCsharpPrimitivePreservationSource(scope, initializer, declaredQueries),
       nodeState: Object.freeze(nextState(state)), refinement: node === declaration ? undefined
         : formRefinement(queries.declarations.declaredValueType(declaration), selectedSource, queries, true, syntax.type === undefined) });
   }
   return Object.freeze({ ...input, kind: "value", declaration, sourceFile, syntax, authored, nativeParameter, selectedSourceType: selectedSource,
-    body: Object.freeze({ queries: declarationQueries, induction, inductionState: Object.freeze(nextState(state)),
+    body: Object.freeze({ kind: "available", queries: declaredQueries, induction, inductionState: Object.freeze(nextState(state)),
       declared, selected, nonPrimitive: selectedSource !== undefined && queries.types.isNonPrimitive(selectedSource), tail }) });
 }
 
@@ -185,18 +202,22 @@ export function resolveFormedCsharpSourceValueResult(
   }
   if (source.kind === "value") {
     const body = source.body;
-    if (body === undefined || body.queries.sourceFile !== sourceFile || body.declared.sourceFile !== sourceFile ||
-        body.selected.sourceFile !== queries.sourceFile || body.selected.type !== source.selectedSourceType) {
+    if (body === undefined || body.kind !== "available" && body.kind !== "unavailable" ||
+        body.kind === "unavailable" && body.sourceFile !== sourceFile || body.kind === "available" &&
+        (body.queries.sourceFile !== sourceFile || body.declared.sourceFile !== sourceFile ||
+          body.selected.sourceFile !== queries.sourceFile || body.selected.type !== source.selectedSourceType)) {
       return failTargetAnalysisInvariant("tsonic-csharp", "Value completion requires its exact retained declaration children.", declaration);
     }
-    const tail = body.tail;
-    if (tail.kind === "uninitialized" ? source.syntax.initializer !== undefined || tail.contextual.declaration !== declaration ||
-        tail.contextual.queries !== body.queries
-      : tail.initializer !== source.syntax.initializer || !tail.array && (tail.expression?.node !== tail.initializer ||
-        tail.expression?.queries !== body.queries || tail.direct?.subjects[0] !== tail.initializer) ||
-        tail.mutable && tail.widening && tail.preservation === undefined || tail.preservation !== undefined &&
-        (tail.preservation.node !== tail.initializer || tail.preservation.queries !== body.queries)) {
-      return failTargetAnalysisInvariant("tsonic-csharp", "Value completion requires its exact retained initializer or contextual Source.", declaration);
+    if (body.kind === "available") {
+      const tail = body.tail;
+      if (tail.kind === "uninitialized" ? source.syntax.initializer !== undefined || tail.contextual.declaration !== declaration ||
+          tail.contextual.queries !== body.queries
+        : tail.initializer !== source.syntax.initializer || !tail.array && (tail.expression?.node !== tail.initializer ||
+          tail.expression?.queries !== body.queries || tail.direct?.subjects[0] !== tail.initializer) ||
+          tail.mutable && tail.widening && tail.preservation === undefined || tail.preservation !== undefined &&
+          (tail.preservation.node !== tail.initializer || tail.preservation.queries !== body.queries)) {
+        return failTargetAnalysisInvariant("tsonic-csharp", "Value completion requires its exact retained initializer or contextual Source.", declaration);
+      }
     }
   }
   if (authored !== undefined) {
@@ -210,6 +231,7 @@ export function resolveFormedCsharpSourceValueResult(
   const body = source.body;
   if (body === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
     "Value completion requires its exact retained declaration children.", declaration);
+  if (body.kind === "unavailable") throw body.error;
   if (body.induction !== undefined) {
     const bound = scope.resolveNodeWithState(body.induction.bound, sourceFile, body.inductionState);
     if (bound?.kind === "source-primitive" &&
