@@ -1,4 +1,4 @@
-import type { Node, Type } from "@tsonic/tsts";
+import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import type { CsharpCurrentProjectDeclaration } from "../../source-evidence/model.js";
@@ -18,7 +18,6 @@ import { requiresUnresolvedStructuralProjection, typeHasProjectOwnedShapeDeclara
   typeIsExcludedFromObjectShape } from "./source-evidence.js";
 import { selectCsharpObjectMethodImplementationSource,
   type CsharpObjectMethodImplementationSource } from "./method-implementations.js";
-import type { CsharpSourceTypeDependency } from "../../source-evidence/types/resolution/selected-values.js";
 
 export interface CsharpObjectShapeProjectSource {
   readonly definition: CsharpCurrentProjectDeclaration;
@@ -46,7 +45,11 @@ export interface CsharpObjectShapeTypeSource {
   readonly literal: CsharpObjectLiteralShapeSource | undefined;
   readonly creation: CsharpLiteralCreationSource | undefined;
   readonly implementation: CsharpObjectMethodImplementationSource | undefined;
-  readonly implementationCaptures: readonly CsharpSourceTypeDependency[];
+  readonly implementationCaptures: readonly {
+    readonly node: Node;
+    readonly sourceFile: SourceFile | undefined;
+    readonly state: CsharpTypeResolutionState;
+  }[];
   readonly structuralContract: boolean;
 }
 
@@ -99,8 +102,7 @@ export function createCsharpObjectShapeSourceFormation(
         sourceDeclarations: member.proofInput.sourceDeclarations,
       })), host, state, authoredLiteral);
     const implementationCaptures = implementation === undefined ? [] : implementation.captures.map(capture =>
-      Object.freeze({ kind: "node" as const, node: capture.declaration,
-        sourceFile: capture.sourceFile ?? host.semanticsFor(capture.declaration).sourceFile,
+      Object.freeze({ node: capture.declaration, sourceFile: capture.sourceFile,
         state: Object.freeze(nextState(state)),
       }));
     return Object.freeze({ type, node, queries, state, authoredTypeRoot, project, provider, providerShape,
