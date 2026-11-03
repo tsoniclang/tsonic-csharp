@@ -1,7 +1,7 @@
 import type { CsharpTypeResolutionScope } from "./scope.js";
 import { resolveCsharpConstructorValueType } from "./constructors.js";
 import { sourceTypeSyntaxIsCompositional } from "@tsonic/target-api/source";
-import { csharpBoundSourceType } from "./type-bindings.js";
+import { completeCsharpBoundSourceType } from "./type-bindings.js";
 import { resolveCsharpSemanticConditionalType } from "./conditional-types.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import type { ExtensionFactSubject, SourceFile, Type } from "@tsonic/tsts";
@@ -54,8 +54,8 @@ export function resolveFormedCsharpSemanticTypeSource(
     `Native type resolution in ${host.ast.getFileName(source.sourceFile)}`, "depth", maximumTypeResolutionDepth, source.sourceFile);
   if (source.kind === "unavailable") return undefined;
   const { type, sourceFile, state, queries } = source;
-  if (queries.types.isNonPrimitive(type)) return csharpObjectTargetType();
-  const bound = csharpBoundSourceType(type, queries, state);
+  if (source.nonPrimitive) return csharpObjectTargetType();
+  const bound = completeCsharpBoundSourceType(source.binding, state);
   if (bound !== undefined) return bound.targetType;
   const conditional = resolveCsharpSemanticConditionalType(scope, type, queries, state);
   if (conditional !== undefined) return conditional.type;
