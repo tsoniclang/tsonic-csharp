@@ -60,7 +60,7 @@ export function selectCsharpConversion(
   const targetShapeCarrier = getCsharpNullableElementTargetType(target) ?? target;
   if (isCsharpJsValueTargetType(source)) {
     const shape = input.objectShapes?.resolveTarget(targetShapeCarrier);
-    if (shape?.targetType.kind === "target-named" && (shape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract === true && shape.members.some(member => member.memberKind === "method")) return {
+    if (shape?.members.some(member => member.memberKind === "method") === true && !(shape.targetType.kind === "target-named" && (shape.targetType as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind === "class")) return {
       kind: "rejected", code: "CSHARP_NATIVE_METHOD_PROJECTION_UNSUPPORTED",
       reason: "A boxed value cannot project a native structural method contract. Pass a value with its declared native method interface instead.",
     };
