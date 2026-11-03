@@ -8,6 +8,8 @@ const int32 = Object.freeze({ kind: "source-primitive", name: "int32" });
 const string = Object.freeze({ kind: "source-primitive", name: "string" });
 const int32Node = Object.freeze({ kind: "resolved", sourceResult: csharpSourceValueResult(int32) });
 const stringNode = Object.freeze({ kind: "resolved", sourceResult: csharpSourceValueResult(string) });
+const unitNodeQuerySource = (cache, node, sourceFile) => cache.nodeQuerySource(node, sourceFile,
+  () => Object.freeze({ node, sourceFile }));
 
 test("type-resolution queries memoize completed exact results and misses", () => {
   const cache = createCsharpTypeResolutionQueryCache();
@@ -17,21 +19,21 @@ test("type-resolution queries memoize completed exact results and misses", () =>
   let resolved = 0;
   let missed = 0;
 
-  assert.strictEqual(cache.resolveNode(node, sourceFile, () => {
+  assert.strictEqual(cache.resolveNode(unitNodeQuerySource(cache, node, sourceFile), () => {
     resolved += 1;
     return int32Node;
   }), int32Node);
-  assert.strictEqual(cache.resolveNode(node, sourceFile, () => {
+  assert.strictEqual(cache.resolveNode(unitNodeQuerySource(cache, node, sourceFile), () => {
     resolved += 1;
     return stringNode;
   }), int32Node);
   assert.equal(resolved, 1);
 
-  assert.equal(cache.resolveNode(missingNode, sourceFile, () => {
+  assert.equal(cache.resolveNode(unitNodeQuerySource(cache, missingNode, sourceFile), () => {
     missed += 1;
     return undefined;
   }), undefined);
-  assert.equal(cache.resolveNode(missingNode, sourceFile, () => {
+  assert.equal(cache.resolveNode(unitNodeQuerySource(cache, missingNode, sourceFile), () => {
     missed += 1;
     return int32Node;
   }), undefined);
@@ -45,11 +47,11 @@ test("type-resolution query identities include source context and query purpose"
   const secondSourceFile = {};
 
   assert.strictEqual(
-    cache.resolveNode(node, firstSourceFile, () => int32Node),
+    cache.resolveNode(unitNodeQuerySource(cache, node, firstSourceFile), () => int32Node),
     int32Node,
   );
   assert.strictEqual(
-    cache.resolveNode(node, secondSourceFile, () => stringNode),
+    cache.resolveNode(unitNodeQuerySource(cache, node, secondSourceFile), () => stringNode),
     stringNode,
   );
   assert.strictEqual(
@@ -69,15 +71,15 @@ test("type-resolution queries never publish nested in-progress results", () => {
   const sourceFile = {};
   let nestedResolutions = 0;
 
-  assert.strictEqual(cache.resolveNode(outer, sourceFile, () => {
-    assert.strictEqual(cache.resolveNode(nested, sourceFile, () => {
+  assert.strictEqual(cache.resolveNode(unitNodeQuerySource(cache, outer, sourceFile), () => {
+    assert.strictEqual(cache.resolveNode(unitNodeQuerySource(cache, nested, sourceFile), () => {
       nestedResolutions += 1;
       return int32Node;
     }), int32Node);
     return stringNode;
   }), stringNode);
 
-  assert.strictEqual(cache.resolveNode(nested, sourceFile, () => {
+  assert.strictEqual(cache.resolveNode(unitNodeQuerySource(cache, nested, sourceFile), () => {
     nestedResolutions += 1;
     return stringNode;
   }), stringNode);
@@ -92,14 +94,14 @@ test("the existing node cache preserves the actual immutable rejection and origi
   const rejected = Object.freeze({ kind: "rejected", subject: parameter, code: "CSHARP_SOURCE_STORAGE_NOT_PROVEN",
     reason: "Actual native formal demand is unresolved." });
   let selections = 0;
-  const first = cache.resolveNode(parameter, sourceFile, () => { selections += 1; return rejected; });
-  const second = cache.resolveNode(parameter, sourceFile, () => { selections += 1; return int32Node; });
+  const first = cache.resolveNode(unitNodeQuerySource(cache, parameter, sourceFile), () => { selections += 1; return rejected; });
+  const second = cache.resolveNode(unitNodeQuerySource(cache, parameter, sourceFile), () => { selections += 1; return int32Node; });
   assert.equal(first === rejected && second === rejected && Object.isFrozen(second), true,
     "the precise first owner result is retained, not recreated from another/default-free carrier");
   assert.equal(second.kind === "rejected" && second.subject === parameter && second.code === rejected.code && second.reason === rejected.reason, true,
     "actual source identity and complete rejection reason travel together through the canonical cache");
   assert.equal(selections, 1, "a completed rejected selection is computed once just like a resolved selection");
-  assert.equal(cache.resolveNode(parameter, otherSourceFile, () => int32Node) === int32Node, true,
+  assert.equal(cache.resolveNode(unitNodeQuerySource(cache, parameter, otherSourceFile), () => int32Node) === int32Node, true,
     "a genuinely different source context retains its independent native selection");
   assert.equal(cache.resolveStorage(parameter, sourceFile, () => string) === string, true,
     "physical storage remains a different query purpose, not a competing native-node resolution path");
