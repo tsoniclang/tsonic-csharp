@@ -13,6 +13,7 @@ import { nextState } from "./state.js";
 import { formCsharpDirectSourceEvidence, type CsharpDirectSourceEvidence } from "./direct-source-evidence.js";
 import { formCsharpStandardTypeTransformationSource,
   type CsharpStandardTypeTransformationSource } from "./standard-transformation-source.js";
+import { formCsharpCheckerTransformationSource, type CsharpCheckerTransformationSource } from "./checker-transformation-source.js";
 
 type Transformation = NonNullable<ReturnType<SourceFileSemantics["types"]["standardTransformation"]>>;
 
@@ -30,6 +31,7 @@ interface CsharpTypeReferenceObservations extends CsharpTypeReferenceSourceBase 
   readonly direct: CsharpDirectSourceEvidence;
   readonly transformation: Transformation | undefined;
   readonly transformationSource: CsharpStandardTypeTransformationSource | undefined;
+  readonly checker: CsharpCheckerTransformationSource | undefined;
 }
 
 export type CsharpTypeReferenceSource =
@@ -71,7 +73,9 @@ export function formCsharpTypeReferenceSource(
   const transformation = semanticType === undefined ? undefined : queries.types.standardTransformation(node, semanticType);
   const transformationSource = transformation === undefined || semanticType === undefined ? undefined
     : formCsharpStandardTypeTransformationSource(scope, transformation, queries, state, node, semanticType);
-  const observations = { node, queries, state, typeName, semanticType, binding, subjects, transformation, transformationSource,
+  const checker = transformation !== undefined || semanticType === undefined ? undefined
+    : formCsharpCheckerTransformationSource(scope, node, semanticType, queries, state, undefined);
+  const observations = { node, queries, state, typeName, semanticType, binding, subjects, transformation, transformationSource, checker,
     direct: formCsharpDirectSourceEvidence(scope, subjects, queries.sourceFile, state) };
   if (transformation !== undefined && semanticType !== undefined && transformationSource !== undefined &&
       (transformation.kind !== "structural" || queries.types.indexInfos(semanticType).length === 0)) {

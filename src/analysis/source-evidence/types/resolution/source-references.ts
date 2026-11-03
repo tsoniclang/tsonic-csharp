@@ -13,15 +13,13 @@ import { getCsharpNullableElementTargetType } from "../../../../target-model/typ
 import { nextState } from "./state.js";
 import { definedValues, resolveCsharpUnionMemberCarrier } from "./source-evidence.js";
 import { sourcePrimitiveFactKey } from "@tsonic/tsts";
-import { sourceTransformedTypeFactEvidenceNodes, sourceTupleElementTypeEvidenceNodes, sourceTypeSyntaxIsCompositional, sourceTypeSyntaxRoot, sourceIntegerInduction } from "@tsonic/target-api/source";
+import { sourceTypeSyntaxIsCompositional, sourceTypeSyntaxRoot, sourceIntegerInduction } from "@tsonic/target-api/source";
 import { substituteTargetTypeParameters } from "../../../../policy/types/resolution/substitution.js";
-import { targetTypeRefKey, targetTypeRefEquals } from "../../../../target-model/types/equality.js";
+import { targetTypeRefKey } from "../../../../target-model/types/equality.js";
 import { reconcileCsharpSelectedTargetType, retainCsharpBroadValueCarrier } from "../../../../policy/types/resolution/selected-type-evidence.js";
 import { selectCsharpAuthoredUnionRefinement } from "./source-union-refinement.js";
 import { completeCsharpBoundSourceType, csharpBoundSourceType, csharpSourceBindings, csharpSourceTemplateState } from "./type-bindings.js";
 import { csharpConditionalDeclaration, resolveCsharpConditionalApplication } from "./conditional-types.js";
-import { resolveStructuralTypeWithState } from "./root-sources.js";
-import { csharpSourceStorageComponentContext } from "./source-storage-projection.js";
 import { getCsharpCallableValueSignature } from "../../../../target-model/types/carriers/delegates.js";
 import { formCsharpTypeReferenceSource, type CsharpTypeReferenceSource } from "./type-reference-source.js";
 import { resolveFormedCsharpProjectReference } from "./project-types.js";
@@ -31,6 +29,8 @@ import { formCsharpNativeParameterSource, resolveFormedCsharpNativeParameterCarr
 import { formCsharpContextualParameterSource, resolveFormedCsharpContextualParameterCarrier,
   type CsharpContextualParameterSelection } from "./contextual-parameter-source.js";
 import { formCsharpStandardTypeTransformationSource, resolveFormedCsharpStandardTypeTransformation } from "./standard-transformation-source.js";
+import { formCsharpCheckerTransformationSource, resolveFormedCsharpCheckerTransformation } from "./checker-transformation-source.js";
+import { formCsharpEvidenceNodesSource, resolveFormedCsharpEvidenceNodesToCommonTarget } from "./evidence-node-source.js";
 
 export function resolveTypeReferenceNode(
   scope: CsharpTypeResolutionScope,
@@ -45,7 +45,7 @@ export function resolveFormedCsharpTypeReferenceNode(
   scope: CsharpTypeResolutionScope,
   source: CsharpTypeReferenceSource,
 ): TargetTypeRef | undefined {
-  const { resolveCheckerTransformedSourceType, resolveCompositionalSourceTypeAlias, resolveFormedDirectSourceFacts, resolveNodeWithState, resolveProviderType, resolveSourceProfileType, resolveFormedStandardSourceTypeTransformation, resolveTypeWithState, targetPreservesAuthoredSourcePrimitiveFacts } = scope;
+  const { resolveFormedCheckerTransformation, resolveCompositionalSourceTypeAlias, resolveFormedDirectSourceFacts, resolveNodeWithState, resolveProviderType, resolveSourceProfileType, resolveFormedStandardSourceTypeTransformation, resolveTypeWithState, targetPreservesAuthoredSourcePrimitiveFacts } = scope;
   if (source.kind === "missing-name") return undefined;
   const { node, typeName, semanticType, queries, state, subjects } = source;
   const bound = completeCsharpBoundSourceType(source.binding, state);
@@ -114,15 +114,15 @@ export function resolveFormedCsharpTypeReferenceNode(
   if (sourceAlias.kind === "rejected") {
     return { kind: "opaque", id: "source-alias-representation-unavailable" };
   }
-  const transformedTarget = sourceAlias.kind === "checker-transformed-alias" &&
-      semanticType !== undefined
-    ? resolveCheckerTransformedSourceType(
-        node,
-        semanticType,
-        queries,
-        state,
-      )
-    : undefined;
+  let transformedTarget: TargetTypeRef | undefined;
+  if (sourceAlias.kind === "checker-transformed-alias" && semanticType !== undefined) {
+    const checker = source.checker;
+    if (checker === undefined || checker.authoredRoot !== node || checker.selectedType !== semanticType ||
+        checker.queries !== queries || checker.state !== state) {
+      return failTargetAnalysisInvariant("tsonic-csharp", "A type reference requires its exact retained checker transformation Source.", node);
+    }
+    transformedTarget = resolveFormedCheckerTransformation(checker);
+  }
   if (transformedTarget !== undefined) {
     return transformedTarget;
   }
@@ -149,76 +149,9 @@ export function resolveCheckerTransformedSourceType(
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
-  const { host, resolveCallableType, resolveEvidenceNodesToCommonTarget, resolveTypeWithState } = scope;
-  const standard = queries.types.standardTransformation(
-    authoredRoot,
-    selectedType,
-  );
-  if (standard !== undefined) {
-    return resolveStandardSourceTypeTransformation(
-      scope,
-      standard,
-      queries,
-      state,
-      authoredRoot,
-      selectedType,
-    );
-  }
-  const direct = resolveEvidenceNodesToCommonTarget(
-    sourceTransformedTypeFactEvidenceNodes(
-      host.ast,
-      queries,
-      authoredRoot,
-      selectedType,
-    ),
-    selectedType,
-    queries,
-    state,
-  );
-  if (direct !== undefined) {
-    return direct;
-  }
-  if (queries.types.isTuple(selectedType)) {
-    const infos = queries.types.tupleElementInfos(selectedType);
-    const elements = infos.map((element, index) => {
-      const elementState = csharpSourceStorageComponentContext(host, state, { kind: "tuple-element", index });
-      const evidence = [
-        ...sourceTupleElementTypeEvidenceNodes(host.ast, queries, element),
-        ...sourceTransformedTypeFactEvidenceNodes(
-          host.ast,
-          queries,
-          authoredRoot,
-          element.type,
-        ),
-      ];
-      return resolveEvidenceNodesToCommonTarget(
-        evidence,
-        element.type,
-        queries,
-        elementState,
-      ) ?? resolveTypeWithState(
-        element.type,
-        queries.sourceFile,
-        nextState(elementState),
-      );
-    });
-    return infos.length === 0 || elements.some((element) => element === undefined)
-      ? undefined
-      : {
-          kind: "tuple",
-          elements: elements as readonly TargetTypeRef[],
-        };
-  }
-  const callable = resolveCallableType(selectedType, queries, state);
-  if (callable !== undefined) {
-    return callable;
-  }
-  return resolveStructuralTypeWithState(scope,
-    selectedType,
-    queries.sourceFile,
-    nextState(state),
-    authoredRoot,
-  );
+  const standard = queries.types.standardTransformation(authoredRoot, selectedType);
+  return resolveFormedCsharpCheckerTransformation(scope,
+    formCsharpCheckerTransformationSource(scope, authoredRoot, selectedType, queries, state, standard));
 }
 
 export function resolveStandardSourceTypeTransformation(
@@ -245,33 +178,14 @@ export function resolveSignatureParameterListTarget(
 }
 
 export function resolveEvidenceNodesToCommonTarget(
-  { host, resolveAuthoredAndSelectedSourceType }: CsharpTypeResolutionScope,
+  scope: CsharpTypeResolutionScope,
   nodes: readonly Node[],
   selectedType: Type,
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
-  if (nodes.length === 0) {
-    return undefined;
-  }
-  const targets = [...new Set(nodes)].map((node) =>
-    resolveAuthoredAndSelectedSourceType(
-      node,
-      host.ast.getSourceFile(node) ?? queries.sourceFile,
-      selectedType,
-      queries.sourceFile,
-      nextState(state),
-    )
-  );
-  if (targets.some((target) => target === undefined)) {
-    return undefined;
-  }
-  const first = targets[0]!;
-  return targets.every((target) =>
-      target !== undefined && targetTypeRefEquals(first, target)
-    )
-    ? first
-    : undefined;
+  return resolveFormedCsharpEvidenceNodesToCommonTarget(scope,
+    formCsharpEvidenceNodesSource(scope, nodes, selectedType, queries, state));
 }
 
 export function resolveCompositionalSourceTypeAlias(
@@ -287,7 +201,7 @@ export function resolveCompositionalSourceTypeAlias(
   | { readonly kind: "checker-transformed-alias" }
   | { readonly kind: "resolved"; readonly type: TargetTypeRef }
   | { readonly kind: "rejected" } {
-  const { host, resolveCheckerTransformedSourceType, resolveNodeWithState } = scope;
+  const { host, resolveNodeWithState, resolveFormedCheckerTransformation } = scope;
   const reference = host.navigation.sourceReferenceFor(typeName);
   if (
     reference === undefined ||
@@ -336,22 +250,17 @@ export function resolveCompositionalSourceTypeAlias(
     return template === undefined ? { kind: "rejected" }
       : { kind: "resolved", type: substituteTargetTypeParameters(template, substitutions) };
   }
-  const resolved = target === undefined
-    ? undefined
-    : sourceTypeSyntaxIsCompositional(host.ast, target) || host.ast.is.IsTypeQueryNode(target)
-      ? resolveNodeWithState(
-          target,
-          reference.sourceFile,
-          nextState(boundState),
-        )
-      : selectedType === undefined
-        ? undefined
-        : resolveCheckerTransformedSourceType(
-            target,
-            selectedType,
-            queries,
-            nextState(boundState),
-          );
+  let resolved: TargetTypeRef | undefined;
+  if (target !== undefined) {
+    if (sourceTypeSyntaxIsCompositional(host.ast, target) || host.ast.is.IsTypeQueryNode(target)) {
+      resolved = resolveNodeWithState(target, reference.sourceFile, nextState(boundState));
+    } else if (selectedType !== undefined) {
+      const selectedState = nextState(boundState);
+      const standard = queries.types.standardTransformation(target, selectedType);
+      const input = formCsharpCheckerTransformationSource(scope, target, selectedType, queries, selectedState, standard);
+      resolved = resolveFormedCheckerTransformation(input);
+    }
+  }
   if (resolved === undefined) {
     return { kind: "checker-transformed-alias" };
   }

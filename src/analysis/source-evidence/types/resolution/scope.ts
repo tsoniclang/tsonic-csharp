@@ -220,11 +220,8 @@ export interface CsharpTypeResolutionScope {
   resolveFormedTypeReferenceNode(
   source: CsharpTypeReferenceSource,
 ): TargetTypeRef | undefined;
-  resolveCheckerTransformedSourceType(
-  authoredRoot: Node,
-  selectedType: Type,
-  queries: SourceFileSemantics,
-  state: CsharpTypeResolutionState,
+  resolveFormedCheckerTransformation(
+  source: import("./checker-transformation-source.js").CsharpCheckerTransformationSource,
 ): TargetTypeRef | undefined;
   resolveFormedStandardSourceTypeTransformation(
   source: import("./standard-transformation-source.js").CsharpStandardTypeTransformationSource,
@@ -232,12 +229,6 @@ export interface CsharpTypeResolutionScope {
   resolveSignatureParameterListTarget(
   parameters: SourceCallableTypeEvidence["parameters"],
   elements: readonly TargetTypeRef[],
-): TargetTypeRef | undefined;
-  resolveEvidenceNodesToCommonTarget(
-  nodes: readonly Node[],
-  selectedType: Type,
-  queries: SourceFileSemantics,
-  state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined;
   resolveCompositionalSourceTypeAlias(
   typeName: Node,

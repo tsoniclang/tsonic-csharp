@@ -33,8 +33,9 @@ import { resolveSourceValueResult } from "./source-references.js";
 import { optionalAccessTargetType as optionalAccessTargetTypeImplementation } from "../../../../policy/types/storage/optional-access.js";
 import { resolveSelectedExpressionType as resolveSelectedExpressionTypeImplementation, resolveMemberAccessTargetType as resolveMemberAccessTargetTypeImplementation, resolveNonNullExpressionType as resolveNonNullExpressionTypeImplementation, resolveSelectedReceiverTargetType as resolveSelectedReceiverTargetTypeImplementation, resolveFormedCsharpSourceOwnedConstructionResult } from "./expressions.js";
 import { resolveSelectedDeclarationResult as resolveSelectedDeclarationResultImplementation, resolveProjectEnumMemberTarget as resolveProjectEnumMemberTargetImplementation, declarationResultTypeNode as declarationResultTypeNodeImplementation } from "./declarations.js";
-import { resolveFormedCsharpTypeReferenceNode as resolveTypeReferenceNodeImplementation, resolveCheckerTransformedSourceType as resolveCheckerTransformedSourceTypeImplementation, resolveSignatureParameterListTarget as resolveSignatureParameterListTargetImplementation, resolveEvidenceNodesToCommonTarget as resolveEvidenceNodesToCommonTargetImplementation, resolveCompositionalSourceTypeAlias as resolveCompositionalSourceTypeAliasImplementation, targetPreservesAuthoredSourcePrimitiveFacts as targetPreservesAuthoredSourcePrimitiveFactsImplementation, collectTargetSourcePrimitiveNames as collectTargetSourcePrimitiveNamesImplementation, resolveSourceValueDeclaration as resolveSourceValueDeclarationImplementation } from "./source-references.js";
+import { resolveFormedCsharpTypeReferenceNode as resolveTypeReferenceNodeImplementation, resolveSignatureParameterListTarget as resolveSignatureParameterListTargetImplementation, resolveCompositionalSourceTypeAlias as resolveCompositionalSourceTypeAliasImplementation, targetPreservesAuthoredSourcePrimitiveFacts as targetPreservesAuthoredSourcePrimitiveFactsImplementation, collectTargetSourcePrimitiveNames as collectTargetSourcePrimitiveNamesImplementation, resolveSourceValueDeclaration as resolveSourceValueDeclarationImplementation } from "./source-references.js";
 import { resolveFormedCsharpStandardTypeTransformation } from "./standard-transformation-source.js";
+import { resolveFormedCsharpCheckerTransformation } from "./checker-transformation-source.js";
 import { resolveSourceCallInstantiation as resolveSourceCallInstantiationImplementation, resolveSourceCallSelectedType as resolveSourceCallSelectedTypeImplementation, resolveSourceCallableContractType as resolveSourceCallableContractTypeImplementation, inferSourceCallTargetTypeArguments as inferSourceCallTargetTypeArgumentsImplementation, sourceCallSelectedDeclaration as sourceCallSelectedDeclarationImplementation, resolveSourceCallReceiverTargetType as resolveSourceCallReceiverTargetTypeImplementation, sourceCallableTypeParametersMatch as sourceCallableTypeParametersMatchImplementation, sourceValueDeclaration as sourceValueDeclarationImplementation, sourceValueDeclarationSyntax as sourceValueDeclarationSyntaxImplementation } from "./calls.js";
 import { completeCsharpSourceCallableType, completeCsharpSourceCallReceiver } from "./calls.js";
 import { completeCsharpSourceCallableTypeSource } from "./call-type-source.js";
@@ -289,14 +290,12 @@ export function createCsharpTypeResolutionServices(
       declarationResultTypeNodeImplementation(scope, ...args),
     resolveFormedTypeReferenceNode: (...args: DropScope<Parameters<typeof resolveTypeReferenceNodeImplementation>>) =>
       resolveTypeReferenceNodeImplementation(scope, ...args),
-    resolveCheckerTransformedSourceType: (...args: DropScope<Parameters<typeof resolveCheckerTransformedSourceTypeImplementation>>) =>
-      resolveCheckerTransformedSourceTypeImplementation(scope, ...args),
+    resolveFormedCheckerTransformation: (...args: DropScope<Parameters<typeof resolveFormedCsharpCheckerTransformation>>) =>
+      resolveFormedCsharpCheckerTransformation(scope, ...args),
     resolveFormedStandardSourceTypeTransformation: (...args: DropScope<Parameters<typeof resolveFormedCsharpStandardTypeTransformation>>) =>
       resolveFormedCsharpStandardTypeTransformation(scope, ...args),
     resolveSignatureParameterListTarget: (...args: DropScope<Parameters<typeof resolveSignatureParameterListTargetImplementation>>) =>
       resolveSignatureParameterListTargetImplementation(scope, ...args),
-    resolveEvidenceNodesToCommonTarget: (...args: DropScope<Parameters<typeof resolveEvidenceNodesToCommonTargetImplementation>>) =>
-      resolveEvidenceNodesToCommonTargetImplementation(scope, ...args),
     resolveCompositionalSourceTypeAlias: (...args: DropScope<Parameters<typeof resolveCompositionalSourceTypeAliasImplementation>>) =>
       resolveCompositionalSourceTypeAliasImplementation(scope, ...args),
     targetPreservesAuthoredSourcePrimitiveFacts: (...args: DropScope<Parameters<typeof targetPreservesAuthoredSourcePrimitiveFactsImplementation>>) =>
