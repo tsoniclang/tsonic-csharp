@@ -79,8 +79,10 @@ export function formCsharpNativeConstructionSource<ShapeSource extends object>(
       summary.escapeKinds.some(kind => kind !== "capture") || summary.uses.length === 0 ||
       summary.uses.some(use => use.kind !== "type-only" && (use.role !== "receiver" || !use.throughMember))) return undefined;
     const queries = host.semanticsFor(declaration);
+    const original = publication(expression ?? declaration);
     return Object.freeze({ declaration, type, expression, queries,
-      originalShape: shapeInput(type, queries, expression ?? declaration),
+      originalShape: original.queries === queries && original.type === type && original.presentTypes.length === 1
+        ? original.originalShape! : shapeInput(type, queries, expression ?? declaration),
       publications: Object.freeze([
         ...(expression === undefined ? [] : [publication(expression)]), ...declarationPublications(declaration),
       ]) });
@@ -108,7 +110,8 @@ export function formCsharpNativeConstructionSource<ShapeSource extends object>(
             ? queries.facts.typeSubjects(selectedType) : []),
           expectedShape: any || untyped || selectedType === undefined ? undefined
             : shapeInput(selectedType, queries, asynchronous ? undefined : context?.component.authoredTypeNode),
-          originalShape: shapeInput(type, queries, node),
+          originalShape: selected.presentTypes.length === 1 && selected.presentTypes[0] === type
+            ? selected.originalShape! : shapeInput(type, queries, node),
           local: variable?.Initializer === node ? local(declaration!, type, node) : undefined,
           publications: Object.freeze([selected,
             ...(!any && !untyped ? context?.declarations ?? [] : []).flatMap(declarationPublications),
