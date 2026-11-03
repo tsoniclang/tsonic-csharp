@@ -13,6 +13,7 @@ import { csharpSourceStorageContext } from "./source-storage-projection.js";
 import { nextState } from "./state.js";
 import { formCsharpTypeReferenceSource, type CsharpTypeReferenceSource } from "./type-reference-source.js";
 import { formCsharpSourceTypeBindingEvidence, type CsharpSourceTypeBindingEvidence } from "./type-bindings.js";
+import { formCsharpSelectedExpressionSource, type CsharpSelectedExpressionSource } from "./expression-source.js";
 
 export interface CsharpStructuralNodeSourceInput {
   readonly node: Node;
@@ -51,6 +52,7 @@ export type CsharpNodeTypeSource = {
   | { readonly kind: "node"; readonly node: Node; readonly queries: SourceFileSemantics;
       readonly selectedType: Type | undefined; readonly project: CsharpProjectReferenceSource | undefined;
       readonly reference: CsharpTypeReferenceSource | undefined;
+      readonly selectedExpression: CsharpSelectedExpressionSource;
       readonly structural: CsharpStructuralNodeSourceInput; readonly semantic: CsharpSemanticTypeSource }
 );
 
@@ -146,6 +148,7 @@ export function formCsharpNodeTypeSource(
   return Object.freeze({ kind: "node", node, sourceFile, queries, state, originalState, selectedType,
     cycle: reference ? Object.freeze({ type: queries.types.authoredType(node) }) : undefined,
     reference: host.ast.is.IsTypeReferenceNode(node) ? formCsharpTypeReferenceSource(scope, node, queries, state) : undefined,
+    selectedExpression: formCsharpSelectedExpressionSource(scope, node, queries, state),
     project: formCsharpProjectReferenceSource(scope, node, queries.sourceFile, state),
     structural: Object.freeze({ node, queries, state: childState, source }),
     semantic: formCsharpSemanticTypeSource(scope, selectedType, queries.sourceFile, childState),

@@ -10,7 +10,7 @@ import { resolveBinaryTargetRepresentation, commonTargetRepresentation } from ".
 import { selectCsharpSourceCallAwaitCompletion } from "../../../../policy/operations/control-flow/await-completions.js";
 import type { CsharpSourceCallResult } from "../../../../target-model/operations/source-call-results.js";
 import { csharpSourceValueResult, refineCsharpSourceValueResult } from "./call-results.js";
-import { selectCsharpTargetCall, selectCsharpTargetElement, selectCsharpTargetProperty } from "../../../operations/members/selected-members.js";
+import { selectFormedCsharpTargetCall, selectCsharpTargetElement, selectCsharpTargetProperty } from "../../../operations/members/selected-members.js";
 import { isCsharpAssignmentOperator, sourceOperatorFromKindName } from "../../../../target-model/syntax/operators.js";
 import { selectCsharpMethodValue } from "../../../objects/method-values.js";
 import { getCsharpMethodValue } from "../../../../target-model/types/method-values.js";
@@ -25,6 +25,7 @@ import { csharpAbsenceTargetType, combineCsharpTargetUnionMembers, isCsharpJsVal
 import { getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
 import { resolveCsharpContextualLiteralCarrier } from "./contextual-literals.js";
 import { resolveCsharpSourceLiteralTargetType } from "../../../../policy/conversions/source-literals.js";
+import { formCsharpSelectedExpressionSource, type CsharpSelectedExpressionSource } from "./expression-source.js";
 
 export function resolveSelectedExpressionType(
   scope: CsharpTypeResolutionScope,
@@ -32,7 +33,7 @@ export function resolveSelectedExpressionType(
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
-  return scope.resolveSelectedExpressionResult(node, queries, state)?.selectedType;
+  return resolveSelectedExpressionResult(scope, node, queries, state)?.selectedType;
 }
 
 export function resolveSelectedExpressionResult(
@@ -41,24 +42,30 @@ export function resolveSelectedExpressionResult(
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
 ): CsharpSourceCallResult | undefined {
+  return resolveFormedCsharpSelectedExpressionResult(scope, formCsharpSelectedExpressionSource(scope, node, queries, state));
+}
+
+export function resolveFormedCsharpSelectedExpressionResult(
+  scope: CsharpTypeResolutionScope,
+  source: CsharpSelectedExpressionSource,
+): CsharpSourceCallResult | undefined {
   const { host, policy, optionalAccessTargetType, resolveSourceOwnedConstructionResult, resolveSourceCallResultWithState } = scope;
-  if (host.ast.is.IsParenthesizedExpression(node) || host.ast.is.IsSatisfiesExpression(node)) {
-    const expression = host.ast.is.IsParenthesizedExpression(node)
-      ? host.ast.as.AsParenthesizedExpression(node)?.Expression : host.ast.as.AsSatisfiesExpression(node)?.Expression;
-    return scope.resolveNodeValueWithState(expression, queries.sourceFile, nextState(state));
+  const { node, queries, state } = source;
+  if (source.kind === "transparent") {
+    return scope.resolveNodeValueWithState(source.expression, queries.sourceFile, nextState(state));
   }
-  if (host.ast.is.IsCallExpression(node) || host.ast.is.IsNewExpression(node)) {
-    const selection = selectCsharpTargetCall({ ...host, projectTypes: host.projectTypes(), types: policy }, node, queries.sourceFile);
+  if (source.kind === "call") {
+    const selection = selectFormedCsharpTargetCall({ ...host, projectTypes: host.projectTypes(), types: policy }, source.selection);
     if (selection.kind === "resolved") {
-      const result = host.ast.is.IsNewExpression(node)
+      const result = source.isNew
         ? selection.call.targetMember.declaringType ?? selection.call.targetMember.returnType
         : selection.call.discardResult ? csharpVoidTargetType() : selection.call.targetMember.returnType;
-      if (host.ast.is.IsNewExpression(node)) return csharpSourceValueResult(result);
+      if (source.isNew) return csharpSourceValueResult(result);
       const selected = resolveSourceCallResultWithState(selection.source, queries.sourceFile, state, result);
       return refineCsharpSourceValueResult(selected, optionalAccessTargetType(selected?.selectedType, selection.source.optionalChain));
     }
     if (selection.kind === "source-owned") {
-      if (host.ast.is.IsNewExpression(node)) return csharpSourceValueResult(resolveSourceOwnedConstructionResult(selection.source, queries, state));
+      if (source.isNew) return csharpSourceValueResult(resolveSourceOwnedConstructionResult(selection.source, queries, state));
       const selected = resolveSourceCallResultWithState(selection.source, queries.sourceFile, state, undefined);
       return refineCsharpSourceValueResult(selected, optionalAccessTargetType(selected?.selectedType, selection.source.optionalChain));
     }

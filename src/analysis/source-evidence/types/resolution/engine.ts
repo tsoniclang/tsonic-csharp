@@ -27,7 +27,7 @@ import { resolveFormedCsharpNodeTypeSource, resolveTupleTypeNode as resolveTuple
 import { csharpSourceValueResult } from "./call-results.js";
 import { resolveSelectedValueResultWithState, resolveFormedCsharpNodeQuerySource,
   resolveFormedCsharpTypeQuerySource } from "./public-api.js";
-import { resolveSelectedExpressionResult } from "./expressions.js";
+import { resolveFormedCsharpSelectedExpressionResult } from "./expressions.js";
 import { resolveSourceValueResult } from "./source-references.js";
 import { optionalAccessTargetType as optionalAccessTargetTypeImplementation } from "../../../../policy/types/storage/optional-access.js";
 import { resolveSelectedExpressionType as resolveSelectedExpressionTypeImplementation, resolveMemberAccessTargetType as resolveMemberAccessTargetTypeImplementation, resolveNonNullExpressionType as resolveNonNullExpressionTypeImplementation, resolveProjectThisTargetType as resolveProjectThisTargetTypeImplementation, resolveSelectedReceiverTargetType as resolveSelectedReceiverTargetTypeImplementation, resolveSourceOwnedConstructionResult as resolveSourceOwnedConstructionResultImplementation } from "./expressions.js";
@@ -159,8 +159,8 @@ export function createCsharpTypeResolutionServices(
       resolveSelectedValueWithStateImplementation(scope, ...args),
     resolveSelectedValueResultWithState: (...args: DropScope<Parameters<typeof resolveSelectedValueResultWithState>>) =>
       resolveSelectedValueResultWithState(scope, ...args),
-    resolveSelectedExpressionResult: (...args: DropScope<Parameters<typeof resolveSelectedExpressionResult>>) =>
-      resolveSelectedExpressionResult(scope, ...args),
+    resolveFormedSelectedExpressionResult: (...args: DropScope<Parameters<typeof resolveFormedCsharpSelectedExpressionResult>>) =>
+      resolveFormedCsharpSelectedExpressionResult(scope, ...args),
     resolveSourceValueResult: (...args: DropScope<Parameters<typeof resolveSourceValueResult>>) =>
       resolveSourceValueResult(scope, ...args),
     resolveSelectedType: (...args: DropScope<Parameters<typeof resolveSelectedTypeImplementation>>) =>
