@@ -1,6 +1,7 @@
 import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
-import { sourceTypeSyntaxRoot, sourceNodeIsNativeUnreachable } from "@tsonic/target-api/source";
+import { sourceNodeIsNativeUnreachable } from "@tsonic/target-api/source";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 
 import { formCsharpSourceCallContractSource, resolveFormedSourceCallContract,
   resolveSourceCallContract as resolveSourceCallContractImplementation } from "./call-contracts.js";
@@ -22,9 +23,10 @@ import type { SourceNativeValueGuard } from "@tsonic/target-api/source";
 
 import { resolveSourceCallTypeArguments as resolveSourceCallTypeArgumentsImplementation, resolveSourceCallParameter as resolveSourceCallParameterImplementation, resolveSourceCallParameters as resolveSourceCallParametersImplementation, resolveSourceCallArgumentParameter as resolveSourceCallArgumentParameterImplementation, resolveSourceCallResult as resolveSourceCallResultImplementation, resolveSourceCallResultWithState as resolveSourceCallResultWithStateImplementation } from "./call-api.js";
 import { resolveNode as resolveNodeImplementation, resolveType as resolveTypeImplementation, resolveStorage as resolveStorageImplementation, resolveReadStorage as resolveReadStorageImplementation, catchVariableStorageCarrier as catchVariableStorageCarrierImplementation, resolveValue as resolveValueImplementation, resolveSelectedValue as resolveSelectedValueImplementation, resolveSelectedValueWithState as resolveSelectedValueWithStateImplementation, resolveSelectedType as resolveSelectedTypeImplementation, resolveSelectedResult as resolveSelectedResultImplementation, resolveTypedLocationOperationPointee as resolveTypedLocationOperationPointeeImplementation, resolveTypedLocationOperationPointeeWithState as resolveTypedLocationOperationPointeeWithStateImplementation, withSourceTargetBindings as withSourceTargetBindingsImplementation } from "./public-api.js";
-import { resolveNodeValueWithState as resolveNodeValueWithStateImplementation, resolveTupleTypeNode as resolveTupleTypeNodeImplementation, tupleElementIsRest as tupleElementIsRestImplementation } from "./nodes.js";
+import { resolveFormedCsharpNodeTypeSource, resolveTupleTypeNode as resolveTupleTypeNodeImplementation, tupleElementIsRest as tupleElementIsRestImplementation } from "./nodes.js";
 import { csharpSourceValueResult } from "./call-results.js";
-import { resolveSelectedValueResultWithState } from "./public-api.js";
+import { resolveSelectedValueResultWithState, resolveFormedCsharpNodeQuerySource,
+  resolveFormedCsharpTypeQuerySource } from "./public-api.js";
 import { resolveSelectedExpressionResult } from "./expressions.js";
 import { resolveSourceValueResult } from "./source-references.js";
 import { optionalAccessTargetType as optionalAccessTargetTypeImplementation } from "../../../../policy/types/storage/optional-access.js";
@@ -34,7 +36,7 @@ import { resolveTypeReferenceNode as resolveTypeReferenceNodeImplementation, res
 import { resolveSourceCallInstantiation as resolveSourceCallInstantiationImplementation, resolveSourceCallSelectedType as resolveSourceCallSelectedTypeImplementation, resolveSourceCallableContractType as resolveSourceCallableContractTypeImplementation, inferSourceCallTargetTypeArguments as inferSourceCallTargetTypeArgumentsImplementation, sourceCallSelectedDeclaration as sourceCallSelectedDeclarationImplementation, resolveSourceCallReceiverTargetType as resolveSourceCallReceiverTargetTypeImplementation, sourceCallableTypeParametersMatch as sourceCallableTypeParametersMatchImplementation, sourceValueDeclaration as sourceValueDeclarationImplementation, sourceValueDeclarationSyntax as sourceValueDeclarationSyntaxImplementation } from "./calls.js";
 import { resolveAuthoredAndSelectedSourceType as resolveAuthoredAndSelectedSourceTypeImplementation,
   resolveFormedAuthoredAndSelectedSourceType, type CsharpAuthoredTypeSelectionEvidence } from "./selected-values.js";
-import { resolveTypeWithState as resolveTypeWithStateImplementation, resolveDirectSourceFacts as resolveDirectSourceFactsImplementation, resolveProviderType as resolveProviderTypeImplementation, resolveSemanticTypeArguments as resolveSemanticTypeArgumentsImplementation } from "./semantic-types.js";
+import { resolveFormedCsharpSemanticTypeSource, resolveDirectSourceFacts as resolveDirectSourceFactsImplementation, resolveProviderType as resolveProviderTypeImplementation, resolveSemanticTypeArguments as resolveSemanticTypeArgumentsImplementation } from "./semantic-types.js";
 import { resolveSourceProfileType as resolveSourceProfileTypeImplementation, resolveUnionType as resolveUnionTypeImplementation, resolveCallableType as resolveCallableTypeImplementation, resolveCallableEvidence as resolveCallableEvidenceImplementation, resolveSignatureParameterEvidence as resolveSignatureParameterEvidenceImplementation, resolveSourceTypeComponentEvidence as resolveSourceTypeComponentEvidenceImplementation } from "./source-profiles.js";
 import { generatorProtocol as generatorProtocolImplementation, generatorResultProtocol as generatorResultProtocolImplementation } from "../../../../policy/operations/source-profiles/type-carriers.js";
 import { resolveSelectedSymbolType as resolveSelectedSymbolTypeImplementation, resolveProjectSourceSemanticType as resolveProjectSourceSemanticTypeImplementation, resolveProjectSourceType as resolveProjectSourceTypeImplementation, projectSourceDeclarationTargetType as projectSourceDeclarationTargetTypeImplementation } from "./project-types.js";
@@ -44,12 +46,24 @@ import { formCsharpProjectSemanticSource, resolveFormedCsharpProjectSemanticType
 import { createCsharpTypeResolutionQueryCache } from "./query-cache.js";
 import { bindCsharpStructuralTypeApplication, formCsharpStructuralTypeApplication,
   resolveCsharpStructuralMemberChildren, resolveCsharpStructuralPropertyType } from "./structural-applications.js";
+import { formCsharpNodeQuerySource, formCsharpTypeQuerySource,
+  formCsharpNodeTypeSource, formCsharpSemanticTypeSource,
+  type CsharpNodeQuerySource, type CsharpTypeQuerySource,
+  type CsharpNodeTypeSource, type CsharpSemanticTypeSource } from "./root-sources.js";
 
 import type { CsharpTypeResolutionScope } from "./scope.js";
 type DropScope<Arguments extends readonly unknown[]> =
   Arguments extends readonly [unknown, ...infer Rest] ? Rest : never;
 
 export interface CsharpTypeResolutionServices {
+  readonly nodeQuerySource: (...args: DropScope<Parameters<typeof formCsharpNodeQuerySource>>) => CsharpNodeQuerySource;
+  readonly completeNodeQuery: (source: CsharpNodeQuerySource) => ReturnType<typeof resolveFormedCsharpNodeQuerySource>;
+  readonly typeQuerySource: (...args: DropScope<Parameters<typeof formCsharpTypeQuerySource>>) => CsharpTypeQuerySource;
+  readonly completeTypeQuery: (source: CsharpTypeQuerySource) => TargetTypeRef | undefined;
+  readonly nodeRootSource: (...args: DropScope<Parameters<typeof formCsharpNodeTypeSource>>) => CsharpNodeTypeSource;
+  readonly completeNodeRoot: (source: CsharpNodeTypeSource) => ReturnType<typeof resolveFormedCsharpNodeTypeSource>;
+  readonly semanticRootSource: (...args: DropScope<Parameters<typeof formCsharpSemanticTypeSource>>) => CsharpSemanticTypeSource;
+  readonly completeSemanticRoot: (source: CsharpSemanticTypeSource) => TargetTypeRef | undefined;
   readonly callContractSource: (...args: DropScope<Parameters<typeof formCsharpSourceCallContractSource>>) =>
     ReturnType<typeof formCsharpSourceCallContractSource>;
   readonly completeCallContract: (...args: DropScope<Parameters<typeof resolveFormedSourceCallContract>>) =>
@@ -93,19 +107,27 @@ export function createCsharpTypeResolutionServices(
     resolveNode: (
       node: Node | undefined,
       sourceFile?: SourceFile,
-    ) => queryCache.resolveNode(
-      node,
-      sourceFile,
-      () => resolveNodeImplementation(scope, node, sourceFile),
-    ),
+    ) => resolveNodeImplementation(scope, node, sourceFile),
     resolveType: (
       type: Type | undefined,
       sourceFile: SourceFile,
-    ) => queryCache.resolveType(
-      type,
-      sourceFile,
-      () => resolveTypeImplementation(scope, type, sourceFile),
-    ),
+    ) => resolveTypeImplementation(scope, type, sourceFile),
+    nodeQuerySource: (node: Node | undefined, sourceFile?: SourceFile) =>
+      queryCache.nodeQuerySource(node, sourceFile, () => formCsharpNodeQuerySource(scope, node, sourceFile)),
+    completeNodeQuery(source: CsharpNodeQuerySource) {
+      if (source.root.node !== source.node || source.root.sourceFile !== source.sourceFile) {
+        return failTargetAnalysisInvariant("tsonic-csharp", "Node query completion requires its exact retained root.", source.node);
+      }
+      return queryCache.resolveNode(source, () => resolveFormedCsharpNodeQuerySource(scope, source));
+    },
+    typeQuerySource: (type: Type | undefined, sourceFile: SourceFile) =>
+      queryCache.typeQuerySource(type, sourceFile, () => formCsharpTypeQuerySource(scope, type, sourceFile)),
+    completeTypeQuery(source: CsharpTypeQuerySource) {
+      if (source.root.type !== source.type || source.root.sourceFile !== source.sourceFile) {
+        return failTargetAnalysisInvariant("tsonic-csharp", "Type query completion requires its exact retained root.", source.sourceFile);
+      }
+      return queryCache.resolveType(source, () => resolveFormedCsharpTypeQuerySource(scope, source));
+    },
     resolveStorage: (
       node: Node | undefined,
       sourceFile?: SourceFile,
@@ -169,26 +191,22 @@ export function createCsharpTypeResolutionServices(
       node: Node | undefined,
       sourceFile: SourceFile | undefined,
       state: CsharpTypeResolutionState,
-    ) => {
+    ) => methods.resolveFormedNodeTypeSource(formCsharpNodeTypeSource(scope, node, sourceFile, state)),
+    resolveFormedNodeTypeSource: (
+      source: CsharpNodeTypeSource,
+    ): ReturnType<typeof resolveFormedCsharpNodeTypeSource> => {
+      const node = source.node;
       if (node === undefined) {
         return undefined;
       }
       if (scope.activeNodes.has(node)) {
-        const root = sourceTypeSyntaxRoot(host.ast, node);
-        if (!host.ast.is.IsTypeReferenceNode(root) && !host.ast.is.IsUnionTypeNode(root) && !host.ast.is.IsTypeLiteralNode(root)) return undefined;
-        const queries = sourceFile === undefined ? host.semanticsFor(node) : host.semantics(sourceFile);
-        const type = queries.types.authoredType(node);
+        const type = source.cycle?.type;
         return type === undefined ? undefined : csharpSourceValueResult(
           scope.sourceUnionDefinitions.reference(type) ?? host.structuralTypes.resolveReference(type));
       }
       scope.activeNodes.add(node);
       try {
-        return resolveNodeValueWithStateImplementation(
-          scope,
-          node,
-          sourceFile,
-          state,
-        );
+        return resolveFormedCsharpNodeTypeSource(scope, source);
       } finally {
         scope.activeNodes.delete(node);
       }
@@ -260,7 +278,9 @@ export function createCsharpTypeResolutionServices(
       type: Type | undefined,
       sourceFile: SourceFile,
       state: CsharpTypeResolutionState,
-    ) => {
+    ) => methods.resolveFormedSemanticTypeSource(formCsharpSemanticTypeSource(scope, type, sourceFile, state)),
+    resolveFormedSemanticTypeSource: (source: CsharpSemanticTypeSource): TargetTypeRef | undefined => {
+      const type = source.type;
       if (type === undefined) {
         return undefined;
       }
@@ -269,7 +289,7 @@ export function createCsharpTypeResolutionServices(
       if (activeTypes.has(type)) return undefined;
       activeTypes.add(type);
       try {
-        return resolveTypeWithStateImplementation(scope, type, sourceFile, state);
+        return resolveFormedCsharpSemanticTypeSource(scope, source);
       } finally {
         activeTypes.delete(type);
       }
@@ -375,6 +395,16 @@ export function createCsharpTypeResolutionServices(
     },
   });
   return Object.freeze({ policy, recursive,
+    nodeQuerySource: methods.nodeQuerySource,
+    completeNodeQuery: methods.completeNodeQuery,
+    typeQuerySource: methods.typeQuerySource,
+    completeTypeQuery: methods.completeTypeQuery,
+    nodeRootSource: (...args: DropScope<Parameters<typeof formCsharpNodeTypeSource>>) =>
+      formCsharpNodeTypeSource(scope, ...args),
+    completeNodeRoot: methods.resolveFormedNodeTypeSource,
+    semanticRootSource: (...args: DropScope<Parameters<typeof formCsharpSemanticTypeSource>>) =>
+      formCsharpSemanticTypeSource(scope, ...args),
+    completeSemanticRoot: methods.resolveFormedSemanticTypeSource,
     callContractSource: (...args: DropScope<Parameters<typeof formCsharpSourceCallContractSource>>) =>
       formCsharpSourceCallContractSource(scope, ...args),
     completeCallContract: (...args: DropScope<Parameters<typeof resolveFormedSourceCallContract>>) =>

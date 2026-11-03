@@ -23,13 +23,20 @@ import type { CsharpSourceCallResult } from "../../../../target-model/operations
 import type { CsharpCollectedObjectShapeMembers } from "../../../objects/shapes/member-source.js";
 import type { CsharpCompletedStructuralMemberChildren, CsharpStructuralPropertyApplication,
   CsharpStructuralTypeApplication, CsharpStructuralTypeSource } from "./structural-applications.js";
+import type { CsharpNodeQuerySource, CsharpTypeQuerySource, CsharpNodeTypeSource, CsharpSemanticTypeSource } from "./root-sources.js";
 export interface CsharpTypeResolutionScope {
+  nodeQuerySource(node: Node | undefined, sourceFile?: SourceFile): CsharpNodeQuerySource;
+  completeNodeQuery(source: CsharpNodeQuerySource): CsharpNodeTypeResolution | undefined;
+  typeQuerySource(type: Type | undefined, sourceFile: SourceFile): CsharpTypeQuerySource;
+  completeTypeQuery(source: CsharpTypeQuerySource): TargetTypeRef | undefined;
   formStructuralTypeApplication(collection: CsharpCollectedObjectShapeMembers): CsharpStructuralTypeSource;
   resolveStructuralPropertyType(application: CsharpStructuralPropertyApplication): TargetTypeRef | undefined;
   resolveStructuralMemberChildren(application: CsharpStructuralTypeApplication,
     memberIndex: number): CsharpCompletedStructuralMemberChildren | undefined;
   resolveNodeValueWithState(node: Node | undefined, sourceFile: SourceFile | undefined,
     state: CsharpTypeResolutionState): CsharpSourceCallResult | undefined;
+  resolveFormedNodeTypeSource(source: CsharpNodeTypeSource): CsharpSourceCallResult | undefined;
+  resolveFormedSemanticTypeSource(source: CsharpSemanticTypeSource): TargetTypeRef | undefined;
   resolveSelectedExpressionResult(node: Node, queries: SourceFileSemantics,
     state: CsharpTypeResolutionState): CsharpSourceCallResult | undefined;
   resolveSelectedValueResultWithState(node: Node, selectedType: Type, sourceFile: SourceFile,

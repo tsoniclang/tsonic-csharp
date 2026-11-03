@@ -23,6 +23,7 @@ import { reconcileCsharpSelectedTargetType, retainCsharpBroadValueCarrier } from
 import { selectCsharpAuthoredUnionRefinement } from "./source-union-refinement.js";
 import { csharpBoundSourceType, csharpSourceBindings, csharpSourceTemplateState } from "./type-bindings.js";
 import { csharpConditionalDeclaration, resolveCsharpConditionalApplication } from "./conditional-types.js";
+import { resolveStructuralTypeWithState } from "./root-sources.js";
 import { csharpSourceStorageComponentContext } from "./source-storage-projection.js";
 import { bindCsharpSourceTypeArguments } from "./generic-arguments.js";
 import { csharpTargetParameterValueType } from "../../../../target-model/types/member-facts.js";
@@ -164,12 +165,13 @@ export function resolveTypeReferenceNode(
 }
 
 export function resolveCheckerTransformedSourceType(
-  { host, resolveCallableType, resolveEvidenceNodesToCommonTarget, resolveStandardSourceTypeTransformation, resolveTypeWithState }: CsharpTypeResolutionScope,
+  scope: CsharpTypeResolutionScope,
   authoredRoot: Node,
   selectedType: Type,
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
+  const { host, resolveCallableType, resolveEvidenceNodesToCommonTarget, resolveStandardSourceTypeTransformation, resolveTypeWithState } = scope;
   const standard = queries.types.standardTransformation(
     authoredRoot,
     selectedType,
@@ -232,7 +234,7 @@ export function resolveCheckerTransformedSourceType(
   if (callable !== undefined) {
     return callable;
   }
-  return host.structuralTypes.resolveType(
+  return resolveStructuralTypeWithState(scope,
     selectedType,
     queries.sourceFile,
     nextState(state),
@@ -241,7 +243,7 @@ export function resolveCheckerTransformedSourceType(
 }
 
 export function resolveStandardSourceTypeTransformation(
-  { host, resolveCallableEvidence, resolveSignatureParameterEvidence, resolveSignatureParameterListTarget, resolveSourceTypeComponentEvidence }: CsharpTypeResolutionScope,
+  scope: CsharpTypeResolutionScope,
   transformation: NonNullable<
     ReturnType<SourceFileSemantics["types"]["standardTransformation"]>
   >,
@@ -250,6 +252,7 @@ export function resolveStandardSourceTypeTransformation(
   authoredRoot: Node,
   selectedType: Type,
 ): TargetTypeRef | undefined {
+  const { resolveCallableEvidence, resolveSignatureParameterEvidence, resolveSignatureParameterListTarget, resolveSourceTypeComponentEvidence } = scope;
   if (transformation.kind === "unresolved") {
     return undefined;
   }
@@ -277,7 +280,7 @@ export function resolveStandardSourceTypeTransformation(
         );
   }
   if (transformation.kind === "structural") {
-    return host.structuralTypes.resolveType(
+    return resolveStructuralTypeWithState(scope,
       selectedType,
       queries.sourceFile,
       nextState(state),

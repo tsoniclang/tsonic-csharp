@@ -18,7 +18,9 @@ import { sourceFactSubjectsForNode } from "./source-evidence.js";
 
 import { retainCsharpUnionObjectShapes } from "./source-union-refinement.js";
 import { resolveCsharpProviderIndexedAccess } from "./indexed-access.js";
-import { csharpSourceStorageContext, csharpSourceStorageComponentContext } from "./source-storage-projection.js";
+import { csharpSourceStorageComponentContext } from "./source-storage-projection.js";
+import { formCsharpNodeTypeSource, type CsharpNodeTypeSource } from "./root-sources.js";
+import { resolveFormedCsharpProjectReference } from "./project-types.js";
 
 import { selectCsharpParameterListCarrier } from "../../../../policy/types/callables/parameter-list.js";
 import { resolveCsharpNativeParameterCarrier, selectCsharpContextualParameterCarrier } from "./source-references.js";
@@ -30,36 +32,31 @@ export function resolveNodeValueWithState(
   sourceFile: SourceFile | undefined,
   state: CsharpTypeResolutionState,
 ): CsharpSourceCallResult | undefined {
-  const selected = resolveNodeResultWithState(scope, node, sourceFile, state);
-  return node === undefined ? selected : refineCsharpSourceValueResult(selected,
-    resolveCsharpNativeParameterCarrier(scope, node, selected?.selectedType, state));
+  return resolveFormedCsharpNodeTypeSource(scope, formCsharpNodeTypeSource(scope, node, sourceFile, state));
+}
+
+export function resolveFormedCsharpNodeTypeSource(
+  scope: CsharpTypeResolutionScope,
+  source: CsharpNodeTypeSource,
+): CsharpSourceCallResult | undefined {
+  const selected = resolveNodeResultWithState(scope, source);
+  return source.node === undefined ? selected : refineCsharpSourceValueResult(selected,
+    resolveCsharpNativeParameterCarrier(scope, source.node, selected?.selectedType, source.originalState));
 }
 
 function resolveNodeResultWithState(
   scope: CsharpTypeResolutionScope,
-  node: Node | undefined,
-  sourceFile: SourceFile | undefined,
-  state: CsharpTypeResolutionState,
+  source: CsharpNodeTypeSource,
 ): CsharpSourceCallResult | undefined {
   const { host, resolveCallableType, resolveDirectSourceFacts, resolveNodeWithState, resolveProjectThisTargetType, resolveSelectedExpressionResult, resolveSourceValueResult, resolveTupleTypeNode, resolveTypeReferenceNode, resolveTypeWithState } = scope;
-  if (node === undefined) return undefined;
-  if (state.depth > maximumTypeResolutionDepth) failTargetCompilerResourceLimit("tsonic-csharp",
-    "Selected native source-node type resolution", "depth", maximumTypeResolutionDepth, node);
-  state = csharpSourceStorageContext(host, state, node);
-  if (
-    host.ast.is.IsSourceFile(node) ||
-    host.ast.is.IsImportDeclaration(node) ||
-    host.ast.is.IsImportClause(node) ||
-    host.ast.kindName(node) === "KindEndOfFile"
-  ) {
-    return undefined;
-  }
-  const queries = sourceFile === undefined
-    ? host.semanticsFor(node)
-    : host.semantics(sourceFile);
+  if (source.node === undefined) return undefined;
+  if (source.state.depth > maximumTypeResolutionDepth) failTargetCompilerResourceLimit("tsonic-csharp",
+    "Selected native source-node type resolution", "depth", maximumTypeResolutionDepth, source.node);
+  if (source.kind === "unavailable") return undefined;
+  const { node, queries, state } = source;
   const scopedTargetType = host.representations.scopedTargetType(node);
   if (scopedTargetType !== undefined) {
-    const selected = queries.types.expressionType(node);
+    const selected = source.selectedType;
     return selected === undefined ? csharpSourceValueResult(scopedTargetType)
       : scope.resolveSelectedValueResultWithState(node, selected, queries.sourceFile, state);
   }
@@ -211,7 +208,7 @@ function resolveNodeResultWithState(
   if (projectThis !== undefined) {
     return csharpSourceValueResult(projectThis);
   }
-  const selectedType = host.ast.is.IsIdentifier(node) ? queries.types.expressionType(node) : undefined;
+  const selectedType = host.ast.is.IsIdentifier(node) ? source.selectedType : undefined;
   const declaration = selectedType === undefined ? undefined : host.navigation.referenceFor(node)?.declaration;
   const declaredValue = selectedType !== undefined && scope.sourceValueDeclaration(node, declaration) !== undefined
     ? scope.resolveSelectedValueResultWithState(node, selectedType, queries.sourceFile, state)
@@ -219,37 +216,28 @@ function resolveNodeResultWithState(
   if (declaredValue !== undefined) {
     return declaredValue;
   }
-  return csharpSourceValueResult(resolveFallbackNodeCarrier(scope, node, queries, state));
+  return csharpSourceValueResult(resolveFallbackNodeCarrier(scope, source));
 }
 
 function resolveFallbackNodeCarrier(
   scope: CsharpTypeResolutionScope,
-  node: Node,
-  queries: SourceFileSemantics,
-  state: CsharpTypeResolutionState,
+  source: Extract<CsharpNodeTypeSource, { readonly kind: "node" }>,
 ): TargetTypeRef | undefined {
-  const { host, resolveProjectSourceType, resolveTypeWithState } = scope;
+  const { host } = scope;
+  const { node, queries, state } = source;
   if (!host.ast.is.IsClassDeclaration(node) && !host.ast.is.IsInterfaceDeclaration(node)) {
-    const constructor = resolveCsharpConstructorValueType(scope, queries.types.expressionType(node), queries, state);
+    const constructor = resolveCsharpConstructorValueType(scope, source.selectedType, queries, state);
     if (constructor !== undefined) return constructor;
   }
-  const projectType = resolveProjectSourceType(node, queries.sourceFile, state);
+  const projectType = source.project === undefined ? undefined : resolveFormedCsharpProjectReference(scope, source.project);
   if (projectType !== undefined) {
     return projectType;
   }
-  const structuralType = host.structuralTypes.resolveNode(
-    node,
-    queries.sourceFile,
-    nextState(state),
-  );
+  const structuralType = host.structuralTypes.completeNodeSource(source.structural);
   if (structuralType !== undefined) {
     return structuralType;
   }
-  return resolveTypeWithState(
-    queries.types.expressionType(node),
-    queries.sourceFile,
-    nextState(state),
-  );
+  return scope.resolveFormedSemanticTypeSource(source.semantic);
 }
 
 export function resolveTupleTypeNode(

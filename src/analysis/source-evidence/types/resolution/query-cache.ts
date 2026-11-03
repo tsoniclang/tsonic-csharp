@@ -2,18 +2,28 @@ import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import type { CsharpArrayLiteralSelection } from "../../../../target-model/records/operations/array-literals.js";
 import type { CsharpNodeTypeResolution } from "../../../../policy/model/type-resolution.js";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
+import type { CsharpNodeQuerySource, CsharpTypeQuerySource } from "./root-sources.js";
 
 type NodeTargetCache<Value> = WeakMap<
   Node,
   Map<SourceFile | undefined, Value | null>
 >;
 
+interface SourceQueryEntry<Source, Value> {
+  readonly source: Source;
+  result?: { readonly value: Value | undefined };
+}
+
 export interface CsharpTypeResolutionQueryCache {
+  nodeQuerySource(node: Node | undefined, sourceFile: SourceFile | undefined,
+    form: () => CsharpNodeQuerySource): CsharpNodeQuerySource;
+  typeQuerySource(type: Type | undefined, sourceFile: SourceFile,
+    form: () => CsharpTypeQuerySource): CsharpTypeQuerySource;
   resolveArrayLiteral(node: Node, sourceFile: SourceFile, root: boolean,
     compute: () => CsharpArrayLiteralSelection): CsharpArrayLiteralSelection;
   resolveNode(
-    node: Node | undefined,
-    sourceFile: SourceFile | undefined,
+    source: CsharpNodeQuerySource,
     compute: () => CsharpNodeTypeResolution | undefined,
   ): CsharpNodeTypeResolution | undefined;
   resolveStorage(
@@ -27,8 +37,7 @@ export interface CsharpTypeResolutionQueryCache {
     compute: () => TargetTypeRef | undefined,
   ): TargetTypeRef | undefined;
   resolveType(
-    type: Type | undefined,
-    sourceFile: SourceFile,
+    source: CsharpTypeQuerySource,
     compute: () => TargetTypeRef | undefined,
   ): TargetTypeRef | undefined;
 }
@@ -36,12 +45,13 @@ export interface CsharpTypeResolutionQueryCache {
 export function createCsharpTypeResolutionQueryCache():
   CsharpTypeResolutionQueryCache {
   let activeQueryDepth = 0;
-  const nodeTypes: NodeTargetCache<CsharpNodeTypeResolution> = new WeakMap();
+  const nodeTypes = new WeakMap<Node, Map<SourceFile | undefined,
+    SourceQueryEntry<CsharpNodeQuerySource, CsharpNodeTypeResolution>>>();
   const storageTypes: NodeTargetCache<TargetTypeRef> = new WeakMap();
   const readStorageTypes: NodeTargetCache<TargetTypeRef> = new WeakMap();
   const semanticTypes = new WeakMap<
     Type,
-    WeakMap<SourceFile, TargetTypeRef | null>
+    WeakMap<SourceFile, SourceQueryEntry<CsharpTypeQuerySource, TargetTypeRef>>
   >();
   const arrays = new WeakMap<Node, WeakMap<SourceFile, CsharpArrayLiteralSelection>>();
 
@@ -76,37 +86,29 @@ export function createCsharpTypeResolutionQueryCache():
     }
   };
 
-  const resolveTypeQuery = (
-    type: Type | undefined,
-    sourceFile: SourceFile,
-    compute: () => TargetTypeRef | undefined,
-  ): TargetTypeRef | undefined => {
-    if (type === undefined) {
-      return compute();
-    }
-    const cached = semanticTypes.get(type)?.get(sourceFile);
-    if (cached !== undefined) {
-      return cached ?? undefined;
-    }
-    const cacheResult = activeQueryDepth === 0;
-    activeQueryDepth += 1;
-    try {
-      const result = compute();
-      if (cacheResult) {
-        let bySourceFile = semanticTypes.get(type);
-        if (bySourceFile === undefined) {
-          bySourceFile = new WeakMap();
-          semanticTypes.set(type, bySourceFile);
-        }
-        bySourceFile.set(sourceFile, result ?? null);
-      }
-      return result;
-    } finally {
-      activeQueryDepth -= 1;
-    }
-  };
-
   return Object.freeze({
+    nodeQuerySource(node: Node | undefined, sourceFile: SourceFile | undefined,
+      form: () => CsharpNodeQuerySource): CsharpNodeQuerySource {
+      if (node === undefined) return form();
+      let files = nodeTypes.get(node);
+      const previous = files?.get(sourceFile);
+      if (previous !== undefined) return previous.source;
+      const source = form();
+      if (files === undefined) { files = new Map(); nodeTypes.set(node, files); }
+      files.set(sourceFile, { source });
+      return source;
+    },
+    typeQuerySource(type: Type | undefined, sourceFile: SourceFile,
+      form: () => CsharpTypeQuerySource): CsharpTypeQuerySource {
+      if (type === undefined) return form();
+      let files = semanticTypes.get(type);
+      const previous = files?.get(sourceFile);
+      if (previous !== undefined) return previous.source;
+      const source = form();
+      if (files === undefined) { files = new WeakMap(); semanticTypes.set(type, files); }
+      files.set(sourceFile, { source });
+      return source;
+    },
     resolveArrayLiteral(
       node: Node,
       sourceFile: SourceFile,
@@ -129,11 +131,21 @@ export function createCsharpTypeResolutionQueryCache():
       } finally { activeQueryDepth -= 1; }
     },
     resolveNode(
-      node: Node | undefined,
-      sourceFile: SourceFile | undefined,
+      source: CsharpNodeQuerySource,
       compute: () => CsharpNodeTypeResolution | undefined,
     ) {
-      return resolveNodeQuery(nodeTypes, node, sourceFile, compute);
+      if (source.node === undefined) return compute();
+      const entry = nodeTypes.get(source.node)?.get(source.sourceFile);
+      if (entry?.source !== source) return failTargetAnalysisInvariant("tsonic-csharp",
+        "A node query requires its canonical retained source request.", source.node);
+      if (entry.result !== undefined) return entry.result.value;
+      const cacheResult = activeQueryDepth === 0;
+      activeQueryDepth += 1;
+      try {
+        const value = compute();
+        if (cacheResult) entry.result = Object.freeze({ value });
+        return value;
+      } finally { activeQueryDepth -= 1; }
     },
     resolveStorage(
       node: Node | undefined,
@@ -149,6 +161,19 @@ export function createCsharpTypeResolutionQueryCache():
     ) {
       return resolveNodeQuery(readStorageTypes, node, sourceFile, compute);
     },
-    resolveType: resolveTypeQuery,
+    resolveType(source: CsharpTypeQuerySource, compute: () => TargetTypeRef | undefined) {
+      if (source.type === undefined) return compute();
+      const entry = semanticTypes.get(source.type)?.get(source.sourceFile);
+      if (entry?.source !== source) return failTargetAnalysisInvariant("tsonic-csharp",
+        "A type query requires its canonical retained source request.", source.sourceFile);
+      if (entry.result !== undefined) return entry.result.value;
+      const cacheResult = activeQueryDepth === 0;
+      activeQueryDepth += 1;
+      try {
+        const value = compute();
+        if (cacheResult) entry.result = Object.freeze({ value });
+        return value;
+      } finally { activeQueryDepth -= 1; }
+    },
   });
 }

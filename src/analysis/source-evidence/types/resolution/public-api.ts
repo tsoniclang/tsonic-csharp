@@ -21,25 +21,39 @@ import { resolveCsharpInstanceType } from "./instance-tests.js";
 import type { CsharpNodeTypeResolution } from "../../../../policy/model/type-resolution.js";
 import type { CsharpSourceCallResult } from "../../../../target-model/operations/source-call-results.js";
 import { csharpSourceValueResult, refineCsharpSourceValueResult } from "./call-results.js";
+import type { CsharpNodeQuerySource, CsharpTypeQuerySource } from "./root-sources.js";
 
 export function resolveNode(
-  { resolveNodeValueWithState }: CsharpTypeResolutionScope,
+  scope: CsharpTypeResolutionScope,
   node: Node | undefined,
   sourceFile?: SourceFile,
 ): CsharpNodeTypeResolution | undefined {
+  return scope.completeNodeQuery(scope.nodeQuerySource(node, sourceFile));
+}
+
+export function resolveFormedCsharpNodeQuerySource(
+  scope: Pick<CsharpTypeResolutionScope, "resolveFormedNodeTypeSource">,
+  source: CsharpNodeQuerySource,
+): CsharpNodeTypeResolution | undefined {
   let rejected: Extract<CsharpNodeTypeResolution, { readonly kind: "rejected" }> | undefined;
-  const selected = resolveNodeValueWithState(node, sourceFile, { depth: 0, rejectNativeResolution: rejection => {
-    rejected ??= rejection;
-  } });
+  const selected = source.captureRejections(rejection => { rejected ??= rejection; },
+    () => scope.resolveFormedNodeTypeSource(source.root));
   return rejected ?? (selected === undefined ? undefined : Object.freeze({ kind: "resolved", sourceResult: selected }));
 }
 
+export function resolveFormedCsharpTypeQuerySource(
+  scope: Pick<CsharpTypeResolutionScope, "resolveFormedSemanticTypeSource">,
+  source: CsharpTypeQuerySource,
+): TargetTypeRef | undefined {
+  return scope.resolveFormedSemanticTypeSource(source.root);
+}
+
 export function resolveType(
-  { resolveTypeWithState }: CsharpTypeResolutionScope,
+  scope: CsharpTypeResolutionScope,
   type: Type | undefined,
   sourceFile: SourceFile,
 ): TargetTypeRef | undefined {
-  return resolveTypeWithState(type, sourceFile, { depth: 0 });
+  return scope.completeTypeQuery(scope.typeQuerySource(type, sourceFile));
 }
 
 export function resolveStorage(
