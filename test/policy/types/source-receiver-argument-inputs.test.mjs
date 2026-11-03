@@ -105,7 +105,7 @@ test("the real common call former retains receiver rows before the original nati
     return [{ declaration, argumentType }];
   } } };
   const callableSource = { source, sourceFile: file, queries, checked: { declaration: undefined } };
-  const host = { ast: { is: { IsNewExpression: () => true, IsThisTypeNode: () => false }, getSourceFile: () => undefined, kindName: () => "unit-non-this" },
+  const host = { ast: { is: { IsNewExpression: () => true, IsThisTypeNode: () => false, IsClassDeclaration: () => false }, getSourceFile: () => undefined, kindName: () => "unit-non-this" },
     representations: { sourceCallableSource: (call, sourceFile) => {
       assert.equal(call === source && sourceFile === file, true, "the original selected call and file are retained");
       return callableSource;

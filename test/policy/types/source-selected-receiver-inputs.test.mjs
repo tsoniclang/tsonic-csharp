@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { formCsharpSelectedReceiverSource, completeCsharpSelectedReceiver } from "../../../dist/analysis/source-evidence/types/resolution/receiver-completions.js";
+import { formCsharpSelectedReceiverSource, completeCsharpSelectedReceiver, formCsharpSourceCallReceiverSource } from "../../../dist/analysis/source-evidence/types/resolution/receiver-completions.js";
 import { completeCsharpSourceCallableTypeSource } from "../../../dist/analysis/source-evidence/types/resolution/call-type-source.js";
 
 function fixture() {
@@ -101,8 +101,9 @@ test("synthetic selected receiver rejects the retired raw input and a foreign D 
 
 test("the real callable generator transports the same selected receiver Source into its chosen child", () => {
   const unit = fixture();
-  const receiverSource = formCsharpSelectedReceiverSource(unit.host, unit.receiver, unit.queries);
-  const call = { call: {}, sourceReceiver: unit.receiver };
+  const call = { call: {}, sourceCallee: { expression: {} }, sourceReceiver: unit.receiver };
+  const receiverSource = formCsharpSourceCallReceiverSource({ ...unit.host,
+    ast: { ...unit.host.ast, is: { IsNewExpression: () => false } } }, call, unit.queries);
   const state = { depth: 3 };
   const type = { kind: "source-primitive", name: "int32" };
   const input = { source: call, sourceFile: unit.queries.sourceFile, callable: { nativeSignature: {} }, type, state,
@@ -116,6 +117,7 @@ test("the real callable generator transports the same selected receiver Source i
     next.value.receiverInput.state === state, true, "chosen receiver keeps the actual Source and caller state");
   const last = completion.next({ kind: "receiver", request: next.value, completion: undefined });
   assert.equal(last.done === true && last.value?.input === input && last.value.type === type, true);
-  assert.throws(() => completeCsharpSourceCallableTypeSource({ ...input, receiverSource: { ...receiverSource, receiver: {} } }).next(),
+  assert.throws(() => completeCsharpSourceCallableTypeSource({ ...input, receiverSource: { ...receiverSource,
+    selected: { ...receiverSource.selected, receiver: {} } } }).next(),
     /exact retained Source receiver/);
 });
