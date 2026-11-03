@@ -182,4 +182,11 @@ export const callablesCarrierRegistry = Object.freeze([
     responsibility: "callables/resolve-signature-parameter-evidence",
     frozen: false,
   },
+  {
+    id: "src/analysis/source-evidence/types/resolution/source-profiles.ts#resolveFormedCsharpSignatureParameterEvidence",
+    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
+    declaration: { module: "src/analysis/source-evidence/types/resolution/source-profiles.ts", symbol: "resolveFormedCsharpSignatureParameterEvidence" },
+    responsibility: "callables/resolve-signature-parameter-evidence",
+    frozen: false,
+  },
 ]);

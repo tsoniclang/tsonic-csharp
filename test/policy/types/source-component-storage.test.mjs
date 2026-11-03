@@ -3,7 +3,10 @@ import test from "node:test";
 import { createCompilerSessionFromFiles } from "@tsonic/tsts";
 import { createTargetSourceProgram, sourceCallableValueParameters } from "@tsonic/target-api/source";
 import { createSourceStorageQuery } from "@tsonic/target-api/analysis";
-import { resolveCallableEvidence, resolveSignatureParameterEvidence, resolveSourceProfileType, resolveSourceTypeComponentEvidence } from "../../../dist/analysis/source-evidence/types/resolution/source-profiles.js";
+import { resolveCallableEvidence, resolveFormedCsharpCallableEvidence, resolveSignatureParameterEvidence,
+  resolveFormedCsharpSignatureParameterEvidence, resolveSourceProfileType,
+  resolveSourceTypeComponentEvidence, resolveFormedCsharpSourceTypeComponentEvidence } from "../../../dist/analysis/source-evidence/types/resolution/source-profiles.js";
+import { formCsharpSourceTypeComponentSource } from "../../../dist/analysis/source-evidence/types/resolution/type-component-source.js";
 import { csharpSourceStorageComponentContext } from "../../../dist/analysis/source-evidence/types/resolution/source-storage-projection.js";
 import { createSourceErrorProviderFixture } from "../../fixtures/dotnet-provider/source-error-bindings.mjs";
 import { getCsharpDelegateSignature, targetTypeRefEquals } from "../../../dist/target-model/types/index.js";
@@ -39,7 +42,9 @@ test("implementation signature evidence uses the original contextual tuple param
   let formalSelections = 0;
   let physicalSelections = 0;
   const scope = {
-    host: { ast: source.ast, sourceStorage: storage, objectShapes: {
+    host: { ast: source.ast, sourceStorage: storage,
+      hasSemantics: selectedFile => selectedFile === file,
+      semantics: selectedFile => source.semantics.forFile(selectedFile), objectShapes: {
       resolveNativeParameter(owner, parameter, type) {
         assert.equal(owner === implementation && parameter === incoming && targetTypeRefEquals(type, native), true,
           "physical input selection consumes the same complete contextual tuple");
@@ -49,7 +54,8 @@ test("implementation signature evidence uses the original contextual tuple param
     } },
     sourceValueDeclarationSyntax: node => ({ type: source.ast.typeNode(node),
       initializer: source.ast.as.AsParameterDeclaration(node).Initializer }),
-    resolveSourceTypeComponentEvidence(component) {
+    resolveFormedSourceTypeComponentEvidence(componentSource) {
+      const component = componentSource.component;
       if (component.declaration === implementation || component.authoredTypeNode !== undefined &&
         source.ast.kindName(component.authoredTypeNode) === "KindBooleanKeyword") return { kind: "source-primitive", name: "bool" };
       assert.equal(component.declaration !== incoming && component.authoredTypeNode !== undefined &&
@@ -59,9 +65,9 @@ test("implementation signature evidence uses the original contextual tuple param
       return native;
     },
   };
-  scope.host.representations = { genericProjections: () => [] };
-  scope.resolveSignatureParameterEvidence = (...arguments_) => resolveSignatureParameterEvidence(scope, ...arguments_);
-  scope.resolveCallableEvidence = (...arguments_) => resolveCallableEvidence(scope, ...arguments_);
+  scope.host.projectTypeCatalog = { genericProjections: () => [] };
+  scope.resolveFormedSignatureParameterEvidence = input => resolveFormedCsharpSignatureParameterEvidence(scope, input);
+  scope.resolveFormedCallableEvidence = input => resolveFormedCsharpCallableEvidence(scope, input);
   const selected = resolveCallableEvidence(scope, callable, queries, { depth: 0 });
   const signature = getCsharpDelegateSignature(selected);
   assert.equal(signature?.parameters.length === 3 && signature.parameters.every((type, index) =>
@@ -85,23 +91,42 @@ test("type transformations retain the selected value owner independently of meta
       assert.equal(selected.sourceStorageSubject.projection === imported.projection, true, mode);
       assert.equal(selected.sourceBindings === bindings, true, mode);
     };
-    const result = resolveSourceTypeComponentEvidence({
-      host: { ast: { getSourceFile: () => file, is: typeOnlyPredicates } },
+    const host = { ast: { getSourceFile: () => file, is: typeOnlyPredicates },
+      hasSemantics(selectedFile) {
+        assert.equal(selectedFile === file, true, mode);
+        return false;
+      },
+      semantics: () => assert.fail("the synthetic metadata file has no owned checked Source queries"),
+    };
+    const componentSource = formCsharpSourceTypeComponentSource({ host },
+      { declaration: owner, authoredTypeNode: syntax, selectedType: type }, { sourceFile: file }, state);
+    assert.equal(componentSource.checked.kind === "authored" &&
+      componentSource.checked.source.dependencies.authored === undefined, true,
+      "the explicit unavailable authored Source keeps its metadata, not an invented Native node request");
+    const result = resolveFormedCsharpSourceTypeComponentEvidence({
+      host,
       resolvePointerReturn(declaration, selected) {
         assert.equal(declaration === owner, true, mode);
         assertOwner(selected);
         assert.equal(selected.depth, 4, mode);
         return undefined;
       },
-      resolveAuthoredAndSelectedSourceType(authored, authoredFile, selectedType, selectedFile, selected) {
+      resolveNodeWithState: () => assert.fail("the unavailable authored Source cannot acquire a Native node child"),
+      resolveTypeWithState(selectedType, selectedFile, childState) {
+        const { authoredTypeNode: authored, authoredSourceFile: authoredFile,
+          inputState: selected } = componentSource.checked.source;
         selections += 1;
         assert.equal(authored === syntax && authoredFile === file, true, mode);
         assert.equal(selectedType === type && selectedFile === file, true, mode);
         assertOwner(selected);
         assert.equal(selected.depth, 5, mode);
+        assert.equal(selected === componentSource.childState &&
+          childState === componentSource.checked.source.dependencies.selected.state, true, mode);
+        assertOwner(childState);
+        assert.equal(childState.depth, selected.depth + 1, mode);
         return expected;
       },
-    }, { declaration: owner, authoredTypeNode: syntax, selectedType: type }, { sourceFile: file }, state);
+    }, componentSource);
     assert.equal(result === expected, true, mode);
     assert.equal(selections, 1, mode);
     assert.equal(state.sourceStorageSubject === imported && imported.projection.length === 2, true, mode);
@@ -119,11 +144,13 @@ test("callable parameters establish their exact entry input while tuple transfor
   const state = { depth: 2, sourceStorageSubject: imported };
   for (const use of ["callable", "parameter-list"]) {
     const resolved = resolveSignatureParameterEvidence({
-      host: { ast: { typeNode: () => syntax, parent: () => undefined }, sourceStorage: { subject(node, kind) {
+      host: { ast: { typeNode: () => syntax, parent: () => undefined, getSourceFile: () => file,
+        is: typeOnlyPredicates }, hasSemantics: () => false, sourceStorage: { subject(node, kind) {
         assert.equal(node === owner && kind === "input", true, "signature entry is not a mutable binding or physical member");
         return { kind: "resolved", subject: input };
       } } },
-      resolveSourceTypeComponentEvidence(component, queries, selected) {
+      resolveFormedSourceTypeComponentEvidence(componentSource) {
+        const { component, queries, inputState: selected } = componentSource;
         assert.equal(component.declaration === owner && component.selectedType === type && component.authoredTypeNode === syntax, true);
         assert.equal(queries.sourceFile === file, true);
         assert.equal(selected.sourceStorageSubject === (use === "callable" ? input : imported), true, use);
@@ -157,11 +184,12 @@ test("callable results establish their own storage owner rather than retaining t
   const callable = { parameters: [], result: { declaration: owner, selectedType: {} } };
   const resolved = resolveCallableEvidence({
     host: { ast: { typeParameters: node => { assert.equal(node === owner, true); return []; }, is: typeOnlyPredicates },
-      representations: { genericProjections: node => { assert.equal(node === owner, true); return []; } },
+      projectTypeCatalog: { genericProjections: node => { assert.equal(node === owner, true); return []; } },
       sourceStorage: { subject(node, kind) { assert.equal(node === owner && kind === "return", true);
         return { kind: "resolved", subject: resultSubject }; } } },
-    resolveSignatureParameterEvidence() { assert.fail("the callable has no parameters"); },
-    resolveSourceTypeComponentEvidence(component, queries, selected) {
+    resolveFormedSignatureParameterEvidence() { assert.fail("the callable has no parameters"); },
+    resolveFormedSourceTypeComponentEvidence(componentSource) {
+      const { component, queries, inputState: selected } = componentSource;
       assert.equal(component === callable.result && queries.sourceFile === file, true);
       assert.equal(selected.sourceStorageSubject === resultSubject, true);
       assert.equal(selected.sourceBindings === bindings && selected.depth === state.depth, true);

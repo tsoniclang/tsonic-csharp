@@ -58,7 +58,9 @@ test("authored signature completion keeps the original children without reading 
   const completed = resolveFormedCsharpCallableDeclarationSignature({
     host: { sourceStorage: { subject: () => ({ kind: "unresolved" }) },
       projectTypeCatalog: { genericProjections: () => assert.fail("the signature intermediate cannot read A") } },
-    resolveSignatureParameterEvidence(value, actualQueries, actualState) {
+    resolveFormedSignatureParameterEvidence(parameterSource) {
+      const { parameter: value, queries: actualQueries } = parameterSource.capture;
+      const actualState = parameterSource.state;
       children.push("parameter");
       assert.equal(value === source.parameters[0].parameter && actualQueries === queries && actualState === state, true,
         "the original parameter occurrence and state reach the sole child");
@@ -83,7 +85,7 @@ test("an unavailable signature child stops later Native children without compact
   const bound = formCsharpCallableSignatureInput(sourceHost, source, state);
   let visited = 0;
   const completed = resolveFormedCsharpCallableDeclarationSignature({ host: { sourceStorage: { subject: () => ({ kind: "unresolved" }) } },
-    resolveSignatureParameterEvidence: () => { visited += 1; return undefined; },
+    resolveFormedSignatureParameterEvidence: () => { visited += 1; return undefined; },
     resolveFormedSourceTypeComponentEvidence: () => assert.fail("the original unavailable parameter stops the return child"),
     resolveNodeWithState: () => assert.fail("the original unavailable parameter stops constraints"),
   }, bound);
@@ -101,7 +103,7 @@ test("the normal callable wrapper appends the current A only after the same sign
       assert.equal(actual === declaration, true, "the real selected declaration owns the projection input");
       return Object.freeze([]);
     } }, objectShapes: { resolveCallableValue: () => assert.fail("the explicit empty synthetic ABI has no generic protocol") } },
-    resolveSignatureParameterEvidence: () => { children.push("parameter"); return integer; },
+    resolveFormedSignatureParameterEvidence: () => { children.push("parameter"); return integer; },
     resolveFormedSourceTypeComponentEvidence: () => { children.push("return"); return csharpVoidTargetType(); },
     resolveNodeWithState: () => assert.fail("the explicit monomorphic Source has no constraints"),
   }, input, queries, state);

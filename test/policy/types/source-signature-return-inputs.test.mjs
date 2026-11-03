@@ -43,7 +43,9 @@ test("synthetic return Source is retained before parameters and consumed without
   const integer = csharpSourcePrimitiveTargetType("int32");
   const voidType = csharpVoidTargetType();
   const completed = resolveFormedCsharpCallableDeclarationSignature({
-    resolveSignatureParameterEvidence(parameter, queries, state) {
+    resolveFormedSignatureParameterEvidence(parameterSource) {
+      const { parameter, queries } = parameterSource.capture;
+      const state = parameterSource.state;
       assert.equal(parameter === unit.source.parameters[0].parameter && queries === unit.queries && state === unit.state, true);
       unit.order.push("parameter");
       return integer;
@@ -74,7 +76,7 @@ test("synthetic return Source is retained before parameters and consumed without
 test("synthetic first unavailable parameter stops Native return children but not the earlier Source capture", () => {
   const unit = fixture();
   const completed = resolveFormedCsharpCallableDeclarationSignature({
-    resolveSignatureParameterEvidence: () => { unit.order.push("parameter"); return undefined; },
+    resolveFormedSignatureParameterEvidence: () => { unit.order.push("parameter"); return undefined; },
     resolveFormedSourceTypeComponentEvidence: () => assert.fail("an unavailable first parameter stops every Native return child"),
     resolveNodeWithState: () => assert.fail("an unavailable first parameter stops constraints"),
   }, unit.input);
@@ -85,7 +87,7 @@ test("synthetic first unavailable parameter stops Native return children but not
 test("synthetic foreign or retired return inputs fail before children and return replies need their exact request", () => {
   const unit = fixture();
   let children = 0;
-  const scope = { resolveSignatureParameterEvidence: () => { children += 1; return undefined; } };
+  const scope = { resolveFormedSignatureParameterEvidence: () => { children += 1; return undefined; } };
   for (const resultSource of [
     { ...unit.input.resultSource, component: {} },
     { ...unit.input.resultSource, queries: { ...unit.queries } },
