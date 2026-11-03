@@ -36,6 +36,8 @@ export interface CsharpRecursiveObjectShapePolicy extends CsharpObjectShapePolic
     children: CsharpCompletedStructuralMemberChildren): CsharpObjectShapeMemberFact | undefined;
   completeMembers(application: CsharpStructuralTypeApplication,
     members: readonly CsharpObjectShapeMemberFact[]): readonly CsharpObjectShapeMemberFact[];
+  completeSourceMembers(source: CsharpStructuralTypeSource,
+    receiver: TargetTypeRef | undefined): readonly CsharpObjectShapeMemberFact[] | undefined;
   retainConstructionSource(node: Node, type: Type, shape: CsharpObjectShapeFact, sourceFile: SourceFile): CsharpObjectShapeFact | undefined;
   resolveReference(type: Type): TargetTypeRef | undefined;
   resolveUnion(type: Type, sourceFile: SourceFile, state: CsharpTypeResolutionState): CsharpStructuralUnionResolution;

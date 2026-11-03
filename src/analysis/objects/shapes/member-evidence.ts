@@ -15,7 +15,8 @@ import { completeMemberInstantiationEvidence, formMemberInstantiationEvidence, i
 import { createCsharpObjectShapeMemberSource, formLiteralMemberEvidence, projectLiteralMemberEvidence,
   type CsharpInheritedObjectShapeMemberSource, type CsharpLiteralMemberEvidenceProjection } from "./member-source.js";
 import type { CsharpCompletedStructuralMemberChildren, CsharpStructuralMemberApplication,
-  CsharpStructuralMemberInheritance, CsharpStructuralTypeApplication } from "../../source-evidence/types/resolution/structural-applications.js";
+  CsharpStructuralMemberInheritance, CsharpStructuralTypeApplication,
+  CsharpStructuralTypeSource } from "../../source-evidence/types/resolution/structural-applications.js";
 import { formCsharpStructuralPropertyApplication } from "../../source-evidence/types/resolution/structural-applications.js";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 
@@ -195,6 +196,22 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
     return Object.freeze([...members]);
   }
 
+  function completeSourceMembers(
+    source: CsharpStructuralTypeSource,
+    receiver: TargetTypeRef | undefined,
+  ): readonly CsharpObjectShapeMemberFact[] | undefined {
+    const application = host.bindStructuralTypeApplication(source, receiver);
+    const members: CsharpObjectShapeMemberFact[] = [];
+    for (const [index] of application.members.entries()) {
+      const children = host.typeResolver.resolveStructuralMemberChildren(application, index);
+      if (children === undefined) return undefined;
+      const member = completeMember(application, index, children);
+      if (member === undefined) return undefined;
+      members.push(member);
+    }
+    return completeMembers(application, members);
+  }
+
   function resolvePropertyType(
     property: TypePropertyInfo,
     sourceType: Type,
@@ -236,7 +253,7 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
       : { kind: "unresolved", reason: "Inherited project member declarations have incompatible native carrier instantiations." };
   }
 
-  return { collectMembers, memberInheritance, completeMember, completeMembers,
+  return { collectMembers, memberInheritance, completeMember, completeMembers, completeSourceMembers,
     formMemberInstantiationEvidence, completeMemberInstantiationEvidence, instantiateMemberEvidence,
     formLiteralMemberEvidence: (node: Node, queries: SourceFileSemantics) => formLiteralMemberEvidence(host, node, queries),
     projectLiteralMemberEvidence, retainMemberDeclarationEvidence, resolvePropertyType, retainLiteralMemberEvidence };
