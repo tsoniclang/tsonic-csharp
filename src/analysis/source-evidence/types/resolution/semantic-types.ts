@@ -17,7 +17,7 @@ import { csharpTargetTypeFromBinding } from "../../../../policy/types/storage/bi
 import { readCsharpSourceKeepAlive } from "../../../../source/extension/reachability.js";
 import { csharpNullableReferenceTargetType, isCsharpNullableReferenceTargetType } from "../../../../target-model/types/carriers/nullable.js";
 import { maximumTypeResolutionDepth } from "./model.js";
-import { failTargetCompilerResourceLimit } from "@tsonic/target-api/artifacts";
+import { failTargetAnalysisInvariant, failTargetCompilerResourceLimit } from "@tsonic/target-api/artifacts";
 import { nextState } from "./state.js";
 import { providerVirtualDeclarationFactKey, sourcePrimitiveFactKey } from "@tsonic/tsts";
 import { readCsharpSourceNativePointerOperation } from "../../../../source/extension/native-pointers.js";
@@ -34,6 +34,7 @@ import { tsonicMemoryFieldBindingFactKey, tsonicMemoryRecordBindingFactKey, sele
 import { csharpSourceStorageComponentContext } from "./source-storage-projection.js";
 import { formCsharpSemanticTypeSource, type CsharpSemanticTypeSource } from "./root-sources.js";
 import { resolveFormedCsharpProjectSemanticType } from "./project-types.js";
+import { formCsharpSemanticTypeArgumentsSource, type CsharpSemanticTypeArgumentsSource } from "./semantic-argument-source.js";
 
 export function resolveTypeWithState(
   scope: CsharpTypeResolutionScope,
@@ -48,7 +49,7 @@ export function resolveFormedCsharpSemanticTypeSource(
   scope: CsharpTypeResolutionScope,
   source: CsharpSemanticTypeSource,
 ): TargetTypeRef | undefined {
-  const { host, policy, resolveCallableType, resolveCompositionalSourceTypeAlias, resolveDirectSourceFacts, resolveNodeWithState, resolveProviderType, resolveSemanticTypeArguments, resolveSourceProfileType, resolveTypeWithState, resolveUnionType } = scope;
+  const { host, policy, resolveCallableType, resolveCompositionalSourceTypeAlias, resolveDirectSourceFacts, resolveNodeWithState, resolveProviderType, resolveFormedSemanticTypeArguments, resolveSourceProfileType, resolveTypeWithState, resolveUnionType } = scope;
   if (source.type === undefined) return undefined;
   if (source.state.depth > maximumTypeResolutionDepth) failTargetCompilerResourceLimit("tsonic-csharp",
     `Native type resolution in ${host.ast.getFileName(source.sourceFile)}`, "depth", maximumTypeResolutionDepth, source.sourceFile);
@@ -94,7 +95,11 @@ export function resolveFormedCsharpSemanticTypeSource(
       application.bindings.map(binding => binding.argument));
     return alias.kind === "resolved" ? alias.type : undefined;
   }
-  const targetTypeArguments = resolveSemanticTypeArguments(type, queries, state);
+  if (source.arguments.type !== type || source.arguments.queries !== queries || source.arguments.state !== state) {
+    return failTargetAnalysisInvariant("tsonic-csharp",
+      "Semantic type arguments require their exact retained source occurrence.", sourceFile);
+  }
+  const targetTypeArguments = resolveFormedSemanticTypeArguments(source.arguments);
   if (targetTypeArguments === undefined) {
     return undefined;
   }
@@ -436,22 +441,23 @@ export function resolveProviderType(
 }
 
 export function resolveSemanticTypeArguments(
-  { host, resolveTypeWithState }: CsharpTypeResolutionScope,
+  scope: CsharpTypeResolutionScope,
   type: Type,
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
 ): readonly TargetTypeRef[] | undefined {
-  if (!queries.types.isTypeReference(type)) {
-    return [];
-  }
-  const sourceArguments = queries.types.effectiveTypeArguments(type);
-  if (sourceArguments === undefined) {
-    return undefined;
-  }
-  const argumentState = queries.types.isArrayLike(type) && !queries.types.isTuple(type)
-    ? csharpSourceStorageComponentContext(host, state, { kind: "array-element" }) : state;
-  const resolved = sourceArguments.map((argument) =>
-    resolveTypeWithState(argument, queries.sourceFile, nextState(argumentState))
+  return resolveFormedCsharpSemanticTypeArguments(scope,
+    formCsharpSemanticTypeArgumentsSource(scope, type, queries, state));
+}
+
+export function resolveFormedCsharpSemanticTypeArguments(
+  { resolveTypeWithState }: CsharpTypeResolutionScope,
+  source: CsharpSemanticTypeArgumentsSource,
+): readonly TargetTypeRef[] | undefined {
+  if (source.kind === "not-reference") return [];
+  if (source.kind === "unavailable") return undefined;
+  const resolved = source.arguments.map((argument) =>
+    resolveTypeWithState(argument.type, source.queries.sourceFile, argument.state)
   );
   return resolved.some((argument) => argument === undefined)
     ? undefined

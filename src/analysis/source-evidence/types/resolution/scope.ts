@@ -27,6 +27,7 @@ import type { CsharpNodeQuerySource, CsharpTypeQuerySource, CsharpNodeTypeSource
 import type { CsharpTypeReferenceSource } from "./type-reference-source.js";
 import type { CsharpSelectedExpressionSource } from "./expression-source.js";
 import type { CsharpSourceCallResultSource } from "./call-result-source.js";
+import type { CsharpSemanticTypeArgumentsSource } from "./semantic-argument-source.js";
 export interface CsharpTypeResolutionScope {
   nodeQuerySource(node: Node | undefined, sourceFile?: SourceFile): CsharpNodeQuerySource;
   completeNodeQuery(source: CsharpNodeQuerySource): CsharpNodeTypeResolution | undefined;
@@ -360,10 +361,8 @@ export interface CsharpTypeResolutionScope {
   subjects: readonly ExtensionFactSubject[],
   typeArguments: readonly TargetTypeRef[],
 ): TargetTypeRef | undefined;
-  resolveSemanticTypeArguments(
-  type: Type,
-  queries: SourceFileSemantics,
-  state: CsharpTypeResolutionState,
+  resolveFormedSemanticTypeArguments(
+  source: CsharpSemanticTypeArgumentsSource,
 ): readonly TargetTypeRef[] | undefined;
   resolveSourceProfileType(
   identity: ReturnType<typeof classifyCsharpSourceProfileType>,
