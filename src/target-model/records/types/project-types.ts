@@ -94,8 +94,10 @@ export interface CsharpProjectTypeCatalog {
   ): CsharpTargetNamedTypeRef | undefined;
 }
 
-export interface CsharpProjectTypePolicy {
-  readonly catalog: CsharpProjectTypeCatalog;
+export type CsharpProjectTypeCatalogABI = Omit<CsharpProjectTypeCatalog, "definitions">;
+
+export interface CsharpProjectTypeABIPolicy {
+  readonly catalog: CsharpProjectTypeCatalogABI;
   readonly issues: readonly CsharpProjectTypeIssue[];
   heritageForDeclaration(
     declaration: Node,
@@ -113,6 +115,11 @@ export interface CsharpProjectTypePolicy {
     receiver: TargetTypeRef | undefined,
     memberType: TargetTypeRef,
   ): CsharpProjectMemberTypeInstantiation;
+}
+
+export interface CsharpProjectTypePolicy extends CsharpProjectTypeABIPolicy {
+  readonly catalog: CsharpProjectTypeCatalog;
+  readonly abi: CsharpProjectTypeABIPolicy;
   implicitConstructorsForDeclaration(
     declaration: Node,
   ): readonly CsharpProjectForwardingConstructor[] | undefined;

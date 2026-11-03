@@ -1,4 +1,5 @@
-import type { CsharpProjectTypeCatalog, CsharpProjectTypePolicy, CsharpProjectMemberTypeInstantiation, CsharpProjectTypeDeclarationSelection } from "../../target-model/records/types/project-types.js";
+import type { CsharpProjectTypeCatalog, CsharpProjectTypeCatalogABI, CsharpProjectTypeABIPolicy, CsharpProjectTypePolicy,
+  CsharpProjectMemberTypeInstantiation, CsharpProjectTypeDeclarationSelection } from "../../target-model/records/types/project-types.js";
 
 import { csharpProjectHeritageKindIssue } from "../../policy/types/project/relationships.js";
 import { csharpProviderBindingFromResolution } from "../../providers/model/relation-resolver.js";
@@ -45,6 +46,18 @@ export function createCsharpProjectTypePolicy(
   if (heritageById === undefined || constructors === undefined || issues === undefined) {
     return failTargetAnalysisInvariant("tsonic-csharp", "C# project type policy requires completed heritage, constructors and issues.");
   }
+  return completeCsharpProjectTypePolicyABI(catalog,
+    createCsharpProjectTypeABIPolicy(ast, catalog, heritageById, issues), constructors, issues);
+}
+
+export function createCsharpProjectTypeABIPolicy(
+  ast: AstReader,
+  catalog: CsharpProjectTypeCatalogABI,
+  heritageById: ReadonlyMap<string, CsharpProjectTypeHeritage>,
+  issues: readonly CsharpProjectTypeIssue[],
+): CsharpProjectTypeABIPolicy {
+  if (heritageById === undefined || issues === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+    "C# project declaration relations require their completed ABI, heritage and issues.");
   const directSupertypes = (
     type: TargetTypeRef,
   ): readonly TargetTypeRef[] | undefined => {
@@ -188,16 +201,29 @@ export function createCsharpProjectTypePolicy(
         memberType,
       );
     },
-    implicitConstructorsForDeclaration:
-      constructors.implicitConstructorsForDeclaration,
-    implicitConstructorForSignature:
-      constructors.implicitConstructorForSignature,
+  });
+}
+
+export function completeCsharpProjectTypePolicyABI(
+  catalog: CsharpProjectTypeCatalog,
+  abi: CsharpProjectTypeABIPolicy,
+  constructors: CsharpProjectConstructorPolicy,
+  issues: readonly CsharpProjectTypeIssue[],
+): CsharpProjectTypePolicy {
+  if (abi === undefined || constructors === undefined || issues === undefined) {
+    return failTargetAnalysisInvariant("tsonic-csharp", "C# project type policy requires completed heritage, constructors and issues.");
+  }
+  if (abi.catalog !== catalog) return failTargetAnalysisInvariant("tsonic-csharp",
+    "Native project policy requires its identical declared ABI catalog and relations.");
+  return Object.freeze({ ...abi, catalog, abi, issues,
+    implicitConstructorsForDeclaration: constructors.implicitConstructorsForDeclaration,
+    implicitConstructorForSignature: constructors.implicitConstructorForSignature,
   });
 }
 
 function projectMemberOwner(
   ast: AstReader,
-  catalog: CsharpProjectTypeCatalog,
+  catalog: CsharpProjectTypeCatalogABI,
   declaration: Node | undefined,
 ): CsharpProjectTypeDefinition | undefined {
   const member = declaration !== undefined &&

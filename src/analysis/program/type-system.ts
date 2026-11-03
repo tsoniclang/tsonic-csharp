@@ -26,11 +26,12 @@ import { isCsharpJsValueTargetType } from "../../target-model/types/carriers/run
 import type { CsharpPlanningRepresentationQueries, CsharpTypePolicy, CsharpTypePolicyBaseHost } from "../source-evidence/types/resolution/model.js";
 import { createCsharpTypeResolutionServices } from "../source-evidence/types/resolution/engine.js";
 import type { CsharpTypeResolutionServices } from "../source-evidence/types/resolution/engine.js";
-import type { CsharpProjectTypePolicy } from "../../target-model/records/types/project-types.js";
+import type { CsharpProjectTypeABIPolicy, CsharpProjectTypePolicy } from "../../target-model/records/types/project-types.js";
 import type { createCsharpProjectTypeCatalog } from "../project-types/catalog.js";
 import type { CsharpGenericProjectionIndex } from "../../target-model/records/types/type-projections.js";
 import {
-  analyzeCsharpProjectTypePolicy,
+  analyzeCsharpProjectTypeABI,
+  completeCsharpProjectTypePolicy,
 } from "../project-types/catalog/resolution.js";
 import type { CsharpBindingProjectionPolicy } from "../control-flow/binding-projections.js";
 import { createCsharpBindingProjectionPolicy } from "../control-flow/binding-projections.js";
@@ -52,6 +53,7 @@ export interface CsharpTypeSystem extends Pick<CsharpTypeResolutionServices,
   readonly typeDefinitions: import("../../target-model/types/source-union-definitions.js").CsharpTypeDefinitions;
   readonly analysisTypes: CsharpTypePolicy;
   readonly objectShapes: CsharpRecursiveObjectShapePolicy;
+  readonly projectTypeABI: CsharpProjectTypeABIPolicy;
   readonly projectTypes: CsharpProjectTypePolicy;
   publishProjectTypes(projections: CsharpGenericProjectionIndex): void;
 }
@@ -64,10 +66,16 @@ function createCsharpTypeSystem(
   const projectTypeCatalog = declarations.catalog;
   let objectShapes: CsharpRecursiveObjectShapePolicy | undefined;
   let bindingProjections: CsharpBindingProjectionPolicy | undefined;
+  let projectTypeABI: CsharpProjectTypeABIPolicy | undefined;
   let projectTypes: CsharpProjectTypePolicy | undefined;
   const requireProjectTypes = (): CsharpProjectTypePolicy => {
     if (projectTypes === undefined) failTargetAnalysisInvariant("tsonic-csharp", "C# project heritage was requested before the type system was fully initialized.");
     return projectTypes;
+  };
+  const requireProjectTypeABI = (): CsharpProjectTypeABIPolicy => {
+    if (projectTypeABI === undefined) failTargetAnalysisInvariant("tsonic-csharp",
+      "C# project declaration relations require their current ABI and heritage publication.");
+    return projectTypeABI;
   };
   const typeParameterConstraints = createCsharpSourceTypeParameterEnvironment(host.ast, (declaration, parameter, source) => {
     const sourceFile = source?.sourceFile ?? host.ast.getSourceFile(declaration);
@@ -249,6 +257,7 @@ function createCsharpTypeSystem(
     typeDefinitions: host.typeDefinitions ?? emptyCsharpTypeDefinitions,
     analysisTypes: types,
     objectShapes,
+    get projectTypeABI() { return requireProjectTypeABI(); },
     get projectTypes() { return requireProjectTypes(); },
     nodeQuerySource: typeResolution.nodeQuerySource,
     completeNodeQuery: typeResolution.completeNodeQuery,
@@ -260,7 +269,9 @@ function createCsharpTypeSystem(
       if (projectTypes !== undefined) return failTargetAnalysisInvariant("tsonic-csharp",
         "Current native project types are published exactly once.");
       declarations.publishABI(projections);
-      const completed = analyzeCsharpProjectTypePolicy({ ...host, types }, projectTypeCatalog);
+      const abi = analyzeCsharpProjectTypeABI({ ...host, types }, projectTypeCatalog);
+      projectTypeABI = abi.policy;
+      const completed = completeCsharpProjectTypePolicy({ ...host, types }, abi);
       declarations.complete(completed);
       projectTypes = completed;
     },
@@ -323,6 +334,7 @@ export function createCsharpTypeAnalysis(
     typeDefinitions: system.typeDefinitions,
     analysisTypes: system.analysisTypes,
     objectShapes: system.objectShapes,
+    get projectTypeABI() { return system.projectTypeABI; },
     get projectTypes() { return system.projectTypes; },
     nodeQuerySource: system.nodeQuerySource,
     completeNodeQuery: system.completeNodeQuery,

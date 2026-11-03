@@ -4,17 +4,26 @@ import type {
   CsharpProjectForwardingConstructor,
   CsharpProjectTypeHeritage,
   CsharpProjectTypeIssue,
+  CsharpProjectTypeABIPolicy,
 } from "../../../target-model/records/types/project-types.js";
 import { projectDefinitionTargetType } from "../../../policy/types/project/declaration-carriers.js";
 import { type CsharpProjectTypeCatalog, type CsharpProjectTypePolicy } from "../../../target-model/records/types/project-types.js";
-import { createCsharpProjectTypePolicy, selectCsharpProjectTypeHeritage, type CsharpProjectTypePolicyHost } from "../type-policy.js";
+import { createCsharpProjectTypeABIPolicy, completeCsharpProjectTypePolicyABI,
+  selectCsharpProjectTypeHeritage, type CsharpProjectTypePolicyHost } from "../type-policy.js";
 import { csharpForwardingConstructorSignatureKey, selectCsharpProjectConstructorSignature, selectCsharpProjectForwardingConstructor, type CsharpProjectConstructorPolicyHost } from "./constructors.js";
 import { type CsharpProjectConstructorPolicy } from "../../../target-model/records/types/project-types.js";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 
-export function analyzeCsharpProjectTypePolicy(
+export interface CsharpProjectTypeABIEvidence {
+  readonly catalog: CsharpProjectTypeCatalog;
+  readonly heritageById: ReadonlyMap<string, CsharpProjectTypeHeritage>;
+  readonly policy: CsharpProjectTypeABIPolicy;
+}
+
+export function analyzeCsharpProjectTypeABI(
   host: CsharpProjectTypePolicyHost,
   catalog: CsharpProjectTypeCatalog,
-): CsharpProjectTypePolicy {
+): CsharpProjectTypeABIEvidence {
   const issues: CsharpProjectTypeIssue[] = [...catalog.issues];
   const heritageById = new Map<string, CsharpProjectTypeHeritage>();
   for (const definition of catalog.abiDefinitions) {
@@ -25,6 +34,17 @@ export function analyzeCsharpProjectTypePolicy(
       issues.push(selected.issue);
     }
   }
+  return Object.freeze({ catalog, heritageById,
+    policy: createCsharpProjectTypeABIPolicy(host.ast, catalog, heritageById, Object.freeze(issues)) });
+}
+
+export function completeCsharpProjectTypePolicy(
+  host: CsharpProjectTypePolicyHost,
+  abi: CsharpProjectTypeABIEvidence,
+): CsharpProjectTypePolicy {
+  const { catalog, heritageById } = abi;
+  if (abi.policy.catalog !== catalog) return failTargetAnalysisInvariant("tsonic-csharp",
+    "Native constructor completion requires its identical declared ABI catalog.");
   const constructorHost: CsharpProjectConstructorPolicyHost = {
     ast: host.ast,
     navigation: host.navigation,
@@ -142,11 +162,17 @@ export function analyzeCsharpProjectTypePolicy(
       );
     },
   });
-  return createCsharpProjectTypePolicy(
-    host.ast,
+  return completeCsharpProjectTypePolicyABI(
     catalog,
-    heritageById,
+    abi.policy,
     constructors,
-    Object.freeze([...issues, ...constructorIssues]),
+    Object.freeze([...abi.policy.issues, ...constructorIssues]),
   );
+}
+
+export function analyzeCsharpProjectTypePolicy(
+  host: CsharpProjectTypePolicyHost,
+  catalog: CsharpProjectTypeCatalog,
+): CsharpProjectTypePolicy {
+  return completeCsharpProjectTypePolicy(host, analyzeCsharpProjectTypeABI(host, catalog));
 }

@@ -165,6 +165,11 @@ export function createCsharpProjectTypeCatalog(
         "Native project representation definitions are completed exactly once.");
       if (policy.catalog !== catalog) return failTargetAnalysisInvariant("tsonic-csharp",
         "Native project completion requires its same owning catalog and completed policy.");
+      if (policy.abi.catalog !== catalog || policy.directSupertypes !== policy.abi.directSupertypes ||
+        policy.heritageForDeclaration !== policy.abi.heritageForDeclaration ||
+        policy.instantiateDeclarationType !== policy.abi.instantiateDeclarationType ||
+        policy.instantiateMemberType !== policy.abi.instantiateMemberType) return failTargetAnalysisInvariant("tsonic-csharp",
+        "Native project completion must retain its exact declared ABI relation readers.");
       const selected = requirePublished("abi");
       for (const definition of selected) requireCsharpProjectTypeABI(byDeclaration.get(definition.declaration)!.declared, definition);
       completedDefinitions = selected;
