@@ -19,13 +19,12 @@ export interface CsharpInheritedObjectShapeMemberSource {
   readonly methodType: Type | undefined;
 }
 
-export interface CsharpCollectedObjectShapeMember {
+export interface CsharpObjectShapeMemberSource {
   readonly property: TypePropertyInfo;
   readonly propertyType: Type;
   readonly declarations: readonly Node[];
   readonly declarationValues: readonly { readonly declaration: Node; readonly value: Node | undefined }[];
   readonly authoredTypeNodes: readonly Node[];
-  readonly state: CsharpTypeResolutionState;
   readonly sourceStorageSubject: CsharpTypeResolutionState["sourceStorageSubject"];
   readonly sourceKey: NonNullable<ReturnType<typeof resolveObjectShapeSourceMemberKey>>;
   readonly targetName: string;
@@ -42,14 +41,35 @@ export interface CsharpCollectedObjectShapeMember {
   readonly proofInput: CsharpObjectShapeMemberProofInput;
 }
 
-export interface CsharpCollectedObjectShapeMembers {
+export interface CsharpCollectedObjectShapeMember extends CsharpObjectShapeMemberSource {
+  readonly source: CsharpObjectShapeMemberSource;
+  readonly state: CsharpTypeResolutionState;
+}
+
+export interface CsharpObjectShapeMembersSource {
   readonly ownerType: Type;
   readonly queries: SourceFileSemantics;
   readonly sourceFile: SourceFile;
-  readonly state: CsharpTypeResolutionState;
   readonly authoredTypeRoot: Node | undefined;
   readonly correspondence: Extract<ReturnType<SourceFileSemantics["types"]["structuralMembers"]>, { readonly kind: "available" }>;
+  readonly members: readonly CsharpObjectShapeMemberSource[];
+}
+
+export interface CsharpCollectedObjectShapeMembers extends Omit<CsharpObjectShapeMembersSource, "members"> {
+  readonly source: CsharpObjectShapeMembersSource;
+  readonly state: CsharpTypeResolutionState;
   readonly members: readonly CsharpCollectedObjectShapeMember[];
+}
+
+export function bindCsharpObjectShapeMembersSource(
+  source: CsharpObjectShapeMembersSource,
+  state: CsharpTypeResolutionState,
+): CsharpCollectedObjectShapeMembers {
+  return Object.freeze({ ...source, source, state,
+    members: Object.freeze(source.members.map(member => Object.freeze({ ...member, source: member,
+      state: Object.freeze({ ...state, sourceStorageSubject: member.sourceStorageSubject }),
+    }))),
+  });
 }
 
 export interface CsharpLiteralMemberEvidenceSource {
@@ -128,10 +148,9 @@ export function createCsharpObjectShapeMemberSource(host: CsharpObjectShapePolic
   function collectMember(
     property: TypePropertyInfo,
     queries: SourceFileSemantics,
-    state: CsharpTypeResolutionState,
     authoredTypeRoot: Node | undefined,
     literalOwner: Node | undefined,
-  ): Omit<CsharpCollectedObjectShapeMember, "correspondence" | "proofInput"> | undefined {
+  ): Omit<CsharpObjectShapeMemberSource, "correspondence" | "proofInput"> | undefined {
     const declarations = [...new Set([
       ...queries.declarations.symbolDeclarations(property.symbol),
       ...property.rootSymbols.flatMap(symbol => queries.declarations.symbolDeclarations(symbol)),
@@ -172,7 +191,7 @@ export function createCsharpObjectShapeMemberSource(host: CsharpObjectShapePolic
     ]);
     const sourceStorageSubject = selection?.kind === "resolved" ? selection.subject : undefined;
     return Object.freeze({ property, propertyType: sourceType, declarations: Object.freeze(declarations), declarationValues,
-      authoredTypeNodes, state: Object.freeze({ ...state, sourceStorageSubject }), sourceStorageSubject,
+      authoredTypeNodes, sourceStorageSubject,
       sourceKey, targetName, method, getters: Object.freeze(getters), setters: Object.freeze(setters), methodDeclaration,
       callableDeclaration, inheritedDeclarations: Object.freeze(inheritedDeclarations),
       value: !method && declarationValues.length === 1 ? declarationValues[0]!.value : undefined,
@@ -181,19 +200,18 @@ export function createCsharpObjectShapeMemberSource(host: CsharpObjectShapePolic
     });
   }
 
-  function collectMembers(
+  function formMembersSource(
     ownerType: Type,
     queries: SourceFileSemantics,
-    state: CsharpTypeResolutionState,
     authoredTypeRoot?: Node,
-  ): CsharpCollectedObjectShapeMembers | undefined {
+  ): CsharpObjectShapeMembersSource | undefined {
     const symbol = queries.declarations.typeSymbol(ownerType);
     const literals = symbol === undefined ? [] : queries.declarations.symbolDeclarations(symbol)
       .filter(declaration => host.ast.is.IsObjectLiteralExpression(declaration));
     if (literals.length > 1) return undefined;
     const correspondence = queries.types.structuralMembers(ownerType, ownerType, "correspondence");
     if (correspondence.kind !== "available") return undefined;
-    const members: CsharpCollectedObjectShapeMember[] = [];
+    const members: CsharpObjectShapeMemberSource[] = [];
     for (const property of queries.types.propertyInfos(ownerType)) {
       const declarations = [...new Set([
         ...queries.declarations.symbolDeclarations(property.symbol),
@@ -204,7 +222,7 @@ export function createCsharpObjectShapeMemberSource(host: CsharpObjectShapePolic
         if (!declarations.every(declaration => isCsharpNativeSourceProfileMemberDeclaration(declaration, host.ast))) return undefined;
         continue;
       }
-      const member = collectMember(property, queries, state, authoredTypeRoot, literals[0]);
+      const member = collectMember(property, queries, authoredTypeRoot, literals[0]);
       if (member === undefined) return undefined;
       const sourceDeclarations = [...new Set([...member.declarations,
         ...(member.methodDeclaration === undefined ? [] : [member.methodDeclaration])])];
@@ -216,9 +234,19 @@ export function createCsharpObjectShapeMemberSource(host: CsharpObjectShapePolic
       if (proofInput === undefined || selected?.kind !== "present") return undefined;
       members.push(Object.freeze({ ...member, correspondence: selected, proofInput }));
     }
-    return Object.freeze({ ownerType, queries, sourceFile: queries.sourceFile, state, authoredTypeRoot,
+    return Object.freeze({ ownerType, queries, sourceFile: queries.sourceFile, authoredTypeRoot,
       correspondence, members: Object.freeze(members) });
   }
 
-  return { collectMembers };
+  function collectMembers(
+    ownerType: Type,
+    queries: SourceFileSemantics,
+    state: CsharpTypeResolutionState,
+    authoredTypeRoot?: Node,
+  ): CsharpCollectedObjectShapeMembers | undefined {
+    const source = formMembersSource(ownerType, queries, authoredTypeRoot);
+    return source === undefined ? undefined : bindCsharpObjectShapeMembersSource(source, state);
+  }
+
+  return { formMembersSource, collectMembers };
 }

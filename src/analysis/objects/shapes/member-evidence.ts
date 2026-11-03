@@ -47,7 +47,7 @@ export function formCsharpObjectShapePropertySource(
 }
 
 export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePolicyHost) {
-  const { collectMembers } = createCsharpObjectShapeMemberSource(host);
+  const { formMembersSource, collectMembers } = createCsharpObjectShapeMemberSource(host);
 
   function retainLiteralMemberEvidence(
     members: readonly CsharpObjectShapeMemberFact[],
@@ -253,7 +253,7 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
       : { kind: "unresolved", reason: "Inherited project member declarations have incompatible native carrier instantiations." };
   }
 
-  return { collectMembers, memberInheritance, completeMember, completeMembers, completeSourceMembers,
+  return { formMembersSource, collectMembers, memberInheritance, completeMember, completeMembers, completeSourceMembers,
     formMemberInstantiationEvidence, completeMemberInstantiationEvidence, instantiateMemberEvidence,
     formLiteralMemberEvidence: (node: Node, queries: SourceFileSemantics) => formLiteralMemberEvidence(host, node, queries),
     projectLiteralMemberEvidence, retainMemberDeclarationEvidence, resolvePropertyType, retainLiteralMemberEvidence };
