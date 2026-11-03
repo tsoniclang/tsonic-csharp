@@ -3,7 +3,8 @@ import {
   createCsharpNativeConstructionDemandQuery,
 } from "../objects/native-construction-demand.js";
 import type { CsharpNativeConstructionDemandQueries } from "../../target-model/records/native/native-construction.js";
-import type { CsharpNativeConstructionPublicationSource } from "../objects/native-construction-publication.js";
+import { formCsharpNativeConstructionSource, type CsharpNativeConstructionSource } from "../objects/native-construction-source.js";
+import type { CsharpStructuralTypeSourceInput } from "../source-evidence/types/resolution/root-sources.js";
 import type {
   ExtensionFactSubject,
   Node,
@@ -261,7 +262,8 @@ function createCsharpTypeSystem(
 
 export interface CsharpTypeAnalysis extends CsharpTypeSystem {
   readonly nativeConstruction: CsharpNativeConstructionDemandQueries;
-  completeNativeConstruction(publicationSources: readonly CsharpNativeConstructionPublicationSource[]): void;
+  readonly nativeConstructionSource: CsharpNativeConstructionSource<CsharpStructuralTypeSourceInput>;
+  completeNativeConstruction(source: CsharpNativeConstructionSource<CsharpStructuralTypeSourceInput>): void;
 }
 
 export function createCsharpTypeAnalysis(
@@ -277,6 +279,16 @@ export function createCsharpTypeAnalysis(
     },
   });
   const system = createCsharpTypeSystem(host, catalog, selectedRepresentations);
+  const nativeConstructionSource = formCsharpNativeConstructionSource(host, (node, queries) => {
+    const source = system.nodeQuerySource(node, queries.sourceFile).root;
+    if (source.kind !== "node") return failTargetAnalysisInvariant("tsonic-csharp",
+      "Construction publication requires its genuine checked node source occurrence.", node);
+    return source;
+  }, (type, queries, authoredTypeRoot) => {
+    const state = Object.freeze({ depth: 0 });
+    return Object.freeze({ type, queries, state, authoredTypeRoot,
+      source: system.objectShapes.formTypeSource(type, queries, state, authoredTypeRoot) });
+  });
   return Object.freeze({
     typeDefinitions: system.typeDefinitions,
     analysisTypes: system.analysisTypes,
@@ -287,21 +299,24 @@ export function createCsharpTypeAnalysis(
     typeQuerySource: system.typeQuerySource,
     completeTypeQuery: system.completeTypeQuery,
     publishProjectTypes: system.publishProjectTypes,
+    nativeConstructionSource,
     get nativeConstruction() {
       if (nativeConstruction === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
         "Native construction records require their completed current demand publication.");
       return nativeConstruction;
     },
-    completeNativeConstruction(publicationSources: readonly CsharpNativeConstructionPublicationSource[]): void {
+    completeNativeConstruction(source: CsharpNativeConstructionSource<CsharpStructuralTypeSourceInput>): void {
       if (nativeConstruction !== undefined) return failTargetAnalysisInvariant("tsonic-csharp",
         "Native construction records are completed exactly once.");
+      if (source !== nativeConstructionSource) return failTargetAnalysisInvariant("tsonic-csharp",
+        "Native construction completion requires its same retained source plan.");
       nativeConstruction = createCsharpNativeConstructionDemandQuery({
         ...host,
         scopedTargetType: representations.scopedTargetType,
-        resolveShape: system.objectShapes.resolveType,
+        completeShapeSource: system.objectShapes.completeTypeSource,
         resolveLiteralShape: system.objectShapes.resolveObjectLiteralTargetShape,
         retainSourceShape: system.objectShapes.retainConstructionSource,
-      }, publicationSources);
+      }, source);
     },
   });
 }

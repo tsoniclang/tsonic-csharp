@@ -156,6 +156,7 @@ export function analyzeCsharpRepresentationIteration(
     typeSystem.analysisTypes,
     policy,
     typeSystem,
+    typeSystem.nativeConstructionSource,
   );
   const sourceEvidence = evidence.index;
   if (sourceEvidence.fixedArrayIssues.length > 0) return rejectCsharpAnalysisIssues(sourceEvidence.fixedArrayIssues);
@@ -164,8 +165,7 @@ export function analyzeCsharpRepresentationIteration(
   const optionalLocals = analyzeCsharpOptionalLocals(policy, sourceEvidence, sourceStorage.nodes, names, operations);
   const typeProjections = analyzeCsharpTypeProjections(projectionSource, sourceEvidence, operations, optionalLocals);
   typeSystem.publishProjectTypes(typeProjections);
-  typeSystem.completeNativeConstruction(evidence.currentNodeInputs.flatMap(input =>
-    input.constructionSource === undefined ? [] : [input.constructionSource]));
+  typeSystem.completeNativeConstruction(typeSystem.nativeConstructionSource);
   const declarations = analyzeCsharpDeclarations(
     policy,
     sourceEvidence,
