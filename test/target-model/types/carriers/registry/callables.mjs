@@ -141,9 +141,9 @@ export const callablesCarrierRegistry = Object.freeze([
     frozen: false,
   },
   {
-    id: "src/analysis/source-evidence/types/resolution/expressions.ts#resolveSourceOwnedConstructionResult",
+    id: "src/analysis/source-evidence/types/resolution/expressions.ts#resolveFormedCsharpSourceOwnedConstructionResult",
     kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
-    declaration: { module: "src/analysis/source-evidence/types/resolution/expressions.ts", symbol: "resolveSourceOwnedConstructionResult" },
+    declaration: { module: "src/analysis/source-evidence/types/resolution/expressions.ts", symbol: "resolveFormedCsharpSourceOwnedConstructionResult" },
     responsibility: "callables/resolve-construct-instance",
     frozen: false,
   },
@@ -173,20 +173,6 @@ export const callablesCarrierRegistry = Object.freeze([
     kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
     declaration: { module: "src/analysis/source-evidence/types/resolution/calls.ts", symbol: "resolveSourceCallableContractType" },
     responsibility: "callables/select-closed-callable-context",
-    frozen: false,
-  },
-  {
-    id: "src/analysis/source-evidence/types/resolution/source-profiles.ts#resolveCallableType",
-    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
-    declaration: { module: "src/analysis/source-evidence/types/resolution/source-profiles.ts", symbol: "resolveCallableType" },
-    responsibility: "callables/resolve-callable-type",
-    frozen: false,
-  },
-  {
-    id: "src/analysis/source-evidence/types/resolution/source-profiles.ts#resolveCallableEvidence",
-    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
-    declaration: { module: "src/analysis/source-evidence/types/resolution/source-profiles.ts", symbol: "resolveCallableEvidence" },
-    responsibility: "callables/resolve-callable-evidence",
     frozen: false,
   },
   {

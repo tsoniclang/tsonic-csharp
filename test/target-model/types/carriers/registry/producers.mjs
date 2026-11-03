@@ -378,4 +378,32 @@ export const producersCarrierRegistry = Object.freeze([
     responsibility: "providers/projected-type",
     frozen: false,
   },
+  {
+    id: "src/analysis/source-evidence/types/resolution/direct-source-evidence.ts#resolveFormedCsharpDirectSourceFacts",
+    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
+    declaration: { module: "src/analysis/source-evidence/types/resolution/direct-source-evidence.ts", symbol: "resolveFormedCsharpDirectSourceFacts" },
+    responsibility: "producers/resolve-direct-source-facts",
+    frozen: false,
+  },
+  {
+    id: "src/analysis/source-evidence/types/resolution/source-evidence.ts#resolveFormedCsharpTypeParameterSource",
+    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
+    declaration: { module: "src/analysis/source-evidence/types/resolution/source-evidence.ts", symbol: "resolveFormedCsharpTypeParameterSource" },
+    responsibility: "producers/resolve-type-parameter",
+    frozen: false,
+  },
+  {
+    id: "src/analysis/source-evidence/types/resolution/type-component-source.ts#resolveFormedCsharpSourceTypeComponent",
+    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
+    declaration: { module: "src/analysis/source-evidence/types/resolution/type-component-source.ts", symbol: "resolveFormedCsharpSourceTypeComponent" },
+    responsibility: "producers/resolve-target-type-ref",
+    frozen: false,
+  },
+  {
+    id: "src/analysis/source-evidence/types/resolution/source-profiles.ts#resolveSourceTypeComponentEvidence",
+    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
+    declaration: { module: "src/analysis/source-evidence/types/resolution/source-profiles.ts", symbol: "resolveSourceTypeComponentEvidence" },
+    responsibility: "producers/resolve-target-type-ref",
+    frozen: false,
+  },
 ]);
