@@ -33,6 +33,7 @@ import { objectShapeProjectionConversions,
 import { prepareCsharpObjectShapeDeclarationNames } from "../../names/object-shapes.js";
 import { csharpJsonValueProjectionMethodName, csharpJsonValueWriterMethodName } from "../../../target-model/names/object-members.js";
 import { isCsharpRefLikeTargetType } from "../../../target-model/types/ref-like.js";
+import { csharpJsRuntimeSource } from "../../../providers/runtime/source-projects.js";
 import {
   collectShapeDependencies,
   prepareObjectShapeBatch,
@@ -573,6 +574,7 @@ export function createCsharpObjectShapeDemandEngine(host: CsharpObjectShapeDeman
     } {
   let scope: CsharpObjectShapeDemandScope;
   let sealed = false;
+  const hasJsRuntime = host.runtimeSources.some(source => source.projectPath === csharpJsRuntimeSource.projectPath);
   const generalJsonDeclarations = new Set<string>();
   const requireOpen = (): void => {
     if (sealed) throw new Error("C# object-shape artifact demand is sealed.");
@@ -625,6 +627,7 @@ export function createCsharpObjectShapeDemandEngine(host: CsharpObjectShapeDeman
       if (registered === undefined || !csharpObjectShapesEqual(registered.fact, fact)) {
         return failTargetAnalysisInvariant("tsonic-csharp", "A general JSON writer requires its exact admitted native shape.");
       }
+      if (!hasJsRuntime) return;
       generalJsonDeclarations.add(objectShapeArtifactKey(registered.fact));
     },
     close(): CsharpObjectShapeDemandClosure {
