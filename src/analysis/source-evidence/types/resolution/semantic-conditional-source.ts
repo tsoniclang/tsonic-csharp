@@ -6,7 +6,8 @@ import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import { formCsharpSourceTypeBindingEvidence, completeCsharpBoundSourceType,
   type CsharpSourceTypeBindingEvidence } from "./type-bindings.js";
-import { csharpConditionalDeclaration, resolveCsharpConditionalApplication } from "./conditional-types.js";
+import { csharpConditionalDeclaration, formCsharpConditionalApplicationSource, resolveFormedCsharpConditionalApplication,
+  type CsharpConditionalApplicationSource } from "./conditional-application-source.js";
 import { nextState } from "./state.js";
 
 interface CsharpConditionalArgumentSource {
@@ -24,7 +25,7 @@ export type CsharpSemanticConditionalSource = {
   | { readonly kind: "not-applicable" }
   | { readonly kind: "unavailable"; readonly declaration: Node }
   | { readonly kind: "application"; readonly declaration: Node; readonly application: TypeAliasApplicationInfo;
-      readonly arguments: readonly CsharpConditionalArgumentSource[] }
+      readonly arguments: readonly CsharpConditionalArgumentSource[]; readonly completion: CsharpConditionalApplicationSource }
 );
 
 function captureArguments(
@@ -55,7 +56,8 @@ export function formCsharpSemanticConditionalSource(
   const application = changed ? queries.types.instantiateAlias(declaration, selectedSources) : sourceApplication;
   if (application === undefined) return Object.freeze({ ...input, kind: "unavailable", declaration });
   return Object.freeze({ ...input, kind: "application", declaration, application,
-    arguments: application === sourceApplication ? originalArguments : captureArguments(application, queries, state) });
+    arguments: application === sourceApplication ? originalArguments : captureArguments(application, queries, state),
+    completion: formCsharpConditionalApplicationSource(scope, application, queries, state.sourceStorageSubject, application.typeNode) });
 }
 
 export function resolveFormedCsharpSemanticConditionalType(
@@ -68,7 +70,10 @@ export function resolveFormedCsharpSemanticConditionalType(
   }
   if (input.kind === "unavailable") return Object.freeze({ type: undefined });
   const { application, state, queries } = input;
-  if (application === undefined || input.arguments === undefined || input.arguments.length !== application.bindings.length ||
+  if (application === undefined || input.completion === undefined || input.completion.application !== application ||
+      input.completion.queries !== queries || input.completion.authoredRoot !== application.typeNode ||
+      input.completion.storageSubject !== state.sourceStorageSubject ||
+      input.arguments === undefined || input.arguments.length !== application.bindings.length ||
       application.bindings.some((binding, index) => input.arguments[index]?.binding !== binding ||
         input.arguments[index]?.source !== undefined && input.arguments[index]?.source?.type !== binding.argument ||
         input.arguments[index]?.selectedSourceType !== (completeCsharpBoundSourceType(input.arguments[index]?.source, state)?.sourceType ?? binding.argument))) {
@@ -77,5 +82,5 @@ export function resolveFormedCsharpSemanticConditionalType(
   const arguments_ = input.arguments.map(argument => completeCsharpBoundSourceType(argument.source, state)?.targetType ??
     scope.resolveTypeWithState(argument.binding.argument, queries.sourceFile, nextState(state)));
   return Object.freeze({ type: arguments_.some(argument => argument === undefined) ? undefined
-    : resolveCsharpConditionalApplication(scope, application, arguments_ as readonly TargetTypeRef[], queries, state) });
+    : resolveFormedCsharpConditionalApplication(scope, input.completion, arguments_ as readonly TargetTypeRef[], state) });
 }
