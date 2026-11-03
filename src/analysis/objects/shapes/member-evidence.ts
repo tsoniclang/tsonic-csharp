@@ -2,14 +2,13 @@ import type { Node, Type, TypePropertyInfo } from "@tsonic/tsts";
 import { ObjectLiteralProperty_Value, sourcePropertyTypeEvidenceNodes, sourceTransformedTypeFactEvidenceNodes, type SourceFileSemantics } from "@tsonic/target-api/source";
 import type { CsharpObjectShapePolicyHost } from "./model.js";
 import type { CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../target-model/types/model.js";
-import type { CsharpTypeResolutionState } from "../../source-evidence/types/resolution/model.js";
+import type { CsharpTypePolicyBaseHost, CsharpTypeResolutionState } from "../../source-evidence/types/resolution/model.js";
 import { csharpNullableTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { csharpSourceMemberDisplayName } from "../../../target-model/types/source-member-keys.js";
 import { nextState } from "../../source-evidence/types/resolution/state.js";
 import { completeCsharpCallableDeclaration, completeCsharpCallableTypeParameters } from "../../source-evidence/types/resolution/callable-type-parameters.js";
 import { csharpMethodValueCoversContract, getCsharpMethodValue } from "../../../target-model/types/method-values.js";
-import { isCsharpIntegralTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import type { CsharpProjectMemberTypeInstantiation } from "../../../target-model/records/types/project-types.js";
 import { completeMemberInstantiationEvidence, formMemberInstantiationEvidence, instantiateMemberEvidence,
   matchesMemberSubjects, type CsharpObjectShapeMemberProofInput } from "./member-instantiation.js";
@@ -17,7 +16,34 @@ import { createCsharpObjectShapeMemberSource, formLiteralMemberEvidence, project
   type CsharpLiteralMemberEvidenceProjection } from "./member-source.js";
 import type { CsharpCompletedStructuralMemberChildren, CsharpStructuralMemberApplication,
   CsharpStructuralMemberInheritance, CsharpStructuralTypeApplication } from "../../source-evidence/types/resolution/structural-applications.js";
+import { formCsharpStructuralPropertyApplication } from "../../source-evidence/types/resolution/structural-applications.js";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
+
+export function formCsharpObjectShapePropertySource(
+  host: CsharpTypePolicyBaseHost,
+  property: TypePropertyInfo,
+  sourceType: Type,
+  queries: SourceFileSemantics,
+  state: CsharpTypeResolutionState,
+  authoredTypeRoot?: Node,
+): import("../../source-evidence/types/resolution/structural-applications.js").CsharpStructuralPropertyApplication {
+  const authoredTypeNodes = [
+    ...sourcePropertyTypeEvidenceNodes(host.ast, queries, property),
+    ...(authoredTypeRoot === undefined ? []
+      : sourceTransformedTypeFactEvidenceNodes(host.ast, queries, authoredTypeRoot, sourceType)),
+  ];
+  const numeric = authoredTypeNodes.length === 0 &&
+    (queries.types.isNumberLike(sourceType) || queries.types.isBigIntLike(sourceType));
+  const declarations = !numeric ? [] : [...new Set([property.symbol, ...property.rootSymbols].flatMap(symbol =>
+    queries.declarations.symbolDeclarations(symbol)))];
+  const declarationValues = Object.freeze(declarations.map(declaration => Object.freeze({ declaration,
+    value: host.ast.is.IsPropertyAssignment(declaration) || host.ast.is.IsShorthandPropertyAssignment(declaration)
+      ? ObjectLiteralProperty_Value(host.ast, declaration) : undefined,
+  })));
+  return formCsharpStructuralPropertyApplication({ host }, {
+    sourceType, queries, state, authoredTypeNodes, numeric, declarationValues,
+  });
+}
 
 export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePolicyHost) {
   const { collectMembers } = createCsharpObjectShapeMemberSource(host);
@@ -176,54 +202,8 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
     state: CsharpTypeResolutionState,
     authoredTypeRoot?: Node,
   ): TargetTypeRef | undefined {
-    const authoredTypeNodes = [
-      ...sourcePropertyTypeEvidenceNodes(host.ast, queries, property),
-      ...(authoredTypeRoot === undefined
-        ? []
-        : sourceTransformedTypeFactEvidenceNodes(
-            host.ast,
-            queries,
-            authoredTypeRoot,
-            sourceType,
-          )),
-    ];
-    if (authoredTypeNodes.length === 0) {
-      if (queries.types.isNumberLike(sourceType) || queries.types.isBigIntLike(sourceType)) {
-        const declarations = [...new Set([property.symbol, ...property.rootSymbols].flatMap(symbol =>
-          queries.declarations.symbolDeclarations(symbol)))];
-        const carriers = declarations.map(declaration => {
-          const value = host.ast.is.IsPropertyAssignment(declaration) || host.ast.is.IsShorthandPropertyAssignment(declaration)
-            ? ObjectLiteralProperty_Value(host.ast, declaration) : undefined;
-          return value === undefined || host.literalValues.literalValue.get(value)?.number !== undefined
-            ? undefined : host.typeResolver.resolveNode(value, queries.sourceFile, nextState(state));
-        });
-        const first = carriers[0];
-        if (first !== undefined && isCsharpIntegralTargetType(first) &&
-          carriers.every(carrier => carrier !== undefined && targetTypeRefEquals(carrier, first))) return first;
-      }
-      return host.typeResolver.resolveType(
-        sourceType,
-        queries.sourceFile,
-        nextState(state),
-      );
-    }
-    const authoredTypes = authoredTypeNodes.map((typeNode) =>
-      host.typeResolver.resolveSelectedType(
-        typeNode,
-        sourceType,
-        queries.sourceFile,
-        nextState(state),
-      )
-    );
-    if (authoredTypes.some((type) => type === undefined)) {
-      return undefined;
-    }
-    const first = authoredTypes[0]!;
-    return authoredTypes.every((type) =>
-        type !== undefined && targetTypeRefEquals(first, type)
-      )
-      ? first
-      : undefined;
+    return host.typeResolver.resolveStructuralPropertyType(
+      formCsharpObjectShapePropertySource(host, property, sourceType, queries, state, authoredTypeRoot));
   }
 
   function resolveInheritedMemberType(

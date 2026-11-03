@@ -17,7 +17,8 @@ import { csharpTargetTypeFromBinding } from "../../../../policy/types/storage/bi
 import { definedValues } from "./source-evidence.js";
 import { nextState } from "./state.js";
 import { csharpRuntimeParameterDefault } from "../../../../policy/types/storage/parameter-defaults.js";
-import { resolveCsharpCallableTypeParameters } from "./callable-type-parameters.js";
+import { completeCsharpCallableDeclaration, completeCsharpCallableTypeParameters, formCsharpCallableDeclaration } from "./callable-type-parameters.js";
+import { resolveFormedCsharpTypeParameterConstraints } from "./type-parameter-constraints.js";
 import { csharpSourceStorageContext } from "./source-storage-projection.js";
 import { resolveCsharpNativeParameterCarrier, selectCsharpContextualParameterCarrier } from "./source-references.js";
 
@@ -171,14 +172,16 @@ export function resolveCallableEvidence(
         returnType,
         delegateOptions,
       );
-  const typeParameters = resolveCsharpCallableTypeParameters(callable.result.declaration, queries.sourceFile, {
-    ast: host.ast, types: { resolveNode: (node, file) => {
-      const type = resolveNodeWithState(node, file, nextState(state));
-      return type === undefined ? undefined : Object.freeze({ kind: "resolved" as const,
-        sourceResult: csharpSourceValueResult(type)! });
-    } },
-    genericProjections: host.representations.genericProjections,
-  });
+  const declaration = formCsharpCallableDeclaration(callable.result.declaration, queries.sourceFile, host.ast);
+  if (declaration === undefined) return undefined;
+  const constraints = declaration.typeParameters.map(parameter => Object.freeze({ source: parameter.constraint,
+    resolution: resolveFormedCsharpTypeParameterConstraints(parameter.constraint, dependency =>
+      resolveNodeWithState(dependency.node, dependency.sourceFile, nextState(state))),
+  }));
+  const completedDeclaration = completeCsharpCallableDeclaration(declaration, constraints);
+  if (completedDeclaration === undefined) return undefined;
+  const typeParameters = completeCsharpCallableTypeParameters(completedDeclaration,
+    declaration.declaration === undefined ? [] : host.representations.genericProjections(declaration.declaration));
   return typeParameters === undefined ? undefined : typeParameters.length === 0 ? signature
     : host.objectShapes.resolveCallableValue(signature, typeParameters);
 }
@@ -262,4 +265,3 @@ export function resolveSourceTypeComponentEvidence(
         nextState(state),
       );
 }
-import { csharpSourceValueResult } from "./call-results.js";

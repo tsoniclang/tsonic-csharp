@@ -20,7 +20,14 @@ import { type CsharpArrayLiteralSelection } from "../../../../target-model/recor
 import type { createCsharpTypePolicy } from "./engine.js";
 import type { CsharpNodeTypeResolution } from "../../../../policy/model/type-resolution.js";
 import type { CsharpSourceCallResult } from "../../../../target-model/operations/source-call-results.js";
+import type { CsharpCollectedObjectShapeMembers } from "../../../objects/shapes/member-source.js";
+import type { CsharpCompletedStructuralMemberChildren, CsharpStructuralPropertyApplication,
+  CsharpStructuralTypeApplication, CsharpStructuralTypeSource } from "./structural-applications.js";
 export interface CsharpTypeResolutionScope {
+  formStructuralTypeApplication(collection: CsharpCollectedObjectShapeMembers): CsharpStructuralTypeSource;
+  resolveStructuralPropertyType(application: CsharpStructuralPropertyApplication): TargetTypeRef | undefined;
+  resolveStructuralMemberChildren(application: CsharpStructuralTypeApplication,
+    memberIndex: number): CsharpCompletedStructuralMemberChildren | undefined;
   resolveNodeValueWithState(node: Node | undefined, sourceFile: SourceFile | undefined,
     state: CsharpTypeResolutionState): CsharpSourceCallResult | undefined;
   resolveSelectedExpressionResult(node: Node, queries: SourceFileSemantics,
