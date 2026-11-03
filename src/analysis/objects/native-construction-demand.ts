@@ -1,6 +1,7 @@
 import { providerVirtualDeclarationFactKey, type Node, type SourceFile, type Type } from "@tsonic/tsts";
-import { sourceDeclarationIsModuleScoped, sourceEnclosingCallable,
-  type SourceFileSemantics, type SourceTypeComponentEvidence } from "@tsonic/target-api/source";
+import { sourceDeclarationIsModuleScoped, type SourceFileSemantics } from "@tsonic/target-api/source";
+import { formCsharpLiteralCreationSource, selectCsharpLiteralCreationContext,
+  type CsharpLiteralContext, type CsharpLiteralContextHost } from "./literal-creation-source.js";
 import type { CsharpObjectShapeFact, TargetTypeRef } from "../../target-model/types/model.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { csharpNullableTargetType } from "../../target-model/types/carriers/nullable.js";
@@ -13,128 +14,12 @@ import type { CsharpNativeConstructionDemandQueries, CsharpNativeConstructionIss
 import type { CsharpObjectLiteralTargetShapeResolution } from "../../target-model/records/objects/object-shapes.js";
 import { createCsharpNativeConstructionRecords } from "../program/records/native/native-construction.js";
 
-type LiteralContextHost = Pick<CsharpTypePolicyBaseHost, "ast" | "navigation" | "semanticsFor">;
-
-interface CsharpLiteralContext {
-  readonly component: SourceTypeComponentEvidence;
-  readonly declarations: readonly Node[];
-  readonly source: Node;
-  readonly returnedFrom?: Node;
-}
-
 export function selectCsharpLiteralDeclarationContext(
   expression: Node,
   queries: SourceFileSemantics,
-  host: LiteralContextHost,
+  host: CsharpLiteralContextHost,
 ): CsharpLiteralContext | undefined {
-  const { ast, navigation } = host;
-  let current = expression;
-  while (ast.is.IsParenthesizedExpression(ast.parent(current))) current = ast.parent(current)!;
-  const declaration = ast.parent(current);
-  const variable = declaration !== undefined && ast.is.IsVariableDeclaration(declaration)
-    ? ast.as.AsVariableDeclaration(declaration) : undefined;
-  if (ast.is.IsObjectLiteralExpression(expression)) {
-    let initializer = current;
-    let owner = declaration;
-    while (owner !== undefined && !ast.is.IsVariableDeclaration(owner)) {
-      if (!ast.is.IsPropertyAssignment(owner) || ast.as.AsPropertyAssignment(owner)?.Initializer !== initializer) break;
-      const literal = ast.parent(owner);
-      if (literal === undefined || !ast.is.IsObjectLiteralExpression(literal)) break;
-      initializer = literal;
-      while (ast.is.IsParenthesizedExpression(ast.parent(initializer))) initializer = ast.parent(initializer)!;
-      owner = ast.parent(initializer);
-    }
-    const binding = owner !== undefined && ast.is.IsVariableDeclaration(owner)
-      ? ast.as.AsVariableDeclaration(owner) : undefined;
-    if (binding?.Initializer === initializer && binding.Type !== undefined &&
-      ast.is.IsObjectBindingPattern(ast.name(owner!))) {
-      const selectedType = queries.types.expressionType(expression);
-      return selectedType === undefined ? undefined : { component: { selectedType, declaration: owner },
-        declarations: [], source: expression };
-    }
-  }
-  const declarations = variable?.Initializer === current ? [declaration!] : [];
-  const returnContext = (callable: Node, locals: readonly Node[]): CsharpLiteralContext | undefined => {
-    const authoredTypeNode = ast.typeNode(callable);
-    if (authoredTypeNode !== undefined) {
-      const selectedType = host.semanticsFor(authoredTypeNode).types.authoredType(authoredTypeNode);
-      return selectedType === undefined ? undefined : { component: { selectedType, authoredTypeNode, declaration: callable },
-        declarations: locals, source: expression, returnedFrom: callable };
-    }
-    const callableQueries = host.semanticsFor(callable);
-    const contextual = callableQueries.types.contextualValueSelection(callable);
-    const signature = contextual.kind === "selected" ? callableQueries.types.callable(contextual.component.selectedType) : undefined;
-    return signature === undefined ? undefined : { component: signature.result, declarations: locals,
-      source: expression, returnedFrom: callable };
-  };
-  const parent = ast.parent(current);
-  const returning = parent !== undefined && ast.is.IsReturnStatement(parent) ||
-    parent !== undefined && (ast.is.IsArrowFunction(parent) || ast.is.IsFunctionExpression(parent)) && ast.body(parent) === current;
-  if (returning) {
-    const callable = parent !== undefined && (ast.is.IsArrowFunction(parent) || ast.is.IsFunctionExpression(parent))
-      ? parent : sourceEnclosingCallable(expression, ast);
-    const selected = callable === undefined ? undefined : returnContext(callable, declarations);
-    if (selected !== undefined) return selected;
-  }
-  const direct = queries.types.contextualValueSelection(expression);
-  if (direct.kind === "selected") return { component: direct.component, declarations, source: expression };
-  if (declarations.length === 0) return undefined;
-  const list = ast.parent(declaration!);
-  const statement = ast.parent(list);
-  const block = ast.parent(statement);
-  if (list === undefined || statement === undefined || block === undefined ||
-    !ast.is.IsVariableDeclarationList(list) || !ast.is.IsVariableStatement(statement) ||
-    !ast.is.IsBlock(block)) return undefined;
-  const siblings = ast.children(block).filter((node): node is Node => node !== undefined);
-  const position = siblings.indexOf(statement);
-  if (position < 0) return undefined;
-  const next = siblings[position + 1];
-  if (next === undefined) return undefined;
-  const immediate = ast.is.IsReturnStatement(next) ? ast.as.AsReturnStatement(next)?.Expression
-    : ast.is.IsExpressionStatement(next) ? ast.as.AsExpressionStatement(next)?.Expression : undefined;
-  const call = immediate !== undefined && ast.is.IsCallExpression(immediate) ? ast.as.AsCallExpression(immediate) : undefined;
-  if (call !== undefined) {
-    for (const argument of call.Arguments?.Nodes ?? []) {
-      if (argument === undefined || !ast.is.IsIdentifier(argument) ||
-        navigation.referenceFor(argument)?.declaration !== declaration) continue;
-      const checked = host.semanticsFor(argument).types.contextualValueSelection(argument);
-      if (checked.kind === "selected") return { component: checked.component, declarations, source: argument };
-    }
-    return undefined;
-  }
-  if (ast.is.IsReturnStatement(next)) {
-    const returned = ast.as.AsReturnStatement(next)?.Expression;
-    if (returned === undefined || !ast.is.IsIdentifier(returned) ||
-      navigation.referenceFor(returned)?.declaration !== declaration) return undefined;
-    const callable = sourceEnclosingCallable(next, ast);
-    return callable === undefined ? undefined : returnContext(callable, declarations);
-  }
-  if (!ast.is.IsVariableStatement(next)) return undefined;
-  const nextList = ast.as.AsVariableStatement(next)?.DeclarationList;
-  if (nextList === undefined || ast.variableDeclarationKind(nextList) !== "const") return undefined;
-  const variables = ast.children(nextList).filter((node): node is Node =>
-    node !== undefined && ast.is.IsVariableDeclaration(node));
-  const nextDeclaration = variables.length === 1 ? variables[0] : undefined;
-  const nextVariable = nextDeclaration === undefined ? undefined : ast.as.AsVariableDeclaration(nextDeclaration);
-  const initializer = nextVariable?.Initializer;
-  if (initializer === undefined || !ast.is.IsIdentifier(initializer) ||
-    navigation.referenceFor(initializer)?.declaration !== declaration) return undefined;
-  const authoredTypeNode = nextVariable?.Type;
-  if (authoredTypeNode === undefined) {
-    if (!ast.is.IsArrayLiteralExpression(expression)) return undefined;
-    const following = siblings[position + 2];
-    const returned = following !== undefined && ast.is.IsReturnStatement(following)
-      ? ast.as.AsReturnStatement(following)?.Expression : undefined;
-    if (returned === undefined || !ast.is.IsIdentifier(returned) ||
-      navigation.referenceFor(returned)?.declaration !== nextDeclaration) return undefined;
-    const callable = sourceEnclosingCallable(following!, ast);
-    return callable === undefined || ast.typeNode(callable) === undefined ||
-      sourceEnclosingCallable(expression, ast) !== callable ? undefined
-      : returnContext(callable, [...declarations, nextDeclaration!]);
-  }
-  const selectedType = host.semanticsFor(authoredTypeNode).types.authoredType(authoredTypeNode);
-  return selectedType === undefined ? undefined : { component: { selectedType, authoredTypeNode,
-    declaration: nextDeclaration }, declarations, source: expression };
+  return selectCsharpLiteralCreationContext(formCsharpLiteralCreationSource(expression, queries, host));
 }
 
 interface CsharpNativeConstructionHost extends Pick<CsharpTypePolicyBaseHost,
