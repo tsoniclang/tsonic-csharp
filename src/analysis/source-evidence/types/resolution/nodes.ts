@@ -25,6 +25,7 @@ import { selectCsharpParameterListCarrier } from "../../../../policy/types/calla
 import { resolveFormedCsharpContextualParameterCarrier } from "./contextual-parameter-source.js";
 import { resolveFormedCsharpNativeParameterCarrier } from "./native-parameter-source.js";
 import { resolveFormedCsharpProjectInstanceTargetType } from "./project-instance-source.js";
+import { resolveFormedCsharpCallableType } from "./source-profiles.js";
 import type { CsharpSourceCallResult } from "../../../../target-model/operations/source-call-results.js";
 import { csharpSourceValueResult, refineCsharpSourceValueResult } from "./call-results.js";
 export function resolveNodeValueWithState(
@@ -66,6 +67,15 @@ export function resolveFormedCsharpNodeTypeSource(
     return failTargetAnalysisInvariant("tsonic-csharp",
       "A contextual parameter requires its exact retained Source occurrence.", source.node);
   }
+  if (source.kind === "node" && (source.functionType === undefined || source.functionType.node !== source.node ||
+      source.functionType.queries !== source.queries || source.functionType.state !== source.state ||
+      source.functionType.kind === "function" && (source.functionType.type === undefined
+        ? source.functionType.callable !== undefined
+        : source.functionType.callable === undefined || source.functionType.callable.source.type !== source.functionType.type ||
+          source.functionType.callable.source.queries !== source.queries || source.functionType.callable.state !== source.state))) {
+    return failTargetAnalysisInvariant("tsonic-csharp",
+      "A function-type node requires its exact authored callable Source and original state.", source.node);
+  }
   if (source.kind === "node" && (source.value === undefined || (source.selectedType === undefined ? source.selectedValue !== undefined
     : source.selectedValue === undefined || source.selectedValue.node !== source.node ||
       source.selectedValue.queries !== source.queries || source.selectedValue.selectedType !== source.selectedType ||
@@ -82,7 +92,7 @@ function resolveNodeResultWithState(
   scope: CsharpTypeResolutionScope,
   source: CsharpNodeTypeSource,
 ): CsharpSourceCallResult | undefined {
-  const { host, resolveCallableType, resolveFormedDirectSourceFacts, resolveNodeWithState, resolveFormedSelectedExpressionResult, resolveFormedSourceValueResult, resolveTupleTypeNode, resolveFormedTypeReferenceNode, resolveTypeWithState } = scope;
+  const { host, resolveFormedDirectSourceFacts, resolveNodeWithState, resolveFormedSelectedExpressionResult, resolveFormedSourceValueResult, resolveTupleTypeNode, resolveFormedTypeReferenceNode, resolveTypeWithState } = scope;
   if (source.node === undefined) return undefined;
   if (source.state.depth > maximumTypeResolutionDepth) failTargetCompilerResourceLimit("tsonic-csharp",
     "Selected native source-node type resolution", "depth", maximumTypeResolutionDepth, source.node);
@@ -129,9 +139,9 @@ function resolveNodeResultWithState(
   if (scalar !== undefined) {
     return csharpSourceValueResult(scalar);
   }
-  if (host.ast.is.IsFunctionTypeNode(node)) {
-    const selected = queries.types.authoredType(node);
-    return selected === undefined ? undefined : csharpSourceValueResult(resolveCallableType(selected, queries, state));
+  if (source.functionType.kind === "function") {
+    const callable = source.functionType.callable;
+    return callable === undefined ? undefined : csharpSourceValueResult(resolveFormedCsharpCallableType(scope, callable));
   }
   if (host.ast.is.IsArrayTypeNode(node)) {
     const element = resolveNodeWithState(

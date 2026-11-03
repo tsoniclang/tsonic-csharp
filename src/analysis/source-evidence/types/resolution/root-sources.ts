@@ -44,6 +44,15 @@ export interface CsharpStructuralTypeSourceInput {
   readonly source: CsharpObjectShapeTypeSource | undefined;
 }
 
+export type CsharpFunctionTypeNodeSource = {
+  readonly node: Node;
+  readonly queries: SourceFileSemantics;
+  readonly state: CsharpTypeResolutionState;
+} & (
+  | { readonly kind: "not-function" }
+  | { readonly kind: "function"; readonly type: Type | undefined; readonly callable: CsharpCallableTypeInput | undefined }
+);
+
 export type CsharpSemanticTypeSource = {
   readonly type: Type | undefined;
   readonly sourceFile: SourceFile;
@@ -73,6 +82,7 @@ export type CsharpNodeTypeSource = {
       readonly declaredReceiver: CsharpDeclaredObjectReceiverInput | undefined;
       readonly nativeParameter: CsharpNativeParameterSource;
       readonly contextualParameter: CsharpContextualParameterSource;
+      readonly functionType: CsharpFunctionTypeNodeSource;
       readonly projectInstance: CsharpProjectInstanceSource;
       readonly selectedType: Type | undefined; readonly project: CsharpProjectReferenceSource | undefined;
       readonly reference: CsharpTypeReferenceSource | undefined;
@@ -124,6 +134,20 @@ export function resolveStructuralTypeWithState(
 ): TargetTypeRef | undefined {
   return scope.host.structuralTypes.completeTypeSource(formCsharpStructuralTypeSourceInput(
     scope, type, scope.host.semantics(sourceFile), state, authoredTypeRoot));
+}
+
+export function formCsharpFunctionTypeNodeSource(
+  { host }: Pick<CsharpTypeResolutionScope, "host">,
+  node: Node,
+  queries: SourceFileSemantics,
+  state: CsharpTypeResolutionState,
+): CsharpFunctionTypeNodeSource {
+  if (!host.ast.is.IsFunctionTypeNode(node)) return Object.freeze({ kind: "not-function", node, queries, state });
+  const type = queries.types.authoredType(node);
+  return Object.freeze({ kind: "function", node, queries, state, type,
+    callable: type === undefined ? undefined
+      : formCsharpCallableTypeInput(host, formCsharpCallableTypeSource(host.ast, type, queries), state),
+  });
 }
 
 export function formCsharpSemanticTypeSource(
@@ -189,6 +213,7 @@ export function formCsharpNodeTypeSource(
   return Object.freeze({ kind: "node", node, sourceFile, queries, state, originalState, selectedType, declaredReceiver,
     nativeParameter: formCsharpNativeParameterSource(host.ast, node),
     contextualParameter: formCsharpContextualParameterSource(scope, node, queries),
+    functionType: formCsharpFunctionTypeNodeSource(scope, node, queries, state),
     projectInstance: formCsharpProjectThisSource(host.ast, node),
     directSyntax: formCsharpDirectSourceEvidence(scope, Object.freeze([node]), queries.sourceFile, state),
     directValue: formCsharpDirectSourceEvidence(scope, sourceFactSubjectsForNode(node, host.navigation), queries.sourceFile, state),
