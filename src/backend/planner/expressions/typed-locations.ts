@@ -17,6 +17,7 @@ import { planCsharpIndexedLocation } from "./indexed-locations.js";
 import { buildCsharpPlannedValue, projectCsharpPlannedValue, projectCsharpPlannedMember, planCsharpExpressionCompletion } from "./planned-value-composition.js";
 import { readCsharpNativeExpressionCarrier } from "./native-uses.js";
 import { captureCsharpPlannedLocation } from "./planned-locations.js";
+import { planCsharpSourceMemberName } from "./source-member-names.js";
 
 export function planCsharpTypedLocationOperation(node: Node, sourceFile: SourceFile, input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[], planExpression: ExpressionPlanner, state?: DestructuringPlannerState): CsharpPlannedValue | undefined {
@@ -192,8 +193,13 @@ function requiredAddress(planned: CsharpPlannedValue, node: Node): CsharpPlanned
 
 function valueFieldName(storage: Extract<CsharpTypedLocationStorage, { readonly kind: "value-property-storage" }>,
   input: CsharpPlanningContext): string {
-  return requiredStorage(storage, input).memberName ??
-    failCsharpPlannerInvariant("An admitted value-field location requires its exact sealed native field name.", storage.expression);
+  const property = input.program.records.selectedProperty.get(storage.expression);
+  const selected = input.program.records.sourceMemberEmission.get(storage.expression);
+  if (property?.selection.kind !== "source-owned" || property.receiverProjection !== undefined ||
+    property.selection.source.receiver.expression !== storage.receiverStorage.expression ||
+    selected?.kind !== "member" || selected.methodValue || selected.static)
+    failCsharpPlannerInvariant("An admitted value-field location requires its exact sealed source field over the owner location.", storage.expression);
+  return planCsharpSourceMemberName(storage.expression, false, input);
 }
 
 function requiredMember(planned: CsharpPlannedValue, node: Node): Extract<CsharpPlannedAddress, { readonly kind: "member" }> {

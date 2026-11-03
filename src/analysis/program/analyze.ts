@@ -9,7 +9,7 @@ import { analyzeCsharpProjectCallableAdapters } from "../project-types/callable-
 
 import { analyzeSourceLiteralValues } from "@tsonic/target-api/source";
 
-import { createTsonicPointerStorageRelation, createTsonicMemoryBindingFactsIndex } from "@tsonic/source-core/facts";
+import { createTsonicPointerReturnQueries, createTsonicMemoryBindingIndex } from "@tsonic/source-core/facts";
 import { rejectedTargetStage, resolvedTargetStage, failTargetAnalysisInvariant, targetDiagnosticFromExtension } from "@tsonic/target-api/artifacts";
 import { resolveTargetContractFixedPoint } from "@tsonic/target-api/analysis";
 import type { TargetStageResult, TargetDiagnostic } from "@tsonic/target-api/artifacts";
@@ -76,7 +76,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
   if (source.semantics.enumConstants.issues.length !== 0) return rejectedTargetStage(source.semantics.enumConstants.issues);
   const nativeErrors = analyzeCsharpNativeErrorAdmission(source);
   if (nativeErrors.issues.length !== 0) return rejectedTargetStage(nativeErrors.issues);
-  const memoryBindings = createTsonicMemoryBindingFactsIndex(source);
+  const memoryBindings = createTsonicMemoryBindingIndex(source);
   const sourceAttributeApplications = createCsharpSourceAttributeApplicationIndex(source, source.navigation.sourceFiles);
   const safetyApplications = createCsharpSafetyApplicationFactIndex({
     ast: source.ast,
@@ -121,7 +121,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
     sourceFacts: source.sourceFacts,
     navigation: source.navigation,
     providers,
-    pointerStorage: createTsonicPointerStorageRelation(source, sourceStorage),
+    pointerReturns: createTsonicPointerReturnQueries(source),
     memoryBindings,
     target: input.target,
     semantics: source.semantics.forFile,

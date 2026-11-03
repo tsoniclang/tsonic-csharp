@@ -5,46 +5,43 @@ import type { CsharpTypeResolutionState } from "../../source-evidence/types/reso
 import { nextState } from "../../source-evidence/types/resolution/state.js";
 
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
-import { combineCsharpTargetUnionMembers, csharpRuntimeLocationTargetType, csharpAbsenceTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
-import { resolveCsharpPointerStoragePointee } from "../../source-evidence/types/resolution/pointer-storage.js";
+import { combineCsharpTargetUnionMembers, csharpRuntimeLocationTargetType, csharpRuntimeLocationPointee } from "../../../target-model/types/carriers/runtime-carriers.js";
 
 export function resolveCsharpPointerReturnContract(
-  scope: CsharpTypeResolutionScope,
+  { host, resolveAuthoredAndSelectedSourceType, resolveDirectSourceFacts, resolveTypeWithState }: CsharpTypeResolutionScope,
   declaration: Node,
   state: CsharpTypeResolutionState,
 ): CsharpPointerReturnContract | undefined {
-  const { host } = scope;
-  if (host.ast.body(declaration) === undefined || host.ast.hasModifierKind(declaration, "async")) return undefined;
-  const queries = host.semanticsFor(declaration);
-  if (queries.operations.generator(declaration) !== undefined) return undefined;
-  const completion = queries.operations.callableCompletion(declaration);
-  if (completion === undefined) return undefined;
-  const evidence = host.pointerStorage.returned(declaration, state.sourceStorageBindings);
-  if (evidence.kind === "unresolved") return undefined;
-  const selections = evidence.producers.map(producer =>
-    resolveCsharpPointerStoragePointee(scope, producer.storage, nextState(state)));
-  if (evidence.kind === "open") {
-    for (const boundary of evidence.boundaries) {
-      const checked = host.sourceStorage.typeFor(boundary.subject);
-      if (checked.kind === "unresolved") return undefined;
-      selections.push(resolveCsharpPointerStoragePointee(scope, {
-        subject: boundary.subject, type: checked.type, sourceFile: checked.sourceFile, bindings: boundary.bindings,
-      }, nextState(state)));
-    }
+  const evidence = host.pointerReturns.resolve(declaration);
+  if (evidence === undefined) {
+    return undefined;
   }
-  const pointees = selections.map(selected => selected.kind === "resolved" ? selected.type : undefined);
+  const pointees = evidence.pointees.map((value) => csharpRuntimeLocationPointee(
+    resolveDirectSourceFacts([value.subject], host.ast.getSourceFile(value.subject)!, nextState(state)),
+  ) ?? resolveAuthoredAndSelectedSourceType(
+    value.typeNode,
+    host.ast.getSourceFile(value.typeNode ?? value.subject)!,
+    value.type,
+    host.ast.getSourceFile(value.subject)!,
+    nextState(state),
+  ));
   const first = pointees[0];
   if (first === undefined || pointees.some((type) =>
     type === undefined || !targetTypeRefEquals(type, first))) {
     return undefined;
   }
+  const nullish = evidence.nullishTypes.map((type) =>
+    resolveTypeWithState(type, host.ast.getSourceFile(declaration)!, nextState(state)));
+  if (nullish.some((type) => type === undefined)) {
+    return undefined;
+  }
   const type = combineCsharpTargetUnionMembers([
     csharpRuntimeLocationTargetType(first),
-    ...evidence.includesAbsence ? [csharpAbsenceTargetType()] : [],
+    ...nullish.filter((type) => type !== undefined),
   ]);
   return type === undefined ? undefined : Object.freeze({
     type,
-    undefinedReturn: evidence.includesAbsence,
-    fallthroughUndefined: evidence.includesAbsence && completion.canFallThrough,
+    undefinedReturn: nullish.length > 0,
+    fallthroughUndefined: nullish.length > 0 && evidence.completion.canFallThrough,
   });
 }

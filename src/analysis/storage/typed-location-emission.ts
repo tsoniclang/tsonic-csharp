@@ -13,12 +13,10 @@ import { objectShapeBoundStorageMemberName } from "../../target-model/names/obje
 import { selectCsharpTypeEmission } from "../../policy/types/resolution/type-emission.js";
 import { createCsharpTypedLocationEmissionRecords } from "../program/records/storage/typed-location-emission.js";
 import { csharpTypedLocationLoweringRefusal } from "../operations/typed-locations.js";
-import type { CsharpSourceMemberNameRecords } from "../../target-model/records/program/source-member-names.js";
 
 export function analyzeCsharpTypedLocationEmission(input: { readonly source: TargetSourceProgram; readonly nodes: readonly Node[];
   readonly storage: CsharpStorageClassifications; readonly operations: CsharpTargetOperationClassifications;
-  readonly members: CsharpObjectMemberRecords; readonly memberNames: CsharpSourceMemberNameRecords;
-  readonly admitted: (node: Node) => boolean }) {
+  readonly members: CsharpObjectMemberRecords; readonly admitted: (node: Node) => boolean }) {
   const locations = new Map<Node, CsharpTypedLocationEmission>();
   const storage = new Map<CsharpTypedLocationStorage, CsharpTypedStorageEmission>();
   const issues: TargetDiagnostic[] = [];
@@ -45,22 +43,7 @@ export function analyzeCsharpTypedLocationEmission(input: { readonly source: Tar
       : subject.kind === "reference-property-storage" && native !== undefined ? { kind: "native-field", name: native.storageName }
       : subject.kind === "direct-storage" && subject.identity.kind === "local-storage" && input.storage.nativeBacking.get(subject.identity.declaration) !== undefined
         ? { kind: "native-local" } : { kind: "managed" };
-    let memberName: string | undefined;
-    if (subject.kind === "value-property-storage") {
-      const property = input.operations.selectedProperty.get(subject.expression);
-      const selection = property?.selection;
-      if (property?.receiverProjection === undefined &&
-        (selection?.kind === "source-owned" || selection?.kind === "resolved") &&
-        selection.source.receiver.expression === subject.receiverStorage.expression) {
-        if (selection.kind === "source-owned") memberName = input.memberNames.sourceMemberName.get(subject.expression)?.read;
-        else if (selection.receiver.kind === "instance" && selection.targetMember.kind === "field" &&
-          !selection.targetMember.static && !selection.targetMember.readonly &&
-          subject.memberIdentity === `target-member:${selection.targetMember.id}`) memberName = selection.targetMember.targetName;
-      }
-      if (memberName === undefined) locationIssue(subject.expression, "location-address",
-        "A value-field location requires its exact selected writable native field name.");
-    }
-    storage.set(subject, Object.freeze({ carrier, bound, memberName, address: Object.freeze(address) }));
+    storage.set(subject, Object.freeze({ carrier, bound, address: Object.freeze(address) }));
     if (subject.kind === "value-property-storage") admitStorage(subject.receiverStorage);
   };
   for (const node of input.nodes) {

@@ -1,20 +1,19 @@
 import type { CsharpMemoryBindingSelection } from "../../target-model/records/storage/memory-bindings.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import { selectTsonicMemoryFieldBindingFacts, selectTsonicMemoryRecordBindingFacts } from "@tsonic/source-core/facts";
+import { selectTsonicMemoryFieldBinding, selectTsonicMemoryRecordBinding } from "@tsonic/source-core/facts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpObjectShapeMemberFact } from "../../target-model/types/model.js";
 import { csharpRuntimeLocationTargetType, isCsharpEmptyObjectTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../target-model/types/object-shape-members.js";
 import { readCsharpSourceField } from "../../source/extension/markers.js";
-import { csharpPointerStorageDomainRejection } from "./pointers/storage-domain.js";
 
 export function selectCsharpMemoryBinding(
   input: CsharpPolicyContext, node: Node, file: SourceFile,
 ): CsharpMemoryBindingSelection | undefined {
   if (input.sourceFacts === undefined) return undefined;
-  const field = selectTsonicMemoryFieldBindingFacts(input.ast, input.sourceFacts, node);
-  const record = selectTsonicMemoryRecordBindingFacts(input.ast, input.sourceFacts, node);
+  const field = selectTsonicMemoryFieldBinding(input.ast, input.sourceFacts, node);
+  const record = selectTsonicMemoryRecordBinding(input.ast, input.sourceFacts, node);
   if (field === undefined && record === undefined) return undefined;
   const reject = (reason: string): CsharpMemoryBindingSelection => ({ kind: "rejected", reason });
   if (field?.kind === "rejected") return reject(field.reason);
@@ -30,8 +29,6 @@ export function selectCsharpMemoryBinding(
     if (selectedPointer === undefined || !targetTypeRefEquals(type, selectedPointer)) {
       return reject("The selected location and bound field have different C# pointee carriers.");
     }
-    const domain = csharpPointerStorageDomainRejection(input, operation.pointerExpression, pointee);
-    if (domain !== undefined) return reject(domain);
     return Object.freeze({ kind: "field", type, expression: operation.pointerExpression });
   }
   if (record?.kind !== "resolved") return reject("The record binding has no finalized operation.");
@@ -56,8 +53,6 @@ export function selectCsharpMemoryBinding(
     if (selectedPointer === undefined || !targetTypeRefEquals(selectedPointer, csharpRuntimeLocationTargetType(member.type))) {
       return reject("The bound member and supplied location have different C# pointee carriers.");
     }
-    const domain = csharpPointerStorageDomainRejection(input, entry.binding.pointerExpression, member.type);
-    if (domain !== undefined) return reject(domain);
     used.add(member);
     fields.push(Object.freeze({ expression: entry.expression, member }));
   }

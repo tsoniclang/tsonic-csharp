@@ -345,8 +345,7 @@ export function finalizeCsharpNativeEmission(
   const sourceUnions = analyzeCsharpSourceUnionEmission(typeDefinitions);
   const nativeLayouts = analyzeCsharpNativeMemoryEmission({ nodes: sourceStorage.nodes, storage: analysis.storage, operations: admittedOperations });
   const typedLocationEmission = analyzeCsharpTypedLocationEmission({ source, nodes: sourceStorage.nodes,
-    storage: analysis.storage, operations: admittedOperations, members: objectMembers.records,
-    memberNames: memberNames.records, admitted: admittedControlNode });
+    storage: analysis.storage, operations: admittedOperations, members: objectMembers.records, admitted: admittedControlNode });
   if (typedLocationEmission.issues.length !== 0) return rejectedTargetStage(typedLocationEmission.issues);
   const binaryCarriers = (selection: CsharpResolvedBinaryOperation): readonly TargetTypeRef[] => [
     selection.leftType, selection.rightType, selection.leftInputType, selection.rightInputType, selection.resultType,
