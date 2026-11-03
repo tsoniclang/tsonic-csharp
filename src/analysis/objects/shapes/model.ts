@@ -4,6 +4,7 @@ import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import type { CsharpObjectShapeFact, TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpProjectTypeCatalog, CsharpProjectTypePolicy } from "../../../target-model/records/types/project-types.js";
 import type { CsharpPlanningRepresentationQueries, CsharpRecursiveTypeResolver, CsharpTypePolicyBaseHost, CsharpTypeResolutionState } from "../../source-evidence/types/resolution/model.js";
+import type { CsharpCurrentProjectDeclarations } from "../../source-evidence/model.js";
 
 export type CsharpStructuralUnionResolution =
   | { readonly kind: "not-applicable" }
@@ -14,6 +15,7 @@ export interface CsharpObjectShapePolicyHost extends CsharpTypePolicyBaseHost {
   readonly typeParameterConstraints: import("../../../target-model/types/generic-references.js").CsharpTypeParameterConstraintResolver;
   readonly representations: CsharpPlanningRepresentationQueries;
   readonly projectTypeCatalog: CsharpProjectTypeCatalog;
+  readonly projectDeclarations: CsharpCurrentProjectDeclarations;
   projectTypes(): CsharpProjectTypePolicy;
   readonly typeResolver: CsharpRecursiveTypeResolver;
 }

@@ -8,10 +8,12 @@ export type CsharpObjectShapeMemberLookupProvenance =
   | "finalized-object-rest-member"
   | "finalized-object-spread-member";
 
-export type CsharpObjectShapeMemberLookupResult =
+export type CsharpObjectShapeMemberLookupResult<
+  Member extends Pick<CsharpObjectShapeMemberFact, "sourceSubjects"> = CsharpObjectShapeMemberFact,
+> =
   | {
       readonly kind: "resolved";
-      readonly member: CsharpObjectShapeMemberFact;
+      readonly member: Member;
       readonly evidence: readonly string[];
     }
   | {
@@ -77,10 +79,12 @@ export function resolveCsharpObjectShapeMemberBySourceKey(
       );
 }
 
-export function resolveCsharpObjectShapeMemberBySelectedSubject(
-  objectShape: CsharpObjectShapeFact,
+export function resolveCsharpObjectShapeMemberBySelectedSubject<
+  Member extends Pick<CsharpObjectShapeMemberFact, "sourceSubjects">,
+>(
+  objectShape: { readonly members: readonly Member[] },
   selectedSubjects: readonly unknown[],
-): CsharpObjectShapeMemberLookupResult {
+): CsharpObjectShapeMemberLookupResult<Member> {
   const presentSubjects = selectedSubjects.filter(
     (subject) => subject !== undefined,
   );
@@ -131,7 +135,7 @@ function missingObjectShapeMember(
     CsharpObjectShapeMemberLookupResult,
     { readonly kind: "missing" }
   >["reason"],
-): CsharpObjectShapeMemberLookupResult {
+): Extract<CsharpObjectShapeMemberLookupResult, { readonly kind: "missing" }> {
   return {
     kind: "missing",
     sourceName,
