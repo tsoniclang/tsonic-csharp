@@ -63,12 +63,17 @@ import { formCsharpDirectSourceEvidence, completeCsharpDirectSourceEvidence,
 import { resolveCsharpPointerStoragePointee } from "./pointer-storage.js";
 import { formCsharpLiteralCreationContextSource, resolveFormedCsharpLiteralCreationContext } from "./literal-creation-context.js";
 import { completeCsharpSourceCallArgumentParameterSource } from "./call-argument-source.js";
+import { formCsharpSourceTypeComponentSource, resolveFormedCsharpSourceTypeComponent } from "./type-component-source.js";
 
 import type { CsharpTypeResolutionScope } from "./scope.js";
 type DropScope<Arguments extends readonly unknown[]> =
   Arguments extends readonly [unknown, ...infer Rest] ? Rest : never;
 
 export interface CsharpTypeResolutionServices {
+  readonly sourceTypeComponentSource: (...args: DropScope<Parameters<typeof formCsharpSourceTypeComponentSource>>) =>
+    ReturnType<typeof formCsharpSourceTypeComponentSource>;
+  readonly completeSourceTypeComponent: (...args: DropScope<Parameters<typeof resolveFormedCsharpSourceTypeComponent>>) =>
+    ReturnType<typeof resolveFormedCsharpSourceTypeComponent>;
   readonly authoredSelectionSource: (...args: DropScope<Parameters<typeof formCsharpAuthoredTypeSelectionSource>>) =>
     ReturnType<typeof formCsharpAuthoredTypeSelectionSource>;
   readonly bindAuthoredSelection: typeof bindCsharpAuthoredTypeSelectionSource;
@@ -443,6 +448,10 @@ export function createCsharpTypeResolutionServices(
     },
   });
   return Object.freeze({ policy, recursive,
+    sourceTypeComponentSource: (...args: DropScope<Parameters<typeof formCsharpSourceTypeComponentSource>>) =>
+      formCsharpSourceTypeComponentSource(scope, ...args),
+    completeSourceTypeComponent: (...args: DropScope<Parameters<typeof resolveFormedCsharpSourceTypeComponent>>) =>
+      resolveFormedCsharpSourceTypeComponent(scope, ...args),
     authoredSelectionSource: (...args: DropScope<Parameters<typeof formCsharpAuthoredTypeSelectionSource>>) =>
       formCsharpAuthoredTypeSelectionSource(scope, ...args),
     bindAuthoredSelection: bindCsharpAuthoredTypeSelectionSource,

@@ -22,7 +22,7 @@ import { completeCsharpCallableDeclaration, completeCsharpCallableABI, formCshar
 import { formCsharpCallableSignatureSource, formCsharpCallableTypeSource } from "./callable-signature-source.js";
 import type { CsharpCallableSignatureSource, CsharpCallableTypeSource } from "../../../../target-model/records/types/callable-source.js";
 import { resolveFormedCsharpTypeParameterConstraints } from "./type-parameter-constraints.js";
-import { csharpSourceStorageContext } from "./source-storage-projection.js";
+import { formCsharpSourceTypeComponentSource, resolveFormedCsharpSourceTypeComponent } from "./type-component-source.js";
 import { resolveCsharpNativeParameterCarrier, selectCsharpContextualParameterCarrier } from "./source-references.js";
 
 import { selectCsharpSourceProfileCarrier } from "../../../../policy/operations/source-profiles/type-carriers.js";
@@ -258,33 +258,17 @@ export function resolveSignatureParameterEvidence(
 }
 
 export function resolveSourceTypeComponentEvidence(
-  { host, resolveAuthoredAndSelectedSourceType, resolveTypeWithState, resolvePointerReturn }: CsharpTypeResolutionScope,
+  scope: CsharpTypeResolutionScope,
   component: SourceTypeComponentEvidence,
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
-  state = csharpSourceStorageContext(host, state, component.declaration);
+  const source = formCsharpSourceTypeComponentSource(scope, component, queries, state);
   const pointer = component.declaration === undefined
     ? undefined
-    : resolvePointerReturn(component.declaration, state);
+    : scope.resolvePointerReturn(component.declaration, source.state);
   if (pointer !== undefined) {
     return pointer.type;
   }
-  const authoredSourceFile = component.authoredTypeNode === undefined
-    ? queries.sourceFile
-    : host.ast.getSourceFile(component.authoredTypeNode) ??
-      queries.sourceFile;
-  return component.authoredTypeNode === undefined
-    ? resolveTypeWithState(
-        component.selectedType,
-        queries.sourceFile,
-        nextState(state),
-      )
-    : resolveAuthoredAndSelectedSourceType(
-        component.authoredTypeNode,
-        authoredSourceFile,
-        component.selectedType,
-        queries.sourceFile,
-        nextState(state),
-      );
+  return resolveFormedCsharpSourceTypeComponent(scope, source);
 }

@@ -39,6 +39,7 @@ export interface CsharpAuthoredTypeSelectionSource {
 
 export interface CsharpAuthoredTypeSelectionEvidence extends CsharpAuthoredTypeSelectionSource {
   readonly source: CsharpAuthoredTypeSelectionSource;
+  readonly inputState: CsharpTypeResolutionState;
   readonly state: CsharpTypeResolutionState;
   readonly dependencies: {
     readonly authored: CsharpSourceTypeDependency | undefined;
@@ -114,7 +115,7 @@ export function bindCsharpAuthoredTypeSelectionSource(
     : selection.authored.selectedNullishTypes.map(type => Object.freeze({
       kind: "type" as const, type, sourceFile: selectedSourceFile, state: childState,
     }));
-  return Object.freeze({ ...source, source,
+  return Object.freeze({ ...source, source, inputState: state,
     state: retainedState, selection, dependencies: Object.freeze({
       authored, selected, members: Object.freeze(members), nullishMembers: Object.freeze(nullishMembers),
     }),
