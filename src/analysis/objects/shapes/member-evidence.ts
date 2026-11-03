@@ -302,7 +302,7 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
       if (declared === undefined) return { kind: "unresolved",
         reason: `Inherited project member of '${owner.sourceName}' has no exact authored native carrier.` };
       const carrier = optional ? csharpNullableTargetType(declared) : declared;
-      const result = host.projectTypes().instantiateMemberType(declaration, receiver, carrier);
+      const result = host.projectTypeABI().instantiateMemberType(declaration, receiver, carrier);
       if (result.kind !== "resolved") return result.kind === "unresolved" ? result : { kind: "unresolved",
         reason: `Inherited project member of '${owner.sourceName}' lost its canonical project declaration.` };
       selected.push(result.type);

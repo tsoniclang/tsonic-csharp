@@ -78,7 +78,7 @@ export function createCsharpProjectDeclarationApplications(
       const ownerType = native === undefined ? undefined
         : host.projectTypeCatalog.targetTypeForDeclaration(native.declaration, native.typeParameterBindings);
       const selectedOwner = ownerType === undefined ? undefined
-        : host.projectTypes().instantiateDeclarationType(owner.declaration, targetType, ownerType);
+        : host.projectTypeABI().instantiateDeclarationType(owner.declaration, targetType, ownerType);
       if (selectedOwner?.kind !== "resolved" || selectedOwner.type.kind !== "target-named") return undefined;
       const inheritedSource = source.inherited[index];
       if (inheritedSource?.declaration !== selectedSource.inherited!.source) return failTargetAnalysisInvariant("tsonic-csharp",
@@ -117,7 +117,7 @@ export function createCsharpProjectDeclarationApplications(
     if (declared === undefined) return undefined;
     const substitutions = new Map(definition.typeParameterBindings.map((parameter, index) =>
       [parameter.identity, targetType.typeArguments![index]!]));
-    const implemented = definition.kind === "interface" ? host.projectTypes().directSupertypes(targetType) : [];
+    const implemented = definition.kind === "interface" ? host.projectTypeABI().directSupertypes(targetType) : [];
     if (implemented === undefined) return undefined;
     const members: CsharpObjectShapeMemberFact[] = [];
     for (const [index, original] of declared.entries()) {

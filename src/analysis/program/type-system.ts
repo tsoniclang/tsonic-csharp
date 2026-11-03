@@ -238,7 +238,7 @@ function createCsharpTypeSystem(
     representations,
     projectTypeCatalog,
     projectDeclarations: declarations.declarations,
-    projectTypes: requireProjectTypes,
+    projectTypeABI: requireProjectTypeABI,
     typeResolver: typeResolution.recursive,
     structuralTypeApplication: typeResolution.structuralTypeApplication,
     structuralTypeCapture: typeResolution.structuralTypeCapture,
