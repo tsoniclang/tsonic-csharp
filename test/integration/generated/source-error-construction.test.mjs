@@ -123,18 +123,22 @@ test("inherited native selection requires the exact project callee, signature an
     navigation: { isProjectDeclaration: subject => subject === declaration },
     projectTypes: { implicitConstructorForSignature: (subject, selected) => subject === declaration && selected === signature ? constructor : undefined },
   };
-  assert.deepEqual(selectCsharpInheritedConstructorTarget(host, source, member), { kind: "resolved", member: target });
+  assert.deepEqual(selectCsharpInheritedConstructorTarget(host, source, member,
+    host.navigation.isProjectDeclaration(source.sourceCallee.selectedDeclaration)), { kind: "resolved", member: target });
   for (const [changedHost, changedSource, changedMember] of [
     [host, { ...source, selectedSignature: {} }, member],
     [host, source, { ...member, id: "native.unrelated.constructor" }],
     [host, source, { ...member, kind: "method" }],
     [{ ...host, projectTypes: { implicitConstructorForSignature: () => undefined } }, source, member],
-  ]) assert.equal(selectCsharpInheritedConstructorTarget(changedHost, changedSource, changedMember).kind, "missing");
+  ]) assert.equal(selectCsharpInheritedConstructorTarget(changedHost, changedSource, changedMember,
+    changedHost.navigation.isProjectDeclaration(changedSource.sourceCallee.selectedDeclaration)).kind, "missing");
   for (const selectedDeclaration of [undefined, {}]) {
     assert.deepEqual(selectCsharpInheritedConstructorTarget(host,
-      { ...source, sourceCallee: { selectedDeclaration } }, member), { kind: "resolved", member });
+      { ...source, sourceCallee: { selectedDeclaration } }, member,
+      host.navigation.isProjectDeclaration(selectedDeclaration)), { kind: "resolved", member });
   }
   const ordinaryMethod = { id: "project.ordinary.method", kind: "method" };
-  assert.deepEqual(selectCsharpInheritedConstructorTarget(host, { ...source, selectedSignature: {} }, ordinaryMethod),
+  assert.deepEqual(selectCsharpInheritedConstructorTarget(host, { ...source, selectedSignature: {} }, ordinaryMethod,
+    host.navigation.isProjectDeclaration(source.sourceCallee.selectedDeclaration)),
     { kind: "resolved", member: ordinaryMethod }, "an ordinary project method is not a constructor");
 });
