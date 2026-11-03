@@ -161,14 +161,6 @@ export interface CsharpTypeResolutionScope {
   sourceFile: SourceFile | undefined,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined;
-  resolveTupleTypeNode(
-  node: Node,
-  queries: SourceFileSemantics,
-  state: CsharpTypeResolutionState,
-): TargetTypeRef | undefined;
-  tupleElementIsRest(
-  element: Node | undefined,
-): boolean;
   resolveSelectedExpressionType(
   node: Node,
   queries: SourceFileSemantics,

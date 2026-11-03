@@ -17,7 +17,6 @@ import { selectedCsharpSourceProfileOwner } from "../../../../policy/identities/
 
 import { retainCsharpUnionObjectShapes } from "./source-union-refinement.js";
 import { resolveCsharpProviderIndexedAccess } from "./indexed-access.js";
-import { csharpSourceStorageComponentContext } from "./source-storage-projection.js";
 import { assertCsharpArrayTypeNodeSource, formCsharpNodeTypeSource,
   type CsharpArrayTypeNodeSource, type CsharpNodeTypeSource } from "./root-sources.js";
 import { resolveFormedCsharpProjectReference } from "./project-types.js";
@@ -27,6 +26,8 @@ import { resolveFormedCsharpContextualParameterCarrier } from "./contextual-para
 import { resolveFormedCsharpNativeParameterCarrier } from "./native-parameter-source.js";
 import { resolveFormedCsharpProjectInstanceTargetType } from "./project-instance-source.js";
 import { resolveFormedCsharpCallableType } from "./source-profiles.js";
+import { assertCsharpTupleTypeNodeSource, formCsharpTupleTypeNodeSource,
+  type CsharpTupleTypeNodeSource } from "./tuple-node-source.js";
 import type { CsharpSourceCallResult } from "../../../../target-model/operations/source-call-results.js";
 import { csharpSourceValueResult, refineCsharpSourceValueResult } from "./call-results.js";
 export function resolveNodeValueWithState(
@@ -84,6 +85,12 @@ export function resolveFormedCsharpNodeTypeSource(
       "An array-type node requires its exact element, fallback and captured storage Source.", source.node);
   }
   if (source.kind === "node") assertCsharpArrayTypeNodeSource(source.arrayType);
+  if (source.kind === "node" && (source.tupleType === undefined || source.tupleType.node !== source.node ||
+      source.tupleType.queries !== source.queries || source.tupleType.state !== source.state)) {
+    return failTargetAnalysisInvariant("tsonic-csharp",
+      "A tuple-type node requires its exact ordered syntax and bound Source children.", source.node);
+  }
+  if (source.kind === "node") assertCsharpTupleTypeNodeSource(source.tupleType);
   if (source.kind === "node" && (source.value === undefined || (source.selectedType === undefined ? source.selectedValue !== undefined
     : source.selectedValue === undefined || source.selectedValue.node !== source.node ||
       source.selectedValue.queries !== source.queries || source.selectedValue.selectedType !== source.selectedType ||
@@ -100,7 +107,7 @@ function resolveNodeResultWithState(
   scope: CsharpTypeResolutionScope,
   source: CsharpNodeTypeSource,
 ): CsharpSourceCallResult | undefined {
-  const { host, resolveFormedDirectSourceFacts, resolveNodeWithState, resolveFormedSelectedExpressionResult, resolveFormedSourceValueResult, resolveTupleTypeNode, resolveFormedTypeReferenceNode, resolveTypeWithState } = scope;
+  const { host, resolveFormedDirectSourceFacts, resolveNodeWithState, resolveFormedSelectedExpressionResult, resolveFormedSourceValueResult, resolveFormedTypeReferenceNode, resolveTypeWithState } = scope;
   if (source.node === undefined) return undefined;
   if (source.state.depth > maximumTypeResolutionDepth) failTargetCompilerResourceLimit("tsonic-csharp",
     "Selected native source-node type resolution", "depth", maximumTypeResolutionDepth, source.node);
@@ -154,8 +161,8 @@ function resolveNodeResultWithState(
   if (source.arrayType.kind === "array") {
     return csharpSourceValueResult(resolveFormedCsharpArrayTypeNode(scope, source.arrayType));
   }
-  if (host.ast.is.IsTupleTypeNode(node)) {
-    return csharpSourceValueResult(resolveTupleTypeNode(node, queries, state));
+  if (source.tupleType.kind === "tuple") {
+    return csharpSourceValueResult(resolveFormedCsharpTupleTypeNode(scope, source.tupleType));
   }
   if (host.ast.is.IsUnionTypeNode(node)) {
     const selected = queries.types.authoredType(node);
@@ -290,39 +297,22 @@ function resolveFallbackNodeCarrier(
 }
 
 export function resolveTupleTypeNode(
-  { host, resolveNodeWithState, tupleElementIsRest }: CsharpTypeResolutionScope,
+  scope: CsharpTypeResolutionScope,
   node: Node,
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
-  const syntaxElements = host.ast.elements(node);
-  const elements = syntaxElements.map((element, index) =>
-    resolveNodeWithState(
-      element,
-      queries.sourceFile,
-      nextState(csharpSourceStorageComponentContext(host, state, { kind: "tuple-element", index })),
-    )
-  );
-  if (elements.some((element) => element === undefined)) {
-    return undefined;
-  }
-  const restIndexes = syntaxElements.flatMap((element, index) =>
-    tupleElementIsRest(element) ? [index] : []
-  );
-  return selectCsharpParameterListCarrier(elements as readonly TargetTypeRef[], restIndexes,
-    selectedCsharpSourceProfileOwner(host.target) === "js");
+  return resolveFormedCsharpTupleTypeNode(scope, formCsharpTupleTypeNodeSource(scope, node, queries, state));
 }
 
-export function tupleElementIsRest(
-  { host }: CsharpTypeResolutionScope,
-  element: Node | undefined,
-): boolean {
-  if (element === undefined) {
-    return false;
-  }
-  if (host.ast.is.IsRestTypeNode(element)) {
-    return true;
-  }
-  return host.ast.is.IsNamedTupleMember(element) &&
-    host.ast.as.AsNamedTupleMember(element)?.DotDotDotToken !== undefined;
+export function resolveFormedCsharpTupleTypeNode(
+  scope: Pick<CsharpTypeResolutionScope, "host" | "resolveNodeWithState">,
+  source: CsharpTupleTypeNodeSource,
+): TargetTypeRef | undefined {
+  assertCsharpTupleTypeNodeSource(source);
+  if (source.kind === "not-tuple") return undefined;
+  const elements = source.elements.map(element => scope.resolveNodeWithState(element.node, element.sourceFile, element.state));
+  if (elements.some(element => element === undefined)) return undefined;
+  return selectCsharpParameterListCarrier(elements as readonly TargetTypeRef[], source.restIndexes,
+    selectedCsharpSourceProfileOwner(scope.host.target) === "js");
 }

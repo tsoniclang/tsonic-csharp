@@ -24,7 +24,7 @@ import type { SourceNativeValueGuard } from "@tsonic/target-api/source";
 import { resolveSourceCallTypeArguments as resolveSourceCallTypeArgumentsImplementation, resolveSourceCallParameter as resolveSourceCallParameterImplementation, resolveSourceCallParameters as resolveSourceCallParametersImplementation, resolveSourceCallArgumentParameter as resolveSourceCallArgumentParameterImplementation, resolveSourceCallResult as resolveSourceCallResultImplementation, resolveSourceCallResultWithState as resolveSourceCallResultWithStateImplementation,
   resolveFormedCsharpSourceCallResultWithState, completeCsharpSourceCallArgumentParameter } from "./call-api.js";
 import { resolveNode as resolveNodeImplementation, resolveType as resolveTypeImplementation, resolveStorage as resolveStorageImplementation, resolveReadStorage as resolveReadStorageImplementation, catchVariableStorageCarrier as catchVariableStorageCarrierImplementation, resolveValue as resolveValueImplementation, resolveSelectedValue as resolveSelectedValueImplementation, resolveSelectedValueWithState as resolveSelectedValueWithStateImplementation, resolveSelectedType as resolveSelectedTypeImplementation, resolveSelectedResult as resolveSelectedResultImplementation, resolveTypedLocationOperationPointee as resolveTypedLocationOperationPointeeImplementation, resolveTypedLocationOperationPointeeWithState as resolveTypedLocationOperationPointeeWithStateImplementation, withSourceTargetBindings as withSourceTargetBindingsImplementation } from "./public-api.js";
-import { resolveFormedCsharpNodeTypeSource, resolveTupleTypeNode as resolveTupleTypeNodeImplementation, tupleElementIsRest as tupleElementIsRestImplementation } from "./nodes.js";
+import { resolveFormedCsharpNodeTypeSource } from "./nodes.js";
 import { csharpSourceValueResult } from "./call-results.js";
 import { resolveFormedCsharpNodeQuerySource,
   resolveFormedCsharpTypeQuerySource } from "./public-api.js";
@@ -266,10 +266,6 @@ export function createCsharpTypeResolutionServices(
         scope.activeNodes.delete(node);
       }
     },
-    resolveTupleTypeNode: (...args: DropScope<Parameters<typeof resolveTupleTypeNodeImplementation>>) =>
-      resolveTupleTypeNodeImplementation(scope, ...args),
-    tupleElementIsRest: (...args: DropScope<Parameters<typeof tupleElementIsRestImplementation>>) =>
-      tupleElementIsRestImplementation(scope, ...args),
     resolveSelectedExpressionType: (...args: DropScope<Parameters<typeof resolveSelectedExpressionTypeImplementation>>) =>
       resolveSelectedExpressionTypeImplementation(scope, ...args),
     resolveMemberAccessTargetType: (...args: DropScope<Parameters<typeof resolveMemberAccessTargetTypeImplementation>>) =>
