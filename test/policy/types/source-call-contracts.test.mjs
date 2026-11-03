@@ -53,20 +53,20 @@ test("independent checked arguments infer native destinations before the body AB
   const excluded = new Set([1]);
   const selected = inferSourceCallTargetTypeArguments(scope, source, undefined, file,
     new Set([selectedParameter.identity]), { depth: 0 }, excluded);
-  assert.equal(selected?.get(selectedParameter.identity) === floating && originalQueries === 1, true,
+  assert.equal(selected?.bindings.get(selectedParameter.identity)?.type === floating && originalQueries === 1, true,
     "the actual independent input selects float64 through its original checked formal");
   const absent = inferSourceCallTargetTypeArguments(scope, source, undefined, file,
     new Set([selectedParameter.identity]), { depth: 0 }, new Set([0, 1]));
-  assert.equal(absent?.size, 0, "no independent input is not an inferred rounding authority");
+  assert.equal(absent?.bindings.size, 0, "no independent input is not an inferred rounding authority");
   scope.host.ast.getSourceFile = () => undefined;
   const foreign = inferSourceCallTargetTypeArguments(scope, source, undefined, file,
     new Set([selectedParameter.identity]), { depth: 0 }, excluded);
-  assert.equal(foreign?.size === 0 && originalQueries === 1, true,
+  assert.equal(foreign?.bindings.size === 0 && originalQueries === 1, true,
     "missing original declaration provenance cannot manufacture a formal or use the selected array's type");
   const complete = { nativeParameters: [{ targetParameter: { name: "sample", type: nativeParameter, passingMode: "by-value" } }] };
   const native = inferSourceCallTargetTypeArguments(scope, source, complete, file,
     new Set([nativeParameter.identity]), { depth: 0 }, excluded);
-  assert.equal(native?.get(nativeParameter.identity) === floating && originalQueries === 1, true,
+  assert.equal(native?.bindings.get(nativeParameter.identity)?.type === floating && originalQueries === 1, true,
     "a completed native ABI keeps its own binder identity and never reselects an authored formal");
 });
 
