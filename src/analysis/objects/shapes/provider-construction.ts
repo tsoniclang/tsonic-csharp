@@ -1,12 +1,15 @@
 import { providerVirtualDeclarationFactKey, sourcePrimitiveFactKey } from "@tsonic/tsts";
-import type { Node, Type, TypePropertyInfo } from "@tsonic/tsts";
+import type { ExtensionFactSubject, Node, SourceFile, Type, TypePropertyInfo } from "@tsonic/tsts";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import { sourcePropertyTypeEvidenceNodes } from "@tsonic/target-api/source";
 import type { CsharpProviderTargetRelation } from "../../../target-model/identities/provider-relations.js";
 import { canonicalProviderValue } from "../../../target-model/metadata/canonical-value.js";
 import { csharpTargetTypeFromBinding } from "../../../policy/types/storage/bindings.js";
 import { substituteTargetTypeParameters } from "../../../policy/types/resolution/substitution.js";
-import type { CsharpRecursiveTypeResolver, CsharpTypePolicyBaseHost, CsharpTypeResolutionState } from "../../source-evidence/types/resolution/model.js";
+import type { CsharpTypePolicyBaseHost, CsharpTypeResolutionState } from "../../source-evidence/types/resolution/model.js";
+import type { CsharpStructuralPropertyApplication } from "../../source-evidence/types/resolution/structural-applications.js";
+import { formCsharpObjectShapePropertySource } from "./member-evidence.js";
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../target-model/types/model.js";
@@ -24,45 +27,107 @@ type CsharpProviderMemberRelation = Extract<
   { readonly kind: "member" }
 >;
 
-interface CsharpProviderObjectLiteralHost extends CsharpTypePolicyBaseHost {
-  readonly typeResolver: CsharpRecursiveTypeResolver;
-}
-
-interface CsharpProviderObjectLiteralInput {
+interface CsharpProviderObjectLiteralSourceInput {
   readonly type: Type;
   readonly queries: SourceFileSemantics;
   readonly state: CsharpTypeResolutionState;
-  readonly selectedTarget: TargetTypeRef | undefined;
   readonly authoredTypeRoot: Node | undefined;
-  readonly host: CsharpProviderObjectLiteralHost;
-  resolvePropertyType(
-    property: TypePropertyInfo,
-    sourceType: Type,
-    queries: SourceFileSemantics,
-    state: CsharpTypeResolutionState,
-    authoredTypeRoot?: Node,
-  ): TargetTypeRef | undefined;
+  readonly host: CsharpTypePolicyBaseHost;
 }
 
-export function resolveProviderObjectLiteralShape(
-  input: CsharpProviderObjectLiteralInput,
-): CsharpObjectShapeFact | undefined {
-  if (input.selectedTarget?.kind !== "target-named") {
-    return undefined;
+export interface CsharpProviderObjectLiteralPropertyRequest {
+  readonly property: TypePropertyInfo;
+  readonly propertyType: Type;
+  readonly queries: SourceFileSemantics;
+  readonly state: CsharpTypeResolutionState;
+  readonly authoredTypeRoot: Node | undefined;
+}
+
+export interface CsharpProviderObjectLiteralPropertyDependency {
+  readonly request: CsharpProviderObjectLiteralPropertyRequest;
+  readonly application: CsharpStructuralPropertyApplication;
+}
+
+interface CsharpProviderObjectLiteralMemberSource {
+  readonly dependency: CsharpProviderObjectLiteralPropertyDependency;
+  readonly declarations: readonly Node[];
+  readonly subjects: readonly ExtensionFactSubject[];
+  readonly sourceTypes: readonly Type[];
+  readonly sourceKey: ReturnType<typeof resolveObjectShapeSourceMemberKey>;
+  readonly relations: readonly CsharpProviderMemberRelation[] | undefined;
+  readonly optional: boolean;
+  readonly implicitNumericStorage: boolean;
+}
+
+export interface CsharpProviderObjectLiteralSource {
+  readonly type: Type;
+  readonly queries: SourceFileSemantics;
+  readonly sourceFile: SourceFile;
+  readonly state: CsharpTypeResolutionState;
+  readonly authoredTypeRoot: Node | undefined;
+  readonly typeSubjects: readonly ExtensionFactSubject[];
+  readonly hasConstructionRelation: boolean;
+  readonly relations: readonly CsharpProviderTypeRelation[] | undefined;
+  readonly members: readonly CsharpProviderObjectLiteralMemberSource[];
+}
+
+export interface CsharpCompletedProviderObjectLiteralProperty extends CsharpProviderObjectLiteralPropertyDependency {
+  readonly type: TargetTypeRef | undefined;
+}
+
+export type CsharpProviderObjectLiteralCompletion = Generator<CsharpProviderObjectLiteralPropertyDependency,
+  CsharpObjectShapeFact | undefined, CsharpCompletedProviderObjectLiteralProperty>;
+
+export function formProviderObjectLiteralSource(
+  input: CsharpProviderObjectLiteralSourceInput,
+): CsharpProviderObjectLiteralSource | undefined {
+  const typeSubjects = Object.freeze([...input.queries.facts.typeSubjects(input.type)]);
+  const relations: CsharpProviderTypeRelation[] = [];
+  let provider = false;
+  let available = true;
+  for (const subject of typeSubjects) {
+    const declaration = input.host.sourceFacts?.getFact(subject, providerVirtualDeclarationFactKey);
+    if (declaration === undefined) continue;
+    provider = true;
+    const resolution = input.host.providers.resolveType(declaration);
+    if (resolution.kind !== "resolved") {
+      available = false;
+      continue;
+    }
+    for (const relation of resolution.relations) {
+      if (relation.kind === "type" && relation.objectLiteralConstruction?.kind === "object-initializer") {
+        relations.push(relation);
+      }
+    }
   }
-  const typeRelation = resolveProviderTypeRelation(input);
+  if (!provider) return undefined;
+  const members = available && relations.length !== 0
+    ? input.queries.types.propertyInfos(input.type).map(property => formProviderObjectLiteralMemberSource(property, input))
+    : [];
+  return Object.freeze({ type: input.type, queries: input.queries, sourceFile: input.queries.sourceFile,
+    state: input.state, authoredTypeRoot: input.authoredTypeRoot, typeSubjects,
+    hasConstructionRelation: relations.length !== 0,
+    relations: available ? Object.freeze(relations) : undefined, members: Object.freeze(members) });
+}
+
+export function* resolveProviderObjectLiteralShape(
+  source: CsharpProviderObjectLiteralSource,
+  selectedTarget: TargetTypeRef | undefined,
+): CsharpProviderObjectLiteralCompletion {
+  if (selectedTarget?.kind !== "target-named") return undefined;
+  const typeRelation = resolveProviderTypeRelation(source, selectedTarget);
   if (typeRelation === undefined) {
     return undefined;
   }
   const typeParameters = typeRelation.targetBinding.typeParameters ?? [];
-  const targetArguments = typeParameters.length === 0 ? [] : input.selectedTarget.typeArguments ?? [];
+  const targetArguments = typeParameters.length === 0 ? [] : selectedTarget.typeArguments ?? [];
   const relatedTarget = csharpTargetTypeFromBinding(
     typeRelation.targetBinding,
     targetArguments,
   );
   if (
     relatedTarget === undefined ||
-    !targetTypeRefEquals(relatedTarget, input.selectedTarget)
+    !targetTypeRefEquals(relatedTarget, selectedTarget)
   ) {
     return undefined;
   }
@@ -75,70 +140,39 @@ export function resolveProviderObjectLiteralShape(
       targetArguments[index]!,
     ]),
   );
-  const members = input.queries.types.propertyInfos(input.type).map((property) =>
-    deriveProviderObjectLiteralMember(
-      property,
-      typeRelation,
-      substitutions,
-      input,
-    )
-  );
+  const members: (CsharpObjectShapeMemberFact | undefined)[] = [];
+  for (const member of source.members) {
+    members.push(yield* deriveProviderObjectLiteralMember(member, typeRelation, substitutions, selectedTarget));
+  }
   if (members.some((member) => member === undefined)) {
     return undefined;
   }
   return {
-    targetType: input.selectedTarget,
-    sourceType: input.type,
+    targetType: selectedTarget,
+    sourceType: source.type,
     members: members as readonly CsharpObjectShapeMemberFact[],
     constructible: true,
   };
 }
 
 function resolveProviderTypeRelation(
-  input: CsharpProviderObjectLiteralInput,
+  source: CsharpProviderObjectLiteralSource,
+  selectedTarget: TargetTypeRef,
 ): CsharpProviderTypeRelation | undefined {
-  const targetArguments = input.selectedTarget?.kind === "target-named"
-    ? input.selectedTarget.typeArguments ?? []
+  const targetArguments = selectedTarget.kind === "target-named"
+    ? selectedTarget.typeArguments ?? []
     : [];
   let selected: CsharpProviderTypeRelation | undefined;
-  for (const subject of input.queries.facts.typeSubjects(input.type)) {
-    const declaration = input.host.sourceFacts?.getFact(
-      subject,
-      providerVirtualDeclarationFactKey,
-    );
-    if (declaration === undefined) {
-      continue;
-    }
-    const resolution = input.host.providers.resolveType(declaration);
-    if (resolution.kind !== "resolved") {
-      return undefined;
-    }
-    for (const relation of resolution.relations) {
-      if (
-        relation.kind === "type" &&
-        relation.objectLiteralConstruction?.kind === "object-initializer"
-      ) {
-        const typeParameters = relation.targetBinding.typeParameters ?? [];
-        const sourceArguments = typeParameters.length === 0 ? [] : targetArguments;
-        const relatedTarget = typeParameters.length === sourceArguments.length
-          ? csharpTargetTypeFromBinding(relation.targetBinding, sourceArguments)
-          : undefined;
-        if (
-          relatedTarget === undefined ||
-          input.selectedTarget === undefined ||
-          !targetTypeRefEquals(relatedTarget, input.selectedTarget)
-        ) {
-          continue;
-        }
-        if (
-          selected !== undefined &&
-          !providerTypeConstructionRelationsEqual(selected, relation)
-        ) {
-          return undefined;
-        }
-        selected = relation;
-      }
-    }
+  if (source.relations === undefined) return undefined;
+  for (const relation of source.relations) {
+    const typeParameters = relation.targetBinding.typeParameters ?? [];
+    const sourceArguments = typeParameters.length === 0 ? [] : targetArguments;
+    const relatedTarget = typeParameters.length === sourceArguments.length
+      ? csharpTargetTypeFromBinding(relation.targetBinding, sourceArguments)
+      : undefined;
+    if (relatedTarget === undefined || !targetTypeRefEquals(relatedTarget, selectedTarget)) continue;
+    if (selected !== undefined && !providerTypeConstructionRelationsEqual(selected, relation)) return undefined;
+    selected = relation;
   }
   return selected;
 }
@@ -158,16 +192,10 @@ function providerTypeConstructionRelationsEqual(
   });
 }
 
-function deriveProviderObjectLiteralMember(
+function formProviderObjectLiteralMemberSource(
   property: TypePropertyInfo,
-  typeRelation: CsharpProviderTypeRelation,
-  substitutions: ReadonlyMap<string, TargetTypeRef>,
-  input: CsharpProviderObjectLiteralInput,
-): CsharpObjectShapeMemberFact | undefined {
-  const selectedTarget = input.selectedTarget;
-  if (selectedTarget === undefined) {
-    return undefined;
-  }
+  input: CsharpProviderObjectLiteralSourceInput,
+): CsharpProviderObjectLiteralMemberSource {
   const declarations = [...new Set([
     ...input.queries.declarations.symbolDeclarations(property.symbol),
     ...property.rootSymbols.flatMap((symbol) =>
@@ -180,15 +208,41 @@ function deriveProviderObjectLiteralMember(
     input.host.ast,
     input.host.semanticsFor,
   );
-  if (sourceKey === undefined) {
-    return undefined;
+  const subjects = Object.freeze([...new Set([property.symbol, ...property.rootSymbols, ...declarations])]);
+  const relations: CsharpProviderMemberRelation[] = [];
+  let available = true;
+  for (const subject of subjects) {
+    const declaration = input.host.sourceFacts?.getFact(subject, providerVirtualDeclarationFactKey);
+    if (declaration === undefined) continue;
+    const resolution = input.host.providers.resolveMember(declaration);
+    if (resolution.kind !== "resolved") {
+      available = false;
+      break;
+    }
+    for (const relation of resolution.relations) if (relation.kind === "member") relations.push(relation);
   }
-  const relation = resolveProviderMemberRelation(
-    property,
-    declarations,
-    typeRelation,
-    input,
-  );
+  const request = Object.freeze({ property, propertyType: property.type, queries: input.queries,
+    state: input.state, authoredTypeRoot: input.authoredTypeRoot });
+  const application = formCsharpObjectShapePropertySource(input.host, property, property.type,
+    input.queries, input.state, input.authoredTypeRoot);
+  return Object.freeze({ dependency: Object.freeze({ request, application }), declarations: Object.freeze(declarations),
+    sourceTypes: Object.freeze([property.type]),
+    subjects, sourceKey, relations: available ? Object.freeze(relations) : undefined,
+    optional: property.optional || typeIncludesNullish(property.type, input.queries),
+    implicitNumericStorage: providerPropertyHasImplicitNumericStorage(property, input) });
+}
+
+function* deriveProviderObjectLiteralMember(
+  source: CsharpProviderObjectLiteralMemberSource,
+  typeRelation: CsharpProviderTypeRelation,
+  substitutions: ReadonlyMap<string, TargetTypeRef>,
+  selectedTarget: TargetTypeRef,
+): Generator<CsharpProviderObjectLiteralPropertyDependency,
+  CsharpObjectShapeMemberFact | undefined, CsharpCompletedProviderObjectLiteralProperty> {
+  const { sourceKey } = source;
+  if (sourceKey === undefined) return undefined;
+  const property = source.dependency.request.property;
+  const relation = resolveProviderMemberRelation(source, typeRelation);
   if (
     relation === undefined ||
     (
@@ -210,15 +264,13 @@ function deriveProviderObjectLiteralMember(
   if (!sourceMemberMatches) {
     return undefined;
   }
-  const rawSourceTarget = input.resolvePropertyType(
-    property,
-    property.type,
-    input.queries,
-    input.state,
-    input.authoredTypeRoot,
-  );
-  const optional = property.optional ||
-    typeIncludesNullish(property.type, input.queries);
+  const completed = yield source.dependency;
+  if (completed.request !== source.dependency.request || completed.application !== source.dependency.application) {
+    failTargetAnalysisInvariant("tsonic-csharp", "Provider construction requires its exact ordered property application.",
+      source.dependency.request.authoredTypeRoot);
+  }
+  const rawSourceTarget = completed.type;
+  const optional = source.optional;
   const sourceTarget = rawSourceTarget === undefined
     ? undefined
     : optional
@@ -238,7 +290,7 @@ function deriveProviderObjectLiteralMember(
       );
   const targetReadonly = relation.targetMember.readonly === true;
   const exactNumericStorage = sourceTarget !== undefined && memberTarget !== undefined &&
-    csharpProviderSelectsNumericStorage(property, sourceTarget, memberTarget, input);
+    providerNumericStoragePairMatches(sourceTarget, memberTarget) && source.implicitNumericStorage;
   if (
     sourceTarget === undefined ||
     memberTarget === undefined ||
@@ -253,15 +305,11 @@ function deriveProviderObjectLiteralMember(
   return {
     sourceKey,
     sourceName: csharpSourceMemberDisplayName(sourceKey),
-    sourceSubjects: Object.freeze([...new Set([
-      property.symbol,
-      ...property.rootSymbols,
-      ...declarations,
-    ])]),
-    ...(declarations.length === 0
+    sourceSubjects: source.subjects,
+    ...(source.declarations.length === 0
       ? {}
-      : { sourceDeclarations: Object.freeze([...declarations]) }),
-    sourceTypes: [property.type],
+      : { sourceDeclarations: source.declarations }),
+    sourceTypes: source.sourceTypes,
     targetName: relation.targetMember.targetName,
     memberKind: "property",
     type: memberTarget,
@@ -280,6 +328,10 @@ export function csharpProviderSelectsNumericStorage(
     readonly host: Pick<CsharpTypePolicyBaseHost, "ast" | "sourceFacts">;
   },
 ): boolean {
+  return providerNumericStoragePairMatches(source, target) && providerPropertyHasImplicitNumericStorage(property, input);
+}
+
+function providerNumericStoragePairMatches(source: TargetTypeRef, target: TargetTypeRef): boolean {
   const sourceElement = getCsharpNullableElementTargetType(source);
   const targetElement = getCsharpNullableElementTargetType(target);
   if ((sourceElement === undefined) !== (targetElement === undefined)) return false;
@@ -287,6 +339,16 @@ export function csharpProviderSelectsNumericStorage(
   const defaultType = sourceElement ?? source;
   if (defaultType.kind !== "source-primitive" || defaultType.name !== "float64" ||
     selected.kind !== "source-primitive" || selected.name === "bool" || selected.name === "char") return false;
+  return true;
+}
+
+function providerPropertyHasImplicitNumericStorage(
+  property: TypePropertyInfo,
+  input: {
+    readonly queries: SourceFileSemantics;
+    readonly host: Pick<CsharpTypePolicyBaseHost, "ast" | "sourceFacts">;
+  },
+): boolean {
   const members = input.queries.types.isUnion(property.type)
     ? input.queries.types.unionOrIntersectionTypes(property.type).filter(type => !input.queries.types.isNullish(type))
     : [property.type];
@@ -297,38 +359,15 @@ export function csharpProviderSelectsNumericStorage(
 }
 
 function resolveProviderMemberRelation(
-  property: TypePropertyInfo,
-  declarations: readonly Node[],
+  source: CsharpProviderObjectLiteralMemberSource,
   typeRelation: CsharpProviderTypeRelation,
-  input: CsharpProviderObjectLiteralInput,
 ): CsharpProviderMemberRelation | undefined {
   let selected: CsharpProviderMemberRelation | undefined;
-  for (const subject of [property.symbol, ...property.rootSymbols, ...declarations]) {
-    const declaration = input.host.sourceFacts?.getFact(
-      subject,
-      providerVirtualDeclarationFactKey,
-    );
-    if (declaration === undefined) {
-      continue;
-    }
-    const resolution = input.host.providers.resolveMember(declaration);
-    if (resolution.kind !== "resolved") {
-      return undefined;
-    }
-    for (const relation of resolution.relations) {
-      if (
-        relation.kind === "member" &&
-        relation.targetBinding.id === typeRelation.targetBinding.id
-      ) {
-        if (
-          selected !== undefined &&
-          !providerMemberConstructionRelationsEqual(selected, relation)
-        ) {
-          return undefined;
-        }
-        selected = relation;
-      }
-    }
+  if (source.relations === undefined) return undefined;
+  for (const relation of source.relations) {
+    if (relation.targetBinding.id !== typeRelation.targetBinding.id) continue;
+    if (selected !== undefined && !providerMemberConstructionRelationsEqual(selected, relation)) return undefined;
+    selected = relation;
   }
   return selected;
 }
