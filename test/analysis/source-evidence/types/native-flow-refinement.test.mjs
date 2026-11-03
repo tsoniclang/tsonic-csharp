@@ -9,7 +9,7 @@ import { csharpJsArrayTargetType, csharpJsDateTargetType, csharpJsRegExpTargetTy
 import { csharpStringTargetType, csharpObjectTargetType, csharpSourcePrimitiveTargetType } from "../../../../dist/target-model/types/carriers/scalar-types.js";
 import { csharpRuntimeUnionTargetType, getCsharpRuntimeUnionArms } from "../../../../dist/target-model/types/carriers/runtime-carriers.js";
 import { resolveCsharpInstanceType } from "../../../../dist/analysis/source-evidence/types/resolution/instance-tests.js";
-import { resolveSelectedValueWithState, resolveSelectedValueResultWithState } from "../../../../dist/analysis/source-evidence/types/resolution/public-api.js";
+import { resolveSelectedValueWithState } from "../../../../dist/analysis/source-evidence/types/resolution/public-api.js";
 import { csharpSourceValueResult } from "../../../../dist/analysis/source-evidence/types/resolution/call-results.js";
 import { sourceValueDeclarationSyntax } from "../../../../dist/analysis/source-evidence/types/resolution/calls.js";
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../../dist/target-model/types/carriers/nullable.js";
@@ -159,7 +159,6 @@ test("selected native values materialize all surviving exact union arms and reta
     },
     sourceValueDeclaration: (_node, referenced) => referenced,
     sourceValueDeclarationSyntax: node => sourceValueDeclarationSyntax({ host: scope.host }, node),
-    resolveSelectedValueResultWithState: (...args) => resolveSelectedValueResultWithState(scope, ...args),
     resolveFormedSourceValueResult(input) {
       assert.equal(input.selection.declaration === declaration, true,
         "the completed native result belongs to this checked parameter read");
@@ -232,7 +231,6 @@ function guardedArraySelection(body) {
     },
     sourceValueDeclaration: (_node, referenced) => referenced,
     sourceValueDeclarationSyntax: node => sourceValueDeclarationSyntax({ host: scope.host }, node),
-    resolveSelectedValueResultWithState: (...args) => resolveSelectedValueResultWithState(scope, ...args),
     resolveFormedSourceValueResult(input) {
       assert.equal(input.selection.declaration === declaration, true,
         "the completed native result belongs to this checked parameter read");
@@ -310,7 +308,6 @@ test("exact nominal subclass evidence remains authoritative inside a native guar
     },
     sourceValueDeclaration: (_node, referenced) => referenced,
     sourceValueDeclarationSyntax: node => sourceValueDeclarationSyntax({ host: scope.host }, node),
-    resolveSelectedValueResultWithState: (...args) => resolveSelectedValueResultWithState(scope, ...args),
     resolveFormedSourceValueResult(input) {
       assert.equal(input.selection.declaration === declaration, true,
         "the completed native result belongs to this checked parameter read");
