@@ -1,6 +1,5 @@
 import type { TargetTypeRef } from "../../target-model/types/model.js";
-import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
-import { isCsharpAbsenceTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
+import { csharpCarrierAdmitsSourceAbsence, isCsharpAbsenceTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { combineCsharpTargetUnionMembers } from "../types/index.js";
 
@@ -15,7 +14,7 @@ export function selectCsharpFlowReadCarrier(input: {
   const { selectedTargetType, readStorageTargetType, memberTargetTypes } = input;
   if (input.nativeSourceRead && selectedTargetType !== undefined) return selectedTargetType;
   const absenceUsesStorage = isCsharpAbsenceTargetType(selectedTargetType) &&
-    getCsharpNullableElementTargetType(readStorageTargetType) !== undefined;
+    csharpCarrierAdmitsSourceAbsence(readStorageTargetType);
   return (input.exactSourceRead || input.unrelatedSourceTypesShareTargetRepresentation || absenceUsesStorage) &&
     readStorageTargetType !== undefined ? readStorageTargetType
     : selectedTargetType !== undefined && readStorageTargetType !== undefined &&

@@ -1,12 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createCompilerSessionFromFiles, formatDiagnostics } from "@tsonic/tsts";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
-import { createSourceStorageQuery } from "@tsonic/target-api/analysis";
-import { requiredStorageSubject } from "../../../../tsonic/test/fixtures/source-navigation.mjs";
-import { collectTargetSourceProfileContributions } from "../../../../tsonic/packages/host/dist/target/source-profile.js";
-import { createCsharpErrorStorageDemandQuery } from "../../../dist/analysis/objects/error-storage-demands.js";
-import { csharpSourceProfileContributions, csharpJsSurfaceSourceProfileContributions } from "../../../dist/source/profiles/declarations.js";
+import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
+import { assertNativeErrorWriteRefusals } from "../../helpers/native-error-refusals.mjs";
 
 for (const jsEnabled of [false, true]) {
   test(`C# ${jsEnabled ? "JS" : "native"} Error storage keeps exact cross-file nested generic write origins`, () => {
@@ -31,43 +27,201 @@ for (const jsEnabled of [false, true]) {
         }
       `,
     };
-    const contributions = collectTargetSourceProfileContributions({ project: {}, projectRoot: "/src",
-      projectDirectory: "/src", target: { id: "csharp", options: {} }, targetPackId: jsEnabled ? "js" : "csharp",
-      selectedCapabilities: [], selectedSurfaces: [], targetContributions: jsEnabled
-        ? csharpJsSurfaceSourceProfileContributions() : csharpSourceProfileContributions({ selectedSurfaceIds: [] }) });
-    assert.equal(contributions.diagnostics.length, 0);
-    const checked = createCompilerSessionFromFiles({ currentDirectory: "/src",
-      files: new Map([...Object.entries(files), ...contributions.files.map(file => [file.path, file.text])]),
-      compilerOptions: { noLib: true, strict: true, skipLibCheck: true, module: "esnext", moduleResolution: "bundler", target: "es2022" },
-    }).checkSource();
-    assert.equal(checked.diagnostics.length, 0,
-      formatDiagnostics(checked.diagnostics.filter(diagnostic => diagnostic !== undefined), "/src"));
-    const source = createTargetSourceProgram(checked);
-    const projectFiles = source.sourceFiles.filter(file => files[source.ast.getFileName(file)] !== undefined);
-    const storage = createSourceStorageQuery(source, projectFiles);
-    const demand = createCsharpErrorStorageDemandQuery(source, storage);
-    const declarations = new Map();
-    const visit = node => {
-      if (source.ast.is.IsVariableDeclaration(node)) declarations.set(source.ast.text(source.ast.name(node)), node);
-      source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
-    };
-    for (const file of source.sourceFiles) if (files[source.ast.getFileName(file)] !== undefined) visit(file);
-    assert.equal(demand.fieldWrites.length, 1);
-    assert.equal(demand.nativeConstructors.length, 2);
-    for (const [name, expected] of [["original", "writable"], ["untouched", "immutable"], ["native", "immutable"]]) {
-      const declaration = declarations.get(name);
-      assert.equal(declaration !== undefined, true, name);
-      const subject = requiredStorageSubject(storage, declaration);
-      assert.equal(demand.storageFor(subject).kind, expected, name);
-      const origins = demand.storageOriginsFor(subject);
-      assert.equal(origins.kind, "resolved", name);
-      assert.equal(origins.origins.length, 1, name);
-      assert.equal(demand.isNativeConstructor(origins.origins[0].node), name !== "native", name);
+    const compiled = compileCsharpSource({ surface: jsEnabled ? "js" : "native", sourceText: files["/src/index.ts"],
+      files: { "helpers.ts": files["/src/helpers.ts"] } });
+    assertNativeErrorWriteRefusals(compiled, ["value.value.value.message"]);
+  });
+  test(`C# ${jsEnabled ? "JS" : "native"} Error readonly cross-file nested generic values retain native identity`, () => {
+    const compiled = compileCsharpSource({ surface: jsEnabled ? "js" : "native", sourceText: `
+      import { transport, read } from "./helpers.js";
+      export function observe(original: Error): Error { return read(transport({ value: { value: original } })); }
+      export function run(): boolean {
+        const original = new Error("original");
+        const alias = observe(original);
+        return alias === original && alias.message === "original";
+      }
+    `, files: { "helpers.ts": `
+      export interface SourceBox<Value> { readonly value: Value; }
+      export interface DestinationBox<Value> { readonly value: Value; }
+      export function transport(value: SourceBox<SourceBox<Error>>): SourceBox<SourceBox<Error>> { return value; }
+      export function read(value: SourceBox<SourceBox<Error>>): Error { return value.value.value; }
+    ` } });
+    assertCsharpCompilationSucceeded(compiled);
+    const emitted = [...compiled.artifacts.values()].join("\n");
+    assert.match(emitted, /(?:System\.)?Exception/u);
+    assert.doesNotMatch(emitted, /Tsonic\.CSharp\.Runtime\.Error|ErrorObject/u);
+    executeCsharpConstruction(compiled, `error-native-readonly-nested-${jsEnabled ? "js" : "native"}`, false, false, [], `
+using System;
+using Generated = Tsonic.Generated.Index;
+var original = new Exception("original");
+if (!Generated.run() || !ReferenceEquals(Generated.observe(original), original))
+    throw new Exception("cross-file nested readonly Error lost native identity");
+`);
+  });
+  test(`C# ${jsEnabled ? "JS" : "native"} distinct readonly interface nesting retains its measured native forwarding refusal`, () => {
+    const compiled = compileCsharpSource({ surface: jsEnabled ? "js" : "native", sourceText: `
+      import { transport, read } from "./helpers.js";
+      export function observe(original: Error): Error { return read(transport({ value: { value: original } })); }
+      export function run(): boolean {
+        const original = new Error("original");
+        const alias = observe(original);
+        return alias === original && alias.message === "original";
+      }
+    `, files: { "helpers.ts": `
+      export interface SourceBox<Value> { readonly value: Value; }
+      export interface DestinationBox<Value> { readonly value: Value; }
+      export function transport(value: SourceBox<SourceBox<Error>>): DestinationBox<DestinationBox<Error>> { return value; }
+      export function read(value: DestinationBox<DestinationBox<Error>>): Error { return value.value.value; }
+    ` } });
+    assert.equal(compiled.sourceDiagnosticsText, "", "the original distinct-interface program remains checked and preserved");
+    assert.equal(compiled.result.diagnostics.length, 3, "the three measured open and nested forwarding relations remain explicit");
+    for (const diagnostic of compiled.result.diagnostics) {
+      assert.equal(diagnostic.code, "CSHARP_UNSUPPORTED_AST");
+      assert.equal(diagnostic.message, "An analyzed interface property has no exact native forwarding conversion.");
+      assert.equal(diagnostic.sourceNode !== undefined, true, "the existing native forwarding owner retains its actual source");
     }
-    for (const constructor of demand.nativeConstructors) assert.equal(demand.isNativeConstructor(constructor.node), true);
-    assert.equal(demand.isNativeConstructor(declarations.get("record")), false);
-    assert.equal(demand.isNativeConstructor({}), false);
-    assert.equal(Object.isFrozen(demand), true);
-    assert.equal(Object.isFrozen(demand.nativeConstructors), true);
+    assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0, true,
+      "unsupported native variance never publishes invalid C# or a wrapper");
+  });
+}
+
+for (const surface of ["native", "js"]) {
+  test(`C# ${surface} native Error constructors project cause once in source order without options storage`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+      let order: string = "";
+      function message(): string { order += "message;"; return "outer"; }
+      function cause(value: Error): Error { order += "cause;"; return value; }
+      class HttpError extends Error {
+        readonly status: number = 400;
+        constructor(message: string, cause: Error) { super(message, { cause }); this.name = "HttpError"; }
+      }
+      class DetailedHttpError extends HttpError {
+        constructor(cause: Error) { super("derived", cause); }
+      }
+      export function make(value: Error): Error { order = ""; return new Error(message(), { cause: cause(value) }); }
+      export function direct(message: string, value: Error): Error { return new Error(message, { cause: value }); }
+      export function options(value: ErrorOptions | undefined): Error { return new Error("optional", value); }
+      export function orderValue(): string { return order; }
+      export function identity(value: Error): Error { return value; }
+      export function label(value: Error): string { const { name, message } = value; return name + ":" + message; }
+      export function run(): boolean {
+        const inner = new Error("inner");
+        const outer = make(inner);
+        const detailed = new DetailedHttpError(inner);
+        return outer.cause === inner && outer.message === "outer" && order === "message;cause;" &&
+          detailed instanceof Error && detailed instanceof HttpError && detailed.cause === inner &&
+          detailed.status === 400 && detailed.name === "DetailedHttpError" && identity(inner) === inner;
+      }
+    ` });
+    assertCsharpCompilationSucceeded(compiled);
+    const emitted = [...compiled.artifacts.values()].join("\n");
+    assert.match(emitted, /new (?:System\.)?Exception\(/u);
+    assert.match(emitted, /\.InnerException/u);
+    assert.match(emitted, /\.GetType\(\)\.Name/u);
+    assert.doesNotMatch(emitted, /Tsonic\.CSharp\.Runtime\.Error|ErrorObject|new ErrorOptions/u);
+    const selections = compiled.result.program.source.navigation.nodes.map(node =>
+      compiled.result.program.records.selectedConstruction.get(node)?.target)
+      .filter(selection => selection?.kind === "resolved" && selection.call.arguments.some(argument => argument.projection !== undefined));
+    assert.equal(selections.length >= 2, true, "both source construction and native base invocation retain checked cause projections");
+    for (const selection of selections) {
+      const projection = selection.call.arguments.find(argument => argument.projection !== undefined).projection;
+      assert.equal(Object.isFrozen(projection) && Object.isFrozen(projection.values), true, "checked cause projection is immutable");
+      assert.equal(projection.declaration !== undefined && projection.source !== undefined, true, "cause retains its exact selected declaration and original input");
+    }
+    executeCsharpConstruction(compiled, `error-native-cause-order-${surface}`, false, false, [], `
+using System;
+using Generated = Tsonic.Generated.Index;
+if (!Generated.run()) throw new Exception("native cause, inheritance or identity");
+var inner = new Exception("inner");
+var outer = Generated.make(inner);
+if (!ReferenceEquals(outer.InnerException, inner) || Generated.orderValue() != "message;cause;" ||
+    !ReferenceEquals(Generated.identity(inner), inner) || Generated.label(inner) != "Exception:inner")
+    throw new Exception("native direct identity and ordered cause");
+if (Generated.options(null).InnerException is not null) throw new Exception("native optional cause absence");
+var retained = RetainedCause();
+GC.Collect(); GC.WaitForPendingFinalizers(); GC.Collect();
+if (!retained.Cause.TryGetTarget(out var retainedCause) || !ReferenceEquals(retained.Outer.InnerException, retainedCause))
+    throw new Exception("native cause lifetime or reference identity");
+GC.KeepAlive(retained.Outer);
+NativeBytes(inner); GeneratedBytes(inner);
+for (var replay = 0; replay < 3; replay++)
+    if (GeneratedBytes(inner) != NativeBytes(inner)) throw new Exception("hidden options allocation or wrapper");
+
+static (Exception Outer, WeakReference<Exception> Cause) RetainedCause() {
+    var cause = new Exception("retained");
+    return (Generated.direct("message", cause), new WeakReference<Exception>(cause));
+}
+static long NativeBytes(Exception inner) {
+    var before = GC.GetAllocatedBytesForCurrentThread();
+    for (var index = 0; index < 1_000; index++) GC.KeepAlive(new Exception("message", inner));
+    return GC.GetAllocatedBytesForCurrentThread() - before;
+}
+static long GeneratedBytes(Exception inner) {
+    var before = GC.GetAllocatedBytesForCurrentThread();
+    for (var index = 0; index < 1_000; index++) GC.KeepAlive(Generated.direct("message", inner));
+    return GC.GetAllocatedBytesForCurrentThread() - before;
+}
+`);
+  });
+
+  for (const [label, sourceText, code] of [
+    ["plain message", `export function update(value: Error): void { value.message = "changed"; }`, "CSHARP_ERROR_READONLY_STORAGE"],
+    ["plain stack", `export function update(value: Error): void { value.stack = "changed"; }`, "CSHARP_ERROR_READONLY_STORAGE"],
+    ["plain name", `export function update(value: Error): void { value.name = "Changed"; }`, "CSHARP_ERROR_READONLY_STORAGE"],
+    ["plain cause", `export function update(value: Error): void { value.cause = new Error("inner"); }`, "CSHARP_ERROR_READONLY_STORAGE"],
+    ["subclass message", `class HttpError extends Error {} export function update(value: HttpError): void { value.message = "changed"; }`, "CSHARP_ERROR_READONLY_STORAGE"],
+    ["wrong subclass name", `class HttpError extends Error { constructor() { super("original"); this.name = "Wrong"; } } export function make(): Error { return new HttpError(); }`, "CSHARP_ERROR_READONLY_STORAGE"],
+    ["structural Error", `export const value: Error = { name: "Error", message: "not native" };`, "CSHARP_ERROR_OBJECT_LITERAL_UNSUPPORTED"],
+  ]) test(`C# ${surface} native Error admission refuses ${label} at its original local source`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText });
+    assert.equal(compiled.sourceDiagnosticsText, "", "the original checked program is retained as a native refusal");
+    assert.equal(compiled.result.diagnostics.length, 1, "one local immutable-native Error refusal");
+    const diagnostic = compiled.result.diagnostics[0];
+    assert.equal(diagnostic.code, code);
+    assert.equal(diagnostic.sourceNode !== undefined, true, "the exact write or object literal owns the refusal");
+    assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0, true,
+      "no partial program or generated source is published after native admission fails");
+  });
+}
+
+for (const surface of ["native", "js"]) {
+  test(`C# ${surface} native Error aliases, callable slots and derived binding members keep one identity`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+      type Alias = Error;
+      class ImplicitError extends Error {}
+      export class Box<Value> { constructor(readonly value: Value) {} }
+      class HttpError extends Error {
+        detail: string = "before";
+        constructor(cause: Error) { super("derived", { cause }); this.name = "HttpError"; }
+      }
+      export function alias(value: Alias): Error { return value; }
+      export function generic<Value extends Error>(value: Value): Value { return value; }
+      export function defaulted(value: Error = new Error("default")): Error { return value; }
+      export function optional(value?: Error): Error | undefined { return value; }
+      export function first(...values: Error[]): Error { return values[0]!; }
+      function derived(value: HttpError, expected: Error): boolean {
+        const { name, message, stack, cause, detail } = value;
+        value.detail = "after";
+        return name === "HttpError" && message === "derived" && stack === undefined &&
+          cause === expected && detail === "before" && value.detail === "after";
+      }
+      export function run(): boolean {
+        const original = new Error("source");
+        const box = new Box<Error>(original);
+        const inherited = new ImplicitError("inherited", { cause: original });
+        if (inherited.cause !== original || inherited.message !== "inherited" || inherited.name !== "ImplicitError") return false;
+        return alias(original) === original && generic(original) === original &&
+          defaulted(original) === original && defaulted().message === "default" &&
+          optional(original) === original && optional() === undefined && first(original) === original &&
+          box.value === original && derived(new HttpError(original), original);
+      }
+    ` });
+    assertCsharpCompilationSucceeded(compiled);
+    const emitted = [...compiled.artifacts.values()].join("\n");
+    assert.match(emitted, /System\.Exception alias\(System\.Exception value\)/u);
+    assert.match(emitted, /Box<System\.Exception>/u);
+    assert.match(emitted, /\.GetType\(\)\.Name/u);
+    assert.doesNotMatch(emitted, /Tsonic\.CSharp\.Runtime\.Error|ErrorObject|DynamicInvoke/u);
+    executeCsharpConstruction(compiled, `native-error-declaration-and-subclass-slots-${surface}`);
   });
 }

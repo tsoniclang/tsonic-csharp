@@ -14,8 +14,8 @@ for (const surface of ["native", "js"]) {
     `, files: { "failure.ts": `export class ImportedFailure extends Error {}` } });
     assertCsharpCompilationSucceeded(compiled);
     const generated = [...compiled.artifacts.values()].join("\n");
-    assert.match(generated, /class Failure\s*:\s*Tsonic\.CSharp\.Runtime\.Error\b/u);
-    assert.match(generated, /class ImportedFailure\s*:\s*Tsonic\.CSharp\.Runtime\.Error\b/u);
+    assert.match(generated, /class Failure\s*:\s*System\.Exception\b/u);
+    assert.match(generated, /class ImportedFailure\s*:\s*System\.Exception\b/u);
     assert.match(generated, /class DetailedFailure\s*:\s*(?:\w+\.)*ImportedFailure\b/u);
     assert.match(generated, /class ErrorBox\s*:\s*Box<System\.Exception>/u);
     assert.match(generated, /System\.Exception transport\(System\.Exception value\)/u);

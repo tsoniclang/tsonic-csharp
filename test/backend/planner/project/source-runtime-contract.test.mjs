@@ -101,6 +101,25 @@ test("source-project analysis rejects missing, cyclic, forged and conflicting na
   assert.equal(duplicate.value.runtimeSources.length, 2);
 });
 
+test("runtime selection data admits only the exact canonical JS source project", () => {
+  const selected = context("net10.0");
+  const configuration = createCsharpTargetConfiguration(selected.target, process.cwd(), resolve(".temp/source-runtime-contract/out"));
+  const foreign = { ...csharpJsRuntimeSource,
+    projectPath: resolve(".temp/source-runtime-contract/foreign/Tsonic.CSharp.Js.csproj") };
+  for (const [name, source, expected] of [
+    ["none", undefined, false],
+    ["core", csharpCoreRuntimeSource, false],
+    ["canonical JS", csharpJsRuntimeSource, true],
+    ["foreign same-name project", foreign, false],
+  ]) {
+    const references = source === undefined ? [] : csharpRuntimeSourceContributions(source).references;
+    const classified = classifyCsharpProjectConfiguration(configuration, references, selected.paths.cacheRoot);
+    assert.equal(classified.kind, "resolved", name);
+    assert.equal(classified.value.hasJsRuntime, expected, name);
+    assert.equal(Object.isFrozen(classified.value), true, name);
+  }
+});
+
 test("platform selection never substitutes the tooling runtime for the requested framework", () => {
   const output = [
     "Microsoft.NETCore.App 10.0.9 [/sdk/shared/Microsoft.NETCore.App]",

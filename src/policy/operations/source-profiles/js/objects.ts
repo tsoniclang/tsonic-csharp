@@ -1,10 +1,10 @@
 import type { Node } from "@tsonic/tsts";
 import type { CsharpCallArtifactRequirement, CsharpObjectShapeProjectionKind, CsharpTargetInvocation, CsharpTargetMember, TargetTypeRef } from "../../../types/index.js";
-import { csharpBigIntegerTargetType, csharpObjectTargetType, csharpQualifiedTypeRenderShape, csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpTsValueTargetType, csharpTargetNamedType, csharpTaskTargetType, getCsharpTaskResultTargetType, getCsharpDelegateSignature, isCsharpRecordDictionaryTargetType, targetTypeRefEquals, targetTypeRefKey } from "../../../../target-model/types/index.js";
+import { csharpBigIntegerTargetType, csharpExceptionTargetType, csharpObjectTargetType, csharpQualifiedTypeRenderShape, csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpTsValueTargetType, csharpTargetNamedType, csharpTaskTargetType, getCsharpTaskResultTargetType, getCsharpDelegateSignature, isCsharpRecordDictionaryTargetType, targetTypeRefEquals, targetTypeRefKey } from "../../../../target-model/types/index.js";
 import { csharpJsArrayTargetType } from "../../../../target-model/types/carriers/js.js";
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
-import type { CsharpSourceProfileCallPolicy } from "../../../model/source-profiles.js";
-import { csharpSourceProfileDiagnostic, resolveCsharpSelectedSourceValue } from "../source-profile-policy.js";
+import type { CsharpSourceProfileCallPolicy, CsharpSourceProfileCallPolicyResult } from "../../../model/source-profiles.js";
+import { csharpSourceProfileCall, csharpSourceProfileDiagnostic, resolveCsharpSelectedSourceValue } from "../source-profile-policy.js";
 import { closedObjectParameter, jsCallIdentity, jsCallPolicy, jsConstructIdentity, jsMemberIdentity, jsRuntimeTargetType, jsUnsupportedCallPolicy, receiverHelperMethod, staticMethod, targetParameter } from "./common.js";
 
 const stringType = csharpStringTargetType();
@@ -106,11 +106,7 @@ export const csharpJsObjectCallPolicies:
       (context) => objectPrototypeHasOwnMember(context),
       firstParameterReceiver,
     ),
-    jsCallPolicy(
-      jsMemberIdentity("Object", "toString"),
-      (context) => objectToStringMember(context),
-      firstParameterReceiver,
-    ),
+    objectToStringPolicy(),
     ...unsupportedObjectMethods.map((name) =>
       jsUnsupportedCallPolicy(
         jsMemberIdentity("ObjectConstructor", name),
@@ -158,14 +154,29 @@ export const csharpJsObjectCallPolicies:
     ),
   ]);
 
+type ObjectMemberSelection = CsharpTargetMember | Extract<CsharpSourceProfileCallPolicyResult, { readonly kind: "rejected" }> | undefined;
+
+function nativeOwnSetRefusal(
+  context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
+  carriers: readonly (TargetTypeRef | undefined)[],
+): Extract<CsharpSourceProfileCallPolicyResult, { readonly kind: "rejected" }> | undefined {
+  return carriers.some(carrier => carrier !== undefined && context.inputs.throwableCarriers.has(carrier)) ? {
+    kind: "rejected",
+    diagnostic: csharpSourceProfileDiagnostic("CSHARP_ERROR_OWN_SET_UNSUPPORTED", 9100955,
+      "Native exception carriers do not expose a closed own-property set for Object helpers."),
+  } : undefined;
+}
+
 function objectCollectionMember(
   context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
   row: typeof objectCollectionRows[number],
-): CsharpTargetMember | undefined {
+): ObjectMemberSelection {
   const argumentType = resolveCsharpSelectedSourceValue(
     context,
     context.source.sourceArguments[0],
   );
+  const refused = nativeOwnSetRefusal(context, [argumentType]);
+  if (refused !== undefined) return refused;
   const resultType = context.inputs.types.get(context.source.sourceResultType);
   const refinedResultType = argumentType === undefined || resultType === undefined
     ? undefined
@@ -219,11 +230,13 @@ function objectCollectionResultType(
 
 function objectHasOwnMember(
   context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
-): CsharpTargetMember | undefined {
+): ObjectMemberSelection {
   const valueType = resolveCsharpSelectedSourceValue(
     context,
     context.source.sourceArguments[0],
   );
+  const refused = nativeOwnSetRefusal(context, [valueType]);
+  if (refused !== undefined) return refused;
   return valueType === undefined
     ? undefined
     : staticMethod(
@@ -248,7 +261,7 @@ function objectHasOwnMember(
 
 function objectAssignMember(
   context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
-): CsharpTargetMember | undefined {
+): ObjectMemberSelection {
   const targetType = resolveCsharpSelectedSourceValue(
     context,
     context.source.sourceArguments[0],
@@ -257,6 +270,8 @@ function objectAssignMember(
     context,
     context.source.sourceArguments[1],
   );
+  const refused = nativeOwnSetRefusal(context, [targetType, sourceType]);
+  if (refused !== undefined) return refused;
   if (
     targetType !== undefined &&
     sourceType !== undefined &&
@@ -321,11 +336,13 @@ function objectAssignMember(
 
 function objectPrototypeHasOwnMember(
   context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
-): CsharpTargetMember | undefined {
+): ObjectMemberSelection {
   const receiverType = resolveCsharpSelectedSourceValue(
     context,
     context.source.sourceReceiver,
   );
+  const refused = nativeOwnSetRefusal(context, [receiverType]);
+  if (refused !== undefined) return refused;
   return receiverType === undefined
     ? undefined
     : receiverHelperMethod(
@@ -345,6 +362,28 @@ function objectPrototypeHasOwnMember(
           { kind: "receiver" },
         ),
       );
+}
+
+function objectToStringPolicy(): CsharpSourceProfileCallPolicy {
+  return Object.freeze({
+    source: jsMemberIdentity("Object", "toString"),
+    finalizeArguments: true,
+    select(context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0]): CsharpSourceProfileCallPolicyResult {
+      const receiver = resolveCsharpSelectedSourceValue(context, context.source.sourceReceiver);
+      const native = receiver !== undefined && context.inputs.throwableCarriers.has(receiver);
+      const member = native ? context.host.providers.publishNativeIdentities<CsharpTargetMember>({
+        id: "System.Exception.ToString", sourceName: "toString", targetName: "ToString", kind: "method",
+        declaringType: csharpExceptionTargetType(), parameters: [], returnType: stringType,
+      }) : undefined;
+      if (member?.kind === "rejected") return member;
+      const target = native ? member?.kind === "resolved" ? member.value : undefined : objectToStringMember(context);
+      const call = target === undefined ? undefined : csharpSourceProfileCall(context.source, target,
+        native ? { kind: "instance" } : firstParameterReceiver);
+      return call === undefined ? { kind: "rejected", diagnostic: csharpSourceProfileDiagnostic(
+        "CSHARP_JS_SOURCE_PROFILE_CALL_NOT_CLOSED", 9101001,
+        "The selected Object.toString call has no exact native receiver and result relation.") } : { kind: "resolved", call };
+    },
+  });
 }
 
 function objectToStringMember(

@@ -33,7 +33,8 @@ function fixture() {
     types: { propertyInfos: () => properties, standardTransformation: () => undefined },
   };
   const host = {
-    ast: { is: { IsObjectLiteralExpression: node => node === selectedNode, IsTypeLiteralNode: () => false } },
+    ast: { getSourceFile: () => undefined, parent: () => undefined,
+      is: { IsObjectLiteralExpression: node => node === selectedNode, IsTypeLiteralNode: () => false } },
     navigation: {
       isProjectDeclaration: node => projectDeclarations.has(node),
       declarationFor: node => node === selectedNode ? aliasDeclaration : undefined,

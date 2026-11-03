@@ -16,5 +16,6 @@ export interface CsharpProjectClassifications {
   readonly properties: readonly CsharpProjectProperty[];
   readonly references: readonly CsharpProjectReference[];
   readonly runtimeSources: readonly CsharpRuntimeSourceProject[];
+  readonly hasJsRuntime: boolean;
   readonly runtimeProjects: readonly CsharpRuntimeProjectInstance[];
 }

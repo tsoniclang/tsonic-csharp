@@ -9,11 +9,52 @@ import { selectCsharpInheritedConstructorTarget } from "../../../dist/analysis/o
 for (const surface of [undefined, "js"]) {
   const profile = surface ?? "native";
   test(`explicit native error fields preserve owned inputs, reused inputs and absence effects (${profile})`, { timeout: 300_000 }, () => {
-    executeCsharpConstruction(compileCsharpSource({ surface, sourceText: sourceExplicitErrorInitializationProof }),
-      `explicit-error-initialization-${profile}`);
+    executeCsharpConstruction(compileCsharpSource({ surface, sourceText: sourceExplicitErrorInitializationProof + "\nexport function exactCalls(): number { return calls; }" }),
+      `explicit-error-initialization-${profile}`, false, false, [], `
+using System;
+using Generated = Tsonic.Generated.Index;
+if (Generated.run()) throw new Exception("removed JavaScript empty-message contract");
+if (Generated.exactCalls() != 1) throw new Exception("original absent argument evaluated exactly once");
+var absentTemplate = new Exception((string?)null).Message;
+string ExpectedAbsence(Exception value) => absentTemplate.Replace(typeof(Exception).FullName!, value.GetType().FullName!, StringComparison.Ordinal);
+var required = new Tsonic.Generated.RequiredFailure("café😀");
+var optional = new Tsonic.Generated.OptionalFailure("optional");
+var omitted = new Tsonic.Generated.OptionalFailure();
+var missing = new Tsonic.Generated.OptionalFailure(null);
+var retained = new Tsonic.Generated.RetainedFailure("retained");
+var effect = new Tsonic.Generated.EffectFailure();
+if (Generated.exactCalls() != 2) throw new Exception("native absent argument evaluated exactly once");
+if (required.Message != "café😀" || optional.Message != "optional" || omitted.Message != ExpectedAbsence(omitted) ||
+    missing.Message != ExpectedAbsence(missing) || effect.Message != ExpectedAbsence(effect) || retained.Message != "retained" ||
+    !ReferenceEquals(retained.saved, retained.Message) || required.StackTrace is not null)
+    throw new Exception("native explicit arguments, retained input and absence");
+`);
   });
   test(`inherited native error constructors retain exact arguments and project types (${profile})`, { timeout: 300_000 }, () => {
-    executeCsharpConstruction(compileCsharpSource({ surface, sourceText: sourceErrorConstructorProof }), `source-error-constructors-${profile}`);
+    executeCsharpConstruction(compileCsharpSource({ surface, sourceText: sourceErrorConstructorProof }), `source-error-constructors-${profile}`, false, false, [], `
+using System;
+using Generated = Tsonic.Generated.Index;
+if (Generated.run()) throw new Exception("removed JavaScript Error name/default-message contract");
+var absentTemplate = new Exception((string?)null).Message;
+string ExpectedAbsence(Exception value) => absentTemplate.Replace(typeof(Exception).FullName!, value.GetType().FullName!, StringComparison.Ordinal);
+var omitted = new Tsonic.Generated.ImplicitFailure();
+var absent = new Tsonic.Generated.ImplicitFailure(null);
+var present = Generated.makeImplicit("implicit message");
+var explicitValue = Generated.makeExplicit("explicit message");
+var explicitOmitted = Generated.makeExplicit();
+var child = new Tsonic.Generated.ChildFailure("child message");
+var childOmitted = new Tsonic.Generated.ChildFailure();
+if (omitted.Message != ExpectedAbsence(omitted) || absent.Message != ExpectedAbsence(absent) || present.Message != "implicit message" ||
+    explicitValue.Message != "explicit message" || explicitOmitted.Message != ExpectedAbsence(explicitOmitted) || child.Message != "child message" ||
+    childOmitted.Message != ExpectedAbsence(childOmitted) || present.GetType().Name != "ImplicitFailure" || child.GetType().Name != "ChildFailure" ||
+    present.tag != "implicit" || explicitValue.tag != "explicit" || child.detail != "child" ||
+    omitted.StackTrace is not null || explicitValue.StackTrace is not null || child.StackTrace is not null)
+    throw new Exception("native inherited arguments and project members");
+try { throw child; } catch (Tsonic.Generated.ChildFailure failure) {
+    if (!ReferenceEquals(failure, child) || failure.detail != "child" || failure.Message != "child message")
+        throw new Exception("native inherited catch identity");
+}
+`);
   });
   test(`same-spelled project error constructors retain their own generic contract (${profile})`, { timeout: 300_000 }, () => {
     executeCsharpConstruction(compileCsharpSource({ surface, sourceText: sourceOwnedErrorConstructorProof }), `source-owned-error-constructors-${profile}`);
@@ -29,32 +70,45 @@ test("native optional error messages retain handwritten construction costs", { t
   executeCsharpConstruction(compileCsharpSource({ sourceText: sourceErrorConstructorCostProof }),
     "source-error-constructor-cost", false, false, [], `
 using System;
-using NativeError = Tsonic.CSharp.Runtime.Error;
+using System.Runtime.CompilerServices;
+using NativeError = System.Exception;
 using Generated = Tsonic.Generated.Index;
 
 foreach (string? message in new string?[] { null, "", "café😀 message" }) {
-    for (var iteration = 0; iteration < 100; iteration++) {
-        _ = Generated.makeOptional(message);
-        _ = new NativeError(message);
+    var expectedMessage = new NativeError(message).Message;
+    for (var warmup = 0; warmup < 32; warmup++) {
+        _ = GeneratedBytes(message, expectedMessage);
+        _ = HandwrittenBytes(message, expectedMessage);
     }
-    var before = GC.GetAllocatedBytesForCurrentThread();
-    for (var iteration = 0; iteration < 10_000; iteration++) {
-        var value = Generated.makeOptional(message);
-        if (value.message != (message ?? "") || value.stack is not null) throw new Exception("optional message");
-        GC.KeepAlive(value);
-    }
-    var actual = GC.GetAllocatedBytesForCurrentThread() - before;
-    before = GC.GetAllocatedBytesForCurrentThread();
-    for (var iteration = 0; iteration < 10_000; iteration++) {
-        var value = new NativeError(message);
-        if (value.message != (message ?? "") || value.stack is not null) throw new Exception("native message");
-        GC.KeepAlive(value);
-    }
-    if (actual != GC.GetAllocatedBytesForCurrentThread() - before) throw new Exception("construction cost");
+    var actual = GeneratedBytes(message, expectedMessage);
+    var reference = HandwrittenBytes(message, expectedMessage);
+    Console.WriteLine($"construction allocation generated={actual}, handwritten={reference}, absent={message is null}");
+    if (actual != reference) throw new Exception("construction cost");
 }
 var text = "café😀 message";
 var required = Generated.makeRequired(text);
-if (!ReferenceEquals(required.message, text)) throw new Exception("native string identity");
+if (!ReferenceEquals(required.Message, text)) throw new Exception("native string identity");
+
+[MethodImpl(MethodImplOptions.NoInlining)]
+static long GeneratedBytes(string? message, string expected) {
+    var before = GC.GetAllocatedBytesForCurrentThread();
+    for (var iteration = 0; iteration < 10_000; iteration++) {
+        var value = Generated.makeOptional(message);
+        if (value.Message != expected || value.StackTrace is not null) throw new Exception("optional message");
+        GC.KeepAlive(value);
+    }
+    return GC.GetAllocatedBytesForCurrentThread() - before;
+}
+[MethodImpl(MethodImplOptions.NoInlining)]
+static long HandwrittenBytes(string? message, string expected) {
+    var before = GC.GetAllocatedBytesForCurrentThread();
+    for (var iteration = 0; iteration < 10_000; iteration++) {
+        var value = new NativeError(message);
+        if (value.Message != expected || value.StackTrace is not null) throw new Exception("native message");
+        GC.KeepAlive(value);
+    }
+    return GC.GetAllocatedBytesForCurrentThread() - before;
+}
 `);
 });
 

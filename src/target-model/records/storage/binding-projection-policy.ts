@@ -1,6 +1,6 @@
 import type { TargetTypeRef } from "../../types/model.js";
 import type { Node } from "@tsonic/tsts";
-import type { CsharpNativeBindingProperty } from "../objects/value-projections.js";
+import type { CsharpNativePropertyRead } from "../program/source-profile-invocations.js";
 
 export interface CsharpBindingProjection {
   readonly storageCarrier: TargetTypeRef;
@@ -8,6 +8,6 @@ export interface CsharpBindingProjection {
   readonly nativeRead?: {
     readonly node: Node;
     readonly receiverCarrier: TargetTypeRef;
-    readonly property: CsharpNativeBindingProperty;
+    readonly property: CsharpNativePropertyRead;
   };
 }

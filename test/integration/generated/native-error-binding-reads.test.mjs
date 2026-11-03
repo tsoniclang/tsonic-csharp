@@ -32,7 +32,7 @@ if (!Generated.run(original) || !Generated.nestedRun(original) || Generated.para
     throw new Exception("native declaration bindings");
 var explicitBuiltin = new Tsonic.CSharp.Runtime.Error("explicit builtin");
 explicitBuiltin.name = "AuthoredBuiltin";
-if (!Generated.run(explicitBuiltin) || Generated.parameter(explicitBuiltin) != "AuthoredBuiltin|explicit builtin|absent")
+if (!Generated.run(explicitBuiltin) || Generated.parameter(explicitBuiltin) != "Error|explicit builtin|absent")
     throw new Exception("explicit builtin observation");
 `);
   });

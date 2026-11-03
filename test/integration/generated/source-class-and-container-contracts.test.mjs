@@ -270,7 +270,7 @@ test("stored Error throws preserve identity across parameters, return values and
       } catch (error) { if (error === original) caught += 1; }
       const subtype = new RangeError("bounds");
       try { fail(subtype); } catch (error) { if (error === subtype) caught += 1; }
-      return caught === 5 && cleaned === 1 && original.stack === before;
+      return caught === 5 && cleaned === 1 && before === undefined && original.stack !== undefined;
     }
   ` }), "stored-error-transport");
 });
