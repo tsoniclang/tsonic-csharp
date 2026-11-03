@@ -1,4 +1,4 @@
-import type { Node, SourceFile, Type } from "@tsonic/tsts";
+import type { SourceFile, Type } from "@tsonic/tsts";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { SourceCallableContract } from "../../../../target-model/records/callables/source-callable-contract.js";
 import { classifyFormedCsharpSourceCallee, formCsharpSourceCalleeSource,
@@ -17,7 +17,8 @@ import { csharpCallableValueType } from "../../../../policy/types/callables/valu
 import { rebindCsharpMethodValueTypeParameters, selectCsharpNativeQuantifierArguments } from "../../../../policy/types/callables/method-values.js";
 import { csharpSourceTypeParameter } from "../../../../source/extension/type-parameters.js";
 import { csharpTypeProjection } from "../../../../target-model/types/projections.js";
-import { resolveTypeParameter } from "./source-evidence.js";
+import { formCsharpTypeParameterSource, resolveFormedCsharpTypeParameterSource,
+  type CsharpTypeParameterSource } from "./source-evidence.js";
 import type { CsharpSourceCallableSource } from "../../../program/source-callable-source.js";
 
 export type CsharpSourceCallContractSelection =
@@ -29,7 +30,8 @@ export type CsharpSourceCallContractSource = {
   readonly source: ResolvedSourceCallInfo;
   readonly sourceFile: SourceFile;
   readonly callableSource: CsharpSourceCallableSource;
-  readonly checkedTypeParameterDeclarations: readonly (Node | undefined)[] | undefined;
+  readonly checkedTypeParameters: readonly ReturnType<typeof csharpSourceTypeParameter>[] | undefined;
+  readonly selectedTypeParameters: readonly CsharpTypeParameterSource[];
 } & (
   | { readonly kind: "direct" }
   | { readonly kind: "callee"; readonly callee: CsharpSourceCalleeSource }
@@ -42,10 +44,13 @@ export function formCsharpSourceCallContractSource(
 ): CsharpSourceCallContractSource {
   const callableSource = host.representations.sourceCallableSource(source, sourceFile);
   const checked = callableSource.checked.declaration;
-  const checkedTypeParameterDeclarations = checked === undefined ? undefined : Object.freeze([...host.ast.typeParameters(checked)]);
+  const checkedTypeParameters = checked === undefined ? undefined : Object.freeze(host.ast.typeParameters(checked).map(declaration =>
+    declaration === undefined ? undefined : csharpSourceTypeParameter(declaration, host.ast)));
+  const selectedTypeParameters = Object.freeze((source.sourceSelectedMethodTypeArguments ?? []).map(argument =>
+    formCsharpTypeParameterSource(argument.typeParameter, callableSource.queries, host.ast)));
   return host.ast.is.IsNewExpression(source.call) || host.ast.kindName(source.sourceCallee.expression) === "KindSuperKeyword"
-    ? Object.freeze({ source, sourceFile, callableSource, checkedTypeParameterDeclarations, kind: "direct" })
-    : Object.freeze({ source, sourceFile, callableSource, checkedTypeParameterDeclarations,
+    ? Object.freeze({ source, sourceFile, callableSource, checkedTypeParameters, selectedTypeParameters, kind: "direct" })
+    : Object.freeze({ source, sourceFile, callableSource, checkedTypeParameters, selectedTypeParameters,
       kind: "callee", callee: formCsharpSourceCalleeSource(host, source, sourceFile) });
 }
 
@@ -127,15 +132,16 @@ function checkedValueInvocationCarrier(
   const canonical = csharpMethodValueType(value.owner, value.method, value.identity, member.type,
     native.map(parameter => parameter.identity));
   if (canonical === undefined || !csharpMethodValueContractsEqual(type, canonical)) return undefined;
-  const queries = input.callableSource.queries;
   const declaration = input.callableSource.checked.declaration;
   if (declaration === undefined) return undefined;
-  const declarations = input.checkedTypeParameterDeclarations;
-  if (declarations === undefined || declarations.length !== selected.length) return undefined;
-  const authored = selected.map((argument, index): NativeQuantifier | undefined => {
-    const sourceParameter = declarations[index] === undefined ? undefined
-      : csharpSourceTypeParameter(declarations[index]!, host.ast);
-    const parameter = resolveTypeParameter(argument.typeParameter, queries, host.ast, host.typeParameterConstraints);
+  const parameters = input.checkedTypeParameters;
+  if (parameters === undefined || parameters.length !== selected.length) return undefined;
+  if (input.selectedTypeParameters.length !== selected.length || selected.some((argument, index) =>
+    input.selectedTypeParameters[index]?.type !== argument.typeParameter)) return failTargetAnalysisInvariant("tsonic-csharp",
+      "Invocation type parameters require their exact retained checked source arguments.", input.source.call);
+  const authored = input.selectedTypeParameters.map((parameterSource, index): NativeQuantifier | undefined => {
+    const sourceParameter = parameters[index];
+    const parameter = resolveFormedCsharpTypeParameterSource(parameterSource, host.typeParameterConstraints);
     return parameter?.kind === "type-parameter" && parameter.identity === sourceParameter?.identity &&
       parameter.csharpConstraints?.kind === "resolved"
       ? Object.freeze({ ...parameter, csharpConstraints: parameter.csharpConstraints }) : undefined;
