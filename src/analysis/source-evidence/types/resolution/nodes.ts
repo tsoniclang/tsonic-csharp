@@ -45,6 +45,15 @@ export function resolveFormedCsharpNodeTypeSource(
       return failTargetAnalysisInvariant("tsonic-csharp",
         "A declared receiver requires its exact Source occurrence, lexical context and bound state.", source.node);
     }
+    const selected = receiver.source;
+    if (selected !== undefined && (selected.node !== source.node || selected.queries !== source.queries ||
+      selected.state !== source.state || selected.context !== receiver.context || selected.type !== source.selectedType ||
+      selected.kind === "type" && (selected.declarations.length !== selected.members.length ||
+        selected.declarations.some((member, index) => member !== undefined &&
+          (member.property !== selected.members[index] || member.queries !== selected.queries))))) {
+      return failTargetAnalysisInvariant("tsonic-csharp",
+        "A declared receiver view requires the exact selected Source type and ordered declaration rows.", source.node);
+    }
   }
   const selected = resolveNodeResultWithState(scope, source);
   return source.node === undefined ? selected : refineCsharpSourceValueResult(selected,

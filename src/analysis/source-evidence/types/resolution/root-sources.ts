@@ -17,14 +17,8 @@ import { formCsharpSelectedExpressionSource, type CsharpSelectedExpressionSource
 import { formCsharpSemanticTypeArgumentsSource, type CsharpSemanticTypeArgumentsSource } from "./semantic-argument-source.js";
 import { formCsharpDirectSourceEvidence, type CsharpDirectSourceEvidence } from "./direct-source-evidence.js";
 import { sourceFactSubjectsForNode } from "./source-evidence.js";
-import type { CsharpDeclaredObjectReceiverContextSource } from "../../../../target-model/records/native/native-value-carriers.js";
-
-export interface CsharpDeclaredObjectReceiverInput {
-  readonly node: Node;
-  readonly queries: SourceFileSemantics;
-  readonly state: CsharpTypeResolutionState;
-  readonly context: CsharpDeclaredObjectReceiverContextSource;
-}
+import { formCsharpDeclaredObjectReceiverInput,
+  type CsharpDeclaredObjectReceiverInput } from "./declared-receiver-source.js";
 
 export interface CsharpStructuralNodeSourceInput {
   readonly node: Node;
@@ -157,10 +151,11 @@ export function formCsharpNodeTypeSource(
   const queries = sourceFile === undefined ? host.semanticsFor(node) : host.semantics(sourceFile);
   state = csharpSourceStorageContext(host, state, node);
   const receiverContext = host.declaredObjectReceivers.get(node);
-  const declaredReceiver = receiverContext === undefined ? undefined
-    : Object.freeze({ node, queries, state, context: receiverContext });
   const childState = Object.freeze(nextState(state));
   const selectedType = queries.types.expressionType(node);
+  const declaredReceiver = receiverContext === undefined ? undefined : formCsharpDeclaredObjectReceiverInput(host, {
+    node, queries, state, context: receiverContext, selectedType,
+  });
   const source = host.structuralTypes.formNodeSource(node, queries, childState);
   if (source !== undefined && (source.node !== node || source.queries !== queries || source.state !== childState)) {
     return failTargetAnalysisInvariant("tsonic-csharp",
