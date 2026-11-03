@@ -118,6 +118,9 @@ export function formCsharpSourceValueSource(
   selectedType: Type | undefined,
 ): CsharpSourceValueSource {
   const { host } = scope;
+  if (selection.node === undefined || !Object.hasOwn(selection, "reference") || !Object.hasOwn(selection, "declaration")) {
+    return failTargetAnalysisInvariant("tsonic-csharp", "Value Source formation requires its retained declaration selection.", selection.node);
+  }
   const { node, declaration } = selection;
   const input = { selection, node, queries, state, selectedType };
   if (declaration === undefined) return Object.freeze({ ...input, kind: "missing" });
@@ -177,6 +180,25 @@ export function resolveFormedCsharpSourceValueResult(
   if (source.kind === "missing") return undefined;
   const { declaration, sourceFile, state, queries } = source;
   const authored = source.authored;
+  if ((source.syntax.type === undefined) !== (authored === undefined) || source.kind === "binding" && source.body !== undefined) {
+    return failTargetAnalysisInvariant("tsonic-csharp", "Value completion requires its exact retained authored input.", declaration);
+  }
+  if (source.kind === "value") {
+    const body = source.body;
+    if (body === undefined || body.queries.sourceFile !== sourceFile || body.declared.sourceFile !== sourceFile ||
+        body.selected.sourceFile !== queries.sourceFile || body.selected.type !== source.selectedSourceType) {
+      return failTargetAnalysisInvariant("tsonic-csharp", "Value completion requires its exact retained declaration children.", declaration);
+    }
+    const tail = body.tail;
+    if (tail.kind === "uninitialized" ? source.syntax.initializer !== undefined || tail.contextual.declaration !== declaration ||
+        tail.contextual.queries !== body.queries
+      : tail.initializer !== source.syntax.initializer || !tail.array && (tail.expression?.node !== tail.initializer ||
+        tail.expression?.queries !== body.queries || tail.direct?.subjects[0] !== tail.initializer) ||
+        tail.mutable && tail.widening && tail.preservation === undefined || tail.preservation !== undefined &&
+        (tail.preservation.node !== tail.initializer || tail.preservation.queries !== body.queries)) {
+      return failTargetAnalysisInvariant("tsonic-csharp", "Value completion requires its exact retained initializer or contextual Source.", declaration);
+    }
+  }
   if (authored !== undefined) {
     if (authored.authoredTypeNode !== source.syntax.type || authored.authoredSourceFile !== sourceFile || authored.inputState !== state ||
         authored.selectedSourceFile !== queries.sourceFile || authored.selectedType !== source.selectedSourceType) return failTargetAnalysisInvariant("tsonic-csharp",
@@ -186,8 +208,7 @@ export function resolveFormedCsharpSourceValueResult(
   }
   if (source.kind === "binding") return csharpSourceValueResult(scope.host.bindingProjection(declaration, sourceFile)?.bindingCarrier);
   const body = source.body;
-  if (body === undefined || body.queries.sourceFile !== sourceFile || body.declared.sourceFile !== sourceFile ||
-      body.selected.sourceFile !== queries.sourceFile || body.selected.type !== source.selectedSourceType) return failTargetAnalysisInvariant("tsonic-csharp",
+  if (body === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
     "Value completion requires its exact retained declaration children.", declaration);
   if (body.induction !== undefined) {
     const bound = scope.resolveNodeWithState(body.induction.bound, sourceFile, body.inductionState);
@@ -199,8 +220,6 @@ export function resolveFormedCsharpSourceValueResult(
   const declaredTarget = scope.resolveTypeWithState(body.declared.type, body.declared.sourceFile, body.declared.state);
   const tail = body.tail;
   if (tail.kind === "uninitialized") {
-    if (tail.contextual.declaration !== declaration || tail.contextual.queries !== body.queries) return failTargetAnalysisInvariant("tsonic-csharp",
-      "Value completion requires its exact retained contextual Source.", declaration);
     const selected = scope.resolveTypeWithState(body.selected.type, body.selected.sourceFile, body.selected.state);
     const contextual = resolveFormedCsharpContextualParameterCarrier(scope, tail.contextual, state);
     if (contextual.kind === "unresolved") return undefined;
@@ -218,12 +237,6 @@ export function resolveFormedCsharpSourceValueResult(
     }
     return csharpSourceValueResult(resolveFormedCsharpNativeParameterCarrier(scope, source.nativeParameter,
       retainCsharpBroadValueCarrier(declaredTarget, selected, body.nonPrimitive) ?? selected ?? declaredTarget, state));
-  }
-  if (tail.initializer !== source.syntax.initializer || !tail.array && (tail.expression?.node !== tail.initializer ||
-      tail.expression?.queries !== body.queries || tail.direct?.subjects[0] !== tail.initializer) ||
-      tail.mutable && tail.widening && tail.preservation === undefined || tail.preservation !== undefined &&
-      (tail.preservation.node !== tail.initializer || tail.preservation.queries !== body.queries)) {
-    return failTargetAnalysisInvariant("tsonic-csharp", "Value completion requires its exact retained initializer Source.", declaration);
   }
   const widened = tail.mutable && declaredTarget !== undefined && body.declared.type !== undefined && tail.widening && tail.preservation !== undefined &&
     completeCsharpPrimitivePreservation(scope, tail.preservation, declaredTarget);
