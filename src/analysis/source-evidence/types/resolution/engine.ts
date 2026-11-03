@@ -36,6 +36,9 @@ import { resolveTypeWithState as resolveTypeWithStateImplementation, resolveDire
 import { resolveSourceProfileType as resolveSourceProfileTypeImplementation, resolveUnionType as resolveUnionTypeImplementation, resolveCallableType as resolveCallableTypeImplementation, resolveCallableEvidence as resolveCallableEvidenceImplementation, resolveSignatureParameterEvidence as resolveSignatureParameterEvidenceImplementation, resolveSourceTypeComponentEvidence as resolveSourceTypeComponentEvidenceImplementation } from "./source-profiles.js";
 import { generatorProtocol as generatorProtocolImplementation, generatorResultProtocol as generatorResultProtocolImplementation } from "../../../../policy/operations/source-profiles/type-carriers.js";
 import { resolveSelectedSymbolType as resolveSelectedSymbolTypeImplementation, resolveProjectSourceSemanticType as resolveProjectSourceSemanticTypeImplementation, resolveProjectSourceType as resolveProjectSourceTypeImplementation, projectSourceDeclarationTargetType as projectSourceDeclarationTargetTypeImplementation } from "./project-types.js";
+import { formCsharpProjectSemanticSource, resolveFormedCsharpProjectSemanticType,
+  formCsharpProjectReferenceSource, resolveFormedCsharpProjectReference,
+  formCsharpSelectedSymbolSource, resolveFormedCsharpSelectedSymbolType } from "./project-types.js";
 import { createCsharpTypeResolutionQueryCache } from "./query-cache.js";
 import { bindCsharpStructuralTypeApplication, formCsharpStructuralTypeApplication,
   resolveCsharpStructuralMemberChildren, resolveCsharpStructuralPropertyType } from "./structural-applications.js";
@@ -45,6 +48,18 @@ type DropScope<Arguments extends readonly unknown[]> =
   Arguments extends readonly [unknown, ...infer Rest] ? Rest : never;
 
 export interface CsharpTypeResolutionServices {
+  readonly projectSemanticSource: (...args: DropScope<Parameters<typeof formCsharpProjectSemanticSource>>) =>
+    ReturnType<typeof formCsharpProjectSemanticSource>;
+  readonly completeProjectSemantic: (...args: DropScope<Parameters<typeof resolveFormedCsharpProjectSemanticType>>) =>
+    ReturnType<typeof resolveFormedCsharpProjectSemanticType>;
+  readonly projectReferenceSource: (...args: DropScope<Parameters<typeof formCsharpProjectReferenceSource>>) =>
+    ReturnType<typeof formCsharpProjectReferenceSource>;
+  readonly completeProjectReference: (...args: DropScope<Parameters<typeof resolveFormedCsharpProjectReference>>) =>
+    ReturnType<typeof resolveFormedCsharpProjectReference>;
+  readonly selectedSymbolSource: (...args: DropScope<Parameters<typeof formCsharpSelectedSymbolSource>>) =>
+    ReturnType<typeof formCsharpSelectedSymbolSource>;
+  readonly completeSelectedSymbol: (...args: DropScope<Parameters<typeof resolveFormedCsharpSelectedSymbolType>>) =>
+    ReturnType<typeof resolveFormedCsharpSelectedSymbolType>;
   readonly policy: CsharpTypePolicy;
   readonly recursive: CsharpRecursiveTypeResolver;
   readonly structuralTypeApplication: CsharpTypeResolutionScope["formStructuralTypeApplication"];
@@ -353,6 +368,18 @@ export function createCsharpTypeResolutionServices(
     },
   });
   return Object.freeze({ policy, recursive,
+    projectSemanticSource: (...args: DropScope<Parameters<typeof formCsharpProjectSemanticSource>>) =>
+      formCsharpProjectSemanticSource(scope, ...args),
+    completeProjectSemantic: (...args: DropScope<Parameters<typeof resolveFormedCsharpProjectSemanticType>>) =>
+      resolveFormedCsharpProjectSemanticType(scope, ...args),
+    projectReferenceSource: (...args: DropScope<Parameters<typeof formCsharpProjectReferenceSource>>) =>
+      formCsharpProjectReferenceSource(scope, ...args),
+    completeProjectReference: (...args: DropScope<Parameters<typeof resolveFormedCsharpProjectReference>>) =>
+      resolveFormedCsharpProjectReference(scope, ...args),
+    selectedSymbolSource: (...args: DropScope<Parameters<typeof formCsharpSelectedSymbolSource>>) =>
+      formCsharpSelectedSymbolSource(scope, ...args),
+    completeSelectedSymbol: (...args: DropScope<Parameters<typeof resolveFormedCsharpSelectedSymbolType>>) =>
+      resolveFormedCsharpSelectedSymbolType(scope, ...args),
     structuralTypeApplication: methods.formStructuralTypeApplication,
     bindStructuralTypeApplication: bindCsharpStructuralTypeApplication,
     structuralMemberChildren: methods.resolveStructuralMemberChildren,
