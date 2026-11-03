@@ -16,6 +16,7 @@ export interface CsharpAnalysisPolicyContextInput {
   readonly input: TargetCompileInput;
   readonly sourceFiles: readonly SourceFile[];
   readonly sourceStorage: SourceStorageQueries;
+  readonly pointerStorage: CsharpPolicyContext["pointerStorage"];
   readonly providers: CsharpProviderRelationResolver;
   readonly sourceIdentities: CsharpSourceIdentityPolicy;
   readonly typeSystem: CsharpTypeSystem;
@@ -42,6 +43,7 @@ export function createCsharpAnalysisPolicyContext(
     ast: source.ast,
     sourceFiles,
     sourceStorage: context.sourceStorage,
+    pointerStorage: context.pointerStorage,
     valueDomainCarriers,
     sourceFacts: source.sourceFacts,
     navigation: source.navigation,

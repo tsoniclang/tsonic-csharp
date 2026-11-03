@@ -1,7 +1,7 @@
 import type { CsharpNodeTypeResolution, CsharpTypeQueries } from "../../../../policy/model/type-resolution.js";
 import type { AstReader, ExtensionFactSubject, Node, ReadonlySourceFactResolver, SourceFile, Type } from "@tsonic/tsts";
 import type { TargetSelection } from "@tsonic/target-api";
-import type { TsonicPointerReturnQueries, TsonicMemoryBindingIndex } from "@tsonic/source-core/facts";
+import type { TsonicPointerStorageRelation, TsonicMemoryBindingIndex } from "@tsonic/source-core/facts";
 
 import type { SourceFileSemantics, SourceProgramNavigation } from "@tsonic/target-api/source";
 import type { CsharpProjectTypeCatalog, CsharpProjectTypePolicy } from "../../../../target-model/records/types/project-types.js";
@@ -46,7 +46,7 @@ export interface CsharpTypePolicyBaseHost {
   readonly sourceFiles: readonly SourceFile[];
   readonly sourceFacts?: ReadonlySourceFactResolver;
   readonly navigation: SourceProgramNavigation;
-  readonly pointerReturns: TsonicPointerReturnQueries;
+  readonly pointerStorage: TsonicPointerStorageRelation;
   readonly memoryBindings: TsonicMemoryBindingIndex;
   readonly providers: CsharpProviderRelationResolver;
   readonly target: TargetSelection;
@@ -110,6 +110,7 @@ export interface CsharpTypePolicy extends CsharpTypeQueries {
 
 export interface CsharpTypeResolutionState {
   readonly depth: number;
+  readonly sourceStorageBindings?: import("@tsonic/target-api/analysis").SourceStorageBindings;
   readonly rejectNativeResolution?: (rejection: Extract<CsharpNodeTypeResolution, { readonly kind: "rejected" }>) => void;
   readonly sourceStorageSubject?: import("@tsonic/target-api/analysis").SourceStorageSubject;
   readonly sourceBindings?: ReadonlyMap<Node, {

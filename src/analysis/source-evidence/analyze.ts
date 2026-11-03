@@ -25,7 +25,9 @@ import { csharpFixedArrayRepresentationRejection } from "../../policy/types/coll
 import { readCsharpSourceDefaultValue, readCsharpSourceField, readCsharpSourceFixedArrayType, readCsharpSourceStruct } from "../../source/extension/markers.js";
 
 const missing = Symbol("csharp.source-evidence.missing");
-import { createTsonicMemoryMetadataIndex, createTsonicDeclaredPointerBackingDemands, createTsonicClosedArrayStorageQueries } from "@tsonic/source-core/facts";
+import { createTsonicMemoryMetadataIndex, createTsonicClosedArrayStorageQueries } from "@tsonic/source-core/facts";
+import type { TsonicPointerStorageRelation } from "@tsonic/source-core/facts";
+import { createCsharpPointerBackingDemands } from "./pointer-backing.js";
 import type { CsharpPointerReturnContract } from "../../target-model/records/calls/pointer-return.js";
 import { analyzeCsharpTypeOnlyDeclarations } from "../declarations/type-only.js";
 type Cached<Value> = Value | typeof missing;
@@ -37,9 +39,10 @@ export function analyzeCsharpSourceEvidence(
   policy: CsharpPolicyContext,
   typeQueries: Pick<CsharpTypeResolutionServices, "nodeQuerySource" | "completeNodeQuery" | "typeQuerySource" | "completeTypeQuery">,
   constructionSource: Pick<CsharpNativeConstructionSource<object>, "publicationFor">,
+  pointerStorage: TsonicPointerStorageRelation,
 ): CsharpSourceEvidenceResult {
   const memoryMetadata = createTsonicMemoryMetadataIndex(source);
-  const pointerBacking = createTsonicDeclaredPointerBackingDemands(source);
+  const pointerBacking = createCsharpPointerBackingDemands(source, pointerStorage, types);
   const arrayStorage = createTsonicClosedArrayStorageQueries(source, 131_072);
   const typeOnlyDeclarations = analyzeCsharpTypeOnlyDeclarations(source, sourceFiles);
   const compileTimeMetadata = new WeakSet<Node>(typeOnlyDeclarations);
@@ -499,10 +502,11 @@ export function analyzeCsharpSourceEvidence(
     }
   }
 
+  const pointerBackingRecords = pointerBacking.seal();
   const index: CsharpSourceEvidenceIndex = {
     bindingProjection: Object.freeze({ get: node => bindingProjections.get(node) }),
-    pointerBackingUses: pointerBacking.uses(),
-    memoryMetadataIssues: Object.freeze([...memoryMetadataIssues, ...pointerBacking.issues().map(issue => ({
+    pointerBackingUses: pointerBackingRecords.uses,
+    memoryMetadataIssues: Object.freeze([...memoryMetadataIssues, ...pointerBackingRecords.issues.map(issue => ({
       node: issue.node, code: "CSHARP_POINTER_BACKING_NOT_PROVEN", message: issue.reason,
     }))]),
     fixedArrayIssues: Object.freeze(fixedArrayIssues),

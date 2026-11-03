@@ -1,6 +1,6 @@
 import type { ExtensionFactSubject, Node, SourceFile, SourcePrimitiveKind, Type } from "@tsonic/tsts";
 import { sourcePrimitiveFactKey } from "@tsonic/tsts";
-import { selectTsonicMemoryFieldBinding, selectTsonicMemoryRecordBinding,
+import { selectTsonicMemoryFieldBindingFacts, selectTsonicMemoryRecordBindingFacts,
   tsonicMemoryFieldBindingFactKey, tsonicMemoryRecordBindingFactKey } from "@tsonic/source-core/facts";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
@@ -91,14 +91,14 @@ export function formCsharpDirectSourceEvidence(
   for (const subject of subjects) {
     const record = host.sourceFacts?.getFact(subject, tsonicMemoryRecordBindingFactKey);
     if (record !== undefined && host.sourceFacts !== undefined) {
-      const selected = selectTsonicMemoryRecordBinding(host.ast, host.sourceFacts, record.call);
+      const selected = selectTsonicMemoryRecordBindingFacts(host.ast, host.sourceFacts, record.call);
       if (selected?.kind !== "resolved") return terminal({ kind: "unavailable" });
       dependency(selectedType(selected.operation.layout.explicitTypeNode, selected.operation.sourceType), "type", true);
       return complete();
     }
     const binding = host.sourceFacts?.getFact(subject, tsonicMemoryFieldBindingFactKey);
     if (binding !== undefined && host.sourceFacts !== undefined) {
-      const selected = selectTsonicMemoryFieldBinding(host.ast, host.sourceFacts, binding.call);
+      const selected = selectTsonicMemoryFieldBindingFacts(host.ast, host.sourceFacts, binding.call);
       if (selected?.kind !== "resolved") return terminal({ kind: "unavailable" });
       const typeNode = host.ast.typeNode(selected.operation.field.selectedDeclaration) ??
         readCsharpSourceField(host.sourceFacts, [selected.operation.field.selectedDeclaration])?.sourceType;

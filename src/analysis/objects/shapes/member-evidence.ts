@@ -35,10 +35,10 @@ export function formCsharpObjectShapePropertySource(
   ];
   const numeric = authoredTypeNodes.length === 0 &&
     (queries.types.isNumberLike(sourceType) || queries.types.isBigIntLike(sourceType));
-  const declarations = !numeric ? [] : [...new Set([property.symbol, ...property.rootSymbols].flatMap(symbol =>
+  const declarations = authoredTypeNodes.length !== 0 ? [] : [...new Set([property.symbol, ...property.rootSymbols].flatMap(symbol =>
     queries.declarations.symbolDeclarations(symbol)))];
   const declarationValues = Object.freeze(declarations.map(declaration => Object.freeze({ declaration,
-    value: host.ast.is.IsPropertyAssignment(declaration) || host.ast.is.IsShorthandPropertyAssignment(declaration)
+    value: numeric && (host.ast.is.IsPropertyAssignment(declaration) || host.ast.is.IsShorthandPropertyAssignment(declaration))
       ? ObjectLiteralProperty_Value(host.ast, declaration) : undefined,
   })));
   return formCsharpStructuralPropertyApplication({ host }, {

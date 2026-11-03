@@ -57,6 +57,7 @@ import { formCsharpSourceDeclarationArguments, resolveFormedCsharpSourceDeclarat
 import { formCsharpSemanticTypeArgumentsSource } from "./semantic-argument-source.js";
 import { formCsharpDirectSourceEvidence, completeCsharpDirectSourceEvidence,
   resolveFormedCsharpDirectSourceFacts } from "./direct-source-evidence.js";
+import { resolveCsharpPointerStoragePointee } from "./pointer-storage.js";
 
 import type { CsharpTypeResolutionScope } from "./scope.js";
 type DropScope<Arguments extends readonly unknown[]> =
@@ -381,6 +382,7 @@ export function createCsharpTypeResolutionServices(
     resolveSelectedType: methods.resolveSelectedType,
     resolveSelectedResult: methods.resolveSelectedResult,
     resolvePointerReturn: (declaration: Node) => methods.resolvePointerReturn(declaration, { depth: 0 }),
+    resolvePointerStoragePointee: producer => resolveCsharpPointerStoragePointee(scope, producer, { depth: 0 }),
     resolveTypedLocationOperationPointee: methods.resolveTypedLocationOperationPointee,
     resolveSourceCallTypeArguments: methods.resolveSourceCallTypeArguments,
     resolveSourceCallParameter: methods.resolveSourceCallParameter,

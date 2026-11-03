@@ -197,19 +197,40 @@ function forbiddenNeutralAliasImports(path) {
 }
 
 test("native backing uses one neutral identity relation without the legacy layout-demand API", () => {
-  const forbidden = /\b(?:createTsonicPointerBackingDemands|TsonicPointerBackingDemand|TsonicPointerBackingDemands|createTsonicPointerBackingQueries|TsonicPointerBackingQueries)\b/u;
+  const forbidden = /\b(?:createTsonicPointerBackingDemands|TsonicPointerBackingDemand|TsonicPointerBackingDemands|createTsonicPointerBackingQueries|TsonicPointerBackingQueries|selectTsonicRawLocationOperation|selectTsonicMemoryFieldBinding|selectTsonicMemoryRecordBinding|createTsonicMemoryBindingIndex|readTsonicMemoryType|TsonicMemoryTypeIdentity|sameBackingLayout)\b/u;
   const failures = sourceFiles(sourceRoot)
     .filter(path => forbidden.test(readFileSync(path, "utf8")))
     .map(path => path.slice(repositoryRoot.length + 1));
   assert.deepEqual(failures, []);
   const analysis = readFileSync(join(sourceRoot, "analysis/source-evidence/analyze.ts"), "utf8");
-  assert.match(analysis, /createTsonicDeclaredPointerBackingDemands\(source\)/u);
-  assert.match(analysis, /pointerBackingUses: pointerBacking\.uses\(\)/u);
+  assert.match(analysis, /createCsharpPointerBackingDemands\(source, pointerStorage, types\)/u);
+  assert.match(analysis, /const pointerBackingRecords = pointerBacking\.seal\(\)/u);
+  assert.match(analysis, /pointerBackingUses: pointerBackingRecords\.uses/u);
+  const collection = readFileSync(join(sourceRoot, "analysis/source-evidence/pointer-backing.ts"), "utf8");
+  assert.match(collection, /storage\.value\(selected\.expression\)/u);
+  assert.match(collection, /types\.resolvePointerStoragePointee\(producer\.storage\)/u);
+  assert.match(collection, /seal\(\)\s*\{\s*return Object\.freeze\(\{ uses: Object\.freeze\(\[\.\.\.uses\]\), issues: Object\.freeze\(\[\.\.\.issues\]\) \}\)/u);
+  assert.doesNotMatch(collection, /uses:\s*\(\)\s*=>/u);
+  assert.doesNotMatch(collection, /createTsonicPointerBackingQueries|createTsonicPointerStorageRelation/u);
+  const composition = readFileSync(join(sourceRoot, "analysis/program/analyze.ts"), "utf8");
+  assert.equal([...composition.matchAll(/createTsonicPointerStorageRelation\(source, sourceStorage\)/gu)].length, 1);
+  assert.match(composition, /createTsonicMemoryBindingFactsIndex\(source\)/u);
+  const domains = readFileSync(join(sourceRoot, "analysis/operations/pointers/storage-domain.ts"), "utf8");
+  assert.match(domains, /input\.pointerStorage\.value\(expression\)/u);
+  assert.match(domains, /input\.sourceStorage\.typeFor\(boundary\.subject\)/u);
+  assert.match(domains, /bindings: boundary\.bindings/u);
+  assert.match(domains, /input\.types\.resolvePointerStoragePointee\(producer\)/u);
+  const backing = readFileSync(join(sourceRoot, "analysis/storage/native-backing.ts"), "utf8");
+  assert.match(backing, /tsonicDataLayoutFactKey\.equals\(previous\.dataLayout, layout\.dataLayout\)/u);
+  assert.match(backing, /csharpNativeMemoryLayoutsEqual\(previous\.layout, native\)/u);
   const neutral = readFileSync(resolve(repositoryRoot,
-    "../tsonic/packages/source-core/src/pointers/backing/declared-demands.ts"), "utf8");
-  assert.equal([...neutral.matchAll(/createTsonicPointerBackingQueries\(source,/gu)].length, 1);
-  assert.match(neutral, /identities\.resolve\(selected\.expression\)/u);
-  assert.doesNotMatch(neutral, /sameBackingLayout|demands\.set|createTsonicPointerBackingDemands/u);
+    "../tsonic/packages/source-core/src/pointers/storage-relation.ts"), "utf8");
+  assert.match(neutral, /storage\.storageProducersFor\(subject\.subject, bindings\)/u);
+  assert.doesNotMatch(neutral, /sameBackingLayout|createTsonicPointerBackingQueries|createTsonicPointerBackingDemands/u);
+  assert.equal(existsSync(resolve(repositoryRoot,
+    "../tsonic/packages/source-core/src/pointers/backing/declared-demands.ts")), false);
+  const exports = readFileSync(resolve(repositoryRoot, "../tsonic/packages/source-core/src/public/facts.ts"), "utf8");
+  assert.doesNotMatch(exports, /createTsonicDeclaredPointerBackingDemands|TsonicDeclaredPointerBackingUse/u);
 });
 
 test("scalar and scalar-array backing consumes declared geometry and only checks later descriptors", () => {

@@ -63,9 +63,10 @@ export function fail(values: int32[]): int32 {
   const holder = { value: new Span<int32>(values) }; return holder.value.Length;
 }` });
   assert.equal(compiled.sourceDiagnosticsText, "", "the inferred object is checked source");
-  assert.equal(compiled.result.diagnostics.some(issue => issue.code === "CSHARP_UNSUPPORTED_AST" &&
-    issue.message.includes("System.Span") && issue.message.includes("int32") && issue.message.includes("float64")), true,
-    "the existing inferred-container numeric mismatch remains an exact early refusal");
+  assert.deepEqual(compiled.result.diagnostics.map(({ code, message }) => ({ code, message })), [{
+    code: "CSHARP_REFLIKE_FIELD",
+    message: "A native ref-like value cannot be retained in an ordinary object member.",
+  }], "the inferred object retains the exact native ref-like field refusal");
   assert.equal(compiled.result.program === undefined, true, "no mismatched native program is published");
   assert.equal(compiled.result.artifacts.length, 0, "no mismatched native source is emitted");
 });

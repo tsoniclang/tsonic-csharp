@@ -17,6 +17,8 @@ function fixture(kind, project) {
           IsBindingElement: () => false,
           IsParameterDeclaration: () => false,
           IsPropertyDeclaration: () => false,
+          IsPropertyAssignment: () => false,
+          IsShorthandPropertyAssignment: () => false,
           IsPropertyAccessExpression: node => node?.kind === "property",
           IsElementAccessExpression: node => node?.kind === "element",
           IsParenthesizedExpression: () => false,

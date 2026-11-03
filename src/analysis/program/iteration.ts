@@ -144,6 +144,7 @@ export function analyzeCsharpRepresentationIteration(
     input,
     sourceFiles,
     sourceStorage,
+    pointerStorage: typeHost.pointerStorage,
     providers,
     sourceIdentities,
     typeSystem,
@@ -157,6 +158,7 @@ export function analyzeCsharpRepresentationIteration(
     policy,
     typeSystem,
     typeSystem.nativeConstructionSource,
+    typeHost.pointerStorage,
   );
   const sourceEvidence = evidence.index;
   if (sourceEvidence.fixedArrayIssues.length > 0) return rejectCsharpAnalysisIssues(sourceEvidence.fixedArrayIssues);
