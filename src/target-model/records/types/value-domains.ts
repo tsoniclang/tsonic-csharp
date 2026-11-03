@@ -7,7 +7,7 @@ export interface CsharpValueDomainCarrierQueries {
 
 export interface CsharpValueDomainCarrierIssue {
   readonly node: Node;
-  readonly code: "CSHARP_VALUE_DOMAIN_METADATA_BUDGET_EXHAUSTED";
+  readonly code: "TSONIC_COMPILER_RESOURCE_LIMIT";
   readonly message: string;
 }
 

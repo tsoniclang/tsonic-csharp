@@ -9,6 +9,7 @@ import { csharpJsArrayTargetType } from "../../../../target-model/types/carriers
 
 import { csharpNullableTargetType } from "../../../../target-model/types/carriers/nullable.js";
 import { maximumTypeResolutionDepth } from "./model.js";
+import { failTargetCompilerResourceLimit } from "@tsonic/target-api/artifacts";
 import { nextState } from "./state.js";
 import { resolveCsharpSourceLiteralTargetType } from "../../../../policy/conversions/source-literals.js";
 import { resolveKeywordType } from "../../../../policy/types/resolution/source-primitives.js";
@@ -41,9 +42,9 @@ function resolveNodeResultWithState(
   state: CsharpTypeResolutionState,
 ): CsharpSourceCallResult | undefined {
   const { host, resolveCallableType, resolveDirectSourceFacts, resolveNodeWithState, resolveProjectThisTargetType, resolveSelectedExpressionResult, resolveSourceValueResult, resolveTupleTypeNode, resolveTypeReferenceNode, resolveTypeWithState } = scope;
-  if (node === undefined || state.depth > maximumTypeResolutionDepth) {
-    return undefined;
-  }
+  if (node === undefined) return undefined;
+  if (state.depth > maximumTypeResolutionDepth) failTargetCompilerResourceLimit("tsonic-csharp",
+    "Selected native source-node type resolution", "depth", maximumTypeResolutionDepth, node);
   state = csharpSourceStorageContext(host, state, node);
   if (
     host.ast.is.IsSourceFile(node) ||

@@ -7,6 +7,7 @@ import type { CsharpProjectTypePolicy } from "../../target-model/records/types/p
 import type { CsharpProjectTypeClassifications } from "../../target-model/records/types/project-types.js";
 import { substituteTargetTypeParameters } from "../../policy/types/resolution/substitution.js";
 import { snapshotCsharpTargetTypes } from "../../target-model/types/snapshot.js";
+import { CsharpMetadataResourceLimitFailure } from "../../target-model/metadata/immutable.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
 import { completeCsharpDeclarationHeritage } from "./heritage.js";
@@ -66,7 +67,7 @@ export function sealCsharpProjectTypeClassifications(
       try {
         [selected] = snapshotCsharpTargetTypes([type]);
       } catch (error) {
-        if (error instanceof TypeError) return undefined;
+        if (error instanceof TypeError || error instanceof CsharpMetadataResourceLimitFailure) return undefined;
         throw error;
       }
       if (selected?.kind !== "target-named") return undefined;

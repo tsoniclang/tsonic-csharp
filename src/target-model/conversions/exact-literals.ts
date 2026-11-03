@@ -41,6 +41,7 @@ export type CsharpExactLiteralSelection =
 
 export interface CsharpExactLiteralRequest {
   readonly expression: Node;
+  readonly source: TargetTypeRef | undefined;
   readonly target?: TargetTypeRef;
   readonly propertyKey?: SourcePropertyNameSelection;
 }

@@ -8,10 +8,12 @@ import { csharpArrayLikeElement, csharpArrayLikeTargetType } from "../../target-
 import { getCsharpRuntimeUnionArms } from "../../target-model/types/carriers/runtime-carriers.js";
 import type { CsharpConversionMode, CsharpConversionSelection } from "../../target-model/conversions/selection.js";
 import type { CsharpPolicyContext } from "../model/context.js";
-import type { TargetTypeRef } from "../types/index.js";
+import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../types/index.js";
 import type { CsharpConversionShapeQueries } from "./shape-queries.js";
 import { getCsharpMethodValue, csharpMethodValueContractsEqual } from "../../target-model/types/method-values.js";
 import { isCsharpRefLikeTargetType } from "../../target-model/types/ref-like.js";
+import { isCsharpJsValueTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
+import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
 
 export function selectCsharpConversion(
   input: Pick<
@@ -55,6 +57,14 @@ export function selectCsharpConversion(
   }
   const emptyRecord = selectCsharpEmptyRecordConversion(input, source, target);
   if (emptyRecord !== undefined) return emptyRecord;
+  const targetShapeCarrier = getCsharpNullableElementTargetType(target) ?? target;
+  if (isCsharpJsValueTargetType(source)) {
+    const shape = input.objectShapes?.resolveTarget(targetShapeCarrier);
+    if (shape?.members.some(member => member.memberKind === "method") === true && !(shape.targetType.kind === "target-named" && (shape.targetType as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind === "class")) return {
+      kind: "rejected", code: "CSHARP_NATIVE_METHOD_PROJECTION_UNSUPPORTED",
+      reason: "A boxed value cannot project a native structural method contract. Pass a value with its declared native method interface instead.",
+    };
+  }
   const jsValueConversion = selectJsValueConversion(
     source,
     target,

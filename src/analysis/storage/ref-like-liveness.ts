@@ -11,7 +11,9 @@ export function analyzeCsharpRefLikeLiveness(source: TargetSourceProgram, declar
   ownedBindings: ReadonlySet<Node>, reject: Rejection): void {
   const selected = createSourceDeclarationControlFlow(source, declaration, { domain: { kind: "source" } });
   if (selected.kind === "unresolved") {
-    reject(declaration, "CSHARP_REFLIKE_LIVENESS_NOT_PROVEN", selected.reason);
+    reject(declaration, selected.resource === undefined ? "CSHARP_REFLIKE_LIVENESS_NOT_PROVEN" : "TSONIC_COMPILER_RESOURCE_LIMIT",
+      selected.resource === undefined ? selected.reason :
+        `Control-flow analysis of ${source.ast.text(source.ast.name(declaration)) || "the selected declaration"} exceeded the compiler resource limit ${selected.resource.dimension}=${selected.resource.limit}.`);
     return;
   }
   for (const binding of ownedBindings) if (!selected.graph.bindings.has(binding)) reject(binding,
@@ -37,7 +39,12 @@ export function analyzeCsharpRefLikeLiveness(source: TargetSourceProgram, declar
       return result;
     },
   });
-  if (live.kind === "unresolved") { reject(declaration, "CSHARP_REFLIKE_LIVENESS_NOT_PROVEN", live.reason); return; }
+  if (live.kind === "unresolved") {
+    reject(declaration, live.resource === undefined ? "CSHARP_REFLIKE_LIVENESS_NOT_PROVEN" : "TSONIC_COMPILER_RESOURCE_LIMIT",
+      live.resource === undefined ? live.reason :
+        `Control-flow analysis of ${source.ast.text(source.ast.name(declaration)) || "the selected declaration"} exceeded the compiler resource limit ${live.resource.dimension}=${live.resource.limit}.`);
+    return;
+  }
   for (const point of selected.graph.points) {
     if (!live.reachable.has(point.id) || point.operation.kind !== "await" && point.operation.kind !== "yield") continue;
     const values = live.after.get(point.id);

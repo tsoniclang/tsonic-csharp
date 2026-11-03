@@ -9,7 +9,7 @@ import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { getCsharpCollectionElementTargetType } from "../../target-model/types/carriers/collections.js";
 import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../target-model/types/object-shape-members.js";
-import { createCsharpMetadataBudget } from "../../target-model/metadata/immutable.js";
+import { CsharpMetadataResourceLimitFailure, createCsharpMetadataBudget } from "../../target-model/metadata/immutable.js";
 
 export interface CsharpValueDomainAnalysisHost {
   readonly sourceStorage: SourceStorageQueries;
@@ -42,10 +42,9 @@ export function analyzeCsharpValueDomainCarriers(
       }
       complete = storage.failureReason() === undefined;
     } catch (error) {
-      if (!(error instanceof TypeError) || error.message !== "C# immutable metadata exceeds its finite resource budget." ||
-        current === undefined) throw error;
-      issues.push(Object.freeze({ node: current, code: "CSHARP_VALUE_DOMAIN_METADATA_BUDGET_EXHAUSTED",
-        message: "C# value-domain carrier analysis exceeds its finite target metadata budget." }));
+      if (!(error instanceof CsharpMetadataResourceLimitFailure) || current === undefined) throw error;
+      issues.push(Object.freeze({ node: current, code: "TSONIC_COMPILER_RESOURCE_LIMIT",
+        message: `C# value-domain carrier analysis exceeded the compiler resource limit ${error.dimension}=${error.limit}.` }));
       complete = false;
     }
   }

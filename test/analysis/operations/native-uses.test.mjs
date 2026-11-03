@@ -66,7 +66,7 @@ function owners(sourceText, surface = "native") {
   const exact = analyzeCsharpExactLiteralSelections(literalValues, [
     ...expected.constructions.propertyKeyRequests,
     ...expected.nativeUseSites.requests.flatMap(request =>
-      request.expression === undefined ? [] : [{ expression: request.expression, target: request.targetType }]),
+      request.expression === undefined ? [] : [{ expression: request.expression, source: records.valueRead.get(request.expression)?.source, target: request.targetType }]),
   ], nodes);
   input.propertyKeyBindings = expected.constructions.propertyKeys;
   input.exactLiteral = exact.exactLiteral;

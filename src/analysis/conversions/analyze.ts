@@ -304,7 +304,7 @@ export function analyzeCsharpConversions(
       const name = policy.ast.name(reference.declaration);
       if (name !== undefined) directCallables.set(name, direct);
     }
-    literalRequests.requestConversion(expression, source, target, selected);
+    literalRequests.requestConversion(expression, source, target, selected, evidence.nodeTargetType.get(expression));
     if (selections === undefined) {
       selections = new Map();
       expressionSelections.set(expression, selections);

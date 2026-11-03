@@ -17,6 +17,7 @@ import { csharpTargetTypeFromBinding } from "../../../../policy/types/storage/bi
 import { readCsharpSourceKeepAlive } from "../../../../source/extension/reachability.js";
 import { csharpNullableReferenceTargetType, isCsharpNullableReferenceTargetType } from "../../../../target-model/types/carriers/nullable.js";
 import { maximumTypeResolutionDepth } from "./model.js";
+import { failTargetCompilerResourceLimit } from "@tsonic/target-api/artifacts";
 import { nextState } from "./state.js";
 import { providerVirtualDeclarationFactKey, sourcePrimitiveFactKey } from "@tsonic/tsts";
 import { readCsharpSourceNativePointerOperation } from "../../../../source/extension/native-pointers.js";
@@ -39,9 +40,9 @@ export function resolveTypeWithState(
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
   const { host, policy, resolveCallableType, resolveCompositionalSourceTypeAlias, resolveDirectSourceFacts, resolveNodeWithState, resolveProjectSourceSemanticType, resolveProviderType, resolveSemanticTypeArguments, resolveSourceProfileType, resolveTypeWithState, resolveUnionType } = scope;
-  if (type === undefined || state.depth > maximumTypeResolutionDepth) {
-    return undefined;
-  }
+  if (type === undefined) return undefined;
+  if (state.depth > maximumTypeResolutionDepth) failTargetCompilerResourceLimit("tsonic-csharp",
+    `Native type resolution in ${host.ast.getFileName(sourceFile)}`, "depth", maximumTypeResolutionDepth, sourceFile);
   const queries = host.semantics(sourceFile);
   if (queries.types.isNonPrimitive(type)) return csharpObjectTargetType();
   const bound = csharpBoundSourceType(type, queries, state);

@@ -53,7 +53,7 @@ test(`${surface} rejected ${type} literal ${value} retains its precise native re
     assert.equal(diagnostics.length, 1, "one exact native refusal, never an internal pending invariant");
     const source = createTargetSourceProgram(compiled.source);
     const literal = analyzeSourceLiteralValues(source.ast, source.sourceFiles).literalValue.get(diagnostics[0].sourceNode);
-    const selected = selectCsharpExactLiteralConversion(literal, primitive(type));
+    const selected = selectCsharpExactLiteralConversion(literal, primitive(type), primitive(type));
     assert.equal(selected.kind === "rejected" && diagnostics[0].code === "CSHARP_UNSUPPORTED_AST" &&
       diagnostics[0].message === selected.reason, true, "the completed native literal owner supplies the exact retained reason");
     assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true, "refusal precedes publication and native planning");
@@ -69,16 +69,16 @@ test("exact literal selections exist only at requested keys and equal the native
   const wideValue = Object.freeze({ form: "bigint", integer: 3n });
   const textValue = Object.freeze({ form: "string", text: "x" });
   const index = analyzeCsharpExactLiteralSelections(literals([[wide, wideValue], [text, textValue]]), [
-    Object.freeze({ expression: wide }),
-    Object.freeze({ expression: wide, target: primitive("int64") }),
-    Object.freeze({ expression: wide, target: csharpNullableTargetType(primitive("uint128")) }),
-    Object.freeze({ expression: text, target: csharpStringTargetType() }),
-    Object.freeze({ expression: other, target: primitive("int64") }),
+    Object.freeze({ expression: wide, source: primitive("int64") }),
+    Object.freeze({ expression: wide, source: primitive("int64"), target: primitive("int64") }),
+    Object.freeze({ expression: wide, source: primitive("int64"), target: csharpNullableTargetType(primitive("uint128")) }),
+    Object.freeze({ expression: text, source: csharpStringTargetType(), target: csharpStringTargetType() }),
+    Object.freeze({ expression: other, source: undefined, target: primitive("int64") }),
   ], [wide, text, other, another]);
   const exactLiteral = index.exactLiteral;
   assert.deepEqual(exactLiteral.get(wide, undefined), { kind: "not-applicable" }, "the explicit intrinsic request");
   for (const target of [primitive("int64"), csharpNullableTargetType(primitive("uint128"))]) {
-    assert.deepEqual(exactLiteral.get(wide, target), selectCsharpExactLiteralConversion(wideValue, target), targetTypeRefKey(target));
+    assert.deepEqual(exactLiteral.get(wide, target), selectCsharpExactLiteralConversion(wideValue, primitive("int64"), target), targetTypeRefKey(target));
   }
   assert.deepEqual(exactLiteral.get(text, csharpStringTargetType()), { kind: "source-representation" });
   assert.equal(exactLiteral.get(text, undefined), undefined, "no intrinsic request, no record");
@@ -97,7 +97,7 @@ test("exact literal selections are materialized once per canonical key and publi
   const value = Object.freeze({ form: "bigint", integer: 1n << 40n });
   const first = csharpNullableTargetType(primitive("int64"));
   const second = csharpNullableTargetType(primitive("int64"));
-  const requests = [Object.freeze({ expression: node, target: first }), Object.freeze({ expression: node, target: second })];
+  const requests = [Object.freeze({ expression: node, source: undefined, target: first }), Object.freeze({ expression: node, source: undefined, target: second })];
   const index = analyzeCsharpExactLiteralSelections(literals([[node, value]]), requests, [node]);
   const selected = index.exactLiteral.get(node, first);
   assert.equal(selected.kind, "resolved");
@@ -106,7 +106,7 @@ test("exact literal selections are materialized once per canonical key and publi
   assert.equal(Object.isFrozen(index) && Object.isFrozen(index.exactLiteral), true, "frozen index");
   assert.deepEqual(Object.keys(index), ["exactLiteral"]);
   assert.deepEqual(Object.keys(index.exactLiteral), ["get"], "get-only family");
-  requests.push(Object.freeze({ expression: node, target: primitive("uint64") }));
+  requests.push(Object.freeze({ expression: node, source: undefined, target: primitive("uint64") }));
   assert.equal(index.exactLiteral.get(node, primitive("uint64")), undefined, "requests after materialization are not read");
 });
 
@@ -114,8 +114,8 @@ test("exact native token plans are frozen once without treating a refused candid
   const [value] = checkedSourceLiteralValues(["1e39"]);
   const node = Object.freeze({});
   const index = analyzeCsharpExactLiteralSelections(literals([[node, value]]), [
-    { expression: node, target: primitive("float32") }, { expression: node, target: primitive("float64") },
-    { expression: node, target: primitive("float32") },
+    { expression: node, source: undefined, target: primitive("float32") }, { expression: node, source: undefined, target: primitive("float64") },
+    { expression: node, source: undefined, target: primitive("float32") },
   ], [node]);
   assert.deepEqual(index.exactLiteral.get(node, primitive("float32")),
     { kind: "rejected", reason: "Source numeric literal is outside the 'float32' range." });
@@ -123,7 +123,7 @@ test("exact native token plans are frozen once without treating a refused candid
   assert.equal(index.exactLiteral.get(node, primitive("float32")) === index.exactLiteral.get(node, primitive("float32")), true,
     "duplicate requests read one materialized selection");
   const [decimal] = checkedSourceLiteralValues(["9007199254740993"]);
-  const exact = analyzeCsharpExactLiteralSelections(literals([[node, decimal]]), [{ expression: node, target: primitive("decimal") }], [node]);
+  const exact = analyzeCsharpExactLiteralSelections(literals([[node, decimal]]), [{ expression: node, source: undefined, target: primitive("decimal") }], [node]);
   const selected = exact.exactLiteral.get(node, primitive("decimal"));
   assert.equal(selected.kind === "resolved" && selected.recipe.token.significand === "9007199254740993", true,
     "a selected native decimal keeps its authored value above 2^53");
@@ -143,20 +143,20 @@ test("exact literal requests come from literal reads, the unary result and every
     unaryReads.push(expression);
     return expression === node ? { target: { kind: "resolved", resultType: int64 } } : undefined;
   } }) };
-  collector.requestReads(other, [int32], [int64], operations);
-  collector.requestConversion(other, int32, int64, literal);
+  collector.requestReads(other, int32, [int32], [int64], operations);
+  collector.requestConversion(other, int32, int64, literal, int32);
   assert.equal(collector.requests.length + unaryReads.length, 0, "a node without a literal datum requests and reads nothing");
-  collector.requestReads(node, [int32], [float32], operations);
-  collector.requestConversion(node, int32, int64, literal);
-  collector.requestConversion(node, int32, csharpStringTargetType(), Object.freeze({ kind: "js-value-box" }));
+  collector.requestReads(node, int32, [int32], [float32], operations);
+  collector.requestConversion(node, int32, int64, literal, int32);
+  collector.requestConversion(node, int32, csharpStringTargetType(), Object.freeze({ kind: "js-value-box" }), int32);
   collector.requestConversion(node, csharpNullableTargetType(int32), csharpNullableTargetType(float32), Object.freeze({
-    kind: "nullable-map", sourceElement: int32, targetElement: float32, conversion: literal }));
+    kind: "nullable-map", sourceElement: int32, targetElement: float32, conversion: literal }), int32);
   collector.requestConversion(node, int32, csharpStringTargetType(), Object.freeze({
-    kind: "implicit", proof: "runtime-union-arm", armIndex: 0, armType: int64, sourceToArm: literal }));
+    kind: "implicit", proof: "runtime-union-arm", armIndex: 0, armType: int64, sourceToArm: literal }), int32);
   collector.requestConversion(node, int32, csharpStringTargetType(), Object.freeze({
     kind: "provider-argument-adapter", adapter: Object.freeze({ inputType: float32, resultType: int64 }),
-    sourceToInput: literal, resultToTarget: Object.freeze({ kind: "js-value-box" }) }));
-  collector.requestConversion(node, int32, int64, Object.freeze({ kind: "implicit", proof: "numeric" }));
+    sourceToInput: literal, resultToTarget: Object.freeze({ kind: "js-value-box" }) }), int32);
+  collector.requestConversion(node, int32, int64, Object.freeze({ kind: "implicit", proof: "numeric" }), int32);
   const keys = collector.requests.map(request => request.target === undefined ? "intrinsic" : targetTypeRefKey(request.target));
   assert.deepEqual(keys, ["intrinsic", int32, float32, int64, int64, int32, float32, int64, int64, float32].map(type =>
     type === "intrinsic" ? type : targetTypeRefKey(type)), "intrinsic, source, expected and unary result reads, then conversion steps");
@@ -258,16 +258,16 @@ test("the literal collector closes once and validates later exact endpoints with
   const collector = createCsharpExactLiteralRequestCollector(literals([[expression,
     Object.freeze({ form: "numeric", number: 1.25 })]]));
   const literal = Object.freeze({ kind: "implicit", proof: "literal" });
-  collector.requestConversion(expression, source, target, literal);
+  collector.requestConversion(expression, source, target, literal, source);
   const requests = collector.seal();
   assert.equal(requests === collector.requests && Object.isFrozen(requests), true, "one immutable request set is published");
-  collector.requestConversion(expression, source, target, literal);
+  collector.requestConversion(expression, source, target, literal, source);
   assert.equal(requests.length, 1, "a later admitted endpoint is validation only");
-  assert.throws(() => collector.requestConversion(expression, source, primitive("decimal"), literal),
+  assert.throws(() => collector.requestConversion(expression, source, primitive("decimal"), literal, source),
     /exact endpoint before literal publication/u, "a different native endpoint cannot appear after publication");
   assert.equal(requests.length, 1, "a refused late endpoint leaves the exact request set unchanged");
   assert.throws(() => collector.seal(), /close exactly once/u, "the collector cannot be reopened or resealed");
-  assert.throws(() => collector.requestReads(expression, [source], [target], { unaryOperation: { get: () => undefined } }),
+  assert.throws(() => collector.requestReads(expression, source, [source], [target], { unaryOperation: { get: () => undefined } }),
     /cannot read another source use/u, "post-close source collection cannot mutate a frozen literal plan");
 });
 
@@ -287,7 +287,7 @@ test("actual literal uses prepare their selected union inner endpoint before the
     providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) } };
   const operations = { nativeUnreachable: { get: () => false }, borrowedSequence: none, binaryOperation: none, selectedCall: none,
       selectedConstruction: none, unaryOperation: none };
-  const analysis = analyzeCsharpConversions(policy, { compileTimeMetadata: { get: () => false } },
+  const analysis = analyzeCsharpConversions(policy, { compileTimeMetadata: { get: () => false }, nodeTargetType: { get: node => node === expression ? source : undefined } },
     { resolveNode: () => undefined, resolveTarget: () => undefined, registerStructuralInterface: () => false }, operations);
   const prepared = analysis.prepare({
     expectedTypes: { callableTarget: none, expectedType: { get: node => node === expression ? [target] : [] },

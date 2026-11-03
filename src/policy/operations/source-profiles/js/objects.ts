@@ -1,6 +1,6 @@
 import type { Node } from "@tsonic/tsts";
 import type { CsharpCallArtifactRequirement, CsharpObjectShapeProjectionKind, CsharpTargetInvocation, CsharpTargetMember, TargetTypeRef } from "../../../types/index.js";
-import { csharpExceptionTargetType, csharpObjectTargetType, csharpQualifiedTypeRenderShape, csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpTsValueTargetType, csharpTargetNamedType, csharpTaskTargetType, getCsharpTaskResultTargetType, getCsharpDelegateSignature, isCsharpRecordDictionaryTargetType, targetTypeRefEquals, targetTypeRefKey } from "../../../../target-model/types/index.js";
+import { csharpBigIntegerTargetType, csharpExceptionTargetType, csharpObjectTargetType, csharpQualifiedTypeRenderShape, csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpTsValueTargetType, csharpTargetNamedType, csharpTaskTargetType, getCsharpTaskResultTargetType, getCsharpDelegateSignature, isCsharpRecordDictionaryTargetType, targetTypeRefEquals, targetTypeRefKey } from "../../../../target-model/types/index.js";
 import { csharpJsArrayTargetType } from "../../../../target-model/types/carriers/js.js";
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
 import type { CsharpSourceProfileCallPolicy, CsharpSourceProfileCallPolicyResult } from "../../../model/source-profiles.js";
@@ -65,18 +65,23 @@ export const csharpJsObjectCallPolicies:
     }), noReceiver),
     jsCallPolicy(
       jsMemberIdentity("ObjectConstructor", "is"),
-      () =>
-        staticMethod(
+      context => {
+        const value = resolveCsharpSelectedSourceValue(context, context.source.sourceArguments[0]);
+        const other = resolveCsharpSelectedSourceValue(context, context.source.sourceArguments[1]);
+        const isScalar = (type: TargetTypeRef | undefined): type is TargetTypeRef =>
+          type !== undefined && (type.kind === "source-primitive" ||
+            targetTypeRefEquals(type, stringType) || targetTypeRefEquals(type, csharpBigIntegerTargetType()));
+        return staticMethod(
           "Tsonic.CSharp.Js.Object.is",
           "is",
           "@is",
           objectRuntimeType,
-          [
-            closedObjectParameter("value"),
-            closedObjectParameter("other"),
-          ],
+          isScalar(value) && isScalar(other)
+            ? [targetParameter("value", value), targetParameter("other", other)]
+            : [closedObjectParameter("value"), closedObjectParameter("other")],
           boolType,
-        ),
+        );
+      },
       noReceiver,
     ),
     ...objectCollectionRows.map((row) =>

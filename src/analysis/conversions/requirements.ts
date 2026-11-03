@@ -72,7 +72,7 @@ export function collectCsharpConversionRequirements(input: CsharpConversionRequi
       const carrier = expectedTypes.arrayLiteralCarrier.get(node, target);
       return carrier === undefined ? [target] : [target, carrier];
     }) : expectedTargets;
-    literalRequests.requestReads(node, sourceTypes, literalTargets, operations);
+    literalRequests.requestReads(node, valueReads.valueRead.get(node)?.source, sourceTypes, literalTargets, operations);
     if (policy.literalValues.literalValue.get(node) !== undefined) {
       const source = valueReads.valueRead.get(node)?.value;
       if (source !== undefined) for (const target of expectedTypes.expectedType.get(node)) {
@@ -334,7 +334,8 @@ export function collectCsharpConversionRequirements(input: CsharpConversionRequi
         const expression = argument === undefined ? undefined
           : selection.source.sourceArguments[argument.sourceArgumentIndex]?.expression;
         if (expression !== undefined) {
-          literalRequests.requestConversion(expression, mapping.sourceType, mapping.targetType, mapping.conversion);
+          literalRequests.requestConversion(expression, mapping.sourceType, mapping.targetType, mapping.conversion,
+            valueReads.valueRead.get(expression)?.source);
         }
       }
     }

@@ -70,8 +70,8 @@ test("an authored literal is selected at float32, decimal and float16 only insid
     const target = primitive(name);
     const nullable = csharpNullableTargetType(target);
     return [
-      [`${tag}: selection`, selectCsharpExactLiteralConversion(value, target), expectation(name, value, fits)],
-      [`${tag}: nullable selection`, selectCsharpExactLiteralConversion(value, nullable), expectation(name, value, fits)],
+      [`${tag}: selection`, selectCsharpExactLiteralConversion(value, primitive("float64"), target), expectation(name, value, fits)],
+      [`${tag}: nullable selection`, selectCsharpExactLiteralConversion(value, primitive("float64"), nullable), expectation(name, value, fits)],
       [`${tag}: representable`, csharpLiteralIsRepresentableAs(value, target), fits],
       [`${tag}: nullable representable`, csharpLiteralIsRepresentableAs(value, nullable), fits],
     ].filter(([, actual, expected]) => !isDeepStrictEqual(actual, expected)).map(([entry]) => entry);
@@ -84,13 +84,13 @@ test("float64 keeps every finite actual value without treating it as an authored
   const datum = value => Object.freeze({ form: "numeric", number: value,
     numeric: Object.freeze({ kind: "checked-float64", value }) });
   const failures = [Number.MAX_VALUE, 1e39, 65520, 2 ** 96, -Number.MAX_VALUE].flatMap(value => [
-    [`float64 ${value}: selection`, selectCsharpExactLiteralConversion(datum(value), float64), { kind: "source-representation" }],
+    [`float64 ${value}: selection`, selectCsharpExactLiteralConversion(datum(value), primitive("float64"), float64), { kind: "source-representation" }],
     [`float64 ${value}: representable`, csharpLiteralIsRepresentableAs(datum(value), float64), true],
   ]).concat([
-    ["float16 without a finite number", selectCsharpExactLiteralConversion(Object.freeze({ form: "numeric" }), primitive("float16")),
+    ["float16 without a finite number", selectCsharpExactLiteralConversion(Object.freeze({ form: "numeric" }), primitive("float64"), primitive("float16")),
       { kind: "rejected", reason: "C# numeric literal conversion requires an exact finite source value." }],
     ...["float32", "decimal"].flatMap(name => [
-      [`${name} without authored evidence`, selectCsharpExactLiteralConversion(Object.freeze({ form: "numeric" }), primitive(name)),
+      [`${name} without authored evidence`, selectCsharpExactLiteralConversion(Object.freeze({ form: "numeric" }), primitive("float64"), primitive(name)),
         { kind: "not-applicable" }],
       [`${name} actual double is not an authored literal`, csharpLiteralIsRepresentableAs(datum(0.1), primitive(name)), false],
     ]),
