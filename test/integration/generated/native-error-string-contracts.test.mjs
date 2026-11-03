@@ -127,27 +127,36 @@ if (Generated.template(value) != $"prefix:{value}:suffix" || Generated.count() !
     !ReferenceEquals(value.InnerException, cause)) throw new Exception("native template after throw");
 var generatedCount = Generated.count();
 var nativeCount = Tsonic.Reference.Index.count();
-Check(() => GC.KeepAlive(Generated.template(value)), () => GC.KeepAlive(Tsonic.Reference.Index.template(value)));
+Check(() => GC.KeepAlive(Generated.template(value)), () => GC.KeepAlive(Tsonic.Reference.Index.template(value)), "template");
 if (Generated.count() - generatedCount != Tsonic.Reference.Index.count() - nativeCount)
     throw new Exception("native template argument evaluation count");
-Check(() => GC.KeepAlive(Generated.construct("message")), () => GC.KeepAlive(new Exception("message")));
-static void Check(Action actual, Action reference) {
+Check(() => GC.KeepAlive(Generated.construct("message")), () => GC.KeepAlive(new Exception("message")), "ordinary construction");
+static void Check(Action actual, Action reference, string label) {
     for (var index = 0; index < 1024; index++) { actual(); reference(); }
+    const int count = 4096;
+    var actualBytes = Measure(actual, count);
+    var nativeBytes = Measure(reference, count);
+    var actualDoubleBytes = Measure(actual, 2 * count);
+    var nativeDoubleBytes = Measure(reference, 2 * count);
+    var nativeFirstBytes = Measure(reference, count);
+    var actualSecondBytes = Measure(actual, count);
+    var nativeFirstDoubleBytes = Measure(reference, 2 * count);
+    var actualSecondDoubleBytes = Measure(actual, 2 * count);
+    var actualSlope = actualDoubleBytes - actualBytes;
+    var nativeSlope = nativeDoubleBytes - nativeBytes;
+    var actualReverseSlope = actualSecondDoubleBytes - actualSecondBytes;
+    var nativeReverseSlope = nativeFirstDoubleBytes - nativeFirstBytes;
+    Console.Error.WriteLine($"native {label} allocation forward={actualBytes}/{nativeBytes}, reverse={actualSecondBytes}/{nativeFirstBytes}");
+    Console.Error.WriteLine($"native {label} allocation 2N={actualDoubleBytes}/{nativeDoubleBytes}, reverse2N={actualSecondDoubleBytes}/{nativeFirstDoubleBytes}");
+    Console.Error.WriteLine($"native {label} allocation slopes forward={actualSlope}/{nativeSlope}, reverse={actualReverseSlope}/{nativeReverseSlope}");
+    Console.Error.WriteLine($"native {label} allocation remainders forward={actualBytes - actualSlope}/{nativeBytes - nativeSlope}, reverse={actualSecondBytes - actualReverseSlope}/{nativeFirstBytes - nativeReverseSlope}");
+    if (actualSlope != nativeSlope) throw new Exception($"native {label} allocation slope {actualSlope} != {nativeSlope}");
+    if (actualReverseSlope != nativeReverseSlope) throw new Exception($"native {label} reversed allocation slope {actualReverseSlope} != {nativeReverseSlope}");
+}
+static long Measure(Action action, int count) {
     var before = GC.GetAllocatedBytesForCurrentThread();
-    for (var index = 0; index < 4096; index++) actual();
-    var actualBytes = GC.GetAllocatedBytesForCurrentThread() - before;
-    before = GC.GetAllocatedBytesForCurrentThread();
-    for (var index = 0; index < 4096; index++) reference();
-    var nativeBytes = GC.GetAllocatedBytesForCurrentThread() - before;
-    before = GC.GetAllocatedBytesForCurrentThread();
-    for (var index = 0; index < 4096; index++) reference();
-    var nativeFirstBytes = GC.GetAllocatedBytesForCurrentThread() - before;
-    before = GC.GetAllocatedBytesForCurrentThread();
-    for (var index = 0; index < 4096; index++) actual();
-    var actualSecondBytes = GC.GetAllocatedBytesForCurrentThread() - before;
-    Console.Error.WriteLine($"native template allocation forward={actualBytes}/{nativeBytes}, reverse={actualSecondBytes}/{nativeFirstBytes}");
-    if (actualBytes != nativeBytes) throw new Exception($"native template allocation {actualBytes} != {nativeBytes}");
-    if (actualSecondBytes != nativeFirstBytes) throw new Exception($"native template reversed allocation {actualSecondBytes} != {nativeFirstBytes}");
+    for (var index = 0; index < count; index++) action();
+    return GC.GetAllocatedBytesForCurrentThread() - before;
 }
 namespace Tsonic.Reference {
     public static class Index {
