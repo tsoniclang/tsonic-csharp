@@ -14,6 +14,7 @@ import { csharpObjectMethodHasFixedNativeExposure } from "../../../policy/types/
 import { csharpNullableTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { objectShapeMethodInvocationName } from "../../../target-model/names/object-members.js";
 import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../../target-model/types/object-shape-members.js";
+import { selectCsharpWritableMethodMembers } from "../../../policy/types/objects/writable-methods.js";
 
 const methodValueUses = new WeakMap<SourceStorageQueries, {
   readonly retained: ReadonlySet<Node>;
@@ -89,36 +90,18 @@ export function csharpObjectMethodValueIsExtracted(storage: SourceStorageQueries
   return selectMethodValueUses(storage).extracted.has(declaration);
 }
 
-export function selectCsharpWritableMethodContract(
+export function resolveCsharpWritableMethodContract(
   shape: CsharpObjectShapeFact,
   writtenMembers: readonly CsharpObjectShapeMemberFact[],
   environment: CsharpTypeParameterConstraintResolver,
 ): CsharpObjectShapeFact | undefined {
-  if (writtenMembers.length === 0) return shape;
-  const target = shape.targetType as CsharpTargetNamedTypeRef;
-  if (shape.targetType.kind !== "target-named" ||
-    (target.csharpStructuralContract !== true && target.csharpSourceDeclarationKind !== "interface") ||
-    writtenMembers.some(member => !shape.members.includes(member) || member.memberKind !== "method" ||
-      member.readonly === true || csharpPresentObjectShapeMethod(member) === undefined)) return undefined;
-  if (target.csharpStructuralContract === true && writtenMembers.every(member => member.methodValueStorage !== undefined)) return shape;
-  const members = shape.members.map(member => {
-    if (!writtenMembers.includes(member) || member.methodValueStorage !== undefined) return member;
-    if ((member.typeParameters?.length ?? 0) === 0 && member.methodValueContract === undefined) {
-      return Object.freeze({ ...member, methodValueStorage: Object.freeze({ kind: "delegate" as const,
-        type: member.optional === true ? csharpNullableTargetType(member.type) : member.type }) });
-    }
-    const contract = member.methodValueContract;
-    const storage = contract === undefined
-      ? Object.freeze({ kind: "delegate" as const, type: member.type })
-      : Object.freeze({ kind: "protocol" as const,
-          type: member.optional === true ? csharpNullableTargetType(contract) : contract,
-          invocationName: objectShapeMethodInvocationName(member) });
-    return Object.freeze({ ...member, methodValueStorage: storage });
-  });
+  const members = selectCsharpWritableMethodMembers(shape, writtenMembers);
+  if (members === undefined) return undefined;
+  if (members === shape.members) return shape;
   const implemented = Object.freeze([shape.targetType]);
   return Object.freeze({
     targetType: createStructuralObjectShapeTarget(members, implemented, environment, true),
-    members: Object.freeze(members),
+    members,
     implements: implemented,
     ...(shape.sourceType === undefined ? {} : { sourceType: shape.sourceType }),
   });
