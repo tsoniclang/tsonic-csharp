@@ -41,7 +41,9 @@ export function createCsharpObjectShapePolicy(
   host: CsharpObjectShapePolicyHost,
 ): CsharpRecursiveObjectShapePolicy {
   const environment = host.typeParameterConstraints;
-  const { deriveMembers, instantiateMemberEvidence, retainMemberDeclarationEvidence, resolvePropertyType, retainLiteralMemberEvidence } = createCsharpObjectShapeMemberResolver(host);
+  const { collectMembers, memberInheritance, completeMember, completeMembers,
+    formMemberInstantiationEvidence, instantiateMemberEvidence, retainMemberDeclarationEvidence,
+    resolvePropertyType, retainLiteralMemberEvidence } = createCsharpObjectShapeMemberResolver(host);
   const activeNodes = new WeakSet<object>();
   const activeTypes = new WeakSet<object>();
   const nodeShapes = new WeakMap<object, CsharpObjectShapeFact>();
@@ -627,6 +629,10 @@ export function createCsharpObjectShapePolicy(
   }
 
   return Object.freeze({
+    collectMembers,
+    memberInheritance,
+    completeMember,
+    completeMembers,
     resolveNativeParameter,
     resolveNativeReturn,
     retainConstructionSource(node: Node, type: Type, shape: CsharpObjectShapeFact, sourceFile: SourceFile): CsharpObjectShapeFact | undefined {

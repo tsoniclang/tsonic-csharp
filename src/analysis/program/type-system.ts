@@ -125,6 +125,11 @@ function createCsharpTypeSystem(
         );
       },
       structuralTypes: {
+        memberInheritance(application, memberIndex) {
+          if (objectShapes === undefined) failTargetAnalysisInvariant("tsonic-csharp",
+            "Structural inheritance requires its initialized current shape owner.");
+          return objectShapes.memberInheritance(application, memberIndex);
+        },
         resolveReference(type) {
           if (objectShapes === undefined) failTargetAnalysisInvariant("tsonic-csharp", "C# structural references requested before type-system initialization.");
           return objectShapes.resolveReference(type);
@@ -218,6 +223,8 @@ function createCsharpTypeSystem(
     projectTypeCatalog,
     projectTypes: requireProjectTypes,
     typeResolver: typeResolution.recursive,
+    structuralTypeApplication: typeResolution.structuralTypeApplication,
+    bindStructuralTypeApplication: typeResolution.bindStructuralTypeApplication,
   });
   bindingProjections = createCsharpBindingProjectionPolicy({
     ...host,
