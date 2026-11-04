@@ -29,7 +29,7 @@ for (const [label, code] of [
   ["element record", "types.resolveType(source.sourceElementType, file);"],
   ["result record", "types.resolveType(source.sourceResultType, file);"],
   ["selected signature", "types.resolveType(source.selectedSignature, file);"],
-  ["selected generic vector", "resolveSemanticTypeArguments(source.sourceSelectedMethodTypeArguments);"],
+  ["selected generic vector", "resolveSemanticTypeArguments(scope, source.sourceSelectedMethodTypeArguments);"],
   ["selected parameter vector", "deriveMembers(source.sourceSelectedSignatureParameters);"],
   ["local alias", "const first = queries.types.expressionType(node); const second = first; types.resolveType(second, file);"],
   ["destructured argument", "const { type: selected } = source.argument; types.resolveType(selected, file);"],
@@ -51,6 +51,19 @@ test("a declaration-only allowance cannot authorize a value-bearing argument", (
   assert.equal(findings.some(row => row.rule === "value-type-reaches-converter"), true);
 });
 
+test("converter data flow follows the checked Type argument rather than unrelated Native scope state", () => {
+  const path = "src/analysis/source-evidence/types/resolution/semantic-types.ts";
+  const prefix = "const scope = { current: queries.types.expressionType(node) };";
+  const declared = effectiveTypeBoundaryFindings(new Map([[path,
+    `function example() { ${prefix} bindCsharpSourceTypeArguments(scope, declared, queries, state, source); }`]]));
+  assert.equal(declared.some(row => row.rule === "value-type-reaches-converter"), false,
+    "Native context is not the Type converted by the canonical resolver contract");
+  const value = effectiveTypeBoundaryFindings(new Map([[path,
+    `function example() { ${prefix} bindCsharpSourceTypeArguments(scope, queries.types.expressionType(node), queries, state, source); }`]]));
+  assert.equal(value.some(row => row.rule === "value-type-reaches-converter"), true,
+    "a raw checked value in the actual Type position is still rejected");
+});
+
 test("an outside-domain fallback needs an earlier returning gate for the identical occurrence", () => {
   const path = "src/analysis/source-evidence/types/resolution/semantic-types.ts";
   const selected = "types.resolveType(queries.types.expressionType(node), file);";
@@ -64,6 +77,21 @@ test("an outside-domain fallback needs an earlier returning gate for the identic
   ]) {
     const findings = effectiveTypeBoundaryFindings(new Map([[path, source]]));
     assert.equal(findings.some(row => row.rule === "value-type-reaches-converter"), true, label);
+  }
+});
+
+test("conditional fallback branches require absence at the identical operation occurrence", () => {
+  const path = "src/analysis/source-evidence/types/resolution/semantic-types.ts";
+  for (const [label, condition, accepted] of [
+    ["same absent occurrence", "effective === undefined", true],
+    ["present occurrence", "effective !== undefined", false],
+    ["different occurrence", "other === undefined", false],
+  ]) {
+    const findings = effectiveTypeBoundaryFindings(new Map([[path, `function resolve(node, other) {
+      const effective = resolveCsharpSourceEffectiveType(scope, node, state);
+      return ${condition} ? types.resolveType(queries.types.expressionType(node), file) : undefined;
+    }`]]));
+    assert.equal(findings.some(row => row.rule === "value-type-reaches-converter"), !accepted, label);
   }
 });
 

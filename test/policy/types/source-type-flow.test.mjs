@@ -94,7 +94,7 @@ test("actual retained shapes keep exact declared properties and reject a differe
   const declaration = {};
   const environment = createCsharpTypeParameterEnvironment(unexpected);
   const descriptor = Object.freeze({ kind: "shape", members: Object.freeze([
-    Object.freeze({ name: "count", declaration, readonly: true, type: primitive("int32") }),
+    Object.freeze({ name: "count", declaration, optional: false, readonly: true, type: primitive("int32") }),
   ]) });
   let retained;
   const host = { ...representationHost("native"), typeParameterConstraints: environment, retainShape(shape) {
@@ -104,12 +104,33 @@ test("actual retained shapes keep exact declared properties and reject a differe
     assert.equal(shape.members[0].sourceDeclarations[0] === declaration && shape.members[0].readonly === true, true,
       "the actual Native header keeps the original property identity and readonly fact");
     assert.equal(shape.members[0].type.name, "int32");
+    assert.equal(shape.members[0].optional, false, "the required presence bit reaches the existing Native header unchanged");
     return retained;
   } };
   const selected = representCsharpSourceType(host, descriptor);
   assert.equal(selected === retained.targetType && retained.constructible === true, true, "one retained Native shape is the actual representation");
   const changed = representCsharpSourceType({ ...host, retainShape: shape => ({ ...shape, constructible: true, targetType: csharpSourcePrimitiveTargetType("int32") }) }, descriptor);
   assert.equal(changed === undefined, true, "a second physical answer is rejected, not repaired");
+});
+
+test("optional member presence stays independent of its optional value and missing presence is rejected", () => {
+  const environment = createCsharpTypeParameterEnvironment(unexpected);
+  const headers = [];
+  const host = { ...representationHost("native"), typeParameterConstraints: environment,
+    retainShape: shape => { headers.push(shape); return shape; } };
+  for (const optional of [false, true]) {
+    const selected = representCsharpSourceType(host, { kind: "shape", members: [
+      { name: "value", optional, type: { kind: "optional", value: primitive("int32") } },
+    ] });
+    assert.equal(selected !== undefined, true);
+    const member = headers.at(-1).members[0];
+    assert.equal(member.optional, optional);
+    assert.equal(getCsharpNullableElementTargetType(member.type)?.name, "int32");
+  }
+  assert.equal(targetTypeRefKey(headers[0].targetType) !== targetTypeRefKey(headers[1].targetType), true,
+    "the existing Native header identity distinguishes optional presence, not the value type");
+  assert.equal(representCsharpSourceType(host, { kind: "shape", members: [{ name: "value", type: primitive("int32") }] }), undefined,
+    "the removed presence-less contract is rejected without a compatibility default");
 });
 
 test("native collection obligations preserve exact arguments and reject variance rank changes and copies", () => {

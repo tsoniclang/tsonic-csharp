@@ -410,8 +410,8 @@ export function directProviderHost(options = {}) {
   assert.equal((options.calls?.length ?? 0) === 0 || program !== undefined, true,
     "a Native call fixture must retain its own actual checked Source program");
   const sourceFile = program === undefined ? options.sourceFile ?? { kind: "source-file" }
-    : program.ast.getSourceFile(options.calls[0][0]);
-  if (program !== undefined) assert.equal(sourceFile !== undefined && options.calls.every(([call, evidence]) =>
+    : program.ast.getSourceFile(options.calls?.[0]?.[0] ?? options.elements?.[0]?.[0] ?? options.properties?.[0]?.[0]);
+  if (program !== undefined) assert.equal(sourceFile !== undefined && (options.calls ?? []).every(([call, evidence]) =>
     program.semantics.forNode(call).operations.call(call) === evidence), true,
   "every positive Source call record is the identical checked publication rather than a reconstructed mock");
   const relations = options.relations ?? [];

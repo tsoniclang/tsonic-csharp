@@ -33,6 +33,7 @@ function fixture() {
   const selections = [];
   const host = {
     ast: source.ast,
+    effectiveTypes: source.effectiveTypes,
     navigation: source.navigation,
     sourceFiles: source.navigation.sourceFiles,
     sourceStorage: createSourceStorageQuery(source, source.navigation.sourceFiles),

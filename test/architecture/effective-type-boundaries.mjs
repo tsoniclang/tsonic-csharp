@@ -2,7 +2,8 @@ import { readArchitectureTypeScript } from "../../../tsonic/test/architecture/to
 
 const resolverOwners = /^src\/analysis\/source-evidence\/types\/resolution\/(?:semantic-types|scope|engine|model|query-cache)\.ts$/u;
 const shapeOwners = /^src\/analysis\/objects\/shapes\//u;
-const converters = new Set(["resolveType", "resolveTypeWithState", "bindCsharpSourceTypeArguments", "resolveSemanticTypeArguments", "deriveMembers"]);
+const converters = new Map([["resolveType", 0], ["resolveTypeWithState", 0], ["bindCsharpSourceTypeArguments", 1],
+  ["resolveSemanticTypeArguments", 1], ["deriveMembers", 0]]);
 const valueQueries = new Set(["expressionType", "declaredValueType", "typeOfSymbol", "declaredSymbolType", "writeSymbolType", "selectValueTypeRefinement"]);
 const valueFields = new Set(["sourceReadType", "sourceWriteType", "sourceElementType", "sourceResultType", "selectedSignature", "sourceSelectedMethodTypeArguments", "sourceSelectedSignatureParameters"]);
 const transparentKinds = new Set(["KindParenthesizedExpression", "KindAsExpression", "KindTypeAssertionExpression", "KindNonNullExpression", "KindSatisfiesExpression"]);
@@ -54,7 +55,9 @@ export const declarationConverterAllowances = Object.freeze([
   ["src/analysis/source-evidence/types/resolution/source-references.ts", "resolveCheckerTransformedSourceType", "resolveTypeWithState", "element.type", "checked tuple transformation element component"],
   ["src/analysis/source-evidence/types/resolution/source-references.ts", "resolveCheckerTransformedSourceType", "host.structuralTypes.resolveType", "selectedType", "authored checker-transformed alias construction"],
   ["src/analysis/source-evidence/types/resolution/source-references.ts", "resolveStandardSourceTypeTransformation", "host.structuralTypes.resolveType", "selectedType", "authored structural type transformation"],
-  ["src/analysis/source-evidence/types/resolution/source-references.ts", "selectCsharpContextualParameterCarrier", "bindCsharpSourceTypeArguments", "scope", "retained contextual callable declaration and selected call"],
+  ["src/analysis/source-evidence/types/resolution/source-references.ts", "selectCsharpContextualParameterCarrier", "bindCsharpSourceTypeArguments", "contextual.component.selectedType", "retained contextual callable declaration and selected call", "contextual.component.selectedType"],
+  ["src/analysis/source-evidence/types/resolution/calls.ts", "resolveSourceCallSelectedType", "bindCsharpSourceTypeArguments", "receiver.type", "pinned receiver generic declarations consume the same Host call instantiation", "receiver.type"],
+  ["src/analysis/source-evidence/types/resolution/calls.ts", "resolveSourceCallReceiverTargetType", "resolveTypeWithState", "source.sourceResultType", "selected constructor instance declaration only outside the same call's Host publication domain"],
   ["src/analysis/source-evidence/types/resolution/source-profiles.ts", "resolveUnionType", "resolveTypeWithState", "member", "actual declared union member"],
   ["src/analysis/source-evidence/types/resolution/source-profiles.ts", "resolveSourceTypeComponentEvidence", "resolveTypeWithState", "component.selectedType", "retained declared Source component without authored syntax"],
   ["src/analysis/source-evidence/types/resolution/source-union-refinement.ts", "selectCsharpAuthoredUnionRefinement", "resolveType", "member", "actual authored union refinement arm"],
@@ -208,16 +211,33 @@ export function effectiveTypeBoundaryFindings(sourceFiles, allowances = declarat
     const effectiveNames = new Map(statements.flatMap(statement => {
       if (ast.kindName(statement) !== "KindVariableStatement") return [];
       const text = compact(statement);
-      const match = /^const([\w$]+)=resolveCsharpSourceEffectiveType\(scope,([\w$]+),(?:state|\{depth:0\})\);$/u.exec(text);
+      const match = /^const([\w$]+)=resolveCsharpSourceEffectiveType\(scope,([\w$.]+),(?:state|\{depth:0\})\);$/u.exec(text);
       return match === null ? [] : [[match[1], match[2]]];
     }));
+    const guarded = (condition, absent) => condition === `host.effectiveTypes.get(${subject})${absent ? "===" : "!=="}undefined` ||
+      condition === `scope.host.effectiveTypes.get(${subject})${absent ? "===" : "!=="}undefined` ||
+      [...effectiveNames].some(([name, selected]) => selected === subject && condition === `${name}${absent ? "===" : "!=="}undefined`);
+    for (let current = node; current !== owner;) {
+      const parent = ast.parent(current);
+      if (parent === undefined) break;
+      if (ast.is.IsConditionalExpression(parent)) {
+        const branch = ast.as.AsConditionalExpression(parent);
+        if (branch?.WhenTrue === current && guarded(compact(branch.Condition), true) ||
+          branch?.WhenFalse === current && guarded(compact(branch.Condition), false)) return true;
+      }
+      if (ast.is.IsIfStatement(parent)) {
+        const branch = ast.as.AsIfStatement(parent);
+        if (branch?.ThenStatement === current && guarded(compact(branch.Expression), true) ||
+          branch?.ElseStatement === current && guarded(compact(branch.Expression), false)) return true;
+      }
+      current = parent;
+    }
     for (const statement of statements) {
       if (ast.pos(statement) >= ast.pos(node)) break;
       if (!ast.is.IsIfStatement(statement)) continue;
       const branch = ast.as.AsIfStatement(statement);
       const condition = compact(branch?.Expression);
-      const direct = /^(?:scope\.)?host\.effectiveTypes\.get\(([\w$]+)\)!==undefined$/u.exec(condition);
-      if (direct?.[1] !== subject && ![...effectiveNames].some(([name, selected]) => selected === subject && condition === `${name}!==undefined`)) continue;
+      if (!guarded(condition, false)) continue;
       const then = branch?.ThenStatement;
       const terminal = then !== undefined && ast.kindName(then) === "KindBlock" ? ast.statements(then).at(-1) : then;
       if (terminal !== undefined && ast.kindName(terminal) === "KindReturnStatement" && ast.pos(node) > ast.end(statement)) return true;
@@ -340,7 +360,9 @@ export function effectiveTypeBoundaryFindings(sourceFiles, allowances = declarat
         const property = member(current);
         if (property !== undefined) {
           const key = name(current);
-          if (valueFields.has(key) || key === "type" && /(?:^|\.)(?:argument|receiver)$/u.test(raw(property.Expression))) return { value: true, dependencies };
+          if (valueFields.has(key) || key === "type" && /(?:^|\.)(?:argument|receiver)$/u.test(raw(property.Expression))) {
+            return { value: key !== "sourceResultType" || !outsideEffectiveDomain(current, `${raw(property.Expression)}.call`), dependencies };
+          }
           dependencies.push(property.Expression);
         }
         if (ast.is.IsIdentifier(current)) {
@@ -402,10 +424,11 @@ export function effectiveTypeBoundaryFindings(sourceFiles, allowances = declarat
         const providerQuery = property !== undefined && /(?:^|\.)(?:providers|relationCatalog)$/u.test(raw(property.Expression));
         const typeLookup = selectedName === "get" && /(?:^|\.)(?:semanticTargetType|semanticType)$/u.test(raw(property?.Expression));
         if (!providerQuery && (converters.has(selectedName) || typeLookup)) {
+          const argument = args[converters.get(selectedName) ?? 0];
           const allowed = allowances.find(row => row.file === path && row.owner === ownerName(node) &&
-            row.callee === raw(callee) && row.argument === raw(args[0]));
+            row.callee === raw(callee) && row.argument === raw(argument));
           if (allowed !== undefined) usedAllowances.add(allowed);
-          if (args.some(argument => isValue(argument, argument === args[0] ? allowed?.metadataLeaf : undefined))) add(node, "value-type-reaches-converter");
+          if (argument !== undefined && isValue(argument, allowed?.metadataLeaf)) add(node, "value-type-reaches-converter");
           if (!resolverOwners.test(path) && !shapeOwners.test(path)) {
             if (allowed === undefined) add(node, "unclassified-type-only-converter");
           }

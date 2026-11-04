@@ -16,9 +16,7 @@ import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs
 import { emissionPrograms, discardedPrograms, owners } from "./native-use-closure.fixtures.mjs";
 
 for (const surface of Array.from(["native", "js"]).slice(0, 2)) {
-test(`${surface} numeric spread carriers are order-independent without erasing genuine native unions`,
-  { timeout: 300_000 }, () => {
-  const sourceText = `
+const originalSource = `
     import type { int32, uint32, int64, float64 } from "@tsonic/core/types.js";
     function sum(...values: number[]): number { return values.length; }
     export function run(values: number[]): number {
@@ -68,6 +66,31 @@ test(`${surface} numeric spread carriers are order-independent without erasing g
     export const distinct = [narrow, wide];
     export const homogeneousWide = [wide, wide];
   `;
+test(`${surface} numeric spread carriers are order-independent without erasing genuine native unions`, () => {
+  const sourceText = surface === "native" ? originalSource.replace("values.length", "values.Length") : originalSource;
+  const compiled = compileCsharpSource({ surface, sourceText });
+  assert.equal(compiled.sourceDiagnosticsText, "", compiled.sourceDiagnosticsText);
+  const ast = compiled.source.ast;
+  const issues = compiled.result.diagnostics.filter(issue => issue.category === "error");
+  for (const literal of ["[signed, unsigned, 0.5]", "[signed, 0.5, unsigned]", "[0.5, signed, unsigned]", "[signed, unsigned]"]) {
+    assert.equal(issues.some(issue => {
+      const range = issue.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
+      return issue.code === "TSONIC_LOCAL_TYPE_MIXED_ELEMENTS" && issue.source === "tsonic" &&
+        issue.message === "This array literal mixes different fixed source types. Annotate the array and convert its elements explicitly." &&
+        range?.kind === "authored" && ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end) === literal;
+    }), true, `C19 refuses the exact open mixed construction ${literal}`);
+  }
+  assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
+    "the original mixed constructions publish no Native program or artifacts");
+});
+
+test(`${surface} annotated spread and union companions preserve every original native carrier and runtime predicate`,
+  { timeout: 300_000 }, () => {
+  let sourceText = originalSource;
+  for (const name of ["left", "middle", "right", "boundary", "explicitDouble", "signedZeros", "authoredZeros"]) {
+    sourceText = sourceText.replace(`const ${name} =`, `const ${name}: number[] =`);
+  }
+  sourceText = sourceText.replace("const bare =", "const bare: (int32 | uint32)[] =");
   const compiled = compileCsharpSource({ sourceText: surface === "native" ? sourceText.replace("values.length", "values.Length") : sourceText, surface });
   assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
   const program = compiled.result.program;

@@ -20,6 +20,8 @@ import {
   test,
   valueRelation,
 } from "../../fixtures/dotnet-provider/direct-provider-selection.helpers.mjs";
+import { checkCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { createTargetSourceProgram } from "@tsonic/target-api/source";
 
 test("property selection uses the exact provider member identity, not its spelling", () => {
   const fixture = createPropertyFixture();
@@ -477,12 +479,27 @@ function createElementFixture(options = {}) {
     declaringTypeId: binding.id,
     parameters: [targetParameter("index", targetParameterType)],
   });
-  const source = elementEvidence({
-    ...(options.selectedSymbol === undefined
-      ? {}
-      : { selectedSymbol: options.selectedSymbol }),
-    accessMode: options.accessMode ?? "read",
-  });
+  const argumentCarrier = options.argumentNodeTarget ?? options.argumentTarget ?? targetParameterType;
+  const argumentType = argumentCarrier.name === "int32" ? "int32" : argumentCarrier.name === "float64" ? "number" : "string";
+  const checked = checkCsharpSource({ sourceText: `import type { int32 } from "@tsonic/core/types.js";
+    interface FixtureReceiver { [index: string]: unknown; [index: number]: unknown; }
+    export function read(receiver: FixtureReceiver, index: ${argumentType}): void {
+      ${options.accessMode === "write" ? "receiver[index] = undefined;" : "void receiver[index];"}
+    }` });
+  assert.equal(checked.sourceDiagnosticsText, "", "the Native index relation has its own checked Source occurrence");
+  const program = createTargetSourceProgram(checked.source);
+  const accesses = [];
+  const visit = node => {
+    if (program.ast.is.IsElementAccessExpression(node)) accesses.push(node);
+    program.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+  };
+  program.sourceFiles.forEach(file => { if (!program.ast.isDeclarationFile(file)) visit(file); });
+  assert.equal(accesses.length, 1);
+  const source = { expression: accesses[0], evidence: program.semantics.forNode(accesses[0]).operations.elementAccess(accesses[0]) };
+  assert.equal(source.evidence?.expression === source.expression, true,
+    "the exact access, index and declaration are retained with the actual Host publication");
+  if (options.selectedSymbol === null) assert.equal(source.evidence.selectedDeclaration !== undefined, true,
+    "the selected index-signature declaration supplies the original declaration-only evidence");
   const relation = declaration.signatureId === undefined
     ? memberRelation({ declaration, binding, member })
     : signatureRelation({
@@ -514,6 +531,7 @@ function createElementFixture(options = {}) {
         declaration,
       )];
   const direct = directProviderHost({
+    sourceProgram: program,
     relations: options.relations ?? [relation],
     facts,
     elements: [[source.expression, source.evidence]],

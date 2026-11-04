@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { compileCsharpSource, assertCsharpCheckingSucceeded } from "../../helpers/direct-csharp-session.mjs";
+import { createTargetSourceProgram } from "@tsonic/target-api/source";
+import { compileCsharpSource, assertCsharpCheckingSucceeded, checkCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { createTsonicPlugin as nodejsCapability } from "../../../../csharp-nodejs/dist/index.js";
 import { selectCsharpArrayLiteralCarrier } from "../../../dist/policy/types/collections/literal-construction.js";
@@ -112,52 +113,55 @@ test("declared native array spread uses the real sequence owner rather than alia
   assert.doesNotMatch(output, /\.Clone\(|\.ToArray\(/u);
 });
 
+function checkedArrayFixture(elements) {
+  const checked = checkCsharpSource({ sourceText: `import type { int64 } from "@tsonic/core/types.js";
+    export function run(input: int64[]): void { void ([${elements}] as int64[]); }` });
+  assert.equal(checked.sourceDiagnosticsText, "");
+  const source = createTargetSourceProgram(checked.source);
+  const expressions = [];
+  const visit = node => {
+    if (source.ast.is.IsArrayLiteralExpression(node)) expressions.push(node);
+    source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+  };
+  source.sourceFiles.forEach(file => { if (!source.ast.isDeclarationFile(file)) visit(file); });
+  assert.equal(expressions.length, 1);
+  const expression = expressions[0];
+  const queries = source.semantics.forNode(expression);
+  const outcome = source.effectiveTypes.get(expression);
+  assert.equal(outcome !== undefined && outcome.kind !== "refused" && outcome.type.kind === "array" &&
+    outcome.provenance.occurrence === expression, true, "the real array and its chosen carrier share the exact compiled Source publication");
+  return { source, expression, queries, sourceFile: source.ast.getSourceFile(expression) };
+}
+
 test("missing native input evidence never fabricates a literal element conversion", () => {
-  const elementType = {};
-  for (const [label, entry, checked] of [["missing carrier", {}, elementType],
-    ["missing checked type", {}, undefined], ["missing dense entry", undefined, elementType],
-    ["unproven spread operand", { kind: "spread" }, elementType]]) {
-    const expression = { elements: [entry] };
-    const sourceFile = {};
-    const queries = { sourceFile, types: { expressionType: () => assert.fail("the Native array resolver must not reselect raw Source types") } };
-    const outcome = checked === undefined ? undefined : Object.freeze({ kind: "resolved",
-      type: Object.freeze({ kind: "array", readonly: false, element: Object.freeze({ kind: "primitive", primitive: "int64" }) }),
-      provenance: Object.freeze({ group: expression, occurrence: expression, sourceFile }) });
-    const scope = {
-      host: { target: { id: "csharp" }, typeParameterConstraints: {},
-        effectiveTypes: { get: node => node === expression ? outcome : undefined },
-        literalValues: { literalValue: { get: () => undefined } },
-        ast: { is: { IsArrayLiteralExpression: node => node === expression,
-        IsSpreadElement: node => node?.kind === "spread" },
-        as: { AsSpreadElement: node => node }, elements: node => node.elements } },
+  for (const [label, elements] of [["missing carrier", "1n"], ["missing checked type", "1n"],
+    ["missing dense entry", "1n, , 3n"], ["unproven spread operand", "...input"]]) {
+    const { source, expression, queries } = checkedArrayFixture(elements);
+    const scope = { host: { target: { id: "csharp" }, typeParameterConstraints: {},
+      effectiveTypes: source.effectiveTypes, ast: source.ast,
+      literalValues: { literalValue: { get: () => undefined } } },
       resolveTypeWithState: () => assert.fail("the removed raw array type path must not be queried"),
-      resolveNodeWithState: () => undefined,
-    };
+      resolveNodeWithState: () => undefined };
     const selected = resolveCsharpArrayLiteralSelection(scope, expression, queries, { depth: 0 });
     assert.equal(selected.kind, "unavailable", `${label}: every native construction input must be proved`);
   }
 });
 
 test("the Native array resolver keeps the Host carrier and visits later children after an unavailable input", () => {
-  const first = {};
-  const last = {};
-  const expression = {};
-  const sourceFile = {};
+  const { source, expression, queries, sourceFile } = checkedArrayFixture("1n, 3n");
+  const [first, last] = source.ast.elements(expression);
   const element = { kind: "source-primitive", name: "int64" };
   const observed = [];
   const scope = { host: { target: { id: "csharp" }, typeParameterConstraints: {},
-    effectiveTypes: { get: node => node === expression ? { kind: "resolved",
-      type: { kind: "array", readonly: false, element: { kind: "primitive", primitive: "int64" } },
-      provenance: { group: expression, occurrence: expression, sourceFile } } : undefined },
-    literalValues: { literalValue: { get: () => undefined } },
-    ast: { is: { IsArrayLiteralExpression: node => node === expression, IsSpreadElement: () => false },
-      elements: () => [first, last] },
-  }, resolveNodeWithState(node, file, state) {
-    assert.equal(file === sourceFile && state.depth === 1, true, "actual child state and Source file are kept");
-    observed.push(node);
-    return node === first ? undefined : element;
-  } };
-  const selection = resolveCsharpArrayLiteralSelection(scope, expression, { sourceFile }, { depth: 0 });
+    effectiveTypes: source.effectiveTypes, ast: source.ast,
+    literalValues: { literalValue: { get: () => undefined } } },
+    resolveTypeWithState: () => assert.fail("the Host-selected array never falls back to its checked Type"),
+    resolveNodeWithState(node, file, state) {
+      assert.equal(file === sourceFile && state.depth === 1, true, "actual child state and Source file are kept");
+      observed.push(node);
+      return node === first ? undefined : element;
+    } };
+  const selection = resolveCsharpArrayLiteralSelection(scope, expression, queries, { depth: 0 });
   assert.equal(selection.kind, "unavailable", "one missing child cannot publish the chosen carrier as a successful construction");
   assert.equal(observed.length === 2 && observed[0] === first && observed[1] === last, true,
     "the later Native input is checked in the original order without compaction");

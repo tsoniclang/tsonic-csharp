@@ -368,7 +368,7 @@ export function project(): string {
       }])),
     } };
     const analysis = analyzeCsharpAnalysisProgram({ ...request, input: { ...request.input, source } });
-    assert.equal(analysis.kind, "resolved");
+    assert.equal(analysis.kind, "resolved", analysis.diagnostics.map(issue => `${issue.code}: ${issue.message}`).join("; "));
     assert.equal(analysis.diagnostics.length, 0);
     const literals = [];
     const visit = node => {

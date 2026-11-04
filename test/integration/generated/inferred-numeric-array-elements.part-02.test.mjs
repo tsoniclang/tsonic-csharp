@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { assertPublishedRefusal } from "../../helpers/source-effective-types.mjs";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { compileCsharpNativeUseSource } from "../../helpers/expected-native-uses.mjs";
@@ -24,9 +25,13 @@ test(`C130 ${surface}: ${formName} ${operation} uses native number semantics or 
     { timeout: 300_000 }, () => {
       const expectedJson = size === 2 ? "[1,1]" : "[1,1,1]";
       const expectedSort = size === 2 ? "[10,2]" : "[1,10,2]";
-      const sourceText = 'import type { int32, uint32 } from "@tsonic/core/types.js";\n' +
+      const openSourceText = 'import type { int32, uint32 } from "@tsonic/core/types.js";\n' +
         `export function check(signed: int32, unsigned: uint32): boolean { const values = ${form}; ` +
         body.replace("EXPECTED_JSON", JSON.stringify(expectedJson)).replace("EXPECTED_SORT", JSON.stringify(expectedSort)) + " }";
+      const open = compileCsharpNativeUseSource({ surface, sourceText: openSourceText });
+      assertPublishedRefusal(open, "TSONIC_LOCAL_TYPE_MIXED_ELEMENTS", form);
+      const sourceText = openSourceText.replace("const values = ",
+        `const values: ${size === 2 ? "(int32 | uint32)" : "(int32 | uint32 | number)"}[] = `);
       const compiled = compileCsharpNativeUseSource({ surface, sourceText });
       assert.equal(compiled.sourceDiagnosticsText === "", true, `${operation}: ${compiled.sourceDiagnosticsText}`);
       const errors = compiled.nativeStage.diagnostics.filter(issue => issue.category === "error");
@@ -71,9 +76,13 @@ test(`C130 ${surface}: ${formName} ${operation} uses native number semantics or 
     { timeout: 300_000 }, () => {
       const expectedJson = size === 2 ? "[1,1]" : "[1,1,1]";
       const expectedSort = size === 2 ? "[10,2]" : "[1,10,2]";
-      const sourceText = 'import type { int32, uint32 } from "@tsonic/core/types.js";\n' +
+      const openSourceText = 'import type { int32, uint32 } from "@tsonic/core/types.js";\n' +
         `export function check(signed: int32, unsigned: uint32): boolean { const values = ${form}; ` +
         body.replace("EXPECTED_JSON", JSON.stringify(expectedJson)).replace("EXPECTED_SORT", JSON.stringify(expectedSort)) + " }";
+      const open = compileCsharpNativeUseSource({ surface, sourceText: openSourceText });
+      assertPublishedRefusal(open, "TSONIC_LOCAL_TYPE_MIXED_ELEMENTS", form);
+      const sourceText = openSourceText.replace("const values = ",
+        `const values: ${size === 2 ? "(int32 | uint32)" : "(int32 | uint32 | number)"}[] = `);
       const compiled = compileCsharpNativeUseSource({ surface, sourceText });
       assert.equal(compiled.sourceDiagnosticsText === "", true, `${operation}: ${compiled.sourceDiagnosticsText}`);
       const errors = compiled.nativeStage.diagnostics.filter(issue => issue.category === "error");
@@ -120,9 +129,13 @@ test(`C130 ${surface}: ${formName} ${operation} uses native number semantics or 
     { timeout: 300_000 }, () => {
       const expectedJson = size === 2 ? "[1,1]" : "[1,1,1]";
       const expectedSort = size === 2 ? "[10,2]" : "[1,10,2]";
-      const sourceText = 'import type { int32, uint32 } from "@tsonic/core/types.js";\n' +
+      const openSourceText = 'import type { int32, uint32 } from "@tsonic/core/types.js";\n' +
         `export function check(signed: int32, unsigned: uint32): boolean { const values = ${form}; ` +
         body.replace("EXPECTED_JSON", JSON.stringify(expectedJson)).replace("EXPECTED_SORT", JSON.stringify(expectedSort)) + " }";
+      const open = compileCsharpNativeUseSource({ surface, sourceText: openSourceText });
+      assertPublishedRefusal(open, "TSONIC_LOCAL_TYPE_MIXED_ELEMENTS", form);
+      const sourceText = openSourceText.replace("const values = ",
+        `const values: ${size === 2 ? "(int32 | uint32)" : "(int32 | uint32 | number)"}[] = `);
       const compiled = compileCsharpNativeUseSource({ surface, sourceText });
       assert.equal(compiled.sourceDiagnosticsText === "", true, `${operation}: ${compiled.sourceDiagnosticsText}`);
       const errors = compiled.nativeStage.diagnostics.filter(issue => issue.category === "error");
@@ -167,9 +180,13 @@ test(`C130 ${surface}: ${formName} ${operation} uses native number semantics or 
     { timeout: 300_000 }, () => {
       const expectedJson = size === 2 ? "[1,1]" : "[1,1,1]";
       const expectedSort = size === 2 ? "[10,2]" : "[1,10,2]";
-      const sourceText = 'import type { int32, uint32 } from "@tsonic/core/types.js";\n' +
+      const openSourceText = 'import type { int32, uint32 } from "@tsonic/core/types.js";\n' +
         `export function check(signed: int32, unsigned: uint32): boolean { const values = ${form}; ` +
         body.replace("EXPECTED_JSON", JSON.stringify(expectedJson)).replace("EXPECTED_SORT", JSON.stringify(expectedSort)) + " }";
+      const open = compileCsharpNativeUseSource({ surface, sourceText: openSourceText });
+      assertPublishedRefusal(open, "TSONIC_LOCAL_TYPE_MIXED_ELEMENTS", form);
+      const sourceText = openSourceText.replace("const values = ",
+        `const values: ${size === 2 ? "(int32 | uint32)" : "(int32 | uint32 | number)"}[] = `);
       const compiled = compileCsharpNativeUseSource({ surface, sourceText });
       assert.equal(compiled.sourceDiagnosticsText === "", true, `${operation}: ${compiled.sourceDiagnosticsText}`);
       const errors = compiled.nativeStage.diagnostics.filter(issue => issue.category === "error");
@@ -218,9 +235,13 @@ test(`C130 ${surface}: ${formName} ${operation} uses native number semantics or 
     { timeout: 300_000 }, () => {
       const expectedJson = size === 2 ? "[1,1]" : "[1,1,1]";
       const expectedSort = size === 2 ? "[10,2]" : "[1,10,2]";
-      const sourceText = 'import type { int32, uint32 } from "@tsonic/core/types.js";\n' +
+      const openSourceText = 'import type { int32, uint32 } from "@tsonic/core/types.js";\n' +
         `export function check(signed: int32, unsigned: uint32): boolean { const values = ${form}; ` +
         body.replace("EXPECTED_JSON", JSON.stringify(expectedJson)).replace("EXPECTED_SORT", JSON.stringify(expectedSort)) + " }";
+      const open = compileCsharpNativeUseSource({ surface, sourceText: openSourceText });
+      assertPublishedRefusal(open, "TSONIC_LOCAL_TYPE_MIXED_ELEMENTS", form);
+      const sourceText = openSourceText.replace("const values = ",
+        `const values: ${size === 2 ? "(int32 | uint32)" : "(int32 | uint32 | number)"}[] = `);
       const compiled = compileCsharpNativeUseSource({ surface, sourceText });
       assert.equal(compiled.sourceDiagnosticsText === "", true, `${operation}: ${compiled.sourceDiagnosticsText}`);
       const errors = compiled.nativeStage.diagnostics.filter(issue => issue.category === "error");

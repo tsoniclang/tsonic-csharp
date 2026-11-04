@@ -1,38 +1,42 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createCompilerSessionFromFiles } from "@tsonic/tsts";
+import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { sourceValueDeclaration } from "../../../dist/analysis/source-evidence/types/resolution/calls.js";
 import { resolveNode, resolveSelectedValueWithState, resolveSelectedValueResultWithState, resolveStorage } from "../../../dist/analysis/source-evidence/types/resolution/public-api.js";
 import { csharpSourceValueResult } from "../../../dist/analysis/source-evidence/types/resolution/call-results.js";
 
+function checkedStorage(kind) {
+  const checked = createCompilerSessionFromFiles({ currentDirectory: "/src", files: {
+    "/src/index.ts": "class Container { value: unknown; } declare const container: Container; declare const value: unknown; void container.value; void container['value']; void value; void function(value: unknown): unknown { return value; };",
+  }, compilerOptions: { strict: true, target: "es2022", module: "esnext" } }).checkSource();
+  assert.equal(checked.diagnostics.length, 0);
+  const source = createTargetSourceProgram(checked);
+  const file = checked.getSourceFile("/src/index.ts");
+  const nodes = [];
+  const visit = node => { nodes.push(node); source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); }); };
+  visit(file);
+  const expression = nodes.find(node => kind === "property" ? source.ast.is.IsPropertyAccessExpression(node)
+    : kind === "element" ? source.ast.is.IsElementAccessExpression(node)
+      : kind === "function" ? source.ast.is.IsFunctionExpression(node)
+        : source.ast.is.IsIdentifier(node) && source.ast.is.IsVoidExpression(source.ast.parent(node)));
+  assert.equal(expression !== undefined, true, "the Native storage control uses its original checked value occurrence");
+  return { source, file, expression, queries: source.semantics.forFile(file) };
+}
+
 function fixture(kind, project) {
-  const expression = { kind };
-  const declaration = { kind: "variable" };
-  const declarationFile = {};
-  const referenceFile = {};
+  const { source, file: declarationFile, expression, queries } = checkedStorage(kind);
+  const access = kind === "property" ? queries.operations.propertyAccess(expression) : queries.operations.elementAccess(expression);
+  const declaration = access.selectedDeclaration;
   const scope = {
     host: {
-      ast: {
-        is: {
-          IsVariableDeclaration: node => node?.kind === "variable",
-          IsBindingElement: () => false,
-          IsParameterDeclaration: () => false,
-          IsPropertyDeclaration: () => false,
-          IsPropertyAssignment: () => false,
-          IsShorthandPropertyAssignment: () => false,
-          IsPropertyAccessExpression: node => node?.kind === "property",
-          IsElementAccessExpression: node => node?.kind === "element",
-          IsParenthesizedExpression: () => false,
-        },
-        getSourceFile: node => node === declaration ? declarationFile : undefined,
-      },
+      ast: source.ast,
+      effectiveTypes: source.effectiveTypes,
       navigation: {
-        referenceFor: () => ({ declaration, sourceFile: referenceFile }),
+        ...source.navigation,
         isProjectDeclaration: node => project && node === declaration,
       },
-      semanticsFor: () => ({ operations: {
-        propertyAccess: () => ({ selectedDeclaration: declaration }),
-        elementAccess: () => ({ selectedDeclaration: declaration }),
-      } }),
+      semanticsFor: node => source.semantics.forNode(node),
     },
     catchVariableStorageCarrier: () => undefined,
   };
@@ -85,16 +89,14 @@ test("project storage queries use the selected declaration's file, not another r
 test("selected values replace an enclosing operation owner for both syntax and checked type resolution", () => {
   for (const kind of ["identifier", "property", "element", "function"]) {
     for (const available of [true, false]) {
-      const node = { kind };
-      const type = {};
-      const file = {};
+      const { source, file, expression: node, queries } = checkedStorage(kind);
+      const type = queries.types.expressionType(node);
       const enclosing = { kind: "value", node: {}, projection: [] };
       const operand = { kind: "value", node, projection: kind === "element" ? [{ kind: "tuple-element", index: 0 }] : [] };
       const bindings = new Map();
       const state = { depth: 3, sourceStorageSubject: enclosing, sourceBindings: bindings };
       const expected = available ? operand : undefined;
       const carrier = { kind: "source-primitive", name: "int64" };
-      const queries = { types: { expressionType: () => undefined } };
       const observed = [];
       const accept = selected => {
         assert.equal(selected.sourceStorageSubject === expected, true, `${kind}: exact operand owner or no evidence`);
@@ -102,9 +104,9 @@ test("selected values replace an enclosing operation owner for both syntax and c
       };
       const scope = {
         host: {
-          ast: { is: { IsPropertyAccessExpression: () => kind === "property", IsElementAccessExpression: () => kind === "element",
-            IsTypeAliasDeclaration: () => false, IsInterfaceDeclaration: () => false, IsTypeParameterDeclaration: () => false } },
-          navigation: { referenceFor: () => undefined },
+          ast: source.ast,
+          effectiveTypes: source.effectiveTypes,
+          navigation: source.navigation,
           sourceStorage: { subjectFor(selected) {
             assert.equal(selected === node, true, kind);
             return available ? { kind: "resolved", subject: operand } : { kind: "unresolved", reason: "no exact owner" };

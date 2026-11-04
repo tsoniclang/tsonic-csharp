@@ -242,13 +242,19 @@ test(`${surface} a stored callable retains numeric body admission after a discar
 test(`${surface} an authored integer outside the canonical floating arm is refused without a native-integer cap`, () => {
     const compiled = compile(surface, `export function run(signed: int32, unsigned: uint32): number {
       const values = [signed, unsigned, 9007199254740993]; return values[0]; }`);
-    assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
-    assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0 && compiled.targetDiagnostics.length === 1 &&
-      compiled.targetDiagnostics[0].code === "CSHARP_ARRAY_ELEMENT_CARRIER_MISMATCH" &&
-      compiled.targetDiagnostics[0].message === "An inferred numeric union requires an exact canonical carrier for every authored integer literal.", true,
-    `the actual f64 union arm cannot round the authored integer; exact native int64 values remain separately admitted; ${diagnosticLabel(compiled)}`);
+    assertPublishedRefusal({ ...compiled, targetSource: compiled.nativeStage.source },
+      "TSONIC_LOCAL_TYPE_MIXED_ELEMENTS", "[signed, unsigned, 9007199254740993]");
+    const outside = compile(surface, `export function run() { const values = ["text", 9007199254740993]; return values; }`);
+    assert.equal(outside.sourceDiagnosticsText === "", true, outside.sourceDiagnosticsText);
+    assert.equal(outside.result.program === undefined && outside.artifacts.size === 0 && outside.targetDiagnostics.length === 1 &&
+      outside.targetDiagnostics[0].code === "CSHARP_ARRAY_ELEMENT_CARRIER_MISMATCH" &&
+      outside.targetDiagnostics[0].message === "An inferred numeric union requires an exact canonical carrier for every authored integer literal.", true,
+      `the C8-outside inferred union still refuses rounding the identical authored integer; ${diagnosticLabel(outside)}`);
+  });
+
+test(`${surface} an annotated numeric union retains the neighboring exact floating arm without an integer cap`, () => {
     const program = accepted(compile(surface, `export function run(signed: int32, unsigned: uint32) {
-      const values = [signed, unsigned, 9007199254740992]; return values; }`));
+      const values: (int32 | uint32 | number)[] = [signed, unsigned, 9007199254740992]; return values; }`));
     const arms = getCsharpRuntimeUnionArms(arrays(program).get("values"), program.typeDefinitions);
     assert.equal(arms?.length === 3 && arms.some(arm => arm.kind === "source-primitive" && arm.name === "float64"), true,
       "the neighboring exact floating value retains all approved native arms");
@@ -273,6 +279,27 @@ for (const [name, elements] of [
 test(`${surface} every inferred union fallback proves exact canonical integers (${name})`, () => {
     const compiled = compile(surface, `export function run(signed: int32, unsigned: uint32) { const values = [${elements}]; return values; }`);
     assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
+    if (name === "fraction cannot conceal inexact integer" || name === "unmaterialized token cannot erase incompatible peers") {
+      assertPublishedRefusal({ ...compiled, targetSource: compiled.nativeStage.source },
+        "TSONIC_LOCAL_TYPE_MIXED_ELEMENTS", `[${elements}]`);
+      return;
+    }
+    if (["single fixed peer", "single fixed peer reversed", "negative token", "unmaterialized integral token"].includes(name)) {
+      const issues = compiled.nativeStage.diagnostics;
+      const issue = issues[0];
+      const ast = compiled.nativeStage.source.ast;
+      const range = issue?.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
+      const text = range?.kind !== "authored" ? undefined : ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end);
+      const expected = name === "unmaterialized integral token"
+        ? "The retained source literal is not representable as 'source:int32'."
+        : "Source bigint literal is outside the exact 'int32' range.";
+      assert.equal(issues.length === 1 && issue.code === "CSHARP_UNSUPPORTED_AST" && issue.message === expected &&
+        text === elements.split(", ").find(element => element !== "signed"), true,
+        "C19 chooses the one fixed int32 peer and D2 refuses the actual non-fitting literal without reclassifying it as MIXED");
+      assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
+        "the precise literal admission refusal publishes no sealed program or generated artifacts");
+      return;
+    }
     const issues = compiled.nativeStage.diagnostics;
     const issue = issues[0];
     const ast = compiled.nativeStage.source.ast;
@@ -287,9 +314,20 @@ test(`${surface} every inferred union fallback proves exact canonical integers (
 }
 
 test(`${surface} exact integers beyond2^53 and bounded materialization retain actual native representations`, () => {
-    const program = accepted(compile(surface, `export function run(signed: int32, unsigned: uint32) {
+    const original = `export function run(signed: int32, unsigned: uint32) {
       const exact = [signed, 9007199254740994];
       const huge = [signed, unsigned, 1606938044258990275541962092341162602522202993782792835301376];
+      const rounded: number[] = [signed, 9007199254740993];
+      return exact[0] === signed && huge[0] === signed && rounded[0] === signed; }`;
+    const refused = compile(surface, original);
+    assertPublishedRefusal({ ...refused, targetSource: refused.nativeStage.source },
+      "TSONIC_LOCAL_TYPE_MIXED_ELEMENTS", "[signed, unsigned, 1606938044258990275541962092341162602522202993782792835301376]");
+  });
+
+test(`${surface} annotated exact integers beyond2^53 retain every original native representation`, () => {
+    const program = accepted(compile(surface, `export function run(signed: int32, unsigned: uint32) {
+      const exact: number[] = [signed, 9007199254740994];
+      const huge: (int32 | uint32 | number)[] = [signed, unsigned, 1606938044258990275541962092341162602522202993782792835301376];
       const rounded: number[] = [signed, 9007199254740993];
       return exact[0] === signed && huge[0] === signed && rounded[0] === signed; }`));
     const selected = arrays(program);

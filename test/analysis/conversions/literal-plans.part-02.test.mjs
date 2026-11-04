@@ -296,7 +296,7 @@ test("actual literal uses prepare their selected union inner endpoint before the
     ast: syntax.ast, effectiveTypes: syntax.effectiveTypes,
     navigation: { referenceFor: () => undefined }, projectTypes: { directSupertypes: () => [] },
     providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) } };
-  const operations = { nativeUnreachable: { get: () => false }, borrowedSequence: none, binaryOperation: none, selectedCall: none,
+  const operations = { yield: none, nativeUnreachable: { get: () => false }, borrowedSequence: none, binaryOperation: none, selectedCall: none,
       selectedConstruction: none, selectedElement: none, unaryOperation: none };
   const analysis = analyzeCsharpConversions(policy, { compileTimeMetadata: { get: () => false }, nodeTargetType: { get: node => node === expression ? source : undefined } },
     { resolveNode: () => undefined, resolveTarget: () => undefined, registerStructuralInterface: () => false }, operations);

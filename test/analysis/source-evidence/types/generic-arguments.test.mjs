@@ -1,32 +1,35 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createCompilerSessionFromFiles } from "@tsonic/tsts";
+import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { bindCsharpSourceDeclarationArguments, bindCsharpSourceTypeArguments } from "../../../../dist/analysis/source-evidence/types/resolution/generic-arguments.js";
 import { csharpSourcePrimitiveTargetType } from "../../../../dist/target-model/types/index.js";
 
 function fixture() {
-  const declaration = {};
-  const input = {};
-  const output = {};
-  const inputNode = {};
-  const inputType = {};
-  const sourceType = {};
+  const checked = createCompilerSessionFromFiles({ currentDirectory: "/src", files: {
+    "/src/index.ts": "class Pair<Input, Output = Input> {} type Actual = bigint;",
+  }, compilerOptions: { strict: true, target: "es2022", module: "esnext" } }).checkSource();
+  assert.equal(checked.diagnostics.length, 0);
+  const program = createTargetSourceProgram(checked);
+  const file = checked.getSourceFile("/src/index.ts");
+  const declaration = program.ast.statements(file).find(node => program.ast.is.IsClassDeclaration(node));
+  const [input, output] = program.ast.typeParameters(declaration);
+  const queries = program.semantics.forFile(file);
+  const inputNode = program.ast.as.AsTypeParameterDeclaration(output).DefaultType;
+  const sourceType = queries.types.authoredType(program.ast.typeNode(program.ast.statements(file)
+    .find(node => program.ast.is.IsTypeAliasDeclaration(node))));
   const carrier = csharpSourcePrimitiveTargetType("int64");
-  const symbol = {};
-  const queries = { sourceFile: {}, types: { authoredType: node => node === inputNode ? inputType : undefined },
-    declarations: { typeSymbol: type => type === inputType ? symbol : undefined,
-      symbolDeclarations: selected => selected === symbol ? [input] : [] } };
-  const scope = { host: { ast: { typeParameters: selected => selected === declaration ? [input, output] : [],
-    as: { AsTypeParameterDeclaration: selected => selected === output ? { DefaultType: inputNode } : {} } },
+  const scope = { host: { ast: { ...program.ast }, effectiveTypes: program.effectiveTypes,
     semanticsFor: () => queries },
     resolveNodeWithState: (node, file, state) => node === inputNode && file === queries.sourceFile
       ? state.sourceBindings?.get(input)?.targetType : undefined };
-  return { declaration, input, output, scope, sourceType, carrier };
+  return { declaration, input, output, scope, sourceType, carrier, queries };
 }
 
 test("named source application retains exact arguments and dependent generic defaults", () => {
-  const { declaration, input, output, scope, sourceType, carrier } = fixture();
+  const { declaration, input, output, scope, sourceType, carrier, queries } = fixture();
   const original = { depth: 0, sourceBindings: new Map() };
-  const selected = bindCsharpSourceDeclarationArguments(scope, declaration, [carrier], [sourceType], original);
+  const selected = bindCsharpSourceDeclarationArguments(scope, declaration, [carrier], [sourceType], original, queries);
   assert.deepEqual(selected?.sourceBindings.get(input), { sourceType, targetType: carrier });
   assert.deepEqual(selected?.sourceBindings.get(output), { sourceType, targetType: carrier });
   assert.notEqual(selected.sourceBindings, original.sourceBindings);
@@ -34,14 +37,14 @@ test("named source application retains exact arguments and dependent generic def
 });
 
 test("named source application rejects missing, duplicate, inconsistent and excessive arguments", () => {
-  const { declaration, input, scope, sourceType, carrier } = fixture();
+  const { declaration, input, scope, sourceType, carrier, queries } = fixture();
   const state = { depth: 0 };
   for (const [arguments_, sources] of [[[], []], [[carrier], undefined], [[carrier], []],
     [[carrier], [undefined]], [[carrier, carrier, carrier], [sourceType, sourceType, sourceType]]]) {
-    assert.equal(bindCsharpSourceDeclarationArguments(scope, declaration, arguments_, sources, state), undefined);
+    assert.equal(bindCsharpSourceDeclarationArguments(scope, declaration, arguments_, sources, state, queries), undefined);
   }
   scope.host.ast.typeParameters = () => [input, input];
-  assert.equal(bindCsharpSourceDeclarationArguments(scope, declaration, [carrier, carrier], [sourceType, sourceType], state), undefined);
+  assert.equal(bindCsharpSourceDeclarationArguments(scope, declaration, [carrier, carrier], [sourceType, sourceType], state, queries), undefined);
 });
 
 test("checked receiver arguments bind exact declaration identities without replacing outer state", () => {

@@ -202,7 +202,11 @@ for (const surface of ["native", "js"]) {
     `);
     const text = acceptedEffectiveSource(compiled);
     assert.match(text, /long index = 0(?:L)?/u);
-    if (surface === "native") assert.match(text, /values\[checked\(\(int\)index\)\]/u);
+    if (surface === "native") {
+      assert.match(text, /values\[index\]/u);
+      assert.doesNotMatch(text, /checked\(\(int\)index\)/u,
+        "Native T[] accepts long indices and is not an int32-only slot");
+    }
     else {
       const accesses = projectNodes(compiled, (node, ast) => ast.is.IsElementAccessExpression(node));
       assert.equal(accesses.length, 1, "one original JSArray index operation is retained");

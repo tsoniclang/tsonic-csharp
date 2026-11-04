@@ -148,6 +148,7 @@ test("selected native values materialize all surviving exact union arms and reta
     sourceUnions,
     host: {
       ast: source.ast, navigation: source.navigation, sourceFacts: source.sourceFacts,
+      effectiveTypes: source.effectiveTypes,
       semantics: selectedFile => source.semantics.forFile(selectedFile),
       semanticsFor: node => source.semantics.forNode(node),
       representations: { genericProjections: () => [], scopedTargetType: node => node === declaration ? storage : undefined },
@@ -214,6 +215,7 @@ function guardedArraySelection(body) {
     sourceUnions,
     host: {
       ast: source.ast, navigation: source.navigation, sourceFacts: source.sourceFacts,
+      effectiveTypes: source.effectiveTypes,
       semantics: selectedFile => source.semantics.forFile(selectedFile),
       semanticsFor: node => source.semantics.forNode(node),
       representations: { genericProjections: () => [], scopedTargetType: node => node === declaration ? storage : undefined },
@@ -298,6 +300,7 @@ test("exact nominal subclass evidence remains authoritative inside a native guar
       semanticsFor: node => source.semantics.forNode(node),
       representations: { genericProjections: () => [], scopedTargetType: node => node === declaration ? storage : undefined },
       projectTypeCatalog: { definitionForTarget: carrier => targetTypeRefEquals(carrier, child) ? { kind: "class" } : undefined },
+      effectiveTypes: source.effectiveTypes,
       structuralTypes: { resolveTarget: () => undefined },
       sourceStorage: createSourceStorageQuery(source, [file]),
       closedTypeGuard: () => undefined,

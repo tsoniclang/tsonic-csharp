@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { providerVirtualDeclarationFactKey, sourcePrimitiveFactKey } from "@tsonic/tsts";
+import { createCompilerSessionFromFiles, createSourceSemanticsExtension, sourcePrimitive, TstsSourceProviderContractVersion } from "@tsonic/tsts";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { createCsharpNativeConstructionDemandQuery } from "../../../dist/analysis/objects/native-construction-demand.js";
+import { csharpNativeConstructionMembersMatch } from "../../../dist/analysis/objects/native-construction-members.js";
 import { createCsharpObjectShapeMemberResolver } from "../../../dist/analysis/objects/shapes/member-evidence.js";
 import { mergeCsharpObjectShapeSubjects } from "../../../dist/analysis/objects/shapes/construction.js";
 import { checkCsharpSource, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
@@ -58,25 +59,22 @@ const native = Object.freeze({ kind: "target-named", csharpAllowsRefLikeTypeArgu
 const structural = Object.freeze({ kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "source.Shape" });
 
 function fixture() {
-  const sourceFile = { kind: "file" };
   const rows = new Map();
-  const providers = new Map();
-  const nodes = [];
-  const types = new Map();
-  const contexts = new Map();
-  const references = new Map();
+  const inputs = [];
   const existing = new Map();
   const explicit = new Set();
   const foreign = new Set();
   const primitive = {};
+  const semantics = { types: {} };
   let relationshipQueries = 0;
-  const canonical = type => type?.equivalentTo ?? type;
+  let current;
+  let nullable = false;
   const row = (fields, target = structural, options = {}) => {
     const type = {};
     const selections = fields.map((field, index) => {
-      const property = { name: `checked-${index}`, type: primitive, symbol: {}, rootSymbols: [],
+      const property = { name: field.identity, type: primitive, symbol: {}, rootSymbols: [],
         optional: field.optional ?? false, readonly: field.readonly ?? false };
-      const member = { sourceKey: { kind: "property", name: `checked-${index}` }, sourceName: `checked-${index}`,
+      const member = { sourceKey: { kind: "property", name: field.identity }, sourceName: field.identity,
         sourceSubjects: [property.symbol], sourceTypes: [primitive], targetName: `${target.id}-${index}`,
         type: field.carrier ?? integer, memberKind: "property",
         ...(field.optional ? { optional: true } : {}),
@@ -84,101 +82,232 @@ function fixture() {
       return { identity: field.identity, property, symbol: property.symbol, rootSymbols: [], declarations: [],
         getters: [], setters: [], read: field.read ?? "property", member };
     });
-    const shape = { sourceType: type, targetType: target, members: selections.map(field => field.member),
-      ...(options.provider ? { constructible: true } : {}), ...options.shape };
-    rows.set(type, { fields: selections, shape, calls: options.calls ?? [], constructs: options.constructs ?? [],
-      indexes: options.indexes ?? [] });
-    if (options.provider) providers.set(type, { target });
+    rows.set(type, { fields: selections, shape: { sourceType: type, targetType: target,
+      members: selections.map(field => field.member), ...(options.provider ? { constructible: true } : {}), ...options.shape },
+      calls: options.calls ?? [], constructs: options.constructs ?? [], indexes: options.indexes ?? [], provider: options.provider === true });
     return type;
   };
   const node = (type, context, kind = "literal") => {
-    const selected = { kind, properties: Array(rows.get(canonical(type))?.fields.length ?? 0).fill({}) };
-    nodes.push(selected);
-    types.set(selected, type);
-    if (context !== undefined) contexts.set(selected, context);
+    if (kind === "reference") {
+      const input = inputs.find(input => input.type === type.union?.[0]);
+      assert.equal(input !== undefined && input.nullable, true,
+        "the nullable alias is a real read of the same checked declaration, never a fabricated navigation edge");
+      return input.reference;
+    }
+    const sourceRow = rows.get(type);
+    const contextRow = rows.get(context);
+    const fieldType = explicit.has(primitive) ? "Words.float64" : "number";
+    const declaration = (name, selected) => `interface ${name} {
+      ${selected.fields.map(field => `${field.property.readonly ? "readonly " : ""}${JSON.stringify(field.identity)}${field.property.optional ? "?" : ""}: ${fieldType};`).join(" ")}
+      ${selected.calls.length === 0 ? "" : "(): number;"}
+      ${selected.constructs.length === 0 ? "" : "new(): object;"}
+      ${selected.indexes.length === 0 ? "" : "[key: string]: number;"}
+    }`;
+    const empty = { fields: [], calls: [], constructs: [], indexes: [] };
+    const propertyValue = explicit.has(primitive) ? "1 as Words.float64" : "1";
+    const properties = (sourceRow?.fields ?? []).map(field => field.read === "accessor"
+      ? `get ${JSON.stringify(field.identity)}() { return ${propertyValue}; }` : `${JSON.stringify(field.identity)}: ${propertyValue}`).join(", ");
+    const initializer = kind === "parameter" ? "other" : sourceRow?.constructs.length > 0 ? "Constructor"
+      : sourceRow?.fields.some(field => field.property.optional) ? "{ ...seed }"
+      : type.union === undefined ? `{ ${properties} }` : "{ ...choice }";
+    const annotation = context?.any ? ": any" : context === undefined ? "" : `: ContextRow${nullable ? " | null | undefined" : ""}`;
+    const nativeModel = { moduleSpecifier: "@fixture/native", providerModuleId: "Fixture.Native", exports: [{
+      id: "ContextRow", name: "ContextRow", kind: "class", members: [
+        ...(contextRow?.fields ?? []).map(field => ({ id: `ContextRow::${field.identity}`, name: field.identity,
+          kind: "property", type: { kind: "number" }, optional: field.property.optional, readonly: field.property.readonly })),
+        ...(contextRow?.indexes.length > 0 ? [{ id: "ContextRow::index", name: "index", kind: "indexer",
+          signatures: [{ id: "ContextRow::index(string)", parameters: [{ name: "key", type: { kind: "string" } }],
+            returnType: { kind: "number" } }] }] : []),
+      ],
+    }] };
+    const providerExtension = { identity: { id: "fixture.native.extension", version: "1.0.0" },
+      initialize(context) {
+        context.registerSourceDeclarationProvider({
+          identity: { id: "fixture.native", version: "1.0.0", extensionContractVersion: TstsSourceProviderContractVersion,
+            diagnosticRange: { start: 9900000, end: 9900099 } },
+          declarationMaterialization: "complete",
+          ownsModule: specifier => ({ kind: specifier === "@fixture/native" ? "owned" : "unowned" }),
+          resolveModule: specifier => ({ kind: "virtual", moduleSpecifier: specifier,
+            virtualFileName: "/provider/native.d.ts", providerModuleId: "Fixture.Native" }),
+          getDeclarationModel: () => nativeModel,
+        });
+      } };
+    const checked = createCompilerSessionFromFiles({ currentDirectory: "/src", files: {
+      "/src/node_modules/@fixture/words/package.json": JSON.stringify({ name: "@fixture/words", version: "1.0.0",
+        type: "module", exports: { ".": "./index.d.ts" } }),
+      "/src/node_modules/@fixture/words/index.d.ts": "export type float64 = number;",
+      "/src/index.ts": `import type * as Words from "@fixture/words";
+        ${declaration("SourceRow", sourceRow ?? empty)}
+        ${contextRow?.provider ? 'import type { ContextRow } from "@fixture/native";' : declaration("ContextRow", contextRow ?? empty)}
+        declare const destination: ContextRow;
+        type Equivalent = {};
+        declare class Constructor {}
+        declare const seed: SourceRow;
+        declare const choice: { user: 1 } | { user: 2 };
+        function run(other: ContextRow | null | undefined): void {
+          let value${annotation} = ${initializer};
+          ${nullable ? "value = other;" : ""}
+          void value; void other;
+        }`,
+    }, compilerOptions: { strict: true, target: "es2022", module: "esnext", moduleResolution: "bundler" },
+    extensionHostOptions: { extensions: [createSourceSemanticsExtension({ modules: [{ moduleSpecifier: "@fixture/words",
+      packageName: "@fixture/words", exports: [sourcePrimitive("float64", "float64", "number", true, 64)] }] }), providerExtension] } }).checkSource();
+    assert.equal(checked.diagnostics.length, 0, "positive construction fixtures use valid checked Source");
+    assert.equal(checked.extensionDiagnostics.length, 0);
+    const program = createTargetSourceProgram(checked);
+    const file = checked.getSourceFile("/src/index.ts");
+    const syntax = [];
+    const visit = selected => { syntax.push(selected); program.ast.forEachChild(selected, child => { if (child !== undefined) visit(child); }); };
+    visit(file);
+    const declarationNode = syntax.find(selected => program.ast.is.IsVariableDeclaration(selected) &&
+      program.ast.is.IsIdentifier(program.ast.name(selected)) && program.ast.text(program.ast.name(selected)) === "value");
+    const literal = program.ast.as.AsVariableDeclaration(declarationNode)?.Initializer;
+    const parameter = syntax.find(selected => program.ast.is.IsParameterDeclaration(selected) &&
+      program.ast.text(program.ast.name(selected)) === "other");
+    const reference = syntax.filter(selected => program.ast.is.IsIdentifier(selected) && program.ast.text(selected) === "value").at(-1);
+    const selected = kind === "literal" ? literal : kind === "parameter" ? parameter : reference;
+    assert.equal(literal !== undefined && selected !== undefined && file !== undefined, true,
+      "each Native boundary input retains its real checked occurrence and matching eager Source publication");
+    const queries = program.semantics.forFile(file);
+    const actualType = queries.types.expressionType(literal);
+    const contextDeclaration = syntax.find(selected => program.ast.is.IsVariableDeclaration(selected) &&
+      program.ast.is.IsIdentifier(program.ast.name(selected)) && program.ast.text(program.ast.name(selected)) === "destination");
+    const sourceDeclaration = syntax.find(selected => program.ast.is.IsInterfaceDeclaration(selected) &&
+      program.ast.text(program.ast.name(selected)) === "SourceRow");
+    const contextType = queries.declarations.declaredValueType(contextDeclaration);
+    const declaredSource = queries.declarations.declaredType(sourceDeclaration);
+    const nativeRows = new Map();
+    const materialize = (original, sourceType) => {
+      if (original === undefined || sourceType === undefined) return;
+      const checkedMembers = queries.types.structuralMembers(sourceType, sourceType, "correspondence");
+      const members = original.shape.members.map(member => {
+        const field = original.fields.find(field => member.sourceSubjects?.includes(field.property.symbol));
+        const pair = checkedMembers.kind !== "available" ? undefined : checkedMembers.members.find(pair =>
+          pair.kind === "present" && pair.source.property.name === field?.identity);
+        return pair?.kind !== "present" ? member : { ...member,
+          sourceSubjects: [pair.source.property.symbol, ...pair.source.declarations],
+          sourceDeclarations: pair.source.declarations, sourceTypes: [pair.source.property.type] };
+      });
+      nativeRows.set(sourceType, { original, members });
+    };
+    materialize(sourceRow, actualType);
+    materialize(sourceRow, declaredSource);
+    materialize(contextRow, contextType);
+    const checkedContext = queries.types.contextualValueSelection(literal);
+    const selectedContext = checkedContext.kind === "selected" ? checkedContext.component.selectedType : undefined;
+    if (contextRow !== undefined && selectedContext !== undefined) materialize(contextRow, selectedContext);
+    const equivalent = syntax.find(selected => program.ast.is.IsTypeAliasDeclaration(selected) &&
+      program.ast.text(program.ast.name(selected)) === "Equivalent");
+    const equivalentType = queries.types.authoredType(program.ast.typeNode(equivalent));
+    materialize(sourceRow, equivalentType);
+    const input = { program, file, literal, declarationNode, reference, queries, nativeRows, type, context,
+      sourceRow, contextRow, actualType, contextType, declaredSource, equivalentType, nullable };
+    inputs.push(input);
     return selected;
   };
-  const semantics = {
-    sourceFile,
-    facts: { typeSubjects: type => [canonical(type)] },
-    declarations: { symbolDeclarations: () => [] },
-    types: {
-      isUnion: type => type.union !== undefined,
-      unionOrIntersectionTypes: type => type.union,
-      isNullish: type => type.absent === true,
-      isAny: type => type.any === true,
-      isUnknown: type => type.unknown === true,
-      isNumberLike: type => type === primitive,
-      propertyInfos: type => rows.get(canonical(type))?.fields.map(field => field.property) ?? [],
-      expressionType: selected => types.get(selected),
-      contextualValueSelection: selected => contexts.has(selected)
-        ? { kind: "selected", component: { selectedType: contexts.get(selected) } } : { kind: "unavailable" },
-      isIdentical: (source, destination) => canonical(source) === canonical(destination),
-      constructSignatures: type => rows.get(canonical(type))?.constructs ?? [],
-      structuralMembers(source, destination, purpose) {
-        assert.equal(purpose, "read", "construction requires readable members");
-        relationshipQueries += 1;
-        const from = rows.get(canonical(source));
-        const to = rows.get(canonical(destination));
-        if (from === undefined || to === undefined) return { kind: "unavailable" };
-        return { kind: "available", source: { type: source, ...from }, destination: { type: destination, ...to },
-          members: to.fields.map(expected => {
-            const actual = from.fields.find(field => field.identity === expected.identity);
-            return actual === undefined ? { kind: "absent", destination: expected }
-              : { kind: "present", source: actual, destination: expected };
-          }) };
-      },
-    },
+  const guard = (source, destination) => {
+    const selectedRows = [rows.get(source), rows.get(destination)];
+    const declarations = selectedRows.map((selected, index) => `interface ${index === 0 ? "SourceRow" : "DestinationRow"} {
+      ${selected.fields.map(field => field.read === "accessor" ? `get ${JSON.stringify(field.identity)}(): number;`
+        : `${field.property.readonly ? "readonly " : ""}${JSON.stringify(field.identity)}${field.property.optional ? "?" : ""}: number;`).join(" ")}
+      ${selected.calls.length === 0 ? "" : "(): number;"}
+      ${selected.constructs.length === 0 ? "" : "new(): object;"}
+      ${selected.indexes.length === 0 ? "" : "[key: string]: number;"}
+    }`).join("\n");
+    const checked = createCompilerSessionFromFiles({ currentDirectory: "/src", files: {
+      "/src/index.ts": `${declarations} type Equivalent = {}; declare const source: SourceRow; declare const destination: DestinationRow;`,
+    }, compilerOptions: { strict: true, target: "es2022", module: "esnext" } }).checkSource();
+    assert.equal(checked.diagnostics.length, 0, "a Native guard unit boundary declares two valid types without an invalid assignment");
+    const program = createTargetSourceProgram(checked);
+    const file = checked.getSourceFile("/src/index.ts");
+    const variables = [];
+    let equivalent;
+    const visit = node => {
+      if (program.ast.is.IsTypeAliasDeclaration(node) && program.ast.text(program.ast.name(node)) === "Equivalent") equivalent = node;
+      if (program.ast.is.IsVariableDeclaration(node)) variables.push(node);
+      program.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    };
+    visit(file);
+    const queries = program.semantics.forFile(file);
+    const descriptors = variables.map(variable => program.effectiveTypes.get(variable));
+    assert.equal(descriptors.length === 2 && descriptors.every(outcome => outcome !== undefined &&
+      outcome.kind !== "refused" && outcome.type.kind === "declared" && outcome.type.source !== undefined), true,
+      "both real declared descriptors come from this exact program's eager publication");
+    const types = descriptors.map(outcome => outcome.type.source.selectedType);
+    const shapes = selectedRows.map((selected, index) => ({
+      ...selected.shape,
+      sourceType: selected.shape.sourceType === undefined ? undefined : types[index],
+      members: selected.shape.members.map(member => {
+        const field = selected.fields.find(field => member.sourceSubjects?.includes(field.property.symbol));
+        const property = field === undefined ? undefined : queries.types.propertyInfos(types[index]).find(property => property.name === field.identity);
+        const declarations = property === undefined ? [] : queries.declarations.symbolDeclarations(property.symbol);
+        return property === undefined ? member : { ...member, sourceSubjects: [property.symbol, ...declarations],
+          sourceDeclarations: declarations, sourceTypes: [property.type] };
+      }),
+    }));
+    const compatible = csharpNativeConstructionMembersMatch(types[0], shapes[0], shapes[1], queries,
+      { ast: program.ast, sourceFacts: program.sourceFacts }, () => {});
+    const equivalentType = queries.types.authoredType(program.ast.typeNode(equivalent));
+    return { compatible, program, descriptors, types, shapes, queries, equivalentType };
   };
   const host = {
-    sourceFiles: [sourceFile],
-    ast: {
-      is: {
-        IsObjectLiteralExpression: selected => selected?.kind === "literal",
-        IsVariableDeclaration: selected => selected?.kind === "variable",
-        IsVariableDeclarationList: () => false,
-        IsVariableStatement: () => false,
-        IsParenthesizedExpression: () => false,
-        IsBlock: () => false,
-        IsBindingElement: () => false,
-        IsReturnStatement: () => false,
-        IsArrowFunction: () => false,
-        IsFunctionExpression: () => false,
-      },
-      as: { AsVariableDeclaration: selected => selected?.kind === "variable" ? selected : undefined },
-      parent: selected => selected?.parent,
-      children: () => [],
-      forEachChild: (selected, visit) => { if (selected === sourceFile) nodes.forEach(visit); },
-      properties: selected => selected.properties ?? [],
-    },
-    navigation: {
-      isProjectDeclaration: selected => !foreign.has(selected),
-      referencesToDeclaration: selected => references.get(selected) ?? [],
-    },
-    providers: { resolveType(fact) { return { kind: "resolved", relations: [{ kind: "type",
-      objectLiteralConstruction: { kind: "object-initializer" }, targetBinding: fact.target }] }; } },
-    sourceFacts: { getFact(value, key) {
-      return key === providerVirtualDeclarationFactKey ? providers.get(canonical(value))
-        : key === sourcePrimitiveFactKey && explicit.has(value) ? { name: "float64" } : undefined;
+    providers: { resolveType(fact) {
+      assert.equal(fact.providerModuleId === "Fixture.Native" && fact.exportId === "ContextRow", true,
+        "the Native leaf resolver receives the real compiler-produced provider declaration fact");
+      return { kind: "resolved", relations: [{ kind: "type",
+        objectLiteralConstruction: { kind: "object-initializer" }, targetBinding: current.contextRow.shape.targetType }] };
     } },
-    semanticsFor: () => semantics,
-    resolveShape: type => {
-      const shape = rows.get(canonical(type))?.shape;
-      return shape === undefined || canonical(type) === type ? shape : { ...shape, sourceType: type };
+    semanticsFor: selected => {
+      const input = inputs.find(input => input.program.ast.getSourceFile(selected) === input.file);
+      assert.equal(input !== undefined, true);
+      return { ...input.queries, types: { ...input.queries.types,
+        structuralMembers(source, destination, purpose) {
+          assert.equal(purpose, "read", "construction requires readable members");
+          relationshipQueries++;
+          return input.queries.types.structuralMembers(source, destination, purpose);
+        }, ...semantics.types } };
     },
+    resolveShape: type => {
+      const selected = current.nativeRows.get(type);
+      if (selected === undefined) return undefined;
+      const original = selected.original.shape;
+      const mismatchedCallableLiteral = type === current.actualType &&
+        (selected.original.calls.length > 0 || selected.original.indexes.length > 0);
+      return { ...original, sourceType: original.sourceType === undefined ? undefined
+        : mismatchedCallableLiteral ? current.declaredSource : type,
+        members: original.members.map(member => selected.members.find(selected => selected.targetName === member.targetName) ?? member) };
+    },
+    resolveEffectiveShape: () => current.contextRow === undefined ? undefined : host.resolveShape(current.contextType),
     resolveLiteralShape: shape => ({ kind: "resolved", shape }),
     scopedTargetType: selected => existing.get(selected),
     retainSourceShape: (_node, _type, shape) => shape,
   };
   return {
-    row, node, rows, types, contexts, references, existing, explicit, primitive, foreign, semantics, host,
-    declare(literal) {
-      const declaration = { kind: "variable", Initializer: literal };
-      literal.parent = declaration;
-      types.set(declaration, types.get(literal));
-      return declaration;
+    row, node, rows, existing, explicit, primitive, foreign, semantics, host, guard,
+    get nullable() { return nullable; }, set nullable(value) { nullable = value; },
+    declare(literal) { return inputs.find(input => input.literal === literal).declarationNode; },
+    references: { set(declaration, references) {
+      const input = inputs.find(input => input.declarationNode === declaration);
+      assert.equal(input !== undefined && references.every(reference =>
+        input.program.navigation.referencesToDeclaration(declaration).includes(reference)), true,
+      "every requested alias is already the same declaration's actual checked reference");
+    } },
+    freeze() {
+      const records = [];
+      for (const input of inputs) {
+        current = input;
+        host.sourceFiles = [input.file];
+        host.ast = input.program.ast;
+        host.effectiveTypes = input.program.effectiveTypes;
+        host.sourceFacts = input.program.sourceFacts;
+        host.navigation = { ...input.program.navigation,
+          isProjectDeclaration: selected => !foreign.has(selected) && input.program.navigation.isProjectDeclaration(selected) };
+        records.push(createCsharpNativeConstructionDemandQuery(host));
+      }
+      return Object.freeze({ issues: Object.freeze(records.flatMap(record => record.issues)),
+        constructionFor: selected => records.map(record => record.constructionFor(selected)).find(selected => selected !== undefined),
+        sourceRefusals: Object.freeze(inputs.flatMap(input => input.program.effectiveTypes.refusals())) });
     },
-    freeze: () => createCsharpNativeConstructionDemandQuery(host),
     queryCount: () => relationshipQueries,
   };
 }
@@ -202,6 +331,7 @@ test("declared native construction preserves optional fields and one nullable al
   const expected = value.row([{ identity: "user" },
     { identity: "system", optional: true, carrier: csharpNullableTargetType(integer) }], native, { provider: true });
   const source = value.row([{ identity: "user" }]);
+  value.nullable = true;
   const literal = value.node(source, expected);
   const declaration = value.declare(literal);
   const reference = value.node({ union: [source, { absent: true }, { absent: true }] }, undefined, "reference");
@@ -217,8 +347,8 @@ test("declared native numeric storage keeps int64 and cannot override an explici
   for (const explicit of [false, true]) {
     const value = fixture();
     const expected = value.row([{ identity: "user" }], native, { provider: true });
-    const literal = value.node(value.row([{ identity: "user", carrier: floating }]), expected);
     if (explicit) value.explicit.add(value.primitive);
+    const literal = value.node(value.row([{ identity: "user", carrier: floating }]), expected);
     const selected = value.freeze();
     assert.equal(selected.issues.length !== 0, explicit, "explicit authored storage remains authoritative");
     assert.equal(selected.constructionFor(literal) === undefined, explicit);
@@ -256,11 +386,23 @@ test("declared native construction rejects lost fields, accessors, methods, inco
   for (const [index, control] of controls.entries()) {
     const value = fixture();
     const expected = value.row([{ identity: "user" }], native, { provider: true });
-    const literal = value.node(value.row(control.fields, control.target, control.options), expected);
-    const selected = value.freeze();
-    assert.equal(selected.issues.length > 0, true, `control ${index}: precise rejection`);
-    assert.equal(selected.constructionFor(literal) === undefined, true, `control ${index}: no invalid publication`);
+    const source = value.row(control.fields, control.target, control.options);
+    const selected = value.guard(source, expected);
+    assert.equal(selected.compatible, false, `Native guard unit boundary ${index}: the original missing, extra, optional, callable, indexed and physical-field rejection is retained`);
   }
+});
+
+test("Native guard refusal retains the exact construction fault code and reason on a valid Source boundary", () => {
+  const value = fixture();
+  const expected = value.row([{ identity: "user" }], native, { provider: true });
+  const literal = value.node(value.row([{ identity: "user", carrier: boolean }]), expected);
+  const selected = value.freeze();
+  assert.equal(selected.issues.length, 1);
+  assert.equal(selected.issues[0].node === literal &&
+    selected.issues[0].code === "CSHARP_NATIVE_CONSTRUCTION_NOT_PROVEN" &&
+    selected.issues[0].message === "The declared native construction cannot retain all exact fields, absence and native storage without a copied or adapted object.", true,
+    "the real construction caller forwards the unchanged Native guard fault");
+  assert.equal(selected.constructionFor(literal), undefined, "the real caller publishes no incompatible Native storage");
 });
 
 test("native construction requires exact checked member subjects, not field spelling", () => {
@@ -293,9 +435,10 @@ test("an unrelated annotation issue never hides another literal's valid record",
   const valid = value.node(source, expected);
   const invalid = value.node(source);
   const selected = value.freeze();
-  assert.equal(selected.issues.length, 1);
-  assert.equal(selected.issues[0].node === invalid, true);
-  assert.equal(selected.issues[0].code, "TSONIC_UNTYPED_OBJECT_LITERAL");
+  assert.equal(selected.issues.length, 0, "the retired Native producer does not duplicate the Host refusal");
+  assert.equal(selected.sourceRefusals.length, 1);
+  assert.equal(selected.sourceRefusals[0].site === invalid, true);
+  assert.equal(selected.sourceRefusals[0].code, "TSONIC_UNTYPED_OBJECT_LITERAL");
   assert.equal(selected.constructionFor(valid)?.targetType === native, true);
   assert.equal(selected.constructionFor(invalid) === undefined, true);
 });
@@ -334,7 +477,7 @@ test("an untyped empty literal is not assigned an arbitrary native destination",
   const literal = value.node(value.row([]));
   value.node(value.row([], native, { provider: true }), undefined, "parameter");
   const selected = value.freeze();
-  assert.equal(selected.issues[0].code, "TSONIC_UNTYPED_OBJECT_LITERAL");
+  assert.equal(selected.sourceRefusals[0].code, "TSONIC_UNTYPED_OBJECT_LITERAL");
   assert.equal(selected.constructionFor(literal) === undefined, true);
 });
 
@@ -417,8 +560,8 @@ test("observed callers cannot supply an untyped producer's annotation", () => {
   const literal = value.node(value.row([]));
   value.node(value.row([], native, { provider: true }), undefined, "call");
   const selected = value.freeze();
-  assert.equal(selected.issues[0].node === literal, true);
-  assert.equal(selected.issues[0].code, "TSONIC_UNTYPED_OBJECT_LITERAL");
+  assert.equal(selected.sourceRefusals[0].site === literal, true);
+  assert.equal(selected.sourceRefusals[0].code, "TSONIC_UNTYPED_OBJECT_LITERAL");
   assert.equal(selected.constructionFor(literal) === undefined, true);
 });
 
@@ -438,10 +581,8 @@ test("native indexed construction preserves populated, indexed and required-fiel
       { provider: true, indexes: [{}] });
     const source = value.row(control === "populated" ? [{ identity: "extra" }] : [], structural,
       control === "indexed" ? { indexes: [{}] } : {});
-    const literal = value.node(source, expected);
-    const selected = value.freeze();
-    assert.equal(selected.issues.length > 0, true, control);
-    assert.equal(selected.constructionFor(literal) === undefined, true, control);
+    const selected = value.guard(source, expected);
+    assert.equal(selected.compatible, false, `Native indexed guard unit boundary: ${control}`);
   }
 });
 
@@ -449,8 +590,11 @@ test("noninterned exactly checker-equivalent literal types remain supported", ()
   const value = fixture();
   const expected = value.row([{ identity: "user", optional: true }], native, { provider: true });
   const source = value.row([]);
+  const boundary = value.guard(source, expected);
+  assert.equal(boundary.types[0] !== boundary.equivalentType && boundary.queries.types.isIdentical(boundary.types[0], boundary.equivalentType), true,
+    "the two real checked types are distinct objects with proved checker equivalence; no Source query is substituted");
+  assert.equal(boundary.compatible, true, "the Native guard admits the valid empty source and optional destination");
   const literal = value.node(source, expected);
-  value.semantics.types.expressionType = selected => selected === literal ? { equivalentTo: source } : value.types.get(selected);
   const selected = value.freeze();
   assert.equal(selected.issues.length, 0);
   assert.equal(selected.constructionFor(literal)?.targetType === native, true);
@@ -476,11 +620,17 @@ test("declared empty construction retains required, callable, indexed, nominal a
   for (const [index, control] of controls.entries()) {
     const value = fixture();
     const expected = value.row([{ identity: "user", optional: !control.required }], native, { provider: true });
-    const literal = value.node(value.row([], structural, control), expected);
-    if (control.selected !== undefined) value.existing.set(literal, control.selected);
-    const selected = value.freeze();
-    assert.equal(selected.issues.length > 0, true, `storage control ${index}`);
-    assert.equal(selected.constructionFor(literal) === undefined, true, `storage control ${index}: no publication`);
+    const source = value.row([], structural, control);
+    if (control.required || control.calls !== undefined || control.indexes !== undefined) {
+      const selected = value.guard(source, expected);
+      assert.equal(selected.compatible, false, `Native empty guard unit boundary ${index}: required, callable and indexed safety`);
+    } else {
+      const literal = value.node(source, expected);
+      if (control.selected !== undefined) value.existing.set(literal, control.selected);
+      const selected = value.freeze();
+      assert.equal(selected.issues.length > 0, true, `storage control ${index}`);
+      assert.equal(selected.constructionFor(literal) === undefined, true, `storage control ${index}: no publication`);
+    }
   }
 });
 

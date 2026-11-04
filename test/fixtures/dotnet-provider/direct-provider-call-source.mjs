@@ -15,7 +15,7 @@ export function checkedProviderCall(spec) {
     "/src/node_modules/@fixture/provider/index.d.ts": spec.declarations,
     "/src/node_modules/@fixture/words/package.json": JSON.stringify({ name: "@fixture/words",
       version: "1.0.0", type: "module", exports: { ".": "./index.d.ts" } }),
-    "/src/node_modules/@fixture/words/index.d.ts": spec.words.map(word =>
+    "/src/node_modules/@fixture/words/index.d.ts": "export {};\n" + spec.words.map(word =>
       `export type ${word.exportName} = ${word.backing};`).join("\n"),
   };
   const checked = createCompilerSessionFromFiles({ currentDirectory: "/src", files,
@@ -132,7 +132,7 @@ export function providerCallSource(options, binding, member) {
   const result = sourceType(member.returnType);
   const ownerGenerics = ownerParameters.length === 0 ? "" : `<${ownerParameters.map(parameter => parameter.name).join(", ")}>`;
   const ownerArguments = options.receiverTarget?.typeArguments ?? ownerParameters.map(() => ({ kind: "target-named", id: "System.String" }));
-  const receiverType = `Provider.Receiver${ownerArguments.length === 0 ? "" : `<${ownerArguments.map(sourceType).join(", ")}>`}`;
+  const receiverType = `Provider.Receiver${ownerParameters.length === 0 ? "" : `<${ownerArguments.map(sourceType).join(", ")}>`}`;
   const declaration = constructor
     ? `export declare class Receiver${ownerGenerics} { constructor(${sourceParameters.join(", ")}); }`
     : freeCall

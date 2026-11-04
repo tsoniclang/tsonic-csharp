@@ -9,8 +9,8 @@ import { analyzeCsharpTypeOnlyDeclarations } from "../../../dist/analysis/declar
 import { analyze, labels, ambientOriginal, ambientCases } from "./native-participation.fixtures.mjs";
 
 for (const surface of Array.from(["native", "js"]).slice(0, 1)) {
-test(`${surface} abstract accessors keep native signatures and concrete invocation`, { timeout: 300_000 }, () => {
-    const value = analyze(`
+test(`${surface} abstract accessors keep native signatures and concrete invocation`, () => {
+    const original = `
       export abstract class Base {
         abstract get value(): number;
         abstract set value(next: number);
@@ -18,6 +18,30 @@ test(`${surface} abstract accessors keep native signatures and concrete invocati
       }
       export class Concrete extends Base {
         private current = 1;
+        get value(): number { return this.current; }
+        set value(next: number) { this.current = next; }
+        read(): number { return this.value; }
+      }
+      export function run(): number { const value = new Concrete(); value.value = 7; return value.read(); }
+    `;
+    const compiled = compileCsharpNativeUseSource({ sourceText: original, surface });
+    assertCsharpCheckingSucceeded(compiled);
+    assert.deepEqual(compiled.targetDiagnostics.map(({ code, message }) => [code, message]),
+      [["CSHARP_UNSUPPORTED_AST", "No exact C# implicit conversion relates 'source:float64' to 'source:int32'."]],
+      "B3/B4 fix the unannotated field at int32; B10/D2 refuse the number setter write");
+    assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
+      "the original incompatible setter publishes no native program or artifacts");
+  });
+
+test(`${surface} an annotated accessor field preserves every native signature and concrete invocation`, { timeout: 300_000 }, () => {
+    const value = analyze(`
+      export abstract class Base {
+        abstract get value(): number;
+        abstract set value(next: number);
+        abstract read(): number;
+      }
+      export class Concrete extends Base {
+        private current: number = 1;
         get value(): number { return this.current; }
         set value(next: number) { this.current = next; }
         read(): number { return this.value; }
@@ -110,8 +134,8 @@ test(`${surface} a local function that owns a capture frame keeps a frame body`,
       "approved C-1420: the same original native body has no ordinary protocol frame");
   });
 
-test(`${surface} abstract accessors keep native signatures and concrete invocation`, { timeout: 300_000 }, () => {
-    const value = analyze(`
+test(`${surface} abstract accessors keep native signatures and concrete invocation`, () => {
+    const original = `
       export abstract class Base {
         abstract get value(): number;
         abstract set value(next: number);
@@ -119,6 +143,30 @@ test(`${surface} abstract accessors keep native signatures and concrete invocati
       }
       export class Concrete extends Base {
         private current = 1;
+        get value(): number { return this.current; }
+        set value(next: number) { this.current = next; }
+        read(): number { return this.value; }
+      }
+      export function run(): number { const value = new Concrete(); value.value = 7; return value.read(); }
+    `;
+    const compiled = compileCsharpNativeUseSource({ sourceText: original, surface });
+    assertCsharpCheckingSucceeded(compiled);
+    assert.deepEqual(compiled.targetDiagnostics.map(({ code, message }) => [code, message]),
+      [["CSHARP_UNSUPPORTED_AST", "No exact C# implicit conversion relates 'source:float64' to 'source:int32'."]],
+      "B3/B4 fix the unannotated field at int32; B10/D2 refuse the number setter write");
+    assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
+      "the original incompatible setter publishes no native program or artifacts");
+  });
+
+test(`${surface} an annotated accessor field preserves every native signature and concrete invocation`, { timeout: 300_000 }, () => {
+    const value = analyze(`
+      export abstract class Base {
+        abstract get value(): number;
+        abstract set value(next: number);
+        abstract read(): number;
+      }
+      export class Concrete extends Base {
+        private current: number = 1;
         get value(): number { return this.current; }
         set value(next: number) { this.current = next; }
         read(): number { return this.value; }

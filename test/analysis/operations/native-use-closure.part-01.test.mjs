@@ -26,6 +26,15 @@ test(
         delete values["key"]; void value; return typeof value; }`
     : surface === "native" && label === "sequence spread" ? program.replace("values.length", "values.Length") : program;
   const compiled = compileCsharpNativeUseSource({ sourceText, surface });
+  if (label === "accessor bodies" || label === "parameter, pattern and lambda defaults") {
+    assert.equal(compiled.sourceDiagnosticsText, "", compiled.sourceDiagnosticsText);
+    assert.deepEqual(compiled.targetDiagnostics.map(({ code, message }) => [code, message]),
+      [["CSHARP_UNSUPPORTED_AST", "No exact C# implicit conversion relates 'source:float64' to 'source:int32'."]],
+      `${label}: the original int32 field or binding cannot receive a number write/default`);
+    assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
+      "the original native write-fit refusal publishes nothing");
+    return;
+  }
   if (label === "compound and logical assignments and increments") {
     const inspected = { ...compiled, targetSource: compiled.nativeStage.source };
     const ast = inspected.targetSource.ast;
@@ -45,6 +54,20 @@ test(
   assert.equal(compiled.result.program !== undefined && [...compiled.artifacts.keys()].some(path => path.endsWith(".cs")), true,
     `${label}: one sealed program reaches native source emission`);
 });
+if (label === "accessor bodies" || label === "parameter, pattern and lambda defaults") {
+test(`${surface} an annotated ${label} companion preserves every sealed native operation`, () => {
+  const sourceText = label === "accessor bodies"
+    ? program.replace("stored = 1", "stored: number = 1")
+    : program.replace("const [item = next()] = [1]", "const [item = next()]: number[] = [1]");
+  assert.notEqual(sourceText, program, "only the incompatible field or destructuring destination receives its annotation");
+  const compiled = compileCsharpNativeUseSource({ sourceText, surface });
+  assert.equal(compiled.sourceDiagnosticsText === "", true, `${label}: ${compiled.sourceDiagnosticsText}`);
+  const errors = compiled.result.diagnostics.filter(diagnostic => diagnostic.category === "error");
+  assert.equal(errors.length, 0, `${label}: ${errors.map(diagnostic => `${diagnostic.code}: ${diagnostic.message}`).join("; ")}`);
+  assert.equal(compiled.result.program !== undefined && [...compiled.artifacts.keys()].some(path => path.endsWith(".cs")), true,
+    `${label}: one sealed program reaches native source emission`);
+});
+}
 if (label === "compound and logical assignments and increments") {
 test(`${surface} an annotated compound and logical assignment source keeps every sealed native operation`, () => {
   const sourceText = 'import type { int32 } from "@tsonic/core/types.js";\n' +
@@ -79,8 +102,7 @@ test(
 }
 
 for (const surface of Array.from(["native", "js"]).slice(0, 2)) {
-test(`${surface} discarded callable branches retain every condition and operand effect`,
-  { timeout: 300_000 }, () => {
+test(`${surface} discarded callable branches retain every condition and operand effect`, () => {
   const compiled = compileCsharpSource({ sourceText: `
     let trace = 0;
     function tick(value: number): number { trace = trace * 10 + value; return value; }
@@ -103,6 +125,38 @@ test(`${surface} discarded callable branches retain every condition and operand 
       return trace === (flag ? 123567123 : 12457823);
     }
   `, surface });
+  assert.equal(compiled.sourceDiagnosticsText, "", compiled.sourceDiagnosticsText);
+  assert.deepEqual(compiled.targetDiagnostics.map(({ code, message }) => [code, message]),
+    [["CSHARP_UNSUPPORTED_AST", "No exact C# implicit conversion relates 'source:float64' to 'source:int32'."]],
+    "the module-level unannotated trace is Host-fixed int32 and cannot receive a number write");
+  assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
+    "the original incompatible module write publishes no native output");
+});
+test(`${surface} an annotated discarded-callable trace preserves every condition and operand effect`,
+  { timeout: 300_000 }, () => {
+  const sourceText = `
+    let trace = 0;
+    function tick(value: number): number { trace = trace * 10 + value; return value; }
+    function condition(value: boolean, mark: number): boolean { tick(mark); return value; }
+    function ready(): number { return 1; }
+    export function run(flag: boolean): boolean {
+      trace = 0;
+      (() => tick(9)) as (() => number);
+      (() => tick(9))!;
+      <() => number>(() => tick(9));
+      void (() => tick(9));
+      condition(flag, 1) ? (() => tick(9)) : (() => tick(9));
+      condition(flag, 2) ? (tick(3), (() => tick(9))) : (tick(4), (() => tick(9)));
+      condition(flag, 5) && (tick(6), (() => tick(9)));
+      condition(flag, 7) || (tick(8), (() => tick(9)));
+      const optional: (() => number) | undefined = flag ? undefined : ready;
+      optional ?? (tick(1), (() => tick(9)));
+      (tick(2), (() => tick(9)));
+      ((condition(flag, 3) ? (() => tick(9)) : (() => tick(9)))! satisfies (() => number));
+      return trace === (flag ? 123567123 : 12457823);
+    }
+  `;
+  const compiled = compileCsharpSource({ sourceText: sourceText.replace("let trace = 0;", "let trace: number = 0;"), surface });
   assert.equal(compiled.sourceDiagnosticsText === "" && compiled.targetDiagnostics.length === 0, true,
     `${surface}: ${compiled.sourceDiagnosticsText}; ${compiled.targetDiagnostics.map(({ code, message }) => `${code}: ${message}`).join("; ")}`);
   executeCsharpConstruction(compiled, `discarded-callable-effect-order-${surface}`, false, false, [],
