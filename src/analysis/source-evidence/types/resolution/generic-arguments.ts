@@ -79,7 +79,7 @@ export function bindCsharpSourceDeclarationArguments(
   state: CsharpTypeResolutionState,
   queries: SourceFileSemantics,
 ): CsharpTypeResolutionState | undefined {
-  const parameters = scope.host.ast.typeParameters(declaration);
+  const parameters = scope.host.ast.is.IsEnumDeclaration(declaration) ? [] : scope.host.ast.typeParameters(declaration);
   if (parameters.some(parameter => parameter === undefined) || new Set(parameters).size !== parameters.length ||
     typeArguments.length > parameters.length || sources !== undefined && sources.length !== typeArguments.length) return undefined;
   for (const [index, parameter] of (parameters as readonly Node[]).entries()) {

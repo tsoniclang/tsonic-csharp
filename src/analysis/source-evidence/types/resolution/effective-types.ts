@@ -85,7 +85,7 @@ export function createCsharpSourceTypeRepresentationHost(
       }
       const selected = component?.selectedType ?? queries.declarations.declaredType(declaration);
       const bindings = selected === undefined ? undefined : queries.types.typeArgumentBindings(selected);
-      const parameters = host.ast.typeParameters(declaration);
+      const parameters = host.ast.is.IsEnumDeclaration(declaration) ? [] : host.ast.typeParameters(declaration);
       const sources = parameters.map(parameter => bindings?.find(binding => binding.declaration === parameter)?.argumentType);
       const representedState = bindCsharpSourceDeclarationArguments(scope, declaration, typeArguments, sources, state, queries);
       if (representedState === undefined) return undefined;
