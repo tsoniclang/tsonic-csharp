@@ -9,6 +9,7 @@ const widths = Object.freeze([
 ]);
 
 for (const width of widths) {
+  const zero = width.source === "int64" ? "0n" : "0";
   for (const surface of ["native", "js"]) {
     test(`${surface} declared ${width.source} survives first and inline generic arguments`, () => {
       const compiled = compileEffectiveSource(surface, `
@@ -35,9 +36,9 @@ for (const width of widths) {
       export function run(input: ${width.source}[]): ${width.source} {
         const mapped = input.map(value => value);
         const filtered = mapped.filter(value => value > 0);
-        let observed: ${width.source} = 0;
+        let observed: ${width.source} = ${zero};
         filtered.forEach(value => { observed += value; });
-        const reduced = filtered.reduce((accumulator, value) => accumulator + value, 0 as ${width.source});
+        const reduced = filtered.reduce((accumulator, value) => accumulator + value, ${zero} as ${width.source});
         return reduced + observed;
       }
     `);
@@ -108,7 +109,7 @@ test("js seeded reduce keeps the receiver T separate from the accumulator U", ()
   const compiled = compileEffectiveSource("js", `
     import type { int32, int64 } from "@tsonic/core/types.js";
     export function run(input: int32[]): int64 {
-      return input.reduce((accumulator, value) => { void value; return accumulator; }, 0 as int64);
+      return input.reduce((accumulator, value) => { void value; return accumulator; }, 0n as int64);
     }
   `);
   acceptedEffectiveSource(compiled);

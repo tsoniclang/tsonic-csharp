@@ -136,7 +136,7 @@ export function effectiveTypeBoundaryFindings(sourceFiles, allowances = declarat
     if (owner === undefined || subject === undefined || seen.has(owner)) return false;
     seen.add(owner);
     const body = ast.body(owner);
-    const statements = body === undefined || ast.kindName(body) !== "KindBlock" ? [] : ast.as.AsBlock(body)?.Statements ?? [];
+    const statements = body === undefined || ast.kindName(body) !== "KindBlock" ? [] : ast.statements(body);
     const compact = value => raw(value).replace(/\s+/gu, "");
     const effectiveNames = new Map(statements.flatMap(statement => {
       if (ast.kindName(statement) !== "KindVariableStatement") return [];
@@ -152,7 +152,7 @@ export function effectiveTypeBoundaryFindings(sourceFiles, allowances = declarat
       const direct = /^(?:scope\.)?host\.effectiveTypes\.get\(([\w$]+)\)!==undefined$/u.exec(condition);
       if (direct?.[1] !== subject && ![...effectiveNames].some(([name, selected]) => selected === subject && condition === `${name}!==undefined`)) continue;
       const then = branch?.ThenStatement;
-      const terminal = then !== undefined && ast.kindName(then) === "KindBlock" ? ast.as.AsBlock(then)?.Statements.at(-1) : then;
+      const terminal = then !== undefined && ast.kindName(then) === "KindBlock" ? ast.statements(then).at(-1) : then;
       if (terminal !== undefined && ast.kindName(terminal) === "KindReturnStatement" && ast.pos(node) > ast.end(statement)) return true;
     }
     const callers = calls.get(owner) ?? [];
@@ -190,7 +190,7 @@ export function effectiveTypeBoundaryFindings(sourceFiles, allowances = declarat
       if (node === undefined || seen.has(node)) return node;
       seen.add(node);
       if (ast.is.IsIdentifier(node)) {
-        const inputs = initializers(node).filter(input => input !== undefined && input.bindingOrigin === undefined);
+        const inputs = initializers(node).filter(input => input !== undefined && !("bindingOrigin" in input));
         if (inputs.length === 1) return converterCallee(inputs[0], seen);
       }
       return node;
@@ -235,7 +235,7 @@ export function effectiveTypeBoundaryFindings(sourceFiles, allowances = declarat
         }
         for (const input of initializers(node)) {
           if (input === undefined) continue;
-          if (input.bindingOrigin !== undefined) {
+          if ("bindingOrigin" in input) {
             if (valueFields.has(input.bindingKey) || input.bindingKey === "type" &&
                 /(?:^|\.)(?:argument|receiver)$/u.test(raw(input.bindingOrigin))) return true;
             if (isValue(input.bindingOrigin, new Set(seen), metadataLeaf)) return true;
@@ -257,7 +257,7 @@ export function effectiveTypeBoundaryFindings(sourceFiles, allowances = declarat
         if (selected !== undefined && ["KindPropertyDeclaration", "KindPropertyAssignment"].includes(ast.kindName(selected)) &&
             isTypeKeyedCarrierMap(selected.Initializer, new Set(seen))) return true;
         return initializers(node).some(input => input !== undefined &&
-          input.bindingOrigin === undefined && isTypeKeyedCarrierMap(input, new Set(seen)));
+          !("bindingOrigin" in input) && isTypeKeyedCarrierMap(input, new Set(seen)));
       }
       return false;
     };
