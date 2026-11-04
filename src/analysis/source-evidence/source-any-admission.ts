@@ -22,7 +22,7 @@ function isCheckedValue(ast: AstReader, node: Node): boolean {
     ast.is.IsBinaryExpression(node) || ast.is.IsConditionalExpression(node) ||
     ast.is.IsPrefixUnaryExpression(node) || ast.is.IsPostfixUnaryExpression(node) ||
     ast.is.IsKeywordExpression(node) || ast.is.IsShorthandPropertyAssignment(node) ||
-    ast.is.IsSpreadElement(node) ||
+    ast.is.IsSpreadElement(node) || ast.is.IsSpreadAssignment(node) ||
     ast.is.IsTaggedTemplateExpression(node);
 }
 

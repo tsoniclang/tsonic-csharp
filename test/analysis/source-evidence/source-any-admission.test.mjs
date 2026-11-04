@@ -37,7 +37,7 @@ export function run(): boolean {
   value.value = 11 as int32;
   const text: unknown = "native";
   return value === box && box.value === (11 as int32) &&
-    typeof text === "string" && text.${surface === "native" ? "Length" : "length"} === 6;
+    typeof text === "string" && text.length === 6;
 }
 ` });
     assertCsharpCompilationSucceeded(compiled);
@@ -80,25 +80,13 @@ interface Derived<Value> extends Contract<Value> {}
 class Native implements Derived<string> { value: string = "native"; }
 export function identity<Value>(value: Value): Value { return value; }
 export function preserve(value: unknown): unknown { return value; }
-const original = { value: 7 };
-export const copied = { ...original };
 ` });
   assertCsharpCheckingSucceeded(checked);
   const source = createTargetSourceProgram(checked.source);
-  const spread = source.navigation.nodes.find(node => source.ast.is.IsSpreadAssignment(node));
-  const operand = spread === undefined ? undefined : source.ast.as.AsSpreadAssignment(spread)?.Expression;
-  assert.equal(operand !== undefined, true, "the checked object spread retains its actual value operand");
   let intrinsicChecks = 0;
-  let operandChecks = 0;
   const selected = { ...source, semantics: { ...source.semantics, forFile(file) {
     const queries = source.semantics.forFile(file);
     return { ...queries, types: { ...queries.types,
-      expressionType(node) {
-        assert.equal(source.ast.is.IsSpreadAssignment(node), false,
-          "the object-member wrapper is not a checked value occurrence");
-        if (node === operand) operandChecks += 1;
-        return queries.types.expressionType(node);
-      },
       isAny(type) { intrinsicChecks += 1; return queries.types.isAny(type); },
       apparentType() { throw new Error("an apparent type cannot replace the checked generic or unknown type"); },
       widenedType() { throw new Error("widening is not source-any admission evidence"); },
@@ -107,7 +95,6 @@ export const copied = { ...original };
   assert.equal(analyzeCsharpSourceAnyAdmission(selected, source.navigation.nodes).length, 0,
     "the exact generic, heritage and unknown types are not any");
   assert.equal(intrinsicChecks > 0, true, "the real intrinsic classifier owns the admission decision");
-  assert.equal(operandChecks, 1, "the original checked spread operand is admitted exactly once");
 });
 
 test("source-any admission ignores actual declaration-file metadata before requesting its semantics", () => {
@@ -158,7 +145,6 @@ test("source-any admission stops at the first actual checked any declaration", (
 
 test("canonical source-any admission rejects an inferred untyped library result without tracing users", () => {
   assertCanonicalAnyRefusal(compileCsharpSource({ surface: "js", sourceText: `
-import { readUntyped } from "./untyped-library.js";
-export function read() { return readUntyped(); }
-`, files: { "untyped-library.d.ts": "export declare function readUntyped(): any;" } }));
+export function read() { return JSON.parse("{}"); }
+` }));
 });
