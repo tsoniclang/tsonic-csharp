@@ -1,5 +1,6 @@
 import { createCsharpIntegerRangeIndex } from "./records/operations/integer-ranges.js";
 import { analyzeCsharpSourceAliasReexports } from "../source-modules/alias-reexports.js";
+import { analyzeCsharpSourceAnyAdmission } from "../source-evidence/source-any-admission.js";
 import type { CsharpTargetProgram } from "../../target-model/records/target-program.js";
 import { analyzeCsharpRepresentationIteration, representationContractsEqual, type CsharpRepresentationContract } from "./iteration.js";
 import { rejectCsharpAnalysisIssues } from "./issues.js";
@@ -73,6 +74,10 @@ function analyzeCsharpTargetProgramBeforeSeal(
   if (aliasIssues.length !== 0) return rejectedTargetStage(aliasIssues.map(diagnostic => ({
     ...targetDiagnosticFromExtension(diagnostic.nodeOrSpan, diagnostic), code: diagnostic.publicCode,
   })));
+  const sourceFiles = Object.freeze([...source.navigation.sourceFiles]);
+  const sourceNodes = source.navigation.nodesForFiles(sourceFiles);
+  const sourceAnyIssues = analyzeCsharpSourceAnyAdmission(source, sourceNodes);
+  if (sourceAnyIssues.length !== 0) return rejectedTargetStage(sourceAnyIssues);
   if (source.semantics.enumConstants.issues.length !== 0) return rejectedTargetStage(source.semantics.enumConstants.issues);
   const nativeErrors = analyzeCsharpNativeErrorAdmission(source);
   if (nativeErrors.issues.length !== 0) return rejectedTargetStage(nativeErrors.issues);
@@ -86,8 +91,6 @@ function analyzeCsharpTargetProgramBeforeSeal(
   });
   const statementErasure = Object.freeze({ attributeApplications: sourceAttributeApplications, safetyApplications,
     errorNameInitializations: nativeErrors.nameInitializations });
-  const sourceFiles = Object.freeze([...source.navigation.sourceFiles]);
-  const sourceNodes = source.navigation.nodesForFiles(sourceFiles);
   const moduleCallables = analyzeCsharpModuleCallables(source.ast, sourceNodes);
   const literalValues = analyzeSourceLiteralValues(source.ast, sourceFiles);
   const sourceStorage = createSourceStorageQuery(source, sourceFiles, undefined, createCsharpSourceProfileStorageEffects(source, providers));
