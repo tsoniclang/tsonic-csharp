@@ -1,9 +1,10 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { SourceLiteralIndex, SourceLiteralValue, SourceTypeFlowAssociation, SourceTypeFlowObligation, SourceTypeFlowValuePathPart } from "@tsonic/target-api/source";
+import type { SourceLiteralIndex, SourceLiteralValue, SourceTypeFlowAssociation, SourceTypeFlowObligation } from "@tsonic/target-api/source";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpPolicyContext } from "../../model/context.js";
 import type { CsharpSourceTypeRepresentationHost } from "./representation.js";
 import type { CsharpSourceTypeFlowRelationHost } from "./relations.js";
+import type { CsharpNativeSourceCarrierSelection } from "../../../target-model/records/objects/object-shapes.js";
 import type { TargetConstraint, TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpTargetTypeFailsConstraint, type CsharpConstraintSatisfactionHost } from "../../../analysis/operations/members/calls/constraint-satisfaction.js";
 import { representCsharpSourceType } from "./representation.js";
@@ -13,12 +14,14 @@ import { csharpArrayElementIsRepresentableAs } from "../collections/array-elemen
 import { selectCsharpConversion } from "../../conversions/core.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../target-model/types/equality.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
+import { isCsharpStringTargetType } from "../../../target-model/types/identity.js";
 
 export interface CsharpSourceTypeFlowObligationHost extends CsharpSourceTypeRepresentationHost, CsharpSourceTypeFlowRelationHost {
   readonly literalValues: SourceLiteralIndex;
   readonly typeDefinitions: CsharpPolicyContext["typeDefinitions"];
   readonly constraintHost: CsharpConstraintSatisfactionHost;
   valueType(node: Node): TargetTypeRef | undefined;
+  literalAdmission(node: Node, type: TargetTypeRef): CsharpNativeSourceCarrierSelection | undefined;
   requiredType(node: Node, association: SourceTypeFlowAssociation | undefined): TargetTypeRef | undefined;
   nativeConstraints(node: Node, type: TargetTypeRef, association: SourceTypeFlowAssociation | undefined): {
     readonly sourceFile: SourceFile;
@@ -66,22 +69,31 @@ export function checkCsharpSourceTypeFlowObligation(
     return undefined;
   }
   if (obligation.kind === "literal-admission") {
-    const values = obligation.value === undefined ? undefined
-      : projectedLiteralValues(host.literalValues.literalValue.get(obligation.value), obligation.valuePath ?? []);
-    return values !== undefined && values.every(value => literalFits(value, chosen)) ? undefined
-      : fail(`The retained source literal is not representable as '${targetTypeRefKey(chosen)}'.`);
+    const site = obligation.value ?? obligation.site;
+    const carrier = getCsharpNullableElementTargetType(chosen) ?? chosen;
+    if (carrier.kind === "source-primitive" || isCsharpStringTargetType(carrier)) {
+      return literalFits(host.literalValues.literalValue.get(site), chosen) ? undefined
+        : fail(`The retained source literal is not representable as '${targetTypeRefKey(chosen)}'.`);
+    }
+    const admission = host.literalAdmission(site, chosen);
+    if (admission?.kind === "rejected") return Object.freeze({
+      source: "tsonic-csharp", sourceNode: admission.subject, code: admission.code, category: "error", message: admission.reason,
+    });
+    return admission !== undefined && targetTypeRefEquals(admission.type, chosen) ? undefined
+      : fail("An aggregate literal requires its completed native construction admission for the Host-selected representation.");
   }
   if (obligation.kind === "write-fit") {
     const descriptor = obligation.valueType;
     const actual = descriptor === undefined
-      ? obligation.value === undefined || (obligation.valuePath?.length ?? 0) !== 0 ? undefined : host.valueType(obligation.value)
+      ? obligation.value === undefined || obligation.valueVariable !== undefined ? undefined : host.valueType(obligation.value)
       : representCsharpSourceType(host, descriptor);
     if (actual === undefined) return fail("A native write check requires the exact projected value's Host-selected representation.");
-    const values = obligation.value === undefined ? undefined
-      : projectedLiteralValues(host.literalValues.literalValue.get(obligation.value), obligation.valuePath ?? []);
-    if (values !== undefined) return values.every(value => literalFits(value, chosen) &&
+    const literal = obligation.value === undefined || obligation.valueVariable !== undefined &&
+      (obligation.valueVariable.node !== obligation.value || obligation.valueVariable.path.length !== 0)
+      ? undefined : host.literalValues.literalValue.get(obligation.value);
+    if (literal !== undefined) return literalFits(literal, chosen) &&
       (chosen.kind !== "source-primitive" || actual.kind !== "source-primitive" ||
-        csharpArrayElementIsRepresentableAs(chosen, { carrier: actual, literal: value }))) ? undefined
+        csharpArrayElementIsRepresentableAs(chosen, { carrier: actual, literal })) ? undefined
       : fail(`The written literal does not fit the existing '${targetTypeRefKey(chosen)}' storage.`);
     const conversion = selectCsharpConversion(host, actual, chosen, "implicit");
     if (conversion.kind === "identity" || conversion.kind === "absence" || conversion.kind === "implicit" &&
@@ -106,30 +118,4 @@ function literalFits(value: SourceLiteralValue | undefined, carrier: TargetTypeR
       type.elements.every((element, index) => literalFits(value.elements[index], element));
   }
   return csharpLiteralIsRepresentableAs(value, type);
-}
-
-function projectedLiteralValues(
-  literal: SourceLiteralValue | undefined,
-  path: readonly SourceTypeFlowValuePathPart[],
-): readonly SourceLiteralValue[] | undefined {
-  if (literal === undefined) return undefined;
-  let values: readonly SourceLiteralValue[] = [literal];
-  for (const part of path) {
-    const selected: SourceLiteralValue[] = [];
-    for (const value of values) {
-      if (value.form !== "array" || part.kind === "member") return undefined;
-      if (part.kind === "tuple") {
-        const element = value.elements[part.index];
-        if (element === undefined) return undefined;
-        selected.push(element);
-      } else {
-        for (const element of value.elements) {
-          if (element === undefined) return undefined;
-          selected.push(element);
-        }
-      }
-    }
-    values = selected;
-  }
-  return Object.freeze(values);
 }

@@ -1,12 +1,13 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetSelection } from "@tsonic/target-api";
 import type { SourceTypeDescriptor } from "@tsonic/target-api/source";
-import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../target-model/types/model.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpTypeParameterEnvironment } from "../../../target-model/records/types/type-parameter-constraints.js";
 import { csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import { csharpJsArrayTargetType } from "../../../target-model/types/carriers/js.js";
 import { csharpNullableTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
+import { canonicalCsharpObjectShapeMembers, csharpObjectShapeMemberContractKey } from "../../../target-model/types/object-shape-identity.js";
 import { createStructuralObjectShapeTarget } from "../../../analysis/objects/shapes/construction.js";
 import { objectShapeMemberTargetName } from "../../identities/source-member-names.js";
 import { selectedCsharpSourceProfileOwner } from "../../identities/source-types.js";
@@ -88,7 +89,19 @@ function representDescriptor(
         }
         const targetType = createStructuralObjectShapeTarget(members, undefined, host.typeParameterConstraints);
         const shape = host.retainShape(Object.freeze({ targetType, members: Object.freeze(members), constructible: true }));
-        return shape !== undefined && targetTypeRefEquals(shape.targetType, targetType) ? shape.targetType : undefined;
+        if (shape === undefined || shape.members.length !== members.length) return undefined;
+        if (members.length === 0) return targetTypeRefEquals(shape.targetType, targetType) ? shape.targetType : undefined;
+        if (shape.targetType.kind !== "target-named") return undefined;
+        const carrier: CsharpTargetNamedTypeRef = shape.targetType;
+        if (carrier.csharpGeneratedStructuralStorage !== true || carrier.csharpStructuralContract === true) return undefined;
+        const retained = canonicalCsharpObjectShapeMembers(shape.members);
+        const expected = canonicalCsharpObjectShapeMembers(members);
+        return expected.every((member, index) => {
+          const actual = retained[index]!;
+          return csharpObjectShapeMemberContractKey(actual) === csharpObjectShapeMemberContractKey(member) &&
+            (actual.readonly === true) === (member.readonly === true) &&
+            (member.sourceDeclarations ?? []).every(declaration => actual.sourceDeclarations?.includes(declaration) === true);
+        }) ? shape.targetType : undefined;
       }
     }
   } finally {
