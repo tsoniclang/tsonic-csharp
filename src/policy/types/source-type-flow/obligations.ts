@@ -88,13 +88,15 @@ export function checkCsharpSourceTypeFlowObligation(
       ? obligation.value === undefined || obligation.valueVariable !== undefined ? undefined : host.valueType(obligation.value)
       : representCsharpSourceType(host, descriptor);
     if (actual === undefined) return fail("A native write check requires the exact projected value's Host-selected representation.");
-    const literal = obligation.value === undefined || obligation.valueVariable !== undefined &&
-      (obligation.valueVariable.node !== obligation.value || obligation.valueVariable.path.length !== 0)
-      ? undefined : host.literalValues.literalValue.get(obligation.value);
-    if (literal !== undefined) return literalFits(literal, chosen) &&
-      (chosen.kind !== "source-primitive" || actual.kind !== "source-primitive" ||
-        csharpArrayElementIsRepresentableAs(chosen, { carrier: actual, literal })) ? undefined
-      : fail(`The written literal does not fit the existing '${targetTypeRefKey(chosen)}' storage.`);
+    const literals = writtenLiteralValues(host.literalValues, obligation);
+    for (const literal of literals) {
+      if (literal !== undefined && (!literalFits(literal, chosen) ||
+        chosen.kind === "source-primitive" && actual.kind === "source-primitive" &&
+        !csharpArrayElementIsRepresentableAs(chosen, { carrier: actual, literal }))) {
+        return fail(`The written literal does not fit the existing '${targetTypeRefKey(chosen)}' storage.`);
+      }
+    }
+    if (literals.length > 0 && literals.every(literal => literal !== undefined)) return undefined;
     const conversion = selectCsharpConversion(host, actual, chosen, "implicit");
     if (conversion.kind === "identity" || conversion.kind === "absence" || conversion.kind === "implicit" &&
       (conversion.proof === "numeric" || (conversion.proof === "reference" || conversion.proof === "collection-interface" ||
@@ -109,6 +111,22 @@ export function checkCsharpSourceTypeFlowObligation(
   if (targetTypeRefEquals(chosen, required)) return undefined;
   return csharpSourceTypeFlowInterfaceAccepts(host, chosen, required) ? undefined
     : fail(`Native type '${targetTypeRefKey(chosen)}' does not directly implement '${targetTypeRefKey(required)}' with identical type arguments.`);
+}
+
+function writtenLiteralValues(
+  index: SourceLiteralIndex,
+  obligation: SourceTypeFlowObligation,
+): readonly (SourceLiteralValue | undefined)[] {
+  const variable = obligation.valueVariable;
+  const node = variable?.node ?? obligation.value;
+  if (node === undefined) return [];
+  let literals: readonly (SourceLiteralValue | undefined)[] = [index.literalValue.get(node)];
+  for (const part of variable?.path ?? []) {
+    if (part.kind !== "element" && part.kind !== "tuple") return [];
+    literals = literals.flatMap(literal => literal?.form !== "array" ? [undefined]
+      : part.kind === "element" ? literal.elements : [literal.elements[part.index]]);
+  }
+  return literals;
 }
 
 function literalFits(value: SourceLiteralValue | undefined, carrier: TargetTypeRef): boolean {
