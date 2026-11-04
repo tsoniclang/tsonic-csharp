@@ -18,10 +18,10 @@ import { failTargetAnalysisInvariant, failTargetCompilerResourceLimit } from "@t
 import { nextState } from "./state.js";
 import { providerVirtualDeclarationFactKey } from "@tsonic/tsts";
 import { relateTypeArguments } from "./generic-arguments.js";
-import { resolveTypeParameter, definedValues } from "./source-evidence.js";
+import { resolveTypeParameter } from "./source-evidence.js";
 
-import { csharpSourceStorageComponentContext } from "./source-storage-projection.js";
 import { formCsharpSemanticTypeSource, type CsharpSemanticTypeSource } from "./root-sources.js";
+import { assertCsharpSemanticTupleSource, resolveFormedCsharpSemanticTupleElements } from "./semantic-tuple-source.js";
 import { resolveFormedCsharpProjectSemanticType } from "./project-types.js";
 import { formCsharpSemanticTypeArgumentsSource, type CsharpSemanticTypeArgumentsSource } from "./semantic-argument-source.js";
 import { formCsharpDirectSourceEvidence, resolveFormedCsharpDirectSourceFacts } from "./direct-source-evidence.js";
@@ -46,6 +46,11 @@ export function resolveFormedCsharpSemanticTypeSource(
     `Native type resolution in ${host.ast.getFileName(source.sourceFile)}`, "depth", maximumTypeResolutionDepth, source.sourceFile);
   if (source.kind === "unavailable") return undefined;
   const { type, sourceFile, state, queries } = source;
+  if (source.tuple === undefined || source.tuple.type !== type || source.tuple.sourceFile !== sourceFile ||
+      source.tuple.queries !== queries || source.tuple.state !== state) {
+    return failTargetAnalysisInvariant("tsonic-csharp", "A semantic tuple requires its exact retained Type occurrence.", sourceFile);
+  }
+  assertCsharpSemanticTupleSource(source.tuple);
   if (source.nonPrimitive) return csharpObjectTargetType();
   const bound = completeCsharpBoundSourceType(source.binding, state);
   if (bound !== undefined) return bound.targetType;
@@ -129,23 +134,13 @@ export function resolveFormedCsharpSemanticTypeSource(
   if (queries.types.isUnion(type)) {
     return resolveUnionType(type, queries, state);
   }
-  if (queries.types.isTuple(type)) {
-    const rawSourceElements = queries.types.tupleElementTypes(type);
-    const sourceElements = definedValues(
-      rawSourceElements,
-    );
-    if (sourceElements.length !== rawSourceElements.length) {
-      return undefined;
-    }
-    const elements = sourceElements.map((element, index) =>
-      resolveTypeWithState(element, sourceFile,
-        nextState(csharpSourceStorageComponentContext(host, state, { kind: "tuple-element", index })))
-    );
-    return elements.some((element) => element === undefined)
+  if (source.tuple.kind !== "not-tuple") {
+    const elements = resolveFormedCsharpSemanticTupleElements(scope, source.tuple);
+    return elements === undefined
       ? undefined
       : {
           kind: "tuple",
-          elements: elements as readonly TargetTypeRef[],
+          elements,
         };
   }
   const profileType = classifyCsharpSourceProfileType(type, queries, host.ast);

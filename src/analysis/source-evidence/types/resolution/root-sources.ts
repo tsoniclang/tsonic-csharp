@@ -31,6 +31,7 @@ import { formCsharpSourceValueDeclarationSource, formCsharpSourceValueSource, ty
 import { formCsharpSelectedValueSource, type CsharpSelectedValueSource } from "./selected-value-source.js";
 import { formCsharpTupleTypeNodeSource, type CsharpTupleTypeNodeSource } from "./tuple-node-source.js";
 import { formCsharpNodeTypeSyntaxSource, type CsharpNodeTypeSyntaxSource } from "./node-syntax-source.js";
+import { formCsharpSemanticTupleSource, type CsharpSemanticTupleSource } from "./semantic-tuple-source.js";
 
 export interface CsharpStructuralNodeSourceInput {
   readonly node: Node;
@@ -82,6 +83,7 @@ export type CsharpSemanticTypeSource = {
       readonly transformationComponent: CsharpSourceTypeComponentSource | undefined;
       readonly callable: CsharpCallableTypeInput;
       readonly arguments: CsharpSemanticTypeArgumentsSource;
+      readonly tuple: CsharpSemanticTupleSource;
       readonly project: CsharpProjectSemanticSource; readonly structural: CsharpStructuralTypeSourceInput }
 );
 
@@ -231,6 +233,7 @@ export function formCsharpSemanticTypeSource(
     subjects, direct: formCsharpDirectSourceEvidence(scope, subjects, sourceFile, state),
     callable: formCsharpCallableTypeInput(scope.host, formCsharpCallableTypeSource(scope.host.ast, type, queries), state),
     arguments: formCsharpSemanticTypeArgumentsSource(scope, type, queries, state),
+    tuple: formCsharpSemanticTupleSource(scope, type, sourceFile, queries, state),
     project: formCsharpProjectSemanticSource(scope, type, queries, state),
     structural: formCsharpStructuralTypeSourceInput(scope, type, queries, nextState(state)),
   });
