@@ -34,6 +34,20 @@ export type CsharpObjectMethodValueSource = {
   | { readonly kind: "methods"; readonly facts: readonly CsharpObjectMethodValueFacts[] }
 );
 
+export interface CsharpMethodValueProtocolRequest {
+  readonly kind: "protocol";
+  readonly source: CsharpObjectMethodValueSource;
+  readonly memberIndex: number;
+  readonly method: Extract<CsharpObjectMethodValueFacts, { readonly kind: "method" }>;
+  readonly contract: TargetTypeRef;
+  readonly shape: CsharpObjectShapeFact;
+}
+
+export interface CsharpCompletedMethodValueProtocolRequest {
+  readonly kind: "protocol";
+  readonly request: CsharpMethodValueProtocolRequest;
+}
+
 const methodValueUses = new WeakMap<SourceStorageQueries, {
   readonly retained: ReadonlySet<Node>;
   readonly extracted: ReadonlySet<Node>;
@@ -295,6 +309,20 @@ export function completeCsharpMethodValueContracts(
   remember: (shape: CsharpObjectShapeFact) => CsharpObjectShapeFact,
   environment: CsharpTypeParameterEnvironment,
 ): CsharpObjectShapeFact {
+  const completion = completeCsharpMethodValueContractsSource(source, environment);
+  let step = completion.next();
+  while (!step.done) {
+    const request = step.value;
+    remember(request.shape);
+    step = completion.next(Object.freeze({ kind: "protocol", request }));
+  }
+  return step.value;
+}
+
+export function* completeCsharpMethodValueContractsSource(
+  source: CsharpObjectMethodValueSource,
+  environment: CsharpTypeParameterEnvironment,
+): Generator<CsharpMethodValueProtocolRequest, CsharpObjectShapeFact, CsharpCompletedMethodValueProtocolRequest> {
   if (source === undefined || source.input === undefined || source.target === undefined ||
       source.input.target !== source.target || "targetType" in source.input ||
       source.selected !== (source.target.kind === "existing" ? source.target.type : undefined) ||
@@ -327,22 +355,38 @@ export function completeCsharpMethodValueContracts(
   const comparisonTarget = selected ?? (plan.some(member => member.kind === "protocol")
     ? createStructuralObjectShapeTarget(plannedMembers, shape.implements, environment, structuralContract, shape.methodImplementation)
     : undefined);
-  const members = plan.map((input): CsharpObjectShapeMemberFact => {
-    if (input.kind === "retained") return input.member;
+  const members: CsharpObjectShapeMemberFact[] = [];
+  for (let memberIndex = 0; memberIndex < plan.length; memberIndex += 1) {
+    const input = plan[memberIndex]!;
+    if (input.kind === "retained") {
+      members.push(input.member);
+      continue;
+    }
     const { contract, source: { signature, declaration, nativeMethod, member } } = input;
     if (comparisonTarget === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
       "A method protocol requires its exact selected target or completed own-storage comparison input.");
     const ownProtocol = targetTypeRefEquals(comparisonTarget, contract);
     if (input.created) {
-      if (!input.required && !nativeMethod && !ownProtocol) return declaration === undefined ? member : {
-        ...member, methodValueStorage: Object.freeze({ kind: "delegate", type: member.type }) };
-      if (!ownProtocol) remember({ targetType: contract, members: [{ ...signature, methodValueContract: contract }] });
+      if (!input.required && !nativeMethod && !ownProtocol) {
+        members.push(declaration === undefined ? member : {
+          ...member, methodValueStorage: Object.freeze({ kind: "delegate", type: member.type }) });
+        continue;
+      }
+      if (!ownProtocol) {
+        const request: CsharpMethodValueProtocolRequest = Object.freeze({ kind: "protocol", source, memberIndex,
+          method: input.source, contract, shape: { targetType: contract, members: [{ ...signature, methodValueContract: contract }] } });
+        const completed = yield request;
+        if (completed === undefined || completed.kind !== "protocol" || completed.request !== request) {
+          return failTargetAnalysisInvariant("tsonic-csharp",
+            "Method-value completion requires its exact chosen protocol publication dependency.");
+        }
+      }
     }
     if (!ownProtocol && (member.optional !== true || declaration !== undefined)) {
       implemented.set(targetTypeRefKey(contract), contract);
     }
-    return input.member;
-  });
+    members.push(input.member);
+  }
   const { implements: _implemented, ...retained } = shape;
   const contracts = implemented.size === 0 ? undefined : [...implemented.values()];
   const storageChanged = members.some((member, index) => csharpObjectMethodValueStorageKey(member.methodValueStorage) !==
