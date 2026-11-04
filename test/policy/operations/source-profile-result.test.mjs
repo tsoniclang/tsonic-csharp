@@ -6,18 +6,20 @@ import { csharpSourceProfileInputs } from "../../helpers/planning-records.mjs";
 
 // The policy reads the input facts the analysis resolved for the call.
 const withInputs = context => ({ ...context, inputs: csharpSourceProfileInputs(context.host, context.sourceFile, {
-  result: context.source.sourceResultType, selected: context.source.sourceSelectedMethodTypeArguments ?? [] }) });
+  operation: context.source.call, source: context.source, selected: context.source.sourceSelectedMethodTypeArguments ?? [] }) });
 
 test("generic source-profile results preserve selected native marker width and syntax provenance", () => {
   const explicitTypeNode = {};
   const selectedType = {};
   const sourceFile = {};
   const exact = csharpSourcePrimitiveTargetType("uint64");
-  const context = { sourceFile, source: { sourceSelectedMethodTypeArguments: [{ explicitTypeNode, selectedType }] },
+  const context = { sourceFile, source: { call: {}, sourceArguments: [], sourceArgumentBindings: [], sourceSelectedSignatureParameters: [],
+    sourceSelectedSignatureKind: "resolved", sourceSelectedMethodTypeArguments: [{ explicitTypeNode, selectedType }] },
     host: { types: { resolveType: type => type === undefined ? undefined : assert.fail("Selected generic evidence cannot use semantic-only resolution."),
-      resolveSelectedType: (node, type, file) => {
-        assert.equal(node === explicitTypeNode && type === selectedType && file === sourceFile, true);
-        return exact;
+      resolveSourceCallTypeArguments: (source, file) => {
+        assert.equal(source === context.source && source.sourceSelectedMethodTypeArguments[0].explicitTypeNode === explicitTypeNode &&
+          source.sourceSelectedMethodTypeArguments[0].selectedType === selectedType && file === sourceFile, true);
+        return [exact];
       } } } };
   const selected = resolveCsharpSourceProfileGenericResult(withInputs(context), 1, arguments_ => {
     assert.equal(Object.isFrozen(arguments_), true);
@@ -30,11 +32,14 @@ test("generic source-profile result inference uses the existing result owner and
   const sourceResultType = {};
   const sourceFile = {};
   const inferred = csharpTaskTargetType(csharpSourcePrimitiveTargetType("int32"));
-  const context = { sourceFile, source: { sourceResultType }, host: { types: {
-    resolveType: (type, file) => {
-      assert.equal(type === sourceResultType && file === sourceFile, true);
-      return inferred;
-    }, resolveSelectedType: () => undefined,
+  const call = {};
+  const context = { sourceFile, source: { call, sourceResultType, sourceArguments: [], sourceArgumentBindings: [],
+    sourceSelectedSignatureParameters: [], sourceSelectedSignatureKind: "resolved" }, host: { types: {
+    resolveType: () => assert.fail("a value result cannot return through a Type-only query"),
+    resolveSourceCallResult: (source, file) => {
+      assert.equal(source.call === call && source.sourceResultType === sourceResultType && file === sourceFile, true);
+      return { selectedType: inferred, nativeType: inferred };
+    }, resolveSourceCallTypeArguments: () => undefined,
   } } };
   assert.equal(resolveCsharpSourceProfileGenericResult(withInputs(context), 1, () => assert.fail("Inferred carrier is already constructed.")) === inferred, true);
   for (const selected of [[{ selectedType: {} }], [{ selectedType: {} }, { selectedType: {} }]]) {

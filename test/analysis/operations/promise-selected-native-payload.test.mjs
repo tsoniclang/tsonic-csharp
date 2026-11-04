@@ -11,9 +11,10 @@ function rejectionContext(resultType, typeArguments) {
   const expression = {};
   const checkedReason = {};
   const checkedResult = {};
+  const call = {};
   return {
     source: {
-      sourceResultType: checkedResult,
+      call, sourceResultType: checkedResult,
       sourceSelectedSignatureKind: "resolved",
       sourceSelectedSignatureParameters: [{}],
       sourceSelectedMethodTypeArguments: typeArguments.map(argument => ({
@@ -26,7 +27,7 @@ function rejectionContext(resultType, typeArguments) {
       }],
     },
     inputs: {
-      types: new Map([[checkedResult, resultType]]),
+      results: new Map([[call, resultType]]),
       resultType, typeArguments,
     },
   };

@@ -15,8 +15,8 @@ test("native counters, conditional joins and integer floor preserve exact carrie
   for (const name of ["optional", "optionalBranch"]) assert.match(output, new RegExp(`int\\? ${name}\\(`, "u"), name);
   for (const name of ["conditionalFraction", "explicitFloat", "fractionalFloor"]) assert.match(output, new RegExp(`double ${name}\\(`, "u"), name);
   const counted = output.slice(output.indexOf("string counted("), output.indexOf("string growing("));
-  assert.equal(/\{\s*int index = 0;\s*for \(; index < values\.length; index\+\+\)\s*\{\s*result \+= values\[index\];\s*\}\s*\}\s*return result;/u.test(counted),
-    true, "the inferred int32 induction variable remains in its lexical stack scope with direct reads and increments");
+  assert.equal(/\{\s*long index = 0(?:L)?;\s*for \(; index < values\.length; index\+\+\)\s*\{\s*result \+= values\[checked\(\(int\)index\)\];\s*\}\s*\}\s*return result;/u.test(counted),
+    true, "the Host int64 counter remains in its lexical stack scope with checked native indexing and direct increments");
   assert.doesNotMatch(counted, /double|Convert\.To/u);
   const floor = output.slice(output.indexOf("int integralFloor("), output.indexOf("double fractionalFloor("));
   assert.doesNotMatch(floor, /Math\.floor|double/u);

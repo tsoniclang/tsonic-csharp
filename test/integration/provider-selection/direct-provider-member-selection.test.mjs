@@ -448,7 +448,7 @@ function createPropertyFixture(options = {}) {
     relations: options.relations ?? [relation],
     facts,
     properties: [[source.expression, source.evidence]],
-    nodeTypes: [[source.evidence.receiver.expression, receiverTarget]],
+    nodeTypes: [[source.evidence.receiver.expression, receiverTarget], [source.expression, member.returnType]],
     semanticTypes: [
       [source.evidence.receiver.type, receiverTarget],
       [
@@ -520,6 +520,7 @@ function createElementFixture(options = {}) {
     nodeTypes: [
       [source.evidence.receiver.expression, receiverTarget],
       [source.evidence.argument.expression, argumentNodeTarget],
+      [source.expression, member.returnType],
     ],
     semanticTypes: [
       [source.evidence.receiver.type, receiverTarget],

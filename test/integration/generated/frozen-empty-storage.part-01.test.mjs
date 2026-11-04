@@ -4,9 +4,14 @@ import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../hel
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { frozenEmptyStorageSources, frozenEmptyStorageOpenSources, frozenEmptyStorageCrossFileSources } from "../../../../tsonic/test/fixtures/frozen-empty-storage.mjs";
 import { generatedText, openSources } from "./frozen-empty-storage.fixtures.mjs";
+import { annotatedEmptyValues, assertUnfilledEmptyObject } from "../../helpers/source-effective-empty-values.mjs";
 
 test("inferred broad freeze results retain the native object carrier instead of an empty shape", { timeout: 300_000 }, () => {
-  const compiled = compileCsharpSource({ surface: "js", sourceText: frozenEmptyStorageSources[0][1] });
+  assertUnfilledEmptyObject("js", frozenEmptyStorageSources[0][1]);
+});
+
+test("annotated broad freeze results retain every original native identity predicate", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ surface: "js", sourceText: annotatedEmptyValues(frozenEmptyStorageSources[0][1]) });
   assertCsharpCompilationSucceeded(compiled);
   const text = generatedText(compiled);
   assert.match(text, /object frozen =/);
@@ -15,7 +20,11 @@ test("inferred broad freeze results retain the native object carrier instead of 
 });
 
 test("readonly freeze retains native identity across broad aliases, parameters and returns", { timeout: 300_000 }, () => {
-  const compiled = compileCsharpSource({ surface: "js", sourceText: frozenEmptyStorageSources[1][1] });
+  assertUnfilledEmptyObject("js", frozenEmptyStorageSources[1][1]);
+});
+
+test("annotated readonly freeze retains broad aliases parameters returns and the exact wide integer", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ surface: "js", sourceText: annotatedEmptyValues(frozenEmptyStorageSources[1][1]) });
   assertCsharpCompilationSucceeded(compiled);
   const text = generatedText(compiled);
   assert.match(text, /object retain\(object value\)/);

@@ -113,28 +113,54 @@ test("declared native array spread uses the real sequence owner rather than alia
 });
 
 test("missing native input evidence never fabricates a literal element conversion", () => {
-  const arrayType = {};
   const elementType = {};
-  const element = { kind: "source-primitive", name: "int64" };
-  const array = { kind: "array", element };
   for (const [label, entry, checked] of [["missing carrier", {}, elementType],
     ["missing checked type", {}, undefined], ["missing dense entry", undefined, elementType],
     ["unproven spread operand", { kind: "spread" }, elementType]]) {
     const expression = { elements: [entry] };
-    const queries = { sourceFile: {}, types: {
-      expressionType: node => node === expression ? arrayType : checked,
-      isTuple: () => false,
-    } };
+    const sourceFile = {};
+    const queries = { sourceFile, types: { expressionType: () => assert.fail("the Native array resolver must not reselect raw Source types") } };
+    const outcome = checked === undefined ? undefined : Object.freeze({ kind: "resolved",
+      type: Object.freeze({ kind: "array", readonly: false, element: Object.freeze({ kind: "primitive", primitive: "int64" }) }),
+      provenance: Object.freeze({ group: expression, occurrence: expression, sourceFile }) });
     const scope = {
-      host: { ast: { is: { IsArrayLiteralExpression: node => node === expression,
+      host: { target: { id: "csharp" }, typeParameterConstraints: {},
+        effectiveTypes: { get: node => node === expression ? outcome : undefined },
+        literalValues: { literalValue: { get: () => undefined } },
+        ast: { is: { IsArrayLiteralExpression: node => node === expression,
         IsSpreadElement: node => node?.kind === "spread" },
         as: { AsSpreadElement: node => node }, elements: node => node.elements } },
-      resolveTypeWithState: type => type === arrayType ? array : element,
+      resolveTypeWithState: () => assert.fail("the removed raw array type path must not be queried"),
       resolveNodeWithState: () => undefined,
     };
     const selected = resolveCsharpArrayLiteralSelection(scope, expression, queries, { depth: 0 });
     assert.equal(selected.kind, "unavailable", `${label}: every native construction input must be proved`);
   }
+});
+
+test("the Native array resolver keeps the Host carrier and visits later children after an unavailable input", () => {
+  const first = {};
+  const last = {};
+  const expression = {};
+  const sourceFile = {};
+  const element = { kind: "source-primitive", name: "int64" };
+  const observed = [];
+  const scope = { host: { target: { id: "csharp" }, typeParameterConstraints: {},
+    effectiveTypes: { get: node => node === expression ? { kind: "resolved",
+      type: { kind: "array", readonly: false, element: { kind: "primitive", primitive: "int64" } },
+      provenance: { group: expression, occurrence: expression, sourceFile } } : undefined },
+    literalValues: { literalValue: { get: () => undefined } },
+    ast: { is: { IsArrayLiteralExpression: node => node === expression, IsSpreadElement: () => false },
+      elements: () => [first, last] },
+  }, resolveNodeWithState(node, file, state) {
+    assert.equal(file === sourceFile && state.depth === 1, true, "actual child state and Source file are kept");
+    observed.push(node);
+    return node === first ? undefined : element;
+  } };
+  const selection = resolveCsharpArrayLiteralSelection(scope, expression, { sourceFile }, { depth: 0 });
+  assert.equal(selection.kind, "unavailable", "one missing child cannot publish the chosen carrier as a successful construction");
+  assert.equal(observed.length === 2 && observed[0] === first && observed[1] === last, true,
+    "the later Native input is checked in the original order without compaction");
 });
 
 test("an explicit generic call preserves the enclosing function's declared T array", () => {
@@ -166,17 +192,11 @@ for (const [label, body, literal] of [
   const sourceText = `import type { MakeDirectoryOptions } from "node:fs";
     export function make(): MakeDirectoryOptions { ${body} }`;
   const compiled = compile(sourceText);
-  const issues = compiled.result.diagnostics.filter(diagnostic => diagnostic.code === "TSONIC_UNTYPED_OBJECT_LITERAL");
-  assert.equal(issues.length, 1, `${label}: one canonical literal owner publishes the refusal`);
-  const issue = issues[0];
-  const ast = compiled.source.ast;
-  const range = issue?.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
-  const text = range?.kind !== "authored" ? undefined
-    : ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end);
-  assert.equal(issue?.message === "This object literal has no target type. Declare one, e.g. 'function baseOptions(): MakeDirectoryOptions'." &&
-    text === literal, true, `${label}: exact annotation diagnostic at the original literal, not the final conversion`);
-  assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
-    `${label}: no unproved native construction is published`);
+  assertAccepted(compiled, `${label}: the function-local group is filled by the declared native slot`);
+  const output = [...compiled.artifacts.values()].join("\n");
+  assert.equal([...output.matchAll(/new Tsonic\.CSharp\.Node\.MakeDirectoryOptions\b/gu)].length, 1,
+    `${label}: the exact original ${literal} keeps one native allocation through every alias`);
+  assert.doesNotMatch(output, /TsObject|Activator|DynamicInvoke|System\.Reflection|\.Clone\(|\.ToArray\(/u);
 });
 
 for (const [label, sourceText] of [

@@ -188,8 +188,7 @@ test(`${surface} inferred array binding and field storage retain their actual co
         const initializer = declaration?.Initializer;
         if (initializer !== undefined && ast.is.IsArrayLiteralExpression(initializer)) {
           const name = ast.text(ast.name(node));
-          const expected = name === "localValues" || name === "values"
-            ? surface === "native" ? "int32" : "float64" : "float64";
+          const expected = name === "localValues" || name === "values" ? "int32" : "float64";
           const construction = program.records.nativeExpression.get(initializer)?.use;
           const stored = program.records.storageType.get(node);
           const read = program.records.valueRead.get(initializer)?.value;

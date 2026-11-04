@@ -1,131 +1,70 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { resolveCsharpSourceLiteralTargetType } from "../../../dist/policy/conversions/source-literals.js";
+import { csharpSourcePrimitiveTargetType, isCsharpArrayIndexTargetType, isCsharpIntegralTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { analyzeSourceLiteralValues } from "@tsonic/target-api/source";
-import {
-  csharpSourcePrimitiveTargetType,
-  isCsharpArrayIndexTargetType,
-  isCsharpIntegralTargetType,
-} from "../../../dist/target-model/types/carriers/scalar-types.js";
+import { acceptedEffectiveSource, assertNativeEffectiveRefusal, assertPrimitiveOccurrences, compileEffectiveSource, projectNodes } from "../../helpers/source-effective-types.mjs";
 
 test("pure C# source literals select exact integral and floating representations", () => {
-  assert.deepEqual(
-    resolveCsharpSourceLiteralTargetType(
-      literalPolicyHost({ id: "csharp" }),
-      literalValue(numericLiteral("0")),
-    ),
-    csharpSourcePrimitiveTargetType("int32"),
-  );
-  assert.deepEqual(
-    resolveCsharpSourceLiteralTargetType(
-      literalPolicyHost({ id: "csharp" }),
-      literalValue(numericLiteral("0.5")),
-    ),
-    csharpSourcePrimitiveTargetType("float64"),
-  );
+  const compiled = compileEffectiveSource("native", `export function run(): boolean {
+    const integer = 0;
+    const fraction = 0.5;
+    return integer === 0 && fraction === 0.5;
+  }`);
+  acceptedEffectiveSource(compiled);
+  assertPrimitiveOccurrences(compiled, "integer", "int32");
+  assertPrimitiveOccurrences(compiled, "fraction", "float64");
 });
 
 test("the explicit JS surface retains JavaScript numeric representation", () => {
-  assert.deepEqual(
-    resolveCsharpSourceLiteralTargetType(
-      literalPolicyHost({ id: "csharp", surfaces: ["js"] }),
-      literalValue(numericLiteral("0")),
-    ),
-    csharpSourcePrimitiveTargetType("float64"),
-  );
+  const compiled = compileEffectiveSource("js", "export function run(): boolean { const integer = 0; return integer === 0; }");
+  acceptedEffectiveSource(compiled);
+  assertPrimitiveOccurrences(compiled, "integer", "int32");
 });
 
 test("signed pure C# literals apply the same exact representation policy", () => {
-  assert.deepEqual(
-    resolveCsharpSourceLiteralTargetType(
-      literalPolicyHost({ id: "csharp" }),
-      literalValue(prefixLiteral("KindMinusToken", "1")),
-    ),
-    csharpSourcePrimitiveTargetType("int32"),
-  );
-  assert.deepEqual(
-    resolveCsharpSourceLiteralTargetType(
-      literalPolicyHost({ id: "csharp" }),
-      literalValue(prefixLiteral("KindMinusToken", "2147483649")),
-    ),
-    csharpSourcePrimitiveTargetType("float64"),
-  );
+  const compiled = compileEffectiveSource("native", "export function run(): boolean { const value = -2147483649; return value < 0; }");
+  assertNativeEffectiveRefusal(compiled, "The retained source literal is not representable as 'source:int32'.", "-2147483649");
+});
+
+test("annotated signed literals preserve the original exact negative values and selected floating destination", () => {
+  const compiled = compileEffectiveSource("native", `import type { float64 } from "@tsonic/core/types.js";
+    export function run(): boolean {
+      const negative = -1;
+      const wide: float64 = -2147483649;
+      return negative === -1 && wide === -2147483649;
+    }`);
+  const text = acceptedEffectiveSource(compiled);
+  assertPrimitiveOccurrences(compiled, "negative", "int32");
+  assertPrimitiveOccurrences(compiled, "wide", "float64");
+  assert.match(text, /-2147483649/u);
 });
 
 test("checked negative zero remains a floating native value on every surface", () => {
-  for (const target of [{ id: "csharp" }, { id: "csharp", surfaces: ["js"] }]) {
-    for (const text of ["0", "0.0", "0e100"]) {
-      const negative = literalValue(prefixLiteral("KindMinusToken", text));
-      assert.equal(Object.is(negative?.number, -0), true, `${text}: the checked literal retains its actual sign`);
-      assert.equal(resolveCsharpSourceLiteralTargetType(literalPolicyHost(target), negative)?.name, "float64",
-        `${text}: integer storage cannot preserve negative zero`);
+  for (const surface of ["native", "js"]) {
+    for (const token of ["0", "0.0", "0e100"]) {
+      const compiled = compileEffectiveSource(surface, `export function run(): boolean {
+        const negative = -${token};
+        const positive = 0;
+        return negative === positive;
+      }`);
+      const text = acceptedEffectiveSource(compiled);
+      const declarations = projectNodes(compiled, (node, ast) => ast.is.IsVariableDeclaration(node) && ast.text(ast.name(node)) === "negative");
+      assert.equal(declarations.length, 1, "one original negative-zero declaration");
+      const ast = compiled.targetSource.ast;
+      const initializer = ast.as.AsVariableDeclaration(declarations[0])?.Initializer;
+      const literal = analyzeSourceLiteralValues(ast, [ast.getSourceFile(declarations[0])]).literalValue.get(initializer);
+      assert.equal(Object.is(literal?.number, -0), true, `${surface}/${token}: the actual checked authored literal retains its sign`);
+      assertPrimitiveOccurrences(compiled, "negative", "float64");
+      assertPrimitiveOccurrences(compiled, "positive", "int32");
+      assert.match(text, /(?:-0(?:\.0)?D|Int64BitsToDouble|UInt64BitsToDouble|0x8000000000000000)/u,
+        `${surface}/${token}: the emitted literal retains the actual negative-zero sign`);
     }
-    const positive = literalValue(numericLiteral("0"));
-    assert.equal(resolveCsharpSourceLiteralTargetType(literalPolicyHost(target), positive)?.name,
-      target.surfaces === undefined ? "int32" : "float64", "positive zero keeps the selected surface's exact native default");
   }
 });
 
 test("C# integral and array-index policies remain distinct", () => {
-  assert.equal(
-    isCsharpIntegralTargetType(csharpSourcePrimitiveTargetType("int128")),
-    true,
-  );
-  assert.equal(
-    isCsharpArrayIndexTargetType(csharpSourcePrimitiveTargetType("int128")),
-    false,
-  );
-  assert.equal(
-    isCsharpArrayIndexTargetType(csharpSourcePrimitiveTargetType("int32")),
-    true,
-  );
-  assert.equal(
-    isCsharpArrayIndexTargetType(csharpSourcePrimitiveTargetType("float64")),
-    false,
-  );
+  assert.equal(isCsharpIntegralTargetType(csharpSourcePrimitiveTargetType("int128")), true);
+  assert.equal(isCsharpArrayIndexTargetType(csharpSourcePrimitiveTargetType("int128")), false);
+  assert.equal(isCsharpArrayIndexTargetType(csharpSourcePrimitiveTargetType("int32")), true);
+  assert.equal(isCsharpArrayIndexTargetType(csharpSourcePrimitiveTargetType("float64")), false);
 });
-
-function literalPolicyHost(target) {
-  return { target };
-}
-
-const literalAst = {
-  is: {
-    IsStringLiteral: () => false,
-    IsNoSubstitutionTemplateLiteral: () => false,
-    IsNumericLiteral: (node) => node.kind === "numeric",
-    IsBigIntLiteral: () => false,
-    IsParenthesizedExpression: (node) => node.kind === "parenthesized",
-    IsPrefixUnaryExpression: (node) => node.kind === "prefix",
-    IsBinaryExpression: () => false,
-    IsArrayLiteralExpression: () => false,
-  },
-  as: {
-    AsParenthesizedExpression: (node) => ({ Expression: node.expression }),
-    AsPrefixUnaryExpression: (node) =>
-      node.kind === "prefix"
-        ? { Operand: node.operand }
-        : undefined,
-  },
-  kindName: (node) => node.kind === "numeric" ? "KindNumericLiteral" : node.kind === "prefix" ? "KindPrefixUnaryExpression" : "KindSourceFile",
-  authoredRange: () => ({ kind: "synthetic" }),
-  forEachChild: (node, visit) => [...(node.children ?? []), ...(node.operand === undefined ? [] : [node.operand])].forEach(visit),
-  operatorKindName: (node) => node.operator,
-  text: (node) => node.text,
-};
-
-function literalValue(node) {
-  return analyzeSourceLiteralValues(literalAst, [{ kind: "file", children: [node] }]).literalValue.get(node);
-}
-
-function numericLiteral(text) {
-  return { kind: "numeric", text };
-}
-
-function prefixLiteral(operator, text) {
-  return {
-    kind: "prefix",
-    operator,
-    operand: numericLiteral(text),
-  };
-}

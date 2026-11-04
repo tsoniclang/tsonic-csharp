@@ -21,15 +21,19 @@ const constructorPolicies = csharpPromiseSourceProfileCallPolicies.filter(policy
 
 function contextFor(task, changes = {}) {
   const selectedType = {};
-  const host = { types: { resolveType(type) {
-    assert.equal(type === selectedType, true, "exact selected Task type query");
-    return task;
+  const call = {};
+  const canonical = { call, sourceResultType: selectedType, sourceSelectedSignatureKind: "resolved",
+    sourceArguments: [{ expression: {}, type: {} }],
+    sourceSelectedSignatureParameters: [{ parameterIndex: 0 }], sourceArgumentBindings: [binding] };
+  const source = { ...canonical, ...changes };
+  const host = { types: { resolveType: () => assert.fail("a constructed Task result cannot use a Type-only value query"),
+    resolveSourceCallResult(selected) {
+      assert.equal(selected === canonical && selected.call === call && selected.sourceResultType === selectedType, true, "exact selected Task operation query");
+      return task === undefined ? undefined : { selectedType: task, nativeType: task };
   } } };
   const sourceFile = {};
   // The policy reads the call's result carrier from the input facts the analysis resolves for it.
-  return { host, sourceFile, inputs: csharpSourceProfileInputs(host, sourceFile, { result: selectedType }),
-    source: { sourceResultType: selectedType, sourceSelectedSignatureKind: "resolved",
-      sourceSelectedSignatureParameters: [{}], sourceArgumentBindings: [binding], ...changes },
+  return { host, sourceFile, inputs: csharpSourceProfileInputs(host, sourceFile, { operation: call, source: canonical }), source,
   };
 }
 

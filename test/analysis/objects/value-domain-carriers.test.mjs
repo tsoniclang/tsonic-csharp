@@ -15,6 +15,7 @@ import { substituteObjectShapeFactTargetTypeParameters } from "../../../dist/pol
 import { createCsharpMetadataBudget } from "../../../dist/target-model/metadata/immutable.js";
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { frozenEmptyStorageSources } from "../../../../tsonic/test/fixtures/frozen-empty-storage.mjs";
+import { annotatedEmptyValues, assertUnfilledEmptyObject } from "../../helpers/source-effective-empty-values.mjs";
 
 test("native source-storage projections preserve exact field, element and tuple identities at every consumer", () => {
   const declaration = {};
@@ -294,7 +295,8 @@ test("value-domain budget exhaustion rejects program publication instead of emit
     } });
     const { compileCsharpSource, assertCsharpCheckingSucceeded } = await import(${JSON.stringify(helper)});
     const { createTargetSourceProgram } = await import("@tsonic/target-api/source");
-    const compiled = compileCsharpSource({ surface: "js", sourceText: ${JSON.stringify(frozenEmptyStorageSources[0][1])} });
+    const { annotatedEmptyValues } = await import(${JSON.stringify(new URL("../../helpers/source-effective-empty-values.mjs", import.meta.url).href)});
+    const compiled = compileCsharpSource({ surface: "js", sourceText: annotatedEmptyValues(${JSON.stringify(frozenEmptyStorageSources[0][1])}) });
     assertCsharpCheckingSucceeded(compiled);
     assert.equal(failures, 1, "the first owner failure stops closure before a later pass could lose it");
     assert.equal(compiled.targetDiagnostics.length, 1, "one bounded pre-publication diagnostic");
@@ -337,8 +339,12 @@ test("sealed value domains retain exact source identity without source or physic
 });
 
 test("readonly freeze preserves native identity across broad aliases without closed-origin state", () => {
+  for (const index of [0, 1]) assertUnfilledEmptyObject("js", frozenEmptyStorageSources[index][1]);
+});
+
+test("annotated readonly freeze preserves every original broad-alias identity and no-fallback predicate", () => {
   for (const index of [0, 1, 2, 5]) {
-    const compiled = compileCsharpSource({ surface: "js", sourceText: frozenEmptyStorageSources[index][1] });
+    const compiled = compileCsharpSource({ surface: "js", sourceText: annotatedEmptyValues(frozenEmptyStorageSources[index][1]) });
     assertCsharpCompilationSucceeded(compiled);
     const text = [...compiled.artifacts.values()].join("\n");
     assert.doesNotMatch(text, /EmptyObject\.(?:Freeze|IsFrozen)|FrozenObject|CheckWrite|ConditionalWeakTable|DynamicInvoke|System\.Reflection/u,

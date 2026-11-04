@@ -8,11 +8,11 @@ const element = { kind: "source-primitive", name: "int32" };
 
 function select(policy, carrier, readonly = false) {
   const host = { types: { resolveSelectedValue: () => carrier } };
-  const source = { receiver: { expression: {}, type: {} } };
+  const source = { expression: {}, receiver: { expression: {}, type: {} } };
   const sourceFile = {};
   // The element policy reads the receiver carrier from the input facts the analysis resolves for the access.
   return policy.select({ host, source, sourceFile, readonly,
-    inputs: csharpSourceProfileInputs(host, sourceFile, { values: [source.receiver] }) });
+    inputs: csharpSourceProfileInputs(host, sourceFile, { operation: source.expression, values: [source.receiver] }) });
 }
 
 test("source array location selection retains its exact native method and index type", () => {

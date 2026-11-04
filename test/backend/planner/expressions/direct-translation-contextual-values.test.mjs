@@ -506,10 +506,10 @@ test("direct C# translation preserves inferred integral storage across mutable i
         {
             double result = 0;
             {
-                int index = 0;
+                long index = 0;
                 for (; index < values.Length; index++)
                 {
-                    result += values[index];
+                    result += values[checked((int)index)];
                 }
             }
             return result;

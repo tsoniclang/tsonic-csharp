@@ -1,269 +1,259 @@
-import { csharpSourceValueResult } from "../../../../dist/analysis/source-evidence/types/resolution/call-results.js";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { selectCsharpInferredNumericArrayElement } from "../../../../dist/policy/types/collections/array-elements.js";
+import { csharpArrayElementIsRepresentableAs } from "../../../../dist/policy/types/collections/array-elements.js";
+import { csharpLiteralIsRepresentableAs } from "../../../../dist/policy/conversions/literals.js";
+import { selectCsharpConversion } from "../../../../dist/policy/conversions/core.js";
 import { csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpBooleanTargetType } from "../../../../dist/target-model/types/carriers/scalar-types.js";
-import { csharpRuntimeUnionTargetType, csharpAbsenceTargetType } from "../../../../dist/target-model/types/carriers/runtime-carriers.js";
-import { csharpNullableTargetType } from "../../../../dist/target-model/types/carriers/nullable.js";
+import { csharpRuntimeUnionTargetType, csharpAbsenceTargetType, getCsharpRuntimeUnionArms } from "../../../../dist/target-model/types/carriers/runtime-carriers.js";
 import { createCsharpTypeResolutionQueryCache } from "../../../../dist/analysis/source-evidence/types/resolution/query-cache.js";
+import { csharpSourceValueResult } from "../../../../dist/analysis/source-evidence/types/resolution/call-results.js";
+import { createCsharpProviderRelationResolver } from "../../../../dist/providers/native/projection/relation-resolution.js";
+import { getCsharpArrayLiteralElementTargetType } from "../../../../dist/target-model/types/carriers/collections.js";
+import { getCsharpNullableElementTargetType } from "../../../../dist/target-model/types/carriers/nullable.js";
+import { acceptedEffectiveSource, assertPrimitiveOccurrences, assertPublishedRefusal, compileEffectiveSource, projectNodes } from "../../../helpers/source-effective-types.mjs";
 
 const primitive = csharpSourcePrimitiveTargetType;
-const fixed = name => Object.freeze({ carrier: primitive(name), literal: undefined, literalDefault: undefined });
+const fixed = name => Object.freeze({ carrier: primitive(name), literal: undefined });
 const literal = (coefficient, exponent, integer, carrier = "float64", negative = false) => Object.freeze({
-  carrier: primitive(carrier), literalDefault: primitive("float64"),
-  literal: Object.freeze({ form: "numeric", ...(integer === undefined ? {} : { integer }),
+  carrier: primitive(carrier),
+  literal: Object.freeze({ form: "numeric", number: Number(`${negative ? "-" : ""}${coefficient}e${exponent}`), ...(integer === undefined ? {} : { integer }),
     numeric: Object.freeze({ kind: "authored", token: Object.freeze({ coefficient, exponent, negative,
-      decimalText: `${coefficient}e${exponent}` }) }) }),
+      decimalText: `${negative ? "-" : ""}${coefficient}e${exponent}` }) }) }),
 });
-const select = (contributions, destination, checked = primitive("float64")) =>
-  selectCsharpInferredNumericArrayElement(Object.freeze(contributions), checked, destination);
-const selected = (selection, name, label) => assert.equal(selection.kind === "resolved" &&
-  selection.carrier.kind === "source-primitive" && selection.carrier.name === name, true, label);
+
+function constructedElements(compiled) {
+  acceptedEffectiveSource(compiled);
+  return projectNodes(compiled, (node, ast) => ast.is.IsArrayLiteralExpression(node)).map(node => {
+    const use = compiled.result.program.records.nativeExpression.get(node)?.use;
+    assert.equal(use?.kind === "constructed", true, "each actual literal has its original admitted Native construction");
+    const element = getCsharpArrayLiteralElementTargetType(use.carrier);
+    assert.equal(element !== undefined, true, "the exact physical element is read from the admitted construction, not rebuilt by the fixture");
+    return element;
+  });
+}
 
 test("homogeneous native floating contributions retain their already-selected carrier", () => {
+  for (const name of ["float32", "float64"]) {
+    const inputs = Object.freeze([fixed(name), fixed(name)]);
+    for (const input of inputs) assert.equal(csharpArrayElementIsRepresentableAs(input.carrier, input), true);
+    assert.equal(inputs.every(input => input.carrier.name === name && Object.isFrozen(input)), true, "native admission leaves every chosen contribution unchanged");
+  }
   const authored = literal(1n, 100n);
-  const huge = Object.freeze({ ...authored, literal: Object.freeze({ ...authored.literal, number: 1e100 }) });
-  for (const contributions of [[fixed("float64"), huge], [huge, fixed("float64")], [huge]]) {
-    const actual = select(contributions);
-    assert.equal(actual.kind === "resolved" && actual.carrier === contributions[0].carrier, true,
-      "same native floating input is identity, not a new integer-to-floating conversion");
-  }
-  for (const carrier of ["float32", "float64"]) {
-    const inputs = [fixed(carrier), fixed(carrier)];
-    const actual = select(inputs);
-    assert.equal(actual.kind === "resolved" && actual.carrier === inputs[0].carrier, true,
-      `${carrier}: the native floating identity is retained without changing contribution metadata`);
-  }
+  const value = Object.freeze({ ...authored.literal, number: 1e100 });
+  assert.equal(csharpLiteralIsRepresentableAs(value, primitive("float64")), true, "an explicitly selected native floating token retains its valid range");
 });
 
 test("homogeneous floating identity cannot admit an out-of-range authored literal", () => {
-  const authored = literal(1n, 1000n);
-  const overflow = Object.freeze({ ...authored, literal: Object.freeze({ ...authored.literal, number: Infinity }) });
-  assert.equal(select([fixed("float64"), overflow]).kind, "rejected",
-    "an invalid native authored literal does not become an already-valid floating input");
-  const narrow = Object.freeze({ ...overflow, carrier: primitive("float32") });
-  assert.equal(select([fixed("float32"), narrow]).kind, "rejected",
-    "the existing native float32 range refusal remains required");
-  assert.equal(select([fixed("int32"), hugeLiteral()]).kind, "rejected",
-    "a real integer peer still requires exact integer-to-float inference");
-
-  function hugeLiteral() {
-    const value = literal(1n, 100n);
-    return Object.freeze({ ...value, literal: Object.freeze({ ...value.literal, number: 1e100 }) });
-  }
+  const value = Object.freeze({ ...literal(1n, 1000n).literal, number: Infinity });
+  for (const name of ["float32", "float64"]) assert.equal(csharpLiteralIsRepresentableAs(value, primitive(name)), false,
+    `${name}: final native literal admission is required even when the type is identical`);
+  assert.equal(csharpArrayElementIsRepresentableAs(primitive("int32"), literal(1n, 100n)), false);
 });
 
 for (const integer of ["int32", "uint32", "int64", "uint64", "native-int", "native-uint"]) {
   for (const reverse of [false, true]) test(`inferred float32 refuses the full ${integer} domain (${reverse})`, () => {
     const inputs = [fixed("float32"), fixed(integer)];
-    const selection = select(reverse ? inputs.reverse() : inputs);
-    assert.equal(selection.kind === "rejected" && selection.reason ===
-      "Inferred array elements require an exact common native numeric carrier; an explicit native array destination is required for a rounding conversion.",
-    true, "the inferred carrier refuses a lossy domain, not native explicit conversion");
+    if (reverse) inputs.reverse();
+    assert.equal(inputs.every(input => csharpArrayElementIsRepresentableAs(primitive("float32"), input)), false,
+      "native element admission cannot round the whole actual integer domain");
   });
 }
 
 for (const integer of ["int8", "uint8", "int16", "uint16", "char"]) {
   for (const reverse of [false, true]) test(`float32 exactly contains ${integer} (${reverse})`, () => {
     const inputs = [fixed("float32"), fixed(integer)];
-    selected(select(reverse ? inputs.reverse() : inputs), "float32", "every value of the actual narrow native domain fits");
+    if (reverse) inputs.reverse();
+    assert.equal(inputs.every(input => csharpArrayElementIsRepresentableAs(primitive("float32"), input)), true,
+      "the target's whole-domain lossless conversion remains independent of source inference");
   });
 }
 
 for (const reverse of [false, true]) {
   test(`authored binary fractions may retarget to float32 (${reverse})`, () => {
-    for (const value of [literal(5n, -1n), literal(125n, -2n)]) {
-      const inputs = [fixed("float32"), value];
-      selected(select(reverse ? inputs.reverse() : inputs), "float32", "the exact token, not a rounded host number, proves the fit");
-    }
+    const inputs = [literal(5n, -1n), literal(125n, -2n)];
+    if (reverse) inputs.reverse();
+    for (const input of inputs) assert.equal(csharpArrayElementIsRepresentableAs(primitive("float32"), input), true,
+      "an already-chosen native float32 admits the exact authored binary fraction");
   });
   test(`a nonbinary authored fraction keeps its actual float64 default (${reverse})`, () => {
-    const inputs = [fixed("float32"), literal(1n, -1n)];
-    selected(select(reverse ? inputs.reverse() : inputs), "float64", "0.1 is not silently rounded to float32");
+    const body = reverse ? "const other = 1; const value = 0.1;" : "const value = 0.1; const other = 1;";
+    const compiled = compileEffectiveSource("native", `export function run(): boolean { ${body} return value > 0 && other === 1; }`);
+    acceptedEffectiveSource(compiled);
+    assertPrimitiveOccurrences(compiled, "value", "float64");
+    assert.equal(csharpArrayElementIsRepresentableAs(primitive("float32"), literal(1n, -1n)), false,
+      "the target cannot silently reinterpret an inexact decimal contribution as an exact float32");
   });
   test(`a genuine computed float64 remains fixed (${reverse})`, () => {
-    const inputs = [fixed("float32"), Object.freeze({ carrier: primitive("float64"), literalDefault: undefined,
-      literal: Object.freeze({ form: "numeric", number: 0.5, numeric: Object.freeze({ kind: "checked-float64", value: 0.5 }) }) })];
-    selected(select(reverse ? inputs.reverse() : inputs), "float64", "checked float64 is not adaptable authored token evidence");
+    const inputs = [fixed("float32"), fixed("float64")];
+    if (reverse) inputs.reverse();
+    assert.equal(inputs.every(input => csharpArrayElementIsRepresentableAs(primitive("float32"), input)), false,
+      "a checked floating value is not a flexible integer literal");
   });
 }
 
 test("actual explicit numeric destinations preserve native conversions instead of inferred exactness", () => {
-  selected(select([fixed("float32"), fixed("int32")], primitive("float64")), "float64", "number[] is an actual f64 destination");
-  selected(select([fixed("float32"), fixed("int32")], primitive("float32")), "float32", "an authored float32[] retains native rounding");
+  for (const name of ["float32", "float64"]) {
+    const conversion = selectCsharpConversion({ target: { id: "csharp" }, projectTypes: { directSupertypes: () => [] },
+      providers: createCsharpProviderRelationResolver({ providers: [], providerPolicies: [] }) }, primitive("int32"), primitive(name), "implicit");
+    assert.equal(conversion.kind === "implicit" && conversion.proof === "numeric", true, `${name}: the actual native numeric conversion is preserved`);
+  }
+  assert.equal(csharpLiteralIsRepresentableAs(literal(16777217n, 0n, 16777217n).literal, primitive("float32")), true,
+    "an explicitly annotated native float32 destination retains its existing rounding contract");
 });
 
 test("actual closed union destinations retain native arm admission rather than inferred integer exactness", () => {
-  const text = Object.freeze({ carrier: csharpStringTargetType(), literal: undefined, literalDefault: undefined });
-  const absent = Object.freeze({ carrier: csharpAbsenceTargetType(), literal: undefined, literalDefault: undefined });
-  for (const scalar of ["float32", "float64", "decimal", "int64"]) {
-    const destination = csharpRuntimeUnionTargetType([text.carrier, primitive(scalar)]);
-    assert.equal(destination !== undefined, true, `${scalar}: an existing closed native union`);
-    for (const value of [literal(9007199254740993n, 0n, 9007199254740993n),
-      literal(9007199254740993n, 0n, -9007199254740993n, "float64", true), literal(1n, 100n)]) {
-      const contributions = Object.freeze([text, value]);
-      const selection = select(contributions, destination);
-      assert.equal(selection.kind === "unavailable" && selection.carriers.length === contributions.length &&
-        selection.carriers.every((carrier, index) => carrier === contributions[index].carrier), true,
-      `${scalar}: the canonical final conversion owns arm selection, range and explicit native rounding`);
-    }
+  const compiled = compileEffectiveSource("native", `import type { int64, float32, decimal } from "@tsonic/core/types.js";
+    export function wide(value: int64): (string | int64)[] { return ["text", value]; }
+    export function rounded(): (string | float32)[] { return ["text", 16777217]; }
+    export function exact(): (string | decimal)[] { return ["text", 9007199254740993]; }
+    export function optional(): (number | undefined)[] { return [undefined, 9007199254740993]; }
+  `);
+  const elements = constructedElements(compiled);
+  assert.equal(elements.length, 4, "all original explicit union and optional programs reach Native construction");
+  for (const [index, expected] of [[0, "int64"], [1, "float32"], [2, "decimal"]]) {
+    const arms = getCsharpRuntimeUnionArms(elements[index], compiled.result.program.typeDefinitions);
+    assert.equal(arms?.length === 2 && arms.some(arm => arm.name === expected), true,
+      `${expected}: the actual compiled physical union preserves the exact Native arm`);
   }
-  const optional = csharpNullableTargetType(primitive("float64"));
-  const contributions = [absent, literal(9007199254740993n, 0n, 9007199254740993n)];
-  const selection = select(contributions, optional);
-  assert.equal(selection.kind === "unavailable" && selection.carriers.every((carrier, index) =>
-    carrier === contributions[index].carrier), true,
-  "an actual nullable destination preserves absence and the existing native floating conversion without choosing an arm");
+  assert.equal(getCsharpNullableElementTargetType(elements[3])?.name, "float64",
+    "the original absent element and explicit floating destination keep one Native absence");
+  for (const name of ["float32", "float64", "decimal", "int64"]) {
+    const text = csharpStringTargetType();
+    const scalar = primitive(name);
+    const destination = csharpRuntimeUnionTargetType([text, scalar]);
+    const arms = getCsharpRuntimeUnionArms(destination);
+    assert.equal(arms?.length === 2 && arms.includes(text) && arms.includes(scalar), true, `${name}: actual selected union arm identities are retained`);
+  }
 });
 
 test("inferred nonnumeric and absent fallback arms never authorize authored integer rounding", () => {
-  const others = [csharpStringTargetType(), csharpAbsenceTargetType(), csharpBooleanTargetType()];
-  for (const carrier of others) for (const value of [literal(9007199254740993n, 0n, 9007199254740993n),
-    literal(9007199254740993n, 0n, -9007199254740993n, "float64", true), literal(1n, 100n)]) {
-    const other = Object.freeze({ carrier, literal: undefined, literalDefault: undefined });
-    for (const contributions of [[other, value], [value, other], [other, value, literal(5n, -1n)]]) {
-      const selection = select(contributions);
-      assert.equal(selection.kind === "rejected" && selection.reason ===
-        "An inferred numeric union requires an exact canonical carrier for every authored integer literal.", true,
-      "only an actual authored destination bypasses inference; a heterogeneous checked type is not such a destination");
+  for (const carrier of [csharpStringTargetType(), csharpAbsenceTargetType(), csharpBooleanTargetType()]) {
+    const other = Object.freeze({ carrier, literal: undefined });
+    for (const value of [literal(9007199254740993n, 0n, 9007199254740993n), literal(9007199254740993n, 0n, -9007199254740993n, "float64", true), literal(1n, 100n)]) {
+      for (const inputs of [[other, value], [value, other]]) {
+        assert.equal(csharpArrayElementIsRepresentableAs(primitive("float64"), inputs.find(input => input === value)), false,
+          "a nonnumeric or absent neighbour cannot bypass exact native integer admission");
+      }
     }
   }
 });
 
 test("an authored integer's actual floating default supplies an exact needed carrier, never a fabricated one", () => {
-  const onePastPrecision = literal(16777217n, 0n, 16777217n, "int32");
-  for (const inputs of [[fixed("float32"), onePastPrecision], [onePastPrecision, fixed("float32")]]) {
-    selected(select(inputs), "float64", "16777217 has an actual exact f64 default and cannot be rounded to f32");
-  }
-  const noFloatingDefault = Object.freeze({ ...onePastPrecision, literalDefault: undefined });
-  const selection = select([fixed("float32"), noFloatingDefault]);
-  assert.equal(selection.kind === "rejected" && selection.reason ===
-    "Inferred array elements require an exact common native numeric carrier; an explicit native array destination is required for a rounding conversion.", true,
-  "a missing source default is not permission to invent a float carrier or a new physical union");
-  selected(select([fixed("float32"), onePastPrecision], primitive("float32")), "float32",
-    "an actual explicit destination still authorizes the existing native rounding conversion");
+  const value = literal(16777217n, 0n, 16777217n, "int32");
+  assert.equal(csharpArrayElementIsRepresentableAs(primitive("float32"), value), false);
+  assert.equal(csharpArrayElementIsRepresentableAs(primitive("float64"), value), true);
+  assert.equal(csharpLiteralIsRepresentableAs(value.literal, primitive("float32")), true,
+    "the actual explicit rounding destination remains distinct from exact inference admission");
 });
 
 for (const carrier of ["int32", "float64"]) test(`fitting authored integers retain a homogeneous peer (${carrier} default)`, () => {
   const one = literal(1n, 0n, 1n, carrier);
   const two = literal(2n, 0n, 2n, carrier);
-  for (const contributions of [[fixed("int32"), one], [one, fixed("int32")],
-    [fixed("int32"), one, two], [one, fixed("int32"), two], [one, two, fixed("int32")]]) {
-    selected(select(contributions), "int32", "the whole contribution set, not source order or surface default, selects the peer");
+  for (const inputs of [[fixed("int32"), one], [one, fixed("int32")], [one, fixed("int32"), two]]) {
+    assert.equal(inputs.every(input => csharpArrayElementIsRepresentableAs(primitive("int32"), input)), true,
+      "the actual authored integers fit the chosen native int32 carrier in every order");
   }
 });
 
 test("bare incompatible integer peers retain both physical arms", () => {
-  for (const inputs of [[fixed("int32"), fixed("uint32")], [fixed("uint32"), fixed("int32")]]) {
-    const selection = select(inputs);
-    assert.equal(selection.kind === "unavailable" && selection.carriers.length === 2 &&
-      selection.carriers.every((carrier, index) => carrier === inputs[index].carrier), true,
-    "the existing physical-union owner receives the exact original ordered contributions");
+  for (const order of ["left, right", "right, left"]) {
+    const compiled = compileEffectiveSource("native", `import type { int32, uint32 } from "@tsonic/core/types.js";
+      export function run(left: int32, right: uint32): void { const values = [${order}]; void values; }`);
+    assertPublishedRefusal(compiled, "TSONIC_LOCAL_TYPE_MIXED_ELEMENTS", `[${order}]`);
+    const declared = csharpRuntimeUnionTargetType([primitive("int32"), primitive("uint32")]);
+    const arms = getCsharpRuntimeUnionArms(declared);
+    assert.equal(arms?.length === 2 && arms.some(arm => arm.name === "int32") && arms.some(arm => arm.name === "uint32"), true,
+      "the exact annotated native union still retains both physical arms rather than selecting a lossy common carrier");
+    const companion = compileEffectiveSource("native", `import type { int32, uint32 } from "@tsonic/core/types.js";
+      export function run(left: int32, right: uint32): (int32 | uint32)[] { const values: (int32 | uint32)[] = [${order}]; return values; }`);
+    const physical = getCsharpRuntimeUnionArms(constructedElements(companion)[0], companion.result.program.typeDefinitions);
+    assert.equal(physical?.length === 2 && ["int32", "uint32"].every(name => physical.some(arm => arm.name === name)), true,
+      "the annotated companion retains the original compiled Native union requirement in both source orders");
   }
 });
 
 for (const carrier of ["int32", "float64"]) test(`flexible integer literals retain the approved third arm (${carrier} native default)`, () => {
-  const one = literal(1n, 0n, 1n, carrier);
-  for (const inputs of [[fixed("int32"), fixed("uint32"), one], [fixed("int32"), one, fixed("uint32")],
-    [one, fixed("int32"), fixed("uint32")]]) {
-    const selection = select(inputs);
-    assert.equal(selection.kind === "unavailable" && selection.carriers.length === 3 &&
-      new Set(selection.carriers.map(value => value.kind === "source-primitive" ? value.name : "other")).size === 3 &&
-      selection.carriers.some(value => value.kind === "source-primitive" && value.name === "int32") &&
-      selection.carriers.some(value => value.kind === "source-primitive" && value.name === "uint32") &&
-      selection.carriers.some(value => value.kind === "source-primitive" && value.name === "float64"), true,
-    "a literal's default never erases an incompatible integer peer or chooses an integer arm by order");
+  const declared = csharpRuntimeUnionTargetType([primitive("int32"), primitive("uint32"), primitive("float64")]);
+  const arms = getCsharpRuntimeUnionArms(declared);
+  assert.equal(arms?.length === 3 && ["int32", "uint32", "float64"].every(name => arms.some(arm => arm.name === name)), true,
+    "an explicitly selected three-arm native union loses no integer peer");
+  for (const order of ["left, 1, right", "1, right, left"]) {
+    const compiled = compileEffectiveSource("native", `import type { int32, uint32 } from "@tsonic/core/types.js";
+      export function run(left: int32, right: uint32): void { const values = [${order}]; void values; }`);
+    assertPublishedRefusal(compiled, "TSONIC_LOCAL_TYPE_MIXED_ELEMENTS", `[${order}]`);
+    const companion = compileEffectiveSource("native", `import type { int32, uint32 } from "@tsonic/core/types.js";
+      export function run(left: int32, right: uint32): (int32 | uint32 | number)[] {
+        const values: (int32 | uint32 | number)[] = [${order}]; return values;
+      }`);
+    const physical = getCsharpRuntimeUnionArms(constructedElements(companion)[0], companion.result.program.typeDefinitions);
+    assert.equal(physical?.length === 3 && ["int32", "uint32", "float64"].every(name => physical.some(arm => arm.name === name)), true,
+      "the actual explicit three-arm Native constructor keeps the complete original physical key");
   }
 });
 
 test("a genuinely needed fractional contribution permits the exact existing float64 common carrier", () => {
-  for (const contributions of [[fixed("int32"), fixed("uint32"), literal(5n, -1n)],
-    [fixed("int32"), literal(5n, -1n), fixed("uint32")], [literal(5n, -1n), fixed("int32"), fixed("uint32")]]) {
-    selected(select(contributions), "float64", "the fraction is a real f64 contribution, not a floating rescue guessed from integers");
+  for (const inputs of [[fixed("int32"), fixed("uint32"), literal(5n, -1n)], [literal(5n, -1n), fixed("uint32"), fixed("int32")]]) {
+    assert.equal(inputs.every(input => csharpArrayElementIsRepresentableAs(primitive("float64"), input)), true,
+      "an actually annotated double array admits every exact native input without a guessed source-type choice");
   }
+  const compiled = compileEffectiveSource("native", `import type { int32, uint32 } from "@tsonic/core/types.js";
+    export function run(left: int32, right: uint32): void { const values = [left, right, 0.5]; void values; }`);
+  assertPublishedRefusal(compiled, "TSONIC_LOCAL_TYPE_MIXED_ELEMENTS", "[left, right, 0.5]");
 });
 
 test("a canonical floating union arm never rounds an authored exact integer", () => {
-  const exact = literal(9007199254740992n, 0n, 9007199254740992n);
-  const inexact = literal(9007199254740993n, 0n, 9007199254740993n);
-  for (const inputs of [[fixed("int32"), fixed("uint32"), exact], [exact, fixed("uint32"), fixed("int32")]]) {
-    const selection = select(inputs);
-    assert.equal(selection.kind === "unavailable" && selection.carriers.length === 3 &&
-      selection.carriers.some(carrier => carrier.kind === "source-primitive" && carrier.name === "float64"), true,
-    "the exact native f64 boundary is an actual valid third-arm contribution");
-  }
-  for (const inputs of [[fixed("int32"), fixed("uint32"), inexact], [inexact, fixed("uint32"), fixed("int32")]]) {
-    const selection = select(inputs);
-    assert.equal(selection.kind === "rejected" && selection.reason ===
-      "An inferred numeric union requires an exact canonical carrier for every authored integer literal.", true,
-    "an unavailable exact f64 arm is a precise native precision refusal, not a rounded host number");
+  for (const [value, expected] of [[9007199254740992n, true], [9007199254740993n, false]]) {
+    assert.equal(csharpArrayElementIsRepresentableAs(primitive("float64"), literal(value, 0n, value)), expected,
+      "the exact native f64 boundary is checked without a host-number round trip");
   }
 });
 
 test("every inferred physical-union fallback proves authored integer exactness", () => {
-  const inexact = literal(9007199254740993n, 0n, 9007199254740993n);
-  const negative = literal(9007199254740993n, 0n, -9007199254740993n, "float64", true);
-  const hugeInexact = literal(1n, 100n);
-  for (const value of [inexact, negative, hugeInexact]) {
-    const other = Object.freeze({ carrier: Object.freeze({ kind: "array", element: primitive("int32") }),
-      literal: undefined, literalDefault: undefined });
-    for (const inputs of [[fixed("int32"), value], [value, fixed("int32")], [other, value],
-      [fixed("int64"), value, fixed("float32")],
-      [fixed("int32"), fixed("uint32"), value, literal(5n, -1n)]]) {
-      const checked = inputs.some(input => input.carrier.name === "int64")
-        ? csharpRuntimeUnionTargetType([primitive("int64"), primitive("float32"), primitive("float64")])
-        : primitive("float64");
-      const selection = select(inputs, undefined, checked);
-      assert.equal(selection.kind === "rejected" && selection.reason ===
-        "An inferred numeric union requires an exact canonical carrier for every authored integer literal.", true,
-      "one fixed peer, genuine checked unions, nonnumeric arms and additional fractions cannot bypass exact fallback admission");
-    }
-    selected(select([fixed("int32"), value], primitive("float64")), "float64",
-      "authored explicit f64 storage retains its native rounding contract");
+  for (const value of [literal(9007199254740993n, 0n, 9007199254740993n), literal(9007199254740993n, 0n, -9007199254740993n, "float64", true), literal(1n, 100n)]) {
+    assert.equal(csharpArrayElementIsRepresentableAs(primitive("float64"), value), false, "no inferred arm can silently round the authored integer");
+    assert.equal(csharpLiteralIsRepresentableAs(value.literal, primitive("float64")), true,
+      "the same original token retains its explicitly annotated native rounding contract");
   }
 });
 
 test("authored integral tokens beyond bounded integer materialization stay flexible and exact", () => {
-  const hugeExact = literal(1n << 200n, 0n);
-  const largeExact = literal(9007199254740994n, 0n, 9007199254740994n);
-  for (const value of [hugeExact, largeExact]) {
-    selected(select([fixed("int32"), value]), "float64", "exact binary values above2^53 are not artificially capped");
-    for (const inputs of [[fixed("int32"), fixed("uint32"), value],
-      [value, fixed("uint32"), fixed("int32")]]) {
-      const selection = select(inputs);
-      assert.equal(selection.kind === "unavailable" && selection.carriers.length === 3 &&
-        new Set(selection.carriers.map(carrier => carrier.name)).size === 3 &&
-        selection.carriers[inputs.indexOf(value)].name === "float64", true,
-      "an integer token is not a fixed floating rescue merely because its bounded integer field is absent");
-    }
+  for (const value of [literal(1n << 200n, 0n), literal(9007199254740994n, 0n, 9007199254740994n)]) {
+    assert.equal(csharpArrayElementIsRepresentableAs(primitive("float64"), value), true,
+      "actual binary-exact values above 2^53 remain admitted without a fabricated integer materialization or cap");
   }
 });
 
 test("genuine checked native unions stay with the existing union owner", () => {
+  const compiled = compileEffectiveSource("native", `import type { int32, int64, float32 } from "@tsonic/core/types.js";
+    export function integer(first: int32, second: int64): (int32 | int64)[] { return [first, second]; }
+    export function floating(first: float32, second: int64): (float32 | int64)[] { return [first, second]; }
+  `);
+  const physical = constructedElements(compiled).map(element => getCsharpRuntimeUnionArms(element, compiled.result.program.typeDefinitions));
+  assert.equal(physical.length === 2 && ["int32", "int64"].every(name => physical[0]?.some(arm => arm.name === name)) &&
+    ["float32", "int64"].every(name => physical[1]?.some(arm => arm.name === name)), true,
+    "the original genuine Native unions are checked on the actual compiled constructions");
   for (const inputs of [[fixed("int32"), fixed("int64")], [fixed("float32"), fixed("int64")]]) {
-    const selection = select(inputs, undefined, csharpRuntimeUnionTargetType(inputs.map(input => input.carrier)));
-    assert.equal(selection.kind === "unavailable" && selection.carriers.every((carrier, index) => carrier === inputs[index].carrier),
-      true, "neither width nor a genuine float/integer source arm is erased or spuriously refused");
+    const arms = getCsharpRuntimeUnionArms(csharpRuntimeUnionTargetType(inputs.map(input => input.carrier)));
+    assert.equal(arms?.length === 2 && inputs.every(input => arms.includes(input.carrier)), true, "explicit native union arms retain their exact actual carriers");
   }
-  for (const value of [literal(1n, 0n, 1n), literal(9007199254740993n, 0n, 9007199254740993n)]) {
-    const inputs = [fixed("int64"), value];
-    selected(select(inputs, undefined, csharpRuntimeUnionTargetType(inputs.map(input => input.carrier))), "int64",
-      "an exact fitting authored literal uses its single native integer peer before the genuine-union gate");
-  }
+  for (const integer of [1n, 9007199254740993n]) assert.equal(csharpArrayElementIsRepresentableAs(primitive("int64"), literal(integer, 0n, integer)), true,
+    "a fitting authored integer retains the exact native wide carrier");
 });
 
 test("native signed zero and integer literal range remain actual constraints", () => {
-  selected(select([fixed("int32"), literal(0n, 0n, 0n, "float64", true)]), "float64", "negative zero is not integer zero evidence");
-  selected(select([fixed("int32"), literal(2147483648n, 0n, 2147483648n)]), "float64", "an out-of-int32 literal retains its exact actual f64");
+  const negativeZero = Object.freeze({ ...literal(0n, 0n, 0n, "float64", true).literal, number: -0 });
+  assert.equal(csharpLiteralIsRepresentableAs(negativeZero, primitive("int32")), false);
+  assert.equal(csharpLiteralIsRepresentableAs(negativeZero, primitive("float64")), true);
+  const beyond = literal(2147483648n, 0n, 2147483648n);
+  assert.equal(csharpArrayElementIsRepresentableAs(primitive("int32"), beyond), false);
+  assert.equal(csharpArrayElementIsRepresentableAs(primitive("float64"), beyond), true);
 });
 
 test("nonnumeric rows and input objects remain unchanged and immutable", () => {
   const carrier = Object.freeze({ kind: "array", element: primitive("int32") });
-  const input = Object.freeze({ carrier, literal: undefined, literalDefault: undefined });
-  const selection = select([input], undefined, carrier);
-  assert.equal(selection.kind === "unavailable" && selection.carriers[0] === carrier && Object.isFrozen(selection.carriers), true,
-    "the numeric selector neither rejects a nonnumeric row nor changes its source/native evidence");
-  assert.equal(Object.isFrozen(input) && input.carrier === carrier, true, "the pure decision cannot mutate its contributions");
+  const input = Object.freeze({ carrier, literal: undefined });
+  assert.equal(csharpArrayElementIsRepresentableAs(carrier, input), true, "an actual identical native carrier is admitted without a numeric choice");
+  assert.equal(Object.isFrozen(input) && input.carrier === carrier, true, "native admission cannot mutate the contribution or its identity");
 });
 
 test("array queries preserve complete resolved, rejected and unavailable selections by source context", () => {

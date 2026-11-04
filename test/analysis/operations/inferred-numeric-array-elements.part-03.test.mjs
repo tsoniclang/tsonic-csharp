@@ -17,6 +17,7 @@ import { csharpNumericReturnBaselineCovered } from "../../../dist/policy/convers
 import { selectCsharpConversion } from "../../../dist/policy/conversions/core.js";
 import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
 import { header, emptyProviders, compile, diagnosticLabel, accepted, arrays, constructedArrays, destinationBodies, actualDestinationEvidence, actualUnionDestinationEvidence } from "./inferred-numeric-array-elements.fixtures.mjs";
+import { assertPublishedRefusal } from "../../helpers/source-effective-types.mjs";
 
 for (const surface of ["native", "js"]){
 test(`${surface} an actual generic union argument selects the literal's physical storage order`, () => {
@@ -112,8 +113,8 @@ test(`${surface} a self-inferred ${name} is not an authored rounding destination
     const ast = compiled.nativeStage.source.ast;
     const range = issue?.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
     const text = range?.kind !== "authored" ? undefined : ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end);
-    assert.equal(compiled.targetDiagnostics.length === 1 && issue.code === "CSHARP_ARRAY_ELEMENT_CARRIER_MISMATCH" &&
-      issue.message === "Inferred array elements require an exact common native numeric carrier; an explicit native array destination is required for a rounding conversion." &&
+    assert.equal(compiled.targetDiagnostics.length === 1 && issue.code === "TSONIC_LOCAL_TYPE_MIXED_ELEMENTS" &&
+      issue.message === "This array literal mixes different fixed source types. Annotate the array and convert its elements explicitly." &&
       text === "[narrow, signed]", true, `checked generic inference cannot round an actual i32 through a manufactured f64 destination; ${diagnosticLabel(compiled)}`);
     assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
       "the actual inferred construction is refused before sealing and emission");
@@ -153,7 +154,12 @@ for (const [name, body] of [
         return call(wide, () => { const values = [narrow, signed]; return values; }); }`],
   ]){
 test(`${surface} an independently inferred generic ${name} retains its actual native destination`, () => {
-    const program = accepted(compile(surface, body));
+    const compiled = compile(surface, body);
+    assertPublishedRefusal({ ...compiled, targetSource: compiled.nativeStage.source }, "TSONIC_LOCAL_TYPE_MIXED_ELEMENTS", "[narrow, signed]");
+  });
+
+test(`${surface} an annotated generic ${name} retains the original native destination and element conversions`, () => {
+    const program = accepted(compile(surface, body.replace("const values = [narrow, signed]", "const values: number[] = [narrow, signed]")));
     actualDestinationEvidence(program, ["float64"], `independent generic ${name}`);
   });
 }
@@ -186,6 +192,14 @@ test(`${surface} incompatible actual native destinations refuse one physical arr
       function double(values: number[]): void {}
       export function run(narrow: float32, signed: int32): void {
         const values = [narrow, signed]; single(values); double(values); }`);
+    assertPublishedRefusal({ ...compiled, targetSource: compiled.nativeStage.source }, "TSONIC_LOCAL_TYPE_MIXED_ELEMENTS", "[narrow, signed]");
+  });
+
+test(`${surface} an annotated physical array preserves the original later incompatible-use refusal`, () => {
+    const compiled = compile(surface, `function single(values: float32[]): void {}
+      function double(values: number[]): void {}
+      export function run(narrow: float32, signed: int32): void {
+        const values: float32[] = [narrow, signed]; single(values); double(values); }`);
     assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
     const issue = compiled.nativeStage.diagnostics[0];
     const ast = compiled.nativeStage.source.ast;
@@ -218,8 +232,8 @@ test(`${surface} a stored callable retains numeric body admission after a discar
     const ast = compiled.nativeStage.source.ast;
     const range = issue?.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
     const text = range?.kind !== "authored" ? undefined : ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end);
-    assert.equal(compiled.targetDiagnostics.length === 1 && issue.code === "CSHARP_ARRAY_ELEMENT_CARRIER_MISMATCH" &&
-      issue.message === "Inferred array elements require an exact common native numeric carrier; an explicit native array destination is required for a rounding conversion." &&
+    assert.equal(compiled.targetDiagnostics.length === 1 && issue.code === "TSONIC_LOCAL_TYPE_MIXED_ELEMENTS" &&
+      issue.message === "This array literal mixes different fixed source types. Annotate the array and convert its elements explicitly." &&
       text === "[narrow, signed]", true, `discarding a read does not erase the stored callable's required native body; ${diagnosticLabel(compiled)}`);
     assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
       "the stored numeric body is rejected before publication and emission");

@@ -57,10 +57,10 @@ export const producersCarrierRegistry = Object.freeze([
     frozen: false,
   },
   {
-    id: "src/policy/conversions/source-literals.ts#resolveCsharpSourceLiteralTargetType",
+    id: "src/policy/types/source-type-flow/representation.ts#representCsharpSourceType",
     kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
-    declaration: { module: "src/policy/conversions/source-literals.ts", symbol: "resolveCsharpSourceLiteralTargetType" },
-    responsibility: "producers/selected-integer-literal-join",
+    declaration: { module: "src/policy/types/source-type-flow/representation.ts", symbol: "representCsharpSourceType" },
+    responsibility: "producers/represent-host-selected-source-type",
     frozen: false,
   },
   {

@@ -27,6 +27,7 @@ function fixture(options = {}) {
     writable: !options.readonly, accessMode: "read", optionalChain: false };
   const declarations = options.missingDeclarations ? [] : [sourceDeclaration];
   const semantics = {
+    operations: { propertyAccess: () => undefined, elementAccess: node => node === source.expression ? source : undefined },
     declarations: {
       rootSymbols: symbol => symbol === propertySymbol ? [rootSymbol] : [],
       symbolDeclarations: symbol => symbol === propertySymbol ? declarations
@@ -53,7 +54,8 @@ function fixture(options = {}) {
         exportName: subject === alternativeDeclaration ? "RegExpMatchArray" : options.owner ?? "RegExpExecArray",
         memberName: options.wrongName ? "1" : "0",
       } : undefined },
-    types: { nativeFlowTypes: () => options.emptyFlow ? [] : undefined,
+    types: { resolveSelectedResult: () => undefined,
+      nativeFlowTypes: () => options.emptyFlow ? [] : undefined,
       resolveType: type => type === sourceType ? csharpJsArrayTargetType(csharpStringTargetType()) : undefined,
       resolveNode: node => node === receiver ? { kind: "resolved", sourceResult: csharpSourceValueResult(csharpJsArrayTargetType(csharpStringTargetType())) } : undefined,
       resolveSelectedValue: node => node === receiver ? csharpJsArrayTargetType(csharpStringTargetType()) : undefined },

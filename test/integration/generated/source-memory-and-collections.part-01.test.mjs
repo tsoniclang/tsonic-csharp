@@ -25,6 +25,7 @@ import { numberArrayUnionFiles } from "../../../../tsonic/test/fixtures/number-a
 import { recursiveSourceUnionFiles } from "../../../../tsonic/test/fixtures/recursive-source-unions.mjs";
 import { createTsonicPlugin as nodejsCapability } from "../../../../csharp-nodejs/dist/index.js";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
+import { annotatedEmptyValues, assertUnfilledEmptyObject } from "../../helpers/source-effective-empty-values.mjs";
 
 for (const surface of Array.from([undefined, "js"]).slice(0, 2)) {
 test(`type-only brands erase without removing ordinary class fields in ${surface ?? "native"}`, { timeout: 300_000 }, () => {
@@ -79,6 +80,10 @@ test(`logical accessor assignments preserve both lanes and short-circuit effects
   });
 
 test(`non-nullish unknown retains its value and identity in ${surface ?? "native"}`, { timeout: 300_000 }, () => {
-    executeCsharpConstruction(compileCsharpSource({ surface, sourceText: broadValueNarrowingSource }), `broad-value-narrowing-${surface ?? "native"}`);
+    assertUnfilledEmptyObject(surface, broadValueNarrowingSource);
+  });
+
+test(`annotated non-nullish unknown retains every original value and identity predicate in ${surface ?? "native"}`, { timeout: 300_000 }, () => {
+    executeCsharpConstruction(compileCsharpSource({ surface, sourceText: annotatedEmptyValues(broadValueNarrowingSource) }), `broad-value-narrowing-${surface ?? "native"}`);
   });
 }

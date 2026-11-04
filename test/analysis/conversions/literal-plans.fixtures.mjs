@@ -79,7 +79,7 @@ function providerAdapterCall(read, inputType) {
     facts: [providerFact(source.signatureDeclaration, declaration)],
     calls: [[source.call, source.evidence]],
     signatureDeclarations: [[source.evidence.selectedSignature, source.signatureDeclaration]],
-    nodeTypes: [[literal, read], [source.evidence.sourceReceiver.expression, receiver]],
+    nodeTypes: [[literal, read], [source.evidence.sourceReceiver.expression, receiver], [source.call, member.returnType]],
     semanticTypes: [[source.evidence.sourceArguments[0].type, read], [source.evidence.sourceReceiver.type, receiver],
       [source.evidence.sourceResultType, member.returnType]],
   });

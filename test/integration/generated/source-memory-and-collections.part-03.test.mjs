@@ -25,6 +25,7 @@ import { numberArrayUnionFiles } from "../../../../tsonic/test/fixtures/number-a
 import { recursiveSourceUnionFiles } from "../../../../tsonic/test/fixtures/recursive-source-unions.mjs";
 import { createTsonicPlugin as nodejsCapability } from "../../../../csharp-nodejs/dist/index.js";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
+import { annotatedEmptyValues, assertUnfilledEmptyObject } from "../../helpers/source-effective-empty-values.mjs";
 
 test("Array.from preserves dense copies and explicit undefined entries", { timeout: 300_000 }, () => {
   executeCsharpConstruction(compileCsharpSource({ surface: "js", sourceText: jsArrayCopyFiles["index.ts"] }), "js-array-copy");
@@ -45,8 +46,7 @@ test("number-domain scalar boxing preserves complete values and evaluation order
     "number-boxing"), numberBoxingOutput);
 });
 
-test("broad values collapse absence and preserve source reference identity", { timeout: 300_000 }, () => {
-  executeCsharpConstruction(compileCsharpSource({ surface: "js", sourceText: `
+const broadReferenceSource = `
 class Item { value = 3; }
 function absent(value: unknown): boolean { return value === undefined && value === null; }
 function nil(value: unknown): boolean { return value === null && value === undefined; }
@@ -56,7 +56,14 @@ export function run(): boolean {
   const empty = {};
   return absent(undefined) && absent(null) && nil(null) && nil(undefined) &&
     same(value, value) && !same(value, new Item()) && same(empty, empty) && !same(empty, {});
-}` }), "broad-reference-nullish");
+}`;
+
+test("broad values collapse absence and preserve source reference identity", { timeout: 300_000 }, () => {
+  assertUnfilledEmptyObject("js", broadReferenceSource);
+});
+
+test("annotated broad values preserve every original collapsed-absence and reference-identity predicate", { timeout: 300_000 }, () => {
+  executeCsharpConstruction(compileCsharpSource({ surface: "js", sourceText: annotatedEmptyValues(broadReferenceSource) }), "broad-reference-nullish");
 });
 
 test("inferred pointer loads preserve concrete conditional aliases and native widths", { timeout: 300_000 }, () => {

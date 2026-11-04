@@ -31,7 +31,7 @@ function inputs(options = {}) {
       types: { isNumberLike: () => false,
       callable: type => type === argument.type && options.callable !== false ? {} : undefined } }),
     types: { resolveSelectedValue: () => undefined, resolveType: () => undefined, resolveNode: () => undefined,
-      resolveSourceCallTypeArguments: () => [],
+      resolveSourceCallTypeArguments: () => [], resolveSourceCallResult: () => undefined,
       resolveSourceCallParameter: (selected, index, selectedFile, domain) => {
         assert.equal(selected === source && selectedFile === file && index === 0, true, "same selected declared parameter");
         assert.equal(domain, "declared", "the selected profile owns a declared read, not source-callee admission");
@@ -39,7 +39,7 @@ function inputs(options = {}) {
         return options.declared ?? declared;
       } },
   };
-  const value = createCsharpSourceProfileInputs(host, file, options.foreign ? [] : [argument], undefined, [], {}, source);
+  const value = createCsharpSourceProfileInputs(host, file, options.foreign ? [] : [argument], call, [], {}, source);
   assert.equal(reads, 1, "one native parameter read, no raw reselection");
   return value.parameters[0];
 }

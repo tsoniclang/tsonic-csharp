@@ -36,10 +36,10 @@ for (const declaringName of ["Promise", "PromiseLike"]) {
               sourceArgumentIndex: index, effectiveArgumentIndex: index, sourceForm: "value" })),
           },
           inputs: { values: new Map([
-            [receiverExpression, new Map([[checkedReceiver, csharpTaskTargetType(input)]])],
-            [absentExpression, new Map([[checkedAbsence, csharpAbsenceTargetType()]])],
-            [rejectedExpression, new Map([[checkedRejected, callback]])],
-          ]), types: new Map() },
+            [receiverExpression, csharpTaskTargetType(input)],
+            [absentExpression, csharpAbsenceTargetType()],
+            [rejectedExpression, callback],
+          ]), results: new Map() },
         });
         assert.equal(selected.kind, "resolved", "the exact nullable callback retains its native result witness");
         const storage = resolveCsharpOptionalStorage({ kind: "optional", part: "storage", arguments: [integer] }, integer);
@@ -74,7 +74,7 @@ for (const declaringName of ["Promise", "PromiseLike"]) {
           sourceSelectedSignatureKind: "resolved", sourceSelectedSignatureParameters: [{}, {}],
           sourceArguments: [], sourceArgumentBindings: [],
         },
-        inputs: { values: new Map([[expression, new Map([[checkedType, receiver]])]]), types: new Map() },
+        inputs: { values: new Map([[expression, receiver]]), results: new Map() },
       });
       assert.equal(selected.kind, "resolved", "absent handlers need only their actual native receiver completion");
       const result = getCsharpTaskResultTargetType(selected.call.targetMember.returnType);

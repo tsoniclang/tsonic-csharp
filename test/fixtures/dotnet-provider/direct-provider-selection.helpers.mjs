@@ -539,11 +539,26 @@ export function directProviderHost(options = {}) {
         resolveType(type) {
           return semanticTypes.get(type);
         },
-        resolveValue(node, type) {
-          return nodeTypes.get(node) ?? semanticTypes.get(type);
+        resolveValue(node) {
+          return nodeTypes.get(node);
         },
-        resolveSelectedValue(node, type) {
-          return nodeTypes.get(node) ?? semanticTypes.get(type);
+        resolveSelectedValue(node) {
+          return nodeTypes.get(node);
+        },
+        resolveSelectedResult(occurrence) {
+          return nodeTypes.get(occurrence);
+        },
+        resolveSourceCallResult(source) {
+          const selected = nodeTypes.get(source.call);
+          return selected === undefined ? undefined : csharpSourceValueResult(selected);
+        },
+        resolveSourceCallParameter(source, index) {
+          return semanticTypes.get(source.sourceSelectedSignatureParameters[index]?.selectedType);
+        },
+        resolveSourceCallTypeArguments(source) {
+          const selected = (source.sourceSelectedMethodTypeArguments ?? []).map(argument =>
+            argument.explicitTypeNode === undefined ? semanticTypes.get(argument.selectedType) : nodeTypes.get(argument.explicitTypeNode));
+          return selected.some(argument => argument === undefined) ? undefined : selected;
         },
         resolveStorage(node) {
           return nodeTypes.get(node);

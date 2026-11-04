@@ -9,11 +9,11 @@ const receiver = csharpJsArrayTargetType(element);
 
 function context(carrier, readonly) {
   const host = { types: { resolveSelectedValue: () => carrier } };
-  const source = { receiver: { expression: {}, type: {} }, writable: !readonly };
+  const source = { expression: {}, receiver: { expression: {}, type: {} }, writable: !readonly };
   const sourceFile = {};
   // The member policies read the receiver carrier from the input facts the analysis resolves for the access.
   return { host, source, sourceFile, receiverType: carrier, readonly,
-    inputs: csharpSourceProfileInputs(host, sourceFile, { values: [source.receiver] }) };
+    inputs: csharpSourceProfileInputs(host, sourceFile, { operation: source.expression, values: [source.receiver] }) };
 }
 
 test("synthesized array contributors retain one native member policy and checker-selected writability", () => {

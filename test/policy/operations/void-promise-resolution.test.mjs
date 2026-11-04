@@ -21,20 +21,23 @@ for (const [name, argument, payload, nativeForm] of cases) {
     const checkedResult = {};
     const explicitTypeNode = {};
     const selectedType = {};
+    const call = {};
+    const selectedArgument = { explicitTypeNode, selectedType };
     const result = csharpTaskTargetType(payload);
     const selected = csharpJsPromiseCallPolicies.find(policy => policy.source.declaringName === "PromiseConstructor" &&
       policy.source.name === "resolve").select({
       source: {
-        sourceResultType: checkedResult, sourceSelectedSignatureKind: "resolved",
+        call, sourceResultType: checkedResult, sourceSelectedSignatureKind: "resolved",
         sourceSelectedSignatureParameters: [{}],
-        sourceSelectedMethodTypeArguments: [{ explicitTypeNode, selectedType }],
+        sourceSelectedMethodTypeArguments: [selectedArgument],
         sourceArguments: [{ expression, type: checkedArgument }],
         sourceArgumentBindings: [{ sourceArgumentIndex: 0, effectiveArgumentIndex: 0,
           sourceParameterIndex: 0, sourceForm: "value" }],
       },
-      inputs: { values: new Map([[expression, new Map([[checkedArgument, argument]])]]),
-        types: new Map([[checkedResult, result]]), selectedType: { get: (node, type) => {
-          assert.equal(node === explicitTypeNode && type === selectedType, true, "only the actual selected explicit type is queried");
+      inputs: { values: new Map([[expression, argument]]),
+        results: new Map([[call, result]]), typeArgument: { get: selected => {
+          assert.equal(selected === selectedArgument && selected.explicitTypeNode === explicitTypeNode && selected.selectedType === selectedType, true,
+            "only the actual selected explicit type's retained Source record is queried");
           return payload;
         } } },
     });
