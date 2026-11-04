@@ -31,9 +31,11 @@ export function resolveCsharpArrayLiteralSelection(
   const element = getCsharpCollectionElementTargetType(presentCarrier);
   if (presentCarrier.kind !== "tuple" && element === undefined) return unavailable;
   const elements: TargetTypeRef[] = [];
+  const declared = effective === undefined || effective.outcome.kind !== "refused" &&
+    effective.outcome.provenance.component !== undefined;
   const fits = (required: TargetTypeRef, actual: TargetTypeRef, value: Node | undefined): boolean => {
     const literal = value === undefined ? undefined : host.literalValues.literalValue.get(value);
-    return required.kind === "source-primitive" && actual.kind === "source-primitive"
+    return required.kind === "source-primitive" && actual.kind === "source-primitive" && (!declared || literal !== undefined)
       ? csharpArrayElementIsRepresentableAs(required, { carrier: actual, literal })
       : csharpConversionIsApplicable(selectCsharpConversion({ typeDefinitions: host.typeDefinitions,
         projectTypes: host.projectTypes(), providers: host.providers, target: host.target, objectShapes: host.objectShapes },

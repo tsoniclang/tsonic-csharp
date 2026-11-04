@@ -24,6 +24,15 @@ export function selectedObjectShapeSource(
     return { type: queries.declarations.declaredType(node) };
   }
   const semanticType = queries.types.expressionType(node);
+  const effective = host.effectiveTypes.get(node);
+  if (effective !== undefined) {
+    if (effective.kind === "refused") return { type: undefined };
+    let descriptor = effective.type;
+    while (descriptor.kind === "optional") descriptor = descriptor.value;
+    const component = descriptor.kind === "declared" ? descriptor.source ?? effective.provenance.component
+      : effective.provenance.component;
+    return { type: component?.selectedType ?? semanticType };
+  }
   if (!host.ast.is.IsObjectLiteralExpression(node)) {
     return { type: semanticType };
   }

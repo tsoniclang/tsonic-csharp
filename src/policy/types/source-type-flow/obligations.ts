@@ -9,7 +9,7 @@ import type { TargetConstraint, TargetTypeRef } from "../../../target-model/type
 import { csharpTargetTypeFailsConstraint, type CsharpConstraintSatisfactionHost } from "../../../analysis/operations/members/calls/constraint-satisfaction.js";
 import { representCsharpSourceType } from "./representation.js";
 import { csharpSourceTypeFlowInterfaceAccepts } from "./relations.js";
-import { csharpLiteralIsRepresentableAs } from "../../conversions/literals.js";
+import { csharpLiteralIsRepresentableAs, selectCsharpExactLiteralConversion } from "../../conversions/literals.js";
 import { csharpArrayElementIsRepresentableAs } from "../collections/array-elements.js";
 import { selectCsharpConversion } from "../../conversions/core.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../target-model/types/equality.js";
@@ -72,8 +72,11 @@ export function checkCsharpSourceTypeFlowObligation(
     const site = obligation.value ?? obligation.site;
     const carrier = getCsharpNullableElementTargetType(chosen) ?? chosen;
     if (carrier.kind === "source-primitive" || isCsharpStringTargetType(carrier)) {
-      return literalFits(host.literalValues.literalValue.get(site), chosen) ? undefined
-        : fail(`The retained source literal is not representable as '${targetTypeRefKey(chosen)}'.`);
+      const literal = host.literalValues.literalValue.get(site);
+      if (literalFits(literal, chosen)) return undefined;
+      const selection = selectCsharpExactLiteralConversion(literal, chosen, chosen);
+      return fail(selection.kind === "rejected" ? selection.reason
+        : `The retained source literal is not representable as '${targetTypeRefKey(chosen)}'.`);
     }
     const admission = host.literalAdmission(site, chosen);
     if (admission?.kind === "rejected") return Object.freeze({

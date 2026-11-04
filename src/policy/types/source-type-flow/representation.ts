@@ -88,7 +88,7 @@ function representDescriptor(
           }));
         }
         const targetType = createStructuralObjectShapeTarget(members, undefined, host.typeParameterConstraints);
-        const shape = host.retainShape(Object.freeze({ targetType, members: Object.freeze(members), constructible: true }));
+        const shape = host.retainShape(Object.freeze({ targetType, members: Object.freeze(members) }));
         if (shape === undefined || shape.members.length !== members.length) return undefined;
         if (members.length === 0) return targetTypeRefEquals(shape.targetType, targetType) ? shape.targetType : undefined;
         if (shape.targetType.kind !== "target-named") return undefined;
