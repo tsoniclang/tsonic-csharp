@@ -34,6 +34,7 @@ import { formCsharpNodeTypeSyntaxSource, type CsharpNodeTypeSyntaxSource } from 
 import { formCsharpSemanticTupleSource, type CsharpSemanticTupleSource } from "./semantic-tuple-source.js";
 import { formCsharpUnionTypeNodeSource, type CsharpUnionTypeNodeSource } from "./union-node-source.js";
 import { formCsharpNodeBranchSource, type CsharpNodeBranchSource } from "./node-branch-source.js";
+import { formCsharpProviderIndexedAccessSource, type CsharpProviderIndexedAccessSource } from "./indexed-access.js";
 
 export interface CsharpStructuralNodeSourceInput {
   readonly node: Node;
@@ -107,6 +108,7 @@ export type CsharpNodeTypeSource = {
       readonly unionType: CsharpUnionTypeNodeSource;
       readonly syntax: CsharpNodeTypeSyntaxSource;
       readonly branches: CsharpNodeBranchSource;
+      readonly indexed: CsharpProviderIndexedAccessSource;
       readonly projectInstance: CsharpProjectInstanceSource;
       readonly selectedType: Type | undefined; readonly project: CsharpProjectReferenceSource | undefined;
       readonly reference: CsharpTypeReferenceSource | undefined;
@@ -285,6 +287,7 @@ export function formCsharpNodeTypeSource(
     unionType: formCsharpUnionTypeNodeSource(scope, node, queries, state, cycle?.type),
     syntax: formCsharpNodeTypeSyntaxSource(scope, node, queries, state),
     branches: formCsharpNodeBranchSource(host, node, queries, state),
+    indexed: formCsharpProviderIndexedAccessSource(scope, node, queries, state),
     projectInstance: formCsharpProjectThisSource(host.ast, node),
     directSyntax: formCsharpDirectSourceEvidence(scope, Object.freeze([node]), queries.sourceFile, state),
     directValue: formCsharpDirectSourceEvidence(scope, sourceFactSubjectsForNode(node, host.navigation), queries.sourceFile, state),

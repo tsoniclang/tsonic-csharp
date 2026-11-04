@@ -15,7 +15,7 @@ import { resolveKeywordType } from "../../../../policy/types/resolution/source-p
 import { selectedCsharpSourceProfileOwner } from "../../../../policy/identities/source-types.js";
 
 import { retainCsharpUnionObjectShapes } from "./source-union-refinement.js";
-import { resolveCsharpProviderIndexedAccess } from "./indexed-access.js";
+import { assertCsharpProviderIndexedAccessSource, resolveFormedCsharpProviderIndexedAccess } from "./indexed-access.js";
 import { assertCsharpArrayTypeNodeSource, formCsharpNodeTypeSource,
   type CsharpArrayTypeNodeSource, type CsharpNodeTypeSource } from "./root-sources.js";
 import { resolveFormedCsharpProjectReference } from "./project-types.js";
@@ -112,6 +112,11 @@ export function resolveFormedCsharpNodeTypeSource(
     return failTargetAnalysisInvariant("tsonic-csharp", "A node branch requires its exact retained syntax and value Source.", source.node);
   }
   if (source.kind === "node") assertCsharpNodeBranchSource(source.branches);
+  if (source.kind === "node" && (source.indexed === undefined || source.indexed.node !== source.node ||
+      source.indexed.queries !== source.queries || source.indexed.state !== source.state)) {
+    return failTargetAnalysisInvariant("tsonic-csharp", "Provider indexed completion requires its exact retained Source rows.", source.node);
+  }
+  if (source.kind === "node") assertCsharpProviderIndexedAccessSource(source.indexed);
   if (source.kind === "node" && (source.value === undefined || (source.selectedType === undefined ? source.selectedValue !== undefined
     : source.selectedValue === undefined || source.selectedValue.node !== source.node ||
       source.selectedValue.queries !== source.queries || source.selectedValue.selectedType !== source.selectedType ||
@@ -140,7 +145,7 @@ function resolveNodeResultWithState(
     return selected === undefined ? csharpSourceValueResult(scopedTargetType)
       : scope.resolveFormedSelectedValueResult(source.selectedValue!);
   }
-  const syntaxFact = resolveCsharpProviderIndexedAccess(scope, node, queries, state) ?? resolveFormedDirectSourceFacts(source.directSyntax);
+  const syntaxFact = resolveFormedCsharpProviderIndexedAccess(scope, source.indexed) ?? resolveFormedDirectSourceFacts(source.directSyntax);
   if (syntaxFact !== undefined) {
     return csharpSourceValueResult(syntaxFact);
   }
