@@ -93,7 +93,7 @@ export function resolveFormedSourceCallContract(
   if (input.callee.source !== source || input.callee.sourceFile !== sourceFile) failTargetAnalysisInvariant("tsonic-csharp",
     "Source call contract completion requires its exact retained callee observations.", source.call);
   const callee = classifyFormedCsharpSourceCallee({
-    projectTypes: host.projectTypes(),
+    projectTypeCatalog: host.projectTypeCatalog,
     typeDefinitions: host.typeDefinitions,
     types: { resolveReadStorage, resolveSelectedValue: (expression, type, file) =>
       resolveSelectedValueWithState(expression, type, file, nextState(state)) },
@@ -158,7 +158,7 @@ function checkedValueInvocationCarrier(
       ? Object.freeze({ ...parameter, csharpConstraints: parameter.csharpConstraints }) : undefined;
   });
   if (authored.some(parameter => parameter === undefined)) return undefined;
-  const projections = host.representations.genericProjections(declaration);
+  const projections = host.projectTypeCatalog.genericProjections(declaration);
   if (projections.some(parameter => csharpTypeProjection(parameter) === undefined ||
     !Array.isArray(parameter.csharpProjectionConstraints))) return undefined;
   const checked: readonly NativeQuantifier[] = Object.freeze([
@@ -177,7 +177,7 @@ function nativeInvocationQuantifiers(
   const parameters = (member.typeParameters ?? []).map((parameter): NativeQuantifier | undefined => {
     const authored = csharpSourceTypeParameter(parameter.declaration, host.ast);
     const projections = authored?.identity === parameter.identity ? []
-      : host.representations.genericProjections(parameter.declaration).filter(projection => projection.identity === parameter.identity);
+      : host.projectTypeCatalog.genericProjections(parameter.declaration).filter(projection => projection.identity === parameter.identity);
     const selected = authored?.identity === parameter.identity ? authored : projections.length === 1 ? projections[0] : undefined;
     return selected === undefined || !Array.isArray(parameter.constraints) ? undefined
       : Object.freeze({ ...selected, csharpConstraints: Object.freeze({ kind: "resolved", constraints: parameter.constraints }) });

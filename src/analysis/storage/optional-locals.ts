@@ -1,7 +1,7 @@
 import type { Node } from "@tsonic/tsts";
 import { sourceEnclosingCallable, sourceDeclarationIsModuleScoped } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import { csharpTypeParameterConstraintsImply } from "../../policy/constraints/type-parameter-constraints.js";
+import { csharpTypeParameterConstraintsImplyNotNull } from "../../policy/constraints/type-parameter-constraints.js";
 import { csharpCarrierAdmitsSourceAbsence } from "../../target-model/types/carriers/runtime-carriers.js";
 import { isCsharpAbsenceTargetType } from "../../target-model/types/index.js";
 import { getCsharpGenericOptionalParts, csharpTypeProjection } from "../../target-model/types/projections.js";
@@ -19,7 +19,7 @@ export interface CsharpOptionalLocalPlan {
   removesProjection(node: Node, identity: string): boolean;
 }
 
-export function analyzeCsharpOptionalLocals(policy: CsharpPolicyContext, evidence: CsharpSourceEvidenceIndex,
+export function analyzeCsharpOptionalLocals(policy: Pick<CsharpPolicyContext, "ast" | "navigation">, evidence: CsharpSourceEvidenceIndex,
   nodes: readonly Node[], names: CsharpSourceNameResolver,
   selectedOperations: Pick<CsharpTargetOperationClassifications, "typedLocation">): CsharpOptionalLocalPlan {
   const { ast, navigation } = policy;
@@ -92,8 +92,7 @@ export function analyzeCsharpOptionalLocals(policy: CsharpPolicyContext, evidenc
     const parameters = constraintsFor(owner);
     const constraints = parameters.get(parts.element.identity) ?? (parts.element.csharpConstraints?.kind === "resolved"
       ? parts.element.csharpConstraints.constraints : undefined);
-    if (constraints === undefined || !csharpTypeParameterConstraintsImply(policy, constraints,
-      [{ kind: "keyword", keyword: "notnull" }], parameters)) continue;
+    if (constraints === undefined || !csharpTypeParameterConstraintsImplyNotNull(constraints, parameters)) continue;
     const summary = navigation.declarationUseSummary(node);
     if (summary.captured || summary.exported || summary.memberWritten || summary.hasUnclassifiedValueUse ||
       summary.uses.some(use => use.captured || use.throughMember || sourceEnclosingCallable(use.reference, ast) !== owner)) continue;

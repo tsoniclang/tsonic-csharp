@@ -1,12 +1,10 @@
 import type { Node, Type, TypePropertyInfo } from "@tsonic/tsts";
 import { ObjectLiteralProperty_Value, sourcePropertyTypeEvidenceNodes, sourceTransformedTypeFactEvidenceNodes, type SourceFileSemantics } from "@tsonic/target-api/source";
 import type { CsharpObjectShapePolicyHost } from "./model.js";
-import type { CsharpObjectShapeMemberContract, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../target-model/types/model.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeMemberContract, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpTypePolicyBaseHost, CsharpTypeResolutionState } from "../../source-evidence/types/resolution/model.js";
 import { csharpNullableTargetType } from "../../../target-model/types/carriers/nullable.js";
-import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { csharpSourceMemberDisplayName } from "../../../target-model/types/source-member-keys.js";
-import { nextState } from "../../source-evidence/types/resolution/state.js";
 import { completeCsharpCallableDeclaration, completeCsharpCallableABI,
   type CsharpCallableABI } from "../../source-evidence/types/resolution/callable-type-parameters.js";
 import { csharpMethodValueCoversContract, getCsharpMethodValue } from "../../../target-model/types/method-values.js";
@@ -20,6 +18,8 @@ import type { CsharpCompletedStructuralMemberChildren, CsharpStructuralMemberApp
   CsharpStructuralTypeSource } from "../../source-evidence/types/resolution/structural-applications.js";
 import { formCsharpStructuralPropertyApplication } from "../../source-evidence/types/resolution/structural-applications.js";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
+import { completeCsharpInheritedMemberTypeSource } from "./inherited-member-completion.js";
+import { formCsharpObjectShapeHeader, requireCsharpObjectShapeHeader } from "../../../target-model/types/object-shape-header.js";
 
 export interface CsharpStructuralMemberHeader {
   readonly application: CsharpStructuralTypeApplication;
@@ -39,6 +39,32 @@ export interface CsharpStructuralMembersHeader {
   readonly source: CsharpStructuralTypeSource;
   readonly application: CsharpStructuralTypeApplication;
   readonly members: readonly CsharpStructuralMemberHeader[];
+}
+
+export function csharpStructuralHeaderMembers(
+  header: CsharpStructuralMembersHeader,
+): readonly CsharpObjectShapeMemberFact[] {
+  requireCsharpStructuralMembersHeader(header);
+  return Object.freeze(header.members.map(member => Object.freeze({ ...member.contract,
+    sourceSubjects: member.member.source.proofInput.sourceSubjects,
+    sourceDeclarations: member.member.source.proofInput.sourceDeclarations,
+    sourceTypes: member.member.source.proofInput.sourceTypes,
+  })));
+}
+
+function requireCsharpStructuralMembersHeader(header: CsharpStructuralMembersHeader): void {
+  const { application } = header;
+  if (application.source !== header.source || header.members.length !== application.members.length ||
+    Array.from(application.members).some((member, index) => member === undefined ||
+      header.members[index]?.application !== application || header.members[index]?.memberIndex !== index ||
+      header.members[index]?.member !== member || header.members[index]?.children.inheritance.application !== application ||
+      header.members[index]?.children.inheritance.member !== member ||
+      header.members[index]?.callableABI.declared.source !== member.source.callableDeclaration ||
+      (header.members[index]!.callableABI.typeParameters.length === 0
+        ? header.members[index]!.contract.typeParameters !== undefined
+        : header.members[index]!.contract.typeParameters !== header.members[index]!.callableABI.typeParameters))) {
+    return failTargetAnalysisInvariant("tsonic-csharp", "Native member completion requires every exact ordered member header.");
+  }
 }
 
 export function formCsharpStructuralMemberProofSource(
@@ -73,26 +99,26 @@ export function formCsharpObjectShapePropertySource(
   });
 }
 
+export function retainLiteralMemberEvidence(
+  members: readonly CsharpObjectShapeMemberFact[],
+  source: CsharpLiteralMemberEvidenceProjection<CsharpObjectShapeMemberProofInput>,
+): readonly CsharpObjectShapeMemberFact[] {
+  if (members.length !== source.members.length) return failTargetAnalysisInvariant("tsonic-csharp",
+    "Literal member completion requires every original selected source row.");
+  return members.map((member, index) => {
+    const { input, output } = source.members[index]!;
+    if (member.sourceSubjects !== input.sourceSubjects || member.sourceDeclarations !== input.sourceDeclarations ||
+      member.sourceTypes !== input.sourceTypes || member.sourceMemberEvidence !== input.sourceMemberEvidence ||
+      member.optional !== input.optional) {
+      return failTargetAnalysisInvariant("tsonic-csharp", "Literal member completion requires its exact selected source lineage.");
+    }
+    return output === input ? member : { ...member,
+      sourceSubjects: output.sourceSubjects, sourceDeclarations: output.sourceDeclarations };
+  });
+}
+
 export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePolicyHost) {
   const { formMembersSource, collectMembers } = createCsharpObjectShapeMemberSource(host);
-
-  function retainLiteralMemberEvidence(
-    members: readonly CsharpObjectShapeMemberFact[],
-    source: CsharpLiteralMemberEvidenceProjection<CsharpObjectShapeMemberProofInput>,
-  ): readonly CsharpObjectShapeMemberFact[] {
-    if (members.length !== source.members.length) return failTargetAnalysisInvariant("tsonic-csharp",
-      "Literal member completion requires every original selected source row.");
-    return members.map((member, index) => {
-      const { input, output } = source.members[index]!;
-      if (member.sourceSubjects !== input.sourceSubjects || member.sourceDeclarations !== input.sourceDeclarations ||
-        member.sourceTypes !== input.sourceTypes || member.sourceMemberEvidence !== input.sourceMemberEvidence ||
-        member.optional !== input.optional) {
-        return failTargetAnalysisInvariant("tsonic-csharp", "Literal member completion requires its exact selected source lineage.");
-      }
-      return output === input ? member : { ...member,
-        sourceSubjects: output.sourceSubjects, sourceDeclarations: output.sourceDeclarations };
-    });
-  }
 
   function retainMemberDeclarationEvidence(
     members: readonly CsharpObjectShapeMemberFact[],
@@ -178,7 +204,7 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
       children.constraints.map(constraint => Object.freeze({ source: constraint.request.source, resolution: constraint.resolution })));
     if (callableDeclaration === undefined) return undefined;
     const callableABI = completeCsharpCallableABI(callableDeclaration,
-      methodDeclaration === undefined ? [] : host.projectTypeCatalog.genericProjections(methodDeclaration));
+      methodDeclaration === undefined ? undefined : host.projectTypeCatalog.callableProjections(methodDeclaration));
     if (callableABI === undefined) return undefined;
     const typeParameters = callableABI.typeParameters;
     const optional = property.optional;
@@ -257,11 +283,8 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
     header: CsharpStructuralMembersHeader,
   ): readonly CsharpObjectShapeMemberFact[] | undefined {
     const { application } = header;
-    if (application.source !== header.source || header.members.length !== application.members.length ||
-      application.members.some((member, index) => header.members[index]?.application !== application ||
-        header.members[index]?.memberIndex !== index || header.members[index]?.member !== member)) {
-      return failTargetAnalysisInvariant("tsonic-csharp", "Native member completion requires every exact ordered member header.");
-    }
+    requireCsharpStructuralMembersHeader(header);
+    if (application.collection.correspondence.kind !== "available") return undefined;
     const members: CsharpObjectShapeMemberFact[] = [];
     for (const member of header.members) {
       const completed = completeMemberSource(formCsharpStructuralMemberProofSource(member));
@@ -269,6 +292,30 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
       members.push(completed);
     }
     return completeMembers(application, members);
+  }
+
+  function completeSourceShape(
+    header: CsharpStructuralMembersHeader,
+    shape: CsharpObjectShapeFact,
+  ): CsharpObjectShapeFact | undefined {
+    const proof = completeSourceMembers(header);
+    if (proof === undefined) return undefined;
+    if (proof.length !== shape.members.length) return failTargetAnalysisInvariant("tsonic-csharp",
+      "Shape source completion requires every member of its single physical header.");
+    const physical = formCsharpObjectShapeHeader(shape);
+    const members = shape.members.map((member, index) => {
+      const source = proof[index]!;
+      if (member.sourceKey !== source.sourceKey || member.memberKind !== source.memberKind ||
+        member.optional !== source.optional || member.sourceSubjects !== source.sourceSubjects ||
+        member.sourceDeclarations !== source.sourceDeclarations || member.sourceTypes !== source.sourceTypes) {
+        return failTargetAnalysisInvariant("tsonic-csharp",
+          "Shape source completion requires its exact ordered declared member lineage.");
+      }
+      return Object.freeze({ ...member, sourceMemberEvidence: source.sourceMemberEvidence });
+    });
+    const completed = Object.freeze({ ...shape, members: Object.freeze(members) });
+    requireCsharpObjectShapeHeader(physical, completed);
+    return completed;
   }
 
   function resolvePropertyType(
@@ -289,32 +336,33 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
     method: boolean,
     optional: boolean,
   ): CsharpProjectMemberTypeInstantiation {
-    if (receiver === undefined) return { kind: "not-project-member" };
-    const receiverDefinition = host.projectTypeCatalog.declarationForTarget(receiver);
-    if (receiverDefinition === undefined) return { kind: "not-project-member" };
-    const inherited = declarations.filter(source => source.owner.id !== receiverDefinition.id);
-    if (inherited.length === 0) return { kind: "not-project-member" };
-    const selected: TargetTypeRef[] = [];
-    for (const { declaration, owner, typeNode, methodType } of inherited) {
-      const declared = method
-        ? host.typeResolver.resolveType(methodType, owner.sourceFile, nextState(state))
-        : host.typeResolver.resolveNode(typeNode ?? declaration, owner.sourceFile, nextState(state));
-      if (declared === undefined) return { kind: "unresolved",
-        reason: `Inherited project member of '${owner.sourceName}' has no exact authored native carrier.` };
-      const carrier = optional ? csharpNullableTargetType(declared) : declared;
-      const result = host.projectTypeABI().instantiateMemberType(declaration, receiver, carrier);
-      if (result.kind !== "resolved") return result.kind === "unresolved" ? result : { kind: "unresolved",
-        reason: `Inherited project member of '${owner.sourceName}' lost its canonical project declaration.` };
-      selected.push(result.type);
+    const completion = completeCsharpInheritedMemberTypeSource(Object.freeze({ declarations, receiver,
+      receiverDefinition: receiver === undefined ? undefined : host.projectTypeCatalog.declarationForTarget(receiver),
+      state, method, optional,
+    }));
+    let step = completion.next();
+    while (!step.done) {
+      const request = step.value;
+      if (request.kind === "declaration") {
+        const dependency = request.dependency;
+        const signature = dependency.kind !== "method" || dependency.signature === undefined ? undefined
+          : host.typeResolver.resolveCallableDeclarationSignature(dependency.signature);
+        const type = dependency.kind === "method" ? signature === undefined ? undefined
+          : request.source.methodNullish && signature.declaration.typeParameters.length === 0
+            ? csharpNullableTargetType(signature.signature) : signature.signature
+          : host.typeResolver.resolveNode(dependency.node, dependency.sourceFile, dependency.state);
+        step = completion.next(Object.freeze({ kind: "declaration", request, type }));
+      } else {
+        const result = host.projectTypeQueries.instantiateMemberType(request.source.declaration, request.receiver, request.carrier);
+        step = completion.next(Object.freeze({ kind: "instantiation", request, result }));
+      }
     }
-    const first = selected[0]!;
-    return selected.every(type => targetTypeRefEquals(first, type)) ? { kind: "resolved", type: first }
-      : { kind: "unresolved", reason: "Inherited project member declarations have incompatible native carrier instantiations." };
+    return step.value;
   }
 
   return { formMembersSource, collectMembers, memberInheritance, formMemberHeader, completeMemberSource,
-    completeMembers, formSourceMembersHeader, completeSourceMembers,
+    completeMembers, formSourceMembersHeader, completeSourceMembers, completeSourceShape,
     formMemberInstantiationEvidence, completeMemberInstantiationEvidence, instantiateMemberEvidence,
     formLiteralMemberEvidence: (node: Node, queries: SourceFileSemantics) => formLiteralMemberEvidence(host, node, queries),
-    projectLiteralMemberEvidence, retainMemberDeclarationEvidence, resolvePropertyType, retainLiteralMemberEvidence };
+    projectLiteralMemberEvidence, retainMemberDeclarationEvidence, resolvePropertyType };
 }

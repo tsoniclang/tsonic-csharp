@@ -62,7 +62,7 @@ export function analyzeCsharpCallOperation(
   const optionalReceiver = receiverIssue === undefined ? selectedOptionalReceiver : undefined;
   const optionalCallee = classifyCsharpOptionalCallCallee(policy, source, sourceFile);
   const sourceCall = source === undefined || target?.kind !== "source-owned" ? undefined
-    : classifyCsharpSourceCallee(policy, source, sourceFile);
+    : classifyCsharpSourceCallee({ ...policy, projectTypeCatalog: policy.projectTypes.catalog }, source, sourceFile);
   const sourceMethodValue = source === undefined || sourceCall?.kind !== "value" ? undefined
     : getCsharpMethodValue(policy.types.resolveNode(source.sourceCallee.expression, sourceFile)?.sourceResult?.selectedType);
   producer.call.selected(node, Object.freeze({

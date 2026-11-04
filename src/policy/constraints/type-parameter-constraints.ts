@@ -15,19 +15,7 @@ export function csharpTypeParameterConstraintsImply(
   required: readonly CsharpTypeParameterConstraint[],
   parameters: ReadonlyMap<string, readonly CsharpTypeParameterConstraint[]>,
 ): boolean {
-  const inherited = [...source];
-  const visited = new Set<string>();
-  for (let index = 0; index < inherited.length; index += 1) {
-    const constraint = inherited[index]!;
-    if (constraint.kind !== "type" || constraint.type.kind !== "type-parameter" || visited.has(constraint.type.identity)) continue;
-    visited.add(constraint.type.identity);
-    const stored = parameters.get(constraint.type.identity);
-    const resolution = constraint.type.csharpConstraints;
-    const constraints = stored ?? (resolution?.kind === "resolved" ? resolution.constraints : undefined);
-    if (constraints !== undefined) inherited.push(...constraints);
-  }
-  const keyword = (name: Extract<CsharpTypeParameterConstraint, { readonly kind: "keyword" }>["keyword"]): boolean =>
-    inherited.some(constraint => constraint.kind === "keyword" && constraint.keyword === name);
+  const inherited = csharpInheritedTypeParameterConstraints(source, parameters);
   const directKeyword = (name: Extract<CsharpTypeParameterConstraint, { readonly kind: "keyword" }>["keyword"]): boolean =>
     source.some(constraint => constraint.kind === "keyword" && constraint.keyword === name);
   return required.every(constraint => {
@@ -39,11 +27,42 @@ export function csharpTypeParameterConstraintsImply(
       case "class": return csharpConstraintsRequireReference(source, parameters);
       case "struct": return directKeyword("struct") || directKeyword("unmanaged");
       case "unmanaged": return directKeyword("unmanaged");
-      case "notnull": return keyword("notnull") || keyword("class") || keyword("struct") || keyword("unmanaged") ||
-        inherited.some(candidate => candidate.kind === "type" && candidate.type.kind === "target-named" &&
-          getCsharpNullableElementTargetType(candidate.type) === undefined && !isCsharpNullableReferenceTargetType(candidate.type));
+      case "notnull": return csharpInheritedConstraintsImplyNotNull(inherited);
     }
   });
+}
+
+export function csharpTypeParameterConstraintsImplyNotNull(
+  source: readonly CsharpTypeParameterConstraint[],
+  parameters: ReadonlyMap<string, readonly CsharpTypeParameterConstraint[]>,
+): boolean {
+  return csharpInheritedConstraintsImplyNotNull(csharpInheritedTypeParameterConstraints(source, parameters));
+}
+
+function csharpInheritedTypeParameterConstraints(
+  source: readonly CsharpTypeParameterConstraint[],
+  parameters: ReadonlyMap<string, readonly CsharpTypeParameterConstraint[]>,
+): readonly CsharpTypeParameterConstraint[] {
+  const inherited = [...source];
+  const visited = new Set<string>();
+  for (let index = 0; index < inherited.length; index += 1) {
+    const constraint = inherited[index]!;
+    if (constraint.kind !== "type" || constraint.type.kind !== "type-parameter" || visited.has(constraint.type.identity)) continue;
+    visited.add(constraint.type.identity);
+    const stored = parameters.get(constraint.type.identity);
+    const resolution = constraint.type.csharpConstraints;
+    const constraints = stored ?? (resolution?.kind === "resolved" ? resolution.constraints : undefined);
+    if (constraints !== undefined) inherited.push(...constraints);
+  }
+  return inherited;
+}
+
+function csharpInheritedConstraintsImplyNotNull(constraints: readonly CsharpTypeParameterConstraint[]): boolean {
+  return constraints.some(constraint => constraint.kind === "keyword" &&
+    (constraint.keyword === "notnull" || constraint.keyword === "class" ||
+      constraint.keyword === "struct" || constraint.keyword === "unmanaged")) ||
+    constraints.some(constraint => constraint.kind === "type" && constraint.type.kind === "target-named" &&
+      getCsharpNullableElementTargetType(constraint.type) === undefined && !isCsharpNullableReferenceTargetType(constraint.type));
 }
 
 export function selectCsharpExplicitImplementationConstraints(

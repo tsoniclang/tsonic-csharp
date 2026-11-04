@@ -2,7 +2,7 @@ import type { CsharpObjectShapePolicy } from "../../../target-model/records/obje
 
 import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../target-model/types/model.js";
-import type { CsharpProjectTypeABIPolicy, CsharpProjectTypeCatalog } from "../../../target-model/records/types/project-types.js";
+import type { CsharpProjectTypeQueries, CsharpProjectTypeCatalog } from "../../../target-model/records/types/project-types.js";
 import type { CsharpPlanningRepresentationQueries, CsharpRecursiveTypeResolver, CsharpTypePolicyBaseHost, CsharpTypeResolutionState } from "../../source-evidence/types/resolution/model.js";
 import type { CsharpCurrentProjectDeclarations } from "../../source-evidence/model.js";
 import type { CsharpProjectSemanticSource } from "../../source-evidence/types/resolution/project-types.js";
@@ -30,7 +30,7 @@ export interface CsharpObjectShapePolicyHost extends CsharpTypePolicyBaseHost {
   readonly representations: CsharpPlanningRepresentationQueries;
   readonly projectTypeCatalog: CsharpProjectTypeCatalog;
   readonly projectDeclarations: CsharpCurrentProjectDeclarations;
-  projectTypeABI(): CsharpProjectTypeABIPolicy;
+  readonly projectTypeQueries: CsharpProjectTypeQueries;
   readonly typeResolver: CsharpRecursiveTypeResolver;
   structuralTypeApplication(collection: CsharpCollectedObjectShapeMembers): CsharpStructuralTypeSource;
   readonly structuralTypeCapture: CsharpTypeResolutionServices["structuralTypeCapture"];

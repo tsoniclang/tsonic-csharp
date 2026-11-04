@@ -227,7 +227,7 @@ export function resolveFormedCsharpSourceCallResultWithState(
   if (nativeType === undefined && access?.kind === "property") {
     const receiver = resolveSelectedValueWithState(access.receiver.expression, access.receiver.type, sourceFile, nextState(state));
     const arms = getCsharpRuntimeUnionArms(receiver, host.typeDefinitions);
-    const projectTypes = host.projectTypes();
+    const projectTypes = host.projectTypeQueries;
     if (arms !== undefined && arms.length > 1 &&
       arms.every(arm => projectTypes.catalog.definitionForTarget(arm)?.kind === "class")) {
       if (source.sourceSelectedSignatureKind !== "resolved") return undefined;

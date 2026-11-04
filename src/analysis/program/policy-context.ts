@@ -52,7 +52,7 @@ export function createCsharpAnalysisPolicyContext(
     types: typeSystem.analysisTypes,
     typeDefinitions: typeSystem.typeDefinitions,
     objectShapes: typeSystem.objectShapes,
-    projectTypes: typeSystem.projectTypes,
+    projectTypes: typeSystem.projectTypeQueries,
     sourceIdentities,
     semantics: source.semantics.forFile,
     semanticsFor: source.semantics.forNode,

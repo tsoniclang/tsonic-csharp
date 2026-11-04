@@ -13,7 +13,7 @@ import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { csharpArrayBindingProjectionTarget, resolveCsharpArrayBindingCarrier } from "../../policy/types/collections/binding-array-carrier.js";
 import { nextState } from "../source-evidence/types/resolution/state.js";
 import { resolveCsharpBindingSourceType } from "./binding-source-types.js";
-import type { CsharpProjectTypePolicy } from "../../target-model/records/types/project-types.js";
+import type { CsharpProjectTypeQueries } from "../../target-model/records/types/project-types.js";
 import { resolveCsharpCheckedNativePropertyRead } from "../objects/native-property-reads.js";
 
 export interface CsharpBindingProjectionPolicyHost extends Pick<CsharpTypePolicyBaseHost, "providers" | "sourceFacts" | "semanticsFor" | "typeDefinitions"> {
@@ -23,7 +23,7 @@ export interface CsharpBindingProjectionPolicyHost extends Pick<CsharpTypePolicy
   readonly objectShapes: CsharpRecursiveObjectShapePolicy;
   scopedTargetType(node: Node): TargetTypeRef | undefined;
   semantics(sourceFile: SourceFile): SourceFileSemantics;
-  projectTypes(): CsharpProjectTypePolicy;
+  readonly projectTypeQueries: CsharpProjectTypeQueries;
 }
 
 export interface CsharpBindingProjectionPolicy {
@@ -217,7 +217,7 @@ function resolveNativeBindingProjection(
   const queries = host.semantics(sourceFile);
   const checked = resolveCsharpBindingSourceType(pattern, host.ast, host.semanticsFor);
   const selected = resolveCsharpCheckedNativePropertyRead(checked, sourceName, receiverCarrier, queries,
-    { ...host, projectTypes: host.projectTypes() });
+    { ...host, projectTypes: host.projectTypeQueries });
   if (selected.kind !== "resolved") return { kind: selected.kind };
   const carrier = selected.property.member.returnType;
   return { kind: "resolved", projection: Object.freeze({ storageCarrier: carrier, bindingCarrier: carrier,

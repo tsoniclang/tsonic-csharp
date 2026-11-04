@@ -26,6 +26,7 @@ import { resolveSourceCallTypeArguments as resolveSourceCallTypeArgumentsImpleme
 import { resolveNode as resolveNodeImplementation, resolveType as resolveTypeImplementation, resolveStorage as resolveStorageImplementation, resolveReadStorage as resolveReadStorageImplementation, catchVariableStorageCarrier as catchVariableStorageCarrierImplementation, resolveValue as resolveValueImplementation, resolveSelectedValue as resolveSelectedValueImplementation, resolveSelectedValueWithState as resolveSelectedValueWithStateImplementation, resolveSelectedType as resolveSelectedTypeImplementation, resolveSelectedResult as resolveSelectedResultImplementation, resolveTypedLocationOperationPointee as resolveTypedLocationOperationPointeeImplementation, resolveTypedLocationOperationPointeeWithState as resolveTypedLocationOperationPointeeWithStateImplementation, withSourceTargetBindings as withSourceTargetBindingsImplementation } from "./public-api.js";
 import { resolveFormedCsharpNodeTypeSource } from "./nodes.js";
 import { csharpSourceValueResult } from "./call-results.js";
+import { resolveFormedCsharpDeclaredCallableBody } from "./declared-callable-body.js";
 import { resolveFormedCsharpNodeQuerySource,
   resolveFormedCsharpTypeQuerySource } from "./public-api.js";
 import { resolveFormedCsharpSelectedExpressionResult } from "./expressions.js";
@@ -69,12 +70,18 @@ import { resolveCsharpPointerStoragePointee } from "./pointer-storage.js";
 import { formCsharpLiteralCreationContextSource, resolveFormedCsharpLiteralCreationContext } from "./literal-creation-context.js";
 import { completeCsharpSourceCallArgumentParameterSource } from "./call-argument-source.js";
 import { formCsharpSourceTypeComponentSource, resolveFormedCsharpSourceTypeComponent } from "./type-component-source.js";
+import { resolveFormedCsharpDeclaredReceiverBody } from "./declared-receiver-body.js";
+import { resolveFormedCsharpCallableDeclarationSignature } from "./source-profiles.js";
 
 import type { CsharpTypeResolutionScope } from "./scope.js";
 type DropScope<Arguments extends readonly unknown[]> =
   Arguments extends readonly [unknown, ...infer Rest] ? Rest : never;
 
 export interface CsharpTypeResolutionServices {
+  readonly completeDeclaredCallableBody: (...args: DropScope<Parameters<typeof resolveFormedCsharpDeclaredCallableBody>>) =>
+    ReturnType<typeof resolveFormedCsharpDeclaredCallableBody>;
+  readonly completeDeclaredReceiverBody: (...args: DropScope<Parameters<typeof resolveFormedCsharpDeclaredReceiverBody>>) =>
+    ReturnType<typeof resolveFormedCsharpDeclaredReceiverBody>;
   readonly sourceTypeArguments: typeof formCsharpSourceTypeArguments;
   readonly bindSourceTypeArguments: typeof bindCsharpSourceTypeArgumentsSource;
   readonly completeSourceTypeArguments: (...args: DropScope<Parameters<typeof resolveFormedCsharpSourceTypeArguments>>) =>
@@ -147,6 +154,7 @@ export function createCsharpTypeResolutionServices(
   let scope!: CsharpTypeResolutionScope;
   const queryCache = createCsharpTypeResolutionQueryCache();
   const activeTypes = new WeakSet<Type>();
+  const activeDeclaredReceivers = new WeakSet<object>();
   const methods = {
     formStructuralTypeApplication: (...args: DropScope<Parameters<typeof formCsharpStructuralTypeApplication>>) =>
       formCsharpStructuralTypeApplication(scope, ...args),
@@ -433,6 +441,8 @@ export function createCsharpTypeResolutionServices(
     ...methods,
   });
   const recursive: CsharpRecursiveTypeResolver = Object.freeze({
+    resolveCallableDeclarationSignature: (source: Parameters<typeof resolveFormedCsharpCallableDeclarationSignature>[1]) =>
+      resolveFormedCsharpCallableDeclarationSignature(scope, source),
     resolveStructuralPropertyType: methods.resolveStructuralPropertyType,
     resolveStructuralMemberChildren: methods.resolveStructuralMemberChildren,
     resolveNode: methods.resolveNodeWithState,
@@ -455,6 +465,17 @@ export function createCsharpTypeResolutionServices(
     },
   });
   return Object.freeze({ policy, recursive,
+    completeDeclaredCallableBody(source: Parameters<typeof resolveFormedCsharpDeclaredCallableBody>[1]) {
+      return resolveFormedCsharpDeclaredCallableBody(scope, source);
+    },
+    completeDeclaredReceiverBody(source: Parameters<typeof resolveFormedCsharpDeclaredReceiverBody>[1]) {
+      const self = source.context.receiver.self;
+      if (activeDeclaredReceivers.has(self)) return failTargetAnalysisInvariant("tsonic-csharp",
+        "The declared receiver body has a genuine dependency on its own physical identity.", source.node);
+      activeDeclaredReceivers.add(self);
+      try { return resolveFormedCsharpDeclaredReceiverBody(scope, source); }
+      finally { activeDeclaredReceivers.delete(self); }
+    },
     sourceTypeComponentSource: (...args: DropScope<Parameters<typeof formCsharpSourceTypeComponentSource>>) =>
       formCsharpSourceTypeComponentSource(scope, ...args),
     sourceTypeArguments: formCsharpSourceTypeArguments,

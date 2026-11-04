@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
 import type { Node, Type } from "@tsonic/tsts";
 import type { TargetTypeRef } from "./model.js";
-import type { CsharpTypeParameterConstraint } from "./generic-constraints.js";
-import { targetTypeRefKey } from "./equality.js";
+import { csharpTypeParameterConstraintResolutionKey, type CsharpTypeParameterConstraint } from "./generic-constraints.js";
+import { targetTypeRefEquals, targetTypeRefKey } from "./equality.js";
 import { csharpTargetNamedType } from "./factories.js";
 import { csharpQualifiedTypeRenderShape } from "./render-shapes.js";
 
@@ -62,4 +62,27 @@ export function getCsharpGenericOptionalParts(type: TargetTypeRef | undefined):
     element: projection.arguments[0],
     operations: csharpProjectedType({ ...projection, part: "operations" }),
   } : undefined;
+}
+
+export function csharpTypeProjectionVectorsEqual(
+  left: readonly CsharpProjectedType[],
+  right: readonly CsharpProjectedType[],
+): boolean {
+  return left.length === right.length && left.every((type, index) => {
+    const other = right[index]!;
+    const initial = type.csharpProjection;
+    const final = other.csharpProjection;
+    return type.identity === other.identity && type.name === other.name && initial.kind === final.kind &&
+      initial.arguments.length === final.arguments.length && initial.arguments.every((argument, index) =>
+        targetTypeRefEquals(argument, final.arguments[index]!)) &&
+      csharpTypeParameterConstraintResolutionKey(type.csharpConstraints) ===
+        csharpTypeParameterConstraintResolutionKey(other.csharpConstraints) &&
+      csharpTypeParameterConstraintResolutionKey({ kind: "resolved", constraints: type.csharpProjectionConstraints }) ===
+        csharpTypeParameterConstraintResolutionKey({ kind: "resolved", constraints: other.csharpProjectionConstraints }) &&
+      (initial.kind === "optional" ? final.kind === "optional" && initial.part === final.part
+        : final.kind === "conditional" && initial.declaration === final.declaration &&
+          initial.identity === final.identity && initial.sourceName === final.sourceName &&
+          initial.sourceArguments.length === final.sourceArguments.length && initial.sourceArguments.every((argument, index) =>
+            argument === final.sourceArguments[index]));
+  });
 }

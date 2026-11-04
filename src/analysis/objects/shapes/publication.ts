@@ -5,7 +5,8 @@ import { requireCsharpObjectShapeHeader, type CsharpObjectShapeHeader } from "..
 import { formCsharpObjectShapeMergeInput, formCsharpObjectShapeSourceMerge,
   formCsharpObjectShapeProofRows, requireCsharpObjectShapeProofRows, mergeCsharpObjectShapeSubjects, type CsharpObjectShapeMergeInput,
   type CsharpObjectShapeProofRows, type CsharpObjectShapeSourceMerge } from "./construction.js";
-import { formMemberInstantiationEvidence, type CsharpObjectShapeMemberInstantiationSource } from "./member-instantiation.js";
+import { formMemberInstantiationEvidence, instantiateMemberEvidence,
+  type CsharpObjectShapeMemberInstantiationSource } from "./member-instantiation.js";
 import type { Type } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 
@@ -44,6 +45,7 @@ export type CsharpObjectShapeTargetSelection = {
 
 export interface CsharpObjectShapeTargetSource {
   readonly selection: CsharpObjectShapeTargetSelection;
+  readonly type: Type | undefined;
   readonly rows: CsharpObjectShapeProofRows;
   readonly instantiation: CsharpObjectShapeMemberInstantiationSource | undefined;
 }
@@ -76,7 +78,26 @@ export function formCsharpObjectShapeTargetSource(
   const instantiation = type === undefined ? undefined : formMemberInstantiationEvidence(Object.freeze({
     members: rows.members, type, queries: queries!, previousSourceType: rows.sourceType,
   }));
-  return Object.freeze({ selection, rows, instantiation });
+  return Object.freeze({ selection, type, rows, instantiation });
+}
+
+export function completeCsharpObjectShapeTargetMemberSource(
+  source: CsharpObjectShapeTargetSource,
+  shape: CsharpObjectShapeFact,
+): CsharpObjectShapeFact | undefined {
+  if (source.rows.header !== source.selection.header) return failTargetAnalysisInvariant("tsonic-csharp",
+    "Selected native member completion requires its identical header occurrence.");
+  requireCsharpObjectShapeProofRows(source.rows, shape);
+  const instantiation = source.instantiation;
+  if (instantiation === undefined) return undefined;
+  if (source.type === undefined || instantiation.input.type !== source.type ||
+    instantiation.input.members !== source.rows.members ||
+    instantiation.input.previousSourceType !== source.rows.sourceType) {
+    return failTargetAnalysisInvariant("tsonic-csharp",
+      "Selected native member completion requires its exact header and checked source occurrence.");
+  }
+  const members = instantiateMemberEvidence(shape.members, instantiation);
+  return members === undefined ? undefined : Object.freeze({ ...shape, sourceType: source.type, members });
 }
 
 export function formCsharpObjectShapePublication(

@@ -6,15 +6,16 @@ import type { CsharpObjectShapePolicyHost, CsharpRecursiveObjectShapePolicy } fr
 import type { createCsharpObjectShapeMemberResolver } from "./member-evidence.js";
 import { formCsharpProjectConstructionSource, type CsharpProjectConstructionSource } from "./project-construction-source.js";
 import type { CsharpObjectShapeTargetInput } from "./method-values.js";
+import { csharpStructuralHeaderMembers } from "./member-evidence.js";
 
 export function createCsharpProjectShapeProjection(
   host: CsharpObjectShapePolicyHost,
   dependencies: Pick<ReturnType<typeof createCsharpObjectShapeMemberResolver>,
-    "collectMembers" | "formSourceMembersHeader" | "completeSourceMembers"> & {
+    "collectMembers" | "formSourceMembersHeader" | "completeSourceMembers" | "completeSourceShape"> & {
     readonly formTargetShape: (input: CsharpObjectShapeTargetInput) => CsharpObjectShapeFact;
   },
 ) {
-  const { collectMembers, formSourceMembersHeader, completeSourceMembers } = dependencies;
+  const { collectMembers, formSourceMembersHeader, completeSourceMembers, completeSourceShape } = dependencies;
 
   function completeSource(
     source: CsharpProjectConstructionSource,
@@ -31,21 +32,26 @@ export function createCsharpProjectShapeProjection(
     if (!source.projectOwned) return { kind: "rejected",
       reason: "The selected C# project type argument has no exact project-owned source declaration." };
     const header = source.members === undefined ? undefined : formSourceMembersHeader(source.members, targetType);
-    const members = header === undefined ? undefined : completeSourceMembers(header);
-    if (members === undefined) return { kind: "rejected",
+    if (header === undefined) return { kind: "rejected",
       reason: "The selected C# project type argument has no closed object-shape member projection." };
     if (targetType.csharpSourceDeclarationKind === "class") {
+      const members = completeSourceMembers(header);
+      if (members === undefined) return { kind: "rejected",
+        reason: "The selected C# project type argument has no closed object-shape member projection." };
       if (!source.initializable) return { kind: "rejected",
         reason: "The selected C# project class is not constructible through an exact omittable-parameter constructor." };
       return { kind: "resolved", shape: { targetType, members, constructible: true } };
     }
     if (targetType.csharpSourceDeclarationKind !== "interface") return { kind: "rejected",
       reason: "The selected C# project type argument is not a class, interface, struct, or enum." };
-    const shape = dependencies.formTargetShape({
+    const selected = dependencies.formTargetShape({
       target: Object.freeze({ kind: "structural", contract: false }),
-      members, implements: [targetType],
+      members: csharpStructuralHeaderMembers(header), implements: [targetType],
     });
-    return { kind: "resolved", shape };
+    const shape = completeSourceShape(header, selected);
+    return shape === undefined ? { kind: "rejected",
+      reason: "The selected C# project type argument has no closed object-shape member projection." }
+      : { kind: "resolved", shape };
   }
 
   const formSource = (...args: Parameters<CsharpRecursiveObjectShapePolicy["formProjectConstructionSource"]>) =>

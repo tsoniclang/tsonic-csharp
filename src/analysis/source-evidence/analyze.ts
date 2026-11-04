@@ -7,7 +7,7 @@ import { sourceClassFieldIsTypeOnly } from "@tsonic/target-api/source";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { csharpNativePropertyNameIssue } from "../objects/computed-field-names.js";
-import { selectCsharpSemanticCarrier } from "../../policy/types/resolution/semantic-types.js";
+import { formCsharpSemanticTypeClassificationSource, completeCsharpSemanticTypeClassification } from "./semantic-classification-source.js";
 import type { CsharpTypePolicy } from "./types/resolution/model.js";
 import { isCsharpJsValueTargetType, targetTypeRefEquals, targetTypeRefKey } from "../../policy/types/index.js";
 import { isTypeParameterTargetRef } from "../../policy/ownership/type-categories.js";
@@ -36,8 +36,9 @@ export function analyzeCsharpSourceEvidence(
   source: TargetSourceProgram,
   sourceFiles: readonly SourceFile[],
   types: CsharpTypePolicy,
-  policy: CsharpPolicyContext,
-  typeQueries: Pick<CsharpTypeResolutionServices, "nodeQuerySource" | "completeNodeQuery" | "typeQuerySource" | "completeTypeQuery">,
+  policy: Pick<CsharpPolicyContext, "types" | "callOnlyAlias">,
+  typeQueries: Pick<CsharpTypeResolutionServices,
+    "nodeQuerySource" | "completeNodeQuery" | "typeQuerySource" | "completeTypeQuery" | "completeDeclaredReceiverBody">,
   constructionSource: Pick<CsharpNativeConstructionSource<object>, "publicationFor">,
   pointerStorage: TsonicPointerStorageRelation,
 ): CsharpSourceEvidenceResult {
@@ -129,38 +130,11 @@ export function analyzeCsharpSourceEvidence(
       return cached;
     }
     const semantics = source.semantics.forFile(sourceFile);
-    const intrinsic: CsharpSemanticTypeClassification["intrinsic"] =
-      semantics.types.isAny(type)
-        ? "any"
-        : semantics.types.isUnknown(type)
-          ? "unknown"
-          : semantics.types.isBooleanLike(type)
-            ? "boolean"
-            : semantics.types.isNumberLike(type)
-              ? "number"
-              : semantics.types.isStringLike(type)
-                ? "string"
-                : semantics.types.isBigIntLike(type)
-                  ? "bigint"
-                  : semantics.types.isVoidLike(type)
-                    ? "void"
-                    : "other";
-    const typeQuery = typeQueries.typeQuerySource(type, sourceFile);
-    const symbol = semantics.declarations.typeSymbol(type);
-    const typeParameters = symbol === undefined ? [] : semantics.declarations.symbolDeclarations(symbol)
-      .filter(declaration => source.ast.is.IsTypeParameterDeclaration(declaration));
-    const typeParameter = typeParameters.length === 1
-      ? csharpSourceTypeParameter(typeParameters[0]!, source.ast) : undefined;
-    const nullish = semantics.types.isNullish(type);
-    const targetType = recordTargetType(typeQueries.completeTypeQuery(typeQuery));
-    currentTypeInputs.push(Object.freeze({ source: typeQuery, type: targetType }));
-    const classification = Object.freeze({
-      carrier: selectCsharpSemanticCarrier({ intrinsic, targetType, typeParameter }),
-      intrinsic,
-      nullish,
-      ...(targetType === undefined ? {} : { targetType }),
-      ...(typeParameter === undefined ? {} : { typeParameter }),
-    });
+    const selected = formCsharpSemanticTypeClassificationSource(source, type, semantics, typeQueries);
+    const targetType = recordTargetType(typeQueries.completeTypeQuery(selected.query));
+    const completed = Object.freeze({ source: selected.query, type: targetType });
+    currentTypeInputs.push(completed);
+    const classification = completeCsharpSemanticTypeClassification(selected, completed);
     bySourceFile ??= new Map();
     bySourceFile.set(sourceFile, classification);
     semanticTypes.set(type, bySourceFile);
@@ -284,6 +258,11 @@ export function analyzeCsharpSourceEvidence(
     ) {
       providerVirtualDeclarations.add(node);
     }
+    const declaredReceiverSource = nodeQuery.root.kind === "node" ? nodeQuery.root.declaredReceiver?.source : undefined;
+    const declaredReceiverBody = declaredReceiverSource === undefined ? undefined
+      : typeQueries.completeDeclaredReceiverBody(declaredReceiverSource);
+    if (declaredReceiverSource !== undefined && declaredReceiverBody === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+      "A self-typed body node requires its actual declared receiver components before physical completion.", node);
     const nodeSelection = typeQueries.completeNodeQuery(nodeQuery);
     nodeTargetTypes.set(node, recordTargetType(nodeSelection?.kind === "resolved" ? nodeSelection.sourceResult.selectedType : undefined) ?? missing);
     const nodeTargetType = cachedValue(nodeTargetTypes.get(node));
@@ -311,7 +290,8 @@ export function analyzeCsharpSourceEvidence(
       node,
       recordTargetType(types.resolveReadStorage(node, sourceFile)) ?? missing,
     );
-    currentNodeInputs.push(Object.freeze({ source: nodeQuery, constructionSource: publicationSource, resolution: nodeSelection,
+    currentNodeInputs.push(Object.freeze({ source: nodeQuery, declaredReceiverBody,
+      constructionSource: publicationSource, resolution: nodeSelection,
       storageType: cachedValue(storageTargetTypes.get(node)), readStorageType: cachedValue(readStorageTargetTypes.get(node)),
     }));
     const expressionType = semantics.types.expressionType(node);

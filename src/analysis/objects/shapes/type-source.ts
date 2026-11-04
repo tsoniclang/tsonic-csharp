@@ -23,7 +23,7 @@ import { formCsharpStructShapeSource, type CsharpStructShapeSource } from "./str
 export interface CsharpObjectShapeProjectSource {
   readonly definition: CsharpCurrentProjectDeclaration;
   readonly declared: CsharpDeclaredObjectShapeSource | undefined;
-  readonly instantiated: CsharpObjectShapeSource | undefined;
+  readonly instantiated: Extract<CsharpObjectShapeSource, { readonly kind: "instantiated" }> | undefined;
   readonly struct: CsharpStructShapeSource | undefined;
   readonly structShape: CsharpObjectShapeSource | undefined;
 }

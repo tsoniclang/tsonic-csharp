@@ -7,6 +7,7 @@ import type { CsharpProjectTypeDefinition, CsharpProjectTypeIssue } from "../../
 import type { CsharpNodeQuerySource, CsharpTypeQuerySource } from "./types/resolution/root-sources.js";
 import type { CsharpNodeTypeResolution } from "../../policy/model/type-resolution.js";
 import type { CsharpNativeConstructionPublicationSource } from "../objects/native-construction-publication.js";
+import type { CsharpDeclaredReceiverBody } from "./types/resolution/declared-receiver-body.js";
 
 type CurrentProjectDeclaration<Definition extends CsharpProjectTypeDefinition> = Definition extends unknown
   ? Omit<Definition, "declared" | "authoredTypeParameterBindings" | "typeParameterBindings" | "typeProjections" | "outerTypeProjections"> : never;
@@ -24,6 +25,7 @@ export interface CsharpCurrentProjectDeclarations {
 
 export interface CsharpCurrentNativeNodeInput {
   readonly source: CsharpNodeQuerySource;
+  readonly declaredReceiverBody: CsharpDeclaredReceiverBody | undefined;
   readonly constructionSource: CsharpNativeConstructionPublicationSource | undefined;
   readonly resolution: CsharpNodeTypeResolution | undefined;
   readonly storageType: TargetTypeRef | undefined;

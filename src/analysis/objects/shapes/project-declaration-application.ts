@@ -1,6 +1,6 @@
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact,
-  CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
+  CsharpTargetNamedTypeRef } from "../../../target-model/types/model.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../../target-model/types/object-shape-members.js";
 import { instantiateCsharpObjectShape } from "../../../policy/types/objects/instantiation.js";
@@ -14,7 +14,6 @@ import type { CsharpProjectDeclarationShapeSource } from "./project-declaration-
 import type { createCsharpObjectShapeSourceFormation } from "./type-source.js";
 import { completeCsharpObjectShapeOwnerHeader } from "../../../target-model/types/object-shape-header.js";
 import type { CsharpStructuralMembersHeader } from "./member-evidence.js";
-import type { CsharpObjectShapeTargetInput } from "./method-values.js";
 
 export type CsharpProjectDeclarationApplication = {
   readonly targetType: CsharpTargetNamedTypeRef;
@@ -32,11 +31,10 @@ export function createCsharpProjectDeclarationApplications(
   formation: ReturnType<typeof createCsharpObjectShapeSourceFormation>,
   memberResolver: Pick<CsharpRecursiveObjectShapePolicy, "formSourceMembersHeader" | "completeSourceMembers">,
   owner: {
-    readonly formTargetShape: (input: CsharpObjectShapeTargetInput) => CsharpObjectShapeFact;
     readonly rememberTargetShape: (shape: CsharpObjectShapeFact) => CsharpObjectShapeFact;
   },
 ) {
-  const { formTargetShape, rememberTargetShape } = owner;
+  const { rememberTargetShape } = owner;
   function nativeOwner(type: CsharpTargetNamedTypeRef): CsharpTargetNamedTypeRef | undefined {
     const definition = host.projectTypeCatalog.definitionForTarget(type);
     return completeCsharpObjectShapeOwnerHeader(type, definition?.kind === "class" || definition?.kind === "interface",
@@ -78,7 +76,7 @@ export function createCsharpProjectDeclarationApplications(
       const ownerType = native === undefined ? undefined
         : host.projectTypeCatalog.targetTypeForDeclaration(native.declaration, native.typeParameterBindings);
       const selectedOwner = ownerType === undefined ? undefined
-        : host.projectTypeABI().instantiateDeclarationType(owner.declaration, targetType, ownerType);
+        : host.projectTypeQueries.instantiateDeclarationType(owner.declaration, targetType, ownerType);
       if (selectedOwner?.kind !== "resolved" || selectedOwner.type.kind !== "target-named") return undefined;
       const inheritedSource = source.inherited[index];
       if (inheritedSource?.declaration !== selectedSource.inherited!.source) return failTargetAnalysisInvariant("tsonic-csharp",
@@ -100,10 +98,8 @@ export function createCsharpProjectDeclarationApplications(
   ): CsharpObjectShapeFact | undefined {
     if (application.kind === "instance") {
       const template = completeDeclarationApplication(application.template);
-      const instance = template === undefined ? undefined : instantiateCsharpObjectShape(rememberTargetShape(template), application.targetType);
-      if (instance === undefined) return undefined;
-      const { targetType, ...shape } = instance;
-      return formTargetShape({ ...shape, target: Object.freeze({ kind: "existing", type: targetType }) });
+      return template === undefined ? undefined
+        : instantiateCsharpObjectShape(rememberTargetShape(template), application.targetType);
     }
     const { declaration, targetType } = application;
     const definition = host.projectTypeCatalog.definitionForDeclaration(declaration.definition.declaration);
@@ -117,7 +113,7 @@ export function createCsharpProjectDeclarationApplications(
     if (declared === undefined) return undefined;
     const substitutions = new Map(definition.typeParameterBindings.map((parameter, index) =>
       [parameter.identity, targetType.typeArguments![index]!]));
-    const implemented = definition.kind === "interface" ? host.projectTypeABI().directSupertypes(targetType) : [];
+    const implemented = definition.kind === "interface" ? host.projectTypeQueries.directSupertypes(targetType) : [];
     if (implemented === undefined) return undefined;
     const members: CsharpObjectShapeMemberFact[] = [];
     for (const [index, original] of declared.entries()) {
@@ -143,11 +139,11 @@ export function createCsharpProjectDeclarationApplications(
       }
       members.push(member);
     }
-    return formTargetShape({ target: Object.freeze({ kind: "existing", type: targetType }),
+    return { targetType,
       sourceType: declaration.declaredType, members: Object.freeze(members),
       ...(definition.kind !== "class" ? {} : { constructible: declaration.initializable }),
       ...(implemented.length === 0 ? {} : { implements: implemented }),
-    });
+    };
   }
 
   return Object.freeze({ nativeOwner, formDeclarationApplication, completeDeclarationApplication });

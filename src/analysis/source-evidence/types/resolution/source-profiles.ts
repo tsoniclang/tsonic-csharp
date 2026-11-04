@@ -157,7 +157,7 @@ function completeCsharpCallableSignatureABI(
     "Callable ABI completion requires the exact completed authored signature.", declared.source.callable.result.declaration);
   const declaration = declared.declaration.source.declaration;
   const abi = completeCsharpCallableABI(declared.declaration,
-    declaration === undefined ? [] : host.projectTypeCatalog.genericProjections(declaration));
+    declaration === undefined ? undefined : host.projectTypeCatalog.callableProjections(declaration));
   return abi === undefined ? undefined : abi.typeParameters.length === 0 ? declared.signature
     : host.objectShapes.resolveCallableValue(declared.signature, abi.typeParameters);
 }

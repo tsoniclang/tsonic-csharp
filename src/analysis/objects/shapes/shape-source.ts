@@ -8,6 +8,7 @@ import { retainCheckedMemberDeclarationEvidence, type CsharpCollectedObjectShape
 import type { CsharpProjectDeclarationMemberSource, CsharpProjectDeclarationSource } from "./project-declaration-source.js";
 import type { CsharpProviderObjectLiteralSource } from "./provider-construction.js";
 import type { CsharpStructShapeSource } from "./struct-source.js";
+import type { CsharpObjectShapeProofRows } from "./construction.js";
 
 export interface CsharpObjectShapeSourceMember {
   readonly sourceKey: CsharpSourceMemberKey;
@@ -26,13 +27,32 @@ export interface CsharpDeclaredObjectShapeSource extends CsharpObjectShapeSource
   readonly inherited: readonly (CsharpDeclaredObjectShapeSource | undefined)[];
 }
 
-export type CsharpObjectShapeSource = CsharpDeclaredObjectShapeSource | CsharpObjectShapeSourceData & (
+export interface CsharpSelectedObjectShapeSource {
+  readonly kind: "selected";
+  readonly rows: CsharpObjectShapeProofRows;
+  readonly sourceType: Type | undefined;
+  readonly members: readonly CsharpObjectShapeSourceMember[];
+}
+
+export type CsharpObjectShapeSource = CsharpDeclaredObjectShapeSource | CsharpSelectedObjectShapeSource | CsharpObjectShapeSourceData & (
   | { readonly kind: "collected"; readonly collection: CsharpCollectedObjectShapeMembers }
   | { readonly kind: "provider"; readonly provider: CsharpProviderObjectLiteralSource }
   | { readonly kind: "struct"; readonly struct: CsharpStructShapeSource }
   | { readonly kind: "instantiated"; readonly previous: CsharpObjectShapeSource;
       readonly instantiation: CsharpObjectShapeMemberInstantiationSource }
 );
+
+export function formSelectedObjectShapeProofSource(rows: CsharpObjectShapeProofRows): CsharpSelectedObjectShapeSource {
+  const contracts = rows.header.contract.members;
+  if (contracts.length !== rows.members.length || contracts.some((member, index) =>
+    rows.members[index] === undefined || rows.members[index]!.optional !== member.optional)) return failTargetAnalysisInvariant("tsonic-csharp",
+    "Selected shape source requires every original header member and proof row.");
+  return Object.freeze({ kind: "selected", rows, sourceType: rows.sourceType,
+    members: Object.freeze(contracts.map((member, index) => Object.freeze({
+      sourceKey: member.sourceKey, memberKind: member.memberKind, proof: rows.members[index]!,
+    }))),
+  });
+}
 
 export function formCollectedObjectShapeSource(collection: CsharpCollectedObjectShapeMembers): CsharpObjectShapeSource {
   return Object.freeze({ kind: "collected", collection, sourceType: collection.ownerType,
@@ -94,9 +114,10 @@ export function formStructObjectShapeSource(struct: CsharpStructShapeSource): Cs
 
 export function formInstantiatedObjectShapeSource(
   previous: CsharpObjectShapeSource,
-  type: Type,
+  type: Type | undefined,
   queries: SourceFileSemantics,
 ): Extract<CsharpObjectShapeSource, { readonly kind: "instantiated" }> | undefined {
+  if (type === undefined) return undefined;
   const instantiation = formMemberInstantiationEvidence(Object.freeze({
     members: Object.freeze(previous.members.map(member => member.proof)),
     type, queries, previousSourceType: previous.sourceType,

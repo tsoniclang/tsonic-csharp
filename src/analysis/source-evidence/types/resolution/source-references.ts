@@ -1,5 +1,6 @@
 import { selectCsharpParameterListCarrier } from "../../../../policy/types/callables/parameter-list.js";
 import type { CsharpTypeResolutionScope } from "./scope.js";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpTypeResolutionState } from "./model.js";
 import type { Node, Type } from "@tsonic/tsts";
 import type { SourceCallableTypeEvidence, SourceFileSemantics } from "@tsonic/target-api/source";
@@ -12,7 +13,7 @@ import { nextState } from "./state.js";
 import { sourceTypeSyntaxIsCompositional, sourceTypeSyntaxRoot } from "@tsonic/target-api/source";
 import { substituteTargetTypeParameters } from "../../../../policy/types/resolution/substitution.js";
 import { targetTypeRefKey } from "../../../../target-model/types/equality.js";
-import { completeCsharpBoundSourceType, csharpBoundSourceType, csharpSourceBindings, csharpSourceTemplateState } from "./type-bindings.js";
+import { completeCsharpBoundSourceType, csharpSourceBindings, csharpSourceTemplateState } from "./type-bindings.js";
 import { resolveCsharpConditionalApplication } from "./conditional-types.js";
 import { csharpConditionalDeclaration } from "./conditional-application-source.js";
 import { formCsharpTypeReferenceSource, type CsharpTypeReferenceSource } from "./type-reference-source.js";

@@ -4,7 +4,7 @@ import type { ResolvedSourceCallInfo } from "../../target-model/records/calls/so
 import type { CsharpModuleCallableIdentities } from "../../target-model/records/callables/module-callables.js";
 import type { CsharpCallableContractIndex } from "../../target-model/records/callables/callable-values.js";
 import type { SourceCallableContract } from "../../target-model/records/callables/source-callable-contract.js";
-import type { CsharpProjectTypePolicy } from "../../target-model/records/types/project-types.js";
+import type { CsharpProjectTypeQueries } from "../../target-model/records/types/project-types.js";
 
 interface CsharpSourceCallableDeclarationSource {
   readonly declaration: Node | undefined;
@@ -25,7 +25,7 @@ export interface CsharpSourceCallableSource {
   readonly constructorDeclaration: Node | undefined;
   readonly checked: CsharpSourceCallableDeclarationSource;
   readonly implementation: CsharpSourceCallableDeclarationSource & {
-    readonly selection: ReturnType<TargetSourceProgram["navigation"]["callableImplementation"]>;
+    readonly selection: ReturnType<TargetSourceProgram["navigation"]["callableImplementation"]> | undefined;
   };
 }
 
@@ -66,7 +66,7 @@ export function completeCsharpSourceCallableSource(
   selection: "checked" | "implementation",
   host: {
     readonly contracts: CsharpCallableContractIndex | undefined;
-    projectTypes(): CsharpProjectTypePolicy | undefined;
+    readonly projectTypes: Pick<CsharpProjectTypeQueries, "implicitConstructorForSignature">;
   },
 ): SourceCallableContract | undefined {
   const { contracts } = host;
@@ -77,7 +77,7 @@ export function completeCsharpSourceCallableSource(
       ? undefined : contracts.get({ kind: "declaration", declaration: initializer });
   }
   if (input.constructorDeclaration !== undefined) {
-    const constructor = host.projectTypes()?.implicitConstructorForSignature(input.constructorDeclaration,
+    const constructor = host.projectTypes.implicitConstructorForSignature(input.constructorDeclaration,
       input.source.selectedSignature, input.source.sourceSelectedSignatureParameters);
     if (constructor !== undefined) return contracts.get({ kind: "project-constructor", targetMemberId: constructor.targetMember.id });
   }

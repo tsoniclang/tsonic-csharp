@@ -12,8 +12,11 @@ import type { CsharpRequiredRecord } from "./records/objects/required-records.js
 import { sourceDeclarationHasOnlyTypeUses, sourceDeclarationIsModuleScoped, sourceCallableValueExpression } from "@tsonic/target-api/source";
 import { analyzeCsharpExactLiteralSelections } from "../conversions/literal-plans.js";
 
-import { analyzeCsharpTypeProjections, csharpTypeProjectionIndexesEqual } from "../declarations/type-projections.js";
+import { csharpTypeProjectionIndexesEqual } from "../declarations/type-projections.js";
+import { formCsharpCallableProjectionInput, analyzeCsharpCallableProjectionInput, joinCsharpCallableProjectionInputs,
+  requireCsharpCallableProjectionCompletion } from "../declarations/callable-projection-inputs.js";
 import { formCsharpTypeProjectionSource } from "../declarations/type-projection-source.js";
+import { formCsharpTypeProjectionInputs, requireCsharpDeclaredReceiverProjectionCompletion } from "../declarations/type-projection-inputs.js";
 import { type CsharpGenericProjectionIndex } from "../../target-model/records/types/type-projections.js";
 import { csharpCallableValueType } from "../../policy/types/callables/value-type.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
@@ -24,7 +27,7 @@ import type { CsharpExpectedNativeUse } from "../../target-model/records/native/
 import { createCsharpProjectTypeCatalog } from "../project-types/catalog.js";
 import { createCsharpTypeDefinitionRegistry } from "../project-types/type-definitions.js";
 
-import { rejectedTargetStage, resolvedTargetStage } from "@tsonic/target-api/artifacts";
+import { rejectedTargetStage, resolvedTargetStage, failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 
 import { createCsharpTypeAnalysis } from "./type-system.js";
@@ -43,6 +46,7 @@ import { createCsharpSourceNameBuilder } from "../names/index.js";
 import { analyzeCsharpCallableContracts, csharpCallableContractIndexesEqual } from "../callables/index.js";
 import type { CsharpCallableContractIndex } from "../../target-model/records/callables/callable-values.js";
 import { analyzeCsharpObjectShapes } from "../objects/index.js";
+import { requireCsharpDeclaredReceiverMemberCompletion } from "../source-evidence/types/resolution/declared-receiver-completion.js";
 import { analyzeCsharpConversions } from "../conversions/index.js";
 
 import { analyzeCsharpExpectedTypes } from "../expected-types/index.js";
@@ -85,7 +89,6 @@ export function analyzeCsharpRepresentationIteration(
   const names = createCsharpSourceNameBuilder(nameHost);
   let typeSystem: CsharpTypeAnalysis | undefined;
   const planningRepresentations: CsharpPlanningRepresentationQueries = {
-    genericProjections(declaration) { return previous?.typeProjections.genericProjection.get(declaration) ?? []; },
     requiresClosedStructuralContract(type) {
       return previous?.storage.closedNativeContracts.some(contract => targetTypeRefEquals(contract, type)) === true;
     },
@@ -121,9 +124,11 @@ export function analyzeCsharpRepresentationIteration(
       return formCsharpSourceCallableSource(input.source, typeHost.moduleCallables, source, sourceFile);
     },
     completeSourceCallable(source, selection) {
+      if (typeSystem === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+        "Callable completion requires its initialized current project query owner.", source.source.call);
       return completeCsharpSourceCallableSource(source, selection, {
         contracts: previous?.callables,
-        projectTypes: () => typeSystem?.projectTypes,
+        projectTypes: typeSystem.projectTypeQueries,
       });
     },
   };
@@ -131,7 +136,7 @@ export function analyzeCsharpRepresentationIteration(
   const typeDefinitions = createCsharpTypeDefinitionRegistry(id => csharpProviderBindingFromResolution(providers.findTargetBindingByTargetId(id, "ordinary")));
   typeSystem = createCsharpTypeAnalysis(
     { ...typeHost, typeDefinitions },
-    createCsharpProjectTypeCatalog(typeHost),
+    createCsharpProjectTypeCatalog(typeHost, projectionSource),
     representations,
     projectionSource.declaredReceivers,
   );
@@ -164,7 +169,20 @@ export function analyzeCsharpRepresentationIteration(
   const operations = analyzeCsharpTargetOperations(policy, sourceEvidence, statementErasure, sourceStorage.nodes, requiredRecords);
   const valueReadStages = analyzeCsharpValueReadStages(policy, sourceEvidence, operations);
   const optionalLocals = analyzeCsharpOptionalLocals(policy, sourceEvidence, sourceStorage.nodes, names, operations);
-  const typeProjections = analyzeCsharpTypeProjections(projectionSource, sourceEvidence, operations, optionalLocals);
+  const projectionInputs = formCsharpTypeProjectionInputs(projectionSource, sourceEvidence, evidence.currentNodeInputs);
+  const bodyNodeInputs = new Map(evidence.currentNodeInputs.map(input => [input.source.node, input]));
+  const declaredBodies: ReturnType<typeof typeSystem.completeDeclaredCallableBody>[] = [];
+  const callableProjectionInputs = projectionSource.owners.map(owner => {
+    const nodeInput = bodyNodeInputs.get(owner.declaration);
+    if (nodeInput !== undefined) declaredBodies.push(typeSystem.completeDeclaredCallableBody(nodeInput.source));
+    const completed = analyzeCsharpCallableProjectionInput(formCsharpCallableProjectionInput(
+      projectionSource, owner, projectionInputs, operations, optionalLocals, Object.freeze([...declaredBodies])));
+    typeSystem.publishCallableProjections(completed);
+    return completed;
+  });
+  const projectionOrder = requireCsharpCallableProjectionCompletion(projectionSource,
+    callableProjectionInputs, projectionInputs, operations, optionalLocals);
+  const typeProjections = joinCsharpCallableProjectionInputs(projectionSource, callableProjectionInputs, projectionOrder);
   typeSystem.publishProjectTypes(typeProjections);
   typeSystem.completeNativeConstruction(typeSystem.nativeConstructionSource);
   const declarations = analyzeCsharpDeclarations(
@@ -328,7 +346,9 @@ export function analyzeCsharpRepresentationIteration(
   });
   storagePreparation.backing.publishFields(objectShapes.completeFormation());
   const sealedObjectShapes = objectShapes.seal();
-  const storage = sealCsharpStorage(policy, backingEvidence, operations, sealedObjectShapes, storagePreparation);
+  requireCsharpDeclaredReceiverMemberCompletion(evidence.currentNodeInputs, sealedObjectShapes);
+  requireCsharpDeclaredReceiverProjectionCompletion(projectionInputs, typeProjections, operations, optionalLocals, sealedObjectShapes);
+  const storage = sealCsharpStorage(policy, backingEvidence, operations, storagePreparation);
   return resolvedTargetStage(Object.freeze({
     policy,
     typeDefinitions,

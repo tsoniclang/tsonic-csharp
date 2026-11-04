@@ -2,7 +2,6 @@ import type { Node } from "@tsonic/tsts";
 import { IsTypeSyntaxNode } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { selectCsharpSourceArgument } from "../../source/extension/arguments.js";
-import type { CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
 import type { CsharpSourceEvidenceAnalysis } from "../source-evidence/model.js";
 import type { CsharpStorageClassifications, CsharpStorageRepresentationClassifications } from "../../target-model/records/storage/storage.js";
@@ -44,7 +43,6 @@ export function sealCsharpStorage(
   policy: CsharpPolicyContext,
   evidence: CsharpSourceEvidenceAnalysis,
   operations: CsharpTargetOperationClassifications,
-  objectShapes: CsharpObjectShapeClassifications,
   preparation: CsharpStoragePreparation,
 ): CsharpStorageClassifications {
   const { representations, backing } = preparation;

@@ -2,7 +2,7 @@ import type { SourceFile } from "@tsonic/tsts";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { SourceCallableContract } from "../../../../target-model/records/callables/source-callable-contract.js";
 import type { ResolvedSourceCallInfo } from "../../../../target-model/records/calls/source-calls.js";
-import type { CsharpProjectTypePolicy } from "../../../../target-model/records/types/project-types.js";
+import type { CsharpProjectTypeQueries } from "../../../../target-model/records/types/project-types.js";
 import type { CsharpObjectShapeFact, TargetTypeRef } from "../../../../target-model/types/model.js";
 import { inferCsharpTargetTypeParameterBindings, substituteTargetTypeParameters } from "../../../../policy/types/resolution/substitution.js";
 import type { CsharpTypeResolutionState } from "./model.js";
@@ -23,7 +23,7 @@ export interface CsharpSourceCallableTypeInput {
 }
 
 type Instantiation = NonNullable<ReturnType<CsharpTypeResolutionScope["resolveSourceCallInstantiation"]>>;
-type ReceiverInstantiation = ReturnType<CsharpProjectTypePolicy["instantiateDeclarationType"]>;
+type ReceiverInstantiation = ReturnType<CsharpProjectTypeQueries["instantiateDeclarationType"]>;
 
 export type CsharpSourceCallableTypeRequest = {
   readonly input: CsharpSourceCallableTypeInput;

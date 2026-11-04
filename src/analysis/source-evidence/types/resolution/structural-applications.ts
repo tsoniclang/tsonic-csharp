@@ -15,6 +15,11 @@ import { formCsharpAuthoredTypeSelectionSource, bindCsharpAuthoredTypeSelectionS
   resolveSourceTypeDependency, type CsharpAuthoredTypeSelectionSource, type CsharpAuthoredTypeSelectionEvidence,
   type CsharpSourceTypeDependency } from "./selected-values.js";
 import { nextState } from "./state.js";
+import { completeCsharpStructuralMemberChildrenSource } from "./structural-member-completion.js";
+import { formCsharpCallableSignatureCapture, bindCsharpCallableSignatureCapture,
+  type CsharpCallableSignatureCapture, type CsharpCallableSignatureInput } from "./callable-signature-completion.js";
+import { resolveFormedCsharpCallableDeclarationSignature } from "./source-profiles.js";
+import { csharpNullableTargetType } from "../../../../target-model/types/carriers/nullable.js";
 
 type CollectedMember = CsharpCollectedObjectShapeMembers["members"][number];
 
@@ -40,7 +45,7 @@ export interface CsharpStructuralMemberApplication {
   readonly capture: CsharpStructuralMemberSource;
   readonly source: CollectedMember;
   readonly type:
-    | { readonly kind: "method"; readonly dependency: CsharpSourceTypeDependency }
+    | { readonly kind: "method"; readonly signature: CsharpCallableSignatureInput | undefined }
     | CsharpStructuralPropertyApplication;
   readonly value: CsharpSourceTypeDependency | undefined;
   readonly constraints: readonly {
@@ -51,7 +56,8 @@ export interface CsharpStructuralMemberApplication {
 
 export interface CsharpStructuralMemberSource {
   readonly source: CsharpObjectShapeMembersSource["members"][number];
-  readonly type: { readonly kind: "method"; readonly type: Type } | CsharpStructuralPropertySource;
+  readonly type: { readonly kind: "method"; readonly type: Type;
+    readonly signature: CsharpCallableSignatureCapture | undefined } | CsharpStructuralPropertySource;
 }
 
 export interface CsharpStructuralTypeCapture {
@@ -159,7 +165,9 @@ export function formCsharpStructuralTypeCapture(
   collection: CsharpObjectShapeMembersSource,
 ): CsharpStructuralTypeCapture {
   const members = collection.members.map((source): CsharpStructuralMemberSource => Object.freeze({ source,
-    type: source.method ? Object.freeze({ kind: "method", type: source.propertyType })
+    type: source.method ? Object.freeze({ kind: "method", type: source.propertyType,
+      signature: source.callableSignature === undefined ? undefined
+        : formCsharpCallableSignatureCapture(scope.host, source.callableSignature) })
       : formCsharpStructuralPropertySource(scope, {
           sourceType: source.propertyType, queries: collection.queries, sourceStorageSubject: source.sourceStorageSubject,
           authoredTypeNodes: source.authoredTypeNodes, declarationValues: source.declarationValues,
@@ -183,9 +191,8 @@ export function bindCsharpStructuralTypeCapture(
   const members = collection.members.map((source, index): CsharpStructuralMemberApplication => {
     const member = capture.members[index]!;
     const type: CsharpStructuralMemberApplication["type"] = member.type.kind === "method"
-      ? Object.freeze({ kind: "method", dependency: Object.freeze({ kind: "type", type: member.type.type,
-          sourceFile, state: Object.freeze(nextState(source.state)),
-        }) })
+      ? Object.freeze({ kind: "method", signature: member.type.signature === undefined ? undefined
+          : bindCsharpCallableSignatureCapture(member.type.signature, Object.freeze(nextState(source.state))) })
       : bindCsharpStructuralPropertySource(member.type, source.state);
     return Object.freeze({ capture: member, source, type,
       value: source.value === undefined ? undefined : Object.freeze({
@@ -237,34 +244,34 @@ export function resolveCsharpStructuralMemberChildren(
   application: CsharpStructuralTypeApplication,
   memberIndex: number,
 ): CsharpCompletedStructuralMemberChildren | undefined {
-  const member = application.members[memberIndex];
-  if (application.source.collection !== application.collection || application.source.members !== application.members ||
-    application.source.capture !== application.capture || application.capture.collection !== application.collection.source ||
-    application.members.length !== application.collection.members.length ||
-    member === undefined || application.collection.members[memberIndex] !== member.source ||
-    member.capture !== application.capture.members[memberIndex] || member.capture.source !== member.source.source) {
-    failTargetAnalysisInvariant("tsonic-csharp", "Structural child completion requires its exact ordered source member.");
+  const completion = completeCsharpStructuralMemberChildrenSource(application, memberIndex);
+  let step = completion.next();
+  while (!step.done) {
+    const request = step.value;
+    if (request.kind === "inheritance") {
+      const inheritance = scope.host.structuralTypes.memberInheritance(application, memberIndex);
+      step = completion.next(Object.freeze({ kind: "inheritance", request, inheritance }));
+    } else if (request.kind === "base") {
+      const declared = request.source.kind !== "method" || request.source.signature === undefined ? undefined
+        : resolveFormedCsharpCallableDeclarationSignature(scope, request.source.signature);
+      const type = request.source.kind === "method" ? declared === undefined ? undefined
+        : request.member.source.nullish && declared.declaration.typeParameters.length === 0
+          ? csharpNullableTargetType(declared.signature) : declared.signature
+        : resolveCsharpStructuralPropertyType(scope, request.source);
+      step = completion.next(Object.freeze({ kind: "base", request, type }));
+    } else if (request.kind === "value") {
+      const type = resolveSourceTypeDependency(scope, request.source);
+      step = completion.next(Object.freeze({ kind: "value", request, type }));
+    } else {
+      const { receiver } = application;
+      const resolution = resolveFormedCsharpTypeParameterConstraints(request.source.source, dependency => {
+        const declared = scope.resolveNodeWithState(dependency.node, dependency.sourceFile, request.source.state);
+        if (declared === undefined || receiver === undefined) return declared;
+        const selected = scope.host.projectTypeQueries.instantiateMemberType(request.member.source.methodDeclaration, receiver, declared);
+        return selected.kind === "resolved" ? selected.type : selected.kind === "not-project-member" ? declared : undefined;
+      });
+      step = completion.next(Object.freeze({ kind: "constraint", request, resolution }));
+    }
   }
-  const inheritance = scope.host.structuralTypes.memberInheritance(application, memberIndex);
-  if (inheritance.application !== application || inheritance.member !== member) {
-    failTargetAnalysisInvariant("tsonic-csharp", "Structural child completion requires the same member's inheritance selection.");
-  }
-  if (inheritance.selection.kind === "unresolved") return undefined;
-  const baseType = inheritance.selection.kind === "resolved" ? inheritance.selection.type
-    : member.type.kind === "method" ? resolveSourceTypeDependency(scope, member.type.dependency)
-    : resolveCsharpStructuralPropertyType(scope, member.type);
-  if (baseType === undefined) return undefined;
-  const value = member.value === undefined ? undefined : Object.freeze({
-    request: member.value, type: resolveSourceTypeDependency(scope, member.value),
-  });
-  const { receiver } = application;
-  const constraints = member.constraints.map(request => Object.freeze({ request,
-    resolution: resolveFormedCsharpTypeParameterConstraints(request.source, dependency => {
-      const declared = scope.resolveNodeWithState(dependency.node, dependency.sourceFile, request.state);
-      if (declared === undefined || receiver === undefined) return declared;
-      const selected = scope.host.projectTypeABI().instantiateMemberType(member.source.methodDeclaration, receiver, declared);
-      return selected.kind === "resolved" ? selected.type : selected.kind === "not-project-member" ? declared : undefined;
-    }),
-  }));
-  return Object.freeze({ inheritance, baseType, value, constraints: Object.freeze(constraints) });
+  return step.value;
 }

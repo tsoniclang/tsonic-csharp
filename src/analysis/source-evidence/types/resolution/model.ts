@@ -4,7 +4,7 @@ import type { TargetSelection } from "@tsonic/target-api";
 import type { TsonicPointerStorageRelation, TsonicMemoryBindingIndex } from "@tsonic/source-core/facts";
 
 import type { SourceFileSemantics, SourceProgramNavigation } from "@tsonic/target-api/source";
-import type { CsharpProjectTypeCatalog, CsharpProjectTypePolicy } from "../../../../target-model/records/types/project-types.js";
+import type { CsharpProjectTypeCatalog, CsharpProjectTypeQueries } from "../../../../target-model/records/types/project-types.js";
 import type { CsharpProviderRelationResolver } from "../../../../providers/model/relation-resolver.js";
 import type { SourceCallableContract, SourceCallableSourceContract } from "../../../../target-model/records/callables/source-callable-contract.js";
 
@@ -24,7 +24,6 @@ export type ResolvedSourceCallInfo = NonNullable<
 
 
 export interface CsharpPlanningRepresentationQueries {
-  genericProjections(declaration: Node): readonly import("../../../../target-model/types/projections.js").CsharpProjectedType[];
   requiresClosedStructuralContract(type: TargetTypeRef): boolean;
   scopedTargetType(node: Node): TargetTypeRef | undefined;
   closedInputContract(node: Node): SourceCallableSourceContract | undefined;
@@ -67,8 +66,7 @@ export interface CsharpTypePolicyHost extends CsharpTypePolicyBaseHost {
   readonly representations: CsharpPlanningRepresentationQueries;
   readonly projectTypeCatalog: CsharpProjectTypeCatalog;
   readonly objectShapes: CsharpObjectShapePolicy;
-  projectTypeABI(): import("../../../../target-model/records/types/project-types.js").CsharpProjectTypeABIPolicy;
-  projectTypes(): CsharpProjectTypePolicy;
+  readonly projectTypeQueries: CsharpProjectTypeQueries;
   targetTypeComponents(type: TargetTypeRef): readonly TargetTypeRef[];
   readonly structuralTypes: {
     memberInheritance(application: CsharpStructuralTypeApplication, memberIndex: number): CsharpStructuralMemberInheritance;
@@ -126,6 +124,9 @@ export interface CsharpTypeResolutionState {
 }
 
 export interface CsharpRecursiveTypeResolver {
+  resolveCallableDeclarationSignature(
+    source: import("./callable-signature-completion.js").CsharpCallableSignatureInput,
+  ): import("./callable-signature-completion.js").CsharpCompletedCallableSignature | undefined;
   resolveStructuralPropertyType(application: CsharpStructuralPropertyApplication): TargetTypeRef | undefined;
   resolveStructuralMemberChildren(application: CsharpStructuralTypeApplication,
     memberIndex: number): CsharpCompletedStructuralMemberChildren | undefined;

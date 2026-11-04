@@ -66,7 +66,7 @@ export function formCsharpStructShapeSource(
       const destination = pairs.length === 1 ? pairs[0]!.destination : undefined;
       const subjects = destination === undefined ? [] : [destination.property.symbol, ...destination.declarations];
       const matches = collection?.members.map((member, index) => ({ member, index })).filter(({ member }) =>
-        member.proofInput.sourceSubjects?.some(subject => subjects.includes(subject)) === true);
+        member.proofInput.sourceSubjects?.some(subject => subjects.some(candidate => candidate === subject)) === true);
       const selected = matches?.length === 1 ? matches[0] : undefined;
       const input = selected?.member.proofInput;
       const proof = input === undefined ? undefined : Object.freeze({

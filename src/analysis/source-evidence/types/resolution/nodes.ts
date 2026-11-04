@@ -2,7 +2,6 @@ import type { CsharpTypeResolutionScope } from "./scope.js";
 import { resolveCsharpConstructorValueType } from "./constructors.js";
 import type { CsharpTypePolicyHost, CsharpTypeResolutionState } from "./model.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import { combineCsharpTargetUnionMembers } from "../../../../target-model/types/carriers/runtime-carriers.js";
 import { csharpJsArrayTargetType } from "../../../../target-model/types/carriers/js.js";
@@ -33,6 +32,8 @@ import type { CsharpSourceCallResult } from "../../../../target-model/operations
 import { csharpSourceValueResult, refineCsharpSourceValueResult } from "./call-results.js";
 import { assertCsharpUnionTypeNodeSource, type CsharpUnionTypeNodeSource } from "./union-node-source.js";
 import { assertCsharpNodeBranchSource, type CsharpNodeBranchSource } from "./node-branch-source.js";
+import { assertCsharpDeclaredObjectReceiverMemberSource,
+  resolveFormedCsharpDeclaredObjectReceiverMember } from "./declared-receiver-completion.js";
 export function resolveNodeValueWithState(
   scope: CsharpTypeResolutionScope,
   node: Node | undefined,
@@ -46,9 +47,13 @@ export function resolveFormedCsharpNodeTypeSource(
   scope: CsharpTypeResolutionScope,
   source: CsharpNodeTypeSource,
 ): CsharpSourceCallResult | undefined {
+  if (source.kind === "node" && source.declaredReceiver === undefined &&
+    scope.host.declaredObjectReceivers.get(source.node) !== undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+      "A node requires its retained declared receiver occurrence before native children.", source.node);
   if (source.kind === "node" && source.declaredReceiver !== undefined) {
     const receiver = source.declaredReceiver;
-    if (receiver.node !== source.node || receiver.queries !== source.queries || receiver.state !== source.state ||
+    if (!Object.prototype.hasOwnProperty.call(receiver, "member") ||
+      receiver.node !== source.node || receiver.queries !== source.queries || receiver.state !== source.state ||
       receiver.context !== scope.host.declaredObjectReceivers.get(source.node)) {
       return failTargetAnalysisInvariant("tsonic-csharp",
         "A declared receiver requires its exact Source occurrence, lexical context and bound state.", source.node);
@@ -56,11 +61,20 @@ export function resolveFormedCsharpNodeTypeSource(
     const selected = receiver.source;
     if (selected !== undefined && (selected.node !== source.node || selected.queries !== source.queries ||
       selected.state !== source.state || selected.context !== receiver.context || selected.type !== source.selectedType ||
-      selected.kind === "type" && (selected.declarations.length !== selected.members.length ||
+      selected.kind === "type" && (selected.members !== receiver.context.receiver.members ||
+        selected.declarations !== receiver.context.receiver.declaredMembers ||
+        selected.declarations.length !== selected.members.length ||
         selected.declarations.some((member, index) => member !== undefined &&
           (member.property !== selected.members[index] || member.queries !== selected.queries))))) {
       return failTargetAnalysisInvariant("tsonic-csharp",
         "A declared receiver view requires the exact selected Source type and ordered declaration rows.", source.node);
+    }
+    const member = receiver.member;
+    if (member !== undefined) {
+      if (member.node !== source.node || member.queries !== source.queries || member.state !== source.state ||
+        member.context !== receiver.context) return failTargetAnalysisInvariant("tsonic-csharp",
+          "A node requires its exact retained declared receiver member.", source.node);
+      assertCsharpDeclaredObjectReceiverMemberSource(scope.host, member);
     }
   }
   if (source.kind === "node" && (source.nativeParameter === undefined || source.nativeParameter.parameter !== source.node)) return failTargetAnalysisInvariant("tsonic-csharp",
@@ -159,6 +173,9 @@ function resolveNodeResultWithState(
   const contextualParameter = resolveFormedCsharpContextualParameterCarrier(scope, source.contextualParameter, state);
   if (contextualParameter.kind !== "not-applicable") return contextualParameter.kind === "resolved"
     ? csharpSourceValueResult(contextualParameter.type) : undefined;
+  if (source.declaredReceiver?.member !== undefined) {
+    return csharpSourceValueResult(resolveFormedCsharpDeclaredObjectReceiverMember(scope, source.declaredReceiver.member, "selected"));
+  }
   const selectedExpression = resolveFormedSelectedExpressionResult(source.selectedExpression);
   if (selectedExpression !== undefined) {
     return selectedExpression;

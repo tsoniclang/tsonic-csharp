@@ -5,15 +5,19 @@ import { csharpTypeProjection, getCsharpGenericOptionalParts, type CsharpProject
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
 import { targetTypeRefKey } from "../../target-model/types/equality.js";
 import { csharpFreeTypeParameterIdentities } from "../../target-model/types/generic-references.js";
-import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
+import type { CsharpTypeProjectionInputs } from "./type-projection-inputs.js";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { createCsharpTypeProjectionRecords } from "../program/records/types/type-projections.js";
 import type { CsharpOptionalLocalPlan } from "../storage/optional-locals.js";
 import type { CsharpTypeProjectionNodeSource, CsharpTypeProjectionSource } from "./type-projection-source.js";
 
 export function analyzeCsharpTypeProjections(
-  source: CsharpTypeProjectionSource, evidence: CsharpSourceEvidenceIndex, operations: CsharpTargetOperationClassifications,
+  source: CsharpTypeProjectionSource, evidence: CsharpTypeProjectionInputs,
+  operations: Pick<CsharpTargetOperationClassifications, "selectedCall">,
   optionalLocals: Pick<CsharpOptionalLocalPlan, "removesProjection">,
 ): CsharpGenericProjectionIndex {
+  if (evidence.source !== source || evidence.localTypes === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+    "A requires the exact current body-component inputs for its declared source.");
   const byDeclaration = new Map<Node, Map<string, CsharpProjectedType>>();
   const outerByDeclaration = new Map<Node, Map<string, CsharpProjectedType>>();
   const record = (index: Map<Node, Map<string, CsharpProjectedType>>, owner: Node, projection: CsharpProjectedType): void => {
@@ -28,8 +32,7 @@ export function analyzeCsharpTypeProjections(
     excluded.set(occurrence, omitted);
     if (omitted) continue;
     const pending = occurrence.name || occurrence.declarationOnly ? [] : [
-      ...[evidence.nodeTargetType.get(node), evidence.storageTargetType.get(node), evidence.bindingProjection.get(node)?.storageCarrier]
-        .map(type => ({ type, local: true })),
+      ...evidence.localTypes.get(node).map(type => ({ type, local: true })),
       ...(operations.selectedCall.get(node)?.sourceTypeArguments ?? []).map(type => ({ type, local: false })),
     ];
     const visited = new Set<string>();

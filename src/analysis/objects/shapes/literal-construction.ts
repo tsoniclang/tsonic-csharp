@@ -1,17 +1,35 @@
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetNamedTypeRef } from "../../../target-model/types/model.js";
 import { csharpSourceMemberKeysEqual } from "../../../target-model/types/source-member-keys.js";
-import { selectCsharpObjectMethodImplementation } from "./method-implementations.js";
+import { resolveCsharpObjectMethodImplementation, type CsharpObjectMethodImplementationInput } from "./method-implementations.js";
 import { selectCsharpMethodValueEnvironment } from "../../../policy/types/objects/method-environments.js";
 import { csharpObjectShapeMethodRequiresProtocol } from "../../../target-model/types/method-values.js";
 import { selectCsharpCopiedMethodReceiver } from "../copied-methods.js";
 import type { CsharpObjectShapePolicyHost, CsharpRecursiveObjectShapePolicy } from "./model.js";
 import type { CsharpObjectLiteralTargetShapeResolution } from "../../../target-model/records/objects/object-shapes.js";
-import type { createCsharpObjectShapeMemberResolver } from "./member-evidence.js";
+import { retainLiteralMemberEvidence } from "./member-evidence.js";
 import type { CsharpObjectLiteralConstructionSource } from "./literal-source.js";
 import type { CsharpObjectShapeSource } from "./shape-source.js";
-import type { CsharpObjectShapeMemberProofInput } from "./member-instantiation.js";
+import { instantiateMemberEvidence, type CsharpObjectShapeMemberProofInput } from "./member-instantiation.js";
 import type { CsharpObjectShapeTargetInput } from "./method-values.js";
+
+export type CsharpLiteralShapeRequest = {
+  readonly source: CsharpObjectLiteralConstructionSource;
+} & (
+  | { readonly kind: "spread"; readonly spread: CsharpObjectLiteralConstructionSource["literal"]["spreads"][number] }
+  | { readonly kind: "receiver"; readonly members: readonly CsharpObjectShapeMemberFact[];
+      readonly sources: readonly CsharpObjectShapeFact[] }
+  | { readonly kind: "implementation"; readonly input: CsharpObjectMethodImplementationInput }
+  | { readonly kind: "target"; readonly input: CsharpObjectShapeTargetInput }
+  | { readonly kind: "publication"; readonly shape: CsharpObjectShapeFact }
+);
+
+export type CsharpCompletedLiteralShapeRequest = { readonly request: CsharpLiteralShapeRequest } & (
+  | { readonly kind: "spread"; readonly shape: CsharpObjectShapeFact | undefined }
+  | { readonly kind: "receiver"; readonly selection: ReturnType<typeof selectCsharpCopiedMethodReceiver> }
+  | { readonly kind: "implementation"; readonly implementation: CsharpObjectShapeFact["methodImplementation"] }
+  | { readonly kind: "target" | "publication"; readonly shape: CsharpObjectShapeFact }
+);
 
 function requiresSourceProof(member: CsharpObjectShapeMemberFact, source: CsharpObjectShapeMemberProofInput): void {
   if (member.sourceSubjects !== source.sourceSubjects || member.sourceDeclarations !== source.sourceDeclarations ||
@@ -33,24 +51,12 @@ function requiresShapeSource(shape: CsharpObjectShapeFact, source: CsharpObjectS
   }
 }
 
-export function createCsharpLiteralShapeResolver(
-  host: CsharpObjectShapePolicyHost,
-  dependencies: {
-    readonly resolveNode: CsharpRecursiveObjectShapePolicy["resolveNode"];
-    readonly retainLiteralMemberEvidence: ReturnType<typeof createCsharpObjectShapeMemberResolver>["retainLiteralMemberEvidence"];
-    readonly instantiateMemberEvidence: ReturnType<typeof createCsharpObjectShapeMemberResolver>["instantiateMemberEvidence"];
-    readonly rememberTargetShape: (shape: CsharpObjectShapeFact) => CsharpObjectShapeFact;
-    readonly formTargetShape: (input: CsharpObjectShapeTargetInput) => CsharpObjectShapeFact;
-  },
-) {
-  const { resolveNode, retainLiteralMemberEvidence, instantiateMemberEvidence, formTargetShape, rememberTargetShape } = dependencies;
-
-  function completeObjectLiteralTargetShape(
+export function* completeCsharpLiteralShapeSource(
     source: CsharpObjectLiteralConstructionSource,
     expectedShape: CsharpObjectShapeFact | undefined,
     actualShape: CsharpObjectShapeFact | undefined,
-  ): CsharpObjectLiteralTargetShapeResolution {
-    const { objectLiteral, queries, accessors } = source.literal;
+  ): Generator<CsharpLiteralShapeRequest, CsharpObjectLiteralTargetShapeResolution, CsharpCompletedLiteralShapeRequest> {
+    const { objectLiteral, accessors } = source.literal;
     if (accessors.kind === "rejected") return {
       kind: "rejected", subject: accessors.element, reason: accessors.reason,
     };
@@ -101,19 +107,31 @@ export function createCsharpLiteralShapeResolver(
     const ownsImplementation = expectedShape.methodImplementation?.declaration === objectLiteral;
     if (additionalMembers.length === 0 && accessors.kind === "none" && implemented === expectedShape.implements &&
       (!nativeMethodLiteral || ownsImplementation) && !copiedMethods) {
-      const { targetType, ...selected } = expectedShape;
-      return { kind: "resolved", shape: rememberTargetShape(formTargetShape({ ...selected, sourceType, members,
-        target: Object.freeze({ kind: "existing", type: targetType }) })) };
+      const publication = Object.freeze({ kind: "publication" as const, source,
+        shape: Object.freeze({ ...expectedShape, sourceType, members }) });
+      const completed = yield publication;
+      if (completed.request !== publication || completed.kind !== "publication") return failTargetAnalysisInvariant("tsonic-csharp",
+        "Literal publication requires its exact selected occurrence receipt.", objectLiteral);
+      return { kind: "resolved", shape: completed.shape };
     }
     if (copiedMethods) {
       const sources: CsharpObjectShapeFact[] = [];
       for (const spread of source.literal.spreads) {
-        const shape = resolveNode(spread.expression, queries.sourceFile);
+        const request = Object.freeze({ kind: "spread" as const, source, spread });
+        const completed = yield request;
+        if (completed.request !== request || completed.kind !== "spread") return failTargetAnalysisInvariant("tsonic-csharp",
+          "Copied methods require their exact ordered spread child receipt.", spread.property);
+        const shape = completed.shape;
         if (shape === undefined) return { kind: "rejected", subject: spread.property,
           reason: "Copied generic methods require an exact source object environment." };
         sources.push(shape);
       }
-      const receiver = selectCsharpCopiedMethodReceiver(members, sources, host.ast);
+      const request = Object.freeze({ kind: "receiver" as const, source,
+        members: Object.freeze([...members]), sources: Object.freeze(sources) });
+      const completed = yield request;
+      if (completed.request !== request || completed.kind !== "receiver") return failTargetAnalysisInvariant("tsonic-csharp",
+        "Copied methods require their exact retained receiver selection receipt.", objectLiteral);
+      const receiver = completed.selection;
       if (receiver.kind === "rejected") return { kind: "rejected", subject: objectLiteral,
         reason: "Copied receiver-dependent methods require their exact native receiver and authored implementation." };
       if (receiver.kind === "selected") return { kind: "resolved", shape: receiver.shape };
@@ -151,20 +169,63 @@ export function createCsharpLiteralShapeResolver(
         accessor: { getter: true, setter: accessor.setter !== undefined },
       };
     }
-    const methodImplementation = selectCsharpObjectMethodImplementation(source.implementation,
-      members.map(member => member.targetName), source.captures.map(request =>
-        host.typeResolver.resolveNode(request.node, request.sourceFile, request.state)));
+    const implementationRequest = Object.freeze({ kind: "implementation" as const, source, input: Object.freeze({
+      source: source.implementation, memberNames: Object.freeze(members.map(member => member.targetName)),
+      captures: source.captures,
+    }) });
+    const implementation = yield implementationRequest;
+    if (implementation.request !== implementationRequest || implementation.kind !== "implementation") return failTargetAnalysisInvariant("tsonic-csharp",
+      "Literal methods require their exact retained implementation receipt.", objectLiteral);
+    const methodImplementation = implementation.implementation;
     if (nativeMethodLiteral && methodImplementation === undefined) return {
       kind: "rejected", subject: objectLiteral,
       reason: "Native object methods require one exact authored implementation and closed lexical capture types.",
     };
-    return { kind: "resolved", shape: rememberTargetShape(formTargetShape({
+    const targetRequest: Extract<CsharpLiteralShapeRequest, { readonly kind: "target" }> = Object.freeze({ kind: "target", source, input: Object.freeze({
       target: Object.freeze({ kind: "structural", contract: false }),
       members, sourceType,
       ...(methodImplementation === undefined ? {} : { methodImplementation }),
       ...(implemented === undefined ? {} : { implements: implemented }),
-    })) };
+    }) });
+    const target = yield targetRequest;
+    if (target.request !== targetRequest || target.kind !== "target") return failTargetAnalysisInvariant("tsonic-csharp",
+      "Literal methods require their exact selected physical target receipt.", objectLiteral);
+    const publication = Object.freeze({ kind: "publication" as const, source, shape: target.shape });
+    const completed = yield publication;
+    if (completed.request !== publication || completed.kind !== "publication") return failTargetAnalysisInvariant("tsonic-csharp",
+      "Literal publication requires its exact physical target receipt.", objectLiteral);
+    return { kind: "resolved", shape: completed.shape };
   }
 
-  return completeObjectLiteralTargetShape;
+export function createCsharpLiteralShapeResolver(
+  host: CsharpObjectShapePolicyHost,
+  dependencies: {
+    readonly resolveNode: CsharpRecursiveObjectShapePolicy["resolveNode"];
+    readonly rememberTargetShape: (shape: CsharpObjectShapeFact) => CsharpObjectShapeFact;
+    readonly formTargetShape: (input: CsharpObjectShapeTargetInput) => CsharpObjectShapeFact;
+  },
+) {
+  return (source: CsharpObjectLiteralConstructionSource, expected: CsharpObjectShapeFact | undefined,
+    actual: CsharpObjectShapeFact | undefined): CsharpObjectLiteralTargetShapeResolution => {
+    const completion = completeCsharpLiteralShapeSource(source, expected, actual);
+    let step = completion.next();
+    while (!step.done) {
+      const request = step.value;
+      if (request.kind === "spread") {
+        step = completion.next(Object.freeze({ kind: "spread", request,
+          shape: dependencies.resolveNode(request.spread.expression, source.literal.queries.sourceFile) }));
+      } else if (request.kind === "receiver") {
+        step = completion.next(Object.freeze({ kind: "receiver", request,
+          selection: selectCsharpCopiedMethodReceiver(request.members, request.sources, host.ast) }));
+      } else if (request.kind === "implementation") {
+        step = completion.next(Object.freeze({ kind: "implementation", request,
+          implementation: resolveCsharpObjectMethodImplementation(host, request.input) }));
+      } else if (request.kind === "target") {
+        step = completion.next(Object.freeze({ kind: "target", request, shape: dependencies.formTargetShape(request.input) }));
+      } else {
+        step = completion.next(Object.freeze({ kind: "publication", request, shape: dependencies.rememberTargetShape(request.shape) }));
+      }
+    }
+    return step.value;
+  };
 }

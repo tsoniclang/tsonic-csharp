@@ -115,7 +115,7 @@ export function completeCsharpSelectedReceiver(
     return Object.freeze({ input, kind: "type", childState: semanticState, type: semanticTarget });
   }
   if (declaredThis === undefined) return undefined;
-  const catalog = host.projectTypeABI().catalog;
+  const catalog = host.projectTypeCatalog;
   const owner = declaredThis.owner === undefined ? undefined : catalog.definitionForDeclaration(declaredThis.owner.declaration);
   const type = owner === undefined ? undefined
     : catalog.targetTypeForDeclaration(owner.declaration, owner.typeParameterBindings);

@@ -6,7 +6,8 @@ import type { CsharpSourceCalleeSelection } from "../../../target-model/operatio
 import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
 import { getCsharpCallableValueSignature, getCsharpDelegateSignature } from "../../../target-model/types/carriers/delegates.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
-import type { CsharpProjectTypePolicy } from "../../../target-model/records/types/project-types.js";
+import type { CsharpProjectTypeCatalog } from "../../../target-model/records/types/project-types.js";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { completeCsharpStaticMemberReceiver, formCsharpStaticMemberReceiverSource,
   type CsharpStaticMemberReceiverSource } from "../../../policy/types/project/static-members.js";
 import { getCsharpRuntimeUnionArms } from "../../../target-model/types/carriers/runtime-carriers.js";
@@ -16,7 +17,7 @@ export interface CsharpSourceCalleeHost {
   readonly moduleCallables: CsharpTypePolicyBaseHost["moduleCallables"];
   readonly ast: CsharpTypePolicyBaseHost["ast"];
   readonly navigation: CsharpTypePolicyBaseHost["navigation"];
-  readonly projectTypes: Pick<CsharpProjectTypePolicy, "catalog">;
+  readonly projectTypeCatalog: Pick<CsharpProjectTypeCatalog, "definitionForTarget" | "definitionForDeclaration">;
   readonly types: Pick<CsharpTypePolicy, "resolveSelectedValue" | "resolveReadStorage">;
   readonly typeDefinitions?: CsharpTypeDefinitions;
 }
@@ -97,9 +98,11 @@ export function classifyCsharpSourceCallee(
 }
 
 export function classifyFormedCsharpSourceCallee(
-  policy: Pick<CsharpSourceCalleeHost, "projectTypes" | "types" | "typeDefinitions">,
+  policy: Pick<CsharpSourceCalleeHost, "projectTypeCatalog" | "types" | "typeDefinitions">,
   input: CsharpSourceCalleeSource,
 ): CsharpSourceCalleeSelection {
+  if (policy.projectTypeCatalog === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+    "A source callee requires its actual current declaration and ABI catalog.", input.source.call);
   const { expression, sourceFile, selected, declaration } = input;
   if (input.kind === "direct") {
     if (!input.project) return Object.freeze({ kind: "rejected",
@@ -112,13 +115,13 @@ export function classifyFormedCsharpSourceCallee(
     const receiver = policy.types.resolveSelectedValue(access.receiver.expression, access.receiver.type, sourceFile);
     const arms = getCsharpRuntimeUnionArms(receiver, policy.typeDefinitions);
     if (receiver !== undefined && arms !== undefined && arms.length > 1 &&
-      arms.every(arm => policy.projectTypes.catalog.definitionForTarget(arm)?.kind === "class")) {
+      arms.every(arm => policy.projectTypeCatalog.definitionForTarget(arm)?.kind === "class")) {
       return Object.freeze({ kind: "union-method", expression: access.expression,
         receiver: Object.freeze({ expression: access.receiver.expression, type: receiver }) });
     }
   }
   const staticReceiver = input.staticReceiver === undefined ? undefined : completeCsharpStaticMemberReceiver(
-    input.staticReceiver, policy.projectTypes.catalog.definitionForDeclaration(input.staticReceiver.ownerDeclaration));
+    input.staticReceiver, policy.projectTypeCatalog.definitionForDeclaration(input.staticReceiver.ownerDeclaration));
   if (staticReceiver !== undefined && declaration !== undefined && selected !== undefined &&
     input.staticMethods && access !== undefined) {
     return Object.freeze({ kind: "method", expression: access.expression, declaration: selected,

@@ -25,8 +25,11 @@ export type CsharpStandardTypeTransformationSource = {
 } & (
   | { readonly kind: "unresolved"; readonly transformation: Extract<Transformation, { readonly kind: "unresolved" }> }
   | { readonly kind: "never"; readonly transformation: Extract<Transformation, { readonly kind: "non-nullish" }> }
-  | { readonly kind: "component" | "non-nullish";
-      readonly transformation: Extract<Transformation, { readonly kind: "component" | "non-nullish" }>;
+  | { readonly kind: "component";
+      readonly transformation: Extract<Transformation, { readonly kind: "component" }>;
+      readonly component: CsharpSourceTypeComponentSource }
+  | { readonly kind: "non-nullish";
+      readonly transformation: Extract<Transformation, { readonly kind: "non-nullish" }>;
       readonly component: CsharpSourceTypeComponentSource }
   | { readonly kind: "parameter-list"; readonly transformation: Extract<Transformation, { readonly kind: "parameter-list" }>;
       readonly parameters: readonly CsharpSignatureParameterInput[] }
@@ -50,8 +53,10 @@ export function formCsharpStandardTypeTransformationSource(
     return Object.freeze({ ...input, kind: "never", transformation });
   }
   if (transformation.kind === "component" || transformation.kind === "non-nullish") {
-    return Object.freeze({ ...input, kind: transformation.kind, transformation,
-      component: formCsharpSourceTypeComponentSource(scope, transformation.component, queries, state) });
+    const component = formCsharpSourceTypeComponentSource(scope, transformation.component, queries, state);
+    return transformation.kind === "component"
+      ? Object.freeze({ ...input, kind: "component", transformation, component })
+      : Object.freeze({ ...input, kind: "non-nullish", transformation, component });
   }
   if (transformation.kind === "parameter-list") {
     return Object.freeze({ ...input, kind: "parameter-list", transformation,

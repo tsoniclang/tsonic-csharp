@@ -17,7 +17,7 @@ import type {
 import type { CsharpProviderCallSelectionHost } from "./provider-calls.js";
 import type { CsharpObjectShapePolicy } from "../../target-model/records/objects/object-shapes.js";
 import type { CsharpTypeQueries } from "./type-resolution.js";
-import type { CsharpProjectTypePolicy } from "../../target-model/records/types/project-types.js";
+import type { CsharpProjectTypeQueries } from "../../target-model/records/types/project-types.js";
 import type {
   CsharpSourceIdentityPolicy,
 } from "../../source/extension/identities.js";
@@ -37,7 +37,7 @@ export interface CsharpPolicyContext extends CsharpProviderCallSelectionHost {
   readonly providers: CsharpProviderRelationResolver;
   readonly types: CsharpTypeQueries;
   readonly objectShapes: CsharpObjectShapePolicy;
-  readonly projectTypes: CsharpProjectTypePolicy;
+  readonly projectTypes: CsharpProjectTypeQueries;
   readonly sourceIdentities: CsharpSourceIdentityPolicy;
   semantics(sourceFile: SourceFile): SourceFileSemantics;
   semanticsFor(node: Node): SourceFileSemantics;

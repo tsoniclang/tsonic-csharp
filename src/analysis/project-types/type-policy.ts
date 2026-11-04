@@ -226,6 +226,13 @@ function projectMemberOwner(
   catalog: CsharpProjectTypeCatalogABI,
   declaration: Node | undefined,
 ): CsharpProjectTypeDefinition | undefined {
+  return catalog.definitionForDeclaration(csharpProjectMemberOwnerDeclaration(ast, declaration));
+}
+
+export function csharpProjectMemberOwnerDeclaration(
+  ast: AstReader,
+  declaration: Node | undefined,
+): Node | undefined {
   const member = declaration !== undefined &&
       ast.is.IsParameterDeclaration(declaration)
     ? ast.parent(declaration)
@@ -247,7 +254,7 @@ function projectMemberOwner(
   ) {
     return undefined;
   }
-  return catalog.definitionForDeclaration(ast.parent(member));
+  return ast.parent(member);
 }
 
 export function projectTypeDefinition(

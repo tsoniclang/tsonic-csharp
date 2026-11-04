@@ -7,6 +7,7 @@ import type { CsharpCallableDeclarationEvidence,
 import type { CsharpProjectedType } from "../../../../target-model/types/projections.js";
 import type { CsharpTypeParameterConstraintResolution } from "../../../../target-model/types/generic-constraints.js";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
+import type { CsharpCallableProjectionReceipt } from "../../../../target-model/records/types/type-projections.js";
 
 type CallableParameters = NonNullable<CsharpObjectShapeMemberFact["typeParameters"]>;
 
@@ -22,6 +23,7 @@ export interface CsharpCompletedCallableDeclaration {
 
 export interface CsharpCallableABI {
   readonly declared: CsharpCompletedCallableDeclaration;
+  readonly harvest: CsharpCallableProjectionReceipt | undefined;
   readonly projections: readonly CsharpProjectedType[];
   readonly typeParameters: CallableParameters;
 }
@@ -65,14 +67,23 @@ export function completeCsharpCallableDeclaration(
 
 export function completeCsharpCallableABI(
   header: CsharpCompletedCallableDeclaration,
-  projections: readonly CsharpProjectedType[],
+  harvest: CsharpCallableProjectionReceipt | undefined,
 ): CsharpCallableABI | undefined {
   const declaration = header.source.declaration;
   if (declaration === undefined) {
-    if (projections.length !== 0) failTargetAnalysisInvariant("tsonic-csharp",
+    if (harvest !== undefined) failTargetAnalysisInvariant("tsonic-csharp",
       "A native callable projection requires its exact owning declaration header.");
-    return Object.freeze({ declared: header, projections, typeParameters: header.typeParameters });
+    return Object.freeze({ declared: header, harvest, projections: Object.freeze([]), typeParameters: header.typeParameters });
   }
+  if (harvest?.kind === "declaration") {
+    if (harvest.declaration !== declaration) return failTargetAnalysisInvariant("tsonic-csharp",
+      "A native declaration signature requires its exact no-body source occurrence.", declaration);
+    return Object.freeze({ declared: header, harvest, projections: Object.freeze([]), typeParameters: header.typeParameters });
+  }
+  if (harvest === undefined || harvest.kind !== "source" || harvest.declaration !== declaration ||
+    harvest.source.declaration !== declaration || harvest.projections !== harvest.index.genericProjection.get(declaration)) return failTargetAnalysisInvariant("tsonic-csharp",
+      "A callable ABI requires its exact declaration's published body-harvest result.", declaration);
+  const { projections } = harvest;
   const parameters = [...header.typeParameters,
     ...projections.map(parameter => Object.freeze({
       declaration, identity: parameter.identity, name: parameter.name,
@@ -89,5 +100,5 @@ export function completeCsharpCallableABI(
     return failTargetAnalysisInvariant("tsonic-csharp",
       "A callable ABI extends its exact authored binders and constraints with the published projections in order.", declaration);
   }
-  return Object.freeze({ declared: header, projections, typeParameters });
+  return Object.freeze({ declared: header, harvest, projections, typeParameters });
 }

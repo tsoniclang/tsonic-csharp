@@ -75,7 +75,7 @@ export function formCsharpObjectLiteralConstructionSource(
   actual: CsharpObjectLiteralActualSource,
 ): CsharpObjectLiteralConstructionSource {
   const selected = expected === undefined ? undefined : actual.kind === "absent" ? expected
-    : formInstantiatedObjectShapeSource(expected, actual.source.sourceType, literal.queries);
+    : formInstantiatedObjectShapeSource(expected, actual.source.sourceType ?? expected.sourceType, literal.queries);
   const additional = expected === undefined || actual.kind === "absent" ? Object.freeze([])
     : Object.freeze(actual.source.members.flatMap((member, index) =>
         expected.members.some(previous => csharpSourceMemberKeysEqual(previous.sourceKey, member.sourceKey))

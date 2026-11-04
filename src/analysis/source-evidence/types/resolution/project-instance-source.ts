@@ -53,7 +53,7 @@ export function resolveFormedCsharpProjectInstanceTargetType(
   source: CsharpProjectInstanceSource,
 ): TargetTypeRef | undefined {
   if (source.kind === "unavailable") return undefined;
-  const catalog = host.projectTypeABI().catalog;
+  const catalog = host.projectTypeCatalog;
   const owner = catalog.definitionForDeclaration(source.declaration);
   return owner === undefined ? undefined : catalog.targetTypeForDeclaration(owner.declaration, owner.typeParameterBindings);
 }

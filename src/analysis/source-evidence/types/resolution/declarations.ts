@@ -21,7 +21,7 @@ export function resolveSelectedDeclarationResult(
 ): TargetTypeRef | undefined {
   const instantiate = (type: TargetTypeRef | undefined): TargetTypeRef | undefined => {
     if (type === undefined) return undefined;
-    const selected = host.projectTypes().instantiateMemberType(declaration, receiverType, type);
+    const selected = host.projectTypeQueries.instantiateMemberType(declaration, receiverType, type);
     return selected.kind === "unresolved" ? undefined : selected.kind === "resolved" ? selected.type : type;
   };
   const sourceField = readCsharpSourceField(host.sourceFacts, [declaration]);

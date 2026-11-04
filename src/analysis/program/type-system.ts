@@ -20,13 +20,13 @@ import type {
 } from "../objects/shapes/model.js";
 import { createCsharpObjectShapePolicy } from "../objects/shapes/api.js";
 import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../target-model/types/object-shape-members.js";
-import { csharpObjectShapeMemberRetainsNativeReference } from "../../policy/types/objects/member-reads.js";
-import { resolveCsharpObjectShapeMemberReadTargetType } from "../operations/members/object-shape-members.js";
+import { resolveCsharpObjectShapeSelectedMemberTargetType } from "../operations/members/object-shape-members.js";
 import { isCsharpJsValueTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 import type { CsharpPlanningRepresentationQueries, CsharpTypePolicy, CsharpTypePolicyBaseHost } from "../source-evidence/types/resolution/model.js";
 import { createCsharpTypeResolutionServices } from "../source-evidence/types/resolution/engine.js";
 import type { CsharpTypeResolutionServices } from "../source-evidence/types/resolution/engine.js";
-import type { CsharpProjectTypeABIPolicy, CsharpProjectTypePolicy } from "../../target-model/records/types/project-types.js";
+import type { CsharpProjectTypeABIPolicy, CsharpProjectTypePolicy, CsharpProjectTypeQueries } from "../../target-model/records/types/project-types.js";
+import { csharpProjectMemberOwnerDeclaration } from "../project-types/type-policy.js";
 import type { createCsharpProjectTypeCatalog } from "../project-types/catalog.js";
 import type { CsharpGenericProjectionIndex } from "../../target-model/records/types/type-projections.js";
 import {
@@ -49,13 +49,15 @@ import { csharpTargetTypeFromBinding } from "../../policy/types/storage/bindings
 import type { CsharpTypeParameterConstraint } from "../../target-model/types/generic-constraints.js";
 
 export interface CsharpTypeSystem extends Pick<CsharpTypeResolutionServices,
-  "nodeQuerySource" | "completeNodeQuery" | "typeQuerySource" | "completeTypeQuery" |
+  "nodeQuerySource" | "completeNodeQuery" | "typeQuerySource" | "completeTypeQuery" | "completeDeclaredReceiverBody" | "completeDeclaredCallableBody" |
   "literalCreationContextSource" | "completeLiteralCreationContext"> {
   readonly typeDefinitions: import("../../target-model/types/source-union-definitions.js").CsharpTypeDefinitions;
   readonly analysisTypes: CsharpTypePolicy;
   readonly objectShapes: CsharpRecursiveObjectShapePolicy;
   readonly projectTypeABI: CsharpProjectTypeABIPolicy;
+  readonly projectTypeQueries: CsharpProjectTypeQueries;
   readonly projectTypes: CsharpProjectTypePolicy;
+  readonly publishCallableProjections: ReturnType<typeof createCsharpProjectTypeCatalog>["publishCallableProjections"];
   publishProjectTypes(projections: CsharpGenericProjectionIndex): void;
 }
 
@@ -79,6 +81,36 @@ function createCsharpTypeSystem(
       "C# project declaration relations require their current ABI and heritage publication.");
     return projectTypeABI;
   };
+  const projectTypeQueries: CsharpProjectTypeQueries = Object.freeze({
+    catalog: projectTypeCatalog,
+    heritageForDeclaration(declaration: Node) {
+      return projectTypeCatalog.declarationForNode(declaration) === undefined ? undefined
+        : requireProjectTypeABI().heritageForDeclaration(declaration);
+    },
+    directSupertypes(type: TargetTypeRef) {
+      return projectTypeCatalog.declarationForTarget(type) === undefined ? undefined
+        : requireProjectTypeABI().directSupertypes(type);
+    },
+    instantiateDeclarationType(declaration: Node | undefined, receiver: TargetTypeRef | undefined, type: TargetTypeRef) {
+      return projectTypeCatalog.declarationForNode(declaration) === undefined ? Object.freeze({ kind: "not-project-member" as const })
+        : requireProjectTypeABI().instantiateDeclarationType(declaration, receiver, type);
+    },
+    instantiateMemberType(declaration: Node | undefined, receiver: TargetTypeRef | undefined, type: TargetTypeRef) {
+      const owner = csharpProjectMemberOwnerDeclaration(host.ast, declaration);
+      return projectTypeCatalog.declarationForNode(owner) === undefined ? Object.freeze({ kind: "not-project-member" as const })
+        : requireProjectTypeABI().instantiateMemberType(declaration, receiver, type);
+    },
+    implicitConstructorsForDeclaration(declaration: Node) {
+      return projectTypeCatalog.declarationForNode(declaration) === undefined ? undefined
+        : requireProjectTypes().implicitConstructorsForDeclaration(declaration);
+    },
+    implicitConstructorForSignature(declaration: Node,
+      signature: Parameters<CsharpProjectTypeQueries["implicitConstructorForSignature"]>[1],
+      parameters: Parameters<CsharpProjectTypeQueries["implicitConstructorForSignature"]>[2]) {
+      return projectTypeCatalog.declarationForNode(declaration) === undefined ? undefined
+        : requireProjectTypes().implicitConstructorForSignature(declaration, signature, parameters);
+    },
+  });
   const typeParameterConstraints = createCsharpSourceTypeParameterEnvironment(host.ast, (declaration, parameter, source) => {
     const sourceFile = source?.sourceFile ?? host.ast.getSourceFile(declaration);
     if (sourceFile === undefined || !host.hasSemantics(sourceFile)) return undefined;
@@ -139,8 +171,7 @@ function createCsharpTypeSystem(
         }
         return objectShapes;
       },
-      projectTypes: requireProjectTypes,
-      projectTypeABI: requireProjectTypeABI,
+      projectTypeQueries,
       targetTypeComponents(type) {
         return csharpTargetTypeComponents(
           type,
@@ -211,19 +242,15 @@ function createCsharpTypeSystem(
             shape,
             selectedSubjects,
           );
-          if (selected.kind === "resolved" && selectedType === undefined) return selected.member.type;
           const sourceTarget = selected.kind === "resolved" && selectedType !== undefined &&
             isCsharpJsValueTargetType(selected.member.type)
             ? typeResolution.recursive.resolveType(selectedType, sourceFile, { depth: 0 }) : undefined;
-          if (selected.kind === "resolved" && selectedType !== undefined && declaredMemberType !== undefined &&
-            host.semantics(sourceFile).types.relationship(declaredMemberType, selectedType) === "identical" &&
-            !csharpObjectShapeMemberRetainsNativeReference(sourceTarget, selected.member.type)) {
-            return selected.member.type;
-          }
           return selected.kind === "resolved"
-            ? resolveCsharpObjectShapeMemberReadTargetType(
+            ? resolveCsharpObjectShapeSelectedMemberTargetType(
                 selected.member,
                 selectedType,
+                selectedType !== undefined && declaredMemberType !== undefined &&
+                  host.semantics(sourceFile).types.relationship(declaredMemberType, selectedType) === "identical",
                 (left, right) =>
                   host.semantics(sourceFile).types.relationship(left, right) !==
                     "unrelated",
@@ -241,7 +268,7 @@ function createCsharpTypeSystem(
     representations,
     projectTypeCatalog,
     projectDeclarations: declarations.declarations,
-    projectTypeABI: requireProjectTypeABI,
+    projectTypeQueries,
     typeResolver: typeResolution.recursive,
     structuralTypeApplication: typeResolution.structuralTypeApplication,
     structuralTypeCapture: typeResolution.structuralTypeCapture,
@@ -252,7 +279,7 @@ function createCsharpTypeSystem(
   });
   bindingProjections = createCsharpBindingProjectionPolicy({
     ...host,
-    projectTypes: requireProjectTypes,
+    projectTypeQueries,
     typeResolver: typeResolution.recursive,
     objectShapes,
     scopedTargetType: representations.scopedTargetType,
@@ -261,14 +288,18 @@ function createCsharpTypeSystem(
     typeDefinitions: host.typeDefinitions ?? emptyCsharpTypeDefinitions,
     analysisTypes: types,
     objectShapes,
+    projectTypeQueries,
     get projectTypeABI() { return requireProjectTypeABI(); },
     get projectTypes() { return requireProjectTypes(); },
     nodeQuerySource: typeResolution.nodeQuerySource,
     completeNodeQuery: typeResolution.completeNodeQuery,
     typeQuerySource: typeResolution.typeQuerySource,
     completeTypeQuery: typeResolution.completeTypeQuery,
+    completeDeclaredReceiverBody: typeResolution.completeDeclaredReceiverBody,
+    completeDeclaredCallableBody: typeResolution.completeDeclaredCallableBody,
     literalCreationContextSource: typeResolution.literalCreationContextSource,
     completeLiteralCreationContext: typeResolution.completeLiteralCreationContext,
+    publishCallableProjections: declarations.publishCallableProjections,
     publishProjectTypes(projections: CsharpGenericProjectionIndex): void {
       if (projectTypes !== undefined) return failTargetAnalysisInvariant("tsonic-csharp",
         "Current native project types are published exactly once.");
@@ -339,14 +370,18 @@ export function createCsharpTypeAnalysis(
     typeDefinitions: system.typeDefinitions,
     analysisTypes: system.analysisTypes,
     objectShapes: system.objectShapes,
+    projectTypeQueries: system.projectTypeQueries,
     get projectTypeABI() { return system.projectTypeABI; },
     get projectTypes() { return system.projectTypes; },
     nodeQuerySource: system.nodeQuerySource,
     completeNodeQuery: system.completeNodeQuery,
     typeQuerySource: system.typeQuerySource,
     completeTypeQuery: system.completeTypeQuery,
+    completeDeclaredReceiverBody: system.completeDeclaredReceiverBody,
+    completeDeclaredCallableBody: system.completeDeclaredCallableBody,
     literalCreationContextSource: system.literalCreationContextSource,
     completeLiteralCreationContext: system.completeLiteralCreationContext,
+    publishCallableProjections: system.publishCallableProjections,
     publishProjectTypes: system.publishProjectTypes,
     nativeConstructionSource,
     get nativeConstruction() {

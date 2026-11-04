@@ -3,13 +3,8 @@ import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { SourceFileSemantics, SourceStructuralMember, SourceStructuralMemberPair } from "@tsonic/target-api/source";
 import type { CsharpObjectShapeMemberEvidence, CsharpObjectShapeMemberFact } from "../../../target-model/types/model.js";
 
-export interface CsharpObjectShapeMemberProofInput {
-  readonly sourceSubjects: CsharpObjectShapeMemberFact["sourceSubjects"];
-  readonly sourceDeclarations: CsharpObjectShapeMemberFact["sourceDeclarations"];
-  readonly sourceTypes: CsharpObjectShapeMemberFact["sourceTypes"];
-  readonly sourceMemberEvidence: CsharpObjectShapeMemberFact["sourceMemberEvidence"];
-  readonly optional: CsharpObjectShapeMemberFact["optional"];
-}
+export type CsharpObjectShapeMemberProofInput = Pick<CsharpObjectShapeMemberFact,
+  "sourceSubjects" | "sourceDeclarations" | "sourceTypes" | "sourceMemberEvidence" | "optional">;
 
 export interface CsharpObjectShapeMemberInstantiationInput {
   readonly members: readonly CsharpObjectShapeMemberProofInput[];

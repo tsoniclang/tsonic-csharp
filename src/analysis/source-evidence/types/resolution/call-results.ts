@@ -38,13 +38,13 @@ export function selectCsharpSourceCallResult(
   const selectedDefinition = host.projectTypeCatalog.definitionForTarget(selectedPayload);
   const related = (definition?.kind === "class" || definition?.kind === "interface") &&
     (selectedDefinition?.kind === "class" || selectedDefinition?.kind === "interface") &&
-    namedTargetTypeImplicitlyAccepts({ projectTypes: host.projectTypes(), providers: host.providers },
+    namedTargetTypeImplicitlyAccepts({ projectTypes: host.projectTypeQueries, providers: host.providers },
       selectedPayload, nativePayload, new Set());
   if (nativeElement !== undefined || closed) {
     const exact = closed || related || targetTypeRefEquals(nativePayload, selectedPayload);
     const conversion = exact ? selectCsharpConversion({
       typeDefinitions: host.typeDefinitions,
-      projectTypes: host.projectTypes(),
+      projectTypes: host.projectTypeQueries,
       providers: host.providers,
       target: host.target,
     }, nativeType, selectedType, "explicit") : undefined;

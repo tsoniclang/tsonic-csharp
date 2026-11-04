@@ -5,7 +5,7 @@ import type { SourceStorageQueries } from "@tsonic/target-api/analysis";
 import type { CsharpProviderRelationResolver } from "../../providers/model/relation-resolver.js";
 import type { CsharpValueDomainCarrierQueries } from "../../target-model/records/types/value-domains.js";
 import type { CsharpObjectShapePolicy } from "../../target-model/records/objects/object-shapes.js";
-import type { CsharpProjectTypeDefinition, CsharpProjectTypePolicy } from "../../target-model/records/types/project-types.js";
+import type { CsharpProjectTypeDefinition, CsharpProjectTypeQueries } from "../../target-model/records/types/project-types.js";
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpTypeQueries } from "./type-resolution.js";
 
@@ -30,7 +30,7 @@ export interface CsharpProviderCallInstantiationHost extends CsharpProviderOpera
   readonly literalValues: SourceLiteralIndex;
   readonly navigation: SourceProgramNavigation;
   readonly objectShapes?: CsharpObjectShapePolicy;
-  readonly projectTypes: CsharpProjectTypePolicy;
+  readonly projectTypes: CsharpProjectTypeQueries;
   readonly target: TargetSelection;
   readonly types: CsharpTypeQueries;
 }

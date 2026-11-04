@@ -31,6 +31,8 @@ import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { ResolvedSourceCallInfo } from "../../../../target-model/records/calls/source-calls.js";
 import { formCsharpSelectedReceiverSource, completeCsharpSelectedReceiver } from "./receiver-completions.js";
 import { formCsharpProjectInstanceSource, resolveFormedCsharpProjectInstanceTargetType } from "./project-instance-source.js";
+import { formCsharpDeclaredObjectReceiverMemberSource } from "./declared-receiver-source.js";
+import { resolveFormedCsharpDeclaredObjectReceiverMember } from "./declared-receiver-completion.js";
 
 export function resolveSelectedExpressionType(
   scope: CsharpTypeResolutionScope,
@@ -60,7 +62,7 @@ export function resolveFormedCsharpSelectedExpressionResult(
     return scope.resolveNodeValueWithState(source.expression, queries.sourceFile, nextState(state));
   }
   if (source.kind === "call") {
-    const selection = selectFormedCsharpTargetCall({ ...host, projectTypes: host.projectTypes(), types: policy }, source.selection);
+    const selection = selectFormedCsharpTargetCall({ ...host, projectTypes: host.projectTypeQueries, types: policy }, source.selection);
     if (selection.kind === "resolved") {
       const result = source.isNew
         ? selection.call.targetMember.declaringType ?? selection.call.targetMember.returnType
@@ -214,14 +216,21 @@ function resolveSelectedExpressionCarrier(
 }
 
 export function resolveMemberAccessTargetType(
-  { host, optionalAccessTargetType, policy, resolveSelectedDeclarationResult, resolveSelectedReceiverTargetType, resolveSelectedSymbolType, resolveSelectedValueWithState }: CsharpTypeResolutionScope,
+  scope: CsharpTypeResolutionScope,
   node: Node,
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
   mode: "selected" | "storage",
   selectedType?: Type,
 ): TargetTypeRef | undefined {
-  const selectionHost = { ...host, projectTypes: host.projectTypes(), types: policy };
+  const { host, optionalAccessTargetType, policy, resolveSelectedDeclarationResult, resolveSelectedReceiverTargetType,
+    resolveSelectedSymbolType, resolveSelectedValueWithState } = scope;
+  const context = host.declaredObjectReceivers.get(node);
+  const declared = context === undefined ? undefined : formCsharpDeclaredObjectReceiverMemberSource(host, {
+    node, queries, state, context, selectedType,
+  });
+  if (declared !== undefined) return resolveFormedCsharpDeclaredObjectReceiverMember(scope, declared, mode);
+  const selectionHost = { ...host, projectTypes: host.projectTypeQueries, types: policy };
   const selection = host.ast.is.IsElementAccessExpression(node)
     ? selectCsharpTargetElement(selectionHost, node, queries.sourceFile)
     : selectCsharpTargetProperty(selectionHost, node, queries.sourceFile);

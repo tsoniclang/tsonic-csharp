@@ -78,6 +78,7 @@ export interface CsharpProjectTypeCatalog {
   declarationContaining(declaration: Node | undefined): CsharpProjectTypeDeclaration | undefined;
   declarationForTarget(type: TargetTypeRef | undefined): CsharpProjectTypeDeclaration | undefined;
   genericProjections(declaration: Node): readonly import("../../types/projections.js").CsharpProjectedType[];
+  callableProjections(declaration: Node): import("./type-projections.js").CsharpCallableProjectionReceipt;
   definitionForId(id: string): CsharpProjectTypeDefinition | undefined;
   definitionForDeclaration(
     declaration: Node | undefined,
@@ -129,6 +130,8 @@ export interface CsharpProjectTypePolicy extends CsharpProjectTypeABIPolicy {
     parameters: import("@tsonic/target-api/source").ResolvedSourceCallInfo["sourceSelectedSignatureParameters"],
   ): CsharpProjectForwardingConstructor | undefined;
 }
+
+export type CsharpProjectTypeQueries = Omit<CsharpProjectTypePolicy, "abi" | "issues">;
 
 export type CsharpProjectMemberTypeInstantiation =
   | { readonly kind: "not-project-member" }

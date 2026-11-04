@@ -55,7 +55,7 @@ export function closeCsharpOwnerTypeParameterEnvironment(
 }
 
 export function csharpObjectShapeTypeParameters(
-  members: readonly CsharpObjectShapeMemberFact[],
+  members: readonly Pick<CsharpObjectShapeMemberFact, "type" | "typeParameters" | "methodValueStorage">[],
   implemented: readonly TargetTypeRef[] | undefined,
   implementation?: CsharpObjectShapeFact["methodImplementation"],
 ): readonly TypeParameter[] {

@@ -5,6 +5,7 @@ import type { CsharpTypeResolutionState } from "../../source-evidence/types/reso
 import type { CsharpObjectMethodSourceCapture,
   CsharpDeclaredObjectReceiverSource } from "../../../target-model/records/native/native-value-carriers.js";
 import { csharpCapturedBindingInitialization } from "../../callables/values/capture-initialization.js";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 
 export interface CsharpObjectMethodImplementationSource {
   readonly declaration: Node;
@@ -19,6 +20,72 @@ export interface CsharpObjectMethodImplementationSource {
     readonly mutable: boolean;
     readonly initialization: CsharpCaptureInitialization;
   }[];
+}
+
+export interface CsharpObjectMethodImplementationInput {
+  readonly source: CsharpObjectMethodImplementationSource | undefined;
+  readonly memberNames: readonly string[];
+  readonly captures: readonly {
+    readonly node: Node;
+    readonly sourceFile: SourceFile | undefined;
+    readonly state: CsharpTypeResolutionState;
+  }[];
+}
+
+export interface CsharpObjectMethodCaptureRequest {
+  readonly kind: "capture";
+  readonly input: CsharpObjectMethodImplementationInput;
+  readonly index: number;
+  readonly source: CsharpObjectMethodImplementationInput["captures"][number];
+}
+
+export interface CsharpCompletedObjectMethodCapture {
+  readonly kind: "capture";
+  readonly request: CsharpObjectMethodCaptureRequest;
+  readonly type: TargetTypeRef | undefined;
+}
+
+export function* completeCsharpObjectMethodImplementationSource(
+  input: CsharpObjectMethodImplementationInput,
+): Generator<CsharpObjectMethodCaptureRequest, CsharpObjectShapeFact["methodImplementation"] | undefined,
+  CsharpCompletedObjectMethodCapture> {
+  const { source, captures } = input;
+  if (source === undefined ? captures.length !== 0 : captures.length !== source.captures.length ||
+    Array.from(captures).some((capture, index) => capture === undefined ||
+      capture.node !== source.captures[index]?.declaration || capture.sourceFile !== source.captures[index]?.sourceFile ||
+      capture.state.depth !== source.state.depth + 1 || capture.state.sourceBindings !== source.state.sourceBindings ||
+      capture.state.sourceStorageSubject !== source.state.sourceStorageSubject ||
+      capture.state.sourceStorageBindings !== source.state.sourceStorageBindings ||
+      capture.state.rejectNativeResolution !== source.state.rejectNativeResolution)) {
+    return failTargetAnalysisInvariant("tsonic-csharp",
+      "A method implementation requires its exact ordered capture occurrences and original state.", source?.declaration);
+  }
+  const types: (TargetTypeRef | undefined)[] = [];
+  for (const [index, capture] of captures.entries()) {
+    const request: CsharpObjectMethodCaptureRequest = Object.freeze({ kind: "capture", input, index, source: capture });
+    const completed = yield request;
+    if (completed === undefined || completed.kind !== "capture" || completed.request !== request) {
+      return failTargetAnalysisInvariant("tsonic-csharp",
+        "Method capture completion requires the exact chosen child before the next capture.", capture.node);
+    }
+    types.push(completed.type);
+  }
+  return selectCsharpObjectMethodImplementation(source, input.memberNames, types);
+}
+
+export function resolveCsharpObjectMethodImplementation(
+  host: Pick<CsharpObjectShapePolicyHost, "typeResolver">,
+  input: CsharpObjectMethodImplementationInput,
+): CsharpObjectShapeFact["methodImplementation"] | undefined {
+  const completion = completeCsharpObjectMethodImplementationSource(input);
+  let step = completion.next();
+  while (!step.done) {
+    const request = step.value;
+    const child = request.source;
+    const type = host.typeResolver.resolveNode(child.node, child.sourceFile, child.state);
+    step = completion.next(Object.freeze({ kind: "capture", request, type }));
+  }
+  return step.value;
 }
 
 export function selectCsharpObjectMethodImplementationSource(

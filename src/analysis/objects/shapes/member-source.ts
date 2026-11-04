@@ -1,5 +1,5 @@
 import type { Node, SourceFile, Type, TypePropertyInfo } from "@tsonic/tsts";
-import { ObjectLiteralProperty_Value, sourceClassFieldIsTypeOnly,
+import { ObjectLiteralProperty_Value, sourceClassFieldIsTypeOnly, sourcePresentCallableType,
   sourcePropertyTypeEvidenceNodes, sourceTransformedTypeFactEvidenceNodes,
   type SourceFileSemantics, type SourceStructuralMemberPair } from "@tsonic/target-api/source";
 import type { CsharpObjectShapePolicyHost } from "./model.js";
@@ -9,12 +9,19 @@ import { matchesMemberSubjects, type CsharpObjectShapeMemberProofInput } from ".
 import type { CsharpCurrentProjectDeclaration } from "../../source-evidence/model.js";
 import type { CsharpObjectMemberDeclarationSource } from "../../../target-model/records/objects/member-declarations.js";
 import { formCsharpObjectMemberDeclarationSource } from "./member-declaration-source.js";
+import { formCsharpCallableTypeSource } from "../../source-evidence/types/resolution/callable-signature-source.js";
+import { formCsharpCallableSignatureCapture, type CsharpCallableSignatureCapture } from "../../source-evidence/types/resolution/callable-signature-completion.js";
+import type { CsharpCallableTypeSource } from "../../../target-model/records/types/callable-source.js";
 
 export interface CsharpInheritedObjectShapeMemberSource {
   readonly declaration: Node;
   readonly owner: CsharpCurrentProjectDeclaration;
   readonly typeNode: Node | undefined;
   readonly methodType: Type | undefined;
+  readonly methodCallableType: Type | undefined;
+  readonly methodCallable: CsharpCallableTypeSource | undefined;
+  readonly methodSignature: CsharpCallableSignatureCapture | undefined;
+  readonly methodNullish: boolean;
 }
 
 export interface CsharpObjectShapeMemberSource extends CsharpObjectMemberDeclarationSource {
@@ -25,7 +32,7 @@ export interface CsharpObjectShapeMemberSource extends CsharpObjectMemberDeclara
   readonly value: Node | undefined;
   readonly bound: boolean;
   readonly nullish: boolean;
-  readonly correspondence: Extract<SourceStructuralMemberPair, { readonly kind: "present" }>;
+  readonly correspondence: Extract<SourceStructuralMemberPair, { readonly kind: "present" }> | undefined;
   readonly proofInput: CsharpObjectShapeMemberProofInput;
 }
 
@@ -39,7 +46,7 @@ export interface CsharpObjectShapeMembersSource {
   readonly queries: SourceFileSemantics;
   readonly sourceFile: SourceFile;
   readonly authoredTypeRoot: Node | undefined;
-  readonly correspondence: Extract<ReturnType<SourceFileSemantics["types"]["structuralMembers"]>, { readonly kind: "available" }>;
+  readonly correspondence: ReturnType<SourceFileSemantics["types"]["structuralMembers"]>;
   readonly members: readonly CsharpObjectShapeMemberSource[];
 }
 
@@ -154,7 +161,15 @@ export function createCsharpObjectShapeMemberSource(host: CsharpObjectShapePolic
       const typeNode = host.ast.typeNode(declaration) ??
         (host.ast.is.IsSetAccessorDeclaration(declaration) ? host.ast.typeNode(host.ast.parameters(declaration)[0]) : undefined);
       const methodType = method ? host.semantics(owner.sourceFile).types.expressionType(declaration) : undefined;
-      return [Object.freeze({ declaration, owner, typeNode, methodType })];
+      const methodQueries = methodType === undefined ? undefined : host.semantics(owner.sourceFile);
+      const methodCallableType = methodQueries === undefined ? undefined : sourcePresentCallableType(methodType, methodQueries);
+      const methodCallable = methodQueries === undefined || methodCallableType === undefined ? undefined
+        : formCsharpCallableTypeSource(host.ast, methodCallableType, methodQueries);
+      return [Object.freeze({ declaration, owner, typeNode, methodType, methodCallableType, methodCallable,
+        methodSignature: methodCallable?.kind !== "callable" ? undefined
+          : formCsharpCallableSignatureCapture(host, methodCallable.signature),
+        methodNullish: methodType !== undefined && methodQueries !== undefined && typeIncludesNullish(methodType, methodQueries),
+      })];
     });
     const declarationValues = Object.freeze(declarations.map(declaration => Object.freeze({ declaration,
       value: host.ast.is.IsPropertyAssignment(declaration) || host.ast.is.IsShorthandPropertyAssignment(declaration)
@@ -179,7 +194,6 @@ export function createCsharpObjectShapeMemberSource(host: CsharpObjectShapePolic
       .filter(declaration => host.ast.is.IsObjectLiteralExpression(declaration));
     if (literals.length > 1) return undefined;
     const correspondence = queries.types.structuralMembers(ownerType, ownerType, "correspondence");
-    if (correspondence.kind !== "available") return undefined;
     const members: CsharpObjectShapeMemberSource[] = [];
     for (const property of queries.types.propertyInfos(ownerType)) {
       const declarations = [...new Set([
@@ -198,10 +212,11 @@ export function createCsharpObjectShapeMemberSource(host: CsharpObjectShapePolic
       const subjects = Object.freeze({ sourceSubjects: Object.freeze([property.symbol, ...member.declarations]),
         sourceDeclarations: sourceDeclarations.length === 0 ? undefined : Object.freeze(sourceDeclarations),
         sourceTypes: Object.freeze([member.propertyType]), optional: property.optional ? true : undefined });
-      const proofInput = retainCheckedMemberDeclarationEvidence([subjects], ownerType, correspondence)?.[0];
-      const selected = proofInput?.sourceMemberEvidence?.[0]?.correspondence;
-      if (proofInput === undefined || selected?.kind !== "present") return undefined;
-      members.push(Object.freeze({ ...member, correspondence: selected, proofInput }));
+      const retained = retainCheckedMemberDeclarationEvidence([subjects], ownerType, correspondence)?.[0];
+      const proofInput: CsharpObjectShapeMemberProofInput = Object.freeze({ ...subjects,
+        sourceMemberEvidence: retained?.sourceMemberEvidence });
+      const selected = proofInput.sourceMemberEvidence?.[0]?.correspondence;
+      members.push(Object.freeze({ ...member, correspondence: selected?.kind === "present" ? selected : undefined, proofInput }));
     }
     return Object.freeze({ ownerType, queries, sourceFile: queries.sourceFile, authoredTypeRoot,
       correspondence, members: Object.freeze(members) });

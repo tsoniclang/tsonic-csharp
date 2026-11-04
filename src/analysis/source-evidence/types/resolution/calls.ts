@@ -47,15 +47,7 @@ export function resolveSourceCallInstantiation(
   const selectedArguments = source.sourceSelectedMethodTypeArguments ?? [];
   const sourceArguments = Object.freeze(selectedArguments.map(argument => argument.selectedType));
   const owner = callable?.sourceDeclaration ?? source.sourceCalleeAccess?.selectedDeclaration ?? source.sourceCallee.selectedDeclaration;
-  const projections = owner === undefined ? [] : host.representations.genericProjections(owner);
-  if (expectedTypeParameterIdentities?.length === 0) {
-    return {
-      arguments: Object.freeze([]),
-      substitutions: new Map(),
-      sourceArguments,
-      inference: undefined,
-    };
-  }
+  const projections = owner === undefined ? [] : host.projectTypeCatalog.genericProjections(owner);
   const parameterIdentities = sourceCallTypeParameterIdentities(scope, source, callable,
     callable === undefined ? "value" : "declaration");
   if (parameterIdentities === undefined) return undefined;
@@ -230,7 +222,7 @@ export function resolveSourceCallSelectedType(
   );
   const receiverInstantiation = instantiated === undefined
     ? { kind: "not-project-member" as const }
-    : host.projectTypes().instantiateMemberType(
+    : host.projectTypeQueries.instantiateMemberType(
         declaration,
         receiverType,
         instantiated,
@@ -305,7 +297,7 @@ export function completeCsharpSourceCallableType(
         completion: completeSourceCallReceiver(request.receiverInput) }));
     } else if (request.kind === "declaration") {
       step = completion.next(Object.freeze({ kind: "declaration", request,
-        result: host.projectTypeABI().instantiateDeclarationType(input.callable.nativeSignature.receiverTypeOwner,
+        result: host.projectTypeQueries.instantiateDeclarationType(input.callable.nativeSignature.receiverTypeOwner,
           request.receiverType, request.substituted) }));
     } else {
       step = completion.next(Object.freeze({ kind: "shape", request,
@@ -353,7 +345,7 @@ export function completeCsharpSourceCallReceiver(
   scope: CsharpTypeResolutionScope,
   input: CsharpSourceCallReceiverInput,
 ): CsharpSourceCallReceiverCompletion | undefined {
-  const { host, completeSelectedReceiver, resolveFormedSourceOwnedConstructionResult, resolveTypeWithState, resolveNodeWithState } = scope;
+  const { completeSelectedReceiver, resolveFormedSourceOwnedConstructionResult, resolveTypeWithState, resolveNodeWithState } = scope;
   const { source, sourceFile, state, receiverSource } = input;
   if (receiverSource === undefined || receiverSource.source !== source ||
       receiverSource.queries.sourceFile !== sourceFile || receiverSource.selected.receiver !== source.sourceReceiver ||
@@ -400,7 +392,7 @@ export function sourceCallableTypeParametersMatch(
   const identities = sourceCallTypeParameterIdentities(scope, source, callable, kind);
   if (identities === undefined) return false;
   const projections = callable.sourceDeclaration === undefined ? []
-    : host.representations.genericProjections(callable.sourceDeclaration);
+    : host.projectTypeCatalog.genericProjections(callable.sourceDeclaration);
   const native = callable.nativeSignature.methodTypeParameterIdentities;
   return selected.length + projections.length === native.length &&
     new Set(native).size === native.length && new Set([...identities, ...projections.map(projection => projection.identity)]).size === native.length &&
