@@ -1,6 +1,6 @@
+import { buildUnsupportedDefaultParameterFixture } from "../../../fixtures/dotnet-provider/unsupported-default-parameter-fixture.mjs";
 import { resolvedNativeBinding } from "../../../fixtures/dotnet-provider/native-inheritance.helpers.mjs";
 import assert from "node:assert/strict";
-import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -264,44 +264,5 @@ function buildDefaultParameterFixture() {
     intermediateDirectory,
     outputAssemblyName: "DefaultParameterProviderFixture.dll",
     projectDirectory: join(repoRoot, "test/fixtures/dotnet-provider/default-params"),
-  });
-}
-
-function buildUnsupportedDefaultParameterFixture() {
-  const fixtureDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/unsupported-default-params");
-  const project = join(fixtureDirectory, "UnsupportedDefaultParameterProviderFixture.csproj");
-  const source = join(fixtureDirectory, "UnsupportedDefaultParameterSource.cs");
-  const outputDirectory = join(fixtureDirectory, "bin");
-  const intermediateDirectory = join(fixtureDirectory, "obj/");
-  mkdirSync(fixtureDirectory, { recursive: true });
-  writeFileSync(project, `<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-  </PropertyGroup>
-</Project>
-`);
-  writeFileSync(source, `using System;
-using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
-
-namespace ProviderUnsupportedDefaultFixtures;
-
-public sealed class UnsupportedDefaultParameterSource
-{
-    public void UnsupportedDateTimeDefault(
-        [Optional, DateTimeConstant(638000000000000000L)] DateTime value)
-    {
-    }
-}
-`);
-  return buildDotnetFixture({
-    project,
-    outputDirectory,
-    intermediateDirectory,
-    outputAssemblyName: "UnsupportedDefaultParameterProviderFixture.dll",
-    projectDirectory: fixtureDirectory,
   });
 }
