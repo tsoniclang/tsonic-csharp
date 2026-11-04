@@ -86,10 +86,10 @@ function loweredNativeConstraints(
   const call = association?.call;
   const instantiation = call === undefined ? undefined : policy.effectiveTypes.callInstantiation(call.call);
   if (instantiation !== undefined) {
-    if (instantiation.call !== call) return undefined;
+    if (association === undefined || instantiation.call !== call) return undefined;
     for (const argument of [...instantiation.receiver, ...instantiation.method]) {
       const binder = csharpSourceTypeParameter(argument.declaration, policy.ast);
-      const type = representCsharpSourceType(policy.types.sourceTypeFlowRepresentation(association!.occurrence), argument.type);
+      const type = representCsharpSourceType(policy.types.sourceTypeFlowRepresentation(association.occurrence), argument.type);
       if (binder === undefined || type === undefined) return undefined;
       substitutions.set(binder.identity, type);
     }
