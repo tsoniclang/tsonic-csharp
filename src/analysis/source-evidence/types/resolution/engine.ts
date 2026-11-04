@@ -38,6 +38,7 @@ import { generatorProtocol as generatorProtocolImplementation, generatorResultPr
 import { resolveSelectedSymbolType as resolveSelectedSymbolTypeImplementation, resolveProjectSourceSemanticType as resolveProjectSourceSemanticTypeImplementation, resolveProjectSourceType as resolveProjectSourceTypeImplementation, projectSourceDeclarationTargetType as projectSourceDeclarationTargetTypeImplementation } from "./project-types.js";
 import { createCsharpTypeResolutionQueryCache } from "./query-cache.js";
 import { resolveCsharpPointerStoragePointee } from "./pointer-storage.js";
+import { createCsharpSourceTypeRepresentationHost } from "./effective-types.js";
 
 import type { CsharpTypeResolutionScope } from "./scope.js";
 type DropScope<Arguments extends readonly unknown[]> =
@@ -277,6 +278,8 @@ export function createCsharpTypeResolutionServices(
       guard.sourceConstructor, type => methods.resolveType(type, file));
   };
   const policy: CsharpTypePolicy = Object.freeze({
+    sourceTypeFlowRepresentation: (occurrence: Node | undefined) =>
+      createCsharpSourceTypeRepresentationHost(scope, { depth: 0 }, occurrence),
     nativeGuardResult: (expression: Node) => selectCsharpNativeGuardResult(host, expression, methods.resolveStorage, resolveNominal),
     nativeUnreachable: (node: Node) => sourceNodeIsNativeUnreachable(host.ast, node,
       expression => selectCsharpNativeGuardResult(host, expression, methods.resolveStorage, resolveNominal)),

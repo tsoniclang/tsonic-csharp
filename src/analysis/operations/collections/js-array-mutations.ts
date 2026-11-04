@@ -57,5 +57,7 @@ function selectLengthAssignment(
   ) {
     return { kind: "not-js-array-mutation" };
   }
-  return selectCsharpNativeArrayLengthWrite(input.types.resolveType(source.receiver.type, sourceFile), source.receiver.expression, value);
+  return selectCsharpNativeArrayLengthWrite(
+    input.types.resolveNode(source.receiver.expression, sourceFile)?.sourceResult?.selectedType,
+    source.receiver.expression, value);
 }

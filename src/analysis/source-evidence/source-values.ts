@@ -1,10 +1,13 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
+import { HasSyntacticModifier, ModifierFlagsAsync, sourceExpressionCallArgument, sourceTransparentExpressionOperand } from "@tsonic/target-api/source";
 
 import type { CsharpTypePolicy } from "./types/resolution/model.js";
 
 import type { TargetTypeRef } from "../../target-model/types/model.js";
+import { csharpTaskTargetType, csharpVoidTargetType, getCsharpTaskResultTargetType, targetTypeRefEquals } from "../../policy/types/index.js";
+import { forEachCsharpDirectReturnExpression } from "../callables/calls/return-expressions.js";
 
 export function isCsharpFlowReadEvidenceNode(
   ast: import("@tsonic/tsts").AstReader,
@@ -29,9 +32,32 @@ export function inferCallableReturnType(
   const signatures = semantics.types.signatureInfos(declarationType, "call")
     .filter((signature) =>
       semantics.declarations.signatureDeclaration(signature.signature) === declaration);
-  return signatures.length === 1
-    ? types.resolveType(signatures[0]!.returnType, sourceFile)
-    : undefined;
+  if (signatures.length !== 1) return undefined;
+  const authoredReturn = source.ast.typeNode(declaration);
+  let argument = declaration;
+  for (let parent = source.ast.parent(argument); parent !== undefined &&
+    (source.ast.is.IsParenthesizedExpression(parent) || source.ast.is.IsAsExpression(parent) ||
+      source.ast.is.IsSatisfiesExpression(parent)) && sourceTransparentExpressionOperand(source.ast, parent) === argument;
+    parent = source.ast.parent(argument)) argument = parent;
+  if (authoredReturn === undefined &&
+    (source.ast.is.IsArrowFunction(declaration) || source.ast.is.IsFunctionExpression(declaration)) &&
+    sourceExpressionCallArgument(argument, source) !== undefined) {
+    const asynchronous = HasSyntacticModifier(source.ast, declaration, ModifierFlagsAsync);
+    const returned: TargetTypeRef[] = [];
+    let incomplete = false;
+    forEachCsharpDirectReturnExpression(source.ast, declaration, expression => {
+      if (types.nativeUnreachable(expression)) return;
+      const selected = types.resolveNode(expression, sourceFile)?.sourceResult?.selectedType;
+      if (selected === undefined) incomplete = true;
+      else returned.push(asynchronous ? getCsharpTaskResultTargetType(selected) ?? selected : selected);
+    });
+    if (incomplete) return undefined;
+    const selected = returned[0] ?? csharpVoidTargetType();
+    return returned.every(type => targetTypeRefEquals(type, selected))
+      ? asynchronous ? csharpTaskTargetType(selected) : selected
+      : undefined;
+  }
+  return types.resolveSelectedType(authoredReturn, signatures[0]!.returnType, sourceFile);
 }
 
 export function freezeSourceArgumentClassification(

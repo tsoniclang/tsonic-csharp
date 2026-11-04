@@ -62,7 +62,7 @@ export interface CsharpBindingPatternAnalysisInput {
   readonly valueReads: CsharpValueReadClassifications;
   readonly initializerUses: Pick<ReadonlyMap<object, Pick<CsharpExpectedNativeUse, "expression" | "carrier"> | null>, "get">;
   readonly objectShapes: CsharpObjectShapeClassifications;
-  readonly typePolicy: Pick<CsharpPolicyContext["types"], "resolveType">;
+  readonly typePolicy: Pick<CsharpPolicyContext["types"], "resolveNode">;
   readonly conversionPolicy: Parameters<typeof selectCsharpConversion>[0];
   readonly storage: Pick<CsharpStorageClassifications, "storageType">;
 }
@@ -536,7 +536,8 @@ export function analyzeCsharpBindingPatterns(
       }
       recordElement(elementNode, { ...selected.element, propertyName: targetName });
       const member = members.find(candidate => candidate.name === sourceName);
-      const carrier = member === undefined ? undefined : input.typePolicy.resolveType(member.type, sourceFile);
+      const carrier = member === undefined ? undefined
+        : input.typePolicy.resolveNode(elementNode, sourceFile)?.sourceResult?.selectedType;
       if (carrier === undefined) {
         issue(elementNode, "Object destructuring source property requires its exact finalized native extraction carrier before C# emission.");
         continue;
