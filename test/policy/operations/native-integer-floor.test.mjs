@@ -1,16 +1,17 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { callEvidence, directProviderHost, providerDeclaration, providerFact } from "../../fixtures/dotnet-provider/direct-provider-selection.helpers.mjs";
+import { callEvidence, providerCallSource, providerBinding, providerMethod, targetParameter, directProviderHost, providerDeclaration, providerFact } from "../../fixtures/dotnet-provider/direct-provider-selection.helpers.mjs";
 import { jsSourceSemanticsIdentity } from "@tsonic/js-source-profile";
 import { selectCsharpComposedSourceProfileCall } from "../../../dist/analysis/operations/source-profiles/selection.js";
 
 test("floor policy retains every native integer carrier supplied by exact provider evidence", () => {
   for (const name of ["int8", "uint8", "int16", "uint16", "int32", "uint32", "int64", "uint64", "int128", "uint128", "native-int", "native-uint", "float32", "float64"]) {
     const carrier = { kind: "source-primitive", name };
-    const call = callEvidence({ argumentTypes: [{}], receiver: false });
-    const sourceFile = { kind: "source-file" };
+    const binding = providerBinding();
+    const member = providerMethod({ static: true, parameters: [targetParameter("value", carrier)], returnType: carrier });
+    const call = callEvidence(providerCallSource({ receiver: false, sourceArgumentTargets: [carrier] }, binding, member));
     const fixture = directProviderHost({
-      sourceFile, calls: [[call.evidence.call, call.evidence]],
+      sourceProgram: call.program, calls: [[call.evidence.call, call.evidence]],
       nodeTypes: [[call.evidence.sourceArguments[0].expression, carrier]],
       semanticTypes: [[call.evidence.sourceSelectedSignatureParameters[0].selectedType, carrier]],
       signatureDeclarations: [[call.evidence.selectedSignature, call.signatureDeclaration]],
@@ -20,11 +21,7 @@ test("floor policy retains every native integer carrier supplied by exact provid
         memberName: "floor",
         memberKey: { kind: "property-key", name: "floor" },
       }))],
-      ast: { getSourceFile: node => node === call.evidence.call ? sourceFile : undefined,
-        kindName: () => "KindMethodSignature", is: { IsSpreadElement: () => false }, arguments: node => {
-        assert.equal(node === call.evidence.call, true, "only the original checked floor call owns these arguments");
-        return [call.evidence.sourceArguments[0].expression];
-      } },
+
     });
     const host = { ...fixture.host, types: { ...fixture.host.types, resolveSourceCallTypeArguments: () => [],
       resolveSourceCallParameter: (source, index, file, domain) => {

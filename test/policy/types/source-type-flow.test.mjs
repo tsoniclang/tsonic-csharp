@@ -98,15 +98,17 @@ test("actual retained shapes keep exact declared properties and reject a differe
   ]) });
   let retained;
   const host = { ...representationHost("native"), typeParameterConstraints: environment, retainShape(shape) {
-    retained = shape;
+    assert.equal(shape.constructible === undefined && !Object.prototype.hasOwnProperty.call(shape, "constructible"), true,
+      "a Host shape descriptor does not fabricate a Native construction capability");
+    retained = Object.freeze({ ...shape, constructible: true });
     assert.equal(shape.members[0].sourceDeclarations[0] === declaration && shape.members[0].readonly === true, true,
       "the actual Native header keeps the original property identity and readonly fact");
     assert.equal(shape.members[0].type.name, "int32");
-    return shape;
+    return retained;
   } };
   const selected = representCsharpSourceType(host, descriptor);
   assert.equal(selected === retained.targetType && retained.constructible === true, true, "one retained Native shape is the actual representation");
-  const changed = representCsharpSourceType({ ...host, retainShape: shape => ({ ...shape, targetType: csharpSourcePrimitiveTargetType("int32") }) }, descriptor);
+  const changed = representCsharpSourceType({ ...host, retainShape: shape => ({ ...shape, constructible: true, targetType: csharpSourcePrimitiveTargetType("int32") }) }, descriptor);
   assert.equal(changed === undefined, true, "a second physical answer is rejected, not repaired");
 });
 

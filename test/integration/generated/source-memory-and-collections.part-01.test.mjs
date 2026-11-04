@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { compileEffectiveSource } from "../../helpers/source-effective-types.mjs";
 import { join } from "node:path";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { testRepositoryRoots } from "../../../../tsonic/test/scripts/workspace-layout.mjs";
@@ -55,6 +56,35 @@ test(`recursive generic and mutually recursive union records execute in ${surfac
 
 for (const initializer of Array.from(["new Array<number>(3)", "[1, 2]"]).slice(0, 2)) {
 test(`dense numeric arrays reject deletion before copying for ${initializer}`, { timeout: 300_000 }, () => {
+    if (initializer === "[1, 2]") {
+      const compiled = compileEffectiveSource("js", `import { copy } from "./arrays.js";
+        export function run(): boolean {
+          const values = ${initializer};
+          let rejected = false;
+          try { delete values[0]; } catch { rejected = true; }
+          const result = copy(values);
+          return rejected && 0 in values && result !== values && result[0] === values[0];
+        }`, {
+        files: { "arrays.ts": numberArrayUnionFiles["arrays.ts"] },
+      });
+      const issues = compiled.result.diagnostics.filter(issue =>
+        issue.category === "error" && issue.code === "TSONIC_LOCAL_TYPE_UNSUPPORTED");
+      const matches = issues.filter(issue => {
+        const ast = compiled.targetSource.ast;
+        const range = issue.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
+        return range?.kind === "authored" &&
+          ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end) === "delete values[0]";
+      });
+      assert.equal(matches.length, 1, "C9 rejects the exact original delete occurrence, independently of any other reported family");
+      const issue = matches[0];
+      const retained = compiled.targetSource.effectiveTypes.refusals().filter(refusal =>
+        refusal.site === issue.sourceNode && refusal.code === issue.code);
+      assert.equal(issue.source === "tsonic" && retained.length === 1 && issue.message === retained[0].reason, true,
+        "the identical published Host refusal supplies the code, original occurrence and reason");
+      assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
+        "the refused original program publishes no Native output");
+      return;
+    }
     const compiled = compileCsharpSource({ surface: "js",
       files: { "arrays.ts": numberArrayUnionFiles["arrays.ts"] },
       sourceText: `import { copy } from "./arrays.js";
@@ -69,6 +99,21 @@ test(`dense numeric arrays reject deletion before copying for ${initializer}`, {
     executeCsharpConstruction(compiled, "dense-array-deletion");
   });
 }
+
+test("typed dense numeric arrays preserve deletion rejection and copy identity", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ surface: "js",
+    files: { "arrays.ts": numberArrayUnionFiles["arrays.ts"] },
+    sourceText: `import { copy } from "./arrays.js";
+        export function run(): boolean {
+          const values: number[] = [1, 2];
+          let rejected = false;
+          try { delete values[0]; } catch { rejected = true; }
+          const result = copy(values);
+          return rejected && 0 in values && result !== values && result[0] === values[0];
+        }`,
+  });
+  executeCsharpConstruction(compiled, "typed-dense-array-deletion");
+});
 
 for (const surface of Array.from([undefined, "js"]).slice(0, 1)) {
 test(`nested record fields retain exact signed and unsigned widths in ${surface ?? "native"}`, { timeout: 300_000 }, () => {

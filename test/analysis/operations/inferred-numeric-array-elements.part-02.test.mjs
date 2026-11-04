@@ -18,6 +18,25 @@ import { selectCsharpConversion } from "../../../dist/policy/conversions/core.js
 import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
 import { header, emptyProviders, compile, diagnosticLabel, accepted, arrays, constructedArrays, destinationBodies, actualDestinationEvidence, actualUnionDestinationEvidence } from "./inferred-numeric-array-elements.fixtures.mjs";
 
+const c19PhysicalDestinationKeys = new Set([
+  "native actual argument destination changes physical i32 element storage",
+  "native actual return destination changes physical i32 element storage",
+  "native actual async destination changes physical i32 element storage",
+  "native actual nested destination changes physical i32 element storage",
+  "js actual argument destination changes physical i32 element storage",
+  "js actual return destination changes physical i32 element storage",
+  "js actual async destination changes physical i32 element storage",
+  "js actual nested destination changes physical i32 element storage",
+  "native actual explicit generic argument destination changes physical i32 element storage",
+  "native actual explicit generic callback destination changes physical i32 element storage",
+  "native actual native generic receiver destination changes physical i32 element storage",
+  "native actual typed callback destination changes physical i32 element storage",
+  "js actual explicit generic argument destination changes physical i32 element storage",
+  "js actual explicit generic callback destination changes physical i32 element storage",
+  "js actual native generic receiver destination changes physical i32 element storage",
+  "js actual typed callback destination changes physical i32 element storage",
+]);
+
 for (const surface of ["native", "js"]){
 for (const [name, body] of [
     ["alias", "type Values = float32[]; export function run(value: float32): Values { const result: Values = [value, 1]; return result; }"],
@@ -33,10 +52,46 @@ test(`${surface} actual ${name} destination reaches the same numeric owner`, () 
 }
 
 for (const [name, body] of Object.entries(destinationBodies)){
-test(`${surface} actual ${name} destination changes physical i32 element storage`, () => {
-    const program = accepted(compile(surface, body("float32", "runSingle") + body("number", "runDouble")));
+const physicalKey = `${surface} actual ${name} destination changes physical i32 element storage`;
+test(physicalKey, () => {
+    const source = body("float32", "runSingle") + body("number", "runDouble");
+    if (c19PhysicalDestinationKeys.has(physicalKey)) {
+      const compiled = compile(surface, source);
+      assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
+      const ast = compiled.nativeStage.source.ast;
+      const issues = compiled.targetDiagnostics;
+      assert.equal(issues.length === 2 && issues.every(issue => {
+        const matching = compiled.nativeStage.source.effectiveTypes.refusals().filter(refusal =>
+          refusal.code === "TSONIC_LOCAL_TYPE_MIXED_ELEMENTS" && refusal.site === issue.sourceNode);
+        const range = issue.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
+        const text = range?.kind !== "authored" ? undefined
+          : ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end);
+        return issue.code === "TSONIC_LOCAL_TYPE_MIXED_ELEMENTS" &&
+          issue.source === "tsonic" && matching.length === 1 && issue.message === matching[0].reason &&
+          issue.message === "This array literal mixes different fixed source types. Annotate the array and convert its elements explicitly." &&
+          text === "[narrow, signed]";
+      }), true, `${name}: both original open constructions keep their exact C19 refusal; ${diagnosticLabel(compiled)}`);
+      assert.equal(new Set(issues.map(issue => issue.sourceNode)).size === 2, true,
+        `${name}: each original physical construction has its own checked rejection occurrence`);
+      assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
+        `${name}: no rejected construction reaches sealing or emission`);
+      return;
+    }
+    const program = accepted(compile(surface, source));
     actualDestinationEvidence(program, ["float32", "float64"], name);
   });
+  if (c19PhysicalDestinationKeys.has(physicalKey)) {
+    test(`${surface} annotated ${name} destination preserves physical i32 element storage`, () => {
+      const single = body("float32", "runSingle");
+      const double = body("number", "runDouble");
+      const annotatedSingle = single.replace("const values = [narrow, signed]", "const values: float32[] = [narrow, signed]");
+      const annotatedDouble = double.replace("const values = [narrow, signed]", "const values: number[] = [narrow, signed]");
+      assert.equal(annotatedSingle !== single && annotatedDouble !== double, true,
+        `${name}: the companions annotate only the original two local declarations`);
+      const program = accepted(compile(surface, annotatedSingle + annotatedDouble));
+      actualDestinationEvidence(program, ["float32", "float64"], name);
+    });
+  }
 }
 
 for (const [name, body] of Object.entries(destinationBodies)){

@@ -3,6 +3,8 @@ import test from "node:test";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { createSourceStorageQuery, targetUseSiteIdentity } from "@tsonic/target-api/analysis";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { compileCsharpNativeUseSource } from "../../helpers/expected-native-uses.mjs";
+import { assertPrimitiveOccurrences, assertPublishedRefusal, projectNodes } from "../../helpers/source-effective-types.mjs";
 import { analyzeCsharpBindingPatterns } from "../../../dist/analysis/control-flow/binding-patterns.js";
 import { analyzeCsharpNativeDemand } from "../../../dist/analysis/operations/native-demand.js";
 import { csharpNativeUseSite } from "../../../dist/target-model/records/native/native-demand.js";
@@ -23,13 +25,40 @@ test(
     ? `export function run(values: Record<string, number>, value: number): string {
         delete values["key"]; void value; return typeof value; }`
     : surface === "native" && label === "sequence spread" ? program.replace("values.length", "values.Length") : program;
-  const compiled = compileCsharpSource({ sourceText, surface });
+  const compiled = compileCsharpNativeUseSource({ sourceText, surface });
+  if (label === "compound and logical assignments and increments") {
+    const inspected = { ...compiled, targetSource: compiled.nativeStage.source };
+    const ast = inspected.targetSource.ast;
+    const destinations = projectNodes(inspected, (node, reader) => reader.is.IsVariableDeclaration(node) && reader.text(reader.name(node)) === "optional");
+    assert.equal(destinations.length, 1, "the original concrete union destination is unique");
+    assert.equal(compiled.result.diagnostics.find(issue => issue.code === "TSONIC_LOCAL_TYPE_UNION")?.sourceNode === destinations[0], true,
+      "C9 refuses the identical original annotated destination, not a positive boolean result");
+    const range = ast.authoredRange(destinations[0]);
+    assert.equal(range.kind === "authored", true, "the original union use retains its authored occurrence");
+    const siteText = ast.getSourceText(ast.getSourceFile(destinations[0])).slice(range.start, range.end);
+    assertPublishedRefusal(inspected, "TSONIC_LOCAL_TYPE_UNION", siteText);
+    return;
+  }
   assert.equal(compiled.sourceDiagnosticsText === "", true, `${label}: ${compiled.sourceDiagnosticsText}`);
   const errors = compiled.result.diagnostics.filter(diagnostic => diagnostic.category === "error");
   assert.equal(errors.length, 0, `${label}: ${errors.map(diagnostic => `${diagnostic.code}: ${diagnostic.message}`).join("; ")}`);
   assert.equal(compiled.result.program !== undefined && [...compiled.artifacts.keys()].some(path => path.endsWith(".cs")), true,
     `${label}: one sealed program reaches native source emission`);
 });
+if (label === "compound and logical assignments and increments") {
+test(`${surface} an annotated compound and logical assignment source keeps every sealed native operation`, () => {
+  const sourceText = 'import type { int32 } from "@tsonic/core/types.js";\n' +
+    program.replace("let value = 1;", "let value: int32 = 1;");
+  assert.equal(sourceText.includes("let value: int32 = 1;"), true, "only the original mutable local receives a concrete annotation");
+  const compiled = compileCsharpNativeUseSource({ sourceText, surface });
+  assert.equal(compiled.sourceDiagnosticsText === "", true, `${label}: ${compiled.sourceDiagnosticsText}`);
+  const errors = compiled.result.diagnostics.filter(diagnostic => diagnostic.category === "error");
+  assert.equal(errors.length, 0, `${label}: ${errors.map(diagnostic => `${diagnostic.code}: ${diagnostic.message}`).join("; ")}`);
+  assert.equal(compiled.result.program !== undefined && [...compiled.artifacts.keys()].some(path => path.endsWith(".cs")), true,
+    `${label}: one sealed program reaches native source emission`);
+  assertPrimitiveOccurrences({ ...compiled, targetSource: compiled.nativeStage.source }, "value", "int32");
+});
+}
 }
 }
 

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createCsharpTypeParameterEnvironment } from "../../../dist/analysis/source-evidence/types/resolution/type-parameter-environment.js";
 import { createTargetSourceProgram, analyzeSourceLiteralValues } from "@tsonic/target-api/source";
-import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { compileCsharpSource, checkCsharpSource, assertCsharpCheckingSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { analyzeCsharpExpectedTypes } from "../../../dist/analysis/expected-types/analyze.js";
 import { admitCsharpExpectedNativeUses, collectCsharpExpectedNativeUseSites } from "../../../dist/analysis/expected-types/native-uses.js";
 import { analyzeCsharpExactLiteralSelections } from "../../../dist/analysis/conversions/literal-plans.js";
@@ -25,6 +25,32 @@ import { isCsharpSourceCallableArtifactDeclaration } from "../../../dist/policy/
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 import { publishedGenericProjections } from "../../helpers/expected-native-uses.mjs";
 import { csharpRuntimeUnionTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
+
+let nativeConversionSyntax;
+
+function actualNativeConversionSyntax() {
+  if (nativeConversionSyntax !== undefined) return nativeConversionSyntax;
+  const checked = checkCsharpSource({ surface: "native", sourceText: `
+    export function selected(value: unknown): unknown { return value; }
+    export function unselected(value: unknown): unknown { return value; }
+  ` });
+  assertCsharpCheckingSucceeded(checked);
+  const source = createTargetSourceProgram(checked.source);
+  const file = checked.source.getSourceFile("/project/index.ts");
+  assert.equal(file !== undefined, true, "the Native conversion controls retain their checked source file");
+  const returns = [];
+  const visit = node => {
+    if (source.ast.is.IsReturnStatement(node)) returns.push({ statement: node, expression: source.ast.as.AsReturnStatement(node)?.Expression });
+    source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+  };
+  visit(file);
+  assert.equal(returns.length === 2 && returns.every(row => row.expression !== undefined &&
+    source.ast.parent(row.expression) === row.statement), true, "each actual operand has its real checked return parent");
+  assert.equal(source.effectiveTypes.refusals().length === 0, true,
+    "the actual declared operand publication contains no Host language refusal");
+  nativeConversionSyntax = Object.freeze({ source, expression: returns[0].expression, other: returns[1].expression });
+  return nativeConversionSyntax;
+}
 
 for (const role of ["write-target", "update-target"]) test(`${role} admission consumes exact native storage, never its narrowed value`, () => {
   const owner = Object.freeze({});
@@ -290,8 +316,7 @@ test("separately rendered provider conversions consume the exact source carrier 
 for (const wrapper of ["direct", "delegate", "tuple", "native-generic"]) test(wrapper === "direct"
   ? "actual native expression conversions complete while structural registration is open, then every view is lookup-only"
   : `${wrapper} actual conversion dependencies complete before structural publication`, () => {
-  const expression = {};
-  const other = {};
+  const { source: syntax, expression, other } = actualNativeConversionSyntax();
   const source = { kind: "target-named", id: "Source.ActualShape" };
   const target = { kind: "target-named", id: "Source.ActualContract" };
   const wrap = type => wrapper === "direct" ? type : wrapper === "delegate" ? csharpDelegateTargetType("System.Func", [], type)
@@ -303,7 +328,7 @@ for (const wrapper of ["direct", "delegate", "tuple", "native-generic"]) test(wr
   let structuralClosed = false;
   let registrations = 0;
   const policy = { sourceFiles: [], target: {},
-    ast: { is: { IsCallExpression: () => false, IsIdentifier: () => false }, getSourceFile: () => undefined },
+    ast: syntax.ast, effectiveTypes: syntax.effectiveTypes,
     navigation: { referenceFor: () => undefined }, projectTypes: { directSupertypes: () => [] },
     providers: { findTargetBindingByTargetId: id => id === "Owner.Covariant" ? { kind: "resolved", binding: { id, target: "csharp", kind: "interface",
       sourceName: "Covariant", targetName: "Covariant", typeParameters: [{ identity: "Owner.Covariant:T", name: "T", variance: "out" }] } }
@@ -318,7 +343,7 @@ for (const wrapper of ["direct", "delegate", "tuple", "native-generic"]) test(wr
       shape.implements = [target];
       return true;
     } };
-  const operations = { selectedCall: none, selectedConstruction: none };
+  const operations = { selectedCall: none, selectedConstruction: none, selectedElement: none };
   const analysis = analyzeCsharpConversions(policy,
     { nodeTargetType: { get: node => node === expression ? sourceUse : undefined } }, shapes, operations);
   const prepared = analysis.prepare({ expectedTypes: {}, valueReads: {} });
@@ -351,7 +376,7 @@ function owners(sourceText, surface) {
   assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
   const program = compiled.result.program;
   assert.equal(program !== undefined, true, compiled.result.diagnostics.map(item => `${item.code}: ${item.message}`).join("; "));
-  const source = createTargetSourceProgram(compiled.source);
+  const source = program.source;
   const ast = source.ast;
   const nodes = [];
   const walk = node => { nodes.push(node); ast.forEachChild(node, child => { if (child !== undefined) walk(child); }); };
@@ -363,6 +388,7 @@ function owners(sourceText, surface) {
     return declared?.kind === "resolved" ? [{ sourceDeclaration: node, returnType: declared.type }] : [];
   });
   const expected = analyzeCsharpExpectedTypes({ ast, sourceFiles: csharpProgramSourceFiles(program), literalValues,
+    effectiveTypes: source.effectiveTypes,
     semantics: source.semantics.forFile, semanticsFor: source.semantics.forNode, typeDefinitions: program.typeDefinitions }, records, records, program.objectShapes,
     { declarationContracts: contracts, closedInputType: () => undefined, get: () => undefined },
     { get: node => { const read = records.valueRead.get(node); return read === undefined ? undefined

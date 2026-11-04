@@ -27,7 +27,7 @@ for (const surface of ["native", "js"]) {
     ["unknown slots do not fill", "const items = [1, 2]; keep(items); return items[0] === 1;", [["items", "int32"]], []],
     ["explicit generic arguments fill the actual binder", "const items = [1, 2]; const value = first<int32>(items); return value === 1;", [["items", "int32"]], [["value", "int32"]]],
     ["two instances of one generic have independent types", "const integer = identity(1); const fraction = identity(0.5); return integer === 1 && fraction === 0.5;", [], [["integer", "int32"], ["fraction", "float64"]]],
-    ["a shift count takes int32 without imposing its type on the left operand", "const amount = 1; const shifted = wide << amount; return shifted === wide + wide;", [], [["amount", "int32"], ["shifted", "int64"]]],
+    ["a shift count takes int32 without imposing its type on the left operand", "const left: int32 = 1; const amount = 1; const shifted = left << amount; return shifted === left + left;", [], [["left", "int32"], ["amount", "int32"], ["shifted", "int32"]]],
   ]) {
     test(`${surface} effective types: ${name}`, () => {
       const compiled = compileEffectiveSource(surface, `${header}
@@ -43,10 +43,27 @@ for (const surface of ["native", "js"]) {
     });
   }
 
+  test(`${surface} a declared int32 shift count preserves an independent Native int64 left operand`, () => {
+    const compiled = compileEffectiveSource(surface, `${header}
+      export function run(): boolean {
+        for (let wide = 1; wide < 2; wide++) {
+          const amount: int32 = 1;
+          const shifted = wide << amount;
+          return shifted === wide + wide;
+        }
+        return false;
+      }
+    `);
+    acceptedEffectiveSource(compiled);
+    assertPrimitiveOccurrences(compiled, "wide", "int64", 3);
+    assertPrimitiveOccurrences(compiled, "amount", "int32");
+    assertPrimitiveOccurrences(compiled, "shifted", "int64");
+  });
+
   for (const [name, code, sourceText, site] of [
     ["widening is a conflict at the later concrete use", "TSONIC_LOCAL_TYPE_CONFLICT", `${header}
       function small(value: int32): void { void value; }
-      function wide(value: int64): void { void value; }
+      function wide(value: number): void { void value; }
       export function run(): void { const value = 1; small(value); wide(value); }`, "value"],
     ["inferred return fixes declaration typing", "TSONIC_LOCAL_TYPE_SIGNATURE", `${header}
       function sum(values: number[]): void { void values; }
@@ -55,9 +72,11 @@ for (const surface of ["native", "js"]) {
       function takeDouble(value: number): void { void value; }
       export function run() { const value = 1; takeDouble(value); return value + 1; }`, "value"],
     ["body-local empty object needs a fill", "TSONIC_UNTYPED_OBJECT_LITERAL", "export function run(): boolean { const value = {}; return value !== undefined; }", "{}"],
-    ["body-local empty array needs an element fill", "TSONIC_UNTYPED_ARRAY_LITERAL", "export function run(): boolean { const values = []; return values !== undefined; }", "[]"],
+    ["body-local empty array needs an element fill", "TSONIC_UNTYPED_ARRAY_LITERAL", "export function run(): boolean { const values = []; values[0] = 1; return values !== undefined; }", "[]"],
     ["mixed fixed elements fail at the literal", "TSONIC_LOCAL_TYPE_MIXED_ELEMENTS", `${header}
       export function run(narrow: float32, signed: int32): void { const values = [narrow, signed]; void values; }`, "[narrow, signed]"],
+    ["number-backed and bigint-backed fixed widths remain one numeric kind", "TSONIC_LOCAL_TYPE_MIXED_ELEMENTS", `${header}
+      export function run(narrow: int32, wide: int64): void { const values = [narrow, wide]; void values; }`, "[narrow, wide]"],
     ["small-kind arithmetic feeding a local is unsupported", "TSONIC_LOCAL_TYPE_UNSUPPORTED", `${header}
       export function run(left: int8, right: int8): boolean { const combined = left + right; return combined === 0; }`, "left + right"],
     ["different concrete object identities conflict at the later use", "TSONIC_LOCAL_TYPE_CONFLICT", `${header}
@@ -76,6 +95,31 @@ for (const surface of ["native", "js"]) {
     const compiled = compileEffectiveSource(surface, "export function run(): number[] { const values = [1, 2]; return values; }");
     acceptedEffectiveSource(compiled);
     assertArrayOccurrences(compiled, "values", "float64");
+  });
+
+  test(`${surface} captured compound writes keep the original root's declaration type`, () => {
+    const compiled = compileEffectiveSource(surface, `
+      export function run() {
+        let total = 0;
+        function add(): void { total += 1; }
+        add();
+        return total;
+      }
+    `);
+    acceptedEffectiveSource(compiled);
+    assertPrimitiveOccurrences(compiled, "total", "int32", 2);
+  });
+
+  test(`${surface} a concrete captured use cannot fill another callable's open group`, () => {
+    const compiled = compileEffectiveSource(surface, `
+      function takeDouble(value: number): void { void value; }
+      export function run(): void {
+        let value = 0;
+        function fill(): void { takeDouble(value); }
+        fill();
+      }
+    `);
+    assertPublishedRefusal(compiled, "TSONIC_LOCAL_TYPE_SELF_REFERENCE", "takeDouble(value)");
   });
 
   test(`${surface} module bindings stay at their declaration default`, () => {
@@ -192,9 +236,18 @@ for (const surface of ["native", "js"]) {
         class Receiver<T> { accept(value: Box<T>): void { void value; } }
         export function run(): boolean {
           const receiver = new Receiver<int32>();
-          const original = new Box<${argumentWidth}>(7 as ${argumentWidth});
-          receiver.accept(original);
-          return original.value === 7;
+          ${argumentWidth === "int64" ? `
+            for (let wideValue = 7; wideValue < 8; wideValue++) {
+              const original = new Box(wideValue);
+              receiver.accept(original);
+              return original.value === 7;
+            }
+            return false;
+          ` : `
+            const original = new Box<int32>(7 as int32);
+            receiver.accept(original);
+            return original.value === 7;
+          `}
         }
       `);
       if (argumentWidth === "int32") acceptedEffectiveSource(compiled);
@@ -210,7 +263,7 @@ for (const surface of ["native", "js"]) {
       assert.equal(write.valueVariable?.node === write.value && ast.is.IsIdentifier(write.value) && ast.text(write.value) === "original", true,
         "the full Box value remains the original RHS rather than being retyped as its projected numeric argument");
       assert.equal(write.valueType?.kind === "primitive" && write.valueType.primitive === argumentWidth, true,
-        "the projected descriptor carries the actual authored width");
+        "the projected descriptor carries the actual selected Native width");
       assert.equal(write.valueVariable.path.some(part => part.kind === "binder" && ast.is.IsTypeParameterDeclaration(part.declaration)), true,
         "the Source metadata retains the actual Box binder declaration without a runtime property path or filtering");
       assert.equal(write.association.binding === write.association.call.sourceArgumentBindings[0] &&
@@ -225,7 +278,7 @@ for (const [name, code, sourceText, site] of [
   ["changed accumulator result", "TSONIC_LOCAL_TYPE_ACCUMULATOR", "export function run(): void { const values = [1, 2]; const total = values.reduce((sum, value) => sum + 0.5, 0); void total; }", "sum + 0.5"],
   ["callback index mixed with declared double", "TSONIC_LOCAL_TYPE_UNSUPPORTED", "export function run(offset: number): void { const values = [1, 2]; const result = values.map((value, index) => index + offset); void result; }", "index + offset"],
   ["insertion cannot fill an empty receiver", "TSONIC_UNTYPED_ARRAY_LITERAL", "export function run(): void { const values = []; values.push(1); }", "[]"],
-  ["lookup cannot fill an empty receiver", "TSONIC_UNTYPED_ARRAY_LITERAL", "export function run(): void { const values = []; values.includes(1); }", "[]"],
+  ["lookup cannot fill an empty receiver", "TSONIC_UNTYPED_ARRAY_LITERAL", "export function run(): void { const values = []; values[0] = 1; values.includes(1); }", "[]"],
 ]) {
   test(`js effective types refuse: ${name}`, () => {
     assertPublishedRefusal(compileEffectiveSource("js", `${header}\n${sourceText}`), code, site);

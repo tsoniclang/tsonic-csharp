@@ -1,6 +1,8 @@
 import {
   assert,
   callEvidence,
+  providerCallSource,
+  providerCallNativeEvidence,
   csharpObjectTargetType,
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
@@ -14,8 +16,6 @@ import {
   selectCsharpProviderCall,
   selectCsharpTargetCall,
   signatureRelation,
-  sourceArgumentBinding,
-  sourceParameter,
   targetParameter,
   test,
 } from "../../fixtures/dotnet-provider/direct-provider-selection.helpers.mjs";
@@ -68,8 +68,6 @@ test("same-spelling source calls without provider evidence remain source-owned",
 });
 
 test("project-owned implicit constructors adapt an exact inherited provider signature", () => {
-  const selectedCalleeDeclaration = {};
-  const selectedSignature = {};
   const baseMember = providerConstructor();
   const projectMember = {
     ...baseMember,
@@ -79,17 +77,12 @@ test("project-owned implicit constructors adapt an exact inherited provider sign
       id: "tsonic.source:project",
     },
   };
-  const projectConstructors = new Map([[selectedCalleeDeclaration, new Map([[
-    selectedSignature,
-    {
-      targetMember: projectMember,
-      baseMemberId: baseMember.id,
-    },
+  const projectConstructors = source => new Map([[source.evidence.sourceCallee.selectedDeclaration, new Map([[
+    source.evidence.selectedSignature,
+    { targetMember: projectMember, baseMemberId: baseMember.id },
   ]])]]);
   const fixture = createCallFixture({
-    selectedCalleeDeclaration,
-    projectDeclarations: [selectedCalleeDeclaration],
-    selectedSignature,
+    projectConstructor: true,
     member: baseMember,
     projectConstructors,
   });
@@ -104,20 +97,19 @@ test("project-owned implicit constructors adapt an exact inherited provider sign
 });
 
 test("project-owned aliases of exact provider methods do not request constructor forwarding", () => {
-  const selectedCalleeDeclaration = {};
   const member = providerMethod();
-  const fixture = createCallFixture({ selectedCalleeDeclaration,
-    projectDeclarations: [selectedCalleeDeclaration], member });
+  const fixture = createCallFixture({ projectMethodAlias: true, member });
+  assert.equal(fixture.source.sourceReceiver !== undefined &&
+    fixture.host.navigation.isProjectDeclaration(fixture.source.sourceCallee.selectedDeclaration), true,
+  "the real project-owned member alias retains an instance receiver and the original provider signature");
   const selected = selectCsharpTargetCall(fixture.host, fixture.call, fixture.sourceFile);
   assert.equal(selected.kind, "resolved");
   assert.deepEqual(selected.call.targetMember, member);
 });
 
 test("project-owned inherited provider signatures fail closed without an exact forwarding constructor", () => {
-  const selectedCalleeDeclaration = {};
   const fixture = createCallFixture({
-    selectedCalleeDeclaration,
-    projectDeclarations: [selectedCalleeDeclaration],
+    projectConstructor: true,
     member: providerConstructor(),
   });
   const selected = selectCsharpTargetCall(
@@ -554,18 +546,8 @@ test("checked-source acceptance never discards an available exact conversion", (
 
 test("optional source and target parameters may be omitted only when both contracts agree", () => {
   const parameterType = csharpStringTargetType();
-  const parameterDeclaration = {};
   const fixture = createCallFixture({
-    sourceParameters: [
-      sourceParameter({
-        parameterDeclaration,
-        selectedType: {},
-        acceptsOmission: true,
-      }),
-    ],
-    argumentExpressions: [],
-    argumentTypes: [],
-    bindings: [],
+    sourceParameters: [{ acceptsOmission: true }],
     targetParameters: [
       targetParameter("value", parameterType, { optional: true }),
     ],
@@ -587,15 +569,7 @@ test("optional source and target parameters may be omitted only when both contra
 
 test("optional omission fails closed when the target parameter remains required", () => {
   const fixture = createCallFixture({
-    sourceParameters: [
-      sourceParameter({
-        selectedType: {},
-        acceptsOmission: true,
-      }),
-    ],
-    argumentExpressions: [],
-    argumentTypes: [],
-    bindings: [],
+    sourceParameters: [{ acceptsOmission: true }],
     targetParameters: [
       targetParameter("value", csharpStringTargetType()),
     ],
@@ -797,7 +771,6 @@ test("provider constructor and interface constraints use exact project type fact
 });
 
 test("static-interface dispatch validates the exact selected invocation type", () => {
-  const selectedType = {};
   const contract = csharpTargetNamedType("Fixture.IStaticContract", undefined, undefined, { allowsRefLikeTypeArguments: [],});
   const contractDeclaration = {};
   const implementation = csharpTargetNamedType("Fixture.StaticImplementation", undefined, undefined, { allowsRefLikeTypeArguments: [],});
@@ -822,13 +795,12 @@ test("static-interface dispatch validates the exact selected invocation type", (
     }),
     member,
     receiver: false,
-    methodTypeArguments: [{ selectedType }],
+    nativeTypeArguments: [{ selectedTarget: implementation }],
     invocationTypeParameters: [{
       sourceTypeParameterIndex: 0,
       targetTypeParameterIndex: 0,
     }],
     selectedTypeParameterCount: 1,
-    additionalSemanticTypes: [[selectedType, implementation]],
     projectTypeDefinitions: new Map([[contract.id, { id: contract.id, declaration: contractDeclaration, kind: "interface" }], [
       implementation.id,
       {
@@ -861,14 +833,12 @@ function createConstrainedMethodFixture(
   targetType,
   options = {},
 ) {
-  const selectedType = {};
   const member = providerMethod({
     typeParameters: [{ identity: "T", name: "T", constraints: [constraint] }],
   });
   return createCallFixture({
     member,
-    methodTypeArguments: [{ selectedType }],
-    additionalSemanticTypes: [[selectedType, targetType]],
+    nativeTypeArguments: [{ selectedTarget: targetType }],
     ...options,
   });
 }
@@ -881,29 +851,7 @@ function createCallFixture(options = {}) {
     declaringTypeId: binding.id,
     static: options.static ?? false,
   });
-  const source = callEvidence({
-    ...(options.selectedSignature === undefined
-      ? {}
-      : { selectedSignature: options.selectedSignature }),
-    ...(options.sourceParameters === undefined
-      ? {}
-      : { parameters: options.sourceParameters }),
-    ...(options.argumentExpressions === undefined
-      ? {}
-      : { argumentExpressions: options.argumentExpressions }),
-    argumentTypes: options.argumentTypes ??
-      (options.sourceArgumentTargets ?? []).map(() => ({})),
-    ...(options.bindings === undefined ? {} : { bindings: options.bindings }),
-    ...(options.methodTypeArguments === undefined
-      ? {}
-      : { methodTypeArguments: options.methodTypeArguments }),
-    ...(options.receiver === false ? { receiver: false } : {}),
-    ...(options.selectedCalleeDeclaration === undefined
-      ? {}
-      : {
-          selectedCalleeDeclaration: options.selectedCalleeDeclaration,
-        }),
-  });
+  const source = callEvidence(providerCallSource(options, binding, member));
   const relation = signatureRelation({
     declaration,
     binding,
@@ -934,45 +882,13 @@ function createCallFixture(options = {}) {
         }),
   });
   const relations = options.relations ?? [relation];
-  const sourceArgumentTargets = options.sourceArgumentTargets ?? [];
-  const receiverTarget = options.receiverTarget ?? {
-    kind: "target-named", csharpAllowsRefLikeTypeArguments: (binding.typeParameters ?? []).map(() => false),
-    id: binding.id,
-    ...(binding.typeParameters === undefined
-      ? {}
-      : {
-          typeArguments: binding.typeParameters.map(() =>
-            csharpStringTargetType()),
-        }),
-  };
-  const nodeTypes = [
-    ...source.evidence.sourceArguments.map((argument, index) => [
-      argument.expression,
-      sourceArgumentTargets[index],
-    ]),
-    ...(source.evidence.sourceReceiver === undefined
-      ? []
-      : [[source.evidence.sourceReceiver.expression, receiverTarget]]),
-    ...(options.additionalNodeTypes ?? []),
-  ].filter((entry) => entry[1] !== undefined);
-  const semanticTypes = [
-    ...source.evidence.sourceArguments.map((argument, index) => [
-      argument.type,
-      sourceArgumentTargets[index],
-    ]),
-    ...(source.evidence.sourceReceiver === undefined
-      ? []
-      : [[source.evidence.sourceReceiver.type, receiverTarget]]),
-    [source.evidence.sourceResultType, member.returnType],
-    ...(options.additionalSemanticTypes ?? []),
-  ].filter((entry) => entry[1] !== undefined);
+  const native = providerCallNativeEvidence(source, options, binding, member);
   const facts = [
-    ...(options.includeProviderFact === false
-      ? []
-      : [providerFact(source.signatureDeclaration, declaration)]),
-    ...(options.additionalFacts ?? []),
+    ...(options.includeProviderFact === false ? [] : [providerFact(source.signatureDeclaration, declaration)]),
+    ...native.facts,
   ];
   const direct = directProviderHost({
+    sourceProgram: source.program,
     relations,
     facts,
     calls: [[source.call, source.evidence]],
@@ -980,8 +896,8 @@ function createCallFixture(options = {}) {
       source.evidence.selectedSignature,
       source.signatureDeclaration,
     ]],
-    nodeTypes,
-    semanticTypes,
+    nodeTypes: native.nodeTypes,
+    semanticTypes: native.semanticTypes,
     ...(options.objectShapes === undefined
       ? {}
       : { objectShapes: options.objectShapes }),
@@ -990,7 +906,7 @@ function createCallFixture(options = {}) {
       : { projectDeclarations: options.projectDeclarations }),
     ...(options.projectConstructors === undefined
       ? {}
-      : { projectConstructors: options.projectConstructors }),
+      : { projectConstructors: options.projectConstructors(source) }),
     ...(options.projectTypeDefinitions === undefined
       ? {}
       : { projectTypeDefinitions: options.projectTypeDefinitions }),

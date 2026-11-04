@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { analyzeSourceLiteralValues, createTargetSourceProgram } from "@tsonic/target-api/source";
+import { analyzeSourceLiteralValues } from "@tsonic/target-api/source";
 import { analyzeCsharpExpectedTypes } from "../../dist/analysis/expected-types/analyze.js";
 import { createCsharpProviderRelationResolver } from "../../dist/providers/native/projection/relation-resolution.js";
 import { compileCsharpSource, compileCsharpAnalysisTarget } from "./direct-csharp-session.mjs";
@@ -43,7 +43,8 @@ export function compileCsharpNativeUseSource(options) {
 
 export function createExpectedNativeUseOwner(compiled) {
   const program = compiled.result.program;
-  const source = createTargetSourceProgram(compiled.source);
+  const source = program.source;
+  assert.equal(source.effectiveTypes !== undefined, true, "the original compiled Host publication is retained by the Native owner");
   const ast = source.ast;
   const records = program.records;
   const nodes = [];
@@ -69,6 +70,7 @@ export function createExpectedNativeUseOwner(compiled) {
     } }),
   });
   const policy = { ast, sourceFiles: csharpProgramSourceFiles(program), navigation: source.navigation,
+    effectiveTypes: source.effectiveTypes,
     target: compiled.target, providers: createCsharpProviderRelationResolver({ providers: [], providerPolicies: [] }),
     objectShapes: program.objectShapes, projectTypes: program.projectTypes,
     literalValues: analyzeSourceLiteralValues(ast, csharpProgramSourceFiles(program)),

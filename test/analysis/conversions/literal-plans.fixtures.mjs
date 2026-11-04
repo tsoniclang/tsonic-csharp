@@ -16,7 +16,7 @@ import { checkedSourceLiteralValues } from "../../helpers/source-literal-values.
 import { planCsharpExactLiteralRecipe } from "../../../dist/backend/planner/expressions/literal-conversions.js";
 import { printCsharpExpression } from "../../../dist/print/source/printer.js";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
-import { callEvidence, directProviderHost, providerBinding, providerDeclaration, providerFact, providerMethod,
+import { callEvidence, providerCallSource, directProviderHost, providerBinding, providerDeclaration, providerFact, providerMethod,
   selectCsharpProviderCall, signatureRelation, targetParameter } from "../../fixtures/dotnet-provider/direct-provider-selection.helpers.mjs";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 
@@ -64,17 +64,21 @@ function providerAdapterCall(read, inputType) {
     csharpRender: Object.freeze({ kind: "named", namespace: Object.freeze(["MyLib"]), name: "Counter" }) });
   const adapter = Object.freeze({ kind: "static-method", id: `MyLib.Counter.From(${inputType.name})`,
     declaringType: counter, targetName: "From", inputType, resultType: counter });
-  const literal = Object.freeze({ syntaxKind: "IsNumericLiteral", text: "30" });
   const declaration = providerDeclaration();
   const binding = providerBinding();
   const member = providerMethod({ parameters: [targetParameter("count", counter)], declaringTypeId: binding.id });
-  const source = callEvidence({ argumentExpressions: [literal] });
+  const source = callEvidence(providerCallSource({
+    sourceArgumentTargets: [read],
+    argumentExpressions: [{ syntaxKind: "IsNumericLiteral", text: "30" }],
+  }, binding, member));
+  const literal = source.evidence.sourceArguments[0].expression;
   const relation = signatureRelation({ declaration, binding, member, sourceParameters: [{
     sourceParameterIndex: 0, targetParameterIndex: 0, sourcePassingMode: "by-value", targetPassingMode: "by-value",
     sourceAcceptsOmission: false, targetAcceptsOmission: false, sourceRest: false, targetParamsArray: false,
     argumentAdapter: adapter }] });
   const receiver = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: binding.id };
   const direct = directProviderHost({
+    sourceProgram: source.program,
     relations: [relation],
     facts: [providerFact(source.signatureDeclaration, declaration)],
     calls: [[source.call, source.evidence]],
@@ -92,14 +96,13 @@ function sealedProviderCallConversions(fixture) {
   const { host, sourceFile, counter, call, literal, read, selected } = fixture;
   const none = Object.freeze({ get: () => undefined });
   const policy = { ...host, sourceFiles: [sourceFile],
-    ast: { ...host.ast, parent: () => undefined, getSourceFile: () => sourceFile,
-      forEachChild: (node, visit) => { if (node === sourceFile) visit(call); else if (node === call) visit(literal); } },
-    navigation: { ...host.navigation, referenceFor: () => undefined },
-    semanticsFor: () => host.semantics(sourceFile) };
+    ast: host.ast,
+    navigation: host.navigation,
+    semanticsFor: host.semanticsFor };
   const evidence = { nodeTargetType: Object.freeze({ get: node => node === literal ? read : undefined }), compileTimeMetadata: Object.freeze({ get: () => false }), storageTargetType: none, yield: none };
   const shapes = { resolveNode: () => undefined, resolveTarget: () => undefined, registerStructuralInterface: () => false };
   const operations = { nativeUnreachable: Object.freeze({ get: () => false }), borrowedSequence: none, binaryOperation: none, selectedConstruction: none,
-      unaryOperation: none, selectedCall: Object.freeze({ get: node => node === call ? { target: selected } : undefined }) };
+      unaryOperation: none, selectedElement: none, selectedCall: Object.freeze({ get: node => node === call ? { target: selected } : undefined }) };
   const analysis = analyzeCsharpConversions(policy, evidence, shapes, operations);
   const prepared = analysis.prepare({
     expectedTypes: { expectedType: Object.freeze({ get: node => node === literal ? [counter] : [] }),

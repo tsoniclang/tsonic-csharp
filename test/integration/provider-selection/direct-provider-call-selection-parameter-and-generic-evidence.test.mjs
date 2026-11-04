@@ -1,6 +1,8 @@
 import {
   assert,
   callEvidence,
+  providerCallSource,
+  providerCallNativeEvidence,
   csharpObjectTargetType,
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
@@ -14,8 +16,6 @@ import {
   selectCsharpProviderCall,
   selectCsharpTargetCall,
   signatureRelation,
-  sourceArgumentBinding,
-  sourceParameter,
   targetParameter,
   test,
 } from "../../fixtures/dotnet-provider/direct-provider-selection.helpers.mjs";
@@ -27,37 +27,8 @@ import {
 } from "../../../dist/policy/types/index.js";
 
 test("rest arguments retain one declared parameter identity and target params slot", () => {
-  const firstType = {};
-  const secondType = {};
-  const parameterType = {};
-  const parameterDeclaration = {};
   const fixture = createCallFixture({
-    sourceParameters: [
-      sourceParameter({
-        parameterDeclaration,
-        selectedType: parameterType,
-        rest: true,
-      }),
-    ],
-    argumentTypes: [firstType, secondType],
-    bindings: [
-      sourceArgumentBinding({
-        sourceArgumentIndex: 0,
-        effectiveArgumentIndex: 0,
-        sourceParameterIndex: 0,
-        sourceParameterForm: "rest-element",
-        selectedArgumentType: firstType,
-        selectedParameterType: parameterType,
-      }),
-      sourceArgumentBinding({
-        sourceArgumentIndex: 1,
-        effectiveArgumentIndex: 1,
-        sourceParameterIndex: 0,
-        sourceParameterForm: "rest-element",
-        selectedArgumentType: secondType,
-        selectedParameterType: parameterType,
-      }),
-    ],
+    sourceParameters: [{ rest: true }],
     sourceArgumentTargets: [
       csharpStringTargetType(),
       csharpStringTargetType(),
@@ -84,24 +55,21 @@ test("rest arguments retain one declared parameter identity and target params sl
     selected.call.arguments.map((argument) => argument.targetParameterIndex),
     [0, 0],
   );
+  const declaration = fixture.host.semantics(fixture.sourceFile).declarations.signatureDeclaration(fixture.source.selectedSignature);
+  assert.equal(fixture.source.sourceSelectedSignatureParameters.length === 1 &&
+    fixture.source.sourceSelectedSignatureParameters[0].rest === true &&
+    fixture.source.sourceSelectedSignatureParameters[0].parameterDeclaration === fixture.host.ast.parameters(declaration)[0] &&
+    fixture.source.sourceArgumentBindings.length === 2 &&
+    fixture.source.sourceArgumentBindings.every(binding => binding.sourceParameterIndex === 0 && binding.sourceParameterForm === "rest-element"), true,
+  "both actual checked argument bindings retain the one original authored rest parameter");
 });
 
 test("byref parameter modes require the exact finalized source parameter fact", () => {
-  const parameterDeclaration = {};
-  const sourceArgument = {};
-  const storageExpression = {};
   const target = {
     ...targetParameter("value", csharpStringTargetType()),
     passingMode: "byref-readwrite",
   };
   const fixture = createCallFixture({
-    sourceParameters: [
-      sourceParameter({
-        parameterDeclaration,
-        selectedType: {},
-      }),
-    ],
-    argumentExpressions: [sourceArgument],
     sourceArgumentTargets: [csharpObjectTargetType()],
     targetParameters: [target],
     sourceParametersRelations: [
@@ -110,11 +78,7 @@ test("byref parameter modes require the exact finalized source parameter fact", 
         targetPassingMode: "byref-readwrite",
       }),
     ],
-    additionalFacts: [
-      passingFact(parameterDeclaration, "byref-readwrite"),
-      passingFact(sourceArgument, "byref-readwrite", storageExpression),
-    ],
-    additionalNodeTypes: [[storageExpression, csharpStringTargetType()]],
+    nativeEvidence: source => byrefNativeEvidence(source, "byref-readwrite", csharpStringTargetType()),
   });
   const selected = selectCsharpProviderCall(
     fixture.host,
@@ -133,9 +97,7 @@ test("missing byref source facts cannot be inferred from target parameter mode",
     ...targetParameter("value", csharpStringTargetType()),
     passingMode: "byref-readwrite",
   };
-  const parameterDeclaration = {};
   const fixture = createCallFixture({
-    sourceParameters: [sourceParameter({ parameterDeclaration })],
     sourceArgumentTargets: [csharpStringTargetType()],
     targetParameters: [target],
     sourceParametersRelations: [
@@ -144,9 +106,7 @@ test("missing byref source facts cannot be inferred from target parameter mode",
         targetPassingMode: "byref-readwrite",
       }),
     ],
-    additionalFacts: [
-      passingFact(parameterDeclaration, "byref-readwrite"),
-    ],
+    nativeEvidence: source => byrefNativeEvidence(source, "byref-readwrite", undefined, false),
   });
   const selected = selectCsharpProviderCall(
     fixture.host,
@@ -158,9 +118,6 @@ test("missing byref source facts cannot be inferred from target parameter mode",
 });
 
 test("byref arguments reject implicit storage conversions", () => {
-  const parameterDeclaration = {};
-  const sourceArgument = {};
-  const storageExpression = {};
   const target = {
     ...targetParameter(
       "value",
@@ -169,8 +126,6 @@ test("byref arguments reject implicit storage conversions", () => {
     passingMode: "byref-writeonly-must-init",
   };
   const fixture = createCallFixture({
-    sourceParameters: [sourceParameter({ parameterDeclaration })],
-    argumentExpressions: [sourceArgument],
     sourceArgumentTargets: [csharpSourcePrimitiveTargetType("float64")],
     targetParameters: [target],
     sourceParametersRelations: [
@@ -179,18 +134,7 @@ test("byref arguments reject implicit storage conversions", () => {
         targetPassingMode: "byref-writeonly-must-init",
       }),
     ],
-    additionalFacts: [
-      passingFact(parameterDeclaration, "byref-writeonly-must-init"),
-      passingFact(
-        sourceArgument,
-        "byref-writeonly-must-init",
-        storageExpression,
-      ),
-    ],
-    additionalNodeTypes: [[
-      storageExpression,
-      csharpSourcePrimitiveTargetType("uint8"),
-    ]],
+    nativeEvidence: source => byrefNativeEvidence(source, "byref-writeonly-must-init", csharpSourcePrimitiveTargetType("uint8")),
   });
 
   const selected = selectCsharpProviderCall(
@@ -207,9 +151,6 @@ test("byref arguments reject implicit storage conversions", () => {
 });
 
 test("byref arguments use CLR storage identity across nullable-reference annotations", () => {
-  const parameterDeclaration = {};
-  const sourceArgument = {};
-  const storageExpression = {};
   const todo = csharpTargetNamedType("Example.Todo", undefined, undefined, { allowsRefLikeTypeArguments: [],});
   const nullableTodo = csharpNullableReferenceTargetType(todo);
   const target = {
@@ -218,8 +159,6 @@ test("byref arguments use CLR storage identity across nullable-reference annotat
     csharpOutputMayBeNull: true,
   };
   const fixture = createCallFixture({
-    sourceParameters: [sourceParameter({ parameterDeclaration })],
-    argumentExpressions: [sourceArgument],
     sourceArgumentTargets: [nullableTodo],
     targetParameters: [target],
     sourceParametersRelations: [
@@ -228,15 +167,7 @@ test("byref arguments use CLR storage identity across nullable-reference annotat
         targetPassingMode: "byref-writeonly-must-init",
       }),
     ],
-    additionalFacts: [
-      passingFact(parameterDeclaration, "byref-writeonly-must-init"),
-      passingFact(
-        sourceArgument,
-        "byref-writeonly-must-init",
-        storageExpression,
-      ),
-    ],
-    additionalNodeTypes: [[storageExpression, nullableTodo]],
+    nativeEvidence: source => byrefNativeEvidence(source, "byref-writeonly-must-init", nullableTodo),
   });
 
   const selected = selectCsharpProviderCall(
@@ -257,8 +188,6 @@ test("byref arguments use CLR storage identity across nullable-reference annotat
 });
 
 test("selected method type arguments close generic target methods directly", () => {
-  const selectedType = {};
-  const explicitTypeNode = {};
   const typeParameter = { identity: "T", name: "T" };
   const method = providerMethod({
     id: "Fixture.Target.Identity``1(T)",
@@ -273,14 +202,7 @@ test("selected method type arguments close generic target methods directly", () 
     member: method,
     targetParameters: method.parameters,
     sourceArgumentTargets: [int32],
-    methodTypeArguments: [{
-      typeParameterName: "T",
-      typeParameter: {},
-      selectedType,
-      explicitTypeNode,
-    }],
-    additionalNodeTypes: [[explicitTypeNode, int32]],
-    additionalSemanticTypes: [[selectedType, csharpStringTargetType()]],
+    nativeTypeArguments: [{ selectedTarget: csharpStringTargetType(), explicitTarget: int32 }],
   });
   const selected = selectCsharpProviderCall(
     fixture.host,
@@ -288,12 +210,12 @@ test("selected method type arguments close generic target methods directly", () 
     fixture.sourceFile,
   );
   assert.equal(selected.kind, "resolved");
-  assert.deepEqual(selected.call.targetMethodTypeArguments, [{
-    kind: "selected-source",
-    targetType: int32,
-    selectedType,
-    explicitTypeNode,
-  }]);
+  const argument = selected.call.targetMethodTypeArguments[0];
+  assert.equal(selected.call.targetMethodTypeArguments.length === 1 && argument.kind === "selected-source" &&
+    argument.selectedType === fixture.source.sourceSelectedMethodTypeArguments[0].selectedType &&
+    argument.explicitTypeNode === fixture.source.sourceSelectedMethodTypeArguments[0].explicitTypeNode, true,
+  "the selected Native argument retains both original checked Type and authored-node identities");
+  assert.deepEqual(argument.targetType, int32);
   assert.deepEqual(selected.call.targetMember.parameters[0].type, int32);
   assert.deepEqual(selected.call.targetMember.returnType, int32);
 });
@@ -314,7 +236,6 @@ test("inferred provider method bounds use one order-independent implicit target"
     [[csharpNullableValueTargetType(int32), float64], csharpNullableValueTargetType(float64), csharpNullableValueTargetType(float64)],
   ];
   for (const [sourceArgumentTargets, expected, selectedTarget = float64] of cases) {
-    const selectedType = {};
     const parameterType = { kind: "type-parameter", identity: "T", name: "T" };
     const method = providerMethod({
       parameters: sourceArgumentTargets.map((_, index) => targetParameter(`value${index}`, parameterType)),
@@ -325,18 +246,16 @@ test("inferred provider method bounds use one order-independent implicit target"
       member: method,
       targetParameters: method.parameters,
       sourceArgumentTargets,
-      methodTypeArguments: [{ typeParameterName: "T", typeParameter: {}, selectedType }],
-      additionalSemanticTypes: [[selectedType, selectedTarget]],
+      nativeTypeArguments: [{ selectedTarget }],
     });
     const selected = selectCsharpProviderCall(fixture.host, fixture.call, fixture.sourceFile);
-    assert.equal(selected.kind, "resolved", JSON.stringify(selected));
+    assert.equal(selected.kind, "resolved", selected.kind === "resolved" ? "resolved" : selected.reason);
     assert.deepEqual(selected.call.targetMethodTypeArguments[0].targetType, expected);
     assert.deepEqual(selected.call.targetMember.returnType, expected);
   }
 });
 
 test("inferred provider method bounds cannot widen invariant native carriers", () => {
-  const selectedType = {};
   const parameterType = { kind: "type-parameter", identity: "T", name: "T" };
   const invariant = type => csharpTargetNamedType("Fixture.Invariant", [type], undefined, { allowsRefLikeTypeArguments: [false],});
   const method = providerMethod({
@@ -349,8 +268,7 @@ test("inferred provider method bounds cannot widen invariant native carriers", (
     member: method,
     targetParameters: method.parameters,
     sourceArgumentTargets: [invariant(csharpSourcePrimitiveTargetType("int32")), invariant(float64)],
-    methodTypeArguments: [{ typeParameterName: "T", typeParameter: {}, selectedType }],
-    additionalSemanticTypes: [[selectedType, float64]],
+    nativeTypeArguments: [{ selectedTarget: float64 }],
   });
   const selected = selectCsharpProviderCall(fixture.host, fixture.call, fixture.sourceFile);
   assert.equal(selected.kind, "missing");
@@ -370,13 +288,13 @@ test("generic method closure fails when selected type-argument evidence is absen
     member: method,
     targetParameters: method.parameters,
     sourceArgumentTargets: [csharpSourcePrimitiveTargetType("int32")],
+    nativeTypeArguments: [{ selectedTarget: csharpSourcePrimitiveTargetType("int32") }],
   });
-  const selected = selectCsharpProviderCall(
-    fixture.host,
-    fixture.call,
-    fixture.sourceFile,
-  );
-  assert.equal(selected.kind, "missing");
+  assert.equal(fixture.source.sourceSelectedMethodTypeArguments.length, 1,
+    "the real checked declaration retains its selected generic argument before corruption");
+  const invalid = { ...fixture.source, sourceSelectedMethodTypeArguments: [] };
+  const selected = instantiateCsharpProviderCall(fixture.host, fixture.relation, invalid, fixture.sourceFile);
+  assert.equal(selected.kind, "rejected");
   assert.match(selected.reason, /method type-argument evidence/u);
 });
 
@@ -399,9 +317,6 @@ test("receiver evidence closes generic provider bindings before member substitut
     binding,
     member: method,
     targetParameters: [],
-    argumentExpressions: [],
-    argumentTypes: [],
-    bindings: [],
     receiverTarget: {
       kind: "target-named", csharpAllowsRefLikeTypeArguments: [false],
       id: binding.id,
@@ -492,8 +407,6 @@ for (const [obsolete, reason] of [
 
 test("generic constructor families close from selected operation type arguments", () => {
   const stringType = csharpStringTargetType();
-  const explicitTypeNode = {};
-  const selectedType = {};
   const binding = providerBinding({
     id: "Fixture.Box`1",
     typeParameters: [{ identity: "T", name: "T" }],
@@ -511,17 +424,7 @@ test("generic constructor families close from selected operation type arguments"
     member: constructor,
     receiver: false,
     targetParameters: [],
-    argumentExpressions: [],
-    argumentTypes: [],
-    bindings: [],
-    methodTypeArguments: [{
-      typeParameterName: "T",
-      typeParameter: {},
-      selectedType,
-      explicitTypeNode,
-    }],
-    additionalNodeTypes: [[explicitTypeNode, stringType]],
-    additionalSemanticTypes: [[selectedType, stringType]],
+    nativeTypeArguments: [{ selectedTarget: stringType, explicitTarget: stringType }],
   });
   const selected = selectCsharpProviderCall(
     fixture.host,
@@ -545,29 +448,7 @@ function createCallFixture(options = {}) {
     declaringTypeId: binding.id,
     static: options.static ?? false,
   });
-  const source = callEvidence({
-    ...(options.selectedSignature === undefined
-      ? {}
-      : { selectedSignature: options.selectedSignature }),
-    ...(options.sourceParameters === undefined
-      ? {}
-      : { parameters: options.sourceParameters }),
-    ...(options.argumentExpressions === undefined
-      ? {}
-      : { argumentExpressions: options.argumentExpressions }),
-    argumentTypes: options.argumentTypes ??
-      (options.sourceArgumentTargets ?? []).map(() => ({})),
-    ...(options.bindings === undefined ? {} : { bindings: options.bindings }),
-    ...(options.methodTypeArguments === undefined
-      ? {}
-      : { methodTypeArguments: options.methodTypeArguments }),
-    ...(options.receiver === false ? { receiver: false } : {}),
-    ...(options.selectedCalleeDeclaration === undefined
-      ? {}
-      : {
-          selectedCalleeDeclaration: options.selectedCalleeDeclaration,
-        }),
-  });
+  const source = callEvidence(providerCallSource(options, binding, member));
   const relation = signatureRelation({
     declaration,
     binding,
@@ -589,45 +470,13 @@ function createCallFixture(options = {}) {
       : { methodTypeParameters: options.methodTypeParameters }),
   });
   const relations = options.relations ?? [relation];
-  const sourceArgumentTargets = options.sourceArgumentTargets ?? [];
-  const receiverTarget = options.receiverTarget ?? {
-    kind: "target-named", csharpAllowsRefLikeTypeArguments: (binding.typeParameters ?? []).map(() => false),
-    id: binding.id,
-    ...(binding.typeParameters === undefined
-      ? {}
-      : {
-          typeArguments: binding.typeParameters.map(() =>
-            csharpStringTargetType()),
-        }),
-  };
-  const nodeTypes = [
-    ...source.evidence.sourceArguments.map((argument, index) => [
-      argument.expression,
-      sourceArgumentTargets[index],
-    ]),
-    ...(source.evidence.sourceReceiver === undefined
-      ? []
-      : [[source.evidence.sourceReceiver.expression, receiverTarget]]),
-    ...(options.additionalNodeTypes ?? []),
-  ].filter((entry) => entry[1] !== undefined);
-  const semanticTypes = [
-    ...source.evidence.sourceArguments.map((argument, index) => [
-      argument.type,
-      sourceArgumentTargets[index],
-    ]),
-    ...(source.evidence.sourceReceiver === undefined
-      ? []
-      : [[source.evidence.sourceReceiver.type, receiverTarget]]),
-    [source.evidence.sourceResultType, member.returnType],
-    ...(options.additionalSemanticTypes ?? []),
-  ].filter((entry) => entry[1] !== undefined);
+  const native = providerCallNativeEvidence(source, options, binding, member);
   const facts = [
-    ...(options.includeProviderFact === false
-      ? []
-      : [providerFact(source.signatureDeclaration, declaration)]),
-    ...(options.additionalFacts ?? []),
+    ...(options.includeProviderFact === false ? [] : [providerFact(source.signatureDeclaration, declaration)]),
+    ...native.facts,
   ];
   const direct = directProviderHost({
+    sourceProgram: source.program,
     relations,
     facts,
     calls: [[source.call, source.evidence]],
@@ -635,8 +484,8 @@ function createCallFixture(options = {}) {
       source.evidence.selectedSignature,
       source.signatureDeclaration,
     ]],
-    nodeTypes,
-    semanticTypes,
+    nodeTypes: native.nodeTypes,
+    semanticTypes: native.semanticTypes,
     ...(options.objectShapes === undefined
       ? {}
       : { objectShapes: options.objectShapes }),
@@ -645,7 +494,7 @@ function createCallFixture(options = {}) {
       : { projectDeclarations: options.projectDeclarations }),
     ...(options.projectConstructors === undefined
       ? {}
-      : { projectConstructors: options.projectConstructors }),
+      : { projectConstructors: options.projectConstructors(source) }),
   });
   return {
     ...direct,
@@ -693,4 +542,17 @@ function int32ProviderAdapter() {
     inputType: csharpSourcePrimitiveTargetType("float64"),
     resultType: csharpSourcePrimitiveTargetType("int32"),
   };
+}
+
+function byrefNativeEvidence(source, mode, target, includeArgument = true) {
+  const parameter = source.evidence.sourceSelectedSignatureParameters[0].parameterDeclaration;
+  const facts = [passingFact(parameter, mode)];
+  if (!includeArgument) return { facts };
+  const argument = source.evidence.sourceArguments[0].expression;
+  const declaration = source.program.navigation.referenceFor(argument)?.declaration;
+  const storage = declaration === undefined ? undefined : source.program.ast.name(declaration);
+  assert.equal(storage !== undefined && storage !== argument, true,
+    "the same checked input's storage declaration and call read retain distinct original occurrences");
+  facts.push(passingFact(argument, mode, storage));
+  return { facts, nodeTypes: [[storage, target]] };
 }

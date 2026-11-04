@@ -1,6 +1,8 @@
 import {
   assert,
   callEvidence,
+  providerCallSource,
+  providerCallNativeEvidence,
   csharpObjectTargetType,
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
@@ -14,8 +16,6 @@ import {
   selectCsharpProviderCall,
   selectCsharpTargetCall,
   signatureRelation,
-  sourceArgumentBinding,
-  sourceParameter,
   targetParameter,
   test,
 } from "../../fixtures/dotnet-provider/direct-provider-selection.helpers.mjs";
@@ -28,8 +28,6 @@ import {
 
 test("target operations can consume selected method type arguments as structural binding arguments", () => {
   const int32 = csharpSourcePrimitiveTargetType("int32");
-  const explicitTypeNode = {};
-  const selectedType = {};
   const typeParameter = { kind: "type-parameter", identity: "T", name: "T" };
   const binding = providerBinding({
     id: "Fixture.Array`1",
@@ -56,14 +54,7 @@ test("target operations can consume selected method type arguments as structural
     receiver: false,
     targetParameters: method.parameters,
     sourceArgumentTargets: [int32],
-    methodTypeArguments: [{
-      typeParameterName: "T",
-      typeParameter: {},
-      selectedType,
-      explicitTypeNode,
-    }],
-    additionalNodeTypes: [[explicitTypeNode, int32]],
-    additionalSemanticTypes: [[selectedType, int32]],
+    nativeTypeArguments: [{ selectedTarget: int32, explicitTarget: int32 }],
     bindingTypeArgumentSource: "selected-operation-type-arguments",
     bindingTypeParameters: [{
       sourceTypeParameterIndex: 0,
@@ -192,29 +183,7 @@ function createCallFixture(options = {}) {
     declaringTypeId: binding.id,
     static: options.static ?? false,
   });
-  const source = callEvidence({
-    ...(options.selectedSignature === undefined
-      ? {}
-      : { selectedSignature: options.selectedSignature }),
-    ...(options.sourceParameters === undefined
-      ? {}
-      : { parameters: options.sourceParameters }),
-    ...(options.argumentExpressions === undefined
-      ? {}
-      : { argumentExpressions: options.argumentExpressions }),
-    argumentTypes: options.argumentTypes ??
-      (options.sourceArgumentTargets ?? []).map(() => ({})),
-    ...(options.bindings === undefined ? {} : { bindings: options.bindings }),
-    ...(options.methodTypeArguments === undefined
-      ? {}
-      : { methodTypeArguments: options.methodTypeArguments }),
-    ...(options.receiver === false ? { receiver: false } : {}),
-    ...(options.selectedCalleeDeclaration === undefined
-      ? {}
-      : {
-          selectedCalleeDeclaration: options.selectedCalleeDeclaration,
-        }),
-  });
+  const source = callEvidence(providerCallSource(options, binding, member));
   const relation = signatureRelation({
     declaration,
     binding,
@@ -236,45 +205,13 @@ function createCallFixture(options = {}) {
       : { methodTypeParameters: options.methodTypeParameters }),
   });
   const relations = options.relations ?? [relation];
-  const sourceArgumentTargets = options.sourceArgumentTargets ?? [];
-  const receiverTarget = options.receiverTarget ?? {
-    kind: "target-named", csharpAllowsRefLikeTypeArguments: (binding.typeParameters ?? []).map(() => false),
-    id: binding.id,
-    ...(binding.typeParameters === undefined
-      ? {}
-      : {
-          typeArguments: binding.typeParameters.map(() =>
-            csharpStringTargetType()),
-        }),
-  };
-  const nodeTypes = [
-    ...source.evidence.sourceArguments.map((argument, index) => [
-      argument.expression,
-      sourceArgumentTargets[index],
-    ]),
-    ...(source.evidence.sourceReceiver === undefined
-      ? []
-      : [[source.evidence.sourceReceiver.expression, receiverTarget]]),
-    ...(options.additionalNodeTypes ?? []),
-  ].filter((entry) => entry[1] !== undefined);
-  const semanticTypes = [
-    ...source.evidence.sourceArguments.map((argument, index) => [
-      argument.type,
-      sourceArgumentTargets[index],
-    ]),
-    ...(source.evidence.sourceReceiver === undefined
-      ? []
-      : [[source.evidence.sourceReceiver.type, receiverTarget]]),
-    [source.evidence.sourceResultType, member.returnType],
-    ...(options.additionalSemanticTypes ?? []),
-  ].filter((entry) => entry[1] !== undefined);
+  const native = providerCallNativeEvidence(source, options, binding, member);
   const facts = [
-    ...(options.includeProviderFact === false
-      ? []
-      : [providerFact(source.signatureDeclaration, declaration)]),
-    ...(options.additionalFacts ?? []),
+    ...(options.includeProviderFact === false ? [] : [providerFact(source.signatureDeclaration, declaration)]),
+    ...native.facts,
   ];
   const direct = directProviderHost({
+    sourceProgram: source.program,
     relations,
     facts,
     calls: [[source.call, source.evidence]],
@@ -282,8 +219,8 @@ function createCallFixture(options = {}) {
       source.evidence.selectedSignature,
       source.signatureDeclaration,
     ]],
-    nodeTypes,
-    semanticTypes,
+    nodeTypes: native.nodeTypes,
+    semanticTypes: native.semanticTypes,
     ...(options.objectShapes === undefined
       ? {}
       : { objectShapes: options.objectShapes }),
@@ -292,7 +229,7 @@ function createCallFixture(options = {}) {
       : { projectDeclarations: options.projectDeclarations }),
     ...(options.projectConstructors === undefined
       ? {}
-      : { projectConstructors: options.projectConstructors }),
+      : { projectConstructors: options.projectConstructors(source) }),
   });
   return {
     ...direct,

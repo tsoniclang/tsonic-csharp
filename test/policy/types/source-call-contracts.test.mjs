@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createCompilerSessionFromFiles, createSourceSemanticsExtension, sourcePrimitive, formatDiagnostics } from "@tsonic/tsts";
+import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { resolveSourceCallContract } from "../../../dist/analysis/source-evidence/types/resolution/call-contracts.js";
 import { resolveSourceCallParameter, resolveSourceCallParameters, resolveSourceCallArgumentParameter, resolveSourceCallResultWithState, resolveSourceCallTypeArguments } from "../../../dist/analysis/source-evidence/types/resolution/call-api.js";
 import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
@@ -485,21 +487,52 @@ test("selected stored contracts do not require invented signature or parameter s
 });
 
 test("native invocation arguments retain their complete projected order independently of checked inventory order", () => {
-  const current = fixture(undefined, true);
-  const [parameter] = checkedBinders(current);
+  const checked = createCompilerSessionFromFiles({ currentDirectory: "/src", files: {
+    "/src/node_modules/@fixture/words/package.json": JSON.stringify({ name: "@fixture/words", version: "1.0.0",
+      type: "module", exports: { ".": "./index.d.ts" } }),
+    "/src/node_modules/@fixture/words/index.d.ts": "export type int64 = bigint;",
+    "/src/index.ts": 'declare function invoke<Item>(): Item; invoke<import("@fixture/words").int64>();',
+  }, compilerOptions: { strict: true, target: "es2022", module: "esnext", moduleResolution: "bundler" },
+  extensionHostOptions: { extensions: [createSourceSemanticsExtension({ modules: [{
+    moduleSpecifier: "@fixture/words", packageName: "@fixture/words",
+    exports: [sourcePrimitive("int64", "int64", "bigint", true, 64)],
+  }] })] } }).checkSource();
+  assert.equal(checked.diagnostics.length, 0, formatDiagnostics(checked.diagnostics.filter(issue => issue !== undefined)).slice(0, 2048));
+  assert.equal(checked.extensionDiagnostics.length, 0, "the authored native-width import has real Source extension evidence");
+  const program = createTargetSourceProgram(checked);
+  const file = checked.getSourceFile("/src/index.ts");
+  assert.equal(file !== undefined, true, "the original checked invocation file is retained");
+  const calls = [];
+  const visit = node => {
+    if (program.ast.is.IsCallExpression(node)) calls.push(node);
+    program.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+  };
+  visit(file);
+  assert.equal(calls.length, 1, "the Native projection fixture has one exact checked invocation");
+  const source = program.semantics.forNode(calls[0]).operations.call(calls[0]);
+  assert.equal(source?.call === calls[0], true, "the required Host index reads the same original selected call");
+  const queries = program.semantics.forNode(calls[0]);
+  const signatureDeclaration = queries.declarations.signatureDeclaration(source.selectedSignature);
+  const parameterDeclaration = signatureDeclaration === undefined ? undefined : program.ast.typeParameters(signatureDeclaration)[0];
+  assert.equal(parameterDeclaration !== undefined, true, "the generic parameter is the original selected declaration's binder");
+  const parameter = { declaration: parameterDeclaration, type: csharpSourceTypeParameter(parameterDeclaration, program.ast) };
+  assert.equal(parameter.type !== undefined, true, "the Native binder keeps the real Source declaration identity");
   const storage = csharpProjectedType({ kind: "optional", part: "storage", arguments: [parameter.type] });
   const operations = csharpProjectedType({ kind: "optional", part: "operations", arguments: [parameter.type] });
-  current.scope.host.ast.typeParameters = () => [parameter.declaration];
-  current.scope.host.semanticsFor = () => current.scope.host.semantics();
-  current.scope.host.representations.genericProjections = () => [storage, operations];
-  current.scope.resolveAuthoredAndSelectedSourceType = () => integer;
-  current.source.sourceSelectedMethodTypeArguments = [{ typeParameter: parameter.declaration, typeParameterName: "Item",
-    selectedType: {}, explicitTypeNode: {} }];
+  const current = { source, openContract: { kind: "source", sourceDeclaration: signatureDeclaration,
+    parameters: [], nativeParameters: [], returnType: parameter.type }, scope: {
+    host: { ast: program.ast, effectiveTypes: program.effectiveTypes, navigation: program.navigation,
+      semantics: sourceFile => program.semantics.forFile(sourceFile), semanticsFor: node => program.semantics.forNode(node),
+      typeParameterConstraints: createCsharpSourceTypeParameterEnvironment(program.ast,
+        () => Object.freeze({ kind: "resolved", constraints: Object.freeze([]) })),
+      representations: { genericProjections: () => [storage, operations] } },
+    resolveAuthoredAndSelectedSourceType: () => integer,
+  } };
   current.openContract.nativeSignature = Object.freeze({ methodTypeParameterIdentities: [
     parameter.type.identity, operations.identity, storage.identity], methodAllowsRefLikeTypeArguments: [false, false, false] });
   assert.equal(sourceCallableTypeParametersMatch(current.scope, current.source, current.openContract, "declaration"), true,
     "the complete exact projection family is independent of discovery order");
-  const selected = resolveSourceCallInstantiation(current.scope, current.source, {}, { depth: 0 },
+  const selected = resolveSourceCallInstantiation(current.scope, current.source, file, { depth: 0 },
     current.openContract.nativeSignature.methodTypeParameterIdentities, current.openContract);
   assert.equal(selected !== undefined, true, "the complete native invocation is admitted");
   assert.equal(selected.arguments.length, 3, "neither native projection is dropped");
@@ -511,7 +544,7 @@ test("native invocation arguments retain their complete projected order independ
   current.scope.host.representations.genericProjections = () => [storage, storage];
   assert.equal(sourceCallableTypeParametersMatch(current.scope, current.source, current.openContract, "declaration"), false,
     "a duplicate cannot stand in for a missing native projection");
-  assert.equal(resolveSourceCallInstantiation(current.scope, current.source, {}, { depth: 0 },
+  assert.equal(resolveSourceCallInstantiation(current.scope, current.source, file, { depth: 0 },
     current.openContract.nativeSignature.methodTypeParameterIdentities, current.openContract) === undefined, true,
   "instantiation independently rejects the incomplete projection family");
 });

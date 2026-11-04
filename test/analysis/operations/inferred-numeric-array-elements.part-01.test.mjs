@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { assertPublishedRefusal } from "../../helpers/source-effective-types.mjs";
 import { compileCsharpNativeUseSource } from "../../helpers/expected-native-uses.mjs";
 import { getCsharpArrayLiteralElementTargetType } from "../../../dist/target-model/types/carriers/collections.js";
 import { getCsharpRuntimeUnionArms } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
@@ -214,11 +215,37 @@ test(`${surface} inferred float32/${type} refuses precision loss (${order})`, ()
         const values = [${order}]; return values[0]; }`);
       assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
       assert.equal(compiled.result.program === undefined, true, "inferred precision is refused before the program seal");
-      assert.equal(compiled.targetDiagnostics.length === 1 &&
-        compiled.targetDiagnostics[0].code === "CSHARP_ARRAY_ELEMENT_CARRIER_MISMATCH" &&
-        compiled.targetDiagnostics[0].message === "Inferred array elements require an exact common native numeric carrier; an explicit native array destination is required for a rounding conversion.",
-      true, `one exact source diagnostic, never an internal missing fact or artificial f64 rescue; ${diagnosticLabel(compiled)}`);
+      assertPublishedRefusal({ ...compiled, targetSource: compiled.nativeStage.source },
+        "TSONIC_LOCAL_TYPE_MIXED_ELEMENTS", `[${order}]`);
       assert.equal(compiled.artifacts.size, 0, "a precision refusal publishes no generated artifact");
+    });
+
+test(`${surface} an annotated float32/${type} destination retains its actual native rounding (${order})`, () => {
+      const program = accepted(compile(surface, `export function run(narrow: float32, value: ${type}): number {
+        const values: float32[] = [${order}]; return values[0]; }`));
+      const ast = program.source.ast;
+      const literals = [];
+      const visit = node => {
+        if (ast.is.IsArrayLiteralExpression(node)) literals.push(node);
+        ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+      };
+      for (const file of csharpProgramSourceFiles(program)) visit(file);
+      assert.equal(literals.length, 1, "the companion keeps the identical single physical construction");
+      const literal = literals[0];
+      const physical = program.records.nativeExpression.get(literal)?.use;
+      const read = program.records.valueRead.get(literal);
+      assert.equal(physical?.kind === "constructed" &&
+        getCsharpArrayLiteralElementTargetType(physical.carrier)?.name === "float32" &&
+        getCsharpArrayLiteralElementTargetType(read?.value)?.name === "float32", true,
+      "the explicit float32 array is constructed directly, not copied or repaired at the return");
+      const input = ast.elements(literal).find(node => ast.is.IsIdentifier(node) && ast.text(node) === "value");
+      const use = input === undefined ? undefined : program.records.nativeExpression.get(input)?.use;
+      assert.equal(use?.kind === "converted" && use.input.kind === "value" &&
+        use.input.type.kind === "source-primitive" && use.input.type.name === type &&
+        use.target.kind === "source-primitive" && use.target.name === "float32" &&
+        use.completion.kind === "value" && use.completion.type.kind === "source-primitive" &&
+        use.completion.type.name === "float32", true,
+      "the original signed or unsigned input has its exact authored native rounding at construction");
     });
 }
 }

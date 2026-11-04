@@ -9,7 +9,7 @@ import { csharpNullableTargetType } from "../../../dist/target-model/types/carri
 import { csharpRuntimeUnionTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType, getCsharpRuntimeUnionArms } from "../../../dist/target-model/types/index.js";
 import { csharpNativeUseSite } from "../../../dist/target-model/records/native/native-demand.js";
 import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
-import { compileCsharpSource, checkCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
+import { compileCsharpSource, checkCsharpSource, assertCsharpCheckingSucceeded, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { createTargetSourceProgram, analyzeSourceLiteralValues } from "@tsonic/target-api/source";
 import { assertCsharpRequiredRecords } from "../../../dist/analysis/program/records/objects/required-records.js";
 import { checkedSourceLiteralValues } from "../../helpers/source-literal-values.mjs";
@@ -272,21 +272,32 @@ test("the literal collector closes once and validates later exact endpoints with
 });
 
 test("actual literal uses prepare their selected union inner endpoint before the one literal snapshot", () => {
-  const expression = {};
-  const sourceFile = {};
+  const checked = checkCsharpSource({ surface: "native", sourceText: "export const value = 1.25;" });
+  assertCsharpCheckingSucceeded(checked);
+  const syntax = createTargetSourceProgram(checked.source);
+  const sourceFile = checked.source.getSourceFile("/project/index.ts");
+  assert.equal(sourceFile !== undefined, true, "the exact checked literal file is retained");
+  let declaration;
+  const visit = node => {
+    if (syntax.ast.is.IsVariableDeclaration(node) && syntax.ast.text(syntax.ast.name(node)) === "value") declaration = node;
+    syntax.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+  };
+  visit(sourceFile);
+  const expression = syntax.ast.as.AsVariableDeclaration(declaration)?.Initializer;
+  assert.equal(expression !== undefined && syntax.ast.parent(expression) === declaration, true,
+    "literal conversion uses the real checked initializer and its exact parent");
   const source = primitive("float64");
   const target = csharpRuntimeUnionTargetType([primitive("float32"), csharpStringTargetType()]);
-  const [literal] = checkedSourceLiteralValues(["1.25"]);
-  const literalValues = literals([[expression, literal]]);
+  const literalValues = analyzeSourceLiteralValues(syntax.ast, [sourceFile]);
+  assert.equal(literalValues.literalValue.get(expression)?.number === 1.25, true,
+    "the original exact checked literal is not reconstructed for the Native request");
   const none = Object.freeze({ get: () => undefined });
   const policy = { sourceFiles: [sourceFile], target: {}, literalValues,
-    ast: { is: { IsCallExpression: () => false, IsIdentifier: () => false, IsVariableDeclaration: () => false,
-      IsReturnStatement: () => false, IsArrayLiteralExpression: () => false },
-      getSourceFile: () => undefined, forEachChild: (node, visit) => { if (node === sourceFile) visit(expression); } },
+    ast: syntax.ast, effectiveTypes: syntax.effectiveTypes,
     navigation: { referenceFor: () => undefined }, projectTypes: { directSupertypes: () => [] },
     providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) } };
   const operations = { nativeUnreachable: { get: () => false }, borrowedSequence: none, binaryOperation: none, selectedCall: none,
-      selectedConstruction: none, unaryOperation: none };
+      selectedConstruction: none, selectedElement: none, unaryOperation: none };
   const analysis = analyzeCsharpConversions(policy, { compileTimeMetadata: { get: () => false }, nodeTargetType: { get: node => node === expression ? source : undefined } },
     { resolveNode: () => undefined, resolveTarget: () => undefined, registerStructuralInterface: () => false }, operations);
   const prepared = analysis.prepare({

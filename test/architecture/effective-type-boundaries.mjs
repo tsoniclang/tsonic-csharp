@@ -61,17 +61,34 @@ export const declarationConverterAllowances = Object.freeze([
   ["src/policy/conversions/union-relations.ts", "select", "input.resolveType", "type", "authored union arm-layout comparison"],
 ].map(([file, owner, callee, argument, basis, metadataLeaf]) => Object.freeze({ file, owner, callee, argument, basis, metadataLeaf })));
 
+const checkedSourceInputs = new Map();
+
+function checkedSource(sourceFiles) {
+  const key = JSON.stringify([...sourceFiles]);
+  let selected = checkedSourceInputs.get(key);
+  if (selected === undefined) {
+    selected = readArchitectureTypeScript(sourceFiles);
+    checkedSourceInputs.set(key, selected);
+  }
+  return selected;
+}
+
 export function effectiveTypeBoundaryFindings(sourceFiles, allowances = declarationConverterAllowances) {
-  const source = readArchitectureTypeScript(sourceFiles);
+  const source = checkedSource(sourceFiles);
   const ast = source.ast;
   const findings = [];
   const usedAllowances = new Set();
   const buffers = new Map(source.sourceFiles.map(file => [file, Buffer.from(ast.getSourceText(file))]));
+  const rawTexts = new WeakMap();
   const raw = node => {
     if (node === undefined) return "";
+    const existing = rawTexts.get(node);
+    if (existing !== undefined) return existing;
     const buffer = buffers.get(ast.getSourceFile(node));
     if (buffer === undefined) throw new Error("Architecture analysis requires the checked declaration's exact source file.");
-    return buffer.subarray(ast.pos(node), ast.end(node)).toString("utf8").trim();
+    const text = buffer.subarray(ast.pos(node), ast.end(node)).toString("utf8").trim();
+    rawTexts.set(node, text);
+    return text;
   };
   const checkedTypeNames = new Set(["Type"]);
   const carrierTypeNames = new Set(["TargetTypeRef", "CsharpSourceTypeResolution"]);
@@ -83,48 +100,98 @@ export function effectiveTypeBoundaryFindings(sourceFiles, allowances = declarat
     ast.forEachChild(node, child => { if (child !== undefined) collectTypeNames(child); });
   };
   for (const file of source.sourceFiles) collectTypeNames(file);
+  const carrierTexts = new WeakMap();
   const typeKeyedCarrierText = node => {
+    if (node === undefined) return false;
+    if (carrierTexts.has(node)) return carrierTexts.get(node);
     const text = raw(node);
     const maps = [...text.matchAll(/\b(?:WeakMap|Map)\s*<\s*([\w$]+)\s*,/gu)];
-    return maps.some(match => checkedTypeNames.has(match[1])) &&
+    const selected = maps.some(match => checkedTypeNames.has(match[1])) &&
       [...text.matchAll(/\b[\w$]+\b/gu)].some(match => carrierTypeNames.has(match[0]));
+    carrierTexts.set(node, selected);
+    return selected;
   };
+  const declarations = new WeakMap();
   const declaration = node => {
     if (node === undefined || !ast.is.IsIdentifier(node) && !ast.is.IsPropertyAccessExpression(node)) return undefined;
+    if (declarations.has(node)) return declarations.get(node);
     const checker = source.getSourceFileQueries(ast.getSourceFile(node)).checker;
     let symbol = ast.is.IsIdentifier(node) ? checker.getLexicallyResolvedSymbol(node) : checker.getResolvedSymbolOrNil(node);
-    if (symbol === undefined) return undefined;
+    if (symbol === undefined) {
+      declarations.set(node, undefined);
+      return undefined;
+    }
     if (checker.getSymbolDeclarations(symbol).some(owner => ["KindImportSpecifier", "KindNamespaceImport", "KindImportClause"].includes(ast.kindName(owner)))) {
       symbol = checker.getAliasedSymbol(symbol);
     }
-    return symbol === undefined ? undefined : checker.getSymbolValueDeclaration(symbol) ?? checker.getPrimarySymbolDeclaration(symbol);
+    const selected = symbol === undefined ? undefined : checker.getSymbolValueDeclaration(symbol) ?? checker.getPrimarySymbolDeclaration(symbol);
+    declarations.set(node, selected);
+    return selected;
   };
+  const functions = new WeakMap();
   const functionFor = (node, seen = new Set()) => {
     if (node === undefined || seen.has(node)) return undefined;
+    if (functions.has(node)) return functions.get(node);
     seen.add(node);
     const selected = declaration(node);
-    if (selected === undefined) return undefined;
-    if (["KindFunctionDeclaration", "KindMethodDeclaration", "KindFunctionExpression", "KindArrowFunction"].includes(ast.kindName(selected))) return selected;
-    if (ast.is.IsVariableDeclaration(selected)) {
+    let owner;
+    if (selected !== undefined && ["KindFunctionDeclaration", "KindMethodDeclaration", "KindFunctionExpression", "KindArrowFunction"].includes(ast.kindName(selected))) owner = selected;
+    else if (selected !== undefined && ast.is.IsVariableDeclaration(selected)) {
       const initializer = ast.as.AsVariableDeclaration(selected)?.Initializer;
-      return initializer !== undefined && ["KindArrowFunction", "KindFunctionExpression"].includes(ast.kindName(initializer))
+      owner = initializer !== undefined && ["KindArrowFunction", "KindFunctionExpression"].includes(ast.kindName(initializer))
         ? initializer : functionFor(initializer, seen);
     }
-    return undefined;
+    functions.set(node, owner);
+    return owner;
   };
-  const calls = new Map();
+  const label = node => node !== undefined && (ast.is.IsIdentifier(node) || ast.kindName(node) === "KindStringLiteral" || ast.kindName(node) === "KindNumericLiteral")
+    ? ast.text(node) : node !== undefined && ast.is.IsPropertyAccessExpression(node) ? ast.text(ast.name(node)) : undefined;
+  const aliases = new Map();
+  const addAlias = (original, selected) => {
+    if (original === undefined || selected === undefined) return;
+    const names = aliases.get(original) ?? new Set();
+    names.add(selected);
+    aliases.set(original, names);
+  };
+  const callsByName = new Map();
   const collectCalls = node => {
     if (ast.is.IsCallExpression(node)) {
-      const owner = functionFor(ast.as.AsCallExpression(node)?.Expression);
-      if (owner !== undefined) {
-        const existing = calls.get(owner) ?? [];
+      const callee = ast.as.AsCallExpression(node)?.Expression;
+      if (callee !== undefined && (ast.is.IsIdentifier(callee) || ast.is.IsPropertyAccessExpression(callee))) {
+        const name = label(callee);
+        const existing = callsByName.get(name) ?? [];
         existing.push(node);
-        calls.set(owner, existing);
+        callsByName.set(name, existing);
       }
     }
+    if (ast.is.IsVariableDeclaration(node)) {
+      const initializer = ast.as.AsVariableDeclaration(node)?.Initializer;
+      addAlias(label(initializer), label(ast.name(node)));
+      if (initializer !== undefined && ast.kindName(initializer) === "KindFunctionExpression") addAlias(label(ast.name(initializer)), label(ast.name(node)));
+    }
+    if (ast.kindName(node) === "KindImportSpecifier") addAlias(label(ast.as.AsImportSpecifier(node)?.PropertyName ?? ast.name(node)), label(ast.name(node)));
+    if (ast.kindName(node) === "KindExportSpecifier") addAlias(label(ast.as.AsExportSpecifier(node)?.PropertyName ?? ast.name(node)), label(ast.name(node)));
+    if (ast.kindName(node) === "KindImportClause") addAlias("default", label(ast.as.AsImportClause(node)?.name));
     ast.forEachChild(node, child => { if (child !== undefined) collectCalls(child); });
   };
   for (const file of source.sourceFiles) collectCalls(file);
+  const callsForOwners = new WeakMap();
+  const callsFor = owner => {
+    if (callsForOwners.has(owner)) return callsForOwners.get(owner);
+    const names = new Set(["default"]);
+    const ownerName = label(ast.name(owner) ?? ast.name(ast.parent(owner)));
+    if (ownerName !== undefined) names.add(ownerName);
+    for (const name of names) for (const alias of aliases.get(name) ?? []) names.add(alias);
+    const candidates = ownerName === undefined ? [...callsByName.values()].flat()
+      : [...names].flatMap(name => callsByName.get(name) ?? []);
+    const callers = new Set();
+    for (const call of candidates) {
+      if (functionFor(ast.as.AsCallExpression(call)?.Expression) === owner) callers.add(call);
+    }
+    const selected = [...callers];
+    callsForOwners.set(owner, selected);
+    return selected;
+  };
   const enclosingFunction = node => {
     for (let current = ast.parent(node); current !== undefined; current = ast.parent(current)) {
       if (["KindFunctionDeclaration", "KindMethodDeclaration", "KindArrowFunction", "KindFunctionExpression"].includes(ast.kindName(current))) return current;
@@ -155,112 +222,167 @@ export function effectiveTypeBoundaryFindings(sourceFiles, allowances = declarat
       const terminal = then !== undefined && ast.kindName(then) === "KindBlock" ? ast.statements(then).at(-1) : then;
       if (terminal !== undefined && ast.kindName(terminal) === "KindReturnStatement" && ast.pos(node) > ast.end(statement)) return true;
     }
-    const callers = calls.get(owner) ?? [];
+    const callers = callsFor(owner);
     const parameter = ast.parameters(owner).findIndex(parameter => raw(ast.name(parameter)) === subject);
     return parameter >= 0 && callers.length > 0 && callers.every(call =>
       outsideEffectiveDomain(call, raw(ast.arguments(call)[parameter]), new Set(seen)));
   };
+  const member = node => ast.is.IsPropertyAccessExpression(node) ? ast.as.AsPropertyAccessExpression(node) : undefined;
+  const name = node => ast.is.IsIdentifier(node) ? ast.text(node) : ast.is.IsPropertyAccessExpression(node) ? ast.text(ast.name(node)) : undefined;
+  const unwrap = node => {
+    while (node !== undefined && transparentKinds.has(ast.kindName(node))) node = node.Expression;
+    return node;
+  };
+  const initializers = node => {
+    const selected = declaration(node);
+    if (selected === undefined) return [];
+    if (ast.is.IsVariableDeclaration(selected)) return [ast.as.AsVariableDeclaration(selected)?.Initializer];
+    if (ast.kindName(selected) === "KindBindingElement") {
+      const pattern = ast.parent(selected);
+      const owner = pattern === undefined ? undefined : ast.parent(pattern);
+      const input = owner !== undefined && ast.is.IsVariableDeclaration(owner) ? ast.as.AsVariableDeclaration(owner)?.Initializer : undefined;
+      const key = selected.PropertyName ?? ast.name(selected);
+      return [{ bindingOrigin: input, bindingKey: key === undefined ? undefined : ast.text(key) }];
+    }
+    return [];
+  };
+  const converterCallee = (node, seen = new Set()) => {
+    node = unwrap(node);
+    if (node === undefined || seen.has(node)) return node;
+    seen.add(node);
+    if (ast.is.IsIdentifier(node)) {
+      const inputs = initializers(node).filter(input => input !== undefined && !("bindingOrigin" in input));
+      if (inputs.length === 1) return converterCallee(inputs[0], seen);
+    }
+    return node;
+  };
+  const reachability = describe => {
+    const records = new Map();
+    const pending = [];
+    const positive = [];
+    const retain = node => {
+      node = unwrap(node);
+      if (node === undefined) return undefined;
+      let record = records.get(node);
+      if (record === undefined) {
+        record = { node, value: false, dependents: [] };
+        records.set(node, record);
+        pending.push(record);
+      }
+      return record;
+    };
+    return node => {
+      const selected = retain(node);
+      if (selected === undefined) return false;
+      while (pending.length > 0) {
+        const current = pending.pop();
+        const described = describe(current.node);
+        if (described.value && !current.value) {
+          current.value = true;
+          positive.push(current);
+        }
+        for (const dependency of described.dependencies) {
+          const input = retain(dependency);
+          if (input === undefined) continue;
+          input.dependents.push(current);
+          if (input.value && !current.value) {
+            current.value = true;
+            positive.push(current);
+          }
+        }
+      }
+      while (positive.length > 0) {
+        const current = positive.pop();
+        for (const dependent of current.dependents) {
+          if (dependent.value) continue;
+          dependent.value = true;
+          positive.push(dependent);
+        }
+      }
+      return selected.value;
+    };
+  };
+  const returnedValues = new WeakMap();
+  const returnsFor = owner => {
+    if (returnedValues.has(owner)) return returnedValues.get(owner);
+    const body = ast.body(owner);
+    const values = [];
+    const visit = child => {
+      if (child !== body && ["KindFunctionDeclaration", "KindFunctionExpression", "KindArrowFunction", "KindMethodDeclaration"].includes(ast.kindName(child))) return;
+      if (ast.kindName(child) === "KindReturnStatement") values.push(ast.as.AsReturnStatement(child)?.Expression);
+      ast.forEachChild(child, nested => { if (nested !== undefined) visit(nested); });
+    };
+    if (body !== undefined) {
+      if (ast.kindName(body) === "KindBlock") visit(body);
+      else values.push(body);
+    }
+    returnedValues.set(owner, values);
+    return values;
+  };
+  const queryDomains = new WeakMap();
+  const queryOutsideDomain = node => {
+    if (!queryDomains.has(node)) queryDomains.set(node, outsideEffectiveDomain(node, raw(ast.arguments(node)[0])));
+    return queryDomains.get(node);
+  };
+  const valueFacts = new Map();
+  const isValue = (node, metadataLeaf) => {
+    let selected = valueFacts.get(metadataLeaf);
+    if (selected === undefined) {
+      selected = reachability(current => {
+        const dependencies = [];
+        if (metadataLeaf !== undefined && raw(current) === metadataLeaf) return { value: false, dependencies };
+        if (ast.is.IsCallExpression(current)) {
+          const callee = ast.as.AsCallExpression(current)?.Expression;
+          if (valueQueries.has(name(callee))) return { value: !queryOutsideDomain(current), dependencies };
+          const owner = functionFor(callee);
+          if (owner !== undefined) dependencies.push(...returnsFor(owner));
+        }
+        const property = member(current);
+        if (property !== undefined) {
+          const key = name(current);
+          if (valueFields.has(key) || key === "type" && /(?:^|\.)(?:argument|receiver)$/u.test(raw(property.Expression))) return { value: true, dependencies };
+          dependencies.push(property.Expression);
+        }
+        if (ast.is.IsIdentifier(current)) {
+          const declared = declaration(current);
+          if (declared !== undefined && ast.kindName(declared) === "KindParameter") {
+            const owner = ast.parent(declared);
+            const index = owner === undefined ? -1 : ast.parameters(owner).indexOf(declared);
+            if (index >= 0) for (const call of callsFor(owner)) dependencies.push(ast.arguments(call)[index]);
+          }
+          for (const input of initializers(current)) {
+            if (input === undefined) continue;
+            if ("bindingOrigin" in input) {
+              if (valueFields.has(input.bindingKey) || input.bindingKey === "type" &&
+                  /(?:^|\.)(?:argument|receiver)$/u.test(raw(input.bindingOrigin))) return { value: true, dependencies };
+              dependencies.push(input.bindingOrigin);
+            } else dependencies.push(input);
+          }
+        }
+        ast.forEachChild(current, child => { if (child !== undefined) dependencies.push(child); });
+        return { value: false, dependencies };
+      });
+      valueFacts.set(metadataLeaf, selected);
+    }
+    return selected(node);
+  };
+  const isTypeKeyedCarrierMap = reachability(node => {
+    const dependencies = [];
+    if (typeKeyedCarrierText(node)) return { value: true, dependencies };
+    if (ast.is.IsIdentifier(node) || ast.is.IsPropertyAccessExpression(node)) {
+      const selected = declaration(node);
+      if (selected !== undefined && typeKeyedCarrierText(ast.typeNode(selected))) return { value: true, dependencies };
+      if (selected !== undefined && ["KindPropertyDeclaration", "KindPropertyAssignment"].includes(ast.kindName(selected))) dependencies.push(selected.Initializer);
+      for (const input of initializers(node)) if (input !== undefined && !("bindingOrigin" in input)) dependencies.push(input);
+    }
+    return { value: false, dependencies };
+  });
   for (const file of source.sourceFiles) {
     const path = ast.getFileName(file).slice("/architecture/".length);
     const text = sourceFiles.get(path);
     if (text === undefined) continue;
     const privateResolver = resolverOwners.test(path) || shapeOwners.test(path);
     const add = (node, rule) => findings.push({ file: path, line: text.slice(0, ast.pos(node)).split("\n").length, rule });
-    const member = node => ast.is.IsPropertyAccessExpression(node) ? ast.as.AsPropertyAccessExpression(node) : undefined;
-    const name = node => ast.is.IsIdentifier(node) ? ast.text(node) : ast.is.IsPropertyAccessExpression(node) ? ast.text(ast.name(node)) : undefined;
-    const unwrap = node => {
-      while (node !== undefined && transparentKinds.has(ast.kindName(node))) node = node.Expression;
-      return node;
-    };
-    const initializers = node => {
-      const selected = declaration(node);
-      if (selected === undefined) return [];
-      if (ast.is.IsVariableDeclaration(selected)) return [ast.as.AsVariableDeclaration(selected)?.Initializer];
-      if (ast.kindName(selected) === "KindBindingElement") {
-        const pattern = ast.parent(selected);
-        const owner = pattern === undefined ? undefined : ast.parent(pattern);
-        const input = owner !== undefined && ast.is.IsVariableDeclaration(owner) ? ast.as.AsVariableDeclaration(owner)?.Initializer : undefined;
-        const key = selected.PropertyName ?? ast.name(selected);
-        return [{ bindingOrigin: input, bindingKey: key === undefined ? undefined : ast.text(key) }];
-      }
-      return [];
-    };
-    const converterCallee = (node, seen = new Set()) => {
-      node = unwrap(node);
-      if (node === undefined || seen.has(node)) return node;
-      seen.add(node);
-      if (ast.is.IsIdentifier(node)) {
-        const inputs = initializers(node).filter(input => input !== undefined && !("bindingOrigin" in input));
-        if (inputs.length === 1) return converterCallee(inputs[0], seen);
-      }
-      return node;
-    };
-    const isValue = (node, seen = new Set(), metadataLeaf) => {
-      node = unwrap(node);
-      if (node === undefined || seen.has(node)) return false;
-      if (metadataLeaf !== undefined && raw(node) === metadataLeaf) return false;
-      seen.add(node);
-      if (ast.is.IsCallExpression(node)) {
-        const callee = ast.as.AsCallExpression(node)?.Expression;
-        if (valueQueries.has(name(callee))) return !outsideEffectiveDomain(node, raw(ast.arguments(node)[0]));
-        const owner = functionFor(callee);
-        if (owner !== undefined) {
-          const body = ast.body(owner);
-          let returned = false;
-          const visitReturn = child => {
-            if (child !== body && ["KindFunctionDeclaration", "KindFunctionExpression", "KindArrowFunction", "KindMethodDeclaration"].includes(ast.kindName(child))) return;
-            if (ast.kindName(child) === "KindReturnStatement" && isValue(ast.as.AsReturnStatement(child)?.Expression, new Set(seen), metadataLeaf)) returned = true;
-            ast.forEachChild(child, nested => { if (nested !== undefined) visitReturn(nested); });
-          };
-          if (body !== undefined) {
-            if (ast.kindName(body) === "KindBlock") visitReturn(body);
-            else returned = isValue(body, new Set(seen), metadataLeaf);
-          }
-          if (returned) return true;
-        }
-      }
-      const property = member(node);
-      if (property !== undefined) {
-        const key = name(node);
-        if (valueFields.has(key)) return true;
-        if (key === "type" && /(?:^|\.)(?:argument|receiver)$/u.test(raw(property.Expression))) return true;
-        if (isValue(property.Expression, new Set(seen), metadataLeaf)) return true;
-      }
-      if (ast.is.IsIdentifier(node)) {
-        const selected = declaration(node);
-        if (selected !== undefined && ast.kindName(selected) === "KindParameter") {
-          const owner = ast.parent(selected);
-          const index = owner === undefined ? -1 : ast.parameters(owner).indexOf(selected);
-          if (index >= 0 && (calls.get(owner) ?? []).some(call => isValue(ast.arguments(call)[index], new Set(seen), metadataLeaf))) return true;
-        }
-        for (const input of initializers(node)) {
-          if (input === undefined) continue;
-          if ("bindingOrigin" in input) {
-            if (valueFields.has(input.bindingKey) || input.bindingKey === "type" &&
-                /(?:^|\.)(?:argument|receiver)$/u.test(raw(input.bindingOrigin))) return true;
-            if (isValue(input.bindingOrigin, new Set(seen), metadataLeaf)) return true;
-          } else if (isValue(input, new Set(seen), metadataLeaf)) return true;
-        }
-      }
-      let found = false;
-      ast.forEachChild(node, child => { if (child !== undefined && isValue(child, new Set(seen), metadataLeaf)) found = true; });
-      return found;
-    };
-    const isTypeKeyedCarrierMap = (node, seen = new Set()) => {
-      node = unwrap(node);
-      if (node === undefined || seen.has(node)) return false;
-      seen.add(node);
-      if (typeKeyedCarrierText(node)) return true;
-      if (ast.is.IsIdentifier(node) || ast.is.IsPropertyAccessExpression(node)) {
-        const selected = declaration(node);
-        if (selected !== undefined && typeKeyedCarrierText(ast.typeNode(selected))) return true;
-        if (selected !== undefined && ["KindPropertyDeclaration", "KindPropertyAssignment"].includes(ast.kindName(selected)) &&
-            isTypeKeyedCarrierMap(selected.Initializer, new Set(seen))) return true;
-        return initializers(node).some(input => input !== undefined &&
-          !("bindingOrigin" in input) && isTypeKeyedCarrierMap(input, new Set(seen)));
-      }
-      return false;
-    };
     const ownerName = node => {
       for (let current = ast.parent(node); current !== undefined; current = ast.parent(current)) {
         if (["KindFunctionDeclaration", "KindMethodDeclaration", "KindArrowFunction", "KindFunctionExpression"].includes(ast.kindName(current))) {
@@ -283,7 +405,7 @@ export function effectiveTypeBoundaryFindings(sourceFiles, allowances = declarat
           const allowed = allowances.find(row => row.file === path && row.owner === ownerName(node) &&
             row.callee === raw(callee) && row.argument === raw(args[0]));
           if (allowed !== undefined) usedAllowances.add(allowed);
-          if (args.some(argument => isValue(argument, new Set(), argument === args[0] ? allowed?.metadataLeaf : undefined))) add(node, "value-type-reaches-converter");
+          if (args.some(argument => isValue(argument, argument === args[0] ? allowed?.metadataLeaf : undefined))) add(node, "value-type-reaches-converter");
           if (!resolverOwners.test(path) && !shapeOwners.test(path)) {
             if (allowed === undefined) add(node, "unclassified-type-only-converter");
           }

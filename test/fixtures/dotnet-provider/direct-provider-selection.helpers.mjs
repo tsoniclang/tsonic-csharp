@@ -1,6 +1,7 @@
 import { csharpSourceValueResult } from "../../../dist/analysis/source-evidence/types/resolution/call-results.js";
 import assert from "node:assert/strict";
 import { analyzeSourceLiteralValues } from "@tsonic/target-api/source";
+import { checkedProviderCall, providerCallSource } from "./direct-provider-call-source.mjs";
 import { test } from "node:test";
 import {
   argumentPassingFactKey,
@@ -41,6 +42,7 @@ export {
   targetMethod,
   targetParameter,
   test,
+  providerCallSource,
 };
 
 export function providerDeclaration(options = {}) {
@@ -185,106 +187,44 @@ export function providerField(options = {}) {
   });
 }
 
-export function sourceParameter(options = {}) {
-  return Object.freeze({
-    parameterIndex: options.parameterIndex ?? 0,
-    parameterName: options.parameterName ?? "value",
-    parameterSymbol: options.parameterSymbol ?? {},
-    parameterDeclaration: options.parameterDeclaration ?? {},
-    selectedType: options.selectedType ?? {},
-    ...(options.authoredTypeNode === undefined
-      ? {}
-      : { authoredTypeNode: options.authoredTypeNode }),
-    acceptsOmission: options.acceptsOmission ?? options.rest ?? false,
-    rest: options.rest ?? false,
-  });
+
+export function callEvidence(spec) {
+  return checkedProviderCall(spec);
 }
 
-export function sourceArgumentBinding(options = {}) {
-  return Object.freeze({
-    sourceArgumentIndex: options.sourceArgumentIndex ?? 0,
-    effectiveArgumentIndex: options.effectiveArgumentIndex ??
-      options.sourceArgumentIndex ?? 0,
-    sourceForm: options.sourceForm ?? "value",
-    ...(options.spreadElementIndex === undefined
-      ? {}
-      : { spreadElementIndex: options.spreadElementIndex }),
-    sourceParameterIndex: options.sourceParameterIndex ?? 0,
-    sourceParameterForm: options.sourceParameterForm ?? "parameter",
-    selectedArgumentType: options.selectedArgumentType ?? {},
-    selectedParameterType: options.selectedParameterType ?? {},
-  });
-}
-
-export function callEvidence(options = {}) {
-  const call = options.call ?? { kind: "call" };
-  const selectedSignature = options.selectedSignature ?? {};
-  const signatureDeclaration = options.signatureDeclaration ?? {};
-  const calleeExpression = options.calleeExpression ?? { kind: "callee" };
-  const calleeType = options.calleeType ?? {};
-  const argumentExpressions = options.argumentExpressions ??
-    (options.argumentTypes ?? []).map((_, index) => ({
-      kind: "argument",
-      index,
-    }));
-  const argumentTypes = options.argumentTypes ??
-    argumentExpressions.map(() => ({}));
-  const parameters = options.parameters ??
-    argumentTypes.map((type, index) =>
-      sourceParameter({
-        parameterIndex: index,
-        parameterName: `value${index}`,
-        selectedType: type,
-      }));
-  const bindings = options.bindings ??
-    argumentTypes.map((type, index) =>
-      sourceArgumentBinding({
-        sourceArgumentIndex: index,
-        effectiveArgumentIndex: index,
-        sourceParameterIndex: index,
-        selectedArgumentType: type,
-        selectedParameterType: parameters[index]?.selectedType ?? type,
-      }));
-  const receiverExpression = options.receiverExpression ?? {
-    kind: "receiver",
-  };
-  const receiverType = options.receiverType ?? {};
-  return {
-    call,
-    signatureDeclaration,
-    evidence: Object.freeze({
-      outcome: options.outcome ?? "applicable",
-      call,
-      selectedSignature,
-      sourceSelectedSignatureKind:
-        options.sourceSelectedSignatureKind ?? "resolved",
-      ...(options.methodTypeArguments === undefined
-        ? {}
-        : { sourceSelectedMethodTypeArguments: options.methodTypeArguments }),
-      sourceSelectedSignatureParameters: parameters,
-      sourceCallee: Object.freeze({
-        expression: calleeExpression,
-        type: calleeType,
-        ...(options.selectedCalleeDeclaration === undefined
-          ? {}
-          : { selectedDeclaration: options.selectedCalleeDeclaration }),
-      }),
-      sourceArguments: argumentExpressions.map((expression, index) =>
-        Object.freeze({
-          expression,
-          type: argumentTypes[index],
-        })),
-      sourceArgumentBindings: bindings,
-      ...(options.receiver === false
-        ? {}
-        : {
-            sourceReceiver: Object.freeze({
-              expression: receiverExpression,
-              type: receiverType,
-            }),
-          }),
-      sourceResultType: options.resultType ?? {},
+export function providerCallNativeEvidence(source, options, binding, member) {
+  const receiver = options.receiverTarget ?? {
+    kind: "target-named", csharpAllowsRefLikeTypeArguments: (binding.typeParameters ?? []).map(() => false),
+    id: binding.id,
+    ...(binding.typeParameters === undefined ? {} : {
+      typeArguments: binding.typeParameters.map(() => csharpStringTargetType()),
     }),
+  };
+  const arguments_ = options.sourceArgumentTargets ?? [];
+  const nodeTypes = source.evidence.sourceArguments.map((argument, index) =>
+    [argument.expression, arguments_[index]]);
+  const semanticTypes = source.evidence.sourceArguments.map((argument, index) =>
+    [argument.type, arguments_[index]]);
+  if (source.evidence.sourceReceiver !== undefined) {
+    nodeTypes.push([source.evidence.sourceReceiver.expression, receiver]);
+    semanticTypes.push([source.evidence.sourceReceiver.type, receiver]);
+  }
+  semanticTypes.push([source.evidence.sourceResultType, member.returnType]);
+  for (const [index, native] of (options.nativeTypeArguments ?? []).entries()) {
+    const selected = source.evidence.sourceSelectedMethodTypeArguments[index];
+    assert.equal(selected !== undefined, true, "each Native generic leaf belongs to this checked call's selected binder");
+    semanticTypes.push([selected.selectedType, native.selectedTarget]);
+    if (native.explicitTarget !== undefined) {
+      assert.equal(selected.explicitTypeNode !== undefined, true,
+        "the authored generic argument is retained, not manufactured by the Native fixture");
+      nodeTypes.push([selected.explicitTypeNode, native.explicitTarget]);
+    }
+  }
+  const extra = options.nativeEvidence?.(source) ?? {};
+  return {
+    nodeTypes: [...nodeTypes, ...(extra.nodeTypes ?? [])].filter((entry) => entry[1] !== undefined),
+    semanticTypes: [...semanticTypes, ...(extra.semanticTypes ?? [])].filter((entry) => entry[1] !== undefined),
+    facts: extra.facts ?? [],
   };
 }
 
@@ -466,9 +406,16 @@ export function valueRelation(options) {
 }
 
 export function directProviderHost(options = {}) {
-  const sourceFile = options.sourceFile ?? { kind: "source-file" };
+  const program = options.sourceProgram;
+  assert.equal((options.calls?.length ?? 0) === 0 || program !== undefined, true,
+    "a Native call fixture must retain its own actual checked Source program");
+  const sourceFile = program === undefined ? options.sourceFile ?? { kind: "source-file" }
+    : program.ast.getSourceFile(options.calls[0][0]);
+  if (program !== undefined) assert.equal(sourceFile !== undefined && options.calls.every(([call, evidence]) =>
+    program.semantics.forNode(call).operations.call(call) === evidence), true,
+  "every positive Source call record is the identical checked publication rather than a reconstructed mock");
   const relations = options.relations ?? [];
-  const sourceFacts = createSourceFacts(options.facts ?? []);
+  const sourceFacts = createSourceFacts(options.facts ?? [], program?.sourceFacts);
   const catalog = createCsharpProviderRelationCatalog([relations]);
   const bindings = uniqueBindings(relations);
   const nodeTypes = new Map(options.nodeTypes ?? []);
@@ -478,18 +425,21 @@ export function directProviderHost(options = {}) {
   const propertyEvidenceByNode = new Map(options.properties ?? []);
   const elementEvidenceByNode = new Map(options.elements ?? []);
   const providers = providerResolver(catalog, bindings);
-  const ast = options.ast ?? fixtureAst();
-  const literalValues = Object.freeze({ literalValue: Object.freeze({ get: (node) =>
-    analyzeSourceLiteralValues(ast, [{ syntaxKind: "IsSourceFile", children: [node] }]).literalValue.get(node) }) });
+  const ast = program === undefined ? options.ast ?? fixtureAst() : program.ast;
+  const literalValues = program === undefined ? Object.freeze({ literalValue: Object.freeze({ get: node =>
+    analyzeSourceLiteralValues(ast, [{ syntaxKind: "IsSourceFile", children: [node] }]).literalValue.get(node) }) })
+    : analyzeSourceLiteralValues(ast, program.sourceFiles);
   const projectDeclarations = new Set(options.projectDeclarations ?? []);
   return {
     sourceFile,
     host: Object.freeze({
       ast,
+      ...(program === undefined ? {} : { effectiveTypes: program.effectiveTypes,
+        semanticsFor: node => program.semantics.forNode(node) }),
       literalValues,
       sourceFacts,
       providers,
-      navigation: Object.freeze({
+      navigation: program?.navigation ?? Object.freeze({
         isProjectDeclaration(node) {
           return projectDeclarations.has(node);
         },
@@ -575,6 +525,7 @@ export function directProviderHost(options = {}) {
         },
       }),
       semantics(candidate) {
+        if (program !== undefined) return program.semantics.forFile(candidate);
         assert.equal(candidate, sourceFile);
         return Object.freeze({
           sourceFile,
@@ -655,7 +606,7 @@ export function typeEvidence(entries) {
   };
 }
 
-function createSourceFacts(entries) {
+function createSourceFacts(entries, checkedFacts) {
   const facts = new Map();
   for (const entry of entries) {
     const byKey = facts.get(entry.subject) ?? new Map();
@@ -664,16 +615,15 @@ function createSourceFacts(entries) {
   }
   return Object.freeze({
     getFact(subject, key) {
-      return facts.get(subject)?.get(key);
+      return facts.get(subject)?.get(key) ?? checkedFacts?.getFact(subject, key);
     },
     getFacts(subject) {
-      return [...(facts.get(subject)?.entries() ?? [])].map(([key, value]) => ({
-        key,
-        value,
-      }));
+      const values = new Map((checkedFacts?.getFacts(subject) ?? []).map(fact => [fact.key, fact.value]));
+      for (const [key, value] of facts.get(subject) ?? []) values.set(key, value);
+      return [...values].map(([key, value]) => ({ key, value }));
     },
-    getVirtualDeclarationDocument() {
-      return undefined;
+    getVirtualDeclarationDocument(...arguments_) {
+      return checkedFacts?.getVirtualDeclarationDocument(...arguments_);
     },
   });
 }

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { assertPublishedRefusal, compileEffectiveSource } from "../../helpers/source-effective-types.mjs";
 import { join } from "node:path";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { testRepositoryRoots } from "../../../../tsonic/test/scripts/workspace-layout.mjs";
@@ -30,10 +31,20 @@ import { annotatedEmptyValues, assertUnfilledEmptyObject } from "../../helpers/s
 for (const surface of Array.from([undefined, "js"]).slice(0, 1)) {
 test(`empty memory records preserve zero-field bindings in ${surface ?? "native"}`, { timeout: 300_000 }, () => {
     const files = emptyMemoryRecordProofFiles(surface === "js");
+    assertPublishedRefusal(compileEffectiveSource(surface, files["index.ts"], {
+      capabilities: [memoryAbiCapability("csharp")], files: { "schema.ts": files["schema.ts"] },
+    }), "TSONIC_LOCAL_TYPE_SELF_REFERENCE", "visits");
+  });
+
+test(`typed empty memory records preserve every zero-field binding in ${surface ?? "native"}`, { timeout: 300_000 }, () => {
+    const files = emptyMemoryRecordProofFiles(surface === "js");
+    const sourceText = 'import type { int32 } from "@tsonic/core/types.js";\n' +
+      files["index.ts"].replace("let visits = 0;", "let visits: int32 = 0;");
+    assert.equal(sourceText.includes("let visits: int32 = 0;"), true,
+      "only the captured counter receives an authored type; the complete original memory program is retained");
     executeCsharpConstruction(compileCsharpSource({ surface, capabilities: [memoryAbiCapability("csharp")],
-      sourceText: files["index.ts"],
-      files: { "schema.ts": files["schema.ts"] },
-    }), `empty-memory-record-${surface ?? "native"}`);
+      sourceText, files: { "schema.ts": files["schema.ts"] },
+    }), `typed-empty-memory-record-${surface ?? "native"}`);
   });
 
 test(`native V8 heap observations fail only on invocation in ${surface ?? "native"}`, { timeout: 300_000 }, () => {
@@ -70,10 +81,20 @@ test(`annotated non-nullish unknown retains every original value and identity pr
 
 test(`empty memory records preserve zero-field bindings in ${surface ?? "native"}`, { timeout: 300_000 }, () => {
     const files = emptyMemoryRecordProofFiles(surface === "js");
+    assertPublishedRefusal(compileEffectiveSource(surface, files["index.ts"], {
+      capabilities: [memoryAbiCapability("csharp")], files: { "schema.ts": files["schema.ts"] },
+    }), "TSONIC_LOCAL_TYPE_SELF_REFERENCE", "visits");
+  });
+
+test(`typed empty memory records preserve every zero-field binding in ${surface ?? "native"}`, { timeout: 300_000 }, () => {
+    const files = emptyMemoryRecordProofFiles(surface === "js");
+    const sourceText = 'import type { int32 } from "@tsonic/core/types.js";\n' +
+      files["index.ts"].replace("let visits = 0;", "let visits: int32 = 0;");
+    assert.equal(sourceText.includes("let visits: int32 = 0;"), true,
+      "only the captured counter receives an authored type; the complete original memory program is retained");
     executeCsharpConstruction(compileCsharpSource({ surface, capabilities: [memoryAbiCapability("csharp")],
-      sourceText: files["index.ts"],
-      files: { "schema.ts": files["schema.ts"] },
-    }), `empty-memory-record-${surface ?? "native"}`);
+      sourceText, files: { "schema.ts": files["schema.ts"] },
+    }), `typed-empty-memory-record-${surface ?? "native"}`);
   });
 
 test(`native V8 heap observations fail only on invocation in ${surface ?? "native"}`, { timeout: 300_000 }, () => {
