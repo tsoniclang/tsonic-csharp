@@ -125,6 +125,7 @@ function writtenLiteralValues(
   if (node === undefined) return [];
   let literals: readonly (SourceLiteralValue | undefined)[] = [index.literalValue.get(node)];
   for (const part of variable?.path ?? []) {
+    if (part.kind === "optional-value") continue;
     if (part.kind !== "element" && part.kind !== "tuple") return [];
     literals = literals.flatMap(literal => literal?.form !== "array" ? [undefined]
       : part.kind === "element" ? literal.elements : [literal.elements[part.index]]);
