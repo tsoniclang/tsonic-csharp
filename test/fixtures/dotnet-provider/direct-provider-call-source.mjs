@@ -2,12 +2,7 @@ import assert from "node:assert/strict";
 import { createCompilerSessionFromFiles, createSourceSemanticsExtension, formatDiagnostics, sourcePrimitive } from "@tsonic/tsts";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
 
-const checkedCalls = new Map();
-
 export function checkedProviderCall(spec) {
-  const key = JSON.stringify([spec.sourceText, spec.declarations, spec.words]);
-  const previous = checkedCalls.get(key);
-  if (previous !== undefined) return previous;
   const files = {
     "/src/index.ts": spec.sourceText,
     "/src/node_modules/@fixture/provider/package.json": JSON.stringify({ name: "@fixture/provider",
@@ -46,7 +41,6 @@ export function checkedProviderCall(spec) {
   const signatureDeclaration = queries.declarations.signatureDeclaration(evidence.selectedSignature);
   assert.equal(signatureDeclaration !== undefined, true, "the actual selected declaration is retained");
   const result = Object.freeze({ program, sourceFile, call, signatureDeclaration, evidence });
-  checkedCalls.set(key, result);
   return result;
 }
 
