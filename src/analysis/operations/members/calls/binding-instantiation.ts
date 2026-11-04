@@ -6,7 +6,7 @@ import { csharpTargetBindingSubstitutions, csharpTargetTypePatternFromBinding, r
 
 import { isCompleteTypeParameterRelation } from "../../../../policy/operations/members/binding-instantiation.js";
 export interface CsharpSourceTypeEvidence {
-  readonly node?: Node;
+  readonly node: Node | undefined;
   readonly type?: Type;
 }
 
@@ -23,7 +23,7 @@ export function resolveCsharpTargetBindingArguments(
   const selections = sourceEvidence.map(evidence => types.resolveNode(evidence.node, sourceFile));
   if (selections.some(selected => selected?.kind === "rejected")) return undefined;
   const candidates = sourceEvidence
-    .map((evidence, index) => selections[index]?.sourceResult?.selectedType ?? types.resolveType(evidence.type, sourceFile))
+    .map((_evidence, index) => selections[index]?.sourceResult?.selectedType)
     .filter((type): type is TargetTypeRef => type !== undefined)
     .map((type) => resolveCsharpTargetTypePatternArguments(
       csharpTargetTypePatternFromBinding(binding),

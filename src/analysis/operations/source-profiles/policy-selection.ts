@@ -49,7 +49,7 @@ export function selectCsharpSourceProfileCallPolicy(
   if (selected.kind === "ambiguous") return { kind: "rejected", diagnostic: selected.diagnostic };
   const context = { host, source, sourceFile, identity,
     inputs: createCsharpSourceProfileInputs(host, sourceFile, source.sourceReceiver === undefined
-      ? source.sourceArguments : [source.sourceReceiver, ...source.sourceArguments], source.sourceResultType,
+      ? source.sourceArguments : [source.sourceReceiver, ...source.sourceArguments], source.call,
       source.sourceSelectedMethodTypeArguments ?? [], selected.policy.inputRequirements, source) };
   const candidate = selected.policy.select(context);
   if (candidate?.kind !== "resolved" || selected.policy.finalizeArguments !== true) return candidate;
@@ -87,7 +87,7 @@ export function selectCsharpSourceProfilePropertyPolicy(
     : selected.kind === "ambiguous"
       ? { kind: "rejected", diagnostic: selected.diagnostic }
       : selected.policy.select({ host, source, sourceFile, identity,
-          inputs: createCsharpSourceProfileInputs(host, sourceFile, [source.receiver], source.sourceReadType ?? source.sourceWriteType),
+          inputs: createCsharpSourceProfileInputs(host, sourceFile, [source.receiver], source.expression),
           receiverType: receiverType ?? host.types.resolveSelectedValue(source.receiver.expression, source.receiver.type, sourceFile),
           readonly: !source.writable });
 }
@@ -152,5 +152,5 @@ export function selectCsharpSourceProfileElementPolicy(
     : selected.kind === "ambiguous"
       ? { kind: "rejected", diagnostic: selected.diagnostic }
       : selected.policy.select({ host, source, sourceFile, identity, readonly,
-        inputs: createCsharpSourceProfileInputs(host, sourceFile, [source.receiver, source.argument], source.sourceReadType ?? source.sourceWriteType) });
+        inputs: createCsharpSourceProfileInputs(host, sourceFile, [source.receiver, source.argument], source.expression) });
 }

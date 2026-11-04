@@ -79,12 +79,7 @@ export function validateArgumentsTargetSelectedParameters(
       sourceArgument.argument.storageExpression,
       sourceFile,
     );
-    const sourceType = sourceSelection?.kind === "rejected" ? undefined : sourceSelection?.sourceResult.selectedType ?? (sourceArgument.argument.passingMode === "by-value"
-      ? host.types.resolveType(
-          binding.selectedArgumentType,
-          sourceFile,
-        )
-      : undefined);
+    const sourceType = sourceSelection?.kind === "resolved" ? sourceSelection.sourceResult.selectedType : undefined;
     const targetType = csharpTargetParameterValueType(
       argument.targetParameter,
       argument.sourceForm,

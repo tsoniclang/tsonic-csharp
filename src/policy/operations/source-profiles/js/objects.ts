@@ -177,7 +177,7 @@ function objectCollectionMember(
   );
   const refused = nativeOwnSetRefusal(context, [argumentType]);
   if (refused !== undefined) return refused;
-  const resultType = context.inputs.types.get(context.source.sourceResultType);
+  const resultType = context.inputs.results.get(context.source.call);
   const refinedResultType = argumentType === undefined || resultType === undefined
     ? undefined
     : objectCollectionResultType(row.result, argumentType, resultType);
@@ -295,7 +295,7 @@ function objectAssignMember(
   // shape, so the assignment writes every source property into a declared member of the returned object.
   const targetExpression = context.source.sourceArguments[0]?.expression;
   const merged = targetExpression !== undefined && context.host.ast.is.IsObjectLiteralExpression(targetExpression)
-    ? context.inputs.resultType : undefined;
+    ? context.inputs.results.get(context.source.call) : undefined;
   const assignedType = merged !== undefined && merged.kind === "target-named" && "csharpGeneratedStructuralStorage" in merged &&
     merged.csharpGeneratedStructuralStorage === true ? merged : targetType;
   const targetShape = targetType === undefined
@@ -519,7 +519,7 @@ function objectShapeProjectionOptions(
 function promiseAllMember(
   context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
 ): CsharpTargetMember | undefined {
-  const taskType = context.inputs.types.get(context.source.sourceResultType);
+  const taskType = context.inputs.results.get(context.source.call);
   const resultType = getCsharpTaskResultTargetType(taskType);
   const elementType = resultType?.kind === "target-named" &&
       resultType.id === "Tsonic.CSharp.Js.JSArray`1"

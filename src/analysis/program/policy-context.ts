@@ -36,6 +36,7 @@ export function createCsharpAnalysisPolicyContext(
     types: typeSystem.analysisTypes, objectShapes: typeSystem.objectShapes, semantics: source.semantics.forFile },
     context.sourceStorage.invocations.flatMap(node => source.ast.arguments(node).filter((argument): argument is NonNullable<typeof argument> => argument !== undefined)));
   const policy: CsharpPolicyContext = Object.freeze({
+    effectiveTypes: source.effectiveTypes,
     moduleCallables: context.moduleCallables,
     integerRanges: context.integerRanges,
     literalValues: context.literalValues,

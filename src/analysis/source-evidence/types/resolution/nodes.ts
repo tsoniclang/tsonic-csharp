@@ -11,7 +11,6 @@ import { csharpNullableTargetType } from "../../../../target-model/types/carrier
 import { maximumTypeResolutionDepth } from "./model.js";
 import { failTargetCompilerResourceLimit } from "@tsonic/target-api/artifacts";
 import { nextState } from "./state.js";
-import { resolveCsharpSourceLiteralTargetType } from "../../../../policy/conversions/source-literals.js";
 import { resolveKeywordType } from "../../../../policy/types/resolution/source-primitives.js";
 import { selectedCsharpSourceProfileOwner } from "../../../../policy/identities/source-types.js";
 import { sourceFactSubjectsForNode } from "./source-evidence.js";
@@ -24,6 +23,7 @@ import { selectCsharpParameterListCarrier } from "../../../../policy/types/calla
 import { resolveCsharpNativeParameterCarrier, selectCsharpContextualParameterCarrier } from "./source-references.js";
 import type { CsharpSourceCallResult } from "../../../../target-model/operations/source-call-results.js";
 import { csharpSourceValueResult, refineCsharpSourceValueResult } from "./call-results.js";
+import { resolveCsharpSourceEffectiveType } from "./effective-types.js";
 export function resolveNodeValueWithState(
   scope: CsharpTypeResolutionScope,
   node: Node | undefined,
@@ -43,6 +43,18 @@ function resolveNodeResultWithState(
 ): CsharpSourceCallResult | undefined {
   const { host, resolveCallableType, resolveDirectSourceFacts, resolveNodeWithState, resolveProjectThisTargetType, resolveSelectedExpressionResult, resolveSourceValueResult, resolveTupleTypeNode, resolveTypeReferenceNode, resolveTypeWithState } = scope;
   if (node === undefined) return undefined;
+  const effective = resolveCsharpSourceEffectiveType(scope, node, state);
+  if (effective !== undefined) {
+    if (effective.result === undefined || !host.ast.is.IsArrayLiteralExpression(node)) return effective.result;
+    const queries = sourceFile === undefined ? host.semanticsFor(node) : host.semantics(sourceFile);
+    const selection = scope.resolveArrayLiteralWithState(node, queries, state);
+    if (selection.kind === "unavailable") return undefined;
+    const literalAdmission = selection.kind === "rejected"
+      ? Object.freeze({ kind: "rejected" as const, subject: node, code: "CSHARP_ARRAY_ELEMENT_CARRIER_MISMATCH", reason: selection.reason })
+      : Object.freeze({ kind: "resolved" as const, type: selection.carrier });
+    if (literalAdmission.kind === "rejected") state.rejectNativeResolution?.(literalAdmission);
+    return Object.freeze({ ...effective.result, literalAdmission });
+  }
   if (state.depth > maximumTypeResolutionDepth) failTargetCompilerResourceLimit("tsonic-csharp",
     "Selected native source-node type resolution", "depth", maximumTypeResolutionDepth, node);
   state = csharpSourceStorageContext(host, state, node);
@@ -105,8 +117,7 @@ function resolveNodeResultWithState(
   if (direct !== undefined) {
     return csharpSourceValueResult(direct);
   }
-  const scalar = resolveCsharpSourceLiteralTargetType(host, host.literalValues.literalValue.get(node)) ??
-    resolveKeywordType(host.ast.kindName(node));
+  const scalar = resolveKeywordType(host.ast.kindName(node));
   if (scalar !== undefined) {
     return csharpSourceValueResult(scalar);
   }
@@ -245,11 +256,12 @@ function resolveFallbackNodeCarrier(
   if (structuralType !== undefined) {
     return structuralType;
   }
-  return resolveTypeWithState(
-    queries.types.expressionType(node),
-    queries.sourceFile,
-    nextState(state),
-  );
+  const reference = host.navigation.referenceFor(node);
+  const declaration = reference?.declaration;
+  const typeNode = declaration === undefined ? undefined : host.ast.typeNode(declaration);
+  return typeNode === undefined ? resolveTypeWithState(queries.types.expressionType(node), queries.sourceFile, nextState(state))
+    : scope.resolveAuthoredAndSelectedSourceType(typeNode, host.ast.getSourceFile(typeNode) ?? queries.sourceFile,
+      queries.types.expressionType(node), queries.sourceFile, nextState(state));
 }
 
 export function resolveTupleTypeNode(

@@ -170,6 +170,7 @@ function createCsharpTypeSystem(
           )?.targetType;
         },
         resolveSelectedProperty(
+          occurrence: Node,
           receiverType: TargetTypeRef | undefined,
           selectedSubjects: readonly ExtensionFactSubject[],
           selectedType: Type | undefined,
@@ -190,7 +191,7 @@ function createCsharpTypeSystem(
           if (selected.kind === "resolved" && selectedType === undefined) return selected.member.type;
           const sourceTarget = selected.kind === "resolved" && selectedType !== undefined &&
             isCsharpJsValueTargetType(selected.member.type)
-            ? typeResolution.recursive.resolveType(selectedType, sourceFile, { depth: 0 }) : undefined;
+            ? typeResolution.policy.resolveSelectedResult(occurrence, undefined, selectedType, sourceFile) : undefined;
           if (selected.kind === "resolved" && selectedType !== undefined && declaredMemberType !== undefined &&
             host.semantics(sourceFile).types.relationship(declaredMemberType, selectedType) === "identical" &&
             !csharpObjectShapeMemberRetainsNativeReference(sourceTarget, selected.member.type)) {
@@ -257,6 +258,9 @@ export function createCsharpTypeAnalysis(
   const system = createCsharpTypeSystem(host, catalog, selectedRepresentations);
   nativeConstruction = createCsharpNativeConstructionDemandQuery({
     ...host,
+    resolveEffectiveShape(node, file) {
+      return system.objectShapes.resolveNode(node, file);
+    },
     scopedTargetType: representations.scopedTargetType,
     resolveShape: system.objectShapes.resolveType,
     resolveLiteralShape: system.objectShapes.resolveObjectLiteralTargetShape,

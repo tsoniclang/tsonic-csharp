@@ -54,6 +54,7 @@ export function elementSelectedTypes(
     : receiverType?.kind === "array"
       ? receiverType.element
       : policy.types.resolveSelectedResult(
+          source.expression,
           source.selectedDeclaration,
           source.sourceReadType ?? source.sourceWriteType,
           sourceFile,

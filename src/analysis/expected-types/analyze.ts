@@ -88,8 +88,7 @@ export function analyzeCsharpExpectedTypes(
     returnTargets.recordReturnExpression(node);
     returnTargets.recordExpressionBodyReturn(node);
     constructUses.recordThrownValue(node);
-    const contextualType = evidence.contextualType.get(node)?.selectedType;
-    collection.record(node, contextualType === undefined ? undefined : evidence.semanticTargetType.get(contextualType, sourceFile), "contextual");
+    collection.record(node, evidence.contextualType.get(node)?.targetType, "contextual");
     propagation.recordIntrinsicArrayLiteralElements(node);
     propagation.recordIntrinsicObjectLiteralMembers(node);
     if (!constructUses.recordOperationUses(node, sourceFile)) return;

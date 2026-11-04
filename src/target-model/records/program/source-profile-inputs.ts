@@ -3,6 +3,11 @@ import type { CsharpObjectShapeFact, TargetTypeRef } from "../../types/model.js"
 import type { CsharpDelegateSignatureShape } from "../../types/model.js";
 import type { CsharpCallArgumentProjection } from "../objects/members.js";
 export type CustomRegExpProtocolKind = "match" | "match-all" | "replace" | "search" | "split";
+export interface CsharpSourceProfileTypeArgumentSource {
+  readonly explicitTypeNode?: Node;
+  readonly selectedType: Type;
+  readonly typeParameter?: Type;
+}
 export interface CsharpCustomRegExpProtocol {
   readonly receiverType: TargetTypeRef;
   readonly memberTargetName: string;
@@ -26,11 +31,10 @@ export interface CsharpSourceProfileInputFacts {
   readonly callTypeArguments: readonly TargetTypeRef[] | undefined;
   readonly parameters: readonly (TargetTypeRef | undefined)[];
   readonly regexpProtocol: { readonly get: (index: number, kind: CustomRegExpProtocolKind) => CsharpCustomRegExpProtocol | undefined };
-  readonly values: ReadonlyMap<Node, ReadonlyMap<Type, TargetTypeRef | undefined>>;
-  readonly types: { readonly get: (type: Type | undefined) => TargetTypeRef | undefined };
+  readonly values: ReadonlyMap<Node, TargetTypeRef | undefined>;
+  readonly results: { readonly get: (node: Node | undefined) => TargetTypeRef | undefined };
   readonly nodes: { readonly get: (node: Node | undefined) => TargetTypeRef | undefined };
-  readonly selectedType: { readonly get: (node: Node | undefined, type: Type | undefined) => TargetTypeRef | undefined };
+  readonly typeArgument: { readonly get: (source: CsharpSourceProfileTypeArgumentSource) => TargetTypeRef | undefined };
   readonly objectShape: { readonly get: (node: Node | undefined) => CsharpObjectShapeFact | undefined };
-  readonly typeArguments: readonly { readonly node?: Node; readonly type: Type; readonly carrier?: TargetTypeRef }[];
-  readonly resultType: TargetTypeRef | undefined;
+  readonly typeArguments: readonly { readonly source: CsharpSourceProfileTypeArgumentSource; readonly node?: Node; readonly type: Type; readonly carrier?: TargetTypeRef; readonly parameter?: TargetTypeRef }[];
 }

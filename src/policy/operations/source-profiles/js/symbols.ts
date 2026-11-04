@@ -16,7 +16,7 @@ export const csharpJsSymbolCallPolicies:
         const argument = context.source.sourceArguments[0];
         const argumentType = argument === undefined
           ? undefined
-          : context.inputs.values.get(argument.expression)?.get(argument.type);
+          : context.inputs.values.get(argument.expression);
         const parameters = argument === undefined
           ? []
           : argumentType !== undefined && targetTypeRefEquals(argumentType, doubleType)

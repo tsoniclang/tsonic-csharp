@@ -13,6 +13,7 @@ import { retainCsharpBroadValueCarrier } from "../../../../policy/types/resoluti
 import { getCsharpTaskResultTargetType } from "../../../../target-model/types/carriers/delegates.js";
 import { selectCsharpAwaitCompletion } from "../../../../policy/operations/control-flow/await-completions.js";
 import type { CsharpTypeDefinitions } from "../../../../target-model/types/source-union-definitions.js";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 
 export function selectCsharpSourceCallResult(
   host: CsharpTypePolicyHost,
@@ -66,6 +67,10 @@ export function refineCsharpSourceValueResult(
   if (selected.selectedType === type) return selected;
   const original = getCsharpNullableElementTargetType(selected.selectedType) ?? selected.selectedType;
   const refined = getCsharpNullableElementTargetType(type) ?? type;
+  if (selected.effectiveType !== undefined && !targetTypeRefEquals(original, refined)) {
+    failTargetAnalysisInvariant("tsonic-csharp", "Native value refinement changed the Host-selected Source carrier.",
+      selected.effectiveType.provenance.occurrence);
+  }
   return targetTypeRefEquals(original, refined)
     ? Object.freeze({ ...selected, selectedType: type }) : csharpSourceValueResult(type);
 }

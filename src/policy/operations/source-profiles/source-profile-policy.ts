@@ -20,7 +20,7 @@ export function resolveCsharpSelectedSourceValue(
 ): TargetTypeRef | undefined {
   return value === undefined
     ? undefined
-    : context.inputs.values.get(value.expression)?.get(value.type);
+    : context.inputs.values.get(value.expression);
 }
 
 export function csharpSourceProfileCall(

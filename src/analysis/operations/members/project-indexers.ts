@@ -99,6 +99,7 @@ export function selectCsharpProjectElement(
   const selectedReadType = source.sourceReadType === undefined
     ? undefined
     : host.types.resolveSelectedResult(
+        source.expression,
         declaration,
         source.sourceReadType,
         sourceFile,
@@ -106,6 +107,7 @@ export function selectCsharpProjectElement(
   const selectedWriteType = source.sourceWriteType === undefined
     ? undefined
     : host.types.resolveSelectedResult(
+        source.expression,
         declaration,
         source.sourceWriteType,
         sourceFile,

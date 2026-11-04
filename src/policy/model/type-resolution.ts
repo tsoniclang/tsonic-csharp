@@ -21,6 +21,7 @@ export type CsharpNodeTypeResolution = (Extract<CsharpNativeSourceCarrierSelecti
 };
 
 export interface CsharpTypeQueries {
+  sourceTypeFlowRepresentation(occurrence: Node | undefined): import("../types/source-type-flow/representation.js").CsharpSourceTypeRepresentationHost;
   resolveArrayLiteral(node: Node, sourceFile: SourceFile): CsharpArrayLiteralSelection;
   nativeGuardResult(expression: Node): boolean | undefined;
   nativeUnreachable(node: Node): boolean;
@@ -38,7 +39,6 @@ export interface CsharpTypeQueries {
     { readonly kind: "unavailable" | "rejected" } | { readonly kind: "resolved"; readonly carrier: TargetTypeRef };
   resolveValue(
     node: Node | undefined,
-    type: Type | undefined,
     sourceFile: SourceFile,
   ): TargetTypeRef | undefined;
   resolveSelectedValue(
@@ -52,6 +52,7 @@ export interface CsharpTypeQueries {
     selectedSourceFile: SourceFile,
   ): TargetTypeRef | undefined;
   resolveSelectedResult(
+    occurrence: Node,
     selectedDeclaration: Node | undefined,
     selectedType: Type | undefined,
     selectedSourceFile: SourceFile,

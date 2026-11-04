@@ -30,6 +30,7 @@ export interface CsharpPlanningRepresentationQueries {
 }
 
 export interface CsharpTypePolicyBaseHost {
+  readonly effectiveTypes: import("@tsonic/target-api/source").SourceEffectiveTypes;
   readonly moduleCallables: import("../../../../target-model/records/callables/module-callables.js").CsharpModuleCallableIdentities;
   readonly integerRanges: import("../../../../target-model/records/operations/integer-ranges.js").CsharpIntegerRangeIndex;
   readonly objectMethodSources: CsharpObjectMethodSources;
@@ -75,6 +76,7 @@ export interface CsharpTypePolicyHost extends CsharpTypePolicyBaseHost {
       authoredTypeRoot?: Node,
     ): TargetTypeRef | undefined;
     resolveSelectedProperty(
+      occurrence: Node,
       receiverType: TargetTypeRef | undefined,
       selectedSubjects: readonly ExtensionFactSubject[],
       selectedType: Type | undefined,

@@ -96,7 +96,7 @@ export function resolveStringOperationArgument(
   const argument = context.source.sourceArguments[index];
   return argument === undefined
     ? undefined
-    : context.inputs.values.get(argument.expression)?.get(argument.type);
+    : context.inputs.values.get(argument.expression);
 }
 
 export function targetTypeKey(type: TargetTypeRef): string {

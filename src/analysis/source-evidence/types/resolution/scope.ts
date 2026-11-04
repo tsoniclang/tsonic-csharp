@@ -61,7 +61,6 @@ export interface CsharpTypeResolutionScope {
 ): TargetTypeRef | undefined;
   resolveValue(
   node: Node | undefined,
-  type: Type | undefined,
   sourceFile: SourceFile,
 ): TargetTypeRef | undefined;
   resolveSelectedValue(
@@ -81,6 +80,7 @@ export interface CsharpTypeResolutionScope {
   selectedSourceFile: SourceFile,
 ): TargetTypeRef | undefined;
   resolveSelectedResult(
+  occurrence: Node,
   selectedDeclaration: Node | undefined,
   selectedType: Type | undefined,
   selectedSourceFile: SourceFile,

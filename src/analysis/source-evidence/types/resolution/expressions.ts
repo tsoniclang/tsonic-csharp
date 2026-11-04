@@ -24,7 +24,6 @@ import { resolveCsharpStaticMemberReceiver } from "../../../../policy/types/proj
 import { csharpAbsenceTargetType, combineCsharpTargetUnionMembers, isCsharpJsValueTargetType } from "../../../../target-model/types/carriers/runtime-carriers.js";
 import { getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
 import { resolveCsharpContextualLiteralCarrier } from "./contextual-literals.js";
-import { resolveCsharpSourceLiteralTargetType } from "../../../../policy/conversions/source-literals.js";
 
 export function resolveSelectedExpressionType(
   scope: CsharpTypeResolutionScope,
@@ -42,6 +41,7 @@ export function resolveSelectedExpressionResult(
   state: CsharpTypeResolutionState,
 ): CsharpSourceCallResult | undefined {
   const { host, policy, optionalAccessTargetType, resolveSourceOwnedConstructionResult, resolveSourceCallResultWithState } = scope;
+  if (host.effectiveTypes.get(node) !== undefined) return scope.resolveNodeValueWithState(node, queries.sourceFile, state);
   if (host.ast.is.IsParenthesizedExpression(node) || host.ast.is.IsSatisfiesExpression(node)) {
     const expression = host.ast.is.IsParenthesizedExpression(node)
       ? host.ast.as.AsParenthesizedExpression(node)?.Expression : host.ast.as.AsSatisfiesExpression(node)?.Expression;
@@ -145,10 +145,6 @@ function resolveSelectedExpressionCarrier(
     host.ast.is.IsPrefixUnaryExpression(node) ||
     host.ast.is.IsPostfixUnaryExpression(node)
   ) {
-    const literal = host.literalValues.literalValue.get(node);
-    const literalType = literal?.numeric?.kind === "authored"
-      ? resolveCsharpSourceLiteralTargetType(host, literal) : undefined;
-    if (literalType !== undefined) return literalType;
     const operand = host.ast.is.IsPrefixUnaryExpression(node)
       ? host.ast.as.AsPrefixUnaryExpression(node)?.Operand
       : host.ast.as.AsPostfixUnaryExpression(node)?.Operand;
@@ -248,6 +244,7 @@ export function resolveMemberAccessTargetType(
       host.ast.is.IsMethodSignatureDeclaration(selection.source.selectedDeclaration));
   const nominalReceiver = host.projectTypeCatalog.definitionForTarget(receiverType)?.kind === "class";
   const structuralMemberType = nominalReceiver || nominalMethod ? undefined : host.structuralTypes.resolveSelectedProperty(
+    node,
     receiverType,
     queries.facts.selectedSubjects(
       selection.source.selectedSymbol,

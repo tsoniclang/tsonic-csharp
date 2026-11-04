@@ -406,7 +406,7 @@ function mapArrayMember(
   const selected = context.source.sourceSelectedMethodTypeArguments?.[0];
   const resultElement = selected?.explicitTypeNode === undefined
     ? getCsharpDelegateSignature(mapper)?.returnType ?? resolvedMethodTypeArguments(context)[0]
-    : context.inputs.selectedType.get(selected.explicitTypeNode, selected.selectedType);
+    : context.inputs.typeArgument.get(selected);
   const resultType = resultElement === undefined ? undefined : csharpJsArrayTargetType(resultElement);
   if (shape === undefined || resultType === undefined || resultElement === undefined) {
     return undefined;
@@ -454,7 +454,7 @@ function reduceArrayMember(
   context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
 ): CsharpTargetMember | undefined {
   const shape = arrayCallShape(context);
-  const resultType = context.inputs.types.get(context.source.sourceResultType);
+  const resultType = context.inputs.results.get(context.source.call);
   if (shape === undefined || resultType === undefined) {
     return undefined;
   }

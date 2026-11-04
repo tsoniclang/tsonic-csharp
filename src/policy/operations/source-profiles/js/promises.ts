@@ -81,7 +81,7 @@ function promiseContinuationMember(
     getCsharpTaskResultTargetType(callbackResults[0]) !== undefined;
   const selected = context.source.sourceSelectedMethodTypeArguments?.[0];
   const result = name === "catch" ? input : selected?.explicitTypeNode !== undefined
-    ? context.inputs.selectedType.get(selected.explicitTypeNode, selected.selectedType)
+    ? context.inputs.typeArgument.get(selected)
     : getCsharpTaskResultTargetType(callbackResults[0]) ?? callbackResults[0];
   if (result === undefined) return undefined;
   const callbackResult = asynchronous ? csharpTaskTargetType(result) : result;
@@ -204,7 +204,7 @@ function promiseResolveMember(
   }
   const result = explicit?.explicitTypeNode === undefined
     ? inputResult ?? argument
-    : context.inputs.selectedType.get(explicit.explicitTypeNode, explicit.selectedType);
+    : context.inputs.typeArgument.get(explicit);
   if (result === undefined || inputResult !== undefined && !targetTypeRefEquals(inputResult, result)) return undefined;
   if (context.source.sourceArguments.length === 1 && isCsharpVoidTargetType(result)) {
     return promiseResolutionMember(argument, result);
@@ -303,7 +303,7 @@ function promiseFinallyMember(
 function resolveResultTask(
   context: CsharpSourceProfileCallPolicyContext,
 ): { readonly task: TargetTypeRef; readonly result: TargetTypeRef } | undefined {
-  const task = context.inputs.types.get(context.source.sourceResultType);
+  const task = context.inputs.results.get(context.source.call);
   const result = getCsharpTaskResultTargetType(task);
   return task === undefined || result === undefined ? undefined : { task, result };
 }
