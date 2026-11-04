@@ -61,7 +61,7 @@ export function analyzeCsharpCustomRegExpProtocol(
     return undefined;
   }
   const substitutions = new Map<string, TargetTypeRef>();
-  for (const [index, argument] of selectedTypeArguments.entries()) {
+  for (const index of selectedTypeArguments.keys()) {
     const parameter = context.inputs.typeArguments[index]?.parameter;
     if (parameter?.kind !== "type-parameter") return undefined;
     substitutions.set(parameter.identity, targetTypeArguments[index]!);
