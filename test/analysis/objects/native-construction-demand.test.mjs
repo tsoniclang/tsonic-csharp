@@ -229,11 +229,9 @@ function fixture() {
     };
     visit(file);
     const queries = program.semantics.forFile(file);
-    const descriptors = variables.map(variable => program.effectiveTypes.get(variable));
-    assert.equal(descriptors.length === 2 && descriptors.every(outcome => outcome !== undefined &&
-      outcome.kind !== "refused" && outcome.type.kind === "declared" && outcome.type.source !== undefined), true,
-      "both real declared descriptors come from this exact program's eager publication");
-    const types = descriptors.map(outcome => outcome.type.source.selectedType);
+    const types = variables.map(variable => queries.declarations.declaredValueType(variable));
+    assert.equal(types.length === 2 && types.every(type => type !== undefined), true,
+      "both real checked declared types come from this exact program's semantic publication, including outside-C29 types");
     const shapes = selectedRows.map((selected, index) => ({
       ...selected.shape,
       sourceType: selected.shape.sourceType === undefined ? undefined : types[index],
@@ -248,7 +246,7 @@ function fixture() {
     const compatible = csharpNativeConstructionMembersMatch(types[0], shapes[0], shapes[1], queries,
       { ast: program.ast, sourceFacts: program.sourceFacts }, () => {});
     const equivalentType = queries.types.authoredType(program.ast.typeNode(equivalent));
-    return { compatible, program, descriptors, types, shapes, queries, equivalentType };
+    return { compatible, program, types, shapes, queries, equivalentType };
   };
   const host = {
     providers: { resolveType(fact) {

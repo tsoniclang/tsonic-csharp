@@ -11,11 +11,31 @@ import { createCsharpTypeParameterEnvironment } from "../../../dist/analysis/sou
 import { csharpSourceTypeFlowInterfaceAccepts } from "../../../dist/policy/types/source-type-flow/relations.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 import { csharpJsArrayTargetType } from "../../../dist/target-model/types/carriers/js.js";
+import { createCompilerSessionFromFiles } from "@tsonic/tsts";
+import { createTargetSourceProgram } from "@tsonic/target-api/source";
+import { bindCsharpSourceDeclarationArguments } from "../../../dist/analysis/source-evidence/types/resolution/generic-arguments.js";
 
 const primitive = name => Object.freeze({ kind: "primitive", primitive: name });
 const unexpected = () => assert.fail("a primitive unit must not query declarations shapes or an unrelated native child");
 const representationHost = surface => ({ target: { id: "csharp", ...(surface === "js" ? { surfaces: ["js"] } : {}) },
   typeParameterConstraints: {}, declaredType: unexpected, retainShape: unexpected });
+
+test("a real enum declaration has zero native generic binders without an invalid AST accessor", () => {
+  const checked = createCompilerSessionFromFiles({ currentDirectory: "/src", files: {
+    "/src/index.ts": "enum Token { Ready = 1, Done = 2 }",
+  }, compilerOptions: { strict: true, target: "es2022", module: "esnext" } }).checkSource();
+  assert.equal(checked.diagnostics.length, 0);
+  const source = createTargetSourceProgram(checked);
+  const file = checked.getSourceFile("/src/index.ts");
+  const declaration = source.ast.statements(file).find(node => source.ast.is.IsEnumDeclaration(node));
+  assert.equal(declaration !== undefined, true, "the exact checked enum declaration is retained");
+  const state = { depth: 0 };
+  const scope = { host: { ast: source.ast }, resolveNodeWithState: unexpected };
+  assert.equal(bindCsharpSourceDeclarationArguments(scope, declaration, [], [], state,
+    source.semantics.forFile(file)) === state, true, "a non-generic declaration retains the identical binding environment");
+  assert.equal(bindCsharpSourceDeclarationArguments(scope, declaration, [csharpStringTargetType()], [], state,
+    source.semantics.forFile(file)) === undefined, true, "an enum cannot acquire an invented type argument");
+});
 
 test("representation maps each exact Host primitive and keeps native versus JS array carriers", () => {
   for (const surface of ["native", "js"]) for (const name of ["int32", "int64", "float32", "float64", "uint32", "uint64", "decimal"]) {

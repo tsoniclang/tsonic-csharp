@@ -298,7 +298,9 @@ test("actual literal uses prepare their selected union inner endpoint before the
     providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) } };
   const operations = { yield: none, nativeUnreachable: { get: () => false }, borrowedSequence: none, binaryOperation: none, selectedCall: none,
       selectedConstruction: none, selectedElement: none, unaryOperation: none };
-  const analysis = analyzeCsharpConversions(policy, { compileTimeMetadata: { get: () => false }, nodeTargetType: { get: node => node === expression ? source : undefined } },
+  const analysis = analyzeCsharpConversions(policy, { compileTimeMetadata: { get: () => false },
+    nodeTargetType: { get: node => node === expression ? source : undefined },
+    storageTargetType: { get: node => node === declaration ? source : undefined } },
     { resolveNode: () => undefined, resolveTarget: () => undefined, registerStructuralInterface: () => false }, operations);
   const prepared = analysis.prepare({
     expectedTypes: { callableTarget: none, expectedType: { get: node => node === expression ? [target] : [] },
