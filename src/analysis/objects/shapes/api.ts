@@ -100,8 +100,7 @@ export function createCsharpObjectShapePolicy(
         : host.typeResolver.resolveNode(node, queries.sourceFile, nextState(state));
       if (isCsharpRecordDictionaryTargetType(getCsharpNullableElementTargetType(selectedTarget) ?? selectedTarget)) return undefined;
       const selectedShape = resolveTarget(selectedTarget);
-      if (selectedShape !== undefined && source.type !== undefined &&
-        (!host.ast.is.IsObjectLiteralExpression(node) || selectedShape.constructible === true)) {
+      if (selectedShape !== undefined && source.type !== undefined) {
         const actualType = host.ast.is.IsObjectLiteralExpression(node) ? queries.types.expressionType(node) : source.type;
         const members = actualType === undefined ? undefined
           : instantiateMemberEvidence(selectedShape.members, actualType, queries, selectedShape.sourceType);

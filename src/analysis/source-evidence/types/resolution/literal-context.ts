@@ -4,7 +4,7 @@ import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import { nextState } from "./state.js";
-import { getCsharpCallableValueSignature } from "../../../../target-model/types/carriers/delegates.js";
+import { getCsharpCallableValueSignature, getCsharpTaskResultTargetType } from "../../../../target-model/types/carriers/delegates.js";
 import { selectCsharpArrayLiteralCarrier } from "../../../../policy/types/collections/literal-construction.js";
 import { csharpFreeTypeParameterIdentities } from "../../../../target-model/types/generic-references.js";
 import { csharpSourceTypeParameter } from "../../../../source/extension/type-parameters.js";
@@ -37,8 +37,8 @@ export function resolveCsharpDeclaredLiteralContext(
     } else if (use.role === "return") {
       for (let owner = host.ast.parent(use.reference); owner !== undefined; owner = host.ast.parent(owner)) {
         if (!isSourceCallableBodyBoundary(host.ast, owner)) continue;
-        if (host.ast.typeNode(owner) !== undefined) declarations.add(owner);
-        else {
+        declarations.add(owner);
+        if (host.ast.typeNode(owner) === undefined) {
           const selected = sourceExpressionCallArgument(owner, { ast: host.ast, semantics: { forNode: host.semanticsFor } });
           if (selected !== undefined) arguments_.set(selected.argument, { selected, returned: true });
         }
@@ -48,8 +48,20 @@ export function resolveCsharpDeclaredLiteralContext(
   }
   for (const declaration of [...flow.aliasDeclarations, ...declarations]) {
     const annotation = host.ast.typeNode(declaration);
-    if (annotation === undefined) continue;
-    const selected = scope.resolveNodeWithState(annotation, host.ast.getSourceFile(annotation), nextState(state));
+    let selected = annotation === undefined ? undefined
+      : scope.resolveNodeWithState(annotation, host.ast.getSourceFile(annotation), nextState(state));
+    if (annotation === undefined && declarations.has(declaration)) {
+      const queries = host.semanticsFor(declaration);
+      const contextual = queries.types.contextualValueSelection(declaration);
+      if (contextual.kind === "selected" && contextual.component.authoredTypeNode !== undefined &&
+        contextual.component.contextualCall === undefined) {
+        const callable = scope.resolveSourceTypeComponentEvidence(contextual.component, queries, nextState(state));
+        selected = getCsharpCallableValueSignature(callable)?.returnType;
+      }
+    }
+    if (declarations.has(declaration) && host.ast.hasModifierKind(declaration, "async")) {
+      selected = getCsharpTaskResultTargetType(selected);
+    }
     if (selected !== undefined && selectCsharpArrayLiteralCarrier(selected, undefined, host.typeDefinitions) !== undefined)
       return { kind: "selected", type: selected };
   }

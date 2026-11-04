@@ -6,7 +6,7 @@ import type { CsharpTypeResolutionState } from "./model.js";
 import type { CsharpSourceCallResult } from "../../../../target-model/operations/source-call-results.js";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import { representCsharpSourceType, type CsharpSourceTypeRepresentationHost } from "../../../../policy/types/source-type-flow/representation.js";
-import { csharpSourceTypeParameter } from "../../../../source/extension/type-parameters.js";
+import { csharpSourceTypeParameter, csharpSourceTypeParameters } from "../../../../source/extension/type-parameters.js";
 import { bindCsharpSourceDeclarationArguments } from "./generic-arguments.js";
 import { nextState } from "./state.js";
 import type { ResolvedSourceCallInfo } from "../../../../target-model/records/calls/source-calls.js";
@@ -85,7 +85,7 @@ export function createCsharpSourceTypeRepresentationHost(
       }
       const selected = component?.selectedType ?? queries.declarations.declaredType(declaration);
       const bindings = selected === undefined ? undefined : queries.types.typeArgumentBindings(selected);
-      const parameters = host.ast.is.IsEnumDeclaration(declaration) ? [] : host.ast.typeParameters(declaration);
+      const parameters = csharpSourceTypeParameters(declaration, host.ast);
       const sources = parameters.map(parameter => bindings?.find(binding => binding.declaration === parameter)?.argumentType);
       const representedState = bindCsharpSourceDeclarationArguments(scope, declaration, typeArguments, sources, state, queries);
       if (representedState === undefined) return undefined;
