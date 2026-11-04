@@ -10,7 +10,6 @@ import { csharpJsArrayTargetType } from "../../../../target-model/types/carriers
 import { csharpNullableTargetType } from "../../../../target-model/types/carriers/nullable.js";
 import { maximumTypeResolutionDepth } from "./model.js";
 import { failTargetAnalysisInvariant, failTargetCompilerResourceLimit } from "@tsonic/target-api/artifacts";
-import { nextState } from "./state.js";
 import { resolveCsharpSourceLiteralTargetType } from "../../../../policy/conversions/source-literals.js";
 import { resolveKeywordType } from "../../../../policy/types/resolution/source-primitives.js";
 import { selectedCsharpSourceProfileOwner } from "../../../../policy/identities/source-types.js";
@@ -32,6 +31,7 @@ import { assertCsharpNodeSyntaxChildSource, assertCsharpNodeTypeSyntaxSource,
   type CsharpNodeSyntaxChildSource } from "./node-syntax-source.js";
 import type { CsharpSourceCallResult } from "../../../../target-model/operations/source-call-results.js";
 import { csharpSourceValueResult, refineCsharpSourceValueResult } from "./call-results.js";
+import { assertCsharpUnionTypeNodeSource, type CsharpUnionTypeNodeSource } from "./union-node-source.js";
 export function resolveNodeValueWithState(
   scope: CsharpTypeResolutionScope,
   node: Node | undefined,
@@ -93,6 +93,12 @@ export function resolveFormedCsharpNodeTypeSource(
       "A tuple-type node requires its exact ordered syntax and bound Source children.", source.node);
   }
   if (source.kind === "node") assertCsharpTupleTypeNodeSource(source.tupleType);
+  if (source.kind === "node" && (source.unionType === undefined || source.unionType.node !== source.node ||
+      source.unionType.queries !== source.queries || source.unionType.state !== source.state)) {
+    return failTargetAnalysisInvariant("tsonic-csharp",
+      "A union-type node requires its exact retained Source children.", source.node);
+  }
+  if (source.kind === "node") assertCsharpUnionTypeNodeSource(source.unionType);
   if (source.kind === "node" && (source.syntax === undefined || source.syntax.node !== source.node ||
       source.syntax.queries !== source.queries || source.syntax.state !== source.state)) {
     return failTargetAnalysisInvariant("tsonic-csharp",
@@ -115,7 +121,7 @@ function resolveNodeResultWithState(
   scope: CsharpTypeResolutionScope,
   source: CsharpNodeTypeSource,
 ): CsharpSourceCallResult | undefined {
-  const { host, resolveFormedDirectSourceFacts, resolveNodeWithState, resolveFormedSelectedExpressionResult, resolveFormedSourceValueResult, resolveFormedTypeReferenceNode, resolveTypeWithState } = scope;
+  const { host, resolveFormedDirectSourceFacts, resolveFormedSelectedExpressionResult, resolveFormedSourceValueResult, resolveFormedTypeReferenceNode } = scope;
   if (source.node === undefined) return undefined;
   if (source.state.depth > maximumTypeResolutionDepth) failTargetCompilerResourceLimit("tsonic-csharp",
     "Selected native source-node type resolution", "depth", maximumTypeResolutionDepth, source.node);
@@ -164,26 +170,7 @@ function resolveNodeResultWithState(
   if (source.tupleType.kind === "tuple") {
     return csharpSourceValueResult(resolveFormedCsharpTupleTypeNode(scope, source.tupleType));
   }
-  if (host.ast.is.IsUnionTypeNode(node)) {
-    const selected = queries.types.authoredType(node);
-    if (selected !== undefined && (queries.types.isAny(selected) || queries.types.isUnknown(selected))) {
-      return csharpSourceValueResult(resolveTypeWithState(selected, queries.sourceFile, nextState(state)));
-    }
-    const structural = selected === undefined ? { kind: "not-applicable" as const }
-      : host.structuralTypes.resolveUnion(selected, queries.sourceFile, state);
-    if (structural.kind !== "not-applicable") return structural.kind === "resolved" ? csharpSourceValueResult(structural.type) : undefined;
-    const sourceMembers = host.ast.children(node).map(member => member === undefined ? undefined : queries.types.authoredType(member));
-    if (selected === undefined || sourceMembers.some(member => member === undefined)) return undefined;
-    let members: readonly (TargetTypeRef | undefined)[] = [];
-    const carrier = scope.sourceUnionDefinitions.resolve(selected, queries, state, () => {
-      members = host.ast.children(node).map(member => resolveNodeWithState(member, queries.sourceFile, nextState(state)));
-      if (members.some(member => member === undefined)) return { carrier: undefined, arms: [] };
-      const arms = members as readonly TargetTypeRef[];
-      return { carrier: retainCsharpUnionObjectShapes(combineCsharpTargetUnionMembers(arms), host.structuralTypes.resolveTarget), arms };
-    });
-    return csharpSourceValueResult(scope.sourceUnions.retain(carrier,
-      members.map((member, index) => ({ source: sourceMembers[index]!, carrier: member! })), queries, state));
-  }
+  if (source.unionType.kind !== "not-union") return resolveFormedCsharpUnionTypeNode(scope, source.unionType);
   if (source.syntax.nested !== undefined) return resolveFormedCsharpNodeSyntaxChild(scope, source.syntax.nested);
   if (host.ast.is.IsTypeQueryNode(node)) {
     const expression = host.ast.as.AsTypeQueryNode(node)?.ExprName;
@@ -249,6 +236,32 @@ export function resolveFormedCsharpNodeSyntaxChild(
       ? type : csharpNullableTargetType(type));
   }
   return scope.resolveNodeValueWithState(child.node, child.sourceFile, child.state);
+}
+
+export function resolveFormedCsharpUnionTypeNode(
+  scope: Pick<CsharpTypeResolutionScope,
+    "host" | "resolveNodeWithState" | "resolveTypeWithState" | "sourceUnionDefinitions" | "sourceUnions">,
+  source: CsharpUnionTypeNodeSource,
+): CsharpSourceCallResult | undefined {
+  assertCsharpUnionTypeNodeSource(source);
+  if (source.kind === "not-union") return undefined;
+  if (source.kind === "selected") {
+    return csharpSourceValueResult(scope.resolveTypeWithState(source.child.type, source.child.sourceFile, source.child.state));
+  }
+  const { type, queries, state } = source;
+  const structural = type === undefined ? { kind: "not-applicable" as const }
+    : scope.host.structuralTypes.resolveUnion(type, queries.sourceFile, state);
+  if (structural.kind !== "not-applicable") return structural.kind === "resolved" ? csharpSourceValueResult(structural.type) : undefined;
+  if (type === undefined || source.checkedMembers.some(member => member === undefined)) return undefined;
+  let members: readonly (TargetTypeRef | undefined)[] = [];
+  const carrier = scope.sourceUnionDefinitions.resolve(type, queries, state, () => {
+    members = source.members.map(member => scope.resolveNodeWithState(member.node, member.sourceFile, member.state));
+    if (members.some(member => member === undefined)) return { carrier: undefined, arms: [] };
+    const arms = members as readonly TargetTypeRef[];
+    return { carrier: retainCsharpUnionObjectShapes(combineCsharpTargetUnionMembers(arms), scope.host.structuralTypes.resolveTarget), arms };
+  });
+  return csharpSourceValueResult(scope.sourceUnions.retain(carrier,
+    members.map((member, index) => ({ source: source.checkedMembers[index]!, carrier: member! })), queries, state));
 }
 
 function resolveFallbackNodeCarrier(

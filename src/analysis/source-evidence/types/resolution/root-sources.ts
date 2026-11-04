@@ -32,6 +32,7 @@ import { formCsharpSelectedValueSource, type CsharpSelectedValueSource } from ".
 import { formCsharpTupleTypeNodeSource, type CsharpTupleTypeNodeSource } from "./tuple-node-source.js";
 import { formCsharpNodeTypeSyntaxSource, type CsharpNodeTypeSyntaxSource } from "./node-syntax-source.js";
 import { formCsharpSemanticTupleSource, type CsharpSemanticTupleSource } from "./semantic-tuple-source.js";
+import { formCsharpUnionTypeNodeSource, type CsharpUnionTypeNodeSource } from "./union-node-source.js";
 
 export interface CsharpStructuralNodeSourceInput {
   readonly node: Node;
@@ -102,6 +103,7 @@ export type CsharpNodeTypeSource = {
       readonly functionType: CsharpFunctionTypeNodeSource;
       readonly arrayType: CsharpArrayTypeNodeSource;
       readonly tupleType: CsharpTupleTypeNodeSource;
+      readonly unionType: CsharpUnionTypeNodeSource;
       readonly syntax: CsharpNodeTypeSyntaxSource;
       readonly projectInstance: CsharpProjectInstanceSource;
       readonly selectedType: Type | undefined; readonly project: CsharpProjectReferenceSource | undefined;
@@ -277,6 +279,7 @@ export function formCsharpNodeTypeSource(
     functionType: formCsharpFunctionTypeNodeSource(scope, node, queries, state),
     arrayType: formCsharpArrayTypeNodeSource(scope, node, queries, state),
     tupleType: formCsharpTupleTypeNodeSource(scope, node, queries, state),
+    unionType: formCsharpUnionTypeNodeSource(scope, node, queries, state),
     syntax: formCsharpNodeTypeSyntaxSource(scope, node, queries, state),
     projectInstance: formCsharpProjectThisSource(host.ast, node),
     directSyntax: formCsharpDirectSourceEvidence(scope, Object.freeze([node]), queries.sourceFile, state),
