@@ -66,14 +66,20 @@ export function assertArrayOccurrences(compiled, name, primitive, minimum = 1) {
 
 export function assertPublishedRefusal(compiled, code, siteText) {
   const issues = compiled.result.diagnostics.filter(issue => issue.category === "error");
-  assert.equal(issues.length, 1, "one canonical Host refusal stops publication");
+  const ast = compiled.targetSource.ast;
+  const label = issues.map(issue => {
+    const range = issue.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
+    const text = range?.kind !== "authored" ? "<unavailable>"
+      : ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end).slice(0, 200);
+    return `${issue.code}: ${issue.message} at ${text}`;
+  }).join("; ");
+  assert.equal(issues.length, 1, `one canonical Host refusal stops publication; ${label}`);
   const issue = issues[0];
   assert.equal(issue.code, code, "the exact approved refusal class is preserved");
   assert.equal(issue.source, "tsonic", "language refusal belongs to the Host");
   const matching = compiled.targetSource.effectiveTypes.refusals().filter(refusal => refusal.code === code && refusal.site === issue.sourceNode);
   assert.equal(matching.length, 1, "the diagnostic retains the identical published Host refusal and source occurrence");
   assert.equal(issue.message, matching[0].reason, "the target forwards the actual Host reason without inventing another message");
-  const ast = compiled.targetSource.ast;
   const range = issue.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
   const actual = range?.kind === "authored" ? ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end) : undefined;
   assert.equal(actual, siteText, "the precise original failing use or literal is retained");

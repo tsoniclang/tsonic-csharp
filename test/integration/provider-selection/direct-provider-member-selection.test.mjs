@@ -482,10 +482,13 @@ function createElementFixture(options = {}) {
   const argumentCarrier = options.argumentNodeTarget ?? options.argumentTarget ?? targetParameterType;
   const argumentType = argumentCarrier.name === "int32" ? "int32" : argumentCarrier.name === "float64" ? "number" : "string";
   const checked = checkCsharpSource({ sourceText: `import type { int32 } from "@tsonic/core/types.js";
-    interface FixtureReceiver { [index: string]: unknown; [index: number]: unknown; }
+    ${options.includeProviderFact === false ? 'import type { FixtureReceiver } from "./fixture-receiver.js";'
+      : 'interface FixtureReceiver { [index: string]: unknown; [index: number]: unknown; }'}
     export function read(receiver: FixtureReceiver, index: ${argumentType}): void {
       ${options.accessMode === "write" ? "receiver[index] = undefined;" : "void receiver[index];"}
-    }` });
+    }`, ...(options.includeProviderFact === false ? { files: {
+      "fixture-receiver.d.ts": "export interface FixtureReceiver { [index: string]: unknown; [index: number]: unknown; }",
+    } } : {}) });
   assert.equal(checked.sourceDiagnosticsText, "", "the Native index relation has its own checked Source occurrence");
   const program = createTargetSourceProgram(checked.source);
   const accesses = [];
@@ -498,6 +501,10 @@ function createElementFixture(options = {}) {
   const source = { expression: accesses[0], evidence: program.semantics.forNode(accesses[0]).operations.elementAccess(accesses[0]) };
   assert.equal(source.evidence?.expression === source.expression, true,
     "the exact access, index and declaration are retained with the actual Host publication");
+  if (options.includeProviderFact === false) assert.equal(source.evidence.selectedDeclaration !== undefined &&
+    !program.navigation.isProjectDeclaration(source.evidence.selectedDeclaration) &&
+    program.ast.isDeclarationFile(program.ast.getSourceFile(source.evidence.selectedDeclaration)), true,
+  "the no-provider boundary uses a real external declaration, never a project indexer with missing Native inputs");
   if (options.selectedSymbol === null) assert.equal(source.evidence.selectedDeclaration !== undefined, true,
     "the selected index-signature declaration supplies the original declaration-only evidence");
   const relation = declaration.signatureId === undefined

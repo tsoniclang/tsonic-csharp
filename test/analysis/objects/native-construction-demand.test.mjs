@@ -292,6 +292,7 @@ function fixture() {
     } },
     freeze() {
       const records = [];
+      const diagnostics = [];
       for (const input of inputs) {
         current = input;
         host.sourceFiles = [input.file];
@@ -300,9 +301,18 @@ function fixture() {
         host.sourceFacts = input.program.sourceFacts;
         host.navigation = { ...input.program.navigation,
           isProjectDeclaration: selected => !foreign.has(selected) && input.program.navigation.isProjectDeclaration(selected) };
-        records.push(createCsharpNativeConstructionDemandQuery(host));
+        const record = createCsharpNativeConstructionDemandQuery(host);
+        records.push(record);
+        for (const issue of record.issues) {
+          const ast = input.program.ast;
+          const range = ast.authoredRange(issue.node);
+          const text = range?.kind !== "authored" ? "<unavailable>"
+            : ast.getSourceText(ast.getSourceFile(issue.node)).slice(range.start, range.end).slice(0, 200);
+          diagnostics.push(`${issue.code}: ${issue.message} at ${ast.kindName(issue.node)} ${text}`);
+        }
       }
       return Object.freeze({ issues: Object.freeze(records.flatMap(record => record.issues)),
+        diagnosticLabel: diagnostics.join("; "),
         constructionFor: selected => records.map(record => record.constructionFor(selected)).find(selected => selected !== undefined),
         sourceRefusals: Object.freeze(inputs.flatMap(input => input.program.effectiveTypes.refusals())) });
     },
@@ -316,7 +326,7 @@ test("native construction uses the literal's declared context and freezes its lo
   const source = value.row([{ identity: "system" }, { identity: "user" }]);
   const literal = value.node(source, expected);
   const selected = value.freeze();
-  assert.equal(selected.issues.length, 0);
+  assert.equal(selected.issues.length, 0, selected.diagnosticLabel);
   assert.equal(selected.constructionFor(literal)?.targetType === native, true, "one original native allocation");
   const queries = value.queryCount();
   selected.constructionFor(literal);
@@ -335,7 +345,7 @@ test("declared native construction preserves optional fields and one nullable al
   const reference = value.node({ union: [source, { absent: true }, { absent: true }] }, undefined, "reference");
   value.references.set(declaration, [reference]);
   const selected = value.freeze();
-  assert.equal(selected.issues.length, 0);
+  assert.equal(selected.issues.length, 0, selected.diagnosticLabel);
   assert.equal(targetTypeRefEquals(getCsharpNullableElementTargetType(selected.constructionFor(reference)?.targetType), native), true);
   assert.equal(selected.constructionFor(literal)?.shape.members[1].optional, true);
   assert.equal(selected.constructionFor(literal)?.shape === selected.constructionFor(reference)?.shape, true);
@@ -348,7 +358,7 @@ test("declared native numeric storage keeps int64 and cannot override an explici
     if (explicit) value.explicit.add(value.primitive);
     const literal = value.node(value.row([{ identity: "user", carrier: floating }]), expected);
     const selected = value.freeze();
-    assert.equal(selected.issues.length !== 0, explicit, "explicit authored storage remains authoritative");
+    assert.equal(selected.issues.length !== 0, explicit, `explicit authored storage remains authoritative; ${selected.diagnosticLabel}`);
     assert.equal(selected.constructionFor(literal) === undefined, explicit);
     if (!explicit) assert.equal(selected.constructionFor(literal)?.shape.members[0].type === integer, true);
   }
@@ -361,7 +371,7 @@ test("unrelated native declarations never retarget the original literal", () => 
   const literal = value.node(value.row([{ identity: "user" }]), expected);
   value.node(other, undefined, "parameter");
   const selected = value.freeze();
-  assert.equal(selected.issues.length, 0);
+  assert.equal(selected.issues.length, 0, selected.diagnosticLabel);
   assert.equal(selected.constructionFor(literal)?.targetType === native, true, "only the literal's context selects storage");
 });
 

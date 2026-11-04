@@ -8,7 +8,7 @@ import { executeCsharpConstruction } from "../../helpers/native-construction.mjs
 import { selectCsharpCallForm } from "../../../dist/policy/operations/members/call-forms.js";
 import { planCsharpOptionalReceiverChain } from "../../../dist/backend/planner/expressions/calls/optional-chain.js";
 import { analyzeCsharpOptionalCallChains } from "../../../dist/analysis/callables/calls/optional-call-chains.js";
-import { createExpectedNativeUseOwner } from "../../helpers/expected-native-uses.mjs";
+import { compileCsharpNativeUseSource, createExpectedNativeUseOwner } from "../../helpers/expected-native-uses.mjs";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { selectCsharpSourceFlowCall } from "../../../dist/policy/operations/flow/source-flow.js";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
@@ -58,7 +58,7 @@ function compiledWithoutDiagnostics(options) {
 }
 
 test("binary and unary forms are recorded once in the planner's order", () => {
-  const compiled = compiledWithoutDiagnostics({ surface: "js", sourceText: `
+  const sourceText = `
     type T = { a: unknown };
     class A {}
     export function f(x: T, o: any, a: number[], v: unknown, n: number, m: number): unknown {
@@ -73,7 +73,20 @@ test("binary and unary forms are recorded once in the planner's order", () => {
       const less = n < m;
       return [first, shape, test, sum, less, -n];
     }
-  ` });
+  `;
+  const refused = compileCsharpNativeUseSource({ surface: "js", sourceText });
+  assert.equal(refused.sourceDiagnosticsText, "");
+  const issues = refused.nativeStage.diagnostics.filter(issue => issue.category === "error");
+  assert.deepEqual(issues.map(({ code, message }) => [code, message]),
+    [["CSHARP_UNSUPPORTED_AST", "No exact C# implicit conversion relates 'source:float64' to 'source:int32'."]],
+    "B10 checks the extracted element, never a whole JSArray conversion or a B9 fill");
+  const ast = refused.nativeStage.source.ast;
+  const first = issues[0]?.sourceNode;
+  assert.equal(first !== undefined && ast.is.IsIdentifier(first) && ast.text(first) === "first" &&
+    ast.is.IsArrayLiteralExpression(ast.parent(first)), true, "the precise refusal belongs to the actual destructuring element");
+  assert.equal(refused.result.program === undefined && refused.artifacts.size === 0, true,
+    "the incompatible extracted write publishes no program or artifacts");
+  const compiled = compiledWithoutDiagnostics({ surface: "js", sourceText: sourceText.replace("let first = 0;", "let first: number = 0;") });
   assert.deepEqual(recordedForms(compiled), [
     "operator [first] = a => destructuring-assignment",
     "operator a.length = 0 => js-array-mutation",

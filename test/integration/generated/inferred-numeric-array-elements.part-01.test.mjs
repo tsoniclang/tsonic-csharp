@@ -308,12 +308,16 @@ test(`C130 js optional numeric-union ${operation} refuses the same unproven key 
 }
 
 test("C130 js reports every winning numeric-union key refusal before program incompleteness", () => {
-  const compiled = compileCsharpNativeUseSource({ surface: "js", sourceText: `
+  const sourceText = `
     import type { int32, uint32 } from "@tsonic/core/types.js";
     export function run(signed: int32, unsigned: uint32): void {
       const values = [signed, unsigned];
       values.includes(signed); values.indexOf(unsigned); values.lastIndexOf(signed);
-    }` });
+    }`;
+  const original = compileCsharpNativeUseSource({ surface: "js", sourceText });
+  assertPublishedRefusal(original, "TSONIC_LOCAL_TYPE_MIXED_ELEMENTS", "[signed, unsigned]");
+  const compiled = compileCsharpNativeUseSource({ surface: "js",
+    sourceText: sourceText.replace("const values =", "const values: (int32 | uint32)[] =") });
   assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
   const expected = [
     ["includes", "values.includes(signed)"], ["indexOf", "values.indexOf(unsigned)"],
