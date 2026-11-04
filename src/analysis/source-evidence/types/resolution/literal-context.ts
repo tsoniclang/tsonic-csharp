@@ -1,5 +1,5 @@
 import type { Node } from "@tsonic/tsts";
-import { isSourceCallableBodyBoundary, sourceExpressionCallArgument, type SourceFileSemantics } from "@tsonic/target-api/source";
+import { isSourceCallableBodyBoundary, sourceExpressionCallArgument, type SourceClosedCallableArgument, type SourceFileSemantics } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { CsharpTypeResolutionState } from "./model.js";
@@ -28,7 +28,7 @@ export function resolveCsharpDeclaredLiteralContext(
   if (!host.ast.is.IsArrayLiteralExpression(node)) return { kind: "unavailable" };
   const flow = host.navigation.expressionValueFlow(node);
   const uses = flow.uses.filter(use => !use.throughMember && use.kind !== "type-only");
-  const arguments_ = new Map<Node, { readonly selected: NonNullable<typeof argument>; readonly returned: boolean }>();
+  const arguments_ = new Map<Node, { readonly selected: SourceClosedCallableArgument; readonly returned: boolean }>();
   const declarations = new Set<Node>();
   for (const use of uses) {
     if (use.role === "argument") {
@@ -63,7 +63,7 @@ export function resolveCsharpDeclaredLiteralContext(
   }
   return { kind: "unavailable" };
 
-  function argumentType(selected: NonNullable<typeof argument>, excluded: ReadonlySet<number>): TargetTypeRef | undefined {
+  function argumentType(selected: SourceClosedCallableArgument, excluded: ReadonlySet<number>): TargetTypeRef | undefined {
     const callQueries = host.semanticsFor(selected.call);
     const call = callQueries.operations.call(selected.call);
     const bindings = call?.sourceArgumentBindings.filter(binding =>
