@@ -218,13 +218,6 @@ export const producersCarrierRegistry = Object.freeze([
     frozen: false,
   },
   {
-    id: "src/analysis/source-evidence/types/resolution/nodes.ts#resolveTupleTypeNode",
-    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
-    declaration: { module: "src/analysis/source-evidence/types/resolution/nodes.ts", symbol: "resolveTupleTypeNode" },
-    responsibility: "kinds/tuple",
-    frozen: false,
-  },
-  {
     id: "src/policy/types/storage/optional-access.ts#optionalAccessTargetType",
     kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
     declaration: { module: "src/policy/types/storage/optional-access.ts", symbol: "optionalAccessTargetType" },
@@ -460,6 +453,13 @@ export const producersCarrierRegistry = Object.freeze([
     kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
     declaration: { module: "src/analysis/source-evidence/types/resolution/nodes.ts", symbol: "resolveFormedCsharpArrayTypeNode" },
     responsibility: "producers/resolve-array-type-node",
+    frozen: false,
+  },
+  {
+    id: "src/analysis/source-evidence/types/resolution/nodes.ts#resolveFormedCsharpTupleTypeNode",
+    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
+    declaration: { module: "src/analysis/source-evidence/types/resolution/nodes.ts", symbol: "resolveFormedCsharpTupleTypeNode" },
+    responsibility: "kinds/tuple",
     frozen: false,
   },
 ]);
