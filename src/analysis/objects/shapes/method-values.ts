@@ -25,6 +25,15 @@ export interface CsharpObjectShapeTargetInput extends Omit<CsharpObjectShapeFact
   readonly target: CsharpObjectShapePhysicalSource;
 }
 
+export type CsharpObjectMethodValueSource = {
+  readonly input: CsharpObjectShapeTargetInput;
+  readonly target: CsharpObjectShapePhysicalSource;
+  readonly selected: TargetTypeRef | undefined;
+} & (
+  | { readonly kind: "fixed" }
+  | { readonly kind: "methods"; readonly facts: readonly CsharpObjectMethodValueFacts[] }
+);
+
 const methodValueUses = new WeakMap<SourceStorageQueries, {
   readonly retained: ReadonlySet<Node>;
   readonly extracted: ReadonlySet<Node>;
@@ -259,24 +268,61 @@ export function retainCsharpMethodValueContracts(
   environment: CsharpTypeParameterEnvironment,
   sourceStorage: SourceStorageQueries,
 ): CsharpObjectShapeFact {
+  return completeCsharpMethodValueContracts(formCsharpObjectMethodValueSource(input, sourceStorage), remember, environment);
+}
+
+export function formCsharpObjectMethodValueSource(
+  input: CsharpObjectShapeTargetInput,
+  sourceStorage: SourceStorageQueries,
+): CsharpObjectMethodValueSource {
   if (input.target === undefined || "targetType" in input) return failTargetAnalysisInvariant("tsonic-csharp",
     "Method-value completion requires its original canonical source selection before physical construction.");
   const { target, ...shape } = input;
   const selected = target.kind === "existing" ? target.type : undefined;
   if (selected !== undefined && csharpStructuralObjectShapeIdentity(selected) === undefined &&
     (selected as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind !== "interface") {
-    return Object.freeze({ ...shape, targetType: selected });
+    return Object.freeze({ kind: "fixed", input, target, selected });
   }
   const nativeInterface = selected?.kind === "target-named" &&
     (selected as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind === "interface";
-  const source = formCsharpObjectMethodValueFacts(shape, nativeInterface, sourceStorage);
+  return Object.freeze({ kind: "methods", input, target, selected,
+    facts: formCsharpObjectMethodValueFacts(shape, nativeInterface, sourceStorage),
+  });
+}
+
+export function completeCsharpMethodValueContracts(
+  source: CsharpObjectMethodValueSource,
+  remember: (shape: CsharpObjectShapeFact) => CsharpObjectShapeFact,
+  environment: CsharpTypeParameterEnvironment,
+): CsharpObjectShapeFact {
+  if (source === undefined || source.input === undefined || source.target === undefined ||
+      source.input.target !== source.target || "targetType" in source.input ||
+      source.selected !== (source.target.kind === "existing" ? source.target.type : undefined) ||
+      source.kind !== "fixed" && source.kind !== "methods") return failTargetAnalysisInvariant("tsonic-csharp",
+    "Method-value completion requires its exact retained source selection and member facts.");
+  const { target, ...shape } = source.input;
+  const { selected } = source;
+  if (source.kind === "fixed") {
+    if (selected === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+      "A fixed method-value source requires its retained existing target.");
+    return Object.freeze({ ...shape, targetType: selected });
+  }
+  if (source.facts === undefined || source.facts.length !== shape.members.length) return failTargetAnalysisInvariant("tsonic-csharp",
+    "Method-value completion requires its exact retained source selection and member facts.");
+  for (let index = 0; index < shape.members.length; index += 1) {
+    const member = source.facts[index];
+    if (member === undefined || member.member !== shape.members[index] || member.kind !== "unchanged" && member.kind !== "method") {
+      return failTargetAnalysisInvariant("tsonic-csharp",
+        "Method-value completion requires its exact retained source selection and member facts.");
+    }
+  }
   const implemented = new Map((shape.implements ?? []).filter(type => !shape.members.some(member =>
     member.methodValueContract !== undefined && targetTypeRefEquals(member.methodValueContract, type)))
     .map(type => [targetTypeRefKey(type), type]));
   const structuralContract = target.kind === "structural" ? target.contract
     : target.type.kind === "target-named" && (target.type as CsharpTargetNamedTypeRef).csharpStructuralContract === true;
   const selfContract = shape.members.length === 1 && structuralContract;
-  const plan = formCsharpObjectMethodValueStoragePlan(source, selfContract, environment);
+  const plan = formCsharpObjectMethodValueStoragePlan(source.facts, selfContract, environment);
   const plannedMembers = Object.freeze(plan.map(member => member.member));
   const comparisonTarget = selected ?? (plan.some(member => member.kind === "protocol")
     ? createStructuralObjectShapeTarget(plannedMembers, shape.implements, environment, structuralContract, shape.methodImplementation)
