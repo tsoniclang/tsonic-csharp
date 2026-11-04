@@ -395,7 +395,7 @@ function projectInstanceTargetTypeAt(
 }
 
 export function resolveSelectedReceiverTargetType(
-  { host, resolveNodeWithState, resolveTypeWithState }: CsharpTypeResolutionScope,
+  { resolveNodeWithState }: CsharpTypeResolutionScope,
   receiver: {
     readonly expression?: Node;
     readonly type?: Type;
@@ -403,37 +403,7 @@ export function resolveSelectedReceiverTargetType(
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
-  const expressionTarget = resolveNodeWithState(
-    receiver?.expression,
-    queries.sourceFile,
-    nextState(state),
-  );
-  if (expressionTarget !== undefined) {
-    return expressionTarget;
-  }
-  const semanticTarget = resolveTypeWithState(
-    receiver?.type,
-    queries.sourceFile,
-    nextState(state),
-  );
-  if (semanticTarget !== undefined) {
-    return semanticTarget;
-  }
-  if (
-    receiver?.expression === undefined ||
-    host.ast.kindName(receiver.expression) !== "KindThisKeyword"
-  ) {
-    return undefined;
-  }
-  const owner = host.projectTypeCatalog.definitionContainingDeclaration(
-    receiver.expression,
-  );
-  return owner === undefined
-    ? undefined
-    : host.projectTypeCatalog.targetTypeForDeclaration(
-        owner.declaration,
-        owner.typeParameterBindings,
-      );
+  return resolveNodeWithState(receiver?.expression, queries.sourceFile, nextState(state));
 }
 
 export function resolveSourceOwnedConstructionResult(

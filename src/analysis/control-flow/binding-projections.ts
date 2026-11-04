@@ -168,8 +168,8 @@ function resolveObjectBindingProjection(
     const selected = host.scopedTargetType(binding);
     const sourceFile = host.ast.getSourceFile(binding);
     const shape = selected !== undefined ? host.objectShapes.resolveTarget(selected)
-      : sourceFile === undefined ? undefined : host.objectShapes.resolveTypeWithState(
-      host.semantics(sourceFile).declarations.declaredValueType(binding), sourceFile, undefined, nextState(state),
+      : sourceFile === undefined ? undefined : host.objectShapes.resolveNodeWithState(
+      binding, sourceFile, nextState(state),
     );
     return valueProjection(shape === undefined ? undefined : host.objectShapes.resolveCopyShape(
       shape, host.objectShapes.resolveTarget(ownerType),
