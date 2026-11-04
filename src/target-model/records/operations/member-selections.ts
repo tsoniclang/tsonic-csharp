@@ -45,6 +45,11 @@ export type CsharpTargetElementSelection =
       readonly receiver: CsharpTargetReceiverRelation;
       readonly invocation: CsharpTargetElementInvocation;
       readonly origin: "provider" | "source-profile";
+      readonly indexConversion?: {
+        readonly source: TargetTypeRef;
+        readonly target: TargetTypeRef;
+        readonly selection: import("../../conversions/selection.js").CsharpConversionSelection;
+      };
     }
   | {
       readonly kind: "project-indexer";

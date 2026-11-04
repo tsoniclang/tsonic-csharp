@@ -239,7 +239,7 @@ function directIntlMember(
     context,
     context.source.sourceReceiver,
   );
-  const result = returnType ?? context.inputs.types.get(context.source.sourceResultType);
+  const result = returnType ?? context.inputs.results.get(context.source.call);
   return receiver?.kind !== "target-named" || result === undefined
     ? undefined
     : instanceMethod(

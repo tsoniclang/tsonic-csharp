@@ -49,7 +49,7 @@ export function analyzeCsharpCustomRegExpProtocol(
     context.sourceFile,
     sourceKey,
   );
-  const receiverType = context.inputs.values.get(argument.expression)?.get(argument.type);
+  const receiverType = context.inputs.values.get(argument.expression);
   const actualMember = context.host.objectShapes?.resolveTypeMember(
     argument.type,
     context.sourceFile,
@@ -62,7 +62,7 @@ export function analyzeCsharpCustomRegExpProtocol(
   }
   const substitutions = new Map<string, TargetTypeRef>();
   for (const [index, argument] of selectedTypeArguments.entries()) {
-    const parameter = context.inputs.types.get(argument.typeParameter);
+    const parameter = context.inputs.typeArguments[index]?.parameter;
     if (parameter?.kind !== "type-parameter") return undefined;
     substitutions.set(parameter.identity, targetTypeArguments[index]!);
   }

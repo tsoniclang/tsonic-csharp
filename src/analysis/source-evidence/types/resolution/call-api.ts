@@ -10,6 +10,7 @@ import { combineCsharpTargetUnionMembers, csharpAbsenceTargetType } from "../../
 import { csharpTargetParameterValueType } from "../../../../target-model/types/member-facts.js";
 
 import { nextState } from "./state.js";
+import { resolveCsharpSourceEffectiveType } from "./effective-types.js";
 
 import { getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
 
@@ -213,13 +214,17 @@ export function resolveSourceCallResult(
 }
 
 export function resolveSourceCallResultWithState(
-  { host, resolveSourceCallContract, resolveSourceCallableContractType, resolveSourceCallSelectedType, sourceCallableTypeParametersMatch, sourceCallSelectedDeclaration,
-    resolveSelectedValueWithState, resolveSourceCallInstantiation, resolveNodeWithState }: CsharpTypeResolutionScope,
+  scope: CsharpTypeResolutionScope,
   source: ResolvedSourceCallInfo,
   sourceFile: SourceFile,
   state: CsharpTypeResolutionState,
   nativeType: TargetTypeRef | undefined,
 ): CsharpSourceCallResult | undefined {
+  const { host, resolveSourceCallContract, resolveSourceCallableContractType, resolveSourceCallSelectedType, sourceCallableTypeParametersMatch,
+    sourceCallSelectedDeclaration, resolveSelectedValueWithState, resolveSourceCallInstantiation, resolveNodeWithState } = scope;
+  const effective = resolveCsharpSourceEffectiveType(scope, source.call, state);
+  if (effective !== undefined) return effective.result === undefined || nativeType === undefined ? effective.result
+    : Object.freeze({ ...effective.result, nativeType });
   const declaration = sourceCallSelectedDeclaration(source);
   const queries = host.semantics(sourceFile);
   const result = queries.operations.callResult(source);

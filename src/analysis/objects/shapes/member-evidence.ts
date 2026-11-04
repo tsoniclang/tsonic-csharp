@@ -75,7 +75,8 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
 
   function matchesMemberSubjects(member: CsharpObjectShapeMemberFact, selected: SourceStructuralMember): boolean {
     const subjects = [selected.property.symbol, ...selected.property.rootSymbols, ...selected.declarations];
-    return member.sourceSubjects?.some(subject => subjects.some(candidate => candidate === subject)) === true;
+    return member.sourceSubjects?.some(subject => subjects.some(candidate => candidate === subject)) === true ||
+      member.sourceDeclarations?.some(declaration => selected.declarations.includes(declaration)) === true;
   }
 
   function retainMemberDeclarationEvidence(
@@ -260,7 +261,8 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
     if (!method && declarations.length === 1) {
       const declaration = declarations[0]!;
       const value = host.ast.is.IsPropertyAssignment(declaration) || host.ast.is.IsShorthandPropertyAssignment(declaration)
-        ? ObjectLiteralProperty_Value(host.ast, declaration) : undefined;
+        ? ObjectLiteralProperty_Value(host.ast, declaration) : host.ast.is.IsPropertyDeclaration(declaration)
+          ? host.ast.as.AsPropertyDeclaration(declaration)?.Initializer : undefined;
       const storage = value === undefined ? undefined : host.typeResolver.resolveNode(value, queries.sourceFile, nextState(state));
       if (storage !== undefined && csharpMethodValueCoversContract(storage, memberType)) memberType = storage;
     }
@@ -325,6 +327,18 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
     state: CsharpTypeResolutionState,
     authoredTypeRoot?: Node,
   ): TargetTypeRef | undefined {
+    const declarations = [...new Set([property.symbol, ...property.rootSymbols].flatMap(symbol =>
+      queries.declarations.symbolDeclarations(symbol)))];
+    const values = declarations.flatMap(declaration => {
+      const value = host.ast.is.IsPropertyAssignment(declaration) || host.ast.is.IsShorthandPropertyAssignment(declaration)
+        ? ObjectLiteralProperty_Value(host.ast, declaration) : undefined;
+      return value === undefined ? [] : [value];
+    });
+    if (values.some(value => host.effectiveTypes.get(value) !== undefined)) {
+      const carriers = values.map(value => host.typeResolver.resolveNode(value, queries.sourceFile, nextState(state)));
+      const first = carriers[0];
+      return first !== undefined && carriers.every(carrier => carrier !== undefined && targetTypeRefEquals(carrier, first)) ? first : undefined;
+    }
     const authoredTypeNodes = [
       ...sourcePropertyTypeEvidenceNodes(host.ast, queries, property),
       ...(authoredTypeRoot === undefined

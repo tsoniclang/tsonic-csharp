@@ -23,6 +23,7 @@ import { getCsharpClassFactory } from "../../../../target-model/types/carriers/c
 import { csharpSourceTypeParameter } from "../../../../source/extension/type-parameters.js";
 import { bindCsharpSourceDeclarationArguments, bindCsharpSourceTypeArguments } from "./generic-arguments.js";
 import { getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
+import { resolveCsharpEffectiveCallTypeArgument } from "./effective-types.js";
 
 export function resolveSourceCallInstantiation(
   scope: CsharpTypeResolutionScope,
@@ -79,7 +80,8 @@ export function resolveSourceCallInstantiation(
   const inferredParameterIdentities = new Set(
     selectedArguments.flatMap((argument, index) => argument.explicitTypeNode === undefined ? [parameterIdentities[index]!] : []),
   );
-  const inferredTargetArguments = inferredParameterIdentities.size === 0 ||
+  const published = host.effectiveTypes.callInstantiation(source.call);
+  const inferredTargetArguments = published !== undefined || inferredParameterIdentities.size === 0 ||
       callable === undefined && excludedSourceArgumentIndexes === undefined
     ? new Map<string, TargetTypeRef>()
     : inferSourceCallTargetTypeArguments(
@@ -105,7 +107,8 @@ export function resolveSourceCallInstantiation(
     ) {
       return undefined;
     }
-    let targetArgument = selected.explicitTypeNode === undefined
+    const effective = resolveCsharpEffectiveCallTypeArgument(scope, source, selected.typeParameter, nextState(state));
+    let targetArgument = effective !== undefined ? effective.type : selected.explicitTypeNode === undefined
       ? inferredTargetArguments.get(parameterIdentity) ??
         (excludedSourceArgumentIndexes === undefined ? resolveAuthoredAndSelectedSourceType(
           undefined,
@@ -121,7 +124,7 @@ export function resolveSourceCallInstantiation(
           sourceFile,
           nextState(state),
         );
-    if (targetArgument === undefined && excludedSourceArgumentIndexes !== undefined && selected.explicitTypeNode === undefined) {
+    if (effective === undefined && targetArgument === undefined && excludedSourceArgumentIndexes !== undefined && selected.explicitTypeNode === undefined) {
       const declared = callable?.sourceDeclaration === undefined ? undefined
         : host.ast.typeParameters(callable.sourceDeclaration)[index];
       const native = declared === undefined ? undefined : csharpSourceTypeParameter(declared, host.ast);
@@ -174,7 +177,7 @@ export function resolveSourceCallSelectedType(
   }
   const receiver = source.sourceReceiver ?? source.sourceCalleeAccess?.receiver;
   if (receiver !== undefined && (declaration === undefined || !host.navigation.isProjectDeclaration(declaration))) {
-    const bound = bindCsharpSourceTypeArguments(scope, receiver.type, host.semantics(selectedSourceFile), state);
+    const bound = bindCsharpSourceTypeArguments(scope, receiver.type, host.semantics(selectedSourceFile), state, source);
     if (bound === undefined) return undefined;
     state = bound;
   }
@@ -191,7 +194,7 @@ export function resolveSourceCallSelectedType(
     if (selectedDeclaration === undefined) return undefined;
     const bound = bindCsharpSourceDeclarationArguments(scope, selectedDeclaration,
       instantiation.arguments.slice(0, instantiation.sourceArguments.length),
-      instantiation.sourceArguments, state);
+      instantiation.sourceArguments, state, host.semantics(selectedSourceFile));
     if (bound === undefined) return undefined;
     state = bound;
   }

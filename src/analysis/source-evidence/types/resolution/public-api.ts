@@ -21,6 +21,7 @@ import { resolveCsharpInstanceType } from "./instance-tests.js";
 import type { CsharpNodeTypeResolution } from "../../../../policy/model/type-resolution.js";
 import type { CsharpSourceCallResult } from "../../../../target-model/operations/source-call-results.js";
 import { csharpSourceValueResult, refineCsharpSourceValueResult } from "./call-results.js";
+import { resolveCsharpSourceEffectiveType } from "./effective-types.js";
 
 export function resolveNode(
   { resolveNodeValueWithState }: CsharpTypeResolutionScope,
@@ -49,6 +50,10 @@ export function resolveStorage(
 ): TargetTypeRef | undefined {
   if (node === undefined) {
     return undefined;
+  }
+  if (host.effectiveTypes.get(node) !== undefined) {
+    const selected = resolveNode(node, sourceFile);
+    return selected?.kind === "resolved" ? selected.sourceResult.selectedType : undefined;
   }
   if (host.ast.is.IsParenthesizedExpression(node)) {
     return resolveReadStorage(host.ast.as.AsParenthesizedExpression(node)?.Expression, sourceFile);
@@ -82,6 +87,7 @@ export function resolveReadStorage(
   if (node === undefined) {
     return undefined;
   }
+  if (host.effectiveTypes.get(node) !== undefined) return resolveStorage(node, sourceFile);
   if (!host.ast.is.IsPropertyAccessExpression(node) && !host.ast.is.IsElementAccessExpression(node)) {
     return resolveStorage(node, sourceFile);
   }
@@ -123,13 +129,12 @@ export function catchVariableStorageCarrier(
 }
 
 export function resolveValue(
-  { resolveNode, resolveType }: CsharpTypeResolutionScope,
+  { resolveNode }: CsharpTypeResolutionScope,
   node: Node | undefined,
-  type: Type | undefined,
   sourceFile: SourceFile,
 ): TargetTypeRef | undefined {
   const selected = resolveNode(node, sourceFile);
-  return selected?.kind === "rejected" ? undefined : selected?.sourceResult.selectedType ?? resolveType(type, sourceFile);
+  return selected?.kind === "rejected" ? undefined : selected?.sourceResult.selectedType;
 }
 
 export function resolveSelectedValue(
@@ -163,6 +168,7 @@ export function resolveSelectedValueResultWithState(
   sourceFile: SourceFile,
   state: CsharpTypeResolutionState,
 ): CsharpSourceCallResult | undefined {
+  if (scope.host.effectiveTypes.get(node) !== undefined) return scope.resolveNodeValueWithState(node, sourceFile, state);
   const { host, resolveNodeWithState, resolveNodeValueWithState, resolveMemberAccessTargetType, resolveSourceValueResult, resolveTypeWithState, sourceValueDeclaration } = scope;
   const reference = host.navigation.referenceFor(node);
   const declaration = sourceValueDeclaration(node, reference?.declaration);
@@ -303,11 +309,15 @@ export function resolveSelectedType(
 }
 
 export function resolveSelectedResult(
-  { host, resolveSelectedDeclarationResult }: CsharpTypeResolutionScope,
+  scope: CsharpTypeResolutionScope,
+  occurrence: Node,
   selectedDeclaration: Node | undefined,
   selectedType: Type | undefined,
   selectedSourceFile: SourceFile,
 ): TargetTypeRef | undefined {
+  const effective = resolveCsharpSourceEffectiveType(scope, occurrence, { depth: 0 });
+  if (effective !== undefined) return effective.result?.selectedType;
+  const { host, resolveSelectedDeclarationResult } = scope;
   return resolveSelectedDeclarationResult(
     selectedDeclaration,
     selectedType,

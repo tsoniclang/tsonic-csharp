@@ -33,6 +33,7 @@ import { analyzeCsharpFlowReadProjections } from "../conversions/flow-read-proje
 
 import { analyzeCsharpNativeValueCarriers, analyzeCsharpObjectMethodSources } from "../objects/value-carriers.js";
 import { analyzeCsharpModuleCallables } from "../callables/module-callables.js";
+import { analyzeCsharpSourceTypeFlowObligations } from "../source-evidence/type-flow-obligations.js";
 
 type CsharpAnalysisRejection = Extract<TargetStageResult<never>, { readonly kind: "rejected" }>;
 
@@ -69,6 +70,11 @@ function analyzeCsharpTargetProgramBeforeSeal(
 ): TargetStageResult<CsharpAnalysisProgram> {
   const { input, configuration, providers } = request;
   const source = input.source;
+  const typeFlowRefusals = source.effectiveTypes.refusals();
+  if (typeFlowRefusals.length !== 0) return rejectedTargetStage(typeFlowRefusals.map(refusal => Object.freeze({
+    code: refusal.code, category: "error" as const, source: refusal.source,
+    sourceNode: refusal.site, message: refusal.reason,
+  })));
   const aliasIssues = analyzeCsharpSourceAliasReexports(source.ast, source.navigation.sourceFiles);
   if (aliasIssues.length !== 0) return rejectedTargetStage(aliasIssues.map(diagnostic => ({
     ...targetDiagnosticFromExtension(diagnostic.nodeOrSpan, diagnostic), code: diagnostic.publicCode,
@@ -109,6 +115,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
   });
   const callOnlyAlias = createCsharpSourceProfileCallableAliasQuery(source);
   const typeHost = {
+    effectiveTypes: source.effectiveTypes,
     moduleCallables,
     integerRanges: createCsharpIntegerRangeIndex(source, sourceNodes),
     enumConstants: source.semantics.enumConstants,
@@ -230,6 +237,8 @@ function analyzeCsharpTargetProgramBeforeSeal(
   if (analysisIssues.length > 0) {
     return rejectCsharpAnalysisIssues(analysisIssues);
   }
+  const typeFlowIssues = analyzeCsharpSourceTypeFlowObligations(analysis.policy, analysis.objectShapes, analysis.typeSystem.nativeConstruction);
+  if (typeFlowIssues.length !== 0) return rejectedTargetStage(typeFlowIssues);
   const sourceModuleConstructions = analyzeCsharpSourceModuleConstructions({
     source,
     sourceFiles,

@@ -107,6 +107,7 @@ export function createCsharpObjectShapePolicy(
           ? remember(node, { ...selectedShape, sourceType: actualType, members })
           : rememberTargetShape({ ...selectedShape, sourceType: actualType, members });
       }
+      if (host.effectiveTypes.get(node) !== undefined) return undefined;
       const declaration = host.navigation.declarationFor(node);
       const authoredTypeRoot = declaration === undefined
         ? undefined
@@ -627,6 +628,14 @@ export function createCsharpObjectShapePolicy(
   }
 
   return Object.freeze({
+    retainShape(shape: CsharpObjectShapeFact, occurrence: Node | undefined): CsharpObjectShapeFact | undefined {
+      if (occurrence === undefined) return rememberTargetShape(shape);
+      const queries = host.semanticsFor(occurrence);
+      const sourceType = queries.types.expressionType(occurrence);
+      if (sourceType === undefined) return undefined;
+      const members = retainMemberDeclarationEvidence(shape.members, sourceType, queries);
+      return members === undefined ? undefined : rememberTargetShape({ ...shape, sourceType, members });
+    },
     resolveNativeParameter,
     resolveNativeReturn,
     retainConstructionSource(node: Node, type: Type, shape: CsharpObjectShapeFact, sourceFile: SourceFile): CsharpObjectShapeFact | undefined {

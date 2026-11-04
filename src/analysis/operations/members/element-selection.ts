@@ -6,6 +6,8 @@ import { targetTypeRefEquals } from "../../../policy/types/index.js";
 import { instantiateCsharpProviderBindingMember } from "./calls/binding-instantiation.js";
 import type { CsharpProviderCallSelectionHost } from "../../../policy/model/provider-calls.js";
 import { resolveCsharpProviderElementRelations } from "./relations.js";
+import { selectCsharpSourceTypeFlowIndexConversion } from "../../../policy/conversions/source-type-flow-index.js";
+import type { CsharpTargetElementSelection } from "../../../target-model/records/operations/member-selections.js";
 
 type ResolvedSourceElementAccessInfo = NonNullable<
   ReturnType<SourceFileSemantics["operations"]["elementAccess"]>
@@ -21,6 +23,7 @@ export interface CsharpSelectedProviderElement {
   readonly relation: CsharpProviderSignatureRelation;
   readonly targetMember: CsharpTargetMember;
   readonly targetParameterIndex: number;
+  readonly indexConversion?: Extract<CsharpTargetElementSelection, { readonly kind: "resolved" }>["indexConversion"];
 }
 
 export type CsharpProviderElementSelection =
@@ -139,6 +142,7 @@ function instantiateProviderElement(
           type: source.receiver.type,
         }]
       : [{
+          node: source.expression,
           type: source.sourceReadType ?? source.sourceWriteType,
         }],
     sourceFile,
@@ -158,13 +162,18 @@ function instantiateProviderElement(
   if (targetParameter.csharpAcceptsCheckedSourceArgument !== true) {
     const sourceArgumentType = host.types.resolveValue(
       source.argument.expression,
-      source.argument.type,
       sourceFile,
     );
-    if (
-      sourceArgumentType === undefined ||
-      !targetTypeRefEquals(sourceArgumentType, targetParameter.type)
-    ) {
+    if (sourceArgumentType === undefined) return undefined;
+    if (!targetTypeRefEquals(sourceArgumentType, targetParameter.type)) {
+      const selection: CsharpTargetElementSelection = { kind: "resolved", source, targetMember,
+        targetParameterIndex: parameterRelation.targetParameterIndex, receiver: relation.receiver,
+        invocation: { kind: "indexer" }, origin: "provider" };
+      const conversion = selectCsharpSourceTypeFlowIndexConversion(host.effectiveTypes.get(source.argument.expression),
+        selection, sourceArgumentType, targetParameter.type);
+      if (conversion !== undefined) return { source, relation, targetMember,
+        targetParameterIndex: parameterRelation.targetParameterIndex,
+        indexConversion: Object.freeze({ source: sourceArgumentType, target: targetParameter.type, selection: conversion }) };
       return undefined;
     }
   }

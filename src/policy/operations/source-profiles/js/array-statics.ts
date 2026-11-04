@@ -87,7 +87,7 @@ function arrayOfElementType(
   const selected = context.source.sourceSelectedMethodTypeArguments ?? [];
   const explicit = selected.length === 1 &&
       selected[0]?.explicitTypeNode !== undefined
-    ? context.inputs.selectedType.get(selected[0].explicitTypeNode, selected[0].selectedType)
+    ? context.inputs.typeArgument.get(selected[0])
     : undefined;
   if (explicit !== undefined) {
     return explicit;
@@ -136,7 +136,7 @@ function arrayFromShape(
     ? sourceElement
     : selectedResult?.explicitTypeNode === undefined
       ? mappedResult ?? selectedArguments[selectedArguments.length - 1]
-      : context.inputs.selectedType.get(selectedResult.explicitTypeNode, selectedResult.selectedType);
+      : context.inputs.typeArgument.get(selectedResult);
   return resultElement === undefined
     ? undefined
     : {
@@ -200,7 +200,7 @@ export function resolvedMethodTypeArguments(
 ): readonly TargetTypeRef[] {
   return (context.source.sourceSelectedMethodTypeArguments ?? []).flatMap(
     (argument) => {
-      const resolved = context.inputs.selectedType.get(argument.explicitTypeNode, argument.selectedType);
+      const resolved = context.inputs.typeArgument.get(argument);
       return resolved === undefined ? [] : [resolved];
     },
   );

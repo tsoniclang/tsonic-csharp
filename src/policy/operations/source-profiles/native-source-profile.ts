@@ -41,8 +41,9 @@ export const csharpNativeSourceProfileCallPolicies:
       select(
         context: CsharpSourceProfileCallPolicyContext,
       ): CsharpSourceProfileCallPolicyResult {
-        const receiverType = context.inputs.types.get(context.source.sourceReceiver?.type);
-        const resultType = context.inputs.types.get(context.source.sourceResultType);
+        const receiverType = context.source.sourceReceiver === undefined ? undefined
+          : context.inputs.values.get(context.source.sourceReceiver.expression);
+        const resultType = context.inputs.results.get(context.source.call);
         if (
           receiverType === undefined ||
           !targetTypeRefEquals(receiverType, stringType) ||
@@ -84,7 +85,7 @@ export const csharpNativeSourceProfilePropertyPolicies:
         context: CsharpSourceProfilePropertyPolicyContext,
       ): CsharpSourceProfilePropertyPolicyResult {
         const declaringType = context.receiverType;
-        const resultType = context.inputs.types.get(context.source.sourceReadType ?? context.source.sourceWriteType);
+        const resultType = context.inputs.results.get(context.source.expression);
         const lengthName = declaringName === "String" ? "Length" : getCsharpIndexableLengthMemberName(declaringType);
         const receiverMatches = declaringType !== undefined &&
           (declaringName === "String"
@@ -130,7 +131,7 @@ export const csharpNativeSourceProfileElementPolicies:
         const elementType = getCsharpReadOnlyIndexableCollectionElementTargetType(declaringType);
         const selectedSourceResult =
           context.source.sourceReadType ?? context.source.sourceWriteType;
-        const indexType = context.inputs.nodes.get(context.source.argument.expression) ?? context.inputs.types.get(context.source.argument.type);
+        const indexType = context.inputs.nodes.get(context.source.argument.expression);
         if (
           declaringType === undefined || elementType === undefined ||
           selectedSourceResult === undefined

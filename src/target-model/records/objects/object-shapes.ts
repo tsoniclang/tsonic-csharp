@@ -63,6 +63,7 @@ export type CsharpNativeSourceCarrierSelection =
   | { readonly kind: "rejected"; readonly subject: Node; readonly code: string; readonly reason: string; readonly type?: never };
 
 export interface CsharpObjectShapePolicy {
+  retainShape(shape: CsharpObjectShapeFact, occurrence: Node | undefined): CsharpObjectShapeFact | undefined;
   resolveNativeParameter(declaration: Node, parameter: Node, type: TargetTypeRef): CsharpNativeSourceCarrierSelection;
   resolveNativeReturn(declaration: Node, type: TargetTypeRef, observed: readonly TargetTypeRef[]): CsharpNativeSourceCarrierSelection;
   resolveCallableValue(signature: TargetTypeRef,

@@ -294,17 +294,17 @@ interface Array<T> extends Iterable<T> {
   reverse(): T[];
   sort(compareFn?: (a: T, b: T) => number): T[];
   at(index: number): T | undefined;
-  forEach(callbackfn: (value: T, index: number, array: T[]) => void): void;
-  map<U>(callbackfn: (value: T, index: number, array: T[]) => U): U[];
-  filter(callbackfn: (value: T, index: number, array: T[]) => unknown): T[];
-  reduce(callbackfn: (previousValue: T, currentValue: T, currentIndex: number, array: T[]) => T): T;
-  reduce<U>(callbackfn: (previousValue: U, currentValue: T, currentIndex: number, array: T[]) => U, initialValue: U): U;
-  some(callbackfn: (value: T, index: number, array: T[]) => unknown): boolean;
-  every(callbackfn: (value: T, index: number, array: T[]) => unknown): boolean;
-  find(callbackfn: (value: T, index: number, array: T[]) => unknown): T | undefined;
-  findIndex(callbackfn: (value: T, index: number, array: T[]) => unknown): number;
-  findLast(callbackfn: (value: T, index: number, array: T[]) => unknown): T | undefined;
-  findLastIndex(callbackfn: (value: T, index: number, array: T[]) => unknown): number;
+  forEach(callbackfn: (value: T, index: import("@tsonic/core/types.js").int32, array: T[]) => void): void;
+  map<U>(callbackfn: (value: T, index: import("@tsonic/core/types.js").int32, array: T[]) => U): U[];
+  filter(callbackfn: (value: T, index: import("@tsonic/core/types.js").int32, array: T[]) => unknown): T[];
+  reduce(callbackfn: (previousValue: T, currentValue: T, currentIndex: import("@tsonic/core/types.js").int32, array: T[]) => T): T;
+  reduce<U>(callbackfn: (previousValue: U, currentValue: T, currentIndex: import("@tsonic/core/types.js").int32, array: T[]) => U, initialValue: U): U;
+  some(callbackfn: (value: T, index: import("@tsonic/core/types.js").int32, array: T[]) => unknown): boolean;
+  every(callbackfn: (value: T, index: import("@tsonic/core/types.js").int32, array: T[]) => unknown): boolean;
+  find(callbackfn: (value: T, index: import("@tsonic/core/types.js").int32, array: T[]) => unknown): T | undefined;
+  findIndex(callbackfn: (value: T, index: import("@tsonic/core/types.js").int32, array: T[]) => unknown): number;
+  findLast(callbackfn: (value: T, index: import("@tsonic/core/types.js").int32, array: T[]) => unknown): T | undefined;
+  findLastIndex(callbackfn: (value: T, index: import("@tsonic/core/types.js").int32, array: T[]) => unknown): number;
   fill(value: T, start?: number, end?: number): T[];
   copyWithin(target: number, start: number, end?: number): T[];
 }
@@ -319,15 +319,15 @@ interface ReadonlyArray<T> extends Iterable<T> {
   indexOf(searchElement: T, fromIndex?: number): number;
   includes(searchElement: T, fromIndex?: number): boolean;
   at(index: number): T | undefined;
-  forEach(callbackfn: (value: T, index: number, array: readonly T[]) => void): void;
-  map<U>(callbackfn: (value: T, index: number, array: readonly T[]) => U): U[];
-  filter(callbackfn: (value: T, index: number, array: readonly T[]) => unknown): T[];
-  some(callbackfn: (value: T, index: number, array: readonly T[]) => unknown): boolean;
-  every(callbackfn: (value: T, index: number, array: readonly T[]) => unknown): boolean;
-  find(callbackfn: (value: T, index: number, array: readonly T[]) => unknown): T | undefined;
-  findIndex(callbackfn: (value: T, index: number, array: readonly T[]) => unknown): number;
-  findLast(callbackfn: (value: T, index: number, array: readonly T[]) => unknown): T | undefined;
-  findLastIndex(callbackfn: (value: T, index: number, array: readonly T[]) => unknown): number;
+  forEach(callbackfn: (value: T, index: import("@tsonic/core/types.js").int32, array: readonly T[]) => void): void;
+  map<U>(callbackfn: (value: T, index: import("@tsonic/core/types.js").int32, array: readonly T[]) => U): U[];
+  filter(callbackfn: (value: T, index: import("@tsonic/core/types.js").int32, array: readonly T[]) => unknown): T[];
+  some(callbackfn: (value: T, index: import("@tsonic/core/types.js").int32, array: readonly T[]) => unknown): boolean;
+  every(callbackfn: (value: T, index: import("@tsonic/core/types.js").int32, array: readonly T[]) => unknown): boolean;
+  find(callbackfn: (value: T, index: import("@tsonic/core/types.js").int32, array: readonly T[]) => unknown): T | undefined;
+  findIndex(callbackfn: (value: T, index: import("@tsonic/core/types.js").int32, array: readonly T[]) => unknown): number;
+  findLast(callbackfn: (value: T, index: import("@tsonic/core/types.js").int32, array: readonly T[]) => unknown): T | undefined;
+  findLastIndex(callbackfn: (value: T, index: import("@tsonic/core/types.js").int32, array: readonly T[]) => unknown): number;
 }
 
 interface ArrayConstructor {
@@ -337,7 +337,7 @@ interface ArrayConstructor {
   <T>(...items: T[]): T[];
   isArray(value: unknown): value is unknown[];
   from<T>(arrayLike: ArrayLike<T> | Iterable<T>): T[];
-  from<T, U>(arrayLike: ArrayLike<T> | Iterable<T>, mapfn: (value: T, index: number) => U): U[];
+  from<T, U>(arrayLike: ArrayLike<T> | Iterable<T>, mapfn: (value: T, index: import("@tsonic/core/types.js").int32) => U): U[];
   of<T>(...items: T[]): T[];
 }
 declare var Array: ArrayConstructor;

@@ -95,6 +95,7 @@ export function selectCsharpProviderProperty(
                   type: source.receiver.type,
                 }]
               : [{
+                  node: source.expression,
                   type: source.sourceReadType ?? source.sourceWriteType,
                 }],
             sourceFile,

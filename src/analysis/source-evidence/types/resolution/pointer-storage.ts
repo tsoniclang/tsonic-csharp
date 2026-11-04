@@ -39,7 +39,7 @@ function pointerStorageStates(
         callable?.nativeSignature.methodTypeParameterIdentities, callable);
       if (vector === undefined) return undefined;
       const bound = bindCsharpSourceDeclarationArguments(scope, activation.declaration,
-        vector.arguments.slice(0, vector.sourceArguments.length), vector.sourceArguments, callerState);
+        vector.arguments.slice(0, vector.sourceArguments.length), vector.sourceArguments, callerState, queries);
       if (bound === undefined) return undefined;
       states.push({ ...bound, sourceStorageBindings: activation.bindings });
     }

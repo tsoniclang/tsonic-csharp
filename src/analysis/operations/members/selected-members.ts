@@ -131,6 +131,7 @@ export function selectCsharpTargetElement(
       receiver: provider.element.relation.receiver,
       invocation: { kind: "indexer" },
       origin: "provider",
+      ...(provider.element.indexConversion === undefined ? {} : { indexConversion: provider.element.indexConversion }),
     };
   }
   if (provider.kind !== "not-provider") {

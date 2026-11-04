@@ -195,7 +195,7 @@ function dateConstructor(
   const argument = context.source.sourceArguments[0];
   const argumentType = argument === undefined
     ? undefined
-    : context.inputs.values.get(argument.expression)?.get(argument.type);
+    : context.inputs.values.get(argument.expression);
   if (
     context.source.sourceArguments.length > 1 ||
     argument !== undefined && argumentType === undefined

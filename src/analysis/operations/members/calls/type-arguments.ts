@@ -5,7 +5,7 @@ import type { TargetTypeRef } from "../../../../policy/types/index.js";
 
 import type { CsharpTypeQueries } from "../../../../policy/model/type-resolution.js";
 
-import { csharpTargetBindingSubstitutions, csharpTargetParameterValueType, substituteCsharpTargetMember, targetTypeRefEquals } from "../../../../policy/types/index.js";
+import { csharpTargetBindingSubstitutions, csharpTargetParameterValueType, substituteCsharpTargetMember } from "../../../../policy/types/index.js";
 
 import { selectCsharpCommonImplicitTarget } from "../../../conversions/common-target.js";
 
@@ -42,7 +42,7 @@ export function resolveProviderBindingTypeArguments(
             node: source.sourceCallee.expression,
             type: source.sourceCallee.type,
           }
-        : { type: source.sourceResultType };
+        : { node: source.call, type: source.sourceResultType };
     const targetArguments = resolveCsharpTargetBindingArguments(
       host.types,
       relation.targetBinding,
@@ -69,25 +69,20 @@ export function resolveProviderBindingTypeArguments(
     }
     const resolved = sourceArguments.map((selectedType, index) => {
       const targetType = targetArguments[index]!;
-      const selectedTarget = host.types.resolveType(selectedType, sourceFile);
-      return selectedTarget !== undefined &&
-          targetTypeRefEquals(selectedTarget, targetType)
-        ? {
+      return {
             kind: "selected-source" as const,
             targetType,
             selectedType,
-          }
-        : { kind: "target-derived" as const, targetType };
+          };
     });
     return Object.freeze(resolved);
   }
   return resolveSelectedTypeArguments(
-    host.types,
     source.sourceSelectedMethodTypeArguments ?? [],
     relation.bindingTypeParameters,
     relation.targetBinding.typeParameters?.length ?? 0,
     relation.selectedTypeParameterCount,
-    sourceFile,
+    host.types.resolveSourceCallTypeArguments(source, sourceFile),
   );
 }
 
@@ -100,6 +95,11 @@ export function resolveMethodTypeArguments(
 ): readonly CsharpSelectedTargetMethodTypeArgument[] | undefined {
   const sourceArguments = source.sourceSelectedMethodTypeArguments ?? [];
   const targetArity = relation.targetMember.typeParameters?.length ?? 0;
+  if (host.effectiveTypes.callInstantiation(source.call) !== undefined) {
+    return resolveSelectedTypeArguments(sourceArguments, relation.methodTypeParameters,
+      targetArity, relation.selectedTypeParameterCount,
+      host.types.resolveSourceCallTypeArguments(source, sourceFile));
+  }
   const bindingSubstitutions = csharpTargetBindingSubstitutions(relation.targetBinding, bindingArguments);
   if (bindingSubstitutions === undefined) return undefined;
   const member = substituteCsharpTargetMember(relation.targetMember, bindingSubstitutions);
@@ -143,12 +143,11 @@ export function resolveMethodTypeArguments(
     return carrier === undefined ? [] : [[mapping.sourceTypeParameterIndex, carrier] as const];
   }));
   return resolveSelectedTypeArguments(
-    host.types,
     sourceArguments,
     relation.methodTypeParameters,
     targetArity,
     relation.selectedTypeParameterCount,
-    sourceFile,
+    host.types.resolveSourceCallTypeArguments(source, sourceFile),
     refinements,
   );
 }
@@ -166,17 +165,15 @@ export function resolveInvocationTypeArguments(
     ? 1
     : 0;
   return resolveSelectedTypeArguments(
-    types,
     source.sourceSelectedMethodTypeArguments ?? [],
     relation.invocationTypeParameters,
     targetArity,
     relation.selectedTypeParameterCount,
-    sourceFile,
+    types.resolveSourceCallTypeArguments(source, sourceFile),
   );
 }
 
 function resolveSelectedTypeArguments(
-  types: CsharpTypeQueries,
   sourceArguments: readonly {
     readonly selectedType: Type;
     readonly explicitTypeNode?: Node;
@@ -186,7 +183,7 @@ function resolveSelectedTypeArguments(
   ],
   targetArity: number,
   sourceArity: number,
-  sourceFile: SourceFile,
+  nativeArguments: readonly TargetTypeRef[] | undefined,
   refinements: ReadonlyMap<number, TargetTypeRef> = new Map(),
 ): readonly CsharpSelectedTargetMethodTypeArgument[] | undefined {
   if (
@@ -207,11 +204,8 @@ function resolveSelectedTypeArguments(
     ) {
       return undefined;
     }
-    const targetArgument = refinements.get(typeParameterRelation.sourceTypeParameterIndex) ?? types.resolveSelectedType(
-      sourceArgument.explicitTypeNode,
-      sourceArgument.selectedType,
-      sourceFile,
-    );
+    const targetArgument = refinements.get(typeParameterRelation.sourceTypeParameterIndex) ??
+      nativeArguments?.[typeParameterRelation.sourceTypeParameterIndex];
     if (targetArgument === undefined) {
       return undefined;
     }

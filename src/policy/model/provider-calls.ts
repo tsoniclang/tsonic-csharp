@@ -8,6 +8,7 @@ import type { CsharpObjectShapePolicy } from "../../target-model/records/objects
 import type { CsharpProjectTypePolicy } from "../../target-model/records/types/project-types.js";
 import type { CsharpTypeQueries } from "./type-resolution.js";
 export interface CsharpProviderOperationHost {
+  readonly effectiveTypes: import("@tsonic/target-api/source").SourceEffectiveTypes;
   readonly sourceStorage?: SourceStorageQueries;
   readonly valueDomainCarriers?: CsharpValueDomainCarrierQueries;
   readonly sourceFacts?: ReadonlySourceFactResolver;

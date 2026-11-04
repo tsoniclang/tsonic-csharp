@@ -133,13 +133,13 @@ export function projectSourceDeclarationTargetType(
   const declaredType = host.ast.is.IsInterfaceDeclaration(declaration)
     ? queries.declarations.declaredType(declaration) : undefined;
   if (sourceCallableInterface(declaredType, queries, host.ast) !== undefined) {
-    const bound = bindCsharpSourceDeclarationArguments(scope, declaration, typeArguments, sourceArguments, state);
+    const bound = bindCsharpSourceDeclarationArguments(scope, declaration, typeArguments, sourceArguments, state, queries);
     return bound === undefined || declaredType === undefined ? undefined
       : resolveProjectCallableInterface(scope, declaration, declaredType, bound);
   }
   const base = sourceInterfaceRepresentationBase(declaration, host.ast, host.navigation, queries);
   if (base !== undefined && queries.types.isArrayLike(base.selectedType)) {
-    const bound = bindCsharpSourceDeclarationArguments(scope, declaration, typeArguments, sourceArguments, state);
+    const bound = bindCsharpSourceDeclarationArguments(scope, declaration, typeArguments, sourceArguments, state, queries);
     return bound === undefined ? undefined : scope.resolveTypeWithState(base.selectedType,
       host.semanticsFor(base.heritage).sourceFile, nextState(bound));
   }

@@ -20,6 +20,7 @@ import type { CsharpConversionClassifications, CsharpConversionIssue, CsharpExpr
 import { sealCsharpDelegateAdapterIdentities } from "./delegate-identities.js";
 
 import { selectCsharpIntegerTruncationConversion } from "./integer-truncation.js";
+import { selectCsharpSourceTypeFlowIndexConversion } from "../../policy/conversions/source-type-flow-index.js";
 import { selectCsharpExactIntegerConversion } from "../../policy/conversions/exact-integer.js";
 import { admitCsharpConversionSelection } from "./validation.js";
 import { selectCsharpUnionInjection } from "../../policy/conversions/union-relations.js";
@@ -176,8 +177,7 @@ export function analyzeCsharpConversions(
       }, (expression, source, target) => {
         const selected = classifyPair(source, target, "implicit", expression);
         return selected;
-      }, requiredRecords, issues, callConversions, { ast: policy.ast, navigation: policy.navigation,
-        semanticsFor: policy.semanticsFor, objectShapes });
+      }, requiredRecords, issues, callConversions);
       issues.push(...admitted.issues);
       delegateAdapters = sealCsharpDelegateAdapterIdentities(policy, preparedValueReads, admitted.expressions, issues);
       delegateContracts.seal();
@@ -258,7 +258,14 @@ export function analyzeCsharpConversions(
         !policy.navigation.declarationUseSummary(reference.declaration).bindingWritten)) {
       directCallables.set(expression, Object.freeze({ ...reference }));
     }
-    let candidate = selectCsharpIntegerTruncationConversion(policy, expression, sourceFile, source, target) ?? selectCsharpExpressionConversion(
+    const elementAccess = policy.ast.parent(expression);
+    const selectedElement = elementAccess === undefined ? undefined : selectedOperations.selectedElement.get(elementAccess)?.target;
+    const retainedIndex = selectedElement?.kind === "resolved" && selectedElement.source.argument.expression === expression &&
+      selectedElement.indexConversion !== undefined && targetTypeRefEquals(selectedElement.indexConversion.source, source) &&
+      targetTypeRefEquals(selectedElement.indexConversion.target, target) ? selectedElement.indexConversion.selection : undefined;
+    const indexConversion = retainedIndex ?? selectCsharpSourceTypeFlowIndexConversion(policy.effectiveTypes.get(expression),
+      selectedElement, source, target);
+    let candidate = indexConversion ?? selectCsharpIntegerTruncationConversion(policy, expression, sourceFile, source, target) ?? selectCsharpExpressionConversion(
       conversionPolicy,
       expression,
       source,
@@ -266,7 +273,7 @@ export function analyzeCsharpConversions(
       mode,
     );
     const presentTarget = getCsharpNullableElementTargetType(target) ?? target;
-    if (candidate.kind === "rejected" && sourceFile !== undefined &&
+    if (candidate.kind === "rejected" && sourceFile !== undefined && policy.effectiveTypes.get(expression) === undefined &&
       getCsharpRuntimeUnionArms(presentTarget, policy.typeDefinitions) !== undefined) {
       const checked = evidence.expressionType.get(expression);
       const member = checked === undefined ? undefined : policy.types.selectSourceUnionMember(presentTarget, checked, sourceFile);

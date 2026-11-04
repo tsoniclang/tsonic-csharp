@@ -172,7 +172,10 @@ export function createCsharpExpectedTypePropagation(
     parent?: TargetUseSiteRef,
     mode: CsharpConversionMode = "implicit",
   ): void {
-    const construction = objectShapes.resolveObjectLiteralUnionCarrier(expression, targetType) ?? targetType;
+    const effective = policy.effectiveTypes.get(expression);
+    const construction = effective === undefined ? objectShapes.resolveObjectLiteralUnionCarrier(expression, targetType) ?? targetType
+      : input.evidence.nodeTargetType.get(expression);
+    if (construction === undefined) return;
     const carrier = getCsharpNullableElementTargetType(construction) ?? construction;
     const indexedValueType = isCsharpRecordDictionaryTargetType(carrier) && carrier.kind === "target-named"
       ? carrier.typeArguments?.[1] : undefined;
@@ -335,8 +338,8 @@ export function createCsharpExpectedTypePropagation(
     parent?: TargetUseSiteRef,
     mode: CsharpConversionMode = "implicit",
   ): void {
-    const carrier = selectCsharpArrayLiteralCarrier(targetType,
-      valueReadStages.get(expression)?.operationValue, policy.typeDefinitions);
+    const carrier = policy.effectiveTypes.get(expression) === undefined ? selectCsharpArrayLiteralCarrier(targetType,
+      valueReadStages.get(expression)?.operationValue, policy.typeDefinitions) : input.evidence.nodeTargetType.get(expression);
     if (carrier === undefined) return;
     let carriers = arrayCarriers.get(expression);
     if (carriers === undefined) {
