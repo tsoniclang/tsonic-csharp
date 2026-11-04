@@ -9,6 +9,7 @@ export type CsharpNodeSyntaxChildSource = {
   readonly node: Node;
   readonly queries: SourceFileSemantics;
   readonly state: CsharpTypeResolutionState;
+  readonly typeNode: Node | undefined;
   readonly child: {
     readonly node: Node | undefined;
     readonly sourceFile: SourceFile;
@@ -36,28 +37,28 @@ export function formCsharpNodeTypeSyntaxSource(
   const { ast } = host;
   const request = (child: Node | undefined) => Object.freeze({ node: child, sourceFile: queries.sourceFile,
     state: Object.freeze(nextState(state)) });
+  const nestedSource = (kind: Exclude<CsharpNodeSyntaxChildSource["kind"], "annotation">,
+    typeNode: Node | undefined): CsharpNodeSyntaxChildSource => Object.freeze({ kind, node, queries, state,
+      typeNode, child: request(typeNode) });
   const typeNode = ast.is.IsPropertyDeclaration(node) || ast.is.IsPropertySignatureDeclaration(node) || ast.is.IsParameterDeclaration(node)
     ? ast.typeNode(node) : undefined;
   const annotation = typeNode === undefined ? undefined : Object.freeze({ kind: "annotation" as const,
-    node, queries, state, nullable: ast.questionToken(node) !== undefined, child: request(typeNode) });
+    node, queries, state, typeNode, nullable: ast.questionToken(node) !== undefined, child: request(typeNode) });
   let nested: CsharpNodeSyntaxChildSource | undefined;
-  if (ast.is.IsNamedTupleMember(node)) nested = Object.freeze({ kind: "named-tuple", node, queries, state,
-    child: request(ast.as.AsNamedTupleMember(node)!.Type) });
-  else if (ast.is.IsParenthesizedTypeNode(node)) nested = Object.freeze({ kind: "parenthesized", node, queries, state,
-    child: request(ast.as.AsParenthesizedTypeNode(node)!.Type) });
-  else if (ast.is.IsOptionalTypeNode(node)) nested = Object.freeze({ kind: "optional", node, queries, state,
-    child: request(ast.as.AsOptionalTypeNode(node)!.Type) });
-  else if (ast.is.IsRestTypeNode(node)) nested = Object.freeze({ kind: "rest", node, queries, state,
-    child: request(ast.as.AsRestTypeNode(node)!.Type) });
+  if (ast.is.IsNamedTupleMember(node)) nested = nestedSource("named-tuple", ast.as.AsNamedTupleMember(node)!.Type);
+  else if (ast.is.IsParenthesizedTypeNode(node)) nested = nestedSource("parenthesized", ast.as.AsParenthesizedTypeNode(node)!.Type);
+  else if (ast.is.IsOptionalTypeNode(node)) nested = nestedSource("optional", ast.as.AsOptionalTypeNode(node)!.Type);
+  else if (ast.is.IsRestTypeNode(node)) nested = nestedSource("rest", ast.as.AsRestTypeNode(node)!.Type);
   else if (ast.is.IsTypeOperatorNode(node) && ast.operatorKindName(node) === "KindReadonlyKeyword") {
-    nested = Object.freeze({ kind: "readonly", node, queries, state, child: request(ast.as.AsTypeOperatorNode(node)!.Type) });
+    nested = nestedSource("readonly", ast.as.AsTypeOperatorNode(node)!.Type);
   }
   return Object.freeze({ node, queries, state, annotation, nested });
 }
 
 export function assertCsharpNodeSyntaxChildSource(source: CsharpNodeSyntaxChildSource): void {
   if (source === undefined || source.node === undefined || source.queries === undefined || source.state === undefined ||
-      source.child === undefined || source.child.state === undefined || source.child.sourceFile !== source.queries.sourceFile ||
+      !Object.prototype.hasOwnProperty.call(source, "typeNode") || source.child === undefined || source.child.state === undefined ||
+      source.child.node !== source.typeNode || source.child.sourceFile !== source.queries.sourceFile ||
       !["annotation", "named-tuple", "parenthesized", "optional", "rest", "readonly"].includes(source.kind) ||
       source.kind === "annotation" && (source.child.node === undefined || typeof source.nullable !== "boolean") ||
       source.child.state.depth !== source.state.depth + 1 ||
