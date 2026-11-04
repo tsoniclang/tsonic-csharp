@@ -28,7 +28,7 @@ export type CsharpSemanticTupleSource = {
       readonly elements: readonly CsharpSemanticTupleElementSource[] }
 );
 
-function completeElementVector(elements: readonly (Type | undefined)[]): boolean {
+function completeElementVector(elements: readonly (Type | undefined)[]): elements is readonly Type[] {
   for (let index = 0; index < elements.length; index += 1) {
     if (!Object.prototype.hasOwnProperty.call(elements, index) || elements[index] === undefined) return false;
   }
