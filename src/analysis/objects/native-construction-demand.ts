@@ -66,14 +66,14 @@ export function createCsharpNativeConstructionDemandQuery(
     while (descriptor?.kind === "optional") descriptor = descriptor.value;
     const component = descriptor?.kind === "declared" ? descriptor.source ?? effective?.provenance.component
       : effective?.provenance.component;
-    const selected = component?.selectedType;
     const checkedContext = queries.types.contextualValueSelection(node);
+    const selected = effective === undefined && checkedContext.kind === "selected"
+      ? checkedContext.component.selectedType : component?.selectedType;
     if (queries.types.isAny(source) || selected !== undefined && queries.types.isAny(selected) ||
       checkedContext.kind === "selected" && queries.types.isAny(checkedContext.component.selectedType)) {
       issue(node, "TSONIC_ANY_UNSUPPORTED", "'any' has no native representation. Declare the type, or use 'unknown' and narrow it.");
       return;
     }
-    if (effective === undefined) return;
     const expected = host.resolveEffectiveShape(node, queries.sourceFile);
     if (expected === undefined) return;
     const declaration = host.ast.parent(node);
@@ -120,7 +120,8 @@ export function createCsharpNativeConstructionDemandQuery(
       return;
     }
     if (resolved.kind === "resolved") retain(resolved.shape);
-    if (effective.kind === "default" && variable?.Initializer === node) selectLocalValue(declaration!, source, node);
+    if (variable?.Initializer === node && (effective?.kind === "default" ||
+      effective === undefined && checkedContext.kind === "unavailable")) selectLocalValue(declaration!, source, node);
   };
   const selectLocalValue = (declaration: Node, source: Type, expression?: Node): void => {
     if (sourceDeclarationIsModuleScoped(declaration, host.ast)) return;

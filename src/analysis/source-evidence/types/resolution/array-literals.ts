@@ -1,6 +1,6 @@
 import type { CsharpArrayLiteralSelection } from "../../../../target-model/records/operations/array-literals.js";
 import type { Node } from "@tsonic/tsts";
-import { sourceSequenceInputChoice, sourceSequenceInputIsEmpty, type SourceFileSemantics } from "@tsonic/target-api/source";
+import { sourceExpressionCallArgument, sourceSequenceInputChoice, sourceSequenceInputIsEmpty, type SourceFileSemantics } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { CsharpTypeResolutionState } from "./model.js";
@@ -24,7 +24,8 @@ export function resolveCsharpArrayLiteralSelection(
   const { host } = scope;
   if (!host.ast.is.IsArrayLiteralExpression(node)) return unavailable;
   const effective = resolveCsharpSourceEffectiveType(scope, node, state);
-  const carrier = effective?.result?.selectedType;
+  const carrier = effective === undefined ? resolveDeclaredArrayCarrier(scope, node, queries, state)
+    : effective.result?.selectedType;
   if (carrier === undefined) return unavailable;
   const presentCarrier = getCsharpGenericOptionalParts(carrier)?.element ?? getCsharpNullableElementTargetType(carrier) ?? carrier;
   const element = getCsharpCollectionElementTargetType(presentCarrier);
@@ -78,4 +79,26 @@ export function resolveCsharpArrayLiteralSelection(
   return !complete ? unavailable : mismatch ? Object.freeze({ kind: "rejected",
     reason: "An array element cannot retain the exact Host-selected native element carrier." })
     : Object.freeze({ kind: "resolved", carrier, elementCarriers: Object.freeze(elements) });
+}
+
+function resolveDeclaredArrayCarrier(
+  scope: CsharpTypeResolutionScope,
+  node: Node,
+  queries: SourceFileSemantics,
+  state: CsharpTypeResolutionState,
+): TargetTypeRef | undefined {
+  const { host } = scope;
+  const argument = sourceExpressionCallArgument(node, { ast: host.ast, semantics: { forNode: host.semanticsFor } });
+  if (argument !== undefined) {
+    const callQueries = host.semanticsFor(argument.call);
+    const call = callQueries.operations.call(argument.call);
+    const bindings = call?.sourceArgumentBindings.filter(binding =>
+      binding.sourceForm === "value" && binding.sourceArgumentIndex === argument.argumentIndex);
+    const binding = bindings?.length === 1 ? bindings[0] : undefined;
+    return call === undefined || binding === undefined ? undefined
+      : scope.resolveSourceCallArgumentParameter(call, binding, callQueries.sourceFile, new Set([argument.argumentIndex]));
+  }
+  const context = queries.types.contextualValueSelection(node);
+  return context.kind === "selected" ? scope.resolveSourceTypeComponentEvidence(context.component, queries, nextState(state))
+    : scope.resolveTypeWithState(queries.types.expressionType(node), queries.sourceFile, nextState(state));
 }
