@@ -58,8 +58,9 @@ function associatedParameter(
   node: Node,
   association: SourceTypeFlowAssociation | undefined,
 ): TargetTypeRef | undefined {
-  const call = association?.call;
-  const binding = association?.binding;
+  if (association === undefined) return undefined;
+  const call = association.call;
+  const binding = association.binding;
   if (call === undefined || binding === undefined || association.parameter === undefined ||
     !call.sourceArgumentBindings.includes(binding) ||
     call.sourceSelectedSignatureParameters[binding.sourceParameterIndex] !== association.parameter ||

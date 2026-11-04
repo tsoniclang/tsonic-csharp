@@ -370,7 +370,7 @@ export function createCsharpObjectShapePolicy(
     }
     activeTypes.add(type);
     try {
-      const selectedType = selectedTarget ?? (authoredTypeRoot === undefined
+      const selectedType = selectedTarget ?? (node !== undefined ? undefined : authoredTypeRoot === undefined
         ? host.typeResolver.resolveType(
           type,
           queries.sourceFile,

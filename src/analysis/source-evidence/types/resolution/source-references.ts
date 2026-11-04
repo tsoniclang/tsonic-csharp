@@ -543,7 +543,7 @@ export function resolveSourceValueResult(
   state: CsharpTypeResolutionState,
   selectedType?: Type,
 ): CsharpSourceCallResult | undefined {
-  const { host, resolveAuthoredAndSelectedSourceType, resolveDirectSourceFacts, resolveNodeWithState, resolveNodeValueWithState, resolveSelectedExpressionResult, resolveTypeWithState, sourceValueDeclaration, sourceValueDeclarationSyntax } = scope;
+  const { host, resolveAuthoredAndSelectedSourceType, resolveDirectSourceFacts, resolveNodeValueWithState, resolveSelectedExpressionResult, resolveTypeWithState, sourceValueDeclaration, sourceValueDeclarationSyntax } = scope;
   const effective = resolveCsharpSourceEffectiveType(scope, node, state);
   if (effective !== undefined) return effective.result;
   const reference = host.navigation.referenceFor(node);
