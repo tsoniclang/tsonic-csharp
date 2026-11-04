@@ -38,7 +38,7 @@ export function compileCsharpNativeUseSource(options) {
       return issue.code === original.code && issue.category === original.category && issue.message === original.message &&
         issue.source === original.source && issue.evidence === original.evidence;
     }), true, "the public diagnostic projection retains every native code, category, message, owner and evidence");
-  return { ...compiled, nativeStage };
+  return { ...compiled, nativeStage, targetSource: nativeStage?.source };
 }
 
 export function createExpectedNativeUseOwner(compiled) {

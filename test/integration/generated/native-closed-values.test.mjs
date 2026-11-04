@@ -7,7 +7,7 @@ import { annotatedEmptyValues, assertUnfilledEmptyObject } from "../../helpers/s
 
 for (const surface of [undefined, "js"]) {
   test(`native closed values retain exact primitive, absence and shared-object operations in ${surface ?? "native"}`, { timeout: 300_000 }, () => {
-    assertUnfilledEmptyObject(surface, nativeClosedValuesSource);
+    assertUnfilledEmptyObject(surface, nativeClosedValuesSource, 2);
   });
 
   test(`annotated native closed values retain every primitive absence and identity predicate in ${surface ?? "native"}`, { timeout: 300_000 }, () => {

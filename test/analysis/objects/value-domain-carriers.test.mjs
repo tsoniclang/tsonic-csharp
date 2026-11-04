@@ -339,7 +339,7 @@ test("sealed value domains retain exact source identity without source or physic
 });
 
 test("readonly freeze preserves native identity across broad aliases without closed-origin state", () => {
-  for (const index of [0, 1]) assertUnfilledEmptyObject("js", frozenEmptyStorageSources[index][1]);
+  for (const index of [0, 1]) assertUnfilledEmptyObject("js", frozenEmptyStorageSources[index][1], index + 1);
 });
 
 test("annotated readonly freeze preserves every original broad-alias identity and no-fallback predicate", () => {

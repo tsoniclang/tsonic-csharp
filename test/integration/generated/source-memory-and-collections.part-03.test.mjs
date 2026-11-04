@@ -59,7 +59,7 @@ export function run(): boolean {
 }`;
 
 test("broad values collapse absence and preserve source reference identity", { timeout: 300_000 }, () => {
-  assertUnfilledEmptyObject("js", broadReferenceSource);
+  assertUnfilledEmptyObject("js", broadReferenceSource, 2);
 });
 
 test("annotated broad values preserve every original collapsed-absence and reference-identity predicate", { timeout: 300_000 }, () => {

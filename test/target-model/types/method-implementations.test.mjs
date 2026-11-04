@@ -48,6 +48,17 @@ test("shape equality retains finalized method evidence instead of trusting its i
   }
 });
 
+test("shape equality agrees with canonical required-presence and unbound-storage bits", () => {
+  for (const [flag, label] of [["optional", "presence"], ["bound", "storage"]]) {
+    const explicitFalse = { ...shape, members: [{ ...member, [flag]: false }] };
+    const selected = { ...shape, members: [{ ...member, [flag]: true }] };
+    assert.equal(csharpObjectShapesEqual(shape, explicitFalse), true, `${label}: false and absent have the same native contract`);
+    assert.equal(csharpObjectShapesEqual(explicitFalse, shape), true, `${label}: equality is symmetric`);
+    assert.equal(csharpObjectShapesEqual(shape, selected), false, `${label}: a true native bit remains distinct`);
+    assert.equal(csharpObjectShapesEqual(selected, explicitFalse), false, `${label}: a selected bit is never erased`);
+  }
+});
+
 test("generic shape substitution preserves immutable authored declaration evidence", () => {
   const result = substituteObjectShapeFactTargetTypeParameters(shape, new Map());
   assert.equal(csharpObjectShapeMethodDeclaration(result, member), declaration);

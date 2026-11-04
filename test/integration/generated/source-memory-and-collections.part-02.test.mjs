@@ -72,7 +72,7 @@ test(`logical accessor assignments preserve both lanes and short-circuit effects
   });
 
 test(`non-nullish unknown retains its value and identity in ${surface ?? "native"}`, { timeout: 300_000 }, () => {
-    assertUnfilledEmptyObject(surface, broadValueNarrowingSource);
+    assertUnfilledEmptyObject(surface, broadValueNarrowingSource, 2);
   });
 
 test(`annotated non-nullish unknown retains every original value and identity predicate in ${surface ?? "native"}`, { timeout: 300_000 }, () => {
