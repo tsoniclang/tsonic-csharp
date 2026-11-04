@@ -6,7 +6,7 @@ import { HasSyntacticModifier, ModifierFlagsAsync, sourceExpressionCallArgument,
 import type { CsharpTypePolicy } from "./types/resolution/model.js";
 
 import type { TargetTypeRef } from "../../target-model/types/model.js";
-import { csharpTaskTargetType, csharpVoidTargetType, getCsharpTaskResultTargetType, targetTypeRefEquals } from "../../policy/types/index.js";
+import { csharpTaskTargetType, getCsharpTaskResultTargetType, targetTypeRefEquals } from "../../policy/types/index.js";
 import { forEachCsharpDirectReturnExpression } from "../callables/calls/return-expressions.js";
 
 export function isCsharpFlowReadEvidenceNode(
@@ -52,7 +52,8 @@ export function inferCallableReturnType(
       else returned.push(asynchronous ? getCsharpTaskResultTargetType(selected) ?? selected : selected);
     });
     if (incomplete) return undefined;
-    const selected = returned[0] ?? csharpVoidTargetType();
+    if (returned.length === 0) return types.resolveSelectedType(authoredReturn, signatures[0]!.returnType, sourceFile);
+    const selected = returned[0]!;
     return returned.every(type => targetTypeRefEquals(type, selected))
       ? asynchronous ? csharpTaskTargetType(selected) : selected
       : undefined;
