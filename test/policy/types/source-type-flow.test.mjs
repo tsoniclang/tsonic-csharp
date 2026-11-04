@@ -83,7 +83,7 @@ test("literal admission uses the retained authored value and rejects before publ
   } } } };
   const issue = checkCsharpSourceTypeFlowObligation(host, { kind: "literal-admission", site, required: site, value: site, type: primitive("int32") });
   assert.equal(issue?.sourceNode === site && issue.code === "CSHARP_UNSUPPORTED_AST" && issue.source === "tsonic-csharp", true);
-  assert.equal(issue.message, "The retained source literal is not representable as 'source:int32'.");
+  assert.equal(issue.message, "Source bigint literal is outside the exact 'int32' range.");
   assert.equal(reads, 1, "no late source query or literal reconstruction");
 });
 

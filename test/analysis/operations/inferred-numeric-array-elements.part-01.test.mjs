@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { assertPublishedRefusal } from "../../helpers/source-effective-types.mjs";
+import { assertPublishedMixedConstructionRefusals, assertPublishedRefusal } from "../../helpers/source-effective-types.mjs";
 import { compileCsharpNativeUseSource } from "../../helpers/expected-native-uses.mjs";
 import { getCsharpArrayLiteralElementTargetType } from "../../../dist/target-model/types/carriers/collections.js";
 import { getCsharpRuntimeUnionArms } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
@@ -251,7 +251,7 @@ test(`${surface} an annotated float32/${type} destination retains its actual nat
 }
 
 test(`${surface} native float32 inference and actual explicit destinations preserve their distinct contracts`, () => {
-    const program = accepted(compile(surface, `
+    const original = `
       export function inferred(narrow: float32, signed: int16, unsigned: uint16): number {
         const narrowSigned = [narrow, signed]; const narrowUnsigned = [unsigned, narrow];
         const signedNarrow = [signed, narrow]; const unsignedNarrow = [narrow, unsigned];
@@ -264,7 +264,16 @@ test(`${surface} native float32 inference and actual explicit destinations prese
       export function explicit(narrow: float32, signed: int32): number {
         const actualDouble: number[] = [narrow, signed]; const actualSingle: float32[] = [narrow, signed];
         return actualDouble[1] + actualSingle[1];
-      }`));
+      }`;
+    assertPublishedMixedConstructionRefusals(compile(surface, original));
+    let companion = original;
+    for (const name of ["narrowSigned", "narrowUnsigned", "signedNarrow", "unsignedNarrow"]) {
+      companion = companion.replace(`const ${name} =`, `const ${name}: float32[] =`);
+    }
+    for (const name of ["decimal", "decimalReverse", "computed", "integerPastSingle"]) {
+      companion = companion.replace(`const ${name} =`, `const ${name}: number[] =`);
+    }
+    const program = accepted(compile(surface, companion));
     const carriers = arrays(program);
     for (const name of ["narrowSigned", "narrowUnsigned", "signedNarrow", "unsignedNarrow", "half", "quarter", "halfReverse", "actualSingle"]) assert.equal(
       carriers.get(name)?.kind === "source-primitive" && carriers.get(name)?.name === "float32", true,
@@ -275,7 +284,7 @@ test(`${surface} native float32 inference and actual explicit destinations prese
   });
 
 test(`${surface} bare two arms and integer literal three arms retain every physical contribution`, () => {
-    const program = accepted(compile(surface, `
+    const original = `
       export function run(signed: int32, unsigned: uint32): boolean {
         const bare = [signed, unsigned]; const reverse = [unsigned, signed];
         const left = [signed, unsigned, 1]; const middle = [signed, 1, unsigned]; const right = [1, signed, unsigned];
@@ -289,7 +298,14 @@ test(`${surface} bare two arms and integer literal three arms retain every physi
       const signed: int32 = 1; const wide: int64 = 9007199254740993n; const narrow: float32 = 0.5;
       export const genuine = [signed, wide]; export const floatWide = [narrow, wide];
       export const sameWide = [wide, wide]; export const fittingWide = [wide, 1];
-      export const exactWideLiteral = [wide, 9007199254740993];`));
+      export const exactWideLiteral = [wide, 9007199254740993];`;
+    assertPublishedMixedConstructionRefusals(compile(surface, original));
+    let companion = original;
+    for (const name of ["bare", "reverse"]) companion = companion.replace(`const ${name} =`, `const ${name}: (int32 | uint32)[] =`);
+    for (const name of ["left", "middle", "right", "wrapped"]) {
+      companion = companion.replace(`const ${name} =`, `const ${name}: (int32 | uint32 | number)[] =`);
+    }
+    const program = accepted(compile(surface, companion));
     const carriers = arrays(program);
     for (const name of ["bare", "reverse"]) {
       const arms = getCsharpRuntimeUnionArms(carriers.get(name), program.typeDefinitions);

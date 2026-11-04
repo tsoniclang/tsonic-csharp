@@ -112,6 +112,7 @@ test("selected values replace an enclosing operation owner for both syntax and c
             return available ? { kind: "resolved", subject: operand } : { kind: "unresolved", reason: "no exact owner" };
           } },
           representations: { genericProjections: () => [], scopedTargetType: () => undefined },
+          structuralTypes: { resolveTarget: () => assert.fail("these exact unknown/primitive Native unit operands have no structural union member") },
           semantics: () => queries,
         },
         sourceValueDeclaration: () => undefined,

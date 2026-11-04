@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { assertPublishedRefusal } from "../../helpers/source-effective-types.mjs";
+import { assertPublishedMixedConstructionRefusals, assertPublishedRefusal } from "../../helpers/source-effective-types.mjs";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { compileCsharpNativeUseSource } from "../../helpers/expected-native-uses.mjs";
@@ -16,10 +16,44 @@ import { isCsharpStringTargetType, isCsharpJsStringTargetType } from "../../../d
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 import { destinationBodies, destinationPrograms, unionDestinationPrograms, sourceText, carriers, nativeArrayElements, physicalForms, operationControls, expectedOperationRefusals } from "./inferred-numeric-array-elements.fixtures.mjs";
 
+function annotatedNumericProgram() {
+  let companion = sourceText;
+  for (const [name, element] of [
+    ["bareValues", "int32 | uint32"], ["reverseValues", "int32 | uint32"],
+    ["leftValues", "int32 | uint32 | number"], ["middleValues", "int32 | uint32 | number"],
+    ["rightValues", "int32 | uint32 | number"], ["wrappedValues", "int32 | uint32 | number"],
+    ["hugeValues", "int32 | uint32 | number"], ["floatWideValues", "float32 | int64"],
+  ]) {
+    const original = `const ${name} =`;
+    assert.equal(companion.includes(original), true, `${name}: the identical original declaration is retained`);
+    companion = companion.replace(original, `const ${name}: (${element})[] =`);
+  }
+  for (const [original, annotated] of [
+    ["export function small(narrow: float32, signed: int16, unsigned: uint16)",
+      "export function small(narrow: float32, signed: int16, unsigned: uint16): (float32 | int16 | uint16)[]"],
+    ["export function decimal(narrow: float32)", "export function decimal(narrow: float32): number[]"],
+    ["export function integerPastSingle(narrow: float32)", "export function integerPastSingle(narrow: float32): number[]"],
+    ["const values = [signedEffect(), unsignedEffect(), fractionEffect()]",
+      "const values: (int32 | uint32 | float64)[] = [signedEffect(), unsignedEffect(), fractionEffect()]"],
+  ]) {
+    assert.equal(companion.includes(original), true, "the companion changes only the actual construction's declared slot");
+    companion = companion.replace(original, annotated);
+  }
+  for (const program of destinationPrograms) {
+    const element = program.native === "float" ? "float32" : "number";
+    const annotated = program.source.replace("const values =", `const values: ${element}[] =`);
+    assert.equal(companion.includes(program.source), true, `${program.name}: every original function body is retained`);
+    companion = companion.replace(program.source, annotated);
+  }
+  return companion;
+}
+
 for (const surface of Array.from(["native", "js"]).slice(0, 2)) {
 test(`${surface} inferred numeric arrays preserve values, physical arms, rounding boundaries and native costs`,
   { timeout: 300_000 }, () => {
-    const compiled = compileCsharpNativeUseSource({ sourceText, surface });
+    assertPublishedMixedConstructionRefusals(compileCsharpNativeUseSource({ sourceText, surface }));
+    const companion = annotatedNumericProgram();
+    const compiled = compileCsharpNativeUseSource({ sourceText: companion, surface });
     assertCsharpCompilationSucceeded(compiled);
     const selected = carriers(compiled.result.program);
     const arms = name => {
@@ -204,7 +238,7 @@ if (counterBytes <= native_bare) throw new System.Exception("the native allocati
 System.Console.WriteLine("numeric arrays: exact native values and costs");`;
     const root = new URL(`../../../.temp/C01-inferred-numeric-array-elements/${surface}/`, import.meta.url);
     mkdirSync(root, { recursive: true });
-    writeFileSync(new URL("source-and-native.json", root), JSON.stringify({ sourceText, nativeProgram, artifacts: [...compiled.artifacts] }, null, 2));
+    writeFileSync(new URL("source-and-native.json", root), JSON.stringify({ sourceText: companion, originalSourceText: sourceText, nativeProgram, artifacts: [...compiled.artifacts] }, null, 2));
     const output = executeCsharpConstruction(compiled, `C01-inferred-numeric-${surface}`, false, false, [], nativeProgram);
     writeFileSync(new URL("native-output.txt", root), output);
     assert.equal(output.trim().endsWith("numeric arrays: exact native values and costs"), true,
@@ -230,7 +264,7 @@ test(`${surface} a nested generic union argument compiles in its actual native a
 }
 
 test("C130 js plain key relations and numeric-union join remain native", { timeout: 300_000 }, () => {
-  const compiled = compileCsharpNativeUseSource({ surface: "js", sourceText: `
+  const original = `
     import type { int32, uint32 } from "@tsonic/core/types.js";
     export function check(): boolean {
       const numbers: number[] = [1, 2, 1]; const strings: string[] = ["a", "b", "a"];
@@ -239,7 +273,11 @@ test("C130 js plain key relations and numeric-union join remain native", { timeo
     }
     export function join(signed: int32, unsigned: uint32): string {
       const values = [signed, unsigned]; return values.join(",");
-    }` });
+    }`;
+  const refused = compileCsharpNativeUseSource({ surface: "js", sourceText: original });
+  assertPublishedRefusal(refused, "TSONIC_LOCAL_TYPE_MIXED_ELEMENTS", "[signed, unsigned]");
+  const compiled = compileCsharpNativeUseSource({ surface: "js",
+    sourceText: original.replace("const values = [signed, unsigned]", "const values: (int32 | uint32)[] = [signed, unsigned]") });
   assertCsharpCompilationSucceeded(compiled);
   const output = executeCsharpConstruction(compiled, "C130-proven-array-keys", false, false, [], `
     if (!Tsonic.Generated.Index.check() || Tsonic.Generated.Index.join(1, 1) != "1,1")

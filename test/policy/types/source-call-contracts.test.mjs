@@ -599,6 +599,11 @@ test("native overload binders remap only through exact checked implementation co
     const contract = { sourceDeclaration: implementation,
       nativeSignature: { methodTypeParameterIdentities: [native.identity] } };
     const scope = { host: { ast: program.ast, navigation: program.navigation, effectiveTypes: program.effectiveTypes,
+      typeParameterConstraints: createCsharpSourceTypeParameterEnvironment(program.ast, declaration => {
+        assert.equal(program.ast.as.AsTypeParameterDeclaration(declaration).Constraint, undefined,
+          "the real overload binders have no authored constraints");
+        return Object.freeze({ kind: "resolved", constraints: Object.freeze([]) });
+      }),
       moduleCallables: { get: () => undefined }, semantics: () => queries, representations: { genericProjections: () => [] } } };
     return { scope, source, contract, foreign, foreignParameter, queries };
   };

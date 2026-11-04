@@ -220,8 +220,12 @@ test(`${surface} an annotated physical array preserves the original later incomp
   });
 
 test(`${surface} an erased callable does not admit or reject its numeric body`, () => {
-    accepted(compile(surface, `export function run(narrow: float32, signed: int32): number {
-      void (() => { const values = [narrow, signed]; return values[0]; }); return 7; }`));
+    const original = `export function run(narrow: float32, signed: int32): number {
+      void (() => { const values = [narrow, signed]; return values[0]; }); return 7; }`;
+    const compiled = compile(surface, original);
+    assertPublishedRefusal({ ...compiled, targetSource: compiled.nativeStage.source },
+      "TSONIC_LOCAL_TYPE_MIXED_ELEMENTS", "[narrow, signed]");
+    accepted(compile(surface, original.replace("const values =", "const values: float32[] =")));
   });
 
 test(`${surface} a stored callable retains numeric body admission after a discarded read`, () => {

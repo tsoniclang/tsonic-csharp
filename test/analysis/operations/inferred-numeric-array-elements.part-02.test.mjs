@@ -59,7 +59,7 @@ test(physicalKey, () => {
       const compiled = compile(surface, source);
       assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
       const ast = compiled.nativeStage.source.ast;
-      const issues = compiled.targetDiagnostics;
+      const issues = compiled.result.diagnostics;
       assert.equal(issues.length === 2 && issues.every(issue => {
         const matching = compiled.nativeStage.source.effectiveTypes.refusals().filter(refusal =>
           refusal.code === "TSONIC_LOCAL_TYPE_MIXED_ELEMENTS" && refusal.site === issue.sourceNode);

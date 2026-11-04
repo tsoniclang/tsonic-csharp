@@ -80,6 +80,25 @@ export function assertPublishedRefusal(compiled, code, siteText) {
   assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true, "a refused source publishes no target program or artifacts");
 }
 
+export function assertPublishedMixedConstructionRefusals(compiled) {
+  assert.equal(compiled.sourceDiagnosticsText, "", "the original mixed programs remain valid checked Source");
+  const source = compiled.nativeStage.source;
+  const issues = compiled.result.diagnostics.filter(issue => issue.category === "error");
+  assert.equal(issues.length > 0, true, "the original open mixed constructions are refused");
+  const sites = new Set();
+  for (const issue of issues) {
+    assert.equal(issue.code, "TSONIC_LOCAL_TYPE_MIXED_ELEMENTS", "no other Source or Native failure is accepted as C19");
+    assert.equal(issue.source, "tsonic", "the canonical mixed-element refusal is Host-owned");
+    assert.equal(issue.message, "This array literal mixes different fixed source types. Annotate the array and convert its elements explicitly.");
+    assert.equal(source.ast.is.IsArrayLiteralExpression(issue.sourceNode), true, "the refusal retains the actual construction");
+    assert.equal(source.effectiveTypes.refusals().filter(refusal => refusal.code === issue.code &&
+      refusal.site === issue.sourceNode && refusal.reason === issue.message).length, 1, "one identical real publication per rejection");
+    sites.add(issue.sourceNode);
+  }
+  assert.equal(sites.size, issues.length, "each refused construction is a distinct checked occurrence");
+  assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true, "no refused construction reaches publication");
+}
+
 export function assertNativeEffectiveRefusal(compiled, message, siteText) {
   const issues = compiled.result.diagnostics.filter(issue => issue.category === "error");
   assert.equal(issues.length, 1, "one exact native obligation refusal stops publication");

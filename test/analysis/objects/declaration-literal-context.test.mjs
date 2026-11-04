@@ -128,19 +128,31 @@ function checkedArrayFixture(elements) {
   const expression = expressions[0];
   const queries = source.semantics.forNode(expression);
   const outcome = source.effectiveTypes.get(expression);
-  assert.equal(outcome !== undefined && outcome.kind !== "refused" && outcome.type.kind === "array" &&
+  const assertion = source.ast.parent(expression);
+  const annotation = source.ast.as.AsAsExpression(assertion).Type;
+  const declared = queries.types.authoredType(annotation);
+  assert.equal(declared !== undefined && queries.types.isArrayLike(declared) &&
+    source.ast.getSourceFile(annotation) === queries.sourceFile, true,
+    "the exact checked array declaration and Native unit occurrence share this real Source publication");
+  if (outcome !== undefined) assert.equal(outcome.kind !== "refused" && outcome.type.kind === "array" &&
     outcome.provenance.occurrence === expression, true, "the real array and its chosen carrier share the exact compiled Source publication");
-  return { source, expression, queries, sourceFile: source.ast.getSourceFile(expression) };
+  else assert.equal(source.ast.elements(expression).some(node => node === undefined || source.ast.is.IsOmittedExpression(node)), true,
+    "only the real sparse construction is outside the exact C29 descriptor domain");
+  return { source, expression, queries, declared, sourceFile: source.ast.getSourceFile(expression) };
 }
 
 test("missing native input evidence never fabricates a literal element conversion", () => {
   for (const [label, elements] of [["missing carrier", "1n"], ["missing checked type", "1n"],
     ["missing dense entry", "1n, , 3n"], ["unproven spread operand", "...input"]]) {
-    const { source, expression, queries } = checkedArrayFixture(elements);
+    const { source, expression, queries, declared } = checkedArrayFixture(elements);
     const scope = { host: { target: { id: "csharp" }, typeParameterConstraints: {},
       effectiveTypes: source.effectiveTypes, ast: source.ast,
       literalValues: { literalValue: { get: () => undefined } } },
       resolveTypeWithState: () => assert.fail("the removed raw array type path must not be queried"),
+      resolveSourceTypeComponentEvidence: component => {
+        assert.equal(component.selectedType === declared, true, "the outside-domain Native boundary uses its exact checked annotation");
+        return { kind: "array", element: { kind: "source-primitive", name: "int64" } };
+      },
       resolveNodeWithState: () => undefined };
     const selected = resolveCsharpArrayLiteralSelection(scope, expression, queries, { depth: 0 });
     assert.equal(selected.kind, "unavailable", `${label}: every native construction input must be proved`);
@@ -154,6 +166,7 @@ test("the Native array resolver keeps the Host carrier and visits later children
   const observed = [];
   const scope = { host: { target: { id: "csharp" }, typeParameterConstraints: {},
     effectiveTypes: source.effectiveTypes, ast: source.ast,
+    projectTypes: () => ({ directSupertypes: () => assert.fail("an exact scalar identity needs no Native hierarchy query") }),
     literalValues: { literalValue: { get: () => undefined } } },
     resolveTypeWithState: () => assert.fail("the Host-selected array never falls back to its checked Type"),
     resolveNodeWithState(node, file, state) {

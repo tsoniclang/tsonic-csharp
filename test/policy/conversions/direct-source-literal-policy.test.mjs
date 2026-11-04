@@ -23,7 +23,7 @@ test("the explicit JS surface retains JavaScript numeric representation", () => 
 
 test("signed pure C# literals apply the same exact representation policy", () => {
   const compiled = compileEffectiveSource("native", "export function run(): boolean { const value = -2147483649; return value < 0; }");
-  assertNativeEffectiveRefusal(compiled, "The retained source literal is not representable as 'source:int32'.", "-2147483649");
+  assertNativeEffectiveRefusal(compiled, "Source bigint literal is outside the exact 'int32' range.", "-2147483649");
 });
 
 test("annotated signed literals preserve the original exact negative values and selected floating destination", () => {

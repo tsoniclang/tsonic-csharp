@@ -3,7 +3,8 @@ import test from "node:test";
 import { csharpJsObjectCallPolicies } from "../../../dist/policy/operations/source-profiles/js/objects.js";
 import { csharpBigIntegerTargetType, csharpNullableTargetType, csharpObjectTargetType, csharpSourcePrimitiveTargetType,
   csharpStringTargetType, csharpTargetNamedType, getCsharpNullableElementTargetType, targetTypeRefEquals } from "../../../dist/target-model/types/index.js";
-import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { assertCsharpCompilationSucceeded, checkCsharpSource, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 
 const selectedIs = csharpJsObjectCallPolicies.find(policy =>
@@ -11,19 +12,30 @@ const selectedIs = csharpJsObjectCallPolicies.find(policy =>
 const primitives = ["int8", "uint8", "int16", "uint16", "int32", "uint32", "int64", "uint64",
   "nativeInt", "nativeUint", "int128", "uint128", "float16", "float32", "float64", "decimal", "bool", "char"];
 
-function select(value, other) {
-  const arguments_ = [value, other].map(() => ({ expression: {}, type: {} }));
-  return selectedIs.select({
-    source: { sourceSelectedSignatureKind: "resolved", sourceSelectedSignatureParameters: [{}, {}],
-      sourceArguments: arguments_, sourceArgumentBindings: arguments_.map((_, index) => ({
-        sourceArgumentIndex: index, effectiveArgumentIndex: index, sourceParameterIndex: index, sourceForm: "value",
-      })) },
-    inputs: { values: new Map(arguments_.map((argument, index) => [argument.expression,
-      new Map([[argument.type, [value, other][index]]])])) },
-  });
+function fixture() {
+  const checked = checkCsharpSource({ surface: "js", sourceText:
+    "export function run(value: unknown, other: unknown): boolean { return Object.is(value, other); }" });
+  assert.equal(checked.sourceDiagnosticsText, "", "the Native unit uses a valid checked call");
+  const program = createTargetSourceProgram(checked.source);
+  const calls = [];
+  const visit = node => {
+    if (program.ast.is.IsCallExpression(node)) calls.push(node);
+    program.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+  };
+  program.sourceFiles.filter(file => !program.ast.isDeclarationFile(file)).forEach(visit);
+  assert.equal(calls.length, 1, "one original Object.is occurrence");
+  const source = program.semantics.forNode(calls[0]).operations.call(calls[0]);
+  assert.equal(source.call === calls[0] && source.sourceArguments.length === 2 &&
+    source.sourceArgumentBindings.every((binding, index) => binding.sourceArgumentIndex === index &&
+      binding.effectiveArgumentIndex === index && binding.sourceParameterIndex === index), true,
+    "the real publication retains both original ordered argument bindings");
+  return (value, other) => selectedIs.select({ source,
+    inputs: { values: new Map(source.sourceArguments.map((argument, index) =>
+      [argument.expression, [value, other][index]])) } });
 }
 
 test("Object.is publishes exact completed native scalar slots without widening or boxing", () => {
+  const select = fixture();
   const carriers = [...primitives.map(csharpSourcePrimitiveTargetType), csharpStringTargetType(), csharpBigIntegerTargetType()];
   for (const value of carriers) {
     for (const other of carriers) {
@@ -41,6 +53,7 @@ test("Object.is publishes exact completed native scalar slots without widening o
 });
 
 test("Object.is keeps one explicit closed-value boundary for non-scalar and absent inputs", () => {
+  const select = fixture();
   const record = csharpTargetNamedType("project.Record", undefined, undefined, { allowsRefLikeTypeArguments: [] });
   for (const pair of [[record, record], [csharpNullableTargetType(record), record],
     [undefined, csharpSourcePrimitiveTargetType("int64")]]) {

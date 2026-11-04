@@ -134,13 +134,19 @@ for (const surface of ["native", "js"]) {
   for (const operator of ["?:", "??", "||", "&&"]) {
     test(`${surface} initializer ${operator} links both read arms without changing a selected call`, () => {
       const expression = operator === "?:" ? "flag ? left : right" : `left ${operator} right`;
-      const compiled = compileEffectiveSource(surface, `${header}
+      const sourceText = `${header}
         function sum(values: number[]): void { void values; }
         export function run(flag: boolean): boolean {
           const left = [1]; const right = [2]; const selected = ${expression};
           sum(selected); return left[0] === 1 && right[0] === 2;
         }
-      `);
+      `;
+      let compiled = compileEffectiveSource(surface, sourceText);
+      if (operator === "||" || operator === "&&") {
+        assertNativeEffectiveRefusal(compiled, "C# conditional-value operators require an exact bool condition.", expression);
+        for (const name of ["left", "right", "selected"]) assertArrayOccurrences(compiled, name, "float64");
+        compiled = compileEffectiveSource(surface, sourceText.replace(expression, "flag ? left : right"));
+      }
       acceptedEffectiveSource(compiled);
       for (const name of ["left", "right", "selected"]) assertArrayOccurrences(compiled, name, "float64");
     });
