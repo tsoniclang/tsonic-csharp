@@ -13,6 +13,7 @@ import { maximumCsharpMetadataEntries } from "../../../dist/target-model/metadat
 import { csharpStringTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { csharpTsValueTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
+import { assertCanonicalAnyRefusal } from "../../helpers/source-any-refusals.mjs";
 
 test("completed native literal inventories are immutable canonical snapshots", () => {
   const compiled = compileCsharpSource({ sourceText: `
@@ -106,7 +107,6 @@ function fixture() {
       isUnion: type => type.union !== undefined,
       unionOrIntersectionTypes: type => type.union,
       isNullish: type => type.absent === true,
-      isAny: type => type.any === true,
       isUnknown: type => type.unknown === true,
       isNumberLike: type => type === primitive,
       propertyInfos: type => rows.get(canonical(type))?.fields.map(field => field.property) ?? [],
@@ -525,11 +525,10 @@ test("native storage publication still requires exact source-member corresponden
 });
 
 test("consumed any is refused without a dynamic object-construction path", () => {
-  const value = fixture();
-  const literal = value.node(value.row([{ identity: "user" }]), { any: true });
-  const selected = value.freeze();
-  assert.equal(selected.issues[0].code, "TSONIC_ANY_UNSUPPORTED");
-  assert.equal(selected.constructionFor(literal) === undefined, true);
+  const compiled = compileCsharpSource({ sourceText: `
+export const value: any = { user: 1 };
+` });
+  assertCanonicalAnyRefusal(compiled);
 });
 
 function memberProvenanceFixture() {
