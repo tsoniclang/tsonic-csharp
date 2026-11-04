@@ -23,7 +23,7 @@ import { getCsharpClassFactory } from "../../../../target-model/types/carriers/c
 import { csharpSourceTypeParameter } from "../../../../source/extension/type-parameters.js";
 import { bindCsharpSourceDeclarationArguments, bindCsharpSourceTypeArguments } from "./generic-arguments.js";
 import { getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
-import { resolveCsharpEffectiveCallTypeArgument } from "./effective-types.js";
+import { resolveCsharpEffectiveCallTypeArgument, resolveCsharpSourceEffectiveType } from "./effective-types.js";
 
 export function resolveSourceCallInstantiation(
   scope: CsharpTypeResolutionScope,
@@ -449,6 +449,8 @@ export function resolveSourceCallReceiverTargetType(
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
   const { host, resolveSelectedReceiverTargetType, resolveSourceOwnedConstructionResult, resolveTypeWithState, resolveNodeWithState } = scope;
+  const effective = resolveCsharpSourceEffectiveType(scope, source.call, state);
+  if (effective !== undefined) return effective.result?.selectedType;
   if (host.ast.kindName(source.sourceCallee.expression) === "KindSuperKeyword") {
     return resolveProjectConstructingReceiverTargetType(scope, source.sourceCallee.expression);
   }

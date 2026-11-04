@@ -13,6 +13,8 @@ import { csharpArrayElementIsRepresentableAs } from "../../../../policy/types/co
 import { selectCsharpConversion } from "../../../../policy/conversions/core.js";
 import { csharpConversionIsApplicable } from "../../../../policy/conversions/applicability.js";
 import { resolveCsharpDeclaredLiteralContext } from "./literal-context.js";
+import { getCsharpRuntimeUnionArms } from "../../../../target-model/types/carriers/runtime-carriers.js";
+import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
 
 const unavailable: CsharpArrayLiteralSelection = Object.freeze({ kind: "unavailable" });
 
@@ -36,8 +38,19 @@ export function resolveCsharpArrayLiteralSelection(
   const elements: TargetTypeRef[] = [];
   const declared = effective === undefined || effective.outcome.kind !== "refused" &&
     effective.outcome.provenance.component !== undefined;
+  let noncanonicalInteger = false;
   const fits = (required: TargetTypeRef, actual: TargetTypeRef, value: Node | undefined): boolean => {
     const literal = value === undefined ? undefined : host.literalValues.literalValue.get(value);
+    if (!declared && targetTypeRefEquals(required, actual)) return true;
+    if (effective === undefined && context?.kind !== "selected" && literal?.numeric?.kind === "authored" &&
+      literal.numeric.token.exponent >= 0n && !(literal.numeric.token.negative && literal.numeric.token.coefficient === 0n)) {
+      const present = getCsharpNullableElementTargetType(required);
+      const arms = getCsharpRuntimeUnionArms(required, host.typeDefinitions) ?? (present === undefined ? undefined : [present]);
+      if (arms !== undefined && !arms.some(arm => csharpArrayElementIsRepresentableAs(arm, { carrier: actual, literal }))) {
+        noncanonicalInteger = true;
+        return false;
+      }
+    }
     return required.kind === "source-primitive" && actual.kind === "source-primitive" && (!declared || literal !== undefined)
       ? csharpArrayElementIsRepresentableAs(required, { carrier: actual, literal })
       : csharpConversionIsApplicable(selectCsharpConversion({ typeDefinitions: host.typeDefinitions,
@@ -81,7 +94,8 @@ export function resolveCsharpArrayLiteralSelection(
     if (contribution === undefined) complete = false;
     else elements.push(contribution);
   }
-  return !complete ? unavailable : mismatch ? Object.freeze({ kind: "rejected",
+  return !complete ? unavailable : noncanonicalInteger ? Object.freeze({ kind: "rejected",
+    reason: "An inferred numeric union requires an exact canonical carrier for every authored integer literal." }) : mismatch ? Object.freeze({ kind: "rejected",
     reason: "An array element cannot retain the exact Host-selected native element carrier." })
     : Object.freeze({ kind: "resolved", carrier, elementCarriers: Object.freeze(elements) });
 }

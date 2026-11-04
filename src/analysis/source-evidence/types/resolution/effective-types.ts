@@ -1,4 +1,4 @@
-import type { Node } from "@tsonic/tsts";
+import { sourceMarkerFactKey, type Node } from "@tsonic/tsts";
 import type { SourceEffectiveTypeOutcome, SourceTypeDescriptor } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpTypeResolutionScope } from "./scope.js";
@@ -10,6 +10,7 @@ import { csharpSourceTypeParameter } from "../../../../source/extension/type-par
 import { bindCsharpSourceDeclarationArguments } from "./generic-arguments.js";
 import { nextState } from "./state.js";
 import type { ResolvedSourceCallInfo } from "../../../../target-model/records/calls/source-calls.js";
+import { csharpRuntimeLocationTargetType, csharpRuntimeRawPointerTargetType } from "../../../../target-model/types/carriers/runtime-carriers.js";
 
 export function resolveCsharpEffectiveCallTypeArgument(
   scope: CsharpTypeResolutionScope,
@@ -52,10 +53,11 @@ export function createCsharpSourceTypeRepresentationHost(
         const owner = host.ast.parent(declaration);
         const file = host.ast.getSourceFile(owner);
         return owner !== undefined && file !== undefined && host.hasSemantics(file) &&
-          host.navigation.isProjectDeclaration(owner) && host.ast.is.IsObjectLiteralExpression(owner) ? [owner] : [];
+          host.navigation.isProjectDeclaration(owner) && (host.ast.is.IsObjectLiteralExpression(owner) ||
+            host.ast.is.IsTypeLiteralNode(owner)) ? [owner] : [];
       })))];
       const source = owners.length === 1 ? owners[0] : occurrence;
-      const selected = source === undefined ? undefined : host.representations.scopedTargetType(source);
+      const selected = occurrence === undefined ? undefined : host.representations.scopedTargetType(occurrence);
       return selected === undefined ? host.objectShapes.retainShape(shape, source) : host.objectShapes.resolveTarget(selected);
     },
     declaredType(declaration, typeArguments, component) {
@@ -74,15 +76,26 @@ export function createCsharpSourceTypeRepresentationHost(
         return sourceType === undefined || typeArguments.length !== 0 ? undefined
           : host.typeParameterConstraints.resolve(parameter, { sourceFile: queries.sourceFile, sourceType });
       }
+      const marker = host.sourceFacts?.getFact(declaration, sourceMarkerFactKey);
+      if (marker?.kind === "type-marker" && marker.marker === "pointer") {
+        return typeArguments.length === 1 ? csharpRuntimeLocationTargetType(typeArguments[0]!) : undefined;
+      }
+      if (marker?.kind === "type-marker" && marker.marker === "raw-pointer") {
+        return typeArguments.length === 0 ? csharpRuntimeRawPointerTargetType() : undefined;
+      }
       const selected = component?.selectedType ?? queries.declarations.declaredType(declaration);
       const bindings = selected === undefined ? undefined : queries.types.typeArgumentBindings(selected);
       const parameters = host.ast.typeParameters(declaration);
       const sources = parameters.map(parameter => bindings?.find(binding => binding.declaration === parameter)?.argumentType);
+      const representedState = bindCsharpSourceDeclarationArguments(scope, declaration, typeArguments, sources, state, queries);
+      if (representedState === undefined) return undefined;
+      const direct = scope.resolveDirectSourceFacts([...(component?.authoredTypeNode === undefined ? [] : [component.authoredTypeNode]), declaration,
+        ...(selected === undefined ? [] : queries.facts.typeSubjects(selected))], queries.sourceFile, nextState(representedState));
+      if (direct !== undefined) return direct;
       if (host.ast.is.IsTypeAliasDeclaration(declaration)) {
         const typeNode = host.ast.typeNode(declaration);
-        const bound = bindCsharpSourceDeclarationArguments(scope, declaration, typeArguments, sources, state, queries);
-        return typeNode === undefined || bound === undefined ? undefined
-          : scope.resolveNodeWithState(typeNode, queries.sourceFile, nextState(bound));
+        return typeNode === undefined ? undefined
+          : scope.resolveNodeWithState(typeNode, queries.sourceFile, nextState(representedState));
       }
       if (host.navigation.isProjectDeclaration(declaration)) {
         return scope.projectSourceDeclarationTargetType(declaration, typeArguments,

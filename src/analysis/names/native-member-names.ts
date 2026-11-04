@@ -235,6 +235,20 @@ export function analyzeCsharpNativeMemberNames(input: CsharpNativeMemberNameInpu
         if (!member.accessible || separated && member.static) continue;
         members.push(substituteMember(member, substitutions));
       }
+      const shape = input.artifactClosure.targetShapes[targetTypeRefKey(base)];
+      const artifact = shape === undefined ? undefined : artifacts.get(objectShapeArtifactKey(shape.declarationTemplate ?? shape));
+      if (artifact?.materialization === "source" && artifact.capabilities.includes("json-serialization")) {
+        members.push({ name: csharpJsonValueProjectionMethodName, kind: "method", genericParameterIds: [],
+          parameters: [{ type: csharpStringTargetType(), passingMode: "by-value" }] });
+        const writer = nativeBinding("System.Text.Json.Utf8JsonWriter", true, definition.declaration);
+        const context = nativeBinding("Tsonic.CSharp.Js.JsonWriteContext", true, definition.declaration);
+        if (writer !== undefined && context !== undefined) members.push({ name: csharpJsonValueWriterMethodName,
+          kind: "method", genericParameterIds: [], parameters: [
+            { type: writer.csharpInheritance.find(entry => entry.targetId === writer.id)!.type, passingMode: "by-value" },
+            { type: context.csharpInheritance.find(entry => entry.targetId === context.id)!.type, passingMode: "by-value" },
+            { type: csharpStringTargetType(), passingMode: "by-value" },
+          ] });
+      }
       base = heritage.baseType;
     }
     return { members, nativeBase: base };

@@ -73,7 +73,7 @@ function representDescriptor(
         const members: CsharpObjectShapeMemberFact[] = [];
         const names = new Set<string>();
         for (const member of descriptor.members) {
-          if (names.has(member.name)) return undefined;
+          if (typeof member.optional !== "boolean" || names.has(member.name)) return undefined;
           names.add(member.name);
           const type = representDescriptor(host, member.type, active);
           if (type === undefined) return undefined;
@@ -83,6 +83,7 @@ function representDescriptor(
             targetName: objectShapeMemberTargetName(member.name),
             memberKind: "property",
             type,
+            optional: member.optional,
             ...(member.declaration === undefined ? {} : { sourceDeclarations: Object.freeze([member.declaration]) }),
             ...(member.readonly === undefined ? {} : { readonly: member.readonly }),
           }));
