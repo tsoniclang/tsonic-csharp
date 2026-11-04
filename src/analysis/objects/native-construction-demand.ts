@@ -79,7 +79,9 @@ export function createCsharpNativeConstructionDemandQuery(
     const declaration = host.ast.parent(node);
     const variable = declaration === undefined || !host.ast.is.IsVariableDeclaration(declaration)
       ? undefined : host.ast.as.AsVariableDeclaration(declaration);
-    const declarations = variable?.Initializer === node ? [declaration!] : [];
+    const annotation = variable?.Type === undefined ? undefined : queries.types.authoredType(variable.Type);
+    const broadStorage = annotation !== undefined && (queries.types.isNonPrimitive(annotation) || queries.types.isUnknown(annotation));
+    const declarations = variable?.Initializer === node && !broadStorage ? [declaration!] : [];
     const retain = (shape: CsharpObjectShapeFact): void => {
       publish(node, shape);
       for (const declaration of declarations) {

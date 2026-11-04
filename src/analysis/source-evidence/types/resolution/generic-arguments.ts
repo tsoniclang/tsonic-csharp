@@ -29,10 +29,25 @@ export function bindCsharpSourceTypeArguments(
         if (scope.host.ast.is.IsSourceFile(owner)) return undefined;
         owner = scope.host.ast.parent(owner);
       }
-      const symbol = queries.declarations.typeSymbol(receiver.type);
-      if (owner === undefined || symbol === undefined || !queries.declarations.symbolDeclarations(symbol).includes(owner)) return undefined;
+      if (owner === undefined) return undefined;
+      const pending = [{ type: receiver.type, depth: 0 }];
+      const visited = new Set<Type>();
+      let receiverType: Type | undefined;
+      while (pending.length > 0) {
+        const current = pending.pop()!;
+        if (visited.has(current.type) || current.depth > 4) continue;
+        visited.add(current.type);
+        const symbol = queries.declarations.typeSymbol(current.type);
+        if (symbol !== undefined && queries.declarations.symbolDeclarations(symbol).includes(owner)) {
+          if (receiverType !== undefined && !queries.types.isIdentical(receiverType, current.type)) return undefined;
+          receiverType = current.type;
+        } else for (const type of queries.types.instantiatedBaseTypes(current.type) ?? []) {
+          pending.push({ type, depth: current.depth + 1 });
+        }
+      }
+      if (receiverType === undefined) return undefined;
       const parameters = scope.host.ast.typeParameters(owner);
-      const arguments_ = queries.types.typeArguments(receiver.type);
+      const arguments_ = queries.types.typeArguments(receiverType);
       if (arguments_.length < parameters.length) return undefined;
       for (const [index, parameter] of parameters.entries()) {
         if (parameter === undefined) return undefined;

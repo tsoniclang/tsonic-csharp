@@ -51,16 +51,12 @@ export function resolveStorage(
   if (node === undefined) {
     return undefined;
   }
-  if (host.effectiveTypes.get(node) !== undefined) {
-    const selected = resolveNode(node, sourceFile);
-    return selected?.kind === "resolved" ? selected.sourceResult.selectedType : undefined;
-  }
   if (host.ast.is.IsParenthesizedExpression(node)) {
     return resolveReadStorage(host.ast.as.AsParenthesizedExpression(node)?.Expression, sourceFile);
   }
   const reference = host.navigation.referenceFor(node);
   const declaration = sourceValueDeclaration(node, reference?.declaration);
-  if (declaration === undefined) {
+  if (declaration === undefined || declaration === node) {
     const selected = resolveNode(node, sourceFile);
     return selected?.kind === "resolved" ? selected.sourceResult.selectedType : undefined;
   }
@@ -87,7 +83,6 @@ export function resolveReadStorage(
   if (node === undefined) {
     return undefined;
   }
-  if (host.effectiveTypes.get(node) !== undefined) return resolveStorage(node, sourceFile);
   if (!host.ast.is.IsPropertyAccessExpression(node) && !host.ast.is.IsElementAccessExpression(node)) {
     return resolveStorage(node, sourceFile);
   }

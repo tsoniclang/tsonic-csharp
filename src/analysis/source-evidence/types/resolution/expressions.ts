@@ -11,7 +11,7 @@ import { selectCsharpSourceCallAwaitCompletion } from "../../../../policy/operat
 import type { CsharpSourceCallResult } from "../../../../target-model/operations/source-call-results.js";
 import { csharpSourceValueResult, refineCsharpSourceValueResult } from "./call-results.js";
 import { selectCsharpTargetCall, selectCsharpTargetElement, selectCsharpTargetProperty } from "../../../operations/members/selected-members.js";
-import { isCsharpAssignmentOperator, sourceOperatorFromKindName } from "../../../../target-model/syntax/operators.js";
+import { csharpDestructuringAssignmentSyntax, isCsharpAssignmentOperator, sourceOperatorFromKindName } from "../../../../target-model/syntax/operators.js";
 import { selectCsharpMethodValue } from "../../../objects/method-values.js";
 import { getCsharpMethodValue } from "../../../../target-model/types/method-values.js";
 import { getCsharpClassFactory } from "../../../../target-model/types/carriers/class-factories.js";
@@ -125,6 +125,9 @@ function resolveSelectedExpressionCarrier(
   if (host.ast.is.IsBinaryExpression(node)) {
     const binary = host.ast.as.AsBinaryExpression(node);
     const operator = sourceOperatorFromKindName(host.ast.operatorKindName(node));
+    if (csharpDestructuringAssignmentSyntax(host.ast, node) !== undefined) {
+      return resolveNodeWithState(binary?.Right, queries.sourceFile, nextState(state));
+    }
     const left = operator !== undefined && isCsharpAssignmentOperator(operator) ? resolveReadStorage(binary?.Left, queries.sourceFile)
       : resolveNodeWithState(binary?.Left, queries.sourceFile, nextState(state));
     const expected = operator === "??" || operator === "??="

@@ -15,6 +15,7 @@ import { csharpConversionIsApplicable } from "../../../../policy/conversions/app
 import { resolveCsharpDeclaredLiteralContext } from "./literal-context.js";
 import { getCsharpRuntimeUnionArms } from "../../../../target-model/types/carriers/runtime-carriers.js";
 import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
+import { selectCsharpExactLiteralConversion } from "../../../../policy/conversions/literals.js";
 
 const unavailable: CsharpArrayLiteralSelection = Object.freeze({ kind: "unavailable" });
 
@@ -41,6 +42,11 @@ export function resolveCsharpArrayLiteralSelection(
   let noncanonicalInteger = false;
   const fits = (required: TargetTypeRef, actual: TargetTypeRef, value: Node | undefined): boolean => {
     const literal = value === undefined ? undefined : host.literalValues.literalValue.get(value);
+    if (declared && literal !== undefined) {
+      const selected = selectCsharpExactLiteralConversion(literal, actual, required);
+      if (selected.kind === "rejected") return false;
+      if (selected.kind === "resolved" || selected.kind === "source-representation") return true;
+    }
     if (!declared && targetTypeRefEquals(required, actual)) return true;
     if (effective === undefined && context?.kind !== "selected" && literal?.numeric?.kind === "authored" &&
       literal.numeric.token.exponent >= 0n && !(literal.numeric.token.negative && literal.numeric.token.coefficient === 0n)) {
@@ -51,7 +57,7 @@ export function resolveCsharpArrayLiteralSelection(
         return false;
       }
     }
-    return required.kind === "source-primitive" && actual.kind === "source-primitive" && (!declared || literal !== undefined)
+    return !declared && required.kind === "source-primitive" && actual.kind === "source-primitive"
       ? csharpArrayElementIsRepresentableAs(required, { carrier: actual, literal })
       : csharpConversionIsApplicable(selectCsharpConversion({ typeDefinitions: host.typeDefinitions,
         projectTypes: host.projectTypes(), providers: host.providers, target: host.target, objectShapes: host.objectShapes },
