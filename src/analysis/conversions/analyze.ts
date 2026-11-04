@@ -273,7 +273,7 @@ export function analyzeCsharpConversions(
       mode,
     );
     const presentTarget = getCsharpNullableElementTargetType(target) ?? target;
-    if (candidate.kind === "rejected" && sourceFile !== undefined &&
+    if (candidate.kind === "rejected" && sourceFile !== undefined && policy.effectiveTypes.get(expression) === undefined &&
       getCsharpRuntimeUnionArms(presentTarget, policy.typeDefinitions) !== undefined) {
       const checked = evidence.expressionType.get(expression);
       const member = checked === undefined ? undefined : policy.types.selectSourceUnionMember(presentTarget, checked, sourceFile);
