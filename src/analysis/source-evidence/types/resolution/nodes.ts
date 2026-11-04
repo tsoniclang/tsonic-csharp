@@ -1,6 +1,6 @@
 import type { CsharpTypeResolutionScope } from "./scope.js";
 import { resolveCsharpConstructorValueType } from "./constructors.js";
-import type { CsharpTypeResolutionState } from "./model.js";
+import type { CsharpTypePolicyHost, CsharpTypeResolutionState } from "./model.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
@@ -32,6 +32,7 @@ import { assertCsharpNodeSyntaxChildSource, assertCsharpNodeTypeSyntaxSource,
 import type { CsharpSourceCallResult } from "../../../../target-model/operations/source-call-results.js";
 import { csharpSourceValueResult, refineCsharpSourceValueResult } from "./call-results.js";
 import { assertCsharpUnionTypeNodeSource, type CsharpUnionTypeNodeSource } from "./union-node-source.js";
+import { assertCsharpNodeBranchSource, type CsharpNodeBranchSource } from "./node-branch-source.js";
 export function resolveNodeValueWithState(
   scope: CsharpTypeResolutionScope,
   node: Node | undefined,
@@ -106,6 +107,11 @@ export function resolveFormedCsharpNodeTypeSource(
       "A node requires its exact annotation and nested-type Source selections.", source.node);
   }
   if (source.kind === "node") assertCsharpNodeTypeSyntaxSource(source.syntax);
+  if (source.kind === "node" && (source.branches === undefined || source.branches.node !== source.node ||
+      source.branches.queries !== source.queries || source.branches.state !== source.state)) {
+    return failTargetAnalysisInvariant("tsonic-csharp", "A node branch requires its exact retained syntax and value Source.", source.node);
+  }
+  if (source.kind === "node") assertCsharpNodeBranchSource(source.branches);
   if (source.kind === "node" && (source.value === undefined || (source.selectedType === undefined ? source.selectedValue !== undefined
     : source.selectedValue === undefined || source.selectedValue.node !== source.node ||
       source.selectedValue.queries !== source.queries || source.selectedValue.selectedType !== source.selectedType ||
@@ -138,7 +144,7 @@ function resolveNodeResultWithState(
   if (syntaxFact !== undefined) {
     return csharpSourceValueResult(syntaxFact);
   }
-  if (host.ast.is.IsArrayLiteralExpression(node)) {
+  if (source.branches.arrayLiteral) {
     const selection = scope.resolveArrayLiteralWithState(node, queries, state);
     if (selection.kind === "rejected") state.rejectNativeResolution?.(Object.freeze({ kind: "rejected", subject: node,
       code: "CSHARP_ARRAY_ELEMENT_CARRIER_MISMATCH", reason: selection.reason }));
@@ -156,10 +162,9 @@ function resolveNodeResultWithState(
   if (direct !== undefined) {
     return csharpSourceValueResult(direct);
   }
-  const scalar = resolveCsharpSourceLiteralTargetType(host, host.literalValues.literalValue.get(node)) ??
-    resolveKeywordType(host.ast.kindName(node));
+  const scalar = resolveFormedCsharpNodeLiteralSource(host, source.branches);
   if (scalar !== undefined) {
-    return csharpSourceValueResult(scalar);
+    return scalar;
   }
   if (source.functionType.kind === "function") {
     const callable = source.functionType.callable;
@@ -173,19 +178,8 @@ function resolveNodeResultWithState(
   }
   if (source.unionType.kind !== "not-union") return resolveFormedCsharpUnionTypeNode(scope, source.unionType);
   if (source.syntax.nested !== undefined) return resolveFormedCsharpNodeSyntaxChild(scope, source.syntax.nested);
-  if (host.ast.is.IsTypeQueryNode(node)) {
-    const expression = host.ast.as.AsTypeQueryNode(node)?.ExprName;
-    const reference = host.navigation.referenceFor(expression);
-    const definition = host.projectTypeCatalog.definitionForDeclaration(
-      reference?.declaration,
-    );
-    if (definition?.kind === "struct") {
-      return csharpSourceValueResult(host.projectTypeCatalog.targetTypeForDeclaration(
-        definition.declaration,
-        [],
-      ));
-    }
-  }
+  const typeQuery = resolveFormedCsharpTypeQueryNodeSource(host, source.branches);
+  if (typeQuery.kind === "struct") return typeQuery.result;
   if (source.reference !== undefined) {
     const resolved = resolveFormedTypeReferenceNode(source.reference);
     if (resolved !== undefined) {
@@ -196,7 +190,7 @@ function resolveNodeResultWithState(
   if (projectThis !== undefined) {
     return csharpSourceValueResult(projectThis);
   }
-  const selectedType = host.ast.is.IsIdentifier(node) ? source.selectedType : undefined;
+  const selectedType = source.branches.identifier ? source.selectedType : undefined;
   const value = source.value;
   if (value === undefined || value.node !== node || value.queries !== queries || value.state !== state || value.selectedType !== undefined) {
     return failTargetAnalysisInvariant("tsonic-csharp", "A node value requires its exact retained declaration Source.", node);
@@ -265,13 +259,37 @@ export function resolveFormedCsharpUnionTypeNode(
     members.map((member, index) => ({ source: source.checkedMembers[index]!, carrier: member! })), queries, state));
 }
 
+export function resolveFormedCsharpNodeLiteralSource(
+  host: Pick<CsharpTypePolicyHost, "target">,
+  source: CsharpNodeBranchSource,
+): CsharpSourceCallResult | undefined {
+  assertCsharpNodeBranchSource(source);
+  return csharpSourceValueResult(resolveCsharpSourceLiteralTargetType(host, source.literal) ?? resolveKeywordType(source.nodeKind));
+}
+
+export function resolveFormedCsharpTypeQueryNodeSource(
+  host: Pick<CsharpTypePolicyHost, "projectTypeCatalog">,
+  source: CsharpNodeBranchSource,
+): { readonly kind: "not-applicable" } | {
+  readonly kind: "struct";
+  readonly source: CsharpNodeBranchSource;
+  readonly result: CsharpSourceCallResult | undefined;
+} {
+  assertCsharpNodeBranchSource(source);
+  if (source.typeQuery === undefined) return Object.freeze({ kind: "not-applicable" });
+  const definition = host.projectTypeCatalog.definitionForDeclaration(source.typeQuery.declaration);
+  return definition?.kind !== "struct" ? Object.freeze({ kind: "not-applicable" })
+    : Object.freeze({ kind: "struct", source,
+        result: csharpSourceValueResult(host.projectTypeCatalog.targetTypeForDeclaration(definition.declaration, [])) });
+}
+
 function resolveFallbackNodeCarrier(
   scope: CsharpTypeResolutionScope,
   source: Extract<CsharpNodeTypeSource, { readonly kind: "node" }>,
 ): TargetTypeRef | undefined {
   const { host } = scope;
-  const { node, queries, state } = source;
-  if (!host.ast.is.IsClassDeclaration(node) && !host.ast.is.IsInterfaceDeclaration(node)) {
+  const { queries, state } = source;
+  if (!source.branches.classOrInterface) {
     const constructor = resolveCsharpConstructorValueType(scope, source.selectedType, queries, state);
     if (constructor !== undefined) return constructor;
   }
