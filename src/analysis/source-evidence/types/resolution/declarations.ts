@@ -9,9 +9,10 @@ import { sourceRefinementOnlyRemovesNullish } from "./source-union-refinement.js
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
 import { getCsharpGenericOptionalParts } from "../../../../target-model/types/projections.js";
 import { csharpSourceStorageContext } from "./source-storage-projection.js";
+import { resolveCsharpSourceEffectiveType } from "./effective-types.js";
 
 export function resolveSelectedDeclarationResult(
-  { declarationResultTypeNode, host, resolveAuthoredAndSelectedSourceType, resolveCallableType, resolveNodeWithState, resolveProjectEnumMemberTarget }: CsharpTypeResolutionScope,
+  scope: CsharpTypeResolutionScope,
   declaration: Node | undefined,
   semanticType: Type | undefined,
   queries: SourceFileSemantics,
@@ -19,11 +20,15 @@ export function resolveSelectedDeclarationResult(
   receiverType?: TargetTypeRef,
   declaredMemberType?: Type,
 ): TargetTypeRef | undefined {
+  const { declarationResultTypeNode, host, resolveAuthoredAndSelectedSourceType, resolveCallableType,
+    resolveNodeWithState, resolveProjectEnumMemberTarget } = scope;
   const instantiate = (type: TargetTypeRef | undefined): TargetTypeRef | undefined => {
     if (type === undefined) return undefined;
     const selected = host.projectTypes().instantiateMemberType(declaration, receiverType, type);
     return selected.kind === "unresolved" ? undefined : selected.kind === "resolved" ? selected.type : type;
   };
+  const effective = declaration === undefined ? undefined : resolveCsharpSourceEffectiveType(scope, declaration, state);
+  if (effective !== undefined) return instantiate(effective.result?.selectedType);
   const sourceField = readCsharpSourceField(host.sourceFacts, [declaration]);
   if (sourceField !== undefined) {
     const fieldSourceFile = host.ast.getSourceFile(sourceField.sourceType) ??

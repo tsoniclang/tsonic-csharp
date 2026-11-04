@@ -109,7 +109,7 @@ export function createCsharpObjectShapePolicy(
           ? remember(node, { ...selectedShape, sourceType: actualType, members })
           : rememberTargetShape({ ...selectedShape, sourceType: actualType, members });
       }
-      if (host.effectiveTypes.get(node) !== undefined && selectedTarget === undefined) return undefined;
+      if (host.effectiveTypes.get(node) !== undefined) return undefined;
       const declaration = host.navigation.declarationFor(node);
       const authoredTypeRoot = declaration === undefined
         ? undefined

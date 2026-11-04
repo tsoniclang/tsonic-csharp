@@ -16,6 +16,7 @@ import { resolveCsharpDeclaredLiteralContext } from "./literal-context.js";
 import { getCsharpRuntimeUnionArms } from "../../../../target-model/types/carriers/runtime-carriers.js";
 import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
 import { selectCsharpExactLiteralConversion } from "../../../../policy/conversions/literals.js";
+import { selectCsharpArrayLiteralCarrier } from "../../../../policy/types/collections/literal-construction.js";
 
 const unavailable: CsharpArrayLiteralSelection = Object.freeze({ kind: "unavailable" });
 
@@ -29,26 +30,22 @@ export function resolveCsharpArrayLiteralSelection(
   if (!host.ast.is.IsArrayLiteralExpression(node)) return unavailable;
   const effective = resolveCsharpSourceEffectiveType(scope, node, state);
   const context = effective === undefined ? resolveCsharpDeclaredLiteralContext(scope, node, queries, state) : undefined;
-  const carrier = effective === undefined ? context?.kind === "selected" ? context.type
-    : scope.resolveTypeWithState(queries.types.expressionType(node), queries.sourceFile, nextState(state))
+  const declaredCarrier = context?.kind === "selected" && context.type !== undefined
+    ? selectCsharpArrayLiteralCarrier(context.type, undefined, host.typeDefinitions) : undefined;
+  if (context?.kind === "selected" && context.type === undefined) return unavailable;
+  const carrier = effective === undefined ? declaredCarrier ??
+    scope.resolveTypeWithState(queries.types.expressionType(node), queries.sourceFile, nextState(state))
     : effective.result?.selectedType;
   if (carrier === undefined) return unavailable;
   const presentCarrier = getCsharpGenericOptionalParts(carrier)?.element ?? getCsharpNullableElementTargetType(carrier) ?? carrier;
   const element = getCsharpCollectionElementTargetType(presentCarrier);
   if (presentCarrier.kind !== "tuple" && element === undefined) return unavailable;
   const elements: TargetTypeRef[] = [];
-  const declared = effective === undefined || effective.outcome.kind !== "refused" &&
-    effective.outcome.provenance.component !== undefined;
+  const closedDestination = effective !== undefined || declaredCarrier !== undefined;
   let noncanonicalInteger = false;
   const fits = (required: TargetTypeRef, actual: TargetTypeRef, value: Node | undefined): boolean => {
     const literal = value === undefined ? undefined : host.literalValues.literalValue.get(value);
-    if (declared && literal !== undefined) {
-      const selected = selectCsharpExactLiteralConversion(literal, actual, required);
-      if (selected.kind === "rejected") return false;
-      if (selected.kind === "resolved" || selected.kind === "source-representation") return true;
-    }
-    if (!declared && targetTypeRefEquals(required, actual)) return true;
-    if (effective === undefined && context?.kind !== "selected" && literal?.numeric?.kind === "authored" &&
+    if (!closedDestination && literal?.numeric?.kind === "authored" &&
       literal.numeric.token.exponent >= 0n && !(literal.numeric.token.negative && literal.numeric.token.coefficient === 0n)) {
       const present = getCsharpNullableElementTargetType(required);
       const arms = getCsharpRuntimeUnionArms(required, host.typeDefinitions) ?? (present === undefined ? undefined : [present]);
@@ -57,7 +54,13 @@ export function resolveCsharpArrayLiteralSelection(
         return false;
       }
     }
-    return !declared && required.kind === "source-primitive" && actual.kind === "source-primitive"
+    if (closedDestination && literal !== undefined) {
+      const selected = selectCsharpExactLiteralConversion(literal, actual, required);
+      if (selected.kind === "rejected") return false;
+      if (selected.kind === "resolved" || selected.kind === "source-representation") return true;
+    }
+    if (!closedDestination && targetTypeRefEquals(required, actual)) return true;
+    return !closedDestination && required.kind === "source-primitive" && actual.kind === "source-primitive"
       ? csharpArrayElementIsRepresentableAs(required, { carrier: actual, literal })
       : csharpConversionIsApplicable(selectCsharpConversion({ typeDefinitions: host.typeDefinitions,
         projectTypes: host.projectTypes(), providers: host.providers, target: host.target, objectShapes: host.objectShapes },
