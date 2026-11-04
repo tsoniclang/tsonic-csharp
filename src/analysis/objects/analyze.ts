@@ -312,9 +312,8 @@ export function analyzeCsharpObjectShapes(
     literalUnionCarriers.set(literal, unionCarriers);
     const results = new Map<string, CsharpObjectLiteralTargetShapeResolution>();
     literalResults.set(literal, results);
-    const contextualShape = policy.objectShapes.resolveType(
-      evidence.contextualType.get(literal)?.selectedType,
-      sourceFile,
+    const contextualShape = policy.objectShapes.resolveTarget(
+      evidence.contextualType.get(literal)?.targetType,
     );
     const expectedShapes = new Set<CsharpObjectShapeFact | undefined>([
       undefined,

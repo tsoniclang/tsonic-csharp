@@ -2,8 +2,8 @@ import { selectCsharpFlowReadCarrier } from "../../policy/conversions/flow-read.
 import { isCsharpFlowReadEvidenceNode, inferCallableReturnType, freezeSourceArgumentClassification } from "./source-values.js";
 import type { ExtensionFactSubject, Node, ResolvedSourceGeneratorInfo, ResolvedSourceWellKnownSymbolInfo, ResolvedSourceYieldInfo, SourceFile, Type, Signature } from "@tsonic/tsts";
 import { providerVirtualDeclarationFactKey } from "@tsonic/tsts";
-import type { TargetSourceProgram } from "@tsonic/target-api/source";
-import { sourceClassFieldIsTypeOnly } from "@tsonic/target-api/source";
+import type { SourceTypeComponentEvidence, TargetSourceProgram } from "@tsonic/target-api/source";
+import { sourceCallArgumentCorrespondences, sourceClassFieldIsTypeOnly, sourceTransparentExpressionOperand } from "@tsonic/target-api/source";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { csharpNativePropertyNameIssue } from "../objects/computed-field-names.js";
@@ -178,6 +178,28 @@ export function analyzeCsharpSourceEvidence(
     if (diagnostic !== undefined) nativeExpressionIssues.set(name, { diagnostic, requiredBy: new Set([requiredBy]) });
   }
 
+  function contextualTargetType(
+    node: Node,
+    contextual: SourceTypeComponentEvidence,
+    sourceFile: SourceFile,
+  ): TargetTypeRef | undefined {
+    const call = contextual.contextualCall;
+    if (call === undefined) {
+      return types.resolveSelectedType(contextual.authoredTypeNode, contextual.selectedType, sourceFile);
+    }
+    const correspondence = sourceCallArgumentCorrespondences({ ast: source.ast,
+      semantics: source.semantics.forFile(sourceFile) }, call);
+    const bindings = correspondence?.filter(row => {
+      let argument = row.argument.expression;
+      for (let operand = sourceTransparentExpressionOperand(source.ast, argument); operand !== undefined;
+        operand = sourceTransparentExpressionOperand(source.ast, argument)) argument = operand;
+      return argument === node;
+    });
+    return bindings?.length === 1
+      ? types.resolveSourceCallArgumentParameter(call, bindings[0]!.binding, sourceFile)
+      : undefined;
+  }
+
   function visit(node: Node, sourceFile: SourceFile, typeOnly = false): void {
     if (!typeOnly && policy.types.nativeUnreachable(node)) return;
     if (source.ast.is.IsVariableDeclaration(node)) {
@@ -296,7 +318,8 @@ export function analyzeCsharpSourceEvidence(
       node,
       recordTargetType(types.resolveReadStorage(node, sourceFile)) ?? missing,
     );
-    const expressionType = semantics.types.expressionType(node);
+    const expressionType = source.effectiveTypes.get(node) === undefined
+      ? semantics.types.expressionType(node) : undefined;
     expressionTypes.set(node, expressionType ?? missing);
     if (expressionType !== undefined) {
       if (!typeOnly) recordSelectedFixedArrayIssues(node, expressionType, sourceFile);
@@ -307,7 +330,7 @@ export function analyzeCsharpSourceEvidence(
     if (!typeOnly && contextualType !== undefined) recordSelectedFixedArrayIssues(node, contextualType.selectedType, sourceFile);
     contextualTypes.set(node, contextualType === undefined ? missing : Object.freeze({
       ...contextualType,
-      targetType: recordTargetType(types.resolveSelectedType(contextualType.authoredTypeNode, contextualType.selectedType, sourceFile)),
+      targetType: recordTargetType(contextualTargetType(node, contextualType, sourceFile)),
     }));
     if (source.ast.is.IsEnumMember(node)) {
       const constant = source.semantics.enumConstants.get(node);
@@ -348,7 +371,7 @@ export function analyzeCsharpSourceEvidence(
     const readStorageTargetType = cachedValue(readStorageTargetTypes.get(node));
     const declaredTargetType = refinement.kind === "resolved" &&
         refinement.refinement.kind === "unrelated"
-      ? recordTargetType(types.resolveType(refinement.declaredType, sourceFile))
+      ? cachedValue(storageTargetTypes.get(node))
       : undefined;
     const unrelatedSourceTypesShareTargetRepresentation =
       refinement.kind === "resolved" &&

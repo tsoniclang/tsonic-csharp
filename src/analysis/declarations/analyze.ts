@@ -96,11 +96,14 @@ export function analyzeCsharpDeclarations(
           ? undefined : signature?.parameters[index];
         const value = incoming === undefined ? undefined : getCsharpNullableElementTargetType(incoming);
         const source = evidence.expressionType.get(parameter.Initializer);
+        const effectiveInitializer = policy.effectiveTypes.get(parameter.Initializer);
         const queries = policy.semanticsFor(node);
         const members = source === undefined ? [] : queries.types.isUnion(source)
           ? queries.types.unionOrIntersectionTypes(source) : [source];
-        const presentInitializer = members.length > 0 && members.every(member =>
-          member !== undefined && !queries.types.isNullish(member) && !queries.types.isAny(member) && !queries.types.isUnknown(member));
+        const presentInitializer = effectiveInitializer === undefined
+          ? members.length > 0 && members.every(member =>
+            member !== undefined && !queries.types.isNullish(member) && !queries.types.isAny(member) && !queries.types.isUnknown(member))
+          : effectiveInitializer.kind !== "refused" && effectiveInitializer.type.kind !== "optional";
         const presentOnly = incoming !== undefined && !csharpCarrierAdmitsSourceAbsence(incoming) &&
           signature?.optionalParameterIndexes?.includes(index) !== true;
         const contextualDefault = incoming === undefined ? undefined : presentOnly
