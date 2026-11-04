@@ -82,9 +82,10 @@ export function resolveCsharpDeclaredLiteralContext(
       if (argument.explicitTypeNode !== undefined) return true;
       const symbol = queries.declarations.typeSymbol(argument.typeParameter);
       const declarations = symbol === undefined ? [] : queries.declarations.symbolDeclarations(symbol);
+      if (declarations.length === 0) return false;
       return declarations.every(declaration => {
         const parameter = declaration === undefined ? undefined : csharpSourceTypeParameter(declaration, host.ast);
-        return parameter === undefined || !free.has(parameter.identity);
+        return parameter !== undefined && !free.has(parameter.identity);
       });
     });
   }
