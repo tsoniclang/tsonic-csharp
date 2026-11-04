@@ -94,7 +94,8 @@ export function resolveFormedCsharpNodeTypeSource(
   }
   if (source.kind === "node") assertCsharpTupleTypeNodeSource(source.tupleType);
   if (source.kind === "node" && (source.unionType === undefined || source.unionType.node !== source.node ||
-      source.unionType.queries !== source.queries || source.unionType.state !== source.state)) {
+      source.unionType.queries !== source.queries || source.unionType.state !== source.state ||
+      source.unionType.kind !== "not-union" && (source.cycle === undefined || source.unionType.type !== source.cycle.type))) {
     return failTargetAnalysisInvariant("tsonic-csharp",
       "A union-type node requires its exact retained Source children.", source.node);
   }

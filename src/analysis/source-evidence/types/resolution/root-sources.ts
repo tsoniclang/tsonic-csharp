@@ -273,18 +273,19 @@ export function formCsharpNodeTypeSource(
       "A structural node root requires its exact retained source occurrence.", node);
   }
   const selection = formCsharpSourceValueDeclarationSource(scope, node);
+  const cycle = reference ? Object.freeze({ type: queries.types.authoredType(node) }) : undefined;
   return Object.freeze({ kind: "node", node, sourceFile, queries, state, originalState, selectedType, declaredReceiver,
     nativeParameter: formCsharpNativeParameterSource(host.ast, node),
     contextualParameter: formCsharpContextualParameterSource(scope, node, queries),
     functionType: formCsharpFunctionTypeNodeSource(scope, node, queries, state),
     arrayType: formCsharpArrayTypeNodeSource(scope, node, queries, state),
     tupleType: formCsharpTupleTypeNodeSource(scope, node, queries, state),
-    unionType: formCsharpUnionTypeNodeSource(scope, node, queries, state),
+    unionType: formCsharpUnionTypeNodeSource(scope, node, queries, state, cycle?.type),
     syntax: formCsharpNodeTypeSyntaxSource(scope, node, queries, state),
     projectInstance: formCsharpProjectThisSource(host.ast, node),
     directSyntax: formCsharpDirectSourceEvidence(scope, Object.freeze([node]), queries.sourceFile, state),
     directValue: formCsharpDirectSourceEvidence(scope, sourceFactSubjectsForNode(node, host.navigation), queries.sourceFile, state),
-    cycle: reference ? Object.freeze({ type: queries.types.authoredType(node) }) : undefined,
+    cycle,
     reference: host.ast.is.IsTypeReferenceNode(node) ? formCsharpTypeReferenceSource(scope, node, queries, state) : undefined,
     selectedExpression: formCsharpSelectedExpressionSource(scope, node, queries, state),
     value: formCsharpSourceValueSource(scope, selection, queries, state, undefined),

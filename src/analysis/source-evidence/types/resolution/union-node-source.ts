@@ -30,9 +30,9 @@ export function formCsharpUnionTypeNodeSource(
   node: Node,
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
+  type: Type | undefined,
 ): CsharpUnionTypeNodeSource {
   if (!host.ast.is.IsUnionTypeNode(node)) return Object.freeze({ kind: "not-union", node, queries, state });
-  const type = queries.types.authoredType(node);
   if (type !== undefined && (queries.types.isAny(type) || queries.types.isUnknown(type))) {
     return Object.freeze({ kind: "selected", node, queries, state, type,
       child: Object.freeze({ type, sourceFile: queries.sourceFile, state: Object.freeze(nextState(state)) }) });
