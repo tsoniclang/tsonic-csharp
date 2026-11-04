@@ -318,8 +318,7 @@ export function analyzeCsharpSourceEvidence(
       node,
       recordTargetType(types.resolveReadStorage(node, sourceFile)) ?? missing,
     );
-    const expressionType = source.effectiveTypes.get(node) === undefined
-      ? semantics.types.expressionType(node) : undefined;
+    const expressionType = semantics.types.expressionType(node);
     expressionTypes.set(node, expressionType ?? missing);
     if (expressionType !== undefined) {
       if (!typeOnly) recordSelectedFixedArrayIssues(node, expressionType, sourceFile);
