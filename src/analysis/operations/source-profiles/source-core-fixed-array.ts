@@ -78,7 +78,7 @@ export function selectCsharpSourceCoreFixedArrayElement(
     sourceFile,
   );
   const indexType = integralLiteral ? csharpSourcePrimitiveTargetType("int32") : indexSelection?.kind === "rejected"
-    ? undefined : indexSelection?.sourceResult.selectedType ?? host.types.resolveType(source.argument.type, sourceFile);
+    ? undefined : indexSelection?.sourceResult.selectedType;
   if (
     receiver === undefined ||
     indexType === undefined ||
@@ -117,7 +117,7 @@ function resolveFixedArrayReceiver(
     sourceFile,
   );
   if (selected?.kind === "rejected") return undefined;
-  const carrier = selected?.sourceResult.selectedType ?? host.types.resolveType(receiver.type, sourceFile);
+  const carrier = selected?.sourceResult.selectedType;
   return carrier?.kind === "array"
     ? { carrier }
     : undefined;
