@@ -76,8 +76,12 @@ export function completeCsharpCallableABI(
     return Object.freeze({ declared: header, harvest, projections: Object.freeze([]), typeParameters: header.typeParameters });
   }
   if (harvest?.kind === "declaration") {
-    if (harvest.declaration !== declaration) return failTargetAnalysisInvariant("tsonic-csharp",
-      "A native declaration signature requires its exact no-body source occurrence.", declaration);
+    const scope = harvest.source?.scopes;
+    if (harvest.declaration !== declaration || harvest.source !== undefined && harvest.source.node !== declaration ||
+      scope?.declaration === declaration && (scope.parameterIdentities.length !== 0 || scope.capturedParameterIdentities.length !== 0)) {
+      return failTargetAnalysisInvariant("tsonic-csharp",
+        "A declaration-only signature requires its exact absence of an owning A harvest scope.", declaration);
+    }
     return Object.freeze({ declared: header, harvest, projections: Object.freeze([]), typeParameters: header.typeParameters });
   }
   if (harvest === undefined || harvest.kind !== "source" || harvest.declaration !== declaration ||

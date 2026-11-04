@@ -26,7 +26,8 @@ import type { CsharpPlanningRepresentationQueries, CsharpTypePolicy, CsharpTypeP
 import { createCsharpTypeResolutionServices } from "../source-evidence/types/resolution/engine.js";
 import type { CsharpTypeResolutionServices } from "../source-evidence/types/resolution/engine.js";
 import type { CsharpProjectTypeABIPolicy, CsharpProjectTypePolicy, CsharpProjectTypeQueries } from "../../target-model/records/types/project-types.js";
-import { csharpProjectMemberOwnerDeclaration } from "../project-types/type-policy.js";
+import { formCsharpProjectDeclarationInstantiationHeader,
+  formCsharpProjectMemberInstantiationHeader } from "../project-types/type-policy.js";
 import type { createCsharpProjectTypeCatalog } from "../project-types/catalog.js";
 import type { CsharpGenericProjectionIndex } from "../../target-model/records/types/type-projections.js";
 import {
@@ -50,6 +51,9 @@ import type { CsharpTypeParameterConstraint } from "../../target-model/types/gen
 
 export interface CsharpTypeSystem extends Pick<CsharpTypeResolutionServices,
   "nodeQuerySource" | "completeNodeQuery" | "typeQuerySource" | "completeTypeQuery" | "completeDeclaredReceiverBody" | "completeDeclaredCallableBody" |
+  "completeCallDeclarationArguments" | "completeBodyCallArguments" | "completeSourceCallTypeArguments" |
+  "declaredNodeBodySource" | "completeDeclaredNodeBody" | "completeDeclaredStructuralBody" | "completeDeclaredStructuralCaptures" |
+  "declaredProjectSelfSource" | "completeDeclaredProjectSelf" |
   "literalCreationContextSource" | "completeLiteralCreationContext"> {
   readonly typeDefinitions: import("../../target-model/types/source-union-definitions.js").CsharpTypeDefinitions;
   readonly analysisTypes: CsharpTypePolicy;
@@ -92,13 +96,12 @@ function createCsharpTypeSystem(
         : requireProjectTypeABI().directSupertypes(type);
     },
     instantiateDeclarationType(declaration: Node | undefined, receiver: TargetTypeRef | undefined, type: TargetTypeRef) {
-      return projectTypeCatalog.declarationForNode(declaration) === undefined ? Object.freeze({ kind: "not-project-member" as const })
-        : requireProjectTypeABI().instantiateDeclarationType(declaration, receiver, type);
+      const header = formCsharpProjectDeclarationInstantiationHeader(projectTypeCatalog, declaration, type);
+      return header.kind !== "receiver" ? header : requireProjectTypeABI().instantiateDeclarationType(declaration, receiver, type);
     },
     instantiateMemberType(declaration: Node | undefined, receiver: TargetTypeRef | undefined, type: TargetTypeRef) {
-      const owner = csharpProjectMemberOwnerDeclaration(host.ast, declaration);
-      return projectTypeCatalog.declarationForNode(owner) === undefined ? Object.freeze({ kind: "not-project-member" as const })
-        : requireProjectTypeABI().instantiateMemberType(declaration, receiver, type);
+      const header = formCsharpProjectMemberInstantiationHeader(host.ast, projectTypeCatalog, declaration, type);
+      return header.kind !== "receiver" ? header : requireProjectTypeABI().instantiateMemberType(declaration, receiver, type);
     },
     implicitConstructorsForDeclaration(declaration: Node) {
       return projectTypeCatalog.declarationForNode(declaration) === undefined ? undefined
@@ -297,6 +300,15 @@ function createCsharpTypeSystem(
     completeTypeQuery: typeResolution.completeTypeQuery,
     completeDeclaredReceiverBody: typeResolution.completeDeclaredReceiverBody,
     completeDeclaredCallableBody: typeResolution.completeDeclaredCallableBody,
+    declaredProjectSelfSource: typeResolution.declaredProjectSelfSource,
+    completeDeclaredProjectSelf: typeResolution.completeDeclaredProjectSelf,
+    declaredNodeBodySource: typeResolution.declaredNodeBodySource,
+    completeDeclaredNodeBody: typeResolution.completeDeclaredNodeBody,
+    completeDeclaredStructuralBody: typeResolution.completeDeclaredStructuralBody,
+    completeDeclaredStructuralCaptures: typeResolution.completeDeclaredStructuralCaptures,
+    completeCallDeclarationArguments: typeResolution.completeCallDeclarationArguments,
+    completeBodyCallArguments: typeResolution.completeBodyCallArguments,
+    completeSourceCallTypeArguments: typeResolution.completeSourceCallTypeArguments,
     literalCreationContextSource: typeResolution.literalCreationContextSource,
     completeLiteralCreationContext: typeResolution.completeLiteralCreationContext,
     publishCallableProjections: declarations.publishCallableProjections,
@@ -379,6 +391,15 @@ export function createCsharpTypeAnalysis(
     completeTypeQuery: system.completeTypeQuery,
     completeDeclaredReceiverBody: system.completeDeclaredReceiverBody,
     completeDeclaredCallableBody: system.completeDeclaredCallableBody,
+    declaredProjectSelfSource: system.declaredProjectSelfSource,
+    completeDeclaredProjectSelf: system.completeDeclaredProjectSelf,
+    declaredNodeBodySource: system.declaredNodeBodySource,
+    completeDeclaredNodeBody: system.completeDeclaredNodeBody,
+    completeDeclaredStructuralBody: system.completeDeclaredStructuralBody,
+    completeDeclaredStructuralCaptures: system.completeDeclaredStructuralCaptures,
+    completeCallDeclarationArguments: system.completeCallDeclarationArguments,
+    completeBodyCallArguments: system.completeBodyCallArguments,
+    completeSourceCallTypeArguments: system.completeSourceCallTypeArguments,
     literalCreationContextSource: system.literalCreationContextSource,
     completeLiteralCreationContext: system.completeLiteralCreationContext,
     publishCallableProjections: system.publishCallableProjections,

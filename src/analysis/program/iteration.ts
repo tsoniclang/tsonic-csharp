@@ -1,7 +1,8 @@
 import { rejectCsharpAnalysisIssues } from "./issues.js";
 import { csharpProviderBindingFromResolution } from "../../providers/model/relation-resolver.js";
-import type { SourceFile } from "@tsonic/tsts";
+import type { Node, SourceFile } from "@tsonic/tsts";
 import { analyzeCsharpCaptureStorage } from "../callables/storage/capture-storage.js";
+import type { TargetTypeRef } from "../../target-model/types/model.js";
 
 import { analyzeCsharpNativeParticipation } from "../callables/calls/participation.js";
 
@@ -9,15 +10,17 @@ import { analyzeCsharpClassFactories } from "../project-types/class-factories.js
 import { analyzeCsharpClassInitialization } from "../project-types/class-initialization.js";
 
 import type { CsharpRequiredRecord } from "./records/objects/required-records.js";
-import { sourceDeclarationHasOnlyTypeUses, sourceDeclarationIsModuleScoped, sourceCallableValueExpression } from "@tsonic/target-api/source";
+import { sourceDeclarationHasOnlyTypeUses, sourceDeclarationIsModuleScoped, sourceCallableValueExpression, sourceClassFieldIsTypeOnly } from "@tsonic/target-api/source";
 import { analyzeCsharpExactLiteralSelections } from "../conversions/literal-plans.js";
 
 import { csharpTypeProjectionIndexesEqual } from "../declarations/type-projections.js";
 import { formCsharpCallableProjectionInput, analyzeCsharpCallableProjectionInput, joinCsharpCallableProjectionInputs,
-  requireCsharpCallableProjectionCompletion } from "../declarations/callable-projection-inputs.js";
+  requireCsharpCallableProjectionCompletion, requireCsharpCallableProjectionIndependence } from "../declarations/callable-projection-inputs.js";
+import type { CsharpCallableProjectionInput } from "../declarations/callable-projection-inputs.js";
 import { formCsharpTypeProjectionSource } from "../declarations/type-projection-source.js";
+import { formCsharpCallableProjectionOrder } from "../declarations/callable-projection-order.js";
 import { formCsharpTypeProjectionInputs, requireCsharpDeclaredReceiverProjectionCompletion } from "../declarations/type-projection-inputs.js";
-import { type CsharpGenericProjectionIndex } from "../../target-model/records/types/type-projections.js";
+import { type CsharpGenericProjectionIndex, type CsharpPublishedCallableProjections } from "../../target-model/records/types/type-projections.js";
 import { csharpCallableValueType } from "../../policy/types/callables/value-type.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { isCsharpStringTargetType } from "../../target-model/types/identity.js";
@@ -38,9 +41,10 @@ import { analyzeCsharpAttributeApplications } from "../attributes/application-in
 
 import type { CsharpTargetAnalysisRequest } from "./model.js";
 import { createCsharpSourceIdentityPolicy } from "../../source/extension/identities.js";
-import { analyzeCsharpTargetOperations } from "../operations/index.js";
+import { createCsharpTargetOperations } from "../operations/index.js";
 import { createCsharpAnalysisPolicyContext } from "./policy-context.js";
-import { analyzeCsharpSourceEvidence } from "../source-evidence/index.js";
+import { createCsharpSourceEvidence } from "../source-evidence/index.js";
+import type { CsharpCurrentDeclaredBodyInput } from "../source-evidence/model.js";
 import { analyzeCsharpDeclarations } from "../declarations/index.js";
 import { createCsharpSourceNameBuilder } from "../names/index.js";
 import { analyzeCsharpCallableContracts, csharpCallableContractIndexesEqual } from "../callables/index.js";
@@ -63,7 +67,7 @@ import { admitCsharpExpectedNativeUses } from "../expected-types/native-uses.js"
 import { analyzeCsharpNativeDemand } from "../operations/native-demand.js";
 
 import { analyzeCsharpValueReadStages } from "../conversions/value-read-stages.js";
-import { analyzeCsharpOptionalLocals } from "../storage/optional-locals.js";
+import { formCsharpOptionalLocalDecisions, completeCsharpOptionalLocals } from "../storage/optional-locals.js";
 
 export interface CsharpRepresentationContract {
   readonly typeProjections: CsharpGenericProjectionIndex;
@@ -80,7 +84,7 @@ export function analyzeCsharpRepresentationIteration(
   typeHost: Parameters<typeof createCsharpTypeAnalysis>[0] &
     Pick<import("../project-types/type-policy.js").CsharpProjectTypeCatalogHost, "enumConstants">,
   sourceStorage: SourceStorageQueries,
-  statementErasure: Parameters<typeof analyzeCsharpTargetOperations>[2],
+  statementErasure: Parameters<typeof createCsharpTargetOperations>[1],
   previous: CsharpRepresentationContract | undefined,
 ) {
   const requiredRecords: CsharpRequiredRecord[] = [];
@@ -88,6 +92,11 @@ export function analyzeCsharpRepresentationIteration(
   const projectionSource = formCsharpTypeProjectionSource(source, typeHost.objectMethodSources);
   const names = createCsharpSourceNameBuilder(nameHost);
   let typeSystem: CsharpTypeAnalysis | undefined;
+  let callableBodiesOpen = true;
+  const requirePhysicalCallablePhase = (node: Node): void => {
+    if (callableBodiesOpen) return failTargetAnalysisInvariant("tsonic-csharp",
+      "A callable body requires its current declared components, not a previous physical callable ABI.", node);
+  };
   const planningRepresentations: CsharpPlanningRepresentationQueries = {
     requiresClosedStructuralContract(type) {
       return previous?.storage.closedNativeContracts.some(contract => targetTypeRefEquals(contract, type)) === true;
@@ -95,6 +104,7 @@ export function analyzeCsharpRepresentationIteration(
     scopedTargetType(node) {
       const moduleSource = typeHost.moduleCallables.get(node);
       if (moduleSource !== undefined) {
+        requirePhysicalCallablePhase(node);
         const moduleCallable = moduleSource.callable;
         const moduleOwner = moduleSource.sourceOwner;
         const annotation = source.ast.typeNode(moduleOwner);
@@ -104,6 +114,7 @@ export function analyzeCsharpRepresentationIteration(
         return callable === undefined ? undefined : csharpCallableValueType(callable);
       }
       if (source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node)) {
+        requirePhysicalCallablePhase(node);
         const selected = previous?.callables.closedInputType(node);
         if (selected !== undefined) return selected;
       }
@@ -111,12 +122,14 @@ export function analyzeCsharpRepresentationIteration(
       if (storage !== undefined) return storage;
       if (!input.source.ast.is.IsArrowFunction(node) && !input.source.ast.is.IsFunctionExpression(node) &&
         !input.source.ast.is.IsFunctionDeclaration(node)) return undefined;
+      requirePhysicalCallablePhase(node);
       const callable = previous?.callables.get({ kind: "declaration", declaration: node });
       return callable === undefined ? undefined : csharpCallableValueType(callable);
     },
     closedInputContract(node) {
       const value = sourceCallableValueExpression(source.ast, node, { typeAssertions: "transparent" });
       if (value === undefined) return undefined;
+      requirePhysicalCallablePhase(node);
       const declaration = source.navigation.sourceReferenceFor(value)?.declaration ?? value;
       return previous?.callables.closedInputContract(declaration);
     },
@@ -126,6 +139,14 @@ export function analyzeCsharpRepresentationIteration(
     completeSourceCallable(source, selection) {
       if (typeSystem === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
         "Callable completion requires its initialized current project query owner.", source.source.call);
+      if (callableBodiesOpen) {
+        if (source.checked.project || source.implementation.project || source.module.project ||
+          source.constructorDeclaration !== undefined && input.source.navigation.isProjectDeclaration(source.constructorDeclaration)) {
+          return failTargetAnalysisInvariant("tsonic-csharp",
+            "A selected body call requires its declared component source before its physical callable ABI.", source.source.call);
+        }
+        return undefined;
+      }
       return completeCsharpSourceCallableSource(source, selection, {
         contracts: previous?.callables,
         projectTypes: typeSystem.projectTypeQueries,
@@ -155,7 +176,7 @@ export function analyzeCsharpRepresentationIteration(
   });
   if (policyContext.issues.length > 0) return rejectCsharpAnalysisIssues(policyContext.issues);
   const policy = policyContext.policy;
-  const evidence = analyzeCsharpSourceEvidence(
+  const evidenceProducer = createCsharpSourceEvidence(
     input.source,
     sourceFiles,
     typeSystem.analysisTypes,
@@ -164,26 +185,123 @@ export function analyzeCsharpRepresentationIteration(
     typeSystem.nativeConstructionSource,
     typeHost.pointerStorage,
   );
-  const sourceEvidence = evidence.index;
-  if (sourceEvidence.fixedArrayIssues.length > 0) return rejectCsharpAnalysisIssues(sourceEvidence.fixedArrayIssues);
-  const operations = analyzeCsharpTargetOperations(policy, sourceEvidence, statementErasure, sourceStorage.nodes, requiredRecords);
-  const valueReadStages = analyzeCsharpValueReadStages(policy, sourceEvidence, operations);
-  const optionalLocals = analyzeCsharpOptionalLocals(policy, sourceEvidence, sourceStorage.nodes, names, operations);
-  const projectionInputs = formCsharpTypeProjectionInputs(projectionSource, sourceEvidence, evidence.currentNodeInputs);
-  const bodyNodeInputs = new Map(evidence.currentNodeInputs.map(input => [input.source.node, input]));
-  const declaredBodies: ReturnType<typeof typeSystem.completeDeclaredCallableBody>[] = [];
+  const operationProducer = createCsharpTargetOperations(policy, statementErasure, sourceStorage.nodes, requiredRecords, typeSystem);
+  const declaredBodyInputs = new Map<Node, CsharpCurrentDeclaredBodyInput>();
+  const bodySources = new Map(projectionSource.owners.map(owner => [owner, evidenceProducer.captureBody(owner)]));
+  const callsByOwner = new Map(projectionSource.owners.map(owner => [owner, Object.freeze(bodySources.get(owner)!.flatMap(input => {
+    const node = input.source.node;
+    if (node === undefined || !source.ast.is.IsCallExpression(node)) return [];
+    const sourceFile = source.ast.getSourceFile(node);
+    if (sourceFile === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+      "A selected body call requires its original source file.", node);
+    return [operationProducer.bodyInputs.captureCall(node, sourceFile)];
+  }))]));
+  const publicationOrder = formCsharpCallableProjectionOrder(projectionSource, callsByOwner, bodySources);
+  const publishedBodies = new Map<Node, CsharpPublishedCallableProjections>();
+  for (const component of publicationOrder) {
+    const internalCalls = new Set(component.dependencies.flatMap(dependency => dependency.kind === "call" ? [dependency.call.node] : []));
+    const internalCaptures = component.dependencies.flatMap(dependency => dependency.kind === "capture" ? [dependency] : []);
+    const internalSelf = component.dependencies.flatMap(dependency => dependency.kind === "project-self" ? [dependency] : []);
+    const deferred = Object.freeze({ captures: new Set(internalCaptures.map(dependency => dependency.capture.declaration)),
+      projectSelf: new Set(internalSelf.map(dependency => dependency.body.self.declaration)) });
+    const dependencyNodes = new Set([...internalCaptures.map(dependency => dependency.source.node),
+      ...internalSelf.map(dependency => dependency.body.source.node)]);
+    const bodyOperations = Object.freeze({ ...operationProducer.bodyInputs,
+      selectedCall: Object.freeze({ get: (node: Node) => internalCalls.has(node)
+        ? operationProducer.bodyInputs.declaredCall.get(node) : operationProducer.bodyInputs.selectedCall.get(node) }),
+    });
+    const completedBodies: { readonly input: CsharpCallableProjectionInput;
+      readonly completed: CsharpPublishedCallableProjections }[] = [];
+    for (const owner of component.owners) {
+      const declared = evidenceProducer.prepareBody(owner, deferred);
+      for (const input of declared) {
+        if (input.source.node === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+          "A declared callable body requires its exact original node.", owner.declaration);
+        const previous = declaredBodyInputs.get(input.source.node);
+        if (previous !== undefined && previous !== input) return failTargetAnalysisInvariant("tsonic-csharp",
+          "A body contribution has one declared producer.", input.source.node);
+        declaredBodyInputs.set(input.source.node, input);
+      }
+      for (const occurrence of owner.nodes) {
+        let omitted = false;
+        for (let parent: typeof occurrence | undefined = occurrence; parent !== undefined; parent = parent.parent) {
+          if (evidenceProducer.body.compileTimeMetadata.get(parent.node) || sourceClassFieldIsTypeOnly(source.ast, parent.node) ||
+            policy.types.nativeUnreachable(parent.node)) { omitted = true; break; }
+        }
+        if (omitted) continue;
+        const sourceFile = source.ast.getSourceFile(occurrence.node);
+        if (sourceFile === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+          "A body operation requires its original source file.", occurrence.node);
+        operationProducer.bodyInputs.completeLocation(occurrence.node, sourceFile);
+        if (source.ast.is.IsCallExpression(occurrence.node)) {
+          if (internalCalls.has(occurrence.node)) operationProducer.bodyInputs.completeDeclarationArguments(occurrence.node, sourceFile);
+          else operationProducer.bodyInputs.completeCallArguments(occurrence.node, sourceFile);
+        }
+      }
+      const bodySource = Object.freeze({ ...projectionSource, nodes: owner.nodes });
+      const inputs = formCsharpTypeProjectionInputs(bodySource, evidenceProducer.body, [], declared);
+      const optional = formCsharpOptionalLocalDecisions(policy, evidenceProducer.body,
+        owner.nodes.map(occurrence => occurrence.node), names, bodyOperations);
+      const input = formCsharpCallableProjectionInput(projectionSource, owner, inputs, bodyOperations, optional,
+        declared.flatMap(input => input.kind === "callable" ? [input.body] : []));
+      const completed = analyzeCsharpCallableProjectionInput(input);
+      completedBodies.push(Object.freeze({ input, completed }));
+    }
+    for (const body of completedBodies) {
+      typeSystem.publishCallableProjections(body.completed);
+      publishedBodies.set(body.completed.declaration, body.completed);
+    }
+    for (const dependency of component.dependencies) {
+      if (dependency.kind !== "call") continue;
+      const selected = operationProducer.bodyInputs.completeCallArguments(dependency.call.node, dependency.call.sourceFile);
+      if (selected.sourceTypeArguments === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+        "A recursive A dependency requires its actual available argument vector.", dependency.call.node);
+    }
+    const dependencyTypes = new Map<Node, readonly TargetTypeRef[]>();
+    for (const owner of component.owners) for (const input of evidenceProducer.completeBodyDependencies(owner)) {
+      if (input.source.node === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+        "A completed body dependency keeps its original occurrence.", owner.declaration);
+      declaredBodyInputs.set(input.source.node, input);
+      if ((input.kind === "structural" || input.kind === "project-self") && dependencyNodes.has(input.source.node)) {
+        dependencyTypes.set(input.source.node, input.body.components);
+      }
+    }
+    if (component.recursive) for (const body of completedBodies) {
+      requireCsharpCallableProjectionIndependence(body.input, body.completed, Object.freeze({
+        selectedCall: Object.freeze({ get: (node: Node) => internalCalls.has(node)
+          ? operationProducer.bodyInputs.selectedCall.get(node) : undefined }),
+      }), Object.freeze({ get: (node: Node) => dependencyTypes.get(node) ?? Object.freeze([]) }));
+    }
+  }
   const callableProjectionInputs = projectionSource.owners.map(owner => {
-    const nodeInput = bodyNodeInputs.get(owner.declaration);
-    if (nodeInput !== undefined) declaredBodies.push(typeSystem.completeDeclaredCallableBody(nodeInput.source));
-    const completed = analyzeCsharpCallableProjectionInput(formCsharpCallableProjectionInput(
-      projectionSource, owner, projectionInputs, operations, optionalLocals, Object.freeze([...declaredBodies])));
-    typeSystem.publishCallableProjections(completed);
-    return completed;
+    const published = publishedBodies.get(owner.declaration);
+    if (published?.source !== owner) return failTargetAnalysisInvariant("tsonic-csharp",
+      "A complete body inventory requires every original callable publication exactly once.", owner.declaration);
+    return published;
   });
+  const bodyProjectionInputs = formCsharpTypeProjectionInputs(projectionSource, evidenceProducer.body,
+    evidenceProducer.nodeInputs(), Object.freeze([...declaredBodyInputs.values()]));
+  const bodyOptionalLocals = formCsharpOptionalLocalDecisions(policy, evidenceProducer.body,
+    sourceStorage.nodes, names, operationProducer.bodyInputs);
   const projectionOrder = requireCsharpCallableProjectionCompletion(projectionSource,
-    callableProjectionInputs, projectionInputs, operations, optionalLocals);
+    callableProjectionInputs, bodyProjectionInputs, operationProducer.bodyInputs, bodyOptionalLocals);
   const typeProjections = joinCsharpCallableProjectionInputs(projectionSource, callableProjectionInputs, projectionOrder);
   typeSystem.publishProjectTypes(typeProjections);
+  callableBodiesOpen = false;
+  for (const sourceFile of sourceFiles) evidenceProducer.complete(sourceFile, sourceFile, false);
+  const evidence = evidenceProducer.seal();
+  const sourceEvidence = evidence.index;
+  if (sourceEvidence.fixedArrayIssues.length > 0) return rejectCsharpAnalysisIssues(sourceEvidence.fixedArrayIssues);
+  const operations = operationProducer.complete(sourceEvidence);
+  const valueReadStages = analyzeCsharpValueReadStages(policy, sourceEvidence, operations);
+  const optionalLocalDecisions = formCsharpOptionalLocalDecisions(policy, sourceEvidence, sourceStorage.nodes, names, operations);
+  const optionalLocals = completeCsharpOptionalLocals(optionalLocalDecisions, names);
+  const projectionInputs = formCsharpTypeProjectionInputs(projectionSource, sourceEvidence, evidence.currentNodeInputs, []);
+  const finalProjectionOrder = requireCsharpCallableProjectionCompletion(projectionSource,
+    callableProjectionInputs, projectionInputs, operations, optionalLocals);
+  if (finalProjectionOrder.length !== projectionOrder.length ||
+    finalProjectionOrder.some((declaration, index) => declaration !== projectionOrder[index])) return failTargetAnalysisInvariant("tsonic-csharp",
+      "The physical completion must retain A's original declaration order without a second answer.");
   typeSystem.completeNativeConstruction(typeSystem.nativeConstructionSource);
   const declarations = analyzeCsharpDeclarations(
     policy,

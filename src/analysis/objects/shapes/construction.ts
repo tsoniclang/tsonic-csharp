@@ -169,7 +169,7 @@ export function formCsharpObjectShapeMergeInput(
     : declarationTemplate === undefined ? right.declarationTemplate : declarationTemplate.output;
   const output = Object.freeze({ contract: Object.freeze({ ...left.contract,
     ...(template === undefined ? {} : { declarationTemplate: template.contract }),
-  }), memberKeys: left.memberKeys, declarationTemplate: template });
+  }), targetKey: left.targetKey, memberKeys: left.memberKeys, declarationTemplate: template });
   return Object.freeze({ left, right, output, declarationTemplate, members: Object.freeze(members) });
 }
 

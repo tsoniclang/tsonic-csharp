@@ -11,15 +11,16 @@ import { csharpObjectShapeMethodDeclaration, csharpPresentObjectShapeMethod } fr
 import { csharpObjectMethodHasFixedNativeExposure } from "../../../policy/types/objects/object-members.js";
 import { createStructuralObjectShapeTarget, formCsharpObjectShapeMergeInput,
   formCsharpObjectShapeProofRows, formCsharpObjectShapeSourceMerge, mergeCsharpObjectShapeSubjects } from "./construction.js";
-import { formCsharpObjectShapeHeader } from "../../../target-model/types/object-shape-header.js";
+import { formCsharpObjectShapeHeader, type CsharpObjectShapeHeader } from "../../../target-model/types/object-shape-header.js";
 import { csharpObjectMethodValueIsExtracted, resolveCsharpWritableMethodContract } from "./method-values.js";
 import { projectCsharpNativeSourceStorageCarrier } from "../value-domain-carriers.js";
 import { createCsharpMetadataBudget } from "../../../target-model/metadata/immutable.js";
+import type { CsharpObjectShapePublisher } from "./publication.js";
 
 interface CsharpNativeShapeProjectionOwner {
   resolveTarget(type: TargetTypeRef | undefined): CsharpObjectShapeFact | undefined;
   resolveProjectInterfaceShape(type: CsharpTargetNamedTypeRef, state: CsharpTypeResolutionState): CsharpObjectShapeFact | undefined;
-  rememberTargetShape(shape: CsharpObjectShapeFact): CsharpObjectShapeFact;
+  readonly rememberTargetShape: CsharpObjectShapePublisher;
 }
 
 export function createCsharpNativeShapeProjections(
@@ -57,7 +58,7 @@ export function createCsharpNativeShapeProjections(
     const selected = resolveCsharpWritableMethodContract(view, written, environment);
     if (selected === undefined) return rejected("A native method-write destination requires an exact writable source method contract.");
     if (selected === shape) return Object.freeze({ kind: "resolved", type });
-    const resolved = rememberTargetShape(selected).targetType;
+    const resolved = rememberTargetShape(formCsharpObjectShapeHeader(selected), selected).targetType;
     return Object.freeze({ kind: "resolved", type: element === undefined ? resolved : csharpNullableTargetType(resolved) });
   }
 
@@ -113,27 +114,31 @@ export function createCsharpNativeShapeProjections(
       }
       if (candidates.size === 0) return shape;
     }
-    const protocols = new Map<string, CsharpObjectShapeFact>();
+    const protocols = new Map<string, { readonly header: CsharpObjectShapeHeader; readonly shape: CsharpObjectShapeFact }>();
     for (const [member, contract] of contracts) {
       const key = targetTypeRefKey(contract);
-      const protocol = protocols.get(key) ?? resolveTarget(contract);
+      const previous = protocols.get(key);
+      const protocol = previous?.shape ?? resolveTarget(contract);
       const signature = csharpPresentObjectShapeMethod(member);
       if (protocol === undefined || signature === undefined) return shape;
-      const matches = protocol.members.filter(candidate =>
+      const physical = previous?.header ?? formCsharpObjectShapeHeader(protocol);
+      const matches = physical.contract.members.filter(candidate =>
         csharpObjectShapeMemberContractKey(candidate) === csharpObjectShapeMemberContractKey(signature));
       if (matches.length !== 1) return shape;
-      const correspondence = { ...protocol, members: protocol.members.map(candidate => candidate !== matches[0] ? candidate : {
+      const selectedIndex = physical.contract.members.indexOf(matches[0]!);
+      const header = formCsharpObjectShapeMergeInput(physical, physical);
+      const correspondence = { ...protocol, members: protocol.members.map((candidate, index) => index !== selectedIndex ? candidate : {
         ...candidate,
         ...(signature.sourceSubjects === undefined ? {} : { sourceSubjects: signature.sourceSubjects }),
         ...(signature.sourceDeclarations === undefined ? {} : { sourceDeclarations: signature.sourceDeclarations }),
         ...(signature.sourceTypes === undefined ? {} : { sourceTypes: signature.sourceTypes }),
       }) };
-      const header = formCsharpObjectShapeMergeInput(formCsharpObjectShapeHeader(protocol), formCsharpObjectShapeHeader(correspondence));
       const source = formCsharpObjectShapeSourceMerge(header,
         formCsharpObjectShapeProofRows(header.left, protocol), formCsharpObjectShapeProofRows(header.right, correspondence));
-      protocols.set(key, mergeCsharpObjectShapeSubjects(source, protocol, correspondence));
+      protocols.set(key, Object.freeze({ header: header.output,
+        shape: mergeCsharpObjectShapeSubjects(source, protocol, correspondence) }));
     }
-    for (const protocol of protocols.values()) rememberTargetShape(protocol);
+    for (const protocol of protocols.values()) rememberTargetShape(protocol.header, protocol.shape);
     const members = shape.members.map(member => {
       const contract = contracts.get(member);
       if (contract === undefined) return member;
@@ -187,7 +192,7 @@ export function createCsharpNativeShapeProjections(
     const selected = resolveCsharpWritableMethodContract(shape, written, environment);
     if (selected === undefined) return Object.freeze({ kind: "rejected", subject: declaration,
       code: "CSHARP_SOURCE_STORAGE_NOT_PROVEN", reason: "A native return requires the exact common writable source method contract of every reaching producer." });
-    const resolved = rememberTargetShape(selected).targetType;
+    const resolved = rememberTargetShape(formCsharpObjectShapeHeader(selected), selected).targetType;
     return Object.freeze({ kind: "resolved", type: element === undefined ? resolved : csharpNullableTargetType(resolved) });
   }
 

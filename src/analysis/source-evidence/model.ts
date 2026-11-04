@@ -8,6 +8,10 @@ import type { CsharpNodeQuerySource, CsharpTypeQuerySource } from "./types/resol
 import type { CsharpNodeTypeResolution } from "../../policy/model/type-resolution.js";
 import type { CsharpNativeConstructionPublicationSource } from "../objects/native-construction-publication.js";
 import type { CsharpDeclaredReceiverBody } from "./types/resolution/declared-receiver-body.js";
+import type { CsharpDeclaredCallableBody } from "./types/resolution/declared-callable-body.js";
+import type { CsharpDeclaredNodeBody } from "./types/resolution/declared-node-body.js";
+import type { CsharpDeclaredStructuralBody } from "./types/resolution/declared-structural-body.js";
+import type { CsharpDeclaredProjectSelfBody } from "./types/resolution/declared-project-self.js";
 
 type CurrentProjectDeclaration<Definition extends CsharpProjectTypeDefinition> = Definition extends unknown
   ? Omit<Definition, "declared" | "authoredTypeParameterBindings" | "typeParameterBindings" | "typeProjections" | "outerTypeProjections"> : never;
@@ -30,6 +34,19 @@ export interface CsharpCurrentNativeNodeInput {
   readonly resolution: CsharpNodeTypeResolution | undefined;
   readonly storageType: TargetTypeRef | undefined;
   readonly readStorageType: TargetTypeRef | undefined;
+}
+
+export type CsharpCurrentDeclaredBodyInput = { readonly source: CsharpNodeQuerySource } & (
+  | { readonly kind: "receiver"; readonly body: CsharpDeclaredReceiverBody }
+  | { readonly kind: "callable"; readonly body: Extract<CsharpDeclaredCallableBody, { readonly kind: "callable" }> }
+  | { readonly kind: "node"; readonly body: Extract<CsharpDeclaredNodeBody, { readonly kind: "component" }> }
+  | { readonly kind: "structural"; readonly body: Extract<CsharpDeclaredStructuralBody, { readonly kind: "structural" }> }
+  | { readonly kind: "project-self"; readonly body: CsharpDeclaredProjectSelfBody }
+);
+
+export interface CsharpCapturedBodySource {
+  readonly source: CsharpNodeQuerySource;
+  readonly projectSelf: Extract<CsharpDeclaredProjectSelfBody, { readonly phase: "declared" }> | undefined;
 }
 
 export interface CsharpCurrentNativeTypeInput {

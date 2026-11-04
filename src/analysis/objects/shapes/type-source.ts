@@ -19,6 +19,9 @@ import { requiresUnresolvedStructuralProjection, typeHasProjectOwnedShapeDeclara
 import { selectCsharpObjectMethodImplementationSource,
   type CsharpObjectMethodImplementationSource } from "./method-implementations.js";
 import { formCsharpStructShapeSource, type CsharpStructShapeSource } from "./struct-source.js";
+import { formCsharpCallableTypeSource } from "../../source-evidence/types/resolution/callable-signature-source.js";
+import { formCsharpCallableTypeInput,
+  type CsharpCallableTypeInput } from "../../source-evidence/types/resolution/callable-signature-completion.js";
 
 export interface CsharpObjectShapeProjectSource {
   readonly definition: CsharpCurrentProjectDeclaration;
@@ -49,6 +52,7 @@ export interface CsharpObjectShapeTypeSource {
     readonly node: Node;
     readonly sourceFile: SourceFile | undefined;
     readonly state: CsharpTypeResolutionState;
+    readonly callable: CsharpCallableTypeInput | undefined;
   }[];
   readonly structuralContract: boolean;
 }
@@ -105,10 +109,15 @@ export function createCsharpObjectShapeSourceFormation(
       collection.members.map(member => Object.freeze({ memberKind: member.method ? "method" as const : "property" as const,
         sourceDeclarations: member.proofInput.sourceDeclarations,
       })), host, state, authoredLiteral);
-    const implementationCaptures = implementation === undefined ? [] : implementation.captures.map(capture =>
-      Object.freeze({ node: capture.declaration, sourceFile: capture.sourceFile,
-        state: Object.freeze(nextState(state)),
-      }));
+    const implementationCaptures = implementation === undefined ? [] : implementation.captures.map(capture => {
+      const captureState = Object.freeze(nextState(state));
+      const captureQueries = capture.sourceFile === undefined ? host.semanticsFor(capture.declaration) : host.semantics(capture.sourceFile);
+      const captureType = captureQueries.types.expressionType(capture.declaration);
+      return Object.freeze({ node: capture.declaration, sourceFile: capture.sourceFile, state: captureState,
+        callable: captureType === undefined ? undefined : formCsharpCallableTypeInput(host,
+          formCsharpCallableTypeSource(host.ast, captureType, captureQueries), captureState),
+      });
+    });
     return Object.freeze({ type, node, queries, state, authoredTypeRoot, selectedTypeRoot, project, provider, providerShape,
       projects: Object.freeze([...projects.values()]), members,
       collected: collection === undefined ? undefined : formCollectedObjectShapeSource(collection),

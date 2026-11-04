@@ -18,7 +18,7 @@ import { resolveCsharpObjectMethodImplementation } from "./method-implementation
 import { resolveCsharpCopiedObjectShape, retainCsharpMethodValueContracts,
   type CsharpObjectShapeTargetInput } from "./method-values.js";
 
-import { parameterizeCsharpStructuralContract } from "./structural-contracts.js";
+import { formCsharpStructuralContractHeader, completeCsharpStructuralContractSource } from "./structural-contracts.js";
 
 import { retainCsharpGenericCallableValue } from "../../callables/generics/generic-values.js";
 
@@ -40,7 +40,8 @@ import { completeCsharpObjectShapePublication, formCsharpObjectShapePublication,
   formCsharpObjectShapePublicationSource, formCsharpObjectShapeTargetSource, completeCsharpObjectShapeTargetMemberSource,
   type CsharpObjectShapePublication, type CsharpObjectShapeTargetSelection,
   type CsharpObjectShapeTargetSource } from "./publication.js";
-import { completeCsharpObjectShapeOwnerHeader, formCsharpObjectShapeHeader } from "../../../target-model/types/object-shape-header.js";
+import { completeCsharpObjectShapeOwnerHeader, formCsharpObjectShapeHeader, requireCsharpObjectShapeHeader,
+  type CsharpObjectShapeHeader } from "../../../target-model/types/object-shape-header.js";
 import { formCsharpObjectShapeProofRows, requireCsharpObjectShapeProofRows } from "./construction.js";
 import type { CsharpNativeConstructionRetention } from "../native-construction-source.js";
 import { formCsharpObjectLiteralConstructionSource, formCsharpObjectLiteralShapeSource } from "./literal-source.js";
@@ -123,14 +124,16 @@ export function createCsharpObjectShapePolicy(
       const selectedShape = selectedSource === undefined ? undefined : completeTargetSelection(selectedSource);
       if (selectedShape !== undefined && selectedSource !== undefined) {
         const completed = completeCsharpObjectShapeTargetMemberSource(selectedSource, selectedShape);
-        if (completed !== undefined) return state.sourceBindings === undefined
-          ? remember(node, completed) : rememberTargetShape(completed);
+        if (completed !== undefined) {
+          const published = rememberTargetShape(selectedSource.selection.header, completed);
+          return state.sourceBindings === undefined ? remember(node, published) : published;
+        }
       }
       const semantic = source.origin === "contextual" ? input.contextual : input.semantic;
       const shape = semantic === undefined ? undefined
         : resolveSemanticShape(semantic, source.contextualTarget ?? selectedTarget);
       if (shape !== undefined) {
-        return state.sourceBindings === undefined ? remember(node, shape) : rememberTargetShape(shape);
+        return state.sourceBindings === undefined ? remember(node, shape) : shape;
       }
       if (selectedShape !== undefined) {
         return remember(node, selectedShape);
@@ -153,7 +156,8 @@ export function createCsharpObjectShapePolicy(
       if (selection.kind === "nullable") return complete(selection.selection);
       if (selection.kind === "canonical") return selection.publication.shape;
       if (selection.kind === "attached") return selection.shapes[selection.index]!;
-      return rememberTargetShape(completeCsharpObjectShapeInstantiation(selection.instantiation, selection.template.shape));
+      return rememberTargetShape(selection.instantiation.header,
+        completeCsharpObjectShapeInstantiation(selection.instantiation, selection.template.shape));
     };
     const shape = complete(source.selection);
     requireCsharpObjectShapeProofRows(source.rows, shape);
@@ -245,7 +249,7 @@ export function createCsharpObjectShapePolicy(
       source.authoredTypeRoot !== authoredTypeRoot)) return failTargetAnalysisInvariant("tsonic-csharp",
       "Shape completion requires its exact original semantic source occurrence.", authoredTypeRoot);
     const shape = source === undefined ? undefined : resolveSemanticShape(source);
-    return shape === undefined ? undefined : rememberTargetShape(shape);
+    return shape;
   }
 
   const completeObjectLiteralTargetShape = createCsharpLiteralShapeResolver(host, { resolveNode,
@@ -271,7 +275,7 @@ export function createCsharpObjectShapePolicy(
     return completeObjectLiteralTargetShape(source, expectedShape, actualShape);
   }
   const projectConstruction = createCsharpProjectShapeProjection(host,
-    { collectMembers, formSourceMembersHeader, completeSourceMembers, completeSourceShape, formTargetShape });
+    { collectMembers, formSourceMembersHeader, completeSourceShape, formTargetShape, rememberTargetShape });
 
   function formTargetShape(input: CsharpObjectShapeTargetInput): CsharpObjectShapeFact {
     return retainCsharpMethodValueContracts(input, rememberTargetShape, environment, host.sourceStorage);
@@ -281,14 +285,15 @@ export function createCsharpObjectShapePolicy(
     node: Node,
     shape: CsharpObjectShapeFact,
   ): CsharpObjectShapeFact {
-    shape = rememberTargetShape(shape);
     nodeShapes.set(node, shape);
     return shape;
   }
 
   function rememberTargetShape(
+    incoming: CsharpObjectShapeHeader,
     shape: CsharpObjectShapeFact,
   ): CsharpObjectShapeFact {
+    requireCsharpObjectShapeHeader(incoming, shape);
     if (shape.members.some(member => member.sourceDeclarations?.some(declaration =>
       isCsharpNativeSourceProfileMemberDeclaration(declaration, host.ast)) === true)) {
       failTargetAnalysisInvariant("tsonic-csharp", "A physical object-shape member cannot be owned by a native-mapped source-profile declaration.");
@@ -300,14 +305,14 @@ export function createCsharpObjectShapePolicy(
       return shape;
     }
     if (shape.declarationTemplate !== undefined) {
-      shape = { ...shape, declarationTemplate: rememberTargetShape(shape.declarationTemplate) };
+      shape = { ...shape, declarationTemplate: rememberTargetShape(incoming.declarationTemplate!, shape.declarationTemplate) };
     }
-    const key = targetTypeRefKey(shape.targetType);
+    const key = incoming.targetKey;
     const publication = targetShapes.get(key);
     const existing = publication?.shape;
-    if (existing !== undefined && !csharpObjectShapesEqual(existing, shape)) {
-      const existingContract = csharpObjectShapeContractKey(existing);
-      const incomingContract = csharpObjectShapeContractKey(shape);
+    if (publication !== undefined && !csharpObjectShapesEqual(publication.header.contract, incoming.contract)) {
+      const existingContract = csharpObjectShapeContractKey(publication.header.contract);
+      const incomingContract = csharpObjectShapeContractKey(incoming.contract);
       let offset = 0;
       while (offset < existingContract.length && offset < incomingContract.length &&
         existingContract[offset] === incomingContract[offset]) {
@@ -321,7 +326,7 @@ export function createCsharpObjectShapePolicy(
         `excerpt ${JSON.stringify(existingContract.slice(start, end))}; ` +
         `incoming length ${incomingContract.length}, excerpt ${JSON.stringify(incomingContract.slice(start, end))}.`);
     }
-    const header = formCsharpObjectShapePublication(formCsharpObjectShapeHeader(shape), publication?.header);
+    const header = formCsharpObjectShapePublication(incoming, publication?.header);
     const source = formCsharpObjectShapePublicationSource(header,
       formCsharpObjectShapeProofRows(header.incoming, shape), publication?.source.output);
     const completed = completeCsharpObjectShapePublication(source, shape, existing);
@@ -347,7 +352,8 @@ export function createCsharpObjectShapePolicy(
     source: CsharpStructShapeSource | undefined,
   ): CsharpObjectShapeFact | undefined {
     const header = source?.members === undefined ? undefined : formSourceMembersHeader(source.members, undefined);
-    return source === undefined ? undefined : completeCsharpStructShapeSource(host, source, header, completeSourceMembers);
+    return source === undefined ? undefined : completeCsharpStructShapeSource(host, source, header,
+      completeSourceMembers, rememberTargetShape);
   }
 
   function resolveSemanticShape(
@@ -380,9 +386,12 @@ export function createCsharpObjectShapePolicy(
         providerShape = step.value;
       }
       if (providerShape !== undefined) {
+        const physical = formCsharpObjectShapeHeader(providerShape);
         const members = input.providerShape === undefined ? undefined
           : retainMemberDeclarationEvidence(providerShape.members, input.providerShape.members.map(member => member.proof));
-        return members === undefined ? undefined : { ...providerShape, members };
+        if (members === undefined) return undefined;
+        const completed = Object.freeze({ ...providerShape, members });
+        return rememberTargetShape(physical, completed);
       }
       const contextualProjectType = targetType !== undefined &&
           isProjectSourceTargetType(targetType)
@@ -422,11 +431,8 @@ export function createCsharpObjectShapePolicy(
         contextualProjectType !== undefined &&
         declaredKind === "class"
       ) {
-        return {
-              ...declaredShape!,
-              sourceType: type,
-              members,
-            };
+        const completed = Object.freeze({ ...declaredShape!, sourceType: type, members });
+        return rememberTargetShape(formCsharpObjectShapeHeader(declaredShape!), completed);
       }
       if (
         contextualProjectType !== undefined &&
@@ -434,13 +440,17 @@ export function createCsharpObjectShapePolicy(
         !objectLiteral
       ) {
         const declared = application === undefined ? undefined : declarationApplications.completeDeclarationApplication(application);
-        if (declared === undefined) return memberHeaders === undefined ? undefined : completeSourceShape(memberHeaders, {
-          targetType: contextualProjectType,
-          sourceType: type,
-          members,
-        });
+        if (declared === undefined) {
+          if (memberHeaders === undefined) return undefined;
+          const native = Object.freeze({ targetType: contextualProjectType, sourceType: type, members });
+          const physical = formCsharpObjectShapeHeader(native);
+          const completed = completeSourceShape(memberHeaders, native);
+          return completed === undefined ? undefined : rememberTargetShape(physical, completed);
+        }
+        const physical = formCsharpObjectShapeHeader(declared);
         const instantiatedMembers = instantiated === undefined ? undefined : instantiateMemberEvidence(declared.members, instantiated.instantiation);
-        return instantiatedMembers === undefined ? undefined : { ...declared, sourceType: type, members: instantiatedMembers };
+        return instantiatedMembers === undefined ? undefined
+          : rememberTargetShape(physical, Object.freeze({ ...declared, sourceType: type, members: instantiatedMembers }));
       }
       const implemented = contextualProjectType !== undefined &&
           declaredKind === "interface"
@@ -461,19 +471,24 @@ export function createCsharpObjectShapePolicy(
         ...(methodImplementation === undefined ? {} : { methodImplementation }),
         ...(implemented === undefined ? {} : { implements: implemented }),
       });
+      const physical = formCsharpObjectShapeHeader(selectedShape);
+      const structuralHeader = authoredLiteral === undefined && structuralContract && reference === undefined &&
+        !host.representations.requiresClosedStructuralContract(selectedShape.targetType)
+        ? formCsharpStructuralContractHeader(selectedShape, environment) : undefined;
       const shape = memberHeaders === undefined ? selectedShape : completeSourceShape(memberHeaders, selectedShape);
       if (shape === undefined) return undefined;
       if (authoredLiteral !== undefined) {
         const selected = resolveObjectLiteralTargetShape(shape, authoredLiteral, queries.sourceFile);
         if (selected.kind !== "resolved") return undefined;
+        const selectedHeader = formCsharpObjectShapeHeader(selected.shape);
         const evidence = formMemberInstantiationEvidence(Object.freeze({ members: selected.shape.members,
           type, queries, previousSourceType: selected.shape.sourceType }));
         const members = evidence === undefined ? undefined : instantiateMemberEvidence(selected.shape.members, evidence);
-        return members === undefined ? undefined : { ...selected.shape, sourceType: type, members };
+        return members === undefined ? undefined
+          : rememberTargetShape(selectedHeader, Object.freeze({ ...selected.shape, sourceType: type, members }));
       }
-      return structuralContract && unionDefinitions.reference(type) === undefined &&
-        !host.representations.requiresClosedStructuralContract(shape.targetType)
-        ? parameterizeCsharpStructuralContract(shape, environment) : shape;
+      const completed = structuralHeader === undefined ? shape : completeCsharpStructuralContractSource(structuralHeader, shape);
+      return rememberTargetShape(structuralHeader?.header ?? physical, completed);
     } finally {
       activeTypes.delete(type);
     }
@@ -538,10 +553,12 @@ export function createCsharpObjectShapePolicy(
       if (presentTypes.length !== 1) return failTargetAnalysisInvariant("tsonic-csharp",
         "Construction source retention requires its exact single-component publication.", node);
       const type = presentTypes[0]!;
+      const physical = formCsharpObjectShapeHeader(shape);
       const evidence = formMemberInstantiationEvidence(Object.freeze({ members: shape.members,
         type, queries, previousSourceType: shape.sourceType }));
       const members = evidence === undefined ? undefined : instantiateMemberEvidence(shape.members, evidence);
-      return members === undefined ? undefined : remember(node, { ...shape, sourceType: type, members });
+      return members === undefined ? undefined
+        : remember(node, rememberTargetShape(physical, Object.freeze({ ...shape, sourceType: type, members })));
     },
     resolveCallableValue: (signature: TargetTypeRef, typeParameters: NonNullable<CsharpObjectShapeMemberFact["typeParameters"]>) =>
       retainCsharpGenericCallableValue(signature, typeParameters, rememberTargetShape, environment),

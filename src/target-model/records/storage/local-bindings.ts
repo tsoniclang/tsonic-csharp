@@ -1,26 +1,29 @@
 import type { TargetTypeRef } from "../../types/model.js";
 import type { Node } from "@tsonic/tsts";
 
-export interface CsharpOptionalLocalPlacement {
+export interface CsharpOptionalLocalPlacementSource {
   readonly declaration: Node;
   readonly storage: TargetTypeRef;
   readonly payload: TargetTypeRef;
   readonly payloadName: string;
+}
+
+export interface CsharpOptionalLocalPlacement extends CsharpOptionalLocalPlacementSource {
   readonly presenceName: string;
 }
 
-export type CsharpOptionalLocalValue =
+export type CsharpOptionalLocalValue<Placement extends CsharpOptionalLocalPlacementSource = CsharpOptionalLocalPlacement> =
   | { readonly kind: "absence"; readonly expression: Node | undefined }
   | { readonly kind: "present"; readonly expression: Node }
-  | { readonly kind: "copy"; readonly expression: Node; readonly placement: CsharpOptionalLocalPlacement };
+  | { readonly kind: "copy"; readonly expression: Node; readonly placement: Placement };
 
-export type CsharpOptionalLocalOperation =
-  | { readonly kind: "declaration"; readonly placement: CsharpOptionalLocalPlacement; readonly value: CsharpOptionalLocalValue }
-  | { readonly kind: "write"; readonly placement: CsharpOptionalLocalPlacement; readonly value: CsharpOptionalLocalValue }
-  | { readonly kind: "absence-test"; readonly placement: CsharpOptionalLocalPlacement; readonly negated: boolean;
+export type CsharpOptionalLocalOperation<Placement extends CsharpOptionalLocalPlacementSource = CsharpOptionalLocalPlacement> =
+  | { readonly kind: "declaration"; readonly placement: Placement; readonly value: CsharpOptionalLocalValue<Placement> }
+  | { readonly kind: "write"; readonly placement: Placement; readonly value: CsharpOptionalLocalValue<Placement> }
+  | { readonly kind: "absence-test"; readonly placement: Placement; readonly negated: boolean;
       readonly other: Node; readonly localFirst: boolean }
-  | { readonly kind: "read"; readonly placement: CsharpOptionalLocalPlacement; readonly guarded: boolean }
-  | { readonly kind: "coalesce"; readonly placement: CsharpOptionalLocalPlacement; readonly right: Node; readonly assignment: boolean };
+  | { readonly kind: "read"; readonly placement: Placement; readonly guarded: boolean }
+  | { readonly kind: "coalesce"; readonly placement: Placement; readonly right: Node; readonly assignment: boolean };
 
 export interface CsharpLocalBindingCompletion {
   readonly carrier: TargetTypeRef;

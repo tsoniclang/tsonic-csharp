@@ -6,13 +6,16 @@ import type { CsharpStructuralTypeSource } from "../../source-evidence/types/res
 import { nextState } from "../../source-evidence/types/resolution/state.js";
 import { readCsharpSourceField, readCsharpSourceStruct } from "../../../source/extension/markers.js";
 import { csharpPropertySourceMemberKey } from "../../../target-model/types/source-member-keys.js";
-import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpSourceMemberKey } from "../../../target-model/types/model.js";
+import type { CsharpObjectShapeFact, CsharpSourceMemberKey } from "../../../target-model/types/model.js";
 import { objectShapeMemberTargetName } from "../../../policy/identities/source-member-names.js";
 import type { CsharpObjectShapePolicyHost, CsharpRecursiveObjectShapePolicy } from "./model.js";
 import type { CsharpObjectShapeMemberProofInput } from "./member-instantiation.js";
 import type { CsharpCollectedObjectShapeMembers } from "./member-source.js";
 import { sourceSubjects } from "./source-evidence.js";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
+import { csharpStructuralHeaderMembers } from "./member-evidence.js";
+import { formCsharpObjectShapeHeader, requireCsharpObjectShapeHeader } from "../../../target-model/types/object-shape-header.js";
+import type { CsharpObjectShapePublisher } from "./publication.js";
 
 interface CsharpStructFieldSource {
   readonly field: NonNullable<ReturnType<typeof readCsharpSourceStruct>>["fields"][number];
@@ -89,13 +92,14 @@ export function completeCsharpStructShapeSource(
   source: CsharpStructShapeSource,
   header: import("./member-evidence.js").CsharpStructuralMembersHeader | undefined,
   completeSourceMembers: CsharpRecursiveObjectShapePolicy["completeSourceMembers"],
+  publish: CsharpObjectShapePublisher,
 ): CsharpObjectShapeFact | undefined {
   const targetType = host.projectTypeCatalog.targetTypeForDeclaration(source.definition.declaration, []);
   if (targetType === undefined) return undefined;
   if (header !== undefined && (header.source !== source.members || header.application.receiver !== undefined)) {
     return failTargetAnalysisInvariant("tsonic-csharp", "Struct completion requires its exact current member headers.", source.definition.declaration);
   }
-  const selectedMembers = header === undefined ? undefined : completeSourceMembers(header);
+  const selectedMembers = header === undefined ? undefined : csharpStructuralHeaderMembers(header);
   const members = source.fields.map(({ field, sourceKey, state, selectedIndex, targetName, proof }) => {
     const type = host.typeResolver.resolveNode(field.sourceType, source.queries.sourceFile, state);
     const selected = selectedIndex === undefined ? undefined : selectedMembers?.[selectedIndex];
@@ -104,14 +108,27 @@ export function completeCsharpStructShapeSource(
       sourceKey, sourceName: field.sourceName,
       sourceSubjects: proof.sourceSubjects,
       ...(proof.sourceDeclarations === undefined ? {} : { sourceDeclarations: proof.sourceDeclarations }),
-      ...(proof.sourceMemberEvidence === undefined ? {} : { sourceMemberEvidence: proof.sourceMemberEvidence }),
       ...(selected.bound === true ? { bound: true as const } : {}),
       ...(proof.sourceTypes === undefined ? {} : { sourceTypes: proof.sourceTypes }),
       targetName, memberKind: "property" as const, type,
       ...(field.readonly ? { readonly: true } : {}),
     };
   });
-  return members.some(member => member === undefined) ? undefined : {
-    targetType, sourceType: source.selectedType, members: members as readonly CsharpObjectShapeMemberFact[], constructible: true,
-  };
+  if (!members.every((member): member is NonNullable<typeof member> => member !== undefined)) return undefined;
+  const physicalShape: CsharpObjectShapeFact = Object.freeze({ targetType, sourceType: source.selectedType,
+    members: Object.freeze(members), constructible: true });
+  const physical = formCsharpObjectShapeHeader(physicalShape);
+  const proof = header === undefined ? undefined : completeSourceMembers(header);
+  if (proof === undefined) return undefined;
+  const completed = Object.freeze({ ...physicalShape, members: Object.freeze(members.map((member, index) => {
+    const field = source.fields[index]!;
+    const selected = field.selectedIndex === undefined ? undefined : proof[field.selectedIndex];
+    if (selected === undefined || selected.bound !== selectedMembers?.[field.selectedIndex!]?.bound) {
+      return failTargetAnalysisInvariant("tsonic-csharp", "Struct source proof cannot change its selected native field contract.", field.field.sourceType);
+    }
+    const evidence = field.proof?.sourceMemberEvidence;
+    return evidence === undefined ? member : Object.freeze({ ...member, sourceMemberEvidence: evidence });
+  })) });
+  requireCsharpObjectShapeHeader(physical, completed);
+  return publish(physical, completed);
 }

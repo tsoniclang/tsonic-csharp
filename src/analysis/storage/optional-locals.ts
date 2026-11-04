@@ -1,4 +1,5 @@
 import type { Node } from "@tsonic/tsts";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { sourceEnclosingCallable, sourceDeclarationIsModuleScoped } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { csharpTypeParameterConstraintsImplyNotNull } from "../../policy/constraints/type-parameter-constraints.js";
@@ -9,22 +10,28 @@ import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import type { CsharpTypeParameterConstraint } from "../../target-model/types/generic-constraints.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
-import type { CsharpOptionalLocalOperation, CsharpOptionalLocalPlacement, CsharpOptionalLocalValue } from "../../target-model/records/storage/local-bindings.js";
+import type { CsharpOptionalLocalOperation, CsharpOptionalLocalPlacement, CsharpOptionalLocalPlacementSource, CsharpOptionalLocalValue } from "../../target-model/records/storage/local-bindings.js";
 import { csharpSourceTypeParameter, csharpSourceTypeParameters } from "../../source/extension/type-parameters.js";
 import type { CsharpSourceNameResolver } from "../names/index.js";
 
-export interface CsharpOptionalLocalPlan {
-  readonly entries: readonly { readonly node: Node; readonly operation: CsharpOptionalLocalOperation }[];
-  get(node: Node): CsharpOptionalLocalOperation | undefined;
+export interface CsharpOptionalLocalPlan<Placement extends CsharpOptionalLocalPlacementSource = CsharpOptionalLocalPlacement> {
+  readonly entries: readonly { readonly node: Node; readonly operation: CsharpOptionalLocalOperation<Placement> }[];
+  get(node: Node): CsharpOptionalLocalOperation<Placement> | undefined;
   removesProjection(node: Node, identity: string): boolean;
 }
 
-export function analyzeCsharpOptionalLocals(policy: Pick<CsharpPolicyContext, "ast" | "navigation">, evidence: CsharpSourceEvidenceIndex,
-  nodes: readonly Node[], names: CsharpSourceNameResolver,
-  selectedOperations: Pick<CsharpTargetOperationClassifications, "typedLocation">): CsharpOptionalLocalPlan {
+export interface CsharpOptionalLocalDecisions extends CsharpOptionalLocalPlan<CsharpOptionalLocalPlacementSource> {
+  readonly candidates: readonly CsharpOptionalLocalPlacementSource[];
+}
+
+export function formCsharpOptionalLocalDecisions(policy: Pick<CsharpPolicyContext, "ast" | "navigation">,
+  evidence: Pick<CsharpSourceEvidenceIndex, "compileTimeMetadata" | "contextualType" | "nodeTargetType" |
+    "sourceArgument" | "storageTargetType" | "typeParameterConstraints" | "valueRefinement">,
+  nodes: readonly Node[], names: Pick<CsharpSourceNameResolver, "resolve">,
+  selectedOperations: Pick<CsharpTargetOperationClassifications, "typedLocation">): CsharpOptionalLocalDecisions {
   const { ast, navigation } = policy;
-  const candidates = new Map<Node, CsharpOptionalLocalPlacement>();
-  const operations = new Map<Node, CsharpOptionalLocalOperation>();
+  const candidates = new Map<Node, CsharpOptionalLocalPlacementSource>();
+  const operations = new Map<Node, CsharpOptionalLocalOperation<CsharpOptionalLocalPlacementSource>>();
   const removed = new Map<Node, Set<string>>();
   const dependencies = new Map<Node, Set<Node>>();
   const owners = new Map<Node, boolean>();
@@ -99,9 +106,9 @@ export function analyzeCsharpOptionalLocals(policy: Pick<CsharpPolicyContext, "a
     const name = names.resolve(ast.name(node), node);
     if (name.kind !== "resolved") continue;
     candidates.set(node, Object.freeze({ declaration: node, storage, payload: parts.element,
-      payloadName: name.name, presenceName: names.temporaryName(`${name.name}_present`) }));
+      payloadName: name.name }));
   }
-  const sourceValue = (expression: Node | undefined, placement: CsharpOptionalLocalPlacement): CsharpOptionalLocalValue | undefined => {
+  const sourceValue = (expression: Node | undefined, placement: CsharpOptionalLocalPlacementSource): CsharpOptionalLocalValue<CsharpOptionalLocalPlacementSource> | undefined => {
     if (expression === undefined) return Object.freeze({ kind: "absence", expression });
     const current = unwrap(expression);
     const source = evidence.valueRefinement.get(current)?.flowReadTargetType ?? evidence.nodeTargetType.get(current);
@@ -117,16 +124,16 @@ export function analyzeCsharpOptionalLocals(policy: Pick<CsharpPolicyContext, "a
     return Object.freeze({ kind: "present", expression });
   };
   const privateNodes = new Map<Node, Set<Node>>();
-  const pendingOperations = new Map<Node, Map<Node, CsharpOptionalLocalOperation>>();
+  const pendingOperations = new Map<Node, Map<Node, CsharpOptionalLocalOperation<CsharpOptionalLocalPlacementSource>>>();
   for (const [declaration, placement] of candidates) {
-    const selected = new Map<Node, CsharpOptionalLocalOperation>();
+    const selected = new Map<Node, CsharpOptionalLocalOperation<CsharpOptionalLocalPlacementSource>>();
     const privateUses = new Set<Node>([declaration]);
     const variable = ast.as.AsVariableDeclaration(declaration);
     if (variable?.Type !== undefined) privateUses.add(variable.Type);
     const initial = sourceValue(variable?.Initializer, placement);
     let valid = initial !== undefined;
     const depends = new Set<Node>();
-    const retainValue = (value: CsharpOptionalLocalValue): void => {
+    const retainValue = (value: CsharpOptionalLocalValue<CsharpOptionalLocalPlacementSource>): void => {
       if (value.expression !== undefined) privateUses.add(value.expression);
       if (value.kind === "copy") depends.add(value.placement.declaration);
     };
@@ -227,7 +234,38 @@ export function analyzeCsharpOptionalLocals(policy: Pick<CsharpPolicyContext, "a
       projections.add(csharpTypeProjection(placement.storage)!.identity);
     }
   }
-  return Object.freeze({ entries: Object.freeze([...operations].map(([node, operation]) => Object.freeze({ node, operation }))),
+  return Object.freeze({ candidates: Object.freeze([...candidates.values()]),
+    entries: Object.freeze([...operations].map(([node, operation]) => Object.freeze({ node, operation }))),
     get: (node: Node) => operations.get(node),
     removesProjection: (node: Node, identity: string) => removed.get(node)?.has(identity) === true });
+}
+
+export function completeCsharpOptionalLocals(
+  source: CsharpOptionalLocalDecisions,
+  names: Pick<CsharpSourceNameResolver, "temporaryName">,
+): CsharpOptionalLocalPlan {
+  const placements = new Map<CsharpOptionalLocalPlacementSource, CsharpOptionalLocalPlacement>();
+  for (const placement of source.candidates) {
+    if (placements.has(placement)) return failTargetAnalysisInvariant("tsonic-csharp",
+      "An optional-local decision requires every original candidate exactly once.", placement.declaration);
+    placements.set(placement, Object.freeze({ ...placement,
+      presenceName: names.temporaryName(`${placement.payloadName}_present`) }));
+  }
+  const placementFor = (placement: CsharpOptionalLocalPlacementSource): CsharpOptionalLocalPlacement => {
+    const selected = placements.get(placement);
+    if (selected === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+      "An optional-local operation requires its exact retained candidate.", placement.declaration);
+    return selected;
+  };
+  const valueFor = (value: CsharpOptionalLocalValue<CsharpOptionalLocalPlacementSource>): CsharpOptionalLocalValue =>
+    value.kind === "copy" ? Object.freeze({ ...value, placement: placementFor(value.placement) }) : value;
+  const operations = new Map<Node, CsharpOptionalLocalOperation>();
+  for (const { node, operation } of source.entries) {
+    const placement = placementFor(operation.placement);
+    operations.set(node, operation.kind === "declaration" || operation.kind === "write"
+      ? Object.freeze({ ...operation, placement, value: valueFor(operation.value) })
+      : Object.freeze({ ...operation, placement }));
+  }
+  return Object.freeze({ entries: Object.freeze([...operations].map(([node, operation]) => Object.freeze({ node, operation }))),
+    get: (node: Node) => operations.get(node), removesProjection: source.removesProjection });
 }

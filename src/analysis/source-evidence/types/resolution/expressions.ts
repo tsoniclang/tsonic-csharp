@@ -33,6 +33,8 @@ import { formCsharpSelectedReceiverSource, completeCsharpSelectedReceiver } from
 import { formCsharpProjectInstanceSource, resolveFormedCsharpProjectInstanceTargetType } from "./project-instance-source.js";
 import { formCsharpDeclaredObjectReceiverMemberSource } from "./declared-receiver-source.js";
 import { resolveFormedCsharpDeclaredObjectReceiverMember } from "./declared-receiver-completion.js";
+import { bindCsharpProjectDeclarationArguments, completeCsharpProjectDeclarationArguments } from "./project-declaration-arguments.js";
+import { completeCsharpProjectDeclarationTarget } from "./project-types.js";
 
 export function resolveSelectedExpressionType(
   scope: CsharpTypeResolutionScope,
@@ -395,16 +397,24 @@ export function resolveSelectedReceiverTargetType(
 }
 
 export function resolveFormedCsharpSourceOwnedConstructionResult(
-  { host, projectSourceDeclarationTargetType, resolveFormedSourceCallResultWithState,
-    resolveNodeWithState, resolveSourceCallInstantiation }: CsharpTypeResolutionScope,
+  scope: CsharpTypeResolutionScope,
   input: CsharpSourceOwnedConstructionSource,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
+  const { host, resolveFormedSourceCallResultWithState, resolveNodeWithState, resolveSourceCallInstantiation } = scope;
   const { contract, queries } = input;
   const { source, sourceFile, callableSource } = contract;
   if (callableSource.source !== source || callableSource.sourceFile !== sourceFile || queries.sourceFile !== sourceFile) {
     return failTargetAnalysisInvariant("tsonic-csharp",
       "Construction completion requires its exact checked callable occurrence.", source.call);
+  }
+  const selectedArguments = source.sourceSelectedMethodTypeArguments ?? [];
+  if (!Object.prototype.hasOwnProperty.call(input, "projectArguments") || input.projectArguments !== undefined &&
+    (input.projectArguments.declaration.declaration !== callableSource.constructorDeclaration ||
+      input.projectArguments.selectedType !== source.sourceResultType ||
+      input.projectArguments.sources.length !== selectedArguments.length ||
+      input.projectArguments.sources.some((type, index) => type !== selectedArguments[index]?.selectedType))) {
+    return failTargetAnalysisInvariant("tsonic-csharp", "Construction requires its exact retained declared argument capture before Native children.", source.call);
   }
   const factory = getCsharpClassFactory(resolveNodeWithState(source.sourceCallee.expression, queries.sourceFile, nextState(state)));
   if (factory !== undefined) {
@@ -421,16 +431,13 @@ export function resolveFormedCsharpSourceOwnedConstructionResult(
     }
     return resolveFormedSourceCallResultWithState(result, state, undefined)?.selectedType;
   }
-  const selectedArguments = source.sourceSelectedMethodTypeArguments ?? [];
+  if (input.projectArguments === undefined || input.projectArguments.declaration.declaration !== declaration ||
+    input.projectArguments.selectedType !== source.sourceResultType) return failTargetAnalysisInvariant("tsonic-csharp",
+      "Project construction requires its exact retained declared argument source.", source.call);
   const callable = host.representations.completeSourceCallable(callableSource, "checked");
   const instantiation = resolveSourceCallInstantiation(source, queries.sourceFile, nextState(state), undefined, callable);
-  return instantiation === undefined
-    ? undefined
-    : projectSourceDeclarationTargetType(
-        declaration,
-        instantiation.arguments,
-        selectedArguments.map(argument => argument.selectedType),
-        state,
-        source.sourceResultType,
-      );
+  if (instantiation === undefined) return undefined;
+  const arguments_ = completeCsharpProjectDeclarationArguments(scope,
+    bindCsharpProjectDeclarationArguments(input.projectArguments, state), instantiation.arguments);
+  return arguments_ === undefined ? undefined : completeCsharpProjectDeclarationTarget(scope, arguments_);
 }

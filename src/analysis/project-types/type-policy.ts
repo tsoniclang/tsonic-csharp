@@ -99,13 +99,9 @@ export function createCsharpProjectTypeABIPolicy(
     receiver: TargetTypeRef | undefined,
     declaredType: TargetTypeRef,
   ): CsharpProjectMemberTypeInstantiation => {
-    const owner = catalog.definitionForDeclaration(declaration);
-    if (owner === undefined) {
-      return { kind: "not-project-member" };
-    }
-    if (owner.typeParameterBindings.length === 0) {
-      return { kind: "resolved", type: declaredType };
-    }
+    const header = formCsharpProjectDeclarationInstantiationHeader(catalog, declaration, declaredType);
+    if (header.kind !== "receiver") return header;
+    const { owner } = header;
     if (receiver === undefined) {
       return {
         kind: "unresolved",
@@ -185,23 +181,45 @@ export function createCsharpProjectTypeABIPolicy(
       receiver: TargetTypeRef | undefined,
       memberType: TargetTypeRef,
     ): CsharpProjectMemberTypeInstantiation {
-      const owner = projectMemberOwner(ast, catalog, declaration);
-      if (owner === undefined) {
-        return { kind: "not-project-member" };
-      }
-      if (declaration !== undefined && ast.hasModifierKind(declaration, "static") && owner.outerTypeParameters.length === 0) {
-        const parameters = csharpFreeTypeParameterIdentities([memberType]);
-        return owner.typeParameterBindings.some(parameter => parameters.has(parameter.identity))
-          ? { kind: "unresolved", reason: "A static member cannot depend on its class instance type parameters." }
-          : { kind: "resolved", type: memberType };
-      }
+      const header = formCsharpProjectMemberInstantiationHeader(ast, catalog, declaration, memberType);
+      if (header.kind !== "receiver") return header;
       return instantiateDeclarationType(
-        owner.declaration,
+        header.owner.declaration,
         receiver,
         memberType,
       );
     },
   });
+}
+
+export type CsharpProjectInstantiationHeader = CsharpProjectMemberTypeInstantiation |
+  { readonly kind: "receiver"; readonly owner: CsharpProjectTypeDefinition };
+
+export function formCsharpProjectDeclarationInstantiationHeader(
+  catalog: CsharpProjectTypeCatalogABI,
+  declaration: Node | undefined,
+  type: TargetTypeRef,
+): CsharpProjectInstantiationHeader {
+  const owner = catalog.definitionForDeclaration(declaration);
+  return owner === undefined ? { kind: "not-project-member" }
+    : owner.typeParameterBindings.length === 0 ? { kind: "resolved", type } : { kind: "receiver", owner };
+}
+
+export function formCsharpProjectMemberInstantiationHeader(
+  ast: AstReader,
+  catalog: CsharpProjectTypeCatalogABI,
+  declaration: Node | undefined,
+  type: TargetTypeRef,
+): CsharpProjectInstantiationHeader {
+  const owner = projectMemberOwner(ast, catalog, declaration);
+  if (owner === undefined) return { kind: "not-project-member" };
+  if (declaration !== undefined && ast.hasModifierKind(declaration, "static") && owner.outerTypeParameters.length === 0) {
+    const parameters = csharpFreeTypeParameterIdentities([type]);
+    return owner.typeParameterBindings.some(parameter => parameters.has(parameter.identity))
+      ? { kind: "unresolved", reason: "A static member cannot depend on its class instance type parameters." }
+      : { kind: "resolved", type };
+  }
+  return owner.typeParameterBindings.length === 0 ? { kind: "resolved", type } : { kind: "receiver", owner };
 }
 
 export function completeCsharpProjectTypePolicyABI(
@@ -229,7 +247,7 @@ function projectMemberOwner(
   return catalog.definitionForDeclaration(csharpProjectMemberOwnerDeclaration(ast, declaration));
 }
 
-export function csharpProjectMemberOwnerDeclaration(
+function csharpProjectMemberOwnerDeclaration(
   ast: AstReader,
   declaration: Node | undefined,
 ): Node | undefined {

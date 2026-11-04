@@ -1,4 +1,4 @@
-export { analyzeCsharpTargetOperations } from "./analyze.js";
+export { createCsharpTargetOperations } from "./analyze.js";
 export type { CsharpSwitchSelection } from "../../target-model/records/operations/switch.js";
 export type { CsharpTypedArrayMutation, CsharpTypedArrayUpdate } from "../../target-model/records/storage/typed-array-mutations.js";
 export type { CsharpCallClassification, CsharpMemberReceiverProjection, CsharpBinaryClassification, CsharpConstructionClassification, CsharpElementClassification, CsharpPropertyClassification, CsharpSourceCallArgumentClassification, CsharpUnaryClassification, CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";

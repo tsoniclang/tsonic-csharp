@@ -2,11 +2,11 @@ import type { Node } from "@tsonic/tsts";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
-import type { CsharpCurrentNativeNodeInput } from "../source-evidence/model.js";
+import type { CsharpCurrentNativeNodeInput, CsharpCurrentDeclaredBodyInput } from "../source-evidence/model.js";
 import type { CsharpDeclaredReceiverBody } from "../source-evidence/types/resolution/declared-receiver-body.js";
 import type { CsharpTypeProjectionSource } from "./type-projection-source.js";
 import type { CsharpGenericProjectionIndex } from "../../target-model/records/types/type-projections.js";
-import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
+import type { CsharpCallClassification } from "../../target-model/records/operations/operations.js";
 import type { CsharpOptionalLocalPlan } from "../storage/optional-locals.js";
 import type { CsharpObjectShapeAnalysis } from "../../target-model/records/objects/object-shapes.js";
 import { csharpTypeProjectionVectorsEqual } from "../../target-model/types/projections.js";
@@ -19,14 +19,41 @@ export interface CsharpTypeProjectionInputs {
   readonly receivers: readonly { readonly node: Node; readonly body: CsharpDeclaredReceiverBody }[];
 }
 
+export interface CsharpTypeProjectionOperations {
+  readonly selectedCall: { get(node: Node): Pick<CsharpCallClassification, "sourceTypeArguments"> | undefined };
+}
+
 export function formCsharpTypeProjectionInputs(
   source: CsharpTypeProjectionSource,
   evidence: Pick<CsharpSourceEvidenceIndex,
     "compileTimeMetadata" | "nodeTargetType" | "storageTargetType" | "bindingProjection">,
   inputs: readonly CsharpCurrentNativeNodeInput[],
+  declaredInputs: readonly CsharpCurrentDeclaredBodyInput[],
 ): CsharpTypeProjectionInputs {
-  const bodies = new Map<Node | undefined, CsharpCurrentNativeNodeInput>();
-  for (const input of inputs) if (input.declaredReceiverBody !== undefined) bodies.set(input.source.node, input);
+  const bodies = new Map<Node | undefined, { readonly source: CsharpCurrentNativeNodeInput["source"]; readonly body: CsharpDeclaredReceiverBody }>();
+  for (const input of inputs) if (input.declaredReceiverBody !== undefined) bodies.set(input.source.node,
+    Object.freeze({ source: input.source, body: input.declaredReceiverBody }));
+  const callables = new Map<Node | undefined, Extract<CsharpCurrentDeclaredBodyInput, { readonly kind: "callable" }>>();
+  const components = new Map<Node | undefined, Extract<CsharpCurrentDeclaredBodyInput, { readonly kind: "node" | "structural" | "project-self" }>>();
+  for (const input of declaredInputs) {
+    if (input.source.node === undefined || input.source.root.node !== input.source.node) return failTargetAnalysisInvariant("tsonic-csharp",
+      "A body contribution requires its exact declared query occurrence.", input.source.node);
+    if (input.kind === "receiver") {
+      const previous = bodies.get(input.source.node);
+      if (previous !== undefined && (previous.source !== input.source || previous.body !== input.body)) {
+        return failTargetAnalysisInvariant("tsonic-csharp", "A body has one declared receiver contribution.", input.source.node);
+      }
+      bodies.set(input.source.node, input);
+    } else if (input.kind === "callable") {
+      if (callables.has(input.source.node) || input.body.source !== input.source) return failTargetAnalysisInvariant("tsonic-csharp",
+        "A body has one exact declared callable contribution.", input.source.node);
+      callables.set(input.source.node, input);
+    } else {
+      if (components.has(input.source.node) || input.body.source !== input.source) return failTargetAnalysisInvariant("tsonic-csharp",
+        "A body has one exact declared node contribution.", input.source.node);
+      components.set(input.source.node, input);
+    }
+  }
   const metadata = new Set<Node>();
   const types = new Map<Node, readonly (TargetTypeRef | undefined)[]>();
   const receivers: { readonly node: Node; readonly body: CsharpDeclaredReceiverBody }[] = [];
@@ -34,7 +61,7 @@ export function formCsharpTypeProjectionInputs(
     const { node } = occurrence;
     if (evidence.compileTimeMetadata.get(node)) metadata.add(node);
     const input = bodies.get(node);
-    const body = input?.declaredReceiverBody;
+    const body = input?.body;
     if (body !== undefined && input !== undefined) {
       const root = input.source.root;
       if (root.kind !== "node" || root.declaredReceiver?.source !== body.source ||
@@ -45,8 +72,8 @@ export function formCsharpTypeProjectionInputs(
       types.set(node, body.components);
       receivers.push(Object.freeze({ node, body }));
     } else {
-      types.set(node, Object.freeze([evidence.nodeTargetType.get(node), evidence.storageTargetType.get(node),
-        evidence.bindingProjection.get(node)?.storageCarrier]));
+      types.set(node, components.get(node)?.body.components ?? callables.get(node)?.body.components ?? Object.freeze([
+        evidence.nodeTargetType.get(node), evidence.storageTargetType.get(node), evidence.bindingProjection.get(node)?.storageCarrier]));
     }
   }
   return Object.freeze({ source, receivers: Object.freeze(receivers),
@@ -63,7 +90,7 @@ export function formCsharpTypeProjectionInputs(
 export function requireCsharpDeclaredReceiverProjectionCompletion(
   inputs: CsharpTypeProjectionInputs,
   expected: CsharpGenericProjectionIndex,
-  operations: Pick<CsharpTargetOperationClassifications, "selectedCall">,
+  operations: CsharpTypeProjectionOperations,
   optionalLocals: Pick<CsharpOptionalLocalPlan, "removesProjection">,
   shapes: Pick<CsharpObjectShapeAnalysis, "resolveNode">,
 ): void {

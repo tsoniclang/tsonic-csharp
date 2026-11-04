@@ -32,6 +32,11 @@ export interface CsharpObjectShapePublication {
   readonly shape: CsharpObjectShapeFact;
 }
 
+export type CsharpObjectShapePublisher = (
+  header: CsharpObjectShapeHeader,
+  shape: CsharpObjectShapeFact,
+) => CsharpObjectShapeFact;
+
 export type CsharpObjectShapeTargetSelection = {
   readonly type: TargetTypeRef;
   readonly header: CsharpObjectShapeHeader;

@@ -298,11 +298,11 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
     header: CsharpStructuralMembersHeader,
     shape: CsharpObjectShapeFact,
   ): CsharpObjectShapeFact | undefined {
+    const physical = formCsharpObjectShapeHeader(shape);
     const proof = completeSourceMembers(header);
     if (proof === undefined) return undefined;
     if (proof.length !== shape.members.length) return failTargetAnalysisInvariant("tsonic-csharp",
       "Shape source completion requires every member of its single physical header.");
-    const physical = formCsharpObjectShapeHeader(shape);
     const members = shape.members.map((member, index) => {
       const source = proof[index]!;
       if (member.sourceKey !== source.sourceKey || member.memberKind !== source.memberKind ||

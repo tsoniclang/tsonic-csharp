@@ -1,7 +1,8 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import type { SourceStorageDomainBoundary, SourceStorageQueries } from "@tsonic/target-api/analysis";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
-import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeMemberContract, CsharpObjectShapeMemberFact,
+  CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../target-model/types/equality.js";
 import { createStructuralObjectShapeTarget } from "./construction.js";
 import { csharpObjectMethodValueStorageKey, csharpStructuralObjectShapeIdentity } from "../../../target-model/types/object-shape-identity.js";
@@ -16,13 +17,19 @@ import { objectShapeMethodInvocationName } from "../../../target-model/names/obj
 import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../../target-model/types/object-shape-members.js";
 import { selectCsharpWritableMethodMembers } from "../../../policy/types/objects/writable-methods.js";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
+import { formCsharpObjectShapeHeader, type CsharpObjectShapeHeader } from "../../../target-model/types/object-shape-header.js";
+import type { CsharpObjectShapePublisher } from "./publication.js";
 
 export type CsharpObjectShapePhysicalSource =
   | { readonly kind: "existing"; readonly type: TargetTypeRef }
   | { readonly kind: "structural"; readonly contract: boolean };
 
-export interface CsharpObjectShapeTargetInput extends Omit<CsharpObjectShapeFact, "targetType"> {
+export interface CsharpObjectMethodMemberInput extends CsharpObjectShapeMemberContract,
+  Pick<CsharpObjectShapeMemberFact, "sourceSubjects" | "sourceDeclarations" | "sourceTypes"> {}
+
+export interface CsharpObjectShapeTargetInput extends Omit<CsharpObjectShapeFact, "targetType" | "members"> {
   readonly target: CsharpObjectShapePhysicalSource;
+  readonly members: readonly CsharpObjectMethodMemberInput[];
 }
 
 export type CsharpObjectMethodValueSource = {
@@ -40,6 +47,7 @@ export interface CsharpMethodValueProtocolRequest {
   readonly memberIndex: number;
   readonly method: Extract<CsharpObjectMethodValueFacts, { readonly kind: "method" }>;
   readonly contract: TargetTypeRef;
+  readonly header: CsharpObjectShapeHeader;
   readonly shape: CsharpObjectShapeFact;
 }
 
@@ -229,7 +237,7 @@ export function resolveCsharpCopiedObjectShape(
   ast: AstReader,
   environment: CsharpTypeParameterEnvironment,
   resolveNode: (node: Node) => CsharpObjectShapeFact | undefined,
-  rememberTargetShape: (shape: CsharpObjectShapeFact) => CsharpObjectShapeFact,
+  rememberTargetShape: CsharpObjectShapePublisher,
   sourceStorage: SourceStorageQueries,
   source?: CsharpObjectShapeFact,
 ): CsharpObjectShapeFact | undefined {
@@ -269,16 +277,17 @@ export function resolveCsharpCopiedObjectShape(
   if (receiver.kind === "selected") return receiver.shape;
   const members = csharpCopiedObjectShapeMembers(shape);
   const implemented = contract ? [shape.targetType] : shape.implements;
-  return rememberTargetShape(retainCsharpMethodValueContracts({
+  const completed = retainCsharpMethodValueContracts({
     target: Object.freeze({ kind: "structural", contract: false }),
     members,
     ...(implemented === undefined ? {} : { implements: implemented }),
     ...(shape.sourceType === undefined ? {} : { sourceType: shape.sourceType }),
-  }, rememberTargetShape, environment, sourceStorage));
+  }, rememberTargetShape, environment, sourceStorage);
+  return rememberTargetShape(formCsharpObjectShapeHeader(completed), completed);
 }
 
 export function retainCsharpMethodValueContracts(
-  input: CsharpObjectShapeTargetInput, remember: (shape: CsharpObjectShapeFact) => CsharpObjectShapeFact,
+  input: CsharpObjectShapeTargetInput, remember: CsharpObjectShapePublisher,
   environment: CsharpTypeParameterEnvironment,
   sourceStorage: SourceStorageQueries,
 ): CsharpObjectShapeFact {
@@ -306,14 +315,14 @@ export function formCsharpObjectMethodValueSource(
 
 export function completeCsharpMethodValueContracts(
   source: CsharpObjectMethodValueSource,
-  remember: (shape: CsharpObjectShapeFact) => CsharpObjectShapeFact,
+  remember: CsharpObjectShapePublisher,
   environment: CsharpTypeParameterEnvironment,
 ): CsharpObjectShapeFact {
   const completion = completeCsharpMethodValueContractsSource(source, environment);
   let step = completion.next();
   while (!step.done) {
     const request = step.value;
-    remember(request.shape);
+    remember(request.header, request.shape);
     step = completion.next(Object.freeze({ kind: "protocol", request }));
   }
   return step.value;
@@ -373,8 +382,10 @@ export function* completeCsharpMethodValueContractsSource(
         continue;
       }
       if (!ownProtocol) {
+        const shape = Object.freeze({ targetType: contract,
+          members: Object.freeze([Object.freeze({ ...signature, methodValueContract: contract })]) });
         const request: CsharpMethodValueProtocolRequest = Object.freeze({ kind: "protocol", source, memberIndex,
-          method: input.source, contract, shape: { targetType: contract, members: [{ ...signature, methodValueContract: contract }] } });
+          method: input.source, contract, header: formCsharpObjectShapeHeader(shape), shape });
         const completed = yield request;
         if (completed === undefined || completed.kind !== "protocol" || completed.request !== request) {
           return failTargetAnalysisInvariant("tsonic-csharp",
@@ -391,14 +402,15 @@ export function* completeCsharpMethodValueContractsSource(
   const contracts = implemented.size === 0 ? undefined : [...implemented.values()];
   const storageChanged = members.some((member, index) => csharpObjectMethodValueStorageKey(member.methodValueStorage) !==
     csharpObjectMethodValueStorageKey(shape.members[index]!.methodValueStorage));
-  const targetType = selected === undefined || storageChanged && csharpStructuralObjectShapeIdentity(selected) !== undefined
-    ? createStructuralObjectShapeTarget(members, contracts, environment, structuralContract, shape.methodImplementation)
-    : selected;
-  if (target.kind === "structural" && comparisonTarget !== undefined &&
-    members.every((member, index) => member === plannedMembers[index]) &&
+  const sameComparisonInput = members.every((member, index) => member === plannedMembers[index]) &&
     (contracts?.length ?? 0) === (shape.implements?.length ?? 0) &&
-    (contracts ?? []).every((contract, index) => contract === shape.implements![index]) &&
-    !targetTypeRefEquals(comparisonTarget, targetType)) return failTargetAnalysisInvariant("tsonic-csharp",
+    (contracts ?? []).every((contract, index) => contract === shape.implements![index]);
+  const targetType = selected === undefined || storageChanged && csharpStructuralObjectShapeIdentity(selected) !== undefined
+    ? sameComparisonInput && comparisonTarget !== undefined ? comparisonTarget
+      : createStructuralObjectShapeTarget(members, contracts, environment, structuralContract, shape.methodImplementation)
+    : selected;
+  if (target.kind === "structural" && comparisonTarget !== undefined && sameComparisonInput &&
+    targetType !== comparisonTarget) return failTargetAnalysisInvariant("tsonic-csharp",
     "The same structural constructor inputs must produce the identical method comparison and final header target.");
   return Object.freeze({ ...retained, targetType, members: Object.freeze(members),
     ...(contracts === undefined ? {} : { implements: Object.freeze(contracts) }) });

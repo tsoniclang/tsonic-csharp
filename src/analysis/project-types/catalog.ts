@@ -81,6 +81,12 @@ export function createCsharpProjectTypeCatalog(
     const entry: CsharpProjectTypeCatalogEntry = { declared: definition, abi: undefined };
     byDeclaration.set(definition.declaration, entry);
     byId.set(definition.id, entry);
+    if (bodySources.ownerFor(definition.declaration) === undefined) {
+      const source = bodySources.sourceFor(definition.declaration);
+      if (source === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+        "A declared project ABI requires its actual captured declaration source.", definition.declaration);
+      entry.abi = completeCsharpProjectTypeABI(definition, Object.freeze({ kind: "declared", source }));
+    }
     const { authoredTypeParameterBindings: _authoredTypeParameterBindings, ...sourceDeclaration } = definition;
     const declaration = Object.freeze(sourceDeclaration);
     declarationByNode.set(definition.declaration, declaration);
@@ -114,9 +120,10 @@ export function createCsharpProjectTypeCatalog(
   ) => {
     const entry = declaration === undefined ? undefined : byDeclaration.get(declaration);
     if (entry === undefined) return undefined;
-    requirePublished("abi");
     const definition = entry.abi;
-    return definition === undefined || typeArguments.length !== definition.typeParameterBindings.length
+    if (definition === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+      "Physical project binders require their exact current callable ABI publication.", entry.declared.declaration);
+    return typeArguments.length !== definition.typeParameterBindings.length
       ? undefined
       : projectDefinitionTargetType(definition, typeArguments.map((argument, index) =>
         argument.kind === "type-parameter" && argument.identity === definition.typeParameterBindings[index]?.identity
@@ -125,13 +132,14 @@ export function createCsharpProjectTypeCatalog(
   };
   const abiDefinition = (entry: CsharpProjectTypeCatalogEntry | undefined): CsharpProjectTypeDefinition | undefined => {
     if (entry === undefined) return undefined;
-    requirePublished("abi");
+    if (entry.abi === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+      "Physical project binders require their exact current callable ABI publication.", entry.declared.declaration);
     return entry.abi;
   };
   const callableProjectionReceipt = (declaration: Node): CsharpCallableProjectionReceipt => {
     const source = bodySources.ownerFor(declaration);
     if (source === undefined) {
-      return Object.freeze({ kind: "declaration", declaration });
+      return Object.freeze({ kind: "declaration", declaration, source: bodySources.sourceFor(declaration) });
     }
     const receipt = callableProjections.get(declaration);
     if (receipt?.source !== source) return failTargetAnalysisInvariant("tsonic-csharp",
@@ -176,6 +184,12 @@ export function createCsharpProjectTypeCatalog(
           "Each current callable body publishes its actual A once before physical project completion.", declaration);
       }
       callableProjections.set(declaration, receipt);
+      const entry = byDeclaration.get(declaration);
+      if (entry !== undefined) {
+        if (entry.abi !== undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+          "A project ABI is constructed exactly once from its declared or published projection inputs.", declaration);
+        entry.abi = completeCsharpProjectTypeABI(entry.declared, Object.freeze({ kind: "published", index: receipt.index }));
+      }
     },
     publishABI(projections: CsharpGenericProjectionIndex): CsharpProviderProjectDeclarations {
       if (abiDefinitions !== undefined) failTargetAnalysisInvariant("tsonic-csharp",
@@ -188,8 +202,16 @@ export function createCsharpProjectTypeCatalog(
             projections.outerGenericProjection.get(source.declaration))) return failTargetAnalysisInvariant("tsonic-csharp",
           "A final project ABI must retain every exact published callable body vector, never a second answer.", source.declaration);
       }
-      const selected = Object.freeze(selectedDefinitions.map(declared => completeCsharpProjectTypeABI(declared, projections)));
-      for (const definition of selected) byDeclaration.get(definition.declaration)!.abi = definition;
+      const selected = Object.freeze(selectedDefinitions.map(declared => {
+        const definition = byDeclaration.get(declared.declaration)!.abi;
+        if (definition === undefined ||
+          !csharpTypeProjectionVectorsEqual(definition.typeProjections, projections.genericProjection.get(declared.declaration)) ||
+          !csharpTypeProjectionVectorsEqual(definition.outerTypeProjections, projections.outerGenericProjection.get(declared.declaration))) {
+          return failTargetAnalysisInvariant("tsonic-csharp", "Final project publication must retain its single exact physical binder answer.", declared.declaration);
+        }
+        requireCsharpProjectTypeABI(declared, definition);
+        return definition;
+      }));
       abiDefinitions = selected;
       return Object.freeze({
         declarationForId: (id: string) => byId.get(id)?.abi,

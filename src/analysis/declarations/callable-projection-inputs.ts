@@ -1,20 +1,19 @@
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { Node } from "@tsonic/tsts";
-import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
 import type { CsharpGenericProjectionIndex, CsharpPublishedCallableProjections } from "../../target-model/records/types/type-projections.js";
 import { csharpTypeProjectionVectorsEqual } from "../../target-model/types/projections.js";
 import { createCsharpTypeProjectionRecords } from "../program/records/types/type-projections.js";
 import type { CsharpOptionalLocalPlan } from "../storage/optional-locals.js";
-import type { CsharpTypeProjectionInputs } from "./type-projection-inputs.js";
+import type { CsharpTypeProjectionInputs, CsharpTypeProjectionOperations } from "./type-projection-inputs.js";
 import type { CsharpTypeProjectionSource, CsharpTypeProjectionOwnerSource } from "./type-projection-source.js";
-import { analyzeCsharpTypeProjections } from "./type-projections.js";
+import { analyzeCsharpTypeProjections, requireCsharpTypeProjectionIndependence } from "./type-projections.js";
 import type { CsharpDeclaredCallableBody } from "../source-evidence/types/resolution/declared-callable-body.js";
 
 export interface CsharpCallableProjectionInput {
   readonly source: CsharpTypeProjectionOwnerSource;
   readonly body: CsharpTypeProjectionSource;
   readonly evidence: CsharpTypeProjectionInputs;
-  readonly operations: Pick<CsharpTargetOperationClassifications, "selectedCall">;
+  readonly operations: CsharpTypeProjectionOperations;
   readonly optionalLocals: Pick<CsharpOptionalLocalPlan, "removesProjection">;
   readonly declared: CsharpDeclaredCallableBody | undefined;
 }
@@ -27,7 +26,9 @@ export function formCsharpCallableProjectionInput(
   optionalLocals: CsharpCallableProjectionInput["optionalLocals"],
   declaredBodies: readonly CsharpDeclaredCallableBody[],
 ): CsharpCallableProjectionInput {
-  if (evidence.source !== source || source.ownerFor(owner.declaration) !== owner ||
+  if (evidence.source.nodes !== owner.nodes || evidence.source.owners !== source.owners ||
+    evidence.source.ownerFor !== source.ownerFor || evidence.source.sourceFor !== source.sourceFor ||
+    evidence.source.declaredReceivers !== source.declaredReceivers || source.ownerFor(owner.declaration) !== owner ||
     owner.nodes[0]?.node !== owner.declaration || Array.from(owner.nodes).some(node => node === undefined)) {
     return failTargetAnalysisInvariant("tsonic-csharp", "A callable body requires its exact declared source and ordered component inputs.", owner.declaration);
   }
@@ -35,7 +36,7 @@ export function formCsharpCallableProjectionInput(
   for (let parent = owner.nodes[0]!.parent; parent !== undefined; parent = parent.parent) {
     if (evidence.compileTimeMetadata.get(parent.node)) { omitted = true; break; }
   }
-  const body: CsharpTypeProjectionSource = Object.freeze({ ...source, nodes: owner.nodes });
+  const body = evidence.source;
   const nodes = new Set(owner.nodes.map(occurrence => occurrence.node));
   const bodyInputs = new Map<Node | undefined, CsharpDeclaredCallableBody>();
   for (const input of declaredBodies) {
@@ -63,6 +64,17 @@ export function analyzeCsharpCallableProjectionInput(input: CsharpCallableProjec
   const declaration = input.source.declaration;
   return Object.freeze({ kind: "source", source: input.source, declaration, index,
     projections: index.genericProjection.get(declaration) });
+}
+
+export function requireCsharpCallableProjectionIndependence(
+  input: CsharpCallableProjectionInput,
+  completed: CsharpPublishedCallableProjections,
+  dependencies: CsharpCallableProjectionInput["operations"],
+  captures: CsharpTypeProjectionInputs["localTypes"],
+): void {
+  if (completed.source !== input.source) return failTargetAnalysisInvariant("tsonic-csharp",
+    "A recursive dependency check requires its exact independent body contribution.", input.source.declaration);
+  requireCsharpTypeProjectionIndependence(input.body, input.evidence, dependencies, input.optionalLocals, completed.index, captures);
 }
 
 export function joinCsharpCallableProjectionInputs(

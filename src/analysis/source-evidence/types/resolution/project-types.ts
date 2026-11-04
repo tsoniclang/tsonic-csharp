@@ -3,6 +3,7 @@ import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { csharpSourceTypeArgumentNodes } from "../../../../target-model/syntax/type-arguments.js";
 import { definedValues } from "./source-evidence.js";
 import { nextState } from "./state.js";
@@ -12,6 +13,8 @@ import { sourceCallableInterface, sourceInterfaceRepresentationBase } from "@tso
 import { bindCsharpSourceDeclarationArguments } from "./generic-arguments.js";
 import { formAuthoredAndSelectedSourceType, resolveFormedAuthoredAndSelectedSourceType,
   type CsharpAuthoredTypeSelectionEvidence } from "./selected-values.js";
+import { formCsharpProjectDeclarationArgumentCapture, bindCsharpProjectDeclarationArguments,
+  completeCsharpProjectDeclarationArguments, type CsharpProjectDeclarationArguments } from "./project-declaration-arguments.js";
 
 export interface CsharpSelectedSymbolSource {
   readonly symbol: Symbol;
@@ -211,32 +214,37 @@ export function projectSourceDeclarationTargetType(
     return bound === undefined ? undefined : scope.resolveTypeWithState(base.selectedType,
       host.semanticsFor(base.heritage).sourceFile, nextState(bound));
   }
+  const declared = host.projectTypeCatalog.declarationForNode(declaration);
+  if (declared === undefined) return undefined;
+  const arguments_ = completeCsharpProjectDeclarationArguments(scope,
+    bindCsharpProjectDeclarationArguments(formCsharpProjectDeclarationArgumentCapture(scope, declared,
+      sourceArguments, selectedType), state), typeArguments);
+  return arguments_ === undefined ? undefined : completeCsharpProjectDeclarationTarget(scope, arguments_);
+}
+
+export function completeCsharpProjectDeclarationTarget(
+  scope: CsharpTypeResolutionScope,
+  arguments_: CsharpProjectDeclarationArguments,
+): TargetTypeRef | undefined {
+  const { host } = scope;
+  const { declaration: declared, state } = arguments_.source;
+  const declaration = declared.declaration;
   const definition = host.projectTypeCatalog.definitionForDeclaration(declaration);
-  if (definition === undefined) return undefined;
-  const bindings = selectedType === undefined ? undefined : queries.types.typeArgumentBindings(selectedType);
-  const outerSources = definition.outerTypeParameters.map(parameter => selectedType === undefined
-    ? queries.types.authoredType(parameter)
-    : bindings?.find(candidate => candidate.declaration === parameter && candidate.scope === "outer")?.argumentType);
-  const outerArguments = outerSources.map((source, index): TargetTypeRef | undefined => {
-    if (selectedType === undefined) return definition.typeParameterBindings[index]!;
-    return source === undefined ? undefined : scope.resolveTypeWithState(source, queries.sourceFile, nextState(state));
-  });
-  if (outerArguments.some(argument => argument === undefined) || outerSources.some(source => source === undefined)) return undefined;
-  const ownParameters = definition.typeParameters;
-  const sources = sourceArguments ?? ownParameters.map(parameter =>
-    parameter === undefined ? undefined : queries.types.authoredType(parameter));
-  if (sources.some(source => source === undefined) || typeArguments.length !== definition.sourceTypeParameterCount) return undefined;
+  if (definition?.declared !== declared) return failTargetAnalysisInvariant("tsonic-csharp",
+    "Physical project arguments require the exact declared owner whose inputs were completed.", declaration);
+  const { outerArguments } = arguments_;
+  const ownParameters = declared.typeParameters;
   const projections = resolveCsharpProjectionArguments(scope, declaration,
-    [...outerSources, ...sources] as readonly Type[],
-    [...outerArguments as readonly TargetTypeRef[], ...typeArguments], state,
+    arguments_.sourceArguments,
+    [...outerArguments, ...arguments_.arguments], state,
     [...definition.outerTypeProjections, ...definition.typeProjections],
     [...definition.outerTypeParameters, ...ownParameters]);
   if (projections === undefined) return undefined;
   const outerProjectionCount = definition.outerTypeProjections.length;
   return host.projectTypeCatalog.targetTypeForDeclaration(
     declaration,
-    [...outerArguments as readonly TargetTypeRef[], ...projections.slice(0, outerProjectionCount),
-      ...typeArguments, ...projections.slice(outerProjectionCount)],
+    [...outerArguments, ...projections.slice(0, outerProjectionCount),
+      ...arguments_.arguments, ...projections.slice(outerProjectionCount)],
   );
 }
 

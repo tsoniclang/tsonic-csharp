@@ -1,4 +1,7 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
+import type { CsharpBodyCallArguments } from "./body-inputs.js";
+import type { CsharpTypeResolutionServices } from "../source-evidence/types/resolution/engine.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpOperationIssue } from "../../target-model/records/operations/operations.js";
 import type { CsharpTypedLocationOperationSelection } from "../../target-model/records/storage/typed-locations.js";
@@ -27,10 +30,18 @@ export function analyzeCsharpCallOperation(
   typedLocation: CsharpTypedLocationOperationSelection | undefined,
   binaryExecutionDrivers: CsharpTargetBinaryExecutionDriver[],
   issues: CsharpOperationIssue[] | undefined,
+  input: CsharpBodyCallArguments,
+  queries: Pick<CsharpTypeResolutionServices, "completeSourceCallTypeArguments">,
 ): void {
+  if (input === undefined || input.node !== node || input.sourceFile !== sourceFile ||
+    (input.source === undefined ? input.contract !== undefined : input.contract === undefined ||
+      input.source.call !== node || input.declarationSource?.source !== input.source ||
+      input.contract.source !== input.source || input.contract.sourceFile !== sourceFile ||
+      input.contract.declarationArguments !== input.declarationSource)) return failTargetAnalysisInvariant("tsonic-csharp",
+      "Call completion requires its exact retained body argument input.", node);
   const ast = policy.ast;
   const expression = ast.as.AsCallExpression(node);
-  const source = policy.semantics(sourceFile).operations.call(node);
+  const source = input.source;
   const callee = source?.sourceCallee.expression ?? expression?.Expression;
   const shape = classifyCsharpJsValueCallShape(policy.ast, source);
   const jsValue = validateCsharpJsValueOperationSelection(selectCsharpJsValueCallOperation(
@@ -96,8 +107,7 @@ export function analyzeCsharpCallOperation(
     ...(source === undefined
       ? {}
       : {
-          sourceTypeArguments:
-            policy.types.resolveSourceCallTypeArguments(source, sourceFile),
+          sourceTypeArguments: queries.completeSourceCallTypeArguments(input.contract!),
           ...(typedLocation?.kind === "location-bind" || typedLocation?.kind === "location-project" || typedLocation?.kind === "location-view"
             ? classifyCsharpTypedLocationCallArguments(source, typedLocation)
             : target?.kind === "resolved"

@@ -6,6 +6,7 @@ import { analyzeCsharpNativeHandlers } from "./native-handlers.js";
 import type { CsharpRequiredRecord } from "../program/records/objects/required-records.js";
 
 import type { Node } from "@tsonic/tsts";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpTargetOperationClassifications, CsharpOperationIssue } from "../../target-model/records/operations/operations.js";
@@ -16,24 +17,35 @@ import { optionalResultType } from "../../policy/operations/members/optional-res
 
 import { createCsharpOperationProducer, type CsharpOperationProducer } from "../program/records/operations/operations.js";
 import { analyzeCsharpOperationConstruct } from "./constructs.js";
+import { createCsharpBodyOperationInputs } from "./body-inputs.js";
+import type { CsharpTypeResolutionServices } from "../source-evidence/types/resolution/engine.js";
 import { collectCsharpInvocationConversionRequests } from "../conversions/requirements.js";
 import type { CsharpCallConversionRequests, CsharpCallConversionRequestIndex } from "../conversions/use-admission.js";
 
-export function analyzeCsharpTargetOperations(
+export function createCsharpTargetOperations(
   policy: CsharpPolicyContext,
-  evidence: CsharpSourceEvidenceIndex,
   erasureIndexes: CsharpOperationErasureIndexes,
   nodes: readonly Node[],
   requirements: CsharpRequiredRecord[],
-): CsharpTargetOperationClassifications & { readonly invocationConversions: CsharpCallConversionRequestIndex } {
+  queries: Pick<CsharpTypeResolutionServices, "nodeQuerySource" | "completeCallDeclarationArguments" |
+    "completeBodyCallArguments" | "completeSourceCallTypeArguments">,
+) {
   const producer = createCsharpOperationProducer();
+  const bodyInputs = createCsharpBodyOperationInputs(policy, producer, queries);
+  let completed = false;
+  return Object.freeze({ bodyInputs,
+    complete(evidence: CsharpSourceEvidenceIndex): CsharpTargetOperationClassifications & {
+      readonly invocationConversions: CsharpCallConversionRequestIndex;
+    } {
+  if (completed) return failTargetAnalysisInvariant("tsonic-csharp", "Operation production completes exactly once after its body inputs.");
+  completed = true;
   const classPropertyStorage = classifyCsharpClassPropertyStorage(policy, evidence);
   const binaryExecutionDrivers: import("../../target-model/types/model.js").CsharpTargetBinaryExecutionDriver[] = [];
   const issues: CsharpOperationIssue[] = [];
   const invocationConversions = new WeakMap<Node, CsharpCallConversionRequests>();
   const erasure = createCsharpOperationErasure(policy.ast, erasureIndexes, issues);
   for (const sourceFile of policy.sourceFiles) analyzeCsharpOperationConstruct(sourceFile, sourceFile,
-    policy, evidence, erasure, producer, binaryExecutionDrivers, issues);
+    policy, evidence, erasure, producer, bodyInputs, binaryExecutionDrivers, issues);
   const nativeHandler = analyzeCsharpNativeHandlers(nodes, {
     memoryBinding: producer.memoryBinding,
     safetyOperation: erasure.safetyApplications.safetyOperation,
@@ -51,6 +63,8 @@ export function analyzeCsharpTargetOperations(
   return Object.freeze({ ...producer.seal({ issues, classPropertyStorage, nativeHandler,
     binaryExecutionDriver: composeCsharpBinaryExecutionDriver(...binaryExecutionDrivers) }),
     invocationConversions: Object.freeze({ get: (node: Node) => invocationConversions.get(node) }),
+  });
+    },
   });
 }
 

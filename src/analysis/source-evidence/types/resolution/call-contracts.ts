@@ -22,6 +22,7 @@ import { formCsharpTypeParameterSource, resolveFormedCsharpTypeParameterSource,
 import type { CsharpSourceCallableSource } from "../../../program/source-callable-source.js";
 import { formCsharpSourceTypeArguments, type CsharpSourceTypeArgumentsSource } from "./generic-arguments.js";
 import { formCsharpSourceCallReceiverSource, type CsharpSourceCallReceiverSource } from "./receiver-completions.js";
+import { formCsharpCallDeclarationArgumentsSource, type CsharpCallDeclarationArgumentsSource } from "./call-declaration-arguments.js";
 
 export type CsharpSourceCallContractSelection =
   | { readonly kind: "declaration"; readonly contract: SourceCallableContract | undefined; readonly closedInput?: true }
@@ -34,6 +35,7 @@ export type CsharpSourceCallContractSource = {
   readonly callableSource: CsharpSourceCallableSource;
   readonly checkedTypeParameters: readonly ReturnType<typeof csharpSourceTypeParameter>[] | undefined;
   readonly selectedTypeParameters: readonly CsharpTypeParameterSource[];
+  readonly declarationArguments: CsharpCallDeclarationArgumentsSource;
   readonly receiverTypeArguments: CsharpSourceTypeArgumentsSource | undefined;
   readonly receiverSource: CsharpSourceCallReceiverSource;
 } & (
@@ -52,12 +54,13 @@ export function formCsharpSourceCallContractSource(
     declaration === undefined ? undefined : csharpSourceTypeParameter(declaration, host.ast)));
   const selectedTypeParameters = Object.freeze((source.sourceSelectedMethodTypeArguments ?? []).map(argument =>
     formCsharpTypeParameterSource(argument.typeParameter, callableSource.queries, host.ast)));
+  const declarationArguments = formCsharpCallDeclarationArgumentsSource({ host }, callableSource, selectedTypeParameters);
   const receiver = source.sourceReceiver ?? source.sourceCalleeAccess?.receiver;
   const receiverTypeArguments = receiver === undefined ? undefined : formCsharpSourceTypeArguments(receiver.type, callableSource.queries);
   const receiverSource = formCsharpSourceCallReceiverSource(host, source, callableSource.queries);
   return receiverSource.kind !== "selected"
-    ? Object.freeze({ source, sourceFile, callableSource, checkedTypeParameters, selectedTypeParameters, receiverTypeArguments, receiverSource, kind: "direct" })
-    : Object.freeze({ source, sourceFile, callableSource, checkedTypeParameters, selectedTypeParameters, receiverTypeArguments, receiverSource,
+    ? Object.freeze({ source, sourceFile, callableSource, checkedTypeParameters, selectedTypeParameters, declarationArguments, receiverTypeArguments, receiverSource, kind: "direct" })
+    : Object.freeze({ source, sourceFile, callableSource, checkedTypeParameters, selectedTypeParameters, declarationArguments, receiverTypeArguments, receiverSource,
       kind: "callee", callee: formCsharpSourceCalleeSource(host, source, sourceFile) });
 }
 
@@ -80,6 +83,7 @@ export function resolveFormedSourceCallContract(
   const { host, resolveSelectedValueWithState, resolveReadStorage, sourceCallableTypeParametersMatch } = scope;
   const { source, sourceFile } = input;
   if (input.callableSource.source !== source || input.callableSource.sourceFile !== sourceFile ||
+      input.declarationArguments === undefined || input.declarationArguments.callableSource !== input.callableSource ||
       input.receiverSource === undefined || input.receiverSource.source !== source ||
       input.receiverSource.queries !== input.callableSource.queries ||
       input.receiverSource.selected.receiver !== source.sourceReceiver ||

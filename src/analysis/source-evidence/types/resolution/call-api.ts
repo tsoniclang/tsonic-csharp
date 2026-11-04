@@ -24,16 +24,23 @@ import { completeCsharpSourceCallArgumentParameterSource, type CsharpSourceCallA
 import { formCsharpSourceCallConstructionSource, type CsharpSourceOwnedConstructionSource } from "./expression-source.js";
 
 export function resolveSourceCallTypeArguments(
-  { resolveSourceCallContract, resolveSourceCallInstantiation }: CsharpTypeResolutionScope,
+  scope: CsharpTypeResolutionScope,
   source: ResolvedSourceCallInfo,
   sourceFile: SourceFile,
 ): readonly TargetTypeRef[] | undefined {
-  const selected = resolveSourceCallContract(source, sourceFile, { depth: 0 }, "checked");
+  return resolveFormedCsharpSourceCallTypeArguments(scope, formCsharpSourceCallContractSource(scope, source, sourceFile));
+}
+
+export function resolveFormedCsharpSourceCallTypeArguments(
+  scope: CsharpTypeResolutionScope,
+  input: CsharpSourceCallContractSource,
+): readonly TargetTypeRef[] | undefined {
+  const selected = resolveFormedSourceCallContract(scope, input, { depth: 0 }, "checked");
   if (selected.kind === "rejected") return undefined;
   const callable = selected.contract;
-  return resolveSourceCallInstantiation(
-    source,
-    sourceFile,
+  return scope.resolveSourceCallInstantiation(
+    input.source,
+    input.sourceFile,
     { depth: 0 },
     callable?.nativeSignature.methodTypeParameterIdentities,
     callable,

@@ -1,5 +1,5 @@
 import type { Node } from "@tsonic/tsts";
-import { IsTypeSyntaxNode, isSourceCallableBodyBoundary, type TargetSourceProgram } from "@tsonic/target-api/source";
+import { IsTypeSyntaxNode, type TargetSourceProgram } from "@tsonic/target-api/source";
 import { csharpSourceTypeParameter, csharpSourceTypeParameters } from "../../source/extension/type-parameters.js";
 import type { CsharpDeclaredObjectReceiverSource, CsharpObjectMethodSources,
   CsharpDeclaredObjectReceiverContextSource, CsharpDeclaredObjectReceiverSources } from "../../target-model/records/native/native-value-carriers.js";
@@ -25,6 +25,7 @@ export interface CsharpTypeProjectionSource {
   readonly nodes: readonly CsharpTypeProjectionNodeSource[];
   readonly owners: readonly CsharpTypeProjectionOwnerSource[];
   ownerFor(declaration: Node): CsharpTypeProjectionOwnerSource | undefined;
+  sourceFor(node: Node): CsharpTypeProjectionNodeSource | undefined;
   readonly declaredReceivers: CsharpDeclaredObjectReceiverSources;
 }
 
@@ -42,6 +43,7 @@ export function formCsharpTypeProjectionSource(
   const receivers = new WeakMap<Node, CsharpDeclaredObjectReceiverContextSource>();
   const owners = new Map<Node, CsharpTypeProjectionNodeSource[]>();
   const ownerOrder: Node[] = [];
+  const byNode = new WeakMap<Node, CsharpTypeProjectionNodeSource>();
   const visit = (node: Node, parent: CsharpTypeProjectionNodeSource | undefined,
     enclosingOwners: readonly Node[]): void => {
     if (ast.is.IsTypeAliasDeclaration(node) || ast.is.IsImportDeclaration(node)) return;
@@ -75,11 +77,13 @@ export function formCsharpTypeProjectionSource(
       name: astParent !== undefined && ast.name(astParent) === node,
       declaredReceiver, receiverContext,
     });
-    const ownsBody = isSourceCallableBodyBoundary(ast, node) || scopes?.declaration === node;
+    const ownsBody = scopes?.declaration === node &&
+      (scopes.parameterIdentities.length !== 0 || scopes.capturedParameterIdentities.length !== 0);
     const currentOwners = ownsBody ? [...enclosingOwners, node] : enclosingOwners;
     if (ownsBody) owners.set(node, []);
     for (const owner of currentOwners) owners.get(owner)!.push(selected);
     if (receiverContext !== undefined) receivers.set(node, receiverContext);
+    byNode.set(node, selected);
     nodes.push(selected);
     if (!IsTypeSyntaxNode(ast, node)) ast.forEachChild(node, child => { if (child !== undefined) visit(child, selected, currentOwners); });
     if (ownsBody) ownerOrder.push(node);
@@ -89,6 +93,7 @@ export function formCsharpTypeProjectionSource(
     Object.freeze({ declaration, nodes: Object.freeze(nodes) })]));
   return Object.freeze({ nodes: Object.freeze(nodes), owners: Object.freeze(ownerOrder.map(owner => published.get(owner)!)),
     ownerFor: (declaration: Node) => published.get(declaration),
+    sourceFor: (node: Node) => byNode.get(node),
     declaredReceivers: Object.freeze({ get: (node: Node) => receivers.get(node) }),
   });
 }

@@ -2,9 +2,11 @@ import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpObjectShapeContract, CsharpObjectShapeMemberContract, CsharpTargetNamedTypeRef, TargetTypeRef } from "./model.js";
 import { csharpObjectShapeMemberContractKey } from "./object-shape-identity.js";
 import type { CsharpTypeParameterEnvironment } from "../records/types/type-parameter-constraints.js";
+import { targetTypeRefKey } from "./equality.js";
 
 export interface CsharpObjectShapeHeader {
   readonly contract: CsharpObjectShapeContract;
+  readonly targetKey: string;
   readonly memberKeys: readonly string[];
   readonly declarationTemplate: CsharpObjectShapeHeader | undefined;
 }
@@ -55,7 +57,7 @@ export function formCsharpObjectShapeHeader(input: CsharpObjectShapeContract): C
     ...(input.constructible === undefined ? {} : { constructible: input.constructible }),
     ...(input.methodImplementation === undefined ? {} : { methodImplementation: input.methodImplementation }),
   });
-  return Object.freeze({ contract, declarationTemplate,
+  return Object.freeze({ contract, targetKey: targetTypeRefKey(contract.targetType), declarationTemplate,
     memberKeys: Object.freeze(members.map(csharpObjectShapeMemberContractKey)),
   });
 }
@@ -65,7 +67,9 @@ export function requireCsharpObjectShapeHeader(
   contract: CsharpObjectShapeContract,
 ): void {
   const retained = header.contract;
-  if (retained.targetType !== contract.targetType || retained.members.length !== contract.members.length ||
+  if (retained.targetType !== contract.targetType || header.targetKey !== targetTypeRefKey(contract.targetType) ||
+    retained.members.length !== contract.members.length ||
+    (header.declarationTemplate === undefined) !== (contract.declarationTemplate === undefined) ||
     retained.covariantTypeParameterIdentities !== contract.covariantTypeParameterIdentities ||
     retained.implements !== contract.implements || retained.constructible !== contract.constructible ||
     retained.methodImplementation !== contract.methodImplementation ||
@@ -78,4 +82,7 @@ export function requireCsharpObjectShapeHeader(
         member.optional !== actual.optional || member.readonly !== actual.readonly || member.accessor !== actual.accessor ||
         member.bound !== actual.bound;
     })) return failTargetAnalysisInvariant("tsonic-csharp", "Shape completion requires its exact proof-free native header.");
+  if (header.declarationTemplate !== undefined && contract.declarationTemplate !== undefined) {
+    requireCsharpObjectShapeHeader(header.declarationTemplate, contract.declarationTemplate);
+  }
 }

@@ -21,7 +21,8 @@ export function resolveFormedCsharpDeclaredCallableBody(
     "A callable body requires its exact retained node-query source.", source.node);
   const semantic = root.kind === "node" ? root.semantic : undefined;
   const callable = semantic?.kind === "type" ? semantic.callable : undefined;
-  if (callable?.kind !== "callable" || callable.signature.source.declaration?.declaration !== source.node) {
+  const declaration = callable?.kind === "callable" ? callable.signature.source.declaration?.declaration : undefined;
+  if (callable?.kind !== "callable" || declaration === undefined || !scope.host.navigation.isProjectDeclaration(declaration)) {
     return Object.freeze({ kind: "not-declared-callable", source });
   }
   if (callable.state !== semantic!.state || callable.signature.state !== callable.state ||

@@ -1,4 +1,4 @@
-import { analyzeCsharpCallOperation } from "./call-operation.js";
+import type { CsharpBodyOperationProducer } from "./body-inputs.js";
 import { classifyCsharpNativeCallArguments, classifyCsharpSourceCallArguments } from "./source-call-arguments.js";
 import { classifyCsharpBorrowedSequenceInput } from "./borrowed-sequences.js";
 
@@ -30,7 +30,7 @@ import { sourceOperatorFromKindName } from "../../target-model/syntax/operators.
 import { selectCsharpNativePointerOperation } from "./pointers/native-pointers.js";
 import { selectCsharpJsArrayMutation } from "./collections/js-array-mutations.js";
 import { selectCsharpJsStringConversion } from "./strings/explicit-js-string.js";
-import { csharpTypedLocationLoweringRefusal, selectCsharpNativeRefReturn, selectCsharpTypedLocationOperation } from "./typed-locations.js";
+import { csharpTypedLocationLoweringRefusal, selectCsharpNativeRefReturn } from "./typed-locations.js";
 import { selectCsharpRefusedTypedLocationOperandCall } from "./typed-location-operands.js";
 import { selectCsharpRegularExpressionLiteral } from "./syntax/regexp-literal.js";
 import { selectCsharpResourceManagement } from "../control-flow/resource-management.js";
@@ -54,6 +54,7 @@ export function analyzeCsharpOperationConstruct(
   evidence: CsharpSourceEvidenceIndex,
   erasure: CsharpOperationErasure,
   producer: CsharpOperationProducer,
+  bodyInputs: CsharpBodyOperationProducer,
   binaryExecutionDrivers:
     import("../../target-model/types/model.js").CsharpTargetBinaryExecutionDriver[],
   scopeIssues: CsharpOperationIssue[] | undefined,
@@ -152,16 +153,8 @@ export function analyzeCsharpOperationConstruct(
     producer.jsVoid.selected(node, selectCsharpJsValueVoidOperation(policy, operand, sourceFile),
     );
   }
-  const operationNode =
-    ast.is.IsCallExpression(node) ||
-    ast.is.IsNewExpression(node) ||
-    ast.is.IsPropertyAccessExpression(node) ||
-    ast.is.IsElementAccessExpression(node) ||
-    ast.is.IsBinaryExpression(node) ||
-    ast.is.IsPrefixUnaryExpression(node) ||
-    ast.is.IsPostfixUnaryExpression(node);
-  const typedLocation = operationNode ? selectCsharpTypedLocationOperation(policy, node, sourceFile) : undefined;
-  if (operationNode) {
+  const typedLocation = bodyInputs.completeLocation(node, sourceFile);
+  if (typedLocation !== undefined) {
     const nativePointer = selectCsharpNativePointerOperation(policy, node, sourceFile);
     if (nativePointer.kind === "rejected") issues?.push(Object.freeze({ node, code: "CSHARP_NATIVE_POINTER_OPERATION_NOT_MAPPED",
       message: `C# native-pointer '${nativePointer.operation}' is not mapped: ${nativePointer.reason}` }));
@@ -173,10 +166,11 @@ export function analyzeCsharpOperationConstruct(
         message: csharpTypedLocationLoweringRefusal(typedLocation.operation, typedLocation.reason) }));
       else if (!issues?.some(issue => issue.node === root.node && issue.code === root.code)) issues?.push(root);
     }
-    producer.typedLocation.selected(node, typedLocation!);
   }
   if (ast.is.IsCallExpression(node)) {
-    analyzeCsharpCallOperation(node, sourceFile, policy, producer, typedLocation, binaryExecutionDrivers, issues);
+    const input = bodyInputs.completeCall(node, sourceFile);
+    binaryExecutionDrivers.push(...input.binaryExecutionDrivers);
+    issues?.push(...input.issues);
   } else if (ast.is.IsNewExpression(node)) {
     const expression = ast.as.AsNewExpression(node);
     const jsValue = selectCsharpJsValueReceiverExpressionOperation(
@@ -400,6 +394,7 @@ export function analyzeCsharpOperationConstruct(
           evidence,
           erasure,
           producer,
+          bodyInputs,
           binaryExecutionDrivers,
           erased ? undefined : issues,
         );

@@ -6,11 +6,14 @@ import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import { formCsharpSourceCallResultSource, type CsharpSourceCallResultSource } from "./call-result-source.js";
 import { formCsharpSourceCallContractSource, type CsharpSourceCallContractSource } from "./call-contracts.js";
+import { formCsharpProjectDeclarationArgumentCapture,
+  type CsharpProjectDeclarationArgumentCapture } from "./project-declaration-arguments.js";
 
 export interface CsharpSourceOwnedConstructionSource {
   readonly contract: CsharpSourceCallContractSource;
   readonly queries: SourceFileSemantics;
   readonly projectDeclaration: boolean;
+  readonly projectArguments: CsharpProjectDeclarationArgumentCapture | undefined;
   readonly resultSource: CsharpSourceCallResultSource | undefined;
 }
 
@@ -55,12 +58,17 @@ export function formCsharpSelectedExpressionSource(
 }
 
 export function formCsharpSourceOwnedConstructionSource(
-  scope: Pick<CsharpTypeResolutionScope, "sourceCallSelectedDeclaration">,
+  scope: Pick<CsharpTypeResolutionScope, "host" | "sourceCallSelectedDeclaration">,
   contract: CsharpSourceCallContractSource,
   queries: SourceFileSemantics,
   projectDeclaration: boolean,
 ): CsharpSourceOwnedConstructionSource {
+  const declaration = !projectDeclaration ? undefined : contract.callableSource.constructorDeclaration;
+  const declared = declaration === undefined ? undefined : scope.host.projectTypeCatalog.declarationForNode(declaration);
+  const projectArguments = declared === undefined ? undefined : formCsharpProjectDeclarationArgumentCapture(scope,
+    declared, (contract.source.sourceSelectedMethodTypeArguments ?? []).map(argument => argument.selectedType), contract.source.sourceResultType);
   return Object.freeze({ contract, queries, projectDeclaration,
+    projectArguments,
     resultSource: contract.callableSource.constructorDeclaration !== undefined && projectDeclaration
       ? undefined : formCsharpSourceCallResultSource(scope, contract),
   });

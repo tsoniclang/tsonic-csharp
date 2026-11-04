@@ -10,7 +10,9 @@ export interface CsharpPublishedCallableProjections {
 }
 
 export type CsharpCallableProjectionReceipt = CsharpPublishedCallableProjections |
-  { readonly kind: "declaration"; readonly declaration: Node };
+  { readonly kind: "declaration"; readonly declaration: Node;
+    readonly source: { readonly node: Node; readonly scopes: { readonly declaration: Node;
+      readonly parameterIdentities: readonly string[]; readonly capturedParameterIdentities: readonly string[] } | undefined } | undefined };
 
 export interface CsharpGenericProjectionIndex {
   readonly entries: readonly {

@@ -12,6 +12,8 @@ import type { CsharpObjectLiteralConstructionSource } from "./literal-source.js"
 import type { CsharpObjectShapeSource } from "./shape-source.js";
 import { instantiateMemberEvidence, type CsharpObjectShapeMemberProofInput } from "./member-instantiation.js";
 import type { CsharpObjectShapeTargetInput } from "./method-values.js";
+import { formCsharpObjectShapeHeader, type CsharpObjectShapeHeader } from "../../../target-model/types/object-shape-header.js";
+import type { CsharpObjectShapePublisher } from "./publication.js";
 
 export type CsharpLiteralShapeRequest = {
   readonly source: CsharpObjectLiteralConstructionSource;
@@ -21,14 +23,15 @@ export type CsharpLiteralShapeRequest = {
       readonly sources: readonly CsharpObjectShapeFact[] }
   | { readonly kind: "implementation"; readonly input: CsharpObjectMethodImplementationInput }
   | { readonly kind: "target"; readonly input: CsharpObjectShapeTargetInput }
-  | { readonly kind: "publication"; readonly shape: CsharpObjectShapeFact }
+  | { readonly kind: "publication"; readonly header: CsharpObjectShapeHeader; readonly shape: CsharpObjectShapeFact }
 );
 
 export type CsharpCompletedLiteralShapeRequest = { readonly request: CsharpLiteralShapeRequest } & (
   | { readonly kind: "spread"; readonly shape: CsharpObjectShapeFact | undefined }
   | { readonly kind: "receiver"; readonly selection: ReturnType<typeof selectCsharpCopiedMethodReceiver> }
   | { readonly kind: "implementation"; readonly implementation: CsharpObjectShapeFact["methodImplementation"] }
-  | { readonly kind: "target" | "publication"; readonly shape: CsharpObjectShapeFact }
+  | { readonly kind: "target"; readonly header: CsharpObjectShapeHeader; readonly shape: CsharpObjectShapeFact }
+  | { readonly kind: "publication"; readonly shape: CsharpObjectShapeFact }
 );
 
 function requiresSourceProof(member: CsharpObjectShapeMemberFact, source: CsharpObjectShapeMemberProofInput): void {
@@ -108,6 +111,7 @@ export function* completeCsharpLiteralShapeSource(
     if (additionalMembers.length === 0 && accessors.kind === "none" && implemented === expectedShape.implements &&
       (!nativeMethodLiteral || ownsImplementation) && !copiedMethods) {
       const publication = Object.freeze({ kind: "publication" as const, source,
+        header: formCsharpObjectShapeHeader(expectedShape),
         shape: Object.freeze({ ...expectedShape, sourceType, members }) });
       const completed = yield publication;
       if (completed.request !== publication || completed.kind !== "publication") return failTargetAnalysisInvariant("tsonic-csharp",
@@ -190,7 +194,7 @@ export function* completeCsharpLiteralShapeSource(
     const target = yield targetRequest;
     if (target.request !== targetRequest || target.kind !== "target") return failTargetAnalysisInvariant("tsonic-csharp",
       "Literal methods require their exact selected physical target receipt.", objectLiteral);
-    const publication = Object.freeze({ kind: "publication" as const, source, shape: target.shape });
+    const publication = Object.freeze({ kind: "publication" as const, source, header: target.header, shape: target.shape });
     const completed = yield publication;
     if (completed.request !== publication || completed.kind !== "publication") return failTargetAnalysisInvariant("tsonic-csharp",
       "Literal publication requires its exact physical target receipt.", objectLiteral);
@@ -201,7 +205,7 @@ export function createCsharpLiteralShapeResolver(
   host: CsharpObjectShapePolicyHost,
   dependencies: {
     readonly resolveNode: CsharpRecursiveObjectShapePolicy["resolveNode"];
-    readonly rememberTargetShape: (shape: CsharpObjectShapeFact) => CsharpObjectShapeFact;
+    readonly rememberTargetShape: CsharpObjectShapePublisher;
     readonly formTargetShape: (input: CsharpObjectShapeTargetInput) => CsharpObjectShapeFact;
   },
 ) {
@@ -221,9 +225,11 @@ export function createCsharpLiteralShapeResolver(
         step = completion.next(Object.freeze({ kind: "implementation", request,
           implementation: resolveCsharpObjectMethodImplementation(host, request.input) }));
       } else if (request.kind === "target") {
-        step = completion.next(Object.freeze({ kind: "target", request, shape: dependencies.formTargetShape(request.input) }));
+        const shape = dependencies.formTargetShape(request.input);
+        step = completion.next(Object.freeze({ kind: "target", request, header: formCsharpObjectShapeHeader(shape), shape }));
       } else {
-        step = completion.next(Object.freeze({ kind: "publication", request, shape: dependencies.rememberTargetShape(request.shape) }));
+        step = completion.next(Object.freeze({ kind: "publication", request,
+          shape: dependencies.rememberTargetShape(request.header, request.shape) }));
       }
     }
     return step.value;

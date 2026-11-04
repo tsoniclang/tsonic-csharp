@@ -4,10 +4,12 @@ import { csharpMethodValueType } from "../../../target-model/types/method-values
 import { createStructuralObjectShapeTarget } from "../../objects/shapes/construction.js";
 import type { CsharpTypeParameterEnvironment } from "../../../target-model/records/types/type-parameter-constraints.js";
 import { objectShapeMethodInvocationName } from "../../../target-model/names/object-members.js";
+import { formCsharpObjectShapeHeader } from "../../../target-model/types/object-shape-header.js";
+import type { CsharpObjectShapePublisher } from "../../objects/shapes/publication.js";
 
 export function retainCsharpGenericCallableValue(
   signature: TargetTypeRef, typeParameters: NonNullable<CsharpObjectShapeMemberFact["typeParameters"]>,
-  remember: (shape: CsharpObjectShapeFact) => CsharpObjectShapeFact,
+  remember: CsharpObjectShapePublisher,
   environment: CsharpTypeParameterEnvironment,
 ): TargetTypeRef | undefined {
   if (typeParameters.length === 0 || getCsharpDelegateSignature(signature) === undefined) return undefined;
@@ -19,6 +21,8 @@ export function retainCsharpGenericCallableValue(
   const value = csharpMethodValueType(owner, objectShapeMethodInvocationName(member), "tsonic.generic-callable", signature,
     typeParameters.map(parameter => parameter.identity));
   if (value === undefined) return undefined;
-  remember({ targetType: owner, members: [Object.freeze({ ...member, methodValueContract: owner })] });
+  const shape: CsharpObjectShapeFact = Object.freeze({ targetType: owner,
+    members: Object.freeze([Object.freeze({ ...member, methodValueContract: owner })]) });
+  remember(formCsharpObjectShapeHeader(shape), shape);
   return value;
 }
