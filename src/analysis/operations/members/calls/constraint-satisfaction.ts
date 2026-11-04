@@ -89,7 +89,7 @@ export function validateCsharpProviderConstraints(
     ) {
       return `Static target member '${selection.targetMember.id}' has no exact dispatch type or declaring interface.`;
     }
-    const dispatchError = targetTypeFailsConstraint(
+    const dispatchError = csharpTargetTypeFailsConstraint(
       host,
       dispatchArgument,
       {
@@ -129,7 +129,7 @@ function validateTypeParameterArguments(
         constraint,
         substitutions,
       );
-      const reason = targetTypeFailsConstraint(
+      const reason = csharpTargetTypeFailsConstraint(
         host,
         argument,
         substituted,
@@ -143,7 +143,7 @@ function validateTypeParameterArguments(
   return undefined;
 }
 
-function targetTypeFailsConstraint(
+export function csharpTargetTypeFailsConstraint(
   host: CsharpConstraintSatisfactionHost,
   argument: CsharpSelectedTargetMethodTypeArgument,
   constraint: TargetConstraint,
