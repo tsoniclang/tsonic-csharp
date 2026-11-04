@@ -66,11 +66,11 @@ test("object rest projection consumes exact checked binding identity and retains
   const host = { ast: source.ast, navigation: {}, typeResolver: { resolveNode: () => undefined },
     scopedTargetType: () => undefined,
     semantics: selected => source.semantics.forFile(selected),
-    objectShapes: { resolveTypeWithState(selected, selectedFile, syntax, selectedState) {
+    objectShapes: { resolveNodeWithState(selected, selectedFile, selectedState) {
       calls += 1;
-      assert.equal(selected === type, true, "declared binding authority");
+      assert.equal(selected === rest, true, "the same original checked binding is the selection authority");
       assert.equal(selectedFile === file, true, "owning checker/file");
-      assert.equal(syntax === undefined, true, "no invented authored type syntax");
+      assert.equal(arguments.length === 3, true, "no invented authored type syntax");
       assert.equal(selectedState.depth, 3, "existing recursive budget advances");
       assert.equal(selectedState.sourceStorageSubject === subject, true, "retained selection context");
       assert.equal(policy.resolveProjection(rest, file, state) === undefined, true, "reentrant binding fails closed");
@@ -86,14 +86,14 @@ test("object rest projection consumes exact checked binding identity and retains
   assert.equal(selected.storageCarrier === targetType && selected.bindingCarrier === targetType, true);
   assert.equal(calls, 1);
   assert.equal(Object.isFrozen(selected), true);
-  host.objectShapes.resolveTypeWithState = () => undefined;
+  host.objectShapes.resolveNodeWithState = () => undefined;
   assert.equal(policy.resolveProjection(rest, file, state) === undefined, true, "missing exact shape has no selected-type fallback");
   const physical = Object.freeze({ ...targetType, id: "PhysicalRest", csharpValueType: true });
   host.scopedTargetType = selected => {
     assert.equal(selected === rest, true, "only the actual checked rest binding owns its scoped physical storage");
     return physical;
   };
-  host.objectShapes.resolveTypeWithState = () => assert.fail("selected physical storage is never recomputed from the raw source shape");
+  host.objectShapes.resolveNodeWithState = () => assert.fail("selected physical storage is never recomputed from the raw source shape");
   const selectedPhysical = policy.resolveProjection(rest, file, state);
   assert.equal(selectedPhysical.storageCarrier === physical && selectedPhysical.bindingCarrier === physical, true,
     "all rest storage and binding consumers retain the exact once-selected native carrier");
