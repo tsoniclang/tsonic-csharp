@@ -24,6 +24,7 @@ import { resolveCsharpNativeParameterCarrier, selectCsharpContextualParameterCar
 import type { CsharpSourceCallResult } from "../../../../target-model/operations/source-call-results.js";
 import { csharpSourceValueResult, refineCsharpSourceValueResult } from "./call-results.js";
 import { resolveCsharpSourceEffectiveType } from "./effective-types.js";
+import { resolveCsharpDeclaredLiteralContext } from "./literal-context.js";
 export function resolveNodeValueWithState(
   scope: CsharpTypeResolutionScope,
   node: Node | undefined,
@@ -82,6 +83,11 @@ function resolveNodeResultWithState(
   );
   if (syntaxFact !== undefined) {
     return csharpSourceValueResult(syntaxFact);
+  }
+  if (host.ast.is.IsObjectLiteralExpression(node)) {
+    const context = resolveCsharpDeclaredLiteralContext(scope, node, queries, state);
+    if (context.kind === "selected") return csharpSourceValueResult(
+      context.type);
   }
   if (host.ast.is.IsArrayLiteralExpression(node)) {
     const selection = scope.resolveArrayLiteralWithState(node, queries, state);

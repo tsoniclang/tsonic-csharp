@@ -2,6 +2,7 @@ import { createCsharpObjectShapeMemberResolver } from "./member-evidence.js";
 import { objectShapeMemberTargetName } from "../../../policy/identities/source-member-names.js";
 import { createStructuralObjectShapeTarget, mergeCsharpObjectShapeSubjects } from "./construction.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
+import { isCsharpRecordDictionaryTargetType } from "../../../target-model/types/carriers/collections.js";
 import { csharpObjectShapesEqual } from "../../../target-model/types/object-shape-equality.js";
 import { csharpObjectShapeContractKey } from "../../../target-model/types/object-shape-identity.js";
 import { isCsharpNativeSourceProfileMemberDeclaration, isProjectSourceTargetType, projectClassIsObjectInitializable, requiresUnresolvedStructuralProjection, selectedObjectShapeSource, sourceSubjects, typeHasProjectOwnedShapeDeclaration, typeIsExcludedFromObjectShape } from "./source-evidence.js";
@@ -97,6 +98,7 @@ export function createCsharpObjectShapePolicy(
       const selectedTarget = host.ast.is.IsClassDeclaration(node) || host.ast.is.IsClassExpression(node)
         ? host.typeResolver.resolveType(source.type, queries.sourceFile, nextState(state))
         : host.typeResolver.resolveNode(node, queries.sourceFile, nextState(state));
+      if (isCsharpRecordDictionaryTargetType(getCsharpNullableElementTargetType(selectedTarget) ?? selectedTarget)) return undefined;
       const selectedShape = resolveTarget(selectedTarget);
       if (selectedShape !== undefined && source.type !== undefined &&
         (!host.ast.is.IsObjectLiteralExpression(node) || selectedShape.constructible === true)) {
