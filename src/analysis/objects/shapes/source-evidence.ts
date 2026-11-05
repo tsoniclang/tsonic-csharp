@@ -21,6 +21,10 @@ export function selectedObjectShapeSource(
   // A Host-published non-generic declared type names its exact Source type by declaration identity.
   let descriptor = effective.type;
   while (descriptor.kind === "optional") descriptor = descriptor.value;
+  // A declaration-file type whose structure the Host could not express (cut: "unexpressible", K-2448 #1) has no Source
+  // structure: a shape consumer refuses, and its structure is never rebuilt from the checker. Identity-only uses do not
+  // reach this structural source.
+  if (descriptor.kind === "declared" && descriptor.cut === "unexpressible") return { type: undefined };
   if (descriptor.kind === "declared" && descriptor.typeArguments.length === 0) {
     const declared = queries.declarations.declaredType(descriptor.declaration);
     if (declared !== undefined) return { type: declared };

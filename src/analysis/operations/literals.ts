@@ -39,7 +39,9 @@ export function analyzeCsharpLiteralAdmission(input: { readonly ast: AstReader; 
       const castFloat64 = use.kind === "converted" && use.mode === "explicit" && use.input.kind === "value" &&
         use.input.type.kind === "source-primitive" && use.input.type.name === "float64";
       if ((carrier?.kind === "source-primitive" && carrier.name === "float64" || castFloat64) && number !== undefined) {
-        const integralToken = !castFloat64 && csharpTargetTypedIntegralToken(input.ast, node, target);
+        // K-2448: the decision reads the ONE recorded emission context of this expression, never demand-entry order.
+        // A staged construction publishes its physical entry first; the consuming (possibly broad) use is the emission.
+        const integralToken = !castFloat64 && csharpTargetTypedIntegralToken(input.ast, node, emittedDestination(input.demand, node));
         producer.publish(node, { kind: "float64", value: number, ...(integralToken ? { integralToken: true as const } : {}) });
         published.add(node);
       } else if (selected?.kind === "resolved") {
@@ -63,6 +65,12 @@ export function analyzeCsharpLiteralAdmission(input: { readonly ast: AstReader; 
         `${input.ast.is.IsTemplateExpression(node) ? "Template string emission" : "No-substitution template literal emission"} requires a finalized System.String runtime carrier fact before C# emission.`);
   }
   return Object.freeze({ records: producer.seal(), issues: Object.freeze(issues) });
+}
+
+function emittedDestination(demand: CsharpNativeDemandAnalysis, node: Node): TargetTypeRef | undefined {
+  const emitted = demand.nativeUse.expression(node)?.use;
+  if (emitted === undefined || emitted.kind === "erased") return undefined;
+  return emitted.kind === "converted" ? emitted.target : emitted.carrier;
 }
 
 // Decision 4 (maintainer, C-2314: restore 28j'): an authored decimal integer token, |value| <= 2^53, whose use converts to

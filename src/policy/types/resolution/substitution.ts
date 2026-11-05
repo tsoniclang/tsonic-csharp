@@ -1,8 +1,8 @@
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpRuntimeUnionTargetTypeRef, CsharpTargetNamedTypeRef, CsharpTaskTargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpNullableTargetType, isCsharpNullableReferenceTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
-import { getCsharpRuntimeUnionArms, isCsharpAbsenceTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
-import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
+import { combineCsharpTargetUnionMembers, getCsharpRuntimeUnionArms, isCsharpAbsenceTargetType, isCsharpRuntimeUnionTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
+import { targetTypeRefEquals, targetTypeRefKey } from "../../../target-model/types/equality.js";
 import { csharpTypeProjection, getCsharpGenericOptionalParts, type CsharpOptionalTypeProjection } from "../../../target-model/types/projections.js";
 import { resolveCsharpOptionalStorage } from "../storage/optional-storage.js";
 import { csharpFreeTypeParameterIdentities } from "../../../target-model/types/generic-references.js";
@@ -33,6 +33,9 @@ export function substituteTargetTypeParameters(
         ? csharpNullableTargetType(substitution)
         : substitution;
     case "target-named":
+      if (isCsharpRuntimeUnionTargetType(type) && type.csharpRuntimeUnionSemantics === "source-sum") {
+        return substituteSourceSumUnion(type, substitutions);
+      }
       const arrayLiteralElementType = (type as CsharpTargetNamedTypeRef).csharpArrayLiteralElementType;
       const arrayLiteralConstructionType = (type as CsharpTargetNamedTypeRef).csharpArrayLiteralConstructionType;
       const implicitArrayInputElementType = (type as CsharpTargetNamedTypeRef).csharpImplicitArrayInputElementType;
@@ -266,6 +269,24 @@ function stringListsEqual(
   const rightValues = right ?? [];
   return leftValues.length === rightValues.length &&
     leftValues.every((value, index) => value === rightValues[index]);
+}
+
+// A source sum has no written order (C04): its substituted arms take the one canonical layout,
+// so `string | T` at T = number is the same carrier as a declared `number | string`.
+function substituteSourceSumUnion(
+  type: CsharpRuntimeUnionTargetTypeRef,
+  substitutions: ReadonlyMap<string, TargetTypeRef>,
+): TargetTypeRef {
+  const arms = type.csharpRuntimeUnionArms.map((arm) => substituteTargetTypeParameters(arm, substitutions));
+  const combined = combineCsharpTargetUnionMembers(arms);
+  if (combined === undefined) throw new Error("A substituted source union has no native runtime carrier.");
+  const shapes = type.csharpRuntimeUnionObjectShapes;
+  if (shapes === undefined || !isCsharpRuntimeUnionTargetType(combined)) return combined;
+  const shapeByArm = new Map(arms.map((arm, index) => [targetTypeRefKey(arm), shapes[index] === undefined
+    ? undefined : substituteObjectShapeFactTargetTypeParameters(shapes[index], substitutions)]));
+  const retained = combined.csharpRuntimeUnionArms.map((arm) => shapeByArm.get(targetTypeRefKey(arm)));
+  return retained.every((shape) => shape === undefined) ? combined
+    : { ...combined, csharpRuntimeUnionObjectShapes: Object.freeze(retained) } as CsharpRuntimeUnionTargetTypeRef;
 }
 
 export function substituteObjectShapeFactTargetTypeParameters(

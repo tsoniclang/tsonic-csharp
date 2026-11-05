@@ -703,3 +703,23 @@ test("direct C# translation preserves explicit void discard intent", () => {
 }
 `);
 });
+
+// Decision 4 (maintainer, C-2314; K-2447/K-2448): an authored integer token in a double prints as written only where C#
+// target-types it to its ONE emitted double destination. Provenance: the declaration initializer row is the 28j'
+// golden of this file (`double total = 0;`, ad3ff4ea :473/:507); the other rows are the rule's own boundary.
+for (const [name, sourceText, expected] of [
+  ["declaration initializer (28j' golden)", "export function sum(values: number[]): number { let total = 0; for (const v of values) total = total + v; return total; }", "double total = 0;"],
+  ["return into double", "export function one(): number { return 1; }", "return 1;"],
+  ["assignment right side", "export function f(): number { let x = 2.5; x = 3; return x; }", "x = 3;"],
+  ["field initializer", "export class Box { value: number = 1; }", "public double value = 1;"],
+  ["staged construction into a union keeps D", "export function u(flag: boolean): number | string { return flag ? \"a\" : 1; }", "From1(1D)"],
+  ["nullable destination keeps D", "export function n(): number | undefined { let v: number | undefined = 0; return v; }", "double? v = 0D;"],
+  ["argument keeps D (overload/inference)", "declare function take(value: number): number; export function m(): number { return take(0); }", "take(0D)"],
+  ["conditional arms keep D", "export function c(flag: boolean): number { return flag ? 0 : 1.5; }", "flag ? 0D : 1.5D"],
+  ["array elements keep D", "export function o(): object { const v: number[] = [1, 2]; return v; }", "{ 1D, 2D }"],
+]) test(`integral double literal printing: ${name}`, () => {
+  const compiled = compileCsharpSource({ sourceText });
+  assert.equal(compiled.result.diagnostics.length, 0, compiled.result.diagnostics.map(({ code, message }) => `${code}: ${message}`).join("; "));
+  const output = compiled.artifacts.get("src/Index.cs") ?? "";
+  assert.equal(output.includes(expected), true, `${name}: expected ${expected}`);
+});

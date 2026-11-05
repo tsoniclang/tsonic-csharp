@@ -33,6 +33,9 @@ export interface CsharpSourceTypeRepresentationHost {
     results: readonly TargetTypeRef[],
   ): TargetTypeRef | undefined;
   memberKind(declaration: Node): "property" | "method";
+  // True when every member of a construct-carrying shape is part of the static side of the one class its construct
+  // signatures belong to: a static member of that class, or its class prototype (K-2448 #3).
+  classStaticSide(descriptor: Extract<SourceTypeDescriptor, { readonly kind: "shape" }>): boolean;
   shapeKind(descriptor: Extract<SourceTypeDescriptor, { readonly kind: "shape" }>): "contract" | "storage" | undefined;
   memberTypeParameters(signature: Extract<SourceTypeDescriptor, { readonly kind: "callable" }>["calls"][number]):
     NonNullable<CsharpObjectShapeMemberFact["typeParameters"]> | undefined;
@@ -133,9 +136,14 @@ function representDescriptor(
       }
       case "shape": {
         if (!Array.isArray(descriptor.indexes)) return undefined;
-        // A shape with construct signatures and no call signatures is a constructor value (a class's static side):
-        // its native representation is the constructed type's static receiver, as for a callable with only constructs.
-        if (descriptor.calls.length === 0 && descriptor.constructs.length !== 0) return representConstructor(descriptor.constructs);
+        // A shape with construct signatures and no call signatures is a constructor value. It is represented as the
+        // constructed class's static receiver only when its whole inventory IS that class's static side: no indexes, and
+        // every member a static member of that class or its prototype. Any other construct-plus-member/index contract has
+        // no native representation here, so its consumer refuses rather than dropping members (K-2448 #3).
+        if (descriptor.calls.length === 0 && descriptor.constructs.length !== 0) {
+          return descriptor.indexes.length === 0 && (descriptor.members.length === 0 || host.classStaticSide(descriptor))
+            ? representConstructor(descriptor.constructs) : undefined;
+        }
         if (descriptor.calls.length !== 0) return undefined;
         if (descriptor.indexes.length !== 0) {
           let key: TargetTypeRef | undefined;

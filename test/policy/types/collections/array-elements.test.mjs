@@ -242,7 +242,8 @@ test("genuine checked native unions stay with the existing union owner", () => {
 
 test("native signed zero and integer literal range remain actual constraints", () => {
   const negativeZero = Object.freeze({ ...literal(0n, 0n, 0n, "float64", true).literal, number: -0 });
-  assert.equal(csharpLiteralIsRepresentableAs(negativeZero, primitive("int32")), false);
+  // An authored -0 is the integer zero in an integral slot (C-2301 integral negative zero, token 0); float64 keeps its sign.
+  assert.equal(csharpLiteralIsRepresentableAs(negativeZero, primitive("int32")), true);
   assert.equal(csharpLiteralIsRepresentableAs(negativeZero, primitive("float64")), true);
   const beyond = literal(2147483648n, 0n, 2147483648n);
   assert.equal(csharpArrayElementIsRepresentableAs(primitive("int32"), beyond), false);

@@ -68,6 +68,21 @@ export function createCsharpSourceTypeRepresentationHost(
       const type = binding === undefined ? undefined : csharpTargetTypeFromBinding(binding, [key, value]);
       return type === undefined ? undefined : csharpRecordDictionaryCarrier(type);
     },
+    classStaticSide(descriptor) {
+      // The owner class comes from each construct signature: its constructor's class, or, for an implicit constructor,
+      // the class the signature's published result names.
+      const owners = new Set(descriptor.constructs.map(signature => {
+        const declaration = signature.declaration;
+        if (declaration !== undefined && host.ast.is.IsConstructorDeclaration(declaration)) return host.ast.parent(declaration);
+        if (declaration !== undefined && (host.ast.is.IsClassDeclaration(declaration) || host.ast.is.IsClassExpression(declaration))) return declaration;
+        return declaration === undefined && signature.result.kind === "declared" ? signature.result.declaration : undefined;
+      }));
+      const owner = owners.size === 1 ? [...owners][0] : undefined;
+      if (owner === undefined || !(host.ast.is.IsClassDeclaration(owner) || host.ast.is.IsClassExpression(owner))) return false;
+      return descriptor.members.every(member => member.origin.kind === "class-prototype" ? member.origin.owner === owner
+        : member.origin.kind === "declared" && host.ast.parent(member.origin.declaration) === owner &&
+          host.ast.hasModifierKind(member.origin.declaration, "static"));
+    },
     memberKind(declaration) {
       return host.ast.is.IsMethodDeclaration(declaration) || host.ast.is.IsMethodSignatureDeclaration(declaration) ? "method" : "property";
     },
