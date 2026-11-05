@@ -155,12 +155,13 @@ function checkedOperation(expression, operator, leftType, rightType, resultType,
   const binary = node === undefined ? undefined : ast.as.AsBinaryExpression(node);
   assert.equal(binary?.Left !== undefined && binary.Right !== undefined, true, expression);
   const input = { ...policy, ast, literalValues: analyzeSourceLiteralValues(ast, [file]) };
-  const selected = selectCsharpNativeBinaryOperation(input, {
+  const operands = {
     left: binary.Left, right: binary.Right, sourceOperator: operator, leftType, rightType, resultType,
     leftStorage: undefined, rightStorage: undefined, genericNumeric: undefined, resultUse: undefined,
     assignmentLocation: "binding",
-  });
-  return { selected, resultType };
+  };
+  const selected = selectCsharpNativeBinaryOperation(input, operands);
+  return { selected, resultType, input, operands };
 }
 
 test("D-A Native numeric, comparison, shift and compound records retain the exact published Host result", () => {
@@ -217,6 +218,42 @@ test("D-A Native shift representation admits only implicit int32 counts and clos
     assert.equal(validateBinaryTargetSemantics(operator, primitive("bool"), primitive("bool"), policy), undefined, operator);
   }
 });
+
+for (const operator of ["<<=", ">>=", ">>>="]) {
+  test(`D-A Native ${operator} retains independent count carriers across every primitive pair`, () => {
+    const checked = checkedOperation(`left ${operator} right`, operator, primitive("int32"), primitive("int32"), primitive("int32"));
+    const integralLefts = new Set([
+      "char", "int8", "uint8", "int16", "uint16", "int32", "uint32", "int64", "uint64",
+      "native-int", "native-uint", "int128", "uint128",
+    ]);
+    let classified = 0;
+    let admitted = 0;
+    for (const leftKind of sourcePrimitiveOperatorKinds) for (const rightKind of [...sourcePrimitiveOperatorKinds, "bigint"]) {
+      const leftType = primitive(leftKind);
+      const rightType = rightKind === "bigint" ? csharpBigIntegerTargetType() : primitive(rightKind);
+      const resultType = primitive(leftKind);
+      const selected = selectCsharpNativeBinaryOperation(checked.input, {
+        ...checked.operands, leftType, rightType, resultType,
+      });
+      const expected = integralLefts.has(leftKind) && narrowCounts.includes(rightKind);
+      const label = `${operator}: ${leftKind}, ${rightKind}`;
+      assert.equal(selected.kind === "resolved", expected, `${label}: exact shift admission`);
+      if (expected) {
+        assert.equal(selected.resultType === resultType, true, `${label}: exact published storage result`);
+        assert.equal(selected.leftInputType === leftType, true, `${label}: unchanged left storage`);
+        assert.equal(selected.rightInputType === rightType, true, `${label}: no left-width promotion of the count`);
+        admitted += 1;
+      } else {
+        assert.equal(selected.reason,
+          `C# shift operator '${operator}' requires an integral left operand and a count implicitly convertible to int32.`,
+          `${label}: the original precise count refusal remains`);
+      }
+      classified += 1;
+    }
+    assert.equal(classified, 342, "every primitive pair and bigint count is classified");
+    assert.equal(admitted, 78, "only thirteen integral left kinds with six narrow count kinds are admitted");
+  });
+}
 
 for (const surface of ["native", "js"]) {
   test(`${surface} D-A an all-literal int8 result retains Host and Native int8 without a generated cast`, () => {

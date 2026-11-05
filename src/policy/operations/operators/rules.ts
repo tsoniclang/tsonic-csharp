@@ -240,7 +240,7 @@ function selectBinaryOperationTypes(
   if (isCsharpAssignmentOperator(operator)) {
     return {
       leftInputType: leftType,
-      rightInputType: operator === "=" ? leftType : numericOperands?.rightType ?? rightType,
+      rightInputType: operator === "=" ? leftType : isShift(operator) ? rightType : numericOperands?.rightType ?? rightType,
       resultType: selectedResultType,
     };
   }
