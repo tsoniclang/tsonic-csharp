@@ -12,6 +12,7 @@ import type { CsharpNativeConstructionDemandQueries, CsharpNativeConstructionIss
 import type { CsharpObjectLiteralTargetShapeResolution } from "../../target-model/records/objects/object-shapes.js";
 import { createCsharpNativeConstructionRecords } from "../program/records/native/native-construction.js";
 import { selectCsharpConversion } from "../../policy/conversions/core.js";
+import { selectCsharpHostLiteralCorrespondence } from "./shapes/host-correspondence.js";
 import type { CsharpProjectTypePolicy } from "../../target-model/records/types/project-types.js";
 
 interface CsharpNativeConstructionHost extends Pick<CsharpTypePolicyBaseHost,
@@ -32,7 +33,7 @@ export function createCsharpNativeConstructionDemandQuery(
   const issue = (node: Node, code: CsharpNativeConstructionIssue["code"], message: string): void => {
     issues.push(Object.freeze({ node, code, message }));
   };
-  const publish = (node: Node, shape: CsharpObjectShapeFact): void => {
+  const publish = (node: Node, shape: CsharpObjectShapeFact, hostProven = false): void => {
     const queries = host.semanticsFor(node);
     const source = queries.types.expressionType(node);
     const members = source === undefined ? [] : queries.types.isUnion(source)
@@ -49,7 +50,8 @@ export function createCsharpNativeConstructionDemandQuery(
         return;
       }
     }
-    const retained = host.retainSourceShape(node, members[0]!, shape, queries.sourceFile);
+    // A Host-proven correspondence retains the descriptor shape itself; no raw member evidence is re-derived.
+    const retained = hostProven ? shape : host.retainSourceShape(node, members[0]!, shape, queries.sourceFile);
     if (retained === undefined) {
       issue(node, "CSHARP_NATIVE_CONSTRUCTION_NOT_PROVEN",
         "Native construction has no exact source-member correspondence for its declared storage.");
@@ -85,11 +87,11 @@ export function createCsharpNativeConstructionDemandQuery(
     while (storageType?.kind === "optional") storageType = storageType.value;
     const broadStorage = storageType?.kind === "intrinsic" && (storageType.intrinsic === "object" || storageType.intrinsic === "unknown");
     const declarations = variable?.Initializer === node && !broadStorage ? [declaration!] : [];
-    const retain = (shape: CsharpObjectShapeFact): void => {
-      publish(node, shape);
+    const retain = (shape: CsharpObjectShapeFact, hostProven = false): void => {
+      publish(node, shape, hostProven);
       for (const declaration of declarations) {
-        publish(declaration, shape);
-        for (const reference of host.navigation.referencesToDeclaration(declaration)) publish(reference, shape);
+        publish(declaration, shape, hostProven);
+        for (const reference of host.navigation.referencesToDeclaration(declaration)) publish(reference, shape, hostProven);
       }
     };
     const native = subjects.some(subject => {
@@ -99,6 +101,17 @@ export function createCsharpNativeConstructionDemandQuery(
       return provider.kind === "resolved" && provider.relations.some(relation =>
         relation.kind === "type" && relation.objectLiteralConstruction?.kind === "object-initializer");
     });
+    // Native provider constructions keep their provider proof below.
+    const correspondence = native ? undefined : selectCsharpHostLiteralCorrespondence(host.ast, node, effective, expected);
+    if (correspondence?.kind === "rejected") {
+      issue(node, "CSHARP_NATIVE_CONSTRUCTION_NOT_PROVEN", correspondence.reason);
+      return;
+    }
+    if (correspondence?.kind === "proven") {
+      retain(expected, true);
+      if (variable?.Initializer === node && effective.kind === "default") selectLocalValue(declaration!, source, node);
+      return;
+    }
     if (native) {
       const original = host.resolveShape(source, queries.sourceFile, node);
       const budget = createCsharpMetadataBudget();

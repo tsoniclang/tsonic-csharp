@@ -168,6 +168,7 @@ function representDescriptor(
             type: memberKind === "method" ? getCsharpMethodValue(type)?.contract ?? type : type,
             ...(typeParameters.length === 0 ? {} : { typeParameters }),
             optional: member.optional,
+            origin: member.origin,
             ...(declaration === undefined ? {} : {
               sourceDeclarations: Object.freeze([declaration]),
               sourceSubjects: Object.freeze([declaration]),

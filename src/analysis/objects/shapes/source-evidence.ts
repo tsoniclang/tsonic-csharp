@@ -18,6 +18,13 @@ export function selectedObjectShapeSource(
 ): SelectedObjectShapeSource {
   const effective = host.effectiveTypes.get(node);
   if (effective === undefined || effective.kind === "refused") return { type: undefined };
+  // A Host-published non-generic declared type names its exact Source type by declaration identity.
+  let descriptor = effective.type;
+  while (descriptor.kind === "optional") descriptor = descriptor.value;
+  if (descriptor.kind === "declared" && descriptor.typeArguments.length === 0) {
+    const declared = queries.declarations.declaredType(descriptor.declaration);
+    if (declared !== undefined) return { type: declared };
+  }
   return { type: host.ast.is.IsClassDeclaration(node) || host.ast.is.IsClassExpression(node)
     ? queries.declarations.declaredType(node) : queries.types.expressionType(node) };
 }

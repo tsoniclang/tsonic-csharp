@@ -36,6 +36,7 @@ import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../../target
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { createCsharpLiteralShapeResolver } from "./literal-construction.js";
 import { createCsharpProjectShapeProjection } from "./project-construction.js";
+import { selectCsharpHostLiteralCorrespondence } from "./host-correspondence.js";
 import { createCsharpNativeShapeProjections } from "./native-projections.js";
 
 export function createCsharpObjectShapePolicy(
@@ -121,6 +122,10 @@ export function createCsharpObjectShapePolicy(
       const selectedTarget = resolvePublishedShapeType(node, state);
       if (isCsharpRecordDictionaryTargetType(getCsharpNullableElementTargetType(selectedTarget) ?? selectedTarget)) return undefined;
       const selectedShape = resolveTarget(selectedTarget);
+      if (selectedShape !== undefined && selectedShape.constructible !== true &&
+        selectCsharpHostLiteralCorrespondence(host.ast, node, host.effectiveTypes.get(node), selectedShape).kind === "proven") {
+        return state.sourceBindings === undefined ? remember(node, selectedShape) : rememberTargetShape(selectedShape);
+      }
       if (selectedShape !== undefined && source.type !== undefined) {
         const actualType = host.ast.is.IsObjectLiteralExpression(node) ? queries.types.expressionType(node) : source.type;
         const members = actualType === undefined ? undefined
