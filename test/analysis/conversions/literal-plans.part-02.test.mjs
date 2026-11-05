@@ -35,7 +35,8 @@ const valueRecipeCases = [
 for (const surface of ["native", "js"]) for (const destination of ["direct", "union", "nullable"]) {
   for (const example of valueRecipeCases) {
     test(`${surface} ${destination} literal endpoint retains its physical ${example.name} record`, () => {
-      const type = destination === "union" ? `${example.type} | boolean`
+      const otherArm = example.type === "boolean" ? "string" : "boolean";
+      const type = destination === "union" ? `${example.type} | ${otherArm}`
         : destination === "nullable" ? `${example.type} | undefined` : example.type;
       const imported = ["int32", "float16", "float32", "decimal", "char"].includes(example.type)
         ? `import type { ${example.type} } from "@tsonic/core/types.js";` : "";
@@ -53,6 +54,12 @@ for (const surface of ["native", "js"]) for (const destination of ["direct", "un
       visit(file);
       const element = aggregate === undefined ? undefined : ast.elements(aggregate)[0];
       assert.equal(element !== undefined, true, "the exact authored value occurrence is retained");
+      if (destination === "union") {
+        const published = source.effectiveTypes.get(aggregate);
+        assert.equal(published?.kind !== "refused" && published?.type.kind === "array" &&
+          published.type.element.kind === "union" && published.type.element.types.length === 2, true,
+        "each union case retains two distinct declared Source arms");
+      }
       const emission = compiled.result.program.records.nativeExpression.get(element);
       assert.equal(emission !== undefined, true, "the native value has its sealed physical construction");
       const selected = compiled.result.program.records.exactLiteral.get(element, emission.physical);
