@@ -54,7 +54,14 @@ export function mergeCsharpObjectShapeSubjects(
       const subjects = new Set([
         ...(member.sourceSubjects ?? []),
         ...(other.sourceSubjects ?? []),
+        ...(member.sourceDeclarations ?? []),
+        ...(other.sourceDeclarations ?? []),
       ]);
+      const declarations = member.sourceDeclarations ?? [];
+      const otherDeclarations = other.sourceDeclarations ?? [];
+      const currentDeclarations = declarations.length === 0 ? otherDeclarations
+        : otherDeclarations.length === 0 || declarations.length === otherDeclarations.length &&
+          declarations.every(declaration => otherDeclarations.includes(declaration)) ? declarations : [];
       const sourceTypes = new Set([
         ...(member.sourceTypes ?? []),
         ...(other.sourceTypes ?? []),
@@ -65,8 +72,10 @@ export function mergeCsharpObjectShapeSubjects(
         .filter((evidence, index, alternatives) => alternatives.findIndex(candidate =>
           candidate.ownerType === evidence.ownerType && candidate.sourceType === evidence.sourceType &&
           candidate.correspondence === evidence.correspondence) === index);
+      const { sourceDeclarations: _sourceDeclarations, ...physicalMember } = member;
       return {
-        ...member,
+        ...physicalMember,
+        ...(currentDeclarations.length === 0 ? {} : { sourceDeclarations: Object.freeze([...currentDeclarations]) }),
         ...(origins.length === 0 ? {} : { origins: Object.freeze(origins) }),
         ...(sourceMemberEvidence.length === 0 ? {} : { sourceMemberEvidence: Object.freeze(sourceMemberEvidence) }),
         ...(subjects.size === 0

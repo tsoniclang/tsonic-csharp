@@ -172,6 +172,32 @@ test("a physical method protocol retains checked source and generic declaration 
   }
 });
 
+test("physical protocol merging retains one selected producer but never chooses between distinct producers", () => {
+  const targetType = Object.freeze({ kind: "target-named", id: "tsonic.shape:producer-merge",
+    csharpAllowsRefLikeTypeArguments: Object.freeze([]) });
+  const first = Object.freeze({});
+  const second = Object.freeze({});
+  const member = Object.freeze({ sourceKey: Object.freeze({ kind: "property", name: "read" }),
+    sourceName: "read", targetName: "read", memberKind: "method",
+    type: csharpDelegateTargetType("System.Func", [integer], integer) });
+  const shape = declarations => ({ targetType, members: [{ ...member,
+    origins: declarations.map(declaration => ({ kind: "declared", declaration })), sourceDeclarations: declarations }] });
+  const neutral = { targetType, members: [member] };
+  const checked = shape([first]);
+  for (const [left, right] of [[neutral, checked], [checked, neutral], [checked, shape([first])]]) {
+    const merged = mergeCsharpObjectShapeSubjects(left, right).members[0];
+    assert.equal(merged.sourceDeclarations.length === 1 && merged.sourceDeclarations[0] === first, true,
+      "one unambiguous producer survives physical interning independently of arrival order");
+  }
+  for (const [left, right] of [[checked, shape([second])], [shape([second]), checked]]) {
+    const merged = mergeCsharpObjectShapeSubjects(left, right).members[0];
+    assert.equal(merged.sourceDeclarations === undefined, true,
+      "a physical shared carrier cannot select the first of distinct current producers");
+    assert.equal(merged.origins.length === 2 && merged.sourceSubjects.includes(first) && merged.sourceSubjects.includes(second), true,
+      "historical owners remain available for the actual publication's canonical selection");
+  }
+});
+
 test("every actual authored native method uses the same body and copy protocol", () => {
   const declaration = Object.freeze({});
   const literal = Object.freeze({});
