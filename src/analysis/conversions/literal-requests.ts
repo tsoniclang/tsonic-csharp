@@ -12,7 +12,7 @@ export interface CsharpExactLiteralRequestCollector {
   readonly seal: () => readonly CsharpExactLiteralRequest[];
   readonly requestReads: (
     expression: Node,
-    source: TargetTypeRef | undefined,
+    physicalSource: TargetTypeRef | undefined,
     sourceTypes: readonly TargetTypeRef[],
     expectedTypes: readonly TargetTypeRef[],
     operations: Pick<CsharpTargetOperationClassifications, "unaryOperation">,
@@ -22,7 +22,7 @@ export interface CsharpExactLiteralRequestCollector {
     source: TargetTypeRef,
     target: TargetTypeRef,
     selection: CsharpConversionSelection,
-    completedSource: TargetTypeRef | undefined,
+    physicalSource: TargetTypeRef | undefined,
   ) => void;
 }
 
@@ -49,18 +49,18 @@ export function createCsharpExactLiteralRequestCollector(literalValues: SourceLi
 
   function requestReads(
     expression: Node,
-    source: TargetTypeRef | undefined,
+    physicalSource: TargetTypeRef | undefined,
     sourceTypes: readonly TargetTypeRef[],
     expectedTypes: readonly TargetTypeRef[],
     operations: Pick<CsharpTargetOperationClassifications, "unaryOperation">,
   ): void {
     if (closed) return failTargetAnalysisInvariant("tsonic-csharp", "Closed native literal requests cannot read another source use.", expression);
     if (literalValues.literalValue.get(expression) === undefined) return;
-    request(expression, source);
-    for (const target of sourceTypes) request(expression, source, target);
-    for (const target of expectedTypes) request(expression, source, target);
+    request(expression, physicalSource);
+    for (const target of sourceTypes) request(expression, physicalSource, target);
+    for (const target of expectedTypes) request(expression, physicalSource, target);
     const unary = operations.unaryOperation.get(expression)?.target;
-    if (unary?.kind === "resolved") request(expression, source, unary.resultType);
+    if (unary?.kind === "resolved") request(expression, physicalSource, unary.resultType);
   }
 
   function requestConversion(
@@ -68,7 +68,7 @@ export function createCsharpExactLiteralRequestCollector(literalValues: SourceLi
     source: TargetTypeRef,
     target: TargetTypeRef,
     selection: CsharpConversionSelection,
-    completedSource: TargetTypeRef | undefined,
+    physicalSource: TargetTypeRef | undefined,
   ): void {
     if (literalValues.literalValue.get(expression) === undefined) return;
     const pending: { readonly source: TargetTypeRef; readonly target: TargetTypeRef; readonly selection: CsharpConversionSelection }[] =
@@ -76,9 +76,9 @@ export function createCsharpExactLiteralRequestCollector(literalValues: SourceLi
     for (let entry = pending.pop(); entry !== undefined; entry = pending.pop()) {
       const current = entry.selection;
       if (current.kind === "implicit" && current.proof === "literal") {
-        request(expression, completedSource, entry.target);
+        request(expression, physicalSource, entry.target);
       } else if (current.kind === "js-value-box") {
-        request(expression, completedSource, entry.source);
+        request(expression, physicalSource, entry.source);
       } else if (current.kind === "nullable-map") {
         pending.push({ source: current.sourceElement, target: current.targetElement, selection: current.conversion });
       } else if (current.kind === "implicit" && current.proof === "runtime-union-arm") {

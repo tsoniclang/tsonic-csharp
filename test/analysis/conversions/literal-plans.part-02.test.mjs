@@ -63,22 +63,74 @@ for (const surface of ["native", "js"]) for (const destination of ["direct", "un
       const emission = compiled.result.program.records.nativeExpression.get(element);
       assert.equal(emission !== undefined && emission.physical !== undefined, true, "the native value has its sealed physical construction");
       const selected = compiled.result.program.records.exactLiteral.get(element, emission.physical.carrier);
-      if (destination === "union" && example.name === "negative zero") {
-        const published = source.effectiveTypes.get(element);
-        const requestSource = compiled.result.program.records.valueRead.get(element)?.source;
-        console.log("C2298.union-negative-zero " + JSON.stringify({ surface,
-          sourceTypeKind: published === undefined || published.kind === "refused" ? "absent" : published.type.kind,
-          sourceArgumentKind: requestSource?.kind ?? "absent",
-          sourceArgumentName: requestSource?.kind === "source-primitive" ? requestSource.name : undefined,
-          sourceArgumentKey: requestSource === undefined ? "absent" : targetTypeRefKey(requestSource),
-          physicalCarrier: targetTypeRefKey(emission.physical.carrier), selectionKind: selected?.kind ?? "absent" }));
-      }
       if (example.recipe !== undefined) {
         assert.equal(selected?.kind === "resolved" && selected.recipe.kind === example.recipe, true,
           "the record belongs to the actual physical construction, not its enclosing storage union");
         if (example.precision !== undefined) assert.equal(selected.recipe.precision, example.precision);
       } else assert.equal(selected?.kind === "source-representation", true,
         "ordinary source strings, booleans and float64 values do not invent an exact numeric recipe");
+    });
+  }
+}
+
+const physicalLiteralCases = [
+  { name: "floating negative zero", type: "number", primitive: "float64", value: "-0", recipe: "signed-zero" },
+  { name: "integral negative zero", type: "int32", primitive: "int32", value: "-0", recipe: "integer" },
+  { name: "binary integer", type: "int32", primitive: "int32", value: "1 + 2" },
+  { name: "parenthesized integer", type: "int32", primitive: "int32", value: "(1 + 2)" },
+  { name: "half token", type: "float16", primitive: "float16", value: "1.5", recipe: "float" },
+  { name: "single token", type: "float32", primitive: "float32", value: "1.5", recipe: "float" },
+  { name: "decimal token", type: "decimal", primitive: "decimal", value: "1.5", recipe: "float" },
+  ...["int8", "uint8", "int16", "uint16", "int32", "uint32", "int64", "uint64", "int128", "uint128", "nativeInt", "nativeUint"]
+    .map(type => ({ name: `${type} token`, type,
+      primitive: type === "nativeInt" ? "native-int" : type === "nativeUint" ? "native-uint" : type,
+      value: ["int64", "uint64", "int128", "uint128"].includes(type) ? "3n" : "3", recipe: "integer" })),
+  { name: "character token", type: "char", primitive: "char", value: '"x"', recipe: "char" },
+];
+for (const surface of ["native", "js"]) for (const storage of ["direct", "nullable", "union", "nested union", "nullable union"]) {
+  for (const example of physicalLiteralCases) {
+    test(`${surface} ${storage} ${example.name} uses its admitted physical literal source`, () => {
+      const type = storage === "direct" ? example.type : storage === "nullable" ? `${example.type} | undefined`
+        : storage === "union" ? `${example.type} | boolean`
+          : storage === "nested union" ? "Inner | string" : `(${example.type} | boolean) | undefined`;
+      const imported = example.type === "number" ? "" : `import type { ${example.type} } from "@tsonic/core/types.js";`;
+      const compiled = compileCsharpSource({ surface, sourceText: `${imported}
+        type Inner = ${example.type} | boolean;
+        export function run(): (${type})[] { return [${example.value}]; }` });
+      assertCsharpCompilationSucceeded(compiled);
+      const source = createTargetSourceProgram(compiled.source);
+      const file = compiled.source.getSourceFile("/project/index.ts");
+      let aggregate;
+      const visit = node => {
+        if (source.ast.is.IsArrayLiteralExpression(node)) aggregate = node;
+        source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+      };
+      visit(file);
+      const expression = aggregate === undefined ? undefined : source.ast.elements(aggregate)[0];
+      assert.equal(expression !== undefined, true, "the construction is the actual checked literal or constant expression");
+      const literal = analyzeSourceLiteralValues(source.ast, [file]).literalValue.get(expression);
+      const records = compiled.result.program.records;
+      const physicalSource = records.valueRead.get(expression)?.value;
+      assert.equal(physicalSource?.kind === "source-primitive" && physicalSource.name === example.primitive, true,
+        "the completed construction source is its native arm, never the enclosing union storage");
+      const emission = records.nativeExpression.get(expression);
+      assert.equal(emission?.physical !== undefined, true, "the actual physical endpoint was admitted before literal publication");
+      const carrier = emission.physical.carrier;
+      const expected = selectCsharpExactLiteralConversion(literal, physicalSource, carrier);
+      const selected = records.exactLiteral.get(expression, carrier);
+      assert.equal(expected.kind === (example.recipe === undefined ? "source-representation" : "resolved"), true,
+        "the real native literal rule admits this source and endpoint without a value-specific workaround");
+      assert.equal(selected?.kind === expected.kind, true, "the published record uses the one completed physical source");
+      if (expected.kind === "resolved") {
+        assert.equal(expected.recipe.kind === example.recipe && selected.recipe.kind === example.recipe, true);
+        assert.equal(selected.recipe.kind !== "integer" || selected.recipe.value === expected.recipe.value, true);
+        assert.equal(selected.recipe.kind !== "float" || selected.recipe.precision === expected.recipe.precision &&
+          selected.recipe.negative === expected.recipe.negative && selected.recipe.token.significand === expected.recipe.token.significand, true);
+        assert.equal(selected.recipe.kind !== "char" || selected.recipe.value === "x", true);
+        if (example.name === "integral negative zero") assert.equal(selected.recipe.value === 0n, true,
+          "the admitted integral arm has positive native zero");
+      }
+      assert.equal(Object.isFrozen(selected), true, "the exact endpoint is one immutable canonical publication");
     });
   }
 }
