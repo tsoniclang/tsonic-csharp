@@ -35,6 +35,7 @@ import { analyzeCsharpNativeValueCarriers, analyzeCsharpObjectMethodSources } fr
 import { analyzeCsharpModuleCallables } from "../callables/module-callables.js";
 import { analyzeCsharpSourceTypeFlowObligations } from "../source-evidence/type-flow-obligations.js";
 import { analyzeCsharpDictionaryLiterals } from "../objects/dictionary-literals.js";
+import { representCsharpSourceType } from "../../policy/types/source-type-flow/representation.js";
 import { csharpRepresentationDifference } from "./representation-differences.js";
 
 type CsharpAnalysisRejection = Extract<TargetStageResult<never>, { readonly kind: "rejected" }>;
@@ -327,7 +328,10 @@ function analyzeCsharpTargetProgramBeforeSeal(
   })));
   if (flowReads.issues.length > 0) return rejectCsharpAnalysisIssues(flowReads.issues);
   const nativeValueCarriers = analyzeCsharpNativeValueCarriers(
-    source.ast, nativeDemand.requiredNativeValueDeclarations, analysis.sourceEvidence, analysis.valueReads, analysis.objectShapes,
+    source.ast, nativeDemand.requiredNativeValueDeclarations, analysis.sourceEvidence, {
+      effectiveTypes: source.effectiveTypes,
+      resolve: (descriptor, occurrence) => representCsharpSourceType(analysis.policy.types.sourceTypeFlowRepresentation(occurrence), descriptor),
+    }, analysis.objectShapes,
     source.semantics.forNode, analysis.requiredRecords,
   );
   if (nativeValueCarriers.issues.length > 0) return rejectCsharpAnalysisIssues(nativeValueCarriers.issues);

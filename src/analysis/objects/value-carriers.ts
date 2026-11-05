@@ -1,12 +1,12 @@
 import { createCsharpNativeValueProducer, createCsharpObjectMethodSourceProducer } from "../program/records/native/native-value-carriers.js";
 import { createHash } from "node:crypto";
 import type { AstReader, Node } from "@tsonic/tsts";
-import { sourceLexicalCaptures, type SourceCallOnlyAlias, type SourceFileSemantics, type SourceProgramNavigation } from "@tsonic/target-api/source";
+import { sourceLexicalCaptures, type SourceCallOnlyAlias, type SourceEffectiveTypes, type SourceFileSemantics, type SourceProgramNavigation, type SourceTypeDescriptor } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { csharpNativePropertyNameIssue } from "./computed-field-names.js";
 import type { CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
-import type { CsharpValueReadClassifications } from "../../target-model/records/operations/conversions.js";
+import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type {
   CsharpNativeValueCarriers,
   CsharpNativeValueField,
@@ -18,11 +18,16 @@ import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/recor
 import { csharpTargetTypeRenderingRejection } from "../../policy/types/model/renderability.js";
 import { csharpRuntimeRecordFieldTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 
+export interface CsharpNativeValueTypeSelection {
+  readonly effectiveTypes: Pick<SourceEffectiveTypes, "callInstantiation">;
+  resolve(descriptor: SourceTypeDescriptor, occurrence: Node): TargetTypeRef | undefined;
+}
+
 export function analyzeCsharpNativeValueCarriers(
   ast: AstReader,
   nodes: readonly Node[],
   evidence: CsharpSourceEvidenceIndex,
-  values: CsharpValueReadClassifications,
+  types: CsharpNativeValueTypeSelection,
   shapes: CsharpObjectShapeClassifications,
   semanticsFor: (node: Node) => SourceFileSemantics,
   requiredRecords: CsharpRequiredRecord[],
@@ -52,6 +57,7 @@ export function analyzeCsharpNativeValueCarriers(
       continue;
     }
     const start = issues.length;
+    const fieldCalls = new Map<Node, Node | null>();
     for (const property of ast.properties(shapeNode)) {
       if (property === undefined) continue;
       const name = ast.name(property);
@@ -72,15 +78,25 @@ export function analyzeCsharpNativeValueCarriers(
         continue;
       }
       const assignment = ast.as.AsPropertyAssignment(property)!;
-      if (evidence.sourceField.get([property, assignment.Initializer, ast.name(property)]) === undefined) {
+      const field = evidence.sourceField.get([property, assignment.Initializer, ast.name(property)]);
+      if (field === undefined) {
         refuse(property, "Value-type member requires a finalized field fact before C# struct emission.");
+      } else if (assignment.Initializer !== undefined && ast.is.IsCallExpression(assignment.Initializer)) {
+        fieldCalls.set(field.sourceType, fieldCalls.has(field.sourceType) ? null : assignment.Initializer);
       }
     }
     if (issues.length !== start) continue;
     const shape = shapes.resolveNode(node);
     const fields: CsharpNativeValueField[] = [];
     for (const field of source.fields) {
-      const carrier = values.valueRead.get(field.sourceType)?.value;
+      const call = fieldCalls.get(field.sourceType);
+      const publication = call == null ? undefined : types.effectiveTypes.callInstantiation(call);
+      const arguments_ = publication?.call.sourceSelectedMethodTypeArguments ?? [];
+      const matches = arguments_.flatMap((argument, index) => argument.explicitTypeNode === field.sourceType ? [index] : []);
+      const descriptor = publication !== undefined && publication.call.call === call &&
+        publication.method.length === arguments_.length && matches.length === 1
+        ? publication.method[matches[0]!]!.type : undefined;
+      const carrier = descriptor === undefined || call == null ? undefined : types.resolve(descriptor, call);
       if (carrier === undefined) {
         refuse(field.sourceType, `Value-type field '${field.sourceName}' requires an exact selected native carrier before C# struct emission.`);
         continue;
