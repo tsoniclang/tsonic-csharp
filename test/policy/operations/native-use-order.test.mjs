@@ -219,6 +219,44 @@ test("completion distinguishes mandatory, alternative, guarded and creation-time
   ]) assert.equal(selectCsharpNativeCompletion(scalar, flow)?.kind, kind, label);
 });
 
+test("discarded selections retain native condition and effect order without a Source result carrier", () => {
+  const checked = checkCsharpSource({ sourceText: `
+    export function run(flag: boolean, optional?: () => number): void {
+      flag && (() => 1); flag || (() => 2); optional ?? (() => 3); flag ? (() => 4) : (() => 5);
+    }
+  ` });
+  assert.equal(checked.sourceDiagnosticsText, "", checked.sourceDiagnosticsText);
+  const source = createTargetSourceProgram(checked.source);
+  const ast = source.ast;
+  const selections = [];
+  const visit = node => {
+    if ((ast.is.IsConditionalExpression(node) || ast.is.IsBinaryExpression(node)) &&
+      source.navigation.expressionResultDisposition(node).kind === "discarded") selections.push(node);
+    ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+  };
+  source.sourceFiles.forEach(visit);
+  assert.equal(selections.length, 4);
+  for (const node of selections) {
+    const value = { ...input(undefined), ast, navigation: source.navigation,
+      valueReads: { valueRead: { get: selected => {
+        assert.equal(selected === node, true, "the discarded node has no Source-produced value carrier");
+        return undefined;
+      } } } };
+    const selected = selectCsharpNativeOperandUses(value, node);
+    const conditional = ast.is.IsConditionalExpression(node);
+    assert.equal(selected.refusal === undefined && selected.resultUse === "discarded", true);
+    assert.equal(selected.runtime.length, conditional ? 3 : 2, "condition precedes the actual effect alternatives");
+    assert.equal(selected.flow, conditional ? "conditional" : "short-circuit");
+    assert.equal(selected.planning.every((step, index) => step.kind === "use" && step.use === selected.runtime[index]), true,
+      "no effect is duplicated or given a second value fit");
+    const completion = { kind: "value", type: scalar };
+    const flow = conditional ? { kind: "conditional", condition: completion, whenTrue: completion, whenFalse: completion }
+      : { kind: "short-circuit", left: completion, right: completion };
+    assert.equal(selectCsharpNativeCompletion(selected.carrier, flow)?.kind, "void",
+      "native effect completion is not a fabricated Source bool or callable result");
+  }
+});
+
 test("borrowed sequence demand keeps actual native branches and omits an unreachable fallback", () => {
   const declaration = nodes.find(node => ast.is.IsVariableDeclaration(node) && ast.text(ast.name(node)) === "borrowedValues");
   const array = ast.as.AsVariableDeclaration(declaration).Initializer;

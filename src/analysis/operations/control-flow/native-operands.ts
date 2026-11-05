@@ -122,9 +122,9 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
   const refused = (refusal: CsharpNativeOperandRefusal, refusalMessage?: string, refusalCode?: string): CsharpNativeOperandSelection =>
     Object.freeze({ ...chosen([]), refusal, ...(refusalMessage === undefined ? {} : { refusalMessage }),
       ...(refusalCode === undefined ? {} : { refusalCode }) });
-  const sourceSelection = (flow: CsharpNativeOperandSelection["flow"] = "sequence"): CsharpNativeOperandSelection => {
+  const sourceSelection = (flow: CsharpNativeOperandSelection["flow"] = "sequence", own = carrier): CsharpNativeOperandSelection => {
     const inputs = sourceExpressionValueInputs(ast, node);
-    return inputs === undefined ? refused("expression-form-unresolved") : chosen(inputs, flow);
+    return inputs === undefined ? refused("expression-form-unresolved") : chosen(inputs, flow, undefined, own);
   };
   const intrinsic = (expression: Node | undefined, operand: Extract<CsharpNativeUseSlot, { readonly kind: "intrinsic-operand" }>["operand"],
     target?: TargetTypeRef, index?: number) => use(expression, { kind: "intrinsic-operand", operand,
@@ -309,15 +309,17 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
       : chosen([], "creation", [Object.freeze({ kind: "construct", node })], creation.carrier);
   }
   if (ast.is.IsClassExpression(node)) return chosen([], "creation", [Object.freeze({ kind: "construct", node })]);
-  if (ast.is.IsConditionalExpression(node)) return sourceSelection("conditional");
+  if (ast.is.IsConditionalExpression(node)) return sourceSelection("conditional", resultUse === "discarded" ? csharpVoidTargetType() : carrier);
   if (ast.is.IsBinaryExpression(node)) {
     const binary = ast.as.AsBinaryExpression(node);
     const left = binary?.Left;
     const right = binary?.Right;
-    if (sourceOperatorFromKindName(ast.operatorKindName(node)) === "??" && resultUse === "discarded") {
+    const sourceOperator = sourceOperatorFromKindName(ast.operatorKindName(node));
+    if ((sourceOperator === "??" || sourceOperator === "&&" || sourceOperator === "||") && resultUse === "discarded") {
       return Object.freeze({ ...chosen([...use(left, { kind: "operand", position: "left" }),
         ...use(right, { kind: "operand", position: "right" })], "short-circuit", undefined, csharpVoidTargetType()),
-        discardedGuard: Object.freeze({ kind: "coalescing" as const }) });
+        discardedGuard: Object.freeze(sourceOperator === "??" ? { kind: "coalescing" as const }
+          : { kind: "boolean" as const, whenTrue: sourceOperator === "&&" ? "right" as const : "left" as const }) });
     }
     switch (operations.operatorForm.get(node)) {
       case "js-value-operation": {
