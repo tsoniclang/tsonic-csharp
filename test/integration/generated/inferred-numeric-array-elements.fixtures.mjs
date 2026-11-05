@@ -202,8 +202,8 @@ function expectedOperationRefusals(operation, size) {
     `No exact C# implicit conversion relates '${targetTypeRefKey(source)}' to '${targetTypeRefKey(target)}'.`, text);
   switch (operation) {
     case "number read": return [conversion("values[0]")];
-    case "order": return [refused("C# relational operator '<' requires numeric source-primitive operands or two exact string operands.",
-      "values[0] < values[1]")];
+    case "order": return [refused(`Operator '<' has no admitted result for the union operand '(${size === 2 ? "int32 | uint32" : "int32 | uint32 | float64"})'; narrow the operand to one primitive kind first.`,
+      "values[0] < values[1]", "TSONIC_LOCAL_TYPE_UNSUPPORTED")];
     case "addition": return [refused(`Operator '+' has no admitted result for the union operand '(${size === 2 ? "int32 | uint32" : "int32 | uint32 | float64"})'; narrow the operand to one primitive kind first.`,
       "values[0] + values[1]", "TSONIC_LOCAL_TYPE_UNSUPPORTED")];
     case "Math.max": return [conversion("values[0]"), conversion("values[1]")];
