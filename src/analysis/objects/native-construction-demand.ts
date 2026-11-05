@@ -2,10 +2,10 @@ import { providerVirtualDeclarationFactKey, type Node, type SourceFile, type Typ
 import { sourceDeclarationIsModuleScoped } from "@tsonic/target-api/source";
 import type { CsharpObjectShapeFact, TargetTypeRef } from "../../target-model/types/model.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
-import { csharpNullableTargetType } from "../../target-model/types/carriers/nullable.js";
+import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
 import { CsharpMetadataResourceLimitFailure, createCsharpMetadataBudget, maximumCsharpMetadataEntries } from "../../target-model/metadata/immutable.js";
 import type { CsharpTypePolicyBaseHost } from "../source-evidence/types/resolution/model.js";
-import { csharpNativeConstructionMembersMatch } from "./native-construction-members.js";
+import { csharpObjectShapesEqual } from "../../target-model/types/object-shape-equality.js";
 import { createCsharpObjectShapeValueStorage } from "../../policy/types/objects/shape-carriers.js";
 import type { CsharpNativeConstructionDemandQueries, CsharpNativeConstructionIssue,
   CsharpNativeConstructionSelection } from "../../target-model/records/native/native-construction.js";
@@ -13,6 +13,7 @@ import type { CsharpObjectLiteralTargetShapeResolution } from "../../target-mode
 import { createCsharpNativeConstructionRecords } from "../program/records/native/native-construction.js";
 import { selectCsharpConversion } from "../../policy/conversions/core.js";
 import { selectCsharpHostLiteralCorrespondence } from "./shapes/host-correspondence.js";
+import { csharpProviderObjectLiteralIndexerFailure } from "./shapes/provider-construction.js";
 import type { CsharpProjectTypePolicy } from "../../target-model/records/types/project-types.js";
 
 interface CsharpNativeConstructionHost extends Pick<CsharpTypePolicyBaseHost,
@@ -35,6 +36,8 @@ export function createCsharpNativeConstructionDemandQuery(
     issues.push(Object.freeze({ node, code, message }));
   };
   const publish = (node: Node, shape: CsharpObjectShapeFact, hostProven = false): void => {
+    const effective = host.effectiveTypes.get(node);
+    if (effective === undefined || effective.kind === "refused") return;
     const queries = host.semanticsFor(node);
     const source = queries.types.expressionType(node);
     const members = source === undefined ? [] : queries.types.isUnion(source)
@@ -42,7 +45,7 @@ export function createCsharpNativeConstructionDemandQuery(
     if (members.length !== 1) return;
     const existing = host.scopedTargetType(node);
     if (existing !== undefined && !targetTypeRefEquals(existing, shape.targetType)) {
-      const original = host.resolveShape(members[0]!, queries.sourceFile, node);
+      const original = hostProven ? undefined : host.resolveShape(members[0]!, queries.sourceFile, node);
       const conversion = selectCsharpConversion(host, shape.targetType, existing, "implicit");
       if ((original === undefined || !targetTypeRefEquals(existing, original.targetType)) &&
         !(host.ast.is.IsObjectLiteralExpression(node) && conversion.kind === "implicit" && conversion.proof === "reference")) {
@@ -51,18 +54,24 @@ export function createCsharpNativeConstructionDemandQuery(
         return;
       }
     }
-    // A Host-proven correspondence retains the descriptor shape itself; no raw member evidence is re-derived.
-    const retained = hostProven ? shape : host.retainSourceShape(node, members[0]!, shape, queries.sourceFile);
-    if (retained === undefined) {
+    const retainedOccurrence = hostProven && !host.ast.is.IsObjectLiteralExpression(node);
+    const published = retainedOccurrence ? host.publishedShapeTarget(node) : undefined;
+    if (retainedOccurrence && (published === undefined ||
+      !targetTypeRefEquals(getCsharpNullableElementTargetType(published) ?? published, shape.targetType))) {
+      issue(node, "CSHARP_NATIVE_CONSTRUCTION_NOT_PROVEN",
+        "Native construction has no exact source-member correspondence for its current published target.");
+      return;
+    }
+    const retained = hostProven && !retainedOccurrence ? shape
+      : host.retainSourceShape(node, members[0]!, shape, queries.sourceFile);
+    if (retained === undefined || hostProven && !csharpObjectShapesEqual(shape, retained)) {
       issue(node, "CSHARP_NATIVE_CONSTRUCTION_NOT_PROVEN",
         "Native construction has no exact source-member correspondence for its declared storage.");
       return;
     }
-    const effective = host.effectiveTypes.get(node);
-    if (effective === undefined || effective.kind === "refused") return;
     const optional = effective.type.kind === "optional";
     const targetType = optional ? csharpNullableTargetType(retained.targetType) : retained.targetType;
-    constructions.set(node, Object.freeze({ targetType, shape: retained }));
+    constructions.set(node, Object.freeze({ targetType, shape: hostProven ? shape : retained }));
   };
   const select = (node: Node): void => {
     if (!host.navigation.isProjectDeclaration(node)) return;
@@ -78,8 +87,24 @@ export function createCsharpNativeConstructionDemandQuery(
       issue(node, "TSONIC_ANY_UNSUPPORTED", "'any' has no native representation. Declare the type, or use 'unknown' and narrow it.");
       return;
     }
+    const native = subjects.some(subject => {
+      const fact = host.sourceFacts?.getFact(subject, providerVirtualDeclarationFactKey);
+      if (fact === undefined) return false;
+      const provider = host.providers.resolveType(fact);
+      return provider.kind === "resolved" && provider.relations.some(relation =>
+        relation.kind === "type" && relation.objectLiteralConstruction?.kind === "object-initializer");
+    });
+    const nativeFailure = "The declared native construction cannot retain all exact fields, absence and native storage without a copied or adapted object.";
+    const indexerFailure = native ? csharpProviderObjectLiteralIndexerFailure(descriptor, node, host) : undefined;
+    if (indexerFailure !== undefined) {
+      issue(node, "CSHARP_NATIVE_CONSTRUCTION_NOT_PROVEN", indexerFailure);
+      return;
+    }
     const expected = host.resolveEffectiveShape(node, queries.sourceFile);
-    if (expected === undefined) return;
+    if (expected === undefined) {
+      if (native) issue(node, "CSHARP_NATIVE_CONSTRUCTION_NOT_PROVEN", nativeFailure);
+      return;
+    }
     const declaration = host.ast.parent(node);
     const variable = declaration === undefined || !host.ast.is.IsVariableDeclaration(declaration)
       ? undefined : host.ast.as.AsVariableDeclaration(declaration);
@@ -95,42 +120,48 @@ export function createCsharpNativeConstructionDemandQuery(
         for (const reference of host.navigation.referencesToDeclaration(declaration)) publish(reference, shape, hostProven);
       }
     };
-    const native = subjects.some(subject => {
-      const fact = host.sourceFacts?.getFact(subject, providerVirtualDeclarationFactKey);
-      if (fact === undefined) return false;
-      const provider = host.providers.resolveType(fact);
-      return provider.kind === "resolved" && provider.relations.some(relation =>
-        relation.kind === "type" && relation.objectLiteralConstruction?.kind === "object-initializer");
-    });
-    // Native provider constructions keep their provider proof below.
-    const correspondence = native ? undefined : selectCsharpHostLiteralCorrespondence(host.ast, node, effective, expected, host.publishedShapeTarget(node));
+    let correspondence: ReturnType<typeof selectCsharpHostLiteralCorrespondence>;
+    try {
+      if (native) {
+        const budget = createCsharpMetadataBudget();
+        const properties = host.ast.properties(node);
+        budget.reserve(expected.members.length + properties.length);
+        let origins = 0;
+        for (const member of expected.members) {
+          const count = member.origins?.length ?? 0;
+          budget.reserve(count);
+          origins += count;
+        }
+        const selected = effective.memberCorrespondence?.length ?? 0;
+        budget.reserve(2 * (selected * (expected.members.length + origins) + expected.members.length * origins));
+      }
+      correspondence = selectCsharpHostLiteralCorrespondence(host.ast, node, effective, expected, host.publishedShapeTarget(node));
+    } catch (error) {
+      if (!(error instanceof CsharpMetadataResourceLimitFailure)) throw error;
+      issue(node, "TSONIC_COMPILER_RESOURCE_LIMIT",
+        `Native construction of this object literal exceeded the finite metadata limit of ${maximumCsharpMetadataEntries} entries.`);
+      return;
+    }
     if (correspondence?.kind === "rejected") {
       issue(node, "CSHARP_NATIVE_CONSTRUCTION_NOT_PROVEN", correspondence.reason);
       return;
     }
-    if (correspondence?.kind === "proven") {
-      retain(expected, true);
+    if (correspondence.kind === "proven") {
+      if (native) {
+        const resolved = host.resolveLiteralShape(expected, node, queries.sourceFile);
+        if (resolved.kind !== "resolved" || !csharpObjectShapesEqual(expected, resolved.shape) ||
+          selectCsharpHostLiteralCorrespondence(host.ast, node, effective, resolved.shape,
+            host.publishedShapeTarget(node)).kind !== "proven") {
+          issue(node, "CSHARP_NATIVE_CONSTRUCTION_NOT_PROVEN", resolved.kind === "rejected" ? resolved.reason : nativeFailure);
+          return;
+        }
+        retain(resolved.shape, true);
+      } else retain(expected, true);
       if (variable?.Initializer === node && effective.kind === "default") selectLocalValue(declaration!, source, node);
       return;
     }
     if (native) {
-      const original = host.resolveShape(source, queries.sourceFile, node);
-      const budget = createCsharpMetadataBudget();
-      let compatible = false;
-      try {
-        compatible = csharpNativeConstructionMembersMatch(source, original, expected, queries, host, budget.reserve);
-      } catch (error) {
-        if (!(error instanceof CsharpMetadataResourceLimitFailure)) throw error;
-        issue(node, "TSONIC_COMPILER_RESOURCE_LIMIT",
-          `Native construction of this object literal exceeded the finite metadata limit of ${maximumCsharpMetadataEntries} entries.`);
-        return;
-      }
-      if (!compatible) {
-        issue(node, "CSHARP_NATIVE_CONSTRUCTION_NOT_PROVEN",
-          "The declared native construction cannot retain all exact fields, absence and native storage without a copied or adapted object.");
-        return;
-      }
-      retain(expected);
+      issue(node, "CSHARP_NATIVE_CONSTRUCTION_NOT_PROVEN", nativeFailure);
       return;
     }
     const resolved = host.resolveLiteralShape(expected, node, queries.sourceFile);

@@ -7,6 +7,7 @@ import { resolveCsharpProjectionArguments } from "../../../../dist/analysis/sour
 import { createCsharpSourceUnionDefinitions } from "../../../../dist/analysis/source-evidence/types/resolution/union-definitions.js";
 import { createCsharpObjectShapeMemberResolver } from "../../../../dist/analysis/objects/shapes/member-evidence.js";
 import { createCsharpObjectShapePolicy } from "../../../../dist/analysis/objects/shapes/api.js";
+import { createCsharpNativeConstructionDemandQuery } from "../../../../dist/analysis/objects/native-construction-demand.js";
 import { resolveProviderObjectLiteralShape } from "../../../../dist/analysis/objects/shapes/provider-construction.js";
 import { createCsharpLiteralShapeResolver } from "../../../../dist/analysis/objects/shapes/literal-construction.js";
 import { selectCsharpHostLiteralCorrespondence } from "../../../../dist/analysis/objects/shapes/host-correspondence.js";
@@ -18,15 +19,15 @@ import { csharpRuntimeUnionTargetType } from "../../../../dist/target-model/type
 import { csharpSourceTypeParameter } from "../../../../dist/source/extension/type-parameters.js";
 import { csharpProjectedType } from "../../../../dist/target-model/types/projections.js";
 import { targetTypeRefEquals } from "../../../../dist/target-model/types/equality.js";
-import { assertCsharpCompilationSucceeded, compileCsharpSource, withCsharpSessionRequest } from "../../../helpers/direct-csharp-session.mjs";
+import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../../helpers/direct-csharp-session.mjs";
 import { csharpProgramObjectLiteralShapes, csharpProgramSourceFiles } from "../../../helpers/program-source-files.mjs";
 import { createTsonicPlugin as nodejsCapability } from "../../../../../csharp-nodejs/dist/index.js";
 
 const unexpected = () => assert.fail("a published instantiation never reopens checker types or a competing member inventory");
 const primitive = name => ({ kind: "primitive", primitive: name });
 
-function providerMemberFixture(empty = false, aliased = false) {
-  const checked = createCompilerSessionFromFiles({ currentDirectory: "/src", files: { "/src/index.ts": `
+function providerMemberFixture(empty = false, aliased = false, sourceText) {
+  const checked = createCompilerSessionFromFiles({ currentDirectory: "/src", files: { "/src/index.ts": sourceText ?? `
     interface ${aliased ? "Original" : "Options"} { ${empty ? "" : "mode?: number;"} }
     ${aliased ? "type First = Original; type Options = First;" : ""}
     interface Foreign { mode?: number; }
@@ -549,7 +550,7 @@ export function apply(callback: Transform<int64>, value: int64): int64 { return 
   });
 
   test(`published ${surface} local generic classes retain outer and local binder widths independently`, () => {
-    const { compiled, value: publication } = withCsharpSessionRequest({ surface, sourceText: `
+    const compiled = compileCsharpSource({ surface, sourceText: `
 import type { int32, int64 } from "@tsonic/core/types.js";
 function wrap<Outer>(first: Outer) {
   class Local<Inner> {
@@ -560,63 +561,7 @@ function wrap<Outer>(first: Outer) {
   return new Local<int64>(first, 3n);
 }
 export function run(first: int32): int64 { return wrap(first).value; }
-` }, request => {
-      const source = request.input.source;
-      const ast = source.ast;
-      const nodes = [];
-      const visit = node => { nodes.push(node); ast.forEachChild(node, child => { if (child !== undefined) visit(child); }); };
-      source.sourceFiles.forEach(file => { if (!ast.isDeclarationFile(file)) visit(file); });
-      const wrap = nodes.find(node => ast.is.IsFunctionDeclaration(node) && ast.text(ast.name(node)) === "wrap");
-      const local = nodes.find(node => ast.is.IsClassDeclaration(node) && ast.text(ast.name(node)) === "Local");
-      const outer = wrap === undefined ? undefined : ast.typeParameters(wrap)[0];
-      const inner = local === undefined ? undefined : ast.typeParameters(local)[0];
-      const member = nodes.find(node => ast.is.IsPropertyDeclaration(node) && ast.parent(node) === local &&
-        ast.text(ast.name(node)) === "value");
-      const literal = nodes.find(node => ast.is.IsBigIntLiteral(node));
-      const construction = nodes.find(node => ast.is.IsNewExpression(node));
-      const call = nodes.find(node => ast.is.IsCallExpression(node) && ast.text(ast.as.AsCallExpression(node).Expression) === "wrap");
-      const read = nodes.find(node => ast.is.IsPropertyAccessExpression(node) && ast.as.AsPropertyAccessExpression(node).Expression === call);
-      const identity = node => node === undefined ? null : node === local ? "Local" : node === outer ? "Outer"
-        : node === inner ? "Inner" : node === member ? "Local.value" : "other";
-      const width = type => {
-        if (type === undefined) return null;
-        const structure = sourceTypeDescriptorStructure(type);
-        return structure.kind === "primitive" ? structure.primitive : structure.kind === "intrinsic" ? structure.intrinsic
-          : structure.kind === "declared" ? `declared:${identity(structure.declaration)}` : structure.kind;
-      };
-      const descriptor = type => {
-        if (type === undefined) return null;
-        const structure = sourceTypeDescriptorStructure(type);
-        const value = structure.kind === "shape" ? structure.members.find(candidate => candidate.origin.kind === "declared" &&
-          candidate.origin.declaration === member) : undefined;
-        return { kind: type.kind, width: width(type), declaration: type.kind === "declared" ? identity(type.declaration) : null,
-          argumentCount: type.kind === "declared" ? type.typeArguments.length : 0,
-          arguments: type.kind === "declared" ? type.typeArguments.slice(0, 2).map(width) : [],
-          valueWidth: width(value?.type), valueOriginSame: value !== undefined && value.origin.kind === "declared" && value.origin.declaration === member };
-      };
-      const outcome = node => node === undefined ? undefined : source.effectiveTypes.get(node);
-      const summarize = (node, selected) => selected === undefined ? null : selected.kind === "refused"
-        ? { kind: selected.kind, code: selected.code } : { kind: selected.kind, occurrenceSame: selected.provenance.occurrence === node,
-          type: descriptor(selected.type), construction: descriptor(selected.construction) };
-      const constructed = outcome(construction);
-      const returned = wrap === undefined ? undefined : source.effectiveTypes.callableReturn(wrap);
-      const called = outcome(call);
-      const instantiation = call === undefined ? undefined : source.effectiveTypes.callInstantiation(call);
-      return { found: [literal, construction, wrap, call, read, outer, inner, member].map(node => node !== undefined),
-        literal: summarize(literal, outcome(literal)), construction: summarize(construction, constructed),
-        callableReturn: summarize(wrap, returned), call: summarize(call, called), read: summarize(read, outcome(read)),
-        instantiation: instantiation === undefined ? null : { callSame: instantiation.call.call === call,
-          result: descriptor(instantiation.result), methodCount: instantiation.method.length,
-          method: instantiation.method.slice(0, 2).map(argument => ({ declaration: identity(argument.declaration), type: descriptor(argument.type) })) },
-        bodyResultSame: returned !== undefined && returned.kind !== "refused" && constructed !== undefined &&
-          constructed.kind !== "refused" && returned.type === constructed.type,
-        callResultSame: called !== undefined && called.kind !== "refused" && called.type === instantiation?.result };
-    });
-    console.log(`C2337.localgeneric ${JSON.stringify({ surface, publication, diagnosticCount: compiled.targetDiagnostics.length,
-      diagnostics: compiled.targetDiagnostics.slice(0, 4).map(diagnostic => ({ code: diagnostic.code,
-        span: diagnostic.sourceSpan === undefined ? null : { fileName: diagnostic.sourceSpan.fileName,
-          line: diagnostic.sourceSpan.line, column: diagnostic.sourceSpan.column,
-          endLine: diagnostic.sourceSpan.endLine, endColumn: diagnostic.sourceSpan.endColumn } })) })}`);
+` });
     assertCsharpCompilationSucceeded(compiled);
     const program = compiled.result.program;
     const ast = program.source.ast;
@@ -863,6 +808,15 @@ test("canonical provider inventories reject missing, foreign, ambiguous and inco
       assert.equal(repeated !== undefined && targetTypeRefEquals(repeated.targetType, shape.targetType) &&
         repeated.members.length === shape.members.length, true, `${entry}, empty=${empty}: ordinary later discovery consumes the same contract`);
       if (!empty) {
+        const actual = current.input.queries.types.expressionType(current.literal);
+        assert.equal(actual !== undefined && !current.input.queries.types.isIdentical(actual, current.input.type), true,
+          "the authored empty expression and its complete provider contract are distinct checked types");
+        assert.equal(policy.resolveType(actual, current.file, current.literal) === undefined, true,
+          `${entry}: an incomplete own-shape request is not a validated provider representation`);
+        assert.equal(policy.resolveNode(current.literal, current.file)?.members.every(member => member.type === current.storage) === true, true,
+          `${entry}: a raw own-shape request cannot veto the completed descriptor/Native target contract`);
+      }
+      if (!empty) {
         const prior = current.input.host.providers.resolveMember;
         current.input.host.providers.resolveMember = fact => {
           const selected = prior(fact);
@@ -911,5 +865,181 @@ test("real empty provider constructions retain optional canonical origins and ex
     const output = [...compiled.artifacts.values()].join("\n");
     assert.equal([...output.matchAll(/new Tsonic\.CSharp\.Node\.MakeDirectoryOptions\b/gu)].length === 1, true);
     assert.doesNotMatch(output, /TsObject|Activator|DynamicInvoke|System\.Reflection|\.Clone\(|\.ToArray\(/u);
+  }
+});
+
+test("native construction consumes only the completed canonical provider contract and retains its safety refusals", () => {
+  for (const empty of [false, true]) {
+    const current = providerMemberFixture(empty, true);
+    const policy = createCsharpObjectShapePolicy(current.input.host);
+    const expected = policy.resolveNode(current.literal, current.file);
+    assert.equal(expected !== undefined, true, "the actual preparation boundary validates the provider ABI first");
+    const demand = shape => createCsharpNativeConstructionDemandQuery({ ...current.input.host,
+      sourceFiles: [current.file],
+      resolveEffectiveShape: () => shape,
+      resolveShape: unexpected,
+      resolveLiteralShape: (selected, node, file) => policy.resolveObjectLiteralTargetShape(selected, node, file),
+      retainSourceShape: unexpected,
+      publishedShapeTarget: node => {
+        const descriptor = current.resolver.publishedShapeDescriptor(node);
+        return descriptor === undefined ? undefined : current.input.host.typeResolver.resolveDescriptor(descriptor);
+      },
+      scopedTargetType: () => undefined,
+    });
+    const selected = demand(expected);
+    assert.equal(selected.issues.length, 0, "canonical proof never reopens raw own-member evidence");
+    const retained = selected.constructionFor(current.literal)?.shape;
+    assert.equal(retained !== undefined && retained.members.length === expected.members.length && retained.members.every(member =>
+      member.optional === true && member.exactNumericStorage === true && member.type === current.storage &&
+      member.origins?.length === 1 && member.origins[0] === current.structure.members[0].origin), true,
+    "even the empty literal retains the complete selected provider ABI and its actual published origins");
+    if (empty) continue;
+    const member = expected.members[0];
+    for (const changed of [
+      { ...expected, members: [{ ...member, origins: undefined }] },
+      { ...expected, members: [{ ...member, origins: [{ kind: "declared", declaration: current.foreign }] }] },
+      { ...expected, members: [{ ...member, type: csharpSourcePrimitiveTargetType("int64") }] },
+      { ...expected, members: [{ ...member, targetName: "unselectedField" }] },
+      { ...expected, targetType: { ...expected.targetType, id: "foreign.Provider" } },
+    ]) {
+      const rejected = demand(changed);
+      assert.equal(rejected.issues.length === 1 && rejected.issues[0].code === "CSHARP_NATIVE_CONSTRUCTION_NOT_PROVEN" &&
+        rejected.issues[0].node === current.literal && rejected.constructionFor(current.literal) === undefined, true,
+      "missing, foreign or contradictory Native contract facts never publish a partial construction");
+    }
+  }
+});
+
+test("canonical provider construction retains parameter, property, direct and populated destination entry paths", () => {
+  for (const body of [
+    "const options: MakeDirectoryOptions = {}; return options;",
+    "function accept(options: MakeDirectoryOptions): MakeDirectoryOptions { return options; } return accept({});",
+    "const holder: { options: MakeDirectoryOptions } = { options: {} }; return holder.options;",
+    "return { recursive: true };",
+    "const options: MakeDirectoryOptions = { mode: 493 }; const alias = options; return alias;",
+  ]) {
+    const compiled = compileCsharpSource({ surface: "js", capabilities: [nodejsCapability()], sourceText: `
+      import type { MakeDirectoryOptions } from "node:fs";
+      export function make(): MakeDirectoryOptions { ${body} }
+    ` });
+    assertCsharpCompilationSucceeded(compiled);
+    const shapes = csharpProgramObjectLiteralShapes(compiled.result.program).filter(shape =>
+      shape.targetType.kind === "target-named" && shape.targetType.id === "Tsonic.CSharp.Node.MakeDirectoryOptions");
+    assert.equal(shapes.length === 1 && shapes[0].members.length === 2, true,
+      "the declared provider destination selects exactly one original Native allocation in every existing entry path");
+    const mode = shapes[0].members.find(member => member.sourceName === "mode");
+    assert.equal(mode?.optional === true && mode.exactNumericStorage === true && mode.origins?.length > 0 &&
+      targetTypeRefEquals(getCsharpNullableElementTargetType(mode.type), csharpSourcePrimitiveTargetType("int32")), true,
+    "published Source origins do not erase optional provider Native mode storage");
+    const output = [...compiled.artifacts.values()].join("\n");
+    assert.equal([...output.matchAll(/new Tsonic\.CSharp\.Node\.MakeDirectoryOptions\b/gu)].length === 1, true);
+    assert.doesNotMatch(output, /TsObject|Activator|DynamicInvoke|System\.Reflection|\.Clone\(|\.ToArray\(/u);
+  }
+});
+
+test("an indexed provider needs no indexer ABI for zero writes but refuses a dynamic entry precisely", () => {
+  for (const [indexType, value] of [["number", "1"], ["string", '"v"']]) {
+  const checked = createCompilerSessionFromFiles({ currentDirectory: "/src", files: { "/src/index.ts": `
+    interface Indexed { [key: string]: ${indexType}; }
+    declare const current: Indexed;
+    function read(): Indexed { return current; }
+    function empty(): Indexed { return {}; }
+    function dynamic(key: string): Indexed { return { [key]: ${value} }; }
+  ` }, compilerOptions: { strict: true, target: "es2022", module: "esnext" } }).checkSource();
+  assert.equal(checked.diagnostics.length, 0);
+  const source = createTargetSourceProgram(checked);
+  const file = checked.getSourceFile("/src/index.ts");
+  const queries = source.semantics.forFile(file);
+  const nodes = [];
+  const visit = node => { nodes.push(node); source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); }); };
+  visit(file);
+  const declaration = nodes.find(node => source.ast.is.IsInterfaceDeclaration(node) && source.ast.text(source.ast.name(node)) === "Indexed");
+  const occurrence = nodes.find(node => source.ast.is.IsIdentifier(node) && source.ast.text(node) === "current" &&
+    source.ast.is.IsReturnStatement(source.ast.parent(node)));
+  const literals = nodes.filter(node => source.ast.is.IsObjectLiteralExpression(node));
+  assert.equal(declaration !== undefined && occurrence !== undefined && literals.length === 2, true);
+  const type = queries.types.expressionType(occurrence);
+  assert.equal(type !== undefined, true, "the exact checked provider receiver is retained");
+  const subjects = queries.facts.typeSubjects(type);
+  const target = { kind: "target-named", id: "test.Provider.Indexed", csharpAllowsRefLikeTypeArguments: [] };
+  const binding = { target: "csharp", id: target.id, csharpType: target };
+  const host = { ast: source.ast, navigation: source.navigation, effectiveTypes: source.effectiveTypes,
+    sourceFiles: [file], semanticsFor: source.semantics.forNode, semantics: source.semantics.forFile, hasSemantics: source.semantics.includes,
+    sourceFacts: { getFact(subject, key) {
+      return key === providerVirtualDeclarationFactKey && (subject === declaration || subjects.includes(subject))
+        ? { id: "Indexed" } : source.sourceFacts.getFact(subject, key);
+    } },
+    providers: { resolveType: () => ({ kind: "resolved", relations: [{ kind: "type", targetBinding: binding,
+      bindingTypeParameters: [], objectLiteralConstruction: { kind: "object-initializer" } }] }), resolveMember: unexpected },
+    typeResolver: { resolveDescriptor: () => target },
+  };
+  const resolver = createCsharpObjectShapeMemberResolver(host);
+  for (const literal of literals) {
+    const descriptor = resolver.publishedShapeDescriptor(literal);
+    const structure = descriptor === undefined ? undefined : sourceTypeDescriptorStructure(descriptor);
+    assert.equal(descriptor?.kind === "declared" && descriptor.declaration === declaration &&
+      structure?.kind === "shape" && structure.members.length === 0 && structure.indexes.length === 1, true,
+      "both exact current occurrences retain the same declared Source index inventory");
+  }
+  const selected = createCsharpNativeConstructionDemandQuery({ ...host,
+    resolveEffectiveShape: literal => {
+      const descriptor = resolver.publishedShapeDescriptor(literal);
+      return descriptor === undefined ? undefined : resolver.resolveProviderShape(type, descriptor, literal, queries, { depth: 0 }, target);
+    },
+    resolveLiteralShape: (shape, literal) => {
+      const descriptor = resolver.publishedShapeDescriptor(literal);
+      const members = descriptor === undefined ? undefined : resolver.retainPublishedMembers(shape.members,
+        descriptor, literal, queries, { depth: 0 }, target);
+      return members === undefined ? { kind: "rejected", subject: literal, reason: "Missing current provider representation." }
+        : { kind: "resolved", shape: { ...shape, members } };
+    },
+    resolveShape: unexpected, retainSourceShape: unexpected, publishedShapeTarget: () => target, scopedTargetType: () => undefined,
+  });
+  assert.equal(selected.constructionFor(literals[0])?.targetType === target && selected.constructionFor(literals[1]) === undefined, true,
+    "zero index writes retain their one original Native allocation; a dynamic write is not silently discarded");
+  assert.equal(selected.issues.length === 1 && selected.issues[0].node === literals[1] &&
+    selected.issues[0].code === "CSHARP_NATIVE_CONSTRUCTION_NOT_PROVEN" &&
+    selected.issues[0].message === "Object-literal index entries require an exact selected C# provider indexer relation.", true);
+  }
+});
+
+test("a retained provider alias validates its current publication and target without changing allocation identity", () => {
+  for (const changed of ["current", "missing", "foreign-origin", "foreign-target"]) {
+    const current = providerMemberFixture(false, false, `
+      interface Options { mode?: number; }
+      interface Foreign { mode?: number; }
+      declare const options: Options; declare const foreign: Foreign;
+      function read(): Options { return options; } function readForeign(): Foreign { return foreign; }
+      function make(): Options { const value: Options = {}; void value; return value; }
+    `);
+    const nodes = [];
+    const ast = current.source.ast;
+    const visit = node => { nodes.push(node); ast.forEachChild(node, child => { if (child !== undefined) visit(child); }); };
+    visit(current.file);
+    const alias = nodes.find(node => ast.is.IsIdentifier(node) && ast.text(node) === "value" && ast.is.IsReturnStatement(ast.parent(node)));
+    const foreign = sourceTypeDescriptorStructure(current.source.effectiveTypes.get(current.foreign).type).members[0].origin;
+    const original = current.input.host.effectiveTypes.get;
+    const publication = original(alias);
+    assert.equal(alias !== undefined && publication !== undefined && publication.kind !== "refused" && publication.type.kind === "declared", true);
+    const different = { ...publication, type: { ...publication.type, definition: { ...current.structure,
+      members: current.structure.members.map(member => ({ ...member, origin: foreign })) } } };
+    current.input.host.effectiveTypes = { get: node => node !== alias ? original(node) : changed === "missing" ? undefined
+      : changed === "foreign-origin" ? different : publication };
+    const policy = createCsharpObjectShapePolicy(current.input.host);
+    const selected = createCsharpNativeConstructionDemandQuery({ ...current.input.host, sourceFiles: [current.file],
+      resolveEffectiveShape: (node, file) => policy.resolveNode(node, file),
+      resolveShape: unexpected,
+      resolveLiteralShape: (shape, node, file) => policy.resolveObjectLiteralTargetShape(shape, node, file),
+      retainSourceShape: (node, type, shape, file) => policy.retainConstructionSource(node, type, shape, file),
+      publishedShapeTarget: node => node === alias && changed === "foreign-target" ? { ...current.target, id: "foreign.Provider" }
+        : policy.publishedShapeTarget(node),
+      scopedTargetType: () => undefined,
+    });
+    const literal = selected.constructionFor(current.literal);
+    const retained = selected.constructionFor(alias);
+    assert.equal(literal !== undefined, true, "a different alias publication cannot erase the separately proven original construction");
+    assert.equal(retained !== undefined, changed === "current", "missing, foreign-origin and foreign-target publications cannot inherit a stale construction");
+    if (changed === "current") assert.equal(retained.shape === literal.shape && retained.targetType === literal.targetType, true,
+      "current canonical validation preserves the original proven allocation identity");
   }
 });

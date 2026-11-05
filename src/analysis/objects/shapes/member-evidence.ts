@@ -109,8 +109,7 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
     state: CsharpTypeResolutionState,
     selectedTarget: TargetTypeRef | undefined,
   ): CsharpObjectShapeFact | undefined {
-    if (!isProviderDescriptor(descriptor) && !queries.facts.typeSubjects(type).some(subject =>
-      host.sourceFacts?.getFact(subject, providerVirtualDeclarationFactKey) !== undefined)) return undefined;
+    if (!isProviderDescriptor(descriptor)) return undefined;
     let completed = completedProviderShapes.get(descriptor);
     if (completed === undefined) {
       completed = new Map();
@@ -124,7 +123,6 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
       host, publishedShapeDescriptor, resolvePublishedProperty });
     const members = shape === undefined ? undefined : retainMemberDeclarationEvidence(shape.members, type, queries);
     if (shape === undefined || members === undefined) {
-      if (previous !== undefined) completed.set(key, null);
       return undefined;
     }
     const selected = Object.freeze({ ...shape, members: Object.freeze(members) });

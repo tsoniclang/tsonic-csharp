@@ -3,7 +3,7 @@ import test from "node:test";
 import { createCompilerSessionFromFiles, createSourceSemanticsExtension, sourcePrimitive, TstsSourceProviderContractVersion } from "@tsonic/tsts";
 import { createTargetSourceProgram, sourceTypeDescriptorMemberOriginsEqual, sourceTypeDescriptorStructure } from "@tsonic/target-api/source";
 import { createCsharpNativeConstructionDemandQuery } from "../../../dist/analysis/objects/native-construction-demand.js";
-import { csharpNativeConstructionMembersMatch } from "../../../dist/analysis/objects/native-construction-members.js";
+import { csharpObjectShapeMemberRetainsNativeReference } from "../../../dist/policy/types/objects/member-reads.js";
 import { createCsharpObjectShapeMemberResolver } from "../../../dist/analysis/objects/shapes/member-evidence.js";
 import { mergeCsharpObjectShapeSubjects } from "../../../dist/analysis/objects/shapes/construction.js";
 import { checkCsharpSource, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
@@ -11,7 +11,7 @@ import { executeCsharpConstruction } from "../../helpers/native-construction.mjs
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
 import { maximumCsharpMetadataEntries } from "../../../dist/target-model/metadata/immutable.js";
-import { csharpStringTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
+import { csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { csharpTsValueTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 
@@ -72,17 +72,14 @@ function fixture() {
   const row = (fields, target = structural, options = {}) => {
     const type = {};
     const selections = fields.map((field, index) => {
-      const property = { name: field.identity, type: primitive, symbol: {}, rootSymbols: [],
-        optional: field.optional ?? false, readonly: field.readonly ?? false };
-      const member = { sourceKey: { kind: "property", name: field.identity }, sourceName: field.identity,
-        sourceSubjects: [property.symbol], sourceTypes: [primitive], targetName: `${target.id}-${index}`,
-        type: field.carrier ?? integer, memberKind: "property",
+      const property = { optional: field.optional ?? false, readonly: field.readonly ?? false };
+      const member = { targetName: `${target.id}-${index}`,
+        type: field.carrier ?? (field.optional ? csharpNullableTargetType(integer) : integer), memberKind: "property",
         ...(field.optional ? { optional: true } : {}),
-        ...(options.provider ? { exactNumericStorage: true } : {}), ...field.member };
-      return { identity: field.identity, property, symbol: property.symbol, rootSymbols: [], declarations: [],
-        getters: [], setters: [], read: field.read ?? "property", member };
+        ...field.member };
+      return { identity: field.identity, property, read: field.read ?? "property", member };
     });
-    rows.set(type, { fields: selections, shape: { sourceType: type, targetType: target,
+    rows.set(type, { fields: selections, shape: { targetType: target,
       members: selections.map(field => field.member), ...(options.provider ? { constructible: true } : {}), ...options.shape },
       calls: options.calls ?? [], constructs: options.constructs ?? [], indexes: options.indexes ?? [], provider: options.provider === true });
     return type;
@@ -98,23 +95,36 @@ function fixture() {
     const contextRow = rows.get(context);
     const fieldType = explicit.has(primitive) ? "Words.float64" : "number";
     const declaration = (name, selected) => `interface ${name} {
-      ${selected.fields.map(field => `${field.property.readonly ? "readonly " : ""}${JSON.stringify(field.identity)}${field.property.optional ? "?" : ""}: ${fieldType};`).join(" ")}
+      ${selected.fields.map(field => field.member.memberKind === "method" ? `${JSON.stringify(field.identity)}(): ${fieldType};`
+        : `${field.property.readonly ? "readonly " : ""}${JSON.stringify(field.identity)}${field.property.optional ? "?" : ""}: ${
+          kind === "guard" && name === "SourceRow" && field.member.type.kind === "source-primitive" && field.member.type.name === "bool"
+            ? "boolean" : fieldType};`).join(" ")}
       ${selected.calls.length === 0 ? "" : "(): number;"}
       ${selected.constructs.length === 0 ? "" : "new(): object;"}
       ${selected.indexes.length === 0 ? "" : "[key: string]: number;"}
     }`;
     const empty = { fields: [], calls: [], constructs: [], indexes: [] };
     const propertyValue = explicit.has(primitive) ? "1 as Words.float64" : "1";
-    const properties = (sourceRow?.fields ?? []).map(field => field.read === "accessor"
-      ? `get ${JSON.stringify(field.identity)}() { return ${propertyValue}; }` : `${JSON.stringify(field.identity)}: ${propertyValue}`).join(", ");
+    const properties = (sourceRow?.fields ?? []).map(field => {
+      const selectedValue = field.member.type.kind === "source-primitive" && field.member.type.name === "bool" ? "true" : propertyValue;
+      return field.read === "accessor" || field.member.accessor !== undefined
+        ? `get ${JSON.stringify(field.identity)}() { return ${selectedValue}; }`
+        : field.member.memberKind === "method" ? `${JSON.stringify(field.identity)}() { return ${selectedValue}; }`
+          : `${JSON.stringify(field.identity)}: ${selectedValue}`;
+    }).join(", ");
+    const existingValue = sourceRow?.shape.methodImplementation !== undefined || sourceRow?.fields.some(field => field.member.bound) ||
+      sourceRow?.calls.length > 0 ||
+      ["class", "struct", "enum"].includes(sourceRow?.shape.targetType.csharpSourceDeclarationKind);
     const initializer = kind === "parameter" ? "other" : sourceRow?.constructs.length > 0 ? "Constructor"
-      : sourceRow?.fields.some(field => field.property.optional) ? "{ ...seed }"
+      : existingValue ? "seed" : sourceRow?.fields.some(field => field.property.optional) || sourceRow?.calls.length > 0 ||
+        sourceRow?.indexes.length > 0 ? "{ ...seed }"
       : type.union === undefined ? `{ ${properties} }` : "{ ...choice }";
-    const annotation = context?.any ? ": any" : context === undefined ? "" : `: ContextRow${nullable ? " | null | undefined" : ""}`;
+    const annotation = kind === "guard" ? ": SourceRow" : context?.any ? ": any" : context === undefined ? "" : `: ContextRow${nullable ? " | null | undefined" : ""}`;
     const nativeModel = { moduleSpecifier: "@fixture/native", providerModuleId: "Fixture.Native", exports: [{
       id: "ContextRow", name: "ContextRow", kind: "class", members: [
         ...(contextRow?.fields ?? []).map(field => ({ id: `ContextRow::${field.identity}`, name: field.identity,
-          kind: "property", type: { kind: "number" }, optional: field.property.optional, readonly: field.property.readonly })),
+          kind: "property", type: explicit.has(primitive) ? { kind: "source-primitive", name: "float64" } : { kind: "number" },
+          optional: field.property.optional, readonly: field.property.readonly })),
         ...(contextRow?.indexes.length > 0 ? [{ id: "ContextRow::index", name: "index", kind: "indexer",
           signatures: [{ id: "ContextRow::index(string)", parameters: [{ name: "key", type: { kind: "string" } }],
             returnType: { kind: "number" } }] }] : []),
@@ -152,7 +162,7 @@ function fixture() {
     }, compilerOptions: { strict: true, target: "es2022", module: "esnext", moduleResolution: "bundler" },
     extensionHostOptions: { extensions: [createSourceSemanticsExtension({ modules: [{ moduleSpecifier: "@fixture/words",
       packageName: "@fixture/words", exports: [sourcePrimitive("float64", "float64", "number", true, 64)] }] }), providerExtension] } }).checkSource();
-    assert.equal(checked.diagnostics.length, 0, "positive construction fixtures use valid checked Source");
+    assert.equal(checked.diagnostics.length, 0, "positive constructions and independent-type negative boundaries both use valid checked Source");
     assert.equal(checked.extensionDiagnostics.length, 0);
     const program = createTargetSourceProgram(checked);
     const file = checked.getSourceFile("/src/index.ts");
@@ -165,7 +175,7 @@ function fixture() {
     const parameter = syntax.find(selected => program.ast.is.IsParameterDeclaration(selected) &&
       program.ast.text(program.ast.name(selected)) === "other");
     const reference = syntax.filter(selected => program.ast.is.IsIdentifier(selected) && program.ast.text(selected) === "value").at(-1);
-    const selected = kind === "literal" ? literal : kind === "parameter" ? parameter : reference;
+    const selected = kind === "literal" || kind === "guard" ? literal : kind === "parameter" ? parameter : reference;
     assert.equal(literal !== undefined && selected !== undefined && file !== undefined, true,
       "each Native boundary input retains its real checked occurrence and matching eager Source publication");
     const queries = program.semantics.forFile(file);
@@ -176,77 +186,20 @@ function fixture() {
       program.ast.text(program.ast.name(selected)) === "SourceRow");
     const contextType = queries.declarations.declaredValueType(contextDeclaration);
     const declaredSource = queries.declarations.declaredType(sourceDeclaration);
-    const nativeRows = new Map();
-    const materialize = (original, sourceType) => {
-      if (original === undefined || sourceType === undefined) return;
-      const checkedMembers = queries.types.structuralMembers(sourceType, sourceType, "correspondence");
-      const members = original.shape.members.map(member => {
-        const field = original.fields.find(field => member.sourceSubjects?.includes(field.property.symbol));
-        const pair = checkedMembers.kind !== "available" ? undefined : checkedMembers.members.find(pair =>
-          pair.kind === "present" && pair.source.property.name === field?.identity);
-        return pair?.kind !== "present" ? member : { ...member,
-          sourceSubjects: [pair.source.property.symbol, ...pair.source.declarations],
-          sourceDeclarations: pair.source.declarations, sourceTypes: [pair.source.property.type] };
-      });
-      nativeRows.set(sourceType, { original, members });
-    };
-    materialize(sourceRow, actualType);
-    materialize(sourceRow, declaredSource);
-    materialize(contextRow, contextType);
-    const checkedContext = queries.types.contextualValueSelection(literal);
-    const selectedContext = checkedContext.kind === "selected" ? checkedContext.component.selectedType : undefined;
-    if (contextRow !== undefined && selectedContext !== undefined) materialize(contextRow, selectedContext);
     const equivalent = syntax.find(selected => program.ast.is.IsTypeAliasDeclaration(selected) &&
       program.ast.text(program.ast.name(selected)) === "Equivalent");
     const equivalentType = queries.types.authoredType(program.ast.typeNode(equivalent));
-    materialize(sourceRow, equivalentType);
-    const input = { program, file, literal, declarationNode, reference, queries, nativeRows, type, context,
-      sourceRow, contextRow, actualType, contextType, declaredSource, equivalentType, nullable };
+    const input = { program, file, literal, declarationNode, reference, queries, type, context,
+      sourceRow, contextRow, actualType, contextType, declaredSource, equivalentType, nullable, checked };
     inputs.push(input);
     return selected;
   };
   const guard = (source, destination) => {
-    const selectedRows = [rows.get(source), rows.get(destination)];
-    const declarations = selectedRows.map((selected, index) => `interface ${index === 0 ? "SourceRow" : "DestinationRow"} {
-      ${selected.fields.map(field => field.read === "accessor" ? `get ${JSON.stringify(field.identity)}(): number;`
-        : `${field.property.readonly ? "readonly " : ""}${JSON.stringify(field.identity)}${field.property.optional ? "?" : ""}: number;`).join(" ")}
-      ${selected.calls.length === 0 ? "" : "(): number;"}
-      ${selected.constructs.length === 0 ? "" : "new(): object;"}
-      ${selected.indexes.length === 0 ? "" : "[key: string]: number;"}
-    }`).join("\n");
-    const checked = createCompilerSessionFromFiles({ currentDirectory: "/src", files: {
-      "/src/index.ts": `${declarations} type Equivalent = {}; declare const source: SourceRow; declare const destination: DestinationRow;`,
-    }, compilerOptions: { strict: true, target: "es2022", module: "esnext" } }).checkSource();
-    assert.equal(checked.diagnostics.length, 0, "a Native guard unit boundary declares two valid types without an invalid assignment");
-    const program = createTargetSourceProgram(checked);
-    const file = checked.getSourceFile("/src/index.ts");
-    const variables = [];
-    let equivalent;
-    const visit = node => {
-      if (program.ast.is.IsTypeAliasDeclaration(node) && program.ast.text(program.ast.name(node)) === "Equivalent") equivalent = node;
-      if (program.ast.is.IsVariableDeclaration(node)) variables.push(node);
-      program.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
-    };
-    visit(file);
-    const queries = program.semantics.forFile(file);
-    const types = variables.map(variable => queries.declarations.declaredValueType(variable));
-    assert.equal(types.length === 2 && types.every(type => type !== undefined), true,
-      "both real checked declared types come from this exact program's semantic publication, including outside-C29 types");
-    const shapes = selectedRows.map((selected, index) => ({
-      ...selected.shape,
-      sourceType: selected.shape.sourceType === undefined ? undefined : types[index],
-      members: selected.shape.members.map(member => {
-        const field = selected.fields.find(field => member.sourceSubjects?.includes(field.property.symbol));
-        const property = field === undefined ? undefined : queries.types.propertyInfos(types[index]).find(property => property.name === field.identity);
-        const declarations = property === undefined ? [] : queries.declarations.symbolDeclarations(property.symbol);
-        return property === undefined ? member : { ...member, sourceSubjects: [property.symbol, ...declarations],
-          sourceDeclarations: declarations, sourceTypes: [property.type] };
-      }),
-    }));
-    const compatible = csharpNativeConstructionMembersMatch(types[0], shapes[0], shapes[1], queries,
-      { ast: program.ast, sourceFacts: program.sourceFacts }, () => {});
-    const equivalentType = queries.types.authoredType(program.ast.typeNode(equivalent));
-    return { compatible, program, types, shapes, queries, equivalentType };
+    const occurrence = node(source, destination, "guard");
+    const input = inputs.at(-1);
+    const selected = freeze();
+    return { compatible: selected.constructionFor(occurrence) !== undefined,
+      types: [input.declaredSource, input.contextType], queries: input.queries, equivalentType: input.equivalentType };
   };
   const host = {
     // The real conversion path for a preselected carrier reads supertypes and provider bindings; this unit
@@ -259,32 +212,93 @@ function fixture() {
       assert.equal(fact.providerModuleId === "Fixture.Native" && fact.exportId === "ContextRow", true,
         "the Native leaf resolver receives the real compiler-produced provider declaration fact");
       return { kind: "resolved", relations: [{ kind: "type",
-        objectLiteralConstruction: { kind: "object-initializer" }, targetBinding: current.contextRow.shape.targetType }] };
+        objectLiteralConstruction: { kind: "object-initializer" }, targetBinding: {
+          target: "csharp", id: current.contextRow.shape.targetType.id, csharpType: current.contextRow.shape.targetType } }] };
+    },
+      resolveMember(fact) {
+        const field = current.contextRow.fields.find(field => fact.memberId === `ContextRow::${field.identity}`);
+        if (field === undefined) return { kind: "missing" };
+        const target = current.contextRow.shape.targetType;
+        return { kind: "resolved", relations: [{ kind: "member", source: { kind: "member", ...fact,
+          memberStatic: false, memberKey: { kind: "property-key", name: field.identity } },
+          targetBinding: { target: "csharp", id: target.id, csharpType: target },
+          targetMember: { kind: "property", id: field.member.targetName, targetName: field.member.targetName,
+            declaringType: target, parameters: [], returnType: field.member.type, readonly: field.property.readonly },
+          receiver: { kind: "instance" }, bindingTypeParameters: [], bindingTypeArgumentSource: "receiver" }] };
+      } },
+    typeResolver: { resolveDescriptor(descriptor) {
+      const selected = sourceTypeDescriptorStructure(descriptor);
+      if (selected.kind === "primitive") return csharpSourcePrimitiveTargetType(selected.primitive);
+      const value = selected.kind === "optional" ? host.typeResolver.resolveDescriptor(selected.value) : undefined;
+      return value === undefined ? undefined : csharpNullableTargetType(value);
     } },
     semanticsFor: selected => {
       const input = inputs.find(input => input.program.ast.getSourceFile(selected) === input.file);
       assert.equal(input !== undefined, true);
       return { ...input.queries, types: { ...input.queries.types,
         structuralMembers(source, destination, purpose) {
-          assert.equal(purpose, "read", "construction requires readable members");
+          assert.equal(purpose, "correspondence", "only the selected provider's real declaration evidence is retained");
           relationshipQueries++;
           return input.queries.types.structuralMembers(source, destination, purpose);
         }, ...semantics.types } };
     },
-    resolveShape: type => {
-      const selected = current.nativeRows.get(type);
-      if (selected === undefined) return undefined;
-      const original = selected.original.shape;
-      const mismatchedCallableLiteral = type === current.actualType &&
-        (selected.original.calls.length > 0 || selected.original.indexes.length > 0);
-      return { ...original, sourceType: original.sourceType === undefined ? undefined
-        : mismatchedCallableLiteral ? current.declaredSource : type,
-        members: original.members.map(member => selected.members.find(selected => selected.targetName === member.targetName) ?? member) };
+    resolveShape: () => assert.fail("a canonical provider construction never reopens a raw own-member shape"),
+    resolveEffectiveShape: occurrence => {
+      const descriptor = current.resolver.publishedShapeDescriptor(occurrence);
+      return current.contextRow === undefined || descriptor === undefined ? undefined : current.resolver.resolveProviderShape(
+        current.contextType, descriptor, occurrence, host.semanticsFor(occurrence), { depth: 0 }, current.contextRow.shape.targetType);
     },
-    resolveEffectiveShape: () => current.contextRow === undefined ? undefined : host.resolveShape(current.contextType),
-    resolveLiteralShape: shape => ({ kind: "resolved", shape }),
+    resolveLiteralShape: (shape, occurrence) => {
+      const descriptor = current.resolver.publishedShapeDescriptor(occurrence);
+      const members = descriptor === undefined ? undefined : current.resolver.retainPublishedMembers(shape.members,
+        descriptor, occurrence, host.semanticsFor(occurrence), { depth: 0 }, shape.targetType);
+      return members === undefined ? { kind: "rejected", subject: occurrence,
+        reason: "Native construction has no exact source-member correspondence for its declared storage." }
+        : { kind: "resolved", shape: { ...shape, members } };
+    },
+    publishedShapeTarget: occurrence => {
+      const descriptor = current.resolver.publishedShapeDescriptor(occurrence);
+      return descriptor === undefined || !current.resolver.isProviderDescriptor(descriptor) ? undefined : current.contextRow?.shape.targetType;
+    },
     scopedTargetType: selected => existing.get(selected),
-    retainSourceShape: (_node, _type, shape) => shape,
+    retainSourceShape: (occurrence, _type, shape) => {
+      const descriptor = current.resolver.publishedShapeDescriptor(occurrence);
+      const queries = host.semanticsFor(occurrence);
+      const prepared = descriptor === undefined ? undefined : current.resolver.resolveProviderShape(
+        current.contextType, descriptor, occurrence, queries, { depth: 0 }, shape.targetType);
+      const members = prepared === undefined ? undefined : current.resolver.retainPublishedMembers(shape.members,
+        descriptor, occurrence, queries, { depth: 0 }, prepared.targetType);
+      return members === undefined ? undefined : { ...shape, members };
+    },
+  };
+  const freeze = () => {
+    const records = [];
+    const diagnostics = [];
+    for (const input of inputs) {
+      current = input;
+      host.sourceFiles = [input.file];
+      host.ast = input.program.ast;
+      host.effectiveTypes = input.program.effectiveTypes;
+      host.sourceFacts = input.program.sourceFacts;
+      host.navigation = { ...input.program.navigation,
+        isProjectDeclaration: selected => !foreign.has(selected) && input.program.navigation.isProjectDeclaration(selected) };
+      host.hasSemantics = input.program.semantics.includes;
+      host.semantics = input.program.semantics.forFile;
+      input.resolver = createCsharpObjectShapeMemberResolver(host);
+      const record = createCsharpNativeConstructionDemandQuery(host);
+      records.push(record);
+      for (const issue of record.issues) {
+        const ast = input.program.ast;
+        const range = ast.authoredRange(issue.node);
+        const text = range?.kind !== "authored" ? "<unavailable>"
+          : ast.getSourceText(ast.getSourceFile(issue.node)).slice(range.start, range.end).slice(0, 200);
+        diagnostics.push(`${issue.code}: ${issue.message} at ${ast.kindName(issue.node)} ${text}`);
+      }
+    }
+    return Object.freeze({ issues: Object.freeze(records.flatMap(record => record.issues)),
+      diagnosticLabel: diagnostics.join("; "),
+      constructionFor: selected => records.map(record => record.constructionFor(selected)).find(selected => selected !== undefined),
+      sourceRefusals: Object.freeze(inputs.flatMap(input => input.program.effectiveTypes.refusals())) });
   };
   return {
     row, node, rows, existing, explicit, primitive, foreign, semantics, host, guard,
@@ -296,32 +310,7 @@ function fixture() {
         input.program.navigation.referencesToDeclaration(declaration).includes(reference)), true,
       "every requested alias is already the same declaration's actual checked reference");
     } },
-    freeze() {
-      const records = [];
-      const diagnostics = [];
-      for (const input of inputs) {
-        current = input;
-        host.sourceFiles = [input.file];
-        host.ast = input.program.ast;
-        host.effectiveTypes = input.program.effectiveTypes;
-        host.sourceFacts = input.program.sourceFacts;
-        host.navigation = { ...input.program.navigation,
-          isProjectDeclaration: selected => !foreign.has(selected) && input.program.navigation.isProjectDeclaration(selected) };
-        const record = createCsharpNativeConstructionDemandQuery(host);
-        records.push(record);
-        for (const issue of record.issues) {
-          const ast = input.program.ast;
-          const range = ast.authoredRange(issue.node);
-          const text = range?.kind !== "authored" ? "<unavailable>"
-            : ast.getSourceText(ast.getSourceFile(issue.node)).slice(range.start, range.end).slice(0, 200);
-          diagnostics.push(`${issue.code}: ${issue.message} at ${ast.kindName(issue.node)} ${text}`);
-        }
-      }
-      return Object.freeze({ issues: Object.freeze(records.flatMap(record => record.issues)),
-        diagnosticLabel: diagnostics.join("; "),
-        constructionFor: selected => records.map(record => record.constructionFor(selected)).find(selected => selected !== undefined),
-        sourceRefusals: Object.freeze(inputs.flatMap(input => input.program.effectiveTypes.refusals())) });
-    },
+    freeze,
     queryCount: () => relationshipQueries,
   };
 }
@@ -395,12 +384,13 @@ test("declared native construction rejects lost fields, accessors, methods, inco
     { fields: [{ identity: "user" }], options: { indexes: [{}] } },
     ...["class", "struct", "enum"].map(kind => ({ fields: [{ identity: "user" }],
       target: { ...structural, csharpSourceDeclarationKind: kind } })),
-    { fields: [{ identity: "user" }], options: { shape: { sourceType: undefined } } },
+    { fields: [{ identity: "user" }], missingPublication: true },
   ];
   for (const [index, control] of controls.entries()) {
     const value = fixture();
     const expected = value.row([{ identity: "user" }], native, { provider: true });
     const source = value.row(control.fields, control.target, control.options);
+    if (control.missingPublication) value.host.resolveEffectiveShape = () => undefined;
     const selected = value.guard(source, expected);
     assert.equal(selected.compatible, false, `Native guard unit boundary ${index}: the original missing, extra, optional, callable, indexed and physical-field rejection is retained`);
   }
@@ -408,8 +398,8 @@ test("declared native construction rejects lost fields, accessors, methods, inco
 
 test("Native guard refusal retains the exact construction fault code and reason on a valid Source boundary", () => {
   const value = fixture();
-  const expected = value.row([{ identity: "user" }], native, { provider: true });
-  const literal = value.node(value.row([{ identity: "user", carrier: boolean }]), expected);
+  const expected = value.row([{ identity: "user", carrier: boolean }], native, { provider: true });
+  const literal = value.node(value.row([{ identity: "user" }]), expected);
   const selected = value.freeze();
   assert.equal(selected.issues.length, 1);
   assert.equal(selected.issues[0].node === literal &&
@@ -423,7 +413,12 @@ test("native construction requires exact checked member subjects, not field spel
   const value = fixture();
   const expected = value.row([{ identity: "user" }], native, { provider: true });
   const source = value.row([{ identity: "user" }]);
-  value.rows.get(source).shape.members[0].sourceSubjects = [{}];
+  const resolve = value.host.resolveEffectiveShape;
+  value.host.resolveEffectiveShape = occurrence => {
+    const shape = resolve(occurrence);
+    return shape === undefined ? undefined : { ...shape, members: shape.members.map(member => ({ ...member,
+      origins: [{ kind: "declared", declaration: occurrence }] })) };
+  };
   const literal = value.node(source, expected);
   const selected = value.freeze();
   assert.equal(selected.issues.length > 0, true);
@@ -523,9 +518,14 @@ test("native member metadata retains its finite resource guard", () => {
   const expected = value.row([{ identity: "user" }], native, { provider: true });
   const valid = value.node(value.row([{ identity: "user" }]), expected);
   const source = value.row([{ identity: "user" }]);
-  const member = value.rows.get(source).shape.members[0];
-  value.rows.get(source).shape.members = Array(maximumCsharpMetadataEntries).fill(member);
   const invalid = value.node(source, expected);
+  const resolve = value.host.resolveEffectiveShape;
+  value.host.resolveEffectiveShape = occurrence => {
+    const shape = resolve(occurrence);
+    return occurrence !== invalid || shape === undefined ? shape : { ...shape, members: shape.members.map(member => ({
+      ...member, origins: Array(maximumCsharpMetadataEntries).fill(member.origins[0]),
+    })) };
+  };
   const selected = value.freeze();
   assert.equal(selected.issues.length, 1, "one local resource failure");
   const issue = selected.issues[0];
@@ -607,7 +607,7 @@ test("noninterned exactly checker-equivalent literal types remain supported", ()
   const boundary = value.guard(source, expected);
   assert.equal(boundary.types[0] !== boundary.equivalentType && boundary.queries.types.isIdentical(boundary.types[0], boundary.equivalentType), true,
     "the two real checked types are distinct objects with proved checker equivalence; no Source query is substituted");
-  assert.equal(boundary.compatible, true, "the Native guard admits the valid empty source and optional destination");
+  assert.equal(boundary.compatible, false, "independent checker equivalence cannot publish another destination's Native allocation or origins");
   const literal = value.node(source, expected);
   const selected = value.freeze();
   assert.equal(selected.issues.length, 0);
@@ -635,9 +635,9 @@ test("declared empty construction retains required, callable, indexed, nominal a
     const value = fixture();
     const expected = value.row([{ identity: "user", optional: !control.required }], native, { provider: true });
     const source = value.row([], structural, control);
-    if (control.required || control.calls !== undefined || control.indexes !== undefined) {
+    if (control.required || control.calls !== undefined || control.indexes !== undefined || control.shape !== undefined) {
       const selected = value.guard(source, expected);
-      assert.equal(selected.compatible, false, `Native empty guard unit boundary ${index}: required, callable and indexed safety`);
+      assert.equal(selected.compatible, false, `Native empty guard unit boundary ${index}: required, callable, indexed and existing-value safety`);
     } else {
       const literal = value.node(source, expected);
       if (control.selected !== undefined) value.existing.set(literal, control.selected);
@@ -669,12 +669,9 @@ test("an existing exact native parameter needs no new literal allocation record"
 test("native opaque reference fields keep strings without numeric or tuple heap boxing", () => {
   for (const [sourceCarrier, accepted] of [[csharpStringTargetType(), true], [integer, false],
     [floating, false], [boolean, false], [{ kind: "tuple", elements: [integer] }, false]]) {
-    const value = fixture();
-    const expected = value.row([{ identity: "user", carrier: csharpTsValueTargetType() }], native, { provider: true });
-    const literal = value.node(value.row([{ identity: "user", carrier: sourceCarrier }]), expected);
-    const selected = value.freeze();
-    assert.equal(selected.issues.length === 0, accepted, "native reference payload retains its allocation");
-    assert.equal(selected.constructionFor(literal) !== undefined, accepted, "no numeric boxing or partial publication");
+    const selected = csharpObjectShapeMemberRetainsNativeReference(sourceCarrier, csharpTsValueTargetType());
+    assert.equal(selected, accepted, "native reference payload retains its allocation");
+    assert.equal(selected, accepted, "no numeric boxing or partial publication");
   }
 });
 
@@ -682,7 +679,8 @@ test("native storage publication still requires exact source-member corresponden
   const value = fixture();
   const expected = value.row([{ identity: "user" }], native, { provider: true });
   const literal = value.node(value.row([{ identity: "user" }]), expected);
-  value.host.retainSourceShape = () => undefined;
+  value.host.resolveLiteralShape = (_shape, occurrence) => ({ kind: "rejected", subject: occurrence,
+    reason: "Native construction has no exact source-member correspondence for its declared storage." });
   const selected = value.freeze();
   assert.equal(selected.issues.some(issue => /source-member correspondence/u.test(issue.message)), true);
   assert.equal(selected.constructionFor(literal) === undefined, true);

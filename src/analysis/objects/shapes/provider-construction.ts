@@ -1,7 +1,7 @@
 import { providerVirtualDeclarationFactKey, sourcePrimitiveFactKey } from "@tsonic/tsts";
 import type { Node, Type, TypePropertyInfo } from "@tsonic/tsts";
 import type { SourceFileSemantics, SourceTypeDescriptor, SourceTypeDescriptorMember } from "@tsonic/target-api/source";
-import { sourcePropertyTypeEvidenceNodes, sourceTypeDescriptorMemberOriginsEqual, sourceTypeDescriptorStructure } from "@tsonic/target-api/source";
+import { AsSpreadAssignment, sourcePropertyTypeEvidenceNodes, sourceTypeDescriptorMemberOriginsEqual, sourceTypeDescriptorStructure } from "@tsonic/target-api/source";
 import type { CsharpProviderTargetRelation } from "../../../target-model/identities/provider-relations.js";
 import { canonicalProviderValue } from "../../../target-model/metadata/canonical-value.js";
 import { csharpTargetTypeFromBinding } from "../../../policy/types/storage/bindings.js";
@@ -54,8 +54,9 @@ export function resolveProviderObjectLiteralShape(
     return undefined;
   }
   const structure = sourceTypeDescriptorStructure(input.descriptor);
-  if (structure.kind !== "shape" || structure.indexes.length !== 0 || structure.calls.length !== 0 ||
+  if (structure.kind !== "shape" || structure.calls.length !== 0 ||
     structure.constructs.length !== 0) return undefined;
+  if (csharpProviderObjectLiteralIndexerFailure(input.descriptor, input.occurrence, input.host) !== undefined) return undefined;
   const typeRelation = resolveProviderTypeRelation(input);
   if (typeRelation === undefined) {
     return undefined;
@@ -102,6 +103,32 @@ export function resolveProviderObjectLiteralShape(
     members: members as readonly CsharpObjectShapeMemberFact[],
     constructible: true,
   };
+}
+
+export function csharpProviderObjectLiteralIndexerFailure(
+  descriptor: SourceTypeDescriptor,
+  occurrence: Node,
+  host: Pick<CsharpTypePolicyBaseHost, "ast" | "effectiveTypes">,
+): string | undefined {
+  const structure = sourceTypeDescriptorStructure(descriptor);
+  if (structure.kind !== "shape" || structure.indexes.length === 0 || !host.ast.is.IsObjectLiteralExpression(occurrence)) return undefined;
+  const outcome = host.effectiveTypes.get(occurrence);
+  const correspondence = outcome === undefined || outcome.kind === "refused" ? [] : outcome.memberCorrespondence ?? [];
+  const named = new Set(correspondence.filter(entry => structure.members.some(member =>
+    sourceTypeDescriptorMemberOriginsEqual(member.origin, entry.origin))).map(entry => entry.property));
+  const noIndexEntries = host.ast.properties(occurrence).every(property => {
+    if (property === undefined) return false;
+    if (named.has(property)) return true;
+    if (!host.ast.is.IsSpreadAssignment(property)) return false;
+    const expression = AsSpreadAssignment(host.ast, property)?.Expression;
+    const spread = expression === undefined ? undefined : host.effectiveTypes.get(expression);
+    if (spread === undefined || spread.kind === "refused") return false;
+    let selected = sourceTypeDescriptorStructure(spread.construction ?? spread.type);
+    while (selected.kind === "optional") selected = sourceTypeDescriptorStructure(selected.value);
+    return selected.kind === "shape" && selected.members.length === 0 && selected.indexes.length === 0 &&
+      selected.calls.length === 0 && selected.constructs.length === 0;
+  });
+  return noIndexEntries ? undefined : "Object-literal index entries require an exact selected C# provider indexer relation.";
 }
 
 function resolveProviderTypeRelation(
