@@ -16,7 +16,7 @@ import { csharpRuntimeUnionTargetType } from "../../../../dist/target-model/type
 import { csharpSourceTypeParameter } from "../../../../dist/source/extension/type-parameters.js";
 import { csharpProjectedType } from "../../../../dist/target-model/types/projections.js";
 import { targetTypeRefEquals } from "../../../../dist/target-model/types/equality.js";
-import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../../helpers/direct-csharp-session.mjs";
+import { assertCsharpCompilationSucceeded, compileCsharpSource, withCsharpSessionRequest } from "../../../helpers/direct-csharp-session.mjs";
 import { csharpProgramSourceFiles } from "../../../helpers/program-source-files.mjs";
 
 const unexpected = () => assert.fail("a published instantiation never reopens checker types or a competing member inventory");
@@ -475,7 +475,7 @@ export function apply(callback: Transform<int64>, value: int64): int64 { return 
   });
 
   test(`published ${surface} local generic classes retain outer and local binder widths independently`, () => {
-    const compiled = compileCsharpSource({ surface, sourceText: `
+    const { compiled, value: publication } = withCsharpSessionRequest({ surface, sourceText: `
 import type { int32, int64 } from "@tsonic/core/types.js";
 function wrap<Outer>(first: Outer) {
   class Local<Inner> {
@@ -486,7 +486,63 @@ function wrap<Outer>(first: Outer) {
   return new Local<int64>(first, 3n);
 }
 export function run(first: int32): int64 { return wrap(first).value; }
-` });
+` }, request => {
+      const source = request.input.source;
+      const ast = source.ast;
+      const nodes = [];
+      const visit = node => { nodes.push(node); ast.forEachChild(node, child => { if (child !== undefined) visit(child); }); };
+      source.sourceFiles.forEach(file => { if (!ast.isDeclarationFile(file)) visit(file); });
+      const wrap = nodes.find(node => ast.is.IsFunctionDeclaration(node) && ast.text(ast.name(node)) === "wrap");
+      const local = nodes.find(node => ast.is.IsClassDeclaration(node) && ast.text(ast.name(node)) === "Local");
+      const outer = wrap === undefined ? undefined : ast.typeParameters(wrap)[0];
+      const inner = local === undefined ? undefined : ast.typeParameters(local)[0];
+      const member = nodes.find(node => ast.is.IsPropertyDeclaration(node) && ast.parent(node) === local &&
+        ast.text(ast.name(node)) === "value");
+      const literal = nodes.find(node => ast.is.IsBigIntLiteral(node));
+      const construction = nodes.find(node => ast.is.IsNewExpression(node));
+      const call = nodes.find(node => ast.is.IsCallExpression(node) && ast.text(ast.as.AsCallExpression(node).Expression) === "wrap");
+      const read = nodes.find(node => ast.is.IsPropertyAccessExpression(node) && ast.as.AsPropertyAccessExpression(node).Expression === call);
+      const identity = node => node === undefined ? null : node === local ? "Local" : node === outer ? "Outer"
+        : node === inner ? "Inner" : node === member ? "Local.value" : "other";
+      const width = type => {
+        if (type === undefined) return null;
+        const structure = sourceTypeDescriptorStructure(type);
+        return structure.kind === "primitive" ? structure.primitive : structure.kind === "intrinsic" ? structure.intrinsic
+          : structure.kind === "declared" ? `declared:${identity(structure.declaration)}` : structure.kind;
+      };
+      const descriptor = type => {
+        if (type === undefined) return null;
+        const structure = sourceTypeDescriptorStructure(type);
+        const value = structure.kind === "shape" ? structure.members.find(candidate => candidate.origin.kind === "declared" &&
+          candidate.origin.declaration === member) : undefined;
+        return { kind: type.kind, width: width(type), declaration: type.kind === "declared" ? identity(type.declaration) : null,
+          argumentCount: type.kind === "declared" ? type.typeArguments.length : 0,
+          arguments: type.kind === "declared" ? type.typeArguments.slice(0, 2).map(width) : [],
+          valueWidth: width(value?.type), valueOriginSame: value !== undefined && value.origin.kind === "declared" && value.origin.declaration === member };
+      };
+      const outcome = node => node === undefined ? undefined : source.effectiveTypes.get(node);
+      const summarize = (node, selected) => selected === undefined ? null : selected.kind === "refused"
+        ? { kind: selected.kind, code: selected.code } : { kind: selected.kind, occurrenceSame: selected.provenance.occurrence === node,
+          type: descriptor(selected.type), construction: descriptor(selected.construction) };
+      const constructed = outcome(construction);
+      const returned = wrap === undefined ? undefined : source.effectiveTypes.callableReturn(wrap);
+      const called = outcome(call);
+      const instantiation = call === undefined ? undefined : source.effectiveTypes.callInstantiation(call);
+      return { found: [literal, construction, wrap, call, read, outer, inner, member].map(node => node !== undefined),
+        literal: summarize(literal, outcome(literal)), construction: summarize(construction, constructed),
+        callableReturn: summarize(wrap, returned), call: summarize(call, called), read: summarize(read, outcome(read)),
+        instantiation: instantiation === undefined ? null : { callSame: instantiation.call.call === call,
+          result: descriptor(instantiation.result), methodCount: instantiation.method.length,
+          method: instantiation.method.slice(0, 2).map(argument => ({ declaration: identity(argument.declaration), type: descriptor(argument.type) })) },
+        bodyResultSame: returned !== undefined && returned.kind !== "refused" && constructed !== undefined &&
+          constructed.kind !== "refused" && returned.type === constructed.type,
+        callResultSame: called !== undefined && called.kind !== "refused" && called.type === instantiation?.result };
+    });
+    console.log(`C2337.localgeneric ${JSON.stringify({ surface, publication, diagnosticCount: compiled.targetDiagnostics.length,
+      diagnostics: compiled.targetDiagnostics.slice(0, 4).map(diagnostic => ({ code: diagnostic.code,
+        span: diagnostic.sourceSpan === undefined ? null : { fileName: diagnostic.sourceSpan.fileName,
+          line: diagnostic.sourceSpan.line, column: diagnostic.sourceSpan.column,
+          endLine: diagnostic.sourceSpan.endLine, endColumn: diagnostic.sourceSpan.endColumn } })) })}`);
     assertCsharpCompilationSucceeded(compiled);
     const program = compiled.result.program;
     const ast = program.source.ast;
