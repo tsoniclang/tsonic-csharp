@@ -209,7 +209,7 @@ test(`${surface} optional method signature participation needs no runtime shape 
   assert.equal(selected.kind, "resolved");
   const methods = value.nodes.filter(node => value.ast.is.IsMethodSignatureDeclaration(node));
   assert.equal(methods.length, 2);
-  for (const method of methods) assert.equal(selected.value.get(method), value.ast.questionToken(method) === undefined ? "signature" : "erased",
+  for (const method of methods) assert.equal(selected.value.participation.get(method), value.ast.questionToken(method) === undefined ? "signature" : "erased",
     "the actual callable declaration syntax owns its native artifact participation");
 });
 
