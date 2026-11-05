@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createCompilerSessionFromFiles } from "@tsonic/tsts";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
-import { createSourceStorageQuery } from "@tsonic/target-api/analysis";
 import { selectCsharpNativeFlowMembers } from "../../../../dist/analysis/source-evidence/types/resolution/native-flow-refinement.js";
 import { csharpJsArrayTargetType, csharpJsDateTargetType, csharpJsRegExpTargetType } from "../../../../dist/target-model/types/carriers/js.js";
 import { csharpStringTargetType, csharpObjectTargetType, csharpSourcePrimitiveTargetType } from "../../../../dist/target-model/types/carriers/scalar-types.js";
@@ -13,7 +12,8 @@ import { resolveSelectedValueWithState, resolveSelectedValueResultWithState } fr
 import { csharpSourceValueResult } from "../../../../dist/analysis/source-evidence/types/resolution/call-results.js";
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../../dist/target-model/types/carriers/nullable.js";
 import { targetTypeRefEquals } from "../../../../dist/target-model/types/equality.js";
-import { createCsharpSourceUnionIndex } from "../../../../dist/analysis/source-evidence/types/resolution/source-unions.js";
+import { combineCsharpTargetUnionMembers } from "../../../../dist/target-model/types/carriers/runtime-carriers.js";
+import { retainCsharpUnionObjectShapes } from "../../../../dist/analysis/source-evidence/types/resolution/source-union-refinement.js";
 
 test("native nominal guard selection completes partial typeof evidence through the exact constructor owner", () => {
   const checked = createCompilerSessionFromFiles({ currentDirectory: "/src", files: { "/src/index.ts": `
@@ -117,7 +117,9 @@ test("selected native values materialize all surviving exact union arms and reta
   const source = createTargetSourceProgram(checked);
   const file = checked.getSourceFile("/src/index.ts");
   const reads = [];
+  const nominalDeclarations = new Map();
   const visit = node => {
+    if (source.ast.is.IsClassDeclaration(node)) nominalDeclarations.set(source.ast.text(source.ast.name(node)), node);
     const call = source.semantics.forNode(node).operations.call(node);
     if (source.ast.text(call?.sourceCallee.expression) === "observe") reads.push(call.sourceArguments[0].expression);
     source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
@@ -131,43 +133,30 @@ test("selected native values materialize all surviving exact union arms and reta
   const shape = { targetType: packet, members: [] };
   const storage = csharpNullableTargetType(csharpRuntimeUnionTargetType([string, integer, bytes, packet]));
   const declaration = source.navigation.referenceFor(reads[0]).declaration;
-  const queries = source.semantics.forFile(file);
-  const sourceUnions = createCsharpSourceUnionIndex();
-  const declared = queries.declarations.declaredValueType(declaration);
-  const nominal = new Map([["Bytes", bytes], ["Packet", packet]]);
-  const members = queries.types.unionOrIntersectionTypes(declared).filter(type => !queries.types.isNullish(type))
-    .map(type => {
-      const symbol = queries.declarations.typeSymbol(type);
-      const carrier = queries.types.isStringLike(type) ? string : queries.types.isNumberLike(type) ? integer
-        : symbol === undefined ? undefined : nominal.get(queries.declarations.symbolName(symbol));
-      assert.equal(carrier !== undefined, true, "each checked union member has its exact fixture carrier");
-      return { source: type, carrier };
-    });
-  sourceUnions.retain(storage, members, queries, { depth: 0 });
-  const scope = {
-    sourceUnions,
-    host: {
+  const nativeCarriers = new Map([[nominalDeclarations.get("Bytes"), bytes], [nominalDeclarations.get("Packet"), packet]]);
+  assert.equal([...nativeCarriers.keys()].every(declaration => declaration !== undefined), true,
+    "the Native guard unit boundary maps real checked class declarations, not source primitive facts");
+  const host = {
       ast: source.ast, navigation: source.navigation, sourceFacts: source.sourceFacts,
       effectiveTypes: source.effectiveTypes,
-      semantics: selectedFile => source.semantics.forFile(selectedFile),
       semanticsFor: node => source.semantics.forNode(node),
-      representations: { genericProjections: () => [], scopedTargetType: node => node === declaration ? storage : undefined },
-      structuralTypes: { resolveTarget: carrier => targetTypeRefEquals(carrier, packet) ? shape : undefined },
-      sourceStorage: createSourceStorageQuery(source, [file]),
       closedTypeGuard: () => undefined,
-    },
-    sourceValueDeclaration: (_node, referenced) => referenced,
-    resolveSelectedValueResultWithState: (...args) => resolveSelectedValueResultWithState(scope, ...args),
-    resolveSourceValueResult(node) {
+      resolveNodeWithState: () => { assert.fail("a proven native subset must not reconstruct its checker carrier"); },
+  };
+  const selected = reads.map(node => {
       assert.equal(source.navigation.referenceFor(node)?.declaration === declaration, true,
         "the completed native result belongs to this checked parameter read");
-      return csharpSourceValueResult(storage);
-    },
-    resolveTypeWithState: () => bytes,
-    resolveNodeWithState: () => { assert.fail("a proven native subset must not reconstruct its checker carrier"); },
-  };
-  const selected = reads.map(node => resolveSelectedValueWithState(scope, node,
-    source.semantics.forNode(node).types.expressionType(node), file, { depth: 0 }));
+      const published = source.effectiveTypes.get(node);
+      assert.equal(published?.kind !== "refused" && published?.provenance.occurrence === node, true,
+        "this Native guard unit boundary retains the matching real Source occurrence, not an invented Source carrier");
+      const members = selectCsharpNativeFlowMembers(host, node, storage, guard => {
+        assert.equal(source.navigation.sourceReferenceFor(guard.sourceConstructor)?.declaration === guard.declaration, true,
+          "the Native nominal guard retains its actual selected constructor declaration");
+        return nativeCarriers.get(guard.declaration);
+      });
+      const carrier = members === undefined ? storage : combineCsharpTargetUnionMembers(members);
+      return retainCsharpUnionObjectShapes(carrier, selected => targetTypeRefEquals(selected, packet) ? shape : undefined);
+  });
   const arms = getCsharpRuntimeUnionArms(selected[0]);
   assert.equal(arms?.length, 3);
   for (const carrier of [string, integer, packet]) {
@@ -205,41 +194,29 @@ function guardedArraySelection(body) {
   const array = csharpJsArrayTargetType(string);
   const storage = csharpNullableTargetType(csharpRuntimeUnionTargetType([string, array, integer]));
   const declaration = source.navigation.referenceFor(reads[0]).declaration;
-  const queries = source.semantics.forFile(file);
-  const declaredType = queries.declarations.declaredValueType(declaration);
-  const sourceUnions = createCsharpSourceUnionIndex();
-  sourceUnions.retain(storage, queries.types.unionOrIntersectionTypes(declaredType)
-    .filter(type => !queries.types.isNullish(type)).map(type => ({ source: type,
-      carrier: queries.types.isStringLike(type) ? string : queries.types.isBigIntLike(type) ? integer : array })), queries, { depth: 0 });
-  const scope = {
-    sourceUnions,
-    host: {
+  const host = {
       ast: source.ast, navigation: source.navigation, sourceFacts: source.sourceFacts,
       effectiveTypes: source.effectiveTypes,
-      semantics: selectedFile => source.semantics.forFile(selectedFile),
       semanticsFor: node => source.semantics.forNode(node),
-      representations: { genericProjections: () => [], scopedTargetType: node => node === declaration ? storage : undefined },
-      structuralTypes: { resolveTarget: () => undefined },
-      sourceStorage: createSourceStorageQuery(source, [file]),
       closedTypeGuard(node) {
         const semantics = source.semantics.forNode(node);
         const call = semantics.operations.call(node);
         return call === undefined || semantics.declarations.signatureDeclaration(call.selectedSignature) !== guardDeclaration
           ? undefined : { sourceOperand: call.sourceArguments[0].expression, predicate: { kind: "array" } };
       },
-    },
-    sourceValueDeclaration: (_node, referenced) => referenced,
-    resolveSelectedValueResultWithState: (...args) => resolveSelectedValueResultWithState(scope, ...args),
-    resolveSourceValueResult(node) {
-      assert.equal(source.navigation.referenceFor(node)?.declaration === declaration, true,
-        "the completed native result belongs to this checked parameter read");
-      return csharpSourceValueResult(storage);
-    },
     resolveNodeWithState: () => { assert.fail("scoped native storage must not reconstruct a checker carrier"); },
     resolveTypeWithState: () => { assert.fail("retained exact native source members must not be reclassified"); },
   };
-  const selected = reads.map(node => resolveSelectedValueWithState(scope, node,
-    source.semantics.forNode(node).types.expressionType(node), file, { depth: 0 }));
+  const selected = reads.map(node => {
+      assert.equal(source.navigation.referenceFor(node)?.declaration === declaration, true,
+        "the completed native result belongs to this checked parameter read");
+      const published = source.effectiveTypes.get(node);
+      assert.equal(published?.kind !== "refused" && published?.provenance.occurrence === node, true,
+        "a Native guard unit boundary uses the real occurrence publication without relabelling its primitive type");
+      const members = selectCsharpNativeFlowMembers(host, node, storage,
+        () => assert.fail("these exact array/typeof guards have no nominal constructor query"));
+      return members === undefined ? storage : combineCsharpTargetUnionMembers(members);
+  });
   return { selected, string, integer, array, storage };
 }
 
@@ -294,25 +271,26 @@ test("exact nominal subclass evidence remains authoritative inside a native guar
   const storage = csharpNullableTargetType(csharpRuntimeUnionTargetType([base, csharpStringTargetType()]));
   const declaration = source.navigation.referenceFor(read).declaration;
   const scope = {
-    host: {
-      ast: source.ast, navigation: source.navigation, sourceFacts: source.sourceFacts,
-      semantics: selectedFile => source.semantics.forFile(selectedFile),
-      semanticsFor: node => source.semantics.forNode(node),
-      representations: { genericProjections: () => [], scopedTargetType: node => node === declaration ? storage : undefined },
-      projectTypeCatalog: { definitionForTarget: carrier => targetTypeRefEquals(carrier, child) ? { kind: "class" } : undefined },
-      effectiveTypes: source.effectiveTypes,
-      structuralTypes: { resolveTarget: () => undefined },
-      sourceStorage: createSourceStorageQuery(source, [file]),
-      closedTypeGuard: () => undefined,
-    },
-    sourceValueDeclaration: (_node, referenced) => referenced,
     resolveSelectedValueResultWithState: (...args) => resolveSelectedValueResultWithState(scope, ...args),
-    resolveSourceValueResult(node) {
+    resolveNodeValueWithState(node, sourceFile, state) {
       assert.equal(source.navigation.referenceFor(node)?.declaration === declaration, true,
         "the completed native result belongs to this checked parameter read");
-      return csharpSourceValueResult(storage);
+      assert.equal(node === read && sourceFile === file && state.depth === 0, true,
+        "the canonical occurrence reader retains the checked read, file and bounded state");
+      const published = source.effectiveTypes.get(node);
+      const selected = published?.kind === "refused" ? undefined : published?.type;
+      assert.equal(published?.kind !== "refused" && published?.provenance.occurrence === node, true,
+        "nominal narrowing consumes this read's real Host publication");
+      const declarations = [];
+      const collect = selected => {
+        if (source.ast.is.IsClassDeclaration(selected) && source.ast.text(source.ast.name(selected)) === "Child") declarations.push(selected);
+        source.ast.forEachChild(selected, nested => { if (nested !== undefined) collect(nested); });
+      };
+      collect(file);
+      assert.equal(declarations.length, 1, "the real Child declaration is unique in this checked Source program");
+      return csharpSourceValueResult(selected?.kind === "declared" && selected.declaration === declarations[0] ? child : undefined);
     },
-    resolveTypeWithState: () => child,
+    resolveTypeWithState: () => { assert.fail("nominal refinement must not retry a raw checked Type"); },
     resolveNodeWithState: () => { assert.fail("nominal refinement must retain its exact scoped native storage"); },
   };
   const selected = resolveSelectedValueWithState(scope, read,
