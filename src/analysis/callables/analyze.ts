@@ -39,6 +39,7 @@ export function analyzeCsharpCallableContracts(
   const byDeclaration = new Map<Node, SourceCallableSourceContract>();
   const byProjectConstructor = new Map<string, SourceCallableContract>();
   const contracts: SourceCallableContract[] = [];
+  const creationPaths = new Map<SourceCallableContract, string>();
   const declarationContracts: SourceCallableSourceContract[] = [];
   const checkedDeclarations: { readonly declaration: Node; readonly sourceFile: SourceFile }[] = [];
   for (const sourceFile of policy.sourceFiles) {
@@ -50,12 +51,16 @@ export function analyzeCsharpCallableContracts(
     providers: conversions.providers, target: conversions.target, objectShapes: conversions.objectShapes,
   }, declarationContracts)];
   for (const [index, contract] of nativeDeclarations.entries()) {
+    const original = declarationContracts[index]!;
+    if (contract !== original) creationPaths.set(contract,
+      `${creationPaths.get(original)} -> closeCsharpProjectCallableContracts.resolve`);
     byDeclaration.set(contract.sourceDeclaration, contract);
     contracts[index] = contract;
   }
   for (const { declaration, sourceFile } of checkedDeclarations) {
     const contract = selectCsharpSourceCallableAbi(policy, evidence, declarations, names, declaration, sourceFile, projections, operations, conversions, issues);
     if (contract !== undefined) {
+      creationPaths.set(contract, "analyzeCsharpCallableContracts.checkedDeclarations -> selectCsharpSourceCallableAbi");
       byDeclaration.set(declaration, contract);
       contracts.push(contract);
     }
@@ -69,6 +74,7 @@ export function analyzeCsharpCallableContracts(
     ) {
       const contract = selectCsharpProjectConstructorAbi(constructor);
       if (contract !== undefined) {
+        creationPaths.set(contract, "analyzeCsharpCallableContracts -> selectCsharpProjectConstructorAbi");
         byProjectConstructor.set(constructor.targetMember.id, contract);
         contracts.push(contract);
       }
@@ -135,6 +141,8 @@ export function analyzeCsharpCallableContracts(
           nativeContract = completed;
         }
         if (consistent && carrier !== undefined) {
+          if (nativeContract !== contract) creationPaths.set(nativeContract,
+            `${creationPaths.get(contract)} -> analyzeCsharpCallableContracts.nativeConsumerContract`);
           byDeclaration.set(declaration, nativeContract);
           for (const [index, original] of contracts.entries()) {
             if (original === contract) contracts[index] = nativeContract;
@@ -156,7 +164,7 @@ export function analyzeCsharpCallableContracts(
   }
   return resolvedTargetStage(sealCsharpCallableContractIndex({
     contracts, declarationContracts: nativeDeclarations, byDeclaration,
-    byProjectConstructor, closedInputs }));
+    byProjectConstructor, closedInputs, creationPaths }));
 
   function nativeConsumerContract(contract: SourceCallableSourceContract, nativeType: TargetTypeRef,
     candidate: TargetTypeRef): SourceCallableSourceContract | undefined {
@@ -256,6 +264,7 @@ export function analyzeCsharpCallableContracts(
       );
       const contract = selected;
       if (contract !== undefined) {
+        creationPaths.set(contract, "analyzeCsharpCallableContracts.visit -> selectCsharpSourceCallableAbi");
         byDeclaration.set(node, contract);
         contracts.push(contract);
         declarationContracts.push(contract);

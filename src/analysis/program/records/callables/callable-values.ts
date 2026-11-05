@@ -7,6 +7,7 @@ export function sealCsharpCallableContractIndex(input: CsharpCallableContractPub
   const byDeclaration = new WeakMap(input.byDeclaration);
   const byProjectConstructor = new Map(input.byProjectConstructor);
   const closedInputs = new WeakMap(input.closedInputs);
+  const creationPaths = new WeakMap(input.creationPaths);
   function get(identity: Extract<CsharpSourceCallableArtifactIdentity, { readonly kind: "declaration" }>): SourceCallableSourceContract | undefined;
   function get(identity: CsharpSourceCallableArtifactIdentity): SourceCallableContract | undefined;
   function get(identity: CsharpSourceCallableArtifactIdentity): SourceCallableContract | undefined {
@@ -18,6 +19,7 @@ export function sealCsharpCallableContractIndex(input: CsharpCallableContractPub
     closedInputs: Object.freeze([...input.closedInputs].map(([declaration, input]) => Object.freeze({ declaration, input }))),
     closedInputType: (declaration: Node) => closedInputs.get(declaration)?.type,
     closedInputContract: (declaration: Node) => closedInputs.get(declaration)?.source,
+    creationPath: (contract: SourceCallableContract) => creationPaths.get(contract),
     get,
   });
 }

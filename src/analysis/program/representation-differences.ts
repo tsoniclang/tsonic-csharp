@@ -1,13 +1,49 @@
-import type { Node } from "@tsonic/tsts";
+import type { AstReader, Node } from "@tsonic/tsts";
 import type { CsharpRepresentationContract } from "./iteration.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { targetTypeRefKey } from "../../target-model/types/equality.js";
+import { csharpCallableValueType } from "../../policy/types/callables/value-type.js";
 
 export function csharpRepresentationDifference(
   previous: CsharpRepresentationContract,
   repeated: CsharpRepresentationContract,
   identity: (node: Node | undefined) => string | undefined,
+  ast: AstReader,
 ): readonly string[] {
+  const bounded = (value: string | undefined): string => value === undefined ? "absent"
+    : value.length <= 4096 ? value : `${value.slice(0, 4096)} [${value.length} characters]`;
+  if (previous.callables.contracts.length !== repeated.callables.contracts.length) {
+    for (const [revision, contract, other] of [
+      ["previous", previous, repeated], ["repeated", repeated, previous],
+    ] as const) {
+      const unmatched = [...other.callables.contracts];
+      for (const entry of contract.callables.contracts) {
+        const match = unmatched.findIndex(candidate => entry.kind === candidate.kind &&
+          entry.sourceDeclaration === candidate.sourceDeclaration &&
+          (entry.sourceDeclaration !== undefined || entry.nativeSignature.receiverTypeOwner === candidate.nativeSignature.receiverTypeOwner));
+        if (match !== -1) { unmatched.splice(match, 1); continue; }
+        const node = entry.sourceDeclaration;
+        const file = node === undefined ? undefined : ast.getSourceFile(node);
+        const range = node === undefined ? undefined : ast.authoredRange(node);
+        const text = file === undefined || range === undefined || range.kind !== "authored" ? "unavailable"
+          : ast.getSourceText(file).slice(range.start, Math.min(range.end, range.start + 512));
+        const target = csharpCallableValueType(entry);
+        const creationPath = contract.callables.creationPath(entry);
+        return Object.freeze([
+          "native.representation.component=callables",
+          "native.representation.key=callables.contracts.length",
+          `native.representation.previous=${previous.callables.contracts.length}`,
+          `native.representation.repeated=${repeated.callables.contracts.length}`,
+          `native.representation.contract.revision=${revision}`,
+          `native.representation.contract.source=${JSON.stringify({ identity: identity(node),
+            kind: node === undefined ? "unavailable" : ast.kindName(node),
+            position: node === undefined ? undefined : ast.pos(node), text })}`,
+          `native.representation.contract.target=${target === undefined ? "unavailable-generic-callable" : bounded(targetTypeRefKey(target))}`,
+          `native.representation.contract.createdBy=${creationPath === undefined ? "unrecorded" : creationPath}`,
+        ]);
+      }
+    }
+  }
   const snapshot = (contract: CsharpRepresentationContract): ReadonlyMap<string, string> => {
     const facts = new Map<string, string>();
     const type = (value: TargetTypeRef | undefined): string => value === undefined ? "absent" : targetTypeRefKey(value);
@@ -60,8 +96,6 @@ export function csharpRepresentationDifference(
   };
   const before = snapshot(previous);
   const after = snapshot(repeated);
-  const bounded = (value: string | undefined): string => value === undefined ? "absent"
-    : value.length <= 4096 ? value : `${value.slice(0, 4096)} [${value.length} characters]`;
   for (const key of new Set([...before.keys(), ...after.keys()])) {
     if (before.get(key) !== after.get(key)) return Object.freeze([
       `native.representation.component=${key.split(".")[0]}`,

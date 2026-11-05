@@ -175,7 +175,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
   if (closure.kind === "rejected") {
     const failure = closure.failures[0]!;
     if (closure.failures.length === 1 && failure.cause !== undefined) return failure.cause;
-    const changes = transition === undefined ? [] : csharpRepresentationDifference(transition.previous, transition.repeated, sourceIdentities.node);
+    const changes = transition === undefined ? [] : csharpRepresentationDifference(transition.previous, transition.repeated, sourceIdentities.node, source.ast);
     return rejectedTargetStage(closure.failures.flatMap(failure => failure.cause?.diagnostics ?? [{
       code: "CSHARP_TARGET_CONTRACT_CLOSURE_REJECTED",
       category: "error" as const,
