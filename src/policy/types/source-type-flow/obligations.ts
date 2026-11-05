@@ -112,16 +112,16 @@ export function checkCsharpSourceTypeFlowObligation(
     if (actual === undefined) return fail("A native write check requires the exact projected value's Host-selected representation.");
     const literals = writtenLiteralValues(host.literalValues, obligation);
     for (const literal of literals) {
-      if (literal !== undefined && (!literalFits(literal, chosen) ||
+      if (literal !== undefined && (!writtenLiteralFits(literal, chosen) ||
         chosen.kind === "source-primitive" && actual.kind === "source-primitive" &&
         !csharpArrayElementIsRepresentableAs(chosen, { carrier: actual, literal }))) {
         return fail(`The written literal does not fit the existing '${targetTypeRefKey(chosen)}' storage.`);
       }
     }
-    if (literals.length > 0 && literals.every(literal => literal !== undefined)) return undefined;
+    if (literals.length > 0 && literals.every(literal => literal !== undefined && literal.form !== "array")) return undefined;
     const conversion = selectCsharpConversion(host, actual, chosen, "implicit");
     if (conversion.kind === "identity" || conversion.kind === "absence" || conversion.kind === "implicit" &&
-      (conversion.proof === "numeric" || (conversion.proof === "reference" || conversion.proof === "collection-interface" ||
+      (conversion.proof === "numeric" || conversion.proof === "nullable" || (conversion.proof === "reference" || conversion.proof === "collection-interface" ||
         conversion.proof === "object-shape-interface") && csharpSourceTypeFlowInterfaceAccepts(host, actual, chosen))) return undefined;
     return fail(conversion.kind === "rejected" ? conversion.reason
       : `The write requires a native conversion from '${targetTypeRefKey(actual)}' to '${targetTypeRefKey(chosen)}' without changing the binding's type.`);
@@ -159,4 +159,13 @@ function literalFits(value: SourceLiteralValue | undefined, carrier: TargetTypeR
       type.elements.every((element, index) => literalFits(value.elements[index], element));
   }
   return csharpLiteralIsRepresentableAs(value, type);
+}
+
+function writtenLiteralFits(value: SourceLiteralValue, carrier: TargetTypeRef): boolean {
+  if (value.form !== "array") return literalFits(value, carrier);
+  const type = getCsharpNullableElementTargetType(carrier) ?? carrier;
+  if (type.kind === "tuple") return value.elements.length === type.elements.length &&
+    value.elements.every((element, index) => element === undefined || writtenLiteralFits(element, type.elements[index]!));
+  const elementType = getCsharpCollectionElementTargetType(type);
+  return elementType !== undefined && value.elements.every(element => element === undefined || writtenLiteralFits(element, elementType));
 }

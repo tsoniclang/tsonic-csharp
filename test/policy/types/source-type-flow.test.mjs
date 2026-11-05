@@ -335,6 +335,61 @@ test("aggregate literal admission consumes the existing Native construction rece
     "Native admission's original subject and reason are forwarded unchanged");
 });
 
+for (const surface of ["native", "js"]) {
+  test(`partial ${surface} array write receipts range-check only constant leaves without replacing aggregate admission`, () => {
+    const site = {};
+    const descriptor = Object.freeze({ kind: "array", readonly: false, element: primitive("float32") });
+    const carrier = representCsharpSourceType(representationHost(surface), descriptor);
+    const literal = Object.freeze({ form: "array", elements: Object.freeze([undefined, Object.freeze({ form: "numeric",
+      integer: 1n, number: 1, numeric: Object.freeze({ kind: "authored", token: Object.freeze({
+        coefficient: 1n, exponent: 0n, negative: false, decimalText: "1",
+      }) }),
+    })]) });
+    let admissions = 0;
+    const host = { ...representationHost(surface), literalValues: { literalValue: { get: node => node === site ? literal : undefined } },
+      valueType: unexpected, literalAdmission(node, selected) {
+        admissions += 1;
+        assert.equal(node === site && targetTypeRefEquals(selected, carrier), true, "the exact aggregate admission remains mandatory");
+        return { kind: "resolved", type: carrier };
+      } };
+    const issues = checkCsharpSourceTypeFlowObligations(host, [
+      { kind: "literal-admission", authority: "declared", site, required: site, type: descriptor },
+      { kind: "write-fit", site, required: site, value: site, valueType: descriptor, type: descriptor },
+    ]);
+    assert.equal(issues.length === 0 && admissions === 1, true,
+      "a nonconstant float32 element is checked by its published descriptor, not treated as a missing literal");
+    const overflow = Object.freeze({ form: "array", elements: Object.freeze([undefined, Object.freeze({ form: "numeric",
+      integer: 2147483648n, number: 2147483648, numeric: Object.freeze({ kind: "authored", token: Object.freeze({
+        coefficient: 2147483648n, exponent: 0n, negative: false, decimalText: "2147483648",
+      }) }),
+    })]) });
+    const integerArray = Object.freeze({ kind: "array", readonly: false, element: primitive("int32") });
+    const issue = checkCsharpSourceTypeFlowObligation({ ...host,
+      literalValues: { literalValue: { get: () => overflow } },
+    }, { kind: "write-fit", site, required: site, value: site, valueType: integerArray, type: integerArray });
+    assert.equal(issue?.code === "CSHARP_UNSUPPORTED_AST" && issue.sourceNode === site && issue.message.includes("written literal does not fit"), true,
+      "unknown siblings never waive the exact range of a retained constant leaf");
+  });
+}
+
+test("native write-fit admits the existing nullable lift without narrowing optional values", () => {
+  const site = {};
+  const host = { ...representationHost("native"), literalValues: { literalValue: { get: () => undefined } },
+    valueType: unexpected, providers: { findTargetBindingByTargetId: () => undefined, findTargetBindingByMetadataName: () => undefined },
+    projectTypes: { directSupertypes: () => [] } };
+  for (const name of ["float32", "float64", "int32", "int64"]) {
+    const type = primitive(name);
+    const optional = Object.freeze({ kind: "optional", value: type });
+    const issue = checkCsharpSourceTypeFlowObligation(host, { kind: "write-fit", site, required: site, value: site,
+      valueType: type, type: optional });
+    assert.equal(issue === undefined, true, `${name}: the Native implicit nullable conversion is not a Source width choice`);
+    const unwrapping = checkCsharpSourceTypeFlowObligation(host, { kind: "write-fit", site, required: site, value: site,
+      valueType: optional, type });
+    assert.equal(unwrapping?.code === "CSHARP_UNSUPPORTED_AST" && unwrapping.sourceNode === site, true,
+      `${name}: an optional source still cannot implicitly lose absence`);
+  }
+});
+
 test("constraint obligations retain the Native owner's lowered bounds source file and association", () => {
   const site = {};
   const required = {};
