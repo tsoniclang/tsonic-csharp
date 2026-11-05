@@ -10,9 +10,10 @@ import {
   sourcePrimitiveBinaryOperators, sourcePrimitiveOperatorKinds, sourcePrimitiveUnaryOperators,
 } from "../../../../tsonic/packages/target-api/dist/source-semantics/local-type-flow/operator-decisions.js";
 import {
-  csharpBigIntegerTargetType, csharpJsArrayTargetType, csharpNullableTargetType,
+  csharpBigIntegerTargetType, csharpNullableTargetType,
   csharpSourcePrimitiveTargetType, csharpStringTargetType, targetTypeRefEquals,
 } from "../../../dist/target-model/types/index.js";
+import { csharpJsArrayTargetType } from "../../../dist/target-model/types/carriers/js.js";
 import {
   acceptedEffectiveSource, assertPrimitiveOccurrences, compileEffectiveSource, projectNodes,
 } from "../../helpers/source-effective-types.mjs";
