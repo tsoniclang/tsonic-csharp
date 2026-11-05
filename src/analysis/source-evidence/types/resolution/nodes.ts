@@ -41,7 +41,7 @@ function resolveNodeResultWithState(
   sourceFile: SourceFile | undefined,
   state: CsharpTypeResolutionState,
 ): CsharpSourceCallResult | undefined {
-  const { host, resolveCallableType, resolveDirectSourceFacts, resolveNodeWithState, resolveProjectThisTargetType, resolveSelectedExpressionResult, resolveSourceValueResult, resolveTupleTypeNode, resolveTypeReferenceNode, resolveTypeWithState } = scope;
+  const { host, resolveCallableType, resolveDirectSourceFacts, resolveNodeWithState, resolveProjectThisTargetType, resolveSelectedExpressionResult, resolveTupleTypeNode, resolveTypeReferenceNode, resolveTypeWithState } = scope;
   if (node === undefined) return undefined;
   const effective = resolveCsharpSourceEffectiveType(scope, node, state);
   if (effective !== undefined) {
@@ -209,14 +209,6 @@ function resolveNodeResultWithState(
   const projectThis = resolveProjectThisTargetType(node);
   if (projectThis !== undefined) {
     return csharpSourceValueResult(projectThis);
-  }
-  const selectedType = host.ast.is.IsIdentifier(node) ? queries.types.expressionType(node) : undefined;
-  const declaration = selectedType === undefined ? undefined : host.navigation.referenceFor(node)?.declaration;
-  const declaredValue = selectedType !== undefined && scope.sourceValueDeclaration(node, declaration) !== undefined
-    ? scope.resolveSelectedValueResultWithState(node, selectedType, queries.sourceFile, state)
-    : resolveSourceValueResult(node, queries, state);
-  if (declaredValue !== undefined) {
-    return declaredValue;
   }
   return csharpSourceValueResult(resolveFallbackNodeCarrier(scope, node, queries, state));
 }

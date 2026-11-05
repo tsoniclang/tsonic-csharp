@@ -14,11 +14,96 @@ import { csharpJsArrayTargetType } from "../../../dist/target-model/types/carrie
 import { createCompilerSessionFromFiles } from "@tsonic/tsts";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { bindCsharpSourceDeclarationArguments } from "../../../dist/analysis/source-evidence/types/resolution/generic-arguments.js";
+import { resolveNodeValueWithState } from "../../../dist/analysis/source-evidence/types/resolution/nodes.js";
+import * as sourceReferenceOperations from "../../../dist/analysis/source-evidence/types/resolution/source-references.js";
+import * as sourceCallOperations from "../../../dist/analysis/source-evidence/types/resolution/calls.js";
 
 const primitive = name => Object.freeze({ kind: "primitive", primitive: name });
 const unexpected = () => assert.fail("a primitive unit must not query declarations shapes or an unrelated native child");
 const representationHost = surface => ({ target: { id: "csharp", ...(surface === "js" ? { surfaces: ["js"] } : {}) },
   typeParameterConstraints: {}, declaredType: unexpected, retainShape: unexpected, shapeKind: () => "storage" });
+
+test("declarations and reads use only their actual Host outcome across every publication state", () => {
+  const checked = createCompilerSessionFromFiles({ currentDirectory: "/src", files: { "/src/index.ts": `
+    class Box { field: number = 1; }
+    function run(input: number): number {
+      const value: number = input;
+      const { item } = { item: value };
+      const record = { value, value2: value };
+      const box = new Box();
+      return value + item + record.value + record["value"] + box.field;
+    }
+  ` }, compilerOptions: { strict: true, target: "es2022", module: "esnext" } }).checkSource();
+  assert.equal(checked.diagnostics.length, 0);
+  const source = createTargetSourceProgram(checked);
+  const file = checked.getSourceFile("/src/index.ts");
+  const nodes = [];
+  const visit = node => { nodes.push(node); source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); }); };
+  visit(file);
+  const named = (node, name) => source.ast.text(source.ast.name(node)) === name;
+  const cases = [
+    ["variable", node => source.ast.is.IsVariableDeclaration(node) && named(node, "value")],
+    ["parameter", node => source.ast.is.IsParameterDeclaration(node) && named(node, "input")],
+    ["binding", node => source.ast.is.IsBindingElement(node) && named(node, "item")],
+    ["field", node => source.ast.is.IsPropertyDeclaration(node) && named(node, "field")],
+    ["property metadata", node => source.ast.is.IsPropertyAssignment(node) && named(node, "value2"), true],
+    ["shorthand metadata", node => source.ast.is.IsShorthandPropertyAssignment(node) && named(node, "value"), true],
+    ["identifier read", node => source.ast.is.IsIdentifier(node) && source.ast.text(node) === "value" &&
+      source.ast.is.IsBinaryExpression(source.ast.parent(node))],
+    ["property read", node => source.ast.is.IsPropertyAccessExpression(node) && named(node, "value")],
+    ["element read", node => source.ast.is.IsElementAccessExpression(node)],
+  ];
+  for (const [name, predicate, metadata] of cases) {
+    const node = nodes.find(predicate);
+    assert.equal(node !== undefined, true, name);
+    const actual = source.effectiveTypes.get(node);
+    assert.equal(metadata ? actual === undefined : actual !== undefined && actual.kind !== "refused" &&
+      actual.provenance.occurrence === node, true, `${name}: the real Source value/metadata boundary`);
+    const states = metadata ? [["metadata absent", undefined]] : [
+      ["resolved", { ...actual, kind: "resolved" }],
+      ["default", { ...actual, kind: "default" }],
+      ["absent", undefined],
+      ["refused", { kind: "refused", source: "tsonic", code: "TSONIC_LOCAL_TYPE_CONFLICT", site: node,
+        reason: "The original Source group has conflicting declared fills." }],
+      ["foreign", { ...actual, provenance: { ...actual.provenance, occurrence: file } }],
+    ];
+    for (const [stateName, outcome] of states) {
+      const label = `${name}/${stateName}`;
+      const forbidden = () => assert.fail(`${label}: a missing Host fact cannot trigger a second Source chooser`);
+      const rejections = [];
+      const host = { ast: source.ast, target: { id: "csharp" }, typeParameterConstraints: {},
+        effectiveTypes: { get(selected) { assert.equal(selected === node, true, label); return outcome; } },
+        semantics: forbidden, semanticsFor: forbidden, navigation: { referenceFor: forbidden },
+        representations: { scopedTargetType: forbidden },
+        objectShapes: { resolveNativeParameter(owner, parameter, type) {
+          assert.equal(parameter === node && owner === source.ast.parent(node), true, label);
+          return { kind: "resolved", type };
+        } },
+      };
+      const scope = { host, resolveTypeWithState: forbidden, resolveNodeWithState: forbidden,
+        resolveSelectedExpressionResult: forbidden, resolveSelectedValueResultWithState: forbidden };
+      const resolve = () => resolveNodeValueWithState(scope, node, file, { depth: 0,
+        rejectNativeResolution: rejection => rejections.push(rejection) });
+      if (stateName === "foreign") {
+        assert.throws(resolve, error => error.diagnostic?.code === "TSONIC_INTERNAL_ANALYSIS_INVARIANT" &&
+          error.diagnostic.sourceNode === node, label);
+        continue;
+      }
+      const result = resolve();
+      if (outcome === undefined || outcome.kind === "refused") assert.equal(result === undefined, true, label);
+      else assert.equal(targetTypeRefEquals(result?.selectedType,
+        representCsharpSourceType(representationHost("native"), outcome.type)), true, label);
+      assert.equal(rejections.length, outcome?.kind === "refused" ? 1 : 0, label);
+      if (outcome?.kind === "refused") assert.equal(rejections[0].subject === node && rejections[0].code === outcome.code, true, label);
+    }
+  }
+});
+
+test("the superseded declaration initializer and refinement value APIs are absent", () => {
+  assert.equal("resolveSourceValueResult" in sourceReferenceOperations, false);
+  assert.equal("resolveSourceValueDeclaration" in sourceReferenceOperations, false);
+  assert.equal("sourceValueDeclarationSyntax" in sourceCallOperations, false);
+});
 
 test("a real enum declaration has zero native generic binders without an invalid AST accessor", () => {
   const checked = createCompilerSessionFromFiles({ currentDirectory: "/src", files: {

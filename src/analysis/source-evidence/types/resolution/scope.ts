@@ -27,8 +27,6 @@ export interface CsharpTypeResolutionScope {
     state: CsharpTypeResolutionState): CsharpSourceCallResult | undefined;
   resolveSelectedValueResultWithState(node: Node, selectedType: Type, sourceFile: SourceFile,
     state: CsharpTypeResolutionState): CsharpSourceCallResult | undefined;
-  resolveSourceValueResult(node: Node, queries: SourceFileSemantics, state: CsharpTypeResolutionState,
-    selectedType?: Type): CsharpSourceCallResult | undefined;
   resolveArrayLiteralWithState(node: Node, queries: SourceFileSemantics, state: CsharpTypeResolutionState): CsharpArrayLiteralSelection;
   resolvePointerReturn(
     declaration: Node,
@@ -246,12 +244,6 @@ export interface CsharpTypeResolutionScope {
   names: Set<string>,
   visited: Set<string>,
 ): void;
-  resolveSourceValueDeclaration(
-  node: Node,
-  queries: SourceFileSemantics,
-  state: CsharpTypeResolutionState,
-  selectedType?: Type,
-): TargetTypeRef | undefined;
   resolveAuthoredAndSelectedSourceType(
   authoredTypeNode: Node | undefined,
   authoredSourceFile: SourceFile,
@@ -321,12 +313,6 @@ export interface CsharpTypeResolutionScope {
   node: Node,
   referenced: Node | undefined,
 ): Node | undefined;
-  sourceValueDeclarationSyntax(
-  declaration: Node,
-): {
-  readonly type?: Node;
-  readonly initializer?: Node;
-};
   resolveTypeWithState(
   type: Type | undefined,
   sourceFile: SourceFile,
