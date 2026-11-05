@@ -9,6 +9,7 @@ import { createCsharpObjectShapePolicy } from "../../../dist/analysis/objects/sh
 import { createCsharpSourceTypeParameterEnvironment } from "../../../dist/analysis/source-evidence/types/resolution/type-parameter-environment.js";
 import { resolveCsharpTypeParameterConstraints } from "../../../dist/analysis/source-evidence/types/resolution/type-parameter-constraints.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
+import { resolveCsharpSourceTypeDescriptor } from "../../../dist/analysis/source-evidence/types/resolution/effective-types.js";
 
 function fixture() {
   const checked = createCompilerSessionFromFiles({
@@ -33,6 +34,8 @@ function fixture() {
   const selections = [];
   const host = {
     ast: source.ast,
+    target: { id: "csharp" },
+    sourceFacts: source.sourceFacts,
     effectiveTypes: source.effectiveTypes,
     navigation: source.navigation,
     sourceFiles: source.navigation.sourceFiles,
@@ -52,7 +55,8 @@ function fixture() {
     }),
     projectTypeCatalog: catalog,
     projectTypes: () => ({ directSupertypes: () => [] }),
-    representations: { genericProjections: () => [], requiresClosedStructuralContract: () => false },
+    representations: { genericProjections: () => [], requiresClosedStructuralContract: () => false,
+      scopedTargetType: () => undefined },
     providers: { resolveSelectedTypeRelation: () => undefined },
     memoryBindings: { hasBoundField: () => false },
     typeResolver: {
@@ -60,10 +64,15 @@ function fixture() {
         selections.push({ kind: "value", node, file, depth: state.depth });
         return undefined;
       },
-      resolveType: (type, file, state) => {
-        selections.push({ kind: "instance", type, file, depth: state.depth });
-        return types.get(type);
+      resolveDescriptor: (descriptor, node, state) => {
+        selections.push({ kind: "descriptor", descriptor, node, depth: state.depth });
+        return descriptor.kind !== "declared" ? undefined : resolveCsharpSourceTypeDescriptor({
+          host,
+          resolveDirectSourceFacts: () => undefined,
+          resolveProviderType: () => undefined,
+        }, descriptor, state, node);
       },
+      resolveType: () => assert.fail("class shapes must not convert raw checker types"),
       resolveSelectedType: (node, type, file) => source.semantics.forFile(file).types.isStringLike(type)
         ? { kind: "source-primitive", name: "string" } : undefined,
     },
@@ -95,8 +104,12 @@ test("class declaration shapes select checked instances rather than constructor 
       definition.local ? ["Outer", "Inner"] : ["Own"], "captured and construction binders stay separate");
     assert.equal(selections.some(selection => selection.kind === "value" && selection.node === definition.declaration),
       false, "constructor-value selection cannot manufacture a structural class copy");
-    assert.equal(selections.some(selection => selection.kind === "instance" && selection.type === declaredType &&
-      selection.file === definition.sourceFile && selection.depth === 4), true, "existing bounded resolution context");
+    assert.equal(selections.some(selection => selection.kind === "descriptor" &&
+      selection.descriptor.kind === "declared" && selection.descriptor.declaration === definition.declaration &&
+      selection.descriptor.typeArguments.length === definition.typeParameterBindings.length &&
+      selection.descriptor.typeArguments.every((argument, index) => argument.kind === "declared" &&
+        argument.declaration === [...definition.outerTypeParameters, ...definition.typeParameters][index]) &&
+      selection.node === definition.declaration && selection.depth === 4), true, "existing bounded resolution context");
     assert.equal(policy.resolveNode(definition.declaration, definition.sourceFile)?.targetType === shape.targetType,
       true, "one canonical nominal shape across repeated queries");
   }
@@ -114,18 +127,23 @@ test("ordinary constructor aliases keep expression selection and do not become i
   selectAlias(file);
   assert.equal(alias !== undefined, true, "checked constructor alias source declaration");
   policy.resolveNode(alias, file);
-  assert.equal(selections[0]?.kind, "value", "ordinary value selections keep their own carrier");
+  assert.equal(selections[0]?.kind, "descriptor", "ordinary value selections keep their own carrier");
   assert.equal(selections[0]?.node === alias, true, "exact selected expression node");
+  assert.equal(selections[0]?.descriptor === source.effectiveTypes.get(alias)?.type &&
+    selections[0]?.descriptor.kind === "callable", true, "the exact published constructor callable is not an instance");
 });
 
 test("unavailable declared instance evidence never falls back to a constructor value", () => {
   const { catalog, host } = fixture();
   const declaration = catalog.definitions.find(definition => definition.local).declaration;
-  const queries = host.semanticsFor(declaration);
-  const absent = { ...queries, declarations: { ...queries.declarations, declaredType: () => undefined } };
-  const policy = createCsharpObjectShapePolicy({ ...host, semanticsFor: () => absent, semantics: () => absent,
+  const policy = createCsharpObjectShapePolicy({ ...host,
     typeResolver: { ...host.typeResolver,
-      resolveType: type => { assert.equal(type === undefined, true, "no guessed instance evidence"); return undefined; },
+      resolveDescriptor: (descriptor, node) => {
+        assert.equal(descriptor.kind === "declared" && descriptor.declaration === declaration && node === declaration,
+          true, "no guessed instance evidence");
+        return undefined;
+      },
+      resolveType: () => assert.fail("unavailable declared descriptors must not retry raw checker types"),
       resolveNode: () => { assert.fail("a constructor value is not replacement instance evidence"); },
     },
   });

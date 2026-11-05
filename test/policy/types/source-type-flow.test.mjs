@@ -18,7 +18,7 @@ import { bindCsharpSourceDeclarationArguments } from "../../../dist/analysis/sou
 const primitive = name => Object.freeze({ kind: "primitive", primitive: name });
 const unexpected = () => assert.fail("a primitive unit must not query declarations shapes or an unrelated native child");
 const representationHost = surface => ({ target: { id: "csharp", ...(surface === "js" ? { surfaces: ["js"] } : {}) },
-  typeParameterConstraints: {}, declaredType: unexpected, retainShape: unexpected });
+  typeParameterConstraints: {}, declaredType: unexpected, retainShape: unexpected, shapeKind: () => "storage" });
 
 test("a real enum declaration has zero native generic binders without an invalid AST accessor", () => {
   const checked = createCompilerSessionFromFiles({ currentDirectory: "/src", files: {
