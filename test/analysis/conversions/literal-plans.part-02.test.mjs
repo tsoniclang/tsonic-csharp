@@ -25,7 +25,7 @@ const valueRecipeCases = [
   { name: "minimum signed integer", type: "int32", value: "-2147483648", recipe: "integer" },
   { name: "half", type: "float16", value: "1.5", recipe: "float", precision: "float16" },
   { name: "single", type: "float32", value: "1.5", recipe: "float", precision: "float32" },
-  { name: "double", type: "number", value: "1.5", recipe: "float", precision: "float64" },
+  { name: "double", type: "number", value: "1.5" },
   { name: "decimal", type: "decimal", value: "1.5", recipe: "float", precision: "decimal" },
   { name: "negative zero", type: "number", value: "-0", recipe: "signed-zero" },
   { name: "character", type: "char", value: '"x"', recipe: "char" },
@@ -68,7 +68,7 @@ for (const surface of ["native", "js"]) for (const destination of ["direct", "un
           "the record belongs to the actual physical construction, not its enclosing storage union");
         if (example.precision !== undefined) assert.equal(selected.recipe.precision, example.precision);
       } else assert.equal(selected?.kind === "source-representation", true,
-        "ordinary source strings and booleans do not invent an exact numeric recipe");
+        "ordinary source strings, booleans and float64 values do not invent an exact numeric recipe");
     });
   }
 }
