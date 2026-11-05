@@ -25,12 +25,12 @@ export function createCsharpLiteralShapeResolver(
   host: CsharpObjectShapePolicyHost,
   dependencies: {
     readonly resolveNode: CsharpRecursiveObjectShapePolicy["resolveNode"];
-    readonly retainLiteralMemberEvidence: ReturnType<typeof createCsharpObjectShapeMemberResolver>["retainLiteralMemberEvidence"];
-    readonly instantiateMemberEvidence: ReturnType<typeof createCsharpObjectShapeMemberResolver>["instantiateMemberEvidence"];
+    readonly publishedShapeDescriptor: ReturnType<typeof createCsharpObjectShapeMemberResolver>["publishedShapeDescriptor"];
+    readonly retainPublishedMembers: ReturnType<typeof createCsharpObjectShapeMemberResolver>["retainPublishedMembers"];
     readonly rememberTargetShape: (shape: CsharpObjectShapeFact) => CsharpObjectShapeFact;
   },
 ): CsharpRecursiveObjectShapePolicy["resolveObjectLiteralTargetShape"] {
-  const { resolveNode, retainLiteralMemberEvidence, instantiateMemberEvidence, rememberTargetShape } = dependencies;
+  const { resolveNode, publishedShapeDescriptor, retainPublishedMembers, rememberTargetShape } = dependencies;
   const environment = host.typeParameterConstraints;
   function resolveObjectLiteralTargetShape(
     expectedShape: CsharpObjectShapeFact | undefined,
@@ -79,15 +79,16 @@ export function createCsharpLiteralShapeResolver(
       ? resolveNode(objectLiteral, sourceFile) : undefined;
     const queries = host.semantics(sourceFile);
     const sourceType = actualShape?.sourceType ?? expectedShape.sourceType;
-    const expectedMembers = actualShape === undefined ? expectedShape.members : sourceType === undefined ? undefined
-      : instantiateMemberEvidence(expectedShape.members, sourceType, queries, expectedShape.sourceType);
-    if (sourceType === undefined || expectedMembers === undefined) return {
+    const descriptor = publishedShapeDescriptor(objectLiteral);
+    const expectedMembers = descriptor === undefined ? undefined : retainPublishedMembers(expectedShape.members,
+      descriptor, objectLiteral, queries, { depth: 0 }, expectedShape.targetType);
+    if (expectedMembers === undefined) return {
       kind: "rejected", subject: objectLiteral,
       reason: "Object-literal construction requires exact member correspondence with its declared native contract.",
     };
     const additionalMembers = actualShape?.members.filter(actual =>
       !expectedShape.members.some(expected => csharpSourceMemberKeysEqual(expected.sourceKey, actual.sourceKey))) ?? [];
-    const members = [...retainLiteralMemberEvidence([...expectedMembers, ...additionalMembers], objectLiteral, queries)];
+    const members = [...expectedMembers, ...additionalMembers];
     const nativeMethodLiteral = members.some(member => member.memberKind === "method" &&
       member.sourceDeclarations?.some(declaration => host.ast.is.IsMethodDeclaration(declaration) &&
         host.ast.body(declaration) !== undefined && host.ast.parent(declaration) === objectLiteral) === true);
@@ -96,7 +97,8 @@ export function createCsharpLiteralShapeResolver(
     const ownsImplementation = expectedShape.methodImplementation?.declaration === objectLiteral;
     if (additionalMembers.length === 0 && accessors.kind === "none" && implemented === expectedShape.implements &&
       (!nativeMethodLiteral || ownsImplementation) && !copiedMethods) {
-      return { kind: "resolved", shape: rememberTargetShape({ ...expectedShape, sourceType, members }) };
+      return { kind: "resolved", shape: rememberTargetShape({ ...expectedShape,
+        ...(sourceType === undefined ? {} : { sourceType }), members }) };
     }
     if (copiedMethods) {
       const sources: { readonly property: Node; readonly shape: CsharpObjectShapeFact }[] = [];
@@ -125,29 +127,14 @@ export function createCsharpLiteralShapeResolver(
     }
     if (accessors.kind === "resolved") {
       for (const accessor of accessors.members) {
-        const selectedSubjects = [
-          accessor.sourceSelectedSymbol,
-          ...accessor.sourceSelectedDeclarations,
-        ];
-        const selectedTypes = [
-          ...(accessor.getter === undefined
-            ? []
-            : [accessor.getter.sourceSelectedType]),
-          ...(accessor.setter === undefined
-            ? []
-            : [accessor.setter.sourceSelectedType]),
+        const declarations = [
+          ...(accessor.getter === undefined ? [] : [accessor.getter.element]),
+          ...(accessor.setter === undefined ? [] : [accessor.setter.element]),
         ];
         const matches = members
           .map((member, index) => ({ member, index }))
           .filter(({ member }) =>
-            member.sourceSubjects?.some((subject) =>
-              selectedSubjects.some((selected) => selected === subject)
-            ) === true &&
-            selectedTypes.every((selectedType) =>
-              member.sourceTypes?.some((sourceType) =>
-                sourceType === selectedType
-              ) === true
-            )
+            declarations.every(declaration => member.sourceDeclarations?.includes(declaration) === true)
           );
         if (matches.length !== 1 || matches[0]!.member.memberKind !== "property") {
           return {
@@ -175,27 +162,13 @@ export function createCsharpLiteralShapeResolver(
           ...matched.member,
           sourceSubjects: Object.freeze([
             ...(matched.member.sourceSubjects ?? []),
-            accessor.sourceSelectedSymbol,
-            ...accessor.sourceSelectedDeclarations,
-            accessor.getter.element,
-            ...(accessor.setter === undefined ? [] : [accessor.setter.element]),
+            ...declarations,
           ]),
           sourceDeclarations: Object.freeze([...new Set([
             ...(matched.member.sourceDeclarations ?? []),
             accessor.getter.element,
             ...(accessor.setter === undefined ? [] : [accessor.setter.element]),
           ])]),
-          sourceTypes: Object.freeze([
-            ...(matched.member.sourceTypes ?? []),
-            accessor.getter.sourceSelectedType,
-            accessor.getter.sourceElementType,
-            ...(accessor.setter === undefined
-              ? []
-              : [
-                  accessor.setter.sourceSelectedType,
-                  accessor.setter.sourceElementType,
-                ]),
-          ]),
           accessor: {
             getter: true,
             setter: accessor.setter !== undefined,

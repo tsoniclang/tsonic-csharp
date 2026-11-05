@@ -12,7 +12,7 @@ import { targetTypeRefEquals, targetTypeRefKey } from "../../../target-model/typ
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpRuntimeUnionTargetTypeRef, CsharpSourceMemberKey, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
 import type { Node, ExtensionFactSubject, SourceFile, Type } from "@tsonic/tsts";
 import type { CsharpTypeResolutionState } from "../../source-evidence/types/resolution/model.js";
-import type { SourceFileSemantics, SourceTypeDescriptor } from "@tsonic/target-api/source";
+import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import { nextState } from "../../source-evidence/types/resolution/state.js";
 import { csharpSourceTemplateState } from "../../source-evidence/types/resolution/type-bindings.js";
 import { substituteObjectShapeMemberTargetTypeParameters } from "../../../policy/types/resolution/substitution.js";
@@ -43,7 +43,7 @@ export function createCsharpObjectShapePolicy(
   host: CsharpObjectShapePolicyHost,
 ): CsharpRecursiveObjectShapePolicy {
   const environment = host.typeParameterConstraints;
-  const { deriveMembers, instantiateMemberEvidence, retainMemberDeclarationEvidence, resolvePropertyType, retainLiteralMemberEvidence } = createCsharpObjectShapeMemberResolver(host);
+  const { publishedShapeDescriptor, deriveMembers, retainPublishedMembers, retainMemberDeclarationEvidence, resolvePropertyType } = createCsharpObjectShapeMemberResolver(host);
   const activeNodes = new WeakSet<object>();
   const activeTypes = new WeakSet<object>();
   const nodeShapes = new WeakMap<object, CsharpObjectShapeFact>();
@@ -61,18 +61,6 @@ export function createCsharpObjectShapePolicy(
     ].flatMap(symbol => symbol === undefined ? [] : queries.declarations.symbolDeclarations(symbol)))];
     const published = declarations.filter(declaration => host.effectiveTypes.get(declaration) !== undefined);
     return published.length === 1 ? published[0] : undefined;
-  }
-
-  function publishedShapeDescriptor(node: Node | undefined): SourceTypeDescriptor | undefined {
-    if (node === undefined) return undefined;
-    const outcome = host.effectiveTypes.get(node);
-    if (outcome === undefined || outcome.kind === "refused") return undefined;
-    // An aggregate literal stored in broad storage (object, unknown, a generic slot) is constructed as its own Host
-    // construction descriptor (C-2246); the storage type is only where the constructed value goes.
-    let descriptor = outcome.construction ?? outcome.type;
-    while (descriptor.kind === "optional") descriptor = descriptor.value;
-    if (descriptor.kind === "callable" && descriptor.constructs.length === 1) descriptor = descriptor.constructs[0]!.result;
-    return descriptor;
   }
 
   function resolvePublishedShapeType(node: Node, state: CsharpTypeResolutionState): TargetTypeRef | undefined {
@@ -130,11 +118,12 @@ export function createCsharpObjectShapePolicy(
       }
       if (selectedShape !== undefined && source.type !== undefined) {
         const actualType = host.ast.is.IsObjectLiteralExpression(node) ? queries.types.expressionType(node) : source.type;
-        const members = actualType === undefined ? undefined
-          : instantiateMemberEvidence(selectedShape.members, actualType, queries, selectedShape.sourceType);
+        const descriptor = publishedShapeDescriptor(node);
+        const members = descriptor === undefined ? undefined
+          : retainPublishedMembers(selectedShape.members, descriptor, node, queries, nextState(state), selectedTarget);
         if (members !== undefined) return state.sourceBindings === undefined
-          ? remember(node, { ...selectedShape, sourceType: actualType, members })
-          : rememberTargetShape({ ...selectedShape, sourceType: actualType, members });
+          ? remember(node, { ...selectedShape, ...(actualType === undefined ? {} : { sourceType: actualType }), members })
+          : rememberTargetShape({ ...selectedShape, ...(actualType === undefined ? {} : { sourceType: actualType }), members });
       }
       const shape = resolveSemanticShape(
         source.type,
@@ -231,7 +220,8 @@ export function createCsharpObjectShapePolicy(
     return shape === undefined ? undefined : rememberTargetShape(shape);
   }
 
-  const resolveObjectLiteralTargetShape = createCsharpLiteralShapeResolver(host, { resolveNode, retainLiteralMemberEvidence, instantiateMemberEvidence, rememberTargetShape });
+  const resolveObjectLiteralTargetShape = createCsharpLiteralShapeResolver(host, { resolveNode, publishedShapeDescriptor,
+    retainPublishedMembers, rememberTargetShape });
   const resolveProjectConstructibleSelectedType = createCsharpProjectShapeProjection(host, deriveMembers);
 
   function remember(
@@ -396,7 +386,7 @@ export function createCsharpObjectShapePolicy(
     activeTypes.add(type);
     try {
       const occurrence = node ?? authoredTypeRoot ?? sourceShapeDeclaration(type, queries);
-      const descriptor = publishedShapeDescriptor(occurrence);
+      const descriptor = occurrence === undefined ? undefined : publishedShapeDescriptor(occurrence);
       if (occurrence === undefined || descriptor === undefined) return undefined;
       const selectedType = selectedTarget ?? (occurrence === undefined ? undefined
         : resolvePublishedShapeType(occurrence, state));
@@ -450,7 +440,7 @@ export function createCsharpObjectShapePolicy(
       const members = declaredShape === undefined
         ? occurrence === undefined || descriptor === undefined ? undefined
           : deriveMembers(descriptor, occurrence, queries, nextState(state), contextualProjectType)
-        : instantiateMemberEvidence(declaredShape.members, type, queries, declaredShape.sourceType);
+        : retainPublishedMembers(declaredShape.members, descriptor, occurrence, queries, nextState(state), contextualProjectType);
       if (members === undefined) {
         return undefined;
       }
@@ -478,7 +468,8 @@ export function createCsharpObjectShapePolicy(
           sourceType: type,
           members,
         };
-        const instantiatedMembers = instantiateMemberEvidence(declared.members, type, queries, declared.sourceType);
+        const instantiatedMembers = retainPublishedMembers(declared.members, descriptor, occurrence,
+          queries, nextState(state), contextualProjectType);
         return instantiatedMembers === undefined ? undefined : { ...declared, sourceType: type, members: instantiatedMembers };
       }
       const implemented = contextualProjectType !== undefined &&
@@ -504,8 +495,7 @@ export function createCsharpObjectShapePolicy(
       if (authoredLiteral !== undefined) {
         const selected = resolveObjectLiteralTargetShape(shape, authoredLiteral, queries.sourceFile);
         if (selected.kind !== "resolved") return undefined;
-        const members = instantiateMemberEvidence(selected.shape.members, type, queries, selected.shape.sourceType);
-        return members === undefined ? undefined : { ...selected.shape, sourceType: type, members };
+        return { ...selected.shape, sourceType: type };
       }
       return structuralContract && unionDefinitions.reference(type) === undefined &&
         !host.representations.requiresClosedStructuralContract(shape.targetType)
@@ -643,7 +633,7 @@ export function createCsharpObjectShapePolicy(
     activeTypes.add(type);
     try {
       const declaration = sourceShapeDeclaration(type, queries);
-      const descriptor = publishedShapeDescriptor(declaration);
+      const descriptor = declaration === undefined ? undefined : publishedShapeDescriptor(declaration);
       const members = declaration === undefined || descriptor === undefined ? undefined
         : deriveMembers(descriptor, declaration, queries, { depth: 0 });
       const matches = members?.filter((member) =>
@@ -660,15 +650,15 @@ export function createCsharpObjectShapePolicy(
       if (occurrence === undefined) return rememberTargetShape(shape);
       const queries = host.semanticsFor(occurrence);
       const sourceType = queries.types.expressionType(occurrence);
-      if (sourceType === undefined) return undefined;
-      const members = retainMemberDeclarationEvidence(shape.members, sourceType, queries);
-      return members === undefined ? undefined : rememberTargetShape({ ...shape, sourceType, members });
+      return rememberTargetShape(sourceType === undefined ? shape : { ...shape, sourceType });
     },
     resolveNativeParameter,
     resolveNativeReturn,
     retainConstructionSource(node: Node, type: Type, shape: CsharpObjectShapeFact, sourceFile: SourceFile): CsharpObjectShapeFact | undefined {
       const queries = host.semantics(sourceFile);
-      const members = instantiateMemberEvidence(shape.members, type, queries, shape.sourceType);
+      const descriptor = publishedShapeDescriptor(node);
+      const members = descriptor === undefined ? undefined
+        : retainPublishedMembers(shape.members, descriptor, node, queries, { depth: 0 }, shape.targetType);
       return members === undefined ? undefined : remember(node, { ...shape, sourceType: type, members });
     },
     resolveCallableValue: (signature: TargetTypeRef, typeParameters: NonNullable<CsharpObjectShapeMemberFact["typeParameters"]>) =>

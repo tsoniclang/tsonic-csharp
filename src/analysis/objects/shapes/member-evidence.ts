@@ -1,7 +1,7 @@
 import type { Node, Type, TypePropertyInfo } from "@tsonic/tsts";
-import { ObjectLiteralProperty_Value, sourceClassFieldIsTypeOnly, sourceTypeDescriptorStructure, type SourceFileSemantics, type SourceStructuralMember, type SourceStructuralMemberPair, type SourceTypeDescriptor, type SourceTypeDescriptorMember } from "@tsonic/target-api/source";
+import { ObjectLiteralProperty_Value, sourceClassFieldIsTypeOnly, sourceTypeDescriptorMemberOriginsEqual, sourceTypeDescriptorStructure, type SourceFileSemantics, type SourceStructuralMember, type SourceTypeDescriptor, type SourceTypeDescriptorMember } from "@tsonic/target-api/source";
 import type { CsharpObjectShapePolicyHost } from "./model.js";
-import type { CsharpObjectShapeMemberEvidence, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../target-model/types/model.js";
+import type { CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpTypeResolutionState } from "../../source-evidence/types/resolution/model.js";
 import { csharpPropertySourceMemberKey, csharpSourceMemberDisplayName, csharpSourceMemberKeysEqual } from "../../../target-model/types/source-member-keys.js";
 import { nextState } from "../../source-evidence/types/resolution/state.js";
@@ -10,32 +10,43 @@ import { isCsharpNativeSourceProfileMemberDeclaration } from "./source-evidence.
 import { resolveObjectShapeSourceMemberKey } from "../../../source/extension/member-keys.js";
 import { resolveCsharpCallableTypeParameters } from "../../source-evidence/types/resolution/callable-type-parameters.js";
 import { csharpMethodValueCoversContract, getCsharpMethodValue } from "../../../target-model/types/method-values.js";
+import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
+import { csharpObjectShapeMemberTypeKey } from "../../../target-model/types/object-shape-identity.js";
 
 export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePolicyHost) {
+  function publishedShapeDescriptor(node: Node): SourceTypeDescriptor | undefined {
+    const outcome = host.effectiveTypes.get(node);
+    if (outcome === undefined || outcome.kind === "refused" || outcome.provenance.occurrence !== node) return undefined;
+    let descriptor = outcome.construction ?? outcome.type;
+    while (descriptor.kind === "optional") descriptor = descriptor.value;
+    if (descriptor.kind === "callable" && descriptor.calls.length === 0 && descriptor.constructs.length === 1) descriptor = descriptor.constructs[0]!.result;
+    return descriptor;
+  }
+
   function retainLiteralMemberEvidence(
     members: readonly CsharpObjectShapeMemberFact[],
     objectLiteral: Node,
-    queries: SourceFileSemantics,
   ): readonly CsharpObjectShapeMemberFact[] {
-    const selected = host.ast.properties(objectLiteral).flatMap(element => {
-      const evidence = element === undefined ? undefined : queries.operations.objectLiteralElement(element);
-      return evidence === undefined || evidence.objectLiteral !== objectLiteral || evidence.element !== element
-        ? [] : [evidence];
-    });
+    const outcome = host.effectiveTypes.get(objectLiteral);
+    if (outcome === undefined || outcome.kind === "refused" || outcome.provenance.occurrence !== objectLiteral) return members;
+    const properties = host.ast.properties(objectLiteral);
+    const selected = outcome.memberCorrespondence ?? [];
+    const descriptor = publishedShapeDescriptor(objectLiteral);
+    const structure = descriptor === undefined ? undefined : sourceTypeDescriptorStructure(descriptor);
+    const published = structure?.kind === "shape" ? structure.members : [];
     return members.map(member => {
-      const elements = selected.filter(evidence => member.sourceSubjects?.some(subject =>
-        subject === evidence.sourceSelectedSymbol || evidence.sourceSelectedDeclarations.some(declaration => declaration === subject)) === true);
+      const matches = published.filter(property => member.origins?.some(origin =>
+        sourceTypeDescriptorMemberOriginsEqual(origin, property.origin)) === true);
+      const origin = matches.length === 1 ? matches[0]!.origin : undefined;
+      const elements = origin === undefined ? [] : selected.filter(evidence => properties.includes(evidence.property) &&
+        sourceTypeDescriptorMemberOriginsEqual(origin, evidence.origin));
       if (elements.length === 0) return member;
       return { ...member,
         sourceSubjects: Object.freeze([...new Set([
           ...(member.sourceSubjects ?? []),
-          ...elements.flatMap(evidence => evidence.sourceElementSymbol === undefined
-            ? [evidence.element] : [evidence.element, evidence.sourceElementSymbol]),
+          ...elements.map(evidence => evidence.property),
         ])]),
-        sourceDeclarations: Object.freeze([...new Set([
-          ...(member.sourceDeclarations ?? []),
-          ...elements.map(evidence => evidence.element),
-        ])]),
+        sourceDeclarations: Object.freeze([...new Set(elements.map(evidence => evidence.property))]),
       };
     });
   }
@@ -104,97 +115,40 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
     return retained.some(member => member === undefined) ? undefined : retained as readonly CsharpObjectShapeMemberFact[];
   }
 
-  function sameCheckedMember(left: SourceStructuralMember, right: SourceStructuralMember): boolean {
-    return left.receiverType === right.receiverType && left.property.symbol === right.property.symbol &&
-      left.property.type === right.property.type && left.property.optional === right.property.optional &&
-      left.property.readonly === right.property.readonly && left.read === right.read &&
-      left.property.rootSymbols.length === right.property.rootSymbols.length &&
-      left.property.rootSymbols.every((symbol, index) => symbol === right.property.rootSymbols[index]) &&
-      left.declarations.length === right.declarations.length &&
-      left.declarations.every((declaration, index) => declaration === right.declarations[index]) &&
-      left.getters.length === right.getters.length && left.getters.every((getter, index) => getter === right.getters[index]) &&
-      left.setters.length === right.setters.length && left.setters.every((setter, index) => setter === right.setters[index]);
-  }
-
-  function revalidateMemberEvidence(
-    member: CsharpObjectShapeMemberFact,
-    evidence: CsharpObjectShapeMemberEvidence,
-    queries: SourceFileSemantics,
-  ): SourceStructuralMemberPair | undefined {
-    const previous = evidence.correspondence;
-    if (previous.destination.receiverType !== evidence.ownerType ||
-      previous.kind === "present" && previous.source.receiverType !== evidence.sourceType ||
-      !matchesMemberSubjects(member, previous.destination)) return undefined;
-    const checked = queries.types.structuralMembers(evidence.sourceType, evidence.ownerType, "correspondence");
-    if (checked.kind !== "available") return undefined;
-    const matching = checked.members.filter(pair => pair.destination.property.symbol === previous.destination.property.symbol);
-    if (matching.length !== 1) return undefined;
-    const selected = matching[0]!;
-    if (selected.kind !== previous.kind || !sameCheckedMember(selected.destination, previous.destination)) return undefined;
-    return selected.kind === "present" && previous.kind === "present" &&
-        !sameCheckedMember(selected.source, previous.source) ? undefined : selected;
-  }
-
-  function sameMemberSource(left: Type, right: Type, queries: SourceFileSemantics): boolean {
-    if (left === right) return true;
-    const symbol = queries.declarations.typeSymbol(left);
-    return symbol !== undefined && symbol === queries.declarations.typeSymbol(right) &&
-      queries.types.isIdentical(left, right);
-  }
-
-  function instantiateMemberEvidence(
+  function retainPublishedMembers(
     members: readonly CsharpObjectShapeMemberFact[],
-    type: Type,
+    descriptor: SourceTypeDescriptor,
+    occurrence: Node,
     queries: SourceFileSemantics,
-    previousSourceType: Type | undefined,
+    state: CsharpTypeResolutionState,
+    receiver?: TargetTypeRef,
   ): readonly CsharpObjectShapeMemberFact[] | undefined {
-    if (previousSourceType === undefined) return undefined;
-    if (members.length === 0) return queries.types.structuralMembers(type, previousSourceType, "correspondence").kind === "available"
-      ? Object.freeze([]) : undefined;
-    const instantiated = members.map(member => {
-      const evidence = member.sourceMemberEvidence;
-      if (evidence === undefined || evidence.length === 0) return undefined;
-      const direct = evidence.filter(selected => sameMemberSource(selected.sourceType, type, queries));
-      const candidates = direct.length === 0
-        ? evidence.filter(selected => sameMemberSource(selected.sourceType, previousSourceType, queries)) : direct;
-      if (candidates.length === 0) return undefined;
-      let selected: CsharpObjectShapeMemberEvidence | undefined;
-      for (const candidate of candidates) {
-        if (revalidateMemberEvidence(member, candidate, queries) === undefined || selected !== undefined &&
-          (selected.ownerType !== candidate.ownerType || selected.correspondence.destination.property.symbol !==
-            candidate.correspondence.destination.property.symbol)) return undefined;
-        selected = candidate;
-      }
-      if (selected === undefined) return undefined;
-      const retained = selected;
-      const correspondence = queries.types.structuralMembers(type, retained.ownerType, "correspondence");
-      if (correspondence.kind !== "available") return undefined;
-      const matching = correspondence.members.filter(pair => pair.destination.receiverType === retained.ownerType &&
-        pair.destination.property.symbol === retained.correspondence.destination.property.symbol);
-      if (matching.length !== 1) return undefined;
-      const pair = matching[0]!;
-      const sourceMemberEvidence = Object.freeze([retained.sourceType === type && retained.correspondence === pair
-        ? retained : Object.freeze({ ownerType: retained.ownerType, sourceType: type, correspondence: pair })]);
-      if (pair.kind !== "present") {
-        const retainedAbsence = retained.correspondence.kind === "absent" && sameMemberSource(retained.sourceType, type, queries);
-        const declaredContext = retained.correspondence.kind === "present" && retained.sourceType === retained.ownerType &&
-          previousSourceType === retained.ownerType;
-        return member.optional === true && pair.destination.property.optional && (retainedAbsence || declaredContext)
-          ? { ...member, sourceMemberEvidence } : undefined;
-      }
-      if (pair.source.read === "unavailable") return undefined;
-      const property = pair.source.property;
-      const declarations = pair.source.declarations;
-      return { ...member,
-        sourceMemberEvidence,
-        sourceSubjects: Object.freeze([...new Set([...member.sourceSubjects ?? [],
-          property.symbol, ...property.rootSymbols, ...declarations])]),
-        sourceDeclarations: Object.freeze([...new Set(declarations)]),
-        sourceTypes: Object.freeze([property.type]),
-      };
-    });
-    return instantiated.some(member => member === undefined) ? undefined
-      : instantiated as readonly CsharpObjectShapeMemberFact[];
+    if (publishedShapeDescriptor(occurrence) !== descriptor) return undefined;
+    const selected = deriveMembers(descriptor, occurrence, queries, state, receiver);
+    if (selected === undefined || selected.length !== members.length) return undefined;
+    const retained: CsharpObjectShapeMemberFact[] = [];
+    for (const member of selected) {
+      const origin = member.origins?.length === 1 ? member.origins[0] : undefined;
+      const matches = origin === undefined ? [] : members.filter(previous => previous.origins?.some(candidate =>
+        sourceTypeDescriptorMemberOriginsEqual(candidate, origin)) === true);
+      const previous = matches.length === 1 ? matches[0] : undefined;
+      if (previous === undefined || !targetTypeRefEquals(previous.type, member.type) ||
+        !csharpSourceMemberKeysEqual(previous.sourceKey, member.sourceKey) || previous.targetName !== member.targetName ||
+        previous.memberKind !== member.memberKind || (previous.optional === true) !== (member.optional === true) ||
+        (previous.readonly === true) !== (member.readonly === true) || (previous.bound === true) !== (member.bound === true) ||
+        csharpObjectShapeMemberTypeKey(previous) !== csharpObjectShapeMemberTypeKey(member)) return undefined;
+      const { accessor: _accessor, ...publishedMember } = member;
+      retained.push({ ...publishedMember,
+        origins: Object.freeze([...previous.origins!]),
+        sourceSubjects: Object.freeze([...new Set([...previous.sourceSubjects ?? [], ...member.sourceSubjects ?? []])]),
+        ...(previous.exactNumericStorage === true ? { exactNumericStorage: true } : {}),
+        ...(previous.accessor === undefined ? {} : { accessor: previous.accessor }),
+        ...(previous.methodValueContract === undefined ? {} : { methodValueContract: previous.methodValueContract }),
+        ...(previous.methodValueStorage === undefined ? {} : { methodValueStorage: previous.methodValueStorage }),
+      });
+    }
+    return Object.freeze(host.ast.is.IsObjectLiteralExpression(occurrence)
+      ? retainLiteralMemberEvidence(retained, occurrence) : retained);
   }
 
   function deriveMember(
@@ -270,7 +224,7 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
     return {
       sourceKey,
       sourceName: csharpSourceMemberDisplayName(sourceKey),
-      origin: property.origin,
+      origins: Object.freeze([property.origin]),
       sourceSubjects: declarations,
       ...(sourceDeclarations.length === 0
         ? {}
@@ -317,6 +271,6 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
     return selected?.length !== 1 ? undefined : host.typeResolver.resolveDescriptor(selected[0]!.type, occurrence, nextState(state));
   }
 
-  return { deriveMembers, instantiateMemberEvidence, retainMemberDeclarationEvidence, resolvePropertyType, retainLiteralMemberEvidence };
+  return { publishedShapeDescriptor, deriveMembers, retainPublishedMembers, retainMemberDeclarationEvidence, resolvePropertyType };
 }
 import { csharpSourceValueResult } from "../../source-evidence/types/resolution/call-results.js";

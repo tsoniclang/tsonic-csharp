@@ -6,6 +6,8 @@ import { resolveCsharpSourceTypeDescriptor } from "../../../../dist/analysis/sou
 import { resolveCsharpProjectionArguments } from "../../../../dist/analysis/source-evidence/types/resolution/projection-arguments.js";
 import { createCsharpSourceUnionDefinitions } from "../../../../dist/analysis/source-evidence/types/resolution/union-definitions.js";
 import { createCsharpObjectShapeMemberResolver } from "../../../../dist/analysis/objects/shapes/member-evidence.js";
+import { createCsharpLiteralShapeResolver } from "../../../../dist/analysis/objects/shapes/literal-construction.js";
+import { selectCsharpHostLiteralCorrespondence } from "../../../../dist/analysis/objects/shapes/host-correspondence.js";
 import { createCsharpProjectShapeProjection } from "../../../../dist/analysis/objects/shapes/project-construction.js";
 import { csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../../../../dist/target-model/types/carriers/scalar-types.js";
 import { getCsharpDelegateSignature } from "../../../../dist/target-model/types/carriers/delegates.js";
@@ -285,7 +287,7 @@ test("one published member inventory retains exact width and origin without raw 
   const members = createCsharpObjectShapeMemberResolver(host).deriveMembers(descriptor, input.box, queries, { depth: 0 });
   assert.equal(members !== undefined && members.length === 2, true, "the full published member vector is retained");
   for (const [index, member] of members.entries()) {
-    assert.equal(sourceTypeDescriptorMemberOriginsEqual(member.origin, descriptor.definition.members[index].origin), true,
+    assert.equal(member.origins.length === 1 && sourceTypeDescriptorMemberOriginsEqual(member.origins[0], descriptor.definition.members[index].origin), true,
       member.sourceName);
     assert.equal(member.sourceTypes === undefined && member.sourceMemberEvidence === undefined, true,
       "no source Type or raw re-instantiation evidence accompanies the canonical origin");
@@ -389,7 +391,7 @@ export function construction(value: ${width}): Box<${width}> {
     const box = nodes.find(node => ast.is.IsInterfaceDeclaration(node) && ast.text(ast.name(node)) === "Box");
     const declaration = ast.members(box).find(node => ast.text(ast.name(node)) === "value");
     const member = shape?.members.find(selected => selected.sourceName === "value");
-    assert.equal(member !== undefined && member.origin !== undefined && sourceTypeDescriptorMemberOriginsEqual(member.origin,
+    assert.equal(member !== undefined && member.origins?.length === 1 && sourceTypeDescriptorMemberOriginsEqual(member.origins[0],
       { kind: "declared", declaration }), true, "construction retains the actual generic declaration origin");
     assert.equal(targetTypeRefEquals(member.type, csharpSourcePrimitiveTargetType(expectedName)), true,
       "the construction member never reverts to the checker declaration's number or bigint");
@@ -508,3 +510,117 @@ export function run(first: int32): int64 { return wrap(first).value; }
       targetTypeRefEquals(target.typeArguments[index], csharpSourcePrimitiveTargetType(width)), true, `native binder ${index}`);
   });
 }
+
+function publishedMemberFixture() {
+  const input = fixture();
+  const declaration = input.source.ast.members(input.box)[0];
+  const descriptor = { kind: "shape", members: [{ name: "value", optional: false, type: primitive("int64"),
+    origin: { kind: "declared", declaration } }], indexes: [], calls: [], constructs: [] };
+  let publication = { kind: "resolved", type: descriptor, provenance: { occurrence: input.box } };
+  const queries = { ...input.queries, types: new Proxy({}, { get: unexpected }) };
+  const host = { ast: input.source.ast, navigation: input.source.navigation,
+    effectiveTypes: { get: node => node === input.box ? publication : undefined }, hasSemantics: file => file === input.file,
+    semantics: () => queries, semanticsFor: () => queries,
+    sourceStorage: { memberSubjectFor: () => undefined }, memoryBindings: { hasBoundField: () => false },
+    representations: { genericProjections: () => [] },
+    typeResolver: { resolveDescriptor: type => csharpSourcePrimitiveTargetType(type.primitive) },
+  };
+  const resolver = createCsharpObjectShapeMemberResolver(host);
+  const members = resolver.deriveMembers(descriptor, input.box, queries, { depth: 0 });
+  assert.equal(members?.length === 1, true);
+  return { ...input, host, queries, descriptor, resolver, members, publish: selected => { publication = selected; } };
+}
+
+test("canonical retained members preserve the same Native contract without reopening raw property evidence", () => {
+  const input = publishedMemberFixture();
+  const prior = [{ ...input.members[0], exactNumericStorage: true,
+    get sourceTypes() { return unexpected(); }, get sourceMemberEvidence() { return unexpected(); } }];
+  const selected = input.resolver.retainPublishedMembers(prior, input.descriptor, input.box, input.queries, { depth: 0 });
+  assert.equal(selected?.length === 1 && selected[0].origins?.length === 1 && selected[0].origins[0] === input.descriptor.members[0].origin, true);
+  assert.equal(targetTypeRefEquals(selected[0].type, csharpSourcePrimitiveTargetType("int64")) &&
+    selected[0].exactNumericStorage === true, true, "the same Native width and physical field contract survive");
+  assert.equal(selected[0].sourceTypes === undefined && selected[0].sourceMemberEvidence === undefined, true);
+  assert.equal(typeof input.resolver.instantiateMemberEvidence, "undefined", "the raw reconstruction entrypoint is removed");
+});
+
+test("canonical retained members reject missing, foreign, stale, duplicate or width-conflicting publication inputs", () => {
+  const input = publishedMemberFixture();
+  const retain = (members = input.members, descriptor = input.descriptor) =>
+    input.resolver.retainPublishedMembers(members, descriptor, input.box, input.queries, { depth: 0 });
+  for (const [label, members] of [["missing origin", [{ ...input.members[0], origins: undefined }]],
+    ["removed single-origin form", [{ ...input.members[0], origins: undefined, origin: input.descriptor.members[0].origin }]],
+    ["foreign origin", [{ ...input.members[0], origins: [{ kind: "declared", declaration: input.parameter }] }]],
+    ["duplicate origin", [input.members[0], input.members[0]]],
+    ["different width", [{ ...input.members[0], type: csharpSourcePrimitiveTargetType("int32") }]]]) {
+    assert.equal(retain(members) === undefined, true, label);
+  }
+  assert.equal(retain(input.members, { ...input.descriptor }) === undefined, true, "a copied descriptor is not this publication");
+  for (const [label, publication] of [["missing", undefined], ["refused", { kind: "refused" }],
+    ["foreign occurrence", { kind: "resolved", type: input.descriptor, provenance: { occurrence: input.outer } }]]) {
+    input.publish(publication);
+    assert.equal(retain() === undefined, true, label);
+  }
+  const signature = { typeParameters: [], parameters: [], result: input.descriptor };
+  const mixed = { kind: "callable", calls: [signature], constructs: [signature] };
+  input.publish({ kind: "resolved", type: mixed, provenance: { occurrence: input.box } });
+  assert.equal(input.resolver.publishedShapeDescriptor(input.box) === mixed, true, "a mixed callable inventory is not discarded");
+  assert.equal(input.resolver.deriveMembers(mixed, input.box, input.queries, { depth: 0 }) === undefined, true,
+    "the property-shape consumer cannot silently select only one of the mixed inventories");
+});
+
+test("literal construction keeps canonical origins and Native storage without requiring raw checker member handles", () => {
+  const input = publishedMemberFixture();
+  for (const [kind, sourceText] of [["property", "interface Slot { value: number; } const literal: Slot = { value: 1 };"],
+    ["getter", "interface Slot { readonly value: number; } const literal: Slot = { get value() { return 1; } };"],
+    ["getter-setter", "interface Slot { value: number; } const literal: Slot = { get value() { return 1; }, set value(next: number) {} };"]]) {
+  const checked = createCompilerSessionFromFiles({ currentDirectory: "/literal", files: {
+    "/literal/index.ts": sourceText,
+  }, compilerOptions: { strict: true } }).checkSource();
+  assert.equal(checked.diagnostics.length, 0, kind);
+  const source = createTargetSourceProgram(checked);
+  const file = checked.getSourceFile("/literal/index.ts");
+  const nodes = [];
+  const visit = node => { nodes.push(node); source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); }); };
+  visit(file);
+  const literal = nodes.find(node => source.ast.is.IsObjectLiteralExpression(node));
+  const owner = nodes.find(node => source.ast.is.IsInterfaceDeclaration(node));
+  const declaration = source.ast.members(owner)[0];
+  const properties = source.ast.properties(literal);
+  const origin = { kind: "declared", declaration };
+  const descriptor = { ...input.descriptor, members: [{ ...input.descriptor.members[0], origin,
+    ...(kind === "getter" ? { readonly: true } : {}) }] };
+  const queries = source.semantics.forFile(file);
+  const host = { ...input.host, ast: source.ast, navigation: source.navigation, hasSemantics: actual => actual === file,
+    semantics: () => queries, semanticsFor: () => queries,
+    effectiveTypes: { get: node => node === literal ? { kind: "resolved", type: descriptor,
+      provenance: { occurrence: literal }, memberCorrespondence: properties.map(property => ({ property, origin })) } : undefined } };
+  const resolver = createCsharpObjectShapeMemberResolver(host);
+  const members = resolver.deriveMembers(descriptor, literal, queries, { depth: 0 });
+  const storage = { kind: "target-named", id: "test.CanonicalStorage", typeArguments: [] };
+  const expected = { targetType: storage, members, implements: [input.target(input.box, [csharpSourcePrimitiveTargetType("int64")])] };
+  const select = createCsharpLiteralShapeResolver(host, { ...resolver, resolveNode: unexpected, rememberTargetShape: shape => shape });
+  const selected = select(expected, literal, file);
+  assert.equal(selected.kind === "resolved", true, kind);
+  assert.equal(kind === "property" ? selected.shape.targetType === storage :
+    selected.shape.members[0].accessor?.getter === true && selected.shape.members[0].accessor.setter === (kind === "getter-setter"), true,
+    "Native field storage and accessor ABI are retained, not projected from raw checker properties");
+  assert.equal(selected.shape.members[0].origins?.some(selectedOrigin => sourceTypeDescriptorMemberOriginsEqual(selectedOrigin, origin)) &&
+    targetTypeRefEquals(selected.shape.members[0].type, csharpSourcePrimitiveTargetType("int64")), true);
+  assert.equal(properties.every(property => selected.shape.members[0].sourceDeclarations.includes(property)), true,
+    "the C49 origin links every actual authored property or accessor");
+  assert.equal(selected.shape.members[0].sourceTypes === undefined && selected.shape.members[0].sourceMemberEvidence === undefined, true);
+  if (kind === "property") {
+    const foreign = { kind: "declared", declaration: properties[0] };
+    const retained = { ...expected, members: [{ ...members[0], origins: [origin, foreign] }] };
+    const publication = { ...host.effectiveTypes.get(literal), memberCorrespondence: [{ property: properties[0], origin: foreign }] };
+    assert.equal(selectCsharpHostLiteralCorrespondence(source.ast, literal, publication, retained, storage).kind === "rejected", true,
+      "a different retained origin cannot replace the origin in this current published descriptor");
+    const ambiguous = { ...expected, members: [members[0], { ...members[0], sourceKey: { kind: "property", name: "other" },
+      sourceName: "other", targetName: "other", origins: [origin, { ...origin }] }] };
+    const complete = { ...host.effectiveTypes.get(literal), type: { ...descriptor,
+      members: [...descriptor.members, { ...descriptor.members[0], name: "other", origin: foreign }] } };
+    assert.equal(selectCsharpHostLiteralCorrespondence(source.ast, literal, complete, ambiguous, storage).kind === "rejected", true,
+      "two distinct destination members matching the same current origin remain an ambiguous rejection");
+  }
+  }
+});

@@ -36,8 +36,8 @@ export interface CsharpObjectShapeMemberFact {
   readonly sourceDeclarations?: readonly Node[];
   readonly sourceTypes?: readonly Type[];
   readonly sourceMemberEvidence?: readonly CsharpObjectShapeMemberEvidence[];
-  // The Host-published member identity, present when the shape comes from a Source descriptor.
-  readonly origin?: SourceTypeDescriptorMember["origin"];
+  // The Host-published member identities, present when the shape comes from Source descriptors.
+  readonly origins?: readonly SourceTypeDescriptorMember["origin"][];
   readonly targetName: string;
   readonly memberKind: "property" | "method";
   readonly type: TargetTypeRef;

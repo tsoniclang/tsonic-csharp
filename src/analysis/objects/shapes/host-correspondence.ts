@@ -34,7 +34,7 @@ export function selectCsharpHostLiteralCorrespondence(
   // (Box<int32> and Box<int64> share the origin of value).
   if (publishedTarget === undefined || !targetTypeRefEquals(destination.targetType, publishedTarget)) return notPublished;
   if (outcome.provenance.occurrence !== node) return notPublished;
-  if (destination.members.some(member => member.origin === undefined)) return notPublished;
+  if (destination.members.some(member => member.origins === undefined || member.origins.length === 0)) return notPublished;
   // The Host correspondence is relative to the PUBLISHED descriptor. It proves this construction only when the
   // native destination shape is that published structure (the same member origins); otherwise the literal keeps
   // its existing path (e.g. a literal published as its own shape but stored in a declared native record).
@@ -44,7 +44,8 @@ export function selectCsharpHostLiteralCorrespondence(
   if (published.kind !== "shape") return notPublished;
   const publishedMembers = published.members;
   if (publishedMembers.length !== destination.members.length || destination.members.some(member =>
-    member.origin === undefined || !publishedMembers.some(selected => sourceTypeDescriptorMemberOriginsEqual(selected.origin, member.origin!)))) {
+    publishedMembers.filter(selected => member.origins?.some(origin =>
+      sourceTypeDescriptorMemberOriginsEqual(selected.origin, origin)) === true).length !== 1)) {
     return notPublished;
   }
   const rejected = (reason: string): CsharpHostLiteralCorrespondence => Object.freeze({ kind: "rejected", reason });
@@ -57,8 +58,11 @@ export function selectCsharpHostLiteralCorrespondence(
       return rejected("A Host member correspondence must name each authored object-literal member exactly once.");
     }
     authored.add(entry.property);
+    if (publishedMembers.filter(member => sourceTypeDescriptorMemberOriginsEqual(member.origin, entry.origin)).length !== 1) {
+      return rejected("A Host member correspondence must select its current published destination origin.");
+    }
     const matches = destination.members.flatMap((member, index) =>
-      member.origin !== undefined && sourceTypeDescriptorMemberOriginsEqual(member.origin, entry.origin) ? [index] : []);
+      member.origins?.some(origin => sourceTypeDescriptorMemberOriginsEqual(origin, entry.origin)) === true ? [index] : []);
     if (matches.length !== 1 || covered.has(matches[0]!)) {
       return rejected("A Host member correspondence must select exactly one distinct native destination member.");
     }

@@ -38,6 +38,10 @@ function csharpTypeIdentityAt(path: readonly (string | number)[]): boolean {
   const tail = path.slice(offset);
   if (tail.length === 1) return key === "sourceType";
   if (tail[0] === "members" && typeof tail[1] === "number") {
+    if (tail[2] === "origins" && typeof tail[3] === "number") {
+      return tail.length === 5 && (key === "declaration" || key === "owner") ||
+        tail.length === 6 && tail[4] === "key" && key === "declaration";
+    }
     if (tail[2] === "sourceMemberEvidence" && typeof tail[3] === "number") {
       if (tail.length === 5) return key === "ownerType" || key === "sourceType";
       if (tail[4] !== "correspondence" || tail[5] !== "source" && tail[5] !== "destination") return false;

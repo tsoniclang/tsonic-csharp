@@ -8,6 +8,7 @@ import { csharpObjectShapeTypeParameters, closeCsharpOwnerTypeParameterEnvironme
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../target-model/types/model.js";
 
 import { selectCsharpStructuralObjectCarrier } from "../../../policy/types/objects/shape-carriers.js";
+import { sourceTypeDescriptorMemberOriginsEqual } from "@tsonic/target-api/source";
 export function createStructuralObjectShapeTarget(
   members: readonly CsharpObjectShapeMemberFact[],
   implemented: readonly TargetTypeRef[] | undefined,
@@ -58,16 +59,15 @@ export function mergeCsharpObjectShapeSubjects(
         ...(member.sourceTypes ?? []),
         ...(other.sourceTypes ?? []),
       ]);
-      const sourceDeclarations = new Set([
-        ...(member.sourceDeclarations ?? []),
-        ...(other.sourceDeclarations ?? []),
-      ]);
+      const origins = [...(member.origins ?? []), ...(other.origins ?? [])].filter((origin, index, alternatives) =>
+        alternatives.findIndex(candidate => sourceTypeDescriptorMemberOriginsEqual(candidate, origin)) === index);
       const sourceMemberEvidence = [...(member.sourceMemberEvidence ?? []), ...(other.sourceMemberEvidence ?? [])]
         .filter((evidence, index, alternatives) => alternatives.findIndex(candidate =>
           candidate.ownerType === evidence.ownerType && candidate.sourceType === evidence.sourceType &&
           candidate.correspondence === evidence.correspondence) === index);
       return {
         ...member,
+        ...(origins.length === 0 ? {} : { origins: Object.freeze(origins) }),
         ...(sourceMemberEvidence.length === 0 ? {} : { sourceMemberEvidence: Object.freeze(sourceMemberEvidence) }),
         ...(subjects.size === 0
           ? {}
@@ -75,9 +75,6 @@ export function mergeCsharpObjectShapeSubjects(
         ...(sourceTypes.size === 0
           ? {}
           : { sourceTypes: Object.freeze([...sourceTypes]) }),
-        ...(sourceDeclarations.size === 0
-          ? {}
-          : { sourceDeclarations: Object.freeze([...sourceDeclarations]) }),
       };
     }),
   };

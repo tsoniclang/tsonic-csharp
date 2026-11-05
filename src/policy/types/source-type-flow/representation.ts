@@ -1,6 +1,6 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetSelection } from "@tsonic/target-api";
-import type { SourceTypeDescriptor, SourceTypeDescriptorSignature } from "@tsonic/target-api/source";
+import { sourceTypeDescriptorMemberOriginsEqual, type SourceTypeDescriptor, type SourceTypeDescriptorSignature } from "@tsonic/target-api/source";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpTypeParameterEnvironment } from "../../../target-model/records/types/type-parameter-constraints.js";
 import { csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpObjectTargetType, csharpVoidTargetType, csharpNeverTargetType, csharpBigIntegerTargetType } from "../../../target-model/types/carriers/scalar-types.js";
@@ -180,7 +180,7 @@ function representDescriptor(
             type: memberKind === "method" ? getCsharpMethodValue(type)?.contract ?? type : type,
             ...(typeParameters.length === 0 ? {} : { typeParameters }),
             optional: member.optional,
-            origin: member.origin,
+            origins: Object.freeze([member.origin]),
             ...(declaration === undefined ? {} : {
               sourceDeclarations: Object.freeze([declaration]),
               sourceSubjects: Object.freeze([declaration]),
@@ -204,7 +204,8 @@ function representDescriptor(
           const actual = retained[index]!;
           return csharpObjectShapeMemberContractKey(actual) === csharpObjectShapeMemberContractKey(member) &&
             (actual.readonly === true) === (member.readonly === true) &&
-            (member.sourceDeclarations ?? []).every(declaration => actual.sourceDeclarations?.includes(declaration) === true);
+            member.origins?.length === 1 && actual.origins?.some(origin =>
+              sourceTypeDescriptorMemberOriginsEqual(origin, member.origins![0]!)) === true;
         }) ? shape.targetType : undefined;
       }
     }
