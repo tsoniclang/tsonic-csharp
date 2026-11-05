@@ -65,15 +65,9 @@ function scenario() {
   const file = {};
   const constraint = { kind: "number" };
   const declaration = { kind: "type-parameter", constraint };
-  const binding = {};
   const expression = { kind: "value" };
-  const type = {};
-  const symbol = {};
   const carrier = { kind: "type-parameter", identity: "numeric:Value", name: "Value" };
   const scalar = { kind: "source-primitive", name: "float64" };
-  const semantics = { types: { expressionType: () => type }, declarations: {
-    declaredValueType: () => type, typeSymbol: () => symbol, primarySymbolDeclaration: () => declaration,
-  } };
   const input = {
     // A literal operand is its own one-token source file, so the shared literal reader sees its authored token text.
     ast: { getSourceFile: node => node.kind === "literal" ? node : file, getSourceText: source => source.text,
@@ -83,10 +77,15 @@ function scenario() {
         IsParenthesizedTypeNode: () => false, IsIntersectionTypeNode: () => false,
         IsParenthesizedExpression: () => false, IsPrefixUnaryExpression: () => false },
       as: { AsTypeParameterDeclaration: node => ({ Constraint: node.constraint }) } },
-    navigation: { referenceFor: () => ({ declaration: binding }) },
-    semantics: () => semantics,
-    types: { resolveSelectedValue: () => carrier,
-      resolveNode: node => node === constraint ? { kind: "resolved", sourceResult: csharpSourceValueResult(scalar) } : undefined },
+    effectiveTypes: { get(node) {
+      assert.equal(node === expression, true, "numeric evidence uses the exact Host operand publication");
+      return { kind: "resolved", type: { kind: "declared", declaration, typeArguments: [], indexes: [] },
+        provenance: { group: expression, occurrence: expression, sourceFile: file } };
+    } },
+    semantics: () => assert.fail("numeric evidence must not read raw checker value types"),
+    types: { resolveSelectedValue: () => assert.fail("numeric evidence must not convert a raw checker type"),
+      resolveNode: node => node === expression ? { kind: "resolved", sourceResult: csharpSourceValueResult(carrier) }
+        : node === constraint ? { kind: "resolved", sourceResult: csharpSourceValueResult(scalar) } : undefined },
   };
   return { input, file, declaration, expression, carrier, scalar };
 }
@@ -96,7 +95,7 @@ test("native numeric evidence requires the exact declaration, carrier and emitte
   assert.equal(csharpSourceHasNumericConstraint(expression, carrier, file, input), true);
   assert.equal(csharpSourceHasNumericConstraint(expression, { ...carrier, identity: "other" }, file, input), false);
   assert.equal(csharpSourceHasNumericConstraint(expression, carrier, file,
-    { ...input, types: { ...input.types, resolveSelectedValue: () => undefined } }), false);
+    { ...input, types: { ...input.types, resolveNode: () => undefined } }), false);
   assert.equal(csharpSourceHasNumericConstraint(expression, carrier, file,
     { ...input, ast: { ...input.ast, getSourceFile: () => undefined } }), false);
   declaration.constraint = undefined;
