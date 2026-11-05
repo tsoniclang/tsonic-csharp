@@ -1,86 +1,30 @@
 import { providerVirtualDeclarationFactKey } from "@tsonic/tsts";
 import type { CsharpObjectShapePolicyHost } from "./model.js";
-import type { CsharpTypeResolutionState } from "../../source-evidence/types/resolution/model.js";
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
 import type { ExtensionFactSubject, Node, Type } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import { sourceTypeIsAuthoredEmptyObject } from "@tsonic/target-api/source";
-import { nextState } from "../../source-evidence/types/resolution/state.js";
 import { classifyCsharpSourceProfileDeclaration, classifyCsharpSourceProfileType } from "../../../policy/identities/source-types.js";
 import { csharpSourceProfileDeclarationIdentity } from "../../../policy/identities/selected-source.js";
 
 interface SelectedObjectShapeSource {
   readonly type: Type | undefined;
-  readonly contextualTarget?: TargetTypeRef;
 }
 
 export function selectedObjectShapeSource(
   node: Node,
   queries: SourceFileSemantics,
   host: CsharpObjectShapePolicyHost,
-  state: CsharpTypeResolutionState,
 ): SelectedObjectShapeSource {
-  if (host.ast.is.IsClassDeclaration(node) || host.ast.is.IsClassExpression(node)) {
-    return { type: queries.declarations.declaredType(node) };
-  }
-  const semanticType = queries.types.expressionType(node);
   const effective = host.effectiveTypes.get(node);
-  if (effective !== undefined) {
-    if (effective.kind === "refused") return { type: undefined };
-    let descriptor = effective.type;
-    while (descriptor.kind === "optional") descriptor = descriptor.value;
-    const component = descriptor.kind === "declared" ? descriptor.source ?? effective.provenance.component
-      : effective.provenance.component;
-    return { type: component?.selectedType ?? semanticType };
-  }
-  if (!host.ast.is.IsObjectLiteralExpression(node)) {
-    return { type: semanticType };
-  }
-  const contextual = queries.types.contextualValueSelection(node);
-  if (contextual.kind !== "selected") {
-    return { type: semanticType };
-  }
-  const contextualType = contextual.component.selectedType;
-  const contextualSymbol = queries.declarations.typeAliasSymbol(contextualType) ??
-    queries.declarations.typeSymbol(contextualType);
-  const contextualDeclarations = contextualSymbol === undefined
-    ? []
-    : queries.declarations.symbolDeclarations(contextualSymbol);
-  const projectDeclaration = contextualDeclarations.some((declaration) =>
-      declaration !== undefined &&
-      host.navigation.isProjectDeclaration(declaration) &&
-      (
-        host.ast.is.IsClassDeclaration(declaration) ||
-        host.ast.is.IsInterfaceDeclaration(declaration)
-      )
-    );
-  const providerDeclaration = [
-    ...queries.facts.typeSubjects(contextualType),
-    ...(contextualSymbol === undefined
-      ? []
-      : [contextualSymbol, ...contextualDeclarations]),
-  ].some((subject) =>
-    subject !== undefined &&
-    host.sourceFacts?.getFact(
-      subject,
-      providerVirtualDeclarationFactKey,
-    ) !== undefined
-  );
-  if (!projectDeclaration && !providerDeclaration) {
-    return { type: semanticType };
-  }
-  const contextualTarget = host.typeResolver.resolveSelectedType(
-    contextual.component.authoredTypeNode, contextualType,
-    queries.sourceFile,
-    nextState(state),
-  );
-  if (contextualTarget === undefined) {
-    return { type: semanticType };
-  }
-  if (projectDeclaration && !isProjectSourceTargetType(contextualTarget)) {
-    return { type: semanticType };
-  }
-  return { type: contextualType, contextualTarget };
+  if (effective === undefined || effective.kind === "refused") return { type: undefined };
+  let descriptor = effective.type;
+  while (descriptor.kind === "optional") descriptor = descriptor.value;
+  if (descriptor.kind === "callable" && descriptor.constructs.length === 1) descriptor = descriptor.constructs[0]!.result;
+  const component = descriptor.kind === "declared" ? descriptor.source ?? effective.provenance.component
+    : effective.provenance.component;
+  return { type: component?.selectedType ?? (host.ast.is.IsClassDeclaration(node) || host.ast.is.IsClassExpression(node)
+    ? queries.declarations.declaredType(node) : queries.types.expressionType(node)) };
 }
 
 export function sourceSubjects(

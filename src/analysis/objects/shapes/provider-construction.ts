@@ -1,6 +1,6 @@
 import { providerVirtualDeclarationFactKey, sourcePrimitiveFactKey } from "@tsonic/tsts";
 import type { Node, Type, TypePropertyInfo } from "@tsonic/tsts";
-import type { SourceFileSemantics } from "@tsonic/target-api/source";
+import type { SourceFileSemantics, SourceTypeDescriptor } from "@tsonic/target-api/source";
 import { sourcePropertyTypeEvidenceNodes } from "@tsonic/target-api/source";
 import type { CsharpProviderTargetRelation } from "../../../target-model/identities/provider-relations.js";
 import { canonicalProviderValue } from "../../../target-model/metadata/canonical-value.js";
@@ -33,14 +33,15 @@ interface CsharpProviderObjectLiteralInput {
   readonly queries: SourceFileSemantics;
   readonly state: CsharpTypeResolutionState;
   readonly selectedTarget: TargetTypeRef | undefined;
-  readonly authoredTypeRoot: Node | undefined;
+  readonly descriptor: SourceTypeDescriptor;
+  readonly occurrence: Node;
   readonly host: CsharpProviderObjectLiteralHost;
   resolvePropertyType(
     property: TypePropertyInfo,
-    sourceType: Type,
+    descriptor: SourceTypeDescriptor,
+    occurrence: Node,
     queries: SourceFileSemantics,
     state: CsharpTypeResolutionState,
-    authoredTypeRoot?: Node,
   ): TargetTypeRef | undefined;
 }
 
@@ -212,10 +213,10 @@ function deriveProviderObjectLiteralMember(
   }
   const rawSourceTarget = input.resolvePropertyType(
     property,
-    property.type,
+    input.descriptor,
+    input.occurrence,
     input.queries,
     input.state,
-    input.authoredTypeRoot,
   );
   const optional = property.optional ||
     typeIncludesNullish(property.type, input.queries);

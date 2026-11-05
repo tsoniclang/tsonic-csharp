@@ -1,4 +1,5 @@
 import type { Node, SourceFile, Type } from "@tsonic/tsts";
+import type { SourceTypeDescriptor } from "@tsonic/target-api/source";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpSourceMemberKey, TargetTypeRef } from "../../types/model.js";
 
 export type CsharpProjectConstructibleTypeProjection =
@@ -91,8 +92,7 @@ export interface CsharpObjectShapePolicy {
   ): CsharpObjectLiteralTargetShapeResolution;
   resolveProjectConstructibleSelectedType(
     targetType: TargetTypeRef,
-    explicitTypeNode: Node | undefined,
-    selectedType: Type,
+    descriptor: SourceTypeDescriptor,
     contextNode: Node,
     sourceFile: SourceFile,
   ): CsharpProjectConstructibleTypeProjection;

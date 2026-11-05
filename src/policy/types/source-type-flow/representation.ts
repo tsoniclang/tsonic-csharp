@@ -3,14 +3,16 @@ import type { TargetSelection } from "@tsonic/target-api";
 import type { SourceTypeDescriptor } from "@tsonic/target-api/source";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpTypeParameterEnvironment } from "../../../target-model/records/types/type-parameter-constraints.js";
-import { csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../../../target-model/types/carriers/scalar-types.js";
-import { csharpJsArrayTargetType } from "../../../target-model/types/carriers/js.js";
+import { csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpObjectTargetType, csharpVoidTargetType, csharpNeverTargetType, csharpBigIntegerTargetType } from "../../../target-model/types/carriers/scalar-types.js";
+import { csharpJsArrayTargetType, csharpJsSymbolTargetType } from "../../../target-model/types/carriers/js.js";
+import { csharpAnyTargetType, csharpTsValueTargetType, csharpAbsenceTargetType, combineCsharpTargetUnionMembers } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { csharpNullableTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { canonicalCsharpObjectShapeMembers, csharpObjectShapeMemberContractKey } from "../../../target-model/types/object-shape-identity.js";
 import { createStructuralObjectShapeTarget } from "../../../analysis/objects/shapes/construction.js";
 import { objectShapeMemberTargetName } from "../../identities/source-member-names.js";
 import { selectedCsharpSourceProfileOwner } from "../../identities/source-types.js";
+import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
 
 export interface CsharpSourceTypeRepresentationHost {
   readonly target: TargetSelection;
@@ -19,7 +21,21 @@ export interface CsharpSourceTypeRepresentationHost {
     declaration: Node,
     typeArguments: readonly TargetTypeRef[],
     source: Extract<SourceTypeDescriptor, { readonly kind: "declared" }>["source"],
+    descriptor: Extract<SourceTypeDescriptor, { readonly kind: "declared" }>,
   ): TargetTypeRef | undefined;
+  indexType(key: TargetTypeRef, value: TargetTypeRef): TargetTypeRef | undefined;
+  callableType(
+    signature: Extract<SourceTypeDescriptor, { readonly kind: "callable" }>["calls"][number],
+    parameters: readonly TargetTypeRef[],
+    result: TargetTypeRef,
+  ): TargetTypeRef | undefined;
+  constructorType(
+    signatures: Extract<SourceTypeDescriptor, { readonly kind: "callable" }>["constructs"],
+    results: readonly TargetTypeRef[],
+  ): TargetTypeRef | undefined;
+  memberKind(declaration: Node): "property" | "method";
+  memberTypeParameters(signature: Extract<SourceTypeDescriptor, { readonly kind: "callable" }>["calls"][number]):
+    NonNullable<CsharpObjectShapeMemberFact["typeParameters"]> | undefined;
   retainShape(shape: CsharpObjectShapeFact): CsharpObjectShapeFact | undefined;
 }
 
@@ -43,6 +59,47 @@ function representDescriptor(
         return csharpSourcePrimitiveTargetType(descriptor.primitive);
       case "string":
         return csharpStringTargetType();
+      case "intrinsic":
+        switch (descriptor.intrinsic) {
+          case "any": return csharpAnyTargetType();
+          case "unknown": return csharpTsValueTargetType();
+          case "object": return csharpObjectTargetType();
+          case "void": return csharpVoidTargetType();
+          case "never": return csharpNeverTargetType();
+          case "absence": return csharpAbsenceTargetType();
+          case "bigint": return csharpBigIntegerTargetType();
+          case "symbol": return csharpJsSymbolTargetType();
+        }
+      case "union": {
+        const members: TargetTypeRef[] = [];
+        for (const member of descriptor.types) {
+          const selected = representDescriptor(host, member, active);
+          if (selected === undefined) return undefined;
+          members.push(selected);
+        }
+        return members.length === 0 ? undefined : combineCsharpTargetUnionMembers(members);
+      }
+      case "callable": {
+        if (descriptor.calls.length === 0 && descriptor.constructs.length !== 0) {
+          const results: TargetTypeRef[] = [];
+          for (const signature of descriptor.constructs) {
+            const result = representDescriptor(host, signature.result, active);
+            if (result === undefined) return undefined;
+            results.push(result);
+          }
+          return host.constructorType(descriptor.constructs, Object.freeze(results));
+        }
+        const signature = descriptor.calls.length === 1 && descriptor.constructs.length === 0 ? descriptor.calls[0] : undefined;
+        if (signature === undefined) return undefined;
+        const parameters: TargetTypeRef[] = [];
+        for (const parameter of signature.parameters) {
+          const selected = representDescriptor(host, parameter.type, active);
+          if (selected === undefined) return undefined;
+          parameters.push(selected);
+        }
+        const result = representDescriptor(host, signature.result, active);
+        return result === undefined ? undefined : host.callableType(signature, Object.freeze(parameters), result);
+      }
       case "array": {
         const element = representDescriptor(host, descriptor.element, active);
         return element === undefined ? undefined
@@ -61,15 +118,31 @@ function representDescriptor(
         return element === undefined ? undefined : csharpNullableTargetType(element);
       }
       case "declared": {
+        if (!Array.isArray(descriptor.indexes)) return undefined;
         const arguments_: TargetTypeRef[] = [];
         for (const argument of descriptor.typeArguments) {
           const represented = representDescriptor(host, argument, active);
           if (represented === undefined) return undefined;
           arguments_.push(represented);
         }
-        return host.declaredType(descriptor.declaration, Object.freeze(arguments_), descriptor.source);
+        return host.declaredType(descriptor.declaration, Object.freeze(arguments_), descriptor.source, descriptor);
       }
       case "shape": {
+        if (!Array.isArray(descriptor.indexes)) return undefined;
+        if (descriptor.indexes.length !== 0) {
+          let key: TargetTypeRef | undefined;
+          let value: TargetTypeRef | undefined;
+          for (const index of descriptor.indexes) {
+            if (index.declaration === undefined || typeof index.readonly !== "boolean") return undefined;
+            const selectedKey = representDescriptor(host, index.key, active);
+            const selectedValue = representDescriptor(host, index.value, active);
+            if (selectedKey === undefined || selectedValue === undefined || key !== undefined && !targetTypeRefEquals(key, selectedKey) ||
+              value !== undefined && !targetTypeRefEquals(value, selectedValue)) return undefined;
+            key = selectedKey;
+            value = selectedValue;
+          }
+          return descriptor.members.length !== 0 || key === undefined || value === undefined ? undefined : host.indexType(key, value);
+        }
         const members: CsharpObjectShapeMemberFact[] = [];
         const names = new Set<string>();
         for (const member of descriptor.members) {
@@ -77,14 +150,23 @@ function representDescriptor(
           names.add(member.name);
           const type = representDescriptor(host, member.type, active);
           if (type === undefined) return undefined;
+          const callable = member.type.kind === "callable" ? member.type : undefined;
+          const memberKind = callable === undefined || member.declaration === undefined ? "property" : host.memberKind(member.declaration);
+          const signature = memberKind === "method" && callable?.calls.length === 1 ? callable.calls[0] : undefined;
+          const typeParameters = signature === undefined ? [] : host.memberTypeParameters(signature);
+          if (typeParameters === undefined) return undefined;
           members.push(Object.freeze({
             sourceKey: Object.freeze({ kind: "property", name: member.name }),
             sourceName: member.name,
             targetName: objectShapeMemberTargetName(member.name),
-            memberKind: "property",
-            type,
+            memberKind,
+            type: memberKind === "method" ? getCsharpMethodValue(type)?.contract ?? type : type,
+            ...(typeParameters.length === 0 ? {} : { typeParameters }),
             optional: member.optional,
-            ...(member.declaration === undefined ? {} : { sourceDeclarations: Object.freeze([member.declaration]) }),
+            ...(member.declaration === undefined ? {} : {
+              sourceDeclarations: Object.freeze([member.declaration]),
+              sourceSubjects: Object.freeze([member.declaration]),
+            }),
             ...(member.readonly === undefined ? {} : { readonly: member.readonly }),
           }));
         }

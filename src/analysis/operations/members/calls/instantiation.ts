@@ -72,7 +72,6 @@ export function instantiateCsharpProviderCall(
     relation,
     source,
     sourceFile,
-    bindingArguments.map(argument => argument.targetType),
   );
   if (methodArguments === undefined) {
     return {
@@ -82,7 +81,7 @@ export function instantiateCsharpProviderCall(
     };
   }
   const invocationArguments = resolveInvocationTypeArguments(
-    host.types,
+    host,
     relation,
     source,
     sourceFile,

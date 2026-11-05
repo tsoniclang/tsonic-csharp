@@ -1,5 +1,5 @@
 import { selectCsharpFlowReadCarrier } from "../../policy/conversions/flow-read.js";
-import { isCsharpFlowReadEvidenceNode, inferCallableReturnType, freezeSourceArgumentClassification } from "./source-values.js";
+import { isCsharpFlowReadEvidenceNode, freezeSourceArgumentClassification } from "./source-values.js";
 import type { ExtensionFactSubject, Node, ResolvedSourceGeneratorInfo, ResolvedSourceWellKnownSymbolInfo, ResolvedSourceYieldInfo, SourceFile, Type, Signature } from "@tsonic/tsts";
 import { providerVirtualDeclarationFactKey } from "@tsonic/tsts";
 import type { SourceTypeComponentEvidence, TargetSourceProgram } from "@tsonic/target-api/source";
@@ -454,7 +454,7 @@ export function analyzeCsharpSourceEvidence(
             }),
       );
     }
-    const inferredReturn = inferCallableReturnType(node, sourceFile, source, types);
+    const inferredReturn = types.resolveCallableReturn(node);
     const pointerReturn = types.resolvePointerReturn(node);
     if (pointerReturn !== undefined) pointerReturns.set(node, pointerReturn);
     inferredReturns.set(node, recordTargetType(pointerReturn?.type ?? inferredReturn) ?? missing);

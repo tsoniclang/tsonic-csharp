@@ -38,7 +38,7 @@ import { generatorProtocol as generatorProtocolImplementation, generatorResultPr
 import { resolveSelectedSymbolType as resolveSelectedSymbolTypeImplementation, resolveProjectSourceSemanticType as resolveProjectSourceSemanticTypeImplementation, resolveProjectSourceType as resolveProjectSourceTypeImplementation, projectSourceDeclarationTargetType as projectSourceDeclarationTargetTypeImplementation } from "./project-types.js";
 import { createCsharpTypeResolutionQueryCache } from "./query-cache.js";
 import { resolveCsharpPointerStoragePointee } from "./pointer-storage.js";
-import { createCsharpSourceTypeRepresentationHost } from "./effective-types.js";
+import { createCsharpSourceTypeRepresentationHost, resolveCsharpPublishedCallableReturn, resolveCsharpSourceTypeDescriptor } from "./effective-types.js";
 
 import type { CsharpTypeResolutionScope } from "./scope.js";
 type DropScope<Arguments extends readonly unknown[]> =
@@ -294,6 +294,7 @@ export function createCsharpTypeResolutionServices(
       methods.resolveArrayLiteralWithState(node, host.semantics(sourceFile), { depth: 0 }),
     selectFixedArray: createCsharpFixedArrayTypeQuery(host),
     resolveNode: methods.resolveNode,
+    resolveCallableReturn: declaration => resolveCsharpPublishedCallableReturn(scope, declaration, { depth: 0 })?.result?.selectedType,
     resolveStorage: methods.resolveStorage,
     resolveReadStorage: methods.resolveReadStorage,
     resolveType: methods.resolveType,
@@ -326,6 +327,7 @@ export function createCsharpTypeResolutionServices(
   });
   const recursive: CsharpRecursiveTypeResolver = Object.freeze({
     resolveNode: methods.resolveNodeWithState,
+    resolveDescriptor: (descriptor, occurrence, state) => resolveCsharpSourceTypeDescriptor(scope, descriptor, state, occurrence),
     resolveType: methods.resolveTypeWithState,
     resolveSelectedType(
       authoredTypeNode: Node | undefined,

@@ -1,14 +1,4 @@
-import type { Node, SourceFile } from "@tsonic/tsts";
-
-import type { TargetSourceProgram } from "@tsonic/target-api/source";
-import { HasSyntacticModifier, ModifierFlagsAsync } from "@tsonic/target-api/source";
-import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
-
-import type { CsharpTypePolicy } from "./types/resolution/model.js";
-
-import type { TargetTypeRef } from "../../target-model/types/model.js";
-import { csharpTaskTargetType, getCsharpTaskResultTargetType, targetTypeRefEquals } from "../../policy/types/index.js";
-import { forEachCsharpDirectReturnExpression } from "../callables/calls/return-expressions.js";
+import type { Node } from "@tsonic/tsts";
 
 export function isCsharpFlowReadEvidenceNode(
   ast: import("@tsonic/tsts").AstReader,
@@ -17,59 +7,6 @@ export function isCsharpFlowReadEvidenceNode(
   return ast.is.IsIdentifier(node) ||
     ast.is.IsPropertyAccessExpression(node) ||
     ast.is.IsElementAccessExpression(node);
-}
-
-export function inferCallableReturnType(
-  declaration: Node,
-  sourceFile: SourceFile,
-  source: TargetSourceProgram,
-  types: CsharpTypePolicy,
-): TargetTypeRef | undefined {
-  const semantics = source.semantics.forFile(sourceFile);
-  const declarationType = semantics.types.expressionType(declaration);
-  if (declarationType === undefined) {
-    return undefined;
-  }
-  const signatures = semantics.types.signatureInfos(declarationType, "call")
-    .filter((signature) =>
-      semantics.declarations.signatureDeclaration(signature.signature) === declaration);
-  if (signatures.length !== 1) return undefined;
-  const authoredReturn = source.ast.typeNode(declaration);
-  const expressions: Node[] = [];
-  if (authoredReturn === undefined) forEachCsharpDirectReturnExpression(source.ast, declaration, expression => {
-    if (!types.nativeUnreachable(expression)) expressions.push(expression);
-  });
-  const published = expressions.some(expression => source.effectiveTypes.get(expression) !== undefined);
-  if (authoredReturn === undefined && published) {
-    const asynchronous = HasSyntacticModifier(source.ast, declaration, ModifierFlagsAsync);
-    const returned: TargetTypeRef[] = [];
-    let incomplete = false;
-    let outsideDomain = false;
-    for (const expression of expressions) {
-      const outcome = source.effectiveTypes.get(expression);
-      if (outcome === undefined) {
-        outsideDomain = true;
-        continue;
-      }
-      const resolution = types.resolveNode(expression, sourceFile);
-      const result = resolution?.sourceResult;
-      if (result !== undefined && result.effectiveType !== outcome) {
-        failTargetAnalysisInvariant("tsonic-csharp",
-          "An inferred return must retain its original Host effective-type outcome.", expression);
-      }
-      const selected = result?.selectedType;
-      if (selected === undefined) incomplete = true;
-      else returned.push(asynchronous ? getCsharpTaskResultTargetType(selected) ?? selected : selected);
-    }
-    if (incomplete) return undefined;
-    if (!outsideDomain) {
-      const selected = returned[0];
-      return selected !== undefined && returned.every(type => targetTypeRefEquals(type, selected))
-        ? asynchronous ? csharpTaskTargetType(selected) : selected
-        : undefined;
-    }
-  }
-  return types.resolveSelectedType(authoredReturn, signatures[0]!.returnType, sourceFile);
 }
 
 export function freezeSourceArgumentClassification(

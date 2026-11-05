@@ -12,6 +12,7 @@ import type { CsharpSourceEvidenceIndex } from "../../target-model/records/progr
 import type { CsharpStorageRepresentationClassifications } from "../../target-model/records/storage/storage.js";
 import type { TargetTypeRef } from "../../target-model/types/index.js";
 import { getCsharpGeneratorProtocol } from "../../target-model/types/carriers/generators.js";
+import { selectCsharpScalarLiteralCarrier } from "../../policy/conversions/literals.js";
 
 export interface CsharpValueReadStageAnalysis {
   readonly valueReadStages: CsharpValueReadStageIndex;
@@ -66,7 +67,8 @@ export function analyzeCsharpValueReadStages(
     const source = evidence.nodeTargetType.get(node);
     const declaredStorage = evidence.storageTargetType.get(node);
     const readStorage = evidence.readStorageTargetType.get(node);
-    const selectedOperation = operations.operationResultType.get(node) ?? yieldResumeType(node);
+    const selectedOperation = operations.operationResultType.get(node) ?? yieldResumeType(node) ??
+      selectCsharpScalarLiteralCarrier(policy.literalValues.literalValue.get(node), source, policy.typeDefinitions);
     const narrowedRead = evidence.valueRefinement.get(node)?.flowReadTargetType;
     const member = operations.sourceMember.get(node);
     const selectedMemberRead = member?.selectedReadType;

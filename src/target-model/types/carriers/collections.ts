@@ -152,6 +152,14 @@ export function isCsharpRecordDictionaryTargetType(
     (type as CsharpTargetNamedTypeRef).csharpCollectionSurface === "record";
 }
 
+export function csharpRecordDictionaryCarrier(type: TargetTypeRef): TargetTypeRef | undefined {
+  return type.kind !== "target-named" || type.typeArguments?.length !== 2 ? undefined : Object.freeze({
+    ...type,
+    csharpCollectionSurface: "record" as const,
+    csharpPropertyKeyIteration: Object.freeze({ kind: "key-collection" as const, memberName: "Keys" }),
+  });
+}
+
 export function csharpTupleElementMemberName(index: number): string {
   if (!Number.isSafeInteger(index) || index < 0) {
     throw new Error("C# tuple element indexes must be non-negative safe integers.");

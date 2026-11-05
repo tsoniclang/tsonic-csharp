@@ -151,6 +151,15 @@ export function selectCsharpConversion(
   ) {
     return { kind: "cast", proof: "reference" };
   }
+  if (source.kind === "target-named" && target.kind === "target-named" && source.id === target.id &&
+    source.typeArguments?.length === target.typeArguments?.length) {
+    for (const [index, argument] of (source.typeArguments ?? []).entries()) {
+      const required = target.typeArguments?.[index];
+      if (required === undefined || targetTypeRefEquals(argument, required)) continue;
+      const relation = selectCsharpConversion(input, argument, required, mode);
+      if (relation.kind === "rejected") return relation;
+    }
+  }
   return {
     kind: "rejected",
     reason:

@@ -30,8 +30,7 @@ export function classifyMethodTypeArgumentProjections(
   return Object.freeze(selection.targetMethodTypeArguments.map((argument, index) => {
     const required = indexed.has(index);
     const projection = required && argument.kind === "selected-source"
-      ? policy.objectShapes.resolveProjectConstructibleSelectedType(argument.targetType, argument.explicitTypeNode,
-          argument.selectedType, contextNode, sourceFile)
+      ? policy.objectShapes.resolveProjectConstructibleSelectedType(argument.targetType, argument.descriptor, contextNode, sourceFile)
       : required ? Object.freeze({ kind: "rejected" as const, reason: "Exact source-selected type evidence is required." })
         : Object.freeze({ kind: "unchanged" as const });
     const subject = argument.kind === "selected-source" ? argument.explicitTypeNode ?? contextNode : contextNode;

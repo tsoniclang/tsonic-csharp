@@ -1,7 +1,7 @@
 import type { CsharpConversionSelection } from "../../conversions/selection.js";
 import type { CsharpProviderTargetRelation, CsharpTargetReceiverRelation } from "../../identities/provider-relations.js";
 import type { CsharpObjectShapeMemberFact, CsharpTargetMember, CsharpTargetParameter, TargetTypeRef } from "../../types/model.js";
-import type { SourceFileSemantics } from "@tsonic/target-api/source";
+import type { SourceFileSemantics, SourceTypeDescriptor } from "@tsonic/target-api/source";
 import type { Node, Type } from "@tsonic/tsts";
 
 export type ResolvedSourceCallInfo = NonNullable<
@@ -93,6 +93,7 @@ export type CsharpSelectedTargetMethodTypeArgument =
       readonly kind: "selected-source";
       readonly targetType: TargetTypeRef;
       readonly selectedType: Type;
+      readonly descriptor: SourceTypeDescriptor;
       readonly explicitTypeNode?: Node;
     };
 

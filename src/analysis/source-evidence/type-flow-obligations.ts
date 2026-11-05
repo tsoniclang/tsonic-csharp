@@ -9,6 +9,9 @@ import { checkCsharpSourceTypeFlowObligation } from "../../policy/types/source-t
 import { substituteTargetTypeParameters } from "../../policy/types/resolution/substitution.js";
 import { csharpSourceTypeParameter } from "../../source/extension/type-parameters.js";
 import { representCsharpSourceType } from "../../policy/types/source-type-flow/representation.js";
+import { selectCsharpConversion } from "../../policy/conversions/core.js";
+import { csharpConversionIsApplicable } from "../../policy/conversions/applicability.js";
+import { selectCsharpScalarLiteralCarrier } from "../../policy/conversions/literals.js";
 
 export function analyzeCsharpSourceTypeFlowObligations(
   policy: CsharpPolicyContext,
@@ -30,18 +33,24 @@ export function analyzeCsharpSourceTypeFlowObligations(
         const selected = policy.types.resolveNode(node, policy.ast.getSourceFile(node));
         return selected?.kind === "resolved" ? selected.sourceResult.selectedType : undefined;
       },
-      literalAdmission(node) {
+      literalAdmission(node, chosen) {
         const issue = nativeConstruction.issues.find(issue => issue.node === node);
         if (issue !== undefined) return { kind: "rejected", subject: issue.node, code: issue.code, reason: issue.message };
         const selected = nativeConstruction.constructionFor(node);
-        if (selected !== undefined) return { kind: "resolved", type: selected.targetType };
+        const scalar = selectCsharpScalarLiteralCarrier(policy.literalValues.literalValue.get(node), chosen, policy.typeDefinitions);
+        const actual = selected?.targetType ?? scalar;
+        if (actual !== undefined) {
+          const conversion = selectCsharpConversion(policy, actual, chosen, "implicit");
+          return csharpConversionIsApplicable(conversion, "implicit") ? { kind: "resolved", type: chosen }
+            : conversion.kind === "rejected" ? { kind: "rejected", subject: node,
+              code: "CSHARP_UNSUPPORTED_AST", reason: conversion.reason } : undefined;
+        }
         const result = policy.types.resolveNode(node, policy.ast.getSourceFile(node));
-        return result?.kind === "resolved" ? result.sourceResult.literalAdmission : undefined;
+        return result?.kind === "rejected" ? result : result?.sourceResult.literalAdmission;
       },
       requiredType(node, association) {
         if (association?.binding !== undefined || association?.parameter !== undefined) return associatedParameter(policy, node, association);
-        const authored = policy.ast.typeNode(node) ?? node;
-        const result = policy.types.resolveNode(authored, policy.ast.getSourceFile(authored));
+        const result = policy.types.resolveNode(node, policy.ast.getSourceFile(node));
         return result?.kind === "resolved" ? result.sourceResult.selectedType : undefined;
       },
       nativeConstraints(node, type, association) {

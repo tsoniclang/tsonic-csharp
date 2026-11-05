@@ -2,6 +2,7 @@ import { type Node } from "@tsonic/tsts";
 import { type TargetTypeRef } from "../../types/model.js";
 import { type CsharpConversionSelection } from "../../conversions/selection.js";
 import { type CsharpBorrowedSequenceInput } from "../storage/borrowed-sequences.js";
+import type { CsharpNativeSourceCarrierSelection } from "../objects/object-shapes.js";
 
 export interface CsharpArraySpreadEmission {
   readonly carrier: TargetTypeRef;
@@ -45,5 +46,5 @@ export interface CsharpArrayLiteralRecords {
 
 export type CsharpArrayLiteralSelection =
   | { readonly kind: "resolved"; readonly carrier: TargetTypeRef; readonly elementCarriers: readonly TargetTypeRef[] }
-  | { readonly kind: "rejected"; readonly reason: string }
+  | Extract<CsharpNativeSourceCarrierSelection, { readonly kind: "rejected" }>
   | { readonly kind: "unavailable" };

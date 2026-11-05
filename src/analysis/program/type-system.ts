@@ -258,6 +258,7 @@ export function createCsharpTypeAnalysis(
   const system = createCsharpTypeSystem(host, catalog, selectedRepresentations);
   nativeConstruction = createCsharpNativeConstructionDemandQuery({
     ...host,
+    projectTypes: system.projectTypes,
     resolveEffectiveShape(node, file) {
       return system.objectShapes.resolveNode(node, file);
     },

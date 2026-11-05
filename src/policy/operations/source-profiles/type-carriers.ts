@@ -1,4 +1,4 @@
-import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/model.js";
 
 import { csharpAsyncGeneratorTargetType, csharpGeneratorTargetType, csharpIteratorResultTargetType } from "../../../target-model/types/carriers/generators.js";
 import { closeCsharpGeneratorProtocolType } from "../../types/callables/generators.js";
@@ -6,7 +6,7 @@ import { csharpJsArrayTargetType, csharpJsDateTargetType, csharpJsMapTargetType,
 import { classifyCsharpSourceProfileType } from "../../identities/source-types.js";
 
 import { csharpTaskTargetType } from "../../../target-model/types/carriers/delegates.js";
-import { csharpEnumerableTargetType } from "../../../target-model/types/carriers/collections.js";
+import { csharpEnumerableTargetType, csharpRecordDictionaryCarrier } from "../../../target-model/types/carriers/collections.js";
 
 import { csharpSourceErrorTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 
@@ -90,14 +90,7 @@ export function selectCsharpSourceProfileCarrier(
       if (targetType?.kind !== "target-named") {
         return undefined;
       }
-      return {
-        ...(targetType as CsharpTargetNamedTypeRef),
-        csharpCollectionSurface: "record",
-        csharpPropertyKeyIteration: {
-          kind: "key-collection",
-          memberName: "Keys",
-        },
-      } as CsharpTargetNamedTypeRef;
+      return csharpRecordDictionaryCarrier(targetType);
     }
     case "date":
       return typeArguments.length === 0

@@ -3,13 +3,7 @@ import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import type { CsharpProviderTargetRelation } from "../../../../target-model/identities/provider-relations.js";
 import type { TargetTypeRef } from "../../../../policy/types/index.js";
 
-import type { CsharpTypeQueries } from "../../../../policy/model/type-resolution.js";
-
-import { csharpTargetBindingSubstitutions, csharpTargetParameterValueType, substituteCsharpTargetMember } from "../../../../policy/types/index.js";
-
-import { selectCsharpCommonImplicitTarget } from "../../../conversions/common-target.js";
-
-import { inferCsharpTargetTypeParameterBindings } from "../../../../policy/types/resolution/substitution.js";
+import type { SourceTypeDescriptor } from "@tsonic/target-api/source";
 
 import { resolveCsharpTargetBindingArguments } from "./binding-instantiation.js";
 
@@ -69,10 +63,16 @@ export function resolveProviderBindingTypeArguments(
     }
     const resolved = sourceArguments.map((selectedType, index) => {
       const targetType = targetArguments[index]!;
+      const outcome = evidence.node === undefined ? undefined : host.effectiveTypes.get(evidence.node);
+      let descriptor = outcome?.kind === "refused" ? undefined : outcome?.type;
+      while (descriptor?.kind === "optional") descriptor = descriptor.value;
+      const argument = descriptor?.kind === "declared" ? descriptor.typeArguments[index] : undefined;
+      if (argument === undefined) return { kind: "target-derived" as const, targetType };
       return {
             kind: "selected-source" as const,
             targetType,
             selectedType,
+            descriptor: argument,
           };
     });
     return Object.freeze(resolved);
@@ -83,6 +83,7 @@ export function resolveProviderBindingTypeArguments(
     relation.targetBinding.typeParameters?.length ?? 0,
     relation.selectedTypeParameterCount,
     host.types.resolveSourceCallTypeArguments(source, sourceFile),
+    selectedDescriptors(host, source, sourceFile),
   );
 }
 
@@ -91,69 +92,21 @@ export function resolveMethodTypeArguments(
   relation: CsharpProviderSignatureRelation,
   source: ResolvedSourceCallInfo,
   sourceFile: SourceFile,
-  bindingArguments: readonly TargetTypeRef[],
 ): readonly CsharpSelectedTargetMethodTypeArgument[] | undefined {
   const sourceArguments = source.sourceSelectedMethodTypeArguments ?? [];
   const targetArity = relation.targetMember.typeParameters?.length ?? 0;
-  if (host.effectiveTypes.callInstantiation(source.call) !== undefined) {
-    return resolveSelectedTypeArguments(sourceArguments, relation.methodTypeParameters,
-      targetArity, relation.selectedTypeParameterCount,
-      host.types.resolveSourceCallTypeArguments(source, sourceFile));
-  }
-  const bindingSubstitutions = csharpTargetBindingSubstitutions(relation.targetBinding, bindingArguments);
-  if (bindingSubstitutions === undefined) return undefined;
-  const member = substituteCsharpTargetMember(relation.targetMember, bindingSubstitutions);
-  const inferredSourceArguments = new Map(relation.methodTypeParameters.flatMap(mapping => {
-    const selected = sourceArguments[mapping.sourceTypeParameterIndex];
-    const parameter = member.typeParameters?.[mapping.targetTypeParameterIndex];
-    return selected !== undefined && selected.explicitTypeNode === undefined && parameter !== undefined
-      ? [[parameter.identity, selected] as const] : [];
-  }));
-  const inferredNames = new Set(inferredSourceArguments.keys());
-  const bounds = new Map<string, TargetTypeRef[]>();
-  if (inferredNames.size !== 0) {
-    for (const binding of source.sourceArgumentBindings) {
-      const mapping = relation.parameters.find(value => value.sourceParameterIndex === binding.sourceParameterIndex);
-      const parameter = mapping === undefined ? undefined : member.parameters[mapping.targetParameterIndex];
-      const argument = source.sourceArguments[binding.sourceArgumentIndex];
-      if (parameter === undefined || argument === undefined) return undefined;
-      const actual = host.types.resolveSelectedValue(argument.expression, argument.type, sourceFile);
-      if (actual === undefined) continue;
-      const candidates = inferCsharpTargetTypeParameterBindings(
-        csharpTargetParameterValueType(parameter, binding.sourceForm), actual, inferredNames);
-      for (const [name, carrier] of candidates ?? []) {
-        const previous = bounds.get(name);
-        if (previous === undefined) bounds.set(name, [carrier]);
-        else previous.push(carrier);
-      }
-    }
-  }
-  const inferred = new Map<string, TargetTypeRef>();
-  for (const [name, candidates] of bounds) {
-    const selected = inferredSourceArguments.get(name)!;
-    const selectedTarget = host.types.resolveSelectedType(undefined, selected.selectedType, sourceFile);
-    const common = selectCsharpCommonImplicitTarget(host, candidates,
-      selectedTarget === undefined ? candidates : [...candidates, selectedTarget]);
-    if (common.kind === "rejected") return undefined;
-    inferred.set(name, common.target);
-  }
-  const refinements = new Map(relation.methodTypeParameters.flatMap(mapping => {
-    const parameter = member.typeParameters?.[mapping.targetTypeParameterIndex];
-    const carrier = parameter === undefined ? undefined : inferred.get(parameter.identity);
-    return carrier === undefined ? [] : [[mapping.sourceTypeParameterIndex, carrier] as const];
-  }));
   return resolveSelectedTypeArguments(
     sourceArguments,
     relation.methodTypeParameters,
     targetArity,
     relation.selectedTypeParameterCount,
     host.types.resolveSourceCallTypeArguments(source, sourceFile),
-    refinements,
+    selectedDescriptors(host, source, sourceFile),
   );
 }
 
 export function resolveInvocationTypeArguments(
-  types: CsharpTypeQueries,
+  host: CsharpProviderCallInstantiationHost,
   relation: CsharpProviderSignatureRelation,
   source: ResolvedSourceCallInfo,
   sourceFile: SourceFile,
@@ -169,7 +122,8 @@ export function resolveInvocationTypeArguments(
     relation.invocationTypeParameters,
     targetArity,
     relation.selectedTypeParameterCount,
-    types.resolveSourceCallTypeArguments(source, sourceFile),
+    host.types.resolveSourceCallTypeArguments(source, sourceFile),
+    selectedDescriptors(host, source, sourceFile),
   );
 }
 
@@ -184,7 +138,7 @@ function resolveSelectedTypeArguments(
   targetArity: number,
   sourceArity: number,
   nativeArguments: readonly TargetTypeRef[] | undefined,
-  refinements: ReadonlyMap<number, TargetTypeRef> = new Map(),
+  descriptors: readonly SourceTypeDescriptor[] | undefined,
 ): readonly CsharpSelectedTargetMethodTypeArgument[] | undefined {
   if (
     sourceArguments.length !== sourceArity ||
@@ -204,15 +158,16 @@ function resolveSelectedTypeArguments(
     ) {
       return undefined;
     }
-    const targetArgument = refinements.get(typeParameterRelation.sourceTypeParameterIndex) ??
-      nativeArguments?.[typeParameterRelation.sourceTypeParameterIndex];
-    if (targetArgument === undefined) {
+    const targetArgument = nativeArguments?.[typeParameterRelation.sourceTypeParameterIndex];
+    const descriptor = descriptors?.[typeParameterRelation.sourceTypeParameterIndex];
+    if (targetArgument === undefined || descriptor === undefined) {
       return undefined;
     }
     targetArguments[typeParameterRelation.targetTypeParameterIndex] = {
       kind: "selected-source",
       targetType: targetArgument,
       selectedType: sourceArgument.selectedType,
+      descriptor,
       ...(sourceArgument.explicitTypeNode === undefined
         ? {}
         : { explicitTypeNode: sourceArgument.explicitTypeNode }),
@@ -224,4 +179,25 @@ function resolveSelectedTypeArguments(
     )
     ? targetArguments
     : undefined;
+}
+
+function selectedDescriptors(
+  host: CsharpProviderCallInstantiationHost,
+  source: ResolvedSourceCallInfo,
+  sourceFile: SourceFile,
+): readonly SourceTypeDescriptor[] | undefined {
+  const publication = host.effectiveTypes.callInstantiation(source.call);
+  const selected = source.sourceSelectedMethodTypeArguments ?? [];
+  if (selected.length === 0) return Object.freeze([]);
+  if (publication === undefined || publication.call !== source) return undefined;
+  const queries = host.semantics(sourceFile);
+  const descriptors: SourceTypeDescriptor[] = [];
+  for (const argument of selected) {
+    const symbol = queries.declarations.typeSymbol(argument.typeParameter);
+    const declarations = symbol === undefined ? [] : queries.declarations.symbolDeclarations(symbol);
+    const matches = publication.method.filter(parameter => declarations.includes(parameter.declaration));
+    if (matches.length !== 1) return undefined;
+    descriptors.push(matches[0]!.type);
+  }
+  return Object.freeze(descriptors);
 }

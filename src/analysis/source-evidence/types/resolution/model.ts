@@ -114,6 +114,11 @@ export interface CsharpTypeResolutionState {
 }
 
 export interface CsharpRecursiveTypeResolver {
+  resolveDescriptor(
+    descriptor: import("@tsonic/target-api/source").SourceTypeDescriptor,
+    occurrence: Node,
+    state: CsharpTypeResolutionState,
+  ): TargetTypeRef | undefined;
   resolveNode(
     node: Node | undefined,
     sourceFile: SourceFile | undefined,

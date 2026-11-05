@@ -17,6 +17,7 @@ import { csharpCollectionUsesJsArraySemantics, getCsharpArrayLiteralElementTarge
 import { selectCsharpSequenceEmission } from "../../policy/conversions/sequence-emission.js";
 import { selectCsharpTypeEmission } from "../../policy/types/resolution/type-emission.js";
 import { createCsharpArrayLiteralProducer } from "../program/records/operations/array-literals.js";
+import { csharpArrayLiteralElisionIssue } from "../../policy/types/collections/literal-construction.js";
 
 export function analyzeCsharpArrayLiterals(input: { readonly source: TargetSourceProgram; readonly demand: CsharpNativeDemandAnalysis;
   readonly conversions: CsharpConversionClassifications; readonly values: CsharpValueReadClassifications;
@@ -45,9 +46,9 @@ export function analyzeCsharpArrayLiterals(input: { readonly source: TargetSourc
     if (producer.records.arrayLiteral.get(node, use.carrier) !== undefined) continue;
     const carrier = getCsharpNullableElementTargetType(use.carrier) ?? use.carrier;
     const sources = ast.elements(node);
-    const elision = sources.some(element => element === undefined || ast.kindName(element) === "KindOmittedExpression");
-    if (elision) {
-      refuse(node, "Sparse array literal elisions require closed JSArray hole construction facts before C# emission; dense array carriers must not compact holes.");
+    const elision = csharpArrayLiteralElisionIssue(ast, node);
+    if (elision !== undefined) {
+      refuse(elision.subject, elision.reason);
       continue;
     }
     const omitted: TargetTypeRef[] = [];

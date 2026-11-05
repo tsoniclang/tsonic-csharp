@@ -32,6 +32,7 @@ export interface CsharpTypeQueries {
   resolvePointerReturn(declaration: Node): CsharpPointerReturnContract | undefined;
   resolvePointerStoragePointee(producer: SourceStorageProducer): import("../../target-model/records/storage/pointer-storage.js").CsharpPointerStoragePointeeSelection;
   resolveNode(node: Node | undefined, sourceFile?: SourceFile): CsharpNodeTypeResolution | undefined;
+  resolveCallableReturn(declaration: Node): TargetTypeRef | undefined;
   resolveStorage(node: Node | undefined, sourceFile?: SourceFile): TargetTypeRef | undefined;
   resolveReadStorage(node: Node | undefined, sourceFile?: SourceFile): TargetTypeRef | undefined;
   resolveType(type: Type | undefined, sourceFile: SourceFile): TargetTypeRef | undefined;

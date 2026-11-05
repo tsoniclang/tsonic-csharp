@@ -2,7 +2,7 @@ import type { CsharpTypeResolutionScope } from "./scope.js";
 import { resolveCsharpConstructorValueType } from "./constructors.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { SourceFileSemantics } from "@tsonic/target-api/source";
+import { IsTypeSyntaxNode, type SourceFileSemantics } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import { combineCsharpTargetUnionMembers } from "../../../../target-model/types/carriers/runtime-carriers.js";
 import { csharpJsArrayTargetType } from "../../../../target-model/types/carriers/js.js";
@@ -24,7 +24,6 @@ import { resolveCsharpNativeParameterCarrier, selectCsharpContextualParameterCar
 import type { CsharpSourceCallResult } from "../../../../target-model/operations/source-call-results.js";
 import { csharpSourceValueResult, refineCsharpSourceValueResult } from "./call-results.js";
 import { resolveCsharpSourceEffectiveType } from "./effective-types.js";
-import { resolveCsharpDeclaredLiteralContext } from "./literal-context.js";
 export function resolveNodeValueWithState(
   scope: CsharpTypeResolutionScope,
   node: Node | undefined,
@@ -51,11 +50,14 @@ function resolveNodeResultWithState(
     const selection = scope.resolveArrayLiteralWithState(node, queries, state);
     if (selection.kind === "unavailable") return undefined;
     const literalAdmission = selection.kind === "rejected"
-      ? Object.freeze({ kind: "rejected" as const, subject: node, code: "CSHARP_ARRAY_ELEMENT_CARRIER_MISMATCH", reason: selection.reason })
+      ? selection
       : Object.freeze({ kind: "resolved" as const, type: selection.carrier });
     if (literalAdmission.kind === "rejected") state.rejectNativeResolution?.(literalAdmission);
     return Object.freeze({ ...effective.result, literalAdmission });
   }
+  if (!IsTypeSyntaxNode(host.ast, node) && !host.ast.is.IsTypeLiteralNode(node) &&
+    !host.ast.is.IsNamedTupleMember(node) && !host.ast.is.IsExpressionWithTypeArguments(node) &&
+    !host.ast.is.IsTypeParameterDeclaration(node)) return undefined;
   if (state.depth > maximumTypeResolutionDepth) failTargetCompilerResourceLimit("tsonic-csharp",
     "Selected native source-node type resolution", "depth", maximumTypeResolutionDepth, node);
   state = csharpSourceStorageContext(host, state, node);
@@ -83,26 +85,6 @@ function resolveNodeResultWithState(
   );
   if (syntaxFact !== undefined) {
     return csharpSourceValueResult(syntaxFact);
-  }
-  if (host.ast.is.IsObjectLiteralExpression(node)) {
-    const context = resolveCsharpDeclaredLiteralContext(scope, node, queries, state);
-    if (context.kind === "selected") return csharpSourceValueResult(
-      context.type);
-  }
-  if (host.ast.is.IsArrayLiteralExpression(node)) {
-    const selection = scope.resolveArrayLiteralWithState(node, queries, state);
-    if (selection.kind === "rejected") state.rejectNativeResolution?.(Object.freeze({ kind: "rejected", subject: node,
-      code: "CSHARP_ARRAY_ELEMENT_CARRIER_MISMATCH", reason: selection.reason }));
-    return selection.kind === "resolved" ? csharpSourceValueResult(selection.carrier) : undefined;
-  }
-  if (host.ast.is.IsPropertyDeclaration(node) || host.ast.is.IsPropertySignatureDeclaration(node) ||
-    host.ast.is.IsParameterDeclaration(node)) {
-    const typeNode = host.ast.typeNode(node);
-    if (typeNode !== undefined) {
-      const declared = resolveNodeWithState(typeNode, queries.sourceFile, nextState(state));
-      return csharpSourceValueResult(declared === undefined || host.ast.questionToken(node) === undefined
-        ? declared : csharpNullableTargetType(declared));
-    }
   }
   const contextualParameter = selectCsharpContextualParameterCarrier(scope, node, queries, state);
   if (contextualParameter.kind !== "not-applicable") return contextualParameter.kind === "resolved"

@@ -30,7 +30,7 @@ export function analyzeCsharpLiteralAdmission(input: { readonly ast: AstReader; 
     const read = input.values.valueRead.get(node);
     const carrier = read?.value;
     if (!published.has(node) && input.ast.is.IsNumericLiteral(node)) {
-      const source = read?.source;
+      const source = read?.selectedOperation ?? read?.source;
       const selected = input.exact.exactLiteral.get(node, source);
       const number = input.literals.literalValue.get(node)?.number;
       const castFloat64 = use.kind === "converted" && use.mode === "explicit" && use.input.kind === "value" &&

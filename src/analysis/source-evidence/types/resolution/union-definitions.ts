@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { Type } from "@tsonic/tsts";
+import type { Node, Type } from "@tsonic/tsts";
 import { sourceNodeIdentity, type SourceFileSemantics } from "@tsonic/target-api/source";
 import type { CsharpTypePolicyHost, CsharpTypeResolutionState, CsharpRecursiveTypeResolver } from "./model.js";
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../../target-model/types/model.js";
@@ -25,6 +25,30 @@ export function createCsharpSourceUnionDefinitions(
   const selected = new WeakMap<Type, Definition>();
   const definitions = new Map<string, Definition>();
   return Object.freeze({
+    resolveDescriptor(declaration: Node, typeArguments: readonly TargetTypeRef[],
+      definition: (() => TargetTypeRef | undefined) | undefined): TargetTypeRef | undefined {
+      const identity = sourceNodeIdentity(host.ast, declaration);
+      if (identity === undefined) return undefined;
+      const key = JSON.stringify([identity, typeArguments.map(targetTypeRefKey)]);
+      const previous = definitions.get(key);
+      if (previous !== undefined) {
+        if (previous.building) previous.recursive = true;
+        return previous.building ? previous.reference : previous.result;
+      }
+      if (definition === undefined) return undefined;
+      const name = `__TsonicUnion_${createHash("sha256").update(identity).digest("hex")}`;
+      const carrier = csharpSourceUnionTargetType(identity, name, typeArguments);
+      const record: Definition = { carrier, reference: carrier, recursive: false, building: true };
+      definitions.set(key, record);
+      const result = definition();
+      record.building = false;
+      const present = getCsharpNullableElementTargetType(result) ?? result;
+      const arms = present === undefined ? [] : getCsharpRuntimeUnionArms(present, host.typeDefinitions) ?? [present];
+      record.result = !record.recursive ? result : result !== undefined && host.typeDefinitions !== undefined &&
+        host.typeDefinitions.registerSourceUnion({ carrier, arms })
+          ? getCsharpNullableElementTargetType(result) === undefined ? carrier : csharpNullableTargetType(carrier) : undefined;
+      return record.result;
+    },
     reference(type: Type): TargetTypeRef | undefined {
       const definition = selected.get(type);
       if (definition === undefined) return undefined;

@@ -16,7 +16,6 @@ import type { CsharpSourceEvidenceIndex } from "../../../target-model/records/pr
 import type { CsharpGenericProjectionIndex } from "../../../target-model/records/types/type-projections.js";
 import type { CsharpSourceNameResolver } from "../../names/index.js";
 import { csharpSourceTypeParameter } from "../../../source/extension/type-parameters.js";
-import { csharpVoidTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import { selectCsharpSourceParameterVector } from "../../../policy/types/callables/parameter-vector.js";
 import type { CsharpTargetOperationClassifications } from "../../../target-model/records/operations/operations.js";
 import { completeCsharpContextualInputs } from "./contextual-inputs.js";
@@ -99,14 +98,10 @@ export function selectCsharpSourceCallableAbi(
     } else inputType = callables[0];
   } else inputType = presentInput;
   const hasInput = !quantified && getCsharpLambdaSignature(inputType) !== undefined;
-  const accessor = policy.ast.is.IsGetAccessorDeclaration(declaration) || policy.ast.is.IsSetAccessorDeclaration(declaration);
   const returnContract = declarations.returnContract.get(declaration);
-  const returnType = policy.ast.is.IsSetAccessorDeclaration(declaration) ? csharpVoidTargetType() : evidence.generatorTargetType.get(declaration) ??
+  const returnType = evidence.generatorTargetType.get(declaration) ??
     (returnContract?.kind === "resolved" ? returnContract.type : undefined) ??
-    getCsharpCallableValueSignature(inputType)
-      ?.returnType ??
-    constructorReturnType(policy, declaration, sourceFile) ??
-    (accessor || policy.ast.body(declaration) === undefined ? policy.types.resolveType(checked.returnType, sourceFile) : undefined);
+    policy.types.resolveCallableReturn(declaration);
   if (returnType === undefined) {
     return undefined;
   }
@@ -232,20 +227,6 @@ function sourceParameterContracts(
     sourceType === undefined ? undefined : types.tupleElementInfos(sourceType));
   return vector === undefined ? undefined : Object.freeze(vector.map(targetParameter =>
     Object.freeze({ sourceParameter: parameterNode, targetParameter })));
-}
-
-function constructorReturnType(
-  policy: CsharpPolicyContext,
-  declaration: Node,
-  sourceFile: SourceFile,
-): TargetTypeRef | undefined {
-  if (!policy.ast.is.IsConstructorDeclaration(declaration)) {
-    return undefined;
-  }
-  const parent = policy.ast.parent(declaration);
-  return parent === undefined
-    ? undefined
-    : policy.types.resolveType(policy.semantics(sourceFile).declarations.declaredType(parent), sourceFile);
 }
 
 function sourceCallableReceiverTypeOwner(

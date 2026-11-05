@@ -1,10 +1,8 @@
 import type { Node, Type, TypePropertyInfo } from "@tsonic/tsts";
-import { ObjectLiteralProperty_Value, sourceClassFieldIsTypeOnly, sourcePropertyTypeEvidenceNodes, sourceTransformedTypeFactEvidenceNodes, sourcePresentCallableType, type SourceFileSemantics, type SourceStructuralMember, type SourceStructuralMemberPair } from "@tsonic/target-api/source";
+import { ObjectLiteralProperty_Value, sourceClassFieldIsTypeOnly, type SourceFileSemantics, type SourceStructuralMember, type SourceStructuralMemberPair, type SourceTypeDescriptor } from "@tsonic/target-api/source";
 import type { CsharpObjectShapePolicyHost } from "./model.js";
 import type { CsharpObjectShapeMemberEvidence, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpTypeResolutionState } from "../../source-evidence/types/resolution/model.js";
-import { csharpNullableTargetType } from "../../../target-model/types/carriers/nullable.js";
-import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { csharpSourceMemberDisplayName } from "../../../target-model/types/source-member-keys.js";
 import { nextState } from "../../source-evidence/types/resolution/state.js";
 import { objectShapeMemberTargetNameForKey } from "../../../policy/identities/source-member-names.js";
@@ -12,7 +10,6 @@ import { isCsharpNativeSourceProfileMemberDeclaration, typeIncludesNullish } fro
 import { resolveObjectShapeSourceMemberKey } from "../../../source/extension/member-keys.js";
 import { resolveCsharpCallableTypeParameters } from "../../source-evidence/types/resolution/callable-type-parameters.js";
 import { csharpMethodValueCoversContract, getCsharpMethodValue } from "../../../target-model/types/method-values.js";
-import type { CsharpProjectMemberTypeInstantiation } from "../../../target-model/records/types/project-types.js";
 
 export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePolicyHost) {
   function retainLiteralMemberEvidence(
@@ -44,12 +41,17 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
   }
 
   function deriveMembers(
+    descriptor: SourceTypeDescriptor,
+    owner: Node,
     ownerType: Type,
     queries: SourceFileSemantics,
     state: CsharpTypeResolutionState,
-    authoredTypeRoot?: Node,
     receiver?: TargetTypeRef,
   ): readonly CsharpObjectShapeMemberFact[] | undefined {
+    while (descriptor.kind === "optional") descriptor = descriptor.value;
+    if (descriptor.kind === "callable" && descriptor.constructs.length === 1) descriptor = descriptor.constructs[0]!.result;
+    const selectedMembers = descriptor.kind === "shape" || descriptor.kind === "declared" ? descriptor.members : undefined;
+    if (selectedMembers === undefined) return undefined;
     const symbol = queries.declarations.typeSymbol(ownerType);
     const literals = symbol === undefined ? [] : queries.declarations.symbolDeclarations(symbol)
       .filter(declaration => host.ast.is.IsObjectLiteralExpression(declaration));
@@ -65,7 +67,37 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
         if (!declarations.every(declaration => isCsharpNativeSourceProfileMemberDeclaration(declaration, host.ast))) return undefined;
         continue;
       }
-      const member = deriveMember(property, queries, state, authoredTypeRoot, literals[0], receiver);
+      const selected = selectedMembers.filter(member => member.declaration !== undefined && declarations.includes(member.declaration));
+      if (selected.length !== 1 || selected[0]!.optional !== property.optional) return undefined;
+      const member = deriveMember(property, selected[0]!.type, owner, queries, state, literals[0], receiver);
+      if (member === undefined) return undefined;
+      members.push(member);
+    }
+    return retainMemberDeclarationEvidence(members, ownerType, queries);
+  }
+
+  function deriveLiteralMembers(
+    objectLiteral: Node,
+    ownerType: Type,
+    queries: SourceFileSemantics,
+    state: CsharpTypeResolutionState,
+  ): readonly CsharpObjectShapeMemberFact[] | undefined {
+    const members: CsharpObjectShapeMemberFact[] = [];
+    for (const property of queries.types.propertyInfos(ownerType)) {
+      const declarations = [...new Set([property.symbol, ...property.rootSymbols].flatMap(symbol =>
+        queries.declarations.symbolDeclarations(symbol)))].filter((declaration): declaration is Node => declaration !== undefined);
+      const owned = declarations.filter(declaration => host.ast.parent(declaration) === objectLiteral);
+      const getters = owned.filter(declaration => host.ast.is.IsGetAccessorDeclaration(declaration));
+      const values = owned.filter(declaration => host.ast.is.IsPropertyAssignment(declaration) ||
+        host.ast.is.IsShorthandPropertyAssignment(declaration) || host.ast.is.IsMethodDeclaration(declaration));
+      if (getters.length + values.length !== 1) return undefined;
+      const declaration = getters[0] ?? values[0]!;
+      const occurrence = getters.length !== 0 || host.ast.is.IsMethodDeclaration(declaration) ? declaration
+        : ObjectLiteralProperty_Value(host.ast, declaration);
+      if (occurrence === undefined) return undefined;
+      const outcome = getters.length !== 0 ? host.effectiveTypes.callableReturn(declaration) : host.effectiveTypes.get(occurrence);
+      if (outcome === undefined || outcome.kind === "refused" || outcome.provenance.occurrence !== occurrence) return undefined;
+      const member = deriveMember(property, outcome.type, occurrence, queries, state, objectLiteral);
       if (member === undefined) return undefined;
       members.push(member);
     }
@@ -191,9 +223,10 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
 
   function deriveMember(
     property: TypePropertyInfo,
+    descriptor: SourceTypeDescriptor,
+    occurrence: Node,
     queries: SourceFileSemantics,
     state: CsharpTypeResolutionState,
-    authoredTypeRoot?: Node,
     literalOwner?: Node,
     receiver?: TargetTypeRef,
   ): CsharpObjectShapeMemberFact | undefined {
@@ -238,21 +271,7 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
       (getters.length === 0 && setters.length > 0)) {
       return undefined;
     }
-    const inherited = resolveInheritedMemberType(declarations, receiver, memberState, method, property.optional);
-    if (inherited.kind === "unresolved") return undefined;
-    let memberType = inherited.kind === "resolved" ? inherited.type : method
-      ? host.typeResolver.resolveType(
-          sourceType,
-          queries.sourceFile,
-          nextState(memberState),
-        )
-      : resolvePropertyType(
-          property,
-          sourceType,
-          queries,
-          memberState,
-          authoredTypeRoot,
-        );
+    let memberType = host.typeResolver.resolveDescriptor(descriptor, occurrence, nextState(memberState));
     if (memberType === undefined) {
       return undefined;
     }
@@ -265,10 +284,10 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
       const storage = value === undefined ? undefined : host.typeResolver.resolveNode(value, queries.sourceFile, nextState(state));
       if (storage !== undefined && csharpMethodValueCoversContract(storage, memberType)) memberType = storage;
     }
-    const callableType = method ? sourcePresentCallableType(sourceType, queries) : undefined;
-    const signatures = callableType === undefined ? [] : queries.types.callSignatures(callableType);
-    const methodDeclaration = signatures.length === 1
-      ? queries.declarations.signatureDeclaration(signatures[0]!) : undefined;
+    let callable = descriptor;
+    while (callable.kind === "optional") callable = callable.value;
+    const methodDeclaration = method && callable.kind === "callable" && callable.calls.length === 1
+      ? callable.calls[0]!.declaration : undefined;
     const typeParameters = resolveCsharpCallableTypeParameters(methodDeclaration, queries.sourceFile, {
       ast: host.ast,
       genericProjections: host.representations.genericProjections,
@@ -301,7 +320,7 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
       sourceTypes: [sourceType],
       targetName,
       memberKind: method ? "method" : "property",
-      type: optional ? csharpNullableTargetType(memberType) : memberType,
+      type: memberType,
       ...(typeParameters.length === 0 ? {} : {
         typeParameters: Object.freeze(typeParameters as NonNullable<typeof typeParameters[number]>[]),
       }),
@@ -321,98 +340,19 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
 
   function resolvePropertyType(
     property: TypePropertyInfo,
-    sourceType: Type,
+    descriptor: SourceTypeDescriptor,
+    occurrence: Node,
     queries: SourceFileSemantics,
     state: CsharpTypeResolutionState,
-    authoredTypeRoot?: Node,
   ): TargetTypeRef | undefined {
     const declarations = [...new Set([property.symbol, ...property.rootSymbols].flatMap(symbol =>
       queries.declarations.symbolDeclarations(symbol)))];
-    const values = declarations.flatMap(declaration => {
-      const value = host.ast.is.IsPropertyAssignment(declaration) || host.ast.is.IsShorthandPropertyAssignment(declaration)
-        ? ObjectLiteralProperty_Value(host.ast, declaration) : host.ast.is.IsPropertyDeclaration(declaration)
-          ? host.ast.as.AsPropertyDeclaration(declaration)?.Initializer : undefined;
-      return value === undefined ? [] : [value];
-    });
-    if (values.length !== 0) {
-      const carriers = values.map(value => host.typeResolver.resolveNode(value, queries.sourceFile, nextState(state)));
-      const first = carriers[0];
-      return first !== undefined && carriers.every(carrier => carrier !== undefined && targetTypeRefEquals(carrier, first)) ? first : undefined;
-    }
-    const authoredTypeNodes = [
-      ...sourcePropertyTypeEvidenceNodes(host.ast, queries, property),
-      ...(authoredTypeRoot === undefined
-        ? []
-        : sourceTransformedTypeFactEvidenceNodes(
-            host.ast,
-            queries,
-            authoredTypeRoot,
-            sourceType,
-          )),
-    ];
-    if (authoredTypeNodes.length === 0) {
-      return host.typeResolver.resolveType(
-        sourceType,
-        queries.sourceFile,
-        nextState(state),
-      );
-    }
-    const authoredTypes = authoredTypeNodes.map((typeNode) =>
-      host.typeResolver.resolveSelectedType(
-        typeNode,
-        sourceType,
-        queries.sourceFile,
-        nextState(state),
-      )
-    );
-    if (authoredTypes.some((type) => type === undefined)) {
-      return undefined;
-    }
-    const first = authoredTypes[0]!;
-    return authoredTypes.every((type) =>
-        type !== undefined && targetTypeRefEquals(first, type)
-      )
-      ? first
-      : undefined;
+    while (descriptor.kind === "optional") descriptor = descriptor.value;
+    const members = descriptor.kind === "shape" || descriptor.kind === "declared" ? descriptor.members : undefined;
+    const selected = members?.filter(member => member.declaration !== undefined && declarations.includes(member.declaration));
+    return selected?.length !== 1 ? undefined : host.typeResolver.resolveDescriptor(selected[0]!.type, occurrence, nextState(state));
   }
 
-  function resolveInheritedMemberType(
-    declarations: readonly Node[],
-    receiver: TargetTypeRef | undefined,
-    state: CsharpTypeResolutionState,
-    method: boolean,
-    optional: boolean,
-  ): CsharpProjectMemberTypeInstantiation {
-    if (receiver === undefined) return { kind: "not-project-member" };
-    const receiverDefinition = host.projectTypeCatalog.definitionForTarget(receiver);
-    if (receiverDefinition === undefined) return { kind: "not-project-member" };
-    const inherited = declarations.filter(declaration => {
-      const owner = host.projectTypeCatalog.definitionForDeclaration(host.ast.parent(declaration));
-      return owner !== undefined && owner.id !== receiverDefinition.id && !host.ast.hasModifierKind(declaration, "static");
-    });
-    if (inherited.length === 0) return { kind: "not-project-member" };
-    const selected: TargetTypeRef[] = [];
-    for (const declaration of inherited) {
-      const owner = host.projectTypeCatalog.definitionForDeclaration(host.ast.parent(declaration))!;
-      const typeNode = host.ast.typeNode(declaration) ??
-        (host.ast.is.IsSetAccessorDeclaration(declaration) ? host.ast.typeNode(host.ast.parameters(declaration)[0]) : undefined);
-      const semantics = host.semantics(owner.sourceFile);
-      const declared = method
-        ? host.typeResolver.resolveType(semantics.types.expressionType(declaration), owner.sourceFile, nextState(state))
-        : host.typeResolver.resolveNode(typeNode ?? declaration, owner.sourceFile, nextState(state));
-      if (declared === undefined) return { kind: "unresolved",
-        reason: `Inherited project member of '${owner.sourceName}' has no exact authored native carrier.` };
-      const carrier = optional ? csharpNullableTargetType(declared) : declared;
-      const result = host.projectTypes().instantiateMemberType(declaration, receiver, carrier);
-      if (result.kind !== "resolved") return result.kind === "unresolved" ? result : { kind: "unresolved",
-        reason: `Inherited project member of '${owner.sourceName}' lost its canonical project declaration.` };
-      selected.push(result.type);
-    }
-    const first = selected[0]!;
-    return selected.every(type => targetTypeRefEquals(first, type)) ? { kind: "resolved", type: first }
-      : { kind: "unresolved", reason: "Inherited project member declarations have incompatible native carrier instantiations." };
-  }
-
-  return { deriveMembers, instantiateMemberEvidence, retainMemberDeclarationEvidence, resolvePropertyType, retainLiteralMemberEvidence };
+  return { deriveMembers, deriveLiteralMembers, instantiateMemberEvidence, retainMemberDeclarationEvidence, resolvePropertyType, retainLiteralMemberEvidence };
 }
 import { csharpSourceValueResult } from "../../source-evidence/types/resolution/call-results.js";

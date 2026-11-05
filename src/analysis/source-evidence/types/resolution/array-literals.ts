@@ -9,14 +9,10 @@ import { getCsharpCollectionElementTargetType } from "../../../../target-model/t
 import { getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
 import { getCsharpGenericOptionalParts } from "../../../../target-model/types/projections.js";
 import { resolveCsharpSourceEffectiveType } from "./effective-types.js";
-import { csharpArrayElementIsRepresentableAs } from "../../../../policy/types/collections/array-elements.js";
 import { selectCsharpConversion } from "../../../../policy/conversions/core.js";
 import { csharpConversionIsApplicable } from "../../../../policy/conversions/applicability.js";
-import { resolveCsharpDeclaredLiteralContext } from "./literal-context.js";
-import { getCsharpRuntimeUnionArms } from "../../../../target-model/types/carriers/runtime-carriers.js";
-import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
 import { selectCsharpExactLiteralConversion } from "../../../../policy/conversions/literals.js";
-import { selectCsharpArrayLiteralCarrier } from "../../../../policy/types/collections/literal-construction.js";
+import { csharpArrayLiteralElisionIssue } from "../../../../policy/types/collections/literal-construction.js";
 
 const unavailable: CsharpArrayLiteralSelection = Object.freeze({ kind: "unavailable" });
 
@@ -28,41 +24,27 @@ export function resolveCsharpArrayLiteralSelection(
 ): CsharpArrayLiteralSelection {
   const { host } = scope;
   if (!host.ast.is.IsArrayLiteralExpression(node)) return unavailable;
+  const elision = csharpArrayLiteralElisionIssue(host.ast, node);
+  if (elision !== undefined) return elision;
   const effective = resolveCsharpSourceEffectiveType(scope, node, state);
-  const context = effective === undefined ? resolveCsharpDeclaredLiteralContext(scope, node, queries, state) : undefined;
-  const declaredCarrier = context?.kind === "selected" && context.type !== undefined
-    ? selectCsharpArrayLiteralCarrier(context.type, undefined, host.typeDefinitions) : undefined;
-  if (context?.kind === "selected" && context.type === undefined) return unavailable;
-  const carrier = effective === undefined ? declaredCarrier ??
-    scope.resolveTypeWithState(queries.types.expressionType(node), queries.sourceFile, nextState(state))
-    : effective.result?.selectedType;
+  const carrier = effective?.result?.selectedType;
   if (carrier === undefined) return unavailable;
   const presentCarrier = getCsharpGenericOptionalParts(carrier)?.element ?? getCsharpNullableElementTargetType(carrier) ?? carrier;
   const element = getCsharpCollectionElementTargetType(presentCarrier);
   if (presentCarrier.kind !== "tuple" && element === undefined) return unavailable;
   const elements: TargetTypeRef[] = [];
-  const closedDestination = effective !== undefined || declaredCarrier !== undefined;
-  let noncanonicalInteger = false;
+  let rejection: Extract<CsharpArrayLiteralSelection, { readonly kind: "rejected" }> | undefined;
   const fits = (required: TargetTypeRef, actual: TargetTypeRef, value: Node | undefined): boolean => {
     const literal = value === undefined ? undefined : host.literalValues.literalValue.get(value);
-    if (!closedDestination && literal?.numeric?.kind === "authored" &&
-      literal.numeric.token.exponent >= 0n && !(literal.numeric.token.negative && literal.numeric.token.coefficient === 0n)) {
-      const present = getCsharpNullableElementTargetType(required);
-      const arms = getCsharpRuntimeUnionArms(required, host.typeDefinitions) ?? (present === undefined ? undefined : [present]);
-      if (arms !== undefined && !arms.some(arm => csharpArrayElementIsRepresentableAs(arm, { carrier: actual, literal }))) {
-        noncanonicalInteger = true;
+    if (literal !== undefined) {
+      const selected = selectCsharpExactLiteralConversion(literal, actual, required);
+      if (selected.kind === "rejected") {
+        rejection ??= Object.freeze({ kind: "rejected", subject: value!, code: "CSHARP_UNSUPPORTED_AST", reason: selected.reason });
         return false;
       }
-    }
-    if (closedDestination && literal !== undefined) {
-      const selected = selectCsharpExactLiteralConversion(literal, actual, required);
-      if (selected.kind === "rejected") return false;
       if (selected.kind === "resolved" || selected.kind === "source-representation") return true;
     }
-    if (!closedDestination && targetTypeRefEquals(required, actual)) return true;
-    return !closedDestination && required.kind === "source-primitive" && actual.kind === "source-primitive"
-      ? csharpArrayElementIsRepresentableAs(required, { carrier: actual, literal })
-      : csharpConversionIsApplicable(selectCsharpConversion({ typeDefinitions: host.typeDefinitions,
+    return csharpConversionIsApplicable(selectCsharpConversion({ typeDefinitions: host.typeDefinitions,
         projectTypes: host.projectTypes(), providers: host.providers, target: host.target, objectShapes: host.objectShapes },
       actual, required, "implicit"), "implicit");
   };
@@ -103,8 +85,8 @@ export function resolveCsharpArrayLiteralSelection(
     if (contribution === undefined) complete = false;
     else elements.push(contribution);
   }
-  return !complete ? unavailable : noncanonicalInteger ? Object.freeze({ kind: "rejected",
-    reason: "An inferred numeric union requires an exact canonical carrier for every authored integer literal." }) : mismatch ? Object.freeze({ kind: "rejected",
+  return !complete ? unavailable : rejection ?? (mismatch ? Object.freeze({ kind: "rejected",
+    subject: node, code: "CSHARP_ARRAY_ELEMENT_CARRIER_MISMATCH",
     reason: "An array element cannot retain the exact Host-selected native element carrier." })
-    : Object.freeze({ kind: "resolved", carrier, elementCarriers: Object.freeze(elements) });
+    : Object.freeze({ kind: "resolved", carrier, elementCarriers: Object.freeze(elements) }));
 }

@@ -5,7 +5,8 @@ import { isProjectSourceTargetType, projectClassIsObjectInitializable, typeHasPr
 
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import type { CsharpObjectShapeFact, TargetTypeRef } from "../../../target-model/types/model.js";
-import type { Node, SourceFile, Type } from "@tsonic/tsts";
+import type { Node, SourceFile } from "@tsonic/tsts";
+import type { SourceTypeDescriptor } from "@tsonic/target-api/source";
 
 import type { CsharpObjectShapePolicyHost, CsharpRecursiveObjectShapePolicy } from "./model.js";
 
@@ -20,22 +21,18 @@ export function createCsharpProjectShapeProjection(
   const environment = host.typeParameterConstraints;
   function resolveProjectConstructibleSelectedType(
     targetType: TargetTypeRef,
-    explicitTypeNode: Node | undefined,
-    selectedType: Type,
+    descriptor: SourceTypeDescriptor,
     contextNode: Node,
     sourceFile: SourceFile,
   ): CsharpProjectConstructibleTypeProjection {
     if (!isProjectSourceTargetType(targetType)) {
       return { kind: "unchanged" };
     }
-    const selectedTarget = host.typeResolver.resolveSelectedType(
-      explicitTypeNode,
-      selectedType,
-      sourceFile,
-      { depth: 0 },
-    );
+    const selectedTarget = host.typeResolver.resolveDescriptor(descriptor, contextNode, { depth: 0 });
+    const selectedType = descriptor.kind === "declared" ? descriptor.source?.selectedType : undefined;
     if (
       selectedTarget === undefined ||
+      selectedType === undefined ||
       !targetTypeRefEquals(selectedTarget, targetType)
     ) {
       return {
@@ -66,10 +63,9 @@ export function createCsharpProjectShapeProjection(
       };
     }
     const members = deriveMembers(
-      selectedType,
+      descriptor, contextNode, selectedType,
       queries,
       { depth: 0 },
-      undefined,
       targetType,
     );
     if (members === undefined) {
