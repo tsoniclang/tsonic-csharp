@@ -37,14 +37,12 @@ import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { createCsharpLiteralShapeResolver } from "./literal-construction.js";
 import { createCsharpProjectShapeProjection } from "./project-construction.js";
 import { createCsharpNativeShapeProjections } from "./native-projections.js";
-import { csharpObjectTargetType } from "../../../target-model/types/carriers/scalar-types.js";
-import { isCsharpPubliclyParameterlessConstructible } from "../../operations/members/calls/constraint-satisfaction.js";
 
 export function createCsharpObjectShapePolicy(
   host: CsharpObjectShapePolicyHost,
 ): CsharpRecursiveObjectShapePolicy {
   const environment = host.typeParameterConstraints;
-  const { deriveMembers, deriveLiteralMembers, instantiateMemberEvidence, retainMemberDeclarationEvidence, resolvePropertyType, retainLiteralMemberEvidence } = createCsharpObjectShapeMemberResolver(host);
+  const { deriveMembers, instantiateMemberEvidence, retainMemberDeclarationEvidence, resolvePropertyType, retainLiteralMemberEvidence } = createCsharpObjectShapeMemberResolver(host);
   const activeNodes = new WeakSet<object>();
   const activeTypes = new WeakSet<object>();
   const nodeShapes = new WeakMap<object, CsharpObjectShapeFact>();
@@ -122,25 +120,6 @@ export function createCsharpObjectShapePolicy(
       const source = selectedObjectShapeSource(node, queries, host);
       const selectedTarget = resolvePublishedShapeType(node, state);
       if (isCsharpRecordDictionaryTargetType(getCsharpNullableElementTargetType(selectedTarget) ?? selectedTarget)) return undefined;
-      const descriptor = publishedShapeDescriptor(node);
-      if (host.ast.is.IsObjectLiteralExpression(node) && descriptor?.kind === "intrinsic" &&
-        (descriptor.intrinsic === "object" || descriptor.intrinsic === "unknown")) {
-        const sourceType = queries.types.expressionType(node);
-        const members = sourceType === undefined ? undefined : deriveLiteralMembers(node, sourceType, queries, nextState(state));
-        if (members === undefined) return undefined;
-        if (members.length === 0) {
-          const targetType = csharpObjectTargetType();
-          const constructible = isCsharpPubliclyParameterlessConstructible({
-            projectTypes: host.projectTypes(), providers: host.providers,
-          }, targetType);
-          return constructible ? remember(node, { targetType, sourceType, members, constructible }) : undefined;
-        }
-        const methodImplementation = selectCsharpObjectMethodImplementation(members, host, state, node);
-        const shape = { targetType: createStructuralObjectShapeTarget(members, undefined, environment, false, methodImplementation),
-          sourceType, members, ...(methodImplementation === undefined ? {} : { methodImplementation }) };
-        const literal = resolveObjectLiteralTargetShape(shape, node, queries.sourceFile);
-        return literal.kind === "resolved" ? remember(node, literal.shape) : undefined;
-      }
       const selectedShape = resolveTarget(selectedTarget);
       if (selectedShape !== undefined && source.type !== undefined) {
         const actualType = host.ast.is.IsObjectLiteralExpression(node) ? queries.types.expressionType(node) : source.type;

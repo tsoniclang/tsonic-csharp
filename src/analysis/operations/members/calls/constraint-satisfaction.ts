@@ -367,8 +367,8 @@ function isCsharpReferenceType(
   return !isCsharpValueTypeTargetType(type);
 }
 
-export function isCsharpPubliclyParameterlessConstructible(
-  host: Pick<CsharpConstraintSatisfactionHost, "projectTypes" | "providers">,
+function isCsharpPubliclyParameterlessConstructible(
+  host: CsharpConstraintSatisfactionHost,
   type: TargetTypeRef,
 ): boolean {
   if (isCsharpNonNullableValueType(type)) return true;

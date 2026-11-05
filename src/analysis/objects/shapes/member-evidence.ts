@@ -76,34 +76,6 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
     return retainMemberDeclarationEvidence(members, ownerType, queries);
   }
 
-  function deriveLiteralMembers(
-    objectLiteral: Node,
-    ownerType: Type,
-    queries: SourceFileSemantics,
-    state: CsharpTypeResolutionState,
-  ): readonly CsharpObjectShapeMemberFact[] | undefined {
-    const members: CsharpObjectShapeMemberFact[] = [];
-    for (const property of queries.types.propertyInfos(ownerType)) {
-      const declarations = [...new Set([property.symbol, ...property.rootSymbols].flatMap(symbol =>
-        queries.declarations.symbolDeclarations(symbol)))].filter((declaration): declaration is Node => declaration !== undefined);
-      const owned = declarations.filter(declaration => host.ast.parent(declaration) === objectLiteral);
-      const getters = owned.filter(declaration => host.ast.is.IsGetAccessorDeclaration(declaration));
-      const values = owned.filter(declaration => host.ast.is.IsPropertyAssignment(declaration) ||
-        host.ast.is.IsShorthandPropertyAssignment(declaration) || host.ast.is.IsMethodDeclaration(declaration));
-      if (getters.length + values.length !== 1) return undefined;
-      const declaration = getters[0] ?? values[0]!;
-      const occurrence = getters.length !== 0 || host.ast.is.IsMethodDeclaration(declaration) ? declaration
-        : ObjectLiteralProperty_Value(host.ast, declaration);
-      if (occurrence === undefined) return undefined;
-      const outcome = getters.length !== 0 ? host.effectiveTypes.callableReturn(declaration) : host.effectiveTypes.get(occurrence);
-      if (outcome === undefined || outcome.kind === "refused" || outcome.provenance.occurrence !== occurrence) return undefined;
-      const member = deriveMember(property, outcome.type, occurrence, queries, state, objectLiteral);
-      if (member === undefined) return undefined;
-      members.push(member);
-    }
-    return retainMemberDeclarationEvidence(members, ownerType, queries);
-  }
-
   function matchesMemberSubjects(member: CsharpObjectShapeMemberFact, selected: SourceStructuralMember): boolean {
     const subjects = [selected.property.symbol, ...selected.property.rootSymbols, ...selected.declarations];
     return member.sourceSubjects?.some(subject => subjects.some(candidate => candidate === subject)) === true ||
@@ -353,6 +325,6 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
     return selected?.length !== 1 ? undefined : host.typeResolver.resolveDescriptor(selected[0]!.type, occurrence, nextState(state));
   }
 
-  return { deriveMembers, deriveLiteralMembers, instantiateMemberEvidence, retainMemberDeclarationEvidence, resolvePropertyType, retainLiteralMemberEvidence };
+  return { deriveMembers, instantiateMemberEvidence, retainMemberDeclarationEvidence, resolvePropertyType, retainLiteralMemberEvidence };
 }
 import { csharpSourceValueResult } from "../../source-evidence/types/resolution/call-results.js";
