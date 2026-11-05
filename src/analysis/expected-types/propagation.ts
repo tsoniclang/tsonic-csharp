@@ -375,8 +375,7 @@ export function createCsharpExpectedTypePropagation(
         !policy.ast.is.IsSpreadElement(node)
       ) {
         const physical = numericSelection?.kind === "resolved" ? numericSelection.elementCarriers[index] : undefined;
-        const sourceCarrier = valueReadStages.get(node)?.operationValue;
-        if (physical !== undefined && sourceCarrier !== undefined && !targetTypeRefEquals(physical, sourceCarrier) &&
+        if (physical !== undefined && !targetTypeRefEquals(physical, elementTarget) &&
           policy.literalValues.literalValue.get(node)?.numeric?.kind === "authored") {
           let native = nonArrayCarriers.get(node);
           if (native === undefined) { native = new Map(); nonArrayCarriers.set(node, native); }

@@ -11,7 +11,7 @@ import { getCsharpGenericOptionalParts } from "../../../../target-model/types/pr
 import { resolveCsharpSourceEffectiveType } from "./effective-types.js";
 import { selectCsharpConversion } from "../../../../policy/conversions/core.js";
 import { csharpConversionIsApplicable } from "../../../../policy/conversions/applicability.js";
-import { selectCsharpExactLiteralConversion } from "../../../../policy/conversions/literals.js";
+import { selectCsharpExactLiteralConversion, selectCsharpScalarLiteralCarrier } from "../../../../policy/conversions/literals.js";
 import { csharpArrayLiteralElisionIssue } from "../../../../policy/types/collections/literal-construction.js";
 
 const unavailable: CsharpArrayLiteralSelection = Object.freeze({ kind: "unavailable" });
@@ -59,9 +59,11 @@ export function resolveCsharpArrayLiteralSelection(
       const selected = scope.resolveNodeWithState(entry, queries.sourceFile, nextState(state));
       if (selected === undefined) complete = false;
       else {
-        elements.push(selected);
-        const required = presentCarrier.kind === "tuple" ? presentCarrier.elements[elements.length - 1] : element;
-        if (required === undefined || !fits(required, selected, entry)) mismatch = true;
+        const required = presentCarrier.kind === "tuple" ? presentCarrier.elements[elements.length] : element;
+        const physical = selectCsharpScalarLiteralCarrier(host.literalValues.literalValue.get(entry), required, host.typeDefinitions)
+          ?? selected;
+        elements.push(physical);
+        if (required === undefined || !fits(required, physical, entry)) mismatch = true;
       }
       continue;
     }
