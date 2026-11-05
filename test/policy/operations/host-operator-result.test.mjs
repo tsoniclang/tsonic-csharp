@@ -2,8 +2,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createCompilerSessionFromFiles } from "@tsonic/tsts";
 import { analyzeSourceLiteralValues } from "@tsonic/target-api/source";
-import { selectCsharpNativeBinaryOperation } from "../../../dist/policy/operations/operators/rules.js";
-import { validateBinaryTargetSemantics } from "../../../dist/policy/operations/operators/operator-validation.js";
+import { selectCsharpNativeBinaryOperation, targetBinaryOperator } from "../../../dist/policy/operations/operators/rules.js";
+import { validateBinaryTargetSemantics, validateUnaryTargetSemantics } from "../../../dist/policy/operations/operators/operator-validation.js";
+import { csharpUnaryNumericPromotion, selectCsharpNumericCarrierPromotion } from "../../../dist/policy/operations/numeric/promotion.js";
+import {
+  decideSourcePrimitiveBinaryOperator, decideSourcePrimitiveUnaryOperator,
+  sourcePrimitiveBinaryOperators, sourcePrimitiveOperatorKinds, sourcePrimitiveUnaryOperators,
+} from "../../../../tsonic/packages/target-api/dist/source-semantics/local-type-flow/operator-decisions.js";
 import {
   csharpBigIntegerTargetType, csharpJsArrayTargetType, csharpNullableTargetType,
   csharpSourcePrimitiveTargetType, csharpStringTargetType, targetTypeRefEquals,
@@ -21,6 +26,114 @@ const policy = {
   projectTypes: { catalog: { definitionForTarget: () => undefined } },
   integerRanges: { get: () => false },
 };
+
+test("D-A every primitive pair agrees with the Native family admission and promotion oracle", () => {
+  const operators = new Map([
+    ["add", "+"], ["subtract", "-"], ["multiply", "*"], ["divide", "/"], ["remainder", "%"], ["power", "**"],
+    ["bit-and", "&"], ["bit-or", "|"], ["bit-xor", "^"],
+    ["shift-left", "<<"], ["shift-right", ">>"], ["shift-right-unsigned", ">>>"],
+    ["less", "<"], ["less-equal", "<="], ["greater", ">"], ["greater-equal", ">="],
+    ["equal", "==="], ["not-equal", "!=="],
+  ]);
+  const comparison = new Set(["less", "less-equal", "greater", "greater-equal", "equal", "not-equal"]);
+  const equality = new Set(["equal", "not-equal"]);
+  const shifts = new Set(["shift-left", "shift-right", "shift-right-unsigned"]);
+  const expectedAdmissions = new Map([
+    ["add", 137], ["subtract", 137], ["multiply", 137], ["divide", 137], ["remainder", 137], ["power", 0],
+    ["bit-and", 77], ["bit-or", 77], ["bit-xor", 77],
+    ["shift-left", 78], ["shift-right", 78], ["shift-right-unsigned", 78],
+    ["less", 137], ["less-equal", 137], ["greater", 137], ["greater-equal", 137], ["equal", 138], ["not-equal", 138],
+  ]);
+  assert.equal(sourcePrimitiveOperatorKinds.length, 18);
+  assert.equal(sourcePrimitiveBinaryOperators.length, operators.size);
+  for (const operator of sourcePrimitiveBinaryOperators) {
+    const token = operators.get(operator);
+    assert.equal(token !== undefined, true, operator);
+    let classified = 0;
+    let admitted = 0;
+    for (const leftKind of sourcePrimitiveOperatorKinds) for (const rightKind of sourcePrimitiveOperatorKinds) {
+      const left = primitive(leftKind);
+      const right = primitive(rightKind);
+      const source = decideSourcePrimitiveBinaryOperator(operator,
+        { kind: "fixed", primitive: leftKind }, { kind: "fixed", primitive: rightKind });
+      let native;
+      if (targetBinaryOperator(token) !== undefined) {
+        if (shifts.has(operator)) {
+          const promoted = csharpUnaryNumericPromotion(left) ?? left;
+          if (validateBinaryTargetSemantics(token, promoted, right, policy) === undefined) {
+            native = { result: promoted, left: promoted, right };
+          }
+        } else if (leftKind === "bool" || rightKind === "bool") {
+          if (equality.has(operator) && validateBinaryTargetSemantics(token, left, right, policy) === undefined) {
+            native = { result: primitive("bool"), left, right };
+          }
+        } else {
+          const promoted = selectCsharpNumericCarrierPromotion(left, right);
+          if (promoted !== undefined && validateBinaryTargetSemantics(token, promoted.leftType, promoted.rightType, policy) === undefined) {
+            native = { result: comparison.has(operator) ? primitive("bool") : promoted.resultType,
+              left: promoted.leftType, right: promoted.rightType };
+          }
+        }
+      }
+      const label = `${operator}: ${leftKind}, ${rightKind}`;
+      assert.equal(source.kind === "resolved", native !== undefined, `${label}: family admission`);
+      if (native === undefined) {
+        assert.equal(source.kind === "refused" && source.reason.length > 0, true, `${label}: one precise refusal`);
+      } else {
+        assert.equal(native.result.kind === "source-primitive" && source.result === native.result.name, true, `${label}: result kind`);
+        assert.equal(native.left.kind === "source-primitive" && source.left === native.left.name, true, `${label}: left representation`);
+        assert.equal(native.right.kind === "source-primitive" && source.right === native.right.name, true, `${label}: right representation`);
+        admitted += 1;
+      }
+      classified += 1;
+    }
+    assert.equal(classified, 324, `${operator}: no unclassified pair`);
+    assert.equal(admitted, expectedAdmissions.get(operator), `${operator}: actual accepted family size`);
+  }
+});
+
+test("D-A every unary primitive agrees with the Native admission oracle without unary promotion", () => {
+  const operators = new Map([
+    ["positive", "+"], ["negate", "-"], ["bit-not", "~"], ["logical-not", "!"],
+    ["increment", "++"], ["decrement", "--"],
+  ]);
+  const expectedAdmissions = new Map([
+    ["positive", 16], ["negate", 16], ["bit-not", 13], ["logical-not", 1],
+    ["increment", 16], ["decrement", 16],
+  ]);
+  assert.equal(sourcePrimitiveUnaryOperators.length, operators.size);
+  for (const operator of sourcePrimitiveUnaryOperators) {
+    const token = operators.get(operator);
+    assert.equal(token !== undefined, true, operator);
+    let classified = 0;
+    let admitted = 0;
+    for (const kind of sourcePrimitiveOperatorKinds) {
+      const source = decideSourcePrimitiveUnaryOperator(operator, kind);
+      const refusal = validateUnaryTargetSemantics(token, primitive(kind), policy);
+      const label = `${operator}: ${kind}`;
+      assert.equal(source.kind === "resolved", refusal === undefined, `${label}: family admission`);
+      if (refusal === undefined) {
+        assert.equal(source.result === kind && source.operand === kind, true, `${label}: exact non-promoted kind`);
+        admitted += 1;
+      } else {
+        assert.equal(source.kind === "refused" && source.reason.length > 0, true, `${label}: one precise refusal`);
+      }
+      classified += 1;
+    }
+    assert.equal(classified, 18, `${operator}: no unclassified operand`);
+    assert.equal(admitted, expectedAdmissions.get(operator), `${operator}: actual accepted family size`);
+  }
+});
+
+test("D-A a compound result's storage kind never retargets a fixed fractional operand", () => {
+  for (const rightKind of ["float32", "float64", "decimal"]) {
+    const current = checkedOperation("left += right", "+=", primitive("int32"), primitive(rightKind), primitive("int32"));
+    assert.equal(current.selected.kind === "resolved", true, rightKind);
+    assert.equal(current.selected.resultType === current.resultType, true, rightKind);
+    assert.equal(targetTypeRefEquals(current.selected.leftInputType, primitive("int32")), true, rightKind);
+    assert.equal(targetTypeRefEquals(current.selected.rightInputType, primitive(rightKind)), true, `${rightKind}: independent Source write-fit remains required`);
+  }
+});
 
 function checkedOperation(expression, operator, leftType, rightType, resultType, declarations = "left: number, right: number") {
   const checked = createCompilerSessionFromFiles({ currentDirectory: "/operator-result", files: {
