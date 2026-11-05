@@ -3,6 +3,46 @@ import { test } from "node:test";
 import { csharpSourcePrimitiveTargetType, isCsharpArrayIndexTargetType, isCsharpIntegralTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { analyzeSourceLiteralValues } from "@tsonic/target-api/source";
 import { acceptedEffectiveSource, assertNativeEffectiveRefusal, assertPrimitiveOccurrences, compileEffectiveSource, projectNodes } from "../../helpers/source-effective-types.mjs";
+import { selectCsharpScalarLiteralCarrier } from "../../../dist/policy/conversions/literals.js";
+import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
+import { csharpRuntimeUnionTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
+import { csharpStringTargetType, csharpBigIntegerTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
+import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
+import { checkedSourceLiteralValues } from "../../helpers/source-literal-values.mjs";
+
+test("scalar admission chooses one physical payload for direct nullable union and nullable-union storage", () => {
+  const cases = [
+    ["minimum signed integer", "-2147483648", csharpSourcePrimitiveTargetType("int32")],
+    ["half", "1.5", csharpSourcePrimitiveTargetType("float16")],
+    ["single", "1.5", csharpSourcePrimitiveTargetType("float32")],
+    ["double", "1.5", csharpSourcePrimitiveTargetType("float64")],
+    ["decimal", "1.5", csharpSourcePrimitiveTargetType("decimal")],
+    ["negative zero", "-0", csharpSourcePrimitiveTargetType("float64")],
+    ["character", '"x"', csharpSourcePrimitiveTargetType("char")],
+    ["string", '"text"', csharpStringTargetType()],
+    ["boolean", "true", csharpSourcePrimitiveTargetType("bool")],
+    ["bigint", "1n", csharpBigIntegerTargetType()],
+  ];
+  const literals = checkedSourceLiteralValues(cases.map(([, spelling]) => spelling));
+  for (const [index, [name, , payload]] of cases.entries()) {
+    const other = name === "boolean" ? csharpStringTargetType() : csharpSourcePrimitiveTargetType("bool");
+    const union = csharpRuntimeUnionTargetType([payload, other]);
+    for (const [form, storage] of [["direct", payload], ["nullable", csharpNullableTargetType(payload)],
+      ["union", union], ["nullable union", csharpNullableTargetType(union)]]) {
+      assert.equal(targetTypeRefEquals(selectCsharpScalarLiteralCarrier(literals[index], storage), payload), true,
+        `${name}/${form}: the physical payload is the same admitted native scalar`);
+      assert.equal(selectCsharpScalarLiteralCarrier(undefined, storage) === undefined, true, `${name}/${form}: no literal`);
+    }
+  }
+  const [aggregate, overflow] = checkedSourceLiteralValues(["[1]", "2147483648"]);
+  const integer = csharpSourcePrimitiveTargetType("int32");
+  assert.equal(selectCsharpScalarLiteralCarrier(aggregate, integer) === undefined, true, "aggregates have a separate admission owner");
+  assert.equal(selectCsharpScalarLiteralCarrier(literals[0], undefined) === undefined, true, "no storage contract");
+  for (const storage of [integer, csharpNullableTargetType(integer),
+    csharpRuntimeUnionTargetType([integer, csharpSourcePrimitiveTargetType("bool")])]) {
+    assert.equal(selectCsharpScalarLiteralCarrier(overflow, storage) === undefined, true, "a missing admissible arm never bypasses integer range");
+  }
+});
 
 test("pure C# source literals select exact integral and floating representations", () => {
   const compiled = compileEffectiveSource("native", `export function run(): boolean {
