@@ -204,8 +204,8 @@ function expectedOperationRefusals(operation, size) {
     case "number read": return [conversion("values[0]")];
     case "order": return [refused("C# relational operator '<' requires numeric source-primitive operands or two exact string operands.",
       "values[0] < values[1]")];
-    case "addition": return [refused("C# arithmetic operator '+' requires numeric source-primitive operands.",
-      "values[0] + values[1]")];
+    case "addition": return [refused(`Operator '+' has no admitted result for the union operand '(${size === 2 ? "int32 | uint32" : "int32 | uint32 | float64"})'; narrow the operand to one primitive kind first.`,
+      "values[0] + values[1]", "TSONIC_LOCAL_TYPE_UNSUPPORTED")];
     case "Math.max": return [conversion("values[0]"), conversion("values[1]")];
     case "includes": return [refused("Array.includes over a numeric union requires an exact native cross-arm key equality relation.",
       "first.includes(values[1])", "CSHARP_JS_SOURCE_PROFILE_CALL_NOT_CLOSED")];
