@@ -9,7 +9,8 @@ import { snapshotCsharpMetadata } from "../../../dist/target-model/metadata/immu
 import { snapshotCsharpTargetTypes } from "../../../dist/target-model/types/snapshot.js";
 import { csharpRuntimeUnionTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
 import { createCsharpObjectShapeMemberResolver } from "../../../dist/analysis/objects/shapes/member-evidence.js";
-import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { checkCsharpSource, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { createTargetSourceProgram, sourceTypeDescriptorMemberOriginsEqual, sourceTypeDescriptorStructure } from "@tsonic/target-api/source";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { recursiveSourceUnionFiles, recursiveCollectionUnionFiles, recursiveCollectionUnionIdentitySource,
   recursiveGenericCollectionUnionFiles, recursiveOptionalCollectionUnionFiles, recursiveOptionalCollectionUnionJsFiles } from "../../../../tsonic/test/fixtures/recursive-source-unions.mjs";
@@ -213,27 +214,81 @@ test("union evidence wrappers and unrecognized identity paths remain strict immu
 });
 
 test("snapshotted member evidence still rejects foreign and stale checked correspondence", () => {
-  const fixture = memberEvidenceUnion();
-  const [snapshot] = snapshotCsharpTargetTypes([fixture.union]);
+  const checked = checkCsharpSource({ sourceText: `
+import type { int32 } from "@tsonic/core/types.js";
+interface Slot { value: int32; }
+class Owner {}
+type Mapped = { [K in "value"]: int32 };
+declare const key: unique symbol;
+const actual: Slot = { value: 1 };
+` });
+  assert.equal(checked.sourceDiagnosticsText, "");
+  const source = createTargetSourceProgram(checked.source);
+  const nodes = [];
+  const visit = node => { nodes.push(node); source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); }); };
+  source.navigation.sourceFiles.forEach(visit);
+  const literal = nodes.find(node => source.ast.is.IsObjectLiteralExpression(node));
+  const owner = nodes.find(node => source.ast.is.IsClassDeclaration(node) && source.ast.text(source.ast.name(node)) === "Owner");
+  const mappedAlias = nodes.find(node => source.ast.is.IsTypeAliasDeclaration(node) && source.ast.text(source.ast.name(node)) === "Mapped");
+  const mapped = source.ast.typeNode(mappedAlias);
+  const key = nodes.find(node => source.ast.is.IsVariableDeclaration(node) && source.ast.text(source.ast.name(node)) === "key");
+  assert.equal(owner !== undefined && mapped !== undefined && source.ast.is.IsMappedTypeNode(mapped) && key !== undefined, true,
+    "origin identity controls retain the actual class, mapped owner and unique-symbol declaration");
+  const base = source.effectiveTypes.get(literal);
+  assert.equal(base !== undefined && base.kind !== "refused", true, "the identical literal is published by the Host");
+  let publication = base;
+  const actualQueries = source.semantics.forNode(literal);
+  const queries = { ...actualQueries, types: new Proxy({}, { get() {
+    return assert.fail("canonical snapshots cannot reopen raw checker member evidence");
+  } }) };
+  const resolver = createCsharpObjectShapeMemberResolver({ ast: source.ast, navigation: source.navigation,
+    effectiveTypes: { get: node => node === literal ? publication : undefined },
+    hasSemantics: file => source.semantics.includes(file), semantics: () => queries, semanticsFor: () => queries,
+    sourceStorage: { memberSubjectFor: () => undefined }, memoryBindings: { hasBoundField: () => false },
+    representations: { genericProjections: () => [] }, typeResolver: { resolveDescriptor: descriptor => {
+      const selected = sourceTypeDescriptorStructure(descriptor);
+      assert.equal(selected.kind === "primitive" && selected.primitive === "int32", true, "the actual published width");
+      return integer;
+    } },
+  });
+  const descriptor = resolver.publishedShapeDescriptor(literal);
+  const members = resolver.deriveMembers(descriptor, literal, queries, { depth: 0 });
+  assert.equal(members?.length === 1, true, "the complete canonical member inventory");
+  const targetType = { kind: "target-named", id: "test.CanonicalMember", csharpAllowsRefLikeTypeArguments: [] };
+  const union = csharpRuntimeUnionTargetType([targetType, integer], [{ targetType, members }, undefined]);
+  const [snapshot] = snapshotCsharpTargetTypes([union]);
   const member = snapshot.csharpRuntimeUnionObjectShapes[0].members[0];
-  const { evidence } = fixture;
-  const queries = { declarations: { typeSymbol: () => undefined }, types: {
-    structuralMembers: (source, owner) => source === evidence.sourceType && owner === evidence.ownerType
-      ? { kind: "available", members: [evidence.correspondence] } : { kind: "unavailable" },
-  } };
-  const resolver = createCsharpObjectShapeMemberResolver({});
-  const instantiate = selected => resolver.instantiateMemberEvidence([selected], evidence.sourceType, queries, evidence.sourceType);
-  assert.equal(instantiate(member)?.[0].sourceTypes[0] === evidence.correspondence.source.property.type, true,
-    "copied correspondence retains the same checked source member");
+  const instantiate = selected => resolver.retainPublishedMembers([selected], descriptor, literal, queries, { depth: 0 });
+  const selected = instantiate(member);
+  assert.equal(selected?.length === 1 && selected[0].type === integer && selected[0].origins.length === 1 &&
+    sourceTypeDescriptorMemberOriginsEqual(selected[0].origins[0], members[0].origins[0]), true,
+    "copied correspondence retains the same checked source member and exact Native width");
   for (const changed of [
-    { ...evidence, ownerType: fixture.handles[2] },
-    { ...evidence, sourceType: fixture.handles[2] },
-    { ...evidence, correspondence: { ...evidence.correspondence, destination: { ...evidence.correspondence.destination,
-      property: { ...evidence.correspondence.destination.property, symbol: fixture.handles[3] } } } },
-    { ...evidence, correspondence: { ...evidence.correspondence, source: { ...evidence.correspondence.source,
-      declarations: [fixture.handles[2]] } } },
-  ]) assert.equal(instantiate({ ...member, sourceMemberEvidence: [changed] }) === undefined, true,
-    "foreign or stale checked evidence never certifies a member");
+    { ...member, origins: undefined },
+    { ...member, origins: [{ kind: "declared", declaration: owner }] },
+    { ...member, origins: [{ kind: "declared", declaration: source.ast.properties(literal)[0] }] },
+    { ...member, type: { kind: "source-primitive", name: "int64" } },
+  ]) assert.equal(instantiate(changed) === undefined, true, "foreign or stale checked evidence never certifies a member");
+  publication = { ...base, provenance: { ...base.provenance, occurrence: owner } };
+  assert.equal(instantiate(member) === undefined, true, "a different producer occurrence cannot reuse this snapshot");
+  for (const origin of [members[0].origins[0], { kind: "class-prototype", owner },
+    { kind: "mapped", owner: mapped, key: { kind: "string", value: "value" } },
+    { kind: "mapped", owner: mapped, key: { kind: "number", value: 1 } },
+    { kind: "mapped", owner: mapped, key: { kind: "unique-symbol", declaration: key } }]) {
+    const handles = origin.kind === "declared" ? [origin.declaration] : origin.kind === "mapped" && origin.key.kind === "unique-symbol"
+      ? [origin.owner, origin.key.declaration] : [origin.owner];
+    const frozen = handles.map(handle => Object.isFrozen(handle));
+    const input = csharpRuntimeUnionTargetType([targetType, integer], [{ targetType,
+      members: [{ ...members[0], origins: [origin] }] }, undefined]);
+    const copied = snapshotCsharpTargetTypes([input])[0].csharpRuntimeUnionObjectShapes[0].members[0];
+    assert.equal(copied.origins !== input.csharpRuntimeUnionObjectShapes[0].members[0].origins &&
+      copied.origins[0] !== origin && Object.isFrozen(copied.origins) && Object.isFrozen(copied.origins[0]), true,
+      "canonical origin vectors and ordinary shells are copied and frozen");
+    assert.equal(sourceTypeDescriptorMemberOriginsEqual(copied.origins[0], origin), true,
+      "declared/prototype/mapped owner and unique-symbol Node identities remain opaque");
+    assert.equal(handles.every((handle, index) => Object.isFrozen(handle) === frozen[index]), true,
+      "snapshots do not freeze or rewrite compiler-owned nodes");
+  }
 });
 
 for (const surface of [undefined, "js"]) {
