@@ -256,6 +256,38 @@ for (const operator of ["<<=", ">>=", ">>>="]) {
 }
 
 for (const surface of ["native", "js"]) {
+  test(`${surface} C2338 reference selection and coalescing emit direct shared references`, () => {
+    const compiled = compileEffectiveSource(surface, `export function run(flag: boolean) {
+      const first = [1]; const second = [2];
+      const selected = flag ? first : second; const copy = selected ?? second; return copy;
+    }`);
+    const generated = acceptedEffectiveSource(compiled);
+    const source = compiled.targetSource;
+    const declarations = projectNodes(compiled, (node, ast) => ast.is.IsVariableDeclaration(node));
+    const publications = ["first", "second", "selected", "copy"].map(name => {
+      const declaration = declarations.find(node => source.ast.text(source.ast.name(node)) === name);
+      const outcome = declaration === undefined ? undefined : source.effectiveTypes.get(declaration);
+      assert.equal(outcome !== undefined && outcome.kind !== "refused" && outcome.type.kind === "array" &&
+        outcome.type.element.kind === "primitive" && outcome.type.element.primitive === "int32", true,
+        `${name}: the actual shared native array publication keeps its exact element width`);
+      return outcome;
+    });
+    assert.equal(publications[2].type === publications[3].type, true,
+      "reference coalescing keeps the selected producer's identical Source descriptor");
+    assert.equal(source.effectiveTypes.refusals().length, 0, "a nonnullable reference is not a primitive-only coalesce refusal");
+    const coalescing = projectNodes(compiled, (node, ast) => ast.is.IsBinaryExpression(node) &&
+      ast.operatorKindName(node) === "KindQuestionQuestionToken");
+    assert.equal(coalescing.length, 1);
+    const operation = compiled.result.program.records.binaryOperation.get(coalescing[0])?.target;
+    const carrier = surface === "js" ? csharpJsArrayTargetType(primitive("int32")) : { kind: "array", element: primitive("int32") };
+    assert.equal(operation?.kind === "resolved" && targetTypeRefEquals(operation.resultType, carrier), true,
+      "the Native coalescing result represents the same reference carrier");
+    assert.equal(generated.includes("selected = flag ? first : second;") && generated.includes("copy = selected ?? second;"), true,
+      "the original reference-copy program emits direct conditional and native coalescing expressions");
+    assert.doesNotMatch(generated, /\.ToArray\(|\.Select\(|\.Clone\(/u,
+      "selection and coalescing introduce no copy or adapter allocation");
+  });
+
   test(`${surface} D-A an all-literal int8 result retains Host and Native int8 without a generated cast`, () => {
     const compiled = compileEffectiveSource(surface, `import type { int8 } from "@tsonic/core/types.js";
       export function run(): int8 { const b: int8 = 1 + 2; return b; }`);
