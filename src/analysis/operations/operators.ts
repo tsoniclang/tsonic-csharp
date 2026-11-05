@@ -13,7 +13,7 @@ import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { TargetTypeRef } from "../../policy/types/index.js";
 import { getCsharpNullableElementTargetType, isCsharpAbsenceTargetType, targetTypeRefEquals } from "../../policy/types/index.js";
 
-import { csharpLiteralIsRepresentableAs } from "../../policy/conversions/literals.js";
+import { csharpLiteralIsRepresentableAs, selectCsharpScalarLiteralCarrier } from "../../policy/conversions/literals.js";
 
 import type { CsharpSourceOperator } from "../../target-model/syntax/operators.js";
 import { sourceOperatorFromKindName } from "../../target-model/syntax/operators.js";
@@ -196,10 +196,15 @@ export function selectCsharpUnaryOperation(
     );
   }
   const update = sourceOperator === "++" || sourceOperator === "--";
-  const operandType = update
+  const sourceOperand = update
     ? input.types.resolveReadStorage(operand, sourceFile)
     : input.types.resolveNode(operand, sourceFile)?.sourceResult?.selectedType;
-  const resultType = update ? operandType : input.types.resolveNode(node, sourceFile)?.sourceResult?.selectedType;
+  const sourceResult = update ? sourceOperand : input.types.resolveNode(node, sourceFile)?.sourceResult?.selectedType;
+  const literalCarrier = prefix && (sourceOperator === "+" || sourceOperator === "-")
+    ? selectCsharpScalarLiteralCarrier(input.literalValues.literalValue.get(node), sourceResult, input.typeDefinitions)
+    : undefined;
+  const operandType = literalCarrier ?? sourceOperand;
+  const resultType = literalCarrier ?? sourceResult;
   if (operandType === undefined || resultType === undefined) {
     return rejected(
       "The checked update expression has no closed C# representation for its operand and result.",

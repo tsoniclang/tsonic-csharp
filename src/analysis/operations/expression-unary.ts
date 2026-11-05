@@ -28,7 +28,9 @@ export function analyzeCsharpUnaryEmission(input: { readonly ast: AstReader; rea
     const selected = classification.target;
     if (selected.kind === "rejected") { refuse(node, selected.reason); continue; }
     const postfix = input.ast.is.IsPostfixUnaryExpression(node);
-    if (!postfix && Object.is(input.literals.literalValue.get(node)?.number, -0)) {
+    const authoredLiteral = input.literals.literalValue.get(node);
+    if (!postfix && (Object.is(authoredLiteral?.number, -0) ||
+      authoredLiteral?.form === "prefix-unary" && authoredLiteral.numeric?.kind === "authored")) {
       const literal = input.exact.exactLiteral.get(node, selected.resultType);
       if (literal?.kind === "resolved") { producer.publish(node, { kind: "literal", carrier: selected.resultType, recipe: literal.recipe }); continue; }
       if (literal?.kind === "rejected") { refuse(node, literal.reason); continue; }

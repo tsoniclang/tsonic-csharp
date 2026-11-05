@@ -18,6 +18,41 @@ import { selectCsharpConversion } from "../../../dist/policy/conversions/core.js
 import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
 import { header, emptyProviders, compile, diagnosticLabel, accepted, arrays, constructedArrays, destinationBodies, actualDestinationEvidence, actualUnionDestinationEvidence } from "./inferred-numeric-array-elements.fixtures.mjs";
 
+for (const surface of ["native", "js"]) {
+  for (const [name, element, token, primitive] of [
+    ["floating", "string | number", "-9007199254740993", "float64"],
+    ["minimum signed integer", "string | int32", "-2147483648", "int32"],
+  ]) {
+    test(`${surface} declared ${name} union admits the entire authored unary literal`, () => {
+      const program = accepted(compile(surface, `export function run(): (${element})[] { return [${token}]; }`));
+      const ast = program.source.ast;
+      const literals = [];
+      const visit = node => {
+        if (ast.is.IsPrefixUnaryExpression(node)) literals.push(node);
+        ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+      };
+      for (const file of csharpProgramSourceFiles(program)) visit(file);
+      assert.equal(literals.length, 1, "one original authored signed token is retained");
+      const node = literals[0];
+      const source = program.source.effectiveTypes.get(node);
+      assert.equal(source?.kind !== "refused" && source?.type.kind === "union" && source.type.types.length === 2, true,
+        "the Host keeps the complete declared union, not a target-selected scalar arm");
+      const selected = program.records.unaryOperation.get(node)?.target;
+      assert.equal(selected?.kind === "resolved" && selected.operandType.kind === "source-primitive" &&
+        selected.operandType.name === primitive && selected.resultType.kind === "source-primitive" &&
+        selected.resultType.name === primitive, true, "D2 admits the signed token before native operator validation");
+      const exact = program.records.exactLiteral.get(node, csharpSourcePrimitiveTargetType(primitive));
+      assert.equal(primitive === "float64" ? exact?.kind === "source-representation"
+        : exact?.kind === "resolved" && exact.recipe.kind === "integer" && exact.recipe.value === -2147483648n, true,
+      "the complete signed token retains its existing exact native admission recipe");
+      const use = program.records.nativeExpression.get(node)?.use;
+      assert.equal(use?.kind === "converted" && use.input.kind === "value" &&
+        use.input.type.kind === "source-primitive" && use.input.type.name === primitive, true,
+      "one physical scalar enters the original union carrier without an invented source type");
+    });
+  }
+}
+
 const c19PhysicalDestinationKeys = new Set([
   "native actual argument destination changes physical i32 element storage",
   "native actual return destination changes physical i32 element storage",
