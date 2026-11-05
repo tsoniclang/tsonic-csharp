@@ -1,32 +1,45 @@
-import type { Node, Type } from "@tsonic/tsts";
+import type { Node } from "@tsonic/tsts";
+import type { SourceEffectiveTypeArgument, SourceTypeDescriptor } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import type { CsharpProjectedType } from "../../../../target-model/types/projections.js";
 import { csharpSourceTypeParameter } from "../../../../source/extension/type-parameters.js";
 import { substituteTargetTypeParameters } from "../../../../policy/types/resolution/substitution.js";
 import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { CsharpTypeResolutionState } from "./model.js";
-import { csharpBoundSourceType, csharpSourceBindings } from "./type-bindings.js";
-import { resolveCsharpConditionalApplication } from "./conditional-types.js";
+import { resolveCsharpSourceTypeDescriptor } from "./effective-types.js";
 import { nextState } from "./state.js";
 import { resolveCsharpOptionalStorage } from "../../../../policy/types/storage/optional-storage.js";
 import { csharpTargetTypeComponents } from "../../../../target-model/types/components.js";
 import { csharpTypeProjection } from "../../../../target-model/types/projections.js";
+import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
+
+export interface CsharpPublishedProjectionInput {
+  readonly bindings: readonly SourceEffectiveTypeArgument[];
+  readonly definitions: readonly SourceTypeDescriptor[];
+}
 
 export function resolveCsharpProjectionArguments(
   scope: CsharpTypeResolutionScope, declaration: Node,
-  sources: readonly Type[], arguments_: readonly TargetTypeRef[],
+  publication: CsharpPublishedProjectionInput, arguments_: readonly TargetTypeRef[],
   state: CsharpTypeResolutionState,
   projections: readonly CsharpProjectedType[] = scope.host.representations.genericProjections(declaration),
   parameters: readonly (Node | undefined)[] = scope.host.ast.typeParameters(declaration),
 ): readonly TargetTypeRef[] | undefined {
+  if (!Array.isArray(publication.bindings) || !Array.isArray(publication.definitions)) return undefined;
   if (projections.length === 0) return [];
-  if (parameters.some(parameter => parameter === undefined)) return undefined;
-  const bound = csharpSourceBindings(parameters as readonly Node[], sources, arguments_, nextState(state));
-  if (bound === undefined) return undefined;
-  const nativeBindings = new Map((parameters as readonly Node[]).map((parameter, index) => [
-    csharpSourceTypeParameter(parameter, scope.host.ast)!.identity, arguments_[index]!,
-  ]));
-  const queries = scope.host.semanticsFor(declaration);
+  if (parameters.some(parameter => parameter === undefined) || parameters.length !== arguments_.length ||
+    publication.bindings.length !== parameters.length || new Set(parameters).size !== parameters.length ||
+    publication.bindings.some((binding, index) => binding.declaration !== parameters[index])) return undefined;
+  const nativeParameters = (parameters as readonly Node[]).map(parameter => csharpSourceTypeParameter(parameter, scope.host.ast));
+  if (nativeParameters.some(parameter => parameter === undefined) ||
+    new Set(nativeParameters.map(parameter => parameter!.identity)).size !== parameters.length) return undefined;
+  const nativeBindings = new Map<string, TargetTypeRef>();
+  for (const [declaration, binding] of state.sourceBindings ?? []) {
+    const parameter = csharpSourceTypeParameter(declaration, scope.host.ast);
+    if (parameter !== undefined) nativeBindings.set(parameter.identity, binding.targetType);
+  }
+  nativeParameters.forEach((parameter, index) => nativeBindings.set(parameter!.identity, arguments_[index]!));
+  const definitions = publishedReferences([...publication.definitions, ...publication.bindings.map(binding => binding.type)]);
   const projectionIdentities = new Set(projections.map(projection => projection.identity));
   const selected = new Map<string, TargetTypeRef>();
   const pending = new Set(projections);
@@ -54,15 +67,25 @@ export function resolveCsharpProjectionArguments(
       if (contract.kind === "optional") {
         result = resolveCsharpOptionalStorage(contract, targetArguments[0]!);
       } else {
-        const sourceArguments = contract.sourceArguments.map((argument, index) => {
-          const target = contract.arguments[index];
-          const parameterIndex = target?.kind !== "type-parameter" ? -1
-            : (parameters as readonly Node[]).findIndex(parameter => csharpSourceTypeParameter(parameter, scope.host.ast)?.identity === target.identity);
-          return parameterIndex >= 0 ? sources[parameterIndex]!
-            : csharpBoundSourceType(argument, queries, bound)?.sourceType ?? argument;
-        });
-        const application = queries.types.instantiateAlias(contract.declaration, sourceArguments);
-        result = application === undefined ? undefined : resolveCsharpConditionalApplication(scope, application, targetArguments, queries, bound);
+        const matches: TargetTypeRef[] = [];
+        const bodies: TargetTypeRef[] = [];
+        for (const reference of definitions) {
+          if (reference.declaration !== contract.declaration || reference.definition === undefined ||
+            reference.typeArguments.length !== targetArguments.length) continue;
+          const representedArguments = reference.typeArguments.map(argument =>
+            resolveCsharpSourceTypeDescriptor(scope, argument, nextState(state), declaration));
+          if (representedArguments.some((argument, index) => argument === undefined ||
+            !targetTypeRefEquals(substituteTargetTypeParameters(argument, nativeBindings), targetArguments[index]!))) continue;
+          const selected = resolveCsharpSourceTypeDescriptor(scope, reference, nextState(state), declaration);
+          const body = resolveCsharpSourceTypeDescriptor(scope, reference.definition, nextState(state), declaration);
+          if (selected === undefined || body === undefined) return undefined;
+          matches.push(substituteTargetTypeParameters(selected, nativeBindings));
+          bodies.push(substituteTargetTypeParameters(body, nativeBindings));
+        }
+        const first = matches[0];
+        const body = bodies[0];
+        result = first === undefined || body === undefined || matches.some(selected => !targetTypeRefEquals(selected, first)) ||
+          bodies.some(selected => !targetTypeRefEquals(selected, body)) ? undefined : first;
       }
       if (result === undefined) return undefined;
       selected.set(projection.identity, result);
@@ -73,4 +96,37 @@ export function resolveCsharpProjectionArguments(
     if (!progress) return undefined;
   }
   return projections.map(projection => selected.get(projection.identity)!);
+}
+
+function publishedReferences(roots: readonly SourceTypeDescriptor[]): readonly Extract<SourceTypeDescriptor, { readonly kind: "declared" }>[] {
+  const pending = [...roots];
+  const visited = new Set<SourceTypeDescriptor>();
+  const references: Extract<SourceTypeDescriptor, { readonly kind: "declared" }>[] = [];
+  for (let index = 0; index < pending.length; index += 1) {
+    const descriptor = pending[index]!;
+    if (visited.has(descriptor)) continue;
+    visited.add(descriptor);
+    switch (descriptor.kind) {
+      case "declared":
+        references.push(descriptor);
+        pending.push(...descriptor.typeArguments);
+        if (descriptor.definition !== undefined) pending.push(descriptor.definition);
+        break;
+      case "union": pending.push(...descriptor.types); break;
+      case "array": pending.push(descriptor.element); break;
+      case "optional": pending.push(descriptor.value); break;
+      case "tuple": pending.push(...descriptor.elements.map(element => element.type)); break;
+      case "shape":
+        pending.push(...descriptor.members.map(member => member.type),
+          ...descriptor.indexes.flatMap(selected => [selected.key, selected.value]));
+        pending.push(...[...descriptor.calls, ...descriptor.constructs].flatMap(signature =>
+          [...signature.parameters.map(parameter => parameter.type), signature.result]));
+        break;
+      case "callable":
+        pending.push(...[...descriptor.calls, ...descriptor.constructs].flatMap(signature =>
+          [...signature.parameters.map(parameter => parameter.type), signature.result]));
+        break;
+    }
+  }
+  return references;
 }

@@ -322,7 +322,7 @@ export function createCsharpObjectShapePolicy(
       if (selectedType === undefined) return undefined;
       const descriptor = publishedShapeDescriptor(definition.declaration);
       const selectedMembers = descriptor === undefined ? undefined
-        : deriveMembers(descriptor, definition.declaration, selectedType, queries, state);
+        : deriveMembers(descriptor, definition.declaration, queries, state);
       const initializer = Node_Initializer(host.ast, definition.declaration);
       const shapeNode = initializer === undefined || readCsharpSourceStruct(host.sourceFacts, initializer) === undefined
         ? undefined : host.ast.arguments(initializer)[0];
@@ -449,7 +449,7 @@ export function createCsharpObjectShapePolicy(
       if (declaredKind === "class" && declaredShape === undefined) return undefined;
       const members = declaredShape === undefined
         ? occurrence === undefined || descriptor === undefined ? undefined
-          : deriveMembers(descriptor, occurrence, type, queries, nextState(state), contextualProjectType)
+          : deriveMembers(descriptor, occurrence, queries, nextState(state), contextualProjectType)
         : instantiateMemberEvidence(declaredShape.members, type, queries, declaredShape.sourceType);
       if (members === undefined) {
         return undefined;
@@ -570,7 +570,7 @@ export function createCsharpObjectShapePolicy(
     }
     const descriptor = publishedShapeDescriptor(definition.declaration);
     const declaredMembers = descriptor === undefined ? undefined : deriveMembers(
-      descriptor, definition.declaration, declaredType,
+      descriptor, definition.declaration,
       queries,
       nextState(state),
       targetType,
@@ -645,7 +645,7 @@ export function createCsharpObjectShapePolicy(
       const declaration = sourceShapeDeclaration(type, queries);
       const descriptor = publishedShapeDescriptor(declaration);
       const members = declaration === undefined || descriptor === undefined ? undefined
-        : deriveMembers(descriptor, declaration, type, queries, { depth: 0 });
+        : deriveMembers(descriptor, declaration, queries, { depth: 0 });
       const matches = members?.filter((member) =>
         csharpSourceMemberKeysEqual(member.sourceKey, sourceKey)
       ) ?? [];

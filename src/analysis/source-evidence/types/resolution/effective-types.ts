@@ -6,8 +6,7 @@ import type { CsharpTypeResolutionState } from "./model.js";
 import type { CsharpSourceCallResult } from "../../../../target-model/operations/source-call-results.js";
 import type { CsharpTargetParameter, TargetTypeRef } from "../../../../target-model/types/model.js";
 import { representCsharpSourceType, type CsharpSourceTypeRepresentationHost } from "../../../../policy/types/source-type-flow/representation.js";
-import { csharpSourceTypeParameter, csharpSourceTypeParameters } from "../../../../source/extension/type-parameters.js";
-import { csharpSourceBindings } from "./type-bindings.js";
+import { csharpSourceTypeParameter } from "../../../../source/extension/type-parameters.js";
 import { resolveCsharpProjectionArguments } from "./projection-arguments.js";
 import { nextState } from "./state.js";
 import type { ResolvedSourceCallInfo } from "../../../../target-model/records/calls/source-calls.js";
@@ -193,57 +192,43 @@ export function createCsharpSourceTypeRepresentationHost(
       }
       const profile = classifyCsharpSourceProfileDeclaration(declaration, host.ast);
       if (profile !== undefined) return scope.resolveSourceProfileType(profile, typeArguments);
-      const selected = queries.declarations.declaredType(declaration);
-      const parameters = csharpSourceTypeParameters(declaration, host.ast);
-      // The published descriptor's typeArguments instantiate the declaration's own type parameters, in order. A type
-      // alias binds only its own parameters: the reference bindings of its body (e.g. ReadonlyArray<T> inside
-      // `type Children = readonly Children[] | null`) belong to that body, not to the alias.
-      const declaredBindings = selected === undefined || host.ast.is.IsTypeAliasDeclaration(declaration) ? undefined
-        : queries.types.typeArgumentBindings(selected);
-      const ownBindings = declaredBindings === undefined && parameters.length === typeArguments.length &&
-        parameters.every(parameter => parameter !== undefined)
-        ? parameters.map(parameter => ({ declaration: parameter!, argumentType: queries.declarations.declaredType(parameter!) }))
-        : undefined;
-      const bindings = ownBindings?.every(binding => binding.argumentType !== undefined)
-        ? ownBindings.map(binding => ({ declaration: binding.declaration, argumentType: binding.argumentType! })) : declaredBindings;
-      if ((bindings?.length ?? 0) !== typeArguments.length) return undefined;
-      const representedState = csharpSourceBindings((bindings ?? []).map(binding => binding.declaration),
-        (bindings ?? []).map(binding => binding.argumentType), typeArguments, state);
-      if (representedState === undefined) return undefined;
-      const direct = scope.resolveDirectSourceFacts([declaration,
-        ...(selected === undefined ? [] : queries.facts.typeSubjects(selected))], queries.sourceFile, nextState(representedState));
+      const direct = scope.resolveDirectSourceFacts([declaration], queries.sourceFile, nextState(state));
       if (direct !== undefined) return direct;
-      if (host.ast.is.IsTypeAliasDeclaration(declaration)) return scope.sourceUnionDefinitions.resolveDescriptor(declaration,
-        typeArguments, descriptor.definition === undefined ? undefined : () => resolveCsharpSourceTypeDescriptor(scope,
-          descriptor.definition!, nextState(representedState), occurrence),
-        // An alias whose definition carries absence through any intervening declared alias is recursively optional,
-        // symmetric with the Host (K-2449): the structure, not the first definition level, decides.
-        descriptor.definition !== undefined && sourceTypeDescriptorStructure(descriptor.definition).kind === "optional");
-      if (host.navigation.isProjectDeclaration(declaration)) {
-        return projectPublishedDeclaration(scope, declaration, representedState);
+      if (host.ast.is.IsTypeAliasDeclaration(declaration)) {
+        if (descriptor.cut === "unexpressible") return undefined;
+        return scope.sourceUnionDefinitions.resolveDescriptor(declaration,
+          typeArguments, descriptor.definition === undefined ? undefined : () => resolveCsharpSourceTypeDescriptor(scope,
+            descriptor.definition!, nextState(state), occurrence),
+          descriptor.definition !== undefined && sourceTypeDescriptorStructure(descriptor.definition).kind === "optional");
       }
-      const ownArguments = parameters.map(parameter => parameter === undefined ? undefined
-        : representedState.sourceBindings?.get(parameter)?.targetType);
-      return ownArguments.some(argument => argument === undefined) ? undefined
-        : scope.resolveProviderType([declaration, ...(selected === undefined ? [] : queries.facts.typeSubjects(selected))],
-          ownArguments as readonly TargetTypeRef[]);
+      if (host.navigation.isProjectDeclaration(declaration)) {
+        const structure = descriptor.definition === undefined ? undefined : sourceTypeDescriptorStructure(descriptor.definition);
+        if (host.ast.is.IsInterfaceDeclaration(declaration) &&
+          (structure?.kind === "callable" || structure?.kind === "array" || structure?.kind === "tuple")) {
+          return resolveCsharpSourceTypeDescriptor(scope, structure, nextState(state), occurrence);
+        }
+        return projectPublishedDeclaration(scope, descriptor, typeArguments, state);
+      }
+      return scope.resolveProviderType([declaration], typeArguments);
     },
   };
 }
 
 function projectPublishedDeclaration(
   scope: CsharpTypeResolutionScope,
-  declaration: Node,
+  descriptor: Extract<SourceTypeDescriptor, { readonly kind: "declared" }>,
+  arguments_: readonly TargetTypeRef[],
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
+  const declaration = descriptor.declaration;
   const definition = scope.host.projectTypeCatalog.definitionForDeclaration(declaration);
   if (definition === undefined) return undefined;
   const parameters = [...definition.outerTypeParameters, ...definition.typeParameters];
-  const bindings = parameters.map(parameter => state.sourceBindings?.get(parameter));
-  if (bindings.some(binding => binding === undefined)) return undefined;
-  const arguments_ = bindings.map(binding => binding!.targetType);
-  const sources = bindings.map(binding => binding!.sourceType);
-  const projections = resolveCsharpProjectionArguments(scope, declaration, sources, arguments_, state,
+  if (parameters.length !== descriptor.typeArguments.length || parameters.length !== arguments_.length) return undefined;
+  const publication = { bindings: parameters.map((parameter, index) => ({
+    declaration: parameter, type: descriptor.typeArguments[index]!,
+  })), definitions: [descriptor] };
+  const projections = resolveCsharpProjectionArguments(scope, declaration, publication, arguments_, state,
     [...definition.outerTypeProjections, ...definition.typeProjections], parameters);
   if (projections === undefined) return undefined;
   const outerCount = definition.outerTypeParameters.length;

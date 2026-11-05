@@ -1,12 +1,12 @@
 
 import { createStructuralObjectShapeTarget } from "./construction.js";
 
-import { isProjectSourceTargetType, projectClassIsObjectInitializable, typeHasProjectOwnedShapeDeclaration } from "./source-evidence.js";
+import { isProjectSourceTargetType } from "./source-evidence.js";
 
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import type { CsharpObjectShapeFact, TargetTypeRef } from "../../../target-model/types/model.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { SourceTypeDescriptor } from "@tsonic/target-api/source";
+import { sourceTypeDescriptorStructure, type SourceTypeDescriptor } from "@tsonic/target-api/source";
 
 import type { CsharpObjectShapePolicyHost, CsharpRecursiveObjectShapePolicy } from "./model.js";
 
@@ -29,10 +29,8 @@ export function createCsharpProjectShapeProjection(
       return { kind: "unchanged" };
     }
     const selectedTarget = host.typeResolver.resolveDescriptor(descriptor, contextNode, { depth: 0 });
-    const selectedType = descriptor.kind === "declared" ? host.semantics(sourceFile).declarations.declaredType(descriptor.declaration) : undefined;
     if (
       selectedTarget === undefined ||
-      selectedType === undefined ||
       !targetTypeRefEquals(selectedTarget, targetType)
     ) {
       return {
@@ -48,22 +46,29 @@ export function createCsharpProjectShapeProjection(
       return { kind: "unchanged" };
     }
     const queries = host.semantics(sourceFile);
-    if (
-      !typeHasProjectOwnedShapeDeclaration(
-        selectedType,
-        contextNode,
-        queries,
-        host,
-      )
-    ) {
+    const definition = host.projectTypeCatalog.definitionForTarget(targetType);
+    let selectedReference = descriptor;
+    while (selectedReference.kind === "optional" ||
+      selectedReference.kind === "declared" && selectedReference.declaration !== definition?.declaration &&
+      selectedReference.definition !== undefined) {
+      selectedReference = selectedReference.kind === "optional" ? selectedReference.value : selectedReference.definition!;
+    }
+    const reference = selectedReference.kind === "declared" ? selectedReference : undefined;
+    if (definition === undefined || reference === undefined || definition.declaration !== reference.declaration ||
+      !host.navigation.isProjectDeclaration(reference.declaration)) {
       return {
         kind: "rejected",
         reason:
           "The selected C# project type argument has no exact project-owned source declaration.",
       };
     }
+    if (reference.definition === undefined || sourceTypeDescriptorStructure(reference).kind !== "shape") {
+      return { kind: "rejected", reason: reference.cut === "unexpressible"
+        ? "The Host-published project reference has unexpressible structure."
+        : "A project construction requires the Host-published full reference definition, not a recursion cut." };
+    }
     const members = deriveMembers(
-      descriptor, contextNode, selectedType,
+      descriptor, contextNode,
       queries,
       { depth: 0 },
       targetType,
@@ -76,7 +81,9 @@ export function createCsharpProjectShapeProjection(
       };
     }
     if (targetType.csharpSourceDeclarationKind === "class") {
-      if (!projectClassIsObjectInitializable(selectedType, queries, host)) {
+      const constructors = host.navigation.classConstructors(reference.declaration);
+      if (constructors.kind !== "resolved" || definition.abstract || !constructors.signatures.some(signature =>
+        signature.parameters.every(parameter => parameter.acceptsOmission))) {
         return {
           kind: "rejected",
           reason:

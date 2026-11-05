@@ -1,7 +1,7 @@
 import type { Node, SourceFile, Symbol, Type } from "@tsonic/tsts";
 import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { CsharpTypeResolutionState } from "./model.js";
-import type { SourceFileSemantics } from "@tsonic/target-api/source";
+import type { SourceFileSemantics, SourceTypeDescriptor } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import { csharpSourceTypeArgumentNodes } from "../../../../target-model/syntax/type-arguments.js";
 import { definedValues } from "./source-evidence.js";
@@ -158,11 +158,22 @@ export function projectSourceDeclarationTargetType(
   const sources = sourceArguments ?? ownParameters.map(parameter =>
     parameter === undefined ? undefined : queries.types.authoredType(parameter));
   if (sources.some(source => source === undefined) || typeArguments.length !== definition.sourceTypeParameterCount) return undefined;
-  const projections = resolveCsharpProjectionArguments(scope, declaration,
-    [...outerSources, ...sources] as readonly Type[],
+  const parameters = [...definition.outerTypeParameters, ...ownParameters];
+  const outcome = host.effectiveTypes.get(declaration);
+  let descriptor: SourceTypeDescriptor | undefined = outcome?.kind === "resolved" || outcome?.kind === "default"
+    ? outcome.type : undefined;
+  while (descriptor?.kind === "optional") descriptor = descriptor.value;
+  if ((descriptor?.kind === "callable" || descriptor?.kind === "shape") && descriptor.calls.length === 0 &&
+    descriptor.constructs.length === 1) descriptor = descriptor.constructs[0]!.result;
+  const reference = descriptor?.kind === "declared" && descriptor.declaration === declaration ? descriptor : undefined;
+  const publication = reference !== undefined && reference.typeArguments.length === parameters.length ? {
+      bindings: parameters.map((parameter, index) => ({ declaration: parameter, type: reference.typeArguments[index]! })),
+      definitions: [reference],
+    } : { bindings: [], definitions: [] };
+  const projections = resolveCsharpProjectionArguments(scope, declaration, publication,
     [...outerArguments as readonly TargetTypeRef[], ...typeArguments], state,
     [...definition.outerTypeProjections, ...definition.typeProjections],
-    [...definition.outerTypeParameters, ...ownParameters]);
+    parameters);
   if (projections === undefined) return undefined;
   const outerProjectionCount = definition.outerTypeProjections.length;
   return host.projectTypeCatalog.targetTypeForDeclaration(

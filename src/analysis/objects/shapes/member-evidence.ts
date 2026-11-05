@@ -1,12 +1,12 @@
 import type { Node, Type, TypePropertyInfo } from "@tsonic/tsts";
-import { ObjectLiteralProperty_Value, sourceClassFieldIsTypeOnly, sourceTypeDescriptorStructure, type SourceFileSemantics, type SourceStructuralMember, type SourceStructuralMemberPair, type SourceTypeDescriptor } from "@tsonic/target-api/source";
+import { ObjectLiteralProperty_Value, sourceClassFieldIsTypeOnly, sourceTypeDescriptorStructure, type SourceFileSemantics, type SourceStructuralMember, type SourceStructuralMemberPair, type SourceTypeDescriptor, type SourceTypeDescriptorMember } from "@tsonic/target-api/source";
 import type { CsharpObjectShapePolicyHost } from "./model.js";
 import type { CsharpObjectShapeMemberEvidence, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpTypeResolutionState } from "../../source-evidence/types/resolution/model.js";
-import { csharpSourceMemberDisplayName } from "../../../target-model/types/source-member-keys.js";
+import { csharpPropertySourceMemberKey, csharpSourceMemberDisplayName, csharpSourceMemberKeysEqual } from "../../../target-model/types/source-member-keys.js";
 import { nextState } from "../../source-evidence/types/resolution/state.js";
 import { objectShapeMemberTargetNameForKey } from "../../../policy/identities/source-member-names.js";
-import { isCsharpNativeSourceProfileMemberDeclaration, typeIncludesNullish } from "./source-evidence.js";
+import { isCsharpNativeSourceProfileMemberDeclaration } from "./source-evidence.js";
 import { resolveObjectShapeSourceMemberKey } from "../../../source/extension/member-keys.js";
 import { resolveCsharpCallableTypeParameters } from "../../source-evidence/types/resolution/callable-type-parameters.js";
 import { csharpMethodValueCoversContract, getCsharpMethodValue } from "../../../target-model/types/method-values.js";
@@ -43,38 +43,39 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
   function deriveMembers(
     descriptor: SourceTypeDescriptor,
     owner: Node,
-    ownerType: Type,
     queries: SourceFileSemantics,
     state: CsharpTypeResolutionState,
     receiver?: TargetTypeRef,
   ): readonly CsharpObjectShapeMemberFact[] | undefined {
-    while (descriptor.kind === "optional") descriptor = descriptor.value;
-    if (descriptor.kind === "callable" && descriptor.constructs.length === 1) descriptor = descriptor.constructs[0]!.result;
-    const structure = sourceTypeDescriptorStructure(descriptor);
-    const selectedMembers = structure.kind === "shape" ? structure.members : undefined;
-    if (selectedMembers === undefined) return undefined;
-    const symbol = queries.declarations.typeSymbol(ownerType);
-    const literals = symbol === undefined ? [] : queries.declarations.symbolDeclarations(symbol)
-      .filter(declaration => host.ast.is.IsObjectLiteralExpression(declaration));
-    if (literals.length > 1) return undefined;
+    let structure = sourceTypeDescriptorStructure(descriptor);
+    while (structure.kind === "optional" ||
+      structure.kind === "callable" && structure.calls.length === 0 && structure.constructs.length === 1) {
+      structure = sourceTypeDescriptorStructure(structure.kind === "optional" ? structure.value : structure.constructs[0]!.result);
+    }
+    if (structure.kind !== "shape" || structure.indexes.length !== 0 || structure.calls.length !== 0 ||
+      structure.constructs.length !== 0) return undefined;
     const members: CsharpObjectShapeMemberFact[] = [];
-    for (const property of queries.types.propertyInfos(ownerType)) {
-      const declarations = [...new Set([
-        ...queries.declarations.symbolDeclarations(property.symbol),
-        ...property.rootSymbols.flatMap(symbol => queries.declarations.symbolDeclarations(symbol)),
-      ])].filter((declaration): declaration is Node => declaration !== undefined);
+    for (const property of structure.members) {
+      const declarations = memberDeclarations(property, queries);
       if (declarations.length !== 0 && declarations.every(declaration => sourceClassFieldIsTypeOnly(host.ast, declaration))) continue;
       if (declarations.some(declaration => isCsharpNativeSourceProfileMemberDeclaration(declaration, host.ast))) {
         if (!declarations.every(declaration => isCsharpNativeSourceProfileMemberDeclaration(declaration, host.ast))) return undefined;
         continue;
       }
-      const selected = selectedMembers.filter(member => member.origin.kind === "declared" && declarations.includes(member.origin.declaration));
-      if (selected.length !== 1 || selected[0]!.optional !== property.optional) return undefined;
-      const member = deriveMember(property, selected[0]!.type, owner, queries, state, literals[0], receiver);
-      if (member === undefined) return undefined;
+      const member = deriveMember(property, declarations, owner, queries, state, receiver);
+      if (member === undefined || members.some(previous => csharpSourceMemberKeysEqual(previous.sourceKey, member.sourceKey))) return undefined;
       members.push(member);
     }
-    return retainMemberDeclarationEvidence(members, ownerType, queries);
+    return Object.freeze(members);
+  }
+
+  function memberDeclarations(property: SourceTypeDescriptorMember, queries: SourceFileSemantics): readonly Node[] {
+    if (property.origin.kind !== "declared") return [];
+    const declaration = property.origin.declaration;
+    const file = host.ast.getSourceFile(declaration) ?? queries.sourceFile;
+    const symbol = host.navigation.declarationSymbol(declaration, file);
+    const declarations = symbol === undefined ? [] : host.semantics(file).declarations.symbolDeclarations(symbol);
+    return declarations.includes(declaration) ? declarations : [declaration];
   }
 
   function matchesMemberSubjects(member: CsharpObjectShapeMemberFact, selected: SourceStructuralMember): boolean {
@@ -195,33 +196,22 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
   }
 
   function deriveMember(
-    property: TypePropertyInfo,
-    descriptor: SourceTypeDescriptor,
+    property: SourceTypeDescriptorMember,
+    declarations: readonly Node[],
     occurrence: Node,
     queries: SourceFileSemantics,
     state: CsharpTypeResolutionState,
-    literalOwner?: Node,
     receiver?: TargetTypeRef,
   ): CsharpObjectShapeMemberFact | undefined {
     const sourcePropertyName = property.name;
-    const declarations = [...new Set([
-      ...queries.declarations.symbolDeclarations(property.symbol),
-      ...property.rootSymbols.flatMap((symbol) =>
-        queries.declarations.symbolDeclarations(symbol)
-      ),
-    ])]
-      .filter((declaration): declaration is Node => declaration !== undefined);
+    const descriptor = property.type;
     const selection = declarations.length !== 1 ? undefined : host.sourceStorage.memberSubjectFor(declarations[0]!);
     const memberState: CsharpTypeResolutionState = { ...state,
       sourceStorageSubject: selection?.kind === "resolved" ? selection.subject : undefined,
     };
-    const sourceType = property.type;
-    const sourceKey = resolveObjectShapeSourceMemberKey(
-      declarations,
-      sourcePropertyName,
-      host.ast,
-      host.semanticsFor,
-    );
+    const sourceKey = property.origin.kind === "mapped" && property.origin.key.kind === "unique-symbol" ? undefined
+      : property.origin.kind === "declared" ? resolveObjectShapeSourceMemberKey(declarations, sourcePropertyName, host.ast, host.semanticsFor)
+        : csharpPropertySourceMemberKey(sourcePropertyName);
     const targetName = sourceKey === undefined
       ? undefined
       : objectShapeMemberTargetNameForKey(sourceKey);
@@ -232,14 +222,8 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
       host.ast.is.IsMethodDeclaration(declaration) ||
       host.ast.is.IsMethodSignatureDeclaration(declaration)
     );
-    const getters = declarations.filter((declaration) =>
-      host.ast.is.IsGetAccessorDeclaration(declaration) &&
-        (literalOwner === undefined || host.ast.parent(declaration) === literalOwner)
-    );
-    const setters = declarations.filter((declaration) =>
-      host.ast.is.IsSetAccessorDeclaration(declaration) &&
-        (literalOwner === undefined || host.ast.parent(declaration) === literalOwner)
-    );
+    const getters = declarations.filter(declaration => host.ast.is.IsGetAccessorDeclaration(declaration));
+    const setters = declarations.filter(declaration => host.ast.is.IsSetAccessorDeclaration(declaration));
     if (getters.length > 1 || setters.length > 1 ||
       (getters.length === 0 && setters.length > 0)) {
       return undefined;
@@ -279,18 +263,16 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
     if (typeParameters === undefined) return undefined;
     const sourceDeclarations = [...new Set([...declarations, ...(methodDeclaration === undefined ? [] : [methodDeclaration])])];
     const optional = property.optional;
-    const bound = host.memoryBindings.hasBoundField([property.symbol, ...declarations]);
-    if (bound && (optional || typeIncludesNullish(sourceType, queries) || method || getters.length !== 0 || setters.length !== 0)) return undefined;
+    const bound = host.memoryBindings.hasBoundField(declarations);
+    if (bound && (optional || descriptorIncludesAbsence(descriptor) || method || getters.length !== 0 || setters.length !== 0)) return undefined;
     return {
       sourceKey,
       sourceName: csharpSourceMemberDisplayName(sourceKey),
-      sourceSubjects: declarations.length === 0
-        ? [property.symbol]
-        : [property.symbol, ...declarations],
+      origin: property.origin,
+      sourceSubjects: declarations,
       ...(sourceDeclarations.length === 0
         ? {}
         : { sourceDeclarations: Object.freeze(sourceDeclarations) }),
-      sourceTypes: [sourceType],
       targetName,
       memberKind: method ? "method" : "property",
       type: memberType,
@@ -309,6 +291,12 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
             },
           }),
     };
+  }
+
+  function descriptorIncludesAbsence(descriptor: SourceTypeDescriptor): boolean {
+    const structure = sourceTypeDescriptorStructure(descriptor);
+    return structure.kind === "optional" || structure.kind === "intrinsic" && structure.intrinsic === "absence" ||
+      structure.kind === "union" && structure.types.some(descriptorIncludesAbsence);
   }
 
   function resolvePropertyType(

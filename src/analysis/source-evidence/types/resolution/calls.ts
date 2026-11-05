@@ -24,6 +24,7 @@ import { csharpSourceTypeParameter } from "../../../../source/extension/type-par
 import { bindCsharpSourceDeclarationArguments, bindCsharpSourceTypeArguments } from "./generic-arguments.js";
 import { getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
 import { resolveCsharpEffectiveCallTypeArgument, resolveCsharpSourceEffectiveType } from "./effective-types.js";
+import { sourceCallProjectionInput } from "./call-projection-input.js";
 
 export function resolveSourceCallInstantiation(
   scope: CsharpTypeResolutionScope,
@@ -140,7 +141,9 @@ export function resolveSourceCallInstantiation(
     arguments_.push(targetArgument);
   }
   if (owner !== undefined && projections.length > 0) {
-    const results = resolveCsharpProjectionArguments(scope, owner, sourceArguments, arguments_, state, projections);
+    const publication = sourceCallProjectionInput(scope, source, owner, parameterIdentities);
+    if (publication === undefined) return undefined;
+    const results = resolveCsharpProjectionArguments(scope, owner, publication, arguments_, state, projections);
     if (results === undefined) return undefined;
     for (const [index, result] of results.entries()) {
       substitutions.set(projections[index]!.identity, result);
