@@ -144,8 +144,7 @@ export function createCsharpSourceTypeRepresentationHost(
             host.ast.is.IsTypeLiteralNode(owner)) ? [owner] : [];
       })))];
       const source = owners.length === 1 ? owners[0] : occurrence;
-      const selected = occurrence === undefined ? undefined : host.representations.scopedTargetType(occurrence);
-      return selected === undefined ? host.objectShapes.retainShape(shape, source) : host.objectShapes.resolveTarget(selected);
+      return host.objectShapes.retainShape(shape, source);
     },
     declaredType(declaration, typeArguments, component, descriptor) {
       const caller = occurrence ?? component?.contextualCall?.call;
