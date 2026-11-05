@@ -35,6 +35,7 @@ import { analyzeCsharpNativeValueCarriers, analyzeCsharpObjectMethodSources } fr
 import { analyzeCsharpModuleCallables } from "../callables/module-callables.js";
 import { analyzeCsharpSourceTypeFlowObligations } from "../source-evidence/type-flow-obligations.js";
 import { analyzeCsharpDictionaryLiterals } from "../objects/dictionary-literals.js";
+import { csharpRepresentationDifference } from "./representation-differences.js";
 
 type CsharpAnalysisRejection = Extract<TargetStageResult<never>, { readonly kind: "rejected" }>;
 
@@ -136,6 +137,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
     semanticsFor: source.semantics.forNode,
     hasSemantics: source.semantics.includes,
   };
+  let transition: { readonly previous: CsharpRepresentationContract; readonly repeated: CsharpRepresentationContract } | undefined;
   const closure = resolveTargetContractFixedPoint<CsharpRepresentationContract, CsharpAnalysisRejection>({
     roots: [csharpTargetRepresentationContractId],
     evaluate(_id, context) {
@@ -155,14 +157,12 @@ function analyzeCsharpTargetProgramBeforeSeal(
         return { kind: "rejected", reason: evaluated.diagnostics[0]!.message, cause: evaluated };
       }
       const iteration = evaluated.value;
+      const contract = Object.freeze({ typeProjections: iteration.typeProjections, callables: iteration.callables, storage: iteration.storage });
+      if (previous !== undefined) transition = { previous, repeated: contract };
       return {
         kind: "resolved",
         revision: {
-          contract: Object.freeze({
-            typeProjections: iteration.typeProjections,
-            callables: iteration.callables,
-            storage: iteration.storage,
-          }),
+          contract,
             dependencies: Object.freeze([csharpTargetRepresentationContractId]),
         },
       };
@@ -175,13 +175,15 @@ function analyzeCsharpTargetProgramBeforeSeal(
   if (closure.kind === "rejected") {
     const failure = closure.failures[0]!;
     if (closure.failures.length === 1 && failure.cause !== undefined) return failure.cause;
+    const changes = transition === undefined ? [] : csharpRepresentationDifference(transition.previous, transition.repeated, sourceIdentities.node);
     return rejectedTargetStage(closure.failures.flatMap(failure => failure.cause?.diagnostics ?? [{
       code: "CSHARP_TARGET_CONTRACT_CLOSURE_REJECTED",
       category: "error" as const,
       source: "tsonic-csharp",
-      message: failure.reason,
+      message: changes.length === 0 ? failure.reason : `${failure.reason}\n${changes.join("\n")}`,
       evidence: Object.freeze([
         `target.contract=${failure.contractId ?? csharpTargetRepresentationContractId}`,
+        ...changes,
       ]),
     }]));
   }
