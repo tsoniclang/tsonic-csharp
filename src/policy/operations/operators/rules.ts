@@ -46,7 +46,6 @@ export interface CsharpBinaryOperands {
 export function selectCsharpNativeBinaryOperation(
   input: CsharpPolicyContext,
   facts: CsharpBinaryOperands,
-  expectedResultType: TargetTypeRef | undefined,
 ): CsharpOperationSelection<CsharpResolvedBinaryOperation> {
   const { left, right, sourceOperator, resultType, genericNumeric } = facts;
   let { leftType, rightType } = facts;
@@ -90,7 +89,7 @@ export function selectCsharpNativeBinaryOperation(
       kind: "resolved", sourceOperator,
       targetOperation: { kind: "closed-value-coalesce", assignment: sourceOperator === "??=",
         location: facts.assignmentLocation },
-      left, right, leftType, rightType, leftInputType: leftType, rightInputType: leftType, resultType: leftType,
+      left, right, leftType, rightType, leftInputType: leftType, rightInputType: leftType, resultType,
     };
   }
   if (isEquality(sourceOperator)) {
@@ -109,10 +108,10 @@ export function selectCsharpNativeBinaryOperation(
     if (rightCandidates?.length === 1) rightType = rightCandidates[0]!;
     if (leftCandidates?.length === 1) leftType = leftCandidates[0]!;
   }
-  const numericPromotion = selectCsharpNumericBinaryPromotion(
-    input, left, leftType, right, rightType, expectedResultType,
+  const numericOperands: Pick<NonNullable<ReturnType<typeof selectCsharpNumericBinaryPromotion>>, "leftType" | "rightType"> | undefined = selectCsharpNumericBinaryPromotion(
+    input, left, leftType, right, rightType, resultType,
   ) ?? selectCsharpGuardedIntegerPromotion(input, left, right, leftType, rightType);
-  if (numericPromotion === undefined && targetTypeRefEquals(leftType, csharpBigIntegerTargetType()) &&
+  if (numericOperands === undefined && targetTypeRefEquals(leftType, csharpBigIntegerTargetType()) &&
     targetTypeRefEquals(rightType, csharpBigIntegerTargetType())) {
     const method = bigintRuntimeMethods[sourceOperator];
     if (method !== undefined) {
@@ -121,7 +120,7 @@ export function selectCsharpNativeBinaryOperation(
         targetOperation: { kind: "bigint-call", method, assignment: isCsharpAssignmentOperator(sourceOperator),
           location: facts.assignmentLocation },
         left, right, leftType, rightType, leftInputType: leftType, rightInputType: rightType,
-        resultType: leftType,
+        resultType,
       };
     }
   }
@@ -129,7 +128,6 @@ export function selectCsharpNativeBinaryOperation(
     rightType.id === csharpJsArrayCarrierId &&
     (isCsharpIntegralTargetType(leftType) ||
       targetTypeRefEquals(leftType, csharpSourcePrimitiveTargetType("float64")))) {
-    const resultType = csharpSourcePrimitiveTargetType("bool");
     return {
       kind: "resolved", sourceOperator, targetOperation: { kind: "array-index-presence" },
       left, right, leftType, rightType,
@@ -143,7 +141,6 @@ export function selectCsharpNativeBinaryOperation(
       getCsharpRuntimeUnionArms(getCsharpNullableElementTargetType(rightType) ?? rightType, input.typeDefinitions) !== undefined)) {
     const arms = selectCsharpUnionEquality(leftType, rightType, input);
     if (arms === undefined) return rejectCsharpOperator("Union equality requires exact native comparison evidence for every leaf pair.");
-    const resultType = csharpSourcePrimitiveTargetType("bool");
     return Object.freeze({ kind: "resolved", sourceOperator,
       targetOperation: Object.freeze({ kind: "union-equality", negated: sourceOperator === "!==", arms }),
       left, right, leftType, rightType, leftInputType: leftType, rightInputType: rightType, resultType,
@@ -170,36 +167,35 @@ export function selectCsharpNativeBinaryOperation(
       `Source operator '${sourceOperator}' requires a dedicated C# translation policy.`,
     );
   }
-  const numericPromotionRequired = operatorRequiresNumericPromotion(
+  const numericOperandsRequired = operatorRequiresNumericInputs(
     sourceOperator,
     leftType,
     rightType,
   );
-  if (numericPromotionRequired && numericPromotion === undefined) {
+  if (numericOperandsRequired && numericOperands === undefined) {
     return rejectCsharpOperator(
       `Source operator '${sourceOperator}' has no exact predefined C# numeric promotion for the selected operand types.`,
     );
   }
-  const nullishResultType = sourceOperator === "??" || sourceOperator === "??="
-    ? selectNullishResultType(input, leftType, rightType, right)
-    : undefined;
-  if ((sourceOperator === "??" || sourceOperator === "??=") && nullishResultType === undefined) {
-    return rejectCsharpOperator(
-      "Source nullish coalescing has no exact C# result relation for the selected target operand types.",
-    );
+  if (sourceOperator === "??" || sourceOperator === "??=") {
+    const present = nullishValueType(leftType, input.typeDefinitions);
+    if (present === undefined || !csharpConversionIsApplicable(
+      selectCsharpExpressionConversion(input, left, present, resultType, "implicit"), "implicit") ||
+      !csharpConversionIsApplicable(selectCsharpExpressionConversion(input, right, rightType, resultType, "implicit"), "implicit")) {
+      return rejectCsharpOperator("Source nullish coalescing requires exact native completion into its published Host result.");
+    }
   }
   const coalesceArms = sourceOperator === "??" ? getCsharpRuntimeUnionArms(leftType, input.typeDefinitions) : undefined;
   const coalesceValueArm = coalesceArms?.findIndex(arm => !isCsharpAbsenceTargetType(arm));
   const unionCoalesce: CsharpTargetBinaryOperation | undefined = coalesceValueArm !== undefined && coalesceValueArm >= 0
-    ? { kind: "union-coalesce", valueArmIndex: coalesceValueArm, retainCarrier: targetTypeRefEquals(leftType, nullishResultType!) }
+    ? { kind: "union-coalesce", valueArmIndex: coalesceValueArm, retainCarrier: targetTypeRefEquals(leftType, resultType) }
     : undefined;
   const operationTypes = selectBinaryOperationTypes(
     sourceOperator,
     leftType,
     rightType,
     resultType,
-    numericPromotion,
-    nullishResultType,
+    numericOperands,
   );
   const incompatibility = nullishTest === undefined
       && referenceIdentity === undefined
@@ -233,34 +229,33 @@ function selectBinaryOperationTypes(
   leftType: TargetTypeRef,
   rightType: TargetTypeRef,
   selectedResultType: TargetTypeRef,
-  numericPromotion: ReturnType<typeof selectCsharpNumericBinaryPromotion>,
-  nullishResultType: TargetTypeRef | undefined,
+  numericOperands: Pick<NonNullable<ReturnType<typeof selectCsharpNumericBinaryPromotion>>, "leftType" | "rightType"> | undefined,
 ): Pick<
   CsharpResolvedBinaryOperation,
   "leftInputType" | "rightInputType" | "resultType"
 > {
-  if (operator === "??=" && nullishResultType !== undefined) {
-    return { leftInputType: leftType, rightInputType: rightType, resultType: nullishResultType };
+  if (operator === "??=") {
+    return { leftInputType: leftType, rightInputType: rightType, resultType: selectedResultType };
   }
   if (isCsharpAssignmentOperator(operator)) {
     return {
       leftInputType: leftType,
-      rightInputType: operator === "=" ? leftType : numericPromotion?.rightType ?? rightType,
-      resultType: leftType,
+      rightInputType: operator === "=" ? leftType : numericOperands?.rightType ?? rightType,
+      resultType: selectedResultType,
     };
   }
   if (isEquality(operator) || isRelational(operator)) {
     return {
-      leftInputType: numericPromotion?.leftType ?? leftType,
-      rightInputType: numericPromotion?.rightType ?? rightType,
-      resultType: csharpSourcePrimitiveTargetType("bool"),
+      leftInputType: numericOperands?.leftType ?? leftType,
+      rightInputType: numericOperands?.rightType ?? rightType,
+      resultType: selectedResultType,
     };
   }
-  if (operator === "??" && nullishResultType !== undefined) {
+  if (operator === "??") {
     return {
       leftInputType: leftType,
-      rightInputType: nullishResultType,
-      resultType: nullishResultType,
+      rightInputType: selectedResultType,
+      resultType: selectedResultType,
     };
   }
   if (isShift(operator)) {
@@ -268,24 +263,14 @@ function selectBinaryOperationTypes(
     return {
       leftInputType: promotedLeft,
       rightInputType: rightType,
-      resultType: promotedLeft,
+      resultType: selectedResultType,
     };
   }
-  if (numericPromotion !== undefined) {
+  if (numericOperands !== undefined) {
     return {
-      leftInputType: numericPromotion.leftType,
-      rightInputType: numericPromotion.rightType,
-      resultType: numericPromotion.resultType,
-    };
-  }
-  if (
-    operator === "+" &&
-    (isCsharpStringTargetType(leftType) || isCsharpStringTargetType(rightType))
-  ) {
-    return {
-      leftInputType: leftType,
-      rightInputType: rightType,
-      resultType: isCsharpStringTargetType(leftType) ? leftType : rightType,
+      leftInputType: numericOperands.leftType,
+      rightInputType: numericOperands.rightType,
+      resultType: selectedResultType,
     };
   }
   return {
@@ -302,28 +287,6 @@ function selectNullishOperandStorage(
 ): TargetTypeRef {
   return storage !== undefined && (getCsharpNullableElementTargetType(storage) !== undefined ||
     getCsharpRuntimeUnionArms(storage, definitions)?.some(isCsharpAbsenceTargetType)) ? storage : selected;
-}
-
-function selectNullishResultType(
-  input: CsharpPolicyContext,
-  left: TargetTypeRef,
-  right: TargetTypeRef,
-  rightNode: Node,
-): TargetTypeRef | undefined {
-  const valueType = nullishValueType(left, input.typeDefinitions);
-  if (valueType === undefined) {
-    return undefined;
-  }
-  if (csharpConversionIsApplicable(selectCsharpExpressionConversion(input, rightNode, right, valueType, "implicit"), "implicit")) {
-    return valueType;
-  }
-  if (
-    targetTypeRefEquals(right, left) ||
-    isCsharpAbsenceTargetType(right)
-  ) {
-    return left;
-  }
-  return undefined;
 }
 
 export function nullishValueType(
@@ -348,7 +311,7 @@ export function nullishValueType(
     : undefined;
 }
 
-function operatorRequiresNumericPromotion(
+function operatorRequiresNumericInputs(
   operator: CsharpSourceOperator,
   left: TargetTypeRef,
   right: TargetTypeRef,

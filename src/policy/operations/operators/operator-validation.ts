@@ -1,8 +1,9 @@
 import { csharpProviderBindingFromResolution } from "../../../providers/model/relation-resolver.js";
 import type { CsharpPolicyContext } from "../../model/context.js";
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../types/index.js";
-import { csharpBigIntegerTargetType, getCsharpNullableElementTargetType, getCsharpRuntimeUnionArms, isCsharpJsValueTargetType, isCsharpIntegralTargetType, isCsharpAbsenceTargetType, isCsharpStringTargetType, isCsharpReferenceCarrier, targetTypeRefEquals } from "../../types/index.js";
+import { csharpBigIntegerTargetType, csharpSourcePrimitiveTargetType, getCsharpNullableElementTargetType, getCsharpRuntimeUnionArms, isCsharpJsValueTargetType, isCsharpIntegralTargetType, isCsharpAbsenceTargetType, isCsharpStringTargetType, isCsharpReferenceCarrier, targetTypeRefEquals } from "../../types/index.js";
 import type { CsharpSourceOperator } from "../../../target-model/syntax/operators.js";
+import { sourcePrimitiveImplicitlyConverts } from "../../conversions/source-primitives.js";
 
 export function validateBinaryTargetSemantics(
   operator: CsharpSourceOperator,
@@ -61,9 +62,10 @@ export function validateBinaryTargetSemantics(
   }
   if (isShift(operator)) {
     return isCsharpIntegralTargetType(left) &&
-        isCsharpIntegralTargetType(right)
+        (right.kind === "source-primitive" && right.name === "int32" ||
+          sourcePrimitiveImplicitlyConverts(csharpSourcePrimitiveTargetType("int32"), right))
       ? undefined
-      : `C# shift operator '${operator}' requires integral source-primitive operands.`;
+      : `C# shift operator '${operator}' requires an integral left operand and a count implicitly convertible to int32.`;
   }
   if (isBitwise(operator)) {
     return `C# bitwise operator '${operator}' requires integral operands or one exact enum type.`;
@@ -192,7 +194,8 @@ function supportsIntrinsicEquality(
   }
   return (
     left.kind === "source-primitive" &&
-    right.kind === "source-primitive"
+    right.kind === "source-primitive" &&
+    isBoolean(left) === isBoolean(right)
   ) || (
     isCsharpEnumTargetType(left, input) &&
     targetTypeRefEquals(left, right)

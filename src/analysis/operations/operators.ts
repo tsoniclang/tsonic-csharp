@@ -71,10 +71,7 @@ export function selectCsharpBinaryOperands(
     targetTypeFor,
     nullishRightExpectation,
   );
-  const resultType = (sourceOperator === "," || sourceOperator === "&&" || sourceOperator === "||"
-    ? expectedResultType ?? selectedResultType ?? (sourceOperator === "," ? rightType : undefined) : selectedResultType) ??
-    (sourceOperator === "??" || sourceOperator === "??="
-      ? nullishValueType(leftType, input.typeDefinitions) : undefined);
+  const resultType = selectedResultType;
   if (leftType === undefined || rightType === undefined || resultType === undefined) {
     return rejected(
       "The checked binary expression has no closed C# representation for every operand and result.",
@@ -88,7 +85,7 @@ export function selectCsharpBinaryOperands(
     resultUse: sourceOperator === "," ? input.navigation.expressionResultUse(right) : undefined,
     assignmentLocation: csharpBinaryOperationRequiresLocation(sourceOperator, leftType, rightType)
       ? selectCsharpAssignmentLocation(input, left, targetTypeFor) : "unsupported",
-  }, expectedResultType);
+  });
 }
 
 export function selectCsharpDestructuringAssignmentOperation(
