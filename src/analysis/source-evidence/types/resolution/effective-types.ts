@@ -1,5 +1,5 @@
 import { sourceMarkerFactKey, type Node } from "@tsonic/tsts";
-import type { SourceEffectiveTypeOutcome, SourceTypeDescriptor } from "@tsonic/target-api/source";
+import { sourceTypeDescriptorStructure, type SourceEffectiveTypeOutcome, type SourceTypeDescriptor } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { CsharpTypeResolutionState } from "./model.js";
@@ -215,7 +215,10 @@ export function createCsharpSourceTypeRepresentationHost(
       if (direct !== undefined) return direct;
       if (host.ast.is.IsTypeAliasDeclaration(declaration)) return scope.sourceUnionDefinitions.resolveDescriptor(declaration,
         typeArguments, descriptor.definition === undefined ? undefined : () => resolveCsharpSourceTypeDescriptor(scope,
-          descriptor.definition!, nextState(representedState), occurrence), descriptor.definition?.kind === "optional");
+          descriptor.definition!, nextState(representedState), occurrence),
+        // An alias whose definition carries absence through any intervening declared alias is recursively optional,
+        // symmetric with the Host (K-2449): the structure, not the first definition level, decides.
+        descriptor.definition !== undefined && sourceTypeDescriptorStructure(descriptor.definition).kind === "optional");
       if (host.navigation.isProjectDeclaration(declaration)) {
         return projectPublishedDeclaration(scope, declaration, representedState);
       }
