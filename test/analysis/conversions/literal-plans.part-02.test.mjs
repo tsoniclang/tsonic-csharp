@@ -21,6 +21,51 @@ import { callEvidence, directProviderHost, providerBinding, providerDeclaration,
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 import { primitive, primitives, literals, checkedPropertyKeys, providerAdapterCall, sealedProviderCallConversions } from "./literal-plans.fixtures.mjs";
 
+const valueRecipeCases = [
+  { name: "minimum signed integer", type: "int32", value: "-2147483648", recipe: "integer" },
+  { name: "half", type: "float16", value: "1.5", recipe: "float", precision: "float16" },
+  { name: "single", type: "float32", value: "1.5", recipe: "float", precision: "float32" },
+  { name: "double", type: "number", value: "1.5", recipe: "float", precision: "float64" },
+  { name: "decimal", type: "decimal", value: "1.5", recipe: "float", precision: "decimal" },
+  { name: "negative zero", type: "number", value: "-0", recipe: "signed-zero" },
+  { name: "character", type: "char", value: '"x"', recipe: "char" },
+  { name: "source string", type: "string", value: '"text"' },
+  { name: "source boolean", type: "boolean", value: "true" },
+];
+for (const surface of ["native", "js"]) for (const destination of ["direct", "union", "nullable"]) {
+  for (const example of valueRecipeCases) {
+    test(`${surface} ${destination} literal endpoint retains its physical ${example.name} record`, () => {
+      const type = destination === "union" ? `${example.type} | boolean`
+        : destination === "nullable" ? `${example.type} | undefined` : example.type;
+      const imported = ["int32", "float16", "float32", "decimal", "char"].includes(example.type)
+        ? `import type { ${example.type} } from "@tsonic/core/types.js";` : "";
+      const compiled = compileCsharpSource({ surface, sourceText: `${imported}
+        export function run(): (${type})[] { return [${example.value}]; }` });
+      assertCsharpCompilationSucceeded(compiled);
+      const source = createTargetSourceProgram(compiled.source);
+      const ast = source.ast;
+      const file = compiled.source.getSourceFile("/project/index.ts");
+      let aggregate;
+      const visit = node => {
+        if (ast.is.IsArrayLiteralExpression(node)) aggregate = node;
+        ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+      };
+      visit(file);
+      const element = aggregate === undefined ? undefined : ast.elements(aggregate)[0];
+      assert.equal(element !== undefined, true, "the exact authored value occurrence is retained");
+      const emission = compiled.result.program.records.nativeExpression.get(element);
+      assert.equal(emission !== undefined, true, "the native value has its sealed physical construction");
+      const selected = compiled.result.program.records.exactLiteral.get(element, emission.physical);
+      if (example.recipe !== undefined) {
+        assert.equal(selected?.kind === "resolved" && selected.recipe.kind === example.recipe, true,
+          "the record belongs to the actual physical construction, not its enclosing storage union");
+        if (example.precision !== undefined) assert.equal(selected.recipe.precision, example.precision);
+      } else assert.equal(selected?.kind === "source-representation", true,
+        "ordinary source strings and booleans do not invent an exact numeric recipe");
+    });
+  }
+}
+
 for (const surface of Array.from(["native", "js"]).slice(1, 2)) {
 test(`${surface} decimal dictionary keys retain their authored scale in native execution`, { timeout: 300_000 }, () => {
     const compiled = compileCsharpSource({ surface, sourceText: `

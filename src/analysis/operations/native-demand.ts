@@ -343,7 +343,7 @@ export function analyzeCsharpNativeDemand(
       family: "callableTarget", subject: expression, construct: "native callable creation", producer: "analyzeCsharpNativeDemand",
     });
     if (expected?.literal !== undefined) requireCsharpRecord(requiredRecords, {
-      family: "exactLiteral", subject: expression, target: expected.target,
+      family: "exactLiteral", subject: expression, target: expected.carrier,
       construct: "native literal construction", producer: "analyzeCsharpNativeDemand",
     });
     const selected: CsharpNativeOperandSelection = expected?.literal === undefined
