@@ -29,14 +29,21 @@ function fixture(acceptsOmission, foreign = false) {
     },
   } };
   const policy = { ast: source.ast, sourceFiles: [file], effectiveTypes: source.effectiveTypes,
-    navigation: source.navigation, semanticsFor: node => node === owner || node === parameter ? selectedQueries : source.semantics.forNode(node) };
+    navigation: source.navigation, semanticsFor: node => node === owner || node === parameter ? selectedQueries : source.semantics.forNode(node),
+    types: { resolveCallableReturn(declaration) {
+      const published = source.effectiveTypes.callableReturn(declaration);
+      assert.equal(published !== undefined && published.kind !== "refused" && published.provenance.occurrence === declaration &&
+        published.type.kind === "intrinsic" && published.type.intrinsic === "void", true,
+        "the return contract consumes this real callable's Host-published void descriptor");
+      return { kind: "void" };
+    } } };
   const valueType = { kind: "source-primitive", name: "int32" };
   const evidence = { compileTimeMetadata: new Map(), pointerReturn: new Map(), inferredCallableReturnType: new Map(),
     nodeTargetType: { get: node => node === source.ast.typeNode(parameter) || node === source.ast.name(parameter)
       ? valueType : source.ast.kindName(node) === "KindVoidKeyword" ? { kind: "void" } : undefined },
     contextualType: new Map(), expressionType: { get: node => queries.types.expressionType(node) } };
   return { parameter, selected: () => analyzeCsharpDeclarations(policy, evidence,
-    { selectedProperty: new Map(), selectedCall: new Map() }, new Map()).runtimeDefault.get(parameter) };
+    { selectedProperty: new Map(), selectedCall: new Map() }).runtimeDefault.get(parameter) };
 }
 
 test("native default declarations retain exact omission independently of their initializer and carrier", () => {
