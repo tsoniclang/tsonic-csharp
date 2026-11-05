@@ -5,8 +5,6 @@ export function csharpNumericLiteralFitsSourcePrimitive(
   literal: Pick<SourceLiteralValue, "integer" | "number" | "numeric"> | undefined,
   primitive: Exclude<SourcePrimitiveKind, "float16" | "float32" | "float64" | "decimal">,
 ): boolean {
-  if (Object.is(literal?.number, -0) || literal?.numeric?.kind === "authored" &&
-    literal.numeric.token.negative && literal.numeric.token.coefficient === 0n) return false;
   return literal?.integer !== undefined && csharpBigIntFitsSourcePrimitive(literal.integer, primitive);
 }
 

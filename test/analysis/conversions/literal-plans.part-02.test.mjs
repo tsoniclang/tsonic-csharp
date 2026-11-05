@@ -3,6 +3,7 @@ import test from "node:test";
 import { analyzeCsharpConversions } from "../../../dist/analysis/conversions/analyze.js";
 import { analyzeCsharpExactLiteralSelections } from "../../../dist/analysis/conversions/literal-plans.js";
 import { createCsharpExactLiteralRequestCollector } from "../../../dist/analysis/conversions/literal-requests.js";
+import { analyzeCsharpValueReadStages } from "../../../dist/analysis/conversions/value-read-stages.js";
 import { readCsharpExpressionOperandStability, applyCsharpConversionSelection } from "../../../dist/backend/planner/expressions/conversions.js";
 import { selectCsharpExactLiteralConversion, selectCsharpExactPropertyKeyConversion } from "../../../dist/policy/conversions/literals.js";
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
@@ -97,11 +98,6 @@ for (const surface of ["native", "js"]) for (const storage of ["direct", "nullab
       const compiled = compileCsharpSource({ surface, sourceText: `${imported}
         type Inner = ${example.type} | boolean;
         export function run(): (${type})[] { return [${example.value}]; }` });
-      if (example.name === "integral negative zero") console.log("C2308.integral-negative-zero", JSON.stringify({
-        surface, storage, diagnostics: compiled.result.diagnostics.map(diagnostic => ({
-          code: diagnostic.code, message: diagnostic.message,
-        })),
-      }));
       assertCsharpCompilationSucceeded(compiled);
       const source = createTargetSourceProgram(compiled.source);
       const file = compiled.source.getSourceFile("/project/index.ts");
@@ -116,20 +112,6 @@ for (const surface of ["native", "js"]) for (const storage of ["direct", "nullab
       const literal = analyzeSourceLiteralValues(source.ast, [file]).literalValue.get(expression);
       const records = compiled.result.program.records;
       const physicalSource = records.valueRead.get(expression)?.value;
-      if (surface === "native" && storage === "nullable" && ["int64 token", "int32 token"].includes(example.name)) {
-        const read = records.valueRead.get(expression);
-        const stage = ["narrowedRead", "selectedOperation", "storage", "source"].find(name => read?.[name] !== undefined);
-        const describe = type => type === undefined ? null : {
-          kind: type.kind, name: type.name ?? null, key: targetTypeRefKey(type),
-        };
-        console.log("C2308.physical-source", JSON.stringify({
-          surface, storage, form: example.name, source: describe(read?.source), value: describe(read?.value),
-          producer: stage === undefined ? null : `sealedValueRead.${stage}`,
-          sameProducerValue: stage !== undefined && read.value === read[stage],
-          narrowedRead: describe(read?.narrowedRead), selectedOperation: describe(read?.selectedOperation),
-          storageValue: describe(read?.storage),
-        }));
-      }
       assert.equal(physicalSource?.kind === "source-primitive" && physicalSource.name === example.primitive, true,
         "the completed construction source is its native arm, never the enclosing union storage");
       const emission = records.nativeExpression.get(expression);
@@ -152,6 +134,50 @@ for (const surface of ["native", "js"]) for (const storage of ["direct", "nullab
       assert.equal(Object.isFrozen(selected), true, "the exact endpoint is one immutable canonical publication");
     });
   }
+}
+
+test("a literal wrapper cannot seal a missing physical value from its storage", () => {
+  const checked = checkCsharpSource({ sourceText: "export const result = (1 + 2);" });
+  assertCsharpCheckingSucceeded(checked);
+  const source = createTargetSourceProgram(checked.source);
+  const file = checked.source.getSourceFile("/project/index.ts");
+  let expression;
+  const visit = node => {
+    if (source.ast.is.IsParenthesizedExpression(node)) expression = node;
+    source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+  };
+  visit(file);
+  assert.equal(expression !== undefined, true, "the invariant uses the actual checked wrapper");
+  const none = Object.freeze({ get: () => undefined });
+  const literalValues = analyzeSourceLiteralValues(source.ast, [file]);
+  const analysis = analyzeCsharpValueReadStages({ ast: source.ast, sourceFiles: [file], literalValues }, {
+    nodeTargetType: { get: node => node === expression ? primitive("int32") : undefined },
+    storageTargetType: none, readStorageTargetType: none, valueRefinement: none, yield: none,
+  }, { operationResultType: none, sourceMember: none });
+  assert.equal(analysis.issues.length, 0, "a missing producer is not an authored range refusal");
+  assert.throws(() => analysis.seal({ storageType: { get: () => primitive("int32") } }), error =>
+    error.diagnostic?.code === "TSONIC_INTERNAL_ANALYSIS_INVARIANT" &&
+    error.diagnostic.message === "A literal construction requires its completed physical carrier before value reads are sealed.");
+});
+
+for (const surface of ["native", "js"]) for (const storage of ["nullable", "union"]) {
+  for (const [type, value, reason] of [
+    ["int8", "128", "Source bigint literal is outside the exact 'int8' range."],
+    ["float16", "65520", "Source numeric literal is outside the 'float16' range."],
+    ["uint64", "18446744073709551616n", "Source bigint literal is outside the exact 'uint64' range."],
+  ]) test(`${surface} ${storage} refused ${type} literal keeps D2 ahead of the physical invariant`, () => {
+    const declared = `${type} | ${storage === "nullable" ? "undefined" : "boolean"}`;
+    const compiled = compileCsharpSource({ surface, sourceText: `
+      import type { ${type} } from "@tsonic/core/types.js";
+      export function run(): (${declared})[] { return [${value}]; }
+    ` });
+    assert.equal(compiled.sourceDiagnosticsText, "", "the real source is checked before Native admission");
+    assert.equal(compiled.result.diagnostics.length, 1, "one Native range refusal, not an internal missing-physical invariant");
+    const diagnostic = compiled.result.diagnostics[0];
+    assert.equal(diagnostic.code === "CSHARP_UNSUPPORTED_AST" && diagnostic.message === reason, true,
+      "the canonical exact-literal D2 reason is unchanged");
+    assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true);
+  });
 }
 
 for (const surface of ["native", "js"]) {

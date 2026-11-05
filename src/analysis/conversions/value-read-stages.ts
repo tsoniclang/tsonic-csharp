@@ -1,4 +1,5 @@
 import { createCsharpValueReadProducer } from "../program/records/storage/value-reads.js";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { Node } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type {
@@ -7,19 +8,22 @@ import type {
   CsharpValueReadStageIndex,
   CsharpValueReadStages,
 } from "../../target-model/records/operations/conversions.js";
-import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
+import type { CsharpOperationIssue, CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
 import type { CsharpStorageRepresentationClassifications } from "../../target-model/records/storage/storage.js";
 import type { TargetTypeRef } from "../../target-model/types/index.js";
 import { getCsharpGeneratorProtocol } from "../../target-model/types/carriers/generators.js";
-import { selectCsharpScalarLiteralCarrier } from "../../policy/conversions/literals.js";
+import { selectCsharpExactLiteralConversion, selectCsharpScalarLiteralCarrier } from "../../policy/conversions/literals.js";
+import { getCsharpNullableElementTargetType, getCsharpRuntimeUnionArms } from "../../target-model/types/index.js";
 
 export interface CsharpValueReadStageAnalysis {
+  readonly issues: readonly CsharpOperationIssue[];
   readonly valueReadStages: CsharpValueReadStageIndex;
   seal(storage: Pick<CsharpStorageRepresentationClassifications, "storageType">): CsharpValueReadClassifications;
 }
 
 interface CsharpRawValueReadStages {
+  readonly literalConstruction: boolean;
   readonly source: TargetTypeRef | undefined;
   readonly declaredStorage: TargetTypeRef | undefined;
   readonly readStorage: TargetTypeRef | undefined;
@@ -36,15 +40,17 @@ export function analyzeCsharpValueReadStages(
 ): CsharpValueReadStageAnalysis {
   const rawStages = new WeakMap<Node, CsharpRawValueReadStages>();
   const producer = createCsharpValueReadProducer();
+  const issues: CsharpOperationIssue[] = [];
   const nodes: Node[] = [];
   for (const sourceFile of policy.sourceFiles) visitStages(sourceFile);
   let sealed: CsharpValueReadClassifications | undefined;
   return Object.freeze({
+    issues: Object.freeze(issues),
     valueReadStages: producer.sealStages(),
     seal(storage: Pick<CsharpStorageRepresentationClassifications, "storageType">): CsharpValueReadClassifications {
       if (sealed !== undefined) return sealed;
       for (const node of nodes) {
-        const read = sealedValueRead(rawStages.get(node), storage.storageType.get(node));
+        const read = sealedValueRead(node, rawStages.get(node), storage.storageType.get(node));
         if (read !== undefined) producer.read(node, read);
       }
       sealed = producer.sealReads();
@@ -54,21 +60,43 @@ export function analyzeCsharpValueReadStages(
 
   function visitStages(node: Node): void {
     nodes.push(node);
+    policy.ast.forEachChild(node, child => { if (child !== undefined) visitStages(child); });
     const raw = rawValueReadStages(node);
     if (raw !== undefined) {
       rawStages.set(node, raw);
       const selected = preStorageValueRead(raw);
       if (selected !== undefined) producer.stage(node, selected);
     }
-    policy.ast.forEachChild(node, child => { if (child !== undefined) visitStages(child); });
   }
 
   function rawValueReadStages(node: Node): CsharpRawValueReadStages | undefined {
     const source = evidence.nodeTargetType.get(node);
     const declaredStorage = evidence.storageTargetType.get(node);
     const readStorage = evidence.readStorageTargetType.get(node);
-    const selectedOperation = operations.operationResultType.get(node) ?? yieldResumeType(node) ??
-      selectCsharpScalarLiteralCarrier(policy.literalValues.literalValue.get(node), source, policy.typeDefinitions);
+    const literal = policy.literalValues.literalValue.get(node);
+    const literalConstruction = source !== undefined && literal !== undefined && literal.form !== "array";
+    let selectedOperation: TargetTypeRef | undefined;
+    if (literalConstruction && literal.form === "parenthesized") {
+      const operand = policy.ast.as.AsParenthesizedExpression(node)?.Expression;
+      selectedOperation = operand === undefined ? undefined : rawStages.get(operand)?.selectedOperation;
+    } else if (literalConstruction && literal.form === "binary") {
+      selectedOperation = operations.operationResultType.get(node);
+    } else if (literalConstruction) {
+      const parent = policy.ast.parent(node);
+      const authored = parent !== undefined && policy.ast.is.IsPrefixUnaryExpression(parent) &&
+        policy.literalValues.literalValue.get(parent) !== undefined ? parent : node;
+      const authoredSource = authored === node ? source : evidence.nodeTargetType.get(authored);
+      const present = getCsharpNullableElementTargetType(authoredSource) ?? authoredSource;
+      const arms = getCsharpRuntimeUnionArms(present, policy.typeDefinitions);
+      selectedOperation = arms === undefined ? present
+        : selectCsharpScalarLiteralCarrier(policy.literalValues.literalValue.get(authored), present, policy.typeDefinitions);
+      if (selectedOperation === undefined && authored === node && arms !== undefined) {
+        const rejection = arms.map(arm => selectCsharpExactLiteralConversion(literal, arm, arm))
+          .find(selection => selection.kind === "rejected");
+        issues.push(Object.freeze({ node, code: "CSHARP_UNSUPPORTED_AST", message: rejection?.kind === "rejected"
+          ? rejection.reason : "The source literal has no admitted physical C# union arm." }));
+      }
+    } else selectedOperation = operations.operationResultType.get(node) ?? yieldResumeType(node);
     const narrowedRead = evidence.valueRefinement.get(node)?.flowReadTargetType;
     const member = operations.sourceMember.get(node);
     const selectedMemberRead = member?.selectedReadType;
@@ -78,7 +106,7 @@ export function analyzeCsharpValueReadStages(
       selectedOperation === undefined && narrowedRead === undefined && selectedMemberRead === undefined &&
       selectedMemberStorage === undefined) return undefined;
     return Object.freeze({
-      source, declaredStorage, readStorage, selectedOperation, narrowedRead, selectedMemberRead, selectedMemberStorage,
+      literalConstruction, source, declaredStorage, readStorage, selectedOperation, narrowedRead, selectedMemberRead, selectedMemberStorage,
     });
   }
 
@@ -107,6 +135,7 @@ function preStorageValueRead(raw: CsharpRawValueReadStages): CsharpValueReadStag
 }
 
 function sealedValueRead(
+  node: Node,
   raw: CsharpRawValueReadStages | undefined,
   storage: TargetTypeRef | undefined,
 ): CsharpValueRead | undefined {
@@ -116,7 +145,9 @@ function sealedValueRead(
   const narrowedRead = raw?.narrowedRead;
   const assertedValue = selectedOperation ?? narrowedRead ?? source;
   const storedValue = storage ?? source;
-  const value = narrowedRead ?? selectedOperation ?? storage ?? source;
+  const value = raw?.literalConstruction ? selectedOperation : narrowedRead ?? selectedOperation ?? storage ?? source;
+  if (raw?.literalConstruction && value === undefined) failTargetAnalysisInvariant("tsonic-csharp",
+    "A literal construction requires its completed physical carrier before value reads are sealed.", node);
   const readStorageValue = storage ?? raw?.readStorage;
   const flowReadValue = raw?.selectedMemberRead ?? value;
   const flowReadStorage = raw?.selectedMemberStorage ?? readStorageValue;

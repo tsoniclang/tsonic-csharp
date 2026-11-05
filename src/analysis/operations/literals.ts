@@ -6,6 +6,7 @@ import type { CsharpExactLiteralSelectionIndex } from "../../target-model/conver
 import type { CsharpValueReadClassifications } from "../../target-model/records/operations/conversions.js";
 import { csharpStringTargetType, csharpBigIntegerTargetType, targetTypeRefEquals } from "../../target-model/types/index.js";
 import { createCsharpLiteralEmissionProducer } from "../program/records/operations/literal-emission.js";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 
 export function analyzeCsharpLiteralAdmission(input: { readonly ast: AstReader; readonly demand: CsharpNativeDemandAnalysis;
   readonly literals: SourceLiteralIndex; readonly exact: CsharpExactLiteralSelectionIndex; readonly values: CsharpValueReadClassifications }) {
@@ -29,19 +30,24 @@ export function analyzeCsharpLiteralAdmission(input: { readonly ast: AstReader; 
     if (use.literal !== undefined) continue;
     const read = input.values.valueRead.get(node);
     const carrier = read?.value;
+    if ((input.ast.is.IsNumericLiteral(node) || input.ast.is.IsBigIntLiteral(node)) && carrier === undefined)
+      failTargetAnalysisInvariant("tsonic-csharp", "Literal emission requires its completed physical value.", node);
     if (!published.has(node) && input.ast.is.IsNumericLiteral(node)) {
-      const source = read?.selectedOperation ?? read?.source;
-      const selected = input.exact.exactLiteral.get(node, source);
+      const selected = input.exact.exactLiteral.get(node, carrier);
       const number = input.literals.literalValue.get(node)?.number;
       const castFloat64 = use.kind === "converted" && use.mode === "explicit" && use.input.kind === "value" &&
         use.input.type.kind === "source-primitive" && use.input.type.name === "float64";
-      if ((source?.kind === "source-primitive" && source.name === "float64" || castFloat64) && number !== undefined) {
+      if ((carrier?.kind === "source-primitive" && carrier.name === "float64" || castFloat64) && number !== undefined) {
         producer.publish(node, { kind: "float64", value: number }); published.add(node);
       } else if (selected?.kind === "resolved") {
         producer.publish(node, { kind: "exact", recipe: selected.recipe }); published.add(node);
       } else refuse(node, selected?.kind === "rejected" ? selected.reason : "Numeric literal emission requires parseable finite source literal text from TSTS.");
     }
     if (!published.has(node) && input.ast.is.IsBigIntLiteral(node)) {
+      const selected = input.exact.exactLiteral.get(node, carrier);
+      if (selected?.kind === "resolved") {
+        producer.publish(node, { kind: "exact", recipe: selected.recipe }); published.add(node); continue;
+      }
       const value = input.literals.literalValue.get(node)?.integer;
       if (value === undefined)
         refuse(node, "BigInt literal emission requires parseable source literal text from TSTS.");

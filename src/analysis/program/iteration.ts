@@ -160,6 +160,7 @@ export function analyzeCsharpRepresentationIteration(
   if (sourceEvidence.fixedArrayIssues.length > 0) return rejectCsharpAnalysisIssues(sourceEvidence.fixedArrayIssues);
   const operations = analyzeCsharpTargetOperations(policy, sourceEvidence, statementErasure, sourceStorage.nodes, requiredRecords);
   const valueReadStages = analyzeCsharpValueReadStages(policy, sourceEvidence, operations);
+  if (valueReadStages.issues.length > 0) return rejectCsharpAnalysisIssues(valueReadStages.issues);
   const optionalLocals = analyzeCsharpOptionalLocals(policy, sourceEvidence, sourceStorage.nodes, names, operations);
   const typeProjections = analyzeCsharpTypeProjections(input.source, sourceEvidence, operations, optionalLocals);
   const declarations = analyzeCsharpDeclarations(

@@ -366,17 +366,15 @@ export function createCsharpExpectedTypePropagation(
     if (elementTarget === undefined) {
       return;
     }
-    const numericSelection = getCsharpRuntimeUnionArms(elementTarget, policy.typeDefinitions) === undefined ? undefined
-      : policy.types.resolveArrayLiteral(expression, policy.semanticsFor(expression).sourceFile);
     for (let index = 0; index < elements.length; index += 1) {
       const node = elements[index];
       if (
         node !== undefined &&
         !policy.ast.is.IsSpreadElement(node)
       ) {
-        const physical = numericSelection?.kind === "resolved" ? numericSelection.elementCarriers[index] : undefined;
-        if (physical !== undefined && !targetTypeRefEquals(physical, elementTarget) &&
-          policy.literalValues.literalValue.get(node)?.numeric?.kind === "authored") {
+        const literal = policy.literalValues.literalValue.get(node);
+        const physical = literal === undefined || literal.form === "array" ? undefined : valueReadStages.get(node)?.operationValue;
+        if (physical !== undefined && !targetTypeRefEquals(physical, elementTarget)) {
           let native = nonArrayCarriers.get(node);
           if (native === undefined) { native = new Map(); nonArrayCarriers.set(node, native); }
           native.set(targetTypeRefKey(elementTarget), physical);

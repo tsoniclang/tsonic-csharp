@@ -17,9 +17,8 @@ export function selectCsharpScalarLiteralCarrier(
   if (literal === undefined || literal.form === "array" || target === undefined) return undefined;
   const present = getCsharpNullableElementTargetType(target) ?? target;
   const arms = getCsharpRuntimeUnionArms(present, definitions);
-  return (arms === undefined ? [present] : arms).find(arm => literal.form === "bigint"
-    ? literal.integer !== undefined && targetTypeRefEquals(arm, csharpBigIntegerTargetType())
-    : csharpLiteralIsRepresentableAs(literal, arm));
+  return (arms === undefined ? [present] : arms).find(arm => csharpLiteralIsRepresentableAs(literal, arm) ||
+    literal.form === "bigint" && literal.integer !== undefined && targetTypeRefEquals(arm, csharpBigIntegerTargetType()));
 }
 
 export function csharpLiteralIsRepresentableAs(
