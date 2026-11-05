@@ -135,6 +135,42 @@ for (const surface of ["native", "js"]) for (const storage of ["direct", "nullab
   }
 }
 
+for (const surface of ["native", "js"]) {
+  test(`${surface} physical negative zero reaches every admitted storage without losing its native bits`, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+      type Inner = number | boolean;
+      export function direct(): number { return -0; }
+      export function nullable(): number | undefined { return -0; }
+      export function union(): number | boolean { return -0; }
+      export function nested(): Inner | string { return -0; }
+      export function nullableUnion(): (number | boolean) | undefined { return -0; }
+    ` });
+    assertCsharpCompilationSucceeded(compiled);
+    const source = createTargetSourceProgram(compiled.source);
+    const file = compiled.source.getSourceFile("/project/index.ts");
+    const checks = ["direct", "nullable", "union", "nested", "nullableUnion"].map(name => {
+      const declaration = source.ast.statements(file).find(node => source.ast.is.IsFunctionDeclaration(node) &&
+        source.ast.text(source.ast.name(node)) === name);
+      assert.equal(declaration !== undefined, true, `${name}: the real declared callable is retained`);
+      const contract = compiled.result.program.records.returnContract.get(declaration);
+      assert.equal(contract?.kind === "resolved", true, `${name}: the native ABI comes from the Host return`);
+      const present = getCsharpNullableElementTargetType(contract.type);
+      const arms = getCsharpRuntimeUnionArms(present ?? contract.type, compiled.result.program.typeDefinitions);
+      const index = arms?.findIndex(arm => arm.kind === "source-primitive" && arm.name === "float64");
+      assert.equal(arms === undefined || index !== undefined && index >= 0, true,
+        `${name}: the ABI retains the actual double arm rather than assuming its position`);
+      const value = present === undefined ? name : `${name}.Value`;
+      const scalar = arms === undefined ? value : `${value}.As${index + 1}()`;
+      const absent = present === undefined ? "" : `!${name}.HasValue || `;
+      const wrongArm = arms === undefined ? "" : `!${value}.Is${index + 1}() || `;
+      return `var ${name} = Tsonic.Generated.Index.${name}();
+        if (${absent}${wrongArm}System.BitConverter.DoubleToInt64Bits(${scalar}) != long.MinValue)
+          throw new System.Exception("${name} physical negative-zero bits");`;
+    });
+    executeCsharpConstruction(compiled, `physical-literal-source-zero-${surface}`, false, false, [], checks.join("\n"));
+  });
+}
+
 for (const surface of Array.from(["native", "js"]).slice(1, 2)) {
 test(`${surface} decimal dictionary keys retain their authored scale in native execution`, { timeout: 300_000 }, () => {
     const compiled = compileCsharpSource({ surface, sourceText: `
