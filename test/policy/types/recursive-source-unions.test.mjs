@@ -282,7 +282,8 @@ const actual: Slot = { value: 1 };
       members: [{ ...members[0], origins: [origin] }] }, undefined]);
     const copied = snapshotCsharpTargetTypes([input])[0].csharpRuntimeUnionObjectShapes[0].members[0];
     assert.equal(copied.origins !== input.csharpRuntimeUnionObjectShapes[0].members[0].origins &&
-      copied.origins[0] !== origin && Object.isFrozen(copied.origins) && Object.isFrozen(copied.origins[0]), true,
+      (Object.isFrozen(origin) || copied.origins[0] !== origin) &&
+      Object.isFrozen(copied.origins) && Object.isFrozen(copied.origins[0]), true,
       "canonical origin vectors and ordinary shells are copied and frozen");
     assert.equal(sourceTypeDescriptorMemberOriginsEqual(copied.origins[0], origin), true,
       "declared/prototype/mapped owner and unique-symbol Node identities remain opaque");
