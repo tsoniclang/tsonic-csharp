@@ -61,8 +61,8 @@ for (const surface of ["native", "js"]) for (const destination of ["direct", "un
         "each union case retains two distinct declared Source arms");
       }
       const emission = compiled.result.program.records.nativeExpression.get(element);
-      assert.equal(emission !== undefined, true, "the native value has its sealed physical construction");
-      const selected = compiled.result.program.records.exactLiteral.get(element, emission.physical);
+      assert.equal(emission !== undefined && emission.physical !== undefined, true, "the native value has its sealed physical construction");
+      const selected = compiled.result.program.records.exactLiteral.get(element, emission.physical.carrier);
       if (example.recipe !== undefined) {
         assert.equal(selected?.kind === "resolved" && selected.recipe.kind === example.recipe, true,
           "the record belongs to the actual physical construction, not its enclosing storage union");
