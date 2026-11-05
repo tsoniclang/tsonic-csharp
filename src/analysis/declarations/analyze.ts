@@ -1,22 +1,14 @@
-import type { Node, Type } from "@tsonic/tsts";
-import { selectCsharpContextualAsyncReturn } from "../../policy/conversions/contextual-async-return.js";
-import { selectCsharpSourceCallAwaitCompletion } from "../../policy/operations/control-flow/await-completions.js";
-import { csharpTaskTargetType } from "../../target-model/types/carriers/delegates.js";
+import type { Node } from "@tsonic/tsts";
 import { csharpMethodValueCoversContract } from "../../target-model/types/method-values.js";
 import {
   HasSyntacticModifier,
   ModifierFlagsAsync,
-  Node_Type,
-  sourceBoundTypeRelationship,
   sourceCallableValueParameters,
-  sourceTransparentExpressionOperand,
 } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { selectCsharpConversion } from "../../policy/conversions/index.js";
 import { csharpConversionIsApplicable } from "../../policy/conversions/applicability.js";
-import { csharpNumericReturnBaselineCovered, csharpSourceUnionLayoutsMatch, csharpSourceUnionReturnLayout } from "../../policy/conversions/union-relations.js";
-import { classifyCsharpSourceProfileType } from "../../policy/identities/source-types.js";
-import { csharpLiteralReturnsFit, forEachCsharpDirectReturnExpression } from "../callables/calls/return-expressions.js";
+import { csharpNumericReturnBaselineCovered, csharpSourceUnionLayoutsMatch } from "../../policy/conversions/union-relations.js";
 import { selectCsharpCommonImplicitTarget } from "../conversions/common-target.js";
 import {
   csharpAbsenceTargetType,
@@ -26,28 +18,24 @@ import {
   getCsharpNullableElementTargetType,
   getCsharpRuntimeUnionArms,
   getCsharpDelegateSignature,
-  isCsharpJsValueTargetType,
   targetTypeRefKey,
   targetTypeRefEquals,
   isCsharpVoidTargetType,
   getCsharpTaskResultTargetType,
 } from "../../policy/types/index.js";
-import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { csharpRuntimeParameterDefault } from "../../policy/types/storage/parameter-defaults.js";
 import { selectCsharpDefaultValueContract } from "../../policy/types/objects/binding-projection.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
-import type { CsharpValueReadStageIndex } from "../../target-model/records/operations/conversions.js";
 import type { CsharpDeclarationClassifications, CsharpReturnTargetContract } from "../../target-model/records/program/declarations.js";
 import { createCsharpDeclarationProducer } from "../program/records/program/declarations.js";
 import { selectCsharpParameterDefaultContext } from "./parameter-default-context.js";
-import { refineCsharpSourceValueResult } from "../source-evidence/types/resolution/call-results.js";
 
 export function analyzeCsharpDeclarations(
   policy: CsharpPolicyContext,
   evidence: CsharpSourceEvidenceIndex,
   operations: CsharpTargetOperationClassifications,
-  valueReadStages: CsharpValueReadStageIndex,
 ): CsharpDeclarationClassifications {
   const declarations = createCsharpDeclarationProducer();
   for (const sourceFile of policy.sourceFiles) {
@@ -130,7 +118,7 @@ export function analyzeCsharpDeclarations(
     if (isCallableDeclaration(policy, node)) {
       declarations.returnContract(
         node,
-        withAbsenceCompletion(policy, evidence, node, classifyReturnContract(policy, evidence, operations, valueReadStages, node)),
+        classifyReturnContract(policy, evidence, node),
       );
     }
     policy.ast.forEachChild(node, (child) => {
@@ -141,172 +129,26 @@ export function analyzeCsharpDeclarations(
   }
 }
 
-function withAbsenceCompletion(
+function classifyReturnContract(
   policy: CsharpPolicyContext,
   evidence: CsharpSourceEvidenceIndex,
   declaration: Node,
-  contract: CsharpReturnTargetContract,
 ): CsharpReturnTargetContract {
-  if (contract.kind !== "resolved") return contract;
+  const type = policy.types.resolveCallableReturn(declaration);
+  if (type === undefined) return { kind: "rejected",
+    reason: "The Host-published callable return has no closed C# representation." };
+  const pointer = evidence.pointerReturn.get(declaration);
+  const contract: CsharpReturnTargetContract = { kind: "resolved", type,
+    ...(pointer === undefined ? {} : { undefinedReturn: pointer.undefinedReturn, fallthroughUndefined: pointer.fallthroughUndefined }) };
   const asynchronous = HasSyntacticModifier(policy.ast, declaration, ModifierFlagsAsync);
-  const context = evidence.contextualType.get(declaration);
-  let contextual = getCsharpDelegateSignature(context?.targetType)?.returnType;
-  const inferred = Node_Type(policy.ast, declaration) === undefined;
-  let authority: "authored" | "inferred" = "inferred";
-  if (asynchronous && inferred && context !== undefined) {
-    const semantics = policy.semanticsFor(declaration);
-    const selectedType = semantics.types.nonNullableType(context.selectedType);
-    const signature = selectedType === undefined ? undefined : semantics.types.callable(selectedType);
-    const authoredReturn = signature?.result.authoredTypeNode;
-    const authored = authoredReturn === undefined ? undefined : policy.semanticsFor(authoredReturn).types.authoredType(authoredReturn);
-    const call = context.contextualCall;
-    const bindings = new Map<Node, Type>();
-    if (call?.sourceReceiver !== undefined) {
-      for (const binding of semantics.types.typeArgumentBindings(call.sourceReceiver.type) ?? []) {
-        bindings.set(binding.declaration, binding.argumentType);
-      }
-    }
-    for (const argument of call?.sourceSelectedMethodTypeArguments ?? []) {
-      if (argument.explicitTypeNode === undefined) continue;
-      const symbol = semantics.declarations.typeSymbol(argument.typeParameter);
-      const parameter = symbol === undefined ? undefined : semantics.declarations.primarySymbolDeclaration(symbol);
-      if (parameter !== undefined && policy.ast.is.IsTypeParameterDeclaration(parameter)) bindings.set(parameter, argument.selectedType);
-    }
-    let contextualExpression = declaration;
-    for (let parent = policy.ast.parent(contextualExpression); parent !== undefined &&
-      sourceTransparentExpressionOperand(policy.ast, parent) === contextualExpression;
-      parent = policy.ast.parent(contextualExpression)) contextualExpression = parent;
-    const parent = policy.ast.parent(contextualExpression);
-    const missingCall = call === undefined && parent !== undefined &&
-      (policy.ast.is.IsCallExpression(parent) || policy.ast.is.IsNewExpression(parent));
-    authority = context.authoredTypeNode !== undefined || !missingCall && authored !== undefined && signature !== undefined &&
-      sourceBoundTypeRelationship(authored, signature.result.selectedType, policy.semanticsFor(authoredReturn!), parameter => bindings.get(parameter)) !== undefined
-      ? "authored" : "inferred";
-    if (authority === "authored" && call !== undefined) {
-      const associations = call.sourceArgumentBindings.filter(binding => {
-        let expression = call.sourceArguments[binding.sourceArgumentIndex]?.expression;
-        if (expression === undefined) return false;
-        for (let inner = sourceTransparentExpressionOperand(policy.ast, expression); inner !== undefined;
-          inner = sourceTransparentExpressionOperand(policy.ast, expression)) expression = inner;
-        return expression === declaration;
-      });
-      const binding = associations.length === 1 ? associations[0] : undefined;
-      const native = binding === undefined ? undefined : policy.types.resolveSourceCallArgumentParameter(call, binding,
-        semantics.sourceFile, new Set([binding.sourceArgumentIndex]));
-      contextual = getCsharpDelegateSignature(native)?.returnType;
-    }
-  }
-  const type = asynchronous && inferred
-    ? selectCsharpContextualAsyncReturn(policy, contract.type, contextual, authority) ?? contract.type
-    : !asynchronous && inferred && isCsharpVoidTargetType(contract.type) && csharpCarrierAdmitsSourceAbsence(contextual)
-      ? contextual! : contract.type;
   const value = asynchronous ? getCsharpTaskResultTargetType(type) : type;
-  if (!isCsharpVoidTargetType(value) && !csharpCarrierAdmitsSourceAbsence(value)) return type === contract.type ? contract : { ...contract, type };
+  if (!isCsharpVoidTargetType(value) && !csharpCarrierAdmitsSourceAbsence(value)) return contract;
   const completion = policy.semanticsFor(declaration).operations.callableCompletion(declaration);
   if (policy.ast.body(declaration) !== undefined && completion === undefined) {
     return { kind: "rejected", reason: "An absence-bearing callable requires exact source completion evidence." };
   }
   return Object.freeze({ kind: "resolved", type, undefinedReturn: true,
     fallthroughUndefined: !isCsharpVoidTargetType(value) && completion?.canFallThrough === true });
-}
-
-function classifyReturnContract(
-  policy: CsharpPolicyContext,
-  evidence: CsharpSourceEvidenceIndex,
-  operations: CsharpTargetOperationClassifications,
-  valueReadStages: CsharpValueReadStageIndex,
-  declaration: Node,
-): CsharpReturnTargetContract {
-  const authoredReturnNode = Node_Type(policy.ast, declaration);
-  const authoredReturnType = authoredReturnNode === undefined
-    ? undefined
-    : evidence.nodeTargetType.get(authoredReturnNode);
-  const pointer = evidence.pointerReturn.get(declaration);
-  if (authoredReturnNode !== undefined && authoredReturnType === undefined) return {
-    kind: "rejected", reason: "The authored source callable return type has no closed C# representation.",
-  };
-  const baseline = authoredReturnType ?? evidence.inferredCallableReturnType.get(declaration);
-  if (baseline === undefined) {
-    return {
-      kind: "rejected",
-      reason:
-        "The checked source callable has no single closed C# return representation.",
-    };
-  }
-  const asynchronous = HasSyntacticModifier(policy.ast, declaration, ModifierFlagsAsync);
-  const observedBaseline = asynchronous ? getCsharpTaskResultTargetType(baseline) : baseline;
-  if (observedBaseline === undefined) return authoredReturnType === undefined
-    ? { kind: "rejected", reason: "The checked source callable has no single closed C# return representation." }
-    : { kind: "resolved", type: authoredReturnType,
-        ...(pointer === undefined ? {} : { undefinedReturn: pointer.undefinedReturn, fallthroughUndefined: pointer.fallthroughUndefined }) };
-  const observed: TargetTypeRef[] = [];
-  let inferredBaseline = observedBaseline;
-  let incomplete = false;
-  forEachCsharpDirectReturnExpression(policy.ast, declaration, (expression) => {
-    const type = valueReadStages.get(expression)?.returnedValue;
-    if (type === undefined) {
-      incomplete = true;
-    } else {
-      if (!asynchronous && authoredReturnType === undefined && policy.ast.is.IsCallExpression(expression)) {
-        const call = operations.selectedCall.get(expression);
-        const result = call?.sourceResult;
-        if (result !== undefined && (result.completion !== undefined || call?.unionCall.kind === "resolved" &&
-          targetTypeRefEquals(call.unionCall.resultType, result.selectedType)) && targetTypeRefEquals(result.nativeType, baseline) &&
-          targetTypeRefEquals(result.selectedType, type)) inferredBaseline = result.selectedType;
-      }
-      if (asynchronous) {
-        const selected = operations.selectedCall.get(expression)?.sourceResult ??
-          policy.types.resolveNode(expression, policy.ast.getSourceFile(expression))?.sourceResult;
-        const returned = refineCsharpSourceValueResult(selected, type);
-        const awaited = selectCsharpSourceCallAwaitCompletion(returned, policy.typeDefinitions, "consumed")?.result;
-        if (awaited !== undefined) observed.push(awaited);
-        else if (targetTypeRefEquals(type, observedBaseline)) observed.push(type);
-        else incomplete = true;
-      } else observed.push(type);
-    }
-  });
-  if (authoredReturnType !== undefined) {
-    const queries = policy.semanticsFor(declaration);
-    const sourceReturn = authoredReturnNode === undefined ? undefined : queries.types.authoredType(authoredReturnNode);
-    const sourceResult = !asynchronous ? sourceReturn : sourceReturn !== undefined &&
-      classifyCsharpSourceProfileType(sourceReturn, queries, policy.ast)?.kind === "promise" ? queries.types.awaitedType(sourceReturn) : undefined;
-    const actual = !incomplete && observed.length > 0 && observed.every(type => targetTypeRefEquals(type, observed[0]!))
-      && sourceResult !== undefined && csharpSourceUnionReturnLayout({ source: observed[0]!, target: observedBaseline,
-        sourceType: sourceResult, queries, ast: policy.ast, definitions: policy.typeDefinitions,
-        resolveType: type => policy.types.resolveType(type, queries.sourceFile) }) ? observed[0] : undefined;
-    const nativeTarget = authoredReturnType.kind === "target-named" ? authoredReturnType as CsharpTargetNamedTypeRef : undefined;
-    const native = !asynchronous && !incomplete && nativeTarget !== undefined &&
-      (nativeTarget.csharpStructuralContract === true || nativeTarget.csharpSourceDeclarationKind === "interface")
-      ? policy.objectShapes.resolveNativeReturn(declaration, authoredReturnType, observed) : undefined;
-    if (native?.kind === "rejected") return { kind: "rejected", reason: native.reason };
-    const type = actual !== undefined ? asynchronous ? csharpTaskTargetType(actual) : actual
-      : native?.type ?? authoredReturnType;
-    return { kind: "resolved", type,
-      ...(pointer === undefined ? {} : { undefinedReturn: pointer.undefinedReturn, fallthroughUndefined: pointer.fallthroughUndefined }) };
-  }
-  const observedContract = reconcileInferredReturnTargetContract(
-    policy,
-    inferredBaseline,
-    observed,
-    incomplete,
-  );
-  const contract = asynchronous && observedContract.kind === "resolved"
-    ? { ...observedContract, type: csharpTaskTargetType(observedContract.type) } : observedContract;
-  const contextualReturn = getCsharpDelegateSignature(evidence.contextualType.get(declaration)?.targetType)?.returnType;
-  if (contract.kind === "resolved" && isCsharpJsValueTargetType(contract.type) && contextualReturn !== undefined &&
-    csharpConversionIsApplicable(selectCsharpConversion(policy, contract.type, contextualReturn, "implicit"), "implicit")) {
-    return { kind: "resolved", type: contextualReturn };
-  }
-  // An inferred synchronous return whose every returned expression is a literal exactly representable in the contextual
-  // return carrier takes that carrier: `() => 9n` under `() => int64` returns the long literal 9, not a BigInteger.
-  if (contract.kind === "resolved" && !asynchronous && contextualReturn !== undefined &&
-    !targetTypeRefEquals(contract.type, contextualReturn) &&
-    !csharpConversionIsApplicable(selectCsharpConversion(policy, contract.type, contextualReturn, "implicit"), "implicit") &&
-    csharpLiteralReturnsFit(policy.ast, policy.literalValues, declaration, contextualReturn, expression => policy.semanticsFor(expression))) {
-    return { kind: "resolved", type: contextualReturn };
-  }
-  return contract.kind !== "resolved" || pointer === undefined ? contract
-    : Object.freeze({ ...contract, undefinedReturn: pointer.undefinedReturn, fallthroughUndefined: pointer.fallthroughUndefined });
 }
 
 export function reconcileInferredReturnTargetContract(

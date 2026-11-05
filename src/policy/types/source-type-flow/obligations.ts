@@ -76,7 +76,7 @@ export function checkCsharpSourceTypeFlowObligation(
     }
     const site = obligation.value ?? obligation.site;
     const carrier = getCsharpNullableElementTargetType(chosen) ?? chosen;
-    const literal = host.literalValues.literalValue.get(site);
+    const literal = obligation.authority === "inferred" ? host.literalValues.literalValue.get(site) : undefined;
     const element = getCsharpCollectionElementTargetType(carrier);
     if (obligation.authority === "inferred" && literal?.form === "array" && element !== undefined &&
       (getCsharpRuntimeUnionArms(element, host.typeDefinitions) !== undefined || getCsharpNullableElementTargetType(element) !== undefined)) {
@@ -91,8 +91,9 @@ export function checkCsharpSourceTypeFlowObligation(
       }
     }
     if (carrier.kind === "source-primitive" || isCsharpStringTargetType(carrier)) {
-      if (literalFits(literal, chosen)) return undefined;
-      const selection = selectCsharpExactLiteralConversion(literal, chosen, chosen);
+      const value = obligation.authority === "inferred" ? literal : host.literalValues.literalValue.get(site);
+      if (literalFits(value, chosen)) return undefined;
+      const selection = selectCsharpExactLiteralConversion(value, chosen, chosen);
       return fail(selection.kind === "rejected" ? selection.reason
         : `The retained source literal is not representable as '${targetTypeRefKey(chosen)}'.`);
     }

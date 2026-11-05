@@ -12,7 +12,6 @@ export const declarationConverterAllowances = Object.freeze([
   ["src/analysis/callables/calls/source-callable-abi.ts", "selectCsharpSourceCallableAbi", "policy.types.resolveType", "checked.returnType", "selected declared callable return ABI"],
   ["src/analysis/callables/calls/source-callable-abi.ts", "constructorReturnType", "policy.types.resolveType", "policy.semantics(sourceFile).declarations.declaredType(parent)", "enclosing class instance declaration"],
   ["src/analysis/control-flow/resource-management.ts", "selectCsharpResourceManagement", "input.types.resolveType", "alternative.sourceType", "pinned disposal signature alternative"],
-  ["src/analysis/declarations/analyze.ts", "resolveType", "policy.types.resolveType", "type", "authored native return union-layout component"],
   ["src/analysis/operations/collections/indexed-records.ts", "selectCsharpIndexedRecordProperty", "host.types.resolveType", "index.keyType", "declared string-index signature key contract"],
   ["src/analysis/operations/constructs.ts", "analyzeCsharpOperationConstruct", "policy.types.resolveType", "type", "selected constructor signature instance metadata"],
   ["src/analysis/operations/iteration/selection.ts", "selectCsharpIteration", "input.types.resolveType", "source.sourceElementType", "for-in property-key contract after for-of and for-await exits", "source.sourceElementType"],

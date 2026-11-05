@@ -166,7 +166,6 @@ export function analyzeCsharpRepresentationIteration(
     policy,
     sourceEvidence,
     operations,
-    valueReadStages.valueReadStages,
   );
   const objectShapes = analyzeCsharpObjectShapes(policy, sourceEvidence, operations);
   const conversionAnalysis = analyzeCsharpConversions(
