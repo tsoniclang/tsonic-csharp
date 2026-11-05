@@ -5,7 +5,7 @@ import { analyzeCsharpExactLiteralSelections } from "../../../dist/analysis/conv
 import { createCsharpExactLiteralRequestCollector } from "../../../dist/analysis/conversions/literal-requests.js";
 import { readCsharpExpressionOperandStability, applyCsharpConversionSelection } from "../../../dist/backend/planner/expressions/conversions.js";
 import { selectCsharpExactLiteralConversion, selectCsharpExactPropertyKeyConversion } from "../../../dist/policy/conversions/literals.js";
-import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
+import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { csharpRuntimeUnionTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType, getCsharpRuntimeUnionArms } from "../../../dist/target-model/types/index.js";
 import { csharpNativeUseSite } from "../../../dist/target-model/records/native/native-demand.js";
 import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
