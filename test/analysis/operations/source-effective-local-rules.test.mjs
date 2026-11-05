@@ -77,8 +77,6 @@ for (const surface of ["native", "js"]) {
       export function run(narrow: float32, signed: int32): void { const values = [narrow, signed]; void values; }`, "[narrow, signed]"],
     ["number-backed and bigint-backed fixed widths remain one numeric kind", "TSONIC_LOCAL_TYPE_MIXED_ELEMENTS", `${header}
       export function run(narrow: int32, wide: int64): void { const values = [narrow, wide]; void values; }`, "[narrow, wide]"],
-    ["small-kind arithmetic feeding a local is unsupported", "TSONIC_LOCAL_TYPE_UNSUPPORTED", `${header}
-      export function run(left: int8, right: int8): boolean { const combined = left + right; return combined === 0; }`, "left + right"],
     ["different concrete object identities conflict at the later use", "TSONIC_LOCAL_TYPE_CONFLICT", `${header}
       class First { value: int32 = 0; }
       class Second { value: int32 = 0; }
@@ -90,6 +88,24 @@ for (const surface of ["native", "js"]) {
       assertPublishedRefusal(compileEffectiveSource(surface, sourceText), code, site);
     });
   }
+
+  test(`${surface} small-kind arithmetic feeding a local retains its published int32 result`, () => {
+    const compiled = compileEffectiveSource(surface, `${header}
+      export function run(left: int8, right: int8): boolean { const combined = left + right; return combined === 0; }`);
+    acceptedEffectiveSource(compiled);
+    assert.equal(compiled.targetSource.effectiveTypes.refusals().length, 0);
+    assertPrimitiveOccurrences(compiled, "left", "int8");
+    assertPrimitiveOccurrences(compiled, "right", "int8");
+    assertPrimitiveOccurrences(compiled, "combined", "int32");
+    const additions = projectNodes(compiled, (node, ast) => ast.is.IsBinaryExpression(node) && ast.operatorKindName(node) === "KindPlusToken");
+    assert.equal(additions.length, 1, "the identical authored addition is retained");
+    const outcome = compiled.targetSource.effectiveTypes.get(additions[0]);
+    const native = compiled.result.program.records.valueRead.get(additions[0])?.value;
+    assert.equal(outcome !== undefined && outcome.kind !== "refused" && outcome.type.kind === "primitive" &&
+      outcome.type.primitive === "int32", true, "the exact addition has one published Host int32");
+    assert.equal(native?.kind === "source-primitive" && native.name === "int32", true,
+      "the same addition's Native physical value represents that int32");
+  });
 
   test(`${surface} a declared return fills the local without changing a signature`, () => {
     const compiled = compileEffectiveSource(surface, "export function run(): number[] { const values = [1, 2]; return values; }");
