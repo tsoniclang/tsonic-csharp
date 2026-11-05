@@ -4,6 +4,7 @@ import type { SourceTypeFlowAssociation } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpNativeConstructionDemandQueries } from "../../target-model/records/native/native-construction.js";
 import type { CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
+import type { CsharpDictionaryLiteralRecords } from "../../target-model/records/objects/dictionary-literals.js";
 import type { TargetConstraint, TargetTypeRef } from "../../target-model/types/model.js";
 import { checkCsharpSourceTypeFlowObligation } from "../../policy/types/source-type-flow/obligations.js";
 import { substituteTargetTypeParameters } from "../../policy/types/resolution/substitution.js";
@@ -17,6 +18,7 @@ export function analyzeCsharpSourceTypeFlowObligations(
   policy: CsharpPolicyContext,
   objectShapes: CsharpObjectShapeClassifications,
   nativeConstruction: CsharpNativeConstructionDemandQueries,
+  dictionaryLiterals: CsharpDictionaryLiteralRecords,
 ): readonly TargetDiagnostic[] {
   const issues: TargetDiagnostic[] = [];
   for (const obligation of policy.effectiveTypes.obligations()) {
@@ -34,6 +36,8 @@ export function analyzeCsharpSourceTypeFlowObligations(
         return selected?.kind === "resolved" ? selected.sourceResult.selectedType : undefined;
       },
       literalAdmission(node, chosen) {
+        const dictionary = dictionaryLiterals.dictionaryLiteral.get(node, chosen);
+        if (dictionary !== undefined) return { kind: "resolved", type: dictionary.carrier };
         const issue = nativeConstruction.issues.find(issue => issue.node === node);
         if (issue !== undefined) return { kind: "rejected", subject: issue.node, code: issue.code, reason: issue.message };
         const selected = nativeConstruction.constructionFor(node);

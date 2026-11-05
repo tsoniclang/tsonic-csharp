@@ -10,7 +10,7 @@ import type { CsharpResolvedBinaryOperation } from "../../target-model/records/o
 
 import { analyzeCsharpNativeConstants } from "../operations/native-constants.js";
 import { analyzeCsharpBinaryEmission } from "../operations/binary-emission.js";
-import { analyzeCsharpDictionaryLiterals } from "../objects/dictionary-literals.js";
+import type { CsharpDictionaryLiteralRecords } from "../../target-model/records/objects/dictionary-literals.js";
 import { analyzeCsharpExpressionEmission } from "../operations/expression-emission.js";
 import { analyzeCsharpLambdaEmission } from "../callables/emission/lambda-emission.js";
 import { analyzeCsharpTypedLocationEmission } from "../storage/typed-location-emission.js";
@@ -128,6 +128,7 @@ export function finalizeCsharpNativeEmission(
   promiseResults: ReturnType<typeof analyzeCsharpPromiseResults>,
   nativeValueCarriers: ReturnType<typeof analyzeCsharpNativeValueCarriers>,
   prerequisiteBinaryExecutionDriver: ReturnType<typeof composeCsharpBinaryExecutionDriver>,
+  dictionaryLiterals: CsharpDictionaryLiteralRecords,
 ): TargetStageResult<CsharpAnalysisProgram> {
   const { input, configuration } = request;
   const source = input.source;
@@ -153,7 +154,6 @@ export function finalizeCsharpNativeEmission(
   const literalEmission = analyzeCsharpLiteralAdmission({ ast: source.ast, demand: nativeDemand, literals: literalValues,
     exact: exactLiterals, values: analysis.valueReads });
   const templateStrings = analyzeCsharpTemplateStrings(source.ast, nativeDemand);
-  const dictionaryLiterals = analyzeCsharpDictionaryLiterals(source.ast, nativeDemand);
   const unionEquality = analyzeCsharpUnionEquality(sourceStorage.nodes, admittedOperations);
   const closedTypeTests = analyzeCsharpClosedTypeTests(sourceStorage.nodes, admittedOperations, typeDefinitions);
   const unaryEmission = analyzeCsharpUnaryEmission({ ast: source.ast, nodes: sourceStorage.nodes, admitted: admittedControlNode,
@@ -168,7 +168,6 @@ export function finalizeCsharpNativeEmission(
   const nonCallableIssues = [
     ...admitCsharpUnionProjections(sourceStorage.nodes, admittedOperations, typeDefinitions),
     ...literalEmission.issues,
-    ...dictionaryLiterals.issues,
     ...unionEquality.issues,
     ...closedTypeTests.issues,
     ...unaryEmission.issues,
@@ -449,7 +448,7 @@ export function finalizeCsharpNativeEmission(
     arrayLiterals: arrayLiterals.records,
     literalEmission: literalEmission.records,
     templateStrings,
-    dictionaryLiterals: dictionaryLiterals.records,
+    dictionaryLiterals,
     sourceArtifacts: sourceArtifacts.records,
     safetyEmission: safetyEmission.records,
     startup: startup.records,

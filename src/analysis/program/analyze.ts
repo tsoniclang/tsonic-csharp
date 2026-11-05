@@ -34,6 +34,7 @@ import { analyzeCsharpFlowReadProjections } from "../conversions/flow-read-proje
 import { analyzeCsharpNativeValueCarriers, analyzeCsharpObjectMethodSources } from "../objects/value-carriers.js";
 import { analyzeCsharpModuleCallables } from "../callables/module-callables.js";
 import { analyzeCsharpSourceTypeFlowObligations } from "../source-evidence/type-flow-obligations.js";
+import { analyzeCsharpDictionaryLiterals } from "../objects/dictionary-literals.js";
 
 type CsharpAnalysisRejection = Extract<TargetStageResult<never>, { readonly kind: "rejected" }>;
 
@@ -237,7 +238,10 @@ function analyzeCsharpTargetProgramBeforeSeal(
   if (analysisIssues.length > 0) {
     return rejectCsharpAnalysisIssues(analysisIssues);
   }
-  const typeFlowIssues = analyzeCsharpSourceTypeFlowObligations(analysis.policy, analysis.objectShapes, analysis.typeSystem.nativeConstruction);
+  const dictionaryLiterals = analyzeCsharpDictionaryLiterals(source.ast, analysis.nativeDemand);
+  if (dictionaryLiterals.issues.length !== 0) return rejectedTargetStage(dictionaryLiterals.issues);
+  const typeFlowIssues = analyzeCsharpSourceTypeFlowObligations(analysis.policy, analysis.objectShapes,
+    analysis.typeSystem.nativeConstruction, dictionaryLiterals.records);
   if (typeFlowIssues.length !== 0) return rejectedTargetStage(typeFlowIssues);
   const sourceModuleConstructions = analyzeCsharpSourceModuleConstructions({
     source,
@@ -338,5 +342,5 @@ function analyzeCsharpTargetProgramBeforeSeal(
     targetDiagnosticFromExtension(undefined, diagnostic)));
   return finalizeCsharpNativeEmission(request, analysis, sourceStorage, safetyApplications,
     callableAdapters, sourceModuleConstructions, moduleInitialization, flowReads, promiseResults,
-    nativeValueCarriers, prerequisiteBinaryExecutionDriver);
+    nativeValueCarriers, prerequisiteBinaryExecutionDriver, dictionaryLiterals.records);
 }
