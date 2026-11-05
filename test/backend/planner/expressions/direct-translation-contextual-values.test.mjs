@@ -470,7 +470,7 @@ test("direct C# translation uses checker-declared mutable storage instead of lit
     {
         public static double sum(params double[] values)
         {
-            double total = 0D;
+            double total = 0;
             foreach (double value in values)
             {
                 total = total + value;
@@ -504,7 +504,7 @@ test("direct C# translation preserves inferred integral storage across mutable i
     {
         public static double sum(double[] values)
         {
-            double result = 0D;
+            double result = 0;
             {
                 long index = 0L;
                 for (; index < values.Length; index++)

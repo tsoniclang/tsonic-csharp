@@ -32,8 +32,8 @@ for (const surface of ["native", "js"]) {
     test(`${surface} effective types: ${name}`, () => {
       const compiled = compileEffectiveSource(surface, `${header}
         function sum(values: number[]): void { void values; }
-        function keep(value: unknown): void { void value; }
-        function identity<T>(value: T): T { return value; }
+        function keep(input: unknown): void { void input; }
+        function identity<T>(input: T): T { return input; }
         function first<T>(values: T[]): T { return values[0]; }
         export function run(price: number, replacement: int32[], wide: int64): boolean { ${body} }
       `);

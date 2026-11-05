@@ -1,5 +1,5 @@
 import type { AstReader, Node } from "@tsonic/tsts";
-import { sourceTypeDescriptorMemberOriginsEqual, type SourceEffectiveTypeOutcome } from "@tsonic/target-api/source";
+import { sourceTypeDescriptorMemberOriginsEqual, sourceTypeDescriptorStructure, type SourceEffectiveTypeOutcome } from "@tsonic/target-api/source";
 import type { CsharpObjectShapeFact } from "../../../target-model/types/model.js";
 
 // The Host publishes, for every authored object-literal member, the origin of the destination member it
@@ -25,6 +25,18 @@ export function selectCsharpHostLiteralCorrespondence(
   // Spread members are not yet described by the Host correspondence.
   if (properties.some(property => ast.is.IsSpreadAssignment(property))) return notPublished;
   if (destination.members.some(member => member.origin === undefined)) return notPublished;
+  // The Host correspondence is relative to the PUBLISHED descriptor. It proves this construction only when the
+  // native destination shape is that published structure (the same member origins); otherwise the literal keeps
+  // its existing path (e.g. a literal published as its own shape but stored in a declared native record).
+  let value = outcome.type;
+  while (value.kind === "optional") value = value.value;
+  const published = sourceTypeDescriptorStructure(value);
+  if (published.kind !== "shape") return notPublished;
+  const publishedMembers = published.members;
+  if (publishedMembers.length !== destination.members.length || destination.members.some(member =>
+    member.origin === undefined || !publishedMembers.some(selected => sourceTypeDescriptorMemberOriginsEqual(selected.origin, member.origin!)))) {
+    return notPublished;
+  }
   const rejected = (reason: string): CsharpHostLiteralCorrespondence => Object.freeze({ kind: "rejected", reason });
   // A literal with members the Host correspondence does not describe keeps its existing proof path.
   if (outcome.memberCorrespondence.length !== properties.length) return notPublished;

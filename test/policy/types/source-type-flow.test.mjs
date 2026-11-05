@@ -135,16 +135,16 @@ test("representation maps each exact Host primitive and keeps native versus JS a
 
 test("declared representation keeps nominal identity ordered arguments and the exact Source component", () => {
   const declaration = {};
-  const source = {};
+  const descriptor = { kind: "declared", declaration, typeArguments: [primitive("int64"), primitive("float32")] };
   const expected = { kind: "target-named", id: "fixture.Pair`2" };
   let calls = 0;
-  const selected = representCsharpSourceType({ ...representationHost("native"), declaredType(owner, arguments_, component) {
+  const selected = representCsharpSourceType({ ...representationHost("native"), declaredType(owner, arguments_, published) {
     calls += 1;
-    assert.equal(owner === declaration && component === source, true, "the exact declaration and component are retained");
+    assert.equal(owner === declaration && published === descriptor, true, "the exact declaration and its published descriptor are retained");
     assert.deepEqual(arguments_.map(argument => argument.name), ["int64", "float32"], "declared argument order is unchanged");
     assert.equal(Object.isFrozen(arguments_), true);
     return expected;
-  } }, { kind: "declared", declaration, source, typeArguments: [primitive("int64"), primitive("float32")], indexes: [] });
+  } }, descriptor);
   assert.equal(selected === expected && calls === 1, true, "the actual declared producer is called once");
 });
 
@@ -198,8 +198,8 @@ test("write checks keep the projected descriptor and do not ask another native v
 test("actual retained shapes keep exact declared properties and reject a different retained Native answer", () => {
   const declaration = {};
   const environment = createCsharpTypeParameterEnvironment(unexpected);
-  const descriptor = Object.freeze({ kind: "shape", indexes: [], members: Object.freeze([
-    Object.freeze({ name: "count", declaration, optional: false, readonly: true, type: primitive("int32") }),
+  const descriptor = Object.freeze({ kind: "shape", indexes: [], calls: [], constructs: [], members: Object.freeze([
+    Object.freeze({ name: "count", origin: Object.freeze({ kind: "declared", declaration }), optional: false, readonly: true, type: primitive("int32") }),
   ]) });
   let retained;
   const host = { ...representationHost("native"), typeParameterConstraints: environment, retainShape(shape) {
@@ -224,8 +224,8 @@ test("optional member presence stays independent of its optional value and missi
   const host = { ...representationHost("native"), typeParameterConstraints: environment,
     retainShape: shape => { headers.push(shape); return shape; } };
   for (const optional of [false, true]) {
-    const selected = representCsharpSourceType(host, { kind: "shape", indexes: [], members: [
-      { name: "value", optional, type: { kind: "optional", value: primitive("int32") } },
+    const selected = representCsharpSourceType(host, { kind: "shape", indexes: [], calls: [], constructs: [], members: [
+      { name: "value", optional, origin: { kind: "declared", declaration: {} }, type: { kind: "optional", value: primitive("int32") } },
     ] });
     assert.equal(selected !== undefined, true);
     const member = headers.at(-1).members[0];
@@ -234,7 +234,7 @@ test("optional member presence stays independent of its optional value and missi
   }
   assert.equal(targetTypeRefKey(headers[0].targetType) !== targetTypeRefKey(headers[1].targetType), true,
     "the existing Native header identity distinguishes optional presence, not the value type");
-  assert.equal(representCsharpSourceType(host, { kind: "shape", indexes: [], members: [{ name: "value", type: primitive("int32") }] }), undefined,
+  assert.equal(representCsharpSourceType(host, { kind: "shape", indexes: [], calls: [], constructs: [], members: [{ name: "value", origin: { kind: "declared", declaration: {} }, type: primitive("int32") }] }), undefined,
     "the removed presence-less contract is rejected without a compatibility default");
 });
 
@@ -393,7 +393,7 @@ test("lowered interface bounds keep the exact Native binder arguments rather tha
     providers: { findTargetBindingByTargetId: () => undefined },
     projectTypes: { directSupertypes: type => type === chosen ? [required] : [] },
     declaredType(owner, arguments_, kept) {
-      assert.equal(owner === declaration && kept === component && arguments_.length === 1 && targetTypeRefEquals(arguments_[0], integer), true,
+      assert.equal(owner === declaration && kept === obligation.type && arguments_.length === 1 && targetTypeRefEquals(arguments_[0], integer), true,
         "the actual declared representation retains the ordered Native argument vector");
       return chosen;
     }, nativeConstraints(owner, represented, kept) {
@@ -403,7 +403,7 @@ test("lowered interface bounds keep the exact Native binder arguments rather tha
     },
   };
   const obligation = { kind: "constraint", site, required: binder, association,
-    type: { kind: "declared", declaration, source: component, typeArguments: [primitive("int32")], indexes: [] } };
+    type: { kind: "declared", declaration, typeArguments: [primitive("int32")] } };
   assert.equal(checkCsharpSourceTypeFlowObligation(host, obligation) === undefined, true,
     "the identical directly implemented Native contract is accepted without choosing a different Source type");
   const issue = checkCsharpSourceTypeFlowObligation({ ...host, nativeConstraints: () => ({ sourceFile,

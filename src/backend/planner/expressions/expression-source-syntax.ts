@@ -31,7 +31,8 @@ export function tryPlanSourceSyntaxExpression(node: Node, sourceFile: SourceFile
     case KindBigIntLiteral: {
       const selection = input.program.records.literalEmission.get(node);
       if (selection === undefined) failCsharpPlannerInvariant("An admitted source literal requires its sealed native recipe.", node);
-      if (selection.kind === "float64") return value({ kind: "NumericLiteralExpression", value: selection.value, suffix: "D" });
+      if (selection.kind === "float64") return value({ kind: "NumericLiteralExpression", value: selection.value,
+        ...(targetTypedIntegerToken(input.program.source.ast, node) ? {} : { suffix: "D" }) });
       if (selection.kind === "exact") {
         const planned = planCsharpExactLiteralRecipe(input.scope.typeParameterNames, selection.recipe);
         if (planned.kind !== "resolved") failCsharpPlannerInvariant("An admitted source literal requires its native scalar syntax.", node);
@@ -70,4 +71,21 @@ export function tryPlanSourceSyntaxExpression(node: Node, sourceFile: SourceFile
     }
     default: return undefined;
   }
+}
+
+// Decision 4 (maintainer, C-2314): an authored decimal integer token, |value| <= 2^53, in a double prints as written
+// exactly where C# target-types the literal to its destination: a declaration or field initializer, an assignment's
+// right side, or a returned value. There C# converts the integer constant to double exactly, as at 28j'. Everywhere the
+// literal's own C# type takes part in overload resolution or inference (arguments, operands, conditional arms, lambda
+// bodies), it keeps the D suffix.
+function targetTypedIntegerToken(ast: CsharpPlanningContext["program"]["source"]["ast"], node: Node): boolean {
+  const text = ast.text(node);
+  if (!/^[0-9]+$/u.test(text) || BigInt(text) > 9007199254740992n) return false;
+  const parent = ast.parent(node);
+  if (parent === undefined) return false;
+  if (ast.is.IsVariableDeclaration(parent) || ast.is.IsPropertyDeclaration(parent)) return ast.as.AsVariableDeclaration(parent)?.Initializer === node ||
+    ast.as.AsPropertyDeclaration(parent)?.Initializer === node;
+  if (ast.is.IsReturnStatement(parent)) return true;
+  return ast.is.IsBinaryExpression(parent) && ast.operatorKindName(parent) === "KindEqualsToken" &&
+    ast.as.AsBinaryExpression(parent)?.Right === node;
 }

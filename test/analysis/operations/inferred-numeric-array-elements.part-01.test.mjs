@@ -135,7 +135,7 @@ test("authored native generic return ABIs are not rewritten by a nested logical 
       { kind: "tuple", elements: [array(declaredUnion), array(declaredUnion)] }, true]],
   ]);
   const authored = new Map();
-  const returned = new Map();
+  const declaredReturns = new Map();
   const declarations = [];
   const visit = node => {
     if (ast.is.IsFunctionDeclaration(node)) {
@@ -143,8 +143,7 @@ test("authored native generic return ABIs are not rewritten by a nested logical 
       if (selected !== undefined) {
         declarations.push(node);
         authored.set(ast.typeNode(node), selected[1]);
-        const statement = ast.statements(ast.body(node))[0];
-        returned.set(ast.as.AsReturnStatement(statement).Expression, selected[0]);
+        declaredReturns.set(node, selected[1]);
       }
     }
     ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
@@ -154,19 +153,26 @@ test("authored native generic return ABIs are not rewritten by a nested logical 
   const evidence = { compileTimeMetadata: absent, pointerReturn: absent, contextualType: absent,
     inferredCallableReturnType: absent, nodeTargetType: { get: node => authored.get(node) } };
   const policy = { ast, sourceFiles: [file], semanticsFor: source.semantics.forNode,
-    types: { resolveType: (type, sourceFile) => {
-      const queries = source.semantics.forFile(sourceFile);
-      return queries.types.isStringLike(type) ? text : queries.types.isNumberLike(type) ? numeric : undefined;
-    } } };
-  const result = analyzeCsharpDeclarations(policy, evidence, { selectedProperty: absent },
-    { get: node => returned.has(node) ? { returnedValue: returned.get(node) } : undefined });
+    types: {
+      resolveType: () => assert.fail("callable return contracts must not convert raw checker types"),
+      resolveCallableReturn(declaration) {
+        const published = source.effectiveTypes.callableReturn(declaration);
+        assert.equal(published !== undefined && published.kind !== "refused" &&
+          published.provenance.occurrence === declaration, true,
+          "the declared return belongs to this exact real checked callable");
+        const represented = declaredReturns.get(declaration);
+        assert.equal(represented !== undefined, true, "the native input is keyed by the actual callable declaration");
+        return represented;
+      },
+    } };
+  const result = analyzeCsharpDeclarations(policy, evidence, { selectedProperty: absent });
   for (const declaration of declarations) {
     const name = ast.text(ast.name(declaration));
-    const [produced, declared, selectable] = carriers.get(name);
+    const [, declared] = carriers.get(name);
     const contract = result.returnContract.get(declaration);
     assert.equal(contract?.kind, "resolved", `${name}: the actual declaration publishes one native return contract`);
-    assert.equal(contract.type === (selectable ? produced : declared), true,
-      `${name}: source-layout provenance, not nested-union presence, decides whether the native declaration ABI is selectable`);
+    assert.equal(contract.type === declared, true,
+      `${name}: the one Host-published declared return fixes the ABI; body carriers cannot retarget it`);
   }
   assert.equal(declarations.length, 6, "all explicit native ABI negatives and source alias/nesting positives reach declaration analysis");
 });

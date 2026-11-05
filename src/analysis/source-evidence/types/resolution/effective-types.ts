@@ -22,6 +22,8 @@ import { csharpProviderBindingFromResolution } from "../../../../providers/model
 import { csharpTargetTypeFromBinding } from "../../../../policy/types/storage/bindings.js";
 import { csharpRecordDictionaryCarrier } from "../../../../target-model/types/carriers/collections.js";
 import { csharpClassFactoryTargetType } from "../../../../target-model/types/carriers/class-factories.js";
+import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
+import { getCsharpGenericOptionalParts } from "../../../../target-model/types/projections.js";
 import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
 
 export function resolveCsharpEffectiveCallTypeArgument(
@@ -113,8 +115,11 @@ export function createCsharpSourceTypeRepresentationHost(
     callableType(signature, parameters, result) {
       const nativeParameters: CsharpTargetParameter[] = [];
       for (const [index, parameter] of signature.parameters.entries()) {
-        const type = parameters[index];
-        if (type === undefined) return undefined;
+        const selected = parameters[index];
+        if (selected === undefined) return undefined;
+        // An optional parameter accepts absence: its C# type is nullable, as in the declared method ABI.
+        const type = parameter.kind === "optional" && getCsharpNullableElementTargetType(selected) === undefined &&
+          getCsharpGenericOptionalParts(selected) === undefined ? csharpNullableTargetType(selected) : selected;
         const vector = selectCsharpSourceParameterVector({ name: `argument${index}`, type, passingMode: "by-value",
           ...(parameter.kind === "optional" ? { optional: true } : {}),
           ...(parameter.kind === "rest" ? { paramsArray: true } : {}),
