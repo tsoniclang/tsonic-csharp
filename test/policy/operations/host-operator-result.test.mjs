@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createCompilerSessionFromFiles } from "@tsonic/tsts";
-import { analyzeSourceLiteralValues } from "@tsonic/target-api/source";
+import { analyzeSourceLiteralValues, sourceTransparentExpressionOperand } from "@tsonic/target-api/source";
 import { selectCsharpNativeBinaryOperation, targetBinaryOperator } from "../../../dist/policy/operations/operators/rules.js";
 import { validateBinaryTargetSemantics, validateUnaryTargetSemantics } from "../../../dist/policy/operations/operators/operator-validation.js";
 import { csharpUnaryNumericPromotion, selectCsharpNumericCarrierPromotion } from "../../../dist/policy/operations/numeric/promotion.js";
@@ -15,7 +15,7 @@ import {
 } from "../../../dist/target-model/types/index.js";
 import { csharpJsArrayTargetType } from "../../../dist/target-model/types/carriers/js.js";
 import {
-  acceptedEffectiveSource, assertPrimitiveOccurrences, compileEffectiveSource, projectNodes,
+  acceptedEffectiveSource, assertPrimitiveOccurrences, assertPublishedRefusal, compileEffectiveSource, projectNodes,
 } from "../../helpers/source-effective-types.mjs";
 
 const primitive = csharpSourcePrimitiveTargetType;
@@ -256,6 +256,85 @@ for (const operator of ["<<=", ">>=", ">>>="]) {
 }
 
 for (const surface of ["native", "js"]) {
+  test(`${surface} C2350 the optional-pattern coalesce retains the tag refusal at its original Source operation`, () => {
+    const compiled = compileEffectiveSource(surface, `function run(): number {
+      const { value }: { value?: number } = { value: 4 };
+      const { other = 1 }: { other?: number } = {};
+      const selected = value ?? 0; return selected + other; }`);
+    assertPublishedRefusal(compiled, "TSONIC_LOCAL_TYPE_UNSUPPORTED", "value ?? 0");
+    assert.equal(compiled.result.diagnostics[0]?.message,
+      "A coalescing operator requires a nullable or runtime-union left operand.");
+  });
+
+  test(`${surface} C2348 discarded selector wrappers forward completed effects without a value carrier`, () => {
+    const compiled = compileEffectiveSource(surface, `export function run(flag: boolean, optional?: () => number): number {
+      ((flag ? (() => 1) : (() => 2))! satisfies (() => number)); return 5; }`);
+    const ast = compiled.targetSource.ast;
+    const errors = compiled.targetDiagnostics.map(issue => {
+      const node = issue.sourceNode;
+      const range = node === undefined ? undefined : ast.authoredRange(node);
+      const file = node === undefined ? undefined : ast.getSourceFile(node);
+      const text = range?.kind === "authored" && file !== undefined
+        ? ast.getSourceText(file).slice(range.start, Math.min(range.end, range.start + 120)) : "<absent>";
+      return `${issue.code}: ${issue.message} at ${node === undefined ? "<absent>" : ast.kindName(node)} ${text}`;
+    }).join("; ");
+    assert.equal(compiled.targetDiagnostics.length, 0, errors);
+    const output = acceptedEffectiveSource(compiled);
+    const wrappers = projectNodes(compiled, node => {
+      let operand = sourceTransparentExpressionOperand(ast, node);
+      if (operand === undefined) return false;
+      for (let nested = sourceTransparentExpressionOperand(ast, operand); nested !== undefined;
+        nested = sourceTransparentExpressionOperand(ast, operand)) operand = nested;
+      return ast.is.IsConditionalExpression(operand);
+    });
+    assert.equal(wrappers.length, 4);
+    for (const wrapper of wrappers) {
+      assert.equal(compiled.targetSource.effectiveTypes.get(wrapper) === undefined, true,
+        "a discarded selector transport has no invented Source value");
+      const physical = compiled.result.program.records.nativeExpression.get(wrapper)?.physical;
+      assert.equal(physical?.completion.kind === "void" && physical.discardedPresence !== undefined, true,
+        "the wrapper keeps completed native effects and presence without requesting a result");
+    }
+    assert.equal(output.includes("=>"), false, "no discarded closure allocation reaches emission");
+    const consumed = compileEffectiveSource(surface, `export function choose(flag: boolean): () => number {
+      return ((flag ? (() => 1) : (() => 2))! satisfies (() => number)); }`);
+    acceptedEffectiveSource(consumed);
+    const returned = projectNodes(consumed, (node, sourceAst) => sourceAst.is.IsReturnStatement(node))[0];
+    const expression = returned === undefined ? undefined : consumed.targetSource.ast.as.AsReturnStatement(returned)?.Expression;
+    const outcome = expression === undefined ? undefined : consumed.targetSource.effectiveTypes.get(expression);
+    const physical = expression === undefined ? undefined : consumed.result.program.records.nativeExpression.get(expression)?.physical;
+    assert.equal(outcome !== undefined && outcome.kind !== "refused" && physical?.completion.kind === "value", true,
+      "a consumed selector transport still requires its exact value representation");
+  });
+
+  test(`${surface} C2348 a folded binary constructs the published primitive before union storage`, () => {
+    const compiled = compileEffectiveSource(surface, `import type { int32 } from "@tsonic/core/types.js";
+      type Inner = int32 | boolean;
+      export function direct(): (int32 | boolean)[] { return [1 + 2]; }
+      export function nested(): (Inner | string)[] { return [1 + 2]; }
+      export function nullable(): ((int32 | boolean) | undefined)[] { return [1 + 2]; }`);
+    acceptedEffectiveSource(compiled);
+    const additions = projectNodes(compiled, (node, ast) => ast.is.IsBinaryExpression(node) &&
+      ast.operatorKindName(node) === "KindPlusToken");
+    assert.equal(additions.length, 3);
+    for (const node of additions) {
+      const outcome = compiled.targetSource.effectiveTypes.get(node);
+      assert.equal(outcome !== undefined && outcome.kind !== "refused" &&
+        (outcome.type.kind === "union" || outcome.type.kind === "optional") &&
+        outcome.construction?.kind === "primitive" && outcome.construction.primitive === "int32", true,
+        "logical storage and the exact Source-produced calculation remain separate");
+      const records = compiled.result.program.records;
+      const operation = records.binaryOperation.get(node)?.target;
+      const emission = records.nativeExpression.get(node);
+      assert.equal(operation?.kind === "resolved" && targetTypeRefEquals(operation.resultType, primitive("int32")), true,
+        "the Native operation represents the existing Source construction without choosing another result");
+      assert.equal(targetTypeRefEquals(records.valueRead.get(node)?.value, primitive("int32")) &&
+        targetTypeRefEquals(emission?.physical?.carrier, primitive("int32")), true,
+        "the operation and physical endpoint retain the same primitive carrier");
+      assert.equal(records.exactLiteral.get(node, emission.physical.carrier)?.kind, "source-representation");
+    }
+  });
+
   test(`${surface} C2338 reference selection and coalescing emit direct shared references`, () => {
     const compiled = compileEffectiveSource(surface, `export function run(flag: boolean) {
       const first = [1]; const second = [2];

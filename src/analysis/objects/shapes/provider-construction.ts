@@ -274,7 +274,7 @@ function deriveProviderObjectLiteralMember(
       );
   const targetReadonly = relation.targetMember.readonly === true;
   const exactNumericStorage = memberTarget !== undefined &&
-    csharpProviderSelectsNumericStorage(property, sourceTarget, memberTarget, input);
+    csharpProviderSelectsNumericStorage(property, sourceTarget, memberTarget, published.member, input);
   if (
     memberTarget === undefined ||
     declaringTarget === undefined ||
@@ -311,9 +311,11 @@ export function csharpProviderSelectsNumericStorage(
   property: TypePropertyInfo,
   source: TargetTypeRef,
   target: TargetTypeRef,
+  member: SourceTypeDescriptorMember,
   input: {
     readonly queries: SourceFileSemantics;
-    readonly host: Pick<CsharpTypePolicyBaseHost, "ast" | "sourceFacts">;
+    readonly occurrence: Node;
+    readonly host: Pick<CsharpTypePolicyBaseHost, "ast" | "sourceFacts" | "effectiveTypes">;
   },
 ): boolean {
   const sourceElement = getCsharpNullableElementTargetType(source);
@@ -327,10 +329,21 @@ export function csharpProviderSelectsNumericStorage(
     ? input.queries.types.unionOrIntersectionTypes(property.type).filter(type => !input.queries.types.isNullish(type))
     : [property.type];
   if (members.length === 0 || !members.every(type => input.queries.types.isNumberLike(type))) return false;
+  const outcome = input.host.effectiveTypes.get(input.occurrence);
+  const properties = input.host.ast.is.IsObjectLiteralExpression(input.occurrence) ? input.host.ast.properties(input.occurrence) : [];
+  const declarations = [...new Set([
+    ...input.queries.declarations.symbolDeclarations(property.symbol),
+    ...(outcome === undefined || outcome.kind === "refused" || outcome.provenance.occurrence !== input.occurrence ? []
+      : (outcome.memberCorrespondence ?? []).filter(entry => properties.includes(entry.property) &&
+        sourceTypeDescriptorMemberOriginsEqual(member.origin, entry.origin)).map(entry => entry.property)),
+  ])].filter((declaration): declaration is Node => declaration !== undefined);
   const subjects = [...members.flatMap(type => input.queries.facts.typeSubjects(type)),
     ...sourcePropertyTypeEvidenceNodes(input.host.ast, input.queries, property),
-    ...assertedInitializerTypeNodes(input.host.ast, input.queries, property)];
-  return subjects.every(subject => input.host.sourceFacts?.getFact(subject, sourcePrimitiveFactKey) === undefined);
+    ...assertedInitializerTypeNodes(input.host.ast, declarations)];
+  return subjects.every(subject => {
+    const primitive = input.host.sourceFacts?.getFact(subject, sourcePrimitiveFactKey);
+    return primitive === undefined || primitive.kind === selected.name;
+  });
 }
 
 function resolveProviderMemberRelation(
@@ -395,12 +408,11 @@ function providerMemberConstructionRelationsEqual(
 // type evidence, so an explicit Source primitive is never narrowed into provider numeric storage.
 function assertedInitializerTypeNodes(
   ast: CsharpTypePolicyBaseHost["ast"],
-  queries: SourceFileSemantics,
-  property: TypePropertyInfo,
+  declarations: readonly Node[],
 ): readonly Node[] {
   const result: Node[] = [];
-  for (const declaration of queries.declarations.symbolDeclarations(property.symbol)) {
-    if (declaration === undefined || !ast.is.IsPropertyAssignment(declaration)) continue;
+  for (const declaration of declarations) {
+    if (!ast.is.IsPropertyAssignment(declaration)) continue;
     let value = ast.as.AsPropertyAssignment(declaration)?.Initializer;
     while (value !== undefined && ast.is.IsParenthesizedExpression(value)) value = ast.as.AsParenthesizedExpression(value)?.Expression;
     if (value === undefined || !(ast.is.IsAsExpression(value) || ast.is.IsSatisfiesExpression(value) || ast.is.IsTypeAssertion(value))) continue;

@@ -377,12 +377,15 @@ export function analyzeCsharpNativeDemand(
     if (selected.refusal !== undefined) return pending(site, expression, selected.refusal, selected.refusalMessage, selected.refusalCode);
     if (expected === undefined && child.context?.target !== undefined &&
       (selected.carrier === undefined || !targetTypeRefEquals(child.context.target, selected.carrier))) return pending(site, expression, "expected-use-pending");
-    const discarded = (runtime.some(entry => entry.visited.completion?.kind === "void") ||
+    const forwardedDiscard = expected === undefined && selected.carrier === undefined && selected.resultUse === "discarded" &&
+      sourceTransparentExpressionOperand(ast, expression) !== undefined && runtime.length === 1 &&
+      runtime[0]!.visited.discardedPresence !== undefined;
+    const discarded = (forwardedDiscard || runtime.some(entry => entry.visited.completion?.kind === "void") ||
       selected.discardedGuard !== undefined && isCsharpVoidTargetType(selected.carrier)) &&
       selected.resultUse === "discarded";
     const flow = completionFlow(selected, runtime, discarded);
     if (flow === undefined) return pending(site, expression, "completion-unresolved");
-    const selectedCarrier = expected?.carrier ?? selected.carrier;
+    const selectedCarrier = forwardedDiscard ? csharpVoidTargetType() : expected?.carrier ?? selected.carrier;
     const inputCompletion = selectCsharpNativeCompletion(selectedCarrier, flow);
     // A value whose checked source type resolved to no C# carrier (for example a structural view of foreign fields the
     // project does not own) is unsupported source, refused at its first native consumption.

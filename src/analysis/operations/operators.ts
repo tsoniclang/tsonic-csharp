@@ -7,6 +7,7 @@ import { selectCsharpAssignmentLocation } from "./assignment-location.js";
 
 import { selectCsharpGenericNumericOperation } from "./numeric/generic.js";
 import { resolveCsharpContextualLiteralCarrier } from "../source-evidence/types/resolution/contextual-literals.js";
+import { representCsharpSourceType } from "../../policy/types/source-type-flow/representation.js";
 
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
@@ -44,8 +45,12 @@ export function selectCsharpBinaryOperation(
       "The checked binary expression has incomplete exact AST operator evidence.",
     );
   }
+  const outcome = input.effectiveTypes.get(node);
+  const construction = outcome === undefined || outcome.kind === "refused" ? undefined : outcome.construction;
+  const resultType = construction === undefined ? targetTypeFor(node)
+    : representCsharpSourceType(input.types.sourceTypeFlowRepresentation(node), construction);
   return selectCsharpBinaryOperands(input, left, right, sourceOperator,
-    targetTypeFor(node), targetTypeFor, expectedResultType);
+    resultType, targetTypeFor, expectedResultType);
 }
 
 export function selectCsharpBinaryOperands(

@@ -889,10 +889,26 @@ test("native construction consumes only the completed canonical provider contrac
     const selected = demand(expected);
     assert.equal(selected.issues.length, 0, "canonical proof never reopens raw own-member evidence");
     const retained = selected.constructionFor(current.literal)?.shape;
-    assert.equal(retained !== undefined && retained.members.length === expected.members.length && retained.members.every(member =>
-      member.optional === true && member.exactNumericStorage === true && member.type === current.storage &&
-      member.origins?.length === 1 && member.origins[0] === current.structure.members[0].origin), true,
-    "even the empty literal retains the complete selected provider ABI and its actual published origins");
+    const descriptor = current.resolver.publishedShapeDescriptor(current.literal);
+    const structure = descriptor === undefined ? undefined : sourceTypeDescriptorStructure(descriptor);
+    assert.equal(retained !== undefined && structure?.kind === "shape", true,
+      "the completed construction retains its current literal publication");
+    assert.equal(retained.members.length === expected.members.length && retained.members.length === structure.members.length, true,
+      "even the empty literal retains the complete selected provider inventory");
+    for (const [index, member] of retained.members.entries()) {
+      assert.equal(member.optional === true, true, "provider optional absence stays selected");
+      assert.equal(member.exactNumericStorage === true, true, "provider numeric storage remains exact");
+      assert.equal(member.type === current.storage, true, "the selected Native storage object is retained");
+      assert.equal(member.origins?.length === 1, true, "one actual published destination origin is retained");
+      const origin = member.origins[0];
+      const literalOrigin = structure.members[index].origin;
+      const readerOrigin = current.structure.members[index].origin;
+      assert.equal(origin === literalOrigin, true, "the literal publication's origin object is retained");
+      assert.equal(sourceTypeDescriptorMemberOriginsEqual(origin, readerOrigin), true,
+        "separate occurrence publications retain the same canonical origin");
+      assert.equal(origin.kind === "declared" && readerOrigin.kind === "declared" &&
+        origin.declaration === readerOrigin.declaration, true, "the opaque checked declaration identity is unchanged");
+    }
     if (empty) continue;
     const member = expected.members[0];
     for (const changed of [
@@ -1041,5 +1057,32 @@ test("a retained provider alias validates its current publication and target wit
     assert.equal(retained !== undefined, changed === "current", "missing, foreign-origin and foreign-target publications cannot inherit a stale construction");
     if (changed === "current") assert.equal(retained.shape === literal.shape && retained.targetType === literal.targetType, true,
       "current canonical validation preserves the original proven allocation identity");
+  }
+});
+
+test("a provider numeric field retains only compatible authored literal storage through its canonical origin", () => {
+  for (const [initializer, admitted] of [["493", true], ["493 as int32", true],
+    ["493 as float64", false], ["(493 as float64)", false]]) {
+    const compiled = compileCsharpSource({ surface: "js", capabilities: [nodejsCapability()], sourceText: `
+      import type { int32, float64 } from "@tsonic/core/types.js";
+      import type { MakeDirectoryOptions } from "node:fs";
+      export function make(): MakeDirectoryOptions { return { mode: ${initializer} }; }
+    ` });
+    assert.equal(compiled.sourceDiagnosticsText, "", "the authored field is valid Source");
+    assert.equal(compiled.targetDiagnostics.some(issue => issue.code.startsWith("TSONIC_")), false,
+      "Source publication is not replaced by a Native storage decision");
+    if (!admitted) {
+      assert.equal(compiled.targetDiagnostics.some(issue => issue.code === "CSHARP_NATIVE_CONSTRUCTION_NOT_PROVEN"), true,
+        "a published authored float64 cannot be narrowed into the provider's int32 storage");
+      continue;
+    }
+    assertCsharpCompilationSucceeded(compiled);
+    const shape = csharpProgramObjectLiteralShapes(compiled.result.program).find(selected =>
+      selected.targetType.kind === "target-named" && selected.targetType.id === "Tsonic.CSharp.Node.MakeDirectoryOptions");
+    const mode = shape?.members.find(member => member.sourceName === "mode");
+    assert.equal(mode?.optional === true, true, "the provider's optional absence is retained");
+    assert.equal(mode.exactNumericStorage === true, true, "the selected provider numeric ABI remains exact");
+    assert.equal(targetTypeRefEquals(getCsharpNullableElementTargetType(mode.type), csharpSourcePrimitiveTargetType("int32")), true,
+      "an ordinary number or matching authored width retains the same provider storage");
   }
 });
