@@ -97,6 +97,11 @@ for (const surface of ["native", "js"]) for (const storage of ["direct", "nullab
       const compiled = compileCsharpSource({ surface, sourceText: `${imported}
         type Inner = ${example.type} | boolean;
         export function run(): (${type})[] { return [${example.value}]; }` });
+      if (example.name === "integral negative zero") console.log("C2308.integral-negative-zero", JSON.stringify({
+        surface, storage, diagnostics: compiled.result.diagnostics.map(diagnostic => ({
+          code: diagnostic.code, message: diagnostic.message,
+        })),
+      }));
       assertCsharpCompilationSucceeded(compiled);
       const source = createTargetSourceProgram(compiled.source);
       const file = compiled.source.getSourceFile("/project/index.ts");
@@ -111,6 +116,20 @@ for (const surface of ["native", "js"]) for (const storage of ["direct", "nullab
       const literal = analyzeSourceLiteralValues(source.ast, [file]).literalValue.get(expression);
       const records = compiled.result.program.records;
       const physicalSource = records.valueRead.get(expression)?.value;
+      if (surface === "native" && storage === "nullable" && ["int64 token", "int32 token"].includes(example.name)) {
+        const read = records.valueRead.get(expression);
+        const stage = ["narrowedRead", "selectedOperation", "storage", "source"].find(name => read?.[name] !== undefined);
+        const describe = type => type === undefined ? null : {
+          kind: type.kind, name: type.name ?? null, key: targetTypeRefKey(type),
+        };
+        console.log("C2308.physical-source", JSON.stringify({
+          surface, storage, form: example.name, source: describe(read?.source), value: describe(read?.value),
+          producer: stage === undefined ? null : `sealedValueRead.${stage}`,
+          sameProducerValue: stage !== undefined && read.value === read[stage],
+          narrowedRead: describe(read?.narrowedRead), selectedOperation: describe(read?.selectedOperation),
+          storageValue: describe(read?.storage),
+        }));
+      }
       assert.equal(physicalSource?.kind === "source-primitive" && physicalSource.name === example.primitive, true,
         "the completed construction source is its native arm, never the enclosing union storage");
       const emission = records.nativeExpression.get(expression);
