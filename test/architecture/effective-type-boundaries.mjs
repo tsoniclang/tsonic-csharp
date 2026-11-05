@@ -9,8 +9,6 @@ const valueFields = new Set(["sourceReadType", "sourceWriteType", "sourceElement
 const transparentKinds = new Set(["KindParenthesizedExpression", "KindAsExpression", "KindTypeAssertionExpression", "KindNonNullExpression", "KindSatisfiesExpression"]);
 
 export const declarationConverterAllowances = Object.freeze([
-  ["src/analysis/callables/calls/source-callable-abi.ts", "selectCsharpSourceCallableAbi", "policy.types.resolveType", "checked.returnType", "selected declared callable return ABI"],
-  ["src/analysis/callables/calls/source-callable-abi.ts", "constructorReturnType", "policy.types.resolveType", "policy.semantics(sourceFile).declarations.declaredType(parent)", "enclosing class instance declaration"],
   ["src/analysis/control-flow/resource-management.ts", "selectCsharpResourceManagement", "input.types.resolveType", "alternative.sourceType", "pinned disposal signature alternative"],
   ["src/analysis/operations/collections/indexed-records.ts", "selectCsharpIndexedRecordProperty", "host.types.resolveType", "index.keyType", "declared string-index signature key contract"],
   ["src/analysis/operations/constructs.ts", "analyzeCsharpOperationConstruct", "policy.types.resolveType", "type", "selected constructor signature instance metadata"],
