@@ -88,6 +88,7 @@ export function createCsharpSourceTypeRepresentationHost(
         results.some(result => !targetTypeRefEquals(result, instance))) return undefined;
       const owner = host.projectTypeCatalog.definitionForTarget(instance);
       if (owner?.abstract === true) return undefined;
+      if (owner?.kind === "class" && owner.local !== true) return instance;
       if (owner?.local === true && instance.kind === "target-named" && owner.factoryName !== undefined) {
         const names = new Set(host.ast.members(owner.declaration).flatMap(member => {
           const name = host.ast.name(member);

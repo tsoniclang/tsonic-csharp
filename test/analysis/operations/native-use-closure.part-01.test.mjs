@@ -17,6 +17,31 @@ import { createCsharpProviderRelationResolver } from "../../../dist/providers/na
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 import { emissionPrograms, discardedPrograms, owners } from "./native-use-closure.fixtures.mjs";
 
+for (const surface of ["native", "js"]) {
+  test(`${surface} nominal constructor receivers retain native static member ownership`, () => {
+    const compiled = compileCsharpNativeUseSource({ surface, sourceText: `
+      export class Box { value: number = 4; static shared: number = 3; }
+      export function run(): number { const box = new Box(); return box.value + Box.shared; }
+    ` });
+    assert.equal(compiled.sourceDiagnosticsText, "", "the constructor and both actual field declarations are valid");
+    assert.equal(compiled.result.diagnostics.length, 0,
+      compiled.result.diagnostics.map(diagnostic => `${diagnostic.code}: ${diagnostic.message}`).join("; "));
+    const program = compiled.result.program;
+    assert.equal(program !== undefined, true, "the declared nominal class reaches native emission");
+    const ast = program.source.ast;
+    const reads = [];
+    const visit = node => {
+      if (ast.is.IsPropertyAccessExpression(node) && ast.text(ast.name(node)) === "shared") reads.push(node);
+      ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    };
+    for (const file of csharpProgramSourceFiles(program)) visit(file);
+    assert.equal(reads.length, 1, "the real static field read is unique");
+    const member = program.records.sourceMember.get(reads[0]);
+    assert.equal(member?.selectedReceiverType?.kind === "target-named" && member.objectShape === undefined, true,
+      "a nominal constructor receiver is not converted to a delegate or an instance structural field inventory");
+  });
+}
+
 for (const surface of Array.from(["js", "native"]).slice(0, 2)) {
 for (const [label, program] of Array.from(emissionPrograms).slice(0, 16)) {
 test(
