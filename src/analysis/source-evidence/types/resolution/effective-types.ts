@@ -181,8 +181,10 @@ export function createCsharpSourceTypeRepresentationHost(
       const selected = queries.declarations.declaredType(declaration);
       const parameters = csharpSourceTypeParameters(declaration, host.ast);
       // The published descriptor's typeArguments instantiate the declaration's own type parameters, in order. A type
-      // alias's declared type carries no reference bindings, so its parameters bind directly.
-      const declaredBindings = selected === undefined ? undefined : queries.types.typeArgumentBindings(selected);
+      // alias binds only its own parameters: the reference bindings of its body (e.g. ReadonlyArray<T> inside
+      // `type Children = readonly Children[] | null`) belong to that body, not to the alias.
+      const declaredBindings = selected === undefined || host.ast.is.IsTypeAliasDeclaration(declaration) ? undefined
+        : queries.types.typeArgumentBindings(selected);
       const ownBindings = declaredBindings === undefined && parameters.length === typeArguments.length &&
         parameters.every(parameter => parameter !== undefined)
         ? parameters.map(parameter => ({ declaration: parameter!, argumentType: queries.declarations.declaredType(parameter!) }))
@@ -198,7 +200,7 @@ export function createCsharpSourceTypeRepresentationHost(
       if (direct !== undefined) return direct;
       if (host.ast.is.IsTypeAliasDeclaration(declaration)) return scope.sourceUnionDefinitions.resolveDescriptor(declaration,
         typeArguments, descriptor.definition === undefined ? undefined : () => resolveCsharpSourceTypeDescriptor(scope,
-          descriptor.definition!, nextState(representedState), occurrence));
+          descriptor.definition!, nextState(representedState), occurrence), descriptor.definition?.kind === "optional");
       if (host.navigation.isProjectDeclaration(declaration)) {
         return projectPublishedDeclaration(scope, declaration, representedState);
       }

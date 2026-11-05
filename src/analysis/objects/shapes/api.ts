@@ -67,7 +67,9 @@ export function createCsharpObjectShapePolicy(
     if (node === undefined) return undefined;
     const outcome = host.effectiveTypes.get(node);
     if (outcome === undefined || outcome.kind === "refused") return undefined;
-    let descriptor = outcome.type;
+    // An aggregate literal stored in broad storage (object, unknown, a generic slot) is constructed as its own Host
+    // construction descriptor (C-2246); the storage type is only where the constructed value goes.
+    let descriptor = outcome.construction ?? outcome.type;
     while (descriptor.kind === "optional") descriptor = descriptor.value;
     if (descriptor.kind === "callable" && descriptor.constructs.length === 1) descriptor = descriptor.constructs[0]!.result;
     return descriptor;

@@ -25,8 +25,10 @@ export function createCsharpSourceUnionDefinitions(
   const selected = new WeakMap<Type, Definition>();
   const definitions = new Map<string, Definition>();
   return Object.freeze({
+    // absent: the published alias definition carries absence (T = U | undefined), so a recursive occurrence of the
+    // alias is the nullable carrier, exactly as the checked-type path below records for a nullish alias union.
     resolveDescriptor(declaration: Node, typeArguments: readonly TargetTypeRef[],
-      definition: (() => TargetTypeRef | undefined) | undefined): TargetTypeRef | undefined {
+      definition: (() => TargetTypeRef | undefined) | undefined, absent = false): TargetTypeRef | undefined {
       const identity = sourceNodeIdentity(host.ast, declaration);
       if (identity === undefined) return undefined;
       const key = JSON.stringify([identity, typeArguments.map(targetTypeRefKey)]);
@@ -38,7 +40,7 @@ export function createCsharpSourceUnionDefinitions(
       if (definition === undefined) return undefined;
       const name = `__TsonicUnion_${createHash("sha256").update(identity).digest("hex")}`;
       const carrier = csharpSourceUnionTargetType(identity, name, typeArguments);
-      const record: Definition = { carrier, reference: carrier, recursive: false, building: true };
+      const record: Definition = { carrier, reference: absent ? csharpNullableTargetType(carrier) : carrier, recursive: false, building: true };
       definitions.set(key, record);
       const result = definition();
       record.building = false;

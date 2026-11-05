@@ -55,8 +55,9 @@ export function resolveStorage(
     return catchCarrier;
   }
   if (host.ast.is.IsBindingElement(declaration)) {
-    const file = host.ast.getSourceFile(declaration);
-    return file === undefined ? undefined : host.bindingProjection(declaration, file)?.bindingCarrier;
+    // Option A (C-2224): the Host publishes every binding element's Source type; its storage is that publication.
+    const selected = resolveNode(declaration, host.ast.getSourceFile(declaration));
+    return selected?.kind === "resolved" ? selected.sourceResult.selectedType : undefined;
   }
   const selected = resolveNode(
     declaration,
