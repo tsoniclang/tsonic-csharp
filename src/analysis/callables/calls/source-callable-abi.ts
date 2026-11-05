@@ -195,6 +195,12 @@ function sourceParameterContracts(
     ? undefined
     : evidence.nodeTargetType.get(typeSubject);
   if (selectedType === undefined) {
+    const published = policy.effectiveTypes.get(parameterNode);
+    process.stderr.write(`${JSON.stringify({ fact: "native.callable.parameter.unavailable",
+      callableKind: policy.ast.kindName(declaration), callablePosition: policy.ast.pos(declaration),
+      parameterPosition: policy.ast.pos(parameterNode), annotationKind: policy.ast.kindName(parameter.Type),
+      published: published === undefined ? "absent" : published.kind === "refused" ? "refused" : published.type.kind,
+    })}\n`);
     return undefined;
   }
   const questionToken = policy.ast.questionToken(parameterNode);

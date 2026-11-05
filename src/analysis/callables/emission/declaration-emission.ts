@@ -33,7 +33,9 @@ export function analyzeCsharpCallableDeclarationEmission(input: {
     }
     const generator = input.generators.generator.get(node) !== undefined;
     const contract = input.callables.get({ kind: "declaration", declaration: node });
-    if (contract === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted callable requires its sealed source value vector and native ABI.", node);
+    if (contract === undefined) failTargetAnalysisInvariant("tsonic-csharp",
+      `An admitted callable requires its sealed source value vector and native ABI. ${input.ast.kindName(node)}@${input.ast.pos(node)}`,
+      node);
     const sourceIdentity = input.moduleCallables.get(node) ?? Object.freeze({ callable: node, sourceOwner: node });
     const emission = Object.freeze({ contract, sourceIdentity,
       async: !generator && input.ast.hasModifierKind(node, "async"), returnCarrier: returned.type, generator });
