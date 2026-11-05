@@ -39,7 +39,7 @@ export function selectCsharpMemoryBinding(
   const type = input.types.resolveSelectedType(operation.layout.explicitTypeNode, operation.sourceType, file);
   const shape = type !== undefined && isCsharpEmptyObjectTargetType(type) && operation.fields.length === 0
     ? Object.freeze({ targetType: type, members: Object.freeze([]) })
-    : input.objectShapes.resolveType(operation.sourceType, file, operation.layout.explicitTypeNode);
+    : input.objectShapes.resolveTarget(type);
   if (type === undefined || shape === undefined || shape.members.length !== operation.fields.length ||
     !targetTypeRefEquals(type, shape.targetType)) return reject("The bound record requires one exact complete C# structural carrier.");
   const used = new Set<CsharpObjectShapeMemberFact>();
