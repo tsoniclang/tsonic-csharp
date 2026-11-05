@@ -63,6 +63,16 @@ for (const surface of ["native", "js"]) for (const destination of ["direct", "un
       const emission = compiled.result.program.records.nativeExpression.get(element);
       assert.equal(emission !== undefined && emission.physical !== undefined, true, "the native value has its sealed physical construction");
       const selected = compiled.result.program.records.exactLiteral.get(element, emission.physical.carrier);
+      if (destination === "union" && example.name === "negative zero") {
+        const published = source.effectiveTypes.get(element);
+        const requestSource = compiled.result.program.records.valueRead.get(element)?.source;
+        console.log("C2298.union-negative-zero " + JSON.stringify({ surface,
+          sourceTypeKind: published === undefined || published.kind === "refused" ? "absent" : published.type.kind,
+          sourceArgumentKind: requestSource?.kind ?? "absent",
+          sourceArgumentName: requestSource?.kind === "source-primitive" ? requestSource.name : undefined,
+          sourceArgumentKey: requestSource === undefined ? "absent" : targetTypeRefKey(requestSource),
+          physicalCarrier: targetTypeRefKey(emission.physical.carrier), selectionKind: selected?.kind ?? "absent" }));
+      }
       if (example.recipe !== undefined) {
         assert.equal(selected?.kind === "resolved" && selected.recipe.kind === example.recipe, true,
           "the record belongs to the actual physical construction, not its enclosing storage union");
