@@ -159,8 +159,8 @@ for (const surface of ["native", "js"]) {
       `;
       let compiled = compileEffectiveSource(surface, sourceText);
       if (operator === "||" || operator === "&&") {
-        assertNativeEffectiveRefusal(compiled, "C# conditional-value operators require an exact bool condition.", expression);
-        for (const name of ["left", "right", "selected"]) assertArrayOccurrences(compiled, name, "float64");
+        assertPublishedRefusal(compiled, "TSONIC_LOCAL_TYPE_UNSUPPORTED", expression);
+        assert.equal(compiled.result.diagnostics[0].message, "A logical operator requires exact bool operands.");
         compiled = compileEffectiveSource(surface, sourceText.replace(expression, "flag ? left : right"));
       }
       acceptedEffectiveSource(compiled);
@@ -302,7 +302,6 @@ for (const surface of ["native", "js"]) {
 for (const [name, code, sourceText, site] of [
   ["open find result", "TSONIC_LOCAL_TYPE_UNION", "export function run(): void { const values = [1, 2]; const found = values.find(value => value > 1); void found; }", "values.find(value => value > 1)"],
   ["changed accumulator result", "TSONIC_LOCAL_TYPE_ACCUMULATOR", "export function run(): void { const values = [1, 2]; const total = values.reduce((sum, value) => sum + 0.5, 0); void total; }", "sum + 0.5"],
-  ["callback index mixed with declared double", "TSONIC_LOCAL_TYPE_UNSUPPORTED", "export function run(offset: number): void { const values = [1, 2]; const result = values.map((value, index) => index + offset); void result; }", "index + offset"],
   ["insertion cannot fill an empty receiver", "TSONIC_UNTYPED_ARRAY_LITERAL", "export function run(): void { const values = []; values.push(1); }", "[]"],
   ["lookup cannot fill an empty receiver", "TSONIC_UNTYPED_ARRAY_LITERAL", "export function run(): void { const values = []; values[0] = 1; values.includes(1); }", "[]"],
 ]) {
@@ -310,6 +309,23 @@ for (const [name, code, sourceText, site] of [
     assertPublishedRefusal(compileEffectiveSource("js", `${header}\n${sourceText}`), code, site);
   });
 }
+
+test("js effective types: callback index and declared double retain the admitted float64 calculation", () => {
+  const compiled = compileEffectiveSource("js", `${header}\nexport function run(offset: number): void { const values = [1, 2]; const result = values.map((value, index) => index + offset); void result; }`);
+  acceptedEffectiveSource(compiled);
+  assert.equal(compiled.targetSource.effectiveTypes.refusals().length, 0);
+  assertPrimitiveOccurrences(compiled, "index", "int32", 2);
+  assertPrimitiveOccurrences(compiled, "offset", "float64", 2);
+  assertArrayOccurrences(compiled, "result", "float64");
+  const additions = projectNodes(compiled, (node, ast) => ast.is.IsBinaryExpression(node) && ast.operatorKindName(node) === "KindPlusToken");
+  assert.equal(additions.length, 1);
+  const addition = additions[0];
+  const outcome = compiled.targetSource.effectiveTypes.get(addition);
+  const native = compiled.result.program.records.valueRead.get(addition)?.value;
+  assert.equal(outcome !== undefined && outcome.kind !== "refused" && outcome.type.kind === "primitive" &&
+    outcome.type.primitive === "float64" && native?.kind === "source-primitive" && native.name === "float64", true,
+    "the original fixed int32 ordinal plus fixed float64 offset has one admitted Host and Native float64 result");
+});
 
 test("js filter links its receiver while map arithmetic never takes a demand backwards", () => {
   const compiled = compileEffectiveSource("js", `${header}

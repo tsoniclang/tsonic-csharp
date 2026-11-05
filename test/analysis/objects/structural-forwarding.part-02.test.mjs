@@ -444,6 +444,35 @@ test("retained method protocols require their exact producer-owned shape and che
   }
 });
 
+test("generic destination ABI retains its exact contract when physical current declarations are ambiguous", () => {
+  const value = fixture();
+  const owner = Object.freeze({});
+  const destinationDeclaration = Object.freeze({});
+  const destinationBinder = Object.freeze({});
+  const original = value.shapes.structuralImplementations(value.sourceType)[0];
+  const method = original.methods[0];
+  const canonicalGet = value.callables.get;
+  value.callables.get = identity => identity.declaration === destinationDeclaration ? {
+    kind: "source", sourceDeclaration: destinationDeclaration, parameters: value.implementation.parameters,
+    nativeParameters: value.implementation.nativeParameters, returnType: integer,
+    nativeSignature: { methodTypeParameterIdentities: ["destination:T"], methodAllowsRefLikeTypeArguments: [false] },
+  } : canonicalGet(identity);
+  value.policy.ast.parent = node => node === value.declaration ? owner : node === destinationBinder ? destinationDeclaration : undefined;
+  value.policy.ast.hasModifierKind = () => false;
+  value.policy.projectTypes.catalog.definitionForDeclaration = node => node === owner
+    ? { kind: "class", declaration: owner, typeParameterBindings: [] } : undefined;
+  value.shapes.structuralImplementations = () => [{ ...original, methods: [{ ...method, member: { ...method.member,
+    sourceDeclarations: Object.freeze([]), origins: Object.freeze([{ kind: "declared", declaration: destinationDeclaration }]),
+    typeParameters: [{ declaration: destinationBinder, identity: "destination:T", name: "T", constraints: [] }] } }] }];
+  const result = analyzeCsharpProjectCallableAdapters(value.policy, value.callables, value.shapes, value.declarations, value.projections, emptyNativeDispatch);
+  assert.equal(result.kind === "resolved" && result.value.issues.length === 0, true,
+    "the canonical origin and actual binder owner retain the selected generic signature and anti-constraint evidence");
+  if (result.kind !== "resolved") throw new Error("The exact selected Native ABI must be retained.");
+  const methods = result.value.objectShapes.structuralImplementations(value.sourceType)[0].methods;
+  assert.equal(methods.length === 1 && methods[0].forwarding.typeParameters.length === 1, true,
+    "the phantom destination binder still requires its real forwarding method");
+});
+
 test("native implicit methods need no bridge while phantom destination binders still require one", () => {
   for (const phantom of [false, true]) {
     const value = fixture();

@@ -57,9 +57,10 @@ export function selectCsharpBinaryOperands(
   targetTypeFor: CsharpOperationTargetTypeQuery,
   expectedResultType?: TargetTypeRef,
 ): CsharpOperationSelection<CsharpResolvedBinaryOperation> {
+  const leftStorage = sourceOperator === "??" ? input.types.resolveReadStorage(left) : undefined;
   let leftType = sourceOperator === "=" || sourceOperator === "??="
     ? input.types.resolveReadStorage(left)
-    : resolveBinaryOperandType(input, left, targetTypeFor);
+    : leftStorage ?? resolveBinaryOperandType(input, left, targetTypeFor);
   const nullishRightExpectation = sourceOperator === "??"
     ? expectedResultType ?? nullishValueType(leftType, input.typeDefinitions)
     : sourceOperator === "??=" ? nullishValueType(leftType, input.typeDefinitions)

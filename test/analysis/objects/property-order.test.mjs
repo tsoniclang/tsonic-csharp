@@ -333,8 +333,8 @@ test("repeated carriers classify published occurrences and the final merge, neve
       "a Boolean-only registration does not publish its intermediate merge inputs");
   }
   const classifications = builder.seal();
-  assert.equal(parentReads, 4 * occurrences.length,
-    "three exact occurrence owner reads plus one final merged declaration read each; no quadratic history retention");
+  assert.equal(parentReads, 3 * occurrences.length,
+    "three owner reads per actual occurrence; no owner reads for the deliberately ambiguous final merge");
   for (const current of occurrences) {
     const selected = classifications.resolveNode(current.owner);
     assert.equal(selected !== undefined, true);

@@ -15,6 +15,7 @@ import type { TargetTypeRef } from "../../target-model/types/index.js";
 import { getCsharpGeneratorProtocol } from "../../target-model/types/carriers/generators.js";
 import { selectCsharpExactLiteralConversion, selectCsharpScalarLiteralCarrier } from "../../policy/conversions/literals.js";
 import { getCsharpNullableElementTargetType, getCsharpRuntimeUnionArms } from "../../target-model/types/index.js";
+import { representCsharpSourceType } from "../../policy/types/source-type-flow/representation.js";
 
 export interface CsharpValueReadStageAnalysis {
   readonly issues: readonly CsharpOperationIssue[];
@@ -76,11 +77,13 @@ export function analyzeCsharpValueReadStages(
     const literal = policy.literalValues.literalValue.get(node);
     const literalConstruction = source !== undefined && literal !== undefined && literal.form !== "array";
     let selectedOperation: TargetTypeRef | undefined;
-    if (literalConstruction && literal.form === "parenthesized") {
-      const operand = policy.ast.as.AsParenthesizedExpression(node)?.Expression;
-      selectedOperation = operand === undefined ? undefined : rawStages.get(operand)?.selectedOperation;
-    } else if (literalConstruction && literal.form === "binary") {
-      selectedOperation = operations.operationResultType.get(node);
+    if (literalConstruction && (literal.form === "parenthesized" || literal.form === "binary")) {
+      const outcome = policy.effectiveTypes.get(node);
+      const physical = outcome === undefined || outcome.kind === "refused" ? undefined : outcome.construction ??
+        (outcome.type.kind === "primitive" || outcome.type.kind === "string" || outcome.type.kind === "intrinsic" &&
+          (outcome.type.intrinsic === "bigint" || outcome.type.intrinsic === "absence") ? outcome.type : undefined);
+      selectedOperation = physical === undefined ? undefined
+        : representCsharpSourceType(policy.types.sourceTypeFlowRepresentation(node), physical);
     } else if (literalConstruction) {
       const parent = policy.ast.parent(node);
       const authored = parent !== undefined && policy.ast.is.IsPrefixUnaryExpression(parent) &&

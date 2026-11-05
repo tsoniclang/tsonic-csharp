@@ -501,7 +501,13 @@ export function analyzeCsharpProjectCallableAdapters(
         returnType: signature.returnType });
       const identities = method.member.typeParameters?.map(parameter => parameter.identity) ?? [];
       const contracts = new Map<Node, SourceCallableSourceContract>();
-      for (const declaration of new Set(method.member.sourceDeclarations ?? [])) {
+      const declarations = new Set([...(method.member.sourceDeclarations ?? []),
+        ...(method.member.origins ?? []).flatMap(origin => origin.kind === "declared" ? [origin.declaration] : []),
+        ...(method.member.typeParameters ?? []).flatMap(parameter => {
+          const owner = policy.ast.parent(parameter.declaration);
+          return owner === undefined ? [] : [owner];
+        })]);
+      for (const declaration of declarations) {
         const selected = callables.get({ kind: "declaration", declaration });
         if (selected !== undefined && selected.nativeSignature.methodTypeParameterIdentities.length === identities.length &&
           selected.nativeSignature.methodTypeParameterIdentities.every((identity, index) => identity === identities[index])) {

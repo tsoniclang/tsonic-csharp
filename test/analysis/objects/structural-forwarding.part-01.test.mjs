@@ -191,10 +191,35 @@ test("physical protocol merging retains one selected producer but never chooses 
   }
   for (const [left, right] of [[checked, shape([second])], [shape([second]), checked]]) {
     const merged = mergeCsharpObjectShapeSubjects(left, right).members[0];
-    assert.equal(merged.sourceDeclarations === undefined, true,
+    assert.equal(merged.sourceDeclarations?.length === 0, true,
       "a physical shared carrier cannot select the first of distinct current producers");
     assert.equal(merged.origins.length === 2 && merged.sourceSubjects.includes(first) && merged.sourceSubjects.includes(second), true,
       "historical owners remain available for the actual publication's canonical selection");
+  }
+});
+
+test("demonstrated producer ambiguity survives every later producer and neutral arrival", () => {
+  const targetType = Object.freeze({ kind: "target-named", id: "tsonic.shape:sticky-producer",
+    csharpAllowsRefLikeTypeArguments: Object.freeze([]) });
+  const declarations = [Object.freeze({}), Object.freeze({}), Object.freeze({})];
+  const member = Object.freeze({ sourceKey: Object.freeze({ kind: "property", name: "read" }),
+    sourceName: "read", targetName: "read", memberKind: "method",
+    type: csharpDelegateTargetType("System.Func", [integer], integer) });
+  const shapes = declarations.map(declaration => ({ targetType, members: [{ ...member,
+    origins: [{ kind: "declared", declaration }], sourceDeclarations: [declaration] }] }));
+  const neutral = { targetType, members: [member] };
+  for (const order of [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]]) {
+    const [first, second, third] = order.map(index => shapes[index]);
+    for (const merged of [mergeCsharpObjectShapeSubjects(mergeCsharpObjectShapeSubjects(first, second), third),
+      mergeCsharpObjectShapeSubjects(first, mergeCsharpObjectShapeSubjects(second, third))]) {
+      for (const selected of [merged, mergeCsharpObjectShapeSubjects(merged, neutral),
+        mergeCsharpObjectShapeSubjects(neutral, merged), mergeCsharpObjectShapeSubjects(merged, first),
+        mergeCsharpObjectShapeSubjects(first, merged)]) {
+        const retained = selected.members[0];
+        assert.equal(retained.sourceDeclarations?.length === 0 && Object.isFrozen(retained.sourceDeclarations), true);
+        assert.equal(retained.origins.length === 3 && declarations.every(declaration => retained.sourceSubjects.includes(declaration)), true);
+      }
+    }
   }
 });
 

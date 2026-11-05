@@ -150,7 +150,8 @@ test("a literal wrapper cannot seal a missing physical value from its storage", 
   assert.equal(expression !== undefined, true, "the invariant uses the actual checked wrapper");
   const none = Object.freeze({ get: () => undefined });
   const literalValues = analyzeSourceLiteralValues(source.ast, [file]);
-  const analysis = analyzeCsharpValueReadStages({ ast: source.ast, sourceFiles: [file], literalValues }, {
+  const analysis = analyzeCsharpValueReadStages({ ast: source.ast, sourceFiles: [file], literalValues,
+    effectiveTypes: { get: () => undefined } }, {
     nodeTargetType: { get: node => node === expression ? primitive("int32") : undefined },
     storageTargetType: none, readStorageTargetType: none, valueRefinement: none, yield: none,
   }, { operationResultType: none, sourceMember: none });

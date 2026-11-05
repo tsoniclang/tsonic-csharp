@@ -140,10 +140,15 @@ test("an assignment without a direct C# operator is a selected form on a native 
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.deepEqual(
     compiled.result.diagnostics.map(({ code, category, source, message }) => ({ code, category, source, message })),
-    [{ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp",
-      message: "Source operator '||=' requires a dedicated C# translation policy." }],
+    [{ code: "TSONIC_LOCAL_TYPE_UNSUPPORTED", category: "error", source: "tsonic",
+      message: "A logical operator requires exact bool operands." }],
   );
   assert.equal(compiled.source.ast.kindName(compiled.result.diagnostics[0].sourceNode), "KindBinaryExpression");
+  const issue = compiled.result.diagnostics[0];
+  const ast = compiled.source.ast;
+  const range = ast.authoredRange(issue.sourceNode);
+  assert.equal(range.kind === "authored" && ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end) ===
+    'x.toString ||= () => "y"', true, "the identical original operator occurrence owns the precise Host refusal");
 });
 
 test("an update of a native unknown-valued field keeps its scalar runtime-operation refusal", () => {
@@ -155,10 +160,16 @@ test("an update of a native unknown-valued field keeps its scalar runtime-operat
     assert.equal(compiled.sourceDiagnosticsText, "");
     assert.deepEqual(
       compiled.result.diagnostics.map(({ code, message }) => ({ code, message })),
-      [{ code: "CSHARP_UNSUPPORTED_AST",
-        message: "The closed C# JS-value runtime has no operation for unary operator '++'." }],
+      [{ code: "TSONIC_LOCAL_TYPE_UNSUPPORTED",
+        message: "A unary operator requires one exact primitive operand." }],
     );
     assert.equal(compiled.source.ast.kindName(compiled.result.diagnostics[0].sourceNode), kind, `${operation}: the exact source update is rejected`);
+    const issue = compiled.result.diagnostics[0];
+    const ast = compiled.source.ast;
+    const range = ast.authoredRange(issue.sourceNode);
+    assert.equal(issue.source === "tsonic" && range.kind === "authored" &&
+      ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end) === operation, true,
+      "the exact original update node owns its unchanged refusal outcome");
     assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
       `${operation}: the source rejection precedes publication and native planning`);
   }
