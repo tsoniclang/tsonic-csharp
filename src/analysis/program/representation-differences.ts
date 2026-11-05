@@ -35,6 +35,7 @@ export function csharpRepresentationDifference(
           return selection === undefined ? [`native.representation.${revision}.returnSelection=unrecorded`] : [
             `native.representation.${revision}.generatorTargetType=${type(selection.generator)}`,
             `native.representation.${revision}.returnContract.kind=${selection.returnContractKind}`,
+            `native.representation.${revision}.returnContract.reason=${bounded(selection.returnContractReason)}`,
             `native.representation.${revision}.returnContract.type=${type(selection.returnContract)}`,
             `native.representation.${revision}.resolveCallableReturn=${type(selection.published)}`,
           ];

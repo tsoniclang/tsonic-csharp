@@ -3,7 +3,7 @@ import { rejectedTargetStage, resolvedTargetStage, type TargetDiagnostic, type T
 import { csharpConstructorBaseCall } from "./emission/constructor-entry.js";
 import { selectCsharpSourceCallableAbi, selectCsharpProjectConstructorAbi } from "./calls/source-callable-abi.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import { isCsharpSourceCallableArtifactDeclaration, targetTypeRefEquals } from "../../policy/types/index.js";
+import { isCsharpSourceCallableArtifactDeclaration, targetTypeRefEquals, targetTypeRefKey } from "../../policy/types/index.js";
 import type { CsharpTargetParameter } from "../../policy/types/index.js";
 
 import type { SourceCallableSourceContract, SourceCallableContract, CsharpSourceCallableParameterContract } from "../../target-model/records/callables/source-callable-contract.js";
@@ -41,7 +41,14 @@ export function analyzeCsharpCallableContracts(
   const contracts: SourceCallableContract[] = [];
   const creationPaths = new Map<SourceCallableContract, string>();
   const returnSelections = new Map<Node, CsharpCallableReturnSelection>();
-  const recordReturn = (declaration: Node, selection: CsharpCallableReturnSelection): void => { returnSelections.set(declaration, selection); };
+  const recordReturn = (declaration: Node, selection: CsharpCallableReturnSelection): void => {
+    returnSelections.set(declaration, selection);
+    if (selection.returnContractKind === "rejected") process.stderr.write(`${JSON.stringify({
+      fact: "native.callable.returnContract.rejected", kind: policy.ast.kindName(declaration), position: policy.ast.pos(declaration),
+      reason: selection.returnContractReason === undefined ? "unrecorded" : selection.returnContractReason.slice(0, 4096),
+      published: selection.published === undefined ? "undefined" : targetTypeRefKey(selection.published).slice(0, 4096),
+    })}\n`);
+  };
   const declarationContracts: SourceCallableSourceContract[] = [];
   const checkedDeclarations: { readonly declaration: Node; readonly sourceFile: SourceFile }[] = [];
   for (const sourceFile of policy.sourceFiles) {

@@ -17,6 +17,7 @@ export interface CsharpCallableContractPublication {
 export interface CsharpCallableReturnSelection {
   readonly generator: TargetTypeRef | undefined;
   readonly returnContractKind: string;
+  readonly returnContractReason: string | undefined;
   readonly returnContract: TargetTypeRef | undefined;
   readonly published: TargetTypeRef | undefined;
 }

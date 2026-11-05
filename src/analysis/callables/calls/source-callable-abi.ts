@@ -105,8 +105,9 @@ export function selectCsharpSourceCallableAbi(
   const published = policy.types.resolveCallableReturn(declaration);
   const declared = returnContract?.kind === "resolved" ? returnContract.type : undefined;
   recordReturn(declaration, Object.freeze({ generator, published, returnContract: declared,
-    returnContractKind: returnContract === undefined ? "absent" : returnContract.kind }));
-  const returnType = published;
+    returnContractKind: returnContract === undefined ? "absent" : returnContract.kind,
+    returnContractReason: returnContract?.kind === "rejected" ? returnContract.reason : undefined }));
+  const returnType = evidence.generator.get(declaration) === undefined ? published : generator;
   if (returnType === undefined) {
     return undefined;
   }
