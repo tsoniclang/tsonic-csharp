@@ -8,8 +8,6 @@ import type { CsharpCaptureStorage } from "../../../target-model/records/callabl
 import type { CsharpCallableCreationIndex } from "../../../target-model/records/callables/callable-values.js";
 import type { CsharpNativeParticipation, CsharpNativeParticipationInput } from "../../../target-model/records/native/native-demand.js";
 import type { CsharpSourceEvidenceIndex } from "../../../target-model/records/program/source-evidence.js";
-import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../../target-model/types/object-shape-members.js";
-import type { CsharpObjectShapeClassifications } from "../../../target-model/records/objects/object-shapes.js";
 import { requireCsharpRecord, type CsharpRequiredRecord } from "../../program/records/objects/required-records.js";
 import { isCsharpSourceCallableArtifactDeclaration } from "../../../policy/types/callables/source-callable-contract.js";
 
@@ -20,7 +18,6 @@ export interface CsharpNativeParticipationAnalysisInput {
     "sourceReferenceFor" | "callableImplementation" | "referencesWithin">;
   readonly captureClosure: CsharpCaptureStorage["captureClosure"];
   readonly callableCreation: CsharpCallableCreationIndex["callableCreation"];
-  readonly objectShapes: Pick<CsharpObjectShapeClassifications, "resolveNode">;
   readonly compileTimeMetadata: CsharpSourceEvidenceIndex["compileTimeMetadata"];
   readonly requiredRecords: CsharpRequiredRecord[];
 }
@@ -74,9 +71,7 @@ export function analyzeCsharpNativeParticipation(input: CsharpNativeParticipatio
         const owner = ast.parent(declaringType);
         if (owner === undefined || !ast.is.IsSourceFile(owner)) return "erased";
       }
-      const shape = input.objectShapes.resolveNode(declaringType, ast.getSourceFile(node));
-      const selected = shape === undefined ? undefined : resolveCsharpObjectShapeMemberBySelectedSubject(shape, [node]);
-      return selected?.kind === "resolved" && selected.member.optional === true ? "erased" : "signature";
+      return ast.questionToken(node) === undefined ? "signature" : "erased";
     }
     if (ast.is.IsCallSignatureDeclaration(node) || ast.is.IsConstructSignatureDeclaration(node) ||
       ast.is.IsFunctionTypeNode(node) || ast.is.IsConstructorTypeNode(node)) return "erased";

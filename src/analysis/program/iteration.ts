@@ -235,7 +235,7 @@ export function analyzeCsharpRepresentationIteration(
   const participation = analyzeCsharpNativeParticipation({
     ast: source.ast, storage: sourceStorage, navigation: source.navigation,
     captureClosure: captureStorage.captureClosure, callableCreation: callableCreations.callableCreation,
-    objectShapes, compileTimeMetadata: sourceEvidence.compileTimeMetadata, requiredRecords,
+    compileTimeMetadata: sourceEvidence.compileTimeMetadata, requiredRecords,
   });
   if (participation.kind === "rejected") return participation;
   const nativeParticipation = participation.value;

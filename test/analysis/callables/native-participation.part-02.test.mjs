@@ -200,6 +200,19 @@ test("the participation lookup is sealed, stable and ignores foreign nodes", () 
   assertCsharpCompilationSucceeded(value.compiled);
 });
 
+test(`${surface} optional method signature participation needs no runtime shape publication`, () => {
+  const value = analyze(`export interface Contract { required(value: number): number; optional?(value: number): number; }
+    export function run(): number { return 1; }`, surface);
+  const selected = analyzeCsharpNativeParticipation({ ast: value.ast, storage: { nodes: value.nodes, failureReason: () => undefined },
+    navigation: value.source.navigation, captureClosure: { get: () => undefined }, callableCreation: { get: () => undefined },
+    compileTimeMetadata: { get: () => false }, requiredRecords: [] });
+  assert.equal(selected.kind, "resolved");
+  const methods = value.nodes.filter(node => value.ast.is.IsMethodSignatureDeclaration(node));
+  assert.equal(methods.length, 2);
+  for (const method of methods) assert.equal(selected.value.get(method), value.ast.questionToken(method) === undefined ? "signature" : "erased",
+    "the actual callable declaration syntax owns its native artifact participation");
+});
+
 test("participation uses the bounded unique parent-before-child source domain", () => {
   const value = analyze(`
     export function f(): number {
