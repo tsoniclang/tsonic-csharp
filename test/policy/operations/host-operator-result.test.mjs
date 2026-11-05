@@ -219,6 +219,59 @@ test("D-A Native shift representation admits only implicit int32 counts and clos
 });
 
 for (const surface of ["native", "js"]) {
+  test(`${surface} D-A an all-literal int8 result retains Host and Native int8 without a generated cast`, () => {
+    const compiled = compileEffectiveSource(surface, `import type { int8 } from "@tsonic/core/types.js";
+      export function run(): int8 { const b: int8 = 1 + 2; return b; }`);
+    const generated = acceptedEffectiveSource(compiled);
+    assert.equal(compiled.targetSource.effectiveTypes.refusals().length, 0);
+    assertPrimitiveOccurrences(compiled, "b", "int8");
+    const additions = projectNodes(compiled, (node, ast) => ast.is.IsBinaryExpression(node) &&
+      ast.operatorKindName(node) === "KindPlusToken");
+    assert.equal(additions.length, 1, "the original constant sum is retained");
+    const publication = compiled.targetSource.effectiveTypes.get(additions[0]);
+    const value = compiled.result.program.records.valueRead.get(additions[0])?.value;
+    const operation = compiled.result.program.records.binaryOperation.get(additions[0])?.target;
+    assert.equal(publication !== undefined && publication.kind !== "refused" && publication.type.kind === "primitive" &&
+      publication.type.primitive === "int8", true, "the folded Source result keeps its declared int8 slot");
+    assert.equal(value?.kind === "source-primitive" && value.name === "int8", true, "Native represents the same int8 result");
+    assert.equal(operation?.kind === "resolved" && operation.resultType.kind === "source-primitive" &&
+      operation.resultType.name === "int8", true, "table admission does not replace the constant result with int32");
+    const declaration = generated.match(/\bsbyte b = ([^;]+);/u);
+    assert.equal(declaration !== null, true, "the local has native sbyte storage");
+    assert.doesNotMatch(declaration[1], /\(\s*(?:global::)?[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*\??\s*\)/u,
+      "the constant initializer needs no generated native cast");
+  });
+
+  test(`${surface} D-A the retained integer receipt and unchanged tag emission survive table admission`, () => {
+    const compiled = compileEffectiveSource(surface,
+      "export function run() { const folded = 8 / 2 + 1; const wide = 2n; return folded; }");
+    const generated = acceptedEffectiveSource(compiled);
+    assert.equal(compiled.targetSource.effectiveTypes.refusals().length, 0);
+    assertPrimitiveOccurrences(compiled, "folded", "int32");
+    const operations = projectNodes(compiled, (node, ast) => ast.is.IsBinaryExpression(node) &&
+      ["KindSlashToken", "KindPlusToken"].includes(ast.operatorKindName(node)));
+    assert.equal(operations.length, 2, "division and addition both remain actual admitted operations");
+    for (const node of operations) {
+      const publication = compiled.targetSource.effectiveTypes.get(node);
+      const value = compiled.result.program.records.valueRead.get(node)?.value;
+      const operation = compiled.result.program.records.binaryOperation.get(node)?.target;
+      assert.equal(publication !== undefined && publication.kind !== "refused" && publication.type.kind === "primitive" &&
+        publication.type.primitive === "int32", true, "each constant operation publishes Host int32");
+      assert.equal(value?.kind === "source-primitive" && value.name === "int32", true, "each Native value represents Host int32");
+      assert.equal(operation?.kind === "resolved" && operation.resultType.kind === "source-primitive" &&
+        operation.resultType.name === "int32", true, "folding never bypasses operation admission");
+    }
+    const ast = compiled.targetSource.ast;
+    const addition = operations.find(node => ast.operatorKindName(node) === "KindPlusToken");
+    assert.equal(addition !== undefined, true, "the original addition owns the complete integer receipt");
+    const file = ast.getSourceFile(addition);
+    assert.equal(file !== undefined, true, "the receipt belongs to the actual checked source file");
+    const receipt = analyzeSourceLiteralValues(ast, [file]).literalValue.get(addition);
+    assert.equal(receipt?.form === "binary" && receipt.integerConstant === 5n, true, "the canonical Source integer receipt is exactly 5n");
+    assert.equal(generated.includes("int folded = 8 / 2 + 1;"), true,
+      "the exact unchanged tag form remains one native constant expression");
+  });
+
   test(`${surface} D-A all six shifts fill open counts without using a declared count to fill the left value`, () => {
     const operators = ["<<", ">>", ">>>", "<<=", ">>=", ">>>="];
     const bodies = operators.map((operator, index) => `export function run${index}(): boolean {
