@@ -81,7 +81,7 @@ test("literal admission uses the retained authored value and rejects before publ
     assert.equal(node === site, true, "the literal input is the exact retained value occurrence");
     return literal;
   } } } };
-  const issue = checkCsharpSourceTypeFlowObligation(host, { kind: "literal-admission", site, required: site, value: site, type: primitive("int32") });
+  const issue = checkCsharpSourceTypeFlowObligation(host, { kind: "literal-admission", authority: "declared", site, required: site, value: site, type: primitive("int32") });
   assert.equal(issue?.sourceNode === site && issue.code === "CSHARP_UNSUPPORTED_AST" && issue.source === "tsonic-csharp", true);
   assert.equal(issue.message, "Source bigint literal is outside the exact 'int32' range.");
   assert.equal(reads, 1, "no late source query or literal reconstruction");
@@ -235,7 +235,7 @@ test("aggregate literal admission consumes the existing Native construction rece
       "the actual aggregate occurrence and Host-selected carrier reach the existing Native admission owner");
     return { kind: "resolved", type: carrier };
   } };
-  const obligation = { kind: "literal-admission", site, required: site,
+  const obligation = { kind: "literal-admission", authority: "declared", site, required: site,
     type: { kind: "array", readonly: false, element: primitive("int32") } };
   assert.equal(checkCsharpSourceTypeFlowObligation(host, obligation) === undefined && queries === 1, true,
     "the actual producer's site-only literal obligation needs no fabricated Host value field");
