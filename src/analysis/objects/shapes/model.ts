@@ -22,6 +22,7 @@ export interface CsharpRecursiveObjectShapePolicy extends CsharpObjectShapePolic
   retainConstructionSource(node: Node, type: Type, shape: CsharpObjectShapeFact, sourceFile: SourceFile): CsharpObjectShapeFact | undefined;
   resolveReference(type: Type): TargetTypeRef | undefined;
   resolveUnion(type: Type, sourceFile: SourceFile, state: CsharpTypeResolutionState): CsharpStructuralUnionResolution;
+  publishedShapeTarget(node: Node): TargetTypeRef | undefined;
   resolveNodeWithState(
     node: Node | undefined,
     sourceFile: SourceFile | undefined,

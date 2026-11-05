@@ -123,7 +123,7 @@ export function createCsharpObjectShapePolicy(
       if (isCsharpRecordDictionaryTargetType(getCsharpNullableElementTargetType(selectedTarget) ?? selectedTarget)) return undefined;
       const selectedShape = resolveTarget(selectedTarget);
       if (selectedShape !== undefined && selectedShape.constructible !== true &&
-        selectCsharpHostLiteralCorrespondence(host.ast, node, host.effectiveTypes.get(node), selectedShape).kind === "proven") {
+        selectCsharpHostLiteralCorrespondence(host.ast, node, host.effectiveTypes.get(node), selectedShape, selectedTarget).kind === "proven") {
         return state.sourceBindings === undefined ? remember(node, selectedShape) : rememberTargetShape(selectedShape);
       }
       if (selectedShape !== undefined && source.type !== undefined) {
@@ -678,6 +678,8 @@ export function createCsharpObjectShapePolicy(
     resolveUnion: unionDefinitions.resolve,
     resolveNode,
     resolveNodeWithState,
+    // The Host-published target type of a node's shape: the instantiation a Host correspondence is proven against.
+    publishedShapeTarget: (node: Node) => resolvePublishedShapeType(node, { depth: 0 }),
     resolveTarget,
     resolveType,
     resolveTypeMember,

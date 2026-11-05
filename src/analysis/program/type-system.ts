@@ -266,6 +266,7 @@ export function createCsharpTypeAnalysis(
     resolveShape: system.objectShapes.resolveType,
     resolveLiteralShape: system.objectShapes.resolveObjectLiteralTargetShape,
     retainSourceShape: system.objectShapes.retainConstructionSource,
+    publishedShapeTarget: system.objectShapes.publishedShapeTarget,
   });
   return Object.freeze({ ...system, nativeConstruction });
 }

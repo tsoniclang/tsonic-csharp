@@ -5,6 +5,7 @@ import type { CsharpNativeDemandAnalysis } from "../../target-model/records/nati
 import type { CsharpExactLiteralSelectionIndex } from "../../target-model/conversions/exact-literals.js";
 import type { CsharpValueReadClassifications } from "../../target-model/records/operations/conversions.js";
 import { csharpStringTargetType, csharpBigIntegerTargetType, targetTypeRefEquals } from "../../target-model/types/index.js";
+import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { createCsharpLiteralEmissionProducer } from "../program/records/operations/literal-emission.js";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 
@@ -38,7 +39,9 @@ export function analyzeCsharpLiteralAdmission(input: { readonly ast: AstReader; 
       const castFloat64 = use.kind === "converted" && use.mode === "explicit" && use.input.kind === "value" &&
         use.input.type.kind === "source-primitive" && use.input.type.name === "float64";
       if ((carrier?.kind === "source-primitive" && carrier.name === "float64" || castFloat64) && number !== undefined) {
-        producer.publish(node, { kind: "float64", value: number }); published.add(node);
+        const integralToken = !castFloat64 && csharpTargetTypedIntegralToken(input.ast, node, target);
+        producer.publish(node, { kind: "float64", value: number, ...(integralToken ? { integralToken: true as const } : {}) });
+        published.add(node);
       } else if (selected?.kind === "resolved") {
         producer.publish(node, { kind: "exact", recipe: selected.recipe }); published.add(node);
       } else refuse(node, selected?.kind === "rejected" ? selected.reason : "Numeric literal emission requires parseable finite source literal text from TSTS.");
@@ -60,4 +63,22 @@ export function analyzeCsharpLiteralAdmission(input: { readonly ast: AstReader; 
         `${input.ast.is.IsTemplateExpression(node) ? "Template string emission" : "No-substitution template literal emission"} requires a finalized System.String runtime carrier fact before C# emission.`);
   }
   return Object.freeze({ records: producer.seal(), issues: Object.freeze(issues) });
+}
+
+// Decision 4 (maintainer, C-2314: restore 28j'): an authored decimal integer token, |value| <= 2^53, whose use converts to
+// exactly double (not a broad object/unknown/generic or nullable carrier) is printed as written where C# target-types the
+// literal: a declaration or field initializer, an assignment's right side, or a returned value. C# then converts the
+// integer constant to the destination double exactly. Everywhere else the token keeps D, so its own C# type never takes
+// part in overload resolution, inference or boxing.
+function csharpTargetTypedIntegralToken(ast: AstReader, node: Node, destination: TargetTypeRef | undefined): boolean {
+  if (destination?.kind !== "source-primitive" || destination.name !== "float64") return false;
+  const text = ast.text(node);
+  if (!/^[0-9]+$/u.test(text) || BigInt(text) > 9007199254740992n) return false;
+  const parent = ast.parent(node);
+  if (parent === undefined) return false;
+  if (ast.is.IsVariableDeclaration(parent)) return ast.as.AsVariableDeclaration(parent)?.Initializer === node;
+  if (ast.is.IsPropertyDeclaration(parent)) return ast.as.AsPropertyDeclaration(parent)?.Initializer === node;
+  if (ast.is.IsReturnStatement(parent)) return true;
+  return ast.is.IsBinaryExpression(parent) && ast.operatorKindName(parent) === "KindEqualsToken" &&
+    ast.as.AsBinaryExpression(parent)?.Right === node;
 }

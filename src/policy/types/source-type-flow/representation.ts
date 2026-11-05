@@ -1,6 +1,6 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetSelection } from "@tsonic/target-api";
-import type { SourceTypeDescriptor } from "@tsonic/target-api/source";
+import type { SourceTypeDescriptor, SourceTypeDescriptorSignature } from "@tsonic/target-api/source";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpTypeParameterEnvironment } from "../../../target-model/records/types/type-parameter-constraints.js";
 import { csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpObjectTargetType, csharpVoidTargetType, csharpNeverTargetType, csharpBigIntegerTargetType } from "../../../target-model/types/carriers/scalar-types.js";
@@ -53,6 +53,15 @@ function representDescriptor(
 ): TargetTypeRef | undefined {
   if (active.has(descriptor)) return undefined;
   active.add(descriptor);
+  const representConstructor = (constructs: readonly SourceTypeDescriptorSignature[]): TargetTypeRef | undefined => {
+    const results: TargetTypeRef[] = [];
+    for (const signature of constructs) {
+      const result = representDescriptor(host, signature.result, active);
+      if (result === undefined) return undefined;
+      results.push(result);
+    }
+    return host.constructorType(constructs, Object.freeze(results));
+  };
   try {
     switch (descriptor.kind) {
       case "primitive":
@@ -80,15 +89,7 @@ function representDescriptor(
         return members.length === 0 ? undefined : combineCsharpTargetUnionMembers(members);
       }
       case "callable": {
-        if (descriptor.calls.length === 0 && descriptor.constructs.length !== 0) {
-          const results: TargetTypeRef[] = [];
-          for (const signature of descriptor.constructs) {
-            const result = representDescriptor(host, signature.result, active);
-            if (result === undefined) return undefined;
-            results.push(result);
-          }
-          return host.constructorType(descriptor.constructs, Object.freeze(results));
-        }
+        if (descriptor.calls.length === 0 && descriptor.constructs.length !== 0) return representConstructor(descriptor.constructs);
         const signature = descriptor.calls.length === 1 && descriptor.constructs.length === 0 ? descriptor.calls[0] : undefined;
         if (signature === undefined) return undefined;
         const parameters: TargetTypeRef[] = [];
@@ -132,7 +133,10 @@ function representDescriptor(
       }
       case "shape": {
         if (!Array.isArray(descriptor.indexes)) return undefined;
-        if (descriptor.calls.length !== 0 || descriptor.constructs.length !== 0) return undefined;
+        // A shape with construct signatures and no call signatures is a constructor value (a class's static side):
+        // its native representation is the constructed type's static receiver, as for a callable with only constructs.
+        if (descriptor.calls.length === 0 && descriptor.constructs.length !== 0) return representConstructor(descriptor.constructs);
+        if (descriptor.calls.length !== 0) return undefined;
         if (descriptor.indexes.length !== 0) {
           let key: TargetTypeRef | undefined;
           let value: TargetTypeRef | undefined;

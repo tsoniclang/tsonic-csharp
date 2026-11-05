@@ -249,7 +249,13 @@ function fixture() {
     return { compatible, program, types, shapes, queries, equivalentType };
   };
   const host = {
-    providers: { resolveType(fact) {
+    // The real conversion path for a preselected carrier reads supertypes and provider bindings; this unit
+    // boundary declares neither, so both lookups are empty.
+    projectTypes: { directSupertypes: () => undefined },
+    providers: {
+      findTargetBindingByTargetId: () => ({ kind: "missing" }),
+      findTargetBindingByMetadataName: () => ({ kind: "missing" }),
+      resolveType(fact) {
       assert.equal(fact.providerModuleId === "Fixture.Native" && fact.exportId === "ContextRow", true,
         "the Native leaf resolver receives the real compiler-produced provider declaration fact");
       return { kind: "resolved", relations: [{ kind: "type",

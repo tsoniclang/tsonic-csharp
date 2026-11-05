@@ -179,8 +179,16 @@ export function createCsharpSourceTypeRepresentationHost(
       const profile = classifyCsharpSourceProfileDeclaration(declaration, host.ast);
       if (profile !== undefined) return scope.resolveSourceProfileType(profile, typeArguments);
       const selected = queries.declarations.declaredType(declaration);
-      const bindings = selected === undefined ? undefined : queries.types.typeArgumentBindings(selected);
       const parameters = csharpSourceTypeParameters(declaration, host.ast);
+      // The published descriptor's typeArguments instantiate the declaration's own type parameters, in order. A type
+      // alias's declared type carries no reference bindings, so its parameters bind directly.
+      const declaredBindings = selected === undefined ? undefined : queries.types.typeArgumentBindings(selected);
+      const ownBindings = declaredBindings === undefined && parameters.length === typeArguments.length &&
+        parameters.every(parameter => parameter !== undefined)
+        ? parameters.map(parameter => ({ declaration: parameter!, argumentType: queries.declarations.declaredType(parameter!) }))
+        : undefined;
+      const bindings = ownBindings?.every(binding => binding.argumentType !== undefined)
+        ? ownBindings.map(binding => ({ declaration: binding.declaration, argumentType: binding.argumentType! })) : declaredBindings;
       if ((bindings?.length ?? 0) !== typeArguments.length) return undefined;
       const representedState = csharpSourceBindings((bindings ?? []).map(binding => binding.declaration),
         (bindings ?? []).map(binding => binding.argumentType), typeArguments, state);

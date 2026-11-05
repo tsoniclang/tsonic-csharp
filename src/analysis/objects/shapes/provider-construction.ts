@@ -293,7 +293,8 @@ export function csharpProviderSelectsNumericStorage(
     : [property.type];
   if (members.length === 0 || !members.every(type => input.queries.types.isNumberLike(type))) return false;
   const subjects = [...members.flatMap(type => input.queries.facts.typeSubjects(type)),
-    ...sourcePropertyTypeEvidenceNodes(input.host.ast, input.queries, property)];
+    ...sourcePropertyTypeEvidenceNodes(input.host.ast, input.queries, property),
+    ...assertedInitializerTypeNodes(input.host.ast, input.queries, property)];
   return subjects.every(subject => input.host.sourceFacts?.getFact(subject, sourcePrimitiveFactKey) === undefined);
 }
 
@@ -353,4 +354,23 @@ function providerMemberConstructionRelationsEqual(
     bindingTypeParameters: right.bindingTypeParameters,
     bindingTypeArgumentSource: right.bindingTypeArgumentSource,
   });
+}
+
+// An object-literal property has no annotation; an explicitly asserted initializer (`1 as float64`) is its authored
+// type evidence, so an explicit Source primitive is never narrowed into provider numeric storage.
+function assertedInitializerTypeNodes(
+  ast: CsharpTypePolicyBaseHost["ast"],
+  queries: SourceFileSemantics,
+  property: TypePropertyInfo,
+): readonly Node[] {
+  const result: Node[] = [];
+  for (const declaration of queries.declarations.symbolDeclarations(property.symbol)) {
+    if (declaration === undefined || !ast.is.IsPropertyAssignment(declaration)) continue;
+    let value = ast.as.AsPropertyAssignment(declaration)?.Initializer;
+    while (value !== undefined && ast.is.IsParenthesizedExpression(value)) value = ast.as.AsParenthesizedExpression(value)?.Expression;
+    if (value === undefined || !(ast.is.IsAsExpression(value) || ast.is.IsSatisfiesExpression(value) || ast.is.IsTypeAssertion(value))) continue;
+    const asserted = ast.typeNode(value);
+    if (asserted !== undefined) result.push(asserted);
+  }
+  return result;
 }

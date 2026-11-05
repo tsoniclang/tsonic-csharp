@@ -22,6 +22,7 @@ interface CsharpNativeConstructionHost extends Pick<CsharpTypePolicyBaseHost,
   resolveShape(type: Type, file: SourceFile, authoredTypeRoot?: Node): CsharpObjectShapeFact | undefined;
   resolveLiteralShape(shape: CsharpObjectShapeFact, node: Node, file: SourceFile): CsharpObjectLiteralTargetShapeResolution;
   retainSourceShape(node: Node, type: Type, shape: CsharpObjectShapeFact, file: SourceFile): CsharpObjectShapeFact | undefined;
+  publishedShapeTarget(node: Node): TargetTypeRef | undefined;
   scopedTargetType(node: Node): TargetTypeRef | undefined;
 }
 
@@ -102,7 +103,7 @@ export function createCsharpNativeConstructionDemandQuery(
         relation.kind === "type" && relation.objectLiteralConstruction?.kind === "object-initializer");
     });
     // Native provider constructions keep their provider proof below.
-    const correspondence = native ? undefined : selectCsharpHostLiteralCorrespondence(host.ast, node, effective, expected);
+    const correspondence = native ? undefined : selectCsharpHostLiteralCorrespondence(host.ast, node, effective, expected, host.publishedShapeTarget(node));
     if (correspondence?.kind === "rejected") {
       issue(node, "CSHARP_NATIVE_CONSTRUCTION_NOT_PROVEN", correspondence.reason);
       return;

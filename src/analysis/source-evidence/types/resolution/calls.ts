@@ -449,8 +449,11 @@ export function resolveSourceCallReceiverTargetType(
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
   const { host, resolveSelectedReceiverTargetType, resolveSourceOwnedConstructionResult, resolveTypeWithState, resolveNodeWithState } = scope;
-  const effective = resolveCsharpSourceEffectiveType(scope, source.call, state);
-  if (effective !== undefined) return effective.result?.selectedType;
+  // Only a construction's published result is its receiver; a method call's receiver is its receiver expression.
+  if (host.ast.is.IsNewExpression(source.call)) {
+    const effective = resolveCsharpSourceEffectiveType(scope, source.call, state);
+    if (effective !== undefined) return effective.result?.selectedType;
+  }
   if (host.ast.kindName(source.sourceCallee.expression) === "KindSuperKeyword") {
     return resolveProjectConstructingReceiverTargetType(scope, source.sourceCallee.expression);
   }
