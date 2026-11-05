@@ -1,7 +1,7 @@
 import { providerVirtualDeclarationFactKey, sourcePrimitiveFactKey } from "@tsonic/tsts";
 import type { Node, Type, TypePropertyInfo } from "@tsonic/tsts";
-import type { SourceFileSemantics, SourceTypeDescriptor } from "@tsonic/target-api/source";
-import { sourcePropertyTypeEvidenceNodes } from "@tsonic/target-api/source";
+import type { SourceFileSemantics, SourceTypeDescriptor, SourceTypeDescriptorMember } from "@tsonic/target-api/source";
+import { sourcePropertyTypeEvidenceNodes, sourceTypeDescriptorMemberOriginsEqual, sourceTypeDescriptorStructure } from "@tsonic/target-api/source";
 import type { CsharpProviderTargetRelation } from "../../../target-model/identities/provider-relations.js";
 import { canonicalProviderValue } from "../../../target-model/metadata/canonical-value.js";
 import { csharpTargetTypeFromBinding } from "../../../policy/types/storage/bindings.js";
@@ -36,21 +36,26 @@ interface CsharpProviderObjectLiteralInput {
   readonly descriptor: SourceTypeDescriptor;
   readonly occurrence: Node;
   readonly host: CsharpProviderObjectLiteralHost;
-  resolvePropertyType(
+  publishedShapeDescriptor(occurrence: Node): SourceTypeDescriptor | undefined;
+  resolvePublishedProperty(
     property: TypePropertyInfo,
     descriptor: SourceTypeDescriptor,
     occurrence: Node,
     queries: SourceFileSemantics,
     state: CsharpTypeResolutionState,
-  ): TargetTypeRef | undefined;
+  ): { readonly member: SourceTypeDescriptorMember; readonly type: TargetTypeRef } | undefined;
 }
 
 export function resolveProviderObjectLiteralShape(
   input: CsharpProviderObjectLiteralInput,
 ): CsharpObjectShapeFact | undefined {
-  if (input.selectedTarget?.kind !== "target-named") {
+  if (input.selectedTarget?.kind !== "target-named" ||
+    input.publishedShapeDescriptor(input.occurrence) !== input.descriptor) {
     return undefined;
   }
+  const structure = sourceTypeDescriptorStructure(input.descriptor);
+  if (structure.kind !== "shape" || structure.indexes.length !== 0 || structure.calls.length !== 0 ||
+    structure.constructs.length !== 0) return undefined;
   const typeRelation = resolveProviderTypeRelation(input);
   if (typeRelation === undefined) {
     return undefined;
@@ -76,7 +81,9 @@ export function resolveProviderObjectLiteralShape(
       targetArguments[index]!,
     ]),
   );
-  const members = input.queries.types.propertyInfos(input.type).map((property) =>
+  const properties = input.queries.types.propertyInfos(input.type);
+  if (properties.length !== structure.members.length) return undefined;
+  const members = properties.map((property) =>
     deriveProviderObjectLiteralMember(
       property,
       typeRelation,
@@ -87,6 +94,8 @@ export function resolveProviderObjectLiteralShape(
   if (members.some((member) => member === undefined)) {
     return undefined;
   }
+  if (structure.members.some(published => members.filter(member => member?.origins?.length === 1 &&
+    sourceTypeDescriptorMemberOriginsEqual(member.origins[0]!, published.origin)).length !== 1)) return undefined;
   return {
     targetType: input.selectedTarget,
     sourceType: input.type,
@@ -211,20 +220,19 @@ function deriveProviderObjectLiteralMember(
   if (!sourceMemberMatches) {
     return undefined;
   }
-  const rawSourceTarget = input.resolvePropertyType(
+  const published = input.resolvePublishedProperty(
     property,
     input.descriptor,
     input.occurrence,
     input.queries,
     input.state,
   );
+  const structure = sourceTypeDescriptorStructure(input.descriptor);
+  if (published === undefined || structure.kind !== "shape" || !structure.members.includes(published.member) ||
+    published.member.optional !== property.optional || (published.member.readonly === true) !== property.readonly) return undefined;
   const optional = property.optional ||
     typeIncludesNullish(property.type, input.queries);
-  const sourceTarget = rawSourceTarget === undefined
-    ? undefined
-    : optional
-      ? csharpNullableTargetType(rawSourceTarget)
-      : rawSourceTarget;
+  const sourceTarget = optional ? csharpNullableTargetType(published.type) : published.type;
   const memberTarget = relation.targetMember.returnType === undefined
     ? undefined
     : substituteTargetTypeParameters(
@@ -238,10 +246,9 @@ function deriveProviderObjectLiteralMember(
         substitutions,
       );
   const targetReadonly = relation.targetMember.readonly === true;
-  const exactNumericStorage = sourceTarget !== undefined && memberTarget !== undefined &&
+  const exactNumericStorage = memberTarget !== undefined &&
     csharpProviderSelectsNumericStorage(property, sourceTarget, memberTarget, input);
   if (
-    sourceTarget === undefined ||
     memberTarget === undefined ||
     declaringTarget === undefined ||
     (!targetTypeRefEquals(sourceTarget, memberTarget) &&
@@ -254,6 +261,7 @@ function deriveProviderObjectLiteralMember(
   return {
     sourceKey,
     sourceName: csharpSourceMemberDisplayName(sourceKey),
+    origins: Object.freeze([published.member.origin]),
     sourceSubjects: Object.freeze([...new Set([
       property.symbol,
       ...property.rootSymbols,

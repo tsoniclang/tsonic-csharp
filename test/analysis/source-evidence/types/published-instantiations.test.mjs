@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createCompilerSessionFromFiles } from "@tsonic/tsts";
+import { createCompilerSessionFromFiles, providerVirtualDeclarationFactKey } from "@tsonic/tsts";
 import { createTargetSourceProgram, sourceTypeDescriptorMemberOriginsEqual, sourceTypeDescriptorStructure } from "@tsonic/target-api/source";
 import { resolveCsharpSourceTypeDescriptor } from "../../../../dist/analysis/source-evidence/types/resolution/effective-types.js";
 import { resolveCsharpProjectionArguments } from "../../../../dist/analysis/source-evidence/types/resolution/projection-arguments.js";
 import { createCsharpSourceUnionDefinitions } from "../../../../dist/analysis/source-evidence/types/resolution/union-definitions.js";
 import { createCsharpObjectShapeMemberResolver } from "../../../../dist/analysis/objects/shapes/member-evidence.js";
+import { createCsharpObjectShapePolicy } from "../../../../dist/analysis/objects/shapes/api.js";
+import { resolveProviderObjectLiteralShape } from "../../../../dist/analysis/objects/shapes/provider-construction.js";
 import { createCsharpLiteralShapeResolver } from "../../../../dist/analysis/objects/shapes/literal-construction.js";
 import { selectCsharpHostLiteralCorrespondence } from "../../../../dist/analysis/objects/shapes/host-correspondence.js";
 import { createCsharpProjectShapeProjection } from "../../../../dist/analysis/objects/shapes/project-construction.js";
@@ -17,10 +19,82 @@ import { csharpSourceTypeParameter } from "../../../../dist/source/extension/typ
 import { csharpProjectedType } from "../../../../dist/target-model/types/projections.js";
 import { targetTypeRefEquals } from "../../../../dist/target-model/types/equality.js";
 import { assertCsharpCompilationSucceeded, compileCsharpSource, withCsharpSessionRequest } from "../../../helpers/direct-csharp-session.mjs";
-import { csharpProgramSourceFiles } from "../../../helpers/program-source-files.mjs";
+import { csharpProgramObjectLiteralShapes, csharpProgramSourceFiles } from "../../../helpers/program-source-files.mjs";
+import { createTsonicPlugin as nodejsCapability } from "../../../../../csharp-nodejs/dist/index.js";
 
 const unexpected = () => assert.fail("a published instantiation never reopens checker types or a competing member inventory");
 const primitive = name => ({ kind: "primitive", primitive: name });
+
+function providerMemberFixture(empty = false, aliased = false) {
+  const checked = createCompilerSessionFromFiles({ currentDirectory: "/src", files: { "/src/index.ts": `
+    interface ${aliased ? "Original" : "Options"} { ${empty ? "" : "mode?: number;"} }
+    ${aliased ? "type First = Original; type Options = First;" : ""}
+    interface Foreign { mode?: number; }
+    declare const options: Options; declare const foreign: Foreign;
+    function read(): Options { return options; } function readForeign(): Foreign { return foreign; }
+    function make(): Options { return {}; }
+  ` }, compilerOptions: { strict: true, target: "es2022", module: "esnext" } }).checkSource();
+  assert.equal(checked.diagnostics.length, 0);
+  const source = createTargetSourceProgram(checked);
+  const file = checked.getSourceFile("/src/index.ts");
+  const queries = source.semantics.forFile(file);
+  const nodes = [];
+  const visit = node => { nodes.push(node); source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); }); };
+  visit(file);
+  const returned = name => nodes.find(node => source.ast.is.IsIdentifier(node) && source.ast.text(node) === name &&
+    source.ast.is.IsReturnStatement(source.ast.parent(node)));
+  const occurrence = returned("options");
+  const foreign = returned("foreign");
+  const literal = nodes.find(node => source.ast.is.IsObjectLiteralExpression(node));
+  let publication = source.effectiveTypes.get(occurrence);
+  assert.equal(publication !== undefined && publication.kind !== "refused" && publication.type.kind === "declared", true);
+  const descriptor = publication.type;
+  const structure = sourceTypeDescriptorStructure(descriptor);
+  assert.equal(structure.kind === "shape" && structure.members.length === (empty ? 0 : 1), true);
+  const type = queries.types.expressionType(occurrence);
+  const properties = queries.types.propertyInfos(type);
+  const typeSubjects = queries.facts.typeSubjects(type);
+  const typeFact = Object.freeze({ id: "Options" });
+  const memberFact = Object.freeze({ id: "Options.mode" });
+  const target = { kind: "target-named", id: "test.Provider.Options", csharpAllowsRefLikeTypeArguments: [] };
+  const storage = csharpNullableTargetType(csharpSourcePrimitiveTargetType("int32"));
+  const binding = { id: target.id, target: "csharp", csharpType: target };
+  const sourceIdentity = { providerId: "fixture", providerVersion: "1", providerModuleId: "options", moduleSpecifier: "fixture",
+    exportId: "Options", exportName: "Options" };
+  const represent = described => {
+    if (described.kind === "declared" && described.declaration === descriptor.declaration) return target;
+    const selected = sourceTypeDescriptorStructure(described);
+    if (selected.kind === "primitive") return csharpSourcePrimitiveTargetType(selected.primitive);
+    const value = selected.kind === "optional" ? represent(selected.value) : undefined;
+    return value === undefined ? undefined : csharpNullableTargetType(value);
+  };
+  const host = { ast: source.ast, navigation: source.navigation, effectiveTypes: { get: node => node === occurrence ? publication : source.effectiveTypes.get(node) },
+    semantics: source.semantics.forFile, semanticsFor: source.semantics.forNode, hasSemantics: source.semantics.includes,
+    sourceFacts: { getFact(subject, key) {
+      if (key === providerVirtualDeclarationFactKey) {
+        if (subject === descriptor.declaration || typeSubjects.includes(subject)) return typeFact;
+        if (properties.some(property => subject === property.symbol || property.rootSymbols.includes(subject))) return memberFact;
+      }
+      return source.sourceFacts.getFact(subject, key);
+    } },
+    providers: {
+      resolveType: () => ({ kind: "resolved", relations: [{ kind: "type", targetBinding: binding,
+        source: { kind: "type", ...sourceIdentity }, bindingTypeParameters: [], objectLiteralConstruction: { kind: "object-initializer" } }] }),
+      resolveMember: () => ({ kind: "resolved", relations: [{ kind: "member", targetBinding: binding,
+        source: { kind: "member", ...sourceIdentity, memberId: "Options.mode", memberStatic: false, memberKey: { kind: "property-key", name: "mode" } },
+        targetMember: { kind: "property", id: "native.mode", targetName: "nativeMode", declaringType: target, parameters: [], returnType: storage },
+        receiver: { kind: "instance" }, bindingTypeParameters: [], bindingTypeArgumentSource: "receiver" }] }),
+    },
+    typeResolver: { resolveDescriptor: represent },
+    projectTypeCatalog: { definitionForDeclaration: () => undefined, definitionForTarget: () => undefined },
+    typeParameterConstraints: { resolve: unexpected },
+  };
+  const resolver = createCsharpObjectShapeMemberResolver(host);
+  const input = { type, descriptor, occurrence, queries, host, selectedTarget: target, state: { depth: 0 },
+    publishedShapeDescriptor: resolver.publishedShapeDescriptor, resolvePublishedProperty: resolver.resolvePublishedProperty };
+  return { source, file, occurrence, foreign, literal, publication, descriptor, structure, properties, resolver, input, target, storage,
+    publish: selected => { publication = selected; } };
+}
 
 function fixture() {
   const checked = createCompilerSessionFromFiles({ currentDirectory: "/src", files: { "/src/index.ts": `
@@ -678,5 +752,164 @@ test("literal construction keeps canonical origins and Native storage without re
     assert.equal(selectCsharpHostLiteralCorrespondence(source.ast, literal, complete, ambiguous, storage).kind === "rejected", true,
       "two distinct destination members matching the same current origin remain an ambiguous rejection");
   }
+  }
+});
+
+test("canonical provider members retain their published origin and the proven nullable native ABI", () => {
+  const input = providerMemberFixture();
+  const selected = input.resolver.resolvePublishedProperty(input.properties[0], input.descriptor, input.occurrence,
+    input.input.queries, { depth: 0 });
+  assert.equal(selected?.member === input.structure.members[0], true, "the original published member is not reconstructed");
+  assert.equal(input.resolver.deriveMembers(input.descriptor, input.occurrence, input.input.queries, { depth: 0 }, input.target) === undefined,
+    true, "an unprepared provider representation cannot be guessed from a descriptor");
+  const shape = input.resolver.resolveProviderShape(input.input.type, input.descriptor, input.occurrence,
+    input.input.queries, { depth: 0 }, input.target);
+  assert.equal(shape !== undefined && shape.members.length === 1, true);
+  const member = shape.members[0];
+  assert.equal(member.origins?.length === 1 && member.origins[0] === input.structure.members[0].origin, true);
+  assert.equal(member.type === input.storage && member.optional === true && member.exactNumericStorage === true &&
+    member.targetName === "nativeMode", true, "number is represented by the selected nullable int32 field, not a second Source width choice");
+  const retained = input.resolver.retainPublishedMembers(shape.members, input.descriptor, input.occurrence,
+    input.input.queries, { depth: 0 }, input.target);
+  assert.equal(retained?.length === 1 && retained[0].type === input.storage && retained[0].origins[0] === member.origins[0] &&
+    retained[0].exactNumericStorage === true && retained[0].optional === true && retained[0].targetName === "nativeMode", true);
+  assert.equal(input.resolver.deriveMembers(input.descriptor, input.occurrence, input.input.queries,
+    { depth: 0 }, { ...input.target })?.[0].type === input.storage, true, "the same represented target identity consumes the completed ABI");
+  assert.equal(input.resolver.deriveMembers(input.descriptor, input.occurrence, input.input.queries,
+    { depth: 0 }, { ...input.target, id: "test.Provider.Other" }) === undefined, true, "a different target has no completed representation");
+  assert.equal(input.resolver.resolveProviderShape(input.input.type, input.descriptor, input.occurrence,
+    input.input.queries, { depth: 0 }, { ...input.target, id: "test.Provider.Other" }) === undefined &&
+    input.resolver.deriveMembers(input.descriptor, input.occurrence, input.input.queries,
+      { depth: 0 }, input.target)?.[0].type === input.storage, true, "a rejected different target does not poison the actual target's contract");
+  assert.equal(input.resolver.deriveMembers({ ...input.descriptor }, input.occurrence, input.input.queries,
+    { depth: 0 }, input.target) === undefined, true, "equal descriptor structure does not reuse another published object's ABI");
+  input.publish(input.source.effectiveTypes.get(input.foreign));
+  assert.equal(input.resolver.deriveMembers(input.descriptor, input.occurrence, input.input.queries,
+    { depth: 0 }, input.target) === undefined, true, "an old complete entry never overrides this occurrence's current publication");
+  input.publish(input.publication);
+  for (const changed of [{ ...member, type: csharpNullableTargetType(csharpSourcePrimitiveTargetType("int64")) },
+    { ...member, type: csharpSourcePrimitiveTargetType("int32") }, { ...member, origins: undefined },
+    { ...member, targetName: "anotherField" }]) assert.equal(
+      input.resolver.retainPublishedMembers([changed], input.descriptor, input.occurrence, input.input.queries, { depth: 0 }, input.target) === undefined,
+      true, "canonical origins never waive the actual provider ABI, absence or destination member");
+  assert.equal(typeof input.resolver.resolvePropertyType, "undefined", "there is no raw-carrier-only provider callback");
+});
+
+test("canonical provider inventories reject missing, foreign, ambiguous and incomplete publication including empty contracts", () => {
+  const input = providerMemberFixture();
+  const select = (descriptor = input.descriptor) => resolveProviderObjectLiteralShape({ ...input.input, descriptor });
+  assert.equal(select() !== undefined, true);
+  input.publish(undefined);
+  assert.equal(select() === undefined, true, "a checked provider binding is not a Source publication");
+  input.publish(input.source.effectiveTypes.get(input.foreign));
+  assert.equal(select() === undefined, true, "the same spelling in another real owner cannot authorize this occurrence");
+  input.publish(input.publication);
+  assert.equal(select({ ...input.descriptor }) === undefined, true, "a copied descriptor is not this published descriptor");
+  const ast = input.input.host.ast;
+  input.input.host.ast = { ...ast, getSourceFile: node => node === input.structure.members[0].origin.declaration ? undefined : ast.getSourceFile(node) };
+  assert.equal(select() === undefined, true, "a fileless member cannot be rebound through the querying file");
+  input.input.host.ast = ast;
+  for (const members of [[], [...input.structure.members, ...input.structure.members]]) {
+    const descriptor = { ...input.descriptor, definition: { ...input.structure, members } };
+    input.publish({ ...input.publication, type: descriptor });
+    assert.equal(select(descriptor) === undefined, true, "the entire published member inventory must match exactly once");
+    if (members.length > 0) assert.equal(input.resolver.resolvePublishedProperty(input.properties[0], descriptor,
+      input.occurrence, input.input.queries, { depth: 0 }) === undefined, true, "a duplicated origin is not a unique selected property");
+  }
+  input.publish(input.publication);
+  const empty = providerMemberFixture(true);
+  assert.equal(resolveProviderObjectLiteralShape(empty.input)?.members.length === 0, true, "an empty published contract is valid");
+  empty.publish(undefined);
+  assert.equal(resolveProviderObjectLiteralShape(empty.input) === undefined, true, "zero members never skip publication validation");
+  const unprepared = providerMemberFixture();
+  const resolveMember = unprepared.input.host.providers.resolveMember;
+  unprepared.input.host.providers.resolveMember = () => ({ kind: "missing" });
+  assert.equal(unprepared.resolver.resolveProviderShape(unprepared.input.type, unprepared.descriptor, unprepared.occurrence,
+    unprepared.input.queries, { depth: 0 }, unprepared.target) === undefined, true, "an initial missing proof is not a completed contract");
+  unprepared.input.host.providers.resolveMember = resolveMember;
+  assert.equal(unprepared.resolver.resolveProviderShape(unprepared.input.type, unprepared.descriptor, unprepared.occurrence,
+    unprepared.input.queries, { depth: 0 }, unprepared.target) !== undefined, true, "materializing the first complete proof is not blocked by an earlier absence");
+  const contradictory = providerMemberFixture();
+  const prepare = () => contradictory.resolver.resolveProviderShape(contradictory.input.type, contradictory.descriptor,
+    contradictory.occurrence, contradictory.input.queries, { depth: 0 }, contradictory.target);
+  assert.equal(prepare() !== undefined, true);
+  const prior = contradictory.input.host.providers.resolveMember;
+  contradictory.input.host.providers.resolveMember = fact => {
+    const selected = prior(fact);
+    return { ...selected, relations: selected.relations.map(relation => ({ ...relation,
+      targetMember: { ...relation.targetMember, targetName: "contradictoryField" } })) };
+  };
+  assert.equal(prepare() === undefined && contradictory.resolver.deriveMembers(contradictory.descriptor,
+    contradictory.occurrence, contradictory.input.queries, { depth: 0 }, contradictory.target) === undefined, true,
+  "a contradictory completed Native contract cannot reuse its earlier representation");
+  contradictory.input.host.providers.resolveMember = prior;
+  assert.equal(prepare() === undefined && contradictory.resolver.deriveMembers(contradictory.descriptor,
+    contradictory.occurrence, contradictory.input.queries, { depth: 0 }, contradictory.target) === undefined, true,
+  "restoring an earlier callback cannot erase the contradiction for that same descriptor and target");
+  for (const empty of [false, true]) {
+    const current = providerMemberFixture(empty, true);
+    const expected = resolveProviderObjectLiteralShape(current.input);
+    assert.equal(expected !== undefined, true, "the whole real aliased provider contract is independently proven");
+    for (const entry of ["node", "type", "literal", "retain"]) {
+      const policy = createCsharpObjectShapePolicy(current.input.host);
+      const shape = entry === "node" ? policy.resolveNode(current.literal, current.file)
+        : entry === "type" ? policy.resolveType(current.input.type, current.file, current.occurrence)
+          : entry === "literal" ? policy.resolveObjectLiteralTargetShape(expected, current.literal, current.file).shape
+            : policy.retainConstructionSource(current.literal, current.input.queries.types.expressionType(current.literal), expected, current.file);
+      assert.equal(shape !== undefined && shape.members.length === expected.members.length &&
+        shape.members.every(member => member.origins?.length === 1 && member.type === current.storage &&
+          member.optional === true && member.exactNumericStorage === true), true, `${entry}, empty=${empty}: no entry order requires prior discovery`);
+      const repeated = policy.resolveNode(current.literal, current.file);
+      assert.equal(repeated !== undefined && targetTypeRefEquals(repeated.targetType, shape.targetType) &&
+        repeated.members.length === shape.members.length, true, `${entry}, empty=${empty}: ordinary later discovery consumes the same contract`);
+      if (!empty) {
+        const prior = current.input.host.providers.resolveMember;
+        current.input.host.providers.resolveMember = fact => {
+          const selected = prior(fact);
+          return { ...selected, relations: selected.relations.map(relation => ({ ...relation,
+            targetMember: { ...relation.targetMember, targetName: "contradictoryField" } })) };
+        };
+        assert.equal(policy.resolveNodeWithState(current.literal, current.file, { depth: 0, sourceBindings: new Map() }) === undefined, true,
+          `${entry}: contradictory revalidation cannot replace a completed provider contract`);
+        current.input.host.providers.resolveMember = prior;
+        assert.equal(policy.resolveNode(current.literal, current.file) === undefined, true,
+          `${entry}: the node cache cannot bypass that descriptor's sticky contradiction`);
+      }
+    }
+  }
+});
+
+test("real empty provider constructions retain optional canonical origins and exact Native mode storage through local aliases", () => {
+  for (const body of ["return {};", "const options: MakeDirectoryOptions = {}; const alias = options; return alias;",
+    "const base = {}; let options: MakeDirectoryOptions = base; return options;",
+    "type First = MakeDirectoryOptions; type Second = First; const options: Second = {}; return options;"]) {
+    const compiled = compileCsharpSource({ surface: "js", capabilities: [nodejsCapability()], sourceText: `
+      import type { MakeDirectoryOptions } from "node:fs";
+      export function make(): MakeDirectoryOptions { ${body} }
+    ` });
+    assertCsharpCompilationSucceeded(compiled);
+    const program = compiled.result.program;
+    const [shape] = csharpProgramObjectLiteralShapes(program);
+    assert.equal(shape !== undefined && shape.targetType.kind === "target-named" &&
+      shape.targetType.id === "Tsonic.CSharp.Node.MakeDirectoryOptions" && shape.members.length === 2, true);
+    const mode = shape.members.find(member => member.sourceName === "mode");
+    const recursive = shape.members.find(member => member.sourceName === "recursive");
+    assert.equal(mode?.optional === true && mode.exactNumericStorage === true &&
+      targetTypeRefEquals(getCsharpNullableElementTargetType(mode.type), csharpSourcePrimitiveTargetType("int32")), true);
+    assert.equal(recursive?.optional === true &&
+      targetTypeRefEquals(getCsharpNullableElementTargetType(recursive.type), csharpSourcePrimitiveTargetType("bool")), true);
+    const nodes = [];
+    const visit = node => { nodes.push(node); program.source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); }); };
+    csharpProgramSourceFiles(program).forEach(visit);
+    const literal = nodes.find(node => program.source.ast.is.IsObjectLiteralExpression(node));
+    const outcome = program.source.effectiveTypes.get(literal);
+    const descriptor = outcome?.kind === "refused" ? undefined : outcome?.type;
+    const structure = descriptor === undefined ? undefined : sourceTypeDescriptorStructure(descriptor);
+    assert.equal(structure?.kind === "shape" && structure.members.length === 2 && shape.members.every(member =>
+      member.origins?.some(origin => structure.members.some(published => sourceTypeDescriptorMemberOriginsEqual(origin, published.origin))) === true), true,
+    "provider fields retain the actual published destination origins despite the empty authored literal");
+    const output = [...compiled.artifacts.values()].join("\n");
+    assert.equal([...output.matchAll(/new Tsonic\.CSharp\.Node\.MakeDirectoryOptions\b/gu)].length === 1, true);
+    assert.doesNotMatch(output, /TsObject|Activator|DynamicInvoke|System\.Reflection|\.Clone\(|\.ToArray\(/u);
   }
 });

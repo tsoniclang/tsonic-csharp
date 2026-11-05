@@ -12,13 +12,12 @@ import { targetTypeRefEquals, targetTypeRefKey } from "../../../target-model/typ
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpRuntimeUnionTargetTypeRef, CsharpSourceMemberKey, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
 import type { Node, ExtensionFactSubject, SourceFile, Type } from "@tsonic/tsts";
 import type { CsharpTypeResolutionState } from "../../source-evidence/types/resolution/model.js";
-import type { SourceFileSemantics } from "@tsonic/target-api/source";
+import type { SourceFileSemantics, SourceTypeDescriptor } from "@tsonic/target-api/source";
 import { nextState } from "../../source-evidence/types/resolution/state.js";
 import { csharpSourceTemplateState } from "../../source-evidence/types/resolution/type-bindings.js";
 import { substituteObjectShapeMemberTargetTypeParameters } from "../../../policy/types/resolution/substitution.js";
 import { isCsharpJsValueTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { csharpPropertySourceMemberKey, csharpSourceMemberKeysEqual } from "../../../target-model/types/source-member-keys.js";
-import { resolveProviderObjectLiteralShape } from "./provider-construction.js";
 import { createCsharpStructuralUnionDefinitions } from "./union-definitions.js";
 import { selectCsharpObjectMethodImplementation } from "./method-implementations.js";
 
@@ -43,7 +42,8 @@ export function createCsharpObjectShapePolicy(
   host: CsharpObjectShapePolicyHost,
 ): CsharpRecursiveObjectShapePolicy {
   const environment = host.typeParameterConstraints;
-  const { publishedShapeDescriptor, deriveMembers, retainPublishedMembers, retainMemberDeclarationEvidence, resolvePropertyType } = createCsharpObjectShapeMemberResolver(host);
+  const memberResolver = createCsharpObjectShapeMemberResolver(host);
+  const { publishedShapeDescriptor, deriveMembers, isProviderDescriptor, resolveProviderShape } = memberResolver;
   const activeNodes = new WeakSet<object>();
   const activeTypes = new WeakSet<object>();
   const nodeShapes = new WeakMap<object, CsharpObjectShapeFact>();
@@ -93,6 +93,11 @@ export function createCsharpObjectShapePolicy(
     }
     const cached = state.sourceBindings === undefined ? nodeShapes.get(node) : undefined;
     if (cached !== undefined) {
+      const descriptor = publishedShapeDescriptor(node);
+      if (descriptor !== undefined && isProviderDescriptor(descriptor)) {
+        const queries = sourceFile === undefined ? host.semanticsFor(node) : host.semantics(sourceFile);
+        if (deriveMembers(descriptor, node, queries, state, cached.targetType) === undefined) return undefined;
+      }
       return cached;
     }
     if (activeNodes.has(node)) {
@@ -111,6 +116,13 @@ export function createCsharpObjectShapePolicy(
       const source = selectedObjectShapeSource(node, queries, host);
       const selectedTarget = resolvePublishedShapeType(node, state);
       if (isCsharpRecordDictionaryTargetType(getCsharpNullableElementTargetType(selectedTarget) ?? selectedTarget)) return undefined;
+      const descriptor = publishedShapeDescriptor(node);
+      const providerShape = source.type === undefined || descriptor === undefined ||
+        requiresUnresolvedStructuralProjection(source.type, node, queries, host) || typeIsExcludedFromObjectShape(source.type, queries, host) ? undefined
+        : resolveProviderShape(source.type, descriptor, node, queries, state,
+          getCsharpNullableElementTargetType(selectedTarget) ?? selectedTarget);
+      if (descriptor !== undefined && isProviderDescriptor(descriptor)) return providerShape === undefined ? undefined
+        : state.sourceBindings === undefined ? remember(node, providerShape) : rememberTargetShape(providerShape);
       const selectedShape = resolveTarget(selectedTarget);
       if (selectedShape !== undefined && selectedShape.constructible !== true &&
         selectCsharpHostLiteralCorrespondence(host.ast, node, host.effectiveTypes.get(node), selectedShape, selectedTarget).kind === "proven") {
@@ -223,6 +235,23 @@ export function createCsharpObjectShapePolicy(
   const resolveObjectLiteralTargetShape = createCsharpLiteralShapeResolver(host, { resolveNode, publishedShapeDescriptor,
     retainPublishedMembers, rememberTargetShape });
   const resolveProjectConstructibleSelectedType = createCsharpProjectShapeProjection(host, deriveMembers);
+
+  function retainPublishedMembers(
+    members: readonly CsharpObjectShapeMemberFact[],
+    descriptor: SourceTypeDescriptor,
+    occurrence: Node,
+    queries: SourceFileSemantics,
+    state: CsharpTypeResolutionState,
+    receiver?: TargetTypeRef,
+  ): readonly CsharpObjectShapeMemberFact[] | undefined {
+    if (isProviderDescriptor(descriptor)) {
+      const prepared = resolveNodeWithState(occurrence, queries.sourceFile, state);
+      if (prepared === undefined || receiver === undefined ||
+        !targetTypeRefEquals(prepared.targetType, getCsharpNullableElementTargetType(receiver) ?? receiver)) return undefined;
+      receiver = prepared.targetType;
+    }
+    return memberResolver.retainPublishedMembers(members, descriptor, occurrence, queries, state, receiver);
+  }
 
   function remember(
     node: Node,
@@ -393,20 +422,8 @@ export function createCsharpObjectShapePolicy(
       const targetType = selectedType === undefined
         ? undefined
         : getCsharpNullableElementTargetType(selectedType) ?? selectedType;
-      const providerShape = resolveProviderObjectLiteralShape({
-        type,
-        queries,
-        state,
-        selectedTarget: targetType,
-        descriptor,
-        occurrence,
-        host,
-        resolvePropertyType,
-      });
-      if (providerShape !== undefined) {
-        const members = retainMemberDeclarationEvidence(providerShape.members, type, queries);
-        return members === undefined ? undefined : { ...providerShape, members };
-      }
+      const providerShape = resolveProviderShape(type, descriptor, occurrence, queries, state, targetType);
+      if (isProviderDescriptor(descriptor)) return providerShape;
       const contextualProjectType = targetType !== undefined &&
           isProjectSourceTargetType(targetType)
         ? targetType
@@ -634,7 +651,11 @@ export function createCsharpObjectShapePolicy(
     try {
       const declaration = sourceShapeDeclaration(type, queries);
       const descriptor = declaration === undefined ? undefined : publishedShapeDescriptor(declaration);
-      const members = declaration === undefined || descriptor === undefined ? undefined
+      if (declaration === undefined || descriptor === undefined) return undefined;
+      const target = resolvePublishedShapeType(declaration, { depth: 0 });
+      const providerShape = resolveProviderShape(type, descriptor, declaration, queries, { depth: 0 },
+        getCsharpNullableElementTargetType(target) ?? target);
+      const members = isProviderDescriptor(descriptor) ? providerShape?.members
         : deriveMembers(descriptor, declaration, queries, { depth: 0 });
       const matches = members?.filter((member) =>
         csharpSourceMemberKeysEqual(member.sourceKey, sourceKey)
