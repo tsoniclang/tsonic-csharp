@@ -385,6 +385,55 @@ test("the literal collector closes once and validates later exact endpoints with
     /cannot read another source use/u, "post-close source collection cannot mutate a frozen literal plan");
 });
 
+for (const { early, completed } of [{ early: false, completed: true }, { early: true, completed: true }, { early: true, completed: false }]) {
+  test(`literal preparation ${early ? "retains an early classification" : "classifies after value reads"} and ${completed ? "requires its physical source" : "rejects missing physical reads"}`, () => {
+    const checked = checkCsharpSource({ surface: "native", sourceText: "export const value = 1.25;" });
+    assertCsharpCheckingSucceeded(checked);
+    const source = createTargetSourceProgram(checked.source);
+    const file = checked.source.getSourceFile("/project/index.ts");
+    let expression;
+    const visit = node => {
+      const initializer = source.ast.as.AsVariableDeclaration(node)?.Initializer;
+      if (initializer !== undefined) expression = initializer;
+      source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    };
+    visit(file);
+    assert.equal(expression !== undefined, true, "the original checked initializer is the classification subject");
+    const logical = primitive("float64");
+    const physical = primitive("float16");
+    const target = primitive("float32");
+    const none = Object.freeze({ get: () => undefined });
+    const policy = { sourceFiles: [file], target: {}, ast: source.ast, effectiveTypes: source.effectiveTypes,
+      literalValues: analyzeSourceLiteralValues(source.ast, [file]), navigation: { referenceFor: () => undefined },
+      projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) } };
+    const operations = { yield: none, nativeUnreachable: { get: () => false }, borrowedSequence: none,
+      binaryOperation: none, selectedCall: none, selectedConstruction: none, selectedElement: none, unaryOperation: none };
+    const analysis = analyzeCsharpConversions(policy, { compileTimeMetadata: { get: () => false },
+      nodeTargetType: { get: node => node === expression ? logical : undefined }, storageTargetType: none },
+    { resolveNode: () => undefined, resolveTarget: () => undefined, registerStructuralInterface: () => false }, operations);
+    const before = early ? analysis.classifications.expressionConversion.get(expression, logical, target, "implicit") : undefined;
+    assert.equal(!early || before?.selection.kind === "implicit" && before.selection.proof === "literal", true,
+      "an early conversion is classified without publishing or guessing a physical literal source");
+    const prepare = () => analysis.prepare({ expectedTypes: { callableTarget: none,
+      expectedType: { get: node => node === expression ? [target] : [] }, exactIntegerConversion: { get: () => false } },
+    valueReads: { valueRead: { get: node => node === expression ? { source: logical, ...(completed ? { value: physical } : {}) } : undefined } } });
+    if (!completed) {
+      assert.throws(prepare, error => error.diagnostic?.code === "TSONIC_INTERNAL_ANALYSIS_INVARIANT" &&
+        error.message.includes("Literal conversion requests require completed value reads."),
+      "a logical source alone cannot replace the missing completed construction");
+      return;
+    }
+    const prepared = prepare();
+    const requests = prepared.exactLiteralRequests.filter(request => request.expression === expression);
+    assert.equal(requests.length > 0 && requests.every(request => request.source === physical), true,
+      "both early and new classifications publish only after completion, with the one physical source");
+    const current = prepared.expressionConversion.get(expression, logical, target, "implicit");
+    assert.equal(!early || current === before, true, "preparation consumes the already classified conversion, not a second decision");
+    assert.equal(prepare() === prepared && Object.isFrozen(prepared.exactLiteralRequests), true,
+      "literal preparation closes once and cannot register a later source");
+  });
+}
+
 test("actual literal uses prepare their selected union inner endpoint before the one literal snapshot", () => {
   const checked = checkCsharpSource({ surface: "native", sourceText: "export const value = 1.25;" });
   assertCsharpCheckingSucceeded(checked);

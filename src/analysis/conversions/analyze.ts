@@ -149,6 +149,9 @@ export function analyzeCsharpConversions(
     prepare({ expectedTypes, valueReads }) {
       if (preparedClassifications !== undefined) return preparedClassifications;
       preparedValueReads = valueReads;
+      for (const [expression, selections] of expressionSelections) for (const selection of selections.values()) {
+        requestLiteralConversion(expression, selection.source, selection.target, selection.selection, valueReads);
+      }
       collectCsharpConversionRequirements({ policy, evidence, objectShapes, operations: selectedOperations, expectedTypes, valueReads,
         literalRequests, classifyPair, classifyExpression, reserveClassification, issues, propertyProjectionRoots,
         propertyProjections, callConversions });
@@ -311,7 +314,7 @@ export function analyzeCsharpConversions(
       const name = policy.ast.name(reference.declaration);
       if (name !== undefined) directCallables.set(name, direct);
     }
-    literalRequests.requestConversion(expression, source, target, selected, preparedValueReads?.valueRead.get(expression)?.value);
+    if (preparedValueReads !== undefined) requestLiteralConversion(expression, source, target, selected, preparedValueReads);
     if (selections === undefined) {
       selections = new Map();
       expressionSelections.set(expression, selections);
@@ -320,6 +323,15 @@ export function analyzeCsharpConversions(
       selected.strategy === "adaptation" ? operandStability(expression) : "snapshot" }));
     admitCsharpDelegateEmission(delegateContracts, source, target, selected);
     return selected;
+  }
+
+  function requestLiteralConversion(expression: Node, source: TargetTypeRef, target: TargetTypeRef,
+    selection: CsharpConversionSelection, valueReads: CsharpValueReadClassifications): void {
+    if (policy.literalValues.literalValue.get(expression) === undefined) return;
+    const physicalSource = valueReads.valueRead.get(expression)?.value;
+    if (physicalSource === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+      "Literal conversion requests require completed value reads.", expression);
+    literalRequests.requestConversion(expression, source, target, selection, physicalSource);
   }
 
   function operandStability(expression: Node): "stable" | "snapshot" {
