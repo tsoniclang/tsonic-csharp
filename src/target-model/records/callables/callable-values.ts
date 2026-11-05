@@ -11,6 +11,14 @@ export interface CsharpCallableContractPublication {
   readonly byProjectConstructor: ReadonlyMap<string, SourceCallableContract>;
   readonly closedInputs: ReadonlyMap<Node, CsharpClosedCallableInput>;
   readonly creationPaths: ReadonlyMap<SourceCallableContract, string>;
+  readonly returnSelections: ReadonlyMap<Node, CsharpCallableReturnSelection>;
+}
+
+export interface CsharpCallableReturnSelection {
+  readonly generator: TargetTypeRef | undefined;
+  readonly returnContractKind: string;
+  readonly returnContract: TargetTypeRef | undefined;
+  readonly published: TargetTypeRef | undefined;
 }
 
 export interface CsharpClosedCallableInput {
@@ -23,6 +31,7 @@ export interface CsharpCallableContractIndex {
   readonly declarationContracts: readonly SourceCallableSourceContract[];
   readonly closedInputs: readonly { readonly declaration: Node; readonly input: CsharpClosedCallableInput }[];
   creationPath(contract: SourceCallableContract): string | undefined;
+  returnSelection(declaration: Node): CsharpCallableReturnSelection | undefined;
   closedInputType(declaration: Node): TargetTypeRef | undefined;
   closedInputContract(declaration: Node): SourceCallableSourceContract | undefined;
   get(

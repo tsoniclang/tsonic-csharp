@@ -25,6 +25,7 @@ import { getCsharpRuntimeUnionArms } from "../../../target-model/types/carriers/
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { csharpCallableValueType } from "../../../policy/types/callables/value-type.js";
 import { csharpConversionIsApplicable } from "../../../policy/conversions/applicability.js";
+import type { CsharpCallableReturnSelection } from "../../../target-model/records/callables/callable-values.js";
 
 export function selectCsharpSourceCallableGenericAbi(
   ast: AstReader,
@@ -56,6 +57,7 @@ export function selectCsharpSourceCallableAbi(
   operations: Pick<CsharpTargetOperationClassifications, "selectedCall" | "selectedConstruction">,
   conversions: Pick<CsharpConversionClassifications, "conversion">,
   issues: TargetDiagnostic[],
+  recordReturn: (declaration: Node, selection: CsharpCallableReturnSelection) => void,
 ): SourceCallableSourceContract | undefined {
   const checked = policy.semantics(sourceFile).types.declarationSignatureInfo(declaration);
   const valueParameters = sourceCallableValueParameters(policy.ast, declaration, policy.semantics(sourceFile));
@@ -99,9 +101,12 @@ export function selectCsharpSourceCallableAbi(
   } else inputType = presentInput;
   const hasInput = !quantified && getCsharpLambdaSignature(inputType) !== undefined;
   const returnContract = declarations.returnContract.get(declaration);
-  const returnType = evidence.generatorTargetType.get(declaration) ??
-    (returnContract?.kind === "resolved" ? returnContract.type : undefined) ??
-    policy.types.resolveCallableReturn(declaration);
+  const generator = evidence.generatorTargetType.get(declaration);
+  const published = policy.types.resolveCallableReturn(declaration);
+  const declared = returnContract?.kind === "resolved" ? returnContract.type : undefined;
+  recordReturn(declaration, Object.freeze({ generator, published, returnContract: declared,
+    returnContractKind: returnContract === undefined ? "absent" : returnContract.kind }));
+  const returnType = generator ?? declared ?? published;
   if (returnType === undefined) {
     return undefined;
   }

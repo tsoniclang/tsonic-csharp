@@ -29,6 +29,16 @@ export function csharpRepresentationDifference(
           : ast.getSourceText(file).slice(range.start, Math.min(range.end, range.start + 512));
         const target = csharpCallableValueType(entry);
         const creationPath = contract.callables.creationPath(entry);
+        const returns = node === undefined ? [] : ([["previous", previous], ["repeated", repeated]] as const).flatMap(([revision, selected]) => {
+          const selection = selected.callables.returnSelection(node);
+          const type = (value: TargetTypeRef | undefined): string => value === undefined ? "undefined" : bounded(targetTypeRefKey(value));
+          return selection === undefined ? [`native.representation.${revision}.returnSelection=unrecorded`] : [
+            `native.representation.${revision}.generatorTargetType=${type(selection.generator)}`,
+            `native.representation.${revision}.returnContract.kind=${selection.returnContractKind}`,
+            `native.representation.${revision}.returnContract.type=${type(selection.returnContract)}`,
+            `native.representation.${revision}.resolveCallableReturn=${type(selection.published)}`,
+          ];
+        });
         return Object.freeze([
           "native.representation.component=callables",
           "native.representation.key=callables.contracts.length",
@@ -40,6 +50,7 @@ export function csharpRepresentationDifference(
             position: node === undefined ? undefined : ast.pos(node), text })}`,
           `native.representation.contract.target=${target === undefined ? "unavailable-generic-callable" : bounded(targetTypeRefKey(target))}`,
           `native.representation.contract.createdBy=${creationPath === undefined ? "unrecorded" : creationPath}`,
+          ...returns,
         ]);
       }
     }

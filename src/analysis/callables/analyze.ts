@@ -10,7 +10,7 @@ import type { SourceCallableSourceContract, SourceCallableContract, CsharpSource
 import type { CsharpDeclarationClassifications } from "../../target-model/records/program/declarations.js";
 import type { CsharpSourceNameResolver } from "../names/index.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
-import type { CsharpCallableContractIndex, CsharpClosedCallableInput } from "../../target-model/records/callables/callable-values.js";
+import type { CsharpCallableContractIndex, CsharpClosedCallableInput, CsharpCallableReturnSelection } from "../../target-model/records/callables/callable-values.js";
 import type { CsharpGenericProjectionIndex } from "../../target-model/records/types/type-projections.js";
 import { closeCsharpProjectCallableContracts } from "../project-types/callable-contracts.js";
 import { csharpCallableValueType, csharpClosedInvocationMatches } from "../../policy/types/callables/value-type.js";
@@ -40,6 +40,8 @@ export function analyzeCsharpCallableContracts(
   const byProjectConstructor = new Map<string, SourceCallableContract>();
   const contracts: SourceCallableContract[] = [];
   const creationPaths = new Map<SourceCallableContract, string>();
+  const returnSelections = new Map<Node, CsharpCallableReturnSelection>();
+  const recordReturn = (declaration: Node, selection: CsharpCallableReturnSelection): void => { returnSelections.set(declaration, selection); };
   const declarationContracts: SourceCallableSourceContract[] = [];
   const checkedDeclarations: { readonly declaration: Node; readonly sourceFile: SourceFile }[] = [];
   for (const sourceFile of policy.sourceFiles) {
@@ -58,7 +60,7 @@ export function analyzeCsharpCallableContracts(
     contracts[index] = contract;
   }
   for (const { declaration, sourceFile } of checkedDeclarations) {
-    const contract = selectCsharpSourceCallableAbi(policy, evidence, declarations, names, declaration, sourceFile, projections, operations, conversions, issues);
+    const contract = selectCsharpSourceCallableAbi(policy, evidence, declarations, names, declaration, sourceFile, projections, operations, conversions, issues, recordReturn);
     if (contract !== undefined) {
       creationPaths.set(contract, "analyzeCsharpCallableContracts.checkedDeclarations -> selectCsharpSourceCallableAbi");
       byDeclaration.set(declaration, contract);
@@ -164,7 +166,7 @@ export function analyzeCsharpCallableContracts(
   }
   return resolvedTargetStage(sealCsharpCallableContractIndex({
     contracts, declarationContracts: nativeDeclarations, byDeclaration,
-    byProjectConstructor, closedInputs, creationPaths }));
+    byProjectConstructor, closedInputs, creationPaths, returnSelections }));
 
   function nativeConsumerContract(contract: SourceCallableSourceContract, nativeType: TargetTypeRef,
     candidate: TargetTypeRef): SourceCallableSourceContract | undefined {
@@ -261,6 +263,7 @@ export function analyzeCsharpCallableContracts(
         operations,
         conversions,
         issues,
+        recordReturn,
       );
       const contract = selected;
       if (contract !== undefined) {
