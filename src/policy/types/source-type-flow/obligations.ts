@@ -9,12 +9,14 @@ import type { TargetConstraint, TargetTypeRef } from "../../../target-model/type
 import { csharpTargetTypeFailsConstraint, type CsharpConstraintSatisfactionHost } from "../../../analysis/operations/members/calls/constraint-satisfaction.js";
 import { representCsharpSourceType } from "./representation.js";
 import { csharpSourceTypeFlowInterfaceAccepts } from "./relations.js";
-import { csharpLiteralIsRepresentableAs, selectCsharpExactLiteralConversion } from "../../conversions/literals.js";
+import { csharpLiteralIsRepresentableAs, selectCsharpExactLiteralConversion, selectCsharpScalarLiteralCarrier } from "../../conversions/literals.js";
 import { csharpArrayElementIsRepresentableAs } from "../collections/array-elements.js";
 import { selectCsharpConversion } from "../../conversions/core.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../target-model/types/equality.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { isCsharpStringTargetType } from "../../../target-model/types/identity.js";
+import { getCsharpCollectionElementTargetType } from "../../../target-model/types/carriers/collections.js";
+import { getCsharpRuntimeUnionArms } from "../../../target-model/types/carriers/runtime-carriers.js";
 
 export interface CsharpSourceTypeFlowObligationHost extends CsharpSourceTypeRepresentationHost, CsharpSourceTypeFlowRelationHost {
   readonly literalValues: SourceLiteralIndex;
@@ -69,10 +71,26 @@ export function checkCsharpSourceTypeFlowObligation(
     return undefined;
   }
   if (obligation.kind === "literal-admission") {
+    if (obligation.authority !== "inferred" && obligation.authority !== "declared") {
+      return fail("A Host literal-admission obligation requires its exact inferred or declared authority.");
+    }
     const site = obligation.value ?? obligation.site;
     const carrier = getCsharpNullableElementTargetType(chosen) ?? chosen;
+    const literal = host.literalValues.literalValue.get(site);
+    const element = getCsharpCollectionElementTargetType(carrier);
+    if (obligation.authority === "inferred" && literal?.form === "array" && element !== undefined &&
+      (getCsharpRuntimeUnionArms(element, host.typeDefinitions) !== undefined || getCsharpNullableElementTargetType(element) !== undefined)) {
+      for (const value of literal.elements) {
+        const physical = selectCsharpScalarLiteralCarrier(value, element, host.typeDefinitions)
+          ?? getCsharpNullableElementTargetType(element) ?? element;
+        if (!csharpArrayElementIsRepresentableAs(physical, { carrier: physical, literal: value })) {
+          return Object.freeze({ source: "tsonic-csharp", sourceNode: obligation.site, category: "error",
+            code: "CSHARP_ARRAY_ELEMENT_CARRIER_MISMATCH",
+            message: "An inferred numeric union requires an exact canonical carrier for every authored integer literal." });
+        }
+      }
+    }
     if (carrier.kind === "source-primitive" || isCsharpStringTargetType(carrier)) {
-      const literal = host.literalValues.literalValue.get(site);
       if (literalFits(literal, chosen)) return undefined;
       const selection = selectCsharpExactLiteralConversion(literal, chosen, chosen);
       return fail(selection.kind === "rejected" ? selection.reason
