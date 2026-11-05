@@ -179,7 +179,8 @@ export function createCsharpSourceTypeRepresentationHost(
       if (host.navigation.isProjectDeclaration(declaration)) {
         return projectPublishedDeclaration(scope, declaration, representedState);
       }
-      const ownArguments = parameters.map(parameter => representedState.sourceBindings?.get(parameter)?.targetType);
+      const ownArguments = parameters.map(parameter => parameter === undefined ? undefined
+        : representedState.sourceBindings?.get(parameter)?.targetType);
       return ownArguments.some(argument => argument === undefined) ? undefined
         : scope.resolveProviderType([declaration, ...(selected === undefined ? [] : queries.facts.typeSubjects(selected))],
           ownArguments as readonly TargetTypeRef[]);

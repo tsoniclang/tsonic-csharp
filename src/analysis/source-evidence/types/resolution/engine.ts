@@ -1,5 +1,5 @@
 import type { Node, SourceFile, Type } from "@tsonic/tsts";
-import type { SourceFileSemantics } from "@tsonic/target-api/source";
+import type { SourceFileSemantics, SourceTypeDescriptor } from "@tsonic/target-api/source";
 import { sourceTypeSyntaxRoot, sourceNodeIsNativeUnreachable } from "@tsonic/target-api/source";
 
 import { resolveSourceCallContract as resolveSourceCallContractImplementation } from "./call-contracts.js";
@@ -327,7 +327,8 @@ export function createCsharpTypeResolutionServices(
   });
   const recursive: CsharpRecursiveTypeResolver = Object.freeze({
     resolveNode: methods.resolveNodeWithState,
-    resolveDescriptor: (descriptor, occurrence, state) => resolveCsharpSourceTypeDescriptor(scope, descriptor, state, occurrence),
+    resolveDescriptor: (descriptor: SourceTypeDescriptor, occurrence: Node, state: CsharpTypeResolutionState) =>
+      resolveCsharpSourceTypeDescriptor(scope, descriptor, state, occurrence),
     resolveType: methods.resolveTypeWithState,
     resolveSelectedType(
       authoredTypeNode: Node | undefined,
