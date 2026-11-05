@@ -1,5 +1,6 @@
 import type { AstReader, Node, SourceFile } from "@tsonic/tsts";
-import type { SourceFileSemantics, SourceProgramNavigation } from "@tsonic/target-api/source";
+import type { SourceEffectiveTypes } from "@tsonic/target-api/source";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { TargetTypeRef } from "../../../../policy/types/index.js";
 import type { CsharpTypeQueries } from "../../../../policy/model/type-resolution.js";
 import { targetTypeRefEquals } from "../../../../policy/types/index.js";
@@ -7,9 +8,8 @@ import { resolveCsharpTypeParameterConstraints } from "./type-parameter-constrai
 
 export interface CsharpNumericConstraintEvidenceHost {
   readonly ast: AstReader;
-  readonly types: Pick<CsharpTypeQueries, "resolveSelectedValue" | "resolveNode">;
-  readonly navigation: SourceProgramNavigation;
-  semantics(file: SourceFile): SourceFileSemantics;
+  readonly types: Pick<CsharpTypeQueries, "resolveNode">;
+  readonly effectiveTypes: Pick<SourceEffectiveTypes, "get">;
 }
 
 export function csharpSourceHasNumericConstraint(
@@ -19,16 +19,15 @@ export function csharpSourceHasNumericConstraint(
   host: CsharpNumericConstraintEvidenceHost,
 ): boolean {
   if (carrier.kind !== "type-parameter") return false;
-  const semantics = host.semantics(sourceFile);
-  const binding = host.navigation.referenceFor(expression)?.declaration;
-  const bindingFile = binding === undefined ? undefined : host.ast.getSourceFile(binding);
-  const type = binding === undefined ? semantics.types.expressionType(expression)
-    : bindingFile === undefined ? undefined : host.semantics(bindingFile).declarations.declaredValueType(binding);
-  const symbol = type === undefined ? undefined : semantics.declarations.typeSymbol(type);
-  const declaration = symbol === undefined ? undefined : semantics.declarations.primarySymbolDeclaration(symbol);
-  if (declaration === undefined || !host.ast.is.IsTypeParameterDeclaration(declaration)) return false;
-  const declared = type === undefined ? undefined : host.types.resolveSelectedValue(expression, type, sourceFile);
-  if (declared === undefined || !targetTypeRefEquals(declared, carrier)) return false;
+  const publication = host.effectiveTypes.get(expression);
+  if (publication === undefined || publication.kind === "refused") return false;
+  if (publication.provenance.occurrence !== expression) failTargetAnalysisInvariant("tsonic-csharp",
+    "A Host numeric operand type must retain its exact value occurrence.", expression);
+  const descriptor = publication.type;
+  if (descriptor.kind !== "declared" || !host.ast.is.IsTypeParameterDeclaration(descriptor.declaration)) return false;
+  const declaration = descriptor.declaration;
+  const declared = host.types.resolveNode(expression, sourceFile);
+  if (declared?.kind !== "resolved" || !targetTypeRefEquals(declared.sourceResult.selectedType, carrier)) return false;
   const declarationFile = host.ast.getSourceFile(declaration);
   if (declarationFile === undefined) return false;
   const constraints = resolveCsharpTypeParameterConstraints(declaration, carrier, declarationFile, host);
