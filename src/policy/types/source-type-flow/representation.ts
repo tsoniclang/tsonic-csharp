@@ -34,6 +34,7 @@ export interface CsharpSourceTypeRepresentationHost {
     results: readonly TargetTypeRef[],
   ): TargetTypeRef | undefined;
   memberKind(declaration: Node): "property" | "method";
+  shapeKind(descriptor: Extract<SourceTypeDescriptor, { readonly kind: "shape" }>): "contract" | "storage" | undefined;
   memberTypeParameters(signature: Extract<SourceTypeDescriptor, { readonly kind: "callable" }>["calls"][number]):
     NonNullable<CsharpObjectShapeMemberFact["typeParameters"]> | undefined;
   retainShape(shape: CsharpObjectShapeFact): CsharpObjectShapeFact | undefined;
@@ -170,13 +171,16 @@ function representDescriptor(
             ...(member.readonly === undefined ? {} : { readonly: member.readonly }),
           }));
         }
-        const targetType = createStructuralObjectShapeTarget(members, undefined, host.typeParameterConstraints);
+        const kind = host.shapeKind(descriptor);
+        if (kind === undefined) return undefined;
+        const contract = kind === "contract";
+        const targetType = createStructuralObjectShapeTarget(members, undefined, host.typeParameterConstraints, contract);
         const shape = host.retainShape(Object.freeze({ targetType, members: Object.freeze(members) }));
         if (shape === undefined || shape.members.length !== members.length) return undefined;
         if (members.length === 0) return targetTypeRefEquals(shape.targetType, targetType) ? shape.targetType : undefined;
         if (shape.targetType.kind !== "target-named") return undefined;
         const carrier: CsharpTargetNamedTypeRef = shape.targetType;
-        if (carrier.csharpGeneratedStructuralStorage !== true || carrier.csharpStructuralContract === true) return undefined;
+        if (carrier.csharpGeneratedStructuralStorage !== true || (carrier.csharpStructuralContract === true) !== contract) return undefined;
         const retained = canonicalCsharpObjectShapeMembers(shape.members);
         const expected = canonicalCsharpObjectShapeMembers(members);
         return expected.every((member, index) => {

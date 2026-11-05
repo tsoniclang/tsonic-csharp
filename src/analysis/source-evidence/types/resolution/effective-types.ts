@@ -69,6 +69,16 @@ export function createCsharpSourceTypeRepresentationHost(
     memberKind(declaration) {
       return host.ast.is.IsMethodDeclaration(declaration) || host.ast.is.IsMethodSignatureDeclaration(declaration) ? "method" : "property";
     },
+    shapeKind(descriptor) {
+      if (descriptor.members.length === 0) return "storage";
+      let contract = true;
+      for (const member of descriptor.members) {
+        const owner = member.declaration === undefined ? undefined : host.ast.parent(member.declaration);
+        if (owner === undefined) return undefined;
+        if (host.ast.is.IsObjectLiteralExpression(owner)) contract = false;
+      }
+      return contract ? "contract" : "storage";
+    },
     memberTypeParameters(signature) {
       return resolvePublishedCallableParameters(scope, signature, state);
     },
