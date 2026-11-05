@@ -18,13 +18,8 @@ export function selectedObjectShapeSource(
 ): SelectedObjectShapeSource {
   const effective = host.effectiveTypes.get(node);
   if (effective === undefined || effective.kind === "refused") return { type: undefined };
-  let descriptor = effective.type;
-  while (descriptor.kind === "optional") descriptor = descriptor.value;
-  if (descriptor.kind === "callable" && descriptor.constructs.length === 1) descriptor = descriptor.constructs[0]!.result;
-  const component = descriptor.kind === "declared" ? descriptor.source ?? effective.provenance.component
-    : effective.provenance.component;
-  return { type: component?.selectedType ?? (host.ast.is.IsClassDeclaration(node) || host.ast.is.IsClassExpression(node)
-    ? queries.declarations.declaredType(node) : queries.types.expressionType(node)) };
+  return { type: host.ast.is.IsClassDeclaration(node) || host.ast.is.IsClassExpression(node)
+    ? queries.declarations.declaredType(node) : queries.types.expressionType(node) };
 }
 
 export function sourceSubjects(

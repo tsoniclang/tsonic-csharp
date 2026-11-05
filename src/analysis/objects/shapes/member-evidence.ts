@@ -1,5 +1,5 @@
 import type { Node, Type, TypePropertyInfo } from "@tsonic/tsts";
-import { ObjectLiteralProperty_Value, sourceClassFieldIsTypeOnly, type SourceFileSemantics, type SourceStructuralMember, type SourceStructuralMemberPair, type SourceTypeDescriptor } from "@tsonic/target-api/source";
+import { ObjectLiteralProperty_Value, sourceClassFieldIsTypeOnly, sourceTypeDescriptorStructure, type SourceFileSemantics, type SourceStructuralMember, type SourceStructuralMemberPair, type SourceTypeDescriptor } from "@tsonic/target-api/source";
 import type { CsharpObjectShapePolicyHost } from "./model.js";
 import type { CsharpObjectShapeMemberEvidence, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpTypeResolutionState } from "../../source-evidence/types/resolution/model.js";
@@ -50,7 +50,8 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
   ): readonly CsharpObjectShapeMemberFact[] | undefined {
     while (descriptor.kind === "optional") descriptor = descriptor.value;
     if (descriptor.kind === "callable" && descriptor.constructs.length === 1) descriptor = descriptor.constructs[0]!.result;
-    const selectedMembers = descriptor.kind === "shape" || descriptor.kind === "declared" ? descriptor.members : undefined;
+    const structure = sourceTypeDescriptorStructure(descriptor);
+    const selectedMembers = structure.kind === "shape" ? structure.members : undefined;
     if (selectedMembers === undefined) return undefined;
     const symbol = queries.declarations.typeSymbol(ownerType);
     const literals = symbol === undefined ? [] : queries.declarations.symbolDeclarations(symbol)
@@ -67,7 +68,7 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
         if (!declarations.every(declaration => isCsharpNativeSourceProfileMemberDeclaration(declaration, host.ast))) return undefined;
         continue;
       }
-      const selected = selectedMembers.filter(member => member.declaration !== undefined && declarations.includes(member.declaration));
+      const selected = selectedMembers.filter(member => member.origin.kind === "declared" && declarations.includes(member.origin.declaration));
       if (selected.length !== 1 || selected[0]!.optional !== property.optional) return undefined;
       const member = deriveMember(property, selected[0]!.type, owner, queries, state, literals[0], receiver);
       if (member === undefined) return undefined;
@@ -320,8 +321,9 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
     const declarations = [...new Set([property.symbol, ...property.rootSymbols].flatMap(symbol =>
       queries.declarations.symbolDeclarations(symbol)))];
     while (descriptor.kind === "optional") descriptor = descriptor.value;
-    const members = descriptor.kind === "shape" || descriptor.kind === "declared" ? descriptor.members : undefined;
-    const selected = members?.filter(member => member.declaration !== undefined && declarations.includes(member.declaration));
+    const structure = sourceTypeDescriptorStructure(descriptor);
+    const members = structure.kind === "shape" ? structure.members : undefined;
+    const selected = members?.filter(member => member.origin.kind === "declared" && declarations.includes(member.origin.declaration));
     return selected?.length !== 1 ? undefined : host.typeResolver.resolveDescriptor(selected[0]!.type, occurrence, nextState(state));
   }
 

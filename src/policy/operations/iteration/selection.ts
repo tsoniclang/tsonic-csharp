@@ -30,6 +30,7 @@ export function selectCsharpNativeIteration(
   elementType: TargetTypeRef | undefined,
   objectShape: CsharpObjectShapeFact | undefined,
 ): CsharpOperationSelection<CsharpResolvedIteration> {
+  if (source.iterationKind === undefined) return rejectCsharpIteration("A checked spread iteration record is not a loop iteration.");
   if (source.iterationKind === "for-await-of") return selectForAwaitOf(source, iterableType);
   if (source.iterationKind === "for-of") return selectForOf(source, iterableType);
   return elementType === undefined ? rejectCsharpIteration("The checked property-key type does not have a closed C# target representation.")

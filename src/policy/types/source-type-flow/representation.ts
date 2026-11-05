@@ -20,7 +20,6 @@ export interface CsharpSourceTypeRepresentationHost {
   declaredType(
     declaration: Node,
     typeArguments: readonly TargetTypeRef[],
-    source: Extract<SourceTypeDescriptor, { readonly kind: "declared" }>["source"],
     descriptor: Extract<SourceTypeDescriptor, { readonly kind: "declared" }>,
   ): TargetTypeRef | undefined;
   indexType(key: TargetTypeRef, value: TargetTypeRef): TargetTypeRef | undefined;
@@ -109,27 +108,31 @@ function representDescriptor(
             : Object.freeze({ kind: "array", element });
       }
       case "tuple": {
-        const first = representDescriptor(host, descriptor.elements[0], active);
-        const second = representDescriptor(host, descriptor.elements[1], active);
-        return first === undefined || second === undefined ? undefined
-          : Object.freeze({ kind: "tuple", elements: Object.freeze([first, second]) });
+        if (descriptor.elements.some(element => element.kind !== "required")) return undefined;
+        const elements: TargetTypeRef[] = [];
+        for (const element of descriptor.elements) {
+          const represented = representDescriptor(host, element.type, active);
+          if (represented === undefined) return undefined;
+          elements.push(represented);
+        }
+        return Object.freeze({ kind: "tuple", elements: Object.freeze(elements) });
       }
       case "optional": {
         const element = representDescriptor(host, descriptor.value, active);
         return element === undefined ? undefined : csharpNullableTargetType(element);
       }
       case "declared": {
-        if (!Array.isArray(descriptor.indexes)) return undefined;
         const arguments_: TargetTypeRef[] = [];
         for (const argument of descriptor.typeArguments) {
           const represented = representDescriptor(host, argument, active);
           if (represented === undefined) return undefined;
           arguments_.push(represented);
         }
-        return host.declaredType(descriptor.declaration, Object.freeze(arguments_), descriptor.source, descriptor);
+        return host.declaredType(descriptor.declaration, Object.freeze(arguments_), descriptor);
       }
       case "shape": {
         if (!Array.isArray(descriptor.indexes)) return undefined;
+        if (descriptor.calls.length !== 0 || descriptor.constructs.length !== 0) return undefined;
         if (descriptor.indexes.length !== 0) {
           let key: TargetTypeRef | undefined;
           let value: TargetTypeRef | undefined;
@@ -152,7 +155,8 @@ function representDescriptor(
           const type = representDescriptor(host, member.type, active);
           if (type === undefined) return undefined;
           const callable = member.type.kind === "callable" ? member.type : undefined;
-          const memberKind = callable === undefined || member.declaration === undefined ? "property" : host.memberKind(member.declaration);
+          const declaration = member.origin.kind === "declared" ? member.origin.declaration : undefined;
+          const memberKind = callable === undefined || declaration === undefined ? "property" : host.memberKind(declaration);
           const signature = memberKind === "method" && callable?.calls.length === 1 ? callable.calls[0] : undefined;
           const typeParameters = signature === undefined ? [] : host.memberTypeParameters(signature);
           if (typeParameters === undefined) return undefined;
@@ -164,9 +168,9 @@ function representDescriptor(
             type: memberKind === "method" ? getCsharpMethodValue(type)?.contract ?? type : type,
             ...(typeParameters.length === 0 ? {} : { typeParameters }),
             optional: member.optional,
-            ...(member.declaration === undefined ? {} : {
-              sourceDeclarations: Object.freeze([member.declaration]),
-              sourceSubjects: Object.freeze([member.declaration]),
+            ...(declaration === undefined ? {} : {
+              sourceDeclarations: Object.freeze([declaration]),
+              sourceSubjects: Object.freeze([declaration]),
             }),
             ...(member.readonly === undefined ? {} : { readonly: member.readonly }),
           }));

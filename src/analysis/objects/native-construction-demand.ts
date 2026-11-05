@@ -70,9 +70,7 @@ export function createCsharpNativeConstructionDemandQuery(
     if (effective === undefined || effective.kind === "refused") return;
     let descriptor = effective.type;
     while (descriptor.kind === "optional") descriptor = descriptor.value;
-    const component = descriptor.kind === "declared" ? descriptor.source ?? effective.provenance.component
-      : effective.provenance.component;
-    const selected = component?.selectedType;
+    const subjects = descriptor.kind === "declared" ? [descriptor.declaration] : [];
     if (descriptor.kind === "intrinsic" && descriptor.intrinsic === "any") {
       issue(node, "TSONIC_ANY_UNSUPPORTED", "'any' has no native representation. Declare the type, or use 'unknown' and narrow it.");
       return;
@@ -94,7 +92,7 @@ export function createCsharpNativeConstructionDemandQuery(
         for (const reference of host.navigation.referencesToDeclaration(declaration)) publish(reference, shape);
       }
     };
-    const native = selected !== undefined && queries.facts.typeSubjects(selected).some(subject => {
+    const native = subjects.some(subject => {
       const fact = host.sourceFacts?.getFact(subject, providerVirtualDeclarationFactKey);
       if (fact === undefined) return false;
       const provider = host.providers.resolveType(fact);

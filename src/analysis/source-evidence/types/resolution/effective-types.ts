@@ -73,7 +73,7 @@ export function createCsharpSourceTypeRepresentationHost(
       if (descriptor.members.length === 0) return "storage";
       let contract = true;
       for (const member of descriptor.members) {
-        const owner = member.declaration === undefined ? undefined : host.ast.parent(member.declaration);
+        const owner = member.origin.kind === "declared" ? host.ast.parent(member.origin.declaration) : undefined;
         if (owner === undefined) return undefined;
         if (host.ast.is.IsObjectLiteralExpression(owner)) contract = false;
       }
@@ -146,8 +146,8 @@ export function createCsharpSourceTypeRepresentationHost(
       const source = owners.length === 1 ? owners[0] : occurrence;
       return host.objectShapes.retainShape(shape, source);
     },
-    declaredType(declaration, typeArguments, component, descriptor) {
-      const caller = occurrence ?? component?.contextualCall?.call;
+    declaredType(declaration, typeArguments, descriptor) {
+      const caller = occurrence;
       const declarationFile = host.ast.getSourceFile(declaration);
       if (caller === undefined && (declarationFile === undefined || !host.hasSemantics(declarationFile))) {
         return host.navigation.isProjectDeclaration(declaration) ? undefined : scope.resolveProviderType([declaration], typeArguments);
@@ -159,7 +159,7 @@ export function createCsharpSourceTypeRepresentationHost(
       if (parameter !== undefined) {
         const scoped = host.representations.scopedTargetType(declaration);
         if (scoped !== undefined && typeArguments.length === 0) return scoped;
-        const sourceType = component?.selectedType ?? queries.types.authoredType(declaration) ??
+        const sourceType = queries.types.authoredType(declaration) ??
           queries.declarations.declaredType(declaration);
         return sourceType === undefined || typeArguments.length !== 0 ? undefined
           : host.typeParameterConstraints.resolve(parameter, { sourceFile: queries.sourceFile, sourceType });
@@ -173,14 +173,14 @@ export function createCsharpSourceTypeRepresentationHost(
       }
       const profile = classifyCsharpSourceProfileDeclaration(declaration, host.ast);
       if (profile !== undefined) return scope.resolveSourceProfileType(profile, typeArguments);
-      const selected = component?.selectedType ?? queries.declarations.declaredType(declaration);
+      const selected = queries.declarations.declaredType(declaration);
       const bindings = selected === undefined ? undefined : queries.types.typeArgumentBindings(selected);
       const parameters = csharpSourceTypeParameters(declaration, host.ast);
       if ((bindings?.length ?? 0) !== typeArguments.length) return undefined;
       const representedState = csharpSourceBindings((bindings ?? []).map(binding => binding.declaration),
         (bindings ?? []).map(binding => binding.argumentType), typeArguments, state);
       if (representedState === undefined) return undefined;
-      const direct = scope.resolveDirectSourceFacts([...(component?.authoredTypeNode === undefined ? [] : [component.authoredTypeNode]), declaration,
+      const direct = scope.resolveDirectSourceFacts([declaration,
         ...(selected === undefined ? [] : queries.facts.typeSubjects(selected))], queries.sourceFile, nextState(representedState));
       if (direct !== undefined) return direct;
       if (host.ast.is.IsTypeAliasDeclaration(declaration)) return scope.sourceUnionDefinitions.resolveDescriptor(declaration,

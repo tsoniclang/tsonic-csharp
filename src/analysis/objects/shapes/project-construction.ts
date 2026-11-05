@@ -29,7 +29,7 @@ export function createCsharpProjectShapeProjection(
       return { kind: "unchanged" };
     }
     const selectedTarget = host.typeResolver.resolveDescriptor(descriptor, contextNode, { depth: 0 });
-    const selectedType = descriptor.kind === "declared" ? descriptor.source?.selectedType : undefined;
+    const selectedType = descriptor.kind === "declared" ? host.semantics(sourceFile).declarations.declaredType(descriptor.declaration) : undefined;
     if (
       selectedTarget === undefined ||
       selectedType === undefined ||
