@@ -16,7 +16,7 @@ import { csharpNeverTargetType } from "../../../../target-model/types/carriers/s
 import { nextState } from "./state.js";
 import { sourceFactSubjectsForNode, definedValues, resolveCsharpUnionMemberCarrier } from "./source-evidence.js";
 import { sourcePrimitiveFactKey } from "@tsonic/tsts";
-import { sourceTransformedTypeFactEvidenceNodes, sourceTupleElementTypeEvidenceNodes, sourceTypeSyntaxIsCompositional, sourceTypeSyntaxRoot, sourceCallableValueParameters } from "@tsonic/target-api/source";
+import { sourceTransformedTypeFactEvidenceNodes, sourceTupleElementTypeEvidenceNodes, sourceTypeSyntaxIsCompositional, sourceTypeSyntaxRoot } from "@tsonic/target-api/source";
 import { substituteTargetTypeParameters } from "../../../../policy/types/resolution/substitution.js";
 import { targetTypeRefKey, targetTypeRefEquals } from "../../../../target-model/types/equality.js";
 import { reconcileCsharpSelectedTargetType, retainCsharpBroadValueCarrier } from "../../../../policy/types/resolution/selected-type-evidence.js";
@@ -24,8 +24,6 @@ import { selectCsharpAuthoredUnionRefinement } from "./source-union-refinement.j
 import { csharpBoundSourceType, csharpSourceBindings, csharpSourceTemplateState } from "./type-bindings.js";
 import { csharpConditionalDeclaration, resolveCsharpConditionalApplication } from "./conditional-types.js";
 import { csharpSourceStorageComponentContext } from "./source-storage-projection.js";
-import { bindCsharpSourceTypeArguments } from "./generic-arguments.js";
-import { csharpTargetParameterValueType } from "../../../../target-model/types/member-facts.js";
 import { getCsharpCallableValueSignature } from "../../../../target-model/types/carriers/delegates.js";
 import { resolveCsharpSourceEffectiveType } from "./effective-types.js";
 
@@ -472,58 +470,17 @@ export function resolveCsharpNativeParameterCarrier(
   return undefined;
 }
 
-export function selectCsharpContextualParameterCarrier(
+export function selectCsharpPublishedParameterCarrier(
   scope: CsharpTypeResolutionScope,
   declaration: Node,
-  queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
 ): { readonly kind: "not-applicable" } | { readonly kind: "unresolved" } |
   { readonly kind: "resolved"; readonly type: TargetTypeRef } {
   const { host } = scope;
   if (!host.ast.is.IsParameterDeclaration(declaration)) return { kind: "not-applicable" };
-  const syntax = scope.sourceValueDeclarationSyntax(declaration);
-  if (syntax.type !== undefined || syntax.initializer !== undefined) return { kind: "not-applicable" };
   const effective = resolveCsharpSourceEffectiveType(scope, declaration, state);
-  if (effective !== undefined) return effective.result === undefined ? { kind: "unresolved" }
+  return effective?.result === undefined ? { kind: "unresolved" }
     : { kind: "resolved", type: effective.result.selectedType };
-  const owner = host.ast.parent(declaration);
-  if (owner === undefined || !host.ast.is.IsArrowFunction(owner) && !host.ast.is.IsFunctionExpression(owner)) {
-    return { kind: "not-applicable" };
-  }
-  const parameters = sourceCallableValueParameters(host.ast, owner, queries);
-  const index = parameters?.indexOf(declaration) ?? -1;
-  const contextual = queries.types.contextualValueSelection(owner);
-  if (contextual.kind === "ambiguous") return { kind: "unresolved" };
-  if (contextual.kind !== "selected") return { kind: "not-applicable" };
-  const callable = queries.types.callable(contextual.component.selectedType);
-  const restBinding = host.ast.as.AsParameterDeclaration(declaration)?.DotDotDotToken !== undefined;
-  if (index < 0 || callable === undefined) return { kind: "not-applicable" };
-  let parameterState = bindCsharpSourceTypeArguments(scope, contextual.component.selectedType, queries, nextState(state), contextual.component.contextualCall);
-  const ownParameters = host.ast.typeParameters(owner);
-  if (ownParameters.length !== 0) {
-    const contextualParameters = callable?.result.declaration === undefined ? []
-      : host.ast.typeParameters(callable.result.declaration);
-    const ownSources = ownParameters.map(parameter => parameter === undefined ? undefined
-      : queries.declarations.declaredType(parameter));
-    const ownTargets = ownParameters.map(parameter => parameter === undefined ? undefined
-      : csharpSourceTypeParameter(parameter, host.ast));
-    if (parameterState === undefined || contextualParameters.length !== ownParameters.length ||
-      contextualParameters.some(parameter => parameter === undefined) ||
-      ownSources.some(type => type === undefined) || ownTargets.some(type => type === undefined)) return { kind: "unresolved" };
-    parameterState = csharpSourceBindings(contextualParameters as readonly Node[], ownSources as readonly Type[],
-      ownTargets as readonly TargetTypeRef[], parameterState);
-  }
-  const nativeContract = parameterState === undefined ? undefined : scope.resolveCallableEvidence(callable, queries, parameterState);
-  const signature = getCsharpCallableValueSignature(nativeContract);
-  const restIndex = signature?.restParameterIndex;
-  const nativeParameter = signature?.parameters[restIndex !== undefined && index >= restIndex ? restIndex : index];
-  const native = signature === undefined ? undefined : restBinding
-    ? restIndex === undefined ? Object.freeze({ kind: "tuple" as const, elements: Object.freeze(signature.parameters.slice(index)) })
-      : index === restIndex ? nativeParameter : undefined
-    : restIndex !== undefined && index >= restIndex && nativeParameter !== undefined
-      ? csharpTargetParameterValueType({ name: "", type: nativeParameter, passingMode: "by-value", paramsArray: true }, "value")
-      : nativeParameter;
-  return native === undefined ? { kind: "unresolved" } : { kind: "resolved", type: native };
 }
 
 export function resolveSourceValueDeclaration(
@@ -551,6 +508,9 @@ export function resolveSourceValueResult(
   if (declaration === undefined) {
     return undefined;
   }
+  const parameter = selectCsharpPublishedParameterCarrier(scope, declaration, state);
+  if (parameter.kind !== "not-applicable") return parameter.kind === "unresolved" ? undefined
+    : csharpSourceValueResult(resolveCsharpNativeParameterCarrier(scope, declaration, parameter.type, state));
   const sourceFile = host.ast.getSourceFile(declaration) ?? queries.sourceFile;
   const syntax = sourceValueDeclarationSyntax(declaration);
   if (syntax.type !== undefined) {
@@ -582,21 +542,6 @@ export function resolveSourceValueResult(
       queries.sourceFile,
       nextState(state),
     );
-    const contextual = selectCsharpContextualParameterCarrier(scope, declaration, declarationQueries, state);
-    if (contextual.kind === "unresolved") return undefined;
-    if (contextual.kind === "resolved") {
-      const native = resolveCsharpNativeParameterCarrier(scope, declaration, contextual.type, state);
-      if (native === undefined) return undefined;
-      const declaredSource = declarationQueries.declarations.declaredValueType(declaration);
-      if (declaredSource === undefined || selectedSource === undefined) return csharpSourceValueResult(native);
-      const refinement = selectCsharpAuthoredUnionRefinement(native, declaredSource, selectedSource, queries,
-        type => resolveCsharpUnionMemberCarrier(scope, native, type, queries, state),
-        host.structuralTypes.resolveTarget, host.typeDefinitions);
-      if (refinement.kind !== "not-applicable") return refinement.kind === "resolved" ? csharpSourceValueResult(refinement.type) : undefined;
-      if (native.kind === "source-primitive") return csharpSourceValueResult(native);
-      return csharpSourceValueResult(reconcileCsharpSelectedTargetType(native, selected, queries.types.relationship(declaredSource, selectedSource),
-        queries.types.isNonPrimitive(selectedSource)));
-    }
     return csharpSourceValueResult(resolveCsharpNativeParameterCarrier(scope, declaration, retainCsharpBroadValueCarrier(declaredTarget, selected,
       selectedSource !== undefined && queries.types.isNonPrimitive(selectedSource)) ?? selected ?? declaredTarget, state));
   }

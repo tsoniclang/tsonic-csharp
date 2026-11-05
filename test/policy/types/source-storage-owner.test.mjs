@@ -5,6 +5,9 @@ import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { sourceValueDeclaration } from "../../../dist/analysis/source-evidence/types/resolution/calls.js";
 import { resolveNode, resolveSelectedValueWithState, resolveSelectedValueResultWithState, resolveStorage } from "../../../dist/analysis/source-evidence/types/resolution/public-api.js";
 import { csharpSourceValueResult } from "../../../dist/analysis/source-evidence/types/resolution/call-results.js";
+import { selectCsharpPublishedParameterCarrier } from "../../../dist/analysis/source-evidence/types/resolution/source-references.js";
+import { csharpTsValueTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
+import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
 
 function checkedStorage(kind) {
   const checked = createCompilerSessionFromFiles({ currentDirectory: "/src", files: {
@@ -43,6 +46,50 @@ function fixture(kind, project) {
   scope.sourceValueDeclaration = (node, reference) => sourceValueDeclaration(scope, node, reference);
   return { scope, expression, declaration, declarationFile };
 }
+
+test("parameter carrier selection has one publication owner for every outcome state", () => {
+  const { source, expression, file } = checkedStorage("function");
+  const parameter = source.ast.parameters(expression)[0];
+  assert.equal(parameter !== undefined, true, "the boundary input is a real checked parameter");
+  const actual = source.effectiveTypes.get(parameter);
+  assert.equal(actual !== undefined && actual.kind !== "refused" && actual.provenance.occurrence === parameter &&
+    actual.type.kind === "intrinsic" && actual.type.intrinsic === "unknown", true,
+    "the Native boundary consumes the real checked unknown parameter's publication");
+  const descriptor = actual.type;
+  const provenance = Object.freeze({ group: parameter, occurrence: parameter, sourceFile: file });
+  const refusal = Object.freeze({ kind: "refused", source: "tsonic", code: "TSONIC_LOCAL_TYPE_SIGNATURE",
+    site: parameter, reason: "The source signature has no chosen type." });
+  const cases = [
+    ["resolved", { kind: "resolved", type: descriptor, provenance }, "resolved"],
+    ["default", { kind: "default", type: descriptor, provenance }, "resolved"],
+    ["missing", undefined, "unresolved"],
+    ["refused", refusal, "unresolved"],
+    ["unrepresentable", { kind: "resolved", type: { kind: "union", types: [] }, provenance }, "unresolved"],
+  ];
+  for (const [label, publication, expected] of cases) {
+    const rejections = [];
+    const scope = { host: { ast: source.ast, target: { id: "csharp" }, effectiveTypes: { get(node) {
+      assert.equal(node === parameter, true, label);
+      return publication;
+    } } }, sourceValueDeclarationSyntax: () => assert.fail("annotation syntax is not a parameter type owner"),
+    resolveCallableEvidence: () => assert.fail("Native delegate context cannot infer a missing Source parameter"),
+    semanticsFor: () => assert.fail("a missing publication cannot invoke checker queries") };
+    const selected = selectCsharpPublishedParameterCarrier(scope, parameter,
+      { depth: 0, rejectNativeResolution: rejection => rejections.push(rejection) });
+    assert.equal(selected.kind, expected, label);
+    if (selected.kind === "resolved") assert.equal(targetTypeRefEquals(selected.type, csharpTsValueTargetType()), true, label);
+    assert.equal(rejections.length, label === "refused" ? 1 : 0, label);
+    if (label === "refused") assert.equal(rejections[0].subject === parameter && rejections[0].code === refusal.code, true, label);
+    scope.host.effectiveTypes.get = () => assert.fail("a non-parameter has no parameter lookup");
+    assert.equal(selectCsharpPublishedParameterCarrier(scope, expression, { depth: 0 }).kind, "not-applicable", label);
+  }
+  const foreign = { host: { ast: source.ast, target: { id: "csharp" }, effectiveTypes: {
+    get: () => ({ kind: "resolved", type: descriptor, provenance: { ...provenance, occurrence: expression } }),
+  } } };
+  assert.throws(() => selectCsharpPublishedParameterCarrier(foreign, parameter, { depth: 0 }),
+    error => error.diagnostic?.code === "TSONIC_INTERNAL_ANALYSIS_INVARIANT" && error.diagnostic.sourceNode === parameter,
+    "a foreign occurrence is rejected rather than typed through another path");
+});
 
 test("a dependent native node retains the original selected rejection without a carrier fallback", () => {
   const expression = {};

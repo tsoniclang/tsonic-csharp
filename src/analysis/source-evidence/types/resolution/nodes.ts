@@ -20,7 +20,7 @@ import { resolveCsharpProviderIndexedAccess } from "./indexed-access.js";
 import { csharpSourceStorageContext, csharpSourceStorageComponentContext } from "./source-storage-projection.js";
 
 import { selectCsharpParameterListCarrier } from "../../../../policy/types/callables/parameter-list.js";
-import { resolveCsharpNativeParameterCarrier, selectCsharpContextualParameterCarrier } from "./source-references.js";
+import { resolveCsharpNativeParameterCarrier, selectCsharpPublishedParameterCarrier } from "./source-references.js";
 import type { CsharpSourceCallResult } from "../../../../target-model/operations/source-call-results.js";
 import { csharpSourceValueResult, refineCsharpSourceValueResult } from "./call-results.js";
 import { resolveCsharpSourceEffectiveType } from "./effective-types.js";
@@ -86,7 +86,7 @@ function resolveNodeResultWithState(
   if (syntaxFact !== undefined) {
     return csharpSourceValueResult(syntaxFact);
   }
-  const contextualParameter = selectCsharpContextualParameterCarrier(scope, node, queries, state);
+  const contextualParameter = selectCsharpPublishedParameterCarrier(scope, node, state);
   if (contextualParameter.kind !== "not-applicable") return contextualParameter.kind === "resolved"
     ? csharpSourceValueResult(contextualParameter.type) : undefined;
   const selectedExpression = resolveSelectedExpressionResult(
