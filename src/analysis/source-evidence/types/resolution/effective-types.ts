@@ -197,8 +197,8 @@ export function createCsharpSourceTypeRepresentationHost(
       if (host.ast.is.IsTypeAliasDeclaration(declaration)) {
         if (descriptor.cut === "unexpressible") return undefined;
         return scope.sourceUnionDefinitions.resolveDescriptor(declaration,
-          typeArguments, descriptor.definition === undefined ? undefined : () => resolveCsharpSourceTypeDescriptor(scope,
-            descriptor.definition!, nextState(state), occurrence),
+          typeArguments, descriptor.definition, definition => resolveCsharpSourceTypeDescriptor(scope,
+            definition, nextState(state), occurrence),
           descriptor.definition !== undefined && sourceTypeDescriptorStructure(descriptor.definition).kind === "optional");
       }
       if (host.navigation.isProjectDeclaration(declaration)) {

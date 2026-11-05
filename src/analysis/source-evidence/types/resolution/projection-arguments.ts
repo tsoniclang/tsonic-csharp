@@ -68,7 +68,6 @@ export function resolveCsharpProjectionArguments(
         result = resolveCsharpOptionalStorage(contract, targetArguments[0]!);
       } else {
         const matches: TargetTypeRef[] = [];
-        const bodies: TargetTypeRef[] = [];
         for (const reference of definitions) {
           if (reference.declaration !== contract.declaration || reference.definition === undefined ||
             reference.typeArguments.length !== targetArguments.length) continue;
@@ -77,15 +76,11 @@ export function resolveCsharpProjectionArguments(
           if (representedArguments.some((argument, index) => argument === undefined ||
             !targetTypeRefEquals(substituteTargetTypeParameters(argument, nativeBindings), targetArguments[index]!))) continue;
           const selected = resolveCsharpSourceTypeDescriptor(scope, reference, nextState(state), declaration);
-          const body = resolveCsharpSourceTypeDescriptor(scope, reference.definition, nextState(state), declaration);
-          if (selected === undefined || body === undefined) return undefined;
+          if (selected === undefined) return undefined;
           matches.push(substituteTargetTypeParameters(selected, nativeBindings));
-          bodies.push(substituteTargetTypeParameters(body, nativeBindings));
         }
         const first = matches[0];
-        const body = bodies[0];
-        result = first === undefined || body === undefined || matches.some(selected => !targetTypeRefEquals(selected, first)) ||
-          bodies.some(selected => !targetTypeRefEquals(selected, body)) ? undefined : first;
+        result = first === undefined || matches.some(selected => !targetTypeRefEquals(selected, first)) ? undefined : first;
       }
       if (result === undefined) return undefined;
       selected.set(projection.identity, result);

@@ -7,8 +7,10 @@ import { resolveCsharpProjectionArguments } from "../../../../dist/analysis/sour
 import { createCsharpSourceUnionDefinitions } from "../../../../dist/analysis/source-evidence/types/resolution/union-definitions.js";
 import { createCsharpObjectShapeMemberResolver } from "../../../../dist/analysis/objects/shapes/member-evidence.js";
 import { createCsharpProjectShapeProjection } from "../../../../dist/analysis/objects/shapes/project-construction.js";
-import { csharpSourcePrimitiveTargetType } from "../../../../dist/target-model/types/carriers/scalar-types.js";
+import { csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../../../../dist/target-model/types/carriers/scalar-types.js";
 import { getCsharpDelegateSignature } from "../../../../dist/target-model/types/carriers/delegates.js";
+import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../../dist/target-model/types/carriers/nullable.js";
+import { csharpRuntimeUnionTargetType } from "../../../../dist/target-model/types/carriers/runtime-carriers.js";
 import { csharpSourceTypeParameter } from "../../../../dist/source/extension/type-parameters.js";
 import { csharpProjectedType } from "../../../../dist/target-model/types/projections.js";
 import { targetTypeRefEquals } from "../../../../dist/target-model/types/equality.js";
@@ -22,6 +24,7 @@ function fixture() {
   const checked = createCompilerSessionFromFiles({ currentDirectory: "/src", files: { "/src/index.ts": `
     interface Box<Value> { value: Value; items: Value[]; }
     type Selected<Value> = Value extends number ? number : string;
+    type Recursive = number | readonly Recursive[];
     function outer<Outer>() { class Local<Inner> {} return Local; }
   ` }, compilerOptions: { strict: true, target: "es2022", module: "esnext" } }).checkSource();
   assert.equal(checked.diagnostics.length, 0);
@@ -33,6 +36,7 @@ function fixture() {
   const named = (kind, name) => nodes.find(node => source.ast.is[kind](node) && source.ast.text(source.ast.name(node)) === name);
   const box = named("IsInterfaceDeclaration", "Box");
   const alias = named("IsTypeAliasDeclaration", "Selected");
+  const recursive = named("IsTypeAliasDeclaration", "Recursive");
   const local = named("IsClassDeclaration", "Local");
   const outer = named("IsFunctionDeclaration", "outer");
   const parameter = source.ast.typeParameters(box)[0];
@@ -54,8 +58,150 @@ function fixture() {
   };
   const scope = { host, resolveDirectSourceFacts: () => undefined, resolveProviderType: unexpected };
   scope.sourceUnionDefinitions = createCsharpSourceUnionDefinitions(host, unexpected);
-  return { source, file, nodes, box, alias, local, outer, parameter, queries, definitions, target, scope };
+  return { source, file, nodes, box, alias, recursive, local, outer, parameter, queries, definitions, target, scope };
 }
+
+test("complete alias applications cache the exact published definition identity, never only their represented arguments", () => {
+  const input = fixture();
+  const registry = createCsharpSourceUnionDefinitions(input.scope.host, unexpected);
+  const arguments_ = [csharpStringTargetType()];
+  let evaluated = 0;
+  const definitions = [];
+  for (const width of ["int32", "int64", "int64", "uint32"]) {
+    const definition = Object.freeze(primitive(width));
+    definitions.push(definition);
+    const target = csharpSourcePrimitiveTargetType(width);
+    const selected = registry.resolveDescriptor(input.alias, arguments_, definition, actual => {
+      assert.equal(actual === definition, true, "the materializer receives that exact published body");
+      evaluated += 1;
+      return target;
+    });
+    assert.equal(targetTypeRefEquals(selected, target), true, width);
+  }
+  assert.equal(evaluated, 4, "distinct definition objects are each materialized, including equal bodies");
+  assert.equal(targetTypeRefEquals(registry.resolveDescriptor(input.alias, arguments_, definitions[0], unexpected),
+    csharpSourcePrimitiveTargetType("int32")), true, "the same immutable definition identity reuses only its own result");
+  assert.equal(registry.resolveDescriptor(input.alias, arguments_, primitive("int16"), () => undefined) === undefined, true,
+    "a later unresolved application never reuses the previous complete result");
+  assert.throws(() => registry.resolveDescriptor(input.alias, arguments_, primitive("uint16"),
+    () => { throw new Error("exact body failure"); }), /exact body failure/u);
+  assert.equal(registry.resolveDescriptor(input.alias, arguments_, undefined, unexpected) === undefined, true,
+    "neither scalar results nor a failed application become an identity-only recursive reference");
+});
+
+test("same-body recursive aliases validate distinct definitions without changing their nominal carrier", () => {
+  const input = fixture();
+  const records = [];
+  let registrations = 0;
+  const typeDefinitions = {
+    sourceUnionArms: carrier => records.find(record => targetTypeRefEquals(record.carrier, carrier))?.arms,
+    registerSourceUnion(record) {
+      registrations += 1;
+      const previous = records.find(candidate => targetTypeRefEquals(candidate.carrier, record.carrier));
+      if (previous !== undefined) return previous.arms.length === record.arms.length &&
+        previous.arms.every((arm, index) => targetTypeRefEquals(arm, record.arms[index]));
+      records.push(record);
+      return true;
+    },
+  };
+  const registry = createCsharpSourceUnionDefinitions({ ...input.scope.host, typeDefinitions }, unexpected);
+  const references = [];
+  let evaluated = 0;
+  const definition = { kind: "union", types: [primitive("int64"), { kind: "array", readonly: true,
+    element: { kind: "declared", declaration: input.recursive, typeArguments: [], cut: "recursion" } }] };
+  const body = actual => {
+    evaluated += 1;
+    assert.equal(actual.kind === "union", true);
+    const reference = registry.resolveDescriptor(input.recursive, [], undefined, unexpected);
+    assert.equal(reference !== undefined, true, "the active recursion cut retains its nominal reference");
+    references.push(reference);
+    return csharpRuntimeUnionTargetType([csharpSourcePrimitiveTargetType("int64"), { kind: "array", element: reference }]);
+  };
+  const first = registry.resolveDescriptor(input.recursive, [], definition, body);
+  const second = registry.resolveDescriptor(input.recursive, [], { ...definition }, body);
+  assert.equal(first !== undefined && second !== undefined && targetTypeRefEquals(first, second), true,
+    "revalidation does not rename a stable recursive carrier");
+  assert.equal(evaluated === 2 && registrations === 2 && records.length === 1, true,
+    "both distinct complete definitions reach the one canonical native validator");
+  assert.equal(targetTypeRefEquals(registry.resolveDescriptor(input.recursive, [], definition, unexpected), first), true,
+    "a repeated exact definition identity reuses its already validated result");
+  assert.equal(references.every(reference => targetTypeRefEquals(reference, first)), true,
+    "each recursive occurrence names the same nominal carrier");
+  assert.equal(targetTypeRefEquals(registry.resolveDescriptor(input.recursive, [], undefined, unexpected), first), true,
+    "an identity-only cut can retain the already validated recursive nominal result");
+  const contradictory = { ...definition, types: [primitive("uint64"), definition.types[1]] };
+  assert.equal(registry.resolveDescriptor(input.recursive, [], contradictory, () => {
+    const reference = registry.resolveDescriptor(input.recursive, [], undefined, unexpected);
+    return csharpRuntimeUnionTargetType([csharpSourcePrimitiveTargetType("uint64"), { kind: "array", element: reference }]);
+  }) === undefined, true, "contradictory bodies cannot reuse an already registered nominal layout");
+  assert.equal(registry.resolveDescriptor(input.recursive, [], undefined, unexpected) === undefined, true,
+    "an incompatible complete application makes an unqualified later cut ambiguous");
+});
+
+test("published optional recursive aliases retain absence in active and completed identity-only cuts", () => {
+  const input = fixture();
+  const registry = createCsharpSourceUnionDefinitions({ ...input.scope.host,
+    typeDefinitions: { sourceUnionArms: () => undefined, registerSourceUnion: () => true } }, unexpected);
+  const definition = { kind: "optional", value: { kind: "union", types: [primitive("int64"),
+    { kind: "array", readonly: true,
+      element: { kind: "declared", declaration: input.recursive, typeArguments: [], cut: "recursion" } }] } };
+  let active;
+  const selected = registry.resolveDescriptor(input.recursive, [], definition, () => {
+    active = registry.resolveDescriptor(input.recursive, [], undefined, unexpected);
+    assert.equal(getCsharpNullableElementTargetType(active) !== undefined, true, "the active reference includes Source absence");
+    return csharpNullableTargetType(csharpRuntimeUnionTargetType([
+      csharpSourcePrimitiveTargetType("int64"), { kind: "array", element: active },
+    ]));
+  }, true);
+  assert.equal(selected !== undefined && targetTypeRefEquals(active, selected), true);
+  assert.equal(targetTypeRefEquals(registry.resolveDescriptor(input.recursive, [], undefined, unexpected), selected), true,
+    "the validated identity-only result preserves exactly the same nullable nominal carrier");
+});
+
+test("a definition-less recursion cut cannot choose between two active published applications", () => {
+  const input = fixture();
+  const registry = createCsharpSourceUnionDefinitions(input.scope.host, unexpected);
+  const arguments_ = [csharpStringTargetType()];
+  const first = primitive("int32");
+  const second = primitive("int64");
+  assert.equal(registry.resolveDescriptor(input.alias, arguments_, undefined, unexpected) === undefined, true,
+    "an unseen recursion cut has no represented definition");
+  const selected = registry.resolveDescriptor(input.alias, arguments_, first, () => {
+    const nested = registry.resolveDescriptor(input.alias, arguments_, second, () => {
+      assert.equal(registry.resolveDescriptor(input.alias, arguments_, undefined, unexpected) === undefined, true,
+        "a declaration and represented arguments cannot distinguish two active bodies");
+      return csharpSourcePrimitiveTargetType("int64");
+    });
+    assert.equal(targetTypeRefEquals(nested, csharpSourcePrimitiveTargetType("int64")), true);
+    return csharpSourcePrimitiveTargetType("int32");
+  });
+  assert.equal(targetTypeRefEquals(selected, csharpSourcePrimitiveTargetType("int32")), true);
+});
+
+test("raw checked-Type entries and published definition identities cannot reuse each other's completed results", () => {
+  const input = fixture();
+  const type = input.queries.declarations.declaredType(input.recursive);
+  assert.equal(type !== undefined, true, "the raw metadata lane receives an actual checked recursive alias type");
+  const application = input.queries.types.aliasApplication(type);
+  assert.equal(application?.kind === "direct" && application.declaration === input.recursive &&
+    application.bindings.length === 0, true, "the concrete metadata fixture has no binder reconstruction");
+  const registry = createCsharpSourceUnionDefinitions({ ...input.scope.host,
+    typeDefinitions: { sourceUnionArms: () => undefined, registerSourceUnion: unexpected } }, unexpected);
+  const published = primitive("int32");
+  assert.equal(targetTypeRefEquals(registry.resolveDescriptor(input.recursive, [], published,
+    () => csharpSourcePrimitiveTargetType("int32")), csharpSourcePrimitiveTargetType("int32")), true);
+  let constructed = 0;
+  const checked = registry.resolve(type, input.queries, { depth: 0 }, () => {
+    constructed += 1;
+    return { carrier: csharpSourcePrimitiveTargetType("int64"), arms: [csharpSourcePrimitiveTargetType("int64")] };
+  });
+  assert.equal(targetTypeRefEquals(checked, csharpSourcePrimitiveTargetType("int64")), true,
+    "the exact checked-Type entry does not borrow the published int32 result");
+  assert.equal(registry.resolve(type, input.queries, { depth: 0 }, unexpected) === checked && constructed === 1, true,
+    "only the same immutable checked-Type identity reuses that metadata result");
+  assert.equal(targetTypeRefEquals(registry.resolveDescriptor(input.recursive, [], published, unexpected),
+    csharpSourcePrimitiveTargetType("int32")), true, "the metadata entry cannot overwrite the published body");
+});
 
 test("published nominal arguments retain their complete outer and local declaration order without formal raw bindings", () => {
   const input = fixture();
@@ -129,6 +275,7 @@ test("one published member inventory retains exact width and origin without raw 
     })), indexes: [], calls: [], constructs: [] } };
   const queries = { ...input.queries, types: new Proxy({}, { get: unexpected }) };
   const host = { ast: input.source.ast, navigation: input.source.navigation,
+    hasSemantics: file => file === input.file,
     semantics: () => queries, semanticsFor: () => queries,
     sourceStorage: { memberSubjectFor: () => undefined }, memoryBindings: { hasBoundField: () => false },
     representations: { genericProjections: () => [] },
@@ -145,6 +292,28 @@ test("one published member inventory retains exact width and origin without raw 
   }
   assert.equal(targetTypeRefEquals(members[0].type, csharpSourcePrimitiveTargetType("int64")), true);
   assert.equal(targetTypeRefEquals(members[1].type.element, csharpSourcePrimitiveTargetType("int64")), true);
+});
+
+test("published declared members reject a missing or unowned actual source file before symbol lookup", () => {
+  const input = fixture();
+  const declaration = input.source.ast.members(input.box)[0];
+  const descriptor = { kind: "shape", members: [{ name: "value", optional: false,
+    origin: { kind: "declared", declaration }, type: primitive("int64") }], indexes: [], calls: [], constructs: [] };
+  const foreign = createCompilerSessionFromFiles({ currentDirectory: "/foreign",
+    files: { "/foreign/other.ts": "interface Foreign { value: number; }" },
+    compilerOptions: { strict: true } }).checkSource().getSourceFile("/foreign/other.ts");
+  assert.equal(foreign !== undefined, true);
+  for (const [name, file] of [["missing", undefined], ["foreign-unowned", foreign]]) {
+    let lookups = 0;
+    const invalidLookup = () => { lookups += 1; return unexpected(); };
+    const resolver = createCsharpObjectShapeMemberResolver({
+      ast: { ...input.source.ast, getSourceFile: () => file },
+      hasSemantics: actual => actual === input.file,
+      navigation: { declarationSymbol: invalidLookup }, semantics: invalidLookup, semanticsFor: invalidLookup,
+    });
+    assert.equal(resolver.deriveMembers(descriptor, input.box, input.queries, { depth: 0 }) === undefined, true, name);
+    assert.equal(lookups, 0, `${name}: the query file must never substitute for the declaration's own file`);
+  }
 });
 
 test("project construction preserves nominal identity but cannot open recursion or unexpressible cuts", () => {
@@ -228,6 +397,59 @@ export function construction(value: ${width}): Box<${width}> {
 }
 
 for (const surface of ["native", "js"]) {
+  test(`published ${surface} literal-argument aliases do not share a cached primitive body`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+import type { int32, int64 } from "@tsonic/core/types.js";
+type Pick<Value> = Value extends "left" ? int32 : int64;
+export function left(value: Pick<"left">): int32 { return value; }
+export function right(value: Pick<"right">): int64 { return value; }
+export function again(value: Pick<"right">): int64 { return value; }
+` });
+    assertCsharpCompilationSucceeded(compiled);
+    const program = compiled.result.program;
+    const ast = program.source.ast;
+    const functions = [];
+    const visit = node => {
+      if (ast.is.IsFunctionDeclaration(node)) functions.push(node);
+      ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    };
+    csharpProgramSourceFiles(program).forEach(visit);
+    for (const [name, width] of [["left", "int32"], ["right", "int64"], ["again", "int64"]]) {
+      const owner = functions.find(declaration => ast.text(ast.name(declaration)) === name);
+      const parameter = ast.parameters(owner)[0];
+      const outcome = program.source.effectiveTypes.get(parameter);
+      assert.equal(outcome !== undefined && outcome.kind !== "refused", true, name);
+      const structure = sourceTypeDescriptorStructure(outcome.type);
+      assert.equal(structure.kind === "primitive" && structure.primitive === width, true, `${name}: actual Host body`);
+      assert.equal(targetTypeRefEquals(program.records.nodeTargetType.get(parameter),
+        csharpSourcePrimitiveTargetType(width)), true, `${name}: same actual Native body`);
+    }
+  });
+
+  test(`published ${surface} recursive same-body aliases retain their one nominal target`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+import type { int64 } from "@tsonic/core/types.js";
+type Tree = int64 | readonly Tree[];
+export function first(value: Tree): Tree { return value; }
+export function second(value: Tree): Tree { return value; }
+` });
+    assertCsharpCompilationSucceeded(compiled);
+    const program = compiled.result.program;
+    const ast = program.source.ast;
+    const parameters = [];
+    const visit = node => {
+      if (ast.is.IsFunctionDeclaration(node) && ["first", "second"].includes(ast.text(ast.name(node)))) {
+        parameters.push(ast.parameters(node)[0]);
+      }
+      ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    };
+    csharpProgramSourceFiles(program).forEach(visit);
+    const targets = parameters.map(parameter => program.records.nodeTargetType.get(parameter));
+    assert.equal(targets.length === 2 && targets.every(target => target?.kind === "target-named" &&
+      typeof target.csharpSourceUnionIdentity === "string") && targetTypeRefEquals(targets[0], targets[1]), true,
+      "the second complete publication validates the same recursive native definition");
+  });
+
   test(`published ${surface} callable interface signatures use their instantiated parameter and result vector`, () => {
     const compiled = compileCsharpSource({ surface, sourceText: `
 import type { int64 } from "@tsonic/core/types.js";

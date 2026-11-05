@@ -56,7 +56,8 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
       structure.constructs.length !== 0) return undefined;
     const members: CsharpObjectShapeMemberFact[] = [];
     for (const property of structure.members) {
-      const declarations = memberDeclarations(property, queries);
+      const declarations = memberDeclarations(property);
+      if (declarations === undefined) return undefined;
       if (declarations.length !== 0 && declarations.every(declaration => sourceClassFieldIsTypeOnly(host.ast, declaration))) continue;
       if (declarations.some(declaration => isCsharpNativeSourceProfileMemberDeclaration(declaration, host.ast))) {
         if (!declarations.every(declaration => isCsharpNativeSourceProfileMemberDeclaration(declaration, host.ast))) return undefined;
@@ -69,10 +70,11 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
     return Object.freeze(members);
   }
 
-  function memberDeclarations(property: SourceTypeDescriptorMember, queries: SourceFileSemantics): readonly Node[] {
+  function memberDeclarations(property: SourceTypeDescriptorMember): readonly Node[] | undefined {
     if (property.origin.kind !== "declared") return [];
     const declaration = property.origin.declaration;
-    const file = host.ast.getSourceFile(declaration) ?? queries.sourceFile;
+    const file = host.ast.getSourceFile(declaration);
+    if (file === undefined || !host.hasSemantics(file)) return undefined;
     const symbol = host.navigation.declarationSymbol(declaration, file);
     const declarations = symbol === undefined ? [] : host.semantics(file).declarations.symbolDeclarations(symbol);
     return declarations.includes(declaration) ? declarations : [declaration];
