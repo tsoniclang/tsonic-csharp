@@ -552,7 +552,9 @@ test("native invocation arguments retain their complete projected order independ
     current.openContract.nativeSignature.methodTypeParameterIdentities, current.openContract);
   assert.equal(selected !== undefined, true, "the complete native invocation is admitted");
   assert.equal(selected.arguments.length, 3, "neither native projection is dropped");
-  assert.equal(selected.arguments[0] === integer, true, "the original authored invocation retains its argument identity");
+  assert.equal(targetTypeRefEquals(selected.arguments[0], integer), true, "the original authored invocation retains its exact native argument");
+  assert.equal(selected.arguments[0] === selected.substitutions.get(parameter.type.identity), true,
+    "the original authored binder retains the identical selected invocation argument");
   assert.equal(selected.arguments[1] === selected.substitutions.get(operations.identity), true,
     "the actual native operations slot precedes storage in this invocation");
   assert.equal(selected.arguments[2] === selected.substitutions.get(storage.identity), true,
