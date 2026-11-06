@@ -12,12 +12,39 @@ import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { analyzeCsharpDeclarations, reconcileInferredReturnTargetContract } from "../../../dist/analysis/declarations/analyze.js";
 import { csharpRuntimeUnionTargetType, csharpTargetNamedType, csharpStringTargetType } from "../../../dist/target-model/types/index.js";
 import { csharpJsArrayTargetType } from "../../../dist/target-model/types/carriers/js.js";
-import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
+import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { csharpNumericReturnBaselineCovered } from "../../../dist/policy/conversions/union-relations.js";
 import { selectCsharpConversion } from "../../../dist/policy/conversions/core.js";
 import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
 import { header, emptyProviders, compile, diagnosticLabel, accepted, arrays, constructedArrays, destinationBodies, actualDestinationEvidence, actualUnionDestinationEvidence } from "./inferred-numeric-array-elements.fixtures.mjs";
 import { assertPublishedRefusal } from "../../helpers/source-effective-types.mjs";
+
+function assertIntegerDefaultConstruction(compiled, label, otherKinds = ["string"]) {
+  const program = accepted(compiled);
+  const element = constructedArrays(program).get("values");
+  assert.equal(element !== undefined, true, label + ": the original array construction is retained");
+  const present = getCsharpNullableElementTargetType(element);
+  const actual = getCsharpRuntimeUnionArms(present ?? element, program.typeDefinitions) ?? [present ?? element];
+  const kinds = actual.map(arm => isCsharpStringTargetType(arm) || isCsharpJsStringTargetType(arm)
+    ? "string" : arm.kind === "source-primitive" ? arm.name : arm.kind);
+  if (present !== undefined) kinds.push("absence");
+  assert.deepEqual(kinds.sort(), ["int64", ...otherKinds].sort(), label + ": exact native arms, never a floating integer carrier");
+  const ast = program.source.ast;
+  const pending = [...csharpProgramSourceFiles(program)];
+  let integers = 0;
+  while (pending.length > 0) {
+    const node = pending.pop();
+    if (ast.is.IsNumericLiteral(node) && ast.text(node) === "9007199254740993") {
+      const outcome = program.source.effectiveTypes.get(node);
+      const physical = outcome === undefined || outcome.kind === "refused" ? undefined : outcome.construction ?? outcome.type;
+      assert.equal(physical?.kind === "primitive" && physical.primitive === "int64", true,
+        label + ": the same authored integer has its exact Source construction");
+      integers += 1;
+    }
+    ast.forEachChild(node, child => { if (child !== undefined) pending.push(child); });
+  }
+  assert.equal(integers, 1, label + ": the original integer occurrence is not replaced or duplicated");
+}
 
 for (const surface of ["native", "js"]){
 test(`${surface} an actual generic union argument selects the literal's physical storage order`, () => {
@@ -140,19 +167,9 @@ for (const [name, body] of [
     ["nested generic callback", `function call<T>(make: () => (string | T)[]): (string | T)[] { return make(); }
       export function run() { return call(() => { const values = ["text", 9007199254740993]; return values; }); }`],
   ]){
-test(`${surface} a self-inferred ${name} is not an explicit closed union destination`, () => {
+test(`${surface} a self-inferred ${name} retains its own exact int64 construction`, () => {
     const compiled = compile(surface, body);
-    assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
-    const issue = compiled.nativeStage.diagnostics[0];
-    const ast = compiled.nativeStage.source.ast;
-    const range = issue?.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
-    const text = range?.kind !== "authored" ? undefined : ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end);
-    assert.equal(compiled.targetDiagnostics.length === 1 && issue.code === "CSHARP_ARRAY_ELEMENT_CARRIER_MISMATCH" &&
-      issue.message === "An inferred numeric union requires an exact canonical carrier for every authored integer literal." &&
-      text === '["text", 9007199254740993]', true,
-    `the same inference cannot certify itself as a native rounding demand through a generic union or callback; ${diagnosticLabel(compiled)}`);
-    assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
-      "a failed inferred construction is rejected before any sealed or emitted program");
+    assertIntegerDefaultConstruction(compiled, `${surface}: ${name}`);
   });
 }
 
@@ -183,18 +200,9 @@ for (const [name, body] of [
       export function run() { const values = ["text", 9007199254740993];
         return call(() => values, () => values); }`],
   ]){
-test(`${surface} same-call ${name} of one array cannot certify each other's rounding destination`, () => {
+test(`${surface} same-call ${name} retain one own int64 array without certifying a rounding destination`, () => {
     const compiled = compile(surface, body);
-    assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
-    const issue = compiled.nativeStage.diagnostics[0];
-    const ast = compiled.nativeStage.source.ast;
-    const range = issue?.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
-    const text = range?.kind !== "authored" ? undefined : ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end);
-    assert.equal(compiled.targetDiagnostics.length === 1 && issue.code === "CSHARP_ARRAY_ELEMENT_CARRIER_MISMATCH" &&
-      issue.message === "An inferred numeric union requires an exact canonical carrier for every authored integer literal." &&
-      text === '["text", 9007199254740993]', true, `checked aliases of the same native construction supply no independent rounding authority; ${diagnosticLabel(compiled)}`);
-    assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
-      "the original precise rejection occurs before sealing, without an alias-induced floating conversion");
+    assertIntegerDefaultConstruction(compiled, `${surface}: same-call ${name}`);
   });
 }
 
@@ -260,11 +268,7 @@ test(`${surface} an authored integer outside the canonical floating arm is refus
     assertPublishedRefusal({ ...compiled, targetSource: compiled.nativeStage.source },
       "TSONIC_LOCAL_TYPE_MIXED_ELEMENTS", "[signed, unsigned, 9007199254740993]");
     const outside = compile(surface, `export function run() { const values = ["text", 9007199254740993]; return values; }`);
-    assert.equal(outside.sourceDiagnosticsText === "", true, outside.sourceDiagnosticsText);
-    assert.equal(outside.result.program === undefined && outside.artifacts.size === 0 && outside.targetDiagnostics.length === 1 &&
-      outside.targetDiagnostics[0].code === "CSHARP_ARRAY_ELEMENT_CARRIER_MISMATCH" &&
-      outside.targetDiagnostics[0].message === "An inferred numeric union requires an exact canonical carrier for every authored integer literal.", true,
-      `the C8-outside inferred union still refuses rounding the identical authored integer; ${diagnosticLabel(outside)}`);
+    assertIntegerDefaultConstruction(outside, `${surface}: the same unbound integer outside fixed peers`);
   });
 
 test(`${surface} an annotated numeric union retains the neighboring exact floating arm without an integer cap`, () => {
@@ -294,6 +298,14 @@ for (const [name, elements] of [
 test(`${surface} every inferred union fallback proves exact canonical integers (${name})`, () => {
     const compiled = compile(surface, `export function run(signed: int32, unsigned: uint32) { const values = [${elements}]; return values; }`);
     assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
+    if (name === "text cannot authorize a floating default" || name === "text reversed cannot authorize a floating default" ||
+      name === "text and a fraction cannot authorize a floating default" || name === "native absence cannot authorize a floating default" ||
+      name === "native absence reversed cannot authorize a floating default") {
+      const otherKinds = name.startsWith("native absence") ? ["absence"]
+        : name === "text and a fraction cannot authorize a floating default" ? ["string", "float64"] : ["string"];
+      assertIntegerDefaultConstruction(compiled, `${surface}: ${name}`, otherKinds);
+      return;
+    }
     if (name === "fraction cannot conceal inexact integer" || name === "unmaterialized token cannot erase incompatible peers") {
       assertPublishedRefusal({ ...compiled, targetSource: compiled.nativeStage.source },
         "TSONIC_LOCAL_TYPE_MIXED_ELEMENTS", `[${elements}]`);
