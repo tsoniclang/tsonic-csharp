@@ -1,5 +1,5 @@
 import { selectCsharpFlowReadCarrier } from "../../policy/conversions/flow-read.js";
-import { isCsharpFlowReadEvidenceNode, freezeSourceArgumentClassification } from "./source-values.js";
+import { csharpFlowReadPrincipalDeclaration, isCsharpFlowReadEvidenceNode, freezeSourceArgumentClassification } from "./source-values.js";
 import type { ExtensionFactSubject, Node, ResolvedSourceGeneratorInfo, ResolvedSourceWellKnownSymbolInfo, ResolvedSourceYieldInfo, SourceFile, Type, Signature } from "@tsonic/tsts";
 import { providerVirtualDeclarationFactKey } from "@tsonic/tsts";
 import type { SourceTypeComponentEvidence, TargetSourceProgram } from "@tsonic/target-api/source";
@@ -293,7 +293,7 @@ export function analyzeCsharpSourceEvidence(
     const readStorageTargetType = cachedValue(readStorageTargetTypes.get(node));
     const publication = source.effectiveTypes.get(node);
     const principal = publication === undefined || publication.kind === "refused" ? undefined
-      : source.effectiveTypes.get(source.navigation.sourceReferenceFor(node)?.declaration ??
+      : source.effectiveTypes.get(csharpFlowReadPrincipalDeclaration(source.ast, source.navigation, node) ??
         publication.provenance.component?.declaration ?? publication.provenance.group);
     const exact = publication !== undefined && publication.kind !== "refused" && principal !== undefined &&
       principal.kind !== "refused" && sourceTypeDescriptorsEqual(publication.type, principal.type);

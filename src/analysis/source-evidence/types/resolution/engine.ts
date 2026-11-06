@@ -30,7 +30,7 @@ import { resolveSelectedDeclarationResult as resolveSelectedDeclarationResultImp
 import { resolveTypeReferenceNode as resolveTypeReferenceNodeImplementation, resolveCheckerTransformedSourceType as resolveCheckerTransformedSourceTypeImplementation, resolveStandardSourceTypeTransformation as resolveStandardSourceTypeTransformationImplementation, resolveSignatureParameterListTarget as resolveSignatureParameterListTargetImplementation, resolveEvidenceNodesToCommonTarget as resolveEvidenceNodesToCommonTargetImplementation, resolveCompositionalSourceTypeAlias as resolveCompositionalSourceTypeAliasImplementation, targetPreservesAuthoredSourcePrimitiveFacts as targetPreservesAuthoredSourcePrimitiveFactsImplementation, collectTargetSourcePrimitiveNames as collectTargetSourcePrimitiveNamesImplementation } from "./source-references.js";
 import { resolveSourceCallInstantiation as resolveSourceCallInstantiationImplementation, resolveSourceCallSelectedType as resolveSourceCallSelectedTypeImplementation, resolveSourceCallableContractType as resolveSourceCallableContractTypeImplementation, sourceCallSelectedDeclaration as sourceCallSelectedDeclarationImplementation, resolveSourceCallReceiverTargetType as resolveSourceCallReceiverTargetTypeImplementation, sourceCallableTypeParametersMatch as sourceCallableTypeParametersMatchImplementation, sourceValueDeclaration as sourceValueDeclarationImplementation } from "./calls.js";
 import { resolveAuthoredAndSelectedSourceType as resolveAuthoredAndSelectedSourceTypeImplementation } from "./selected-values.js";
-import { resolveTypeWithState as resolveTypeWithStateImplementation, resolveDirectSourceFacts as resolveDirectSourceFactsImplementation, resolveProviderType as resolveProviderTypeImplementation, resolveSemanticTypeArguments as resolveSemanticTypeArgumentsImplementation } from "./semantic-types.js";
+import { resolveTypeWithState as resolveTypeWithStateImplementation, selectDirectSourceFacts as selectDirectSourceFactsImplementation, resolveProviderType as resolveProviderTypeImplementation, resolveSemanticTypeArguments as resolveSemanticTypeArgumentsImplementation } from "./semantic-types.js";
 import { resolveSourceProfileType as resolveSourceProfileTypeImplementation, resolveUnionType as resolveUnionTypeImplementation, resolveCallableType as resolveCallableTypeImplementation, resolveCallableEvidence as resolveCallableEvidenceImplementation, resolveSignatureParameterEvidence as resolveSignatureParameterEvidenceImplementation, resolveSourceTypeComponentEvidence as resolveSourceTypeComponentEvidenceImplementation } from "./source-profiles.js";
 import { generatorProtocol as generatorProtocolImplementation, generatorResultProtocol as generatorResultProtocolImplementation } from "../../../../policy/operations/source-profiles/type-carriers.js";
 import { resolveProjectSourceSemanticType as resolveProjectSourceSemanticTypeImplementation, resolveProjectSourceType as resolveProjectSourceTypeImplementation, projectSourceDeclarationTargetType as projectSourceDeclarationTargetTypeImplementation } from "./project-types.js";
@@ -227,8 +227,8 @@ export function createCsharpTypeResolutionServices(
         activeTypes.delete(type);
       }
     },
-    resolveDirectSourceFacts: (...args: DropScope<Parameters<typeof resolveDirectSourceFactsImplementation>>) =>
-      resolveDirectSourceFactsImplementation(scope, ...args),
+    selectDirectSourceFacts: (...args: DropScope<Parameters<typeof selectDirectSourceFactsImplementation>>) =>
+      selectDirectSourceFactsImplementation(scope, ...args),
     resolveProviderType: (...args: DropScope<Parameters<typeof resolveProviderTypeImplementation>>) =>
       resolveProviderTypeImplementation(scope, ...args),
     resolveSemanticTypeArguments: (...args: DropScope<Parameters<typeof resolveSemanticTypeArgumentsImplementation>>) =>

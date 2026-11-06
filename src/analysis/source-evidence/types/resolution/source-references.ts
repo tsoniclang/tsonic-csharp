@@ -23,7 +23,7 @@ import { csharpSourceStorageComponentContext } from "./source-storage-projection
 import { resolveCsharpSourceEffectiveType } from "./effective-types.js";
 
 export function resolveTypeReferenceNode(
-  { host, resolveCheckerTransformedSourceType, resolveCompositionalSourceTypeAlias, resolveDirectSourceFacts, resolveNodeWithState, resolveProjectSourceType, resolveProviderType, resolveSourceProfileType, resolveStandardSourceTypeTransformation, resolveTypeWithState, targetPreservesAuthoredSourcePrimitiveFacts }: CsharpTypeResolutionScope,
+  { host, resolveCheckerTransformedSourceType, resolveCompositionalSourceTypeAlias, selectDirectSourceFacts, resolveNodeWithState, resolveProjectSourceType, resolveProviderType, resolveSourceProfileType, resolveStandardSourceTypeTransformation, resolveTypeWithState, targetPreservesAuthoredSourcePrimitiveFacts }: CsharpTypeResolutionScope,
   node: Node,
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
@@ -42,10 +42,8 @@ export function resolveTypeReferenceNode(
       ? []
       : queries.facts.typeSubjects(semanticType)),
   ];
-  const direct = resolveDirectSourceFacts(subjects, queries.sourceFile, state);
-  if (direct !== undefined) {
-    return direct;
-  }
+  const direct = selectDirectSourceFacts(subjects, queries.sourceFile, state);
+  if (direct.kind !== "not-applicable") return direct.kind === "resolved" ? direct.type : undefined;
   const standardTransformation = semanticType === undefined
     ? undefined
     : queries.types.standardTransformation(node, semanticType);

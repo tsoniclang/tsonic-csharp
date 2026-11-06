@@ -69,7 +69,7 @@ function fixture() {
         selections.push({ kind: "descriptor", descriptor, node, depth: state.depth });
         return resolveCsharpSourceTypeDescriptor({
           host,
-          resolveDirectSourceFacts: () => undefined,
+          selectDirectSourceFacts: () => ({ kind: "not-applicable" }),
           resolveProviderType: () => undefined,
         }, descriptor, state, node);
       },

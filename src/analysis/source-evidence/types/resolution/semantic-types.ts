@@ -1,4 +1,4 @@
-import type { CsharpTypeResolutionScope } from "./scope.js";
+import type { CsharpDirectSourceFactSelection, CsharpTypeResolutionScope } from "./scope.js";
 import { resolveCsharpConstructorValueType } from "./constructors.js";
 import { sourceTypeSyntaxIsCompositional } from "@tsonic/target-api/source";
 import { csharpBoundSourceType } from "./type-bindings.js";
@@ -39,7 +39,7 @@ export function resolveTypeWithState(
   sourceFile: SourceFile,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
-  const { host, policy, resolveCallableType, resolveCompositionalSourceTypeAlias, resolveDirectSourceFacts, resolveNodeWithState, resolveProjectSourceSemanticType, resolveProviderType, resolveSemanticTypeArguments, resolveSourceProfileType, resolveTypeWithState, resolveUnionType } = scope;
+  const { host, policy, resolveCallableType, resolveCompositionalSourceTypeAlias, selectDirectSourceFacts, resolveNodeWithState, resolveProjectSourceSemanticType, resolveProviderType, resolveSemanticTypeArguments, resolveSourceProfileType, resolveTypeWithState, resolveUnionType } = scope;
   if (type === undefined) return undefined;
   if (state.depth > maximumTypeResolutionDepth) failTargetCompilerResourceLimit("tsonic-csharp",
     `Native type resolution in ${host.ast.getFileName(sourceFile)}`, "depth", maximumTypeResolutionDepth, sourceFile);
@@ -50,10 +50,8 @@ export function resolveTypeWithState(
   const conditional = resolveCsharpSemanticConditionalType(scope, type, queries, state);
   if (conditional !== undefined) return conditional.type;
   const subjects = queries.facts.typeSubjects(type);
-  const direct = resolveDirectSourceFacts(subjects, sourceFile, state);
-  if (direct !== undefined) {
-    return direct;
-  }
+  const direct = selectDirectSourceFacts(subjects, sourceFile, state);
+  if (direct.kind !== "not-applicable") return direct.kind === "resolved" ? direct.type : undefined;
   const fixedArray = policy.selectFixedArray(type, sourceFile);
   if (fixedArray !== undefined) {
     if (fixedArray.kind === "invalid" || csharpFixedArrayRepresentationRejection(fixedArray.fact) !== undefined) return undefined;
@@ -182,36 +180,37 @@ export function resolveTypeWithState(
   );
 }
 
-export function resolveDirectSourceFacts(
+export function selectDirectSourceFacts(
   { host, resolveNodeWithState, resolveTypeWithState, resolveSelectedValueWithState, resolveTypedLocationOperationPointeeWithState }: CsharpTypeResolutionScope,
   subjects: readonly ExtensionFactSubject[],
   sourceFile: SourceFile,
   state: CsharpTypeResolutionState,
-): TargetTypeRef | undefined {
+): CsharpDirectSourceFactSelection {
   for (const subject of subjects) {
     const record = host.sourceFacts?.getFact(subject, tsonicMemoryRecordBindingFactKey);
     if (record !== undefined && host.sourceFacts !== undefined) {
       const selected = selectTsonicMemoryRecordBindingFacts(host.ast, host.sourceFacts, record.call);
-      if (selected?.kind !== "resolved") return undefined;
+      if (selected?.kind !== "resolved") return { kind: "unavailable" };
       const typeNode = selected.operation.layout.explicitTypeNode;
-      return typeNode === undefined
+      return selectedFactType(typeNode === undefined
         ? resolveTypeWithState(selected.operation.sourceType, sourceFile, nextState(state))
-        : resolveNodeWithState(typeNode, host.ast.getSourceFile(typeNode) ?? sourceFile, nextState(state));
+        : resolveNodeWithState(typeNode, host.ast.getSourceFile(typeNode) ?? sourceFile, nextState(state)));
     }
     const binding = host.sourceFacts?.getFact(subject, tsonicMemoryFieldBindingFactKey);
     if (binding !== undefined && host.sourceFacts !== undefined) {
       const selected = selectTsonicMemoryFieldBindingFacts(host.ast, host.sourceFacts, binding.call);
-      if (selected?.kind !== "resolved") return undefined;
+      if (selected?.kind !== "resolved") return { kind: "unavailable" };
       const typeNode = host.ast.typeNode(selected.operation.field.selectedDeclaration) ??
         readCsharpSourceField(host.sourceFacts, [selected.operation.field.selectedDeclaration])?.sourceType;
       const pointee = typeNode === undefined
         ? resolveTypeWithState(selected.operation.pointeeType, sourceFile, nextState(state))
         : resolveNodeWithState(typeNode, host.ast.getSourceFile(typeNode) ?? sourceFile, nextState(state));
-      return pointee === undefined ? undefined : csharpRuntimeLocationTargetType(pointee);
+      return selectedFactType(pointee === undefined ? undefined : csharpRuntimeLocationTargetType(pointee));
     }
     const rawLocation = readCsharpRawLocation(host.ast, host.sourceFacts, subject);
-    if (rawLocation?.kind === "resolved") {
-      if (rawLocation.operation.operation === "to-raw") return csharpNullableReferenceTargetType(csharpRuntimeRawPointerTargetType());
+    if (rawLocation !== undefined) {
+      if (rawLocation.kind !== "resolved") return { kind: "unavailable" };
+      if (rawLocation.operation.operation === "to-raw") return selectedFactType(csharpNullableReferenceTargetType(csharpRuntimeRawPointerTargetType()));
       const typeNode = rawLocation.operation.explicitPointeeTypeNode ?? rawLocation.layout.explicitTypeNode;
       if (typeNode === undefined && rawLocation.layout.kind === "array") {
         const elementNode = rawLocation.layout.fixedArray.elementType;
@@ -219,24 +218,23 @@ export function resolveDirectSourceFacts(
         const element = elementNode === undefined
           ? resolveTypeWithState(rawLocation.layout.fixedArray.elementSourceType, layoutFile, nextState(state))
           : resolveNodeWithState(elementNode, host.ast.getSourceFile(elementNode) ?? layoutFile, nextState(state));
-        if (element !== undefined) return csharpNullableReferenceTargetType(csharpRuntimeLocationTargetType({ kind: "array", element }));
-        return undefined;
+        return selectedFactType(element === undefined ? undefined : csharpNullableReferenceTargetType(csharpRuntimeLocationTargetType({ kind: "array", element })));
       }
       const pointee = typeNode === undefined
         ? resolveTypeWithState(rawLocation.operation.pointeeType, sourceFile, nextState(state))
         : resolveNodeWithState(typeNode, host.ast.getSourceFile(typeNode) ?? sourceFile, nextState(state));
-      if (pointee !== undefined) return csharpNullableReferenceTargetType(csharpRuntimeLocationTargetType(pointee));
+      return selectedFactType(pointee === undefined ? undefined : csharpNullableReferenceTargetType(csharpRuntimeLocationTargetType(pointee)));
     }
     if (selectCsharpLayoutObservation(host.sourceFacts, subject)?.kind === "layout-query") {
-      return csharpSourcePrimitiveTargetType("native-uint");
+      return selectedFactType(csharpSourcePrimitiveTargetType("native-uint"));
     }
     const rawAddress = readCsharpSourceRawAddress(host.sourceFacts, subject);
-    if (rawAddress !== undefined) return csharpRawAddressResultType(rawAddress);
+    if (rawAddress !== undefined) return selectedFactType(csharpRawAddressResultType(rawAddress));
     if (readCsharpSourceKeepAlive(host.sourceFacts, subject) !== undefined) {
-      return csharpVoidTargetType();
+      return selectedFactType(csharpVoidTargetType());
     }
     if (readCsharpSourceJsStringMarker(host.sourceFacts, subject)) {
-      return csharpJsStringTargetType();
+      return selectedFactType(csharpJsStringTargetType());
     }
     const defaultValue = readCsharpSourceDefaultValue(
       host.sourceFacts,
@@ -248,26 +246,22 @@ export function resolveDirectSourceFacts(
         sourceFile,
         nextState(state),
       );
-      if (type !== undefined) {
-        return type;
-      }
+      return selectedFactType(type);
     }
     const primitive = host.sourceFacts?.getFact(subject, sourcePrimitiveFactKey);
     if (primitive !== undefined) {
-      return csharpSourcePrimitiveTargetType(primitive.kind);
+      return selectedFactType(csharpSourcePrimitiveTargetType(primitive.kind));
     }
     const fixedArray = readCsharpSourceFixedArrayType(
       host.sourceFacts,
       subject,
     );
     if (fixedArray !== undefined) {
-      if (csharpFixedArrayRepresentationRejection(fixedArray) !== undefined) return undefined;
+      if (csharpFixedArrayRepresentationRejection(fixedArray) !== undefined) return { kind: "unavailable" };
       const element = fixedArray.elementType === undefined
         ? resolveTypeWithState(fixedArray.elementSourceType, sourceFile, nextState(state))
         : resolveNodeWithState(fixedArray.elementType, host.ast.getSourceFile(fixedArray.elementType) ?? sourceFile, nextState(state));
-      if (element !== undefined) {
-        return { kind: "array", element };
-      }
+      return selectedFactType(element === undefined ? undefined : { kind: "array", element });
     }
     const unsafeContext = readCsharpSourceUnsafeContext(
       host.sourceFacts,
@@ -279,11 +273,9 @@ export function resolveDirectSourceFacts(
         sourceFile,
         nextState(state),
       );
-      if (type !== undefined) {
-        return type;
-      }
+      return selectedFactType(type);
     }
-    if (isCsharpSourceRawPointer(host.sourceFacts, subject)) return csharpRuntimeRawPointerTargetType();
+    if (isCsharpSourceRawPointer(host.sourceFacts, subject)) return selectedFactType(csharpRuntimeRawPointerTargetType());
     const pointer = readCsharpSourcePointerType(host.sourceFacts, subject);
     if (pointer !== undefined) {
       const pointee = resolveNodeWithState(
@@ -291,9 +283,7 @@ export function resolveDirectSourceFacts(
         sourceFile,
         nextState(state),
       );
-      if (pointee !== undefined) {
-        return csharpRuntimeLocationTargetType(pointee);
-      }
+      return selectedFactType(pointee === undefined ? undefined : csharpRuntimeLocationTargetType(pointee));
     }
     const pointerOperation = readCsharpSourceTypedLocationOperation(
       host.sourceFacts,
@@ -310,18 +300,18 @@ export function resolveDirectSourceFacts(
           case "location-address":
           case "location-allocate":
           case "location-bind":
-            return csharpRuntimeLocationTargetType(pointee);
+            return selectedFactType(csharpRuntimeLocationTargetType(pointee));
           case "location-load":
-            return pointee;
+            return selectedFactType(pointee);
           case "location-store":
-            return csharpVoidTargetType();
+            return selectedFactType(csharpVoidTargetType());
           case "location-equal":
-            return csharpSourcePrimitiveTargetType("bool");
+            return selectedFactType(csharpSourcePrimitiveTargetType("bool"));
           case "location-hash":
-            return csharpSourcePrimitiveTargetType("uint32");
+            return selectedFactType(csharpSourcePrimitiveTargetType("uint32"));
           case "location-view": {
             const location = csharpRuntimeLocationTargetType(pointee);
-            return pointerOperation.optional ? csharpNullableReferenceTargetType(location) : location;
+            return selectedFactType(pointerOperation.optional ? csharpNullableReferenceTargetType(location) : location);
           }
           case "location-project": {
             const sourceLocation = resolveSelectedValueWithState(
@@ -331,12 +321,13 @@ export function resolveDirectSourceFacts(
               nextState(state),
             );
             const location = csharpRuntimeLocationTargetType(pointee);
-            return isCsharpNullableReferenceTargetType(sourceLocation) || isCsharpAbsenceTargetType(sourceLocation)
+            return selectedFactType(isCsharpNullableReferenceTargetType(sourceLocation) || isCsharpAbsenceTargetType(sourceLocation)
               ? csharpNullableReferenceTargetType(location)
-              : location;
+              : location);
           }
         }
       }
+      return { kind: "unavailable" };
     }
     const nativePointerOperation = readCsharpSourceNativePointerOperation(
       host.sourceFacts,
@@ -352,13 +343,14 @@ export function resolveDirectSourceFacts(
       if (pointerType?.kind === "pointer") {
         switch (nativePointerOperation.operation) {
           case "load":
-            return pointerType.pointee;
+            return selectedFactType(pointerType.pointee);
           case "store":
-            return csharpVoidTargetType();
+            return selectedFactType(csharpVoidTargetType());
           case "offset":
-            return pointerType;
+            return selectedFactType(pointerType);
         }
       }
+      return { kind: "unavailable" };
     }
     const functionPointer = readCsharpSourceFunctionPointerType(
       host.sourceFacts,
@@ -377,18 +369,23 @@ export function resolveDirectSourceFacts(
         result !== undefined &&
         parameters.every((parameter) => parameter !== undefined)
       ) {
-        return {
+        return selectedFactType({
           kind: "function-pointer",
           args: parameters as readonly TargetTypeRef[],
           result,
           ...(functionPointer.abi.length === 0
             ? {}
             : { abi: functionPointer.abi }),
-        };
+        });
       }
+      return { kind: "unavailable" };
     }
   }
-  return undefined;
+  return { kind: "not-applicable" };
+}
+
+function selectedFactType(type: TargetTypeRef | undefined): CsharpDirectSourceFactSelection {
+  return type === undefined ? { kind: "unavailable" } : { kind: "resolved", type };
 }
 
 export function resolveProviderType(

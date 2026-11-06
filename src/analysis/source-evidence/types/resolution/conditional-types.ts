@@ -37,8 +37,10 @@ export function resolveCsharpConditionalApplication(
     for (const binding of step.bindings) {
       const index = application.bindings.findIndex(candidate => candidate.parameter === binding.applicationParameter);
       const sourceType = index < 0 ? binding.argument : application.bindings[index]!.argument;
+      const direct = index < 0 ? scope.selectDirectSourceFacts(queries.facts.typeSubjects(sourceType), queries.sourceFile, nextState(bound)) : undefined;
+      if (direct?.kind === "unavailable") return undefined;
       const targetType = index < 0
-        ? scope.resolveDirectSourceFacts(queries.facts.typeSubjects(sourceType), queries.sourceFile, nextState(bound)) ??
+        ? (direct?.kind === "resolved" ? direct.type : undefined) ??
           scope.resolveEvidenceNodesToCommonTarget(
             sourceTransformedTypeFactEvidenceNodes(scope.host.ast, queries, authoredRoot, sourceType),
             sourceType, queries, nextState(bound),

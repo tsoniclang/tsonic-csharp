@@ -75,11 +75,6 @@ export interface CsharpObjectShapePolicy {
     sourceFile?: SourceFile,
   ): CsharpObjectShapeFact | undefined;
   resolveTarget(type: TargetTypeRef | undefined): CsharpObjectShapeFact | undefined;
-  resolveType(
-    type: Type | undefined,
-    sourceFile: SourceFile,
-    authoredTypeRoot?: Node,
-  ): CsharpObjectShapeFact | undefined;
   resolveTypeMember(
     type: Type | undefined,
     sourceFile: SourceFile,

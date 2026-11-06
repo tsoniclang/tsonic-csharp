@@ -10,6 +10,7 @@ import { selectCsharpFlowReadCarrier } from "../../../dist/policy/conversions/fl
 import { selectCsharpNativeOperandUses } from "../../../dist/analysis/operations/control-flow/native-operands.js";
 import { csharpRuntimeUnionTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpNullableTargetType, csharpAbsenceTargetType, csharpTsValueTargetType } from "../../../dist/target-model/types/index.js";
 import { arrayRecordRefinementSource } from "../../../../tsonic/test/fixtures/recursive-array-refinement.mjs";
+import { compileEffectiveSource, assertPublishedRefusal } from "../../helpers/source-effective-types.mjs";
 
 function fixture(sourceText, surface = "native") {
   return withCsharpSessionRequest({ sourceText, surface }, request => {
@@ -200,12 +201,28 @@ for (const surface of ["native", "js"]) {
         return value + a + first + second + (maybe ?? 0);
       }
     `;
+    const compiled = compileEffectiveSource(surface, sourceText);
+    assertPublishedRefusal(compiled, "TSONIC_LOCAL_TYPE_UNSUPPORTED", "maybe ?? 0");
+    assert.equal(compiled.result.diagnostics[0]?.message,
+      "A coalescing operator requires a nullable or runtime-union left operand.");
+  });
+
+  test(`${surface} noncoalescing annotated destructuring retains extracted-member emission and execution`, () => {
+    const sourceText = `
+      import type { int } from "@tsonic/csharp/types.js";
+      class View { value: int = 7; }
+      export function run(): number {
+        const { value }: { value: number } = new View();
+        const { a }: { a: number } = { a: 1 };
+        const [first, second]: [number, number] = [2, 3];
+        const { maybe }: { maybe?: number } = { maybe: 4 };
+        return value + a + first + second + maybe;
+      }
+    `;
     const compiled = compileCsharpSource({ sourceText, surface });
     assertCsharpCompilationSucceeded(compiled);
     const generated = compiled.artifacts.get("src/Index.cs");
-    // The literal keeps its surface's source representation (checkpoint output): an int32 token on native, float64 on js.
-    assert.equal(generated.includes(surface === "js" ? "maybe ?? 0D" : "maybe ?? 0)"), true,
-      "the absence consumer reads the native nullable once");
+    assert.match(generated, /\+ maybe!\.Value;/u, "the proved present read consumes its nullable storage exactly once");
     assert.equal(executeCsharpConstruction(compiled, `absence-binding-${surface}`, false, false, [],
       "System.Console.WriteLine(Tsonic.Generated.Index.run());"), "17\n");
   });
@@ -220,6 +237,32 @@ for (const surface of ["native", "js"]) {
         const { present }: { present?: number } = { present: 7 };
         const { missing }: { missing?: number } = {};
         const kept = ((present) satisfies number | undefined) ?? fallback();
+        const selected = missing ?? fallback();
+        const compared = present != null && null != present &&
+          present !== undefined && undefined !== present &&
+          missing == null && null == missing &&
+          missing === undefined && undefined === missing &&
+          present != void absent() && (void absent()) != present;
+        return kept === 7 && selected === 9 && compared && touches === 102 &&
+          typeof present === "number" && present + 1 === 8;
+      }
+    `;
+    const compiled = compileEffectiveSource(surface, sourceText);
+    assertPublishedRefusal(compiled, "TSONIC_LOCAL_TYPE_UNSUPPORTED", "((present) satisfies number | undefined) ?? fallback()");
+    assert.equal(compiled.result.diagnostics[0]?.message,
+      "A coalescing operator requires a nullable or runtime-union left operand.");
+  });
+
+  test(`${surface} noncoalescing absence reads preserve lazy operands, checked comparisons and narrowed value reads`, () => {
+    const sourceText = `
+      let touches = 0;
+      function absent(): void { touches += 1; }
+      function fallback(): number { touches += 100; return 9; }
+      export function run(): boolean {
+        touches = 0;
+        const { present }: { present?: number } = { present: 7 };
+        const { missing }: { missing?: number } = {};
+        const kept = ((present) satisfies number | undefined);
         const selected = missing ?? fallback();
         const compared = present != null && null != present &&
           present !== undefined && undefined !== present &&
@@ -245,6 +288,31 @@ for (const surface of ["native", "js"]) {
         calls = 0;
         const { present }: { present?: number } = { present: 7 };
         const kept = ((present) satisfies number | undefined) ?? fallback();
+        const compared = present != null && null != present &&
+          present !== undefined && undefined !== present &&
+          (present == null) === false && (null == present) === false &&
+          (present === undefined) === false && (undefined === present) === false &&
+          present != void absent() && (void absent()) != present;
+        return kept === 7 && compared && calls === 2 &&
+          typeof present === "number" && present + 1 === 8;
+      }
+    `;
+    const compiled = compileEffectiveSource(surface, sourceText);
+    assertPublishedRefusal(compiled, "TSONIC_LOCAL_TYPE_UNSUPPORTED", "((present) satisfies number | undefined) ?? fallback()");
+    assert.equal(compiled.result.diagnostics[0]?.message,
+      "A coalescing operator requires a nullable or runtime-union left operand.");
+  });
+
+  test(`${surface} noncoalescing present bindings retain native absence checks without allocation`, () => {
+    const sourceText = `
+      let calls = 0;
+      function absent(): void { calls += 1; }
+      function fallback(): number { calls += 100; return 9; }
+      export function pick(value: number | undefined): number { return value ?? 9; }
+      export function run(): boolean {
+        calls = 0;
+        const { present }: { present?: number } = { present: 7 };
+        const kept = ((present) satisfies number | undefined);
         const compared = present != null && null != present &&
           present !== undefined && undefined !== present &&
           (present == null) === false && (null == present) === false &&

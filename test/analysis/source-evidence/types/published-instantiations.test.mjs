@@ -191,7 +191,7 @@ function fixture() {
     projectTypeCatalog: { definitionForDeclaration: declaration => definitions.find(definition => definition.declaration === declaration),
       targetTypeForDeclaration: target },
   };
-  const scope = { host, resolveDirectSourceFacts: () => undefined, resolveProviderType: unexpected };
+  const scope = { host, selectDirectSourceFacts: () => ({ kind: "not-applicable" }), resolveProviderType: unexpected };
   scope.sourceUnionDefinitions = createCsharpSourceUnionDefinitions(host, unexpected);
   return { source, file, nodes, box, alias, recursive, local, outer, parameter, queries, definitions, target, scope };
 }
@@ -927,12 +927,12 @@ test("canonical provider inventories reject missing, foreign, ambiguous and inco
     const current = providerMemberFixture(empty, true);
     const expected = resolveProviderObjectLiteralShape(current.input);
     assert.equal(expected !== undefined, true, "the whole real aliased provider contract is independently proven");
-    for (const entry of ["node", "type", "literal", "retain"]) {
+    for (const entry of ["node", "literal", "retain"]) {
       const policy = createCsharpObjectShapePolicy(current.input.host);
+      assert.equal(typeof policy.resolveType, "undefined", "the orphan raw-Type object-shape entrypoint is retired");
       const shape = entry === "node" ? policy.resolveNode(current.literal, current.file)
-        : entry === "type" ? policy.resolveType(current.input.type, current.file, current.occurrence)
-          : entry === "literal" ? policy.resolveObjectLiteralTargetShape(expected, current.literal, current.file).shape
-            : policy.retainConstructionSource(current.literal, expected, current.file);
+        : entry === "literal" ? policy.resolveObjectLiteralTargetShape(expected, current.literal, current.file).shape
+          : policy.retainConstructionSource(current.literal, expected, current.file);
       assert.equal(shape !== undefined && shape.members.length === expected.members.length &&
         shape.members.every(member => member.origins?.length === 1 && member.type === current.storage &&
           member.optional === true), true, `${entry}, empty=${empty}: no entry order requires prior discovery`);
@@ -943,10 +943,17 @@ test("canonical provider inventories reject missing, foreign, ambiguous and inco
         const actual = current.input.queries.types.expressionType(current.literal);
         assert.equal(actual !== undefined && !current.input.queries.types.isIdentical(actual, current.input.type), true,
           "the authored empty expression and its complete provider contract are distinct checked types");
-        assert.equal(policy.resolveType(actual, current.file, current.literal) === undefined, true,
-          `${entry}: an incomplete own-shape request is not a validated provider representation`);
+        const publications = current.input.host.effectiveTypes;
+        const literalPublication = publications.get(current.literal);
+        const incomplete = { ...current.descriptor, definition: { ...current.structure, members: [] } };
+        current.input.host.effectiveTypes = { get: node => node === current.literal
+          ? { ...literalPublication, type: incomplete } : publications.get(node) };
+        assert.equal(policy.resolveNodeWithState(current.literal, current.file,
+          { depth: 0, sourceBindings: new Map() }) === undefined, true,
+        `${entry}: an incomplete current publication is not a validated provider representation`);
+        current.input.host.effectiveTypes = publications;
         assert.equal(policy.resolveNode(current.literal, current.file)?.members.every(member => member.type === current.storage) === true, true,
-          `${entry}: a raw own-shape request cannot veto the completed descriptor/Native target contract`);
+          `${entry}: an incomplete publication cannot veto the separately completed descriptor/Native target contract`);
       }
       if (!empty) {
         const prior = current.input.host.providers.resolveMember;

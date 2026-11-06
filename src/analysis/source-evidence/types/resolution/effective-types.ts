@@ -1,7 +1,7 @@
 import { sourceMarkerFactKey, type Node } from "@tsonic/tsts";
 import { sourceTypeDescriptorStructure, type SourceEffectiveTypeOutcome, type SourceTypeDescriptor } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
-import type { CsharpTypeResolutionScope } from "./scope.js";
+import type { CsharpDirectSourceFactSelection, CsharpTypeResolutionScope } from "./scope.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import type { CsharpSourceCallResult } from "../../../../target-model/operations/source-call-results.js";
 import type { CsharpTargetNamedTypeRef, CsharpTargetParameter, TargetTypeRef } from "../../../../target-model/types/model.js";
@@ -27,6 +27,8 @@ import { targetTypeRefEquals } from "../../../../target-model/types/equality.js"
 import { csharpSourceTemplateState } from "./type-bindings.js";
 import { selectCsharpObjectMethodImplementation } from "../../../objects/shapes/method-implementations.js";
 import { createStructuralObjectShapeTarget } from "../../../objects/shapes/construction.js";
+import { sourceFactSubjectsForNode } from "./source-evidence.js";
+import { readCsharpSourceStruct } from "../../../../source/extension/markers.js";
 
 export function resolveCsharpEffectiveCallTypeArgument(
   scope: CsharpTypeResolutionScope,
@@ -197,8 +199,8 @@ export function createCsharpSourceTypeRepresentationHost(
       }
       const profile = classifyCsharpSourceProfileDeclaration(declaration, host.ast);
       if (profile !== undefined) return scope.resolveSourceProfileType(profile, typeArguments);
-      const direct = scope.resolveDirectSourceFacts([declaration], queries.sourceFile, nextState(state));
-      if (direct !== undefined) return direct;
+      const direct = scope.selectDirectSourceFacts([declaration], queries.sourceFile, nextState(state));
+      if (direct.kind !== "not-applicable") return direct.kind === "resolved" ? direct.type : undefined;
       if (host.ast.is.IsTypeAliasDeclaration(declaration)) {
         if (descriptor.cut === "unexpressible") return undefined;
         if (host.navigation.isProjectDeclaration(declaration) && descriptor.definition !== undefined &&
@@ -344,7 +346,44 @@ function resolvePublishedOutcome(
   if (outcome.provenance.occurrence !== node) {
     failTargetAnalysisInvariant("tsonic-csharp", "A Host effective type must retain its exact value occurrence.", node);
   }
-  const type = resolveCsharpSourceTypeDescriptor(scope, outcome.type, state, node);
+  const component = outcome.provenance.component?.authoredTypeNode;
+  let marker: CsharpDirectSourceFactSelection = { kind: "not-applicable" };
+  if (outcome.type.kind === "shape" || outcome.type.kind === "declared") {
+    marker = resolvePublishedMarkerType(scope, node, state);
+    if (marker.kind === "not-applicable" && component !== undefined && component !== node) {
+      marker = resolvePublishedMarkerType(scope, component, state);
+    }
+  }
+  const type = marker.kind === "resolved" ? marker.type : marker.kind === "unavailable" ? undefined
+    : resolveCsharpSourceTypeDescriptor(scope, outcome.type, state, node);
   return Object.freeze({ outcome, result: type === undefined ? undefined
     : Object.freeze({ nativeType: type, selectedType: type, effectiveType: outcome }) });
+}
+
+function resolvePublishedMarkerType(
+  scope: CsharpTypeResolutionScope,
+  node: Node,
+  state: CsharpTypeResolutionState,
+): CsharpDirectSourceFactSelection {
+  const { host } = scope;
+  const expression = host.ast.is.IsTypeQueryNode(node) ? host.ast.as.AsTypeQueryNode(node)?.ExprName : node;
+  const reference = host.navigation.sourceReferenceFor(expression);
+  const declaration = host.ast.is.IsVariableDeclaration(node) ? node : reference?.declaration;
+  const fact = declaration === undefined ? undefined : readCsharpSourceStruct(host.sourceFacts, declaration);
+  if (fact !== undefined) {
+    const definition = host.projectTypeCatalog.definitionForDeclaration(declaration);
+    if (fact.valueType !== true || definition?.kind !== "struct" || definition.declaration !== declaration) return { kind: "unavailable" };
+    const type = host.projectTypeCatalog.targetTypeForDeclaration(declaration, []);
+    const owner = type === undefined ? undefined : host.projectTypeCatalog.definitionForTarget(type);
+    return type === undefined || owner?.kind !== "struct" || owner.declaration !== declaration
+      ? { kind: "unavailable" } : { kind: "resolved", type };
+  }
+  const sourceFile = host.ast.getSourceFile(node);
+  if (sourceFile === undefined) return { kind: "unavailable" };
+  const direct = scope.selectDirectSourceFacts(sourceFactSubjectsForNode(node, host.navigation), sourceFile, nextState(state));
+  if (direct.kind !== "not-applicable") return direct;
+  const initializer = declaration !== undefined && host.ast.is.IsVariableDeclaration(declaration) &&
+    host.ast.typeNode(declaration) === undefined ? host.ast.as.AsVariableDeclaration(declaration)?.Initializer : undefined;
+  return initializer === undefined ? { kind: "not-applicable" } : scope.selectDirectSourceFacts(
+    [initializer], host.ast.getSourceFile(initializer) ?? sourceFile, nextState(state));
 }

@@ -42,7 +42,7 @@ function resolveNodeResultWithState(
   sourceFile: SourceFile | undefined,
   state: CsharpTypeResolutionState,
 ): CsharpSourceCallResult | undefined {
-  const { host, resolveCallableType, resolveDirectSourceFacts, resolveNodeWithState, resolveProjectThisTargetType, resolveTupleTypeNode, resolveTypeReferenceNode, resolveTypeWithState } = scope;
+  const { host, resolveCallableType, selectDirectSourceFacts, resolveNodeWithState, resolveProjectThisTargetType, resolveTupleTypeNode, resolveTypeReferenceNode, resolveTypeWithState } = scope;
   if (node === undefined) return undefined;
   const effective = resolveCsharpSourceEffectiveType(scope, node, state);
   if (effective !== undefined) {
@@ -82,25 +82,23 @@ function resolveNodeResultWithState(
   if (scopedTargetType !== undefined) {
     return csharpSourceValueResult(scopedTargetType);
   }
-  const syntaxFact = resolveCsharpProviderIndexedAccess(scope, node, queries, state) ?? resolveDirectSourceFacts(
+  const indexedAccess = resolveCsharpProviderIndexedAccess(scope, node, queries, state);
+  if (indexedAccess !== undefined) return csharpSourceValueResult(indexedAccess);
+  const syntaxFact = selectDirectSourceFacts(
     [node],
     queries.sourceFile,
     state,
   );
-  if (syntaxFact !== undefined) {
-    return csharpSourceValueResult(syntaxFact);
-  }
+  if (syntaxFact.kind !== "not-applicable") return syntaxFact.kind === "resolved" ? csharpSourceValueResult(syntaxFact.type) : undefined;
   const contextualParameter = selectCsharpPublishedParameterCarrier(scope, node, state);
   if (contextualParameter.kind !== "not-applicable") return contextualParameter.kind === "resolved"
     ? csharpSourceValueResult(contextualParameter.type) : undefined;
-  const direct = resolveDirectSourceFacts(
+  const direct = selectDirectSourceFacts(
     sourceFactSubjectsForNode(node, host.navigation),
     queries.sourceFile,
     state,
   );
-  if (direct !== undefined) {
-    return csharpSourceValueResult(direct);
-  }
+  if (direct.kind !== "not-applicable") return direct.kind === "resolved" ? csharpSourceValueResult(direct.type) : undefined;
   const scalar = resolveKeywordType(host.ast.kindName(node));
   if (scalar !== undefined) {
     return csharpSourceValueResult(scalar);
@@ -182,19 +180,6 @@ function resolveNodeResultWithState(
       queries.sourceFile,
       nextState(state),
     );
-  }
-  if (host.ast.is.IsTypeQueryNode(node)) {
-    const expression = host.ast.as.AsTypeQueryNode(node)?.ExprName;
-    const reference = host.navigation.referenceFor(expression);
-    const definition = host.projectTypeCatalog.definitionForDeclaration(
-      reference?.declaration,
-    );
-    if (definition?.kind === "struct") {
-      return csharpSourceValueResult(host.projectTypeCatalog.targetTypeForDeclaration(
-        definition.declaration,
-        [],
-      ));
-    }
   }
   if (host.ast.is.IsTypeReferenceNode(node)) {
     const resolved = resolveTypeReferenceNode(node, queries, state);

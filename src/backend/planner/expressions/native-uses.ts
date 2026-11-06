@@ -14,7 +14,10 @@ export function requireCsharpNativeExpressionUse(input: CsharpPlanningContext, e
 
 export function readCsharpNativeExpressionCarrier(input: CsharpPlanningContext, expression: Node): TargetTypeRef | undefined {
   const use = requireCsharpNativeExpressionUse(input, expression).use;
-  return use.kind === "erased" ? undefined : use.carrier;
+  if (use.kind === "erased") return undefined;
+  if (input.storageExpression === expression) return input.program.records.valueRead.get(expression)?.flowReadStorage
+    ?? failCsharpPlannerInvariant("An admitted storage expression requires its exact sealed storage carrier.", expression);
+  return use.carrier;
 }
 
 export function readCsharpNativeDiscardEvaluation(input: CsharpPlanningContext, expression: Node): "evaluate" | "omit" {

@@ -174,6 +174,11 @@ export function createCsharpObjectShapePolicy(
     if (type.kind !== "target-named") {
       return undefined;
     }
+    const definition = host.projectTypeCatalog.definitionForTarget(type);
+    if (definition?.kind === "struct") {
+      const shape = resolveStructShape(definition.declaration, host.semantics(definition.sourceFile), { depth: 0 });
+      return shape !== undefined && targetTypeRefEquals(shape.targetType, type) ? rememberTargetShape(shape) : undefined;
+    }
     const template = genericShapes.get(type.id);
     if (template !== undefined) {
       const owner = nativeProjectOwner(type);
@@ -193,42 +198,22 @@ export function createCsharpObjectShapePolicy(
     return present.length === 1 ? present[0] : undefined;
   }
 
-  function resolveType(
-    type: Type | undefined,
-    sourceFile: SourceFile,
-    authoredTypeRoot?: Node,
-  ): CsharpObjectShapeFact | undefined {
-    return resolveTypeWithState(
-      type,
-      sourceFile,
-      authoredTypeRoot,
-      { depth: 0 },
-    );
-  }
-
   function resolveTypeWithState(
     type: Type | undefined,
     sourceFile: SourceFile,
     authoredTypeRoot: Node | undefined,
     state: CsharpTypeResolutionState,
   ): CsharpObjectShapeFact | undefined {
-    if (type === undefined) {
+    if (type === undefined || authoredTypeRoot !== undefined && host.ast.is.IsObjectLiteralExpression(authoredTypeRoot)) {
       return undefined;
-    }
-    const authoredLiteral = authoredTypeRoot !== undefined && host.ast.is.IsObjectLiteralExpression(authoredTypeRoot)
-      ? authoredTypeRoot : undefined;
-    if (authoredLiteral !== undefined) {
-      const queries = host.semanticsFor(authoredLiteral);
-      const expressionType = queries.types.expressionType(authoredLiteral);
-      if (expressionType === undefined || !queries.types.isIdentical(expressionType, type)) return undefined;
     }
     const shape = resolveSemanticShape(
       type,
-      authoredLiteral,
+      undefined,
       host.semantics(sourceFile),
       state,
       undefined,
-      authoredLiteral === undefined ? authoredTypeRoot : undefined,
+      authoredTypeRoot,
     );
     return shape === undefined ? undefined : rememberTargetShape(shape);
   }
@@ -351,11 +336,21 @@ export function createCsharpObjectShapePolicy(
         ? undefined : queries.types.structuralMembers(shapeType, selectedType, "correspondence");
       if (correspondence?.kind !== "available") return undefined;
       const members = fact.fields.map((field) => {
-        const type = host.typeResolver.resolveNode(
-          field.sourceType,
-          queries.sourceFile,
-          nextState(state),
-        );
+        const fieldCall = host.ast.parent(field.sourceType);
+        const arguments_ = fieldCall !== undefined && host.ast.is.IsCallExpression(fieldCall)
+          ? host.ast.typeArguments(fieldCall) : [];
+        const argumentIndex = arguments_.indexOf(field.sourceType);
+        const call = fieldCall === undefined ? undefined : queries.operations.call(fieldCall);
+        const invocation = fieldCall === undefined ? undefined : host.effectiveTypes.callInstantiation(fieldCall);
+        const selectedDeclaration = call?.sourceSelectedSignatureKind === "resolved"
+          ? queries.declarations.signatureDeclaration(call.selectedSignature) : undefined;
+        const parameters = selectedDeclaration === undefined ? [] : host.ast.typeParameters(selectedDeclaration);
+        const parameter = argumentIndex < 0 ? undefined : parameters[argumentIndex];
+        const published = parameter === undefined ? [] : invocation?.method.filter(argument => argument.declaration === parameter) ?? [];
+        const type = argumentIndex < 0
+          ? host.typeResolver.resolveNode(field.sourceType, queries.sourceFile, nextState(state))
+          : call === undefined || invocation?.call !== call || arguments_.length !== parameters.length || published.length !== 1 ? undefined
+            : host.typeResolver.resolveDescriptor(published[0]!.type, field.sourceType, nextState(state));
         const sourceType = queries.types.authoredType(field.sourceType);
         const sourceMembers = correspondence.members.filter(member => member.kind === "present" &&
           readCsharpSourceField(host.sourceFacts, [member.source.property.symbol,
@@ -692,7 +687,6 @@ export function createCsharpObjectShapePolicy(
     // The Host-published target type of a node's shape: the instantiation a Host correspondence is proven against.
     publishedShapeTarget: (node: Node) => resolvePublishedShapeType(node, { depth: 0 }),
     resolveTarget,
-    resolveType,
     resolveTypeMember,
     resolveTypeWithState,
     resolveObjectLiteralTargetShape,

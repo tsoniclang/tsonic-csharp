@@ -291,11 +291,11 @@ export interface CsharpTypeResolutionScope {
   sourceFile: SourceFile,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined;
-  resolveDirectSourceFacts(
+  selectDirectSourceFacts(
   subjects: readonly ExtensionFactSubject[],
   sourceFile: SourceFile,
   state: CsharpTypeResolutionState,
-): TargetTypeRef | undefined;
+): CsharpDirectSourceFactSelection;
   resolveProviderType(
   subjects: readonly ExtensionFactSubject[],
   typeArguments: readonly TargetTypeRef[],
@@ -362,3 +362,8 @@ export interface CsharpTypeResolutionScope {
   selectedType?: Type,
 ): TargetTypeRef | undefined;
 }
+
+export type CsharpDirectSourceFactSelection =
+  | { readonly kind: "not-applicable" }
+  | { readonly kind: "unavailable" }
+  | { readonly kind: "resolved"; readonly type: TargetTypeRef };

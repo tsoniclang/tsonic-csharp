@@ -25,7 +25,7 @@ for (const surface of ["native", "js"]) {
     ` });
     assert.equal(compiled.sourceDiagnosticsText, "");
     assert.deepEqual(compiled.targetDiagnostics.map(({ code, message }) => [code, message]),
-      [["CSHARP_UNSUPPORTED_AST", "No exact C# implicit conversion relates 'source:float64' to 'target:System.Nullable`1<source:int64>'. Annotate the value with an integral type."]]);
+      [["CSHARP_UNSUPPORTED_AST", "No exact C# implicit conversion relates 'source:float64' to 'source:int64'. Annotate the value with an integral type."]]);
     assert.equal(compiled.artifacts.size, 0);
   });
 }

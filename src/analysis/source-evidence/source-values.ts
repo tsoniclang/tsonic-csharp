@@ -1,4 +1,17 @@
-import type { Node } from "@tsonic/tsts";
+import type { AstReader, Node } from "@tsonic/tsts";
+import type { SourceProgramNavigation } from "@tsonic/target-api/source";
+
+export function csharpFlowReadPrincipalDeclaration(
+  ast: AstReader,
+  navigation: Pick<SourceProgramNavigation, "sourceReferenceFor">,
+  node: Node,
+): Node | undefined {
+  const declaration = navigation.sourceReferenceFor(node)?.declaration;
+  return declaration !== undefined && (ast.is.IsVariableDeclaration(declaration) ||
+    ast.is.IsParameterDeclaration(declaration) || ast.is.IsBindingElement(declaration) ||
+    ast.is.IsPropertyDeclaration(declaration) || ast.is.IsPropertySignatureDeclaration(declaration))
+    ? declaration : undefined;
+}
 
 export function isCsharpFlowReadEvidenceNode(
   ast: import("@tsonic/tsts").AstReader,
