@@ -14,13 +14,17 @@ import {
   csharpSourcePrimitiveTargetType, csharpStringTargetType, targetTypeRefEquals,
 } from "../../../dist/target-model/types/index.js";
 import { csharpJsArrayTargetType, csharpJsTypedArrayTargetType } from "../../../dist/target-model/types/carriers/js.js";
-import { csharpRuntimeUnionTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
+import { csharpRuntimeUnionTargetType, getCsharpRuntimeUnionArms } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
+import { getCsharpArrayLiteralElementTargetType } from "../../../dist/target-model/types/carriers/collections.js";
+import { getCsharpNullableElementTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
+import { isCsharpJsStringTargetType, isCsharpStringTargetType } from "../../../dist/target-model/types/identity.js";
 import { csharpArrayLikeElement } from "../../../dist/target-model/types/carriers/array-like.js";
 import { selectCsharpArrayCopy } from "../../../dist/policy/operations/source-profiles/js/array-copy.js";
 import { arrayFromMember, arrayFromTypeArguments } from "../../../dist/policy/operations/source-profiles/js/array-statics.js";
 import {
   acceptedEffectiveSource, assertPrimitiveOccurrences, assertPublishedRefusal, compileEffectiveSource, projectNodes,
 } from "../../helpers/source-effective-types.mjs";
+import { destinationBodies } from "../../analysis/operations/inferred-numeric-array-elements.fixtures.mjs";
 
 const primitive = csharpSourcePrimitiveTargetType;
 const narrowCounts = ["char", "int8", "uint8", "int16", "uint16", "int32", "int64"];
@@ -641,6 +645,78 @@ test("C2373 genuine JS Array.from retains exact physical copy inputs and publish
     assert.doesNotMatch(output, /\.Match|CreateChecked|Convert\.To|\(object\)/u);
   }
 });
+
+for (const surface of ["native", "js"]) {
+  test(`${surface} RC-D later-use declared arms precede creation defaults across all destination forms`, () => {
+    const destinations = [
+      { name: "union", type: "(string | number)", elements: literal => `["text", ${literal}]`, index: 1 },
+      { name: "optional", type: "(number | undefined)", elements: literal => `[undefined, ${literal}]`, index: 1 },
+      { name: "primitive", type: "number", elements: literal => `[${literal}]`, index: 0 },
+    ];
+    const literals = ["17", "9007199254740993", "-9007199254740993", "1.25"];
+    const uses = Object.entries(destinationBodies).filter(([name]) => name !== "alias" && name !== "concise");
+    assert.equal(uses.length, 8, "every later-use destination topology is retained");
+    const cases = uses.flatMap(([use, body], useIndex) => destinations.flatMap((destination, destinationIndex) =>
+      literals.map((literal, literalIndex) => ({
+        label: `${use}/${destination.name}/${literal}`,
+        destination,
+        body: body(destination.type, `matrix${useIndex}_${destinationIndex}_${literalIndex}`)
+          .replaceAll("[narrow, signed]", destination.elements(literal)),
+      }))));
+    assert.equal(cases.length, 96, "eight uses by three destinations by integer, signed-wide and written floating forms");
+    const objects = `
+      function acceptObject(value: { n: string | number }): { n: string | number } { return value; }
+      const positiveObject = { n: 9007199254740993 };
+      const negativeObject = { n: -9007199254740993 };
+      export function globalPositiveObject() { return acceptObject(positiveObject); }
+      export function globalNegativeObject() { return acceptObject(negativeObject); }
+      export function localPositiveObject() { const value = { n: 9007199254740993 }; const alias = value; return acceptObject(alias); }
+      export function localNegativeObject() { const value = { n: -9007199254740993 }; const alias = value; return acceptObject(alias); }
+    `;
+    const compiled = compileEffectiveSource(surface,
+      `import type { float32, int32 } from "@tsonic/core/types.js";\n${cases.map(row => row.body).join("\n")}\n${objects}`);
+    acceptedEffectiveSource(compiled);
+    const arrays = projectNodes(compiled, (node, ast) => ast.is.IsArrayLiteralExpression(node));
+    assert.equal(arrays.length, cases.length, "each original array has one observed construction");
+    const program = compiled.result.program;
+    const ast = compiled.targetSource.ast;
+    for (const [index, expression] of arrays.entries()) {
+      const row = cases[index];
+      const use = program.records.nativeExpression.get(expression)?.use;
+      assert.equal(use?.kind === "constructed", true, row.label + ": one native allocation, not an array conversion");
+      const element = getCsharpArrayLiteralElementTargetType(use.carrier);
+      if (row.destination.name === "union") {
+        const arms = getCsharpRuntimeUnionArms(element, program.typeDefinitions);
+        assert.equal(arms?.length === 2 && arms.some(arm => targetTypeRefEquals(arm, primitive("float64"))) &&
+          arms.some(arm => isCsharpStringTargetType(arm) || isCsharpJsStringTargetType(arm)), true,
+        row.label + ": only the declared string and float64 arms are allocated");
+      } else {
+        const numeric = row.destination.name === "optional" ? getCsharpNullableElementTargetType(element) : element;
+        assert.equal(numeric !== undefined && targetTypeRefEquals(numeric, primitive("float64")), true,
+          row.label + ": the native element retains the declared width and absence");
+      }
+      const literal = ast.elements(expression)[row.destination.index];
+      const outcome = compiled.targetSource.effectiveTypes.get(literal);
+      assert.equal(outcome !== undefined && outcome.kind !== "refused", true, row.label + ": the original literal is published");
+      const construction = outcome.construction ?? outcome.type;
+      assert.equal(construction.kind === "primitive" && construction.primitive === "float64", true,
+        row.label + ": declared destination admission precedes the integer creation default");
+    }
+    const objectLiterals = projectNodes(compiled, (node, ast) => ast.is.IsObjectLiteralExpression(node));
+    assert.equal(objectLiterals.length, 4, "local and global objects cover both whole signed forms");
+    for (const literal of objectLiterals) {
+      const physical = program.records.nativeExpression.get(literal)?.physical;
+      const shape = physical?.objectShape;
+      assert.equal(shape !== undefined && shape.members.length === 1, true, "one actual object member inventory");
+      const arms = getCsharpRuntimeUnionArms(shape.members[0].type, program.typeDefinitions);
+      assert.equal(arms?.length === 2 && arms.some(arm => targetTypeRefEquals(arm, primitive("float64"))) &&
+        arms.some(arm => isCsharpStringTargetType(arm) || isCsharpJsStringTargetType(arm)), true,
+      "the existing object producer preserves the declared destination without an int64 arm");
+      assert.equal(program.records.nativeExpression.get(literal)?.physical?.objectShape === shape, true,
+        "one canonical object allocation and inventory, not a conversion copy");
+    }
+  });
+}
 
 function arrayCopyContext(sourceType, resultType, parameterCount = 1) {
   const expression = Object.freeze({});

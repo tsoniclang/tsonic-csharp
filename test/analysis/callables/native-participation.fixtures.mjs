@@ -15,7 +15,15 @@ function analyze(sourceText, surface = "native") {
   } });
   assertCsharpCheckingSucceeded(compiled);
   const program = compiled.result.program;
-  assert.equal(program !== undefined, true, "valid source analysis");
+  assert.equal(program !== undefined, true, "valid source analysis: " + JSON.stringify(compiled.result.diagnostics.slice(0, 8)
+    .map(issue => {
+      const node = issue.sourceNode;
+      const file = node === undefined ? undefined : source.ast.getSourceFile(node);
+      const start = node === undefined ? undefined : Math.max(0, source.ast.pos(node));
+      return { code: issue.code, message: issue.message.slice(0, 1200), sourceSpan: issue.sourceSpan,
+        node: node === undefined ? undefined : { kind: source.ast.kindName(node), start, end: source.ast.end(node),
+          text: file === undefined ? undefined : source.ast.getSourceText(file).slice(start, start + 120) } };
+    })));
   assert.equal(Object.hasOwn(program.records, "nativeParticipation"), true, "one published participation reader");
   const storage = createSourceStorageQuery(source, source.navigation.sourceFiles);
   assert.equal(storage.failureReason(), undefined, "bounded owned source domain");

@@ -69,7 +69,7 @@ test("JS surface profile accepts JS names and rejects CLR names under noLib", ()
       "const parts = path.split(\"/\");",
       "const count = parts.length;",
       "const raw = String.raw(template, path);",
-      "class NamedError extends Error { constructor(message: string) { super(message); this.name = \"NamedError\"; } }",
+      "class NamedError extends Error { constructor(message: string) { super(message); } }",
       "const encoded = encodeURIComponent(path);",
       "const decoded = decodeURIComponent(encoded);",
       "export const result = `${count}:${raw}:${decoded}:${new NamedError(path).name}`;",
@@ -93,6 +93,21 @@ test("JS surface profile accepts JS names and rejects CLR names under noLib", ()
   const diagnosticsText = formatDiagnostics(invalid.getDiagnostics("all"));
   assert.match(diagnosticsText, /Property 'Split' does not exist on type 'string'\. Did you mean 'split'\?/u);
   assert.match(diagnosticsText, /Property 'Length' does not exist on type 'number\[\]'\. Did you mean 'length'\?/u);
+});
+
+test("JS surface Error name remains readonly on project subclasses under noLib", () => {
+  const invalid = createSourceProfileSession({
+    profile: "js",
+    sourceText: [
+      "class NamedError extends Error { constructor(message: string) { super(message); this.name = \"NamedError\"; } }",
+      "export const result = new NamedError(\"original\").name;",
+      "",
+    ].join("\n"),
+  });
+  assertNoBundledTypeScriptLibraries(invalid);
+  const diagnostics = invalid.getDiagnostics("all");
+  assert.equal(diagnostics.length, 1, formatDiagnostics(diagnostics));
+  assert.match(formatDiagnostics(diagnostics), /TS2540: Cannot assign to 'name' because it is a read-only property/u);
 });
 
 test("JS surface Map and iterator types are iterable with for-of under noLib", () => {
