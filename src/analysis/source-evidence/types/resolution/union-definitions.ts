@@ -3,7 +3,7 @@ import type { Node, Type } from "@tsonic/tsts";
 import { sourceNodeIdentity, type SourceFileSemantics, type SourceTypeDescriptor } from "@tsonic/target-api/source";
 import type { CsharpTypePolicyHost, CsharpTypeResolutionState, CsharpRecursiveTypeResolver } from "./model.js";
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../../target-model/types/model.js";
-import { csharpSourceUnionTargetType } from "../../../../target-model/types/source-union-definitions.js";
+import { csharpSourceUnionIdentity, csharpSourceUnionTargetType } from "../../../../target-model/types/source-union-definitions.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../../target-model/types/equality.js";
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
 import { getCsharpRuntimeUnionArms } from "../../../../target-model/types/carriers/runtime-carriers.js";
@@ -39,9 +39,31 @@ export function createCsharpSourceUnionDefinitions(
       const identity = sourceNodeIdentity(host.ast, declaration);
       if (identity === undefined) return undefined;
       const key = JSON.stringify([identity, typeArguments.map(targetTypeRefKey)]);
+      const name = `__TsonicUnion_${createHash("sha256").update(identity).digest("hex")}`;
+      const carrier = csharpSourceUnionTargetType(identity, name, typeArguments);
       let application = published.get(key);
       if (definition === undefined) {
-        if (application === undefined) return undefined;
+        if (application === undefined) {
+          if (!host.navigation.isProjectDeclaration(declaration)) return undefined;
+          const template = host.effectiveTypes.get(declaration);
+          const parameters = host.ast.typeParameters(declaration);
+          if (template?.kind !== "resolved" || template.provenance.occurrence !== declaration ||
+            template.type.kind !== "declared" || template.type.declaration !== declaration ||
+            template.type.definition === undefined || template.type.typeArguments.length !== parameters.length ||
+            parameters.length !== typeArguments.length || template.type.typeArguments.some((argument, index) =>
+              argument.kind !== "declared" || argument.declaration !== parameters[index] || argument.typeArguments.length !== 0 ||
+              !host.ast.is.IsTypeParameterDeclaration(argument.declaration))) return undefined;
+          const represented = materialize(template.type);
+          const present = getCsharpNullableElementTargetType(represented) ?? represented;
+          if (csharpSourceUnionIdentity(present) !== identity || host.typeDefinitions?.sourceUnionArms(carrier) === undefined) return undefined;
+          application = published.get(key);
+          if (application === undefined) {
+            application = { definitions: new WeakMap<SourceTypeDescriptor, Definition>(), pending: new Set<Definition>(),
+              cut: { kind: "recursive", reference: getCsharpNullableElementTargetType(represented) === undefined
+                ? carrier : csharpNullableTargetType(carrier) } };
+            published.set(key, application);
+          }
+        }
         if (application.pending.size === 0) return application.cut.kind === "recursive" ? application.cut.reference : undefined;
         if (application.pending.size !== 1) return undefined;
         const pending = application.pending.values().next().value;
@@ -59,8 +81,6 @@ export function createCsharpSourceUnionDefinitions(
           cut: { kind: "unseen" } };
         published.set(key, application);
       }
-      const name = `__TsonicUnion_${createHash("sha256").update(identity).digest("hex")}`;
-      const carrier = csharpSourceUnionTargetType(identity, name, typeArguments);
       const record: Definition = { carrier, reference: absent ? csharpNullableTargetType(carrier) : carrier, recursive: false, building: true };
       application.definitions.set(definition, record);
       application.pending.add(record);

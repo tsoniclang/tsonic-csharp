@@ -329,7 +329,7 @@ test("repeated carriers classify published occurrences and the final merge, neve
   { selectedCall: Object.freeze({ get: () => undefined }),
     selectedConstruction: Object.freeze({ get: () => undefined }) });
   for (let index = 0; index < occurrences.length; index += 1) {
-    assert.equal(builder.registerStructuralInterface({}, targetType, targetType), false,
+    assert.equal(builder.registerStructuralInterface({}, targetType, targetType, undefined), false,
       "a Boolean-only registration does not publish its intermediate merge inputs");
   }
   const classifications = builder.seal();

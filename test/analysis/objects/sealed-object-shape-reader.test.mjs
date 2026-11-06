@@ -190,7 +190,7 @@ test("structural implementations are materialized at seal and an unrecorded inst
   };
   const builder = analyzeCsharpObjectShapes(policy, { targetTypes: [], compileTimeMetadata: { get: () => false } },
     { selectedCall: { get: () => undefined }, selectedConstruction: { get: () => undefined } });
-  assert.equal(builder.registerStructuralInterface({}, source.targetType, destination.targetType), true, "structural interface admitted");
+  assert.equal(builder.registerStructuralInterface({}, source.targetType, destination.targetType, sourceType), true, "structural interface admitted");
   const sealed = builder.seal();
   closed = true;
   const before = queries;
@@ -287,7 +287,7 @@ test("a generic structural implementation is substituted once at seal into froze
   };
   const builder = analyzeCsharpObjectShapes(policy, { targetTypes: [], compileTimeMetadata: { get: () => false } },
     { selectedCall: { get: () => undefined }, selectedConstruction: { get: () => undefined } });
-  assert.equal(builder.registerStructuralInterface({}, source.targetType, destination.targetType), true, "generic structural interface admitted");
+  assert.equal(builder.registerStructuralInterface({}, source.targetType, destination.targetType, sourceType), true, "generic structural interface admitted");
   const sealed = builder.seal();
   closed = true;
   const before = queries;

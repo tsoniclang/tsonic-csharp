@@ -4,6 +4,7 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../../policy/model/context.js";
 
 import type { CsharpOperationSelection } from "../../../target-model/records/operations/operator-selection.js";
+import type { TargetTypeRef } from "../../../target-model/types/model.js";
 
 import { selectCsharpNativeIteration, rejectCsharpIteration } from "../../../policy/operations/iteration/selection.js";
 export function selectCsharpIteration(
@@ -11,6 +12,7 @@ export function selectCsharpIteration(
   statement: Node,
   expression: Node | undefined,
   sourceFile: SourceFile,
+  iterableType: TargetTypeRef | undefined,
 ): CsharpOperationSelection<CsharpResolvedIteration> {
   if (expression === undefined) {
     return rejectCsharpIteration("Checked iteration has no iterable expression.");
@@ -23,10 +25,6 @@ export function selectCsharpIteration(
       "TSTS did not retain an exact checked iteration selection for this statement.",
     );
   }
-  const iterableType = input.types.resolveNode(
-    expression,
-    sourceFile,
-  )?.sourceResult?.selectedType;
   if (iterableType === undefined) {
     return rejectCsharpIteration(
       "The checked iterable expression does not have a closed C# target representation.",

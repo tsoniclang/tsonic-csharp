@@ -23,7 +23,7 @@ function fixture() {
   assert.equal(checked.diagnostics.length, 0, formatDiagnostics(checked.diagnostics));
   const source = createTargetSourceProgram(checked);
   const semanticsFor = node => source.semantics.forNode(node);
-  const catalog = createCsharpProjectTypeCatalog({ ast: source.ast, navigation: source.navigation,
+  const catalog = createCsharpProjectTypeCatalog({ ast: source.ast, navigation: source.navigation, effectiveTypes: source.effectiveTypes,
     enumConstants: source.semantics.enumConstants, semanticsFor });
   assert.equal(catalog.issues.length, 0, "closed checked project catalog");
   assert.equal(catalog.definitions.length, 2, "both checked class declaration forms are exercised");

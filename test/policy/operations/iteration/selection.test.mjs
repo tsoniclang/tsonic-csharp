@@ -1,4 +1,3 @@
-import { csharpSourceValueResult } from "../../../../dist/analysis/source-evidence/types/resolution/call-results.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { selectCsharpIteration } from "../../../../dist/analysis/operations/iteration/selection.js";
@@ -9,7 +8,7 @@ const array = { kind: "array", element: integer };
 const source = (iterationKind, mechanism) => ({ iterationKind, mechanism: { kind: mechanism } });
 function select(iteration, carrier, expression = {}) {
   return selectCsharpIteration({ semantics: () => ({ operations: { iteration: () => iteration } }),
-    types: { resolveNode: () => carrier === undefined ? undefined : { kind: "resolved", sourceResult: csharpSourceValueResult(carrier) } } }, {}, expression, {});
+    types: { resolveNode: () => assert.fail("iteration must consume its selected read carrier") } }, {}, expression, {}, carrier);
 }
 
 test("C# native iteration retains foreach and its explicit async adapter forms", () => {

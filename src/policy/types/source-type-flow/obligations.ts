@@ -12,7 +12,7 @@ import { representCsharpSourceType } from "./representation.js";
 import { csharpSourceTypeFlowInterfaceAccepts } from "./relations.js";
 import { csharpLiteralIsRepresentableAs, selectCsharpExactLiteralConversion } from "../../conversions/literals.js";
 import { csharpArrayElementIsRepresentableAs } from "../collections/array-elements.js";
-import { selectCsharpConversion } from "../../conversions/core.js";
+import { conversionIsImplicitlyApplicable, selectCsharpConversion } from "../../conversions/core.js";
 import { csharpConversionIsApplicable } from "../../conversions/applicability.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../target-model/types/equality.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
@@ -125,7 +125,8 @@ export function checkCsharpSourceTypeFlowObligation(
     const conversion = selectCsharpConversion(host, actual, chosen, "implicit");
     if (conversion.kind === "identity" || conversion.kind === "absence" || conversion.kind === "js-value-box" ||
       conversion.kind === "union-map" && csharpConversionIsApplicable(conversion, "implicit") || conversion.kind === "implicit" &&
-      (conversion.proof === "numeric" || conversion.proof === "nullable" || (conversion.proof === "reference" || conversion.proof === "collection-interface" ||
+      (conversion.proof === "runtime-union-arm" && conversionIsImplicitlyApplicable(conversion.sourceToArm) ||
+        conversion.proof === "numeric" || conversion.proof === "nullable" || (conversion.proof === "reference" || conversion.proof === "collection-interface" ||
         conversion.proof === "object-shape-interface") && csharpSourceTypeFlowInterfaceAccepts(host, actual, chosen))) return undefined;
     return fail(conversion.kind === "rejected" ? conversion.reason
       : `The write requires a native conversion from '${targetTypeRefKey(actual)}' to '${targetTypeRefKey(chosen)}' without changing the binding's type.`);

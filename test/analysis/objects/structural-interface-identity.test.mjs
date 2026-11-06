@@ -36,7 +36,7 @@ test("C# structural identity is accepted without manufacturing a self-inheritanc
   const source = shape(carrier("tsonic.shape:identity"));
   const destination = { ...source, targetType: { ...source.targetType } };
   const selected = classifications(source, destination);
-  assert.equal(selected.registerStructuralInterface(expression, source.targetType, destination.targetType), true);
+  assert.equal(selected.registerStructuralInterface(expression, source.targetType, destination.targetType, sourceType), true);
   assert.equal(selected.structuralImplementations(source.targetType).length, 0, "identity requires no implementation");
   assert.equal(selected.resolveTarget(source.targetType)?.implements === undefined, true, "identity is not native heritage");
 });
@@ -45,7 +45,7 @@ test("C# structural identity does not permit incompatible generic self-inheritan
   const source = shape(carrier("tsonic.shape:identity"));
   const destination = shape(carrier("tsonic.shape:identity", floating));
   const selected = classifications(source, destination);
-  assert.equal(selected.registerStructuralInterface(expression, source.targetType, destination.targetType), false);
+  assert.equal(selected.registerStructuralInterface(expression, source.targetType, destination.targetType, sourceType), false);
   assert.equal(selected.structuralImplementations(source.targetType).length, 0);
   assert.equal(selected.resolveTarget(source.targetType)?.implements === undefined, true);
 });
@@ -54,7 +54,7 @@ test("C# structural identity normalization retains independently proven interfac
   const source = shape(carrier("tsonic.shape:source"));
   const destination = shape(carrier("tsonic.shape:destination"));
   const selected = classifications(source, destination);
-  assert.equal(selected.registerStructuralInterface(expression, source.targetType, destination.targetType), true);
+  assert.equal(selected.registerStructuralInterface(expression, source.targetType, destination.targetType, sourceType), true);
   assert.equal(selected.structuralImplementations(source.targetType).length, 1);
   const [implementation] = selected.structuralImplementations(source.targetType);
   const [property] = implementation.properties;
@@ -71,9 +71,9 @@ test("structural registration preserves absence as an independent native qualifi
   const source = shape(carrier("tsonic.shape:present"));
   const destination = shape(carrier("tsonic.shape:optional-view"));
   const selected = classifications(source, destination);
-  assert.equal(selected.registerStructuralInterface(expression, csharpNullableTargetType(source.targetType), destination.targetType), false);
+  assert.equal(selected.registerStructuralInterface(expression, csharpNullableTargetType(source.targetType), destination.targetType, sourceType), false);
   assert.equal(selected.structuralImplementations(source.targetType).length, 0);
-  assert.equal(selected.registerStructuralInterface(expression, source.targetType, csharpNullableTargetType(destination.targetType)), true);
-  assert.equal(selected.registerStructuralInterface(expression, csharpNullableTargetType(source.targetType), csharpNullableTargetType(destination.targetType)), true);
+  assert.equal(selected.registerStructuralInterface(expression, source.targetType, csharpNullableTargetType(destination.targetType), sourceType), true);
+  assert.equal(selected.registerStructuralInterface(expression, csharpNullableTargetType(source.targetType), csharpNullableTargetType(destination.targetType), sourceType), true);
   assert.equal(selected.structuralImplementations(source.targetType).length, 1);
 });

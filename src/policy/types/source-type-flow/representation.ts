@@ -15,6 +15,13 @@ import { selectedCsharpSourceProfileOwner } from "../../identities/source-types.
 import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
 import { selectCsharpParameterListCarrier } from "../callables/parameter-list.js";
 
+export interface CsharpSourceMemberDeclaration {
+  readonly declarations: readonly Node[];
+  readonly kind: "property" | "method";
+  readonly bound: boolean;
+  readonly accessor?: CsharpObjectShapeMemberFact["accessor"];
+}
+
 export interface CsharpSourceTypeRepresentationHost {
   readonly target: TargetSelection;
   readonly typeParameterConstraints: CsharpTypeParameterEnvironment;
@@ -33,8 +40,7 @@ export interface CsharpSourceTypeRepresentationHost {
     signatures: Extract<SourceTypeDescriptor, { readonly kind: "callable" }>["constructs"],
     results: readonly TargetTypeRef[],
   ): TargetTypeRef | undefined;
-  memberKind(declaration: Node): "property" | "method";
-  memberBound(declaration: Node): boolean;
+  memberDeclaration(declaration: Node): CsharpSourceMemberDeclaration | undefined;
   // True when every member of a construct-carrying shape is part of the static side of the one class its construct
   // signatures belong to: a static member of that class, or its class prototype (K-2448 #3).
   classStaticSide(descriptor: Extract<SourceTypeDescriptor, { readonly kind: "shape" }>): boolean;
@@ -171,8 +177,11 @@ function representDescriptor(
           if (type === undefined) return undefined;
           const callable = member.type.kind === "callable" ? member.type : undefined;
           const declaration = member.origin.kind === "declared" ? member.origin.declaration : undefined;
-          const memberKind = callable === undefined || declaration === undefined ? "property" : host.memberKind(declaration);
-          const bound = declaration !== undefined && host.memberBound(declaration);
+          const selection = declaration === undefined ? undefined : host.memberDeclaration(declaration);
+          if (declaration !== undefined && (selection === undefined || !selection.declarations.includes(declaration))) return undefined;
+          const memberKind = selection?.kind ?? "property";
+          if (memberKind === "method" && callable === undefined) return undefined;
+          const bound = selection?.bound === true;
           const signature = memberKind === "method" && callable?.calls.length === 1 ? callable.calls[0] : undefined;
           const typeParameters = signature === undefined ? [] : host.memberTypeParameters(signature);
           if (typeParameters === undefined) return undefined;
@@ -184,11 +193,12 @@ function representDescriptor(
             type: memberKind === "method" ? getCsharpMethodValue(type)?.contract ?? type : type,
             ...(typeParameters.length === 0 ? {} : { typeParameters }),
             ...(bound ? { bound: true } : {}),
+            ...(selection?.accessor === undefined ? {} : { accessor: selection.accessor }),
             optional: member.optional,
             origins: Object.freeze([member.origin]),
             ...(declaration === undefined ? {} : {
-              sourceDeclarations: Object.freeze([declaration]),
-              sourceSubjects: Object.freeze([declaration]),
+              sourceDeclarations: selection!.declarations,
+              sourceSubjects: selection!.declarations,
             }),
             ...(member.readonly === undefined ? {} : { readonly: member.readonly }),
           }));

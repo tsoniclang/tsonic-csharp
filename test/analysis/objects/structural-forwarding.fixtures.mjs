@@ -88,7 +88,7 @@ function defaultEvidenceFixture(kind) {
       as: { AsParameterDeclaration: node => node === parameter ? { Initializer: {} } : undefined },
     },
   };
-  return { policy, source, destination, parameterReads: () => parameterReads };
+  return { policy, source, destination, sourceType, parameterReads: () => parameterReads };
 }
 
 function structuralInterfaceRecords(objectShapes, sourceType) {

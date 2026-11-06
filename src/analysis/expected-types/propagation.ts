@@ -2,6 +2,7 @@ import type { Node } from "@tsonic/tsts";
 import type { TargetUseSiteRef } from "@tsonic/target-api/analysis";
 import { ObjectLiteralProperty_SourceName } from "@tsonic/target-api/source";
 import { selectCsharpArrayLiteralCarrier } from "../../policy/types/collections/literal-construction.js";
+import { csharpArrayInputDomainsEqual } from "../../policy/types/collections/array-input-layout.js";
 import { getCsharpNullableElementTargetType, csharpNullableTargetType, getCsharpArrayLiteralElementTargetType, isCsharpJsValueTargetType, isCsharpRecordDictionaryTargetType, csharpPropertySourceMemberKey, csharpWellKnownSymbolSourceMemberKey, resolveCsharpObjectShapeMemberBySourceKey, csharpObjectTargetType, targetTypeRefEquals, targetTypeRefKey } from "../../policy/types/index.js";
 import type { selectCsharpBinaryOperation } from "../operations/operators.js";
 import type { CsharpObjectShapeFact, TargetTypeRef } from "../../target-model/types/model.js";
@@ -338,9 +339,11 @@ export function createCsharpExpectedTypePropagation(
     mode: CsharpConversionMode = "implicit",
   ): void {
     const published = policy.effectiveTypes.get(expression);
-    const carrier = published === undefined ? selectCsharpArrayLiteralCarrier(targetType,
+    const sourceCarrier = published === undefined ? selectCsharpArrayLiteralCarrier(targetType,
       valueReadStages.get(expression)?.operationValue, policy.typeDefinitions) : published.kind === "refused" ? undefined
       : representCsharpSourceType(policy.types.sourceTypeFlowRepresentation(expression), published.construction ?? published.type);
+    const requested = sourceCarrier === undefined ? undefined : selectCsharpArrayLiteralCarrier(targetType, sourceCarrier, policy.typeDefinitions);
+    const carrier = csharpArrayInputDomainsEqual(sourceCarrier, requested) ? requested : sourceCarrier;
     if (carrier === undefined) return;
     let carriers = arrayCarriers.get(expression);
     if (carriers === undefined) {

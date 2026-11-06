@@ -18,6 +18,7 @@ import { substituteTargetTypeParameters } from "../../policy/types/resolution/su
 import { readCsharpSourceStruct } from "../../source/extension/markers.js";
 import { resolveCsharpSourceProfileBaseType } from "../source-evidence/types/resolution/source-profiles.js";
 import { targetTypeRefKey } from "../../target-model/types/equality.js";
+import { publishedCsharpClassBindings } from "../source-evidence/types/resolution/published-class-bindings.js";
 
 import type { CsharpProjectConstructorPolicy } from "../../target-model/records/types/project-types.js";
 
@@ -247,17 +248,15 @@ export function projectTypeDefinition(
   if (kind === "enum" && enumWidth === undefined) failTargetAnalysisInvariant("tsonic-csharp", "A checked source enum requires its completed common integer-width decision.", declaration);
   if (enumWidth?.kind === "rejected") return { kind: "rejected", selection: enumWidth };
   const local = kind === "class" && !host.ast.is.IsSourceFile(host.ast.parent(declaration)!);
-  const semantics = host.semanticsFor(declaration);
   if (kind === "interface") {
+    const semantics = host.semanticsFor(declaration);
     if (publishedCsharpCallableInterface(declaration, host) !== undefined) return { kind: "not-project-type" };
     const representation = sourceInterfaceRepresentationBase(declaration, host.ast, host.navigation, semantics);
     if (representation !== undefined && semantics.types.isArrayLike(representation.selectedType)) return { kind: "not-project-type" };
   }
-  const declaredType = local ? semantics.declarations.declaredType(declaration) : undefined;
-  if (local && declaredType === undefined) return { kind: "not-project-type" };
-  const bindings = declaredType === undefined ? undefined : semantics.types.typeArgumentBindings(declaredType);
-  if (declaredType !== undefined && semantics.types.isTypeReference(declaredType) && bindings === undefined) return { kind: "not-project-type" };
-  const outerTypeParameters = bindings?.filter(binding => binding.scope === "outer").map(binding => binding.declaration) ?? [];
+  const bindings = local ? publishedCsharpClassBindings(declaration, host) : undefined;
+  if (local && bindings === undefined) return { kind: "not-project-type" };
+  const outerTypeParameters = bindings?.outer ?? [];
   const rawTypeParameters = kind === "enum" || kind === "struct"
     ? []
     : host.ast.typeParameters(declaration);

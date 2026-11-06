@@ -30,6 +30,7 @@ import { createStructuralObjectShapeTarget } from "../../../objects/shapes/const
 import { sourceFactSubjectsForNode } from "./source-evidence.js";
 import { readCsharpSourceStruct } from "../../../../source/extension/markers.js";
 import { csharpFlowReadPrincipalDeclaration } from "../../source-values.js";
+import { selectCsharpMemberDeclaration } from "../../../objects/shapes/member-declarations.js";
 
 export function resolveCsharpEffectiveCallTypeArgument(
   scope: CsharpTypeResolutionScope,
@@ -88,12 +89,7 @@ export function createCsharpSourceTypeRepresentationHost(
         : member.origin.kind === "declared" && host.ast.parent(member.origin.declaration) === owner &&
           host.ast.hasModifierKind(member.origin.declaration, "static"));
     },
-    memberKind(declaration) {
-      return host.ast.is.IsMethodDeclaration(declaration) || host.ast.is.IsMethodSignatureDeclaration(declaration) ? "method" : "property";
-    },
-    memberBound(declaration) {
-      return host.memoryBindings.hasBoundField([declaration]);
-    },
+    memberDeclaration: declaration => selectCsharpMemberDeclaration(host, declaration),
     shapeKind(descriptor) {
       if (descriptor.members.length === 0) return "storage";
       let contract = true;
@@ -204,6 +200,7 @@ export function createCsharpSourceTypeRepresentationHost(
       if (direct.kind !== "not-applicable") return direct.kind === "resolved" ? direct.type : undefined;
       if (host.ast.is.IsTypeAliasDeclaration(declaration)) {
         if (descriptor.cut === "unexpressible") return undefined;
+        if (descriptor.definition === undefined && descriptor.cut !== "recursion") return undefined;
         if (host.navigation.isProjectDeclaration(declaration) && descriptor.definition !== undefined &&
           containsRecursiveAlias(descriptor.definition, declaration) && typeArguments.some(argument => argument.kind !== "type-parameter")) {
           const template = host.effectiveTypes.get(declaration);
@@ -215,7 +212,8 @@ export function createCsharpSourceTypeRepresentationHost(
         }
         return scope.sourceUnionDefinitions.resolveDescriptor(declaration,
           typeArguments, descriptor.definition, definition => resolveCsharpSourceTypeDescriptor(scope,
-            definition, nextState(state), occurrence),
+            definition, definition.kind === "declared" && definition.declaration === declaration && definition.definition !== undefined
+              ? csharpSourceTemplateState(host.ast.typeParameters(declaration), nextState(state)) : nextState(state), occurrence),
           descriptor.definition !== undefined && sourceTypeDescriptorStructure(descriptor.definition).kind === "optional");
       }
       if (host.navigation.isProjectDeclaration(declaration)) {

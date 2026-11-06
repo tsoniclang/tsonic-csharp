@@ -14,6 +14,8 @@ import { targetTypeRefEquals, targetTypeRefKey } from "../../../target-model/typ
 import { csharpObjectShapeMemberTypeKey } from "../../../target-model/types/object-shape-identity.js";
 import { csharpObjectShapesEqual } from "../../../target-model/types/object-shape-equality.js";
 import { resolveProviderObjectLiteralShape } from "./provider-construction.js";
+import { selectCsharpMemberDeclaration } from "./member-declarations.js";
+import type { CsharpSourceMemberDeclaration } from "../../../policy/types/source-type-flow/representation.js";
 
 export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePolicyHost) {
   const completedProviderShapes = new WeakMap<SourceTypeDescriptor, Map<string, CsharpObjectShapeFact | null>>();
@@ -56,7 +58,10 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
           ...(member.sourceSubjects ?? []),
           ...elements.map(evidence => evidence.property),
         ])]),
-        sourceDeclarations: Object.freeze([...new Set(elements.map(evidence => evidence.property))]),
+        sourceDeclarations: Object.freeze([...new Set([
+          ...(member.sourceDeclarations ?? []),
+          ...elements.map(evidence => evidence.property),
+        ])]),
       };
     });
   }
@@ -79,14 +84,16 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
       structure.constructs.length !== 0) return undefined;
     const members: CsharpObjectShapeMemberFact[] = [];
     for (const property of structure.members) {
-      const declarations = memberDeclarations(property);
-      if (declarations === undefined) return undefined;
+      const selection = property.origin.kind === "declared" ? selectCsharpMemberDeclaration(host, property.origin.declaration)
+        : { declarations: [], kind: "property" as const, bound: false };
+      if (selection === undefined) return undefined;
+      const declarations = selection.declarations;
       if (declarations.length !== 0 && declarations.every(declaration => sourceClassFieldIsTypeOnly(host.ast, declaration))) continue;
       if (declarations.some(declaration => isCsharpNativeSourceProfileMemberDeclaration(declaration, host.ast))) {
         if (!declarations.every(declaration => isCsharpNativeSourceProfileMemberDeclaration(declaration, host.ast))) return undefined;
         continue;
       }
-      const member = deriveMember(property, declarations, owner, queries, state, receiver);
+      const member = deriveMember(property, selection, owner, queries, state, receiver);
       if (member === undefined || members.some(previous => csharpSourceMemberKeysEqual(previous.sourceKey, member.sourceKey))) return undefined;
       members.push(member);
     }
@@ -141,16 +148,6 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
     return selected;
   }
 
-  function memberDeclarations(property: SourceTypeDescriptorMember): readonly Node[] | undefined {
-    if (property.origin.kind !== "declared") return [];
-    const declaration = property.origin.declaration;
-    const file = host.ast.getSourceFile(declaration);
-    if (file === undefined || !host.hasSemantics(file)) return undefined;
-    const symbol = host.navigation.declarationSymbol(declaration, file);
-    const declarations = symbol === undefined ? [] : host.semantics(file).declarations.symbolDeclarations(symbol);
-    return declarations.includes(declaration) ? declarations : [declaration];
-  }
-
   function retainPublishedMembers(
     members: readonly CsharpObjectShapeMemberFact[],
     descriptor: SourceTypeDescriptor,
@@ -188,17 +185,18 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
 
   function deriveMember(
     property: SourceTypeDescriptorMember,
-    declarations: readonly Node[],
+    selection: CsharpSourceMemberDeclaration,
     occurrence: Node,
     queries: SourceFileSemantics,
     state: CsharpTypeResolutionState,
     receiver?: TargetTypeRef,
   ): CsharpObjectShapeMemberFact | undefined {
+    const declarations = selection.declarations;
     const sourcePropertyName = property.name;
     const descriptor = property.type;
-    const selection = declarations.length !== 1 ? undefined : host.sourceStorage.memberSubjectFor(declarations[0]!);
+    const storageSubject = declarations.length !== 1 ? undefined : host.sourceStorage.memberSubjectFor(declarations[0]!);
     const memberState: CsharpTypeResolutionState = { ...state,
-      sourceStorageSubject: selection?.kind === "resolved" ? selection.subject : undefined,
+      sourceStorageSubject: storageSubject?.kind === "resolved" ? storageSubject.subject : undefined,
     };
     const sourceKey = property.origin.kind === "mapped" && property.origin.key.kind === "unique-symbol" ? undefined
       : property.origin.kind === "declared" ? resolveObjectShapeSourceMemberKey(declarations, sourcePropertyName, host.ast, host.semanticsFor)
@@ -209,16 +207,7 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
     if (sourceKey === undefined || targetName === undefined) {
       return undefined;
     }
-    const method = declarations.some((declaration) =>
-      host.ast.is.IsMethodDeclaration(declaration) ||
-      host.ast.is.IsMethodSignatureDeclaration(declaration)
-    );
-    const getters = declarations.filter(declaration => host.ast.is.IsGetAccessorDeclaration(declaration));
-    const setters = declarations.filter(declaration => host.ast.is.IsSetAccessorDeclaration(declaration));
-    if (getters.length > 1 || setters.length > 1 ||
-      (getters.length === 0 && setters.length > 0)) {
-      return undefined;
-    }
+    const method = selection.kind === "method";
     let memberType = host.typeResolver.resolveDescriptor(descriptor, occurrence, nextState(memberState));
     if (memberType === undefined) {
       return undefined;
@@ -254,8 +243,8 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
     if (typeParameters === undefined) return undefined;
     const sourceDeclarations = [...new Set([...declarations, ...(methodDeclaration === undefined ? [] : [methodDeclaration])])];
     const optional = property.optional;
-    const bound = host.memoryBindings.hasBoundField(declarations);
-    if (bound && (optional || descriptorIncludesAbsence(descriptor) || method || getters.length !== 0 || setters.length !== 0)) return undefined;
+    const bound = selection.bound;
+    if (bound && (optional || descriptorIncludesAbsence(descriptor) || method || selection.accessor !== undefined)) return undefined;
     return {
       sourceKey,
       sourceName: csharpSourceMemberDisplayName(sourceKey),
@@ -273,14 +262,7 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
       ...(optional ? { optional: true } : {}),
       ...(property.readonly ? { readonly: true } : {}),
       ...(bound ? { bound: true as const } : {}),
-      ...(getters.length === 0
-        ? {}
-        : {
-            accessor: {
-              getter: true as const,
-              setter: setters.length === 1,
-            },
-          }),
+      ...(selection.accessor === undefined ? {} : { accessor: selection.accessor }),
     };
   }
 

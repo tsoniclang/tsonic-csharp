@@ -358,8 +358,9 @@ export function analyzeCsharpOperationConstruct(
     ast.is.IsForInStatement(node)
   ) {
     const statement = AsForInOrOfStatement(ast, node);
-    producer.iteration.selected(node, selectCsharpIteration(policy, node, statement?.Expression, sourceFile),
-    );
+    const iterable = statement?.Expression;
+    producer.iteration.selected(node, selectCsharpIteration(policy, node, iterable, sourceFile,
+      iterable === undefined ? undefined : evidence.valueRefinement.get(iterable)?.flowReadTargetType));
   }
   if (ast.is.IsVariableDeclaration(node)) {
     const resource = policy.semantics(sourceFile).operations.resourceManagement(node);

@@ -63,7 +63,7 @@ export function analyzeCsharpObjectShapes(
     readonly selected: CsharpStructuralInterfaceImplementation;
     readonly source: TargetTypeRef;
     readonly destination: TargetTypeRef;
-    readonly sourceType?: Type;
+    readonly sourceType: Type;
   }>>();
   let structuralRevision = 0;
   let closedStructuralRevision = 0;
@@ -364,6 +364,7 @@ export function analyzeCsharpObjectShapes(
     },
     registerStructuralInterface(expression, source, destination, sourceType) {
       if (sealed) throw new Error("C# structural-interface analysis is sealed.");
+      if (sourceType === undefined) return false;
       if (getCsharpNullableElementTargetType(source) !== undefined &&
         getCsharpNullableElementTargetType(destination) === undefined) return false;
       source = getCsharpNullableElementTargetType(source) ?? source;
@@ -393,8 +394,7 @@ export function analyzeCsharpObjectShapes(
       if (!interfaces.has(targetKey) && (!inherited.all.has(targetKey) || directlyDeclared ||
         !inherited.nativeBase.has(targetKey) && (selected.properties.length > 0 || selected.methods.length > 0))) {
         reserveClassification();
-        interfaces.set(targetKey, Object.freeze({ selected, source, destination,
-          ...(sourceType === undefined ? {} : { sourceType }) }));
+        interfaces.set(targetKey, Object.freeze({ selected, source, destination, sourceType }));
         structuralRevision += 1;
         rememberShape(policy.objectShapes.resolveTarget(selected.interfaceType));
       }

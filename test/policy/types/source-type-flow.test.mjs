@@ -24,7 +24,7 @@ const primitive = name => Object.freeze({ kind: "primitive", primitive: name });
 const unexpected = () => assert.fail("a primitive unit must not query declarations shapes or an unrelated native child");
 const representationHost = surface => ({ target: { id: "csharp", ...(surface === "js" ? { surfaces: ["js"] } : {}) },
   typeParameterConstraints: {}, declaredType: unexpected, retainShape: unexpected, shapeKind: () => "storage",
-  memberBound: () => false });
+  memberDeclaration: declaration => ({ declarations: [declaration], kind: "property", bound: false }) });
 
 test("published tuple slots reuse native parameter-list absence and rest storage without reopening source types", () => {
   for (const surface of ["native", "js"]) {
@@ -290,10 +290,10 @@ test("bound and unbound member representations retain the exact published declar
     let reads = 0;
     const carrier = representCsharpSourceType({ ...representationHost("native"),
       typeParameterConstraints: createCsharpTypeParameterEnvironment(unexpected),
-      memberBound(declaration) {
+      memberDeclaration(declaration) {
         reads += 1;
         assert.equal(declaration === origin.declaration, true, "only the identical published declaration supplies binding");
-        return bound;
+        return { declarations: [declaration], kind: "property", bound };
       }, retainShape(shape) { retained = shape; return shape; },
     }, descriptor);
     assert.equal(carrier !== undefined && reads === 1, true, "one binding read finishes one exact representation");

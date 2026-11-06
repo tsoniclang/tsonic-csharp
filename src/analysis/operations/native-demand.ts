@@ -440,7 +440,8 @@ export function analyzeCsharpNativeDemand(
       ? input.objectShapes.resolveTarget(physical) : expected.objectShape;
     if (expected?.construction !== undefined) {
       publish(expected.construction.site, { kind: "constructed", expression, carrier: expected.construction.carrier,
-        children, evaluation, completion: inputCompletion, objectShape: expected.objectShape, propertyKeys });
+        children, evaluation, completion: inputCompletion, objectShape: expected.objectShape, propertyKeys,
+        ...(expected.literal === undefined ? {} : { literal: expected.literal }) });
       const stage = expected.construction.site;
       const completion = selectCsharpNativeCompletion(expected.target, { kind: "sequence", children: [{ completion: inputCompletion }] });
       if (completion === undefined) return pending(site, expression, "completion-unresolved");

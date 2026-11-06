@@ -45,6 +45,7 @@ function sameType(left, right) {
 function classFactoryInputs(source, program) {
   const records = program.records;
   const catalog = createCsharpProjectTypeCatalog({
+    effectiveTypes: source.effectiveTypes,
     enumConstants: source.semantics.enumConstants,
     ast: source.ast, navigation: source.navigation, sourceFacts: source.sourceFacts, semanticsFor: source.semantics.forNode,
   }, { genericProjection: records.genericProjection, outerGenericProjection: records.outerGenericProjection });

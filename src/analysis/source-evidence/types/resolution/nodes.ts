@@ -27,6 +27,7 @@ import { csharpSourceValueResult, refineCsharpSourceValueResult } from "./call-r
 import { resolveCsharpSourceEffectiveType, type CsharpEffectiveSourceTypeSelection } from "./effective-types.js";
 import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
 import { csharpCallableValueType, csharpClosedInvocationMatches } from "../../../../policy/types/callables/value-type.js";
+import { csharpArrayInputDomainsEqual } from "../../../../policy/types/collections/array-input-layout.js";
 export function resolveNodeValueWithState(
   scope: CsharpTypeResolutionScope,
   node: Node | undefined,
@@ -49,8 +50,8 @@ function resolveNodeResultWithState(
   const effective = resolveCsharpSourceEffectiveType(scope, node, state);
   if (effective !== undefined) {
     if (effective.result === undefined) return undefined;
-    const callable = selectedClosedCallableRead(scope, node, effective);
-    if (callable !== undefined) return Object.freeze({ ...effective.result, nativeType: callable, selectedType: callable });
+    const physical = selectedPhysicalRead(scope, node, effective);
+    if (physical !== undefined) return Object.freeze({ ...effective.result, nativeType: physical, selectedType: physical });
     if (!host.ast.is.IsArrayLiteralExpression(node)) return effective.result;
     const queries = sourceFile === undefined ? host.semanticsFor(node) : host.semantics(sourceFile);
     const selection = scope.resolveArrayLiteralWithState(node, queries, state);
@@ -230,21 +231,26 @@ function resolveFallbackNodeCarrier(
       queries.types.authoredType(node), queries.sourceFile, nextState(state));
 }
 
-function selectedClosedCallableRead(
+function selectedPhysicalRead(
   { host }: CsharpTypeResolutionScope,
   node: Node,
   effective: CsharpEffectiveSourceTypeSelection,
 ): TargetTypeRef | undefined {
-  if (effective.result === undefined || effective.outcome.kind === "refused" ||
-    effective.outcome.type.kind !== "callable") return undefined;
+  if (effective.result === undefined || effective.outcome.kind === "refused") return undefined;
   const declaration = host.ast.is.IsIdentifier(node) ? host.navigation.sourceReferenceFor(node)?.declaration
     : host.ast.is.IsVariableDeclaration(node) || host.ast.is.IsArrowFunction(node) ||
       host.ast.is.IsFunctionExpression(node) ? node : undefined;
-  if (declaration === undefined || host.ast.is.IsVariableDeclaration(declaration) &&
-    host.ast.typeNode(declaration) !== undefined) return undefined;
+  if (declaration === undefined) return undefined;
   const principal = host.effectiveTypes.get(declaration);
   if (principal === undefined || principal.kind === "refused" || principal.provenance.occurrence !== declaration ||
     !sourceTypeDescriptorsEqual(effective.outcome.type, principal.type)) return undefined;
+  const selected = host.representations.scopedTargetType(node);
+  const storage = host.representations.scopedTargetType(declaration);
+  if (selected === undefined || storage === undefined || !targetTypeRefEquals(selected, storage)) return undefined;
+  if (effective.outcome.type.kind === "array") return host.ast.is.IsVariableDeclaration(declaration) &&
+    csharpArrayInputDomainsEqual(effective.result.selectedType, selected) ? selected : undefined;
+  if (effective.outcome.type.kind !== "callable" || host.ast.is.IsVariableDeclaration(declaration) &&
+    host.ast.typeNode(declaration) !== undefined) return undefined;
   const contract = host.representations.closedInputContract(node);
   if (contract === undefined || host.representations.closedInputContract(declaration) !== contract ||
     host.representations.closedInputContract(contract.sourceDeclaration) !== contract ||
@@ -252,9 +258,6 @@ function selectedClosedCallableRead(
       !host.navigation.expressionValueFlow(contract.sourceDeclaration).aliasDeclarations.includes(declaration) &&
       !host.navigation.declarationUses(contract.sourceDeclaration).some(use =>
         host.navigation.expressionValueFlow(use.reference).aliasDeclarations.includes(declaration))) return undefined;
-  const selected = host.representations.scopedTargetType(node);
-  const storage = host.representations.scopedTargetType(declaration);
-  if (selected === undefined || storage === undefined || !targetTypeRefEquals(selected, storage)) return undefined;
   const native = csharpCallableValueType(contract);
   return native !== undefined && csharpClosedInvocationMatches(native, selected) &&
     csharpClosedInvocationMatches(effective.result.selectedType, selected) ? selected : undefined;

@@ -272,7 +272,7 @@ test("distinct authored callable binders preserve a matching complete native pro
 test("structural correspondence never reads parameters from a selected property declaration", () => {
   const value = defaultEvidenceFixture("property-declaration");
   value.policy.ast.parameters = () => assert.fail("a callable member symbol cannot make a property declaration a method");
-  const selected = selectCsharpStructuralInterface(value.policy, {}, value.source, value.destination);
+  const selected = selectCsharpStructuralInterface(value.policy, {}, value.source, value.destination, value.sourceType);
   assert.equal(selected === undefined, true, "a property cannot supply a method-default witness");
   assert.equal(value.parameterReads(), 0, "the actual declaration kind gates source parameter reads");
 });
@@ -280,7 +280,7 @@ test("structural correspondence never reads parameters from a selected property 
 for (const kind of Array.from(["method-declaration", "method-signature"]).slice(0, 2)) {
 test(`structural correspondence retains a selected ${kind} without duplicating the default owner`, () => {
     const value = defaultEvidenceFixture(kind);
-    const selected = selectCsharpStructuralInterface(value.policy, {}, value.source, value.destination);
+    const selected = selectCsharpStructuralInterface(value.policy, {}, value.source, value.destination, value.sourceType);
     assert.equal(selected === undefined, false, "the selected method reaches the single canonical native admission");
     assert.equal(value.parameterReads(), 0, "logical correspondence never reparses canonical runtime defaults");
     assert.equal(selected.methods.length, 1, "one native method correspondence");

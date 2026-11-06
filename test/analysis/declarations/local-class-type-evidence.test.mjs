@@ -36,7 +36,8 @@ test("local class catalogs require exact outer type-parameter evidence", () => {
   visit(sourceFile);
   assert.ok(declaration);
   const semantics = source.semantics.forNode(declaration);
-  const host = { ast: source.ast, navigation: source.navigation, enumConstants: source.semantics.enumConstants, semanticsFor: () => semantics };
+  const host = { ast: source.ast, navigation: source.navigation, effectiveTypes: source.effectiveTypes,
+    enumConstants: source.semantics.enumConstants, semanticsFor: () => semantics };
   const selected = projectTypeDefinition(host, declaration);
   assert.equal(selected.kind, "resolved");
   const definition = selected.definition;
@@ -44,12 +45,19 @@ test("local class catalogs require exact outer type-parameter evidence", () => {
   assert.equal(definition.sourceTypeParameterCount, 1);
   assert.deepEqual(definition.typeParameterBindings.map(parameter => parameter.name), ["Outer", "Inner"]);
   assert.equal(new Set(definition.typeParameterBindings.map(parameter => parameter.identity)).size, 2);
-  assert.equal(projectTypeDefinition({ ...host, semanticsFor: () => ({ ...semantics,
-    declarations: { ...semantics.declarations, declaredType: () => undefined },
-  }) }, declaration).kind, "not-project-type");
-  assert.equal(projectTypeDefinition({ ...host, semanticsFor: () => ({ ...semantics,
-    types: { ...semantics.types, typeArgumentBindings: () => undefined },
-  }) }, declaration).kind, "not-project-type");
+  assert.equal(projectTypeDefinition({ ...host, effectiveTypes: { get: () => undefined } }, declaration).kind,
+    "not-project-type");
+  const publication = source.effectiveTypes.get(declaration);
+  assert.equal(publication !== undefined && publication.kind !== "refused" &&
+    (publication.type.kind === "callable" || publication.type.kind === "shape"), true,
+  "the original class expression has its canonical constructor publication");
+  const own = source.ast.typeParameters(declaration);
+  const incomplete = { ...publication, type: { ...publication.type, constructs: publication.type.constructs.map(signature => ({
+    ...signature, result: { ...signature.result, typeArguments: signature.result.typeArguments.filter(argument =>
+      argument.kind !== "declared" || !own.includes(argument.declaration)) },
+  })) } };
+  assert.equal(projectTypeDefinition({ ...host, effectiveTypes: { get: node => node === declaration ? incomplete
+    : source.effectiveTypes.get(node) } }, declaration).kind, "not-project-type");
 });
 
 for (const surface of ["native", "js"]) {

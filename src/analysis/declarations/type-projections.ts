@@ -10,6 +10,7 @@ import { csharpFreeTypeParameterIdentities } from "../../target-model/types/gene
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
 import { createCsharpTypeProjectionRecords } from "../program/records/types/type-projections.js";
 import type { CsharpOptionalLocalPlan } from "../storage/optional-locals.js";
+import { publishedCsharpClassBindings } from "../source-evidence/types/resolution/published-class-bindings.js";
 
 export function analyzeCsharpTypeProjections(
   source: TargetSourceProgram, evidence: CsharpSourceEvidenceIndex, operations: CsharpTargetOperationClassifications,
@@ -62,11 +63,8 @@ export function analyzeCsharpTypeProjections(
           break;
         }
         if (ast.is.IsClassDeclaration(owner) || ast.is.IsClassExpression(owner)) {
-          const queries = source.semantics.forNode(owner);
-          const declared = queries.declarations.declaredType(owner);
-          const outer = declared === undefined ? [] : queries.types.typeArgumentBindings(declared)
-            ?.filter(binding => binding.scope === "outer")
-            .map(binding => csharpSourceTypeParameter(binding.declaration, ast)?.identity) ?? [];
+          const outer = publishedCsharpClassBindings(owner, source)?.outer
+            .map(parameter => csharpSourceTypeParameter(parameter, ast)?.identity) ?? [];
           if ([...free].every(name => outer.includes(name))) record(outerByDeclaration, owner, projection);
         }
       }
