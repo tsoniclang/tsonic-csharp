@@ -1,5 +1,5 @@
 import { sourceMarkerFactKey, type Node } from "@tsonic/tsts";
-import { sourceTypeDescriptorStructure, type SourceEffectiveTypeOutcome, type SourceTypeDescriptor } from "@tsonic/target-api/source";
+import { sourceTypeDescriptorsEqual, sourceTypeDescriptorStructure, type SourceEffectiveTypeOutcome, type SourceTypeDescriptor } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpDirectSourceFactSelection, CsharpTypeResolutionScope } from "./scope.js";
 import type { CsharpTypeResolutionState } from "./model.js";
@@ -29,6 +29,7 @@ import { selectCsharpObjectMethodImplementation } from "../../../objects/shapes/
 import { createStructuralObjectShapeTarget } from "../../../objects/shapes/construction.js";
 import { sourceFactSubjectsForNode } from "./source-evidence.js";
 import { readCsharpSourceStruct } from "../../../../source/extension/markers.js";
+import { csharpFlowReadPrincipalDeclaration } from "../../source-values.js";
 
 export function resolveCsharpEffectiveCallTypeArgument(
   scope: CsharpTypeResolutionScope,
@@ -354,8 +355,16 @@ function resolvePublishedOutcome(
       marker = resolvePublishedMarkerType(scope, component, state);
     }
   }
-  const type = marker.kind === "resolved" ? marker.type : marker.kind === "unavailable" ? undefined
+  let type = marker.kind === "resolved" ? marker.type : marker.kind === "unavailable" ? undefined
     : resolveCsharpSourceTypeDescriptor(scope, outcome.type, state, node);
+  if (marker.kind === "resolved") {
+    const declaration = csharpFlowReadPrincipalDeclaration(scope.host.ast, scope.host.navigation, node);
+    const principal = declaration === undefined ? undefined : scope.host.effectiveTypes.get(declaration);
+    const declared = principal === undefined || principal.kind === "refused" || principal.provenance.occurrence !== declaration
+      ? undefined : sourceTypeDescriptorStructure(principal.type);
+    const present = getCsharpNullableElementTargetType(type);
+    if (present !== undefined && declared?.kind === "optional" && sourceTypeDescriptorsEqual(declared.value, outcome.type)) type = present;
+  }
   return Object.freeze({ outcome, result: type === undefined ? undefined
     : Object.freeze({ nativeType: type, selectedType: type, effectiveType: outcome }) });
 }

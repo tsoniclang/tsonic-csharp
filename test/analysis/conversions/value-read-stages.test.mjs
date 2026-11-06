@@ -13,7 +13,8 @@ const [source, declaredStorage, readStorage, narrowed, operation, memberRead, me
 function stagedNode(stages) {
   const node = { stages };
   const sourceFile = { children: [node] };
-  const policy = { sourceFiles: [sourceFile], ast: { forEachChild: (parent, visit) => { for (const child of parent.children ?? []) visit(child); } } };
+  const policy = { sourceFiles: [sourceFile], literalValues: { literalValue: { get: () => undefined } },
+    ast: { forEachChild: (parent, visit) => { for (const child of parent.children ?? []) visit(child); } } };
   const read = (name) => Object.freeze({ get: subject => subject.stages?.[name] });
   const evidence = {
     nodeTargetType: read("source"),

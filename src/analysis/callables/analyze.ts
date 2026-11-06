@@ -97,14 +97,12 @@ export function analyzeCsharpCallableContracts(
     const immediate = sourceExpressionCallArgument(declaration, source);
     const selected = immediate === undefined ? undefined : nativeInput(immediate, false);
     const signature = getCsharpLambdaSignature(selected);
-    const selfEscapes = policy.ast.is.IsFunctionExpression(declaration) && policy.ast.name(declaration) !== undefined &&
-      source.navigation.declarationUses(declaration).some(use => {
-        if (use.kind === "type-only" || evidence.compileTimeMetadata.get(use.reference) ||
-          use.kind === "direct-call" && use.role === "call-target") return false;
-        const flow = source.navigation.expressionValueFlow(use.reference);
-        return flow.escapes || flow.memberWritten || flow.receiverUsed || flow.hasUnclassifiedUse ||
-          flow.aliasDeclarations.some(alias => policy.ast.typeNode(alias) !== undefined);
-      });
+    const selfFlows = policy.ast.is.IsFunctionExpression(declaration) && policy.ast.name(declaration) !== undefined
+      ? source.navigation.declarationUses(declaration).filter(use => use.kind !== "type-only" &&
+        !evidence.compileTimeMetadata.get(use.reference) && !(use.kind === "direct-call" && use.role === "call-target"))
+        .map(use => source.navigation.expressionValueFlow(use.reference)) : [];
+    const selfEscapes = selfFlows.some(flow => flow.escapes || flow.memberWritten || flow.receiverUsed || flow.hasUnclassifiedUse ||
+      flow.aliasDeclarations.some(alias => policy.ast.typeNode(alias) !== undefined));
     if (!selfEscapes && selected !== undefined && signature !== undefined && getCsharpExpressionTreeDelegateType(selected) === undefined &&
       csharpDelegateSignatureHasSupportedPassingModes(signature) && signature.returnPassing === undefined &&
       signature.parameterPassingModes.every(mode => mode === "by-value") &&
@@ -113,7 +111,13 @@ export function analyzeCsharpCallableContracts(
       contract.nativeParameters.length <= signature.parameters.length &&
       contract.nativeParameters.every((parameter, index) => targetTypeRefEquals(parameter.targetParameter.type, signature.parameters[index]!)) &&
       csharpArgumentVectorCallbackResultMatches(contract.returnType, signature.returnType)) {
-      closedInputs.set(declaration, Object.freeze({ type: selected, source: contract }));
+      const completed = Object.freeze({ type: selected, source: contract });
+      closedInputs.set(declaration, completed);
+      for (const flow of selfFlows) {
+        if (flow.aliasDeclarations.every(isClosedCallableAlias)) {
+          for (const alias of flow.aliasDeclarations) closedInputs.set(alias, completed);
+        }
+      }
       continue;
     }
     if (immediate === undefined && (policy.ast.is.IsArrowFunction(declaration) || policy.ast.is.IsFunctionExpression(declaration))) {
@@ -121,9 +125,7 @@ export function analyzeCsharpCallableContracts(
       if (flow.aliasDeclarations.length > 0 && flow.aliasDeclarations.length <= 1024 && flow.uses.length <= 131072 &&
         !flow.memberWritten && !flow.receiverUsed && !flow.identityCompared && !flow.captured && !flow.returned &&
         !flow.yielded && !flow.storedOutsideBinding && !flow.exported && !flow.hasUnclassifiedUse &&
-        flow.aliasDeclarations.every(alias => policy.ast.is.IsVariableDeclaration(alias) &&
-          policy.ast.variableDeclarationKind(alias) === "const" && policy.ast.typeNode(alias) === undefined &&
-          !source.navigation.declarationUseSummary(alias).bindingWritten)) {
+        flow.aliasDeclarations.every(isClosedCallableAlias)) {
         const uses = flow.uses.filter(use => use.kind !== "type-only" && use.role !== "storage");
         let carrier: TargetTypeRef | undefined;
         let consistent = uses.length !== 0 && !contract.nativeParameters.some(parameter => {
@@ -174,6 +176,11 @@ export function analyzeCsharpCallableContracts(
   return resolvedTargetStage(sealCsharpCallableContractIndex({
     contracts, declarationContracts: nativeDeclarations, byDeclaration,
     byProjectConstructor, closedInputs, creationPaths, returnSelections }));
+
+  function isClosedCallableAlias(alias: Node): boolean {
+    return policy.ast.is.IsVariableDeclaration(alias) && policy.ast.variableDeclarationKind(alias) === "const" &&
+      policy.ast.typeNode(alias) === undefined && !source.navigation.declarationUseSummary(alias).bindingWritten;
+  }
 
   function nativeConsumerContract(contract: SourceCallableSourceContract, nativeType: TargetTypeRef,
     candidate: TargetTypeRef): SourceCallableSourceContract | undefined {

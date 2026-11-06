@@ -125,18 +125,17 @@ export function createCsharpObjectShapePolicy(
       if (descriptor !== undefined && isProviderDescriptor(descriptor)) return providerShape === undefined ? undefined
         : state.sourceBindings === undefined ? remember(node, providerShape) : rememberTargetShape(providerShape);
       const selectedShape = resolveTarget(selectedTarget);
-      if (selectedShape !== undefined && selectedShape.constructible !== true &&
-        selectCsharpHostLiteralCorrespondence(host.ast, node, host.effectiveTypes.get(node), selectedShape, selectedTarget).kind === "proven") {
-        return state.sourceBindings === undefined ? remember(node, selectedShape) : rememberTargetShape(selectedShape);
-      }
-      if (selectedShape !== undefined && source.type !== undefined) {
-        const actualType = host.ast.is.IsObjectLiteralExpression(node) ? queries.types.expressionType(node) : source.type;
-        const descriptor = publishedShapeDescriptor(node);
+      const publishedLiteral = selectedShape !== undefined && selectedShape.constructible !== true &&
+        selectCsharpHostLiteralCorrespondence(host.ast, node, host.effectiveTypes.get(node), selectedShape, selectedTarget).kind === "proven";
+      if (selectedShape !== undefined && (publishedLiteral || source.type !== undefined)) {
+        const actualType = publishedLiteral ? undefined
+          : host.ast.is.IsObjectLiteralExpression(node) ? queries.types.expressionType(node) : source.type;
         const members = descriptor === undefined ? undefined
           : retainPublishedMembers(selectedShape.members, descriptor, node, queries, nextState(state), selectedTarget);
         if (members !== undefined) return state.sourceBindings === undefined
           ? remember(node, { ...selectedShape, ...(actualType === undefined ? {} : { sourceType: actualType }), members })
           : rememberTargetShape({ ...selectedShape, ...(actualType === undefined ? {} : { sourceType: actualType }), members });
+        if (publishedLiteral) return undefined;
       }
       const shape = resolveSemanticShape(
         source.type,
