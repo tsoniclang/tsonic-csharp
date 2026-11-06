@@ -6,7 +6,6 @@ export type CsharpProviderArgumentAdapter =
       readonly targetName: string;
       readonly inputType: TargetTypeRef;
       readonly resultType: TargetTypeRef;
-      readonly nativeIntegerConversion?: "checked";
     };
 
 import type { TargetTypeRef } from "../types/index.js";

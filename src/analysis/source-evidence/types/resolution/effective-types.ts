@@ -183,10 +183,7 @@ export function createCsharpSourceTypeRepresentationHost(
       if (parameter !== undefined) {
         const scoped = host.representations.scopedTargetType(declaration);
         if (scoped !== undefined && typeArguments.length === 0) return scoped;
-        const sourceType = queries.types.authoredType(declaration) ??
-          queries.declarations.declaredType(declaration);
-        return sourceType === undefined || typeArguments.length !== 0 ? undefined
-          : host.typeParameterConstraints.resolve(parameter, { sourceFile: queries.sourceFile, sourceType });
+        return typeArguments.length !== 0 ? undefined : host.typeParameterConstraints.resolve(parameter);
       }
       const marker = host.sourceFacts?.getFact(declaration, sourceMarkerFactKey);
       if (marker?.kind === "type-marker" && marker.marker === "pointer") {

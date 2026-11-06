@@ -8,7 +8,6 @@ import type {
 import type { ProviderMemberKey, ProviderVirtualDeclarationFact } from "@tsonic/tsts";
 import type { CsharpTargetMember } from "../../target-model/types/model.js";
 import { canonicalProviderValue } from "../../target-model/metadata/canonical-value.js";
-import { isCsharpIntegralTargetType } from "../../target-model/types/carriers/scalar-types.js";
 
 export type CsharpProviderIdentityResult<
   TIdentity extends CsharpProviderSourceIdentity = CsharpProviderSourceIdentity,
@@ -605,12 +604,7 @@ function providerArgumentAdapterIsValid(
       return parameter.sourcePassingMode === "by-value" &&
         parameter.targetPassingMode === "by-value" &&
         adapter.id.length > 0 &&
-        adapter.targetName.length > 0 &&
-        (adapter.nativeIntegerConversion === undefined ||
-          adapter.nativeIntegerConversion === "checked" &&
-          adapter.inputType.kind === "source-primitive" &&
-          (adapter.inputType.name === "float32" || adapter.inputType.name === "float64") &&
-          isCsharpIntegralTargetType(adapter.resultType));
+        adapter.targetName.length > 0;
     default:
       return false;
   }

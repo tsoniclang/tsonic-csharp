@@ -1,4 +1,4 @@
-import { csharpExceptionTargetType, getCsharpNullableElementTargetType, getCsharpExpressionTreeDelegateType, getCsharpRuntimeUnionArms, isCsharpNullableReferenceTargetType, isCsharpIntegralTargetType, isCsharpVoidTargetType, csharpCarrierAdmitsSourceAbsence, targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/index.js";
+import { csharpExceptionTargetType, getCsharpNullableElementTargetType, getCsharpExpressionTreeDelegateType, getCsharpRuntimeUnionArms, isCsharpNullableReferenceTargetType, isCsharpVoidTargetType, csharpCarrierAdmitsSourceAbsence, targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/index.js";
 import { csharpLiteralIsRepresentableAs } from "./literals.js";
 import { selectCsharpConversion } from "./core.js";
 import type { CsharpConversionMode, CsharpConversionSelection } from "../../target-model/conversions/selection.js";
@@ -81,16 +81,6 @@ export function selectCsharpProviderArgumentConversion(
   }
   const sourceElementType = getCsharpNullableElementTargetType(source);
   const targetElementType = getCsharpNullableElementTargetType(target);
-  if (
-    adapter.nativeIntegerConversion === "checked" &&
-    source !== undefined &&
-    isCsharpIntegralTargetType(sourceElementType ?? source) &&
-    isCsharpIntegralTargetType(targetElementType ?? target) &&
-    (sourceElementType === undefined || targetElementType !== undefined) &&
-    targetTypeRefEquals(adapter.resultType, targetElementType ?? target)
-  ) {
-    return { kind: "checked-native-integer" };
-  }
   if (
     source !== undefined &&
     sourceElementType !== undefined &&

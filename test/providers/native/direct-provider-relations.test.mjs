@@ -428,21 +428,19 @@ test("provider argument adapters require ordinary by-value parameter relations",
   );
 });
 
-test("checked integral adapter contracts reject nonnumeric and malformed selections", () => {
+test("provider argument adapter contracts require exact static method identities", () => {
   const primitive = name => ({ kind: "source-primitive", name });
   const valid = {
     kind: "static-method", id: "Fixture.Convert", targetName: "Convert",
     declaringType: { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "Fixture" },
     inputType: primitive("float64"), resultType: primitive("int64"),
-    nativeIntegerConversion: "checked",
   };
   for (const [changes, accepted] of [
     [{}, true],
     [{ inputType: primitive("float32") }, true],
-    [{ nativeIntegerConversion: "unchecked" }, false],
-    [{ inputType: primitive("bool") }, false],
-    [{ resultType: primitive("float64") }, false],
-    [{ resultType: primitive("bool") }, false],
+    [{ id: "" }, false],
+    [{ targetName: "" }, false],
+    [{ kind: "instance-method" }, false],
   ]) {
     const relation = signatureRelation({
       declaration: providerDeclaration(),

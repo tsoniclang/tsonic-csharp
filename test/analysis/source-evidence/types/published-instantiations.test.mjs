@@ -3,6 +3,8 @@ import test from "node:test";
 import { createCompilerSessionFromFiles, providerVirtualDeclarationFactKey } from "@tsonic/tsts";
 import { createTargetSourceProgram, sourceTypeDescriptorMemberOriginsEqual, sourceTypeDescriptorStructure } from "@tsonic/target-api/source";
 import { resolveCsharpSourceTypeDescriptor } from "../../../../dist/analysis/source-evidence/types/resolution/effective-types.js";
+import { resolveNodeValueWithState } from "../../../../dist/analysis/source-evidence/types/resolution/nodes.js";
+import { createCsharpSourceTypeParameterEnvironment } from "../../../../dist/analysis/source-evidence/types/resolution/type-parameter-environment.js";
 import { resolveCsharpProjectionArguments } from "../../../../dist/analysis/source-evidence/types/resolution/projection-arguments.js";
 import { createCsharpSourceUnionDefinitions } from "../../../../dist/analysis/source-evidence/types/resolution/union-definitions.js";
 import { resolveCompositionalSourceTypeAlias } from "../../../../dist/analysis/source-evidence/types/resolution/source-references.js";
@@ -365,6 +367,33 @@ test("raw checked-Type entries and published definition identities cannot reuse 
     "only the same immutable checked-Type identity reuses that metadata result");
   assert.equal(targetTypeRefEquals(registry.resolveDescriptor(input.recursive, [], published, unexpected),
     csharpSourcePrimitiveTargetType("int32")), true, "the metadata entry cannot overwrite the published body");
+});
+
+test("type parameter declarations and published descriptors share one declaration-owned constraint resolution", () => {
+  for (const descriptorFirst of [false, true]) {
+    const input = fixture();
+    let resolutions = 0;
+    input.scope.host.typeParameterConstraints = createCsharpSourceTypeParameterEnvironment(input.source.ast,
+      (declaration, parameter, source) => {
+        assert.equal(declaration === input.parameter && parameter.csharpDeclaration === declaration, true,
+          "the original binder declaration owns its native constraint");
+        assert.equal(source === undefined, true, "neither entry point supplies occurrence-specific checker evidence");
+        resolutions += 1;
+        return { kind: "resolved", constraints: [{ kind: "keyword", keyword: "class" }] };
+      });
+    input.scope.host.effectiveTypes = { get: () => undefined };
+    input.scope.host.sourceStorage = { storageSubjectFor: () => undefined };
+    const descriptor = { kind: "declared", declaration: input.parameter, typeArguments: [] };
+    const fromDescriptor = () => resolveCsharpSourceTypeDescriptor(input.scope, descriptor, { depth: 0 }, input.box);
+    const fromNode = () => resolveNodeValueWithState(input.scope, input.parameter, undefined, { depth: 0 })?.selectedType;
+    const first = descriptorFirst ? fromDescriptor() : fromNode();
+    const second = descriptorFirst ? fromNode() : fromDescriptor();
+    assert.equal(first !== undefined && first === second && first.csharpDeclaration === input.parameter, true,
+      "both orders retain the identical immutable native binder");
+    assert.equal(first.csharpConstraints.kind === "resolved" && first.csharpConstraints.constraints.length === 1 &&
+      first.csharpConstraints.constraints[0].keyword === "class", true, "the original constraint is retained");
+    assert.equal(resolutions, 1, "one declaration constraint producer serves both consumers");
+  }
 });
 
 test("published nominal arguments retain their complete outer and local declaration order without formal raw bindings", () => {
