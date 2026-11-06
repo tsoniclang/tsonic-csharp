@@ -1,3 +1,4 @@
+import type { Node } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../model/context.js";
 import type { CsharpUnionEqualityArm } from "../../../target-model/operations/binary.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
@@ -6,14 +7,15 @@ import { csharpAbsenceTargetType, getCsharpRuntimeUnionArms, isCsharpAbsenceTarg
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { getCsharpTypeofRuntimeKind } from "../../../target-model/types/runtime-kind.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
-import { selectCsharpNumericCarrierPromotion } from "../numeric/promotion.js";
-import { validateBinaryTargetSemantics } from "./operator-validation.js";
+import { selectCsharpNumericBinaryPromotion } from "../numeric/promotion.js";
+import { isCsharpBigIntegerIntegralEquality, validateBinaryTargetSemantics } from "./operator-validation.js";
 import { selectCsharpReferenceEquality } from "./reference-equality.js";
 
 export function selectCsharpUnionEquality(
   left: TargetTypeRef,
   right: TargetTypeRef,
   input: CsharpPolicyContext,
+  operands: { readonly left: Node; readonly right: Node },
 ): readonly CsharpUnionEqualityArm[] | undefined {
   const leftPresent = getCsharpNullableElementTargetType(left) ?? left;
   const rightPresent = getCsharpNullableElementTargetType(right) ?? right;
@@ -27,9 +29,11 @@ export function selectCsharpUnionEquality(
   for (const left of leftLeaves) for (const right of rightLeaves) {
     if (isCsharpAbsenceTargetType(left.carrier) !== isCsharpAbsenceTargetType(right.carrier)) continue;
     const identity = selectCsharpReferenceEquality("===", left.carrier, right.carrier, input);
-    const promotion = selectCsharpNumericCarrierPromotion(left.carrier, right.carrier);
-    const intrinsic = (targetTypeRefEquals(left.carrier, right.carrier) || promotion !== undefined) &&
-      validateBinaryTargetSemantics("===", left.carrier, right.carrier, input) === undefined;
+    const promotion = selectCsharpNumericBinaryPromotion(input, operands.left, left.carrier, operands.right, right.carrier);
+    const intrinsic = (targetTypeRefEquals(left.carrier, right.carrier) || promotion !== undefined ||
+      isCsharpBigIntegerIntegralEquality(left.carrier, right.carrier)) &&
+      validateBinaryTargetSemantics("===", promotion?.leftType ?? left.carrier,
+        promotion?.rightType ?? right.carrier, input) === undefined;
     if (identity !== undefined || intrinsic) {
       arms.push(Object.freeze({ left: Object.freeze(left), right: Object.freeze(right),
         operation: Object.freeze(identity ?? { kind: "operator" as const, leftInputType: promotion?.leftType ?? left.carrier,

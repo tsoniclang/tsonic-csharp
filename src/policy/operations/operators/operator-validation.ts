@@ -176,9 +176,7 @@ function supportsIntrinsicEquality(
   if (rightElement !== undefined && leftElement === undefined) {
     return supportsIntrinsicEquality(left, rightElement, input);
   }
-  if (targetTypeRefEquals(left, csharpBigIntegerTargetType()) &&
-      (targetTypeRefEquals(right, csharpBigIntegerTargetType()) || isCsharpIntegralTargetType(right)) ||
-    targetTypeRefEquals(right, csharpBigIntegerTargetType()) && isCsharpIntegralTargetType(left)) {
+  if (isCsharpBigIntegerIntegralEquality(left, right)) {
     return true;
   }
   if (
@@ -211,6 +209,12 @@ function supportsIntrinsicEquality(
     targetTypeRefEquals(left, right) &&
     input.projectTypes.catalog.definitionForTarget(left)?.kind === "class"
   );
+}
+
+export function isCsharpBigIntegerIntegralEquality(left: TargetTypeRef, right: TargetTypeRef): boolean {
+  return targetTypeRefEquals(left, csharpBigIntegerTargetType()) &&
+      (targetTypeRefEquals(right, csharpBigIntegerTargetType()) || isCsharpIntegralTargetType(right)) ||
+    targetTypeRefEquals(right, csharpBigIntegerTargetType()) && isCsharpIntegralTargetType(left);
 }
 
 function runtimeUnionSupportsArmEquality(

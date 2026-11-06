@@ -73,6 +73,14 @@ export function collectCsharpConversionRequirements(input: CsharpConversionRequi
       return carrier === undefined ? [target] : [target, carrier];
     }) : expectedTargets;
     literalRequests.requestReads(node, valueReads.valueRead.get(node)?.value, sourceTypes, literalTargets, operations);
+    const binary = operations.binaryOperation.get(node)?.target;
+    if (binary?.kind === "resolved" && binary.targetOperation.kind === "union-equality") {
+      const comparisons = binary.targetOperation.arms.flatMap(arm => arm.operation.kind === "operator" ? [arm.operation] : []);
+      literalRequests.requestReads(binary.left, valueReads.valueRead.get(binary.left)?.value, [],
+        comparisons.map(operation => operation.leftInputType), operations);
+      literalRequests.requestReads(binary.right, valueReads.valueRead.get(binary.right)?.value, [],
+        comparisons.map(operation => operation.rightInputType), operations);
+    }
     if (policy.literalValues.literalValue.get(node) !== undefined) {
       const source = valueReads.valueRead.get(node)?.value;
       if (source !== undefined) for (const target of expectedTypes.expectedType.get(node)) {

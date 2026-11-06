@@ -20,10 +20,12 @@ import {
   test,
 } from "../../fixtures/dotnet-provider/direct-provider-selection.helpers.mjs";
 import { instantiateCsharpProviderCall } from "../../../dist/analysis/operations/members/calls/instantiation.js";
+import { sourceTypeDescriptorStructure } from "@tsonic/target-api/source";
 import {
   csharpNullableReferenceTargetType,
   csharpNullableValueTargetType,
   csharpTargetNamedType,
+  getCsharpNullableElementTargetType,
 } from "../../../dist/policy/types/index.js";
 
 test("rest arguments retain one declared parameter identity and target params slot", () => {
@@ -220,7 +222,7 @@ test("selected method type arguments close generic target methods directly", () 
   assert.deepEqual(selected.call.targetMember.returnType, int32);
 });
 
-test("inferred provider method bounds use one order-independent implicit target", () => {
+test("published provider arguments validate implicit native bounds independent of argument order", () => {
   const int32 = csharpSourcePrimitiveTargetType("int32");
   const uint32 = csharpSourcePrimitiveTargetType("uint32");
   const int64 = csharpSourcePrimitiveTargetType("int64");
@@ -232,10 +234,10 @@ test("inferred provider method bounds use one order-independent implicit target"
     [[uint32, int32, int64], int64],
     [[int64, int32, uint32], int64],
     [[int32, int32], int32],
-    [[float64, csharpNullableValueTargetType(int32)], csharpNullableValueTargetType(float64), csharpNullableValueTargetType(float64)],
-    [[csharpNullableValueTargetType(int32), float64], csharpNullableValueTargetType(float64), csharpNullableValueTargetType(float64)],
+    [[float64, csharpNullableValueTargetType(int32)], csharpNullableValueTargetType(float64)],
+    [[csharpNullableValueTargetType(int32), float64], csharpNullableValueTargetType(float64)],
   ];
-  for (const [sourceArgumentTargets, expected, selectedTarget = float64] of cases) {
+  for (const [sourceArgumentTargets, expected] of cases) {
     const parameterType = { kind: "type-parameter", identity: "T", name: "T" };
     const method = providerMethod({
       parameters: sourceArgumentTargets.map((_, index) => targetParameter(`value${index}`, parameterType)),
@@ -246,8 +248,20 @@ test("inferred provider method bounds use one order-independent implicit target"
       member: method,
       targetParameters: method.parameters,
       sourceArgumentTargets,
-      nativeTypeArguments: [{ selectedTarget }],
+      nativeTypeArguments: [{ selectedTarget: expected }],
     });
+    const publication = fixture.host.effectiveTypes.callInstantiation(fixture.call);
+    const declaration = fixture.host.semantics(fixture.sourceFile).declarations.signatureDeclaration(fixture.source.selectedSignature);
+    assert.equal(publication?.method.length === 1 &&
+      publication.method[0].declaration === fixture.host.ast.typeParameters(declaration)[0], true,
+    "the one published argument belongs to the exact selected Source declaration binder");
+    const nullable = getCsharpNullableElementTargetType(expected);
+    const argument = sourceTypeDescriptorStructure(publication.method[0].type);
+    const value = nullable === undefined ? argument : argument.kind === "optional" ? argument.value : undefined;
+    const scalar = value === undefined ? undefined : sourceTypeDescriptorStructure(value);
+    assert.equal(scalar?.kind === "primitive" && scalar.primitive === (nullable ?? expected).name &&
+      (argument.kind === "optional") === (nullable !== undefined), true,
+    `the real Source default publishes exact width and absence: expected=${(nullable ?? expected).name}, kind=${scalar?.kind}, primitive=${scalar?.primitive}, optional=${argument.kind === "optional"}`);
     const selected = selectCsharpProviderCall(fixture.host, fixture.call, fixture.sourceFile);
     assert.equal(selected.kind, "resolved", selected.kind === "resolved" ? "resolved" : selected.reason);
     assert.deepEqual(selected.call.targetMethodTypeArguments[0].targetType, expected);

@@ -12,7 +12,8 @@ const integer = csharpSourcePrimitiveTargetType("int32");
 const floating = csharpSourcePrimitiveTargetType("float64");
 const boolean = csharpSourcePrimitiveTargetType("bool");
 const callable = (result, parameters = [], options = {}) => csharpDelegateTargetType("System.Func", parameters, result, options);
-const policy = { providers: { findTargetBindingByTargetId() { return { kind: "missing" }; } }, objectShapes: { resolveTarget() {} },
+const policy = { literalValues: { literalValue: { get: () => undefined } },
+  providers: { findTargetBindingByTargetId() { return { kind: "missing" }; } }, objectShapes: { resolveTarget() {} },
   projectTypes: { directSupertypes: () => [], catalog: { definitionForTarget() {} } }, target: {} };
 
 test("native callable identity reuses the exact one-direction numeric conversion proof", () => {
@@ -106,10 +107,10 @@ test("union callable identity consumes the same exact proof and retains rejectio
   const annotated = callable(floating);
   const union = csharpRuntimeUnionTargetType([inferred, csharpStringTargetType()]);
   for (const [left, right] of [[union, annotated], [annotated, union]]) {
-    const selected = selectCsharpUnionEquality(left, right, policy);
+    const selected = selectCsharpUnionEquality(left, right, policy, { left: {}, right: {} });
     assert.equal(selected?.length, 1);
     assert.deepEqual(selected[0].operation, { kind: "reference-identity", negated: false });
     assert.equal(Object.isFrozen(selected[0].operation), true);
   }
-  assert.equal(selectCsharpUnionEquality(union, callable(boolean), policy), undefined);
+  assert.equal(selectCsharpUnionEquality(union, callable(boolean), policy, { left: {}, right: {} }), undefined);
 });

@@ -154,7 +154,7 @@ export function finalizeCsharpNativeEmission(
   const literalEmission = analyzeCsharpLiteralAdmission({ ast: source.ast, demand: nativeDemand, literals: literalValues,
     exact: exactLiterals, values: analysis.valueReads });
   const templateStrings = analyzeCsharpTemplateStrings(source.ast, nativeDemand);
-  const unionEquality = analyzeCsharpUnionEquality(sourceStorage.nodes, admittedOperations);
+  const unionEquality = analyzeCsharpUnionEquality(sourceStorage.nodes, admittedOperations, exactLiterals);
   const closedTypeTests = analyzeCsharpClosedTypeTests(sourceStorage.nodes, admittedOperations, typeDefinitions);
   const unaryEmission = analyzeCsharpUnaryEmission({ ast: source.ast, nodes: sourceStorage.nodes, admitted: admittedControlNode,
     operations: admittedOperations, literals: literalValues, exact: exactLiterals });

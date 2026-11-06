@@ -13,6 +13,7 @@ export type CsharpSourceProfileTypeKind =
   | "error"
   | "array"
   | "readonly-array"
+  | "readonly-view"
   | "template-strings-array"
   | "promise"
   | "promise-fulfilled-result"
@@ -78,6 +79,7 @@ const sourceProfileTypePolicies = Object.freeze([
   sourceProfileErrorTypePolicy(csharpTargetId, csharpSourceBaseErrorIdentity),
   sourceProfileTypePolicy(csharpTargetId, "Array", "array"),
   sourceProfileTypePolicy(csharpTargetId, "ReadonlyArray", "readonly-array"),
+  sourceProfileTypePolicy(csharpTargetId, "Readonly", "readonly-view"),
   sourceProfileTypePolicy(csharpTargetId, "Promise", "promise"),
   sourceProfileTypePolicy(csharpTargetId, "PromiseLike", "promise"),
   sourceProfileTypePolicy(csharpTargetId, "IteratorResult", "iterator-result"),
@@ -96,6 +98,7 @@ const sourceProfileTypePolicies = Object.freeze([
   ...csharpSourceErrorIdentities.map(identity => sourceProfileErrorTypePolicy("js", identity)),
   sourceProfileTypePolicy("js", "Array", "array"),
   sourceProfileTypePolicy("js", "ReadonlyArray", "readonly-array"),
+  sourceProfileTypePolicy("js", "Readonly", "readonly-view"),
   sourceProfileTypePolicy("js", "TemplateStringsArray", "template-strings-array"),
   sourceProfileTypePolicy("js", "Promise", "promise"),
   sourceProfileTypePolicy("js", "PromiseLike", "promise"),

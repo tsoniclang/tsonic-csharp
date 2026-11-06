@@ -1,11 +1,16 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../../types/model.js";
 import type { CsharpUnionEqualityArm } from "../../operations/binary.js";
+import type { CsharpExactLiteralRecipe } from "../../conversions/exact-literals.js";
 
-export interface CsharpUnionEqualityOperand {
+export type CsharpUnionEqualityOperand = {
   readonly arm: CsharpUnionEqualityArm["left"];
   readonly form: "absence" | "present" | "union";
-}
+} | {
+  readonly arm: CsharpUnionEqualityArm["left"];
+  readonly form: "literal";
+  readonly literal: CsharpExactLiteralRecipe;
+};
 export interface CsharpUnionEqualityEmission {
   readonly left: Node;
   readonly right: Node;

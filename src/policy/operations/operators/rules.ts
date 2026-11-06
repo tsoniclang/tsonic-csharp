@@ -139,7 +139,7 @@ export function selectCsharpNativeBinaryOperation(
   if (nullishTest === undefined && (sourceOperator === "===" || sourceOperator === "!==") &&
     (getCsharpRuntimeUnionArms(getCsharpNullableElementTargetType(leftType) ?? leftType, input.typeDefinitions) !== undefined ||
       getCsharpRuntimeUnionArms(getCsharpNullableElementTargetType(rightType) ?? rightType, input.typeDefinitions) !== undefined)) {
-    const arms = selectCsharpUnionEquality(leftType, rightType, input);
+    const arms = selectCsharpUnionEquality(leftType, rightType, input, { left, right });
     if (arms === undefined) return rejectCsharpOperator("Union equality requires exact native comparison evidence for every leaf pair.");
     return Object.freeze({ kind: "resolved", sourceOperator,
       targetOperation: Object.freeze({ kind: "union-equality", negated: sourceOperator === "!==", arms }),

@@ -33,6 +33,8 @@ export function selectCsharpSourceProfileCarrier(
         : undefined;
     case "error":
       return typeArguments.length === 0 ? csharpSourceErrorTargetType(identity.errorName) : undefined;
+    case "readonly-view":
+      return typeArguments.length === 1 ? typeArguments[0] : undefined;
     case "array":
     case "readonly-array": {
       const elementType = typeArguments.length === 1
