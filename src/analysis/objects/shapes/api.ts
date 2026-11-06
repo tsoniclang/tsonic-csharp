@@ -115,6 +115,7 @@ export function createCsharpObjectShapePolicy(
       }
       const source = selectedObjectShapeSource(node, queries, host);
       const selectedTarget = resolvePublishedShapeType(node, state);
+      if ((host.ast.is.IsClassDeclaration(node) || host.ast.is.IsClassExpression(node)) && selectedTarget === undefined) return undefined;
       if (isCsharpRecordDictionaryTargetType(getCsharpNullableElementTargetType(selectedTarget) ?? selectedTarget)) return undefined;
       const descriptor = publishedShapeDescriptor(node);
       const providerShape = source.type === undefined || descriptor === undefined ||
@@ -366,11 +367,12 @@ export function createCsharpObjectShapePolicy(
           member.sourceSubjects?.some(subject => subjects.includes(subject)) === true);
         const selectedMember = selected?.length === 1 ? selected[0] : undefined;
         const targetName = objectShapeMemberTargetName(field.sourceName);
-        return type === undefined || selectedMember === undefined || targetName === undefined
+        return type === undefined || selectedMember === undefined || selectedMember.origins === undefined || targetName === undefined
           ? undefined
           : {
               sourceKey: csharpPropertySourceMemberKey(field.sourceName),
               sourceName: field.sourceName,
+              origins: selectedMember.origins,
               sourceSubjects: [field.sourceType, ...(selectedMember?.sourceSubjects ?? [])],
               ...(selectedMember?.sourceDeclarations === undefined ? {} : { sourceDeclarations: selectedMember.sourceDeclarations }),
               ...(selectedMember.sourceMemberEvidence === undefined ? {} : { sourceMemberEvidence: selectedMember.sourceMemberEvidence }),

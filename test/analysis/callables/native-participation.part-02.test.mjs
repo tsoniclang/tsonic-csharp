@@ -27,8 +27,8 @@ test(`${surface} abstract accessors keep native signatures and concrete invocati
     const compiled = compileCsharpNativeUseSource({ sourceText: original, surface });
     assertCsharpCheckingSucceeded(compiled);
     assert.deepEqual(compiled.targetDiagnostics.map(({ code, message }) => [code, message]),
-      [["CSHARP_UNSUPPORTED_AST", "No exact C# implicit conversion relates 'source:float64' to 'source:int32'."]],
-      "B3/B4 fix the unannotated field at int32; B10/D2 refuse the number setter write");
+      [["CSHARP_UNSUPPORTED_AST", "No exact C# implicit conversion relates 'source:float64' to 'source:int64'."]],
+      "C2360 Q1 fixes the unannotated field at int64; B10/D2 refuse the number setter write");
     assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
       "the original incompatible setter publishes no native program or artifacts");
   });
@@ -152,8 +152,8 @@ test(`${surface} abstract accessors keep native signatures and concrete invocati
     const compiled = compileCsharpNativeUseSource({ sourceText: original, surface });
     assertCsharpCheckingSucceeded(compiled);
     assert.deepEqual(compiled.targetDiagnostics.map(({ code, message }) => [code, message]),
-      [["CSHARP_UNSUPPORTED_AST", "No exact C# implicit conversion relates 'source:float64' to 'source:int32'."]],
-      "B3/B4 fix the unannotated field at int32; B10/D2 refuse the number setter write");
+      [["CSHARP_UNSUPPORTED_AST", "No exact C# implicit conversion relates 'source:float64' to 'source:int64'."]],
+      "C2360 Q1 fixes the unannotated field at int64; B10/D2 refuse the number setter write");
     assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
       "the original incompatible setter publishes no native program or artifacts");
   });

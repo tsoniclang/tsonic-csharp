@@ -299,6 +299,7 @@ export function assertCsharpCompilationSucceeded(compiled) {
   assertEmptyDiagnosticCollection(
     "C# target compilation",
     compiled.result.diagnostics,
+    compiled.source.ast,
   );
 }
 
@@ -311,10 +312,11 @@ export function assertCsharpCheckingSucceeded(compiled) {
   assertEmptyDiagnosticCollection(
     "C# extension checking",
     compiled.extensionDiagnostics,
+    compiled.source.ast,
   );
 }
 
-function assertEmptyDiagnosticCollection(label, diagnostics) {
+function assertEmptyDiagnosticCollection(label, diagnostics, ast) {
   if (!Array.isArray(diagnostics)) {
     assert.fail(`${label} returned a non-array diagnostic collection.`);
   }
@@ -324,7 +326,7 @@ function assertEmptyDiagnosticCollection(label, diagnostics) {
   const maximumDiagnostics = 8;
   const summary = diagnostics
     .slice(0, maximumDiagnostics)
-    .map((diagnostic, index) => boundedDiagnosticSummary(diagnostic, index))
+    .map((diagnostic, index) => boundedDiagnosticSummary(diagnostic, index, ast))
     .join("\n");
   const omitted = diagnostics.length > maximumDiagnostics
     ? `\n... ${diagnostics.length - maximumDiagnostics} additional diagnostic(s) omitted.`
@@ -334,7 +336,7 @@ function assertEmptyDiagnosticCollection(label, diagnostics) {
   );
 }
 
-function boundedDiagnosticSummary(diagnostic, index) {
+export function boundedDiagnosticSummary(diagnostic, index, ast) {
   if (diagnostic === null || typeof diagnostic !== "object") {
     return `${index + 1}. <invalid diagnostic>`;
   }
@@ -342,7 +344,18 @@ function boundedDiagnosticSummary(diagnostic, index) {
   const message = typeof diagnostic.message === "string"
     ? truncateDiagnosticText(diagnostic.message)
     : "<missing message>";
-  return `${index + 1}. ${code}: ${message}`;
+  const location = [];
+  const span = diagnostic.sourceSpan;
+  if (span !== undefined) location.push(`span=${String(span.fileName).slice(0, 160)}:${span.line}:${span.column}-${span.endLine}:${span.endColumn}`);
+  const node = diagnostic.sourceNode;
+  if (node !== undefined && ast !== undefined) {
+    const file = ast.getSourceFile(node);
+    const position = ast.pos(node);
+    const end = ast.end(node);
+    const text = file === undefined ? "" : String(ast.getSourceText(file)).slice(Math.max(0, position), Math.min(end, Math.max(0, position) + 120));
+    location.push(`kind=${ast.kindName(node)} pos=${position} end=${end} file=${file === undefined ? "<none>" : String(ast.getPath(file)).slice(0, 160)} text=${JSON.stringify(text)}`);
+  }
+  return `${index + 1}. ${code}: ${message}${location.length === 0 ? "" : ` [${location.join("; ")}]`}`;
 }
 
 function scalarDiagnosticCode(diagnostic) {

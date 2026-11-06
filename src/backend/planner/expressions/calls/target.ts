@@ -19,6 +19,7 @@ import { qualifiedCsharpType } from "../../types/index.js";
 import { planCsharpDiscardedStatement } from "../../statements/statement-output.js";
 import { readCsharpNativeDiscardEvaluation } from "../native-uses.js";
 import { csharpPlannedEffect } from "../planned-values.js";
+import { planCsharpUnionArrayCopy } from "./array-copy.js";
 
 export function translateSelectedTargetCall(node: Node, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner, planCallArgument: CallArgumentPlanner): CsharpPlannedValue | undefined {
@@ -74,6 +75,7 @@ function buildSelectedTargetCall(node: Node, selected: CsharpTargetCallEmission,
     case "numeric": return invocation.identity ? arguments_[0]!.expression : { kind: "CastExpression", type: nativeType(invocation.target), expression: arguments_[0]!.expression };
     case "constructor": return { kind: "ObjectCreationExpression", type: nativeType(invocation.owner), arguments: arguments_ };
     case "array": return translateArrayCreationCall(node, arguments_, input);
+    case "array-copy": return planCsharpUnionArrayCopy(node, invocation, arguments_, sourceFile, input, diagnostics);
     case "projection": {
       const projection = invocation.projection;
       const typeArguments = projection.typeParameters.map(nativeType);

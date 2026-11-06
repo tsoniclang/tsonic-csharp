@@ -435,7 +435,8 @@ export function finalizeCsharpNativeEmission(
   const locationRetentionIssues = admitCsharpLocationRetention({ source, nodes: sourceStorage.nodes, operations: admittedOperations,
     storage: analysis.storage, elements: elementAdmission.records, arguments: argumentPassing.records, admitted: admittedControlNode });
   if (locationRetentionIssues.length !== 0) return rejectedTargetStage(locationRetentionIssues);
-  const targetCallEmission = analyzeCsharpTargetCallEmission({ nodes: sourceStorage.nodes, admitted: admittedControlNode, operations: admittedOperations,
+  const targetCallEmission = analyzeCsharpTargetCallEmission({ typeDefinitions,
+    nodes: sourceStorage.nodes, admitted: admittedControlNode, operations: admittedOperations,
     arguments: targetArguments.records, sources: sourceCallEmission.records, optional: optionalCallChains.records,
     shapes: objectShapeDemand, demand: nativeDemand, expressions: expressionEmission.records });
   if (targetCallEmission.issues.length !== 0) return rejectedTargetStage(targetCallEmission.issues);

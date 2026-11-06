@@ -178,8 +178,8 @@ test("independently formed addresses retain canonical local, parameter, member, 
   assert.equal(occurrences(source, "CreateLocal(__tsonic_locationIdentity0"), 2);
   assert.equal(occurrences(source, "CreateLocal(__tsonic_locationIdentity1"), 2);
   assert.equal(occurrences(source, "CreateMember(this,"), 2);
-  assert.equal(occurrences(source, "CreateArrayElement(values, 0)"), 3);
-  assert.equal(occurrences(source, "CreateArrayElement(values, 1)"), 1);
+  assert.equal(occurrences(source, "CreateArrayElement(values, 0L)"), 3);
+  assert.equal(occurrences(source, "CreateArrayElement(values, 1L)"), 1);
   assert.equal(occurrences(source, "CreateStatic("), 2);
 });
 

@@ -84,6 +84,42 @@ export function run(): boolean {
   });
 }
 
+test("published structural method values retain the same native body layout as their original construction", () => {
+  for (const surface of ["native", "js"]) {
+    for (const action of ["", "const alias = value; alias.read = () => 11;"]) {
+      const compiled = compileCsharpSource({ surface, sourceText: `
+import type { int32 } from "@tsonic/core/types.js";
+export function make(seed: int32) {
+  const value = { count: seed, read(): int32 { return this.count; } };
+  ${action}
+  return value;
+}
+` });
+      assertCsharpCompilationSucceeded(compiled);
+      const program = compiled.result.program;
+      const ast = program.source.ast;
+      let literal;
+      let declaration;
+      const visit = node => {
+        if (ast.is.IsObjectLiteralExpression(node)) literal = node;
+        if (ast.is.IsVariableDeclaration(node) && ast.text(ast.name(node)) === "value") declaration = node;
+        ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+      };
+      csharpProgramSourceFiles(program).forEach(visit);
+      assert.equal(literal !== undefined && declaration !== undefined, true, `${surface}: actual value and literal`);
+      const shape = program.objectShapes.resolveNode(literal);
+      const produced = program.records.valueRead.get(literal)?.value;
+      const storage = program.records.storageType.get(declaration);
+      assert.equal(shape?.methodImplementation?.declaration === literal, true,
+        `${surface}: the original Native method body owns its physical layout`);
+      assert.equal(produced !== undefined && targetTypeRefEquals(produced, shape.targetType), true,
+        `${surface}: published literal representation includes the actual body layout`);
+      assert.equal(storage !== undefined && targetTypeRefEquals(storage, shape.targetType), true,
+        `${surface}: value storage does not invent a second generated class`);
+    }
+  }
+});
+
 test("a native rest-copy layout stores the required invocation protocol without inventing a body", () => {
   const integer = { kind: "source-primitive", name: "int32" };
   const sourceType = Object.freeze({});

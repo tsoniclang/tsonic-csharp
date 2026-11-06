@@ -5,6 +5,8 @@ import { createTargetSourceProgram, sourceTypeDescriptorMemberOriginsEqual, sour
 import { resolveCsharpSourceTypeDescriptor } from "../../../../dist/analysis/source-evidence/types/resolution/effective-types.js";
 import { resolveCsharpProjectionArguments } from "../../../../dist/analysis/source-evidence/types/resolution/projection-arguments.js";
 import { createCsharpSourceUnionDefinitions } from "../../../../dist/analysis/source-evidence/types/resolution/union-definitions.js";
+import { resolveCompositionalSourceTypeAlias } from "../../../../dist/analysis/source-evidence/types/resolution/source-references.js";
+import { createCsharpTypeDefinitionRegistry } from "../../../../dist/analysis/project-types/type-definitions.js";
 import { createCsharpObjectShapeMemberResolver } from "../../../../dist/analysis/objects/shapes/member-evidence.js";
 import { createCsharpObjectShapePolicy } from "../../../../dist/analysis/objects/shapes/api.js";
 import { createCsharpNativeConstructionDemandQuery } from "../../../../dist/analysis/objects/native-construction-demand.js";
@@ -137,6 +139,45 @@ function fixture() {
   scope.sourceUnionDefinitions = createCsharpSourceUnionDefinitions(host, unexpected);
   return { source, file, nodes, box, alias, recursive, local, outer, parameter, queries, definitions, target, scope };
 }
+
+test("authored recursive union references consume their exact published declaration instead of a second raw template", () => {
+  const input = fixture();
+  const { source } = input;
+  const reference = input.nodes.find(node => source.ast.is.IsTypeReferenceNode(node) &&
+    source.navigation.sourceReferenceFor(source.ast.as.AsTypeReferenceNode(node).TypeName)?.declaration === input.recursive);
+  assert.equal(reference !== undefined, true, "one actual checked recursive alias reference");
+  const typeName = source.ast.as.AsTypeReferenceNode(reference).TypeName;
+  const selectedType = input.queries.types.authoredType(reference);
+  const original = source.effectiveTypes.get(input.recursive);
+  assert.equal(original?.kind === "resolved" && original.type.kind === "declared" &&
+    original.type.declaration === input.recursive, true, "the canonical Source declaration is published");
+  for (const [label, publication, accepted] of [
+    ["actual", original, true], ["absent", undefined, false],
+    ["original refusal", { kind: "refused", code: "TSONIC_LOCAL_TYPE_UNSUPPORTED", site: input.recursive,
+      reason: "original declared alias refusal" }, false],
+  ]) {
+    const rejections = [];
+    const host = { ...input.scope.host, target: { id: "csharp" }, navigation: source.navigation,
+      semantics: source.semantics.forFile, semanticsFor: source.semantics.forNode,
+      effectiveTypes: { get: node => node === input.recursive ? publication : source.effectiveTypes.get(node) },
+      typeDefinitions: createCsharpTypeDefinitionRegistry(), typeParameterConstraints: { resolve: unexpected } };
+    const scope = { ...input.scope, host, resolveNodeWithState: unexpected,
+      structuralTypes: { resolveUnion: unexpected } };
+    scope.sourceUnionDefinitions = createCsharpSourceUnionDefinitions(host, unexpected);
+    const selected = resolveCompositionalSourceTypeAlias(scope, typeName, [], selectedType, input.queries,
+      { depth: 0, rejectNativeResolution: rejection => rejections.push(rejection) });
+    assert.equal(selected.kind === "resolved", accepted, label);
+    if (accepted) {
+      const actual = resolveCsharpSourceTypeDescriptor(scope, original.type, { depth: 0 }, input.recursive);
+      assert.equal(actual !== undefined && targetTypeRefEquals(selected.type, actual), true,
+        "authored reference and produced value retain one recursive native layout");
+      assert.equal(host.typeDefinitions.sourceUnions().length, 1, "only one canonical definition is registered");
+    } else {
+      assert.equal(host.typeDefinitions.sourceUnions().length, 0, `${label}: no raw template is manufactured`);
+      assert.equal(rejections.length, label === "original refusal" ? 1 : 0, `${label}: original refusal ownership`);
+    }
+  }
+});
 
 test("complete alias applications cache the exact published definition identity, never only their represented arguments", () => {
   const input = fixture();

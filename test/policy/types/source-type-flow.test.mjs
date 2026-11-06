@@ -24,6 +24,31 @@ const unexpected = () => assert.fail("a primitive unit must not query declaratio
 const representationHost = surface => ({ target: { id: "csharp", ...(surface === "js" ? { surfaces: ["js"] } : {}) },
   typeParameterConstraints: {}, declaredType: unexpected, retainShape: unexpected, shapeKind: () => "storage" });
 
+test("published tuple slots reuse native parameter-list absence and rest storage without reopening source types", () => {
+  for (const surface of ["native", "js"]) {
+    const host = representationHost(surface);
+    const descriptor = { kind: "tuple", readonly: false, elements: [
+      { kind: "required", type: primitive("int64") },
+      { kind: "optional", type: primitive("int64") },
+    ] };
+    const selected = representCsharpSourceType(host, descriptor);
+    assert.equal(selected?.kind === "tuple" && selected.elements.length === 2, true, `${surface}: exact tuple slots`);
+    assert.equal(targetTypeRefEquals(selected.elements[0], csharpSourcePrimitiveTargetType("int64")), true,
+      `${surface}: present width is retained`);
+    assert.equal(targetTypeRefEquals(getCsharpNullableElementTargetType(selected.elements[1]),
+      selected.elements[0]), true, `${surface}: optional slot has one native absence`);
+    const rest = { kind: "rest", type: { kind: "array", readonly: false, element: primitive("int64") } };
+    const homogeneous = representCsharpSourceType(host, { ...descriptor, elements: [...descriptor.elements, rest] });
+    assert.equal(targetTypeRefEquals(getCsharpArrayLiteralElementTargetType(homogeneous), selected.elements[0]), true,
+      `${surface}: homogeneous rest uses the same native collection element`);
+    assert.equal(representCsharpSourceType(host, { ...descriptor,
+      elements: [{ kind: "required", type: primitive("float64") }, rest] }) === undefined, true,
+      `${surface}: incompatible rest widths do not manufacture a common element`);
+    assert.equal(representCsharpSourceType(host, { ...descriptor, elements: [rest, rest] }) === undefined, true,
+      `${surface}: multiple rest slots still refuse`);
+  }
+});
+
 test("declarations and reads use only their actual Host outcome across every publication state", () => {
   const checked = createCompilerSessionFromFiles({ currentDirectory: "/src", files: { "/src/index.ts": `
     class Box { field: number = 1; }

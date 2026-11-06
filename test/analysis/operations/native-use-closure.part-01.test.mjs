@@ -54,8 +54,8 @@ test(
   if (label === "accessor bodies" || label === "parameter, pattern and lambda defaults") {
     assert.equal(compiled.sourceDiagnosticsText, "", compiled.sourceDiagnosticsText);
     assert.deepEqual(compiled.targetDiagnostics.map(({ code, message }) => [code, message]),
-      [["CSHARP_UNSUPPORTED_AST", "No exact C# implicit conversion relates 'source:float64' to 'source:int32'."]],
-      `${label}: the original int32 field or binding cannot receive a number write/default`);
+      [["CSHARP_UNSUPPORTED_AST", "No exact C# implicit conversion relates 'source:float64' to 'source:int64'."]],
+      `${label}: C2360 Q1 makes the original field or binding int64, which cannot receive a number write/default`);
     assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
       "the original native write-fit refusal publishes nothing");
     return;
@@ -152,8 +152,8 @@ test(`${surface} discarded callable branches retain every condition and operand 
   `, surface });
   assert.equal(compiled.sourceDiagnosticsText, "", compiled.sourceDiagnosticsText);
   assert.deepEqual(compiled.targetDiagnostics.map(({ code, message }) => [code, message]),
-    [["CSHARP_UNSUPPORTED_AST", "No exact C# implicit conversion relates 'source:float64' to 'source:int32'."]],
-    "the module-level unannotated trace is Host-fixed int32 and cannot receive a number write");
+    [["CSHARP_UNSUPPORTED_AST", "No exact C# implicit conversion relates 'source:float64' to 'source:int64'."]],
+    "C2360 Q1 makes the module-level unannotated trace Host-fixed int64, which cannot receive a number write");
   assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
     "the original incompatible module write publishes no native output");
 });

@@ -14,6 +14,9 @@ import { memoryAbiCapability } from "../../helpers/memory-abi.mjs";
 import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 import { emissionPrograms, discardedPrograms, owners } from "./native-use-closure.fixtures.mjs";
+import { getCsharpDelegateSignature } from "../../../dist/target-model/types/carriers/delegates.js";
+import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
+import { selectCsharpBinaryOperation } from "../../../dist/analysis/operations/operators.js";
 
 test("native void completion preserves effectful absent calls and the selected conditional branch", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ sourceText: `
@@ -50,6 +53,81 @@ test("every admitted native edge resolves to the one exact immutable publication
     if (entry.use.kind === "erased") continue;
     for (const child of entry.use.children) assert.equal(demand.nativeUse.get(child) !== undefined, true, `closed child ${child.role}`);
   }
+});
+
+for (const surface of ["native", "js"]) {
+  test(`${surface} authored delegate fields retain their exact initializer creation and expected-use contract`, () => {
+    const value = owners(`import type { int32 } from "@tsonic/core/types.js";
+      class HandlerBox { run: (value: int32) => int32 = (value) => value; }
+      function make(): HandlerBox { return { run(value: int32): int32 { return value + 1; } }; }
+      export function run(): boolean { const handler = make(); return handler.run(6) === 7; }`, surface);
+    const field = value.nodes.find(node => value.ast.is.IsPropertyDeclaration(node) && value.ast.text(value.ast.name(node)) === "run");
+    assert.equal(field !== undefined, true, "the original authored delegate property is present");
+    const initializer = value.ast.as.AsPropertyDeclaration(field).Initializer;
+    const storage = value.records.storageType.get(field);
+    const signature = getCsharpDelegateSignature(storage);
+    assert.equal(signature?.parameters.length === 1 && signature.parameters[0].kind === "source-primitive" &&
+      signature.parameters[0].name === "int32" && signature.returnType.kind === "source-primitive" && signature.returnType.name === "int32",
+    true, "the property publishes its authored parameter and result widths");
+    const creation = value.records.callableCreation.get(initializer);
+    assert.equal(creation?.kind === "selected" && targetTypeRefEquals(creation.carrier, storage), true,
+      "the initializer creates exactly the property's native delegate, not the checker's erased numeric signature");
+    const site = csharpNativeUseSite(field, { kind: "initializer" }, { target: storage });
+    const expected = value.input.expected.expectedUse.get(site);
+    assert.equal(expected?.expression === initializer && targetTypeRefEquals(expected.carrier, creation.carrier), true,
+      "the real expected-use owner consumes the exact initializer creation");
+    const demand = analyzeCsharpNativeDemand(value.input, []);
+    assert.equal(demand.unadmitted.length, 0, demand.unadmitted.map(entry => entry.reason).join("; "));
+    assert.equal(demand.nativeUse.get(site)?.expression === initializer, true,
+      "the exact property initializer site reaches immutable native admission");
+  });
+}
+
+test("discarded native assignment consumption uses only its actual left storage without inventing a Source result", () => {
+  const expression = Object.freeze({});
+  const left = Object.freeze({});
+  const right = Object.freeze({});
+  const storage = csharpSourcePrimitiveTargetType("int64");
+  let resultUse = "discarded";
+  let operatorKind = "KindEqualsToken";
+  let outcome;
+  let result;
+  let storageReads = 0;
+  const policy = {
+    ast: { is: { IsBinaryExpression: subject => subject === expression, IsIdentifier: subject => subject === left || subject === right,
+      IsParenthesizedExpression: () => false, IsArrayLiteralExpression: () => false, IsObjectLiteralExpression: () => false },
+    as: { AsBinaryExpression: subject => subject === expression ? { Left: left, Right: right } : undefined },
+    operatorKindName: () => operatorKind },
+    effectiveTypes: { get: subject => subject === expression ? outcome : undefined },
+    navigation: { expressionResultUse: subject => { assert.equal(subject === expression, true); return resultUse; } },
+    types: { resolveReadStorage: subject => { assert.equal(subject === left, true, "only actual left storage is read"); storageReads += 1; return storage; } },
+    literalValues: { literalValue: { get: () => undefined } },
+    providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) },
+    objectShapes: { resolveTarget: () => undefined }, projectTypes: { catalog: { definitionForTarget: () => undefined } },
+    integerRanges: { get: () => false },
+  };
+  const typeFor = subject => subject === expression ? result : subject === left || subject === right ? storage : undefined;
+  const selected = selectCsharpBinaryOperation(policy, expression, typeFor);
+  assert.equal(selected.kind === "resolved" && selected.resultType === storage, true,
+    "a discarded write represents its selected location without requiring an unused Source value");
+  assert.equal(storageReads > 0, true, "the produced representation is backed by the actual write storage");
+  resultUse = "consumed";
+  assert.equal(selectCsharpBinaryOperation(policy, expression, typeFor, storage).kind, "rejected",
+    "an expected result and a left carrier cannot manufacture a consumed Source value");
+  resultUse = "discarded";
+  outcome = Object.freeze({ kind: "refused" });
+  assert.equal(selectCsharpBinaryOperation(policy, expression, typeFor).kind, "rejected",
+    "an actual Source refusal is not replaced by discarded write storage");
+  outcome = undefined;
+  operatorKind = "KindPlusToken";
+  assert.equal(selectCsharpBinaryOperation(policy, expression, typeFor).kind, "rejected",
+    "discarded nonassignment operations do not obtain a substitute result type");
+  operatorKind = "KindEqualsToken";
+  result = csharpSourcePrimitiveTargetType("int64");
+  outcome = Object.freeze({ kind: "resolved", type: { kind: "primitive", primitive: "int64" } });
+  const published = selectCsharpBinaryOperation(policy, expression, typeFor);
+  assert.equal(published.kind === "resolved" && published.resultType === result, true,
+    "an existing Source result is always preserved as the exact canonical result object");
 });
 
 test("an alternative never does not erase the other branch or a callable creation", () => {

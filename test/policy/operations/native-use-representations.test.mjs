@@ -13,6 +13,7 @@ const floating = Object.freeze({ kind: "source-primitive", name: "float64" });
 const checked = checkCsharpSource({ sourceText: `
   export const literal = 1.0;
   export const binary = 7 / 2;
+  export const shifted = 7 << 2;
   export const wrapped = (binary);
   export const list = [binary];
   export const callback = () => binary;
@@ -53,6 +54,27 @@ test("binary physical carriers come from the selected operation, not requested r
     input.children.clear();
     assert.equal(selectCsharpNativeUseRepresentation(input).reason, "forwarding-child-unresolved", "no positional/target fallback");
   }
+});
+
+test("a native int64 shift count consumes its exact checked int32 child without changing the operation", () => {
+  const wide = Object.freeze({ kind: "source-primitive", name: "int64" });
+  const input = { ...base(initializer("shifted")), target: wide, source: wide };
+  const expression = ast.as.AsBinaryExpression(input.expression);
+  const binary = Object.freeze({ kind: "resolved", sourceOperator: "<<", targetOperation: { kind: "operator", operator: "<<" },
+    left: expression.Left, right: expression.Right, leftType: wide, rightType: wide,
+    leftInputType: wide, rightInputType: wide, resultType: wide });
+  input.binary = binary;
+  const left = edge(input, expression.Left, { kind: "operand", position: "left" }, wide);
+  const right = edge(input, expression.Right, { kind: "operand", position: "right" }, integer);
+  const selected = selectCsharpNativeUseRepresentation(input);
+  assert.equal(selected.kind === "selected" && selected.binary === binary && selected.carrier === wide &&
+    selected.children.length === 2 && selected.children[0] === left && selected.children[1] === right, true,
+  "the representation consumes the same checked count site as native demand and propagation");
+  input.children.clear();
+  edge(input, expression.Left, { kind: "operand", position: "left" }, wide);
+  edge(input, expression.Right, { kind: "operand", position: "right" }, wide);
+  assert.equal(selectCsharpNativeUseRepresentation(input).reason, "forwarding-child-unresolved",
+    "a logical int64 count cannot substitute for the required physical native count");
 });
 
 test("forwarding requires the exact child, target and mode", () => {

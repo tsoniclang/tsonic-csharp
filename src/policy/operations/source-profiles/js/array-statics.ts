@@ -32,6 +32,25 @@ export function arrayOfMember(
 export function arrayFromMember(
   context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
 ): CsharpTargetMember | undefined {
+  const copy = selectCsharpArrayCopy(context);
+  if (copy?.kind === "union") {
+    return staticMethod(
+      "Tsonic.CSharp.Js.ArrayLike.CopyDense:union",
+      "from",
+      "CopyDense",
+      jsRuntimeTargetType("ArrayLike"),
+      [targetParameter("arrayLike", copy.sourceType)],
+      copy.resultType,
+      { csharpInvocation: {
+        kind: "array-copy",
+        targetParameterIndex: 0,
+        sourceType: copy.sourceType,
+        resultType: copy.resultType,
+        targetElementType: copy.targetElementType,
+        arms: copy.arms,
+      } },
+    );
+  }
   const shape = arrayFromShape(context);
   if (shape === undefined) {
     return undefined;
@@ -39,9 +58,7 @@ export function arrayFromMember(
   const argument = resolveCsharpSelectedSourceValue(context, context.source.sourceArguments[0]);
   const isJsArray = getCsharpJsArrayElementTargetType(argument) !== undefined;
   const isArrayUnion = getCsharpRuntimeUnionArms(argument, context.host.typeDefinitions) !== undefined;
-  const copy = isJsArray || isArrayUnion ? selectCsharpArrayCopy(context) : undefined;
   if ((isJsArray || isArrayUnion) && copy === undefined) return undefined;
-  if (copy?.method === "CopyDense" && context.source.sourceSelectedSignatureParameters.length !== 1) return undefined;
   const parameters: CsharpTargetParameter[] = [
     targetParameter(
       "arrayLike",
@@ -61,10 +78,10 @@ export function arrayFromMember(
     ));
   }
   return staticMethod(
-    `Tsonic.CSharp.Js.${copy?.method === "CopyDense" ? "ArrayLike" : "JSArrayStatics"}.${copy?.method ?? "from"}`,
+    `Tsonic.CSharp.Js.JSArrayStatics.${copy?.method ?? "from"}`,
     "from",
     copy?.method ?? "from",
-    copy?.method === "CopyDense" ? jsRuntimeTargetType("ArrayLike") : arrayStaticsType,
+    arrayStaticsType,
     parameters,
     shape.resultType,
     {
@@ -149,8 +166,9 @@ function arrayFromShape(
 export function arrayFromTypeArguments(
   context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
 ): readonly TargetTypeRef[] | undefined {
-  const shape = arrayFromShape(context);
   const copy = selectCsharpArrayCopy(context);
+  if (copy?.kind === "union") return [];
+  const shape = arrayFromShape(context);
   if (copy !== undefined && shape !== undefined) {
     return context.source.sourceSelectedSignatureParameters.length === 1
       ? copy.typeArguments : [...copy.typeArguments, shape.resultElement];
@@ -170,7 +188,7 @@ function arrayFromTypeParameterNames(
   context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
 ): readonly string[] {
   const copy = selectCsharpArrayCopy(context);
-  if (copy !== undefined) {
+  if (copy?.kind === "dense") {
     return [
       ...copy.typeArguments.map((_, index) => `TSource${index}`),
       ...(context.source.sourceSelectedSignatureParameters.length === 1 ? [] : ["TResult"]),

@@ -10,8 +10,10 @@ import type { CsharpTargetCallEmission } from "../../../target-model/records/cal
 import { selectCsharpTargetCallEmission } from "../../../policy/operations/members/target-call-emission.js";
 import { createCsharpTargetCallEmissionRecords } from "../../program/records/calls/target-call-emission.js";
 import type { CsharpNativeUseRecords } from "../../../target-model/records/native/native-demand.js";
+import type { CsharpTypeDefinitions } from "../../../target-model/types/source-union-definitions.js";
 
 export function analyzeCsharpTargetCallEmission(input: { readonly nodes: readonly Node[]; readonly admitted: (node: Node) => boolean;
+  readonly typeDefinitions: CsharpTypeDefinitions;
   readonly operations: CsharpTargetOperationClassifications; readonly arguments: CsharpTargetArgumentRecords;
   readonly sources: CsharpSourceCallEmissionRecords; readonly optional: CsharpOptionalCallChainRecords;
   readonly shapes: CsharpObjectShapeDemand; readonly demand: CsharpNativeDemandAnalysis;
@@ -40,7 +42,8 @@ export function analyzeCsharpTargetCallEmission(input: { readonly nodes: readonl
     const projection = subject === undefined ? undefined : input.shapes.projection(subject);
     if (request !== undefined && projection === undefined) failTargetAnalysisInvariant("tsonic-csharp", "A participating selected call requires its admitted object-shape projection.", node);
     const use = input.demand.nativeUse.expression(node)?.use;
-    const result = selectCsharpTargetCallEmission(Object.freeze({ source: selected.source, selection: selected.call, argumentPassing: Object.freeze(passing),
+    const result = selectCsharpTargetCallEmission(Object.freeze({ typeDefinitions: input.typeDefinitions,
+      source: selected.source, selection: selected.call, argumentPassing: Object.freeze(passing),
       optional: optional.optional && input.optional.optionalCallChain.get(node)?.kind !== "guarded", projection,
       liftedResult: use === undefined || use.kind === "erased" ? undefined : use.carrier }));
     if (result.kind === "rejected") refuse(node, result.reason);

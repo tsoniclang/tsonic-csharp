@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { createSourceStorageQuery, targetUseSiteIdentity } from "@tsonic/target-api/analysis";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { createExpectedNativeUseOwner } from "../../helpers/expected-native-uses.mjs";
 import { analyzeCsharpBindingPatterns } from "../../../dist/analysis/control-flow/binding-patterns.js";
+import { admitCsharpExpectedNativeUses } from "../../../dist/analysis/expected-types/native-uses.js";
 import { analyzeCsharpNativeDemand } from "../../../dist/analysis/operations/native-demand.js";
 import { csharpNativeUseSite } from "../../../dist/target-model/records/native/native-demand.js";
 import { csharpObjectTargetType, csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
@@ -75,9 +76,13 @@ function owners(sourceText, surface = "js") {
   assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
   const program = compiled.result.program;
   assert.equal(program !== undefined, true, compiled.result.diagnostics.map(item => `${item.code}: ${item.message}`).join("; "));
-  const source = createTargetSourceProgram(compiled.source);
+  const source = program.source;
   const ast = source.ast;
   const records = program.records;
+  const expected = createExpectedNativeUseOwner(compiled).analysis;
+  expected.completeReturns(records.callableCreation);
+  const expectedUses = admitCsharpExpectedNativeUses(expected, { ast, exactLiteral: records.exactLiteral,
+    callableCreation: records.callableCreation, valueRead: records.valueRead, operations: records });
   const nodes = [];
   const walk = node => { nodes.push(node); ast.forEachChild(node, child => { if (child !== undefined) walk(child); }); };
   for (const file of csharpProgramSourceFiles(program)) walk(file);
@@ -103,10 +108,10 @@ function owners(sourceText, surface = "js") {
       return use === undefined || use.kind === "erased" ? undefined : use.propertyKeys;
     },
     valueReads: records, optionalLocals: { get: node => records.localBinding.get(node)?.optionalLocal },
-    participation: records.nativeParticipation, bindingPatterns, callableCreation: { get: () => undefined },
+    participation: records.nativeParticipation, bindingPatterns, callableCreation: records.callableCreation,
     attributeApplications: records, classInitialization: records, projectTypes: program.projectTypes,
     classFactories: { classFactory: records.classFactory, factories: program.classFactories },
-    expected: { entries: [], pending: [], inactive: [], expectedUse: { get: () => undefined } } };
+    expected: expectedUses };
   const text = node => String(ast.getSourceText(ast.getSourceFile(node))).slice(ast.pos(node), ast.end(node)).trim().replace(/\s+/gu, " ");
   const variable = name => nodes.find(node => ast.is.IsVariableDeclaration(node) && ast.text(ast.name(node)) === name);
   return { ast, nodes, records, input, text, variable };

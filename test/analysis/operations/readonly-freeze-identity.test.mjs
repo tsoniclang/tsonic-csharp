@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { emptyCsharpTypeDefinitions } from "../../../dist/target-model/types/source-union-definitions.js";
 import test from "node:test";
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
@@ -110,6 +111,7 @@ test("value identity admits only one exact by-value native carrier before the se
     ["instance invocation", integer, [false], false, { kind: "instance" }, true],
   ]) {
     const selected = selectCsharpTargetCallEmission({
+      typeDefinitions: emptyCsharpTypeDefinitions,
       source: {}, argumentPassing: arguments_, optional: false, projection: undefined, liftedResult: undefined,
       selection: { receiver, targetMember: { kind: "method", id: "value-identity-control", static: static_,
         targetName: "identity", parameters: [{ name: "value", type: integer, passingMode: "by-value" }],

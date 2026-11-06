@@ -330,7 +330,7 @@ test("missing loop-head evidence keeps the actual for-of root private until dema
   const head = findNode(program, "KindVariableDeclaration", "[left, right]");
   const loop = findNode(program, "KindForOfStatement", "for (const [left, right] of rows) total += left + right;");
   const analysis = analyzeCsharpBindingPatterns({ ...input,
-    valueReads: { valueRead: { get: node => node === head ? undefined : input.valueReads.valueRead.get(node) } } });
+    storage: { storageType: { get: node => node === head ? undefined : input.storage.storageType.get(node) } } });
   assert.equal(analysis.candidates.length, 1, "binding-patterns:177: analysis.candidates.length");
   assert.equal(analysis.candidates[0].root === loop && Object.isFrozen(analysis.candidates[0]) &&
     Object.isFrozen(analysis.candidates[0].evidence), true, "loop-root candidate is precise and private");

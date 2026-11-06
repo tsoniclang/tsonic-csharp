@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { createCompilerSessionFromFiles, formatDiagnostics } from "@tsonic/tsts";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
+import { createTargetSourceProgram, sourceTypeDescriptorMemberOriginsEqual, sourceTypeDescriptorStructure } from "@tsonic/target-api/source";
 import { resolvedTargetStage, runTargetCompilationStages } from "@tsonic/target-api/artifacts";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 
@@ -188,6 +188,40 @@ export function read(value: Packet): int64 { return value.range.to; }
       "both published native widths reach the nested native layout");
   });
 }
+
+test("native value record field metadata retains its exact published member origin through literal construction", () => {
+  for (const surface of ["native", "js"]) {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+import { field, struct } from "@tsonic/core/lang.js";
+import type { int32 } from "@tsonic/core/types.js";
+export const Point: { value: int32 } = struct({ value: field<int32>() });
+export function make(): typeof Point { return { value: 7 }; }
+` });
+    assert.equal(compiled.sourceDiagnosticsText, "", `${surface}: the exact record program is source-valid`);
+    assert.equal(compiled.result.diagnostics.length, 0,
+      compiled.result.diagnostics.map(issue => `${issue.code}: ${issue.message}`).join("; "));
+    assert.equal(compiled.result.program !== undefined, true, `${surface}: the physical record is admitted`);
+    const source = createTargetSourceProgram(compiled.source);
+    const { program } = compiled.result;
+    let declaration;
+    const visit = node => {
+      if (source.ast.is.IsVariableDeclaration(node) && source.ast.text(source.ast.name(node)) === "Point") declaration = node;
+      source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    };
+    csharpProgramSourceFiles(program).forEach(visit);
+    assert.equal(declaration !== undefined, true, `${surface}: the actual native record declaration`);
+    const outcome = source.effectiveTypes.get(declaration);
+    const structure = outcome?.kind === "refused" || outcome === undefined ? undefined : sourceTypeDescriptorStructure(outcome.type);
+    const selected = program.objectShapes.resolveNode(declaration);
+    assert.equal(structure?.kind === "shape" && structure.members.length === 1 && selected?.members.length === 1, true,
+      `${surface}: neither published nor native field inventory is dropped`);
+    const member = selected.members[0];
+    assert.equal(member.type.kind === "source-primitive" && member.type.name === "int32", true,
+      `${surface}: physical field width stays int32`);
+    assert.equal(member.origins?.length === 1 && sourceTypeDescriptorMemberOriginsEqual(member.origins[0],
+      structure.members[0].origin), true, `${surface}: native metadata retains the identical opaque Source origin`);
+  }
+});
 
 function valueProgram() {
   const compiled = compileCsharpSource({ sourceText: `

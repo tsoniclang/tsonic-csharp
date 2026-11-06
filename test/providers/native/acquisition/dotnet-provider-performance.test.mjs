@@ -5,8 +5,10 @@ import test from "node:test";
 
 import {
   createCompilerSessionFromFiles,
+  createSourceSemanticsExtension,
   formatDiagnostics,
 } from "@tsonic/tsts";
+import { createTsonicCoreSourceExtension, tsonicCoreSourceSemanticsModules } from "@tsonic/source-core";
 import {
   augmentDotnetModuleWithNativeArray,
   completeDotnetProviderMaterialization,
@@ -322,7 +324,11 @@ test(".NET target binding provider receives requested export slices from TSTS na
     },
     extensionHostOptions: {
       activeTarget: "csharp",
-      extensions: [createDotnetBindingTestExtension(provider)],
+      extensions: [
+        createSourceSemanticsExtension({ modules: tsonicCoreSourceSemanticsModules() }),
+        createTsonicCoreSourceExtension(),
+        createDotnetBindingTestExtension(provider),
+      ],
     },
   });
   const checked = session.checkSource();

@@ -142,7 +142,7 @@ export function analyzeCsharpBindingPatterns(
         const forOf = forOfHeadStatement(node);
         if (forOf !== undefined) {
           root = forOf;
-          analyzePattern(name, node, sourceFile, undefined);
+          analyzePattern(name, node, sourceFile, input.storage.storageType.get(node));
         } else if (variable?.Initializer !== undefined) {
           root = node;
           admitSource(name, variable.Initializer, sourceFile, "Destructuring source expression");
@@ -162,7 +162,7 @@ export function analyzeCsharpBindingPatterns(
       const ownerParticipation = owner === undefined ? undefined : input.participation.get(owner);
       if (name !== undefined && isBindingPattern(name) && ownerParticipation !== undefined && ownerParticipation !== "erased") {
         root = node;
-        analyzePattern(name, node, sourceFile, undefined);
+        analyzePattern(name, node, sourceFile, input.storage.storageType.get(node));
       }
     } else if (ast.is.IsBinaryExpression(node) && !assignments.isDefault(node)) {
       root = node;
@@ -298,8 +298,7 @@ export function analyzeCsharpBindingPatterns(
     }
   }
 
-  function analyzeArrayPattern(pattern: Node, sourceNode: Node, sourceFile: SourceFile, sourceCarrierOverride: TargetTypeRef | undefined): void {
-    const sourceCarrier = sourceCarrierOverride ?? input.valueReads.valueRead.get(sourceNode)?.value;
+  function analyzeArrayPattern(pattern: Node, sourceNode: Node, sourceFile: SourceFile, sourceCarrier: TargetTypeRef | undefined): void {
     const selected = selectCsharpBindingPatternProjection({ kind: "array-source", carrier: sourceCarrier });
     if (selected.kind !== "source" || selected.source.kind !== "array-source") {
       const detail = carrierDetail(sourceNode, "Runtime carrier fact is missing for the array destructuring source expression.");

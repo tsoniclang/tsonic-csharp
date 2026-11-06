@@ -112,9 +112,7 @@ export function checkCsharpSourceTypeFlowObligation(
     if (actual === undefined) return fail("A native write check requires the exact projected value's Host-selected representation.");
     const literals = writtenLiteralValues(host.literalValues, obligation);
     for (const literal of literals) {
-      if (literal !== undefined && (!writtenLiteralFits(literal, chosen) ||
-        chosen.kind === "source-primitive" && actual.kind === "source-primitive" &&
-        !csharpArrayElementIsRepresentableAs(chosen, { carrier: actual, literal }))) {
+      if (literal !== undefined && !writtenLiteralFits(literal, chosen)) {
         return fail(`The written literal does not fit the existing '${targetTypeRefKey(chosen)}' storage.`);
       }
     }

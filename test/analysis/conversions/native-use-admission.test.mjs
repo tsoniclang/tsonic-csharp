@@ -343,7 +343,7 @@ for (const wrapper of ["direct", "delegate", "tuple", "native-generic"]) test(wr
       shape.implements = [target];
       return true;
     } };
-  const operations = { selectedCall: none, selectedConstruction: none, selectedElement: none };
+  const operations = { selectedCall: none, selectedConstruction: none, selectedElement: none, binaryOperation: none };
   const analysis = analyzeCsharpConversions(policy,
     { nodeTargetType: { get: node => node === expression ? sourceUse : undefined } }, shapes, operations);
   const prepared = analysis.prepare({ expectedTypes: {}, valueReads: {} });

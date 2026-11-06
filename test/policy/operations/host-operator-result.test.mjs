@@ -13,7 +13,11 @@ import {
   csharpBigIntegerTargetType, csharpNullableTargetType,
   csharpSourcePrimitiveTargetType, csharpStringTargetType, targetTypeRefEquals,
 } from "../../../dist/target-model/types/index.js";
-import { csharpJsArrayTargetType } from "../../../dist/target-model/types/carriers/js.js";
+import { csharpJsArrayTargetType, csharpJsTypedArrayTargetType } from "../../../dist/target-model/types/carriers/js.js";
+import { csharpRuntimeUnionTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
+import { csharpArrayLikeElement } from "../../../dist/target-model/types/carriers/array-like.js";
+import { selectCsharpArrayCopy } from "../../../dist/policy/operations/source-profiles/js/array-copy.js";
+import { arrayFromMember, arrayFromTypeArguments } from "../../../dist/policy/operations/source-profiles/js/array-statics.js";
 import {
   acceptedEffectiveSource, assertPrimitiveOccurrences, assertPublishedRefusal, compileEffectiveSource, projectNodes,
 } from "../../helpers/source-effective-types.mjs";
@@ -566,4 +570,89 @@ for (const surface of ["native", "js"]) {
       assert.equal(selected?.kind === "resolved" && selected.resultType.kind === "source-primitive" && selected.resultType.name === source.type.primitive, true);
     }
   });
+}
+
+test("C2373 Array.from copies exact union arm elements into only the published result storage", () => {
+  for (const [name, sourceElement, destination] of [
+    ["Uint8Array", "uint8", "float64"],
+    ["Int16Array", "int16", "float64"],
+    ["Uint8Array", "uint8", "uint64"],
+  ]) {
+    const first = csharpJsTypedArrayTargetType(name);
+    const second = csharpJsArrayTargetType(primitive(destination));
+    const union = csharpRuntimeUnionTargetType([first, second]);
+    const result = csharpJsArrayTargetType(primitive(destination));
+    const context = arrayCopyContext(union, result);
+    const copy = selectCsharpArrayCopy(context);
+    assert.equal(copy?.kind, "union", name);
+    assert.equal(copy.sourceType === union && copy.resultType === result, true, name + ": original input and published result identities");
+    assert.equal(copy.targetElementType.name, destination, name);
+    assert.equal(csharpArrayLikeElement(union) === undefined, true, name + ": no widened common view exists");
+    assert.equal(copy.arms.length, 2, name);
+    assert.equal(copy.arms[0].sourceType === first && copy.arms[0].sourceElementType.name === sourceElement, true,
+      name + ": the exact input width survives selection");
+    assert.equal(copy.arms[1].sourceType === second && copy.arms[1].sourceElementType.name === destination, true,
+      name + ": the other arm keeps its independent element");
+    assert.equal(copy.arms[0].conversion.kind === "implicit" && copy.arms[0].conversion.proof === "numeric" &&
+      copy.arms[1].conversion.kind === "identity", true, name + ": one native conversion, no intermediate carrier");
+    const member = arrayFromMember(context);
+    assert.equal(member?.parameters[0]?.type === union && member.returnType === result, true, name);
+    assert.equal(member.csharpInvocation?.kind, "array-copy", name);
+    assert.equal(member.csharpInvocation.arms.length, 2, name);
+    assert.deepEqual(arrayFromTypeArguments(context), [], name + ": no result inference is replayed");
+  }
+});
+
+test("C2373 Array.from has no absent-result inference, narrowing shim or fabricated array arm", () => {
+  const bytes = csharpJsTypedArrayTargetType("Uint8Array");
+  const doubles = csharpJsArrayTargetType(primitive("float64"));
+  const union = csharpRuntimeUnionTargetType([bytes, doubles]);
+  for (const result of [undefined, primitive("float64"), csharpJsArrayTargetType(primitive("uint64"))]) {
+    const context = arrayCopyContext(union, result);
+    assert.equal(selectCsharpArrayCopy(context) === undefined, true, "only a published result with native implicit arm conversions is admitted");
+    assert.equal(arrayFromMember(context) === undefined, true, "no second copy path manufactures the missing relation");
+  }
+  const foreign = csharpRuntimeUnionTargetType([bytes, primitive("int32")]);
+  assert.equal(selectCsharpArrayCopy(arrayCopyContext(foreign, doubles)) === undefined, true,
+    "every exact union arm must carry its own native array inventory");
+  assert.equal(selectCsharpArrayCopy(arrayCopyContext(union, doubles, 2)) === undefined, true,
+    "the formerly unsupported mapped union copy does not silently acquire a new contract");
+});
+
+test("C2373 genuine JS Array.from retains exact physical copy inputs and published result on both union widths", () => {
+  for (const [name, kind] of [["Uint8Array", "uint8"], ["Int16Array", "int16"]]) {
+    const compiled = compileEffectiveSource("js",
+      `export function copy(values: ${name} | readonly number[]): number[] { return Array.from(values); }`);
+    const output = acceptedEffectiveSource(compiled);
+    const calls = projectNodes(compiled, (node, ast) => ast.is.IsCallExpression(node));
+    assert.equal(calls.length, 1, name);
+    const node = calls[0];
+    const selection = compiled.result.program.records.selectedCall.get(node)?.target;
+    assert.equal(selection?.kind, "resolved", name);
+    const invocation = selection.call.targetMember.csharpInvocation;
+    assert.equal(invocation?.kind, "array-copy", name);
+    assert.equal(invocation.arms.length === 2 && invocation.arms.some(arm =>
+      arm.sourceElementType.kind === "source-primitive" && arm.sourceElementType.name === kind) &&
+      invocation.arms.some(arm => arm.sourceElementType.kind === "source-primitive" &&
+        arm.sourceElementType.name === "float64"), true, name + ": exact real array arm widths");
+    assert.equal(invocation.targetElementType.kind === "source-primitive" && invocation.targetElementType.name === "float64", true, name);
+    assert.equal(selection.call.targetMember.parameters[0].type === invocation.sourceType, true, name);
+    assert.equal(selection.call.targetMember.returnType === invocation.resultType, true, name);
+    assert.doesNotMatch(output, /\.Match|CreateChecked|Convert\.To|\(object\)/u);
+  }
+});
+
+function arrayCopyContext(sourceType, resultType, parameterCount = 1) {
+  const expression = Object.freeze({});
+  const call = Object.freeze({});
+  return {
+    host: { ...policy,
+      get types() { return assert.fail("a copy binding cannot retry Source typing"); },
+      semantics: () => assert.fail("a copy binding cannot query the checker"),
+    },
+    source: { call, sourceArguments: [{ expression }],
+      sourceSelectedSignatureParameters: Array.from({ length: parameterCount }, () => ({})) },
+    inputs: { values: new Map([[expression, sourceType]]),
+      results: { get: node => node === call ? resultType : undefined } },
+  };
 }

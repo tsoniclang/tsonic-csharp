@@ -6,6 +6,7 @@ import { IsTypeSyntaxNode, type SourceFileSemantics } from "@tsonic/target-api/s
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import { combineCsharpTargetUnionMembers } from "../../../../target-model/types/carriers/runtime-carriers.js";
 import { csharpJsArrayTargetType } from "../../../../target-model/types/carriers/js.js";
+import { csharpSourceTypeParameter } from "../../../../source/extension/type-parameters.js";
 
 import { csharpNullableTargetType } from "../../../../target-model/types/carriers/nullable.js";
 import { maximumTypeResolutionDepth } from "./model.js";
@@ -72,6 +73,11 @@ function resolveNodeResultWithState(
   const queries = sourceFile === undefined
     ? host.semanticsFor(node)
     : host.semantics(sourceFile);
+  if (host.ast.is.IsTypeParameterDeclaration(node)) {
+    const parameter = csharpSourceTypeParameter(node, host.ast);
+    return parameter === undefined ? undefined
+      : csharpSourceValueResult(host.typeParameterConstraints.resolve(parameter));
+  }
   const scopedTargetType = host.representations.scopedTargetType(node);
   if (scopedTargetType !== undefined) {
     return csharpSourceValueResult(scopedTargetType);

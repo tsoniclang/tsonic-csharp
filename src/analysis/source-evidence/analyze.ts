@@ -382,7 +382,8 @@ export function analyzeCsharpSourceEvidence(
     if (source.ast.is.IsTypeParameterDeclaration(node)) {
       const parameter = csharpSourceTypeParameter(node, source.ast);
       if (parameter !== undefined) {
-        const selected = types.resolveType(source.semantics.forNode(node).declarations.declaredType(node), sourceFile);
+        const selection = types.resolveNode(node, sourceFile);
+        const selected = selection?.kind === "resolved" ? selection.sourceResult.selectedType : undefined;
         const constraints = selected?.kind === "type-parameter" && selected.identity === parameter.identity
           ? selected.csharpConstraints : undefined;
         typeParameterConstraints.set(

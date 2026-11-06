@@ -6,6 +6,7 @@ import { csharpNativeUseSite, type CsharpExpectedNativeUse, type CsharpNativeUse
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { csharpSourcePrimitiveTargetType } from "../../target-model/types/carriers/scalar-types.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
+import { csharpSourceTypeFlowShiftCountType } from "./source-type-flow-index.js";
 
 import type { CsharpNativeRepresentationInput } from "../model/native-use-representation.js";
 import type { CsharpNativeRepresentationPending, CsharpNativeRepresentationSelection } from "../../target-model/records/native/native-representation.js";
@@ -46,7 +47,7 @@ export function selectCsharpNativeUseRepresentation(input: CsharpNativeRepresent
     const binary = input.binary;
     const left = child(binary.left, { kind: "operand", position: "left" }, binary.leftInputType);
     const rightNeeded = binary.targetOperation.kind !== "conditional-value" || binary.targetOperation.branch !== "left";
-    const right = rightNeeded ? child(binary.right, { kind: "operand", position: "right" }, binary.rightInputType) : undefined;
+    const right = rightNeeded ? child(binary.right, { kind: "operand", position: "right" }, csharpSourceTypeFlowShiftCountType(binary)) : undefined;
     if (left === undefined || rightNeeded && right === undefined) return pending("forwarding-child-unresolved");
     const children = right === undefined ? [left] : [left, right];
     if (binary.targetOperation.kind === "conditional-value" && binary.targetOperation.branch !== "right") {

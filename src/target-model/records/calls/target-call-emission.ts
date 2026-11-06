@@ -2,11 +2,12 @@ import type { Node } from "@tsonic/tsts";
 import type { CsharpSelectedTargetCall } from "../objects/members.js";
 import type { ResolvedSourceCallInfo } from "./source-calls.js";
 import type { CsharpObjectShapeProjectionDeclaration } from "../objects/object-shape-demand.js";
-import type { TargetTypeRef } from "../../types/model.js";
+import type { CsharpTargetInvocation, TargetTypeRef } from "../../types/model.js";
 import type { CsharpSourceOperator } from "../../syntax/operators.js";
 
 export type CsharpTargetInvocationEmission =
   | { readonly kind: "value-identity" }
+  | Extract<CsharpTargetInvocation, { readonly kind: "array-copy" }>
   | { readonly kind: "integer-truncation"; readonly target: TargetTypeRef; readonly signed: boolean }
   | { readonly kind: "native-task-resolution"; readonly form: "value" | "task" | "absence";
       readonly owner: TargetTypeRef; readonly payload: TargetTypeRef }

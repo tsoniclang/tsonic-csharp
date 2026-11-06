@@ -375,16 +375,11 @@ export function resolveCompositionalSourceTypeAlias(
   const syntaxRoot = sourceTypeSyntaxRoot(host.ast, target);
   if (selectedType !== undefined && host.ast.is.IsUnionTypeNode(syntaxRoot)) {
     const templateState = csharpSourceTemplateState(parameters, state);
-    const definitionType = host.semantics(reference.sourceFile).types.authoredType(target);
-    const structural = definitionType === undefined ? { kind: "not-applicable" as const }
-      : host.structuralTypes.resolveUnion(definitionType, reference.sourceFile, templateState);
-    if (structural.kind === "rejected") return structural;
-    if (structural.kind === "resolved") {
-      return { kind: "resolved", type: substituteTargetTypeParameters(structural.type, substitutions) };
-    }
-    const template = resolveNodeWithState(target, reference.sourceFile, nextState(templateState));
-    return template === undefined ? { kind: "rejected" }
-      : { kind: "resolved", type: substituteTargetTypeParameters(template, substitutions) };
+    const publication = resolveCsharpSourceEffectiveType(scope, reference.declaration, templateState);
+    return publication?.outcome.kind !== "resolved" || publication.result === undefined ||
+      publication.outcome.type.kind !== "declared" || publication.outcome.type.declaration !== reference.declaration ||
+      publication.outcome.type.typeArguments.length !== parameters.length ? { kind: "rejected" }
+      : { kind: "resolved", type: substituteTargetTypeParameters(publication.result.selectedType, substitutions) };
   }
   const resolved = target === undefined
     ? undefined

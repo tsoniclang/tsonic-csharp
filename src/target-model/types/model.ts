@@ -1,5 +1,6 @@
 import type { ArgumentPassingMode, ExtensionFactSubject, Node, ResolvedSourceWellKnownSymbolInfo, SourcePrimitiveKind, Type } from "@tsonic/tsts";
 import type { SourceStructuralMemberPair, SourceTypeDescriptorMember } from "@tsonic/target-api/source";
+import type { CsharpConversionSelection } from "../conversions/selection.js";
 
 export interface CsharpTargetBinaryExecutionDriver {
   readonly id: string;
@@ -440,6 +441,18 @@ export interface CsharpTargetMember extends Omit<TargetMember, "parameters" | "t
 
 export type CsharpTargetInvocation =
   | { readonly kind: "value-identity" }
+  | {
+      readonly kind: "array-copy";
+      readonly targetParameterIndex: 0;
+      readonly sourceType: TargetTypeRef;
+      readonly resultType: TargetTypeRef;
+      readonly targetElementType: TargetTypeRef;
+      readonly arms: readonly {
+        readonly sourceType: TargetTypeRef;
+        readonly sourceElementType: TargetTypeRef;
+        readonly conversion: CsharpConversionSelection;
+      }[];
+    }
   | { readonly kind: "numeric-conversion" }
   | { readonly kind: "native-task-resolution"; readonly form: "value" | "task" | "absence" }
   | {

@@ -1,5 +1,5 @@
 import { providerVirtualDeclarationFactKey, type Node, type Type, type TypePropertyInfo } from "@tsonic/tsts";
-import { ObjectLiteralProperty_Value, sourceClassFieldIsTypeOnly, sourceTypeDescriptorMemberOriginsEqual, sourceTypeDescriptorStructure, type SourceFileSemantics, type SourceStructuralMember, type SourceTypeDescriptor, type SourceTypeDescriptorMember } from "@tsonic/target-api/source";
+import { ObjectLiteralProperty_Value, sourceClassFieldIsTypeOnly, sourceTypeDescriptorMemberOriginsEqual, sourceTypeDescriptorsEqual, sourceTypeDescriptorStructure, type SourceFileSemantics, type SourceStructuralMember, type SourceTypeDescriptor, type SourceTypeDescriptorMember } from "@tsonic/target-api/source";
 import type { CsharpObjectShapePolicyHost } from "./model.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpTypeResolutionState } from "../../source-evidence/types/resolution/model.js";
@@ -23,7 +23,13 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
     if (outcome === undefined || outcome.kind === "refused" || outcome.provenance.occurrence !== node) return undefined;
     let descriptor = outcome.construction ?? outcome.type;
     while (descriptor.kind === "optional") descriptor = descriptor.value;
-    if (descriptor.kind === "callable" && descriptor.calls.length === 0 && descriptor.constructs.length === 1) descriptor = descriptor.constructs[0]!.result;
+    if (host.ast.is.IsClassDeclaration(node) || host.ast.is.IsClassExpression(node)) {
+      const signatures = descriptor.kind === "callable" || descriptor.kind === "shape" ? descriptor.constructs : [];
+      const instance = signatures[0]?.result;
+      if (instance?.kind !== "declared" || instance.declaration !== node ||
+        signatures.some(signature => !sourceTypeDescriptorsEqual(signature.result, instance))) return undefined;
+      descriptor = instance;
+    }
     return descriptor;
   }
 

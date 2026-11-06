@@ -84,7 +84,7 @@ export function analyzeCsharpCallableCreations(input: CsharpCallableCreationInpu
       continue;
     }
     const contextual = argument !== undefined ? immediate
-      : disposition.kind === "stored" && ast.is.IsVariableDeclaration(disposition.use)
+      : disposition.kind === "stored" && (ast.is.IsVariableDeclaration(disposition.use) || ast.is.IsPropertyDeclaration(disposition.use))
         ? input.storage.storageType.get(disposition.use)
         : aggregate ? requirements![0] : input.evidence.contextualType.get(node)?.targetType;
     const contextualCarrier = getCsharpNullableElementTargetType(contextual) ?? contextual;

@@ -17,7 +17,7 @@ import { getCsharpNullableElementTargetType, isCsharpAbsenceTargetType, targetTy
 import { csharpLiteralIsRepresentableAs, selectCsharpScalarLiteralCarrier } from "../../policy/conversions/literals.js";
 
 import type { CsharpSourceOperator } from "../../target-model/syntax/operators.js";
-import { sourceOperatorFromKindName } from "../../target-model/syntax/operators.js";
+import { isCsharpAssignmentOperator, sourceOperatorFromKindName } from "../../target-model/syntax/operators.js";
 import { csharpDestructuringAssignmentSyntax } from "../../target-model/syntax/operators.js";
 
 import { selectCsharpNativeBinaryOperation, selectCsharpNativeUnaryOperation, rejectCsharpOperator as rejected } from "../../policy/operations/operators/rules.js";
@@ -47,7 +47,9 @@ export function selectCsharpBinaryOperation(
   }
   const outcome = input.effectiveTypes.get(node);
   const construction = outcome === undefined || outcome.kind === "refused" ? undefined : outcome.construction;
-  const resultType = construction === undefined ? targetTypeFor(node)
+  const discardedStorage = outcome === undefined && isCsharpAssignmentOperator(sourceOperator) &&
+    input.navigation.expressionResultUse(node) === "discarded" ? input.types.resolveReadStorage(left) : undefined;
+  const resultType = construction === undefined ? targetTypeFor(node) ?? discardedStorage
     : representCsharpSourceType(input.types.sourceTypeFlowRepresentation(node), construction);
   return selectCsharpBinaryOperands(input, left, right, sourceOperator,
     resultType, targetTypeFor, expectedResultType);

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { emptyCsharpTypeDefinitions } from "../../../dist/target-model/types/source-union-definitions.js";
 import test from "node:test";
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
@@ -53,6 +54,7 @@ test("native Task resolution rejects inconsistent sealed input and completion ev
   ];
   for (const [form, parameter, result, rejected] of cases) {
     const selected = selectCsharpTargetCallEmission({
+      typeDefinitions: emptyCsharpTypeDefinitions,
       source: {}, argumentPassing: [false], optional: false, projection: undefined, liftedResult: undefined,
       selection: { receiver: { kind: "none" }, targetMember: { kind: "method", id: "native-task-resolution-control",
         static: true, targetName: "FromResult", declaringType: completed,

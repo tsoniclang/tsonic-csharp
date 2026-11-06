@@ -13,6 +13,7 @@ import { createStructuralObjectShapeTarget } from "../../../analysis/objects/sha
 import { objectShapeMemberTargetName } from "../../identities/source-member-names.js";
 import { selectedCsharpSourceProfileOwner } from "../../identities/source-types.js";
 import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
+import { selectCsharpParameterListCarrier } from "../callables/parameter-list.js";
 
 export interface CsharpSourceTypeRepresentationHost {
   readonly target: TargetSelection;
@@ -112,14 +113,15 @@ function representDescriptor(
             : Object.freeze({ kind: "array", element });
       }
       case "tuple": {
-        if (descriptor.elements.some(element => element.kind !== "required")) return undefined;
         const elements: TargetTypeRef[] = [];
         for (const element of descriptor.elements) {
           const represented = representDescriptor(host, element.type, active);
           if (represented === undefined) return undefined;
-          elements.push(represented);
+          elements.push(element.kind === "optional" ? csharpNullableTargetType(represented) : represented);
         }
-        return Object.freeze({ kind: "tuple", elements: Object.freeze(elements) });
+        const restIndexes = descriptor.elements.flatMap((element, index) => element.kind === "rest" ? [index] : []);
+        return selectCsharpParameterListCarrier(Object.freeze(elements), restIndexes,
+          selectedCsharpSourceProfileOwner(host.target) === "js");
       }
       case "optional": {
         const element = representDescriptor(host, descriptor.value, active);

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { boundedDiagnosticSummary, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { csharpBinaryOperationUsesExpectedResultType } from "../../../dist/policy/operations/operators/expected-result.js";
 import { sourceOperatorFromKindName } from "../../../dist/target-model/syntax/operators.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/index.js";
@@ -53,7 +53,8 @@ function recordedForms(compiled) {
 function compiledWithoutDiagnostics(options) {
   const compiled = compileCsharpSource(options);
   assert.equal(compiled.sourceDiagnosticsText, "");
-  assert.equal(compiled.result.diagnostics.length === 0, true, compiled.result.diagnostics.map(({ code, message }) => `${code}: ${message}`).join("; "));
+  assert.equal(compiled.result.diagnostics.length === 0, true, compiled.result.diagnostics.slice(0, 8)
+    .map((diagnostic, index) => boundedDiagnosticSummary(diagnostic, index, compiled.source.ast)).join("; "));
   return compiled;
 }
 

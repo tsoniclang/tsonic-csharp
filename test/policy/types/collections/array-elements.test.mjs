@@ -32,6 +32,22 @@ function constructedElements(compiled) {
   });
 }
 
+test("contextual scalar writes use native literal fit rather than inferred-array whole-domain exactness", () => {
+  for (const surface of ["native", "js"]) {
+    const compiled = compileEffectiveSource(surface, `export function run(): number {
+      let value = 2.5;
+      value = 3;
+      return value;
+    }`);
+    acceptedEffectiveSource(compiled);
+    assertPrimitiveOccurrences(compiled, "value", "float64");
+    assert.equal(csharpArrayElementIsRepresentableAs(primitive("float64"), fixed("int64")), false,
+      `${surface}: an inferred array still cannot round the whole native int64 domain`);
+    assert.equal(csharpLiteralIsRepresentableAs(literal(1n, 1000n).literal, primitive("float64")), false,
+      `${surface}: the actual native floating range remains mandatory`);
+  }
+});
+
 test("homogeneous native floating contributions retain their already-selected carrier", () => {
   for (const name of ["float32", "float64"]) {
     const inputs = Object.freeze([fixed(name), fixed(name)]);

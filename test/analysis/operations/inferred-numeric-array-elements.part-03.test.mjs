@@ -82,20 +82,31 @@ test(`${surface} explicit heterogeneous and nullable native destinations retain 
   });
 
 test(`${surface} inferred heterogeneous counter-controls preserve exact integers, fractions, signed zero and computed values`, () => {
-    const program = accepted(compile(surface, `export function run(computed: number) {
+    const original = `export function run(computed: number) {
       const exact = ["text", 9007199254740994];
       const huge = ["text", 1606938044258990275541962092341162602522202993782792835301376];
       const fraction = ["text", 0.1]; const signedZero = ["text", -0];
       const actualFloat = ["text", computed]; const absent = [undefined, 9007199254740994];
       return exact.${surface === "native" ? "Length" : "length"} + huge.${surface === "native" ? "Length" : "length"} +
         fraction.${surface === "native" ? "Length" : "length"} + signedZero.${surface === "native" ? "Length" : "length"} +
-        actualFloat.${surface === "native" ? "Length" : "length"} + absent.${surface === "native" ? "Length" : "length"}; }`));
+        actualFloat.${surface === "native" ? "Length" : "length"} + absent.${surface === "native" ? "Length" : "length"}; }`;
+    const refused = compile(surface, original);
+    assertPublishedRefusal({ ...refused, targetSource: refused.nativeStage.source },
+      "TSONIC_LOCAL_TYPE_UNSUPPORTED", "1606938044258990275541962092341162602522202993782792835301376");
+    assert.equal(refused.nativeStage.source.effectiveTypes.refusals()[0].reason,
+      "An unbound integer literal is outside the exact 'int64' range. Annotate it with an exact native type or use bigint.",
+      "C2360 Q1 refuses the original unannotated integer beyond int64 rather than inventing a floating default");
+    const companion = original
+      .replace('const huge = ["text", 1606938044258990275541962092341162602522202993782792835301376];', "")
+      .replace(` + huge.${surface === "native" ? "Length" : "length"}`, "");
+    assert.notEqual(companion, original, "only the now-refused out-of-int64 construction and its dependent read are omitted from the admitted companion");
+    const program = accepted(compile(surface, companion));
     const selected = constructedArrays(program);
-    for (const name of ["exact", "huge", "fraction", "signedZero", "actualFloat"]) {
+    for (const [name, kind] of [["exact", "int64"], ["fraction", "float64"], ["signedZero", "int64"], ["actualFloat", "float64"]]) {
       const arms = getCsharpRuntimeUnionArms(selected.get(name), program.typeDefinitions);
-      assert.equal(arms?.length === 2 && arms.some(arm => arm.kind === "source-primitive" && arm.name === "float64") &&
+      assert.equal(arms?.length === 2 && arms.some(arm => arm.kind === "source-primitive" && arm.name === kind) &&
         arms.some(arm => isCsharpStringTargetType(arm) || isCsharpJsStringTargetType(arm)), true,
-      `${name}: actual exact or computed f64 contributions remain with the existing heterogeneous native carrier`);
+      `${name}: C2360 Q1 retains the literal's own native ${kind} contribution with the existing string arm`);
     }
   });
 

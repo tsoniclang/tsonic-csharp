@@ -6,8 +6,10 @@ import test from "node:test";
 import { createTestWorkspace } from "../../../../../tsonic/test/scripts/test-workspaces.mjs";
 import {
   createCompilerSessionFromFiles,
+  createSourceSemanticsExtension,
   formatDiagnostics,
 } from "@tsonic/tsts";
+import { createTsonicCoreSourceExtension, tsonicCoreSourceSemanticsModules } from "@tsonic/source-core";
 
 import {
   createDotnetProviderTelemetry,
@@ -418,7 +420,11 @@ test("TSTS checking rebuilds the program after exact .NET export demand", () => 
     },
     extensionHostOptions: {
       activeTarget: "csharp",
-      extensions: [extension],
+      extensions: [
+        createSourceSemanticsExtension({ modules: tsonicCoreSourceSemanticsModules() }),
+        createTsonicCoreSourceExtension(),
+        extension,
+      ],
     },
   });
   const initialProgram = session.program;

@@ -8,6 +8,10 @@ import { csharpVoidTargetType } from "../../../target-model/types/carriers/scala
 import { isCsharpVoidTargetType } from "../../../target-model/types/identity.js";
 import { isCsharpAbsenceTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
+import { getCsharpRuntimeUnionArms } from "../../../target-model/types/carriers/runtime-carriers.js";
+import { csharpArrayLikeElement } from "../../../target-model/types/carriers/array-like.js";
+import { getCsharpJsArrayElementTargetType } from "../../../target-model/types/carriers/collections.js";
+import { csharpConversionIsApplicable } from "../../conversions/applicability.js";
 
 export function selectCsharpTargetCallEmission(input: CsharpTargetCallEmissionInput):
   | { readonly kind: "selected"; readonly value: CsharpTargetCallEmission }
@@ -40,6 +44,23 @@ export function selectCsharpTargetCallEmission(input: CsharpTargetCallEmissionIn
     }
     invocation = { kind: "guarded-method", owner: member.declaringType, name: member.targetName,
       argumentIndex: condition.targetParameterIndex, argumentType: parameter.type, propertyName: property.targetName };
+  } else if (selected?.kind === "array-copy") {
+    const arms = getCsharpRuntimeUnionArms(selected.sourceType, input.typeDefinitions);
+    const targetElement = getCsharpJsArrayElementTargetType(result);
+    if (!member.static || instance || input.optional || count !== 1 || passing[0] || member.parameters.length !== 1 ||
+      selected.targetParameterIndex !== 0 || !targetTypeRefEquals(member.parameters[0]!.type, selected.sourceType) ||
+      !targetTypeRefEquals(result, selected.resultType) || targetElement === undefined ||
+      !targetTypeRefEquals(targetElement, selected.targetElementType) || arms === undefined || arms.length !== selected.arms.length ||
+      selected.arms.some((arm, index) => {
+        const element = csharpArrayLikeElement(arm.sourceType, input.typeDefinitions);
+        return element === undefined || !targetTypeRefEquals(arm.sourceType, arms[index]!) ||
+          !targetTypeRefEquals(element, arm.sourceElementType) || !csharpConversionIsApplicable(arm.conversion, "implicit") ||
+          !selectCsharpTypeEmission({ carrier: arm.sourceType }) || !selectCsharpTypeEmission({ carrier: arm.sourceElementType });
+      }) ||
+      !selectCsharpTypeEmission({ carrier: result })) {
+      return refuse("A native union-array copy requires one original source union, every exact element conversion and its published array result.");
+    }
+    invocation = selected;
   } else if (selected?.kind === "value-identity") {
     if (!member.static || instance || member.parameters.length !== 1 || count !== 1 || passing[0] ||
       !targetTypeRefEquals(member.parameters[0]!.type, result) || !selectCsharpTypeEmission({ carrier: result }))

@@ -1,14 +1,16 @@
 import type { Node } from "@tsonic/tsts";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact } from "../../../target-model/types/model.js";
 import type { CsharpObjectShapePolicyHost } from "./model.js";
-import type { CsharpTypeResolutionState } from "../../source-evidence/types/resolution/model.js";
+import type { CsharpRecursiveTypeResolver, CsharpTypeResolutionState } from "../../source-evidence/types/resolution/model.js";
 import { nextState } from "../../source-evidence/types/resolution/state.js";
 import type { CsharpObjectMethodSourceCapture } from "../../../target-model/records/native/native-value-carriers.js";
 import { csharpCapturedBindingInitialization } from "../../callables/values/capture-initialization.js";
 
 export function selectCsharpObjectMethodImplementation(
   members: readonly CsharpObjectShapeMemberFact[],
-  host: CsharpObjectShapePolicyHost,
+  host: Pick<CsharpObjectShapePolicyHost, "ast" | "navigation" | "objectMethodSources"> & {
+    readonly typeResolver: Pick<CsharpRecursiveTypeResolver, "resolveNode">;
+  },
   state: CsharpTypeResolutionState,
   selectedLiteral?: Node,
 ): CsharpObjectShapeFact["methodImplementation"] | undefined {

@@ -4,7 +4,7 @@ import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import type { CsharpSourceCallResult } from "../../../../target-model/operations/source-call-results.js";
-import type { CsharpTargetParameter, TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { CsharpTargetNamedTypeRef, CsharpTargetParameter, TargetTypeRef } from "../../../../target-model/types/model.js";
 import { representCsharpSourceType, type CsharpSourceTypeRepresentationHost } from "../../../../policy/types/source-type-flow/representation.js";
 import { csharpSourceTypeParameter } from "../../../../source/extension/type-parameters.js";
 import { resolveCsharpProjectionArguments } from "./projection-arguments.js";
@@ -25,6 +25,8 @@ import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "..
 import { getCsharpGenericOptionalParts } from "../../../../target-model/types/projections.js";
 import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
 import { csharpSourceTemplateState } from "./type-bindings.js";
+import { selectCsharpObjectMethodImplementation } from "../../../objects/shapes/method-implementations.js";
+import { createStructuralObjectShapeTarget } from "../../../objects/shapes/construction.js";
 
 export function resolveCsharpEffectiveCallTypeArgument(
   scope: CsharpTypeResolutionScope,
@@ -152,6 +154,20 @@ export function createCsharpSourceTypeRepresentationHost(
             host.ast.is.IsTypeLiteralNode(owner)) ? [owner] : [];
       })))];
       const source = owners.length === 1 ? owners[0] : occurrence;
+      if (source !== undefined && host.ast.is.IsObjectLiteralExpression(source) && shape.members.some(member =>
+        member.memberKind === "method" && member.sourceDeclarations?.some(declaration =>
+          host.ast.is.IsMethodDeclaration(declaration) && host.ast.body(declaration) !== undefined &&
+          host.ast.parent(declaration) === source) === true)) {
+        const methodImplementation = selectCsharpObjectMethodImplementation(shape.members, {
+          ast: host.ast, navigation: host.navigation, objectMethodSources: host.objectMethodSources,
+          typeResolver: { resolveNode: scope.resolveNodeWithState },
+        }, state, source);
+        if (methodImplementation === undefined) return undefined;
+        shape = { ...shape, methodImplementation,
+          targetType: createStructuralObjectShapeTarget(shape.members, shape.implements, host.typeParameterConstraints,
+            shape.targetType.kind === "target-named" && (shape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract === true,
+            methodImplementation) };
+      }
       return host.objectShapes.retainShape(shape, source);
     },
     declaredType(declaration, typeArguments, descriptor) {

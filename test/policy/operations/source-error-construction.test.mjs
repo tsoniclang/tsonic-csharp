@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { emptyCsharpTypeDefinitions } from "../../../dist/target-model/types/source-union-definitions.js";
 import test from "node:test";
 import { csharpErrorSourceProfileCallPolicies, csharpErrorSourceProfilePropertyPolicies } from "../../../dist/policy/operations/source-profiles/error-source-profile.js";
 import { csharpExceptionTargetType, csharpNullableTargetType, csharpRuntimeErrorTargetType, csharpStringTargetType } from "../../../dist/policy/types/index.js";
@@ -75,7 +76,7 @@ test("native capture predicate admission requires one exact readonly operand and
   const condition = { kind: "argument-property-absent", targetParameterIndex: 0, property };
   const selection = { origin: "source-profile", receiver: { kind: "none" }, targetMember: member,
     discardResult: true, condition };
-  const input = { source: {}, selection, argumentPassing: [false], optional: false,
+  const input = { typeDefinitions: emptyCsharpTypeDefinitions, source: {}, selection, argumentPassing: [false], optional: false,
     projection: undefined, liftedResult: undefined };
   const selected = selectCsharpTargetCallEmission(input);
   assert.equal(selected.kind, "selected");
