@@ -12,10 +12,11 @@ export function selectCsharpFlowReadCarrier(input: {
   readonly memberTargetTypes: readonly (TargetTypeRef | undefined)[] | undefined;
 }): TargetTypeRef | undefined {
   const { selectedTargetType, readStorageTargetType, memberTargetTypes } = input;
-  if (input.nativeSourceRead && selectedTargetType !== undefined) return selectedTargetType;
   const absenceUsesStorage = isCsharpAbsenceTargetType(selectedTargetType) &&
     csharpCarrierAdmitsSourceAbsence(readStorageTargetType);
-  return (input.exactSourceRead || input.unrelatedSourceTypesShareTargetRepresentation || absenceUsesStorage) &&
+  if (absenceUsesStorage) return readStorageTargetType;
+  if (input.nativeSourceRead && selectedTargetType !== undefined) return selectedTargetType;
+  return (input.exactSourceRead || input.unrelatedSourceTypesShareTargetRepresentation) &&
     readStorageTargetType !== undefined ? readStorageTargetType
     : selectedTargetType !== undefined && readStorageTargetType !== undefined &&
       !targetTypeRefEquals(readStorageTargetType, selectedTargetType) ? selectedTargetType

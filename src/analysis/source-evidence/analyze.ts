@@ -293,7 +293,8 @@ export function analyzeCsharpSourceEvidence(
     const readStorageTargetType = cachedValue(readStorageTargetTypes.get(node));
     const publication = source.effectiveTypes.get(node);
     const principal = publication === undefined || publication.kind === "refused" ? undefined
-      : source.effectiveTypes.get(publication.provenance.component?.declaration ?? publication.provenance.group);
+      : source.effectiveTypes.get(source.navigation.sourceReferenceFor(node)?.declaration ??
+        publication.provenance.component?.declaration ?? publication.provenance.group);
     const exact = publication !== undefined && publication.kind !== "refused" && principal !== undefined &&
       principal.kind !== "refused" && sourceTypeDescriptorsEqual(publication.type, principal.type);
     const nativeMembers = nodeTargetType === undefined || readStorageTargetType === undefined ||

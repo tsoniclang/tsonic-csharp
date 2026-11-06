@@ -5,7 +5,7 @@ import { csharpUnionLeaves } from "../../../../target-model/types/union-relation
 
 import type { CsharpTypePolicyHost } from "./model.js";
 import { getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
-import { csharpAbsenceTargetType } from "../../../../target-model/types/carriers/runtime-carriers.js";
+import { csharpAbsenceTargetType, isCsharpJsValueTargetType } from "../../../../target-model/types/carriers/runtime-carriers.js";
 
 import { selectCsharpNativeCarrierPredicate, type CsharpNativeFlowPredicate } from "../../../../policy/operations/flow/native-predicates.js";
 export function selectCsharpNativeFlowMembers(
@@ -15,6 +15,7 @@ export function selectCsharpNativeFlowMembers(
   resolveNominal: (guard: Extract<SourceNativeValueGuard, { readonly kind: "nominal" }>) => TargetTypeRef | undefined,
 ): readonly TargetTypeRef[] | undefined {
   const present = getCsharpNullableElementTargetType(sourceCarrier) ?? sourceCarrier;
+  if (isCsharpJsValueTargetType(present)) return undefined;
   const payloads = csharpUnionLeaves(present, host.typeDefinitions)?.map(member => member.carrier) ??
     [present];
   const members = present === sourceCarrier ? payloads

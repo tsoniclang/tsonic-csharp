@@ -14,6 +14,7 @@ import { csharpPlannedValue } from "../../../dist/backend/planner/expressions/pl
 import { csharpCarrierAdmitsSourceAbsence } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
+import { compileEffectiveSource, assertPublishedRefusal } from "../../helpers/source-effective-types.mjs";
 
 const arrayMessage = "Array destructuring requires a finalized provider array or tuple runtime-carrier fact for the source expression. Runtime carrier fact is missing for the array destructuring source expression.";
 
@@ -473,7 +474,7 @@ if (Tsonic.Generated.Index.run() != 42) throw new System.Exception("canonical bi
   });
 
   test(`annotated patterns convert extracted members without converting their initializer on ${surface}`, () => {
-    const compiled = compileCsharpSource({ surface, sourceText: `
+    const compiled = compileEffectiveSource(surface, `
       import type { int } from "@tsonic/csharp/types.js";
       class View { value: int = 7; }
       export function run(): number {
@@ -482,6 +483,24 @@ if (Tsonic.Generated.Index.run() != 42) throw new System.Exception("canonical bi
         const [first, second]: [number, number] = [2, 3];
         const { maybe }: { maybe?: number } = { maybe: 4 };
         return value + a + first + second + (maybe ?? 0);
+      }
+    `);
+    assertPublishedRefusal(compiled, "TSONIC_LOCAL_TYPE_UNSUPPORTED", "maybe ?? 0");
+    assert.equal(compiled.result.diagnostics[0]?.message,
+      "A coalescing operator requires a nullable or runtime-union left operand.",
+    "the original present-read program retains the unchanged Q6 Host refusal");
+  });
+
+  test(`noncoalescing annotated patterns retain every extracted-member conversion on ${surface}`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+      import type { int } from "@tsonic/csharp/types.js";
+      class View { value: int = 7; }
+      export function run(): number {
+        const { value }: { value: number } = new View();
+        const { a }: { a: number } = { a: 1 };
+        const [first, second]: [number, number] = [2, 3];
+        const { maybe }: { maybe?: number } = { maybe: 4 };
+        return value + a + first + second + maybe;
       }
     ` });
     assert.equal(compiled.sourceDiagnosticsText, "", "each annotation describes binding destinations, not a whole-object conversion");

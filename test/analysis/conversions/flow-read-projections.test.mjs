@@ -27,7 +27,8 @@ function fixture(sourceText, surface = "native") {
     }
     for (const file of original.navigation.sourceFiles) visit(file);
     closed = true;
-    return { program: result.value, nodes, ast: original.ast, navigation: original.navigation };
+    return { program: result.value, nodes, ast: original.ast, navigation: original.navigation,
+      effectiveTypes: original.effectiveTypes };
   }).value;
 }
 
@@ -59,6 +60,9 @@ test("native absence reads retain nullable, generic optional and broad storage w
     csharpNullableTargetType(element), csharpTsValueTargetType()]) {
     assert.equal(selectCsharpFlowReadCarrier({ ...input, readStorageTargetType: storage }) === storage, true,
       "the checked absence read observes its original native optional storage");
+    assert.equal(selectCsharpFlowReadCarrier({ ...input, nativeSourceRead: true,
+      readStorageTargetType: storage }) === storage, true,
+    "a proved absent native subset still consumes the original optional storage representation");
   }
   assert.equal(selectCsharpFlowReadCarrier({ ...input, readStorageTargetType: integer }) === absent, true,
     "a non-optional native integer does not acquire an unproved absence storage contract");
@@ -74,6 +78,64 @@ test("actual array and record branches publish exact physical receiver projectio
     const projection = value.program.records.flowReadProjection.get(receiver);
     assert.equal(projection?.kind === "conversion" && projection.selection.kind === "runtime-union-projection", true,
       "both array and record branches consume a selected native payload instead of reading fields on the union struct");
+  }
+});
+
+for (const surface of ["native", "js"]) test(`${surface} guarded catch reads retain their selected nominal carrier and original storage`, () => {
+  const value = fixture(`
+    import type { float32 } from "@tsonic/core/types.js";
+    class Failure extends Error {
+      readonly code: float32;
+      constructor(code: float32) { super("selected failure"); this.code = code; }
+    }
+    export function inspect(value: unknown, other: unknown): unknown {
+      if (other instanceof Failure) return value;
+      return value;
+    }
+    export function run(expected: Failure): boolean {
+      try { throw expected; }
+      catch (error) {
+        if (error instanceof Failure && error === expected) return error.code === 17;
+        return false;
+      }
+    }
+  `, surface);
+  const records = value.program.records;
+  const members = value.nodes.filter(node => value.ast.is.IsPropertyAccessExpression(node) &&
+    value.ast.text(value.ast.name(node)) === "code" &&
+    value.ast.is.IsIdentifier(value.ast.as.AsPropertyAccessExpression(node).Expression));
+  assert.equal(members.length, 1, "the checked program retains its single guarded catch property read");
+  const receiver = value.ast.as.AsPropertyAccessExpression(members[0]).Expression;
+  const declaration = value.navigation.sourceReferenceFor(receiver)?.declaration;
+  const principal = declaration === undefined ? undefined : value.effectiveTypes.get(declaration);
+  const published = value.effectiveTypes.get(receiver);
+  assert.equal(principal?.kind === "resolved" && principal.type.kind === "intrinsic" &&
+    principal.type.intrinsic === "unknown", true, "catch storage remains the original unknown value declaration");
+  assert.equal(published?.kind === "resolved" && published.type.kind === "declared" &&
+    value.ast.is.IsClassDeclaration(published.type.declaration), true,
+  "the present read retains its actual selected class declaration");
+  const selected = records.nodeTargetType.get(receiver);
+  const storage = records.readStorageTargetType.get(receiver);
+  const refinement = records.valueRefinement.get(receiver);
+  const projection = records.flowReadProjection.get(receiver);
+  const read = records.valueRead.get(receiver);
+  assert.equal(targetTypeRefEquals(storage, csharpTsValueTargetType()), true,
+    "a guarded catch read does not retarget the broad catch storage");
+  assert.equal(refinement?.exact, false, "the selected class is not the original catch value's principal type");
+  assert.equal(projection?.kind === "conversion" && targetTypeRefEquals(projection.source, storage) &&
+    targetTypeRefEquals(projection.target, selected), true,
+  "the sealed read consumes the proved nominal projection instead of an opaque-carrier identity");
+  for (const stage of ["narrowedRead", "value", "flowReadValue"]) {
+    assert.equal(targetTypeRefEquals(read?.[stage], selected), true, `${stage} retains the exact selected native class`);
+  }
+  assert.equal(targetTypeRefEquals(read?.flowReadStorage, storage), true,
+    "the writable storage stage remains independent of its narrowed read");
+  const foreignReads = value.nodes.filter(node => value.ast.is.IsIdentifier(node) &&
+    value.ast.text(node) === "value" && value.ast.is.IsReturnStatement(value.ast.parent(node)));
+  assert.equal(foreignReads.length, 2, "both guarded and unguarded foreign-operand reads are retained");
+  for (const reference of foreignReads) {
+    assert.equal(targetTypeRefEquals(records.valueRead.get(reference)?.value, csharpTsValueTargetType()), true,
+      "a guard on another value cannot invent a nominal payload");
   }
 });
 
