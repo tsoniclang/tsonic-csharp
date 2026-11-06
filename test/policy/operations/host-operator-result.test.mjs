@@ -255,6 +255,32 @@ for (const operator of ["<<=", ">>=", ">>>="]) {
   });
 }
 
+test("C2349 dependent Set reads keep the original mixed-element owner in all four literal positions", () => {
+  const forms = ["signed, unsigned", "signed, unsigned, 1", "signed, 1, unsigned", "1, signed, unsigned"];
+  for (const elements of forms) {
+    const compiled = compileEffectiveSource("js", `import type { int32, uint32 } from "@tsonic/core/types.js";
+export function check(signed: int32, unsigned: uint32): boolean { const values = [${elements}]; const keys = new Set(values); return keys.has(values[1]) && keys.size === 1; }`);
+    assertPublishedRefusal(compiled, "TSONIC_LOCAL_TYPE_MIXED_ELEMENTS", `[${elements}]`);
+    assert.equal(compiled.targetSource.effectiveTypes.refusals().length, 1, elements + ": the array owns the sole Source refusal");
+    const arrays = projectNodes(compiled, (node, ast) => ast.is.IsArrayLiteralExpression(node));
+    const comparisons = projectNodes(compiled, (node, ast) => ast.operatorKindName(node) === "KindEqualsEqualsEqualsToken");
+    assert.equal(arrays.length === 1 && comparisons.length === 1, true, elements + ": the original construction and comparison remain");
+    const comparison = compiled.targetSource.effectiveTypes.get(comparisons[0]);
+    assert.equal(comparison?.kind === "resolved" && comparison.type.kind === "primitive" && comparison.type.primitive === "bool", true,
+      elements + ": the independently known comparison publishes bool, not the array refusal");
+    const reads = projectNodes(compiled, (node, ast) => ast.is.IsPropertyAccessExpression(node) && ast.text(ast.name(node)) === "size");
+    assert.equal(reads.length, 1, elements);
+    const size = compiled.targetSource.effectiveTypes.get(reads[0]);
+    assert.equal(size !== undefined && size.kind !== "refused" && size.type.kind === "primitive" && size.type.primitive === "float64", true,
+      elements + ": the genuine JS provider publishes the same exact member");
+    const construction = projectNodes(compiled, (node, ast) => ast.is.IsNewExpression(node))[0];
+    const invocation = construction === undefined ? undefined : compiled.targetSource.effectiveTypes.callInstantiation(construction);
+    const argument = invocation?.method[0]?.type;
+    assert.equal(invocation?.method.length === 1 && argument?.kind === "primitive" && argument.primitive === "float64", true,
+      elements + ": the existing constructor binder is retained without reconstruction");
+  }
+});
+
 for (const surface of ["native", "js"]) {
   test(`${surface} C2350 the optional-pattern coalesce retains the tag refusal at its original Source operation`, () => {
     const compiled = compileEffectiveSource(surface, `function run(): number {
@@ -270,7 +296,7 @@ for (const surface of ["native", "js"]) {
     const compiled = compileEffectiveSource(surface, `export function run(flag: boolean, optional?: () => number): number {
       ((flag ? (() => 1) : (() => 2))! satisfies (() => number)); return 5; }`);
     const ast = compiled.targetSource.ast;
-    const errors = compiled.targetDiagnostics.map(issue => {
+    const errors = compiled.result.diagnostics.map(issue => {
       const node = issue.sourceNode;
       const range = node === undefined ? undefined : ast.authoredRange(node);
       const file = node === undefined ? undefined : ast.getSourceFile(node);
@@ -333,6 +359,33 @@ for (const surface of ["native", "js"]) {
         "the operation and physical endpoint retain the same primitive carrier");
       assert.equal(records.exactLiteral.get(node, emission.physical.carrier)?.kind, "source-representation");
     }
+  });
+
+  test(`${surface} C2351 discarded assertion transports do not create typed result demands`, () => {
+    const compiled = compileEffectiveSource(surface, `export function run(flag: boolean): number {
+      (flag ? (() => 1) : (() => 2)) as (() => number);
+      <() => number>(flag ? (() => 1) : (() => 2));
+      (flag ? (() => 1) : (() => 2))!;
+      return 5; }`);
+    const output = acceptedEffectiveSource(compiled);
+    const transports = projectNodes(compiled, (node, ast) => ast.is.IsAsExpression(node) ||
+      ast.is.IsTypeAssertion(node) || ast.is.IsNonNullExpression(node));
+    assert.equal(transports.length, 3);
+    for (const node of transports) {
+      const source = compiled.targetSource.effectiveTypes.get(node);
+      const native = compiled.result.program.records.nativeExpression.get(node)?.physical;
+      assert.equal(source === undefined && native?.completion.kind === "void" && native.discardedPresence !== undefined, true,
+        "a result-less assertion retains its admitted effects, not a pending explicit-value conversion");
+    }
+    assert.equal(output.includes("=>"), false, "discarded transports do not allocate delegates");
+    const consumed = compileEffectiveSource(surface, `export function choose(flag: boolean): () => number {
+      return (flag ? (() => 1) : (() => 2)) as (() => number); }`);
+    acceptedEffectiveSource(consumed);
+    const assertion = projectNodes(consumed, (node, ast) => ast.is.IsAsExpression(node))[0];
+    const source = assertion === undefined ? undefined : consumed.targetSource.effectiveTypes.get(assertion);
+    const native = assertion === undefined ? undefined : consumed.result.program.records.nativeExpression.get(assertion)?.physical;
+    assert.equal(source !== undefined && source.kind !== "refused" && native?.completion.kind === "value", true,
+      "a consumed assertion still proves and represents its exact result");
   });
 
   test(`${surface} C2338 reference selection and coalescing emit direct shared references`, () => {

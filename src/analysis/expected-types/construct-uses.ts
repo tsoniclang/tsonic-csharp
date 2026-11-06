@@ -59,7 +59,8 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
 
   function recordOperationUses(node: Node, sourceFile: SourceFile): boolean {
     if (!policy.ast.isConstAssertion(node) && (policy.ast.is.IsAsExpression(node) || policy.ast.is.IsTypeAssertion(node) ||
-      policy.ast.is.IsNonNullExpression(node))) {
+      policy.ast.is.IsNonNullExpression(node)) &&
+      (policy.navigation.expressionResultUse(node) !== "discarded" || policy.effectiveTypes.get(node) !== undefined)) {
       const operand = policy.ast.is.IsNonNullExpression(node) ? policy.ast.as.AsNonNullExpression(node)?.Expression
         : policy.ast.is.IsAsExpression(node) ? policy.ast.as.AsAsExpression(node)?.Expression : policy.ast.as.AsTypeAssertion(node)?.Expression;
       record(operand, evidence.nodeTargetType.get(node), "required",
