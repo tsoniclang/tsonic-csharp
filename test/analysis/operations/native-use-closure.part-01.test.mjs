@@ -79,9 +79,11 @@ test(
   assert.equal(compiled.result.program !== undefined && [...compiled.artifacts.keys()].some(path => path.endsWith(".cs")), true,
     `${label}: one sealed program reaches native source emission`);
 });
-if (label === "accessor bodies") {
+if (label === "accessor bodies" || label === "parameter, pattern and lambda defaults") {
 test(`${surface} an annotated ${label} companion preserves every sealed native operation`, () => {
-  const sourceText = program.replace("stored = 1", "stored: number = 1");
+  const sourceText = label === "accessor bodies"
+    ? program.replace("stored = 1", "stored: number = 1")
+    : program.replace("const [item = next()] = [1]", "const [item = next()]: number[] = [1]");
   assert.notEqual(sourceText, program, "only the incompatible field or destructuring destination receives its annotation");
   const compiled = compileCsharpNativeUseSource({ sourceText, surface });
   assert.equal(compiled.sourceDiagnosticsText === "", true, `${label}: ${compiled.sourceDiagnosticsText}`);
