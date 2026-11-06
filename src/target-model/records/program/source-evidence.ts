@@ -2,8 +2,8 @@ import type { CsharpConversionSelection } from "../../conversions/selection.js";
 import type { CsharpTypeParameterConstraintResolution } from "../../types/generic-constraints.js";
 import type { TargetTypeRef } from "../../types/model.js";
 import type { CsharpSourceDefaultValue, CsharpSourceField, CsharpSourceStruct } from "./source-markers.js";
-import type { SourceTypeComponentEvidence, SourceValueTypeRefinementSelection } from "@tsonic/target-api/source";
-import type { Node, ResolvedSourceGeneratorInfo, ResolvedSourceWellKnownSymbolInfo, ResolvedSourceYieldInfo, Signature, SourceFile, Type } from "@tsonic/tsts";
+import type { SourceTypeComponentEvidence } from "@tsonic/target-api/source";
+import type { Node, ResolvedSourceGeneratorInfo, ResolvedSourceWellKnownSymbolInfo, ResolvedSourceYieldInfo, Signature } from "@tsonic/tsts";
 
 export type CsharpSourceArgumentClassification =
   | {
@@ -18,22 +18,6 @@ export type CsharpSourceArgumentClassification =
       readonly reason: string;
     };
 
-export interface CsharpSemanticTypeClassification {
-  readonly carrier: TargetTypeRef | undefined;
-  readonly targetType?: TargetTypeRef;
-  readonly typeParameter?: Extract<TargetTypeRef, { readonly kind: "type-parameter" }>;
-  readonly nullish: boolean;
-  readonly intrinsic:
-    | "any"
-    | "unknown"
-    | "boolean"
-    | "number"
-    | "string"
-    | "bigint"
-    | "void"
-    | "other";
-}
-
 export type CsharpContextualTupleClassification =
   | {
       readonly kind: "selected";
@@ -44,9 +28,9 @@ export type CsharpContextualTupleClassification =
   | { readonly kind: "unavailable" };
 
 export interface CsharpValueRefinementClassification {
-  readonly source: SourceValueTypeRefinementSelection;
+  readonly kind: "resolved" | "unavailable";
+  readonly exact: boolean;
   readonly selectedTargetType?: TargetTypeRef;
-  readonly memberTargetTypes?: readonly (TargetTypeRef | undefined)[];
   readonly flowReadTargetType?: TargetTypeRef;
 }
 
@@ -79,10 +63,7 @@ export interface CsharpSourceEvidenceIndex {
   readonly classConstructorType: { readonly get: (node: Node) => TargetTypeRef | undefined };
   readonly storageTargetType: { readonly get: (node: Node) => TargetTypeRef | undefined };
   readonly readStorageTargetType: { readonly get: (node: Node) => TargetTypeRef | undefined };
-  readonly expressionType: { readonly get: (node: Node) => Type | undefined };
   readonly contextualType: { readonly get: (node: Node) => CsharpContextualTypeEvidence | undefined };
-  readonly semanticTargetType: { readonly get: (type: Type, sourceFile: SourceFile) => TargetTypeRef | undefined };
-  readonly semanticType: { readonly get: (type: Type, sourceFile: SourceFile) => CsharpSemanticTypeClassification | undefined };
   readonly signatureDeclaration: { readonly get: (signature: Signature) => Node | undefined };
   readonly contextualTuple: { readonly get: (node: Node) => CsharpContextualTupleClassification | undefined };
   readonly constantValue: { readonly get: (node: Node) => { readonly value: unknown } | undefined };

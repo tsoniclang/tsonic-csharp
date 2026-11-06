@@ -8,13 +8,10 @@ import { csharpSourceProfileDeclarationIdentity, type CsharpSourceProfileDeclara
 import { csharpArrayLikeElement, csharpArrayLikeTargetType } from "../../../target-model/types/carriers/array-like.js";
 import { getCsharpRuntimeUnionArms } from "../../../target-model/types/carriers/runtime-carriers.js";
 
-import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/carriers/scalar-types.js";
-import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { typedArrayNames } from "../../../target-model/types/carriers/js.js";
 
 import { selectCsharpArrayUnionPropertyPlan, selectCsharpArrayUnionElementPlan } from "../../../policy/operations/source-profiles/js/array-unions.js";
 const owners: ReadonlySet<string> = new Set(["Array", "ReadonlyArray", "TypedArray", ...typedArrayNames]);
-const numberType = csharpSourcePrimitiveTargetType("float64");
 
 function project(
   host: CsharpProviderCallSelectionHost,
@@ -25,7 +22,7 @@ function project(
   const source = host.types.resolveSelectedValue(receiver.expression, receiver.type, sourceFile);
   const arms = getCsharpRuntimeUnionArms(source, host.typeDefinitions);
   const element = csharpArrayLikeElement(source, host.typeDefinitions);
-  return source === undefined || arms === undefined || element === undefined || !targetTypeRefEquals(element, numberType)
+  return source === undefined || arms === undefined || element?.kind !== "source-primitive"
     ? undefined : { source, target: csharpArrayLikeTargetType(element), conversion: { kind: "array-like-union", arms } };
 }
 
@@ -55,8 +52,9 @@ export function selectCsharpArrayUnionElement(
   const projection = project(host, source.receiver, sourceFile);
   if (projection === undefined) return undefined;
   const semantics = host.semantics(sourceFile);
-  if (!semantics.types.isNumberLike(source.argument.type)) return undefined;
-  const indexes = semantics.types.indexInfos(source.receiver.type).filter(info => info.keyType !== undefined && semantics.types.isNumberLike(info.keyType));
+  const indexType = host.types.resolveSelectedValue(source.argument.expression, source.argument.type, sourceFile);
+  if (indexType === undefined) return undefined;
+  const indexes = semantics.types.indexInfos(source.receiver.type).filter(info => info.keyType !== undefined);
   if (indexes.length !== 1) return undefined;
   const selected = indexes[0]!;
   const declarations = selected.declaration === undefined ? selected.components : [selected.declaration];
@@ -64,5 +62,5 @@ export function selectCsharpArrayUnionElement(
     const identity = csharpSourceProfileDeclarationIdentity(host.ast, semantics, host.sourceFacts, declaration);
     return !owned(identity) || identity?.kind !== "indexer";
   })) return undefined;
-  return selectCsharpArrayUnionElementPlan(projection);
+  return selectCsharpArrayUnionElementPlan(projection, indexType);
 }

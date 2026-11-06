@@ -14,7 +14,6 @@ interface NativeStringMethodPolicy {
 
 const stringType = csharpStringTargetType();
 const intType = csharpSourcePrimitiveTargetType("int32");
-const numberType = csharpSourcePrimitiveTargetType("float64");
 const boolType = csharpSourcePrimitiveTargetType("bool");
 const instanceReceiver = { kind: "instance" } as const;
 
@@ -95,7 +94,7 @@ export const csharpNativeSourceProfilePropertyPolicies:
           declaringType === undefined ||
           !receiverMatches ||
           resultType === undefined ||
-          !targetTypeRefEquals(resultType, numberType)
+          !targetTypeRefEquals(resultType, intType)
         ) {
           return rejectedNativeProfileProperty(
             `The checked ${declaringName}.Length access does not resolve to its declared C# receiver and source-profile numeric read evidence.`,

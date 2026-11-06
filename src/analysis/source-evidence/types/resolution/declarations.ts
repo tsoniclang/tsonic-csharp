@@ -1,27 +1,18 @@
 import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { CsharpTypeResolutionState } from "./model.js";
-import type { Node, Type } from "@tsonic/tsts";
-import { sourcePresentCallableType, type SourceFileSemantics } from "@tsonic/target-api/source";
+import type { Node } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import { nextState } from "./state.js";
 import { readCsharpSourceField } from "../../../../source/extension/markers.js";
-import { sourceRefinementOnlyRemovesNullish } from "./source-union-refinement.js";
-import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
-import { getCsharpGenericOptionalParts } from "../../../../target-model/types/projections.js";
-import { csharpSourceStorageContext } from "./source-storage-projection.js";
 import { resolveCsharpSourceEffectiveType } from "./effective-types.js";
 
 export function resolveSelectedDeclarationResult(
   scope: CsharpTypeResolutionScope,
   declaration: Node | undefined,
-  semanticType: Type | undefined,
-  queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
   receiverType?: TargetTypeRef,
-  declaredMemberType?: Type,
 ): TargetTypeRef | undefined {
-  const { declarationResultTypeNode, host, resolveAuthoredAndSelectedSourceType, resolveCallableType,
-    resolveNodeWithState, resolveProjectEnumMemberTarget } = scope;
+  const { host, resolveNodeWithState, resolveProjectEnumMemberTarget } = scope;
   const instantiate = (type: TargetTypeRef | undefined): TargetTypeRef | undefined => {
     if (type === undefined) return undefined;
     const selected = host.projectTypes().instantiateMemberType(declaration, receiverType, type);
@@ -31,60 +22,15 @@ export function resolveSelectedDeclarationResult(
   if (effective !== undefined) return instantiate(effective.result?.selectedType);
   const sourceField = readCsharpSourceField(host.sourceFacts, [declaration]);
   if (sourceField !== undefined) {
-    const fieldSourceFile = host.ast.getSourceFile(sourceField.sourceType) ??
-      queries.sourceFile;
+    const fieldSourceFile = host.ast.getSourceFile(sourceField.sourceType);
+    if (fieldSourceFile === undefined) return undefined;
     return instantiate(resolveNodeWithState(
       sourceField.sourceType,
       fieldSourceFile,
       nextState(state),
     ));
   }
-  const enumMemberTarget = resolveProjectEnumMemberTarget(declaration);
-  if (enumMemberTarget !== undefined) {
-    return enumMemberTarget;
-  }
-  const callableType = sourcePresentCallableType(semanticType, queries);
-  if (callableType !== undefined) {
-    const resolved = instantiate(resolveCallableType(
-      callableType,
-      queries,
-      nextState(state),
-    ));
-    return resolved !== undefined && semanticType !== undefined &&
-        sourceRefinementOnlyRemovesNullish(semanticType, callableType, queries)
-      ? csharpNullableTargetType(resolved) : resolved;
-  }
-  const declarationType = declaration === undefined ||
-      !host.navigation.isProjectDeclaration(declaration)
-    ? undefined
-    : declarationResultTypeNode(declaration);
-  const declarationSourceFile = declarationType === undefined
-    ? queries.sourceFile
-    : host.ast.getSourceFile(declaration) ?? queries.sourceFile;
-  const unchanged = declaredMemberType !== undefined && semanticType !== undefined &&
-    queries.types.relationship(declaredMemberType, semanticType) === "identical";
-  const removesNullish = !unchanged && declaredMemberType !== undefined && semanticType !== undefined &&
-    sourceRefinementOnlyRemovesNullish(declaredMemberType, semanticType, queries);
-  const refinement = !unchanged && declaredMemberType !== undefined && semanticType !== undefined
-    ? queries.types.refinement(declaredMemberType, semanticType) : undefined;
-  const excludesNullish = refinement?.kind === "members" && refinement.types.length > 0 &&
-    refinement.types.every(type => !queries.types.isNullish(type));
-  const authoredState = declarationType !== undefined && (unchanged || removesNullish)
-    ? csharpSourceStorageContext(host, { ...state, sourceStorageSubject: undefined }, declaration)
-    : state;
-  const authored = resolveAuthoredAndSelectedSourceType(
-    declarationType,
-    declarationSourceFile,
-    declarationType !== undefined && (unchanged || removesNullish) ? undefined : semanticType,
-    queries.sourceFile,
-    authoredState,
-  );
-  const selected = authored !== undefined && declaration !== undefined && host.ast.questionToken(declaration) !== undefined
-    ? csharpNullableTargetType(authored) : authored;
-  const result = instantiate(selected);
-  return declarationType !== undefined && (removesNullish || excludesNullish) && result !== undefined
-    ? getCsharpNullableElementTargetType(result) ?? getCsharpGenericOptionalParts(result)?.element ?? result
-    : result;
+  return resolveProjectEnumMemberTarget(declaration);
 }
 
 export function resolveProjectEnumMemberTarget(

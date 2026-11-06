@@ -1,6 +1,6 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetSourceProgram, SourceDeclarationReference, SourceProjectReference } from "@tsonic/target-api/source";
-import { AsPropertyAccessExpression, sourceDeclarationIsModuleScoped } from "@tsonic/target-api/source";
+import { AsPropertyAccessExpression, sourceDeclarationIsModuleScoped, sourceTypeDescriptorStructure } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpIdentifierEmission } from "../../target-model/records/program/source-references.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
@@ -80,8 +80,9 @@ export function analyzeCsharpSourceReferences(input: { readonly source: TargetSo
       }
       identifiers.set(node, { kind: "class", declaration, factory: input.factories.classFactory.get(declaration) !== undefined, constructor: signature }); continue;
     }
-    const sourceType = input.evidence.expressionType.get(node);
-    if (value === undefined && sourceType !== undefined && input.evidence.semanticType.get(sourceType, sourceFile)?.nullish === true) {
+    const outcome = input.source.effectiveTypes.get(node);
+    const sourceType = outcome === undefined || outcome.kind === "refused" ? undefined : sourceTypeDescriptorStructure(outcome.type);
+    if (value === undefined && sourceType?.kind === "intrinsic" && sourceType.intrinsic === "absence") {
       identifiers.set(node, { kind: "absence" }); continue;
     }
     const provider = input.operations.providerValue.get(node);

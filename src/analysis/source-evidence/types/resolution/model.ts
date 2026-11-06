@@ -76,12 +76,8 @@ export interface CsharpTypePolicyHost extends CsharpTypePolicyBaseHost {
       authoredTypeRoot?: Node,
     ): TargetTypeRef | undefined;
     resolveSelectedProperty(
-      occurrence: Node,
       receiverType: TargetTypeRef | undefined,
       selectedSubjects: readonly ExtensionFactSubject[],
-      selectedType: Type | undefined,
-      sourceFile: SourceFile,
-      declaredMemberType: Type | undefined,
     ): TargetTypeRef | undefined;
   };
 }

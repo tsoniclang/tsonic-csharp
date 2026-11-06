@@ -190,9 +190,9 @@ export function csharpJsTypedArrayTargetType(
   const elementType = csharpSourcePrimitiveTargetType(typedArrayElementNames[name]);
   return {
     ...csharpTargetNamedType(`Tsonic.CSharp.Js.${name}`, undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", name), { allowsRefLikeTypeArguments: [],
-        arrayLikeElementType: csharpSourcePrimitiveTargetType("float64"),
+        arrayLikeElementType: elementType,
         enumerableElementType: elementType,
-        denseMutableElementType: csharpSourcePrimitiveTargetType("float64"),
+        denseMutableElementType: elementType,
         indexableLengthMemberName: "length",
         collectionSemantics: "dense",
         typeofRuntimeKind: "object",

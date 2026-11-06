@@ -18,6 +18,8 @@ import { sourceOperatorFromKindName } from "../../../target-model/syntax/operato
 import { csharpVoidTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import { csharpRuntimeLocationTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import type { CsharpOptionalLocalOperation } from "../../../target-model/records/storage/local-bindings.js";
+import { csharpSourceTypeFlowShiftCountType } from "../../../policy/conversions/source-type-flow-index.js";
+import type { CsharpConversionMode } from "../../../target-model/conversions/selection.js";
 
 export interface CsharpNativeOperandInput {
   readonly ast: AstReader;
@@ -76,9 +78,10 @@ export function isCsharpNativeExpression(ast: AstReader, node: Node): boolean {
 }
 
 export function csharpNativeChildUses(owner: Node, expression: Node | undefined, slot: CsharpNativeUseSlot,
-  target?: TargetTypeRef, access?: "location"): readonly CsharpNativeChildUse[] {
+  target?: TargetTypeRef, access?: "location", mode?: CsharpConversionMode): readonly CsharpNativeChildUse[] {
   return expression === undefined ? [] : [Object.freeze({ owner, expression, slot: Object.freeze(slot),
-    ...(target === undefined ? {} : { context: Object.freeze({ target }) }), ...(access === undefined ? {} : { access }) })];
+    ...(target === undefined ? {} : { context: Object.freeze({ target, ...(mode === undefined ? {} : { mode }) }) }),
+    ...(access === undefined ? {} : { access }) })];
 }
 
 export function selectCsharpNativeSourceRefusal(
@@ -112,8 +115,8 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
   const resultUse = input.navigation.expressionResultUse(node);
   const read = input.valueReads.valueRead.get(node);
   const carrier = access === "location" ? read?.flowReadStorage : read?.value;
-  const use = (expression: Node | undefined, slot: CsharpNativeUseSlot, target?: TargetTypeRef, access?: "location") =>
-    csharpNativeChildUses(node, expression, slot, target, access);
+  const use = (expression: Node | undefined, slot: CsharpNativeUseSlot, target?: TargetTypeRef, access?: "location", mode?: CsharpConversionMode) =>
+    csharpNativeChildUses(node, expression, slot, target, access, mode);
   const plan = (uses: readonly CsharpNativeChildUse[]): readonly CsharpNativeOperandStep[] => Object.freeze(uses.map(child =>
     Object.freeze({ kind: "use" as const, use: child })));
   const chosen = (runtime: readonly CsharpNativeChildUse[], flow: CsharpNativeOperandSelection["flow"] = "sequence",
@@ -349,7 +352,7 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
         const operands = [...use(selected.left, assignment ? { kind: "write-target" } : { kind: "operand", position: "left" },
           selected.leftInputType, assignment ? "location" : undefined)];
         if (selected.targetOperation.kind !== "conditional-value" || selected.targetOperation.branch !== "left") {
-          operands.push(...use(selected.right, { kind: "operand", position: "right" }, selected.rightInputType));
+          operands.push(...use(selected.right, { kind: "operand", position: "right" }, csharpSourceTypeFlowShiftCountType(selected)));
         }
         const flow = selected.targetOperation.kind === "conditional-value" && selected.targetOperation.branch === "conditional" ||
           selected.sourceOperator === "??" || selected.sourceOperator === "??=" ? "short-circuit" : "sequence";
@@ -375,7 +378,8 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
     if (selected?.kind !== "resolved") return refused("operation-unresolved", selected?.kind === "rejected" ? selected.reason : undefined);
     return chosen(use(selected.operand, selected.sourceOperator === "++" || selected.sourceOperator === "--"
       ? { kind: "update-target" } : { kind: "operand", position: "only" }, selected.operandType,
-      selected.sourceOperator === "++" || selected.sourceOperator === "--" ? "location" : undefined), "sequence", undefined, selected.resultType);
+      selected.sourceOperator === "++" || selected.sourceOperator === "--" ? "location" : undefined,
+      selected.operandConversionMode), "sequence", undefined, selected.resultType);
   }
   if (ast.is.IsPropertyAccessExpression(node)) return propertyUses();
   if (ast.is.IsElementAccessExpression(node)) {

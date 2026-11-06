@@ -1,6 +1,7 @@
 import { providerVirtualDeclarationFactKey } from "@tsonic/tsts";
 import type { ExtensionFactSubject, Node, SourceFile } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../../../policy/model/context.js";
+import { sourceTypeDescriptorStructure } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import { getCsharpMethodValue } from "../../../../target-model/types/method-values.js";
 import { isCsharpSourceDelegateTargetType } from "../../../../target-model/types/carriers/delegates.js";
@@ -78,11 +79,11 @@ function isSourceCallableDeclaration(
   if (input.ast.is.IsVariableDeclaration(declaration)) {
     const initializer = input.ast.as.AsVariableDeclaration(declaration)?.Initializer;
     if (initializer === undefined) return false;
-    const semantics = input.semanticsFor(initializer);
-    const type = semantics.types.expressionType(initializer);
-    const signatures = type === undefined ? [] : semantics.types.callSignatures(type);
+    const outcome = input.effectiveTypes.get(initializer);
+    const descriptor = outcome === undefined || outcome.kind === "refused" ? undefined : sourceTypeDescriptorStructure(outcome.type);
+    const signatures = descriptor?.kind === "callable" ? descriptor.calls : [];
     return signatures.length > 0 && signatures.every(signature => {
-      const selected = semantics.declarations.signatureDeclaration(signature);
+      const selected = signature.declaration;
       const file = selected === undefined ? undefined : input.ast.getSourceFile(selected);
       return selected !== undefined && file !== undefined &&
         input.navigation.isProjectDeclaration(selected) && input.sourceFiles.includes(file) &&

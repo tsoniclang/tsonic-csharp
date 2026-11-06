@@ -1,10 +1,10 @@
 import type { CsharpTargetMember, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../types/index.js";
-import { csharpDelegateTargetType, csharpEnumerableTargetType, csharpReadOnlyListTargetType, getCsharpJsArrayElementTargetType, csharpNullableValueTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpVoidTargetType } from "../../../../target-model/types/index.js";
+import { csharpDelegateTargetType, csharpEnumerableTargetType, csharpReadOnlyListTargetType, getCsharpCollectionElementTargetType, getCsharpJsArrayElementTargetType, csharpNullableValueTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpVoidTargetType } from "../../../../target-model/types/index.js";
 import { csharpJsArrayBufferTargetType, csharpJsDataViewTargetType, csharpJsTypedArrayElementTargetType, csharpJsTypedArrayTargetType, type CsharpJsTypedArrayName } from "../../../../target-model/types/carriers/js.js";
 import type { CsharpSourceProfileCallPolicy, CsharpSourceProfileCallPolicyContext, CsharpSourceProfileElementPolicy, CsharpSourceProfileElementPolicyContext, CsharpSourceProfilePropertyPolicy, CsharpSourceProfilePropertyPolicyContext } from "../../../model/source-profiles.js";
-import { resolveCsharpSelectedSourceValue } from "../source-profile-policy.js";
+import { csharpSourceProfileDiagnostic, resolveCsharpSelectedSourceValue } from "../source-profile-policy.js";
 import { csharpJsNumericArgument } from "./numeric-argument.js";
-import { instanceMethod, jsCallPolicy, jsConstructIdentity, jsElementPolicy, jsIndexerIdentity, jsMemberIdentity, jsPropertyPolicy, jsRuntimeTargetType, targetIndexer, targetParameter, targetProperty } from "./common.js";
+import { instanceMethod, jsCallPolicy, jsConstructIdentity, jsElementPolicy, jsIndexerIdentity, jsMemberIdentity, jsPropertyPolicy, jsRuntimeTargetType, jsUnsupportedCallPolicy, targetIndexer, targetParameter, targetProperty, type JsSourceProfileTargetMemberFactory } from "./common.js";
 
 const doubleType = csharpSourcePrimitiveTargetType("float64");
 const intType = csharpSourcePrimitiveTargetType("int32");
@@ -58,7 +58,7 @@ export const csharpJsBinaryCallPolicies:
       () => constructorMember(
         "Tsonic.CSharp.Js.ArrayBuffer..ctor",
         arrayBufferType,
-        [targetParameter("byteLength", doubleType)],
+        [targetParameter("byteLength", intType)],
       ),
       noReceiver,
     ),
@@ -70,8 +70,8 @@ export const csharpJsBinaryCallPolicies:
         "slice",
         arrayBufferType,
         [
-          targetParameter("begin", doubleType, { optional: true }),
-          targetParameter("end", csharpNullableValueTargetType(doubleType), { optional: true }),
+          targetParameter("begin", intType, { optional: true }),
+          targetParameter("end", csharpNullableValueTargetType(intType), { optional: true }),
         ],
         arrayBufferType,
       ),
@@ -84,8 +84,8 @@ export const csharpJsBinaryCallPolicies:
         dataViewType,
         [
           targetParameter("buffer", arrayBufferType),
-          targetParameter("byteOffset", doubleType, { optional: true }),
-          targetParameter("byteLength", csharpNullableValueTargetType(doubleType), { optional: true }),
+          targetParameter("byteOffset", intType, { optional: true }),
+          targetParameter("byteLength", csharpNullableValueTargetType(intType), { optional: true }),
         ],
       ),
       noReceiver,
@@ -104,6 +104,17 @@ export const csharpJsBinaryCallPolicies:
         instanceReceiver,
       )
     ),
+    ...["getBigUint64", "setBigUint64"].map(name => jsUnsupportedCallPolicy(
+      jsMemberIdentity("DataView", name),
+      `DataView.${name} requires a checked native uint64 runtime binding that the C# surface does not expose.`,
+    )),
+    jsUnsupportedCallPolicy(jsConstructIdentity("SharedArrayBufferConstructor"),
+      "SharedArrayBuffer requires shared native buffer storage that the C# surface does not expose."),
+    jsUnsupportedCallPolicy(jsMemberIdentity("SharedArrayBuffer", "slice"),
+      "SharedArrayBuffer.slice requires shared native buffer storage that the C# surface does not expose."),
+    ...["load", "store", "wait", "notify"].map(name =>
+      jsUnsupportedCallPolicy(jsMemberIdentity("Atomics", name),
+        `Atomics.${name} requires a shared native buffer operation that the C# surface does not expose.`)),
     ...typedArrayNames.map((name) =>
       jsCallPolicy(
         jsConstructIdentity(`${name}Constructor`),
@@ -122,6 +133,14 @@ export const csharpJsBinaryCallPolicies:
 
 export const csharpJsBinaryPropertyPolicies:
   readonly CsharpSourceProfilePropertyPolicy[] = Object.freeze([
+    {
+      source: jsMemberIdentity("SharedArrayBuffer", "byteLength"),
+      select: () => ({
+        kind: "rejected" as const,
+        diagnostic: csharpSourceProfileDiagnostic("CSHARP_JS_SOURCE_PROFILE_OPERATION_UNSUPPORTED", 9101002,
+          "SharedArrayBuffer.byteLength requires shared native buffer storage that the C# surface does not expose."),
+      }),
+    },
     jsPropertyPolicy(
       jsMemberIdentity("ArrayBuffer", "byteLength"),
       () => targetProperty(
@@ -171,13 +190,12 @@ export const csharpJsBinaryElementPolicies:
       (context) => {
         const receiver = typedArrayAccessReceiver(context);
         const element = csharpJsTypedArrayElementTargetType(receiver);
-        const index = resolveCsharpSelectedSourceValue(context, context.source.argument);
-        return receiver === undefined || element === undefined || index === undefined
+        return receiver === undefined || element === undefined
           ? undefined
           : targetIndexer(
               `Tsonic.CSharp.Js.TypedArray.indexer:${receiver.id}`,
               receiver,
-              index,
+              intType,
               element,
               false,
             );
@@ -222,19 +240,15 @@ function dataViewMember(
     return undefined;
   }
   const endian = name.endsWith("16") || name.endsWith("32") || name.endsWith("64");
-  const valueParameter = write && !name.startsWith("setFloat")
-    ? csharpJsNumericArgument(context, 1)
-    : targetParameter("value", doubleType);
+  const valueParameter = write ? csharpJsNumericArgument(context, 1) : undefined;
   if (write && valueParameter === undefined) return undefined;
-  const offsetParameter = csharpJsNumericArgument(context);
-  if (offsetParameter === undefined) return undefined;
   return instanceMethod(
     `Tsonic.CSharp.Js.DataView.${name}`,
     name,
     name,
     receiver,
     [
-      { ...offsetParameter, name: "byteOffset" },
+      targetParameter("byteOffset", intType),
       ...(write && valueParameter !== undefined ? [valueParameter] : []),
       ...(endian ? [targetParameter("littleEndian", boolType, { optional: true })] : []),
     ],
@@ -245,7 +259,7 @@ function dataViewMember(
 function typedArrayConstructor(
   context: CsharpSourceProfileCallPolicyContext,
   name: CsharpJsTypedArrayName,
-): CsharpTargetMember | undefined {
+): ReturnType<JsSourceProfileTargetMemberFactory> {
   const target = csharpJsTypedArrayTargetType(name);
   const argument = resolveCsharpSelectedSourceValue(context, context.source.sourceArguments[0]);
   const element = numericArrayElement(argument);
@@ -273,17 +287,32 @@ function typedArrayConstructor(
       csharpInvocation: { kind: "static-factory-construction", factoryType: target },
     } satisfies CsharpTargetMember);
   }
+  const enumerableElement = getCsharpCollectionElementTargetType(argument);
+  if (enumerableElement?.kind === "source-primitive" && enumerableElement.name !== "bool" && enumerableElement.name !== "char") {
+    return Object.freeze({
+      id: `Tsonic.CSharp.Js.${name}.From:enumerable`,
+      sourceName: "constructor", targetName: "From", kind: "constructor", declaringType: target,
+      parameters: [targetParameter("source", csharpEnumerableTargetType(enumerableElement))], returnType: target,
+      csharpInvocation: { kind: "static-factory-construction", factoryType: target },
+    } satisfies CsharpTargetMember);
+  }
+  if (argument === undefined) return {
+    kind: "rejected",
+    diagnostic: csharpSourceProfileDiagnostic("CSHARP_JS_SOURCE_PROFILE_OPERATION_UNSUPPORTED", 9101002,
+      `${name} requires an exact native length, numeric source or ArrayBuffer view; the C# runtime has no parameterless constructor.`),
+  };
   const parameters = context.source.sourceSelectedSignatureParameters.length === 3
     ? [
         targetParameter("buffer", arrayBufferType),
-        targetParameter("byteOffset", doubleType, { optional: true }),
-        targetParameter("length", csharpNullableValueTargetType(doubleType), { optional: true }),
+        targetParameter("byteOffset", intType, { optional: true }),
+        targetParameter("length", csharpNullableValueTargetType(intType), { optional: true }),
       ]
     : (() => {
         return argument?.kind === "source-primitive" && argument.name !== "bool" && argument.name !== "char"
-          ? [targetParameter("length", argument.name === "int32" ? intType : doubleType)]
-          : [targetParameter("values", csharpEnumerableTargetType(doubleType))];
+          ? [targetParameter("length", intType)]
+          : undefined;
       })();
+  if (parameters === undefined) return undefined;
   return constructorMember(
     `Tsonic.CSharp.Js.${name}..ctor:${parameters.length}:${parameters[0]?.name ?? "none"}`,
     target,
@@ -303,15 +332,15 @@ function typedArrayMethod(
     ? resolveCsharpSelectedSourceValue(context, context.source.sourceArguments[0])
     : undefined;
   const parameters = source?.kind === "target-named" && csharpJsTypedArrayElementTargetType(source) !== undefined
-    ? [targetParameter("source", source), targetParameter("offset", doubleType, { optional: true })]
+    ? [targetParameter("source", source), targetParameter("offset", intType, { optional: true })]
     : name === "set" && numericArrayElement(source) !== undefined
       ? [targetParameter("source", csharpReadOnlyListTargetType(numericArrayElement(source)!)),
-        targetParameter("offset", doubleType, { optional: true })]
+        targetParameter("offset", intType, { optional: true })]
     : name === "fill"
       ? (() => {
         const value = csharpJsNumericArgument(context);
-        return value === undefined ? undefined : [value, targetParameter("start", doubleType, { optional: true }),
-          targetParameter("end", csharpNullableValueTargetType(doubleType), { optional: true })];
+        return value === undefined ? undefined : [value, targetParameter("start", intType, { optional: true }),
+          targetParameter("end", csharpNullableValueTargetType(intType), { optional: true })];
       })()
       : name === "includes" || name === "indexOf"
         ? (() => {
@@ -350,21 +379,21 @@ function typedArrayMethodParameters(
 ): readonly ReturnType<typeof targetParameter>[] | undefined {
   switch (name) {
     case "at":
-      return [targetParameter("index", doubleType)];
+      return [targetParameter("index", intType)];
     case "join":
       return [targetParameter("separator", stringType, { optional: true })];
     case "reverse":
       return [];
     case "set":
       return [
-        targetParameter("source", csharpEnumerableTargetType(doubleType)),
-        targetParameter("offset", doubleType, { optional: true }),
+        targetParameter("source", csharpEnumerableTargetType(elementType)),
+        targetParameter("offset", intType, { optional: true }),
       ];
     case "slice":
     case "subarray":
       return [
-        targetParameter("begin", doubleType, { optional: true }),
-        targetParameter("end", csharpNullableValueTargetType(doubleType), { optional: true }),
+        targetParameter("begin", intType, { optional: true }),
+        targetParameter("end", csharpNullableValueTargetType(intType), { optional: true }),
       ];
     case "sort":
       return [

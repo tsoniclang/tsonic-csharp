@@ -8,6 +8,9 @@ import { csharpSourceValueResult } from "../../../dist/analysis/source-evidence/
 import { selectCsharpPublishedParameterCarrier } from "../../../dist/analysis/source-evidence/types/resolution/source-references.js";
 import { csharpTsValueTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
+import { resolveSelectedDeclarationResult } from "../../../dist/analysis/source-evidence/types/resolution/declarations.js";
+import { selectCsharpClassFactoryType } from "../../../dist/analysis/project-types/class-factory-types.js";
+import { getCsharpClassFactory } from "../../../dist/target-model/types/carriers/class-factories.js";
 
 function checkedStorage(kind) {
   const checked = createCompilerSessionFromFiles({ currentDirectory: "/src", files: {
@@ -133,31 +136,26 @@ test("project storage queries use the selected declaration's file, not another r
   }
 });
 
-test("selected values replace an enclosing operation owner for both syntax and checked type resolution", () => {
+test("selected values consume the exact occurrence publication without a checked type or member retry", () => {
   for (const kind of ["identifier", "property", "element", "function"]) {
     for (const available of [true, false]) {
       const { source, file, expression: node, queries } = checkedStorage(kind);
       const type = queries.types.expressionType(node);
       const enclosing = { kind: "value", node: {}, projection: [] };
-      const operand = { kind: "value", node, projection: kind === "element" ? [{ kind: "tuple-element", index: 0 }] : [] };
       const bindings = new Map();
       const state = { depth: 3, sourceStorageSubject: enclosing, sourceBindings: bindings };
-      const expected = available ? operand : undefined;
       const carrier = { kind: "source-primitive", name: "int64" };
       const observed = [];
       const accept = selected => {
-        assert.equal(selected.sourceStorageSubject === expected, true, `${kind}: exact operand owner or no evidence`);
-        assert.equal(selected.sourceBindings === bindings && selected.depth === 4, true, kind);
+        assert.equal(selected === state && selected.sourceStorageSubject === enclosing, true, `${kind}: the immutable caller context is retained`);
+        assert.equal(selected.sourceBindings === bindings && selected.depth === 3, true, kind);
       };
       const scope = {
         host: {
           ast: source.ast,
           effectiveTypes: source.effectiveTypes,
           navigation: source.navigation,
-          sourceStorage: { subjectFor(selected) {
-            assert.equal(selected === node, true, kind);
-            return available ? { kind: "resolved", subject: operand } : { kind: "unresolved", reason: "no exact owner" };
-          } },
+          sourceStorage: { subjectFor: () => assert.fail("published value selection does not infer a replacement storage owner") },
           representations: { genericProjections: () => [], scopedTargetType: () => undefined },
           structuralTypes: { resolveTarget: () => assert.fail("these exact unknown/primitive Native unit operands have no structural union member") },
           semantics: () => queries,
@@ -166,20 +164,83 @@ test("selected values replace an enclosing operation owner for both syntax and c
         resolveSelectedValueResultWithState: (...args) => resolveSelectedValueResultWithState(scope, ...args),
         resolveNodeValueWithState(selected, selectedFile, nested) {
           assert.equal(selected === node && selectedFile === file, true, kind);
-          accept(nested); observed.push("syntax"); return undefined;
+          accept(nested); observed.push("publication"); return available ? csharpSourceValueResult(carrier) : undefined;
         },
         resolveTypeWithState(selected, selectedFile, nested) {
           assert.equal(selected === type && selectedFile === file, true, kind);
-          accept(nested); observed.push("type"); return carrier;
+          assert.fail("missing publications cannot invoke checked type resolution");
         },
         resolveMemberAccessTargetType(selected, selectedQueries, nested) {
           assert.equal(selected === node && selectedQueries === queries, true, kind);
-          accept(nested); observed.push("member"); return carrier;
+          assert.fail("missing publications cannot invoke member retyping");
         },
       };
-      assert.equal(resolveSelectedValueWithState(scope, node, type, file, state) === carrier, true, kind);
-      assert.deepEqual(observed, kind === "property" || kind === "element" ? ["member"] : ["syntax", "type"]);
+      assert.equal(resolveSelectedValueWithState(scope, node, type, file, state) === (available ? carrier : undefined), true, kind);
+      assert.deepEqual(observed, ["publication"]);
       assert.equal(state.sourceStorageSubject === enclosing, true, "the enclosing operation is immutable");
     }
   }
+});
+
+test("member storage consumes its published declaration without checked symbol or read-type reconstruction", () => {
+  const { source, queries, expression } = checkedStorage("property");
+  const declaration = queries.operations.propertyAccess(expression).selectedDeclaration;
+  assert.equal(declaration !== undefined, true);
+  const actual = source.effectiveTypes.get(declaration);
+  assert.equal(actual !== undefined && actual.kind !== "refused", true);
+  const receiver = Object.freeze({ kind: "target-named", id: "fixture.Container" });
+  const refusal = Object.freeze({ kind: "refused", source: "tsonic", code: "TSONIC_LOCAL_TYPE_CONFLICT",
+    site: declaration, reason: "The original declaration is refused." });
+  for (const [label, publication, available] of [["resolved", { ...actual, kind: "resolved" }, true],
+    ["default", { ...actual, kind: "default" }, true], ["missing", undefined, false], ["refused", refusal, false],
+    ["unrepresentable", { ...actual, type: { kind: "union", types: [] } }, false]]) {
+    const forbidden = () => assert.fail(label + ": no second Source storage decision");
+    const instantiated = [];
+    const rejections = [];
+    const scope = { host: { ast: source.ast, target: { id: "csharp" },
+      effectiveTypes: { get(node) { assert.equal(node === declaration, true); return publication; } },
+      semanticsFor: forbidden, semantics: forbidden,
+      projectTypes: () => ({ instantiateMemberType(node, selected, type) {
+        assert.equal(node === declaration && selected === receiver, true);
+        instantiated.push(type);
+        return { kind: "resolved", type };
+      } }),
+    }, resolveNodeWithState: forbidden, resolveAuthoredAndSelectedSourceType: forbidden,
+    resolveProjectEnumMemberTarget: () => undefined };
+    const result = resolveSelectedDeclarationResult(scope, declaration,
+      { depth: 0, rejectNativeResolution: rejection => rejections.push(rejection) }, receiver);
+    assert.equal(result !== undefined, available, label);
+    assert.equal(instantiated.length, available ? 1 : 0, label);
+    if (available) assert.equal(result === instantiated[0] && targetTypeRefEquals(result, csharpTsValueTargetType()), true, label);
+    assert.equal(rejections.length, label === "refused" ? 1 : 0, label);
+    if (label === "refused") assert.equal(rejections[0].subject === declaration && rejections[0].reason === refusal.reason, true);
+  }
+});
+
+test("local class factories derive their metadata only from the published instance and original class members", () => {
+  const checked = createCompilerSessionFromFiles({ currentDirectory: "/src", files: {
+    "/src/index.ts": "function outer() { class Local { Create: unknown; _Create: unknown; IsInstance: unknown; } return Local; }",
+  }, compilerOptions: { strict: true, target: "es2022", module: "esnext" } }).checkSource();
+  assert.equal(checked.diagnostics.length, 0);
+  const source = createTargetSourceProgram(checked);
+  const nodes = [];
+  const visit = node => { if (source.ast.is.IsClassDeclaration(node)) nodes.push(node);
+    source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); }); };
+  visit(checked.getSourceFile("/src/index.ts"));
+  const owner = nodes[0];
+  const publication = source.effectiveTypes.get(owner);
+  assert.equal(publication !== undefined && publication.kind !== "refused" && publication.type.kind === "declared", true);
+  const instance = Object.freeze({ kind: "target-named", id: "fixture.Local", typeArguments: Object.freeze([]) });
+  const definition = { kind: "class", declaration: owner, local: true, abstract: false, factoryName: "LocalFactory",
+    outerTypeParameters: [], outerTypeProjections: [] };
+  const catalog = { definitionForTarget(type) { return type === instance ? definition : undefined; } };
+  const factory = selectCsharpClassFactoryType(source.ast, catalog, instance);
+  const contract = getCsharpClassFactory(factory);
+  assert.equal(contract?.declaration === owner && contract.instance === instance, true);
+  assert.equal(contract.createMethodName, "__Create");
+  assert.equal(contract.instanceTestMethodName, "_IsInstance");
+  assert.equal(selectCsharpClassFactoryType(source.ast, catalog, undefined), undefined);
+  assert.equal(selectCsharpClassFactoryType(source.ast, catalog, { ...instance }), undefined);
+  definition.abstract = true;
+  assert.equal(selectCsharpClassFactoryType(source.ast, catalog, instance), undefined);
 });

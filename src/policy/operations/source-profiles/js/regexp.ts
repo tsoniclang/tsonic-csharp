@@ -141,7 +141,7 @@ export const csharpJsRegExpPropertyPolicies:
     ),
     jsPropertyPolicy(
       jsMemberIdentity(regexpOwner, regexpMembers.lastIndex),
-      () => regexpProperty(regexpMembers.lastIndex, doubleType, false),
+      () => regexpProperty(regexpMembers.lastIndex, intType, false),
       instanceReceiver,
     ),
     ...regexpResultPropertyPolicies(

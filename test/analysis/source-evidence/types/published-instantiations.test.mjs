@@ -323,6 +323,16 @@ test("conditional projections consume the concrete published alias definition an
     [projection], [parameter]) === undefined, true, "the removed raw-Type argument vector is not an accepted input form");
 });
 
+test("a closed nonrecursive alias never requires an unrelated open template publication", () => {
+  const input = fixture();
+  input.scope.host.effectiveTypes = { get: unexpected };
+  const descriptor = Object.freeze({ kind: "declared", declaration: input.alias,
+    typeArguments: Object.freeze([primitive("int64")]), definition: primitive("int32") });
+  const selected = resolveCsharpSourceTypeDescriptor(input.scope, descriptor, { depth: 0 }, input.alias);
+  assert.equal(targetTypeRefEquals(selected, csharpSourcePrimitiveTargetType("int32")), true,
+    "only a genuine recursive nominal carrier needs the generic template's separate representation");
+});
+
 test("published projection lookup uses exact outer native bindings without reading their raw Source types", () => {
   const input = fixture();
   const outer = input.source.ast.typeParameters(input.outer)[0];
@@ -800,7 +810,7 @@ test("canonical provider inventories reject missing, foreign, ambiguous and inco
       const shape = entry === "node" ? policy.resolveNode(current.literal, current.file)
         : entry === "type" ? policy.resolveType(current.input.type, current.file, current.occurrence)
           : entry === "literal" ? policy.resolveObjectLiteralTargetShape(expected, current.literal, current.file).shape
-            : policy.retainConstructionSource(current.literal, current.input.queries.types.expressionType(current.literal), expected, current.file);
+            : policy.retainConstructionSource(current.literal, expected, current.file);
       assert.equal(shape !== undefined && shape.members.length === expected.members.length &&
         shape.members.every(member => member.origins?.length === 1 && member.type === current.storage &&
           member.optional === true && member.exactNumericStorage === true), true, `${entry}, empty=${empty}: no entry order requires prior discovery`);
@@ -1046,7 +1056,7 @@ test("a retained provider alias validates its current publication and target wit
       resolveEffectiveShape: (node, file) => policy.resolveNode(node, file),
       resolveShape: unexpected,
       resolveLiteralShape: (shape, node, file) => policy.resolveObjectLiteralTargetShape(shape, node, file),
-      retainSourceShape: (node, type, shape, file) => policy.retainConstructionSource(node, type, shape, file),
+      retainSourceShape: (node, shape, file) => policy.retainConstructionSource(node, shape, file),
       publishedShapeTarget: node => node === alias && changed === "foreign-target" ? { ...current.target, id: "foreign.Provider" }
         : policy.publishedShapeTarget(node),
       scopedTargetType: () => undefined,

@@ -50,13 +50,11 @@ export function createCsharpSourceProfileStorageEffects(
       if (selectedBinding.kind !== "resolved" || selectedBinding.declaration.exportId === undefined ||
         selectedBinding.declaration.exportName === undefined) return undefined;
       const bindingFact = selectedBinding.declaration;
-      const type = semantics.declarations.declaredValueType(binding);
-      const signatures = type === undefined ? [] : semantics.types.constructSignatures(type);
-      if (signatures.length === 0) return undefined;
+      const constructors = source.ast.members(binding).filter((declaration): declaration is Node =>
+        declaration !== undefined && source.ast.is.IsConstructorDeclaration(declaration));
+      if (constructors.length === 0) return undefined;
       const declarations = new Map<Node, ProviderVirtualDeclarationFact>();
-      for (const signature of signatures) {
-        const declaration = semantics.declarations.signatureDeclaration(signature);
-        if (declaration === undefined || !source.ast.is.IsConstructorDeclaration(declaration)) return undefined;
+      for (const declaration of constructors) {
         const selected = resolveCsharpProviderDeclarationEvidence(source.sourceFacts, [declaration], "signature");
         if (selected.kind !== "resolved") return undefined;
         const fact = selected.declaration;

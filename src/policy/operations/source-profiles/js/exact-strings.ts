@@ -64,7 +64,7 @@ export function exactJsStringCallPolicies(): readonly CsharpSourceProfileCallPol
     {
       sourceName: "charCodeAt",
       parameters: [targetParameter("index", intType)],
-      returnType: doubleType,
+      returnType: intType,
     },
     {
       sourceName: "codePointAt",

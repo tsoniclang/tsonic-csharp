@@ -3,19 +3,18 @@ import { isCsharpFlowReadEvidenceNode, freezeSourceArgumentClassification } from
 import type { ExtensionFactSubject, Node, ResolvedSourceGeneratorInfo, ResolvedSourceWellKnownSymbolInfo, ResolvedSourceYieldInfo, SourceFile, Type, Signature } from "@tsonic/tsts";
 import { providerVirtualDeclarationFactKey } from "@tsonic/tsts";
 import type { SourceTypeComponentEvidence, TargetSourceProgram } from "@tsonic/target-api/source";
-import { sourceCallArgumentCorrespondences, sourceClassFieldIsTypeOnly, sourceTransparentExpressionOperand } from "@tsonic/target-api/source";
+import { sourceCallArgumentCorrespondences, sourceClassFieldIsTypeOnly, sourceTransparentExpressionOperand, sourceTypeDescriptorsEqual } from "@tsonic/target-api/source";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { csharpNativePropertyNameIssue } from "../objects/computed-field-names.js";
-import { selectCsharpSemanticCarrier } from "../../policy/types/resolution/semantic-types.js";
 import type { CsharpTypePolicy } from "./types/resolution/model.js";
-import { isCsharpJsValueTargetType, targetTypeRefEquals, targetTypeRefKey } from "../../policy/types/index.js";
+import { combineCsharpTargetUnionMembers, isCsharpJsValueTargetType, targetTypeRefEquals, targetTypeRefKey } from "../../policy/types/index.js";
 import { isTypeParameterTargetRef } from "../../policy/ownership/type-categories.js";
 import { csharpTargetTypeComponents } from "../../target-model/types/components.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { csharpSourceTypeParameter } from "../../source/extension/type-parameters.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
-import type { CsharpSemanticTypeClassification, CsharpContextualTupleClassification, CsharpContextualTypeEvidence, CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
+import type { CsharpContextualTupleClassification, CsharpContextualTypeEvidence, CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
 import type { CsharpSourceEvidenceResult } from "./model.js";
 import type { CsharpTypeParameterConstraintResolution } from "../../policy/constraints/index.js";
 import { selectCsharpSourceArgument } from "../../source/extension/arguments.js";
@@ -28,6 +27,7 @@ import type { TsonicPointerStorageRelation } from "@tsonic/source-core/facts";
 import { createCsharpPointerBackingDemands } from "./pointer-backing.js";
 import type { CsharpPointerReturnContract } from "../../target-model/records/calls/pointer-return.js";
 import { analyzeCsharpTypeOnlyDeclarations } from "../declarations/type-only.js";
+import { selectCsharpClassFactoryType } from "../project-types/class-factory-types.js";
 type Cached<Value> = Value | typeof missing;
 
 export function analyzeCsharpSourceEvidence(
@@ -50,7 +50,6 @@ export function analyzeCsharpSourceEvidence(
     readonly requiredBy: Set<Node>;
   }>();
   const rejectedFixedArrayTypes = new Set<Type>();
-  const expressionTypes = new WeakMap<Node, Cached<Type>>();
   const nodeTargetTypes = new WeakMap<Node, Cached<TargetTypeRef>>();
   const bindingProjections = new WeakMap<Node, import("../../target-model/records/storage/binding-projection-policy.js").CsharpBindingProjection>();
   const classConstructorTypes = new WeakMap<Node, Cached<TargetTypeRef>>();
@@ -86,7 +85,6 @@ export function analyzeCsharpSourceEvidence(
     import("../../target-model/records/program/source-markers.js").CsharpSourceStruct
   >();
   const providerVirtualDeclarations = new WeakSet<Node>();
-  const semanticTypes = new WeakMap<Type, Map<SourceFile, CsharpSemanticTypeClassification>>();
   const signatureDeclarations = new WeakMap<Signature, Cached<Node>>();
   const contextualTuples = new WeakMap<Node, CsharpContextualTupleClassification>();
   const typeParameterConstraints = new WeakMap<
@@ -111,51 +109,6 @@ export function analyzeCsharpSourceEvidence(
       recordTargetType(component);
     }
     return type;
-  };
-
-  const classifyType = (
-    type: Type,
-    sourceFile: SourceFile,
-  ): CsharpSemanticTypeClassification => {
-    let bySourceFile = semanticTypes.get(type);
-    const cached = bySourceFile?.get(sourceFile);
-    if (cached !== undefined) {
-      return cached;
-    }
-    const semantics = source.semantics.forFile(sourceFile);
-    const intrinsic: CsharpSemanticTypeClassification["intrinsic"] =
-      semantics.types.isAny(type)
-        ? "any"
-        : semantics.types.isUnknown(type)
-          ? "unknown"
-          : semantics.types.isBooleanLike(type)
-            ? "boolean"
-            : semantics.types.isNumberLike(type)
-              ? "number"
-              : semantics.types.isStringLike(type)
-                ? "string"
-                : semantics.types.isBigIntLike(type)
-                  ? "bigint"
-                  : semantics.types.isVoidLike(type)
-                    ? "void"
-                    : "other";
-    const targetType = recordTargetType(types.resolveType(type, sourceFile));
-    const symbol = semantics.declarations.typeSymbol(type);
-    const typeParameters = symbol === undefined ? [] : semantics.declarations.symbolDeclarations(symbol)
-      .filter(declaration => source.ast.is.IsTypeParameterDeclaration(declaration));
-    const typeParameter = typeParameters.length === 1
-      ? csharpSourceTypeParameter(typeParameters[0]!, source.ast) : undefined;
-    const classification = Object.freeze({
-      carrier: selectCsharpSemanticCarrier({ intrinsic, targetType, typeParameter }),
-      intrinsic,
-      nullish: semantics.types.isNullish(type),
-      ...(targetType === undefined ? {} : { targetType }),
-      ...(typeParameter === undefined ? {} : { typeParameter }),
-    });
-    bySourceFile ??= new Map();
-    bySourceFile.set(sourceFile, classification);
-    semanticTypes.set(type, bySourceFile);
-    return classification;
   };
 
   for (const sourceFile of sourceFiles) {
@@ -239,10 +192,6 @@ export function analyzeCsharpSourceEvidence(
         bindingProjections.set(node, projection);
       }
     }
-    if (source.ast.is.IsClassDeclaration(node) || source.ast.is.IsClassExpression(node)) {
-      const staticType = semantics.declarations.declaredValueType(node);
-      classConstructorTypes.set(node, recordTargetType(types.resolveType(staticType, sourceFile)) ?? missing);
-    }
     typeOnly ||= source.ast.is.IsTypeAliasDeclaration(node) || source.ast.is.IsInterfaceDeclaration(node) || source.ast.is.IsExportDeclaration(node);
     if (!typeOnly) {
       const members = source.ast.is.IsObjectLiteralExpression(node) ? source.ast.properties(node)
@@ -259,6 +208,7 @@ export function analyzeCsharpSourceEvidence(
       recordFixedArrayIssues(node, [node, ...(authoredType === undefined ? [] : semantics.facts.authoredTypeSubjects(authoredType))]);
       const requiredType = authoredType === undefined ? undefined : semantics.types.authoredType(authoredType);
       if (requiredType !== undefined) {
+        recordSelectedFixedArrayIssues(node, requiredType, sourceFile);
         for (const property of semantics.types.propertyInfos(requiredType)) {
           for (const symbol of new Set([property.symbol, ...property.rootSymbols])) {
             for (const member of semantics.declarations.symbolDeclarations(symbol)) {
@@ -294,6 +244,10 @@ export function analyzeCsharpSourceEvidence(
     const nodeSelection = types.resolveNode(node, sourceFile);
     nodeTargetTypes.set(node, recordTargetType(nodeSelection?.kind === "resolved" ? nodeSelection.sourceResult.selectedType : undefined) ?? missing);
     const nodeTargetType = cachedValue(nodeTargetTypes.get(node));
+    if (source.ast.is.IsClassDeclaration(node) || source.ast.is.IsClassExpression(node)) {
+      classConstructorTypes.set(node, recordTargetType(selectCsharpClassFactoryType(source.ast,
+        policy.projectTypes.catalog, nodeTargetType)) ?? missing);
+    }
     if (!typeOnly && nodeSelection?.kind === "rejected") {
       const previous = nativeExpressionIssues.get(nodeSelection.subject);
       if (previous !== undefined) previous.requiredBy.add(node);
@@ -318,14 +272,7 @@ export function analyzeCsharpSourceEvidence(
       node,
       recordTargetType(types.resolveReadStorage(node, sourceFile)) ?? missing,
     );
-    const expressionType = semantics.types.expressionType(node);
-    expressionTypes.set(node, expressionType ?? missing);
-    if (expressionType !== undefined) {
-      if (!typeOnly) recordSelectedFixedArrayIssues(node, expressionType, sourceFile);
-      classifyType(expressionType, sourceFile);
-    }
     const contextualType = semantics.types.contextualType(node);
-    if (contextualType !== undefined) classifyType(contextualType.selectedType, sourceFile);
     if (!typeOnly && contextualType !== undefined) recordSelectedFixedArrayIssues(node, contextualType.selectedType, sourceFile);
     contextualTypes.set(node, contextualType === undefined ? missing : Object.freeze({
       ...contextualType,
@@ -343,53 +290,27 @@ export function analyzeCsharpSourceEvidence(
       const constantValue = semantics.types.constantValue(node);
       if (constantValue !== undefined) constants.set(node, Object.freeze({ value: constantValue }));
     }
-    const refinement = isCsharpFlowReadEvidenceNode(source.ast, node)
-      ? source.semantics.selectValueTypeRefinement(node)
-      : { kind: "not-project-reference" as const };
-    if (refinement.kind === "resolved") {
-      classifyType(refinement.selectedType, sourceFile);
-      if (refinement.refinement.kind === "members") {
-        refinement.refinement.types.forEach((member) =>
-          classifyType(member, sourceFile));
-      }
-    }
-    const selectedTargetType = refinement.kind === "resolved"
-      ? recordTargetType(
-          types.resolveSelectedValue(
-            node,
-            refinement.selectedType,
-            sourceFile,
-          ),
-        )
-      : undefined;
-    const memberTargetTypes = refinement.kind === "resolved" &&
-        refinement.refinement.kind === "members"
-      ? refinement.refinement.types.map((member) =>
-          recordTargetType(types.resolveSelectedValue(node, member, sourceFile)))
-      : undefined;
     const readStorageTargetType = cachedValue(readStorageTargetTypes.get(node));
-    const declaredTargetType = refinement.kind === "resolved" &&
-        refinement.refinement.kind === "unrelated"
-      ? cachedValue(storageTargetTypes.get(node))
-      : undefined;
-    const unrelatedSourceTypesShareTargetRepresentation =
-      refinement.kind === "resolved" &&
-      refinement.refinement.kind === "unrelated" &&
-      declaredTargetType !== undefined &&
-      selectedTargetType !== undefined &&
-      targetTypeRefEquals(declaredTargetType, selectedTargetType);
+    const publication = source.effectiveTypes.get(node);
+    const principal = publication === undefined || publication.kind === "refused" ? undefined
+      : source.effectiveTypes.get(publication.provenance.component?.declaration ?? publication.provenance.group);
+    const exact = publication !== undefined && publication.kind !== "refused" && principal !== undefined &&
+      principal.kind !== "refused" && sourceTypeDescriptorsEqual(publication.type, principal.type);
+    const nativeMembers = nodeTargetType === undefined || readStorageTargetType === undefined ||
+      !isCsharpFlowReadEvidenceNode(source.ast, node) ? undefined : types.nativeFlowMembers(node, readStorageTargetType);
+    const selectedTargetType = nativeMembers === undefined ? nodeTargetType
+      : recordTargetType(combineCsharpTargetUnionMembers(nativeMembers));
     const flowReadTargetType = recordTargetType(selectCsharpFlowReadCarrier({
-      exactSourceRead: refinement.kind === "resolved" && refinement.refinement.kind === "exact",
-      nativeSourceRead: refinement.kind === "resolved" && refinement.refinement.kind === "exact" &&
-        readStorageTargetType !== undefined && types.nativeFlowMembers(node, readStorageTargetType) !== undefined,
-      unrelatedSourceTypesShareTargetRepresentation, selectedTargetType, readStorageTargetType, memberTargetTypes,
+      exactSourceRead: exact,
+      nativeSourceRead: nativeMembers !== undefined,
+      unrelatedSourceTypesShareTargetRepresentation: selectedTargetType !== undefined && readStorageTargetType !== undefined &&
+        targetTypeRefEquals(selectedTargetType, readStorageTargetType),
+      selectedTargetType, readStorageTargetType, memberTargetTypes: undefined,
     }));
     refinements.set(node, Object.freeze({
-      source: refinement,
+      kind: publication === undefined || publication.kind === "refused" ? "unavailable" : "resolved",
+      exact,
       ...(selectedTargetType === undefined ? {} : { selectedTargetType }),
-      ...(memberTargetTypes === undefined
-        ? {}
-        : { memberTargetTypes: Object.freeze(memberTargetTypes) }),
       ...(flowReadTargetType === undefined ? {} : { flowReadTargetType }),
     }));
     const generator = semantics.operations.generator(node);
@@ -527,17 +448,8 @@ export function analyzeCsharpSourceEvidence(
     readStorageTargetType: Object.freeze({ get(node) {
       return cachedValue(readStorageTargetTypes.get(node));
     } }),
-    expressionType: Object.freeze({ get(node) {
-      return cachedValue(expressionTypes.get(node));
-    } }),
     contextualType: Object.freeze({ get(node) {
       return cachedValue(contextualTypes.get(node));
-    } }),
-    semanticTargetType: Object.freeze({ get(type, sourceFile) {
-      return semanticTypes.get(type)?.get(sourceFile)?.targetType;
-    } }),
-    semanticType: Object.freeze({ get(type, sourceFile) {
-      return semanticTypes.get(type)?.get(sourceFile);
     } }),
     signatureDeclaration: Object.freeze({ get(signature) {
       return cachedValue(signatureDeclarations.get(signature));

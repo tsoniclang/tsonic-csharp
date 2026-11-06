@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createCompilerSessionFromFiles } from "@tsonic/tsts";
 import { analyzeSourceLiteralValues, sourceTransparentExpressionOperand } from "@tsonic/target-api/source";
-import { selectCsharpNativeBinaryOperation, targetBinaryOperator } from "../../../dist/policy/operations/operators/rules.js";
+import { selectCsharpNativeBinaryOperation, selectCsharpNativeUnaryOperation, targetBinaryOperator } from "../../../dist/policy/operations/operators/rules.js";
 import { validateBinaryTargetSemantics, validateUnaryTargetSemantics } from "../../../dist/policy/operations/operators/operator-validation.js";
 import { csharpUnaryNumericPromotion, selectCsharpNumericCarrierPromotion } from "../../../dist/policy/operations/numeric/promotion.js";
 import {
@@ -19,8 +19,8 @@ import {
 } from "../../helpers/source-effective-types.mjs";
 
 const primitive = csharpSourcePrimitiveTargetType;
-const narrowCounts = ["char", "int8", "uint8", "int16", "uint16", "int32"];
-const wideCounts = ["uint32", "int64", "uint64", "native-int", "native-uint", "int128", "uint128", "float16", "float32", "float64", "decimal", "bool"];
+const narrowCounts = ["char", "int8", "uint8", "int16", "uint16", "int32", "int64"];
+const wideCounts = ["uint32", "uint64", "native-int", "native-uint", "int128", "uint128", "float16", "float32", "float64", "decimal", "bool"];
 const policy = {
   providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) },
   objectShapes: { resolveTarget: () => undefined },
@@ -42,7 +42,7 @@ test("D-A every primitive pair agrees with the Native family admission and promo
   const expectedAdmissions = new Map([
     ["add", 137], ["subtract", 137], ["multiply", 137], ["divide", 137], ["remainder", 137], ["power", 0],
     ["bit-and", 77], ["bit-or", 77], ["bit-xor", 77],
-    ["shift-left", 78], ["shift-right", 78], ["shift-right-unsigned", 78],
+    ["shift-left", 91], ["shift-right", 91], ["shift-right-unsigned", 91],
     ["less", 137], ["less-equal", 137], ["greater", 137], ["greater-equal", 137], ["equal", 138], ["not-equal", 138],
   ]);
   assert.equal(sourcePrimitiveOperatorKinds.length, 18);
@@ -93,13 +93,13 @@ test("D-A every primitive pair agrees with the Native family admission and promo
   }
 });
 
-test("D-A every unary primitive agrees with the Native admission oracle without unary promotion", () => {
+test("D-A every unary primitive agrees with the Native admission oracle including Q10 signed negation", () => {
   const operators = new Map([
     ["positive", "+"], ["negate", "-"], ["bit-not", "~"], ["logical-not", "!"],
     ["increment", "++"], ["decrement", "--"],
   ]);
   const expectedAdmissions = new Map([
-    ["positive", 16], ["negate", 16], ["bit-not", 13], ["logical-not", 1],
+    ["positive", 16], ["negate", 14], ["bit-not", 13], ["logical-not", 1],
     ["increment", 16], ["decrement", 16],
   ]);
   assert.equal(sourcePrimitiveUnaryOperators.length, operators.size);
@@ -114,7 +114,9 @@ test("D-A every unary primitive agrees with the Native admission oracle without 
       const label = `${operator}: ${kind}`;
       assert.equal(source.kind === "resolved", refusal === undefined, `${label}: family admission`);
       if (refusal === undefined) {
-        assert.equal(source.result === kind && source.operand === kind, true, `${label}: exact non-promoted kind`);
+        const expected = operator === "negate" && (kind === "uint8" || kind === "uint16") ? "int32"
+          : operator === "negate" && kind === "uint32" ? "int64" : kind;
+        assert.equal(source.result === expected && source.operand === expected, true, `${label}: exact native result and input`);
         admitted += 1;
       } else {
         assert.equal(source.kind === "refused" && source.reason.length > 0, true, `${label}: one precise refusal`);
@@ -135,6 +137,58 @@ test("D-A a compound result's storage kind never retargets a fixed fractional op
     assert.equal(targetTypeRefEquals(current.selected.rightInputType, primitive(rightKind)), true, `${rightKind}: independent Source write-fit remains required`);
   }
 });
+
+test("Q10 Native unsigned negation represents the published signed result without replacing it", () => {
+  for (const [kind, signed] of [["uint8", "int32"], ["uint16", "int32"], ["uint32", "int64"]]) {
+    const current = checkedOperation("left + right", "+", primitive(kind), primitive(kind), primitive(signed));
+    const selected = selectCsharpNativeUnaryOperation(current.input, "-", current.operands.left, primitive(kind), current.resultType);
+    assert.equal(selected.kind === "resolved", true, kind);
+    assert.equal(selected.resultType === current.resultType && selected.operandType === current.resultType &&
+      selected.operandConversionMode === "explicit", true,
+      kind + ": the Host result is also the exact signed input representation");
+  }
+});
+
+for (const surface of ["native", "js"]) {
+  test(`${surface} Q3 checked int64 shift counts retain their own Source width`, () => {
+    for (const operator of ["<<", ">>", ">>>", "<<=", ">>=", ">>>="]) {
+      const compiled = compileEffectiveSource(surface, `import type { int64 } from "@tsonic/core/types.js";
+        export function run(value: int64, count: int64): int64 { return value ${operator} count; }`);
+      const generated = acceptedEffectiveSource(compiled);
+      assertPrimitiveOccurrences(compiled, "count", "int64");
+      assertPrimitiveOccurrences(compiled, "value", "int64");
+      assert.match(generated, /checked\(\(int\)count\)/u, operator + ": the existing checked-index conversion owns the count representation");
+    }
+  });
+
+  test(`${surface} Q10 unsigned minus keeps the operand width and publishes the signed native result`, () => {
+    for (const [kind, signed, spelling] of [["uint8", "int32", "int"], ["uint16", "int32", "int"], ["uint32", "int64", "long"]]) {
+      const compiled = compileEffectiveSource(surface, `import type { ${kind} } from "@tsonic/core/types.js";
+        export function run(value: ${kind}) { const result = -value; return result; }`);
+      const generated = acceptedEffectiveSource(compiled);
+      assertPrimitiveOccurrences(compiled, "value", kind);
+      assertPrimitiveOccurrences(compiled, "result", signed);
+      const expressions = projectNodes(compiled, (node, ast) => ast.is.IsPrefixUnaryExpression(node) &&
+        ast.operatorKindName(node) === "KindMinusToken");
+      assert.equal(expressions.length, 1, kind);
+      const selected = compiled.result.program.records.unaryOperation.get(expressions[0])?.target;
+      assert.equal(selected?.kind === "resolved" && targetTypeRefEquals(selected.resultType, primitive(signed)) &&
+        selected.operandType === selected.resultType && selected.operandConversionMode === "explicit", true,
+        kind + ": one published signed calculation");
+      assert.equal(generated.includes(`(${spelling})`), true, kind + ": native input promotion, not unsigned wrapping");
+    }
+  });
+
+  test(`${surface} Q10/Q13 unsigned-wide negation has one precise Host refusal at the original expression`, () => {
+    for (const [name, kind] of [["uint64", "uint64"], ["nativeUint", "native-uint"]]) {
+      const compiled = compileEffectiveSource(surface, `import type { ${name} } from "@tsonic/core/types.js";
+        export function run(value: ${name}) { return -value; }`);
+      assertPublishedRefusal(compiled, "TSONIC_LOCAL_TYPE_UNSUPPORTED", "-value");
+      assert.equal(compiled.targetSource.effectiveTypes.refusals().length, 1);
+      assert.equal(compiled.result.diagnostics[0]?.message, `Unary minus has no native signed result for '${kind}'.`);
+    }
+  });
+}
 
 function checkedOperation(expression, operator, leftType, rightType, resultType, declarations = "left: number, right: number") {
   const checked = createCompilerSessionFromFiles({ currentDirectory: "/operator-result", files: {
@@ -206,7 +260,7 @@ test("D-A Native nonnumeric and nullable operation records never replace the pub
   }
 });
 
-test("D-A Native shift representation admits only implicit int32 counts and closes mixed-bool equality", () => {
+test("D-A Native shift representation admits narrow or checked int64 counts and closes mixed-bool equality", () => {
   for (const operator of ["<<", ">>", ">>>", "<<=", ">>=", ">>>="]) {
     for (const count of narrowCounts) assert.equal(validateBinaryTargetSemantics(operator, primitive("int64"), primitive(count), policy), undefined, `${operator}: ${count}`);
     for (const count of wideCounts) assert.equal(typeof validateBinaryTargetSemantics(operator, primitive("int64"), primitive(count), policy), "string", `${operator}: ${count}`);
@@ -251,7 +305,7 @@ for (const operator of ["<<=", ">>=", ">>>="]) {
       classified += 1;
     }
     assert.equal(classified, 342, "every primitive pair and bigint count is classified");
-    assert.equal(admitted, 78, "only thirteen integral left kinds with six narrow count kinds are admitted");
+    assert.equal(admitted, 91, "only thirteen integral left kinds with six narrow counts and checked int64 are admitted");
   });
 }
 
@@ -271,7 +325,7 @@ export function check(signed: int32, unsigned: uint32): boolean { const values =
     const reads = projectNodes(compiled, (node, ast) => ast.is.IsPropertyAccessExpression(node) && ast.text(ast.name(node)) === "size");
     assert.equal(reads.length, 1, elements);
     const size = compiled.targetSource.effectiveTypes.get(reads[0]);
-    assert.equal(size !== undefined && size.kind !== "refused" && size.type.kind === "primitive" && size.type.primitive === "float64", true,
+    assert.equal(size !== undefined && size.kind !== "refused" && size.type.kind === "primitive" && size.type.primitive === "int32", true,
       elements + ": the genuine JS provider publishes the same exact member");
     const construction = projectNodes(compiled, (node, ast) => ast.is.IsNewExpression(node))[0];
     const invocation = construction === undefined ? undefined : compiled.targetSource.effectiveTypes.callInstantiation(construction);
@@ -400,7 +454,7 @@ for (const surface of ["native", "js"]) {
       const declaration = declarations.find(node => source.ast.text(source.ast.name(node)) === name);
       const outcome = declaration === undefined ? undefined : source.effectiveTypes.get(declaration);
       assert.equal(outcome !== undefined && outcome.kind !== "refused" && outcome.type.kind === "array" &&
-        outcome.type.element.kind === "primitive" && outcome.type.element.primitive === "int32", true,
+        outcome.type.element.kind === "primitive" && outcome.type.element.primitive === "int64", true,
         `${name}: the actual shared native array publication keeps its exact element width`);
       return outcome;
     });
@@ -411,7 +465,7 @@ for (const surface of ["native", "js"]) {
       ast.operatorKindName(node) === "KindQuestionQuestionToken");
     assert.equal(coalescing.length, 1);
     const operation = compiled.result.program.records.binaryOperation.get(coalescing[0])?.target;
-    const carrier = surface === "js" ? csharpJsArrayTargetType(primitive("int32")) : { kind: "array", element: primitive("int32") };
+    const carrier = surface === "js" ? csharpJsArrayTargetType(primitive("int64")) : { kind: "array", element: primitive("int64") };
     assert.equal(operation?.kind === "resolved" && targetTypeRefEquals(operation.resultType, carrier), true,
       "the Native coalescing result represents the same reference carrier");
     assert.equal(generated.includes("selected = flag ? first : second;") && generated.includes("copy = selected ?? second;"), true,
@@ -443,12 +497,12 @@ for (const surface of ["native", "js"]) {
       "the constant initializer needs no generated native cast");
   });
 
-  test(`${surface} D-A the retained integer receipt and unchanged tag emission survive table admission`, () => {
+  test(`${surface} D-A the retained integer receipt and N-DEFAULT long emission survive table admission`, () => {
     const compiled = compileEffectiveSource(surface,
       "export function run() { const folded = 8 / 2 + 1; const wide = 2n; return folded; }");
     const generated = acceptedEffectiveSource(compiled);
     assert.equal(compiled.targetSource.effectiveTypes.refusals().length, 0);
-    assertPrimitiveOccurrences(compiled, "folded", "int32");
+    assertPrimitiveOccurrences(compiled, "folded", "int64");
     const operations = projectNodes(compiled, (node, ast) => ast.is.IsBinaryExpression(node) &&
       ["KindSlashToken", "KindPlusToken"].includes(ast.operatorKindName(node)));
     assert.equal(operations.length, 2, "division and addition both remain actual admitted operations");
@@ -457,10 +511,10 @@ for (const surface of ["native", "js"]) {
       const value = compiled.result.program.records.valueRead.get(node)?.value;
       const operation = compiled.result.program.records.binaryOperation.get(node)?.target;
       assert.equal(publication !== undefined && publication.kind !== "refused" && publication.type.kind === "primitive" &&
-        publication.type.primitive === "int32", true, "each constant operation publishes Host int32");
-      assert.equal(value?.kind === "source-primitive" && value.name === "int32", true, "each Native value represents Host int32");
+        publication.type.primitive === "int64", true, "each constant operation publishes Host int64 under N-DEFAULT");
+      assert.equal(value?.kind === "source-primitive" && value.name === "int64", true, "each Native value represents Host int64 under N-DEFAULT");
       assert.equal(operation?.kind === "resolved" && operation.resultType.kind === "source-primitive" &&
-        operation.resultType.name === "int32", true, "folding never bypasses operation admission");
+        operation.resultType.name === "int64", true, "folding never bypasses operation admission");
     }
     const ast = compiled.targetSource.ast;
     const addition = operations.find(node => ast.operatorKindName(node) === "KindPlusToken");
@@ -469,8 +523,8 @@ for (const surface of ["native", "js"]) {
     assert.equal(file !== undefined, true, "the receipt belongs to the actual checked source file");
     const receipt = analyzeSourceLiteralValues(ast, [file]).literalValue.get(addition);
     assert.equal(receipt?.form === "binary" && receipt.integerConstant === 5n, true, "the canonical Source integer receipt is exactly 5n");
-    assert.equal(generated.includes("int folded = 8 / 2 + 1;"), true,
-      "the exact unchanged tag form remains one native constant expression");
+    assert.equal(generated.includes("long folded = 8L / 2L + 1L;"), true,
+      "N-DEFAULT keeps the original constant expression with native long operands, never an int calculation widened afterwards");
   });
 
   test(`${surface} D-A all six shifts fill open counts without using a declared count to fill the left value`, () => {
@@ -483,11 +537,11 @@ for (const surface of ["native", "js"]) {
     const compiled = compileEffectiveSource(surface, `import type { int16 } from "@tsonic/core/types.js"; ${bodies}`);
     acceptedEffectiveSource(compiled);
     for (let index = 0; index < operators.length; index += 1) {
-      assertPrimitiveOccurrences(compiled, `left${index}`, "int32");
+      assertPrimitiveOccurrences(compiled, `left${index}`, "int64");
       assertPrimitiveOccurrences(compiled, `amount${index}`, "int16");
-      assertPrimitiveOccurrences(compiled, `open${index}`, "int32");
-      assertPrimitiveOccurrences(compiled, `first${index}`, "int32");
-      assertPrimitiveOccurrences(compiled, `second${index}`, "int32");
+      assertPrimitiveOccurrences(compiled, `open${index}`, "int64");
+      assertPrimitiveOccurrences(compiled, `first${index}`, "int64");
+      assertPrimitiveOccurrences(compiled, `second${index}`, "int64");
     }
   });
 

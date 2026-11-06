@@ -6,7 +6,7 @@ import { analyzeSourceDeclarationGenericAdoption, sourceGenericAdoptionDiagnosti
   type SourceDeclarationOwnershipBudget, type SourceDeclarationOwnershipPremises,
   type SourceDeclarationOwnershipUnresolved } from "@tsonic/target-api/analysis";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
-import { classifyCsharpSourceProfileType } from "../../../policy/identities/source-types.js";
+import { classifyCsharpSourceProfileDeclaration, classifyCsharpSourceProfileType } from "../../../policy/identities/source-types.js";
 import type { CsharpValueReadClassifications } from "../../../target-model/records/operations/conversions.js";
 import type { CsharpTargetOperationClassifications } from "../../../target-model/records/operations/operations.js";
 import type { CsharpNativeUseClassifications } from "../../../target-model/records/native/native-demand.js";
@@ -186,9 +186,10 @@ export function analyzeCsharpPromiseResults(input: {
       }
       observeDiscard = selected.kind === "resolved" && selected.decision === "observe-discarded-rejection";
     } else {
-      const semantics = source.semantics.forNode(node);
-      const checked = semantics.types.expressionType(node);
-      const profile = checked === undefined ? undefined : classifyCsharpSourceProfileType(checked, semantics, ast);
+      const outcome = source.effectiveTypes.get(node);
+      let descriptor = outcome === undefined || outcome.kind === "refused" ? undefined : outcome.type;
+      while (descriptor?.kind === "optional") descriptor = descriptor.value;
+      const profile = descriptor?.kind !== "declared" ? undefined : classifyCsharpSourceProfileDeclaration(descriptor.declaration, ast);
       observeDiscard = profile?.kind === "promise" && profile.ownerId === "js";
     }
     results.set(node, Object.freeze({ disposition, ...(disposition.kind === "discarded" && observeDiscard ? { discard: selection } : {}) }));

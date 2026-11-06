@@ -11,6 +11,7 @@ import { admitCsharpConversionSelection } from "../conversions/validation.js";
 import { csharpOperationConversionIssue, csharpSelectedCallConversionIssue } from "./conversion-admission.js";
 import { validateCsharpJsValueOperationSelection } from "../../policy/operations/js-values/selection.js";
 import { resolveCsharpInstanceType } from "../source-evidence/types/resolution/instance-tests.js";
+import { representCsharpSourceType } from "../../policy/types/source-type-flow/representation.js";
 import { selectCsharpClosedTypeTestPlan } from "../../policy/operations/operators/type-tests.js";
 import { selectCsharpOperatorForm } from "../../policy/operations/operators/operator-forms.js";
 import { getCsharpTypeofResult } from "../../target-model/types/runtime-kind.js";
@@ -298,9 +299,10 @@ export function analyzeCsharpOperationConstruct(
         )
       : undefined;
     const typeofComparison = classifyTypeofComparison(policy, node, sourceFile);
-    const instanceType = sourceOperator === "instanceof" && expression?.Right !== undefined
-      ? resolveCsharpInstanceType(policy.semantics(sourceFile), expression.Right,
-        type => policy.types.resolveType(type, sourceFile)) : undefined;
+    const constructor = sourceOperator === "instanceof" ? expression?.Right : undefined;
+    const instanceType = constructor === undefined ? undefined
+      : resolveCsharpInstanceType(policy.effectiveTypes, constructor,
+        descriptor => representCsharpSourceType(policy.types.sourceTypeFlowRepresentation(constructor), descriptor));
     const instanceFactory = sourceOperator === "instanceof" && expression?.Right !== undefined
       ? evidence.nodeTargetType.get(expression.Right) : undefined;
     const instanceSource = sourceOperator === "instanceof" && expression?.Left !== undefined

@@ -170,6 +170,13 @@ export function selectCsharpSourceProfileCarrier(
       return typeArguments.length === 0
         ? csharpJsArrayBufferTargetType()
         : undefined;
+    case "shared-array-buffer":
+    case "atomics":
+      return undefined;
+    case "array-entries-iterator":
+      return typeArguments.length === 1
+        ? csharpEnumerableTargetType({ kind: "tuple", elements: [csharpSourcePrimitiveTargetType("int32"), typeArguments[0]!] })
+        : undefined;
     case "data-view":
       return typeArguments.length === 0
         ? csharpJsDataViewTargetType()

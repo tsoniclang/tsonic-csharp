@@ -3,7 +3,7 @@ import type { Node } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { selectCsharpConversion, selectCsharpExpressionConversion } from "../../policy/conversions/index.js";
 import type { CsharpConversionMode, CsharpConversionSelection } from "../../target-model/conversions/selection.js";
-import { csharpTargetBindingFact, isCsharpReferenceCarrier, targetTypeRefKey, targetTypeRefEquals, getCsharpRuntimeUnionArms } from "../../policy/types/index.js";
+import { csharpTargetBindingFact, isCsharpReferenceCarrier, targetTypeRefKey, targetTypeRefEquals } from "../../policy/types/index.js";
 import { isSourceOwnedCallableRuntimeCarrierSubject, isSourceOwnedProjectReference } from "../source-evidence/types/resolution/source-ownership.js";
 
 import type { TargetTypeRef } from "../../target-model/types/model.js";
@@ -23,7 +23,6 @@ import { selectCsharpIntegerTruncationConversion } from "./integer-truncation.js
 import { selectCsharpSourceTypeFlowIndexConversion } from "../../policy/conversions/source-type-flow-index.js";
 import { selectCsharpExactIntegerConversion } from "../../policy/conversions/exact-integer.js";
 import { admitCsharpConversionSelection } from "./validation.js";
-import { selectCsharpUnionInjection } from "../../policy/conversions/union-relations.js";
 
 import { createCsharpExactLiteralRequestCollector } from "./literal-requests.js";
 import { sealCsharpConversionUses, type CsharpCallConversionRequests } from "./use-admission.js";
@@ -267,25 +266,27 @@ export function analyzeCsharpConversions(
       selectedElement.indexConversion !== undefined && targetTypeRefEquals(selectedElement.indexConversion.source, source) &&
       targetTypeRefEquals(selectedElement.indexConversion.target, target) ? selectedElement.indexConversion.selection : undefined;
     const indexConversion = retainedIndex ?? selectCsharpSourceTypeFlowIndexConversion(policy.effectiveTypes.get(expression),
-      selectedElement, source, target);
-    let candidate = indexConversion ?? selectCsharpIntegerTruncationConversion(policy, expression, sourceFile, source, target) ?? selectCsharpExpressionConversion(
+      selectedElement === undefined ? undefined : { kind: "element", selection: selectedElement }, source, target);
+    const binary = elementAccess === undefined ? undefined : selectedOperations.binaryOperation.get(elementAccess)?.target;
+    const countConversion = binary?.kind !== "resolved" || binary.right !== expression ? undefined
+      : selectCsharpSourceTypeFlowIndexConversion(policy.effectiveTypes.get(expression), { kind: "shift-count", operation: binary }, source, target);
+    const selectedCall = elementAccess === undefined ? undefined : selectedOperations.selectedCall.get(elementAccess)?.target ??
+      selectedOperations.selectedConstruction.get(elementAccess)?.target;
+    const argumentIndex = selectedCall?.kind !== "resolved" ? undefined
+      : selectedCall.source.sourceArguments.findIndex(argument => argument.expression === expression);
+    const argument = selectedCall?.kind !== "resolved" || argumentIndex === undefined ? undefined
+      : selectedCall.call.arguments.find(argument => argument.sourceArgumentIndex === argumentIndex);
+    const parameter = argument === undefined || selectedCall?.kind !== "resolved" ? undefined
+      : selectedCall.call.targetMember.parameters[argument.targetParameterIndex];
+    const parameterConversion = parameter === undefined ? undefined : selectCsharpSourceTypeFlowIndexConversion(
+      policy.effectiveTypes.get(expression), { kind: "parameter", expression, parameter }, source, target);
+    let candidate = indexConversion ?? countConversion ?? parameterConversion ?? selectCsharpIntegerTruncationConversion(policy, expression, sourceFile, source, target) ?? selectCsharpExpressionConversion(
       conversionPolicy,
       expression,
       source,
       target,
       mode,
     );
-    const presentTarget = getCsharpNullableElementTargetType(target) ?? target;
-    if (candidate.kind === "rejected" && sourceFile !== undefined && policy.effectiveTypes.get(expression) === undefined &&
-      getCsharpRuntimeUnionArms(presentTarget, policy.typeDefinitions) !== undefined) {
-      const checked = evidence.expressionType.get(expression);
-      const member = checked === undefined ? undefined : policy.types.selectSourceUnionMember(presentTarget, checked, sourceFile);
-      if (member?.kind === "resolved") {
-        candidate = selectCsharpUnionInjection(source, presentTarget, policy.typeDefinitions, mode, arm =>
-          targetTypeRefEquals(arm, member.carrier)
-            ? selectCsharpExpressionConversion(conversionPolicy, expression, source, arm, mode) : undefined) ?? candidate;
-      }
-    }
     if (exactInteger && mode === "implicit" && candidate.kind === "rejected") {
       candidate = selectCsharpExactIntegerConversion(source, target) ?? candidate;
     }

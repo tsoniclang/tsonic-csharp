@@ -20,10 +20,11 @@ import { classifyCsharpSourceProfileDeclaration } from "../../../../policy/ident
 import { csharpProviderBindingFromResolution } from "../../../../providers/model/relation-resolver.js";
 import { csharpTargetTypeFromBinding } from "../../../../policy/types/storage/bindings.js";
 import { csharpRecordDictionaryCarrier } from "../../../../target-model/types/carriers/collections.js";
-import { csharpClassFactoryTargetType } from "../../../../target-model/types/carriers/class-factories.js";
+import { selectCsharpClassFactoryType } from "../../../project-types/class-factory-types.js";
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
 import { getCsharpGenericOptionalParts } from "../../../../target-model/types/projections.js";
 import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
+import { csharpSourceTemplateState } from "./type-bindings.js";
 
 export function resolveCsharpEffectiveCallTypeArgument(
   scope: CsharpTypeResolutionScope,
@@ -105,19 +106,7 @@ export function createCsharpSourceTypeRepresentationHost(
       const owner = host.projectTypeCatalog.definitionForTarget(instance);
       if (owner?.abstract === true) return undefined;
       if (owner?.kind === "class" && owner.local !== true) return instance;
-      if (owner?.local === true && instance.kind === "target-named" && owner.factoryName !== undefined) {
-        const names = new Set(host.ast.members(owner.declaration).flatMap(member => {
-          const name = host.ast.name(member);
-          return name !== undefined && (host.ast.is.IsIdentifier(name) || host.ast.is.IsStringLiteral(name)) ? [host.ast.text(name)] : [];
-        }));
-        let createMethodName = "Create";
-        while (names.has(createMethodName)) createMethodName = `_${createMethodName}`;
-        names.add(createMethodName);
-        let instanceTestMethodName = "IsInstance";
-        while (names.has(instanceTestMethodName)) instanceTestMethodName = `_${instanceTestMethodName}`;
-        return csharpClassFactoryTargetType(owner.declaration, instance, owner.factoryName,
-          owner.outerTypeParameters.length + owner.outerTypeProjections.length, createMethodName, instanceTestMethodName);
-      }
+      if (owner?.local === true) return selectCsharpClassFactoryType(host.ast, host.projectTypeCatalog, instance);
       if (signatures.length !== 1) return undefined;
       const signature = signatures[0]!;
       const parameters = signature.parameters.map(parameter => resolveCsharpSourceTypeDescriptor(scope,
@@ -196,6 +185,15 @@ export function createCsharpSourceTypeRepresentationHost(
       if (direct !== undefined) return direct;
       if (host.ast.is.IsTypeAliasDeclaration(declaration)) {
         if (descriptor.cut === "unexpressible") return undefined;
+        if (host.navigation.isProjectDeclaration(declaration) && descriptor.definition !== undefined &&
+          containsRecursiveAlias(descriptor.definition, declaration) && typeArguments.some(argument => argument.kind !== "type-parameter")) {
+          const template = host.effectiveTypes.get(declaration);
+          if (template?.kind !== "resolved" || template.type.kind !== "declared" ||
+            template.type.declaration !== declaration || template.type.typeArguments.length !== typeArguments.length) return undefined;
+          const parameters = host.ast.typeParameters(declaration);
+          if (resolveCsharpSourceTypeDescriptor(scope, template.type,
+            csharpSourceTemplateState(parameters, nextState(state)), declaration) === undefined) return undefined;
+        }
         return scope.sourceUnionDefinitions.resolveDescriptor(declaration,
           typeArguments, descriptor.definition, definition => resolveCsharpSourceTypeDescriptor(scope,
             definition, nextState(state), occurrence),
@@ -212,6 +210,32 @@ export function createCsharpSourceTypeRepresentationHost(
       return scope.resolveProviderType([declaration], typeArguments);
     },
   };
+}
+
+function containsRecursiveAlias(type: SourceTypeDescriptor, declaration: Node): boolean {
+  const pending = [type];
+  const visited = new Set<SourceTypeDescriptor>();
+  while (pending.length > 0) {
+    const selected = pending.pop()!;
+    if (visited.has(selected)) continue;
+    visited.add(selected);
+    if (selected.kind === "declared") {
+      if (selected.declaration === declaration && selected.cut === "recursion") return true;
+      pending.push(...selected.typeArguments);
+      if (selected.definition !== undefined) pending.push(selected.definition);
+    } else if (selected.kind === "optional") pending.push(selected.value);
+    else if (selected.kind === "array") pending.push(selected.element);
+    else if (selected.kind === "union") pending.push(...selected.types);
+    else if (selected.kind === "tuple") pending.push(...selected.elements.map(element => element.type));
+    else if (selected.kind === "shape" || selected.kind === "callable") {
+      for (const signature of [...selected.calls, ...selected.constructs]) {
+        pending.push(signature.result, ...signature.parameters.map(parameter => parameter.type));
+      }
+      if (selected.kind === "shape") pending.push(...selected.members.map(member => member.type),
+        ...selected.indexes.flatMap(index => [index.key, index.value]));
+    }
+  }
+  return false;
 }
 
 function projectPublishedDeclaration(

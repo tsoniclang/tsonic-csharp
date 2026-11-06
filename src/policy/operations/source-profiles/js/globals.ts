@@ -362,7 +362,7 @@ function timerSchedulingMember(
         timersType,
         [
           callback,
-          targetParameter("delay", doubleType, { optional: true }),
+          targetParameter("delay", intType, { optional: true }),
           closedObjectParameter("arguments", { paramsArray: true }),
         ],
         intType,

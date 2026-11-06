@@ -1,5 +1,5 @@
-import type { Node, Type } from "@tsonic/tsts";
-import type { SourceFileSemantics } from "@tsonic/target-api/source";
+import type { Node } from "@tsonic/tsts";
+import { sourceTypeDescriptorStructure, type SourceFileSemantics, type SourceTypeDescriptor } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { csharpSourceProfileDeclarationIdentity } from "../../policy/identities/selected-source.js";
 import { selectCsharpErrorNativeProperty } from "../../policy/operations/source-profiles/error-source-profile.js";
@@ -10,23 +10,23 @@ import type { TargetTypeRef } from "../../target-model/types/model.js";
 type NativePropertyReadHost = Pick<CsharpPolicyContext,
   "ast" | "sourceFacts" | "providers" | "projectTypes" | "typeDefinitions">;
 
-export function resolveCsharpCheckedNativePropertyRead(
-  checked: Type | undefined,
+export function resolveCsharpPublishedNativePropertyRead(
+  descriptor: SourceTypeDescriptor | undefined,
   sourceName: string,
   receiverCarrier: TargetTypeRef | undefined,
   semantics: SourceFileSemantics,
   host: NativePropertyReadHost,
-): { readonly kind: "not-native"; readonly sourceType?: Type } | { readonly kind: "unresolved" } |
-  { readonly kind: "resolved"; readonly sourceType: Type; readonly property: CsharpNativePropertyRead } {
+): { readonly kind: "not-native"; readonly sourceType?: SourceTypeDescriptor } | { readonly kind: "unresolved" } |
+  { readonly kind: "resolved"; readonly sourceType: SourceTypeDescriptor; readonly property: CsharpNativePropertyRead } {
   if (receiverCarrier === undefined) return { kind: "unresolved" };
-  if (checked === undefined) return { kind: "not-native" };
-  const correspondence = semantics.types.structuralMembers(checked, checked, "read");
-  if (correspondence.kind !== "available") return { kind: "not-native" };
-  const members = correspondence.members.filter(pair => pair.destination.property.name === sourceName);
-  if (members.length !== 1 || members[0]!.kind !== "present") return { kind: "not-native" };
+  const structure = descriptor === undefined ? undefined : sourceTypeDescriptorStructure(descriptor);
+  if (structure?.kind !== "shape") return { kind: "not-native" };
+  const members = structure.members.filter(member => member.name === sourceName);
+  if (members.length !== 1) return { kind: "not-native" };
   const member = members[0]!;
-  const sourceType = member.source.property.type;
-  const selected = resolveCsharpNativePropertyRead(member.source.declarations, receiverCarrier, semantics, host);
+  const sourceType = member.type;
+  if (member.origin.kind !== "declared") return { kind: "not-native", sourceType };
+  const selected = resolveCsharpNativePropertyRead([member.origin.declaration], receiverCarrier, semantics, host);
   return selected.kind === "unresolved" ? selected : { ...selected, sourceType };
 }
 

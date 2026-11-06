@@ -195,7 +195,7 @@ export function selectCsharpDeclaredNativeMemoryLayout(
     for (const field of declaration.fields) {
       const carrier = valueRead.get(field.sourceType)?.value;
       const fieldFile = input.ast.getSourceFile(field.sourceType);
-      const checked = fieldFile === undefined ? undefined : input.semantics(fieldFile).types.expressionType(field.sourceType);
+      const checked = fieldFile === undefined ? undefined : input.semantics(fieldFile).types.authoredType(field.sourceType);
       if (field.readonly || carrier === undefined || fieldFile === undefined || checked === undefined) {
         return reject("Declared native struct backing requires complete mutable native field carriers and checked declaration identities.");
       }

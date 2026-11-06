@@ -14,6 +14,7 @@ import type { CsharpSourceArgumentGrouping } from "../../target-model/records/op
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpExpectedUseCollection } from "./collection.js";
 import type { CsharpExpectedTypeAnalysisInput, CsharpExpectedUseSiteDemand, CsharpExpectedUseWithholding } from "./model.js";
+import { csharpSourceTypeFlowShiftCountType } from "../../policy/conversions/source-type-flow-index.js";
 
 export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnalysisInput, collection: CsharpExpectedUseCollection) {
   const { policy, evidence, operations, objectShapes, callables, declarations, valueReadStages } = input;
@@ -130,16 +131,17 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
       const shape = selected === undefined ? undefined : objectShapes.resolveNode(selected.receiver.expression, sourceFile);
       const member = shape === undefined || selected === undefined ? undefined
         : resolveCsharpObjectShapeMemberBySelectedSubject(shape, [selected.selectedDeclaration, selected.selectedSymbol]);
-      if (binary.targetOperation.kind !== "conditional-value" || binary.targetOperation.branch !== "left") record(binary.right, binary.rightInputType,
+      if (binary.targetOperation.kind !== "conditional-value" || binary.targetOperation.branch !== "left") record(binary.right, csharpSourceTypeFlowShiftCountType(binary),
         "required", at(node, { kind: "operand", position: "right" }), member?.kind === "resolved" && member.member.exactNumericStorage === true);
     }
     const mutation = operations.jsArrayMutation.get(node);
     if (mutation?.kind === "set-typed-element" && mutation.calculation !== undefined) {
       record(mutation.calculation.left, mutation.calculation.leftInputType, "required", at(node, { kind: "operand", position: "left" }));
-      record(mutation.calculation.right, mutation.calculation.rightInputType, "required", at(node, { kind: "operand", position: "right" }));
+      record(mutation.calculation.right, csharpSourceTypeFlowShiftCountType(mutation.calculation), "required", at(node, { kind: "operand", position: "right" }));
     }
     const unary = operations.unaryOperation.get(node)?.target;
-    if (unary?.kind === "resolved") record(unary.operand, unary.operandType, "required", at(node, { kind: "operand", position: "only" }));
+    if (unary?.kind === "resolved") record(unary.operand, unary.operandType, "required",
+      { owner: node, slot: { kind: "operand", position: "only" }, mode: unary.operandConversionMode });
     const element = operations.selectedElement.get(node)?.target;
     if (element?.kind === "resolved") record(policy.ast.as.AsElementAccessExpression(node)?.ArgumentExpression,
       element.targetMember.parameters[element.targetParameterIndex]?.type, "required", at(node, { kind: "key" }));

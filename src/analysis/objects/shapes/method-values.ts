@@ -1,6 +1,7 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import type { SourceStorageDomainBoundary, SourceStorageQueries } from "@tsonic/target-api/analysis";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
+import { sourceTypeDescriptorStructure } from "@tsonic/target-api/source";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetNamedTypeRef } from "../../../target-model/types/model.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../target-model/types/equality.js";
 import { createStructuralObjectShapeTarget } from "./construction.js";
@@ -63,12 +64,10 @@ function selectMethodValueUses(storage: SourceStorageQueries) {
       : owner === undefined ? undefined : ast.is.IsVariableDeclaration(owner) ? ast.as.AsVariableDeclaration(owner)?.Initializer
       : ast.is.IsParameterDeclaration(owner) ? owner : undefined;
     if (expression === undefined) continue;
-    const semantics = source.semantics.forNode(expression);
-    const type = semantics.types.expressionType(expression) ?? semantics.types.authoredType(expression);
-    if (type === undefined) continue;
-    for (const property of semantics.types.propertyInfos(type)) {
-      for (const declaration of semantics.declarations.symbolDeclarations(property.symbol)) add(declaration, false);
-    }
+    const outcome = source.effectiveTypes.get(expression);
+    const descriptor = outcome === undefined || outcome.kind === "refused" ? undefined : sourceTypeDescriptorStructure(outcome.type);
+    if (descriptor?.kind !== "shape") continue;
+    for (const member of descriptor.members) if (member.origin.kind === "declared") add(member.origin.declaration, false);
   }
   for (let index = 0; index < pending.length; index++) {
     const current = pending[index]!;

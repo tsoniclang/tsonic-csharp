@@ -232,34 +232,6 @@ export const producersCarrierRegistry = Object.freeze([
     frozen: false,
   },
   {
-    id: "src/policy/types/resolution/short-circuit-values.ts#resolveCsharpShortCircuitResult",
-    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
-    declaration: { module: "src/policy/types/resolution/short-circuit-values.ts", symbol: "resolveCsharpShortCircuitResult" },
-    responsibility: "producers/resolve-union",
-    frozen: false,
-  },
-  {
-    id: "src/policy/types/resolution/representation.ts#resolveBinaryTargetRepresentation",
-    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
-    declaration: { module: "src/policy/types/resolution/representation.ts", symbol: "resolveBinaryTargetRepresentation" },
-    responsibility: "producers/resolve-post-check-binary-carrier",
-    frozen: false,
-  },
-  {
-    id: "src/policy/types/resolution/representation.ts#getNonNullableTargetRepresentation",
-    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
-    declaration: { module: "src/policy/types/resolution/representation.ts", symbol: "getNonNullableTargetRepresentation" },
-    responsibility: "producers/source-absence-read-carrier",
-    frozen: false,
-  },
-  {
-    id: "src/policy/types/conditional-numeric-carrier.ts#selectCsharpConditionalNumericCarrier",
-    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
-    declaration: { module: "src/policy/types/conditional-numeric-carrier.ts", symbol: "selectCsharpConditionalNumericCarrier" },
-    responsibility: "producers/selected-integer-literal-join",
-    frozen: false,
-  },
-  {
     id: "src/analysis/source-evidence/types/resolution/contextual-literals.ts#resolveCsharpContextualLiteralCarrier",
     kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
     declaration: { module: "src/analysis/source-evidence/types/resolution/contextual-literals.ts", symbol: "resolveCsharpContextualLiteralCarrier" },
@@ -348,13 +320,6 @@ export const producersCarrierRegistry = Object.freeze([
     kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
     declaration: { module: "src/policy/operations/members/optional-results.ts", symbol: "optionalResultType" },
     responsibility: "vocabulary/optional-value",
-    frozen: false,
-  },
-  {
-    id: "src/policy/types/resolution/semantic-types.ts#selectCsharpSemanticCarrier",
-    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
-    declaration: { module: "src/policy/types/resolution/semantic-types.ts", symbol: "selectCsharpSemanticCarrier" },
-    responsibility: "producers/resolve-target-type-ref",
     frozen: false,
   },
   {

@@ -1,6 +1,6 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { SourceStorageQueries, SourceStorageSubject } from "@tsonic/target-api/analysis";
-import type { SourceFileSemantics } from "@tsonic/target-api/source";
+import { sourceTypeDescriptorStructure, type SourceFileSemantics } from "@tsonic/target-api/source";
 import type { CsharpTypePolicy } from "../source-evidence/types/resolution/model.js";
 import type { CsharpObjectShapePolicy } from "../../target-model/records/objects/object-shapes.js";
 import type { CsharpValueDomainCarrierAnalysis, CsharpValueDomainCarrierIssue } from "../../target-model/records/types/value-domains.js";
@@ -57,11 +57,10 @@ export function analyzeCsharpValueDomainCarriers(
     if (origins.kind !== "complete" || origins.origins.length === 0) return undefined;
     const sourceFile = storage.source.ast.getSourceFile(node);
     if (sourceFile === undefined || !storage.source.semantics.includes(sourceFile)) return undefined;
-    const queries = host.semantics(sourceFile);
-    const selectedType = queries.types.expressionType(node);
-    if (selectedType === undefined) return undefined;
-    const members = queries.types.isUnion(selectedType) ? queries.types.unionOrIntersectionTypes(selectedType) : [selectedType];
-    const admitsAbsence = members.some(type => queries.types.isNullish(type));
+    const outcome = storage.source.effectiveTypes.get(node);
+    if (outcome === undefined || outcome.kind === "refused") return undefined;
+    const selectedType = sourceTypeDescriptorStructure(outcome.type);
+    const admitsAbsence = selectedType.kind === "optional" || selectedType.kind === "intrinsic" && selectedType.intrinsic === "absence";
     let carrier: TargetTypeRef | undefined;
     for (const origin of origins.origins) {
       budget.reserve(1);

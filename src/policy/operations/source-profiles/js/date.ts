@@ -16,6 +16,8 @@ const dateNoArgumentRows: readonly {
   readonly returnType: TargetTypeRef;
 }[] = Object.freeze([
   { sourceName: "valueOf", targetName: "valueOf", returnType: doubleType },
+  ...["getFullYear", "getMonth", "getDate", "getDay", "getHours", "getMinutes", "getSeconds", "getMilliseconds", "getTimezoneOffset"]
+    .map(sourceName => ({ sourceName, targetName: sourceName, returnType: intType })),
   { sourceName: "getUTCFullYear", targetName: "getUTCFullYear", returnType: doubleType },
   { sourceName: "getUTCMonth", targetName: "getUTCMonth", returnType: doubleType },
   { sourceName: "getUTCDate", targetName: "getUTCDate", returnType: doubleType },

@@ -26,6 +26,7 @@ import { csharpCallableValueType } from "../../../policy/types/callables/value-t
 import { csharpConversionIsApplicable } from "../../../policy/conversions/applicability.js";
 import type { CsharpCallableReturnSelection } from "../../../target-model/records/callables/callable-values.js";
 import { representCsharpSourceType } from "../../../policy/types/source-type-flow/representation.js";
+import { sourceTypeDescriptorStructure } from "@tsonic/target-api/source";
 
 export function selectCsharpSourceCallableGenericAbi(
   ast: AstReader,
@@ -204,11 +205,10 @@ function sourceParameterContracts(
       ? {}
       : { paramsArray: true }),
   });
-  const types = policy.semanticsFor(parameterNode).types;
-  const sourceType = parameter.DotDotDotToken !== undefined && targetType.kind === "tuple"
-    ? types.expressionType(parameterNode) : undefined;
+  const descriptor = sourceTypeDescriptorStructure(published.type);
   const vector = selectCsharpSourceParameterVector(targetParameter,
-    sourceType === undefined ? undefined : types.tupleElementInfos(sourceType));
+    parameter.DotDotDotToken !== undefined && descriptor.kind === "tuple"
+      ? descriptor.elements.map(element => ({ elementKind: element.kind })) : undefined);
   return vector === undefined ? undefined : Object.freeze(vector.map(targetParameter =>
     Object.freeze({ sourceParameter: parameterNode, targetParameter })));
 }

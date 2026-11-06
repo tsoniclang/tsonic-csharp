@@ -170,7 +170,7 @@ export function analyzeCsharpCallableCreations(input: CsharpCallableCreationInpu
       return csharpArgumentVectorCallbackResultMatches(contract.returnType, signature.returnType) ||
         completion !== undefined && csharpConversionIsApplicable(completion, "implicit") ||
         awaited !== undefined && csharpConversionIsApplicable(awaited, "implicit") ||
-        csharpLiteralReturnsFit(ast, input.literals, node, signature.returnType, expression => input.source.semantics.forNode(expression));
+        csharpLiteralReturnsFit(ast, input.literals, node, signature.returnType, input.source.effectiveTypes);
     }
   }
   return issues.length === 0 ? resolvedTargetStage(producer.seal()) : rejectedTargetStage(issues);

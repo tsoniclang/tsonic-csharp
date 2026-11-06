@@ -24,7 +24,7 @@ function owners(sourceText, surface = "native") {
   const walk = node => { nodes.push(node); ast.forEachChild(node, child => { if (child !== undefined) walk(child); }); };
   for (const file of csharpProgramSourceFiles(program)) walk(file);
   const participation = records.nativeParticipation;
-  const bindingPatterns = analyzeCsharpBindingPatterns({ ast, semanticsFor: source.semantics.forNode, sourceFiles: csharpProgramSourceFiles(program), participation, evidence: records,
+  const bindingPatterns = analyzeCsharpBindingPatterns({ ast, effectiveTypes: source.effectiveTypes, semanticsFor: source.semantics.forNode, sourceFiles: csharpProgramSourceFiles(program), participation, evidence: records,
     operations: records, valueReads: records, objectShapes: program.objectShapes, storage: records,
     initializerUses: { get: declaration => {
       const expression = ast.as.AsVariableDeclaration(declaration)?.Initializer;

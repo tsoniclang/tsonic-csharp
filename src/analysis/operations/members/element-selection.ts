@@ -170,7 +170,7 @@ function instantiateProviderElement(
         targetParameterIndex: parameterRelation.targetParameterIndex, receiver: relation.receiver,
         invocation: { kind: "indexer" }, origin: "provider" };
       const conversion = selectCsharpSourceTypeFlowIndexConversion(host.effectiveTypes.get(source.argument.expression),
-        selection, sourceArgumentType, targetParameter.type);
+        { kind: "element", selection }, sourceArgumentType, targetParameter.type);
       if (conversion !== undefined) return { source, relation, targetMember,
         targetParameterIndex: parameterRelation.targetParameterIndex,
         indexConversion: Object.freeze({ source: sourceArgumentType, target: targetParameter.type, selection: conversion }) };

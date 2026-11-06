@@ -1,8 +1,8 @@
 import type { CsharpTargetMember, TargetTypeRef } from "../../../types/index.js";
 import { csharpJsNumericArgument, csharpJsParsingParameters } from "./numeric-argument.js";
-import { csharpBigIntegerTargetType, csharpObjectTargetType, csharpNullableReferenceTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType, getCsharpNullableElementTargetType, getCsharpRuntimeUnionArms, isCsharpNullableReferenceTargetType, targetTypeRefEquals } from "../../../../target-model/types/index.js";
+import { csharpBigIntegerTargetType, csharpObjectTargetType, csharpNullableReferenceTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType, getCsharpNullableElementTargetType, getCsharpRuntimeUnionArms, isCsharpIntegralTargetType, isCsharpNullableReferenceTargetType, targetTypeRefEquals } from "../../../../target-model/types/index.js";
 import type { CsharpSourceProfileCallPolicy, CsharpSourceProfilePropertyPolicy } from "../../../model/source-profiles.js";
-import { resolveCsharpSelectedSourceValue } from "../source-profile-policy.js";
+import { csharpSourceProfileDiagnostic, resolveCsharpSelectedSourceValue } from "../source-profile-policy.js";
 import { closedObjectParameter, jsCallIdentity, jsCallPolicy, jsConstructIdentity, jsMemberIdentity, jsPropertyPolicy, jsRuntimeTargetType, jsUnsupportedCallPolicy, receiverHelperMethod, staticMethod, targetParameter, targetProperty } from "./common.js";
 
 const numberType = csharpSourcePrimitiveTargetType("float64");
@@ -83,14 +83,17 @@ export const csharpJsNumberCallPolicies:
     ...numberInstanceRows.map((row) =>
       jsCallPolicy(
         jsMemberIdentity("Number", row.sourceName),
-        (context) =>
-          numberReceiverMember(
-            resolveCsharpSelectedSourceValue(
-              context,
-              context.source.sourceReceiver,
-            ),
-            row,
-          ),
+        (context) => {
+          const receiver = resolveCsharpSelectedSourceValue(context, context.source.sourceReceiver);
+          if (row.sourceName === "toString" && context.source.sourceArguments.length > 0 &&
+              receiver !== undefined && !isCsharpIntegralTargetType(receiver) &&
+              !targetTypeRefEquals(receiver, csharpBigIntegerTargetType())) {
+            return { kind: "rejected", diagnostic: csharpSourceProfileDiagnostic(
+              "CSHARP_JS_SOURCE_PROFILE_OPERATION_UNSUPPORTED", 9101002,
+              "Number.toString(radix) requires an exact native integer receiver.") };
+          }
+          return numberReceiverMember(receiver, row);
+        },
         firstParameterReceiver,
       )
     ),

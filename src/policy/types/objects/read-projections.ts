@@ -16,17 +16,12 @@ export function selectCsharpFlowReadProjection(
       targetTypeRefEquals(storageType, selectedType) && deferredConstructorField) return { kind: "non-null" };
   if (refinement === undefined) return { kind: "rejected",
     reason: "C# analysis received a source value without finalized refinement evidence." };
-  const source = refinement.source;
-  if (source.kind !== "resolved") {
+  if (refinement.kind !== "resolved") {
     if (selectedType === undefined || targetTypeRefEquals(storageType, selectedType)) return { kind: "identity" };
-    return { kind: "rejected", reason: source.kind === "not-project-reference"
-      ? "A target storage-read projection requires an exact project source declaration."
-      : `A target storage-read projection requires the exact source ${source.missing === "declared-type" ? "declared type" : "selected type"}.` };
+    return { kind: "rejected", reason: "A target storage-read projection requires its exact Source publication." };
   }
-  if (source.refinement.kind === "exact" && (refinement.flowReadTargetType === undefined ||
+  if (refinement.exact && (refinement.flowReadTargetType === undefined ||
       targetTypeRefEquals(storageType, refinement.flowReadTargetType))) return { kind: "identity" };
-  if (source.refinement.kind === "ambiguous") return { kind: "rejected",
-    reason: "The checked source value refinement is ambiguous, so C# cannot select one storage-read projection." };
   if (storageType.kind === "target-named" &&
       (storageType as CsharpTargetNamedTypeRef).csharpFlowRefinementRepresentation === "identity") return { kind: "identity" };
   const target = refinement.flowReadTargetType;

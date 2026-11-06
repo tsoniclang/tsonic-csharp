@@ -2,7 +2,7 @@ import type { Node, Type } from "@tsonic/tsts";
 import type { TargetSourceProgram, SourceFileSemantics } from "@tsonic/target-api/source";
 import { sourceMemberOwner, sourceParameterIsProperty } from "@tsonic/target-api/source";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import { classifyCsharpSourceProfileType } from "../../policy/identities/source-types.js";
+import { classifyCsharpSourceProfileDeclaration, classifyCsharpSourceProfileType } from "../../policy/identities/source-types.js";
 import { csharpSourceProfileDeclarationIdentity } from "../../policy/identities/selected-source.js";
 import { sourceOperatorFromKindName } from "../../target-model/syntax/operators.js";
 
@@ -68,8 +68,12 @@ export function analyzeCsharpNativeErrorAdmission(source: TargetSourceProgram): 
       continue;
     }
     if (ast.is.IsObjectLiteralExpression(node)) {
-      const contextual = queries.types.contextualType(node);
-      if (contextual !== undefined && errorOwner(contextual.selectedType, queries) !== undefined) refuse(node,
+      const outcome = source.effectiveTypes.get(node);
+      let descriptor = outcome === undefined || outcome.kind === "refused" ? undefined : outcome.type;
+      while (descriptor?.kind === "optional") descriptor = descriptor.value;
+      const identity = descriptor?.kind !== "declared" ? undefined : classifyCsharpSourceProfileDeclaration(descriptor.declaration, ast);
+      const selectedType = descriptor?.kind !== "declared" ? undefined : queries.declarations.declaredType(descriptor.declaration);
+      if (identity?.kind === "error" || selectedType !== undefined && errorOwner(selectedType, queries) !== undefined) refuse(node,
         "CSHARP_ERROR_OBJECT_LITERAL_UNSUPPORTED", "An Error is a native C# exception, not a structural object literal; construct a new Error instead.");
       continue;
     }

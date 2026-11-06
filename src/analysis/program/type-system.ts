@@ -16,9 +16,6 @@ import type {
 } from "../objects/shapes/model.js";
 import { createCsharpObjectShapePolicy } from "../objects/shapes/api.js";
 import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../target-model/types/object-shape-members.js";
-import { csharpObjectShapeMemberRetainsNativeReference } from "../../policy/types/objects/member-reads.js";
-import { resolveCsharpObjectShapeMemberReadTargetType } from "../operations/members/object-shape-members.js";
-import { isCsharpJsValueTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 import type { CsharpPlanningRepresentationQueries, CsharpTypePolicy, CsharpTypePolicyBaseHost } from "../source-evidence/types/resolution/model.js";
 import { createCsharpTypeResolutionServices } from "../source-evidence/types/resolution/engine.js";
 import type { CsharpProjectTypeCatalog, CsharpProjectTypePolicy } from "../../target-model/records/types/project-types.js";
@@ -170,12 +167,8 @@ function createCsharpTypeSystem(
           )?.targetType;
         },
         resolveSelectedProperty(
-          occurrence: Node,
           receiverType: TargetTypeRef | undefined,
           selectedSubjects: readonly ExtensionFactSubject[],
-          selectedType: Type | undefined,
-          sourceFile: SourceFile,
-          declaredMemberType: Type | undefined,
         ): TargetTypeRef | undefined {
           if (objectShapes === undefined || receiverType === undefined) {
             return undefined;
@@ -188,25 +181,7 @@ function createCsharpTypeSystem(
             shape,
             selectedSubjects,
           );
-          if (selected.kind === "resolved" && selectedType === undefined) return selected.member.type;
-          const sourceTarget = selected.kind === "resolved" && selectedType !== undefined &&
-            isCsharpJsValueTargetType(selected.member.type)
-            ? typeResolution.policy.resolveSelectedResult(occurrence, undefined, selectedType, sourceFile) : undefined;
-          if (selected.kind === "resolved" && selectedType !== undefined && declaredMemberType !== undefined &&
-            host.semantics(sourceFile).types.relationship(declaredMemberType, selectedType) === "identical" &&
-            !csharpObjectShapeMemberRetainsNativeReference(sourceTarget, selected.member.type)) {
-            return selected.member.type;
-          }
-          return selected.kind === "resolved"
-            ? resolveCsharpObjectShapeMemberReadTargetType(
-                selected.member,
-                selectedType,
-                (left, right) =>
-                  host.semantics(sourceFile).types.relationship(left, right) !==
-                    "unrelated",
-                sourceTarget,
-              )
-            : undefined;
+          return selected.kind === "resolved" ? selected.member.type : undefined;
         },
       },
     });
@@ -263,7 +238,6 @@ export function createCsharpTypeAnalysis(
       return system.objectShapes.resolveNode(node, file);
     },
     scopedTargetType: representations.scopedTargetType,
-    resolveShape: system.objectShapes.resolveType,
     resolveLiteralShape: system.objectShapes.resolveObjectLiteralTargetShape,
     retainSourceShape: system.objectShapes.retainConstructionSource,
     publishedShapeTarget: system.objectShapes.publishedShapeTarget,

@@ -261,7 +261,7 @@ function fixture() {
       return descriptor === undefined || !current.resolver.isProviderDescriptor(descriptor) ? undefined : current.contextRow?.shape.targetType;
     },
     scopedTargetType: selected => existing.get(selected),
-    retainSourceShape: (occurrence, _type, shape) => {
+    retainSourceShape: (occurrence, shape) => {
       const descriptor = current.resolver.publishedShapeDescriptor(occurrence);
       const queries = host.semanticsFor(occurrence);
       const prepared = descriptor === undefined ? undefined : current.resolver.resolveProviderShape(
@@ -314,6 +314,24 @@ function fixture() {
     queryCount: () => relationshipQueries,
   };
 }
+
+test("native construction never reopens a checked value type for a literal or retained optional alias", () => {
+  const value = fixture();
+  const expected = value.row([{ identity: "user" }, { identity: "system", optional: true,
+    carrier: csharpNullableTargetType(integer) }], native, { provider: true });
+  value.nullable = true;
+  const literal = value.node(value.row([{ identity: "user" }]), expected);
+  const declaration = value.declare(literal);
+  value.semantics.types.expressionType = () => assert.fail("Native construction consumes the current Source publication");
+  value.semantics.types.constructSignatures = () => assert.fail("constructability belongs to the published descriptor");
+  const selected = value.freeze();
+  assert.equal(selected.issues.length, 0, selected.diagnosticLabel);
+  const constructed = selected.constructionFor(literal);
+  const retained = selected.constructionFor(declaration);
+  assert.equal(constructed !== undefined && retained !== undefined && retained.shape === constructed.shape, true,
+    "the declaration retains the same proven allocation and optional ABI without a value-type retry");
+  assert.equal(targetTypeRefEquals(getCsharpNullableElementTargetType(retained.targetType), native), true);
+});
 
 test("native construction uses the literal's declared context and freezes its lookup", () => {
   const value = fixture();

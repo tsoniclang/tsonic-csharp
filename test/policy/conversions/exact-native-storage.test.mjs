@@ -28,6 +28,16 @@ test("native Object ancestry supports exact checked reads without implicit downc
   }
 });
 
+test("an explicitly requested numeric conversion retains its cast even when the same widening is implicitly admitted", () => {
+  for (const [source, target] of [["uint8", "int32"], ["uint16", "int32"], ["uint32", "int64"],
+    ["int32", "int64"], ["float32", "float64"]]) {
+    assert.deepEqual(selectCsharpConversion(conversionContext, primitive(source), primitive(target), "implicit"),
+      { kind: "implicit", proof: "numeric" }, `${source}->${target}`);
+    assert.deepEqual(selectCsharpConversion(conversionContext, primitive(source), primitive(target), "explicit"),
+      { kind: "cast", proof: "numeric" }, `${source}->${target}`);
+  }
+});
+
 test("nullable conversions distinguish exact flow evidence from explicit assertions", () => {
   for (const [type, reference] of [[primitive("int64"), false], [csharpStringTargetType(), true]]) {
     const nullable = csharpNullableTargetType(type);

@@ -57,14 +57,13 @@ function run(value: string | Pattern | string[]): void {
 
 test("nominal constructor policy requires every selected construct signature to have one exact native result", () => {
   const constructor = {};
-  const type = {};
   const first = {};
   const second = {};
   const string = csharpStringTargetType();
   const regexp = csharpJsRegExpTargetType();
-  const select = (signatures, resolve) => resolveCsharpInstanceType({ types: {
-    expressionType: node => node === constructor ? type : undefined,
-    signatureInfos: (selected, kind) => selected === type && kind === "construct" ? signatures : [],
+  const select = (signatures, resolve) => resolveCsharpInstanceType({ get: node => node !== constructor ? undefined : {
+    kind: "resolved", provenance: { occurrence: constructor },
+    type: { kind: "callable", calls: [], constructs: signatures.map(signature => ({ result: signature.returnType })) },
   } }, constructor, resolve);
   assert.deepEqual(select([{ returnType: first }, { returnType: second }], () => regexp), regexp);
   assert.equal(select([], () => regexp), undefined);

@@ -78,7 +78,7 @@ const stringHelperRows = [
     sourceName: "charCodeAt",
     targetName: "charCodeAt",
     parameters: [targetParameter("index", intType)],
-    returnType: doubleType,
+    returnType: intType,
   },
   {
     sourceName: "codePointAt",

@@ -44,6 +44,7 @@ export interface CsharpResolvedUnaryOperation {
   readonly targetOperator: string;
   readonly operand: Node;
   readonly operandType: TargetTypeRef;
+  readonly operandConversionMode: import("../../conversions/selection.js").CsharpConversionMode;
   readonly resultType: TargetTypeRef;
 }
 

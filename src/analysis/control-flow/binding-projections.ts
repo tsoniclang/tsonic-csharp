@@ -14,9 +14,9 @@ import { csharpArrayBindingProjectionTarget, resolveCsharpArrayBindingCarrier } 
 import { nextState } from "../source-evidence/types/resolution/state.js";
 import { resolveCsharpBindingSourceType } from "./binding-source-types.js";
 import type { CsharpProjectTypePolicy } from "../../target-model/records/types/project-types.js";
-import { resolveCsharpCheckedNativePropertyRead } from "../objects/native-property-reads.js";
+import { resolveCsharpPublishedNativePropertyRead } from "../objects/native-property-reads.js";
 
-export interface CsharpBindingProjectionPolicyHost extends Pick<CsharpTypePolicyBaseHost, "providers" | "sourceFacts" | "semanticsFor" | "typeDefinitions"> {
+export interface CsharpBindingProjectionPolicyHost extends Pick<CsharpTypePolicyBaseHost, "providers" | "sourceFacts" | "semanticsFor" | "typeDefinitions" | "effectiveTypes"> {
   readonly ast: AstReader;
   readonly navigation: SourceProgramNavigation;
   readonly typeResolver: CsharpRecursiveTypeResolver;
@@ -215,8 +215,8 @@ function resolveNativeBindingProjection(
   const owner = pattern === undefined ? undefined : host.ast.parent(pattern);
   if (receiverCarrier === undefined || sourceFile === undefined || pattern === undefined || owner === undefined) return { kind: "unresolved" };
   const queries = host.semantics(sourceFile);
-  const checked = resolveCsharpBindingSourceType(pattern, host.ast, host.semanticsFor);
-  const selected = resolveCsharpCheckedNativePropertyRead(checked, sourceName, receiverCarrier, queries,
+  const descriptor = resolveCsharpBindingSourceType(pattern, host.ast, host.effectiveTypes);
+  const selected = resolveCsharpPublishedNativePropertyRead(descriptor, sourceName, receiverCarrier, queries,
     { ...host, projectTypes: host.projectTypes() });
   if (selected.kind !== "resolved") return { kind: selected.kind };
   const carrier = selected.property.member.returnType;

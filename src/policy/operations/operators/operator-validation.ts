@@ -62,7 +62,7 @@ export function validateBinaryTargetSemantics(
   }
   if (isShift(operator)) {
     return isCsharpIntegralTargetType(left) &&
-        (right.kind === "source-primitive" && right.name === "int32" ||
+        (right.kind === "source-primitive" && (right.name === "int32" || right.name === "int64") ||
           sourcePrimitiveImplicitlyConverts(csharpSourcePrimitiveTargetType("int32"), right))
       ? undefined
       : `C# shift operator '${operator}' requires an integral left operand and a count implicitly convertible to int32.`;
@@ -114,6 +114,10 @@ export function validateUnaryTargetSemantics(
         isCsharpEnumTargetType(operand, input)
       ? undefined
       : "C# bitwise complement requires an integral or enum operand.";
+  }
+  if (operator === "-" && operand.kind === "source-primitive" &&
+    (operand.name === "uint64" || operand.name === "native-uint")) {
+    return `Unary minus has no native signed result for '${operand.name}'.`;
   }
   return isNumeric(operand)
     ? undefined

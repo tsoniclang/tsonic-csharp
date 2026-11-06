@@ -6,6 +6,7 @@ import type { CsharpTargetMember } from "../../../../policy/types/index.js";
 import { csharpTargetParameterValueType, csharpTargetStorageIdentityEquals, targetTypeRefKey } from "../../../../policy/types/index.js";
 import { selectCsharpProviderArgumentConversion } from "../../../../policy/conversions/index.js";
 import { csharpConversionIsApplicable } from "../../../../policy/conversions/applicability.js";
+import { selectCsharpSourceTypeFlowIndexConversion } from "../../../../policy/conversions/source-type-flow-index.js";
 
 import { selectCsharpSourceArgument } from "../../../../source/extension/arguments.js";
 import type { CsharpSelectedCallArgument, CsharpProviderArgumentMapping } from "../../../../target-model/records/objects/members.js";
@@ -123,7 +124,9 @@ export function validateArgumentsTargetSelectedParameters(
       });
       continue;
     }
-    const conversion = selectCsharpProviderArgumentConversion(
+    const conversion = selectCsharpSourceTypeFlowIndexConversion(host.effectiveTypes.get(sourceArgument.argument.storageExpression),
+      { kind: "parameter", expression: sourceArgument.argument.storageExpression, parameter: argument.targetParameter }, sourceType, targetType)
+      ?? selectCsharpProviderArgumentConversion(
       host,
       sourceArgument.argument.storageExpression,
       sourceType,

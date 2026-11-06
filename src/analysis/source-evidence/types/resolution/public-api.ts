@@ -89,7 +89,6 @@ export function resolveReadStorage(
       node,
       queries,
       { depth: 0 },
-      "storage",
     );
   } finally {
     activeNodes.delete(node);

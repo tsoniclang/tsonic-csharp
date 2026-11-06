@@ -7,6 +7,7 @@ import type { selectCsharpBinaryOperation } from "../operations/operators.js";
 import type { CsharpObjectShapeFact, TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpNativeUseSlot } from "../../target-model/records/native/native-demand.js";
 import type { CsharpConversionMode } from "../../target-model/conversions/selection.js";
+import { csharpSourceTypeFlowShiftCountType } from "../../policy/conversions/source-type-flow-index.js";
 import type { CsharpExpectedTypeIssue } from "../../target-model/records/types/expected-types.js";
 import type { CsharpExactLiteralRequest, CsharpNativePropertyKeyBinding } from "../../target-model/conversions/exact-literals.js";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
@@ -147,7 +148,7 @@ export function createCsharpExpectedTypePropagation(
           record(selection.left, selection.resultType, strength, forwarded(expression, { kind: "present-payload" }, pending.site, pending.mode));
         }
         if (selection.targetOperation.kind !== "conditional-value" || selection.targetOperation.branch !== "left") {
-          record(selection.right, selection.rightInputType, strength, forwarded(expression, { kind: "operand", position: "right" }, pending.site, pending.mode));
+          record(selection.right, csharpSourceTypeFlowShiftCountType(selection), strength, forwarded(expression, { kind: "operand", position: "right" }, pending.site, pending.mode));
         }
         if (selection.sourceOperator === "??") {
           record(selection.right, targetType, strength, forwarded(expression, { kind: "operand", position: "right" }, pending.site, pending.mode));

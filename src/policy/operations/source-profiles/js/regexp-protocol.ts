@@ -9,7 +9,7 @@ import type { Node } from "@tsonic/tsts";
 import type { CsharpObjectShapeMemberFact, CsharpDelegateSignatureShape } from "../../../../target-model/types/model.js";
 import type { CsharpCustomRegExpProtocol, CustomRegExpProtocolKind } from "../../../../target-model/records/program/source-profile-inputs.js";
 const stringType = csharpStringTargetType();
-const doubleType = csharpSourcePrimitiveTargetType("float64");
+const intType = csharpSourcePrimitiveTargetType("int32");
 const regexpProtocolDispatchType = jsRuntimeTargetType("RegExpProtocolDispatch");
 
 export function resolveCustomRegExpProtocol(
@@ -29,7 +29,7 @@ export function selectCsharpCustomRegExpProtocol(
     : kind === "match-all"
       ? csharpJsRegExpStringIteratorTargetType()
       : kind === "search"
-        ? doubleType
+        ? intType
         : kind === "split"
           ? actualSignature?.returnType
           : stringType;

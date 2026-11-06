@@ -10,7 +10,7 @@ import { retainCsharpGenericCallableValue } from "../../../dist/analysis/callabl
 import { substituteTargetTypeParameters } from "../../../dist/policy/types/resolution/substitution.js";
 import { csharpFreeTypeParameterIdentities } from "../../../dist/target-model/types/generic-references.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
-import { sourceCallableTypeParametersMatch, resolveSourceCallReceiverTargetType, resolveSourceCallInstantiation, inferSourceCallTargetTypeArguments } from "../../../dist/analysis/source-evidence/types/resolution/calls.js";
+import { sourceCallableTypeParametersMatch, resolveSourceCallReceiverTargetType, resolveSourceCallInstantiation } from "../../../dist/analysis/source-evidence/types/resolution/calls.js";
 import { csharpProjectedType } from "../../../dist/target-model/types/projections.js";
 import { csharpSourceTypeParameter } from "../../../dist/source/extension/type-parameters.js";
 import { selectSourceCallParameterSlots } from "../../../../tsonic/packages/target-api/dist/source-semantics/call-parameter-slots.js";
@@ -23,7 +23,7 @@ const integer = { kind: "source-primitive", name: "int64" };
 const string = { kind: "source-primitive", name: "string" };
 const outer = { kind: "type-parameter", identity: "outer:Item", name: "Item" };
 
-test("independent checked arguments infer native destinations before the body ABI without self-authorizing an array", () => {
+test("only the identical Host invocation publishes generic arguments before the body ABI", () => {
   const checked = createCompilerSessionFromFiles({ currentDirectory: "/src", files: { "/src/index.ts": `
     declare class NativeCatalog<Native> {}
     declare function invoke<Item>(sample: Item, values: Item[]): Item;
@@ -44,39 +44,30 @@ test("independent checked arguments infer native destinations before the body AB
   assert.equal(source.call === call && selectedParameter !== undefined && nativeParameter !== undefined, true,
     "the independent Native boundary retains its actual checked call and both real declaration binders");
   const floating = { kind: "source-primitive", name: "float64" };
-  const sampleType = source.sourceSelectedSignatureParameters[0].authoredTypeNode;
-  const sample = source.sourceArguments[0].expression;
-  let originalQueries = 0;
-  const scope = { host: { ast: { ...program.ast }, effectiveTypes: program.effectiveTypes,
-    literalValues: analyzeSourceLiteralValues(program.ast, program.sourceFiles),
-    semantics: selected => {
-      assert.equal(selected === file, true, "the inference query uses the original checked Source file");
-      return { ...queries, types: { ...queries.types, expressionType: node => {
-      assert.equal(node === sample, true, "the same array cannot participate in its independent destination proof");
-      return queries.types.expressionType(node);
-    } } }; } },
-    resolveNodeWithState: node => {
-      originalQueries++;
-      return node === sampleType ? selectedParameter : { kind: "array", element: selectedParameter };
-    }, resolveSelectedValueWithState: () => floating };
-  const excluded = new Set([1]);
-  const selected = inferSourceCallTargetTypeArguments(scope, source, undefined, file,
-    new Set([selectedParameter.identity]), { depth: 0 }, excluded);
-  assert.equal(selected?.get(selectedParameter.identity) === floating && originalQueries === 1, true,
-    "the actual independent input selects float64 through its original checked formal");
-  const absent = inferSourceCallTargetTypeArguments(scope, source, undefined, file,
-    new Set([selectedParameter.identity]), { depth: 0 }, new Set([0, 1]));
-  assert.equal(absent?.size, 0, "no independent input is not an inferred rounding authority");
+  const forbidden = () => assert.fail("Native generic arguments must not re-read or infer Source values");
+  const scope = { host: { ast: { ...program.ast }, target: { id: "csharp" }, effectiveTypes: program.effectiveTypes,
+    typeParameterConstraints: createCsharpSourceTypeParameterEnvironment(program.ast,
+      () => Object.freeze({ kind: "resolved", constraints: Object.freeze([]) })),
+    semantics: () => ({ ...queries, types: { ...queries.types, expressionType: forbidden } }),
+    semanticsFor: () => queries, representations: { genericProjections: () => [] } },
+    resolveNodeWithState: forbidden, resolveSelectedValueWithState: forbidden,
+    resolveAuthoredAndSelectedSourceType: forbidden };
+  const selected = resolveSourceCallInstantiation(scope, source, file, { depth: 0 });
+  assert.equal(targetTypeRefEquals(selected?.substitutions.get(selectedParameter.identity), floating), true,
+    "the original Host invocation is the sole float64 argument authority");
+  scope.host.effectiveTypes = { ...program.effectiveTypes, callInstantiation: () => undefined };
+  assert.equal(resolveSourceCallInstantiation(scope, source, file, { depth: 0 }) === undefined, true,
+    "an absent publication cannot be replaced by independent Native inference");
+  scope.host.effectiveTypes = program.effectiveTypes;
   scope.host.ast.getSourceFile = () => undefined;
-  const foreign = inferSourceCallTargetTypeArguments(scope, source, undefined, file,
-    new Set([selectedParameter.identity]), { depth: 0 }, excluded);
-  assert.equal(foreign?.size === 0 && originalQueries === 1, true,
+  assert.equal(resolveSourceCallInstantiation(scope, source, file, { depth: 0 }) === undefined, true,
     "missing original declaration provenance cannot manufacture a formal or use the selected array's type");
-  const complete = { nativeParameters: [{ targetParameter: { name: "sample", type: nativeParameter, passingMode: "by-value" } }] };
-  const native = inferSourceCallTargetTypeArguments(scope, source, complete, file,
-    new Set([nativeParameter.identity]), { depth: 0 }, excluded);
-  assert.equal(native?.get(nativeParameter.identity) === floating && originalQueries === 1, true,
-    "a completed native ABI keeps its own binder identity and never reselects an authored formal");
+  scope.host.ast.getSourceFile = program.ast.getSourceFile;
+  const complete = { sourceDeclaration: signature,
+    nativeSignature: { methodTypeParameterIdentities: [nativeParameter.identity] } };
+  assert.equal(resolveSourceCallInstantiation(scope, source, file, { depth: 0 },
+    [nativeParameter.identity], complete) === undefined, true,
+    "a distinct Native binder cannot manufacture a replacement for the published Source binder");
 });
 
 function fixture(carrier = csharpDelegateTargetType("System.Func", [integer], integer), direct = false, options = {}) {

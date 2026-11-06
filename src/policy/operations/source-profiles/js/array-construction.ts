@@ -2,11 +2,10 @@ import type { CsharpTargetMember, TargetTypeRef } from "../../../types/index.js"
 import { csharpSourcePrimitiveTargetType, getCsharpJsArrayElementTargetType } from "../../../../target-model/types/index.js";
 import { csharpJsArrayTargetType } from "../../../../target-model/types/carriers/js.js";
 import type { CsharpSourceProfileCallPolicy } from "../../../model/source-profiles.js";
-import { resolveCsharpSelectedSourceValue } from "../source-profile-policy.js";
 import { resolveCsharpSourceProfileGenericResult } from "../source-profile-result.js";
 import { jsRuntimeTargetType, staticMethod, targetParameter } from "./common.js";
 
-const doubleType = csharpSourcePrimitiveTargetType("float64");
+const intType = csharpSourcePrimitiveTargetType("int32");
 const arrayStaticsType = jsRuntimeTargetType("JSArrayStatics");
 
 export function arrayConstructionMember(
@@ -17,19 +16,14 @@ export function arrayConstructionMember(
   if (resultType === undefined || element === undefined) {
     return undefined;
   }
-  const sourceArgument = context.source.sourceArguments[0];
-  const numericLength = context.source.sourceArguments.length === 1 &&
-    sourceArgument !== undefined &&
-    context.inputs.numberLikeTypes.has(sourceArgument.type);
-  if (numericLength) {
-    const carrier = resolveCsharpSelectedSourceValue(context, sourceArgument);
+  if (arrayHasLengthArgument(context)) {
     return Object.freeze({
       id: "Tsonic.CSharp.Js.JSArray..ctor(length)",
       sourceName: "constructor",
       targetName: "JSArray",
       kind: "constructor",
       declaringType: resultType,
-      parameters: [targetParameter("length", carrier?.kind === "source-primitive" && carrier.name === "int32" ? carrier : doubleType)],
+      parameters: [targetParameter("length", intType)],
       returnType: resultType,
     });
   }
@@ -57,10 +51,7 @@ export function arrayCallMember(
   if (resultType === undefined || element === undefined) {
     return undefined;
   }
-  const sourceArgument = context.source.sourceArguments[0];
-  const numericLength = context.source.sourceArguments.length === 1 &&
-    sourceArgument !== undefined &&
-    context.inputs.numberLikeTypes.has(sourceArgument.type);
+  const numericLength = arrayHasLengthArgument(context);
   return staticMethod(
     numericLength
       ? "Tsonic.CSharp.Js.JSArrayStatics.withLength"
@@ -69,7 +60,7 @@ export function arrayCallMember(
     numericLength ? "withLength" : "of",
     arrayStaticsType,
     numericLength
-      ? [targetParameter("length", doubleType)]
+      ? [targetParameter("length", intType)]
       : [targetParameter("items", { kind: "array", element }, { paramsArray: true })],
     resultType,
     { typeParameters: [{ name: "T", csharpAllowsRefLike: false }] },
@@ -93,9 +84,15 @@ function arrayConstructorResultType(
 export function arrayConstructionTypeArguments(
   context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
 ): readonly TargetTypeRef[] | undefined {
-  const sourceArgument = context.source.sourceArguments[0];
-  const numericLength = context.source.sourceArguments.length === 1 &&
-    sourceArgument !== undefined &&
-    context.inputs.numberLikeTypes.has(sourceArgument.type);
-  return numericLength ? [] : arrayConstructorElementTypeArguments(context);
+  return arrayHasLengthArgument(context) ? [] : arrayConstructorElementTypeArguments(context);
+}
+
+function arrayHasLengthArgument(
+  context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
+): boolean {
+  const parameter = context.inputs.parameters[0];
+  return context.source.sourceArguments.length === 1 &&
+    context.source.sourceSelectedSignatureParameters.length === 1 &&
+    context.source.sourceSelectedSignatureParameters[0]?.rest === false &&
+    parameter?.kind === "source-primitive" && parameter.name === "int32";
 }

@@ -318,7 +318,7 @@ export function resolveDirectSourceFacts(
           case "location-equal":
             return csharpSourcePrimitiveTargetType("bool");
           case "location-hash":
-            return csharpSourcePrimitiveTargetType("float64");
+            return csharpSourcePrimitiveTargetType("uint32");
           case "location-view": {
             const location = csharpRuntimeLocationTargetType(pointee);
             return pointerOperation.optional ? csharpNullableReferenceTargetType(location) : location;

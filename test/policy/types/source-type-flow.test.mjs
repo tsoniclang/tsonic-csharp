@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { representCsharpSourceType } from "../../../dist/policy/types/source-type-flow/representation.js";
 import { checkCsharpSourceTypeFlowObligation, checkCsharpSourceTypeFlowObligations } from "../../../dist/policy/types/source-type-flow/obligations.js";
-import { selectCsharpSourceTypeFlowIndexConversion } from "../../../dist/policy/conversions/source-type-flow-index.js";
+import { selectCsharpSourceTypeFlowIndexConversion, csharpSourceTypeFlowShiftCountType } from "../../../dist/policy/conversions/source-type-flow-index.js";
 import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { csharpStringTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { getCsharpArrayLiteralElementTargetType, csharpEnumerableTargetType, csharpReadOnlyListTargetType } from "../../../dist/target-model/types/carriers/collections.js";
@@ -17,6 +17,7 @@ import { bindCsharpSourceDeclarationArguments } from "../../../dist/analysis/sou
 import { resolveNodeValueWithState } from "../../../dist/analysis/source-evidence/types/resolution/nodes.js";
 import * as sourceReferenceOperations from "../../../dist/analysis/source-evidence/types/resolution/source-references.js";
 import * as sourceCallOperations from "../../../dist/analysis/source-evidence/types/resolution/calls.js";
+import * as sourceExpressionOperations from "../../../dist/analysis/source-evidence/types/resolution/expressions.js";
 
 const primitive = name => Object.freeze({ kind: "primitive", primitive: name });
 const unexpected = () => assert.fail("a primitive unit must not query declarations shapes or an unrelated native child");
@@ -103,6 +104,10 @@ test("the superseded declaration initializer and refinement value APIs are absen
   assert.equal("resolveSourceValueResult" in sourceReferenceOperations, false);
   assert.equal("resolveSourceValueDeclaration" in sourceReferenceOperations, false);
   assert.equal("sourceValueDeclarationSyntax" in sourceCallOperations, false);
+  assert.equal("inferSourceCallTargetTypeArguments" in sourceCallOperations, false);
+  assert.equal("resolveSelectedExpressionResult" in sourceExpressionOperations, false);
+  assert.equal("resolveSelectedExpressionType" in sourceExpressionOperations, false);
+  assert.equal("resolveNonNullExpressionType" in sourceExpressionOperations, false);
 });
 
 test("a real enum declaration has zero native generic binders without an invalid AST accessor", () => {
@@ -484,7 +489,7 @@ for (const kind of ["interface", "read-only"]) {
   });
 }
 
-test("only actual B8 provenance at the same admitted index selects checked long-to-int narrowing", () => {
+test("an actual published int64 at the same admitted native int32 index selects checked narrowing", () => {
   const occurrence = {};
   const declaration = {};
   const sourceFile = {};
@@ -494,16 +499,44 @@ test("only actual B8 provenance at the same admitted index selects checked long-
     group: declaration, occurrence, sourceFile, fixedRule: { kind: "loop-counter", declaration } } };
   const selection = { kind: "resolved", source: { argument: { expression: occurrence } },
     targetMember: { parameters: [{ type: target }] }, targetParameterIndex: 0 };
-  const conversion = selectCsharpSourceTypeFlowIndexConversion(outcome, selection, source, target);
+  const use = { kind: "element", selection };
+  const conversion = selectCsharpSourceTypeFlowIndexConversion(outcome, use, source, target);
   assert.equal(conversion?.kind, "checked-native-integer");
+  assert.equal(selectCsharpSourceTypeFlowIndexConversion({ ...outcome, provenance: { group: declaration, occurrence, sourceFile } },
+    use, source, target)?.kind, "checked-native-integer", "ordinary integer creation needs no invented loop rule");
   for (const [label, chosen, admitted, from, to] of [
-    ["same width without a Source rule", { ...outcome, provenance: { group: declaration, occurrence, sourceFile } }, selection, source, target],
-    ["foreign index occurrence", outcome, { ...selection, source: { argument: { expression: {} } } }, source, target],
-    ["wrong native parameter", outcome, { ...selection, targetMember: { parameters: [{ type: source }] } }, source, target],
+    ["foreign index occurrence", outcome, { kind: "element", selection: { ...selection, source: { argument: { expression: {} } } } }, source, target],
+    ["wrong native parameter", outcome, { kind: "element", selection: { ...selection, targetMember: { parameters: [{ type: source }] } } }, source, target],
     ["no native admission", outcome, undefined, source, target],
-    ["source-owned operation without Native index admission", outcome, { kind: "source-owned", source: selection.source, reason: "unit source owner" }, source, target],
-    ["by-ref native argument", outcome, { ...selection, targetMember: { parameters: [{ type: target, passingMode: "byref-readwrite" }] } }, source, target],
-    ["non-counter source width", outcome, selection, target, target],
+    ["source-owned operation without Native index admission", outcome, { kind: "element", selection: { kind: "source-owned", source: selection.source, reason: "unit source owner" } }, source, target],
+    ["by-ref native argument", outcome, { kind: "element", selection: { ...selection, targetMember: { parameters: [{ type: target, passingMode: "byref-readwrite" }] } } }, source, target],
+    ["wrong source width", outcome, use, target, target],
+    ["retired selection-only API", outcome, selection, source, target],
   ]) assert.equal(selectCsharpSourceTypeFlowIndexConversion(chosen, admitted, from, to) === undefined, true, label);
   assert.equal(targetTypeRefEquals(source, target), false, "checked narrowing never claims an identity conversion");
+});
+
+test("native parameter and all six shift-count uses share checked int64-to-int32 conversion without retargeting the result", () => {
+  const occurrence = {};
+  const source = csharpSourcePrimitiveTargetType("int64");
+  const target = csharpSourcePrimitiveTargetType("int32");
+  const result = csharpSourcePrimitiveTargetType("uint64");
+  const outcome = { kind: "resolved", type: primitive("int64"), provenance: { occurrence, group: {}, sourceFile: {} } };
+  assert.equal(selectCsharpSourceTypeFlowIndexConversion(outcome,
+    { kind: "parameter", expression: occurrence, parameter: { type: target, passingMode: "by-value" } }, source, target)?.kind,
+  "checked-native-integer");
+  for (const passingMode of ["byref-readonly", "byref-readwrite", "out"]) {
+    assert.equal(selectCsharpSourceTypeFlowIndexConversion(outcome,
+      { kind: "parameter", expression: occurrence, parameter: { type: target, passingMode } }, source, target) === undefined, true, passingMode);
+  }
+  for (const operator of ["<<", ">>", ">>>", "<<=", ">>=", ">>>=", "+"]) {
+    const operation = { kind: "resolved", sourceOperator: operator, right: occurrence,
+      rightInputType: source, rightType: source, resultType: result };
+    const input = csharpSourceTypeFlowShiftCountType(operation);
+    assert.equal(targetTypeRefEquals(input, operator === "+" ? source : target), true, operator);
+    assert.equal(selectCsharpSourceTypeFlowIndexConversion(outcome, { kind: "shift-count", operation }, source, target)?.kind ===
+      "checked-native-integer", operator !== "+", operator);
+    assert.equal(operation.rightInputType === source && operation.rightType === source && operation.resultType === result, true,
+      `${operator}: the actual count and result objects remain the original records`);
+  }
 });

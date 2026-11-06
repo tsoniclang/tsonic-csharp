@@ -5,7 +5,7 @@ import type { CsharpStructuralInterfaceMemberEvidence } from "../../target-model
 import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../target-model/types/object-shape-members.js";
 import { selectCsharpStructuralInterfaceImplementation } from "../../policy/types/objects/structural-implementation.js";
 import { targetTypeRefKey, targetTypeRefEquals } from "../../target-model/types/equality.js";
-import { resolveCsharpCheckedNativePropertyRead } from "./native-property-reads.js";
+import { resolveCsharpNativePropertyRead } from "./native-property-reads.js";
 
 export function collectCsharpInheritedInterfaces(
   policy: Pick<CsharpPolicyContext, "projectTypes">,
@@ -58,7 +58,7 @@ export function selectCsharpStructuralInterface(
     if (write.kind !== "resolved" || destinationMember.kind !== "resolved") return undefined;
     if (read.kind !== "resolved") {
       if (read.reason !== "not-in-finalized-shape") return undefined;
-      const native = resolveCsharpCheckedNativePropertyRead(sourceType, pair.source.property.name, source.targetType, semantics, policy);
+      const native = resolveCsharpNativePropertyRead(pair.source.declarations, source.targetType, semantics, policy);
       if (native.kind !== "resolved") return undefined;
       members.push(Object.freeze({ native: native.property, destination: write.member, openDestination: destinationMember.member }));
       continue;

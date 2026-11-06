@@ -1,4 +1,4 @@
-import type { ExtensionFactSubject, Node, SourceFile, Symbol, Type } from "@tsonic/tsts";
+import type { ExtensionFactSubject, Node, SourceFile, Type } from "@tsonic/tsts";
 import type { SourceCallableTypeEvidence, SourceFileSemantics, SourceTypeComponentEvidence } from "@tsonic/target-api/source";
 
 import type { SourceCallableContract } from "../../../../target-model/records/callables/source-callable-contract.js";
@@ -22,8 +22,6 @@ import type { CsharpNodeTypeResolution } from "../../../../policy/model/type-res
 import type { CsharpSourceCallResult } from "../../../../target-model/operations/source-call-results.js";
 export interface CsharpTypeResolutionScope {
   resolveNodeValueWithState(node: Node | undefined, sourceFile: SourceFile | undefined,
-    state: CsharpTypeResolutionState): CsharpSourceCallResult | undefined;
-  resolveSelectedExpressionResult(node: Node, queries: SourceFileSemantics,
     state: CsharpTypeResolutionState): CsharpSourceCallResult | undefined;
   resolveSelectedValueResultWithState(node: Node, selectedType: Type, sourceFile: SourceFile,
     state: CsharpTypeResolutionState): CsharpSourceCallResult | undefined;
@@ -139,19 +137,7 @@ export interface CsharpTypeResolutionScope {
   tupleElementIsRest(
   element: Node | undefined,
 ): boolean;
-  resolveSelectedExpressionType(
-  node: Node,
-  queries: SourceFileSemantics,
-  state: CsharpTypeResolutionState,
-): TargetTypeRef | undefined;
   resolveMemberAccessTargetType(
-  node: Node,
-  queries: SourceFileSemantics,
-  state: CsharpTypeResolutionState,
-  mode: "selected" | "storage",
-  selectedType?: Type,
-): TargetTypeRef | undefined;
-  resolveNonNullExpressionType(
   node: Node,
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
@@ -180,11 +166,8 @@ export interface CsharpTypeResolutionScope {
 ): TargetTypeRef | undefined;
   resolveSelectedDeclarationResult(
   declaration: Node | undefined,
-  semanticType: Type | undefined,
-  queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
   receiverType?: TargetTypeRef,
-  declaredMemberType?: Type,
 ): TargetTypeRef | undefined;
   resolveProjectEnumMemberTarget(
   declaration: Node | undefined,
@@ -257,7 +240,6 @@ export interface CsharpTypeResolutionScope {
   state: CsharpTypeResolutionState,
   expectedTypeParameterNames?: readonly string[],
   callable?: SourceCallableContract,
-  excludedSourceArgumentIndexes?: ReadonlySet<number>,
 ):
   | {
       readonly arguments: readonly TargetTypeRef[];
@@ -280,16 +262,7 @@ export interface CsharpTypeResolutionScope {
   type: TargetTypeRef,
   selectedSourceFile: SourceFile,
   state: CsharpTypeResolutionState,
-  excludedSourceArgumentIndexes?: ReadonlySet<number>,
 ): TargetTypeRef | undefined;
-  inferSourceCallTargetTypeArguments(
-  source: ResolvedSourceCallInfo,
-  callable: SourceCallableContract | undefined,
-  sourceFile: SourceFile,
-  parameterNames: ReadonlySet<string>,
-  state: CsharpTypeResolutionState,
-  excludedSourceArgumentIndexes?: ReadonlySet<number>,
-): ReadonlyMap<string, TargetTypeRef> | undefined;
   sourceCallSelectedDeclaration(
   source: ResolvedSourceCallInfo,
 ): Node | undefined;
@@ -365,12 +338,6 @@ export interface CsharpTypeResolutionScope {
 ): TargetTypeRef | undefined;
   resolveSourceTypeComponentEvidence(
   component: SourceTypeComponentEvidence,
-  queries: SourceFileSemantics,
-  state: CsharpTypeResolutionState,
-): TargetTypeRef | undefined;
-  resolveSelectedSymbolType(
-  symbol: Symbol,
-  selectedType: Type | undefined,
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined;

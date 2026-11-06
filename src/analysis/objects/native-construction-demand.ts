@@ -1,5 +1,5 @@
-import { providerVirtualDeclarationFactKey, type Node, type SourceFile, type Type } from "@tsonic/tsts";
-import { sourceDeclarationIsModuleScoped } from "@tsonic/target-api/source";
+import { providerVirtualDeclarationFactKey, type Node, type SourceFile } from "@tsonic/tsts";
+import { sourceDeclarationIsModuleScoped, sourceTypeDescriptorStructure } from "@tsonic/target-api/source";
 import type { CsharpObjectShapeFact, TargetTypeRef } from "../../target-model/types/model.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
@@ -20,9 +20,8 @@ interface CsharpNativeConstructionHost extends Pick<CsharpTypePolicyBaseHost,
   "ast" | "navigation" | "providers" | "sourceFacts" | "sourceFiles" | "semanticsFor" | "effectiveTypes" | "target" | "typeDefinitions"> {
   readonly projectTypes: CsharpProjectTypePolicy;
   resolveEffectiveShape(node: Node, file: SourceFile): CsharpObjectShapeFact | undefined;
-  resolveShape(type: Type, file: SourceFile, authoredTypeRoot?: Node): CsharpObjectShapeFact | undefined;
   resolveLiteralShape(shape: CsharpObjectShapeFact, node: Node, file: SourceFile): CsharpObjectLiteralTargetShapeResolution;
-  retainSourceShape(node: Node, type: Type, shape: CsharpObjectShapeFact, file: SourceFile): CsharpObjectShapeFact | undefined;
+  retainSourceShape(node: Node, shape: CsharpObjectShapeFact, file: SourceFile): CsharpObjectShapeFact | undefined;
   publishedShapeTarget(node: Node): TargetTypeRef | undefined;
   scopedTargetType(node: Node): TargetTypeRef | undefined;
 }
@@ -37,15 +36,16 @@ export function createCsharpNativeConstructionDemandQuery(
   };
   const publish = (node: Node, shape: CsharpObjectShapeFact, hostProven = false): void => {
     const effective = host.effectiveTypes.get(node);
-    if (effective === undefined || effective.kind === "refused") return;
+    if (effective === undefined || effective.kind === "refused" || effective.provenance.occurrence !== node) return;
     const queries = host.semanticsFor(node);
-    const source = queries.types.expressionType(node);
-    const members = source === undefined ? [] : queries.types.isUnion(source)
-      ? queries.types.unionOrIntersectionTypes(source).filter(type => !queries.types.isNullish(type)) : [source];
+    let descriptor = sourceTypeDescriptorStructure(effective.construction ?? effective.type);
+    while (descriptor.kind === "optional") descriptor = sourceTypeDescriptorStructure(descriptor.value);
+    const members = descriptor.kind === "union" ? descriptor.types.map(sourceTypeDescriptorStructure)
+      .filter(type => type.kind !== "intrinsic" || type.intrinsic !== "absence") : [descriptor];
     if (members.length !== 1) return;
     const existing = host.scopedTargetType(node);
     if (existing !== undefined && !targetTypeRefEquals(existing, shape.targetType)) {
-      const original = hostProven ? undefined : host.resolveShape(members[0]!, queries.sourceFile, node);
+      const original = hostProven ? undefined : host.resolveEffectiveShape(node, queries.sourceFile);
       const conversion = selectCsharpConversion(host, shape.targetType, existing, "implicit");
       if ((original === undefined || !targetTypeRefEquals(existing, original.targetType)) &&
         !(host.ast.is.IsObjectLiteralExpression(node) && conversion.kind === "implicit" && conversion.proof === "reference")) {
@@ -63,7 +63,7 @@ export function createCsharpNativeConstructionDemandQuery(
       return;
     }
     const retained = hostProven && !retainedOccurrence ? shape
-      : host.retainSourceShape(node, members[0]!, shape, queries.sourceFile);
+      : host.retainSourceShape(node, shape, queries.sourceFile);
     if (retained === undefined || hostProven && !csharpObjectShapesEqual(shape, retained)) {
       issue(node, "CSHARP_NATIVE_CONSTRUCTION_NOT_PROVEN",
         "Native construction has no exact source-member correspondence for its declared storage.");
@@ -76,12 +76,12 @@ export function createCsharpNativeConstructionDemandQuery(
   const select = (node: Node): void => {
     if (!host.navigation.isProjectDeclaration(node)) return;
     const queries = host.semanticsFor(node);
-    const source = queries.types.expressionType(node);
-    if (source === undefined || queries.types.constructSignatures(source).length !== 0) return;
     const effective = host.effectiveTypes.get(node);
     if (effective === undefined || effective.kind === "refused") return;
     let descriptor = effective.type;
     while (descriptor.kind === "optional") descriptor = descriptor.value;
+    const structure = sourceTypeDescriptorStructure(descriptor);
+    if ((structure.kind === "shape" || structure.kind === "callable") && structure.constructs.length !== 0) return;
     const subjects = descriptor.kind === "declared" ? [descriptor.declaration] : [];
     if (descriptor.kind === "intrinsic" && descriptor.intrinsic === "any") {
       issue(node, "TSONIC_ANY_UNSUPPORTED", "'any' has no native representation. Declare the type, or use 'unknown' and narrow it.");
@@ -157,7 +157,7 @@ export function createCsharpNativeConstructionDemandQuery(
         }
         retain(resolved.shape, true);
       } else retain(expected, true);
-      if (variable?.Initializer === node && effective.kind === "default") selectLocalValue(declaration!, source, node);
+      if (variable?.Initializer === node && effective.kind === "default") selectLocalValue(declaration!, node);
       return;
     }
     if (native) {
@@ -170,9 +170,9 @@ export function createCsharpNativeConstructionDemandQuery(
       return;
     }
     if (resolved.kind === "resolved") retain(resolved.shape);
-    if (variable?.Initializer === node && effective.kind === "default") selectLocalValue(declaration!, source, node);
+    if (variable?.Initializer === node && effective.kind === "default") selectLocalValue(declaration!, node);
   };
-  const selectLocalValue = (declaration: Node, source: Type, expression?: Node): void => {
+  const selectLocalValue = (declaration: Node, expression?: Node): void => {
     if (sourceDeclarationIsModuleScoped(declaration, host.ast)) return;
     const queries = host.semanticsFor(declaration);
     const summary = host.navigation.declarationUseSummary(declaration);
@@ -180,7 +180,7 @@ export function createCsharpNativeConstructionDemandQuery(
       summary.exported || summary.hasUnclassifiedValueUse || summary.conditionallyRead ||
       summary.escapeKinds.some(kind => kind !== "capture") || summary.uses.length === 0 ||
       summary.uses.some(use => use.kind !== "type-only" && (use.role !== "receiver" || !use.throughMember))) return;
-    const original = host.resolveShape(source, queries.sourceFile, expression ?? declaration);
+    const original = host.resolveEffectiveShape(expression ?? declaration, queries.sourceFile);
     const existing = host.scopedTargetType(declaration);
     if (original === undefined || existing !== undefined && !targetTypeRefEquals(existing, original.targetType)) return;
     const shape = createCsharpObjectShapeValueStorage(original);
@@ -194,8 +194,7 @@ export function createCsharpNativeConstructionDemandQuery(
     if (host.ast.is.IsObjectLiteralExpression(node)) select(node);
     if (host.ast.is.IsBindingElement(node) && host.ast.as.AsBindingElement(node)?.DotDotDotToken !== undefined &&
       host.ast.is.IsObjectBindingPattern(host.ast.parent(node)) && host.navigation.isProjectDeclaration(node)) {
-      const source = host.semanticsFor(node).types.expressionType(node);
-      if (source !== undefined) selectLocalValue(node, source);
+      selectLocalValue(node);
     }
   };
   for (const sourceFile of host.sourceFiles) visit(sourceFile);

@@ -171,7 +171,6 @@ export function resolveSourceCallArgumentParameter(
       contractedParameter.targetParameter.type,
       sourceFile,
       { depth: 0 },
-      excludedSourceArgumentIndexes,
     );
     return contracted === undefined
       ? undefined

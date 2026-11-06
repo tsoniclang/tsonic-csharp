@@ -1,5 +1,5 @@
 import type { AstReader, Node } from "@tsonic/tsts";
-import { isSourceCallableBodyBoundary, type SourceFileSemantics, type SourceLiteralIndex } from "@tsonic/target-api/source";
+import { isSourceCallableBodyBoundary, type SourceEffectiveTypes, type SourceLiteralIndex } from "@tsonic/target-api/source";
 import { csharpLiteralIsRepresentableAs } from "../../../policy/conversions/literals.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
@@ -32,16 +32,15 @@ export function forEachCsharpDirectReturnExpression(ast: AstReader, declaration:
  * `() => 9n` under a `() => int64` context returns the long literal 9 instead of a BigInteger.
  */
 export function csharpLiteralReturnsFit(ast: AstReader, literals: SourceLiteralIndex, declaration: Node, target: TargetTypeRef,
-  semanticsFor: (node: Node) => SourceFileSemantics): boolean {
+  effectiveTypes: SourceEffectiveTypes): boolean {
   let returns = 0;
   let fits = true;
   forEachCsharpDirectReturnExpression(ast, declaration, (expression) => {
     returns++;
     const nullable = getCsharpNullableElementTargetType(target) !== undefined;
-    const queries = nullable && ast.is.IsIdentifier(expression) && ast.text(expression) === "undefined" ? semanticsFor(expression) : undefined;
-    const type = queries?.types.expressionType(expression);
+    const outcome = effectiveTypes.get(expression);
     const absence = nullable && (ast.kindName(expression) === "KindNullKeyword" ||
-      type !== undefined && queries?.types.isNullish(type) === true);
+      outcome !== undefined && outcome.kind !== "refused" && outcome.type.kind === "intrinsic" && outcome.type.intrinsic === "absence");
     fits &&= absence || csharpLiteralIsRepresentableAs(literals.literalValue.get(expression), target);
   });
   return returns > 0 && fits;

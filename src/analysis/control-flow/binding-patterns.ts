@@ -1,8 +1,8 @@
 import { createCsharpDestructuringAssignmentAnalysis } from "./destructuring-assignments.js";
 import { createCsharpBindingPatternProducer } from "../program/records/storage/binding-patterns.js";
-import type { AstReader, Node, SourceFile, Type } from "@tsonic/tsts";
+import type { AstReader, Node, SourceFile } from "@tsonic/tsts";
 import { csharpNativePropertyNameIssue } from "../objects/computed-field-names.js";
-import type { SourceFileSemantics } from "@tsonic/target-api/source";
+import { sourceTypeDescriptorStructure, type SourceFileSemantics, type SourceEffectiveTypes, type SourceTypeDescriptor } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { tryCsharpIdentifier } from "../../target-model/names/identifiers.js";
 import { getCsharpNullableElementTargetType, isCsharpValueTypeTargetType, targetTypeRefEquals } from "../../target-model/types/index.js";
@@ -53,6 +53,7 @@ import { resolveCsharpBindingSourceType } from "./binding-source-types.js";
 
 export interface CsharpBindingPatternAnalysisInput {
   readonly ast: AstReader;
+  readonly effectiveTypes: SourceEffectiveTypes;
   readonly sourceFacts?: CsharpPolicyContext["sourceFacts"];
   readonly semanticsFor: (node: Node) => SourceFileSemantics;
   readonly sourceFiles: readonly SourceFile[];
@@ -116,7 +117,7 @@ export function analyzeCsharpBindingPatterns(
   const { ast } = input;
   const facts = new Map<Node, CsharpBindingProjectionFact>();
   const roots = new Map<Node, Node>();
-  const checkedPatternTypes = new Map<Node, Type | undefined>();
+  const publishedPatternTypes = new Map<Node, SourceTypeDescriptor | undefined>();
   const lookup = Object.freeze({ get: (node: Node) => facts.get(node) });
   const candidates: CsharpBindingPatternCandidate[] = [];
   let root: Node | undefined;
@@ -403,8 +404,9 @@ export function analyzeCsharpBindingPatterns(
 
   function analyzeObjectShapePattern(pattern: Node, shape: CsharpObjectShapeFact, sourceFile: SourceFile): void {
     recordSource(pattern, { kind: "object-shape-source", shape });
-    const checkedType = checkedPatternType(pattern);
-    const checkedMembers = checkedType === undefined ? [] : input.semanticsFor(pattern).types.propertyInfos(checkedType);
+    const publishedType = publishedPatternType(pattern);
+    const structure = publishedType === undefined ? undefined : sourceTypeDescriptorStructure(publishedType);
+    const publishedMembers = structure?.kind === "shape" ? structure.members : [];
     const elements = AsBindingPattern(ast, pattern)?.Elements?.Nodes ?? [];
     const extractedSourceNames = new Set<string>();
     for (const elementNode of elements) {
@@ -437,10 +439,10 @@ export function analyzeCsharpBindingPatterns(
         issue(elementNode, "Object destructuring property must match a finalized provider object-shape member.");
         continue;
       }
-      const checked = checkedMembers.filter(member => member.name === property.sourceName);
+      const members = publishedMembers.filter(member => member.name === property.sourceName);
       const selected = selectCsharpBindingPatternProjection({ kind: "object-member", shape, sourceName: property.sourceName,
         description: "Object destructuring property", permitsAbsence: element.Initializer !== undefined ||
-          checked.length === 1 && checked[0]!.optional });
+          members.length === 1 && members[0]!.optional });
       if (selected.kind !== "element" || selected.element.kind !== "object-shape-member" && selected.element.kind !== "object-shape-absence") {
         if (selected.kind === "unresolved") for (const reason of selected.reasons) issue(elementNode, reason);
         continue;
@@ -458,10 +460,10 @@ export function analyzeCsharpBindingPatterns(
     }
   }
 
-  function checkedPatternType(pattern: Node): Type | undefined {
-    if (checkedPatternTypes.has(pattern)) return checkedPatternTypes.get(pattern);
-    const selected = resolveCsharpBindingSourceType(pattern, ast, input.semanticsFor);
-    checkedPatternTypes.set(pattern, selected);
+  function publishedPatternType(pattern: Node): SourceTypeDescriptor | undefined {
+    if (publishedPatternTypes.has(pattern)) return publishedPatternTypes.get(pattern);
+    const selected = resolveCsharpBindingSourceType(pattern, ast, input.effectiveTypes);
+    publishedPatternTypes.set(pattern, selected);
     return selected;
   }
 
@@ -497,10 +499,9 @@ export function analyzeCsharpBindingPatterns(
 
   function analyzeSourceOwnedPattern(pattern: Node, sourceNode: Node, sourceFile: SourceFile, receiverCarrier: TargetTypeRef | undefined): void {
     recordSource(pattern, { kind: "source-owned-source" });
-    const semantics = input.semanticsFor(sourceNode);
-    const sourceType = ast.is.IsParameterDeclaration(sourceNode) || ast.is.IsBindingElement(sourceNode)
-      ? semantics.declarations.declaredValueType(sourceNode) : semantics.types.expressionType(sourceNode);
-    const members = sourceType === undefined ? [] : semantics.types.propertyInfos(sourceType);
+    const outcome = input.effectiveTypes.get(sourceNode);
+    const structure = outcome === undefined || outcome.kind === "refused" ? undefined : sourceTypeDescriptorStructure(outcome.type);
+    const members = structure?.kind === "shape" ? structure.members : [];
     const elements = AsBindingPattern(ast, pattern)?.Elements?.Nodes ?? [];
     for (const elementNode of elements) {
       const element = elementNode === undefined ? undefined : AsBindingElement(ast, elementNode);

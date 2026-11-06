@@ -1,4 +1,4 @@
-import type { Node, SourceFile, Symbol, Type } from "@tsonic/tsts";
+import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import type { SourceFileSemantics, SourceTypeDescriptor } from "@tsonic/target-api/source";
@@ -10,46 +10,6 @@ import { targetTypeRefEquals } from "../../../../target-model/types/equality.js"
 import { resolveCsharpProjectionArguments } from "./projection-arguments.js";
 import { sourceCallableInterface, sourceInterfaceRepresentationBase } from "@tsonic/target-api/source";
 import { bindCsharpSourceDeclarationArguments } from "./generic-arguments.js";
-
-export function resolveSelectedSymbolType(
-  { declarationResultTypeNode, host, resolveAuthoredAndSelectedSourceType }: CsharpTypeResolutionScope,
-  symbol: Symbol,
-  selectedType: Type | undefined,
-  queries: SourceFileSemantics,
-  state: CsharpTypeResolutionState,
-): TargetTypeRef | undefined {
-  if (selectedType === undefined) {
-    return undefined;
-  }
-  const roots = definedValues(queries.declarations.rootSymbols(symbol));
-  const selectedSymbols = roots.length === 0 ? [symbol] : roots;
-  const typeNodes = definedValues(selectedSymbols.flatMap((selected) =>
-    definedValues(queries.declarations.symbolDeclarations(selected)).map((declaration) =>
-      declarationResultTypeNode(declaration)
-    )
-  ));
-  if (typeNodes.length === 0) {
-    return undefined;
-  }
-  const targets = typeNodes.map((typeNode) =>
-    resolveAuthoredAndSelectedSourceType(
-      typeNode,
-      host.ast.getSourceFile(typeNode) ?? queries.sourceFile,
-      selectedType,
-      queries.sourceFile,
-      nextState(state),
-    )
-  );
-  if (targets.some((target) => target === undefined)) {
-    return undefined;
-  }
-  const first = targets[0]!;
-  return targets.every((target) =>
-      target !== undefined && targetTypeRefEquals(target, first)
-    )
-    ? first
-    : undefined;
-}
 
 export function resolveProjectSourceSemanticType(
   { host, projectSourceDeclarationTargetType, resolveTypeWithState }: CsharpTypeResolutionScope,

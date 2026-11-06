@@ -42,6 +42,9 @@ export type CsharpSourceProfileTypeKind =
   | "weak-map"
   | "weak-set"
   | "array-buffer"
+  | "shared-array-buffer"
+  | "atomics"
+  | "array-entries-iterator"
   | "data-view"
   | "typed-array"
   | "intl-date-time-format"
@@ -175,6 +178,9 @@ const sourceProfileTypePolicies = Object.freeze([
   sourceProfileTypePolicy("js", "WeakMap", "weak-map"),
   sourceProfileTypePolicy("js", "WeakSet", "weak-set"),
   sourceProfileTypePolicy("js", "ArrayBuffer", "array-buffer"),
+  sourceProfileTypePolicy("js", "SharedArrayBuffer", "shared-array-buffer"),
+  sourceProfileTypePolicy("js", "Atomics", "atomics"),
+  sourceProfileTypePolicy("js", "ArrayEntriesIterator", "array-entries-iterator"),
   sourceProfileTypePolicy("js", "DataView", "data-view"),
   ...[
     "Int8Array",

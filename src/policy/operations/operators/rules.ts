@@ -131,7 +131,7 @@ export function selectCsharpNativeBinaryOperation(
     return {
       kind: "resolved", sourceOperator, targetOperation: { kind: "array-index-presence" },
       left, right, leftType, rightType,
-      leftInputType: csharpSourcePrimitiveTargetType("float64"), rightInputType: rightType,
+      leftInputType: leftType, rightInputType: rightType,
       resultType,
     };
   }
@@ -458,6 +458,8 @@ export function selectCsharpNativeUnaryOperation(
   operandType: TargetTypeRef,
   resultType: TargetTypeRef,
 ): CsharpOperationSelection<CsharpResolvedUnaryOperation> {
+  const signedNegation = sourceOperator === "-" && operandType.kind === "source-primitive" &&
+    (operandType.name === "uint8" || operandType.name === "uint16" || operandType.name === "uint32");
   const incompatibility = validateUnaryTargetSemantics(
     sourceOperator,
     operandType,
@@ -469,7 +471,8 @@ export function selectCsharpNativeUnaryOperation(
         sourceOperator,
         targetOperator: sourceOperator,
         operand,
-        operandType,
+        operandType: signedNegation ? resultType : operandType,
+        operandConversionMode: signedNegation ? "explicit" : "implicit",
         resultType,
       }
     : rejectCsharpOperator(incompatibility);

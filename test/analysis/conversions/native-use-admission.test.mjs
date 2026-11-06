@@ -140,7 +140,7 @@ test("flow admission consumes the completed actual shape view and publishes pure
   const actualShape = Object.freeze({ targetType: storage, members: Object.freeze([]), implements: Object.freeze([selected]) });
   const none = Object.freeze({ get: () => undefined });
   const evidence = { compileTimeMetadata: none, valueRefinement: { get: node => node === expression
-    ? { source: { kind: "resolved", refinement: { kind: "exact" } }, flowReadTargetType: selected } : undefined } };
+    ? { kind: "resolved", exact: true, flowReadTargetType: selected } : undefined } };
   const operations = { nativeUnreachable: none };
   const valueReads = { valueRead: { get: node => node === expression
     ? { flowReadStorage: storage, flowReadValue: selected } : undefined } };

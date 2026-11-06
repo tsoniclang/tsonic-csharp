@@ -3,7 +3,8 @@ import type { CsharpTargetParameter, TargetTypeRef } from "../../../../target-mo
 import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import { retainCsharpUnionObjectShapes } from "./source-union-refinement.js";
-import type { SourceCallableTypeEvidence, SourceFileSemantics, SourceTypeComponentEvidence } from "@tsonic/target-api/source";
+import { sourceTypeDescriptorStructure, type SourceCallableTypeEvidence, type SourceFileSemantics,
+  type SourceTypeComponentEvidence, type SourceTypeDescriptor } from "@tsonic/target-api/source";
 import type { AstReader, Type } from "@tsonic/tsts";
 
 import { classifyCsharpSourceProfileType } from "../../../../policy/identities/source-types.js";
@@ -24,6 +25,8 @@ import { resolveCsharpNativeParameterCarrier, selectCsharpPublishedParameterCarr
 import { selectCsharpSourceProfileCarrier } from "../../../../policy/operations/source-profiles/type-carriers.js";
 import type { CsharpProviderRelationResolver } from "../../../../providers/model/relation-resolver.js";
 import { selectCsharpSourceParameterVector } from "../../../../policy/types/callables/parameter-vector.js";
+import { resolveCsharpSourceTypeDescriptor } from "./effective-types.js";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 export function resolveCsharpSourceProfileBaseType(
   type: Type,
   queries: SourceFileSemantics,
@@ -88,16 +91,18 @@ export function resolveCallableType(
 }
 
 export function resolveCallableEvidence(
-  { host, resolveNodeWithState, resolveSignatureParameterEvidence, resolveSourceTypeComponentEvidence }: CsharpTypeResolutionScope,
+  scope: CsharpTypeResolutionScope,
   callable: SourceCallableTypeEvidence,
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
+  const { host, resolveNodeWithState, resolveSignatureParameterEvidence, resolveSourceTypeComponentEvidence } = scope;
   const parameters: CsharpTargetParameter[] = [];
   const expanded = new Set<SourceCallableTypeEvidence["parameters"][number]["sourceSymbol"]>();
   for (const [index, selectedParameter] of callable.parameters.entries()) {
     if (expanded.has(selectedParameter.sourceSymbol)) continue;
     let parameter = selectedParameter;
+    let publishedRest: Extract<SourceTypeDescriptor, { readonly kind: "tuple" }> | undefined;
     const group = parameter.sourceSymbol === undefined ? []
       : callable.parameters.filter(candidate => candidate.sourceSymbol === parameter.sourceSymbol);
     if (group.length > 0) {
@@ -105,21 +110,31 @@ export function resolveCallableEvidence(
       const rest = declaration !== undefined && host.ast.is.IsParameterDeclaration(declaration) &&
         host.ast.as.AsParameterDeclaration(declaration)?.DotDotDotToken !== undefined;
       const syntax = declaration === undefined ? undefined : host.ast.typeNode(declaration);
-      const sourceType = !rest || declaration === undefined ? undefined : syntax === undefined
-        ? queries.declarations.declaredValueType(declaration) : queries.types.authoredType(syntax);
-      if (sourceType !== undefined && queries.types.isTuple(sourceType) &&
+      const publication = !rest || declaration === undefined ? undefined : host.effectiveTypes.get(declaration);
+      if (publication?.kind === "refused") return undefined;
+      if (publication !== undefined && publication.provenance.occurrence !== declaration) failTargetAnalysisInvariant(
+        "tsonic-csharp", "A rest parameter requires its identical published Source occurrence.", declaration);
+      const descriptor = publication === undefined ? undefined : sourceTypeDescriptorStructure(publication.type);
+      const sourceType = publication !== undefined || !rest || syntax === undefined ? undefined : queries.types.authoredType(syntax);
+      if (descriptor?.kind === "tuple" && descriptor.elements.length === group.length) {
+        expanded.add(parameter.sourceSymbol);
+        publishedRest = descriptor;
+        parameter = { ...parameter, declaration: declaration!, parameterKind: "rest", omissionKind: "rest" };
+      } else if (sourceType !== undefined && queries.types.isTuple(sourceType) &&
         queries.types.tupleElementInfos(sourceType).length === group.length) {
         expanded.add(parameter.sourceSymbol);
         parameter = { ...parameter, declaration: declaration!, type: sourceType, parameterKind: "rest", omissionKind: "rest" };
       }
     }
-    const type = resolveSignatureParameterEvidence(parameter, queries, state, "callable");
+    const type = publishedRest === undefined ? resolveSignatureParameterEvidence(parameter, queries, state, "callable")
+      : resolveCsharpSourceTypeDescriptor(scope, publishedRest, state, parameter.declaration);
     if (type === undefined) return undefined;
     const rest = parameter.parameterKind === "rest";
     const vector = selectCsharpSourceParameterVector({ name: `parameter${index}`, type, passingMode: "by-value",
       ...(parameter.acceptsOmission && !rest ? { optional: true } : {}),
       ...(rest ? { paramsArray: true } : {}),
-    }, rest && type.kind === "tuple" ? queries.types.tupleElementInfos(parameter.type) : undefined);
+    }, rest && type.kind === "tuple" ? publishedRest?.elements.map(element => ({ elementKind: element.kind })) ??
+      queries.types.tupleElementInfos(parameter.type) : undefined);
     if (vector === undefined) return undefined;
     parameters.push(...vector);
   }
@@ -192,7 +207,7 @@ export function resolveSignatureParameterEvidence(
 ): TargetTypeRef | undefined {
   const { host, resolveSourceTypeComponentEvidence } = scope;
   const entry = parameter.declaration === undefined ? undefined : host.sourceStorage.subject(parameter.declaration, "input");
-  const contextual = parameter.declaration === undefined || use !== "callable" || host.ast.typeNode(parameter.declaration) !== undefined
+  const contextual = parameter.declaration === undefined || use !== "callable"
     ? undefined : selectCsharpPublishedParameterCarrier(scope, parameter.declaration, state);
   const resolved = contextual?.kind === "unresolved" ? undefined : contextual?.kind === "resolved" ? contextual.type
     : resolveSourceTypeComponentEvidence(

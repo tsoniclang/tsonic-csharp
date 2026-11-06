@@ -3,7 +3,8 @@ import { sourceCallableParameterEvidence, type SourceFileSemantics } from "@tson
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { CsharpTypeResolutionState } from "./model.js";
-import { csharpClassFactoryTargetType } from "../../../../target-model/types/carriers/class-factories.js";
+import { selectCsharpClassFactoryType } from "../../../project-types/class-factory-types.js";
+import { resolveCsharpSourceEffectiveType } from "./effective-types.js";
 import { nextState } from "./state.js";
 
 export function resolveCsharpConstructorValueType(
@@ -26,17 +27,9 @@ export function resolveCsharpConstructorValueType(
       const selected = candidate.returnType;
       return selected !== undefined && queries.types.isIdentical(result, selected);
     })) return undefined;
-    const instance = scope.resolveTypeWithState(result, queries.sourceFile, nextState(state));
+    const instance = resolveCsharpSourceEffectiveType(scope, owner.declaration, nextState(state))?.result?.selectedType;
     if (instance?.kind !== "target-named" || instance.id !== owner.id) return undefined;
-    const names = new Set([...queries.types.propertyInfos(result), ...queries.types.propertyInfos(type)]
-      .map(member => member.name));
-    let createMethodName = "Create";
-    while (names.has(createMethodName)) createMethodName = `_${createMethodName}`;
-    names.add(createMethodName);
-    let instanceTestMethodName = "IsInstance";
-    while (names.has(instanceTestMethodName)) instanceTestMethodName = `_${instanceTestMethodName}`;
-    return csharpClassFactoryTargetType(owner.declaration, instance, owner.factoryName!, owner.outerTypeParameters.length + owner.outerTypeProjections.length,
-      createMethodName, instanceTestMethodName);
+    return selectCsharpClassFactoryType(scope.host.ast, scope.host.projectTypeCatalog, instance);
   }
   if (signatures.length !== 1) return undefined;
   const declaration = queries.declarations.signatureDeclaration(signature.signature);

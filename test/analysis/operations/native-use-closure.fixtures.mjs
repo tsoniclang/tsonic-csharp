@@ -81,7 +81,7 @@ function owners(sourceText, surface = "js") {
   const nodes = [];
   const walk = node => { nodes.push(node); ast.forEachChild(node, child => { if (child !== undefined) walk(child); }); };
   for (const file of csharpProgramSourceFiles(program)) walk(file);
-  const bindingPatterns = analyzeCsharpBindingPatterns({ ast, semanticsFor: source.semantics.forNode, sourceFiles: csharpProgramSourceFiles(program), participation: records.nativeParticipation,
+  const bindingPatterns = analyzeCsharpBindingPatterns({ ast, effectiveTypes: source.effectiveTypes, semanticsFor: source.semantics.forNode, sourceFiles: csharpProgramSourceFiles(program), participation: records.nativeParticipation,
     evidence: records, operations: records, valueReads: records, objectShapes: program.objectShapes, storage: records,
     initializerUses: { get: declaration => {
       const expression = ast.as.AsVariableDeclaration(declaration)?.Initializer;

@@ -675,12 +675,12 @@ export function createCsharpObjectShapePolicy(
     },
     resolveNativeParameter,
     resolveNativeReturn,
-    retainConstructionSource(node: Node, type: Type, shape: CsharpObjectShapeFact, sourceFile: SourceFile): CsharpObjectShapeFact | undefined {
+    retainConstructionSource(node: Node, shape: CsharpObjectShapeFact, sourceFile: SourceFile): CsharpObjectShapeFact | undefined {
       const queries = host.semantics(sourceFile);
       const descriptor = publishedShapeDescriptor(node);
       const members = descriptor === undefined ? undefined
         : retainPublishedMembers(shape.members, descriptor, node, queries, { depth: 0 }, shape.targetType);
-      return members === undefined ? undefined : remember(node, { ...shape, sourceType: type, members });
+      return members === undefined ? undefined : remember(node, { ...shape, members });
     },
     resolveCallableValue: (signature: TargetTypeRef, typeParameters: NonNullable<CsharpObjectShapeMemberFact["typeParameters"]>) =>
       retainCsharpGenericCallableValue(signature, typeParameters, rememberTargetShape, environment),

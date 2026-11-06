@@ -119,15 +119,15 @@ export function selectCsharpConversion(
   if (collectionInterface !== undefined) {
     return collectionInterface;
   }
-  if (sourcePrimitiveImplicitlyConverts(target, source)) {
-    return { kind: "implicit", proof: "numeric" };
-  }
   if (
     mode === "explicit" &&
     source.kind === "source-primitive" &&
     target.kind === "source-primitive"
   ) {
     return { kind: "cast", proof: "numeric" };
+  }
+  if (sourcePrimitiveImplicitlyConverts(target, source)) {
+    return { kind: "implicit", proof: "numeric" };
   }
   if (namedTargetTypeImplicitlyAccepts(input, source, target, new Set())) {
     return { kind: "implicit", proof: "reference" };

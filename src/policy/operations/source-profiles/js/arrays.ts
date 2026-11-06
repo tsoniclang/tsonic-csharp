@@ -8,7 +8,7 @@ import { csharpSourceProfileDiagnostic, resolveCsharpSelectedSourceValue } from 
 
 import { getCsharpRuntimeUnionArms } from "../../../../target-model/types/carriers/runtime-carriers.js";
 import { csharpOptionalStorageProjection, getCsharpGenericOptionalParts } from "../../../../target-model/types/projections.js";
-import { type JsSourceProfileTargetMemberFactory, instanceMethod, jsCallIdentity, jsCallPolicy, jsConstructIdentity, jsElementPolicy, jsMemberIdentity, jsPropertyPolicy, jsRuntimeTargetType, receiverHelperMethod, staticMethod, targetIndexer, targetParameter, targetProperty } from "./common.js";
+import { type JsSourceProfileTargetMemberFactory, instanceMethod, jsCallIdentity, jsCallPolicy, jsConstructIdentity, jsElementPolicy, jsMemberIdentity, jsPropertyPolicy, jsRuntimeTargetType, jsUnsupportedCallPolicy, receiverHelperMethod, staticMethod, targetIndexer, targetParameter, targetProperty } from "./common.js";
 
 const intType = csharpSourcePrimitiveTargetType("int32");
 const doubleType = csharpSourcePrimitiveTargetType("float64");
@@ -138,6 +138,8 @@ const nullableArrayRows = [
 
 export const csharpJsArrayCallPolicies:
   readonly CsharpSourceProfileCallPolicy[] = Object.freeze([
+    jsUnsupportedCallPolicy(jsMemberIdentity("ArrayEntriesIterator", "next"),
+      "Array.entries().next() requires a stateful native iterator binding; the C# surface exposes its exact entry sequence for iteration."),
     ...["Array", "ReadonlyArray"].flatMap((declaringName) => [
       jsCallPolicy(
         jsMemberIdentity(declaringName, "entries"),

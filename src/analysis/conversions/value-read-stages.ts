@@ -77,27 +77,32 @@ export function analyzeCsharpValueReadStages(
     const literal = policy.literalValues.literalValue.get(node);
     const literalConstruction = source !== undefined && literal !== undefined && literal.form !== "array";
     let selectedOperation: TargetTypeRef | undefined;
-    if (literalConstruction && (literal.form === "parenthesized" || literal.form === "binary")) {
-      const outcome = policy.effectiveTypes.get(node);
-      const physical = outcome === undefined || outcome.kind === "refused" ? undefined : outcome.construction ??
-        (outcome.type.kind === "primitive" || outcome.type.kind === "string" || outcome.type.kind === "intrinsic" &&
-          (outcome.type.intrinsic === "bigint" || outcome.type.intrinsic === "absence") ? outcome.type : undefined);
-      selectedOperation = physical === undefined ? undefined
-        : representCsharpSourceType(policy.types.sourceTypeFlowRepresentation(node), physical);
-    } else if (literalConstruction) {
+    if (literalConstruction) {
       const parent = policy.ast.parent(node);
       const authored = parent !== undefined && policy.ast.is.IsPrefixUnaryExpression(parent) &&
         policy.literalValues.literalValue.get(parent) !== undefined ? parent : node;
-      const authoredSource = authored === node ? source : evidence.nodeTargetType.get(authored);
-      const present = getCsharpNullableElementTargetType(authoredSource) ?? authoredSource;
-      const arms = getCsharpRuntimeUnionArms(present, policy.typeDefinitions);
-      selectedOperation = arms === undefined ? present
-        : selectCsharpScalarLiteralCarrier(policy.literalValues.literalValue.get(authored), present, policy.typeDefinitions);
-      if (selectedOperation === undefined && authored === node && arms !== undefined) {
-        const rejection = arms.map(arm => selectCsharpExactLiteralConversion(literal, arm, arm))
-          .find(selection => selection.kind === "rejected");
-        issues.push(Object.freeze({ node, code: "CSHARP_UNSUPPORTED_AST", message: rejection?.kind === "rejected"
-          ? rejection.reason : "The source literal has no admitted physical C# union arm." }));
+      const outcome = policy.effectiveTypes.get(authored);
+      const physical = outcome === undefined || outcome.kind === "refused" ? undefined : outcome.construction ??
+        (outcome.type.kind === "primitive" || outcome.type.kind === "string" || outcome.type.kind === "intrinsic" &&
+          (outcome.type.intrinsic === "bigint" || outcome.type.intrinsic === "absence") ? outcome.type : undefined);
+      if (physical !== undefined) {
+        selectedOperation = representCsharpSourceType(policy.types.sourceTypeFlowRepresentation(authored), physical);
+      } else if (outcome !== undefined && outcome.kind !== "refused" && outcome.type.kind === "intrinsic" &&
+        (outcome.type.intrinsic === "unknown" || outcome.type.intrinsic === "object" || outcome.type.intrinsic === "any")) {
+        issues.push(Object.freeze({ node, code: "CSHARP_UNSUPPORTED_AST",
+          message: "A scalar construction requires its exact produced Source value before native storage conversion." }));
+      } else {
+        const authoredSource = authored === node ? source : evidence.nodeTargetType.get(authored);
+        const present = getCsharpNullableElementTargetType(authoredSource) ?? authoredSource;
+        const arms = getCsharpRuntimeUnionArms(present, policy.typeDefinitions);
+        selectedOperation = arms === undefined ? present
+          : selectCsharpScalarLiteralCarrier(policy.literalValues.literalValue.get(authored), present, policy.typeDefinitions);
+        if (selectedOperation === undefined && authored === node && arms !== undefined) {
+          const rejection = arms.map(arm => selectCsharpExactLiteralConversion(literal, arm, arm))
+            .find(selection => selection.kind === "rejected");
+          issues.push(Object.freeze({ node, code: "CSHARP_UNSUPPORTED_AST", message: rejection?.kind === "rejected"
+            ? rejection.reason : "The source literal has no admitted physical C# union arm." }));
+        }
       }
     } else selectedOperation = operations.operationResultType.get(node) ?? yieldResumeType(node);
     const narrowedRead = evidence.valueRefinement.get(node)?.flowReadTargetType;
