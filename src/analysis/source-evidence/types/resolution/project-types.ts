@@ -8,8 +8,10 @@ import { definedValues } from "./source-evidence.js";
 import { nextState } from "./state.js";
 import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
 import { resolveCsharpProjectionArguments } from "./projection-arguments.js";
-import { sourceCallableInterface, sourceInterfaceRepresentationBase } from "@tsonic/target-api/source";
+import { sourceInterfaceRepresentationBase } from "@tsonic/target-api/source";
 import { bindCsharpSourceDeclarationArguments } from "./generic-arguments.js";
+import { publishedCsharpCallableInterface } from "../published-callable-interface.js";
+import { resolveCsharpSourceTypeDescriptor } from "./effective-types.js";
 
 export function resolveProjectSourceSemanticType(
   { host, projectSourceDeclarationTargetType, resolveTypeWithState }: CsharpTypeResolutionScope,
@@ -90,12 +92,11 @@ export function projectSourceDeclarationTargetType(
   const { host } = scope;
   if (!host.navigation.isProjectDeclaration(declaration)) return undefined;
   const queries = host.semanticsFor(declaration);
-  const declaredType = host.ast.is.IsInterfaceDeclaration(declaration)
-    ? queries.declarations.declaredType(declaration) : undefined;
-  if (sourceCallableInterface(declaredType, queries, host.ast) !== undefined) {
+  const callable = publishedCsharpCallableInterface(declaration, host);
+  if (callable !== undefined) {
     const bound = bindCsharpSourceDeclarationArguments(scope, declaration, typeArguments, sourceArguments, state, queries);
-    return bound === undefined || declaredType === undefined ? undefined
-      : resolveProjectCallableInterface(scope, declaration, declaredType, bound);
+    return bound === undefined ? undefined
+      : resolveProjectCallableInterface(scope, declaration, callable, bound);
   }
   const base = sourceInterfaceRepresentationBase(declaration, host.ast, host.navigation, queries);
   if (base !== undefined && queries.types.isArrayLike(base.selectedType)) {
@@ -146,15 +147,11 @@ export function projectSourceDeclarationTargetType(
 function resolveProjectCallableInterface(
   scope: CsharpTypeResolutionScope,
   declaration: Node,
-  declaredType: Type,
+  callable: NonNullable<ReturnType<typeof publishedCsharpCallableInterface>>,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
   const { host } = scope;
-  const queries = host.semanticsFor(declaration);
-  const symbol = queries.declarations.typeSymbol(declaredType);
-  const declarations = symbol === undefined ? [declaration] : queries.declarations.symbolDeclarations(symbol);
-  if (declarations.length === 0 || declarations.some(candidate =>
-    candidate === undefined || !host.ast.is.IsInterfaceDeclaration(candidate))) return undefined;
+  const { declarations } = callable;
   const inherited: TargetTypeRef[] = [];
   for (const candidate of declarations as readonly Node[]) {
     const heritage = host.navigation.declaredHeritage(candidate);
@@ -174,7 +171,7 @@ function resolveProjectCallableInterface(
   const ownSignature = declarations.some(candidate => host.ast.members(candidate).some(member =>
     member !== undefined && host.ast.is.IsCallSignatureDeclaration(member)));
   const selected = ownSignature || inherited.length === 0
-    ? scope.resolveCallableType(declaredType, queries, nextState(state)) : inherited[0];
+    ? resolveCsharpSourceTypeDescriptor(scope, callable.type, nextState(state), declaration) : inherited[0];
   if (selected === undefined) return undefined;
   if (inherited.some(base => !targetTypeRefEquals(base, selected))) {
     state.rejectNativeResolution?.(Object.freeze({ kind: "rejected", subject: declaration,

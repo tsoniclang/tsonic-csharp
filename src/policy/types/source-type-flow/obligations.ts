@@ -5,11 +5,12 @@ import type { CsharpPolicyContext } from "../../model/context.js";
 import type { CsharpSourceTypeRepresentationHost } from "./representation.js";
 import type { CsharpSourceTypeFlowRelationHost } from "./relations.js";
 import type { CsharpNativeSourceCarrierSelection } from "../../../target-model/records/objects/object-shapes.js";
+import type { CsharpArrayLiteralSelection } from "../../../target-model/records/operations/array-literals.js";
 import type { TargetConstraint, TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpTargetTypeFailsConstraint, type CsharpConstraintSatisfactionHost } from "../../../analysis/operations/members/calls/constraint-satisfaction.js";
 import { representCsharpSourceType } from "./representation.js";
 import { csharpSourceTypeFlowInterfaceAccepts } from "./relations.js";
-import { csharpLiteralIsRepresentableAs, selectCsharpExactLiteralConversion, selectCsharpScalarLiteralCarrier } from "../../conversions/literals.js";
+import { csharpLiteralIsRepresentableAs, selectCsharpExactLiteralConversion } from "../../conversions/literals.js";
 import { csharpArrayElementIsRepresentableAs } from "../collections/array-elements.js";
 import { selectCsharpConversion } from "../../conversions/core.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../target-model/types/equality.js";
@@ -23,6 +24,7 @@ export interface CsharpSourceTypeFlowObligationHost extends CsharpSourceTypeRepr
   readonly typeDefinitions: CsharpPolicyContext["typeDefinitions"];
   readonly constraintHost: CsharpConstraintSatisfactionHost;
   valueType(node: Node): TargetTypeRef | undefined;
+  arrayLiteral(node: Node): CsharpArrayLiteralSelection;
   literalAdmission(node: Node, type: TargetTypeRef): CsharpNativeSourceCarrierSelection | undefined;
   requiredType(node: Node, association: SourceTypeFlowAssociation | undefined): TargetTypeRef | undefined;
   nativeConstraints(node: Node, type: TargetTypeRef, association: SourceTypeFlowAssociation | undefined): {
@@ -80,10 +82,10 @@ export function checkCsharpSourceTypeFlowObligation(
     const element = getCsharpCollectionElementTargetType(carrier);
     if (obligation.authority === "inferred" && literal?.form === "array" && element !== undefined &&
       (getCsharpRuntimeUnionArms(element, host.typeDefinitions) !== undefined || getCsharpNullableElementTargetType(element) !== undefined)) {
-      for (const value of literal.elements) {
-        const physical = selectCsharpScalarLiteralCarrier(value, element, host.typeDefinitions)
-          ?? getCsharpNullableElementTargetType(element) ?? element;
-        if (!csharpArrayElementIsRepresentableAs(physical, { carrier: physical, literal: value })) {
+      const selected = host.arrayLiteral(site);
+      if (selected.kind === "resolved") for (const [index, value] of literal.elements.entries()) {
+        const physical = selected.elementCarriers[index];
+        if (physical === undefined || !csharpArrayElementIsRepresentableAs(physical, { carrier: physical, literal: value })) {
           return Object.freeze({ source: "tsonic-csharp", sourceNode: obligation.site, category: "error",
             code: "CSHARP_ARRAY_ELEMENT_CARRIER_MISMATCH",
             message: "An inferred numeric union requires an exact canonical carrier for every authored integer literal." });

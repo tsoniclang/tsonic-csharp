@@ -24,7 +24,16 @@ export function bindCsharpSourceTypeArguments(
     const sources: Type[] = [];
     const targets: TargetTypeRef[] = [];
     for (const argument of [...published.receiver, ...published.method]) {
-      const checked = queries.declarations.declaredType(argument.declaration);
+      const methodParameters = (source.sourceSelectedMethodTypeArguments ?? []).flatMap(selected => {
+        const symbol = queries.declarations.typeSymbol(selected.typeParameter);
+        return symbol !== undefined && queries.declarations.symbolDeclarations(symbol).includes(argument.declaration)
+          ? [selected.typeParameter] : [];
+      });
+      const parameters = [...new Set([
+        ...(bindings ?? []).filter(binding => binding.declaration === argument.declaration).map(binding => binding.parameterType),
+        ...methodParameters,
+      ])];
+      const checked = parameters.length === 1 ? parameters[0] : undefined;
       const target = resolveCsharpSourceTypeDescriptor(scope, argument.type, nextState(state), source.call);
       if (checked === undefined || target === undefined || declarations.includes(argument.declaration)) return undefined;
       declarations.push(argument.declaration); sources.push(checked); targets.push(target);

@@ -1,5 +1,6 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
-import { sourceCallableInterface, sourceInterfaceRepresentationBase, type TargetSourceProgram } from "@tsonic/target-api/source";
+import { sourceInterfaceRepresentationBase, type TargetSourceProgram } from "@tsonic/target-api/source";
+import { publishedCsharpCallableInterface } from "../source-evidence/types/published-callable-interface.js";
 
 export function analyzeCsharpTypeOnlyDeclarations(source: TargetSourceProgram, sourceFiles: readonly SourceFile[]): ReadonlySet<Node> {
   const declarations = new Set<Node>();
@@ -25,7 +26,8 @@ export function analyzeCsharpTypeOnlyDeclarations(source: TargetSourceProgram, s
     }
     if (!ast.is.IsInterfaceDeclaration(statement)) continue;
     const semantics = source.semantics.forNode(statement);
-    if (sourceCallableInterface(semantics.declarations.declaredType(statement), semantics, ast) !== undefined) {
+    if (publishedCsharpCallableInterface(statement, { ast, navigation, effectiveTypes: source.effectiveTypes,
+      semanticsFor: source.semantics.forNode }) !== undefined) {
       declarations.add(statement);
       continue;
     }

@@ -14,7 +14,7 @@ import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { TargetTypeRef } from "../../policy/types/index.js";
 import { getCsharpNullableElementTargetType, isCsharpAbsenceTargetType, targetTypeRefEquals } from "../../policy/types/index.js";
 
-import { csharpLiteralIsRepresentableAs, selectCsharpScalarLiteralCarrier } from "../../policy/conversions/literals.js";
+import { csharpLiteralIsRepresentableAs } from "../../policy/conversions/literals.js";
 
 import type { CsharpSourceOperator } from "../../target-model/syntax/operators.js";
 import { isCsharpAssignmentOperator, sourceOperatorFromKindName } from "../../target-model/syntax/operators.js";
@@ -205,9 +205,11 @@ export function selectCsharpUnaryOperation(
     ? input.types.resolveReadStorage(operand, sourceFile)
     : input.types.resolveNode(operand, sourceFile)?.sourceResult?.selectedType;
   const sourceResult = update ? sourceOperand : input.types.resolveNode(node, sourceFile)?.sourceResult?.selectedType;
-  const literalCarrier = prefix && (sourceOperator === "+" || sourceOperator === "-")
-    ? selectCsharpScalarLiteralCarrier(input.literalValues.literalValue.get(node), sourceResult, input.typeDefinitions)
-    : undefined;
+  const outcome = input.effectiveTypes.get(node);
+  const physical = outcome === undefined || outcome.kind === "refused" ? undefined : outcome.construction ?? outcome.type;
+  const literalCarrier = prefix && (sourceOperator === "+" || sourceOperator === "-") &&
+    input.literalValues.literalValue.get(node) !== undefined && physical !== undefined
+    ? representCsharpSourceType(input.types.sourceTypeFlowRepresentation(node), physical) : undefined;
   const operandType = literalCarrier ?? sourceOperand;
   const resultType = literalCarrier ?? sourceResult;
   if (operandType === undefined || resultType === undefined) {

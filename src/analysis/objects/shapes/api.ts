@@ -449,9 +449,9 @@ export function createCsharpObjectShapePolicy(
         queries.types.constructSignatures(type).length > 0) {
         const definition = host.projectTypeCatalog.definitionForTarget(contextualProjectType);
         const instance = definition === undefined ? undefined
-          : queries.declarations.declaredType(definition.declaration);
-        if (instance === undefined || instance === type) return undefined;
-        return resolveSemanticShape(instance, undefined, queries, nextState(state), contextualProjectType);
+          : publishedShapeDescriptor(definition.declaration);
+        if (instance?.kind !== "declared" || instance.declaration !== definition?.declaration) return undefined;
+        return resolveProjectDeclarationShape(contextualProjectType, nextState(state));
       }
       const declaredShape = contextualProjectType !== undefined && declaredKind === "class"
         ? resolveProjectDeclarationShape(contextualProjectType, state) : undefined;

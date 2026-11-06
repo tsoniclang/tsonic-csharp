@@ -5,7 +5,8 @@ import { csharpProviderBindingFromResolution } from "../../providers/model/relat
 import type { CsharpProjectTypeDefinition, CsharpProjectTypeHeritage, CsharpProjectTypeIssue } from "../../target-model/records/types/project-types.js";
 import type { AstReader, Node, ReadonlySourceFactResolver } from "@tsonic/tsts";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
-import { sourceNodeIdentity, sourceCallableInterface, sourceInterfaceRepresentationBase } from "@tsonic/target-api/source";
+import { sourceNodeIdentity, sourceInterfaceRepresentationBase, type SourceEffectiveTypes } from "@tsonic/target-api/source";
+import { publishedCsharpCallableInterface } from "../source-evidence/types/published-callable-interface.js";
 import { csharpFreeTypeParameterIdentities, visitCsharpTargetTypeParameters } from "../../target-model/types/generic-references.js";
 import { csharpSourceTypeParameter } from "../../source/extension/type-parameters.js";
 import type { SourceEnumConstantIndex, SourceFileSemantics, SourceProgramNavigation } from "@tsonic/target-api/source";
@@ -22,6 +23,7 @@ import type { CsharpProjectConstructorPolicy } from "../../target-model/records/
 
 export interface CsharpProjectTypeCatalogHost {
   readonly ast: AstReader;
+  readonly effectiveTypes: SourceEffectiveTypes;
   readonly navigation: SourceProgramNavigation;
   readonly enumConstants: SourceEnumConstantIndex;
   readonly sourceFacts?: ReadonlySourceFactResolver;
@@ -247,7 +249,7 @@ export function projectTypeDefinition(
   const local = kind === "class" && !host.ast.is.IsSourceFile(host.ast.parent(declaration)!);
   const semantics = host.semanticsFor(declaration);
   if (kind === "interface") {
-    if (sourceCallableInterface(semantics.declarations.declaredType(declaration), semantics, host.ast) !== undefined) return { kind: "not-project-type" };
+    if (publishedCsharpCallableInterface(declaration, host) !== undefined) return { kind: "not-project-type" };
     const representation = sourceInterfaceRepresentationBase(declaration, host.ast, host.navigation, semantics);
     if (representation !== undefined && semantics.types.isArrayLike(representation.selectedType)) return { kind: "not-project-type" };
   }

@@ -12,7 +12,6 @@ import { csharpSourceTypeParameter } from "../../source/extension/type-parameter
 import { representCsharpSourceType } from "../../policy/types/source-type-flow/representation.js";
 import { selectCsharpConversion } from "../../policy/conversions/core.js";
 import { csharpConversionIsApplicable } from "../../policy/conversions/applicability.js";
-import { selectCsharpScalarLiteralCarrier } from "../../policy/conversions/literals.js";
 
 export function analyzeCsharpSourceTypeFlowObligations(
   policy: CsharpPolicyContext,
@@ -35,13 +34,21 @@ export function analyzeCsharpSourceTypeFlowObligations(
         const selected = policy.types.resolveNode(node, policy.ast.getSourceFile(node));
         return selected?.kind === "resolved" ? selected.sourceResult.selectedType : undefined;
       },
+      arrayLiteral(node) {
+        const sourceFile = policy.ast.getSourceFile(node);
+        return sourceFile === undefined ? { kind: "unavailable" } : policy.types.resolveArrayLiteral(node, sourceFile);
+      },
       literalAdmission(node, chosen) {
         const dictionary = dictionaryLiterals.dictionaryLiteral.get(node, chosen);
         if (dictionary !== undefined) return { kind: "resolved", type: dictionary.carrier };
         const issue = nativeConstruction.issues.find(issue => issue.node === node);
         if (issue !== undefined) return { kind: "rejected", subject: issue.node, code: issue.code, reason: issue.message };
         const selected = nativeConstruction.constructionFor(node);
-        const scalar = selectCsharpScalarLiteralCarrier(policy.literalValues.literalValue.get(node), chosen, policy.typeDefinitions);
+        const outcome = policy.effectiveTypes.get(node);
+        const descriptor = outcome === undefined || outcome.kind === "refused" ? undefined : outcome.construction ??
+          (outcome.type.kind === "primitive" || outcome.type.kind === "string" || outcome.type.kind === "intrinsic" &&
+            (outcome.type.intrinsic === "bigint" || outcome.type.intrinsic === "absence") ? outcome.type : undefined);
+        const scalar = descriptor === undefined ? undefined : representCsharpSourceType(representation, descriptor);
         const actual = selected?.targetType ?? scalar;
         if (actual !== undefined) {
           const conversion = selectCsharpConversion(policy, actual, chosen, "implicit");

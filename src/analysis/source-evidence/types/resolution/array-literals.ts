@@ -8,10 +8,10 @@ import { nextState } from "./state.js";
 import { getCsharpCollectionElementTargetType } from "../../../../target-model/types/carriers/collections.js";
 import { getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
 import { getCsharpGenericOptionalParts } from "../../../../target-model/types/projections.js";
-import { resolveCsharpSourceEffectiveType } from "./effective-types.js";
+import { resolveCsharpSourceEffectiveType, resolveCsharpSourceTypeDescriptor } from "./effective-types.js";
 import { selectCsharpConversion } from "../../../../policy/conversions/core.js";
 import { csharpConversionIsApplicable } from "../../../../policy/conversions/applicability.js";
-import { selectCsharpExactLiteralConversion, selectCsharpScalarLiteralCarrier } from "../../../../policy/conversions/literals.js";
+import { selectCsharpExactLiteralConversion } from "../../../../policy/conversions/literals.js";
 import { csharpArrayLiteralElisionIssue } from "../../../../policy/types/collections/literal-construction.js";
 
 const unavailable: CsharpArrayLiteralSelection = Object.freeze({ kind: "unavailable" });
@@ -60,8 +60,10 @@ export function resolveCsharpArrayLiteralSelection(
       if (selected === undefined) complete = false;
       else {
         const required = presentCarrier.kind === "tuple" ? presentCarrier.elements[elements.length] : element;
-        const physical = selectCsharpScalarLiteralCarrier(host.literalValues.literalValue.get(entry), required, host.typeDefinitions)
-          ?? selected;
+        const outcome = host.effectiveTypes.get(entry);
+        const physical = outcome !== undefined && outcome.kind !== "refused" && outcome.construction !== undefined
+          ? resolveCsharpSourceTypeDescriptor(scope, outcome.construction, nextState(state), entry) : selected;
+        if (physical === undefined) { complete = false; continue; }
         elements.push(physical);
         if (required === undefined || !fits(required, physical, entry)) mismatch = true;
       }
