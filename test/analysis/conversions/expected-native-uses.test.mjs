@@ -50,6 +50,50 @@ function collect(value) {
   return collectCsharpExpectedNativeUseSites(value.projection.requests);
 }
 
+test("initializer destinations use the published declaration storage rather than annotation syntax", () => {
+  const target = csharpSourcePrimitiveTargetType("int32");
+  for (const kind of ["property", "array-pattern"]) {
+    const declaration = {};
+    const initializer = {};
+    const annotation = {};
+    const name = {};
+    const recorded = [];
+    const input = {
+      policy: { ast: {
+        typeNode: () => annotation,
+        name: () => name,
+        is: {
+          IsVariableDeclaration: node => node === declaration && kind === "array-pattern",
+          IsParameterDeclaration: () => false,
+          IsPropertyDeclaration: node => node === declaration && kind === "property",
+          IsBindingElement: () => false,
+          IsEnumMember: () => false,
+          IsObjectBindingPattern: () => false,
+          IsArrayBindingPattern: node => node === name && kind === "array-pattern",
+          IsArrayLiteralExpression: node => node === initializer && kind === "array-pattern",
+        },
+        as: {
+          AsVariableDeclaration: () => ({ Initializer: initializer }),
+          AsPropertyDeclaration: () => ({ Initializer: initializer }),
+        },
+      } },
+      evidence: {
+        nodeTargetType: { get: () => assert.fail("an annotation is not a published runtime value") },
+        storageTargetType: { get: node => { assert.equal(node === declaration, true, kind); return target; } },
+      },
+      callables: { closedInputType: () => undefined },
+      valueReadStages: { get: () => assert.fail("an authored array-pattern destination owns its declaration storage") },
+    };
+    const producer = createCsharpExpectedConstructUses(input, {
+      quotationBinding: () => undefined,
+      record: (...entry) => recorded.push(entry),
+    });
+    producer.recordInitializer(declaration);
+    assert.equal(recorded.length === 1 && recorded[0][0] === initializer && recorded[0][1] === target &&
+      recorded[0][2] === "required" && recorded[0][3].owner === declaration && recorded[0][3].slot.kind === "initializer", true, kind);
+  }
+});
+
 for (const surface of ["native", "js"]) test(`${surface} actual selected calls and wrapper forwarding preserve exact source/effective/parameter sites`, () => {
   const value = owners(`
     import type { int32 } from "@tsonic/core/types.js";

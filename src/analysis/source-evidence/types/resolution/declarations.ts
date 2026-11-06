@@ -4,7 +4,7 @@ import type { Node } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import { nextState } from "./state.js";
 import { readCsharpSourceField } from "../../../../source/extension/markers.js";
-import { resolveCsharpSourceEffectiveType } from "./effective-types.js";
+import { resolveCsharpPublishedCallableReturn, resolveCsharpSourceEffectiveType } from "./effective-types.js";
 
 export function resolveSelectedDeclarationResult(
   scope: CsharpTypeResolutionScope,
@@ -18,7 +18,13 @@ export function resolveSelectedDeclarationResult(
     const selected = host.projectTypes().instantiateMemberType(declaration, receiverType, type);
     return selected.kind === "unresolved" ? undefined : selected.kind === "resolved" ? selected.type : type;
   };
-  const effective = declaration === undefined ? undefined : resolveCsharpSourceEffectiveType(scope, declaration, state);
+  const parameters = declaration !== undefined && host.ast.is.IsSetAccessorDeclaration(declaration)
+    ? host.ast.parameters(declaration)
+    : undefined;
+  const subject = parameters === undefined ? declaration : parameters.length === 1 ? parameters[0] : undefined;
+  const effective = subject === undefined ? undefined : host.ast.is.IsGetAccessorDeclaration(subject)
+    ? resolveCsharpPublishedCallableReturn(scope, subject, state)
+    : resolveCsharpSourceEffectiveType(scope, subject, state);
   if (effective !== undefined) return instantiate(effective.result?.selectedType);
   const sourceField = readCsharpSourceField(host.sourceFacts, [declaration]);
   if (sourceField !== undefined) {

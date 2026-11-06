@@ -5,8 +5,8 @@ import { acceptedEffectiveSource, assertArrayOccurrences, assertNativeEffectiveR
 const header = 'import type { int8, int32, int64, uint32, float32 } from "@tsonic/core/types.js";';
 
 for (const surface of ["native", "js"]) {
-  for (const [name, body, arrays, values] of [
-    ["default is int32 on every surface", "const items = [1, 2]; return items[0] === 1;", [["items", "int32"]], []],
+  for (const [name, body, arrays, values, companionBody] of [
+    ["default is int64 on every surface", "const items = [1, 2]; return items[0] === 1;", [["items", "int64"]], []],
     ["one concrete parameter fills aliases backwards and forwards", "const original = [1, 2]; const alias = original; sum(alias); return original[0] === 1;", [["original", "float64"], ["alias", "float64"]], []],
     ["mutable declaration alias shares the same type", "const original = [1, 2]; let alias = original; sum(alias); return original[0] === 1;", [["original", "float64"], ["alias", "float64"]], []],
     ["typed initialization is a concrete use", "const pending = [1, 2]; const selected: number[] = pending; return selected[0] === 1;", [["pending", "float64"]], []],
@@ -14,32 +14,46 @@ for (const surface of ["native", "js"]) {
     ["iteration destructuring rest and spread retain the same element group", "const items = [1, 2]; const [head, ...tail] = items; const copied = [...tail]; sum(copied); return head === 1;", [["items", "float64"], ["tail", "float64"], ["copied", "float64"]], [["head", "float64"]]],
     ["a concrete type assertion fills its original local", "const items = [1, 2]; const selected = items as number[]; return selected[0] === 1;", [["items", "float64"], ["selected", "float64"]], []],
     ["compound declared right side fills the binding", "let total = 0; total += price; return total === price;", [], [["total", "float64"]]],
-    ["compound open right side is only a write check", "const items = [1, 2]; let total = 0; for (const item of items) total += item; return total === 3;", [["items", "int32"]], [["total", "int32"], ["item", "int32"]]],
-    ["literal updates never fill", "let count = 1; count += 2; count++; count--; return count === 3;", [], [["count", "int32"]]],
-    ["element writes retain the original default", "let items = [1, 2]; items[0] = 3; return items[0] === 3;", [["items", "int32"]], []],
-    ["same-typed reassignment is checked without relinking", "let items = [1, 2]; items = replacement; return items[0] === replacement[0];", [["items", "int32"]], []],
-    ["arithmetic-derived locals are typed bottom up", "const firstValue = 3; const doubled = firstValue * 2; const shifted = doubled + 1; return shifted === 7;", [], [["firstValue", "int32"], ["doubled", "int32"], ["shifted", "int32"]]],
-    ["all-literal arithmetic retains the folded integer leaf", "const milliseconds = 60 * 1000; return milliseconds === 60000;", [], [["milliseconds", "int32"]]],
-    ["integer division remains integer on both surfaces", "const value = 7; const divided = value / 2; return divided === 3;", [], [["divided", "int32"]]],
+    ["compound open right side is only a write check", "const items = [1, 2]; let total = 0; for (const item of items) total += item; return total === 3;", [["items", "int64"]], [["total", "int64"], ["item", "int64"]]],
+    ["literal updates never fill", "let count = 1; count += 2; count++; count--; return count === 3;", [], [["count", "int64"]]],
+    ["element writes retain the original default", "let items = [1, 2]; items[0] = 3; return items[0] === 3;", [["items", "int64"]], []],
+    ["plain reassignment requires an explicit int32 array slot", "let items = [1, 2]; items = replacement; return items[0] === replacement[0];", [["items", "int32"]], [], "let items: int32[] = [1, 2]; items = replacement; return items[0] === replacement[0];"],
+    ["arithmetic-derived locals are typed bottom up", "const firstValue = 3; const doubled = firstValue * 2; const shifted = doubled + 1; return shifted === 7;", [], [["firstValue", "int64"], ["doubled", "int64"], ["shifted", "int64"]]],
+    ["all-literal arithmetic retains the folded integer leaf", "const milliseconds = 60 * 1000; return milliseconds === 60000;", [], [["milliseconds", "int64"]]],
+    ["integer division remains integer on both surfaces", "const value = 7; const divided = value / 2; return divided === 3;", [], [["divided", "int64"]]],
     ["fractional literals retain double", "const value = 0.5; return value === 0.5;", [], [["value", "float64"]]],
-    ["comparison cannot fill an integer from a double partner", "const value = 1; return value < price;", [], [["value", "int32"]]],
-    ["string concatenation does not fill", 'const value = 1; const message = "count=" + value; return message !== "";', [], [["value", "int32"]]],
-    ["unknown slots do not fill", "const items = [1, 2]; keep(items); return items[0] === 1;", [["items", "int32"]], []],
+    ["comparison cannot fill an integer from a double partner", "const value = 1; return value < price;", [], [["value", "int64"]]],
+    ["string concatenation does not fill", 'const value = 1; const message = "count=" + value; return message !== "";', [], [["value", "int64"]]],
+    ["unknown slots do not fill", "const items = [1, 2]; keep(items); return items[0] === 1;", [["items", "int64"]], []],
     ["explicit generic arguments fill the actual binder", "const items = [1, 2]; const value = first<int32>(items); return value === 1;", [["items", "int32"]], [["value", "int32"]]],
-    ["two instances of one generic have independent types", "const integer = identity(1); const fraction = identity(0.5); return integer === 1 && fraction === 0.5;", [], [["integer", "int32"], ["fraction", "float64"]]],
-    ["a shift count takes int32 without imposing its type on the left operand", "const left: int32 = 1; const amount = 1; const shifted = left << amount; return shifted === left + left;", [], [["left", "int32"], ["amount", "int32"], ["shifted", "int32"]]],
+    ["two instances of one generic have independent types", "const integer = identity(1); const fraction = identity(0.5); return integer === 1 && fraction === 0.5;", [], [["integer", "int64"], ["fraction", "float64"]]],
+    ["a shift count takes int64 without imposing its type on the left operand", "const left: int32 = 1; const amount = 1; const shifted = left << amount; return shifted === left + left;", [], [["left", "int32"], ["amount", "int64"], ["shifted", "int32"]]],
   ]) {
-    test(`${surface} effective types: ${name}`, () => {
-      const compiled = compileEffectiveSource(surface, `${header}
+    const sourceText = `${header}
         function sum(values: number[]): void { void values; }
         function keep(input: unknown): void { void input; }
         function identity<T>(input: T): T { return input; }
         function first<T>(values: T[]): T { return values[0]; }
         export function run(price: number, replacement: int32[], wide: int64): boolean { ${body} }
-      `);
+      `;
+    test(`${surface} effective types: ${name}`, () => {
+      const compiled = compileEffectiveSource(surface, sourceText);
+      if (companionBody !== undefined) {
+        assertNativeEffectiveRefusal(compiled, surface === "native"
+          ? "No exact C# implicit conversion relates 'array:1:source:int32' to 'array:1:source:int64'. Annotate `let items: int32[] = [1, 2]`."
+          : "No exact C# implicit conversion relates 'target:Tsonic.CSharp.Js.JSArray`1<source:int32>' to 'target:Tsonic.CSharp.Js.JSArray`1<source:int64>'. Annotate `let items: int32[] = [1, 2]`.", "replacement");
+        return;
+      }
       acceptedEffectiveSource(compiled);
       for (const [binding, primitive] of arrays) assertArrayOccurrences(compiled, binding, primitive);
       for (const [binding, primitive] of values) assertPrimitiveOccurrences(compiled, binding, primitive);
+    });
+    if (companionBody !== undefined) test(`${surface} effective types: ${name} (annotated companion)`, () => {
+      const compiled = compileEffectiveSource(surface, sourceText.replace(body, companionBody));
+      const text = acceptedEffectiveSource(compiled);
+      for (const [binding, primitive] of arrays) assertArrayOccurrences(compiled, binding, primitive);
+      for (const [binding, primitive] of values) assertPrimitiveOccurrences(compiled, binding, primitive);
+      assert.match(text, surface === "native" ? /\bint\[\] items\b/u : /\bJSArray<int> items\b/u);
     });
   }
 
@@ -123,7 +137,7 @@ for (const surface of ["native", "js"]) {
       }
     `);
     acceptedEffectiveSource(compiled);
-    assertPrimitiveOccurrences(compiled, "total", "int32", 2);
+    assertPrimitiveOccurrences(compiled, "total", "int64", 2);
   });
 
   test(`${surface} a concrete captured use cannot fill another callable's open group`, () => {
@@ -138,13 +152,22 @@ for (const surface of ["native", "js"]) {
     assertPublishedRefusal(compiled, "TSONIC_LOCAL_TYPE_SELF_REFERENCE", "takeDouble(value)");
   });
 
-  test(`${surface} module bindings stay at their declaration default`, () => {
+  test(`${surface} module defaults cannot narrow implicitly into a declared return`, () => {
     const compiled = compileEffectiveSource(surface, `${header}
       const moduleValue = 1;
       export function run(): int32 { return moduleValue; }
     `);
-    acceptedEffectiveSource(compiled);
+    assertNativeEffectiveRefusal(compiled, "No exact C# implicit conversion relates 'source:int64' to 'source:int32'. Annotate `const moduleValue: int32 = 1`.", "moduleValue");
+  });
+
+  test(`${surface} an annotated module binding retains the declared int32 emission`, () => {
+    const compiled = compileEffectiveSource(surface, `${header}
+      const moduleValue: int32 = 1;
+      export function run(): int32 { return moduleValue; }
+    `);
+    const text = acceptedEffectiveSource(compiled);
     assertPrimitiveOccurrences(compiled, "moduleValue", "int32");
+    assert.match(text, /\bint moduleValue\b/u);
   });
 
   for (const operator of ["?:", "??", "||", "&&"]) {
@@ -181,7 +204,7 @@ for (const surface of ["native", "js"]) {
       assert.equal(shape.kind !== "refused" && shape.type.kind === "shape", true, "the unfilled outer value retains its own shape");
       const chosen = shape.type.members.find(member => member.name === "chosen");
       const unchanged = shape.type.members.find(member => member.name === "unchanged");
-      assert.equal(chosen?.type.primitive === "float64" && unchanged?.type.primitive === "int32", true,
+      assert.equal(chosen?.type.primitive === "float64" && unchanged?.type.primitive === "int64", true,
         "a member-level demand does not retype independent members");
     }
   });
@@ -191,10 +214,21 @@ for (const surface of ["native", "js"]) {
       function observe(values: readonly int32[]): void { void values; }
       export function run(): boolean { const selected = [1, 2]; observe(selected); return selected[0] === 1; }
     `);
-    acceptedEffectiveSource(compiled);
-    assertArrayOccurrences(compiled, "selected", "int32");
+    assertNativeEffectiveRefusal(compiled, surface === "native"
+      ? "No exact C# implicit conversion relates 'array:1:source:int64' to 'array:1:source:int32'. Annotate `const selected: int32[] = [1, 2]`."
+      : "No exact C# implicit conversion relates 'source:int64' to 'source:int32'. Annotate `const selected: int32[] = [1, 2]`.", "selected");
     const checks = compiled.targetSource.effectiveTypes.obligations().filter(obligation => obligation.kind === "read-only");
     assert.equal(checks.length, 1, "the actual readonly parameter produces an obligation rather than a fill");
+  });
+
+  test(`${surface} an annotated mutable array supplies the readonly parameter's int32 width`, () => {
+    const compiled = compileEffectiveSource(surface, `${header}
+      function observe(values: readonly int32[]): void { void values; }
+      export function run(): boolean { const selected: int32[] = [1, 2]; observe(selected); return selected[0] === 1; }
+    `);
+    const text = acceptedEffectiveSource(compiled);
+    assertArrayOccurrences(compiled, "selected", "int32");
+    assert.match(text, surface === "native" ? /\bint\[\] selected\b/u : /\bJSArray<int> selected\b/u);
   });
 
   test(`${surface} typed object uses fill nested members without rebuilding aliases`, () => {
@@ -378,7 +412,7 @@ test("js receiver-only argument places publish write checks without linking or f
     }
   `);
   acceptedEffectiveSource(compiled);
-  assertArrayOccurrences(compiled, "values", "int32");
+  assertArrayOccurrences(compiled, "values", "int64");
   const checks = compiled.targetSource.effectiveTypes.obligations().filter(row => row.kind === "write-fit");
   assert.equal(checks.length, 3, "insertion includes and indexOf are classified by their receiver binder, not member-name filling");
   for (const check of checks) {
@@ -400,8 +434,8 @@ test("js Map tuple inference keeps distinct key and value declaration binders", 
   assert.equal(outcomes.length >= 2, true, "the same constructed map and its real receiver read are published");
   for (const outcome of outcomes) {
     assert.equal(outcome.kind !== "refused" && outcome.type.kind === "declared", true);
-    assert.equal(outcome.type.typeArguments.length === 2 && outcome.type.typeArguments[0].primitive === "int32" &&
+    assert.equal(outcome.type.typeArguments.length === 2 && outcome.type.typeArguments[0].primitive === "int64" &&
       outcome.type.typeArguments[1].kind === "string", true, "the tuple's key and value retain their own binder positions");
   }
-  assert.match(text, /Map<int, string>/u);
+  assert.match(text, /Map<long, string>/u);
 });

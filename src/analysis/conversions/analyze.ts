@@ -35,6 +35,7 @@ import { createCsharpDelegateContractProducer } from "../program/records/callabl
 import { admitCsharpDelegateEmission, admitCsharpDelegateOperand } from "./callable-emission.js";
 import { sourceTransparentExpressionOperand } from "@tsonic/target-api/source";
 import { readCsharpSelectedWritingReference } from "../callables/values/argument-passing.js";
+import { csharpConversionAnnotationHint } from "./source-annotation.js";
 
 const maximumConversionClassifications = 1_048_576;
 
@@ -180,7 +181,10 @@ export function analyzeCsharpConversions(
         const selected = classifyPair(source, target, "implicit", expression);
         return selected;
       }, requiredRecords, issues, callConversions);
-      issues.push(...admitted.issues);
+      issues.push(...admitted.issues.map(issue => {
+        const hint = csharpConversionAnnotationHint(policy, selectedOperations, issue.node);
+        return hint === undefined ? issue : Object.freeze({ ...issue, message: `${issue.message} ${hint}` });
+      }));
       delegateAdapters = sealCsharpDelegateAdapterIdentities(policy, preparedValueReads, admitted.expressions, issues);
       delegateContracts.seal();
       closed = true;

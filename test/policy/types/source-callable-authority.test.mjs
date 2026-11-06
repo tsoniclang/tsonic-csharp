@@ -41,10 +41,13 @@ function fixture() {
       isDeclarationFile: selected => selected.declarationFile === true,
       getSourceFile: selected => selected.file,
     },
-    semanticsFor: () => ({
-      types: { expressionType: selected => selected === initializer ? {} : undefined, callSignatures: () => signatures },
-      declarations: { signatureDeclaration: selected => selected.declaration },
-    }),
+    effectiveTypes: {
+      get: selected => selected === initializer ? {
+        kind: "resolved",
+        type: { kind: "callable", calls: signatures, constructs: [] },
+        provenance: { group: initializer, occurrence: initializer, sourceFile: file },
+      } : undefined,
+    },
   };
   return { input, file, expression, initializer, declaration, implementation, signatures };
 }

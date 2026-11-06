@@ -47,14 +47,13 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
     if (policy.ast.is.IsVariableDeclaration(node) && name !== undefined &&
       (policy.ast.is.IsObjectBindingPattern(name) || policy.ast.is.IsArrayBindingPattern(name))) {
       const contextualArray = policy.ast.is.IsArrayBindingPattern(name) && policy.ast.is.IsArrayLiteralExpression(initializer);
-      record(initializer, typeNode === undefined || !contextualArray ? valueReadStages.get(initializer)?.operationValue : evidence.nodeTargetType.get(typeNode),
+      record(initializer, typeNode === undefined || !contextualArray ? valueReadStages.get(initializer)?.operationValue : evidence.storageTargetType.get(node),
         "required", slot === undefined ? undefined : at(node, slot));
       return;
     }
     const target = policy.ast.is.IsParameterDeclaration(node) ? declarations.runtimeDefault.get(node)?.valueType
       : policy.ast.is.IsVariableDeclaration(node) ? callables.closedInputType(node) : undefined;
-    record(initializer, target ?? (policy.ast.is.IsVariableDeclaration(node) || typeNode === undefined
-      ? evidence.storageTargetType.get(node) : evidence.nodeTargetType.get(typeNode)),
+    record(initializer, target ?? evidence.storageTargetType.get(node),
       typeNode === undefined ? "contextual" : "required", slot === undefined ? undefined : at(node, slot));
   }
 
