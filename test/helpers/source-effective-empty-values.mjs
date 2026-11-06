@@ -42,6 +42,10 @@ export function annotatedEmptyValues(sourceText) {
     annotations += 1;
     return "retain({} as ExplicitEmptyValue)";
   });
+  selected = selected.replace(/Object\.freeze\(\{\}\)/gu, () => {
+    annotations += 1;
+    return "Object.freeze({} as ExplicitEmptyValue)";
+  });
   selected = selected.replace(/(same|different)\(empty, \{\}\)/gu, (_match, operation) => {
     annotations += 1;
     return `${operation}(empty, {} as ExplicitEmptyValue)`;

@@ -179,12 +179,47 @@ test("binding initializers require one exact admitted physical expression withou
   }
 });
 
+test("an inferred integer assignment target rejects the original number tuple extraction", () => {
+  const compiled = compileCsharpSource({ surface: "native", sourceText: `
+    export function run(pair: [number, number], optional: [number, number?], rows: [number, number][]): number {
+      const [first = 1] = pair;
+      const [, second = 3] = optional;
+      let third = 0;
+      [third] = pair;
+      let total = first + second + third;
+      for (const [left, right] of rows) total += left + right;
+      return total;
+    }
+    export function parameter([head, tail]: [number, number]): number { return head + tail; }
+  ` });
+  assert.equal(compiled.sourceDiagnosticsText, "", "the complete original program remains Source-valid");
+  const source = createTargetSourceProgram(compiled.source);
+  const current = { source, sourceFiles: source.navigation.sourceFiles };
+  const assignment = findNode(current, "KindBinaryExpression", "[third] = pair");
+  const left = source.ast.as.AsBinaryExpression(assignment)?.Left;
+  const target = left === undefined ? undefined : source.ast.elements(left)[0];
+  assert.equal(target !== undefined && source.ast.is.IsIdentifier(target) && source.ast.text(target) === "third", true,
+    "the original assignment target is retained");
+  assert.deepEqual(compiled.result.diagnostics.map(({ code, message }) => [code, message]), [[
+    "CSHARP_UNSUPPORTED_AST", "No exact C# implicit conversion relates 'source:float64' to 'source:int64'.",
+  ]], "the original fixed integer target has one exact refusal");
+  assert.equal(compiled.result.diagnostics[0]?.sourceNode === target, true, "the refusal retains the original pattern identifier");
+  const declaration = findNode(current, "KindVariableDeclaration", "third = 0");
+  const declared = source.effectiveTypes.get(declaration);
+  const read = target === undefined ? undefined : source.effectiveTypes.get(target);
+  assert.equal(declared !== undefined && declared.kind !== "refused" && declared.type.kind === "primitive" &&
+    declared.type.primitive === "int64" && read !== undefined && read.kind !== "refused" && read.type === declared.type, true,
+  "the original creation and assignment target retain the same int64 descriptor");
+  assert.equal(source.effectiveTypes.refusals().length, 0, "Native conversion owns the original refusal");
+  assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true, "the refused original emits no program or artifact");
+});
+
 test("binding facts and tuple defaults are computed once for declaration, parameter, assignment and for-of patterns", () => {
   const { program, source, target } = publishedProgram(`
     export function run(pair: [number, number], optional: [number, number?], rows: [number, number][]): number {
       const [first = 1] = pair;
       const [, second = 3] = optional;
-      let third = 0;
+      let third: number = 0;
       [third] = pair;
       let total = first + second + third;
       for (const [left, right] of rows) total += left + right;

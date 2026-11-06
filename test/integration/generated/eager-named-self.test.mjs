@@ -120,7 +120,7 @@ test("synthetic callable slots cannot enable unsupported runtime arguments intro
     import type { int } from "@tsonic/csharp/types.js";
     export function run(values: int[]): number[] {
       return values.map(function original(value: int): number {
-        return value === 0 ? arguments.Length : original(0);
+        return value === 0 ? arguments.length : original(0);
       });
     }
   ` });
