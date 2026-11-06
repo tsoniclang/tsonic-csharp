@@ -28,6 +28,52 @@ import { createTsonicPlugin as nodejsCapability } from "../../../../../csharp-no
 const unexpected = () => assert.fail("a published instantiation never reopens checker types or a competing member inventory");
 const primitive = name => ({ kind: "primitive", primitive: name });
 
+test("C2377 class forwarding keeps the declared instance and its exact published member origins", () => {
+  for (const surface of ["native", "js"]) {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+      import type { int32 } from "@tsonic/core/types.js";
+      interface View { read(value?: int32): int32; }
+      class Reader { read(value: int32 = 7): int32 { return value; } }
+      export function run(): int32 { const value: View = new Reader(); return value.read(); }
+    ` });
+    assertCsharpCompilationSucceeded(compiled);
+    const program = compiled.result.program;
+    const ast = program.source.ast;
+    const pending = [...csharpProgramSourceFiles(program)];
+    let declaration;
+    let foreign;
+    while (pending.length > 0) {
+      const node = pending.pop();
+      if (ast.is.IsClassDeclaration(node) && ast.text(ast.name(node)) === "Reader") declaration = node;
+      if (ast.is.IsInterfaceDeclaration(node) && ast.text(ast.name(node)) === "View") foreign = node;
+      ast.forEachChild(node, child => { if (child !== undefined) pending.push(child); });
+    }
+    assert.equal(declaration !== undefined && foreign !== undefined, true, surface + ": original declarations");
+    const publication = program.source.effectiveTypes.get(declaration);
+    assert.equal(publication !== undefined && publication.kind !== "refused" && publication.type.kind === "declared" &&
+      publication.type.declaration === declaration, true, surface + ": C29 owns the actual instance descriptor");
+    const members = createCsharpObjectShapeMemberResolver({ ast, effectiveTypes: program.source.effectiveTypes });
+    const descriptor = members.publishedShapeDescriptor(declaration);
+    assert.equal(descriptor === publication.type, true, surface + ": no constructor or raw-type reconstruction");
+    const structure = sourceTypeDescriptorStructure(descriptor);
+    const shape = program.objectShapes.resolveNode(declaration);
+    assert.equal(structure.kind === "shape" && shape !== undefined && structure.members.length === 1 && shape.members.length === 1,
+      true, surface + ": the full class instance member inventory survives forwarding");
+    const original = structure.members[0];
+    const member = shape.members[0];
+    assert.equal(original.origin.kind === "declared" && ast.is.IsMethodDeclaration(original.origin.declaration) &&
+      member.origins?.some(origin => sourceTypeDescriptorMemberOriginsEqual(origin, original.origin)) === true,
+    true, surface + ": the native member keeps its actual declared origin");
+    const signature = getCsharpDelegateSignature(member.type);
+    assert.equal(signature !== undefined && targetTypeRefEquals(signature.returnType, csharpSourcePrimitiveTargetType("int32")),
+      true, surface + ": the declared native result width is unchanged");
+    const rejected = createCsharpObjectShapeMemberResolver({ ast, effectiveTypes: { get: node => node === declaration
+      ? { ...publication, type: { ...descriptor, declaration: foreign } } : undefined } });
+    assert.equal(rejected.publishedShapeDescriptor(declaration) === undefined, true,
+      surface + ": a foreign declaration cannot impersonate the class instance");
+  }
+});
+
 function providerMemberFixture(empty = false, aliased = false, sourceText) {
   const checked = createCompilerSessionFromFiles({ currentDirectory: "/src", files: { "/src/index.ts": sourceText ?? `
     interface ${aliased ? "Original" : "Options"} { ${empty ? "" : "mode?: number;"} }

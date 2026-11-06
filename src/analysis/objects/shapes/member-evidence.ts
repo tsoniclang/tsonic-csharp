@@ -25,7 +25,7 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
     while (descriptor.kind === "optional") descriptor = descriptor.value;
     if (host.ast.is.IsClassDeclaration(node) || host.ast.is.IsClassExpression(node)) {
       const signatures = descriptor.kind === "callable" || descriptor.kind === "shape" ? descriptor.constructs : [];
-      const instance = signatures[0]?.result;
+      const instance = descriptor.kind === "declared" ? descriptor : signatures[0]?.result;
       if (instance?.kind !== "declared" || instance.declaration !== node ||
         signatures.some(signature => !sourceTypeDescriptorsEqual(signature.result, instance))) return undefined;
       descriptor = instance;
