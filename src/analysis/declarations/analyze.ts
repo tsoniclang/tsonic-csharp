@@ -100,7 +100,7 @@ export function analyzeCsharpDeclarations(
             ?.parameters.find(parameter => parameter.declaration === node);
           if (slot === undefined) throw new Error("A native parameter default requires its exact checked declaration slot.");
           const native = selectCsharpDefaultValueContract(runtimeDefault.parameterType, runtimeDefault.valueType, false);
-          const absentInitializer = source !== undefined && queries.types.isNullish(source) &&
+          const absentInitializer = isCsharpAbsenceTargetType(initializerType) &&
             (policy.ast.kindName(parameter.Initializer) === "KindNullKeyword" ||
               policy.ast.is.IsIdentifier(parameter.Initializer) && policy.navigation.sourceReferenceFor(parameter.Initializer) === undefined);
           declarations.runtimeDefault(node, Object.freeze({ ...runtimeDefault, acceptsOmission: presentOnly ? false : slot.acceptsOmission, native,

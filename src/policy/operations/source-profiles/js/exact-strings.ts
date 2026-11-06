@@ -7,7 +7,6 @@ import { exactJsStringRegExpMember, exactJsStringReplacementMember } from "./str
 const stringType = csharpStringTargetType();
 const jsStringType = csharpJsStringTargetType();
 const intType = csharpSourcePrimitiveTargetType("int32");
-const doubleType = csharpSourcePrimitiveTargetType("float64");
 const boolType = csharpSourcePrimitiveTargetType("bool");
 const stringHelperType = jsRuntimeTargetType("String");
 
