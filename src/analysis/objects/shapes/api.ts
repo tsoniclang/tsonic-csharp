@@ -7,10 +7,10 @@ import { csharpObjectShapesEqual } from "../../../target-model/types/object-shap
 import { csharpObjectShapeContractKey } from "../../../target-model/types/object-shape-identity.js";
 import { isCsharpNativeSourceProfileMemberDeclaration, isProjectSourceTargetType, projectClassIsObjectInitializable, requiresUnresolvedStructuralProjection, selectedObjectShapeSource, sourceSubjects, typeHasProjectOwnedShapeDeclaration, typeIsExcludedFromObjectShape } from "./source-evidence.js";
 import { readCsharpSourceField, readCsharpSourceStruct } from "../../../source/extension/markers.js";
-import { Node_Initializer } from "@tsonic/target-api/source";
+import { Node_Initializer, sourceTypeDescriptorMemberOriginsEqual } from "@tsonic/target-api/source";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../target-model/types/equality.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpRuntimeUnionTargetTypeRef, CsharpSourceMemberKey, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
-import type { Node, ExtensionFactSubject, SourceFile, Type } from "@tsonic/tsts";
+import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import type { CsharpTypeResolutionState } from "../../source-evidence/types/resolution/model.js";
 import type { SourceFileSemantics, SourceTypeDescriptor } from "@tsonic/target-api/source";
 import { nextState } from "../../source-evidence/types/resolution/state.js";
@@ -327,13 +327,18 @@ export function createCsharpObjectShapePolicy(
       const descriptor = publishedShapeDescriptor(definition.declaration);
       const selectedMembers = descriptor === undefined ? undefined
         : deriveMembers(descriptor, definition.declaration, queries, state);
+      const outcome = host.effectiveTypes.get(definition.declaration);
+      const correspondence = outcome === undefined || outcome.kind === "refused" ||
+        outcome.provenance.occurrence !== definition.declaration ? undefined : outcome.memberCorrespondence;
       const initializer = Node_Initializer(host.ast, definition.declaration);
       const shapeNode = initializer === undefined || readCsharpSourceStruct(host.sourceFacts, initializer) === undefined
         ? undefined : host.ast.arguments(initializer)[0];
-      const shapeType = shapeNode === undefined ? undefined : queries.types.expressionType(shapeNode);
-      const correspondence = selectedType === undefined || shapeType === undefined
-        ? undefined : queries.types.structuralMembers(shapeType, selectedType, "correspondence");
-      if (correspondence?.kind !== "available") return undefined;
+      const properties = shapeNode === undefined || !host.ast.is.IsObjectLiteralExpression(shapeNode)
+        ? undefined : host.ast.properties(shapeNode);
+      if (correspondence === undefined || correspondence.length !== fact.fields.length || properties === undefined ||
+        properties.length !== fact.fields.length || correspondence.some((pair, index) => !properties.includes(pair.property) ||
+          correspondence.slice(0, index).some(previous => previous.property === pair.property ||
+            sourceTypeDescriptorMemberOriginsEqual(previous.origin, pair.origin)))) return undefined;
       const members = fact.fields.map((field) => {
         const fieldCall = host.ast.parent(field.sourceType);
         const arguments_ = fieldCall !== undefined && host.ast.is.IsCallExpression(fieldCall)
@@ -351,14 +356,13 @@ export function createCsharpObjectShapePolicy(
           : call === undefined || invocation?.call !== call || arguments_.length !== parameters.length || published.length !== 1 ? undefined
             : host.typeResolver.resolveDescriptor(published[0]!.type, field.sourceType, nextState(state));
         const sourceType = queries.types.authoredType(field.sourceType);
-        const sourceMembers = correspondence.members.filter(member => member.kind === "present" &&
-          readCsharpSourceField(host.sourceFacts, [member.source.property.symbol,
-            ...member.source.declarations])?.sourceType === field.sourceType);
-        const destination = sourceMembers.length === 1 ? sourceMembers[0]!.destination : undefined;
-        const subjects: readonly ExtensionFactSubject[] = destination === undefined
-          ? [] : [destination.property.symbol, ...destination.declarations];
+        const property = fieldCall === undefined ? undefined : host.ast.parent(fieldCall);
+        const sourceMembers = property === undefined || !host.ast.is.IsPropertyAssignment(property) ||
+          Node_Initializer(host.ast, property) !== fieldCall || readCsharpSourceField(host.sourceFacts, [property])?.sourceType !== field.sourceType
+          ? [] : correspondence.filter(pair => pair.property === property);
+        const pair = sourceMembers.length === 1 ? sourceMembers[0] : undefined;
         const selected = selectedMembers?.filter(member =>
-          member.sourceSubjects?.some(subject => subjects.includes(subject)) === true);
+          pair !== undefined && member.origins?.some(origin => sourceTypeDescriptorMemberOriginsEqual(origin, pair.origin)) === true);
         const selectedMember = selected?.length === 1 ? selected[0] : undefined;
         const targetName = objectShapeMemberTargetName(field.sourceName);
         return type === undefined || selectedMember === undefined || selectedMember.origins === undefined || targetName === undefined
