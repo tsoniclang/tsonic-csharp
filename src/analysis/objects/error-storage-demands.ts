@@ -1,10 +1,13 @@
 import type { Node, Type } from "@tsonic/tsts";
 import type { TargetSourceProgram, SourceFileSemantics } from "@tsonic/target-api/source";
-import { sourceMemberOwner, sourceParameterIsProperty } from "@tsonic/target-api/source";
+import { sourceMemberOwner, sourceParameterIsProperty, sourceTypeDescriptorStructure } from "@tsonic/target-api/source";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { classifyCsharpSourceProfileDeclaration, classifyCsharpSourceProfileType } from "../../policy/identities/source-types.js";
 import { csharpSourceProfileDeclarationIdentity } from "../../policy/identities/selected-source.js";
 import { sourceOperatorFromKindName } from "../../target-model/syntax/operators.js";
+
+type DeclaredErrorOwner = { readonly kind: "error"; readonly declaration: Node; readonly plain: boolean }
+  | { readonly kind: "unavailable"; readonly site: Node };
 
 export function analyzeCsharpNativeErrorAdmission(source: TargetSourceProgram): {
   readonly issues: readonly TargetDiagnostic[];
@@ -13,6 +16,33 @@ export function analyzeCsharpNativeErrorAdmission(source: TargetSourceProgram): 
   const issues: TargetDiagnostic[] = [];
   const nameInitializations = new Set<Node>();
   const { ast, navigation, semantics } = source;
+  const declaredErrorOwner = (declaration: Node, seen = new Set<Node>()): DeclaredErrorOwner | undefined => {
+    if (seen.has(declaration)) return undefined;
+    seen.add(declaration);
+    if (classifyCsharpSourceProfileDeclaration(declaration, ast)?.kind === "error") {
+      return { kind: "error", declaration, plain: true };
+    }
+    if (!ast.is.IsClassDeclaration(declaration) && !ast.is.IsClassExpression(declaration)) return undefined;
+    const heritage = navigation.declaredHeritage(declaration);
+    if (heritage.kind !== "resolved") return { kind: "unavailable", site: heritage.heritage };
+    for (const edge of heritage.edges) {
+      if (edge.kind !== "extends") continue;
+      const expression = ast.as.AsExpressionWithTypeArguments(edge.heritage)?.Expression;
+      const outcome = expression === undefined ? undefined : source.effectiveTypes.get(expression);
+      const type = outcome === undefined || outcome.kind === "refused" || outcome.provenance.occurrence !== expression
+        ? undefined : sourceTypeDescriptorStructure(outcome.type);
+      const signatures = type?.kind === "shape" || type?.kind === "callable" ? type.constructs : [];
+      const instance = signatures[0]?.result;
+      if (instance?.kind !== "declared" || signatures.some(signature =>
+        signature.result.kind !== "declared" || signature.result.declaration !== instance.declaration)) {
+        return { kind: "unavailable", site: expression ?? edge.heritage };
+      }
+      const inherited = declaredErrorOwner(instance.declaration, seen);
+      if (inherited?.kind === "unavailable") return inherited;
+      if (inherited !== undefined) return { ...inherited, declaration, plain: false };
+    }
+    return undefined;
+  };
   const errorOwner = (type: Type, queries: SourceFileSemantics, seen = new Set<Node>()):
     { readonly declaration: Node; readonly plain: boolean; readonly nativeType: Type } | undefined => {
     const present = queries.types.nonNullableType(type) ?? type;
@@ -38,6 +68,16 @@ export function analyzeCsharpNativeErrorAdmission(source: TargetSourceProgram): 
   };
   const refuse = (node: Node, code: string, message: string): void => {
     issues.push(Object.freeze({ code, category: "error", source: "tsonic-csharp", sourceNode: node, message }));
+  };
+  const unavailable = new Set<Node>();
+  const requireOwner = (owner: DeclaredErrorOwner | undefined): Extract<DeclaredErrorOwner, { readonly kind: "error" }> | undefined => {
+    if (owner?.kind !== "unavailable") return owner;
+    if (!unavailable.has(owner.site)) {
+      unavailable.add(owner.site);
+      refuse(owner.site, "CSHARP_ERROR_ANCESTRY_NOT_PROVEN",
+        "Native Error admission requires one exact published instance declaration for the selected base constructor.");
+    }
+    return undefined;
   };
   for (const node of navigation.nodes) {
     if (!navigation.isProjectDeclaration(node)) continue;
@@ -71,9 +111,8 @@ export function analyzeCsharpNativeErrorAdmission(source: TargetSourceProgram): 
       const outcome = source.effectiveTypes.get(node);
       let descriptor = outcome === undefined || outcome.kind === "refused" ? undefined : outcome.type;
       while (descriptor?.kind === "optional") descriptor = descriptor.value;
-      const identity = descriptor?.kind !== "declared" ? undefined : classifyCsharpSourceProfileDeclaration(descriptor.declaration, ast);
-      const selectedType = descriptor?.kind !== "declared" ? undefined : queries.declarations.declaredType(descriptor.declaration);
-      if (identity?.kind === "error" || selectedType !== undefined && errorOwner(selectedType, queries) !== undefined) refuse(node,
+      const owner = requireOwner(descriptor?.kind !== "declared" ? undefined : declaredErrorOwner(descriptor.declaration));
+      if (owner !== undefined) refuse(node,
         "CSHARP_ERROR_OBJECT_LITERAL_UNSUPPORTED", "An Error is a native C# exception, not a structural object literal; construct a new Error instead.");
       continue;
     }

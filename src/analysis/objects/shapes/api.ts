@@ -375,7 +375,6 @@ export function createCsharpObjectShapePolicy(
               origins: selectedMember.origins,
               sourceSubjects: [field.sourceType, ...(selectedMember?.sourceSubjects ?? [])],
               ...(selectedMember?.sourceDeclarations === undefined ? {} : { sourceDeclarations: selectedMember.sourceDeclarations }),
-              ...(selectedMember.sourceMemberEvidence === undefined ? {} : { sourceMemberEvidence: selectedMember.sourceMemberEvidence }),
               ...(selectedMember?.bound === true ? { bound: true as const } : {}),
               ...(sourceType === undefined
                 ? {}
@@ -619,9 +618,6 @@ export function createCsharpObjectShapePolicy(
           if (selected.kind !== "resolved" || selected.member.memberKind !== "method") return undefined;
           member = Object.freeze({ ...selected.member,
             sourceSubjects: Object.freeze([...new Set([...selected.member.sourceSubjects ?? [], ...member.sourceSubjects ?? []])]),
-            sourceMemberEvidence: Object.freeze([...new Set([
-              ...selected.member.sourceMemberEvidence ?? [], ...member.sourceMemberEvidence ?? [],
-            ])]),
             ...(member.sourceTypes === undefined ? {} : { sourceTypes: member.sourceTypes }),
           });
         }

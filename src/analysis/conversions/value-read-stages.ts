@@ -13,8 +13,6 @@ import type { CsharpSourceEvidenceIndex } from "../../target-model/records/progr
 import type { CsharpStorageRepresentationClassifications } from "../../target-model/records/storage/storage.js";
 import type { TargetTypeRef } from "../../target-model/types/index.js";
 import { getCsharpGeneratorProtocol } from "../../target-model/types/carriers/generators.js";
-import { selectCsharpExactLiteralConversion, selectCsharpScalarLiteralCarrier } from "../../policy/conversions/literals.js";
-import { getCsharpNullableElementTargetType, getCsharpRuntimeUnionArms } from "../../target-model/types/index.js";
 import { representCsharpSourceType } from "../../policy/types/source-type-flow/representation.js";
 
 export interface CsharpValueReadStageAnalysis {
@@ -91,19 +89,12 @@ export function analyzeCsharpValueReadStages(
         (outcome.type.intrinsic === "unknown" || outcome.type.intrinsic === "object" || outcome.type.intrinsic === "any")) {
         issues.push(Object.freeze({ node, code: "CSHARP_UNSUPPORTED_AST",
           message: "A scalar construction requires its exact produced Source value before native storage conversion." }));
-      } else {
-        const authoredSource = authored === node ? source : evidence.nodeTargetType.get(authored);
-        const present = getCsharpNullableElementTargetType(authoredSource) ?? authoredSource;
-        const arms = getCsharpRuntimeUnionArms(present, policy.typeDefinitions);
-        selectedOperation = arms === undefined ? present
-          : selectCsharpScalarLiteralCarrier(policy.literalValues.literalValue.get(authored), present, policy.typeDefinitions);
-        if (selectedOperation === undefined && authored === node && arms !== undefined) {
-          const rejection = arms.map(arm => selectCsharpExactLiteralConversion(literal, arm, arm))
-            .find(selection => selection.kind === "rejected");
-          issues.push(Object.freeze({ node, code: "CSHARP_UNSUPPORTED_AST", message: rejection?.kind === "rejected"
-            ? rejection.reason : "The source literal has no admitted physical C# union arm." }));
-        }
       }
+    } else if (source !== undefined && literal?.form === "array") {
+      const outcome = policy.effectiveTypes.get(node);
+      const construction = outcome === undefined || outcome.kind === "refused" ? undefined : outcome.construction;
+      selectedOperation = construction === undefined ? operations.operationResultType.get(node)
+        : representCsharpSourceType(policy.types.sourceTypeFlowRepresentation(node), construction);
     } else selectedOperation = operations.operationResultType.get(node) ?? yieldResumeType(node);
     const narrowedRead = evidence.valueRefinement.get(node)?.flowReadTargetType;
     const member = operations.sourceMember.get(node);

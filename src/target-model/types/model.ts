@@ -1,5 +1,5 @@
 import type { ArgumentPassingMode, ExtensionFactSubject, Node, ResolvedSourceWellKnownSymbolInfo, SourcePrimitiveKind, Type } from "@tsonic/tsts";
-import type { SourceStructuralMemberPair, SourceTypeDescriptorMember } from "@tsonic/target-api/source";
+import type { SourceTypeDescriptorMember } from "@tsonic/target-api/source";
 import type { CsharpConversionSelection } from "../conversions/selection.js";
 
 export interface CsharpTargetBinaryExecutionDriver {
@@ -24,19 +24,12 @@ export type CsharpObjectMethodValueStorage =
   | { readonly kind: "delegate"; readonly type: TargetTypeRef }
   | { readonly kind: "protocol"; readonly type: TargetTypeRef; readonly invocationName: string };
 
-export interface CsharpObjectShapeMemberEvidence {
-  readonly ownerType: Type;
-  readonly sourceType: Type;
-  readonly correspondence: SourceStructuralMemberPair;
-}
-
 export interface CsharpObjectShapeMemberFact {
   readonly sourceKey: CsharpSourceMemberKey;
   readonly sourceName: string;
   readonly sourceSubjects?: readonly ExtensionFactSubject[];
   readonly sourceDeclarations?: readonly Node[];
   readonly sourceTypes?: readonly Type[];
-  readonly sourceMemberEvidence?: readonly CsharpObjectShapeMemberEvidence[];
   // The Host-published member identities, present when the shape comes from Source descriptors.
   readonly origins?: readonly SourceTypeDescriptorMember["origin"][];
   readonly targetName: string;

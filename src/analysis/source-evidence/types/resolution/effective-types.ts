@@ -88,6 +88,9 @@ export function createCsharpSourceTypeRepresentationHost(
     memberKind(declaration) {
       return host.ast.is.IsMethodDeclaration(declaration) || host.ast.is.IsMethodSignatureDeclaration(declaration) ? "method" : "property";
     },
+    memberBound(declaration) {
+      return host.memoryBindings.hasBoundField([declaration]);
+    },
     shapeKind(descriptor) {
       if (descriptor.members.length === 0) return "storage";
       let contract = true;

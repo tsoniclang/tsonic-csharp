@@ -1,12 +1,11 @@
 import type { CsharpTargetMember, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../types/index.js";
-import { csharpDelegateTargetType, csharpEnumerableTargetType, csharpReadOnlyListTargetType, getCsharpCollectionElementTargetType, getCsharpJsArrayElementTargetType, csharpNullableValueTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpVoidTargetType } from "../../../../target-model/types/index.js";
-import { csharpJsArrayBufferTargetType, csharpJsDataViewTargetType, csharpJsTypedArrayElementTargetType, csharpJsTypedArrayTargetType, type CsharpJsTypedArrayName } from "../../../../target-model/types/carriers/js.js";
+import { csharpEnumerableTargetType, csharpReadOnlyListTargetType, getCsharpCollectionElementTargetType, getCsharpJsArrayElementTargetType, csharpNullableValueTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpVoidTargetType } from "../../../../target-model/types/index.js";
+import { csharpJsArrayBufferTargetType, csharpJsDataViewTargetType, csharpJsTypedArrayElementTargetType, type CsharpJsTypedArrayName } from "../../../../target-model/types/carriers/js.js";
 import type { CsharpSourceProfileCallPolicy, CsharpSourceProfileCallPolicyContext, CsharpSourceProfileElementPolicy, CsharpSourceProfileElementPolicyContext, CsharpSourceProfilePropertyPolicy, CsharpSourceProfilePropertyPolicyContext } from "../../../model/source-profiles.js";
 import { csharpSourceProfileDiagnostic, resolveCsharpSelectedSourceValue } from "../source-profile-policy.js";
 import { csharpJsNumericArgument } from "./numeric-argument.js";
 import { instanceMethod, jsCallPolicy, jsConstructIdentity, jsElementPolicy, jsIndexerIdentity, jsMemberIdentity, jsPropertyPolicy, jsRuntimeTargetType, jsUnsupportedCallPolicy, targetIndexer, targetParameter, targetProperty, type JsSourceProfileTargetMemberFactory } from "./common.js";
 
-const doubleType = csharpSourcePrimitiveTargetType("float64");
 const intType = csharpSourcePrimitiveTargetType("int32");
 const boolType = csharpSourcePrimitiveTargetType("bool");
 const stringType = csharpStringTargetType();
@@ -115,14 +114,12 @@ export const csharpJsBinaryCallPolicies:
     ...["load", "store", "wait", "notify"].map(name =>
       jsUnsupportedCallPolicy(jsMemberIdentity("Atomics", name),
         `Atomics.${name} requires a shared native buffer operation that the C# surface does not expose.`)),
-    ...typedArrayNames.map((name) =>
-      jsCallPolicy(
-        jsConstructIdentity(`${name}Constructor`),
-        (context) => typedArrayConstructor(context, name),
-        noReceiver,
-      )
+    jsCallPolicy(
+      jsConstructIdentity("TypedArrayConstructor"),
+      typedArrayConstructor,
+      noReceiver,
     ),
-    ...["at", "fill", "includes", "indexOf", "join", "reverse", "set", "slice", "sort", "subarray"].map((name) =>
+    ...["at", "fill", "includes", "indexOf", "join", "reverse", "set", "slice", "subarray"].map((name) =>
       jsCallPolicy(
         jsMemberIdentity("TypedArray", name),
         (context) => typedArrayMethod(context, name),
@@ -258,9 +255,10 @@ function dataViewMember(
 
 function typedArrayConstructor(
   context: CsharpSourceProfileCallPolicyContext,
-  name: CsharpJsTypedArrayName,
 ): ReturnType<JsSourceProfileTargetMemberFactory> {
-  const target = csharpJsTypedArrayTargetType(name);
+  const target = context.inputs.results.get(context.source.call);
+  if (target?.kind !== "target-named" || csharpJsTypedArrayElementTargetType(target) === undefined) return undefined;
+  const name = target.id.slice(target.id.lastIndexOf(".") + 1);
   const argument = resolveCsharpSelectedSourceValue(context, context.source.sourceArguments[0]);
   const element = numericArrayElement(argument);
   if (element !== undefined) {
@@ -394,14 +392,6 @@ function typedArrayMethodParameters(
       return [
         targetParameter("begin", intType, { optional: true }),
         targetParameter("end", csharpNullableValueTargetType(intType), { optional: true }),
-      ];
-    case "sort":
-      return [
-        targetParameter(
-          "compareFn",
-          csharpDelegateTargetType("System.Func", [elementType, elementType], doubleType),
-          { optional: true },
-        ),
       ];
     default:
       return undefined;

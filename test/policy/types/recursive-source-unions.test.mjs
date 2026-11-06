@@ -132,15 +132,21 @@ function memberEvidenceUnion(kind = "present", templateDepth = 0) {
     type: identity(), rootSymbols: [identity(), identity()], optional: kind === "absent", readonly: false },
     declarations: [identity()], getters: [identity()], setters: [identity()], read: "property" });
   const destination = side(ownerType);
-  const correspondence = { kind, destination, ...(kind === "present" ? { source: side(sourceType) } : {}) };
-  const evidence = { ownerType, sourceType, correspondence };
+  const entries = kind === "present" ? [destination, side(sourceType)] : [destination];
+  const origins = [{ kind: "declared", declaration: destination.declarations[0] },
+    { kind: "class-prototype", owner: identity() },
+    { kind: "mapped", owner: identity(), key: { kind: "string", value: "value" } },
+    { kind: "mapped", owner: identity(), key: { kind: "number", value: 1 } },
+    { kind: "mapped", owner: identity(), key: { kind: "unique-symbol", declaration: identity() } }];
   const member = { sourceKey: { kind: "property", name: "value" }, sourceName: "value", targetName: "value",
-    memberKind: "property", type: integer, optional: kind === "absent", sourceSubjects: [destination.property.symbol],
-    sourceDeclarations: destination.declarations, sourceTypes: [destination.property.type], sourceMemberEvidence: [evidence] };
+    memberKind: "property", type: integer, optional: kind === "absent", readonly: false, origins,
+    sourceSubjects: entries.flatMap(entry => [entry.property.symbol, ...entry.property.rootSymbols]),
+    sourceDeclarations: entries.flatMap(entry => [...entry.declarations, ...entry.getters, ...entry.setters]),
+    sourceTypes: [ownerType, sourceType, ...entries.flatMap(entry => [entry.receiverType, entry.property.type])] };
   const targetType = { kind: "target-named", id: "test.MemberEvidence", csharpAllowsRefLikeTypeArguments: [] };
   let shape = { targetType, sourceType, members: [member] };
   for (let depth = 0; depth < templateDepth; depth += 1) shape = { ...shape, declarationTemplate: shape };
-  return { union: csharpRuntimeUnionTargetType([targetType, integer], [shape, undefined]), shape, member, evidence,
+  return { union: csharpRuntimeUnionTargetType([targetType, integer], [shape, undefined]), shape, member, ownerType, sourceType,
     handles, reads: () => reads };
 }
 
@@ -152,33 +158,37 @@ test("union member evidence snapshots freeze data shells and preserve only exact
       let shape = snapshot.csharpRuntimeUnionObjectShapes[0];
       for (let level = 0; level <= depth; level += 1) {
         const member = shape.members[0];
-        const evidence = member.sourceMemberEvidence[0];
-        assert.equal(evidence.ownerType === fixture.evidence.ownerType, true, "checked owner Type identity");
-        assert.equal(evidence.sourceType === fixture.evidence.sourceType, true, "checked source Type identity");
-        for (const [actual, original] of [[shape, fixture.shape], [member, fixture.member], [evidence, fixture.evidence],
-          [evidence.correspondence, fixture.evidence.correspondence]]) {
+        assert.equal(member.sourceTypes[0] === fixture.ownerType, true, "checked owner Type identity");
+        assert.equal(shape.sourceType === fixture.sourceType && member.sourceTypes[1] === fixture.sourceType, true, "checked source Type identity");
+        for (const [actual, original] of [[shape, fixture.shape], [member, fixture.member], [member.origins, fixture.member.origins]]) {
           assert.equal(actual !== original && Object.isFrozen(actual), true, "ordinary evidence shell is copied and frozen");
         }
-        assert.equal(evidence.correspondence.kind, kind, "present/absent discriminant stays data");
-        for (const name of kind === "present" ? ["source", "destination"] : ["destination"]) {
-          const actual = evidence.correspondence[name];
-          const original = fixture.evidence.correspondence[name];
-          assert.equal(actual !== original && Object.isFrozen(actual), true, "correspondence side is a frozen data shell");
-          assert.equal(actual.property !== original.property && Object.isFrozen(actual.property), true, "property flags stay data");
-          assert.equal(actual.receiverType === original.receiverType, true, "checked receiver Type identity");
-          for (const field of ["symbol", "type"]) assert.equal(actual.property[field] === original.property[field], true, `checked property ${field}`);
-          for (const field of ["rootSymbols", "declarations", "getters", "setters"]) {
-            const actualList = field === "rootSymbols" ? actual.property[field] : actual[field];
-            const originalList = field === "rootSymbols" ? original.property[field] : original[field];
-            assert.equal(actualList !== originalList && Object.isFrozen(actualList), true, `${field} list is copied and frozen`);
-            assert.equal(actualList.length === originalList.length && actualList.every((entry, index) => entry === originalList[index]),
-              true, `${field} entries retain exact compiler identity`);
+        assert.equal(member.optional, kind === "absent", "present/absent member optionality stays data");
+        for (const field of ["sourceSubjects", "sourceDeclarations", "sourceTypes"]) {
+          const actualList = member[field];
+          const originalList = fixture.member[field];
+          assert.equal(actualList !== originalList && Object.isFrozen(actualList), true, `${field} list is copied and frozen`);
+          assert.equal(actualList.length === originalList.length && actualList.every((entry, index) => entry === originalList[index]),
+            true, `${field} entries retain exact compiler identity`);
+        }
+        assert.equal(member.origins.length, fixture.member.origins.length, "the complete declared/prototype/mapped inventory survives");
+        for (const [index, actual] of member.origins.entries()) {
+          const original = fixture.member.origins[index];
+          assert.equal(actual !== original && Object.isFrozen(actual) && actual.kind === original.kind, true,
+            "each canonical origin shell is copied and frozen");
+          assert.equal(actual.kind === "declared" ? actual.declaration === original.declaration : actual.owner === original.owner, true,
+            "canonical declaration or owner Node identity");
+          if (actual.kind === "mapped") {
+            assert.equal(actual.key !== original.key && Object.isFrozen(actual.key) && actual.key.kind === original.key.kind, true,
+              "each mapped key shell is copied and frozen");
+            assert.equal(actual.key.kind === "unique-symbol" ? actual.key.declaration === original.key.declaration
+              : actual.key.value === original.key.value, true, "mapped keys preserve scalar values or opaque unique-symbol identity");
           }
         }
         if (level < depth) shape = shape.declarationTemplate;
       }
-      fixture.evidence.correspondence.destination.property.readonly = true;
-      assert.equal(shape.members[0].sourceMemberEvidence[0].correspondence.destination.property.readonly, false,
+      fixture.member.readonly = true;
+      assert.equal(shape.members[0].readonly, false,
         "changing the original ordinary flag cannot change its snapshot");
       assert.equal(fixture.handles.every(handle => !Object.isFrozen(handle)), true, "compiler objects are not frozen or rewritten");
       assert.equal(fixture.reads(), 0, "cyclic poisoned compiler handles are never traversed");
@@ -193,23 +203,28 @@ test("union evidence wrappers and unrecognized identity paths remain strict immu
   cyclic.self = cyclic;
   for (const invalid of [getter, cyclic, { execute: () => 0 }]) {
     const fixture = memberEvidenceUnion();
-    fixture.member.sourceMemberEvidence = [invalid];
+    fixture.member.origins = [invalid];
     assert.throws(() => snapshotCsharpTargetTypes([fixture.union]), TypeError);
   }
   for (const mutate of [
-    fixture => { fixture.member.sourceMemberEvidence = { 0: fixture.evidence }; },
-    fixture => { fixture.evidence.correspondence.extra = fixture.evidence.ownerType; },
-    fixture => { fixture.evidence.correspondence.destination.property.extra = fixture.evidence.ownerType; },
-    fixture => { fixture.evidence.correspondence.destination.property.rootSymbols = { 0: fixture.evidence.ownerType }; },
-    fixture => { fixture.evidence.correspondence.destination.declarations = { 0: fixture.evidence.ownerType }; },
-    fixture => { fixture.member.sourceMemberEvidence = new Array(1); },
-    fixture => { fixture.evidence.correspondence = Object.defineProperty({}, "source", { get() { reads += 1; return {}; } }); },
+    fixture => { fixture.member.origins = { 0: fixture.member.origins[0] }; },
+    fixture => { fixture.member.origins[0].extra = fixture.ownerType; },
+    fixture => { fixture.member.origins[2].key.extra = fixture.ownerType; },
+    fixture => { fixture.member.sourceSubjects = { 0: fixture.ownerType }; },
+    fixture => { fixture.member.sourceDeclarations = { 0: fixture.ownerType }; },
+    fixture => { fixture.member.origins = new Array(1); },
+    fixture => { fixture.member.origins[2].key = Object.defineProperty({}, "value", { get() { reads += 1; return {}; } }); },
   ]) {
     const fixture = memberEvidenceUnion();
     mutate(fixture);
     assert.throws(() => snapshotCsharpTargetTypes([fixture.union]), TypeError);
     assert.equal(fixture.reads(), 0, "invalid metadata cannot traverse a compiler handle");
   }
+  const retired = memberEvidenceUnion();
+  retired.member.sourceMemberEvidence = [{ ownerType: retired.ownerType }];
+  assert.throws(() => snapshotCsharpTargetTypes([retired.union]), TypeError,
+    "retired raw evidence has no compiler-identity transport exception");
+  assert.equal(retired.reads(), 0, "the rejected retired schema cannot execute a compiler handle");
   assert.equal(reads, 0, "ordinary metadata accessors are rejected without execution");
 });
 

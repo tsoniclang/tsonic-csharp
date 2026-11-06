@@ -58,6 +58,7 @@ function fixture() {
     representations: { genericProjections: () => [], requiresClosedStructuralContract: () => false,
       scopedTargetType: () => undefined },
     providers: { resolveSelectedTypeRelation: () => undefined },
+    objectShapes: { resolveCallableValue: () => undefined },
     memoryBindings: { hasBoundField: () => false },
     typeResolver: {
       resolveNode: (node, file, state) => {
@@ -66,7 +67,7 @@ function fixture() {
       },
       resolveDescriptor: (descriptor, node, state) => {
         selections.push({ kind: "descriptor", descriptor, node, depth: state.depth });
-        return descriptor.kind !== "declared" ? undefined : resolveCsharpSourceTypeDescriptor({
+        return resolveCsharpSourceTypeDescriptor({
           host,
           resolveDirectSourceFacts: () => undefined,
           resolveProviderType: () => undefined,

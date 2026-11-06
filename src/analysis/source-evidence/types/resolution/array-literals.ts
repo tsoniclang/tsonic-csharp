@@ -27,7 +27,9 @@ export function resolveCsharpArrayLiteralSelection(
   const elision = csharpArrayLiteralElisionIssue(host.ast, node);
   if (elision !== undefined) return elision;
   const effective = resolveCsharpSourceEffectiveType(scope, node, state);
-  const carrier = effective?.result?.selectedType;
+  const construction = effective?.outcome.kind === "refused" ? undefined : effective?.outcome.construction;
+  const carrier = construction === undefined ? effective?.result?.selectedType
+    : resolveCsharpSourceTypeDescriptor(scope, construction, state, node);
   if (carrier === undefined) return unavailable;
   const presentCarrier = getCsharpGenericOptionalParts(carrier)?.element ?? getCsharpNullableElementTargetType(carrier) ?? carrier;
   const element = getCsharpCollectionElementTargetType(presentCarrier);

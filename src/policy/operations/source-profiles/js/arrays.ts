@@ -205,11 +205,6 @@ export const csharpJsArrayCallPolicies:
         (context) => reduceArrayMember(context),
         instanceReceiver,
       ),
-      jsCallPolicy(
-        jsMemberIdentity(declaringName, "sort"),
-        (context) => sortArrayMember(context),
-        instanceReceiver,
-      ),
       ...nullableArrayRows.map((row) =>
         jsCallPolicy(
           jsMemberIdentity(declaringName, row.sourceName),
@@ -497,32 +492,6 @@ function reduceArrayMember(
     parameters,
     resultType,
   );
-}
-
-function sortArrayMember(
-  context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
-): CsharpTargetMember | undefined {
-  const shape = arrayCallShape(context);
-  return shape === undefined
-    ? undefined
-    : instanceMethod(
-        "Tsonic.CSharp.Js.JSArray.sort",
-        "sort",
-        "sort",
-        shape.receiver,
-        [
-          targetParameter(
-            "compareFn",
-            csharpDelegateTargetType(
-              "System.Func",
-              [shape.element, shape.element],
-              doubleType,
-            ),
-            { optional: true },
-          ),
-        ],
-        shape.receiver,
-      );
 }
 
 function nullableArrayMember(

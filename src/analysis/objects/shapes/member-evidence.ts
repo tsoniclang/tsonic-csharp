@@ -1,5 +1,5 @@
 import { providerVirtualDeclarationFactKey, type Node, type Type, type TypePropertyInfo } from "@tsonic/tsts";
-import { ObjectLiteralProperty_Value, sourceClassFieldIsTypeOnly, sourceTypeDescriptorMemberOriginsEqual, sourceTypeDescriptorsEqual, sourceTypeDescriptorStructure, type SourceFileSemantics, type SourceStructuralMember, type SourceTypeDescriptor, type SourceTypeDescriptorMember } from "@tsonic/target-api/source";
+import { ObjectLiteralProperty_Value, sourceClassFieldIsTypeOnly, sourceTypeDescriptorMemberOriginsEqual, sourceTypeDescriptorsEqual, sourceTypeDescriptorStructure, type SourceFileSemantics, type SourceTypeDescriptor, type SourceTypeDescriptorMember } from "@tsonic/target-api/source";
 import type { CsharpObjectShapePolicyHost } from "./model.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpTypeResolutionState } from "../../source-evidence/types/resolution/model.js";
@@ -127,11 +127,10 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
     if (previous === null) return undefined;
     const shape = resolveProviderObjectLiteralShape({ type, descriptor, occurrence, queries, state, selectedTarget,
       host, publishedShapeDescriptor, resolvePublishedProperty });
-    const members = shape === undefined ? undefined : retainMemberDeclarationEvidence(shape.members, type, queries);
-    if (shape === undefined || members === undefined) {
+    if (shape === undefined) {
       return undefined;
     }
-    const selected = Object.freeze({ ...shape, members: Object.freeze(members) });
+    const selected = Object.freeze({ ...shape, members: Object.freeze(shape.members) });
     if (previous !== undefined && (!csharpObjectShapesEqual(previous, selected) ||
       previous.members.some(member => selected.members.filter(candidate => member.origins?.length === 1 &&
         candidate.origins?.length === 1 && sourceTypeDescriptorMemberOriginsEqual(member.origins[0]!, candidate.origins[0]!)).length !== 1))) {
@@ -150,30 +149,6 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
     const symbol = host.navigation.declarationSymbol(declaration, file);
     const declarations = symbol === undefined ? [] : host.semantics(file).declarations.symbolDeclarations(symbol);
     return declarations.includes(declaration) ? declarations : [declaration];
-  }
-
-  function matchesMemberSubjects(member: CsharpObjectShapeMemberFact, selected: SourceStructuralMember): boolean {
-    const subjects = [selected.property.symbol, ...selected.property.rootSymbols, ...selected.declarations];
-    return member.sourceSubjects?.some(subject => subjects.some(candidate => candidate === subject)) === true ||
-      member.sourceDeclarations?.some(declaration => selected.declarations.includes(declaration)) === true;
-  }
-
-  function retainMemberDeclarationEvidence(
-    members: readonly CsharpObjectShapeMemberFact[],
-    ownerType: Type,
-    queries: SourceFileSemantics,
-  ): readonly CsharpObjectShapeMemberFact[] | undefined {
-    const selected = queries.types.structuralMembers(ownerType, ownerType, "correspondence");
-    if (selected.kind !== "available") return undefined;
-    const retained = members.map(member => {
-      const matching = selected.members.filter(pair => pair.kind === "present" &&
-        pair.destination.receiverType === ownerType && pair.source.receiverType === ownerType &&
-        matchesMemberSubjects(member, pair.destination));
-      if (matching.length !== 1) return undefined;
-      return { ...member, sourceMemberEvidence: Object.freeze([Object.freeze({ ownerType, sourceType: ownerType,
-        correspondence: matching[0]! })]) };
-    });
-    return retained.some(member => member === undefined) ? undefined : retained as readonly CsharpObjectShapeMemberFact[];
   }
 
   function retainPublishedMembers(

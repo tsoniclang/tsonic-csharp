@@ -13,6 +13,7 @@ import { csharpSourceTypeFlowInterfaceAccepts } from "./relations.js";
 import { csharpLiteralIsRepresentableAs, selectCsharpExactLiteralConversion } from "../../conversions/literals.js";
 import { csharpArrayElementIsRepresentableAs } from "../collections/array-elements.js";
 import { selectCsharpConversion } from "../../conversions/core.js";
+import { csharpConversionIsApplicable } from "../../conversions/applicability.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../target-model/types/equality.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { isCsharpStringTargetType } from "../../../target-model/types/identity.js";
@@ -118,9 +119,12 @@ export function checkCsharpSourceTypeFlowObligation(
         return fail(`The written literal does not fit the existing '${targetTypeRefKey(chosen)}' storage.`);
       }
     }
-    if (literals.length > 0 && literals.every(literal => literal !== undefined && literal.form !== "array")) return undefined;
+    const storage = getCsharpNullableElementTargetType(chosen) ?? chosen;
+    if ((storage.kind === "source-primitive" || isCsharpStringTargetType(storage)) &&
+      literals.length > 0 && literals.every(literal => literal !== undefined && literal.form !== "array")) return undefined;
     const conversion = selectCsharpConversion(host, actual, chosen, "implicit");
-    if (conversion.kind === "identity" || conversion.kind === "absence" || conversion.kind === "implicit" &&
+    if (conversion.kind === "identity" || conversion.kind === "absence" || conversion.kind === "js-value-box" ||
+      conversion.kind === "union-map" && csharpConversionIsApplicable(conversion, "implicit") || conversion.kind === "implicit" &&
       (conversion.proof === "numeric" || conversion.proof === "nullable" || (conversion.proof === "reference" || conversion.proof === "collection-interface" ||
         conversion.proof === "object-shape-interface") && csharpSourceTypeFlowInterfaceAccepts(host, actual, chosen))) return undefined;
     return fail(conversion.kind === "rejected" ? conversion.reason
@@ -162,10 +166,10 @@ function literalFits(value: SourceLiteralValue | undefined, carrier: TargetTypeR
 }
 
 function writtenLiteralFits(value: SourceLiteralValue, carrier: TargetTypeRef): boolean {
-  if (value.form !== "array") return literalFits(value, carrier);
   const type = getCsharpNullableElementTargetType(carrier) ?? carrier;
+  if (value.form !== "array") return type.kind !== "source-primitive" && !isCsharpStringTargetType(type) || literalFits(value, carrier);
   if (type.kind === "tuple") return value.elements.length === type.elements.length &&
     value.elements.every((element, index) => element === undefined || writtenLiteralFits(element, type.elements[index]!));
   const elementType = getCsharpCollectionElementTargetType(type);
-  return elementType !== undefined && value.elements.every(element => element === undefined || writtenLiteralFits(element, elementType));
+  return elementType === undefined || value.elements.every(element => element === undefined || writtenLiteralFits(element, elementType));
 }

@@ -13,9 +13,12 @@ import { csharpJsBinaryCallPolicies, csharpJsBinaryElementPolicies, csharpJsBina
 import { csharpJsPromiseCallPolicies } from "./promises.js";
 import { csharpJsIntlCallPolicies, csharpJsIntlPropertyPolicies } from "./intl.js";
 import { csharpJsBigIntCallPolicies } from "./bigints.js";
+import { csharpPublishedNativeCalls } from "../../../../source/profiles/declarations/native-calls.js";
+import { csharpPublishedNativeCallPolicy } from "../published-calls.js";
 
 export const csharpJsSourceProfileCallPolicies:
   readonly CsharpSourceProfileCallPolicy[] = Object.freeze([
+    ...csharpPublishedNativeCalls.map(csharpPublishedNativeCallPolicy),
     ...csharpJsArrayCallPolicies,
     ...csharpJsCollectionCallPolicies,
     ...csharpJsDateCallPolicies,

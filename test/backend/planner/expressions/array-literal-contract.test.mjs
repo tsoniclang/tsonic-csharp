@@ -33,7 +33,7 @@ test("native collection construction fills only its declared native builder", { 
   const admit = selectedCarrier => analyzeCsharpArrayLiterals({ source,
     demand: { entries: [{ use: { kind: "constructed", expression: node, carrier: selectedCarrier } }] },
     conversions: analysis.value.records, values: analysis.value.records,
-    expected: {}, evidence: { contextualTuple: { get: () => undefined } },
+    expected: { arrayLiteralCarrier: { get: () => undefined } }, evidence: { contextualTuple: { get: () => undefined } },
     operations: { borrowedSequence: { get: () => undefined } } });
   const admitted = admit(carrier);
   assertNoTargetDiagnostics(admitted.issues);

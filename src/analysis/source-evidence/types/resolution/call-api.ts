@@ -10,7 +10,8 @@ import { combineCsharpTargetUnionMembers, csharpAbsenceTargetType } from "../../
 import { csharpTargetParameterValueType } from "../../../../target-model/types/member-facts.js";
 
 import { nextState } from "./state.js";
-import { resolveCsharpSourceEffectiveType } from "./effective-types.js";
+import { resolveCsharpSourceEffectiveType, resolveCsharpSourceTypeDescriptor } from "./effective-types.js";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 
 import { getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
 
@@ -54,12 +55,13 @@ export function resolveSourceCallParameter(
 }
 
 function resolveSelectedSourceCallParameter(
-  { host, resolveSourceCallableContractType, resolveSourceCallSelectedType, sourceCallableTypeParametersMatch }: CsharpTypeResolutionScope,
+  scope: CsharpTypeResolutionScope,
   source: ResolvedSourceCallInfo,
   parameterIndex: number,
   sourceFile: SourceFile,
   selected: CsharpSourceCallContractSelection,
 ): TargetTypeRef | undefined {
+  const { host, resolveSourceCallableContractType, resolveSourceCallSelectedType, sourceCallableTypeParametersMatch } = scope;
   const parameter = source.sourceSelectedSignatureParameters[parameterIndex];
   if (parameter === undefined) {
     return undefined;
@@ -103,6 +105,13 @@ function resolveSelectedSourceCallParameter(
     );
   }
   if (selected.kind === "value") return undefined;
+  const published = host.effectiveTypes.callInstantiation(source.call);
+  if (published !== undefined) {
+    if (published.call !== source) return failTargetAnalysisInvariant("tsonic-csharp",
+      "A declared call parameter requires the identical published Source invocation.", source.call);
+    const descriptor = published.parameters[parameterIndex];
+    return descriptor === undefined ? undefined : resolveCsharpSourceTypeDescriptor(scope, descriptor, { depth: 0 }, source.call);
+  }
   return resolveSourceCallSelectedType(
         source,
         parameter.parameterDeclaration,

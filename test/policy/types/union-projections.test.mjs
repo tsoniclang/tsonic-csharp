@@ -46,12 +46,10 @@ test("checked member evidence survives exact union projection without relaxing p
   identity.self = identity;
   Object.defineProperty(identity, "poison", { get() { reads += 1; throw new Error("compiler handle must stay opaque"); } });
   const payload = { kind: "target-named", id: "test.EvidencePayload", csharpAllowsRefLikeTypeArguments: [] };
-  const member = { receiverType: identity, property: { name: "value", symbol: identity, type: identity,
-    rootSymbols: [identity], optional: false, readonly: true }, declarations: [identity], getters: [], setters: [], read: "property" };
   const shape = { targetType: payload, sourceType: identity, members: [{ sourceKey: { kind: "property", name: "value" },
     sourceName: "value", targetName: "value", memberKind: "property", type: csharpSourcePrimitiveTargetType("uint64"),
-    sourceMemberEvidence: [{ ownerType: identity, sourceType: identity,
-      correspondence: { kind: "present", source: member, destination: member } }] }] };
+    readonly: true, origins: [{ kind: "declared", declaration: identity }],
+    sourceTypes: [identity], sourceSubjects: [identity], sourceDeclarations: [identity] }] };
   const union = csharpRuntimeUnionTargetType([payload, csharpStringTargetType()], [shape, undefined]);
   const policy = { projectTypes: { directSupertypes: () => [] },
     providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) } };
@@ -61,7 +59,10 @@ test("checked member evidence survives exact union projection without relaxing p
     "valid checked member metadata cannot make a path disagree with itself");
   const [snapshot] = snapshotCsharpTargetTypes([union]);
   assert.equal(csharpRuntimeUnionProjectionMatches(policy, snapshot, payload, selected), true, "immutable roundtrip retains the same projection");
-  assert.equal(snapshot.csharpRuntimeUnionObjectShapes[0].members[0].sourceMemberEvidence[0].ownerType === identity, true,
+  const retained = snapshot.csharpRuntimeUnionObjectShapes[0];
+  assert.equal(retained.sourceType === identity && retained.members[0].sourceTypes[0] === identity &&
+    retained.members[0].origins[0].declaration === identity && retained.members[0].readonly === true &&
+    retained.members[0].type.kind === "source-primitive" && retained.members[0].type.name === "uint64", true,
     "roundtrip retains the checked owner identity");
   const foreign = { ...payload, id: "foreign.EvidencePayload" };
   const foreignUnion = csharpRuntimeUnionTargetType([foreign, csharpStringTargetType()]);

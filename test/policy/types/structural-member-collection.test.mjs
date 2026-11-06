@@ -1,73 +1,78 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createCsharpObjectShapeMemberResolver } from "../../../dist/analysis/objects/shapes/member-evidence.js";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
+import { createTargetSourceProgram, sourceTypeDescriptorStructure } from "@tsonic/target-api/source";
 import { checkCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { resolveCsharpCallableTypeParameters } from "../../../dist/analysis/source-evidence/types/resolution/callable-type-parameters.js";
 import { csharpSourceTypeParameter } from "../../../dist/source/extension/type-parameters.js";
 import { csharpOptionalStorageProjection, getCsharpGenericOptionalParts } from "../../../dist/target-model/types/projections.js";
 
 function scenario(rejectedIndex, count = 3) {
-  const owner = {};
+  const checked = checkCsharpSource({ sourceText: `import type { int64 } from "@tsonic/core/types.js";
+    export interface Fields { ${Array.from({ length: count }, (_, index) =>
+      `${index === 2 ? "readonly " : ""}field${index}${index === 1 ? "?" : ""}: int64;`).join(" ")} }` });
+  assert.equal(checked.sourceDiagnosticsText, "", "the member inventory comes from valid checked Source");
+  const source = createTargetSourceProgram(checked.source);
+  const file = checked.source.getSourceFile("/project/index.ts");
+  let owner;
+  source.ast.forEachChild(file, node => { if (source.ast.is.IsInterfaceDeclaration(node)) owner = node; });
+  assert.equal(owner !== undefined, true, "the actual declared owner is present");
+  const outcome = source.effectiveTypes.get(owner);
+  assert.equal(outcome?.kind === "resolved", true, "the exact owner has a published descriptor");
+  const descriptor = outcome.type;
+  const structure = sourceTypeDescriptorStructure(descriptor);
+  assert.equal(structure.kind === "shape", true, "the published owner has a closed member inventory");
+  const properties = structure.members;
   const carriers = Array.from({ length: count }, () => ({ kind: "source-primitive", name: "int64" }));
-  const properties = carriers.map((type, index) => ({ name: `field${index}`, symbol: {}, rootSymbols: [], type,
-    optional: index === 1, readonly: index === 2 }));
   const selected = [];
   const resolver = createCsharpObjectShapeMemberResolver({
     representations: { genericProjections: () => [] },
-    ast: { is: {
-      IsMethodDeclaration: () => false, IsMethodSignatureDeclaration: () => false,
-      IsGetAccessorDeclaration: () => false, IsSetAccessorDeclaration: () => false,
-    } },
-    typeResolver: { resolveType(type) {
-      const index = carriers.indexOf(type);
+    ast: source.ast,
+    navigation: source.navigation,
+    hasSemantics: source.semantics.includes,
+    semantics: source.semantics.forFile,
+    semanticsFor: source.semantics.forNode,
+    sourceStorage: { memberSubjectFor: () => undefined },
+    typeResolver: { resolveDescriptor(type, occurrence) {
+      assert.equal(occurrence === owner, true, "member representation keeps the exact published owner");
+      const index = selected.length;
+      assert.equal(type === properties[index].type, true, "the next published Source member is represented in order");
       selected.push(index);
-      return index === rejectedIndex ? undefined : type;
-    } },
+      return index === rejectedIndex ? undefined : carriers[index];
+    }, resolveType: () => assert.fail("published member collection must not reselect a raw checker Type") },
     memoryBindings: { hasBoundField: () => false },
   });
-  const queries = {
-    sourceFile: {},
-    declarations: { typeSymbol: () => undefined, symbolDeclarations: () => [] },
-    types: { propertyInfos: () => properties, isNumberLike: () => false, isBigIntLike: () => false,
-      structuralMembers(actual, expected, purpose) {
-        assert.equal(actual === owner && expected === owner, true, "one original checked owner supplies its exact self-correspondence");
-        assert.equal(purpose, "correspondence", "member collection retains checked correspondence, not another resolver pass");
-        const inventory = { type: owner, calls: [], constructs: [], indexes: [] };
-        return { kind: "available", source: inventory, destination: inventory,
-          members: properties.map(property => {
-            const selected = { receiverType: owner, property, declarations: [], getters: [], setters: [], read: "property" };
-            return { kind: "present", source: selected, destination: selected };
-          }) };
-      } },
-  };
-  return { resolver, queries, selected, carriers, owner };
+  const queries = source.semantics.forNode(owner);
+  return { resolver, queries, selected, carriers, owner, descriptor, properties };
 }
 
 test("structural members stop at the first unavailable carrier without publishing a partial shape", () => {
   for (const rejectedIndex of [0, 1, 2]) {
-    const { resolver, queries, selected, owner } = scenario(rejectedIndex);
-    assert.equal(resolver.deriveMembers(owner, queries, { depth: 0 }) === undefined, true, `rejected field${rejectedIndex}`);
+    const { resolver, queries, selected, owner, descriptor } = scenario(rejectedIndex);
+    assert.equal(resolver.deriveMembers(descriptor, owner, queries, { depth: 0 }) === undefined, true, `rejected field${rejectedIndex}`);
     assert.deepEqual(selected, Array.from({ length: rejectedIndex + 1 }, (_, index) => index));
   }
 });
 
 test("structural member rejection does no later resolver work even for a wide record", () => {
-  const { resolver, queries, selected, owner } = scenario(0, 256);
-  assert.equal(resolver.deriveMembers(owner, queries, { depth: 0 }) === undefined, true, "the exact unavailable record stays unavailable");
+  const { resolver, queries, selected, owner, descriptor } = scenario(0, 256);
+  assert.equal(resolver.deriveMembers(descriptor, owner, queries, { depth: 0 }) === undefined, true, "the exact unavailable record stays unavailable");
   assert.deepEqual(selected, [0]);
 });
 
 test("complete structural records preserve member order, native carriers and optional/readonly evidence", () => {
-  const { resolver, queries, selected, carriers, owner } = scenario(-1);
-  const members = resolver.deriveMembers(owner, queries, { depth: 0 });
+  const { resolver, queries, selected, carriers, owner, descriptor, properties } = scenario(-1);
+  const members = resolver.deriveMembers(descriptor, owner, queries, { depth: 0 });
   assert.equal(members?.length === 3, true, "complete closed member collection");
   assert.deepEqual(selected, [0, 1, 2]);
   assert.deepEqual(members.map(member => member.sourceName), ["field0", "field1", "field2"]);
   assert.equal(members[0].type === carriers[0] && members[2].type === carriers[2], true, "exact native carrier identities");
   assert.equal(members[1].optional, true);
   assert.equal(members[2].readonly, true);
-  assert.deepEqual(members.map(member => member.sourceTypes[0]), carriers);
+  assert.deepEqual(members.map(member => member.origins[0]), properties.map(property => property.origin));
+  assert.equal(members.every((member, index) => member.origins[0] === properties[index].origin &&
+    member.sourceDeclarations.includes(properties[index].origin.declaration)), true,
+    "each native member retains its identical published Source origin and actual declaration");
 });
 
 function nativeBinderFixture() {

@@ -11,6 +11,7 @@ import { csharpSourceTypeFlowShiftCountType } from "../../policy/conversions/sou
 import type { CsharpExpectedTypeIssue } from "../../target-model/records/types/expected-types.js";
 import type { CsharpExactLiteralRequest, CsharpNativePropertyKeyBinding } from "../../target-model/conversions/exact-literals.js";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
+import { representCsharpSourceType } from "../../policy/types/source-type-flow/representation.js";
 import type { CsharpExpectedUseCollection } from "./collection.js";
 import type {
   CsharpExpectedTypeAnalysisInput,
@@ -336,8 +337,10 @@ export function createCsharpExpectedTypePropagation(
     parent?: TargetUseSiteRef,
     mode: CsharpConversionMode = "implicit",
   ): void {
-    const carrier = policy.effectiveTypes.get(expression) === undefined ? selectCsharpArrayLiteralCarrier(targetType,
-      valueReadStages.get(expression)?.operationValue, policy.typeDefinitions) : input.evidence.nodeTargetType.get(expression);
+    const published = policy.effectiveTypes.get(expression);
+    const carrier = published === undefined ? selectCsharpArrayLiteralCarrier(targetType,
+      valueReadStages.get(expression)?.operationValue, policy.typeDefinitions) : published.kind === "refused" ? undefined
+      : representCsharpSourceType(policy.types.sourceTypeFlowRepresentation(expression), published.construction ?? published.type);
     if (carrier === undefined) return;
     let carriers = arrayCarriers.get(expression);
     if (carriers === undefined) {

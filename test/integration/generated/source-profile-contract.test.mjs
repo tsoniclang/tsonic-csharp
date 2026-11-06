@@ -167,6 +167,20 @@ test("ECMAScript string iteration remains available in both source profiles", ()
   }
 });
 
+test("Q15 shared declarations infer native numeric callback results without a fixed floating return", () => {
+  const session = createSourceProfileSession({ profile: "js", sourceText: [
+    "declare const values: int64[];",
+    "declare const bytes: Uint8Array;",
+    "values.sort((left, right): int64 => left - right);",
+    "values.sort((left, right): int32 => left < right ? -1 : left > right ? 1 : 0);",
+    "values.sort((left, right): number => left < right ? -1 : left > right ? 1 : 0);",
+    "values.toSorted((left, right): bigint => 0n);",
+    "bytes.sort((left, right): int32 => left < right ? -1 : left > right ? 1 : 0);",
+    "export {};",
+  ].join("\n") });
+  assert.equal(formatDiagnostics(session.getDiagnostics("all")), "");
+});
+
 function createSourceProfileSession(options) {
   const files = new Map([
     ["/src/index.ts", options.sourceText],

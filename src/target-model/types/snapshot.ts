@@ -42,16 +42,6 @@ function csharpTypeIdentityAt(path: readonly (string | number)[]): boolean {
       return tail.length === 5 && (key === "declaration" || key === "owner") ||
         tail.length === 6 && tail[4] === "key" && key === "declaration";
     }
-    if (tail[2] === "sourceMemberEvidence" && typeof tail[3] === "number") {
-      if (tail.length === 5) return key === "ownerType" || key === "sourceType";
-      if (tail[4] !== "correspondence" || tail[5] !== "source" && tail[5] !== "destination") return false;
-      if (tail.length === 7) return key === "receiverType";
-      if (tail[6] === "property") {
-        return tail.length === 8 && (key === "symbol" || key === "type") ||
-          tail.length === 9 && tail[7] === "rootSymbols" && typeof key === "number";
-      }
-      return tail.length === 8 && ["declarations", "getters", "setters"].includes(String(tail[6])) && typeof key === "number";
-    }
     return tail.length === 4 && ["sourceSubjects", "sourceDeclarations", "sourceTypes"].includes(String(tail[2])) && typeof key === "number" ||
       tail.length === 5 && tail[2] === "typeParameters" && typeof tail[3] === "number" && key === "declaration";
   }

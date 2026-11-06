@@ -52,7 +52,7 @@ export function selectCsharpMemoryBinding(
     if (member.bound !== true || member.memberKind !== "property" || member.optional || member.accessor !== undefined) {
       return reject("The selected record member has no finalized live-location storage.");
     }
-    const selectedPointer = input.types.resolveNode(entry.expression, file)?.sourceResult?.selectedType;
+    const selectedPointer = input.types.resolveNode(entry.binding.pointerExpression, file)?.sourceResult?.selectedType;
     if (selectedPointer === undefined || !targetTypeRefEquals(selectedPointer, csharpRuntimeLocationTargetType(member.type))) {
       return reject("The bound member and supplied location have different C# pointee carriers.");
     }

@@ -68,16 +68,11 @@ export function mergeCsharpObjectShapeSubjects(
       ]);
       const origins = [...(member.origins ?? []), ...(other.origins ?? [])].filter((origin, index, alternatives) =>
         alternatives.findIndex(candidate => sourceTypeDescriptorMemberOriginsEqual(candidate, origin)) === index);
-      const sourceMemberEvidence = [...(member.sourceMemberEvidence ?? []), ...(other.sourceMemberEvidence ?? [])]
-        .filter((evidence, index, alternatives) => alternatives.findIndex(candidate =>
-          candidate.ownerType === evidence.ownerType && candidate.sourceType === evidence.sourceType &&
-          candidate.correspondence === evidence.correspondence) === index);
       const { sourceDeclarations: _sourceDeclarations, ...physicalMember } = member;
       return {
         ...physicalMember,
         ...(currentDeclarations === undefined ? {} : { sourceDeclarations: Object.freeze([...currentDeclarations]) }),
         ...(origins.length === 0 ? {} : { origins: Object.freeze(origins) }),
-        ...(sourceMemberEvidence.length === 0 ? {} : { sourceMemberEvidence: Object.freeze(sourceMemberEvidence) }),
         ...(subjects.size === 0
           ? {}
           : { sourceSubjects: Object.freeze([...subjects]) }),

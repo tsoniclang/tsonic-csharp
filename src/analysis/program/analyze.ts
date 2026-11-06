@@ -245,7 +245,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
   const dictionaryLiterals = analyzeCsharpDictionaryLiterals(source.ast, analysis.nativeDemand);
   if (dictionaryLiterals.issues.length !== 0) return rejectedTargetStage(dictionaryLiterals.issues);
   const typeFlowIssues = analyzeCsharpSourceTypeFlowObligations(analysis.policy, analysis.objectShapes,
-    analysis.typeSystem.nativeConstruction, dictionaryLiterals.records);
+    analysis.typeSystem.nativeConstruction, dictionaryLiterals.records, analysis.sourceEvidence.compileTimeMetadata);
   if (typeFlowIssues.length !== 0) return rejectedTargetStage(typeFlowIssues);
   const sourceModuleConstructions = analyzeCsharpSourceModuleConstructions({
     source,

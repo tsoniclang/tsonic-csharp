@@ -34,6 +34,7 @@ export interface CsharpSourceTypeRepresentationHost {
     results: readonly TargetTypeRef[],
   ): TargetTypeRef | undefined;
   memberKind(declaration: Node): "property" | "method";
+  memberBound(declaration: Node): boolean;
   // True when every member of a construct-carrying shape is part of the static side of the one class its construct
   // signatures belong to: a static member of that class, or its class prototype (K-2448 #3).
   classStaticSide(descriptor: Extract<SourceTypeDescriptor, { readonly kind: "shape" }>): boolean;
@@ -171,6 +172,7 @@ function representDescriptor(
           const callable = member.type.kind === "callable" ? member.type : undefined;
           const declaration = member.origin.kind === "declared" ? member.origin.declaration : undefined;
           const memberKind = callable === undefined || declaration === undefined ? "property" : host.memberKind(declaration);
+          const bound = declaration !== undefined && host.memberBound(declaration);
           const signature = memberKind === "method" && callable?.calls.length === 1 ? callable.calls[0] : undefined;
           const typeParameters = signature === undefined ? [] : host.memberTypeParameters(signature);
           if (typeParameters === undefined) return undefined;
@@ -181,6 +183,7 @@ function representDescriptor(
             memberKind,
             type: memberKind === "method" ? getCsharpMethodValue(type)?.contract ?? type : type,
             ...(typeParameters.length === 0 ? {} : { typeParameters }),
+            ...(bound ? { bound: true } : {}),
             optional: member.optional,
             origins: Object.freeze([member.origin]),
             ...(declaration === undefined ? {} : {

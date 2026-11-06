@@ -44,7 +44,8 @@ export function analyzeCsharpArrayLiterals(input: { readonly source: TargetSourc
     if ((use.kind !== "constructed" && use.kind !== "value" && use.kind !== "effect") || !ast.is.IsArrayLiteralExpression(use.expression)) continue;
     const node = use.expression;
     if (producer.records.arrayLiteral.get(node, use.carrier) !== undefined) continue;
-    const carrier = getCsharpNullableElementTargetType(use.carrier) ?? use.carrier;
+    const constructionCarrier = input.expected.arrayLiteralCarrier.get(node, use.carrier) ?? use.carrier;
+    const carrier = getCsharpNullableElementTargetType(constructionCarrier) ?? constructionCarrier;
     const sources = ast.elements(node);
     const elision = csharpArrayLiteralElisionIssue(ast, node);
     if (elision !== undefined) {

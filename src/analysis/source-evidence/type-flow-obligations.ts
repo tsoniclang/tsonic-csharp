@@ -12,15 +12,20 @@ import { csharpSourceTypeParameter } from "../../source/extension/type-parameter
 import { representCsharpSourceType } from "../../policy/types/source-type-flow/representation.js";
 import { selectCsharpConversion } from "../../policy/conversions/core.js";
 import { csharpConversionIsApplicable } from "../../policy/conversions/applicability.js";
+import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
 
 export function analyzeCsharpSourceTypeFlowObligations(
   policy: CsharpPolicyContext,
   objectShapes: CsharpObjectShapeClassifications,
   nativeConstruction: CsharpNativeConstructionDemandQueries,
   dictionaryLiterals: CsharpDictionaryLiteralRecords,
+  compileTimeMetadata: CsharpSourceEvidenceIndex["compileTimeMetadata"],
 ): readonly TargetDiagnostic[] {
   const issues: TargetDiagnostic[] = [];
   for (const obligation of policy.effectiveTypes.obligations()) {
+    let subject: Node | undefined = obligation.site;
+    while (subject !== undefined && compileTimeMetadata.get(subject) !== true) subject = policy.ast.parent(subject);
+    if (subject !== undefined) continue;
     const representation = policy.types.sourceTypeFlowRepresentation(obligation.value ?? obligation.site);
     const issue = checkCsharpSourceTypeFlowObligation({
       ...representation,
