@@ -578,7 +578,7 @@ test("native construction does not reclassify unrelated malformed metadata as re
   const expected = value.row([{ identity: "user" }], native, { provider: true });
   value.node(value.row([{ identity: "user" }]), expected);
   const failure = new TypeError("C# immutable metadata requires plain data records.");
-  value.semantics.types.structuralMembers = () => { throw failure; };
+  value.host.resolveEffectiveShape = () => { throw failure; };
   assert.throws(() => value.freeze(), error => error === failure, "the original invalid-metadata failure is preserved");
 });
 

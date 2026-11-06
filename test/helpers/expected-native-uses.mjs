@@ -69,8 +69,27 @@ export function createExpectedNativeUseOwner(compiled) {
       return yielded?.operand === undefined ? undefined : records.valueRead.get(yielded.operand.expression)?.value;
     } }),
   });
+  const unrelatedRepresentation = () => assert.fail("These expected-use fixtures require only published primitive and array representations.");
+  const representation = Object.freeze({
+    target: compiled.target,
+    typeParameterConstraints: Object.freeze({ resolve: unrelatedRepresentation }),
+    declaredType: unrelatedRepresentation,
+    indexType: unrelatedRepresentation,
+    callableType: unrelatedRepresentation,
+    constructorType: unrelatedRepresentation,
+    memberKind: unrelatedRepresentation,
+    memberBound: unrelatedRepresentation,
+    classStaticSide: unrelatedRepresentation,
+    shapeKind: unrelatedRepresentation,
+    memberTypeParameters: unrelatedRepresentation,
+    retainShape: unrelatedRepresentation,
+  });
   const policy = { ast, sourceFiles: csharpProgramSourceFiles(program), navigation: source.navigation,
     effectiveTypes: source.effectiveTypes,
+    types: { sourceTypeFlowRepresentation: occurrence => {
+      assert.equal(nodes.includes(occurrence), true, "the identical compiled Source occurrence owns its native representation");
+      return representation;
+    } },
     target: compiled.target, providers: createCsharpProviderRelationResolver({ providers: [], providerPolicies: [] }),
     objectShapes: program.objectShapes, projectTypes: program.projectTypes,
     literalValues: analyzeSourceLiteralValues(ast, csharpProgramSourceFiles(program)),

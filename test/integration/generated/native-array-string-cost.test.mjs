@@ -15,7 +15,7 @@ test("native array String conversion preserves typed writing and allocation cost
   ` });
   assertCsharpCompilationSucceeded(compiled);
   const source = compiled.artifacts.get("src/Index.cs");
-  assert.match(source, /JSArray<int>/u);
+  assert.match(source, /JSArray<long>/u);
   assert.doesNotMatch(source, /JSArray<object>|Cast<object>|Select\(/u);
   const root = createTestWorkspace(fileURLToPath(new URL("../../../.temp/", import.meta.url)), "array-string-native-");
   for (const [path, text] of compiled.artifacts) if (path.endsWith(".cs")) {
