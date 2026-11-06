@@ -79,7 +79,7 @@ test("binary and unary forms are recorded once in the planner's order", () => {
   assert.equal(refused.sourceDiagnosticsText, "");
   const issues = refused.nativeStage.diagnostics.filter(issue => issue.category === "error");
   assert.deepEqual(issues.map(({ code, message }) => [code, message]),
-    [["CSHARP_UNSUPPORTED_AST", "No exact C# implicit conversion relates 'source:float64' to 'source:int32'."]],
+    [["CSHARP_UNSUPPORTED_AST", "No exact C# implicit conversion relates 'source:float64' to 'source:int32'. Annotate the value with an integral type."]],
     "B10 checks the extracted element, never a whole JSArray conversion or a B9 fill");
   const ast = refused.nativeStage.source.ast;
   const first = issues[0]?.sourceNode;

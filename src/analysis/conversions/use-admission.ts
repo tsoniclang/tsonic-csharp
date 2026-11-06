@@ -74,7 +74,7 @@ export function sealCsharpConversionUses(
     }
     if (selected.kind === "rejected" || selected.kind === "ambiguous") {
       issues.push(Object.freeze({ node: expression, code: selected.kind === "rejected" ? selected.code ?? "CSHARP_UNSUPPORTED_AST" : "CSHARP_UNSUPPORTED_AST",
-        message: selected.reason }));
+        message: selected.reason, source, target }));
       return;
     }
     if (target === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
@@ -131,7 +131,7 @@ export function sealCsharpConversionUses(
     if (admitted.classification.selection.kind === "rejected" || admitted.classification.selection.kind === "ambiguous") {
       issues.push(Object.freeze({ node: expression, code: admitted.classification.selection.kind === "rejected"
         ? admitted.classification.selection.code ?? "CSHARP_UNSUPPORTED_AST" : "CSHARP_UNSUPPORTED_AST",
-        message: admitted.classification.selection.reason }));
+        message: admitted.classification.selection.reason, source, target }));
       return;
     }
     if (boundary === undefined && sourceCompletion?.kind !== "void") requireCsharpRecord(requiredRecords, { family: "conversion", subject: expression, source, target, mode,

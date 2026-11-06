@@ -267,10 +267,10 @@ for (const surface of ["native", "js"]) {
       const accesses = projectNodes(compiled, (node, ast) => ast.is.IsElementAccessExpression(node));
       assert.equal(accesses.length, 1, "one original JSArray index operation is retained");
       const selected = compiled.result.program.records.selectedElement.get(accesses[0])?.target;
-      assert.equal(selected?.kind === "resolved" && selected.targetMember.parameters[selected.targetParameterIndex]?.type.name === "float64", true,
-        "the unchanged pre-JS-semantics Native JSArray index slot is not an int-only indexer");
-      assert.doesNotMatch(text, /checked\(\(int\)index\)/u,
-        "B8 does not manufacture narrowing for the unchanged non-int32 Native index contract");
+      assert.equal(selected?.kind === "resolved" && selected.targetMember.parameters[selected.targetParameterIndex]?.type.name === "int32", true,
+        "the native JSArray index slot retains the accepted exact int32 runtime ABI");
+      assert.match(text, /checked\(\(int\)index\)/u,
+        "the published int64 counter reaches the native int32 slot through the existing checked index conversion");
     }
     const nodes = projectNodes(compiled, (node, ast) => ast.is.IsIdentifier(node) && ast.text(node) === "index");
     let published = 0;

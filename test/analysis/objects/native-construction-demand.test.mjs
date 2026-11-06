@@ -93,7 +93,7 @@ function fixture() {
     }
     const sourceRow = rows.get(type);
     const contextRow = rows.get(context);
-    const fieldType = explicit.has(primitive) ? "Words.float64" : "number";
+    const fieldType = explicit.has(primitive) ? "Words.float64" : "Words.int64";
     const declaration = (name, selected) => `interface ${name} {
       ${selected.fields.map(field => field.member.memberKind === "method" ? `${JSON.stringify(field.identity)}(): ${fieldType};`
         : `${field.property.readonly ? "readonly " : ""}${JSON.stringify(field.identity)}${field.property.optional ? "?" : ""}: ${
@@ -101,10 +101,10 @@ function fixture() {
             ? "boolean" : fieldType};`).join(" ")}
       ${selected.calls.length === 0 ? "" : "(): number;"}
       ${selected.constructs.length === 0 ? "" : "new(): object;"}
-      ${selected.indexes.length === 0 ? "" : "[key: string]: number;"}
+      ${selected.indexes.length === 0 ? "" : `[key: string]: ${fieldType};`}
     }`;
     const empty = { fields: [], calls: [], constructs: [], indexes: [] };
-    const propertyValue = explicit.has(primitive) ? "1 as Words.float64" : "1";
+    const propertyValue = explicit.has(primitive) ? "1 as Words.float64" : "1n";
     const properties = (sourceRow?.fields ?? []).map(field => {
       const selectedValue = field.member.type.kind === "source-primitive" && field.member.type.name === "bool" ? "true" : propertyValue;
       return field.read === "accessor" || field.member.accessor !== undefined
@@ -123,11 +123,11 @@ function fixture() {
     const nativeModel = { moduleSpecifier: "@fixture/native", providerModuleId: "Fixture.Native", exports: [{
       id: "ContextRow", name: "ContextRow", kind: "class", members: [
         ...(contextRow?.fields ?? []).map(field => ({ id: `ContextRow::${field.identity}`, name: field.identity,
-          kind: "property", type: explicit.has(primitive) ? { kind: "source-primitive", name: "float64" } : { kind: "number" },
+          kind: "property", type: { kind: "source-primitive", name: explicit.has(primitive) ? "float64" : "int64" },
           optional: field.property.optional, readonly: field.property.readonly })),
         ...(contextRow?.indexes.length > 0 ? [{ id: "ContextRow::index", name: "index", kind: "indexer",
           signatures: [{ id: "ContextRow::index(string)", parameters: [{ name: "key", type: { kind: "string" } }],
-            returnType: { kind: "number" } }] }] : []),
+            returnType: { kind: "source-primitive", name: explicit.has(primitive) ? "float64" : "int64" } }] }] : []),
       ],
     }] };
     const providerExtension = { identity: { id: "fixture.native.extension", version: "1.0.0" },
@@ -145,7 +145,7 @@ function fixture() {
     const checked = createCompilerSessionFromFiles({ currentDirectory: "/src", files: {
       "/src/node_modules/@fixture/words/package.json": JSON.stringify({ name: "@fixture/words", version: "1.0.0",
         type: "module", exports: { ".": "./index.d.ts" } }),
-      "/src/node_modules/@fixture/words/index.d.ts": "export type float64 = number;",
+      "/src/node_modules/@fixture/words/index.d.ts": "export type float64 = number; export type int64 = bigint;",
       "/src/index.ts": `import type * as Words from "@fixture/words";
         ${declaration("SourceRow", sourceRow ?? empty)}
         ${contextRow?.provider ? 'import type { ContextRow } from "@fixture/native";' : declaration("ContextRow", contextRow ?? empty)}
@@ -153,7 +153,7 @@ function fixture() {
         type Equivalent = {};
         declare class Constructor {}
         declare const seed: SourceRow;
-        declare const choice: { user: 1 } | { user: 2 };
+        declare const choice: { user: 1n } | { user: 2n };
         function run(other: ContextRow | null | undefined): void {
           let value${annotation} = ${initializer};
           ${nullable ? "value = other;" : ""}
@@ -161,7 +161,8 @@ function fixture() {
         }`,
     }, compilerOptions: { strict: true, target: "es2022", module: "esnext", moduleResolution: "bundler" },
     extensionHostOptions: { extensions: [createSourceSemanticsExtension({ modules: [{ moduleSpecifier: "@fixture/words",
-      packageName: "@fixture/words", exports: [sourcePrimitive("float64", "float64", "number", true, 64)] }] }), providerExtension] } }).checkSource();
+      packageName: "@fixture/words", exports: [sourcePrimitive("float64", "float64", "number", true, 64),
+        sourcePrimitive("int64", "int64", "bigint", true, 64)] }] }), providerExtension] } }).checkSource();
     assert.equal(checked.diagnostics.length, 0, "positive constructions and independent-type negative boundaries both use valid checked Source");
     assert.equal(checked.extensionDiagnostics.length, 0);
     const program = createTargetSourceProgram(checked);
@@ -375,6 +376,24 @@ test("declared native numeric storage keeps int64 and cannot override an explici
     assert.equal(selected.constructionFor(literal) === undefined, explicit);
     if (!explicit) assert.equal(selected.constructionFor(literal)?.shape.members[0].type === integer, true);
   }
+});
+
+test("a published float64 initializer cannot construct an exact int64 native field", () => {
+  const value = fixture();
+  const expected = value.row([{ identity: "user" }], native, { provider: true });
+  value.explicit.add(value.primitive);
+  const literal = value.node(value.row([{ identity: "user", carrier: floating }]), expected);
+  const selected = value.freeze();
+  const initializer = value.host.ast.as.AsPropertyAssignment(value.host.ast.properties(literal)[0])?.Initializer;
+  const outcome = initializer === undefined ? undefined : value.host.effectiveTypes.get(initializer);
+  const descriptor = outcome === undefined || outcome.kind === "refused" ? undefined
+    : sourceTypeDescriptorStructure(outcome.construction ?? outcome.type);
+  assert.equal(descriptor?.kind === "primitive" && descriptor.primitive === "float64", true);
+  assert.equal(selected.issues.length, 1);
+  assert.equal(selected.issues[0].node === literal &&
+    selected.issues[0].code === "CSHARP_NATIVE_CONSTRUCTION_NOT_PROVEN" &&
+    selected.issues[0].message === "The declared native construction cannot retain all exact fields, absence and native storage without a copied or adapted object.", true);
+  assert.equal(selected.constructionFor(literal) === undefined, true);
 });
 
 test("unrelated native declarations never retarget the original literal", () => {

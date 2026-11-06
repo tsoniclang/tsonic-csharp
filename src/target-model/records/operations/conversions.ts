@@ -9,6 +9,8 @@ export interface CsharpConversionIssue {
   readonly node: Node;
   readonly code: string;
   readonly message: string;
+  readonly source?: TargetTypeRef;
+  readonly target?: TargetTypeRef;
 }
 
 export interface CsharpDelegateAdapterIdentity {
