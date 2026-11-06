@@ -36,8 +36,7 @@ import { admitCsharpDelegateEmission, admitCsharpDelegateOperand } from "./calla
 import { sourceTransparentExpressionOperand } from "@tsonic/target-api/source";
 import { readCsharpSelectedWritingReference } from "../callables/values/argument-passing.js";
 import { sourceAnnotationHint } from "@tsonic/target-api/source";
-import { tsonicCoreSourceSemanticsModules } from "@tsonic/source-core";
-import { isCsharpIntegralTargetType } from "../../target-model/types/carriers/scalar-types.js";
+import { csharpIntegralConversionAnnotationHint } from "./integral-hints.js";
 
 const maximumConversionClassifications = 1_048_576;
 
@@ -184,22 +183,16 @@ export function analyzeCsharpConversions(
         return selected;
       }, requiredRecords, issues, callConversions);
       issues.push(...admitted.issues.map(issue => {
-        const source = getCsharpNullableElementTargetType(issue.source) ?? issue.source;
-        const target = getCsharpNullableElementTargetType(issue.target) ?? issue.target;
-        const integral = source?.kind === "source-primitive" && source.name === "float64" &&
-          target !== undefined && isCsharpIntegralTargetType(target);
-        const annotationType = integral && target?.kind === "source-primitive"
-          ? tsonicCoreSourceSemanticsModules().flatMap(module => module.exports).find(declaration =>
-            declaration.kind === "source-primitive" && declaration.primitive === target.name)?.exportName : undefined;
-        const hint = sourceAnnotationHint(issue.node, {
+        const bindings = {
           ast: policy.ast, navigation: policy.navigation,
-          annotationType,
-          call: node => {
+          call: (node: Node) => {
             const construction = policy.ast.is.IsNewExpression(node) ? selectedOperations.selectedConstruction.get(node)?.target : undefined;
             return policy.ast.is.IsCallExpression(node) ? selectedOperations.selectedCall.get(node)?.source
               : construction?.kind === "resolved" || construction?.kind === "source-owned" ? construction.source : undefined;
           },
-        }) ?? (integral ? "Annotate the value with an integral type." : undefined);
+        };
+        const hint = csharpIntegralConversionAnnotationHint(issue.node, issue.source, issue.target, bindings) ??
+          sourceAnnotationHint(issue.node, bindings);
         return hint === undefined ? issue : Object.freeze({ ...issue, message: `${issue.message} ${hint}` });
       }));
       delegateAdapters = sealCsharpDelegateAdapterIdentities(policy, preparedValueReads, admitted.expressions, issues);

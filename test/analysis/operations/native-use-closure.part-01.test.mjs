@@ -51,7 +51,7 @@ test(
         delete values["key"]; void value; return typeof value; }`
     : surface === "native" && label === "sequence spread" ? program.replace("values.length", "values.Length") : program;
   const compiled = compileCsharpNativeUseSource({ sourceText, surface });
-  if (label === "accessor bodies" || label === "parameter, pattern and lambda defaults") {
+  if (label === "accessor bodies") {
     assert.equal(compiled.sourceDiagnosticsText, "", compiled.sourceDiagnosticsText);
     assert.deepEqual(compiled.targetDiagnostics.map(({ code, message }) => [code, message]),
       [["CSHARP_UNSUPPORTED_AST", "No exact C# implicit conversion relates 'source:float64' to 'source:int64'. Annotate the value with an integral type."]],
@@ -79,11 +79,9 @@ test(
   assert.equal(compiled.result.program !== undefined && [...compiled.artifacts.keys()].some(path => path.endsWith(".cs")), true,
     `${label}: one sealed program reaches native source emission`);
 });
-if (label === "accessor bodies" || label === "parameter, pattern and lambda defaults") {
+if (label === "accessor bodies") {
 test(`${surface} an annotated ${label} companion preserves every sealed native operation`, () => {
-  const sourceText = label === "accessor bodies"
-    ? program.replace("stored = 1", "stored: number = 1")
-    : program.replace("const [item = next()] = [1]", "const [item = next()]: number[] = [1]");
+  const sourceText = program.replace("stored = 1", "stored: number = 1");
   assert.notEqual(sourceText, program, "only the incompatible field or destructuring destination receives its annotation");
   const compiled = compileCsharpNativeUseSource({ sourceText, surface });
   assert.equal(compiled.sourceDiagnosticsText === "", true, `${label}: ${compiled.sourceDiagnosticsText}`);

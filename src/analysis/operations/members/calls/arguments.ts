@@ -7,6 +7,7 @@ import { csharpTargetParameterValueType, csharpTargetStorageIdentityEquals, targ
 import { selectCsharpProviderArgumentConversion } from "../../../../policy/conversions/index.js";
 import { csharpConversionIsApplicable } from "../../../../policy/conversions/applicability.js";
 import { selectCsharpSourceTypeFlowIndexConversion } from "../../../../policy/conversions/source-type-flow-index.js";
+import { csharpIntegralConversionAnnotationHint } from "../../../conversions/integral-hints.js";
 
 import { selectCsharpSourceArgument } from "../../../../source/extension/arguments.js";
 import type { CsharpSelectedCallArgument, CsharpProviderArgumentMapping } from "../../../../target-model/records/objects/members.js";
@@ -149,10 +150,12 @@ export function validateArgumentsTargetSelectedParameters(
           conversion.kind === "ambiguous"
         ? ` ${conversion.reason}`
         : "";
+      const hint = csharpIntegralConversionAnnotationHint(sourceArgument.argument.storageExpression, sourceType, targetType,
+        { ast: host.ast, navigation: host.navigation, call: node => node === source.call ? source : undefined });
       return {
         kind: "rejected",
         reason:
-          `Source argument ${binding.sourceArgumentIndex} with C# representation '${targetTypeRefKey(sourceType)}' cannot satisfy exact target parameter '${argument.targetParameter.name}' with passing mode '${sourceArgument.argument.passingMode}' and representation '${targetTypeRefKey(csharpTargetParameterValueType(argument.targetParameter, argument.sourceForm))}'.${detail}`,
+          `Source argument ${binding.sourceArgumentIndex} with C# representation '${targetTypeRefKey(sourceType)}' cannot satisfy exact target parameter '${argument.targetParameter.name}' with passing mode '${sourceArgument.argument.passingMode}' and representation '${targetTypeRefKey(csharpTargetParameterValueType(argument.targetParameter, argument.sourceForm))}'.${detail}${hint === undefined ? "" : ` ${hint}`}`,
       };
     }
     argumentMappings.push({
