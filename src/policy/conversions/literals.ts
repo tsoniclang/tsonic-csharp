@@ -4,22 +4,7 @@ import { createCsharpNumericLiteralToken, type CsharpNumericLiteralToken } from 
 import { csharpBigIntFitsSourcePrimitive, csharpNumericLiteralFitsSourcePrimitive } from "./literal-range.js";
 import type { TargetTypeRef } from "../types/index.js";
 import { getCsharpArrayLiteralElementTargetType, getCsharpNullableElementTargetType, isCsharpStringTargetType } from "../../target-model/types/index.js";
-import { csharpBigIntegerTargetType, isCsharpIntegralTargetType } from "../../target-model/types/carriers/scalar-types.js";
-import { getCsharpRuntimeUnionArms } from "../../target-model/types/carriers/runtime-carriers.js";
-import type { CsharpTypeDefinitions } from "../../target-model/types/source-union-definitions.js";
-import { targetTypeRefEquals } from "../../target-model/types/equality.js";
-
-export function selectCsharpScalarLiteralCarrier(
-  literal: SourceLiteralValue | undefined,
-  target: TargetTypeRef | undefined,
-  definitions: CsharpTypeDefinitions | undefined,
-): TargetTypeRef | undefined {
-  if (literal === undefined || literal.form === "array" || target === undefined) return undefined;
-  const present = getCsharpNullableElementTargetType(target) ?? target;
-  const arms = getCsharpRuntimeUnionArms(present, definitions);
-  return (arms === undefined ? [present] : arms).find(arm => csharpLiteralIsRepresentableAs(literal, arm) ||
-    literal.form === "bigint" && literal.integer !== undefined && targetTypeRefEquals(arm, csharpBigIntegerTargetType()));
-}
+import { isCsharpIntegralTargetType } from "../../target-model/types/carriers/scalar-types.js";
 
 export function csharpLiteralIsRepresentableAs(
   value: SourceLiteralValue | undefined,

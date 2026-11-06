@@ -3,44 +3,71 @@ import { test } from "node:test";
 import { csharpSourcePrimitiveTargetType, isCsharpArrayIndexTargetType, isCsharpIntegralTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { analyzeSourceLiteralValues } from "@tsonic/target-api/source";
 import { acceptedEffectiveSource, assertNativeEffectiveRefusal, assertPrimitiveOccurrences, compileEffectiveSource, projectNodes } from "../../helpers/source-effective-types.mjs";
-import { selectCsharpScalarLiteralCarrier } from "../../../dist/policy/conversions/literals.js";
-import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
-import { csharpRuntimeUnionTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
+import * as literalPolicy from "../../../dist/policy/conversions/literals.js";
 import { csharpStringTargetType, csharpBigIntegerTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
-import { checkedSourceLiteralValues } from "../../helpers/source-literal-values.mjs";
 
-test("scalar admission chooses one physical payload for direct nullable union and nullable-union storage", () => {
+test("published scalar construction retains one physical payload before every declared storage form", () => {
   const cases = [
-    ["minimum signed integer", "-2147483648", csharpSourcePrimitiveTargetType("int32")],
-    ["half", "1.5", csharpSourcePrimitiveTargetType("float16")],
-    ["single", "1.5", csharpSourcePrimitiveTargetType("float32")],
-    ["double", "1.5", csharpSourcePrimitiveTargetType("float64")],
-    ["decimal", "1.5", csharpSourcePrimitiveTargetType("decimal")],
-    ["negative zero", "-0", csharpSourcePrimitiveTargetType("float64")],
-    ["character", '"x"', csharpSourcePrimitiveTargetType("char")],
-    ["string", '"text"', csharpStringTargetType()],
-    ["boolean", "true", csharpSourcePrimitiveTargetType("bool")],
-    ["bigint", "1n", csharpBigIntegerTargetType()],
+    ["minimum signed integer", "-2147483648", "int32", csharpSourcePrimitiveTargetType("int32")],
+    ["half", "1.5", "float16", csharpSourcePrimitiveTargetType("float16")],
+    ["single", "1.5", "float32", csharpSourcePrimitiveTargetType("float32")],
+    ["double", "1.5", "float64", csharpSourcePrimitiveTargetType("float64")],
+    ["decimal", "1.5", "decimal", csharpSourcePrimitiveTargetType("decimal")],
+    ["negative zero", "-0", "float64", csharpSourcePrimitiveTargetType("float64")],
+    ["character", '"x"', "char", csharpSourcePrimitiveTargetType("char")],
+    ["string", '"text"', "string", csharpStringTargetType()],
+    ["boolean", "true", "boolean", csharpSourcePrimitiveTargetType("bool")],
+    ["bigint", "1n", "bigint", csharpBigIntegerTargetType()],
   ];
-  const literals = checkedSourceLiteralValues(cases.map(([, spelling]) => spelling));
-  for (const [index, [name, , payload]] of cases.entries()) {
-    const other = name === "boolean" ? csharpStringTargetType() : csharpSourcePrimitiveTargetType("bool");
-    const union = csharpRuntimeUnionTargetType([payload, other]);
-    for (const [form, storage] of [["direct", payload], ["nullable", csharpNullableTargetType(payload)],
-      ["union", union], ["nullable union", csharpNullableTargetType(union)]]) {
-      assert.equal(targetTypeRefEquals(selectCsharpScalarLiteralCarrier(literals[index], storage), payload), true,
-        `${name}/${form}: the physical payload is the same admitted native scalar`);
-      assert.equal(selectCsharpScalarLiteralCarrier(undefined, storage) === undefined, true, `${name}/${form}: no literal`);
+  assert.equal(Object.hasOwn(literalPolicy, "selectCsharpScalarLiteralCarrier"), false,
+    "the retired Native scalar arm chooser has no compatibility export");
+  for (const surface of ["native", "js"]) for (const [name, spelling, declared, payload] of cases) {
+    const other = declared === "boolean" ? "string" : "boolean";
+    for (const [form, storage] of [["direct", declared], ["nullable", `${declared} | undefined`],
+      ["union", `${declared} | ${other}`], ["nullable union", `${declared} | ${other} | undefined`]]) {
+      const imported = ["string", "boolean", "bigint"].includes(declared) ? ""
+        : `import type { ${declared} } from "@tsonic/core/types.js";`;
+      const compiled = compileEffectiveSource(surface, `${imported} export function run(): (${storage})[] { return [${spelling}]; }`);
+      acceptedEffectiveSource(compiled);
+      const ast = compiled.targetSource.ast;
+      const aggregate = projectNodes(compiled, node => ast.is.IsArrayLiteralExpression(node))[0];
+      const expression = ast.elements(aggregate)[0];
+      const outcome = compiled.targetSource.effectiveTypes.get(expression);
+      assert.equal(outcome !== undefined && outcome.kind !== "refused", true,
+        `${surface}/${name}/${form}: the original Source occurrence publishes its outcome`);
+      const produced = outcome.construction ?? outcome.type;
+      assert.equal(payload.kind === "source-primitive"
+        ? produced.kind === "primitive" && produced.primitive === payload.name
+        : declared === "bigint" ? produced.kind === "intrinsic" && produced.intrinsic === "bigint"
+          : produced.kind === "string", true,
+      `${surface}/${name}/${form}: Source, not Native storage, selects the complete physical scalar`);
+      assert.equal(targetTypeRefEquals(compiled.result.program.records.valueRead.get(expression)?.value, payload), true,
+        `${surface}/${name}/${form}: the Native read consumes the same physical payload`);
     }
   }
-  const [aggregate, overflow] = checkedSourceLiteralValues(["[1]", "2147483648"]);
-  const integer = csharpSourcePrimitiveTargetType("int32");
-  assert.equal(selectCsharpScalarLiteralCarrier(aggregate, integer) === undefined, true, "aggregates have a separate admission owner");
-  assert.equal(selectCsharpScalarLiteralCarrier(literals[0], undefined) === undefined, true, "no storage contract");
-  for (const storage of [integer, csharpNullableTargetType(integer),
-    csharpRuntimeUnionTargetType([integer, csharpSourcePrimitiveTargetType("bool")])]) {
-    assert.equal(selectCsharpScalarLiteralCarrier(overflow, storage) === undefined, true, "a missing admissible arm never bypasses integer range");
+  const nonliteral = compileEffectiveSource("native", `import type { int32 } from "@tsonic/core/types.js";
+    export function run(value: int32): int32 { return value; }`);
+  acceptedEffectiveSource(nonliteral);
+  const nonliteralReturn = projectNodes(nonliteral, (node, ast) => ast.is.IsReturnStatement(node))[0];
+  const nonliteralValue = nonliteral.targetSource.ast.as.AsReturnStatement(nonliteralReturn)?.Expression;
+  assert.equal(analyzeSourceLiteralValues(nonliteral.targetSource.ast, nonliteral.targetSource.navigation.sourceFiles)
+    .literalValue.get(nonliteralValue) === undefined, true, "a nonliteral read supplies no authored scalar literal");
+  const unannotated = compileEffectiveSource("native", "export function run() { return -2147483648; }");
+  acceptedEffectiveSource(unannotated);
+  const ownReturn = projectNodes(unannotated, (node, ast) => ast.is.IsReturnStatement(node))[0];
+  const ownValue = unannotated.targetSource.ast.as.AsReturnStatement(ownReturn)?.Expression;
+  assert.equal(targetTypeRefEquals(unannotated.result.program.records.valueRead.get(ownValue)?.value,
+    csharpSourcePrimitiveTargetType("int64")), true, "no authored storage still keeps the Source int64 creation default");
+  const aggregate = compileEffectiveSource("native", "export function run() { return [1]; }");
+  acceptedEffectiveSource(aggregate);
+  const array = projectNodes(aggregate, (node, ast) => ast.is.IsArrayLiteralExpression(node))[0];
+  assert.equal(aggregate.result.program.records.valueRead.get(array)?.value.kind === "array", true,
+    "aggregate construction retains its separate array admission owner");
+  for (const storage of ["int32", "int32 | undefined", "int32 | boolean"]) {
+    const overflow = compileEffectiveSource("native", `import type { int32 } from "@tsonic/core/types.js";
+      export function run(): (${storage})[] { return [2147483648]; }`);
+    assertNativeEffectiveRefusal(overflow, "Source bigint literal is outside the exact 'int32' range.", "2147483648");
   }
 });
 
