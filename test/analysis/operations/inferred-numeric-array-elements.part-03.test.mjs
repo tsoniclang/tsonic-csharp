@@ -34,7 +34,9 @@ function assertIntegerDefaultConstruction(compiled, label, otherKinds = ["string
   let integers = 0;
   while (pending.length > 0) {
     const node = pending.pop();
-    if (ast.is.IsNumericLiteral(node) && ast.text(node) === "9007199254740993") {
+    const range = ast.is.IsNumericLiteral(node) ? ast.authoredRange(node) : undefined;
+    const file = range?.kind === "authored" ? ast.getSourceFile(node) : undefined;
+    if (range?.kind === "authored" && file !== undefined && ast.getSourceText(file).slice(range.start, range.end) === "9007199254740993") {
       const outcome = program.source.effectiveTypes.get(node);
       const physical = outcome === undefined || outcome.kind === "refused" ? undefined : outcome.construction ?? outcome.type;
       assert.equal(physical?.kind === "primitive" && physical.primitive === "int64", true,
@@ -298,6 +300,14 @@ for (const [name, elements] of [
 test(`${surface} every inferred union fallback proves exact canonical integers (${name})`, () => {
     const compiled = compile(surface, `export function run(signed: int32, unsigned: uint32) { const values = [${elements}]; return values; }`);
     assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
+    if (name === "absence cannot conceal an inexact canonical integer" || name === "nonnumeric arms cannot conceal an inexact canonical integer") {
+      const otherKinds = name.startsWith("absence") ? ["int32", "absence"] : ["int32", "string"];
+      assertIntegerDefaultConstruction(compiled, `${surface}: ${name}`, otherKinds);
+      const emitted = [...compiled.artifacts.values()].join("\n");
+      assert.equal(/Union(?:`\d+)?<[^>]*\blong\b/u.test(emitted), true,
+        "C2401 keeps the original fixed int32 arm and emits the integer's own long arm without floating exactness repair");
+      return;
+    }
     if (name === "text cannot authorize a floating default" || name === "text reversed cannot authorize a floating default" ||
       name === "text and a fraction cannot authorize a floating default" || name === "native absence cannot authorize a floating default" ||
       name === "native absence reversed cannot authorize a floating default") {

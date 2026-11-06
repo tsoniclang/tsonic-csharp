@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createCompilerSessionFromFiles, providerVirtualDeclarationFactKey } from "@tsonic/tsts";
+import { createCompilerSessionFromFiles, createSourceSemanticsExtension, providerVirtualDeclarationFactKey, sourcePrimitive } from "@tsonic/tsts";
 import { createTargetSourceProgram, sourceTypeDescriptorMemberOriginsEqual, sourceTypeDescriptorStructure } from "@tsonic/target-api/source";
 import { resolveCsharpSourceTypeDescriptor } from "../../../../dist/analysis/source-evidence/types/resolution/effective-types.js";
 import { resolveNodeValueWithState } from "../../../../dist/analysis/source-evidence/types/resolution/nodes.js";
@@ -77,14 +77,22 @@ test("C2377 class forwarding keeps the declared instance and its exact published
 });
 
 function providerMemberFixture(empty = false, aliased = false, sourceText) {
-  const checked = createCompilerSessionFromFiles({ currentDirectory: "/src", files: { "/src/index.ts": sourceText ?? `
-    interface ${aliased ? "Original" : "Options"} { ${empty ? "" : "mode?: number;"} }
+  const checked = createCompilerSessionFromFiles({ currentDirectory: "/src", files: {
+    "/src/node_modules/@test/widths/package.json": JSON.stringify({ name: "@test/widths", version: "1.0.0", type: "module", exports: { ".": "./index.d.ts" } }),
+    "/src/node_modules/@test/widths/index.d.ts": "export type int32 = number;",
+    "/src/index.ts": 'import type { int32 } from "@test/widths";' + (sourceText ?? `
+    interface ${aliased ? "Original" : "Options"} { ${empty ? "" : "mode?: int32;"} }
     ${aliased ? "type First = Original; type Options = First;" : ""}
     interface Foreign { mode?: number; }
     declare const options: Options; declare const foreign: Foreign;
     function read(): Options { return options; } function readForeign(): Foreign { return foreign; }
     function make(): Options { return {}; }
-  ` }, compilerOptions: { strict: true, target: "es2022", module: "esnext" } }).checkSource();
+  `) }, compilerOptions: { strict: true, target: "es2022", module: "esnext", moduleResolution: "bundler" },
+    extensionHostOptions: { extensions: [createSourceSemanticsExtension({ modules: [{
+      moduleSpecifier: "@test/widths", packageName: "@test/widths",
+      exports: [sourcePrimitive("int32", "int32", "number", true, 32)],
+    }] })] },
+  }).checkSource();
   assert.equal(checked.diagnostics.length, 0);
   const source = createTargetSourceProgram(checked);
   const file = checked.getSourceFile("/src/index.ts");
@@ -734,12 +742,10 @@ function publishedMemberFixture() {
 
 test("canonical retained members preserve the same Native contract without reopening raw property evidence", () => {
   const input = publishedMemberFixture();
-  const prior = [{ ...input.members[0], exactNumericStorage: true,
-    get sourceTypes() { return unexpected(); }, get sourceMemberEvidence() { return unexpected(); } }];
+  const prior = [{ ...input.members[0], get sourceTypes() { return unexpected(); }, get sourceMemberEvidence() { return unexpected(); } }];
   const selected = input.resolver.retainPublishedMembers(prior, input.descriptor, input.box, input.queries, { depth: 0 });
   assert.equal(selected?.length === 1 && selected[0].origins?.length === 1 && selected[0].origins[0] === input.descriptor.members[0].origin, true);
-  assert.equal(targetTypeRefEquals(selected[0].type, csharpSourcePrimitiveTargetType("int64")) &&
-    selected[0].exactNumericStorage === true, true, "the same Native width and physical field contract survive");
+  assert.equal(targetTypeRefEquals(selected[0].type, csharpSourcePrimitiveTargetType("int64")), true, "the same Native width and physical field contract survive");
   assert.equal(selected[0].sourceTypes === undefined && selected[0].sourceMemberEvidence === undefined, true);
   assert.equal(typeof input.resolver.instantiateMemberEvidence, "undefined", "the raw reconstruction entrypoint is removed");
 });
@@ -838,12 +844,12 @@ test("canonical provider members retain their published origin and the proven nu
   assert.equal(shape !== undefined && shape.members.length === 1, true);
   const member = shape.members[0];
   assert.equal(member.origins?.length === 1 && member.origins[0] === input.structure.members[0].origin, true);
-  assert.equal(member.type === input.storage && member.optional === true && member.exactNumericStorage === true &&
-    member.targetName === "nativeMode", true, "number is represented by the selected nullable int32 field, not a second Source width choice");
+  assert.equal(member.type === input.storage && member.optional === true &&
+    member.targetName === "nativeMode", true, "the published int32 is represented by the same nullable native int32 field");
   const retained = input.resolver.retainPublishedMembers(shape.members, input.descriptor, input.occurrence,
     input.input.queries, { depth: 0 }, input.target);
   assert.equal(retained?.length === 1 && retained[0].type === input.storage && retained[0].origins[0] === member.origins[0] &&
-    retained[0].exactNumericStorage === true && retained[0].optional === true && retained[0].targetName === "nativeMode", true);
+    retained[0].optional === true && retained[0].targetName === "nativeMode", true);
   assert.equal(input.resolver.deriveMembers(input.descriptor, input.occurrence, input.input.queries,
     { depth: 0 }, { ...input.target })?.[0].type === input.storage, true, "the same represented target identity consumes the completed ABI");
   assert.equal(input.resolver.deriveMembers(input.descriptor, input.occurrence, input.input.queries,
@@ -929,7 +935,7 @@ test("canonical provider inventories reject missing, foreign, ambiguous and inco
             : policy.retainConstructionSource(current.literal, expected, current.file);
       assert.equal(shape !== undefined && shape.members.length === expected.members.length &&
         shape.members.every(member => member.origins?.length === 1 && member.type === current.storage &&
-          member.optional === true && member.exactNumericStorage === true), true, `${entry}, empty=${empty}: no entry order requires prior discovery`);
+          member.optional === true), true, `${entry}, empty=${empty}: no entry order requires prior discovery`);
       const repeated = policy.resolveNode(current.literal, current.file);
       assert.equal(repeated !== undefined && targetTypeRefEquals(repeated.targetType, shape.targetType) &&
         repeated.members.length === shape.members.length, true, `${entry}, empty=${empty}: ordinary later discovery consumes the same contract`);
@@ -974,7 +980,7 @@ test("real empty provider constructions retain optional canonical origins and ex
       shape.targetType.id === "Tsonic.CSharp.Node.MakeDirectoryOptions" && shape.members.length === 2, true);
     const mode = shape.members.find(member => member.sourceName === "mode");
     const recursive = shape.members.find(member => member.sourceName === "recursive");
-    assert.equal(mode?.optional === true && mode.exactNumericStorage === true &&
+    assert.equal(mode?.optional === true &&
       targetTypeRefEquals(getCsharpNullableElementTargetType(mode.type), csharpSourcePrimitiveTargetType("int32")), true);
     assert.equal(recursive?.optional === true &&
       targetTypeRefEquals(getCsharpNullableElementTargetType(recursive.type), csharpSourcePrimitiveTargetType("bool")), true);
@@ -1023,7 +1029,7 @@ test("native construction consumes only the completed canonical provider contrac
       "even the empty literal retains the complete selected provider inventory");
     for (const [index, member] of retained.members.entries()) {
       assert.equal(member.optional === true, true, "provider optional absence stays selected");
-      assert.equal(member.exactNumericStorage === true, true, "provider numeric storage remains exact");
+      assert.equal(targetTypeRefEquals(member.type, current.storage), true, "published Source and provider numeric storage remain exact");
       assert.equal(member.type === current.storage, true, "the selected Native storage object is retained");
       assert.equal(member.origins?.length === 1, true, "one actual published destination origin is retained");
       const origin = member.origins[0];
@@ -1070,7 +1076,7 @@ test("canonical provider construction retains parameter, property, direct and po
     assert.equal(shapes.length === 1 && shapes[0].members.length === 2, true,
       "the declared provider destination selects exactly one original Native allocation in every existing entry path");
     const mode = shapes[0].members.find(member => member.sourceName === "mode");
-    assert.equal(mode?.optional === true && mode.exactNumericStorage === true && mode.origins?.length > 0 &&
+    assert.equal(mode?.optional === true && mode.origins?.length > 0 &&
       targetTypeRefEquals(getCsharpNullableElementTargetType(mode.type), csharpSourcePrimitiveTargetType("int32")), true,
     "published Source origins do not erase optional provider Native mode storage");
     const output = [...compiled.artifacts.values()].join("\n");
@@ -1148,7 +1154,7 @@ test("an indexed provider needs no indexer ABI for zero writes but refuses a dyn
 test("a retained provider alias validates its current publication and target without changing allocation identity", () => {
   for (const changed of ["current", "missing", "foreign-origin", "foreign-target"]) {
     const current = providerMemberFixture(false, false, `
-      interface Options { mode?: number; }
+      interface Options { mode?: int32; }
       interface Foreign { mode?: number; }
       declare const options: Options; declare const foreign: Foreign;
       function read(): Options { return options; } function readForeign(): Foreign { return foreign; }
@@ -1207,7 +1213,6 @@ test("a provider numeric field retains only compatible authored literal storage 
       selected.targetType.kind === "target-named" && selected.targetType.id === "Tsonic.CSharp.Node.MakeDirectoryOptions");
     const mode = shape?.members.find(member => member.sourceName === "mode");
     assert.equal(mode?.optional === true, true, "the provider's optional absence is retained");
-    assert.equal(mode.exactNumericStorage === true, true, "the selected provider numeric ABI remains exact");
     assert.equal(targetTypeRefEquals(getCsharpNullableElementTargetType(mode.type), csharpSourcePrimitiveTargetType("int32")), true,
       "an ordinary number or matching authored width retains the same provider storage");
   }

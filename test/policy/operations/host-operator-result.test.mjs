@@ -673,8 +673,23 @@ for (const surface of ["native", "js"]) {
       export function localPositiveObject() { const value = { n: 9007199254740993 }; const alias = value; return acceptObject(alias); }
       export function localNegativeObject() { const value = { n: -9007199254740993 }; const alias = value; return acceptObject(alias); }
     `;
-    const compiled = compileEffectiveSource(surface,
-      `import type { float32, int32 } from "@tsonic/core/types.js";\n${cases.map(row => row.body).join("\n")}\n${objects}`);
+    const original = `import type { float32, int32 } from "@tsonic/core/types.js";\n${cases.map(row => row.body).join("\n")}\n${objects}`;
+    const rejected = compileEffectiveSource(surface, original);
+    const errors = rejected.result.diagnostics.filter(issue => issue.category === "error");
+    assert.equal(errors.length, 2, "only the two fixed module allocations reject backward storage retargeting");
+    for (const [index, name] of ["positiveObject", "negativeObject"].entries()) {
+      const issue = errors[index];
+      assert.equal(issue.code, "CSHARP_UNSUPPORTED_AST");
+      assert.equal(issue.message, "No exact C# implicit conversion relates 'target:tsonic.shape:b13dc4521baaff73f5a23dabc9e8e7a9132b135c60d22ff42e17c9748a75956e<>' to 'target:tsonic.shape:189f39ca1970862712bea92adb0bd22482423ba78ad4a645aa9608d3b7eae517<>'. " +
+        `Annotate \`const ${name}: { n: string | number } = { n: ${index === 0 ? "" : "-"}9007199254740993 }\`.`);
+      const range = rejected.targetSource.ast.authoredRange(issue.sourceNode);
+      assert.equal(range.kind, "authored");
+      assert.equal(original.slice(range.start, range.end), name, "the original module argument owns its precise refusal");
+    }
+    assert.equal(rejected.artifacts.size, 0);
+    const compiled = compileEffectiveSource(surface, original
+      .replace("const positiveObject =", "const positiveObject: { n: string | number } =")
+      .replace("const negativeObject =", "const negativeObject: { n: string | number } ="));
     acceptedEffectiveSource(compiled);
     const arrays = projectNodes(compiled, (node, ast) => ast.is.IsArrayLiteralExpression(node));
     assert.equal(arrays.length, cases.length, "each original array has one observed construction");

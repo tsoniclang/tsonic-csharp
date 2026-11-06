@@ -257,11 +257,9 @@ export function createCsharpExpectedTypePropagation(
           selected.member.type,
           strength,
           member(property),
-          selected.member.exactNumericStorage === true,
         );
       } else if (policy.ast.is.IsShorthandPropertyAssignment(property)) {
-        record(policy.ast.name(property), selected.member.type, strength, member(property),
-          selected.member.exactNumericStorage === true);
+        record(policy.ast.name(property), selected.member.type, strength, member(property));
       } else if (policy.ast.is.IsMethodDeclaration(property) && selected.member.memberKind === "method") {
         const parameters = selected.member.typeParameters;
         const element = getCsharpNullableElementTargetType(selected.member.type);

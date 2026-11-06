@@ -58,7 +58,8 @@ function fixture(options = {}) {
       nativeFlowTypes: () => options.emptyFlow ? [] : undefined,
       resolveType: type => type === sourceType ? csharpJsArrayTargetType(csharpStringTargetType()) : undefined,
       resolveNode: node => node === receiver ? { kind: "resolved", sourceResult: csharpSourceValueResult(csharpJsArrayTargetType(csharpStringTargetType())) } : undefined,
-      resolveSelectedValue: node => node === receiver ? csharpJsArrayTargetType(csharpStringTargetType()) : undefined },
+      resolveSelectedValue: node => node === receiver ? csharpJsArrayTargetType(csharpStringTargetType())
+        : node === source.argument.expression ? { kind: "source-primitive", name: "int32" } : undefined },
   };
   return { host, source, sourceFile };
 }

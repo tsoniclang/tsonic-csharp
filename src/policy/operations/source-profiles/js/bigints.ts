@@ -33,7 +33,7 @@ export const csharpJsBigIntCallPolicies: readonly CsharpSourceProfileCallPolicy[
         argument.kind === "source-primitive" && ["int8", "uint8", "int16", "uint16", "int32", "uint32",
           "int64", "uint64", "native-int", "native-uint", "int128", "uint128"].includes(argument.name))) return undefined;
     return staticMethod(`Tsonic.CSharp.Js.BigIntOps.${name}`, name, name, jsRuntimeTargetType("BigIntOps"),
-      [targetParameter("bits", csharpSourcePrimitiveTargetType("float64")), targetParameter("value", argument)],
+      [targetParameter("bits", csharpSourcePrimitiveTargetType("int32")), targetParameter("value", argument)],
       csharpBigIntegerTargetType());
   }, { kind: "none" })),
   jsCallPolicy(jsCallIdentity("BigIntConstructor"), context => {

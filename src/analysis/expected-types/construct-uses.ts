@@ -1,8 +1,7 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import { HasSyntacticModifier, isSourceCallableBodyBoundary, ModifierFlagsAsync, sourceEnclosingCallable } from "@tsonic/target-api/source";
 import { csharpCallableValueType } from "../../policy/types/callables/value-type.js";
-import { csharpSourceArgumentExpectedType, csharpTargetParameterValueType, getCsharpGeneratorProtocol,
-  resolveCsharpObjectShapeMemberBySelectedSubject } from "../../policy/types/index.js";
+import { csharpSourceArgumentExpectedType, csharpTargetParameterValueType, getCsharpGeneratorProtocol } from "../../policy/types/index.js";
 import { csharpSelectedTargetArgumentBindings, csharpSourceOwnedArgumentBindings, csharpProviderArgumentSourceCarrier } from "../../policy/operations/members/native-use-arguments.js";
 import { isCsharpJsValueTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 import type { CsharpNativeUseSlot } from "../../target-model/records/native/native-demand.js";
@@ -17,7 +16,7 @@ import type { CsharpExpectedTypeAnalysisInput, CsharpExpectedUseSiteDemand, Csha
 import { csharpSourceTypeFlowShiftCountType } from "../../policy/conversions/source-type-flow-index.js";
 
 export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnalysisInput, collection: CsharpExpectedUseCollection) {
-  const { policy, evidence, operations, objectShapes, callables, declarations, valueReadStages } = input;
+  const { policy, evidence, operations, callables, declarations, valueReadStages } = input;
   const record = collection.record;
   const at = (owner: Node, slot: CsharpNativeUseSlot): CsharpExpectedUseSiteDemand => ({ owner, slot });
   return Object.freeze({ recordThrownValue, recordInitializer, recordOperationUses });
@@ -57,7 +56,7 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
       typeNode === undefined ? "contextual" : "required", slot === undefined ? undefined : at(node, slot));
   }
 
-  function recordOperationUses(node: Node, sourceFile: SourceFile): boolean {
+  function recordOperationUses(node: Node, _sourceFile: SourceFile): boolean {
     if (!policy.ast.isConstAssertion(node) && (policy.ast.is.IsAsExpression(node) || policy.ast.is.IsTypeAssertion(node) ||
       policy.ast.is.IsNonNullExpression(node)) &&
       (policy.navigation.expressionResultUse(node) !== "discarded" || policy.effectiveTypes.get(node) !== undefined)) {
@@ -125,13 +124,8 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
       if (binary.targetOperation.kind === "conditional-value" && binary.targetOperation.branch !== "right") {
         record(binary.left, binary.resultType, "required", at(node, { kind: "present-payload" }));
       }
-      const selected = binary.sourceOperator === "="
-        ? policy.semantics(sourceFile)?.operations.propertyAccess(binary.left) ?? policy.semantics(sourceFile)?.operations.elementAccess(binary.left) : undefined;
-      const shape = selected === undefined ? undefined : objectShapes.resolveNode(selected.receiver.expression, sourceFile);
-      const member = shape === undefined || selected === undefined ? undefined
-        : resolveCsharpObjectShapeMemberBySelectedSubject(shape, [selected.selectedDeclaration, selected.selectedSymbol]);
       if (binary.targetOperation.kind !== "conditional-value" || binary.targetOperation.branch !== "left") record(binary.right, csharpSourceTypeFlowShiftCountType(binary),
-        "required", at(node, { kind: "operand", position: "right" }), member?.kind === "resolved" && member.member.exactNumericStorage === true);
+        "required", at(node, { kind: "operand", position: "right" }));
     }
     const mutation = operations.jsArrayMutation.get(node);
     if (mutation?.kind === "set-typed-element" && mutation.calculation !== undefined) {

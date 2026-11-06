@@ -389,7 +389,7 @@ test("js map arithmetic refuses a different concrete result use rather than rety
   assertPublishedRefusal(compiled, "TSONIC_LOCAL_TYPE_CONFLICT", "mapped");
 });
 
-test("js matching accumulator and declared receiver binders remain native", () => {
+test("js unannotated receiver refuses a mismatched int32 accumulator without retyping its elements", () => {
   const compiled = compileEffectiveSource("js", `${header}
     export function run(): int32 {
       const values = [1, 2];
@@ -397,8 +397,23 @@ test("js matching accumulator and declared receiver binders remain native", () =
       return total;
     }
   `);
+  assertPublishedRefusal(compiled, "TSONIC_LOCAL_TYPE_ACCUMULATOR", "sum + value");
+  assert.equal(compiled.result.diagnostics[0].message,
+    "The accumulator's callback result differs from its non-cyclic source type. Write a matching seed such as '0.0' or annotate the accumulator.");
+});
+
+test("js annotated receiver keeps the original matching int32 accumulator and declared result", () => {
+  const compiled = compileEffectiveSource("js", `${header}
+    export function run(): int32 {
+      const values: int32[] = [1, 2];
+      const total = values.reduce((sum, value) => sum + value, 0);
+      return total;
+    }
+  `);
   acceptedEffectiveSource(compiled);
   for (const name of ["sum", "value", "total"]) assertPrimitiveOccurrences(compiled, name, "int32");
+  assertArrayOccurrences(compiled, "values", "int32");
+  assert.match(compiled.artifacts.get("src/Index.cs"), /\bint run\(\)/u);
 });
 
 test("js receiver-only argument places publish write checks without linking or filling", () => {

@@ -1,5 +1,6 @@
 import { regexpResultPropertyPolicies } from "./regexp-results.js";
 import { jsRegExpSourceProfileIdentity } from "@tsonic/js-source-profile";
+import { csharpNullableValueTargetType } from "../../../../target-model/types/carriers/nullable.js";
 
 import type { CsharpTargetMember, TargetTypeRef } from "../../../types/index.js";
 import { csharpJsRegExpExecArrayTargetType, csharpJsArrayTargetType, csharpJsRegExpIndicesArrayTargetType, csharpRegExpIndexPairTargetType, csharpJsRegExpMatchArrayTargetType, csharpJsRegExpNamedGroupsTargetType, csharpJsRegExpNamedIndicesTargetType, csharpJsRegExpStringIteratorTargetType, csharpJsRegExpTargetType, csharpExactJsRegExpExecArrayTargetType, csharpExactJsRegExpIndicesArrayTargetType, csharpExactJsRegExpMatchArrayTargetType, csharpExactJsRegExpNamedGroupsTargetType, csharpExactJsRegExpNamedIndicesTargetType, csharpExactJsRegExpStringIteratorTargetType } from "../../../../target-model/types/carriers/js.js";
@@ -41,7 +42,6 @@ const exactIndicesArrayType = csharpExactJsRegExpIndicesArrayTargetType();
 const exactNamedGroupsType = csharpExactJsRegExpNamedGroupsTargetType();
 const exactNamedIndicesType = csharpExactJsRegExpNamedIndicesTargetType();
 const exactIteratorType = csharpExactJsRegExpStringIteratorTargetType();
-const doubleType = csharpSourcePrimitiveTargetType("float64");
 const intType = csharpSourcePrimitiveTargetType("int32");
 const boolType = csharpSourcePrimitiveTargetType("bool");
 const undefinedType = csharpAbsenceTargetType();
@@ -478,7 +478,7 @@ function regexpInputMember(
             : csharpJsArrayTargetType(csharpNullableTargetType(exact ? jsStringType : stringType));
   return regexpInstanceMethod(
     sourceName,
-    operation === "split" ? [inputType, doubleType] : [inputType],
+    operation === "split" ? [inputType, csharpNullableValueTargetType(intType)] : [inputType],
     resultType,
     targetName,
     operation === "split" ? { optionalIndexes: [1] } : {},

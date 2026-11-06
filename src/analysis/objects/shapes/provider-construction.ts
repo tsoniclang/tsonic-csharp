@@ -1,14 +1,17 @@
-import { providerVirtualDeclarationFactKey, sourcePrimitiveFactKey } from "@tsonic/tsts";
+import { providerVirtualDeclarationFactKey } from "@tsonic/tsts";
 import type { Node, Type, TypePropertyInfo } from "@tsonic/tsts";
 import type { SourceFileSemantics, SourceTypeDescriptor, SourceTypeDescriptorMember } from "@tsonic/target-api/source";
-import { AsSpreadAssignment, sourcePropertyTypeEvidenceNodes, sourceTypeDescriptorMemberOriginsEqual, sourceTypeDescriptorStructure } from "@tsonic/target-api/source";
+import { AsSpreadAssignment, sourceTypeDescriptorMemberOriginsEqual, sourceTypeDescriptorStructure } from "@tsonic/target-api/source";
 import type { CsharpProviderTargetRelation } from "../../../target-model/identities/provider-relations.js";
 import { canonicalProviderValue } from "../../../target-model/metadata/canonical-value.js";
 import { csharpTargetTypeFromBinding } from "../../../policy/types/storage/bindings.js";
 import { substituteTargetTypeParameters } from "../../../policy/types/resolution/substitution.js";
 import type { CsharpRecursiveTypeResolver, CsharpTypePolicyBaseHost, CsharpTypeResolutionState } from "../../source-evidence/types/resolution/model.js";
-import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
+import { csharpNullableTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
+import { sourcePrimitiveImplicitlyConverts } from "../../../policy/conversions/source-primitives.js";
+import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
+import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpSourceMemberDisplayName } from "../../../target-model/types/source-member-keys.js";
 import { resolveObjectShapeSourceMemberKey } from "../../../source/extension/member-keys.js";
@@ -273,17 +276,27 @@ function deriveProviderObjectLiteralMember(
         substitutions,
       );
   const targetReadonly = relation.targetMember.readonly === true;
-  const exactNumericStorage = memberTarget !== undefined &&
-    csharpProviderSelectsNumericStorage(property, sourceTarget, memberTarget, published.member, input);
   if (
     memberTarget === undefined ||
     declaringTarget === undefined ||
-    (!targetTypeRefEquals(sourceTarget, memberTarget) &&
-      !exactNumericStorage) ||
+    !targetTypeRefEquals(sourceTarget, memberTarget) ||
     !targetTypeRefEquals(declaringTarget, selectedTarget) ||
     targetReadonly !== property.readonly
   ) {
     return undefined;
+  }
+  const outcome = input.host.effectiveTypes.get(input.occurrence);
+  const expected = getCsharpNullableElementTargetType(memberTarget) ?? memberTarget;
+  for (const entry of outcome === undefined || outcome.kind === "refused" ? [] : outcome.memberCorrespondence ?? []) {
+    if (!sourceTypeDescriptorMemberOriginsEqual(entry.origin, published.member.origin) ||
+      !input.host.ast.is.IsPropertyAssignment(entry.property)) continue;
+    const initializer = input.host.ast.as.AsPropertyAssignment(entry.property)?.Initializer;
+    const value = initializer === undefined ? undefined : input.host.effectiveTypes.get(initializer);
+    if (value === undefined || value.kind === "refused") continue;
+    const actual = sourceTypeDescriptorStructure(value.construction ?? value.type);
+    if (actual.kind !== "primitive" || expected.kind !== "source-primitive") continue;
+    const represented = csharpSourcePrimitiveTargetType(actual.primitive);
+    if (!targetTypeRefEquals(represented, expected) && !sourcePrimitiveImplicitlyConverts(expected, represented)) return undefined;
   }
   return {
     sourceKey,
@@ -301,49 +314,9 @@ function deriveProviderObjectLiteralMember(
     targetName: relation.targetMember.targetName,
     memberKind: "property",
     type: memberTarget,
-    ...(exactNumericStorage ? { exactNumericStorage: true as const } : {}),
     ...(optional ? { optional: true } : {}),
     ...(property.readonly ? { readonly: true } : {}),
   };
-}
-
-export function csharpProviderSelectsNumericStorage(
-  property: TypePropertyInfo,
-  source: TargetTypeRef,
-  target: TargetTypeRef,
-  member: SourceTypeDescriptorMember,
-  input: {
-    readonly queries: SourceFileSemantics;
-    readonly occurrence: Node;
-    readonly host: Pick<CsharpTypePolicyBaseHost, "ast" | "sourceFacts" | "effectiveTypes">;
-  },
-): boolean {
-  const sourceElement = getCsharpNullableElementTargetType(source);
-  const targetElement = getCsharpNullableElementTargetType(target);
-  if ((sourceElement === undefined) !== (targetElement === undefined)) return false;
-  const selected = targetElement ?? target;
-  const defaultType = sourceElement ?? source;
-  if (defaultType.kind !== "source-primitive" || defaultType.name !== "float64" ||
-    selected.kind !== "source-primitive" || selected.name === "bool" || selected.name === "char") return false;
-  const members = input.queries.types.isUnion(property.type)
-    ? input.queries.types.unionOrIntersectionTypes(property.type).filter(type => !input.queries.types.isNullish(type))
-    : [property.type];
-  if (members.length === 0 || !members.every(type => input.queries.types.isNumberLike(type))) return false;
-  const outcome = input.host.effectiveTypes.get(input.occurrence);
-  const properties = input.host.ast.is.IsObjectLiteralExpression(input.occurrence) ? input.host.ast.properties(input.occurrence) : [];
-  const declarations = [...new Set([
-    ...input.queries.declarations.symbolDeclarations(property.symbol),
-    ...(outcome === undefined || outcome.kind === "refused" || outcome.provenance.occurrence !== input.occurrence ? []
-      : (outcome.memberCorrespondence ?? []).filter(entry => properties.includes(entry.property) &&
-        sourceTypeDescriptorMemberOriginsEqual(member.origin, entry.origin)).map(entry => entry.property)),
-  ])].filter((declaration): declaration is Node => declaration !== undefined);
-  const subjects = [...members.flatMap(type => input.queries.facts.typeSubjects(type)),
-    ...sourcePropertyTypeEvidenceNodes(input.host.ast, input.queries, property),
-    ...assertedInitializerTypeNodes(input.host.ast, declarations)];
-  return subjects.every(subject => {
-    const primitive = input.host.sourceFacts?.getFact(subject, sourcePrimitiveFactKey);
-    return primitive === undefined || primitive.kind === selected.name;
-  });
 }
 
 function resolveProviderMemberRelation(
@@ -402,22 +375,4 @@ function providerMemberConstructionRelationsEqual(
     bindingTypeParameters: right.bindingTypeParameters,
     bindingTypeArgumentSource: right.bindingTypeArgumentSource,
   });
-}
-
-// An object-literal property has no annotation; an explicitly asserted initializer (`1 as float64`) is its authored
-// type evidence, so an explicit Source primitive is never narrowed into provider numeric storage.
-function assertedInitializerTypeNodes(
-  ast: CsharpTypePolicyBaseHost["ast"],
-  declarations: readonly Node[],
-): readonly Node[] {
-  const result: Node[] = [];
-  for (const declaration of declarations) {
-    if (!ast.is.IsPropertyAssignment(declaration)) continue;
-    let value = ast.as.AsPropertyAssignment(declaration)?.Initializer;
-    while (value !== undefined && ast.is.IsParenthesizedExpression(value)) value = ast.as.AsParenthesizedExpression(value)?.Expression;
-    if (value === undefined || !(ast.is.IsAsExpression(value) || ast.is.IsSatisfiesExpression(value) || ast.is.IsTypeAssertion(value))) continue;
-    const asserted = ast.typeNode(value);
-    if (asserted !== undefined) result.push(asserted);
-  }
-  return result;
 }

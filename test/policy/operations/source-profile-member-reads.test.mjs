@@ -7,13 +7,14 @@ import { csharpSourceProfileInputs } from "../../helpers/planning-records.mjs";
 const element = { kind: "source-primitive", name: "int64" };
 const receiver = csharpJsArrayTargetType(element);
 
-function context(carrier, readonly) {
-  const host = { types: { resolveSelectedValue: () => carrier } };
-  const source = { expression: {}, receiver: { expression: {}, type: {} }, writable: !readonly };
+function context(carrier, readonly, indexType = { kind: "source-primitive", name: "int32" }) {
+  const source = { expression: {}, receiver: { expression: {}, type: {} }, argument: { expression: {}, type: {} }, writable: !readonly };
+  const host = { types: { resolveSelectedValue: node => node === source.receiver.expression ? carrier
+    : node === source.argument.expression ? indexType : undefined } };
   const sourceFile = {};
   // The member policies read the receiver carrier from the input facts the analysis resolves for the access.
   return { host, source, sourceFile, receiverType: carrier, readonly,
-    inputs: csharpSourceProfileInputs(host, sourceFile, { operation: source.expression, values: [source.receiver] }) };
+    inputs: csharpSourceProfileInputs(host, sourceFile, { operation: source.expression, values: [source.receiver, source.argument] }) };
 }
 
 test("synthesized array contributors retain one native member policy and checker-selected writability", () => {
@@ -44,5 +45,25 @@ test("native and foreign index carriers cannot acquire source-array location cap
   for (const carrier of [undefined, { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "fixture.Foreign" }]) {
     assert.equal(csharpJsArrayElementPolicies[0].select(context(carrier, false)).kind, "rejected");
     assert.equal(csharpJsArrayPropertyPolicies[0].select(context(carrier, false)).kind, "rejected");
+  }
+});
+
+test("array indices consume the published integral or genuine numeric-property carrier without floating native indices", () => {
+  for (const kind of ["int8", "uint8", "int16", "uint16", "int32", "int64", "uint64", "native-int", "int128"]) {
+    const selected = csharpJsArrayElementPolicies[0].select(context(receiver, false, { kind: "source-primitive", name: kind }));
+    assert.equal(selected.kind, "resolved", kind);
+    assert.deepEqual(selected.targetMember.parameters[0].type, { kind: "source-primitive", name: "int32" }, kind);
+    assert.equal(selected.invocation.indexedLocationMethod, "elementLocation", kind);
+  }
+  for (const kind of ["float32", "float64"]) {
+    const selected = csharpJsArrayElementPolicies[0].select(context(receiver, false, { kind: "source-primitive", name: kind }));
+    assert.equal(selected.kind, "resolved", kind);
+    assert.deepEqual(selected.targetMember.parameters[0].type, { kind: "source-primitive", name: "float64" }, kind);
+    assert.equal(selected.invocation.indexedLocationMethod, "numericPropertyLocation", kind);
+  }
+  for (const index of [undefined, { kind: "source-primitive", name: "decimal" }, { kind: "source-primitive", name: "bool" }]) {
+    const input = context(receiver, false, index);
+    if (index === undefined) input.inputs = { ...input.inputs, values: new Map([[input.source.receiver.expression, receiver]]) };
+    assert.equal(csharpJsArrayElementPolicies[0].select(input).kind, "rejected", index?.name ?? "missing publication");
   }
 });

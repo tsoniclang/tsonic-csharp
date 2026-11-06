@@ -4,11 +4,11 @@ import { csharpJsStringTargetType, csharpNullableTargetType, csharpSourcePrimiti
 import type { CsharpSourceProfileCallPolicy } from "../../../model/source-profiles.js";
 import { jsRuntimeTargetType, receiverHelperMethod, targetParameter } from "./common.js";
 import { csharpJsReplacementCallbackParameter } from "./replacement-callback.js";
+import { csharpNullableValueTargetType } from "../../../../target-model/types/carriers/nullable.js";
 import { customProtocolTargetMember, resolveCustomRegExpProtocol, resolveStringOperationArgument, targetTypeKey } from "./regexp-protocol.js";
 
 const stringType = csharpStringTargetType();
 const jsStringType = csharpJsStringTargetType();
-const doubleType = csharpSourcePrimitiveTargetType("float64");
 const intType = csharpSourcePrimitiveTargetType("int32");
 const stringHelperType = jsRuntimeTargetType("String");
 
@@ -34,7 +34,7 @@ export function exactJsStringRegExpMember(
           ? jsStringType : csharpNullableTargetType(jsStringType));
   const parameters = [targetParameter("pattern", pattern)];
   if (operation === "split") {
-    parameters.push(targetParameter("limit", doubleType, { optional: true }));
+    parameters.push(targetParameter("limit", csharpNullableValueTargetType(intType), { optional: true }));
   }
   return receiverHelperMethod(
     `Tsonic.CSharp.Js.JsString.${operation}:${targetTypeKey(pattern)}`,
@@ -138,7 +138,7 @@ export function stringRegExpPatternMember(
   }
   const parameters = [targetParameter("pattern", pattern)];
   if (operation === "split") {
-    parameters.push(targetParameter("limit", doubleType, { optional: true }));
+    parameters.push(targetParameter("limit", csharpNullableValueTargetType(intType), { optional: true }));
   }
   return receiverHelperMethod(
     `Tsonic.CSharp.Js.String.${operation}:${targetTypeKey(pattern)}`,

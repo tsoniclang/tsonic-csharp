@@ -134,9 +134,10 @@ test("optional provider fields preserve exact native integer storage and one abs
     true, "optional source cannot occupy nonnullable native storage");
 });
 
-test("only unannotated numeric provider declarations select the exact native numeric field", () => {
-  const shape = resolveProviderObjectLiteralShape(fixture({ sourceType: floating }).input);
-  assert.equal(shape?.members[0].exactNumericStorage, true);
+test("provider construction requires the exact published numeric field width", () => {
+  assert.equal(resolveProviderObjectLiteralShape(fixture({ sourceType: floating }).input) === undefined, true,
+    "an erased numeric declaration cannot select a different native width");
+  const shape = resolveProviderObjectLiteralShape(fixture().input);
   assert.equal(shape?.members[0].type === integer, true, "full-width native integer selected at the producer");
   assert.equal(resolveProviderObjectLiteralShape(fixture({ sourceType: floating, primitiveFact: true }).input) === undefined,
     true, "explicit source numeric metadata is authoritative");

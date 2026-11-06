@@ -5,6 +5,9 @@ import { csharpDelegateTargetType, csharpEnumerableTargetType, csharpNullableTar
 import { csharpJsArrayTargetType, getCsharpJsArrayMutationPolicy } from "../../../../target-model/types/carriers/js.js";
 import type { CsharpSourceProfileCallPolicy, CsharpSourceProfileElementPolicy, CsharpSourceProfilePropertyPolicy } from "../../../model/source-profiles.js";
 import { csharpSourceProfileDiagnostic, resolveCsharpSelectedSourceValue } from "../source-profile-policy.js";
+import { isCsharpIntegralTargetType } from "../../../../target-model/types/carriers/scalar-types.js";
+import { sourcePrimitiveImplicitlyConverts } from "../../../conversions/source-primitives.js";
+import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
 
 import { getCsharpRuntimeUnionArms } from "../../../../target-model/types/carriers/runtime-carriers.js";
 import { csharpOptionalStorageProjection, getCsharpGenericOptionalParts } from "../../../../target-model/types/projections.js";
@@ -291,24 +294,39 @@ export const csharpJsArrayElementPolicies:
             receiverType?.kind === "array" ||
             isCsharpDenseMutableCollectionTargetType(receiverType)
           );
-        return receiverType === undefined || resultType === undefined
+        const indexType = sourceArrayIndexType(context, receiverType);
+        return receiverType === undefined || resultType === undefined || indexType === undefined
           ? undefined
           : targetIndexer(
               "Tsonic.CSharp.Js.JSArray.indexer",
               receiverType,
-              getCsharpJsArrayElementTargetType(receiverType) === undefined ? intType : doubleType,
+              indexType,
               resultType,
               readonly,
             );
       },
-      (context) => ({
-        kind: "indexer",
-        ...(!context.readonly && getCsharpJsArrayElementTargetType(
-          resolveCsharpSelectedSourceValue(context, context.source.receiver),
-        ) !== undefined ? { indexedLocationMethod: "elementLocation" } : {}),
-      }),
+      (context) => {
+        const receiver = resolveCsharpSelectedSourceValue(context, context.source.receiver);
+        const index = sourceArrayIndexType(context, receiver);
+        return {
+          kind: "indexer",
+          ...(!context.readonly && getCsharpJsArrayElementTargetType(receiver) !== undefined && index !== undefined
+            ? { indexedLocationMethod: targetTypeRefEquals(index, intType) ? "elementLocation" : "numericPropertyLocation" } : {}),
+        };
+      },
     ),
   ]);
+
+function sourceArrayIndexType(
+  context: Parameters<CsharpSourceProfileElementPolicy["select"]>[0],
+  receiver: TargetTypeRef | undefined,
+): TargetTypeRef | undefined {
+  const index = resolveCsharpSelectedSourceValue(context, context.source.argument);
+  if (index === undefined) return undefined;
+  if (getCsharpJsArrayElementTargetType(receiver) === undefined || isCsharpIntegralTargetType(index)) return intType;
+  return targetTypeRefEquals(index, doubleType) || sourcePrimitiveImplicitlyConverts(doubleType, index)
+    ? doubleType : undefined;
+}
 
 function directArrayMember(
   context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],

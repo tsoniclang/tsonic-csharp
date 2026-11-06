@@ -152,12 +152,12 @@ const float64Key = targetTypeRefKey(csharpSourcePrimitiveTargetType("float64"));
 
 test("binding initializers require one exact admitted physical expression without a logical-read fallback", () => {
   const { program, source, target } = publishedProgram(`
-    export function run(): number {
-      const { value }: { value?: number } = { value: 4 };
+    export function run(input: { value?: number }): number {
+      const { value }: { value?: number } = input;
       return value ?? 0;
     }
   `, "native");
-  const declaration = findNode(program, "KindVariableDeclaration", "{ value }: { value?: number } = { value: 4 }");
+  const declaration = findNode(program, "KindVariableDeclaration", "{ value }: { value?: number } = input");
   const pattern = source.ast.as.AsVariableDeclaration(declaration).name;
   const input = factsInput(program, source, target);
   const selected = input.initializerUses.get(declaration);

@@ -86,7 +86,7 @@ test("exact native storage keeps every integer width and does not route through 
   }
 });
 
-test("exact storage requires numeric evidence and remains part of shape identity", () => {
+test("exact storage requires numeric evidence and its carrier remains part of shape identity", () => {
   for (const type of [primitive("bool"), primitive("char"), { kind: "opaque", id: "unknown" }, { kind: "type-parameter", identity: "Value", name: "Value" }]) {
     assert.equal(selectCsharpExactIntegerConversion(type, primitive("int32")), undefined);
     assert.equal(selectCsharpExactIntegerConversion(primitive("float64"), type), undefined);
@@ -94,6 +94,6 @@ test("exact storage requires numeric evidence and remains part of shape identity
   assert.equal(selectCsharpExactIntegerConversion(primitive("float64"), primitive("float32")), undefined);
   const field = { sourceKey: { kind: "property", name: "count" }, sourceName: "count", targetName: "count", memberKind: "property", type: primitive("int32") };
   const shape = { targetType: { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "native.Options" }, members: [field] };
-  assert.equal(csharpObjectShapesEqual(shape, { ...shape, members: [{ ...field, exactNumericStorage: true }] }), false);
+  assert.equal(csharpObjectShapesEqual(shape, { ...shape, members: [{ ...field, type: primitive("int64") }] }), false);
   assert.equal(csharpObjectShapesEqual(shape, shape), true);
 });

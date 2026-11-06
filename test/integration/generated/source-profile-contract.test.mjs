@@ -10,6 +10,7 @@ import {
   createJsSourceSemanticsExtension,
   jsRegExpSourceProfileDeclarations,
   jsSourceSemanticsModules,
+  sourceNoLibBaseDeclarations,
 } from "@tsonic/js-source-profile";
 import {
   createTsonicCoreSourceExtension,
@@ -26,6 +27,23 @@ test("only the JS surface composes the canonical RegExp declaration contract", (
   assert.equal(jsText.split(jsRegExpSourceProfileDeclarations).length - 1, 1);
   assert.equal((jsText.match(/interface RegExp \{/gu) ?? []).length, 2);
   assert.equal((jsText.match(/interface RegExpConstructor \{/gu) ?? []).length, 1);
+});
+
+test("native and JS profiles compose one shared base and retain their own argument-length casing", () => {
+  for (const profile of ["csharp", "js"]) {
+    const text = sourceProfileFiles(profile).map(file => file.text).join("\n");
+    assert.equal(text.split(sourceNoLibBaseDeclarations).length - 1, 1, profile);
+    const expectedLength = profile === "csharp" ? "Length" : "length";
+    assert.equal(text.includes(`interface IArguments {\n  readonly ${expectedLength}: int32;\n}`), true, profile);
+    const session = createSourceProfileSession({ profile, sourceText: [
+      'const form: UnicodeNormalizationForm = "NFC";',
+      "const yielded: IteratorYieldResult<int32> = { value: 1 };",
+      "declare const values: readonly Promise<int32>[];",
+      "const joined: Promise<int32[]> = Promise.all(values);",
+      "export { form, yielded, joined };",
+    ].join("\n") });
+    assert.equal(formatDiagnostics(session.getDiagnostics("all")), "", profile);
+  }
 });
 
 test("C# source profile accepts CLR names and rejects JS names under noLib", () => {

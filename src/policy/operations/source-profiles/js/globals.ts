@@ -1,5 +1,6 @@
 import type { CsharpTargetMember, CsharpTargetParameter, TargetTypeRef } from "../../../types/index.js";
 import { csharpJsNumericArgument, csharpJsParsingParameters } from "./numeric-argument.js";
+import { csharpNullableValueTargetType } from "../../../../target-model/types/carriers/nullable.js";
 import { csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpVoidTargetType } from "../../../../target-model/types/index.js";
 import type { CsharpSourceProfileCallPolicy, CsharpSourceProfilePropertyPolicy } from "../../../model/source-profiles.js";
 import { resolveCsharpSelectedSourceValue } from "../source-profile-policy.js";
@@ -293,18 +294,14 @@ export const csharpJsGlobalCallPolicies:
     ),
     jsCallPolicy(
       jsGlobalCallIdentity("clearTimeout"),
-      (context) => {
-        const parameter = csharpJsNumericArgument(context);
-        if (parameter === undefined) return undefined;
-        return staticMethod(
-          "Tsonic.CSharp.Js.Timers.clearTimeout",
-          "clearTimeout",
-          "clearTimeout",
-          timersType,
-          [parameter],
-          voidType,
-        );
-      },
+      () => staticMethod(
+        "Tsonic.CSharp.Js.Timers.clearTimeout",
+        "clearTimeout",
+        "clearTimeout",
+        timersType,
+        [targetParameter("id", csharpNullableValueTargetType(csharpSourcePrimitiveTargetType("int32")), { optional: true })],
+        voidType,
+      ),
       noReceiver,
     ),
     jsCallPolicy(
@@ -314,18 +311,14 @@ export const csharpJsGlobalCallPolicies:
     ),
     jsCallPolicy(
       jsGlobalCallIdentity("clearInterval"),
-      (context) => {
-        const parameter = csharpJsNumericArgument(context);
-        if (parameter === undefined) return undefined;
-        return staticMethod(
-          "Tsonic.CSharp.Js.Timers.clearInterval",
-          "clearInterval",
-          "clearInterval",
-          timersType,
-          [parameter],
-          voidType,
-        );
-      },
+      () => staticMethod(
+        "Tsonic.CSharp.Js.Timers.clearInterval",
+        "clearInterval",
+        "clearInterval",
+        timersType,
+        [targetParameter("id", csharpNullableValueTargetType(csharpSourcePrimitiveTargetType("int32")), { optional: true })],
+        voidType,
+      ),
       noReceiver,
     ),
     jsUnsupportedCallPolicy(

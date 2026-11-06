@@ -202,7 +202,6 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
       retained.push({ ...publishedMember,
         origins: Object.freeze([...previous.origins!]),
         sourceSubjects: Object.freeze([...new Set([...previous.sourceSubjects ?? [], ...member.sourceSubjects ?? []])]),
-        ...(previous.exactNumericStorage === true ? { exactNumericStorage: true } : {}),
         ...(previous.accessor === undefined ? {} : { accessor: previous.accessor }),
         ...(previous.methodValueContract === undefined ? {} : { methodValueContract: previous.methodValueContract }),
         ...(previous.methodValueStorage === undefined ? {} : { methodValueStorage: previous.methodValueStorage }),
