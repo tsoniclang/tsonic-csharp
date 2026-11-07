@@ -5,6 +5,11 @@ import { csharpDelegateTargetType } from "../../dist/target-model/types/carriers
 import { csharpNullableTargetType } from "../../dist/target-model/types/carriers/nullable.js";
 import { csharpRuntimeUnionTargetType } from "../../dist/target-model/types/carriers/runtime-carriers.js";
 
+// nextgen C-2542 (run 1 C3): the classifier reads the Host call selection (`callee`, `declaration`, `receiver`,
+// `optionalChain`, `use`), the Host member/element selection of the callee, `facts.navigation.identity` and the
+// represented `types.value` / `types.readStorage`. Every case and expectation is the baseline one; only the fixture
+// moved from the checker call info (sourceCallee / sourceCalleeAccess, navigation.sourceReferenceFor,
+// types.resolveSelectedValue / resolveReadStorage) to those facts.
 const expression = {};
 const receiver = {};
 const functionDeclaration = { kind: "function" };
@@ -12,19 +17,60 @@ const methodDeclaration = { kind: "method" };
 const variableDeclaration = { kind: "variable" };
 const delegate = csharpDelegateTargetType("System.Action", []);
 const owner = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "owner", csharpRender: { kind: "name", namespace: [], name: "Owner" } };
+
+/** The authored-syntax reader of the fixture: `expression` is a property or element access when `access` says so. */
+function fixtureAst(access, extra = {}) {
+  const { is, ...rest } = extra;
+  return {
+    is: {
+      IsPropertyAccessExpression: node => node === expression && access?.kind === "property",
+      IsElementAccessExpression: node => node === expression && access?.kind === "element",
+      IsVariableDeclaration: node => node?.kind === "variable",
+      IsFunctionDeclaration: node => node?.kind === "function",
+      IsMethodDeclaration: node => node?.kind === "method",
+      IsClassDeclaration: node => node?.kind === "class",
+      IsCallExpression: () => false,
+      ...is,
+    },
+    parent: node => node?.parent,
+    name: node => node?.name,
+    kindName: node => node?.kind,
+    hasModifierKind: () => false,
+    questionToken: () => undefined,
+    ...rest,
+  };
+}
+
+/** Host facts of the fixture: the callee's identity target and its member / element selection. */
+function fixtureFacts(declaration, access, isProjectDeclaration = node => node === functionDeclaration) {
+  return {
+    selections: { memberAccess: node => node === expression && access?.kind === "property" && declaration !== undefined
+      ? { selected: { kind: "member", declarations: [declaration] } } : undefined },
+    values: { elementAccess: node => {
+      assert.equal(node === expression, true, "only the selected element callee has an element record");
+      return { selected: declaration === undefined ? { kind: "element" } : { kind: "member", declaration, name: "member" } };
+    } },
+    navigation: {
+      identity: { target: node => node === expression && declaration !== undefined ? { declaration } : undefined, isProjectDeclaration },
+      scopes: { enclosing: () => undefined },
+    },
+  };
+}
+
+function callSource(selected, access, extra = {}) {
+  return { use: {}, kind: "call", callee: expression, declaration: selected,
+    ...(access === undefined ? {} : { receiver: access.receiver.expression }), optionalChain: false, ...extra };
+}
+
 function classify(declaration, selected, access, carrier = delegate, isStatic = false) {
   return classifyCsharpSourceCallee({
     moduleCallables: Object.freeze({ get: () => undefined }),
-    ast: { is: { IsVariableDeclaration: node => node?.kind === "variable",
-      IsFunctionDeclaration: node => node?.kind === "function", IsMethodDeclaration: node => node?.kind === "method",
-      IsClassDeclaration: node => node?.kind === "class" }, parent: node => node.parent, name: node => node.name,
-      kindName: node => node.kind, hasModifierKind: () => isStatic },
-    navigation: { sourceReferenceFor: () => declaration === undefined ? undefined : { declaration },
-      isProjectDeclaration: node => node === functionDeclaration },
+    ast: fixtureAst(access, { hasModifierKind: () => isStatic }),
+    facts: fixtureFacts(declaration, access),
     projectTypes: { catalog: { definitionForDeclaration: () => undefined } },
-    types: { resolveSelectedValue: node => node === expression ? carrier : owner,
-      resolveReadStorage: node => { assert.equal(node === expression, true, "the exact fixture member owns its native storage"); return carrier; } },
-  }, { sourceCallee: { expression, selectedDeclaration: selected }, sourceCalleeAccess: access }, {});
+    types: { value: node => node === expression ? carrier : owner,
+      readStorage: node => { assert.equal(node === expression, true, "the exact fixture member owns its native storage"); return carrier; } },
+  }, callSource(selected, access));
 }
 
 test("source direct functions do not become delegate operands", () => {
@@ -37,14 +83,12 @@ test("source direct functions do not become delegate operands", () => {
 test("exact direct functions never request a first-class delegate projection", () => {
   const selected = classifyCsharpSourceCallee({
     moduleCallables: Object.freeze({ get: () => undefined }),
-    ast: { is: { IsFunctionDeclaration: node => node === functionDeclaration,
-      IsVariableDeclaration: node => node === variableDeclaration } },
-    navigation: { sourceReferenceFor: () => ({ declaration: functionDeclaration }),
-      isProjectDeclaration: node => node === functionDeclaration },
+    ast: fixtureAst(undefined),
+    facts: fixtureFacts(functionDeclaration, undefined),
     projectTypes: { catalog: {} },
-    types: { resolveSelectedValue: () => { throw new Error("unnecessary callable projection"); },
-      resolveReadStorage: () => assert.fail("an exact direct function has no member-storage read") },
-  }, { sourceCallee: { expression, selectedDeclaration: functionDeclaration } }, {});
+    types: { value: () => { throw new Error("unnecessary callable projection"); },
+      readStorage: () => assert.fail("an exact direct function has no member-storage read") },
+  }, callSource(functionDeclaration, undefined));
   assert.equal(selected.kind, "function");
 });
 
@@ -100,16 +144,17 @@ test("nominal generic class methods retain native calls rather than structural c
 test("a checked composite class method selects its closed receiver without acquiring a delegate", () => {
   const right = { ...owner, id: "right", csharpRender: { kind: "name", namespace: [], name: "Right" } };
   const union = csharpRuntimeUnionTargetType([owner, right]);
+  const access = { kind: "property", expression, receiver: { expression: receiver } };
   const selected = classifyCsharpSourceCallee({
     moduleCallables: Object.freeze({ get: () => undefined }),
-    ast: { is: {}, parent: () => undefined },
-    navigation: { sourceReferenceFor: () => undefined },
+    ast: fixtureAst(access),
+    facts: fixtureFacts(undefined, access),
     projectTypes: { catalog: { definitionForTarget: type => type === owner || type === right ? { kind: "class" } : undefined } },
-    types: { resolveSelectedValue: node => {
+    types: { value: node => {
       assert.equal(node === receiver, true, "only the exact native receiver is acquired");
       return union;
-    }, resolveReadStorage: () => assert.fail("the checked class-union branch never reads a delegate member") },
-  }, { sourceCallee: { expression }, sourceCalleeAccess: { kind: "property", expression, receiver: { expression: receiver } } }, {});
+    }, readStorage: () => assert.fail("the checked class-union branch never reads a delegate member") },
+  }, callSource(undefined, access));
   assert.equal(selected.kind === "union-method" && selected.receiver.type === union, true, "closed candidate awaits the existing per-arm method proof");
   assert.equal(selected.receiver.expression === receiver && selected.expression === expression, true, "exact selected AST nodes retained");
   assert.equal(Object.isFrozen(selected) && Object.isFrozen(selected.receiver), true);
@@ -117,18 +162,19 @@ test("a checked composite class method selects its closed receiver without acqui
 
 test("composite calls do not manufacture class-union evidence for interface, foreign or scalar arms", () => {
   const right = { ...owner, id: "right", csharpRender: { kind: "name", namespace: [], name: "Right" } };
+  const access = { kind: "property", expression, receiver: { expression: receiver } };
   for (const kind of ["interface", "foreign", "scalar"]) {
     const union = csharpRuntimeUnionTargetType([owner, kind === "scalar" ? { kind: "source-primitive", name: "int32" } : right]);
     const selected = classifyCsharpSourceCallee({
       moduleCallables: Object.freeze({ get: () => undefined }),
-      ast: { is: {}, parent: () => undefined },
-      navigation: { sourceReferenceFor: () => undefined },
+      ast: fixtureAst(access),
+      facts: fixtureFacts(undefined, access),
       projectTypes: { catalog: { definitionForTarget: type => type === owner ? { kind: "class" }
         : type === right && kind === "interface" ? { kind: "interface" } : undefined } },
-      types: { resolveSelectedValue: node => node === receiver ? union : { kind: "source-primitive", name: "uint32" },
-        resolveReadStorage: node => { assert.equal(node === expression, true, "only the original member has fixture storage");
+      types: { value: node => node === receiver ? union : { kind: "source-primitive", name: "uint32" },
+        readStorage: node => { assert.equal(node === expression, true, "only the original member has fixture storage");
           return { kind: "source-primitive", name: "uint32" }; } },
-    }, { sourceCallee: { expression }, sourceCalleeAccess: { kind: "property", expression, receiver: { expression: receiver } } }, {});
+    }, callSource(undefined, access));
     assert.equal(selected.kind === "rejected", true, kind);
   }
 });
@@ -141,48 +187,36 @@ function optionalNominalMethodFixture({ accessKind, ownerKind, memberKind, optio
   const carrier = csharpNullableTargetType(delegate);
   const policy = {
     moduleCallables: Object.freeze({ get: () => undefined }),
-    ast: {
+    ast: fixtureAst(access, {
       is: {
         IsFunctionDeclaration: () => false,
         IsVariableDeclaration: () => false,
-        IsMethodDeclaration: node => node?.kind === "method",
-        IsClassDeclaration: node => node?.kind === "class",
         IsCallExpression: node => node === call,
       },
       as: { AsCallExpression: node => {
         assert.equal(node === call, true, "only the original selected call owns invocation optionality");
         return call;
       } },
-      parent: node => node?.parent,
       name: () => undefined,
-      kindName: node => node?.kind,
-      hasModifierKind: () => false,
       questionToken: node => {
         assert.equal(node === method, true, "only the selected method owns optional-member evidence");
         return node.optional;
       },
-    },
-    navigation: {
-      sourceReferenceFor: node => {
-        assert.equal(node === expression, true, "the original member keeps its declaration identity");
-        return { declaration: method };
-      },
-      isProjectDeclaration: node => node === method,
-    },
+    }),
+    facts: fixtureFacts(method, access, node => node === method),
     projectTypes: { catalog: { definitionForDeclaration: () => undefined } },
     types: {
-      resolveReadStorage: node => {
+      readStorage: node => {
         assert.equal(node === expression, true, "the original lifted member owns its native storage");
         return carrier;
       },
-      resolveSelectedValue: node => {
+      value: node => {
         assert.equal(node === receiver, true, "only the original native receiver is acquired");
         return owner;
       },
     },
   };
-  const source = { call, optionalChain: true, sourceCallee: { expression, selectedDeclaration: method },
-    sourceCalleeAccess: access, sourceReceiver: access.receiver };
+  const source = callSource(method, access, { use: call, optionalChain: true });
   return { policy, source, method, carrier };
 }
 
@@ -190,7 +224,7 @@ test("optional receivers keep required nominal methods on their native declarati
   for (const accessKind of ["property", "element"]) {
     const input = optionalNominalMethodFixture({ accessKind, ownerKind: "class", memberKind: "method",
       optionalMethod: false, optionalCallee: false });
-    const selected = classifyCsharpSourceCallee(input.policy, input.source, {});
+    const selected = classifyCsharpSourceCallee(input.policy, input.source);
     assert.equal(selected.kind === "method" && selected.declaration === input.method, true, accessKind);
     assert.equal(selected.expression === expression && selected.receiver.expression === receiver &&
       selected.receiver.type === owner, true, "the present native receiver and original method stay exact");
@@ -207,14 +241,14 @@ test("receiver lifting cannot promote optional callees, optional methods, fields
     ["structural protocol", "interface", "method", false, false],
   ]) {
     const input = optionalNominalMethodFixture({ accessKind: "property", ownerKind, memberKind, optionalMethod, optionalCallee });
-    const selected = classifyCsharpSourceCallee(input.policy, input.source, {});
+    const selected = classifyCsharpSourceCallee(input.policy, input.source);
     assert.equal(selected.kind === "value" && selected.expression === expression && selected.type === input.carrier, true, label);
     assert.equal(Object.isFrozen(selected), true, label);
   }
   const foreign = optionalNominalMethodFixture({ accessKind: "property", ownerKind: "class", memberKind: "method",
     optionalMethod: false, optionalCallee: false });
-  foreign.source.call = {};
-  const selected = classifyCsharpSourceCallee(foreign.policy, foreign.source, {});
+  foreign.source = { ...foreign.source, use: {} };
+  const selected = classifyCsharpSourceCallee(foreign.policy, foreign.source);
   assert.equal(selected.kind === "value" && selected.type === foreign.carrier, true,
     "a foreign invocation node cannot prove receiver-only lifting or gain a native method ABI");
 });

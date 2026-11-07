@@ -7,10 +7,10 @@ import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 function fixture() {
   const sourceType = Object.freeze({ kind: "declared", declaration: Object.freeze({}), typeArguments: Object.freeze([]) });
   const destinationType = Object.freeze({ kind: "declared", declaration: Object.freeze({}), typeArguments: Object.freeze([]) });
-  const valueKey = Object.freeze({ kind: "string", value: "value" });
-  const objectMember = declaration => Object.freeze({ key: valueKey, name: "value", kind: "property", declarations: [declaration],
-    type: Object.freeze({ kind: "primitive", primitive: "int64" }), optional: false, readonly: false, static: false,
-    owner: Object.freeze({}), inherited: false });
+  // A member joined over its present arms (objects.joinedMembers / correspondence pairs).
+  const joined = declaration => Object.freeze({ name: "value", optional: false, readonly: false, receiverType: sourceType,
+    declarations: Object.freeze([declaration]), getters: Object.freeze([]), setters: Object.freeze([]), read: "property",
+    type: Object.freeze({ kind: "primitive", primitive: "int64" }) });
   const sourceSymbol = Object.freeze({});
   const destinationSymbol = Object.freeze({});
   const integer = Object.freeze({ kind: "source-primitive", name: "int64" });
@@ -29,21 +29,28 @@ function fixture() {
   const shapes = new Map([source, destination].map(shape => [targetTypeRefKey(shape.targetType), shape]));
   let rawReads = 0;
   let relationReads = 0;
-  // nextgen C-2542: the checked relation is Host object facts. `rawReads` counts value-type reads (facts.values.type,
-  // the old expressionType); `relationReads` counts source-member correspondence reads (facts.objects.member, the old
-  // structuralMembers). The old `purpose === "read"` assertion is removed: facts.objects has no purpose parameter.
+  // nextgen C-2542 (run 1 C4): the checked relation is the Host member correspondence `objects.correspondence(from, to,
+  // "read")` from the supplied source endpoint into the value's Host destination (`values.contextual`). `rawReads` counts
+  // value-type reads (facts.values.type, the old expressionType); `relationReads` counts correspondence reads (the old
+  // structuralMembers, with its `purpose === "read"` assertion restored).
   const policy = {
     sourceFiles: [], objectShapes: { resolveTarget: type => shapes.get(targetTypeRefKey(type)) },
-    projectTypes: { directSupertypes: () => [] },
+    projectTypes: { directSupertypes: () => [], catalog: { definitionForTarget: () => undefined } },
     facts: {
-      values: { type() { rawReads += 1; return { kind: "resolved", type: sourceType }; } },
+      values: {
+        type() { rawReads += 1; return { kind: "resolved", type: sourceType }; },
+        contextual: () => ({ kind: "resolved", type: destinationType }),
+      },
       objects: {
-        indexes: () => [],
-        members(type) { assert.equal(type, destinationType); return [objectMember(destinationSymbol)]; },
-        member(from, key) {
+        correspondence(from, to, purpose) {
           relationReads += 1;
-          assert.deepEqual(key, valueKey);
-          return from === sourceType ? objectMember(sourceSymbol) : undefined;
+          assert.equal(to, destinationType);
+          assert.equal(purpose, "read");
+          const members = from === sourceType
+            ? Object.freeze([Object.freeze({ kind: "present", source: joined(sourceSymbol), destination: joined(destinationSymbol) })])
+            : Object.freeze([Object.freeze({ kind: "absent", destination: joined(destinationSymbol) })]);
+          return from === sourceType ? Object.freeze({ kind: "available", members, pairs: members })
+            : Object.freeze({ kind: "unavailable", reason: "missing-required-member", pairs: members });
         },
       },
     },

@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
-import { csharpSourceNodes } from "../../../dist/analysis/program/source-nodes.js";
 
 for (const surface of ["native", "js"]) {
   test(`native ${surface} Error binding reads retain checked native members, defaults, identity and zero allocation`, () => {
@@ -25,8 +24,8 @@ for (const surface of ["native", "js"]) {
     assertCsharpCompilationSucceeded(compiled);
     const { program } = compiled.result;
     const { source } = program;
-    // nextgen C-2542: TargetSourceProgramFacts (syntax reader `.syntax`); nodes from the C# syntax walk.
-    const nodes = csharpSourceNodes(source.syntax, program.sourceFiles);
+    // nextgen C-2542: TargetSourceProgramFacts (syntax reader `.syntax`); nodes from the Host inventory (facts.navigation.nodesForFiles).
+    const nodes = source.facts.navigation.nodesForFiles(program.sourceFiles);
     const expected = new Map([
       ["message", "System.Exception.Message"],
       ["name", "System.Type.Name"],

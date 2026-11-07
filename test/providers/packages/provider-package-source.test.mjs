@@ -1,3 +1,4 @@
+import { createTargetContributedCompilerExtension } from "../../../../tsonic/packages/host/dist/index.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
@@ -83,10 +84,11 @@ function fixtureExtension(includeForeign = false) {
 }
 
 function packageExtension(plugin) {
-  return plugin.sourceCompilerContributions({
+  // K-2682: a target contribution is data only; the Host composition root builds its compiler extension.
+  return createTargetContributedCompilerExtension(plugin.sourceCompilerContributions({
     project: { entryPoint: "index.ts", rootDir: ".", targets: [] }, projectDirectory: "/src", target: { id: "csharp" },
     selectedCapabilityIds: [plugin.id], selectedSurfaceIds: [], capability: plugin,
-  }).extensions[0];
+  }).extensions[0]);
 }
 
 function foreignExtension() {

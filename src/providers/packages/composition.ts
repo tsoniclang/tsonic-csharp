@@ -22,11 +22,8 @@ export function createCsharpProviderPackage(
       return {
         extensions: [{
           identity: { id: snapshot.providerIdentity.id, version: snapshot.providerIdentity.version },
-          initialize(extensionContext) {
-            extensionContext.registerSourceDeclarationProvider(
-              createCsharpPackageSourceProvider(snapshot, selectedSurfaceIds),
-            );
-          },
+          // Target contributions are data only (K-2682): the Host composition root registers the provider.
+          declarationProviders: [createCsharpPackageSourceProvider(snapshot, selectedSurfaceIds)],
         }],
       };
     },

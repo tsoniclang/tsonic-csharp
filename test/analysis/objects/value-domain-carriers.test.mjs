@@ -72,7 +72,7 @@ function fixture() {
   };
   visit(file);
   // nextgen C-2542: shared storage is the Host analysis fact (facts.analyses.storage); its types are Host descriptors.
-  const storage = source.facts.analyses.storage({ sourceFiles: source.sourceFiles });
+  const storage = source.facts.analyses.storage({ sourceFiles: source.sourceFiles, premises: {} });
   const first = storage.subject(nodes.get("first"));
   assert.equal(first.kind, "resolved");
   const firstType = storage.typeFor(first.subject);

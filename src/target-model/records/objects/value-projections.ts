@@ -113,6 +113,8 @@ export interface CsharpBindingPatternIssue {
   readonly code: string;
   readonly message: string;
   readonly evidence: readonly string[];
+  /** "tsonic" for a Host refusal forwarded unchanged; otherwise a C# (tsonic-csharp) issue. */
+  readonly source?: "tsonic";
 }
 
 export interface CsharpBindingPatternClassifications {

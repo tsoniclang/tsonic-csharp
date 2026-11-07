@@ -1,4 +1,5 @@
-import { compareSourceNumericLiteralMagnitude, type SourceLiteralValue, type SourceNumericLiteralToken, type SourcePropertyName } from "@tsonic/target-api/source";
+import { compareSourceNumericLiteralMagnitude, type SourceLiteralValue, type SourceNumericLiteralToken, type SourcePublishedPlatformFacts,
+  type SourcePropertyName } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpExactLiteralPrimitive, CsharpExactLiteralRecipe, CsharpExactLiteralSelection } from "../../target-model/conversions/exact-literals.js";
 import { createCsharpNumericLiteralToken, type CsharpNumericLiteralToken } from "../../target-model/syntax/numeric-literals.js";
@@ -7,13 +8,15 @@ import type { TargetTypeRef } from "../types/index.js";
 import { getCsharpArrayLiteralElementTargetType, getCsharpNullableElementTargetType, isCsharpStringTargetType } from "../../target-model/types/index.js";
 import { isCsharpIntegralTargetType } from "../../target-model/types/carriers/scalar-types.js";
 
+/** `platform`: the Host platform facts (facts.analyses.platform); native kinds fit through its nativeIntegerFit (Q89). */
 export function csharpLiteralIsRepresentableAs(
   value: SourceLiteralValue | undefined,
   target: TargetTypeRef,
+  platform: SourcePublishedPlatformFacts,
 ): boolean {
   const nullableElement = getCsharpNullableElementTargetType(target);
   if (nullableElement !== undefined) {
-    return csharpLiteralIsRepresentableAs(value, nullableElement);
+    return csharpLiteralIsRepresentableAs(value, nullableElement, platform);
   }
   if (value?.form === "array") {
     const elementType = target.kind === "array"
@@ -22,7 +25,7 @@ export function csharpLiteralIsRepresentableAs(
     return elementType !== undefined &&
       value.elements.every((element) =>
         element !== undefined &&
-        csharpLiteralIsRepresentableAs(element, elementType));
+        csharpLiteralIsRepresentableAs(element, elementType, platform));
   }
   if (isCsharpStringTargetType(target)) {
     return value?.form === "string" || value?.form === "template";
@@ -31,7 +34,7 @@ export function csharpLiteralIsRepresentableAs(
     return false;
   }
   if ((value?.form === "binary" || value?.form === "parenthesized") &&
-    value.integerConstant !== undefined && csharpBigIntFitsSourcePrimitive(value.integerConstant, target.name)) return true;
+    value.integerConstant !== undefined && csharpBigIntFitsSourcePrimitive(value.integerConstant, target.name, platform)) return true;
   switch (target.name) {
     case "bool":
       return value?.form === "true" || value?.form === "false";
@@ -46,7 +49,7 @@ export function csharpLiteralIsRepresentableAs(
     case "uint32":
     case "native-int":
     case "native-uint": {
-      return csharpNumericLiteralFitsSourcePrimitive(value, target.name);
+      return csharpNumericLiteralFitsSourcePrimitive(value, target.name, platform);
     }
     case "float32":
     case "decimal": {
@@ -65,7 +68,7 @@ export function csharpLiteralIsRepresentableAs(
     case "int128":
     case "uint128": {
       return value?.integer !== undefined &&
-        csharpBigIntFitsSourcePrimitive(value.integer, target.name);
+        csharpBigIntFitsSourcePrimitive(value.integer, target.name, platform);
     }
   }
 }
@@ -77,6 +80,7 @@ export function selectCsharpExactLiteralConversion(
   literal: SourceLiteralValue | undefined,
   source: TargetTypeRef | undefined,
   target: TargetTypeRef | undefined,
+  platform: SourcePublishedPlatformFacts,
 ): CsharpExactLiteralSelection {
   if (target === undefined) {
     return notApplicable;
@@ -91,7 +95,7 @@ export function selectCsharpExactLiteralConversion(
     (sourceType.name === "float16" || sourceType.name === "float32" || sourceType.name === "float64" || sourceType.name === "decimal");
   if (Object.is(literal?.number, -0) && !integralZero && !floatingSource) return notApplicable;
   if ((literal?.form === "binary" || literal?.form === "parenthesized" && literal.integer === undefined) &&
-    literal.integerConstant !== undefined && csharpBigIntFitsSourcePrimitive(literal.integerConstant, targetType.name)) {
+    literal.integerConstant !== undefined && csharpBigIntFitsSourcePrimitive(literal.integerConstant, targetType.name, platform)) {
     return sourceRepresentation;
   }
   if (targetType.name === "float32" || targetType.name === "decimal") {
@@ -158,7 +162,7 @@ export function selectCsharpExactLiteralConversion(
       if (value === undefined) {
         return notApplicable;
       }
-      if (!csharpBigIntFitsSourcePrimitive(value, targetType.name)) {
+      if (!csharpBigIntFitsSourcePrimitive(value, targetType.name, platform)) {
         return rejected(`Source bigint literal is outside the exact '${targetType.name}' range.`);
       }
       return resolved({ kind: "integer", target: targetType, width: targetType.name, value });
@@ -175,6 +179,7 @@ const decimalOverflowThresholdTwice = (((1n << 96n) - 1n) << 1n) + 1n;
 export function selectCsharpExactPropertyKeyConversion(
   key: SourcePropertyName,
   target: TargetTypeRef | undefined,
+  platform: SourcePublishedPlatformFacts,
 ): CsharpExactLiteralSelection {
   // A rejected property name is a Host refusal (analyses.propertyNameIssues), forwarded before C# analysis.
   if (key.kind === "rejected") return failTargetAnalysisInvariant("tsonic-csharp",
@@ -224,7 +229,7 @@ export function selectCsharpExactPropertyKeyConversion(
       `Source numeric property key has no exact '${physical.name}' integer representation.`);
     integer = token.coefficient === 0n ? 0n : token.coefficient * 10n ** token.exponent * (negative ? -1n : 1n);
   }
-  if (integer === undefined || !csharpBigIntFitsSourcePrimitive(integer, physical.name)) return rejected(
+  if (integer === undefined || !csharpBigIntFitsSourcePrimitive(integer, physical.name, platform)) return rejected(
     `Source numeric property key is outside the exact '${physical.name}' range.`);
   return resolved({ kind: "integer", target: physical, width: physical.name, value: integer });
 }

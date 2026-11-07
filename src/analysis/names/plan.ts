@@ -197,7 +197,7 @@ export function createCsharpSourceNameBuilder(
         const names = valueNames.get(owner);
         if (names === undefined) continue;
         for (const declaration of declarations) {
-          const parameter = csharpSourceTypeParameter(declaration, host.ast);
+          const parameter = csharpSourceTypeParameter(declaration, host.ast, host.facts.navigation.identity);
           const originalName = parameter === undefined ? undefined : tryCsharpIdentifier(parameter.name);
           if (parameter === undefined || originalName === undefined || !names.has(originalName)) continue;
           let suffix = 1;

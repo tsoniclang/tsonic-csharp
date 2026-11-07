@@ -127,7 +127,8 @@ function resolveBindingOwnerType(
         "code" in selected) return undefined;
       return getCsharpCollectionElementTargetType(representedValue(host, iteration.Expression));
     }
-    return representedValue(host, owner);
+    // As at baseline: the authored annotation, else the initializer's own carrier (not the widened declaration type).
+    return representedValue(host, declaration?.Type ?? declaration?.Initializer);
   }
   if (host.ast.is.IsParameterDeclaration(owner)) {
     return representedValue(host, owner);

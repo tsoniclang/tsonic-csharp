@@ -1,5 +1,5 @@
 // The declaration a published member or element selection names (selections.memberAccess, values.elementAccess).
-import type { AstReader, Node } from "@tsonic/tsts";
+import type { Node } from "@tsonic/tsts";
 import type { SourceElementAccessRecord, SourceMemberAccessSelection } from "@tsonic/target-api/source";
 
 /** The selected member declaration (first merged declaration, authored order) or index signature; undefined for an array, tuple or string element. */
@@ -21,12 +21,12 @@ export function csharpSelectionAccessMode(selection: SourceMemberAccessSelection
   return selection.access === "call" ? "read" : selection.access;
 }
 
-/** The selected member or element read is the callee of a call (`o.m()`, `o["m"]()`). */
-export function csharpSelectionIsCallee(ast: AstReader, selection: SourceMemberAccessSelection | SourceElementAccessRecord): boolean {
-  if (selection.access === "call") return true;
-  const site = "use" in selection ? selection.use : selection.node;
-  const parent = ast.parent(site);
-  return parent !== undefined && ast.is.IsCallExpression(parent) && ast.as.AsCallExpression(parent)?.Expression === site;
+/**
+ * The selected member or element read is the callee of a call (`o.m()`, `(o.m)()`, `o["m"]()`): the Host access mode
+ * `call` (selections.memberAccess and values.elementAccess), never a syntax parent check.
+ */
+export function csharpSelectionIsCallee(selection: SourceMemberAccessSelection | SourceElementAccessRecord): boolean {
+  return selection.access === "call";
 }
 
 /** The value declaration of a selected receiver (a namespace, class or enum value), when the Host names one. */

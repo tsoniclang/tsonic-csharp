@@ -1,7 +1,7 @@
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
 import { canonicalCsharpObjectShapeMembers } from "../../../target-model/types/object-shape-identity.js";
-import { createStructuralObjectShapeTarget } from "./construction.js";
+import { createStructuralObjectShapeTarget } from "../../../policy/types/objects/structural-shape-targets.js";
 import type { CsharpTypeParameterEnvironment } from "../../../target-model/records/types/type-parameter-constraints.js";
 
 export function parameterizeCsharpStructuralContract(shape: CsharpObjectShapeFact, environment: CsharpTypeParameterEnvironment): CsharpObjectShapeFact {

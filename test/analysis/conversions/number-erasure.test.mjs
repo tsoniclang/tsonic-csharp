@@ -8,10 +8,13 @@ import { csharpSourcePrimitiveTargetType, csharpTsValueTargetType, csharpObjectT
 import { readCsharpNumberErasure } from "../../../dist/analysis/conversions/number-erasure.js";
 
 // Basis: N3′ (PLAN §10), WP0 A3, 03-DATA-MODEL E23 limits (C-2499, K-2621); the C# consumer of the Host
-// `values.admission(use)` (K-2671). A Q1 int64 of number origin admitted into unknown with `exact-number-erasure` is
-// converted exactly to double at that use and boxed as a number; the int64 producer and read stay intact. An explicitly
-// authored int64 (`identity`) keeps its long box. Inexact and nonconstant values are Host refusals, forwarded.
+// `values.admission(use)` (K-2671) over the one Host destination domain (K-2678, K-2679, D4). A Q1 int64 of number
+// origin admitted into unknown with `exact-number-erasure` is converted exactly to double at that use and boxed as a
+// number; the int64 producer and read stay intact. An explicitly authored int64 (`identity`) keeps its long box.
+// Inexact and nonconstant values are Host refusals, forwarded. Both profiles: Native (surface undefined) and JS.
 
+const surfaces = [undefined, "js"];
+const profile = surface => surface ?? "native";
 const header = `import type { int64 } from "@tsonic/core/types.js";\n`;
 const int64 = csharpSourcePrimitiveTargetType("int64");
 const float64 = csharpSourcePrimitiveTargetType("float64");
@@ -42,6 +45,22 @@ export function run(): boolean {
     category(boxedWide) === "bigint" && original - 1152921504606846975 === 1 && alias - 1152921504606846975 === 1;
 }`;
 
+// Use forms the Host reaches through the use's association component (K-2678): call argument, rest elements, an
+// instantiated generic parameter, an array element and an object property. The arithmetic operand has no Host
+// destination and is outside the domain.
+const useFormProgram = `
+function take(value: unknown): string { return typeof value; }
+function many(...values: unknown[]): string { return typeof values[0] + typeof values[1]; }
+function generic<T>(value: T): string { return typeof value; }
+export function run(): boolean {
+  const original = 1152921504606846976;
+  const array: unknown[] = [original];
+  const object: { field: unknown } = { field: original };
+  return take(original) === "number" && many(original, original) === "numbernumber" &&
+    generic<unknown>(original) === "number" && typeof array[0] === "number" && typeof object.field === "number" &&
+    original - 1152921504606846975 === 1;
+}`;
+
 function sourceText(source, node) {
   const range = source.syntax.authoredRange(node);
   return range?.kind === "authored" ? source.syntax.getSourceText(source.syntax.getSourceFile(node)).slice(range.start, range.end) : undefined;
@@ -54,43 +73,68 @@ function convertedUses(source, program, nodes) {
   });
 }
 
-test("exact number erasure is a per-use conversion: Q1 int64 uses erase, explicit int64 uses of the same pair keep the box", { timeout: 300_000 }, () => {
-  const { program, nodes, source } = compileCsharpRequiredRecordSource(erasureProgram, "js");
-  const uses = convertedUses(source, program, nodes);
-  const erasures = uses.filter(use => use.conversion.kind === "exact-number-erasure");
-  // erased, erasedNegative, erasedComputed, absorbed, assigned, category(original), optional(alias), return produced.
-  assert.deepEqual(erasures.map(use => use.text).sort(),
-    ["alias", "alias", "computed", "negative", "original", "original", "original", "produced"],
-    "every authored erasure use (declaration, alias, computed, optional-absorbing, assignment, argument, return) erases");
-  for (const use of erasures) {
-    assert.equal(targetTypeRefEquals(use.conversion.input, int64) && targetTypeRefEquals(use.conversion.result, float64), true,
-      `${use.text}: the exact int64 → double conversion at the use`);
-    assert.equal(use.conversion.conversion.kind === "js-value-box" || use.conversion.conversion.kind === "nullable-map", true,
-      `${use.text}: the double result is boxed as a number`);
-    assert.equal(program.records.jsValueBoxing.get(use.node, float64) !== undefined, true, `${use.text}: the box plan reads the double`);
-    assert.equal(program.records.jsValueBoxing.get(use.node, int64), undefined, `${use.text}: the int64 carrier is never boxed at an erasure use`);
-  }
-  // Cache isolation: the same native pair (long → TsValue) is classified before (wideFirst) and after (wide) the erasure
-  // uses; neither direction lends a classification to the other use.
-  for (const name of ["wideFirst", "wide"]) {
-    const use = uses.find(use => use.text === name);
-    assert.equal(use?.conversion.kind, "js-value-box", `${name}: the explicit int64 keeps its long box (identity admission)`);
-    assert.equal(program.records.jsValueBoxing.get(use.node, int64) !== undefined, true, `${name}: the long carrier is boxed`);
-    assert.equal(program.records.expressionConversion.get(use.node, int64, csharpTsValueTargetType(), "implicit")?.selection.kind, "js-value-box");
-  }
-});
+// The same use, one Host destination: values.destination names the broad slot of the admission, and its type,
+// admission.destination and slot(admission.slot).type are the identical published descriptor (K-2683).
+function assertOneDestination(source, use, label) {
+  const { values } = source.facts;
+  const destination = values.destination(use.node);
+  const admission = values.admission(use.node);
+  assert.equal(admission.kind === "admitted" && admission.use === use.node, true, `${label}: the Host admission of this occurrence`);
+  const slot = values.slot(admission.slot);
+  assert.equal(destination !== undefined && destination.kind === "slot" && destination.broad &&
+    destination.slot === admission.slot && destination.type === admission.destination, true,
+    `${label}: values.destination is the admission's broad slot and destination`);
+  assert.equal(slot.kind === "slot" && slot.broad && slot.slot === admission.slot && slot.type === admission.destination, true,
+    `${label}: the admission slot is the same broad published slot`);
+}
 
-test("exact number erasure executes: erased values are numbers, explicit int64 stays bigint, producers stay int64", { timeout: 300_000 }, () => {
-  const compiled = compileCsharpSource({ surface: "js", sourceText: erasureProgram });
-  assertCsharpCompilationSucceeded(compiled);
-  const output = emitted(compiled);
-  assert.match(output, /\(double\)/u, "the erasure is an exact native conversion at the use");
-  assert.doesNotMatch(output, /IntegerConversions|CastDynamic/u, "no runtime exactness guard and no dynamic conversion (cost control)");
-  executeCsharpConstruction(compiled, "number-erasure-positive");
-});
+function assertErasureRecord(program, use, label) {
+  assert.equal(targetTypeRefEquals(use.conversion.input, int64) && targetTypeRefEquals(use.conversion.result, float64), true,
+    `${label}: the exact int64 → double conversion at the use`);
+  assert.equal(use.conversion.conversion.kind === "js-value-box" || use.conversion.conversion.kind === "nullable-map", true,
+    `${label}: the double result is boxed as a number`);
+  assert.equal(program.records.jsValueBoxing.get(use.node, float64) !== undefined, true, `${label}: the box plan reads the double`);
+  assert.equal(program.records.jsValueBoxing.get(use.node, int64), undefined, `${label}: the int64 carrier is never boxed at an erasure use`);
+}
 
-test("each erased operand is evaluated exactly once, in its authored argument order", { timeout: 300_000 }, () => {
-  const compiled = compileCsharpSource({ surface: "js", sourceText: `
+for (const surface of surfaces) {
+  test(`exact number erasure is a per-use conversion: Q1 int64 uses erase, explicit int64 uses of the same pair keep the box (${profile(surface)})`, { timeout: 300_000 }, () => {
+    const { program, nodes, source } = compileCsharpRequiredRecordSource(erasureProgram, surface);
+    const uses = convertedUses(source, program, nodes);
+    const erasures = uses.filter(use => use.conversion.kind === "exact-number-erasure");
+    // erased, erasedNegative, erasedComputed, absorbed, assigned, category(original), optional(alias), return produced.
+    assert.deepEqual(erasures.map(use => use.text).sort(),
+      ["alias", "alias", "computed", "negative", "original", "original", "original", "produced"],
+      "every authored erasure use (declaration, alias, computed, optional-absorbing, assignment, argument, return) erases");
+    for (const use of erasures) {
+      assertErasureRecord(program, use, use.text);
+      assertOneDestination(source, use, use.text);
+    }
+    // Cache isolation: the same native pair (long → TsValue) is classified before (wideFirst) and after (wide) the erasure
+    // uses; neither direction lends a classification to the other use.
+    for (const name of ["wideFirst", "wide"]) {
+      const use = uses.find(use => use.text === name);
+      assert.equal(use?.conversion.kind, "js-value-box", `${name}: the explicit int64 keeps its long box (identity admission)`);
+      assert.equal(program.records.jsValueBoxing.get(use.node, int64) !== undefined, true, `${name}: the long carrier is boxed`);
+      assert.equal(program.records.expressionConversion.get(use.node, int64, csharpTsValueTargetType(), "implicit")?.selection.kind, "js-value-box");
+      const admission = source.facts.values.admission(use.node);
+      assert.equal(admission.kind === "admitted" && admission.conversion.kind === "identity", true, `${name}: the Host admits identity`);
+    }
+  });
+
+  test(`exact number erasure executes: erased values are numbers, explicit int64 stays bigint, producers stay int64 (${profile(surface)})`, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: erasureProgram });
+    assertCsharpCompilationSucceeded(compiled);
+    const output = emitted(compiled);
+    assert.match(output, /\(double\)/u, "the erasure is an exact native conversion at the use");
+    // Structural cost control only: no runtime exactness guard and no dynamic conversion. Measured allocation and cost
+    // evidence is not claimed here (open, see AGENT-D4-NOTES.md).
+    assert.doesNotMatch(output, /IntegerConversions|CastDynamic/u, "no runtime exactness guard and no dynamic conversion");
+    executeCsharpConstruction(compiled, `number-erasure-positive-${profile(surface)}`);
+  });
+
+  test(`each erased operand is evaluated exactly once, in its authored argument order (${profile(surface)})`, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
 let trace = "";
 function tick(label: string): string { trace += label; return label; }
 function record(first: string, value: unknown, last: string): string { return first + typeof value + last; }
@@ -100,70 +144,130 @@ export function run(): boolean {
   return result === "anumberb" && trace === "ab";
 }
 ` });
-  assertCsharpCompilationSucceeded(compiled);
-  executeCsharpConstruction(compiled, "number-erasure-evaluation-order");
-});
+    assertCsharpCompilationSucceeded(compiled);
+    executeCsharpConstruction(compiled, `number-erasure-evaluation-order-${profile(surface)}`);
+  });
 
-for (const surface of [undefined, "js"]) {
+  test(`argument, rest, generic, array element and property uses erase through their one Host destination (${profile(surface)})`, { timeout: 300_000 }, () => {
+    const { program, nodes, source } = compileCsharpRequiredRecordSource(useFormProgram, surface);
+    const uses = convertedUses(source, program, nodes).filter(use => use.text === "original");
+    const erasures = uses.filter(use => use.conversion.kind === "exact-number-erasure");
+    // take, many ×2, generic, array element, property; the arithmetic operand has no Host destination.
+    assert.equal(erasures.length, 6, `the six destination uses erase: ${uses.map(use => use.conversion.kind).join(", ")}`);
+    for (const [index, use] of erasures.entries()) {
+      assertErasureRecord(program, use, `use ${index}`);
+      assertOneDestination(source, use, `use ${index}`);
+    }
+    const compiled = compileCsharpSource({ surface, sourceText: useFormProgram });
+    assertCsharpCompilationSucceeded(compiled);
+    assert.doesNotMatch(emitted(compiled), /IntegerConversions|CastDynamic/u);
+    executeCsharpConstruction(compiled, `number-erasure-use-forms-${profile(surface)}`);
+  });
+
   for (const [name, body, site] of [
     ["inexact 2^53 + 1", "const original = 9007199254740993; const erased: unknown = original; return erased;", "original"],
     ["inexact negative", "const original = -9007199254740993; const erased: unknown = original; return erased;", "original"],
     ["nonconstant", "let original = 1; original += 1; const erased: unknown = original; return erased;", "original"],
   ]) {
-    test(`${name} number erasure is the forwarded Host refusal (${surface ?? "native"})`, { timeout: 300_000 }, () => {
+    test(`${name} number erasure is the forwarded Host refusal (${profile(surface)})`, { timeout: 300_000 }, () => {
       const compiled = compileEffectiveSource(surface, `export function f(): unknown { ${body} }`);
       assertPublishedRefusal(compiled, "TSONIC_LOCAL_TYPE_NUMBER_ERASURE_INEXACT", site);
     });
   }
 }
 
-// The reader authenticates the exact Host admission; it decides nothing itself.
+// The reader authenticates the exact Host admission inside the Host destination domain; it decides nothing itself.
 const use = Object.freeze({ id: "use" });
 const declaration = Object.freeze({ id: "slot" });
 const origin = Object.freeze({ id: "origin" });
 const int64Descriptor = Object.freeze({ kind: "primitive", primitive: "int64" });
 const unknownDescriptor = Object.freeze({ kind: "intrinsic", intrinsic: "unknown" });
 const float64Descriptor = Object.freeze({ kind: "primitive", primitive: "float64" });
-function stubFacts({ admission, slot, value, has = () => true,
-  contextual = Object.freeze({ kind: "resolved", type: unknownDescriptor }), destination = csharpTsValueTargetType() }) {
-  return { facts: { values: {
-    admission: () => { if (admission === undefined) throw new Error("no Host slot admission at this use"); return admission; },
-    contextual: () => contextual, slot: () => slot, type: () => value, has,
-  } }, represent: () => destination };
+const broadDestination = Object.freeze({ kind: "slot", slot: declaration, type: unknownDescriptor, broad: true });
+// `hostDestination` omitted: the default broad Host destination (values.destination). `hostDestination: undefined`
+// given: the use deliberately has no Host destination. The two are told apart by the presence of the key, never by its
+// value (K-2679). `destination` is the C# representation of the Host destination.
+function stubFacts(options) {
+  const { admission, slot, value, has = () => true, destination = csharpTsValueTargetType() } = options;
+  const hostDestination = Object.hasOwn(options, "hostDestination") ? options.hostDestination : broadDestination;
+  const reads = { admission: 0, represent: 0 };
+  const host = { facts: { values: {
+    admission: () => {
+      reads.admission += 1;
+      if (admission === undefined) throw new Error("Source value facts: no Host slot admission at this use, although its Host destination is a broad slot.");
+      return admission;
+    },
+    destination: () => hostDestination, slot: () => slot, type: () => value, has,
+  } }, represent: () => { reads.represent += 1; return destination; } };
+  return { host, reads };
 }
+const read = (options, source = int64, target = csharpTsValueTargetType(), mode = "implicit") => {
+  const stub = stubFacts(options);
+  return { result: readCsharpNumberErasure(stub.host, use, source, target, mode), reads: stub.reads };
+};
+const readThrows = (options, pattern, message, source = int64, target = csharpTsValueTargetType()) =>
+  assert.throws(() => readCsharpNumberErasure(stubFacts(options).host, use, source, target, "implicit"), pattern, message);
 const slotOutcome = Object.freeze({ kind: "slot", slot: declaration, type: unknownDescriptor, broad: true, authority: "declared" });
 const valueOutcome = Object.freeze({ kind: "resolved", type: int64Descriptor });
 const admitted = conversion => Object.freeze({ kind: "admitted", use, slot: declaration, value: int64Descriptor,
   destination: unknownDescriptor, permission: "widening", conversion: Object.freeze(conversion) });
+const exactErasure = admitted({ kind: "exact-number-erasure", origin, result: float64Descriptor });
 
 test("the erasure reader requires the exact, frozen Host admission of the same occurrence", () => {
-  const exact = readCsharpNumberErasure(stubFacts({ admission: admitted({ kind: "exact-number-erasure", origin, result: float64Descriptor }),
-    slot: slotOutcome, value: valueOutcome }), use, int64, csharpTsValueTargetType(), "implicit");
+  const exact = read({ admission: exactErasure, slot: slotOutcome, value: valueOutcome }).result;
   assert.equal(exact?.use === use && exact.origin === origin && targetTypeRefEquals(exact.result, float64), true);
-  assert.equal(readCsharpNumberErasure(stubFacts({ admission: admitted({ kind: "identity" }), slot: slotOutcome, value: valueOutcome }),
-    use, int64, csharpObjectTargetType(), "implicit"), undefined, "identity admission (explicit int64) keeps the box");
-  assert.equal(readCsharpNumberErasure(stubFacts({}), use, float64, csharpTsValueTargetType(), "implicit"), undefined,
+  assert.equal(read({ admission: admitted({ kind: "identity" }), slot: slotOutcome, value: valueOutcome },
+    int64, csharpObjectTargetType()).result, undefined, "identity admission (explicit int64, or any) keeps the box");
+  const candidateless = read({}, float64);
+  assert.equal(candidateless.result === undefined && candidateless.reads.admission === 0, true,
     "a non-int64 carrier is no erasure candidate and reads no admission");
-  assert.equal(readCsharpNumberErasure(stubFacts({}), use, int64, csharpTsValueTargetType(), "explicit"), undefined);
-  assert.equal(readCsharpNumberErasure(stubFacts({ contextual: undefined }), use, int64, csharpTsValueTargetType(), "implicit"), undefined,
-    "a use with no Host destination (an operation operand) flows into no slot and has no admission to read");
-  assert.equal(readCsharpNumberErasure(stubFacts({ destination: int64 }), use, int64, csharpTsValueTargetType(), "implicit"), undefined,
-    "a Host destination that is not broad (a generic binder instantiated broad in C#) has no slot admission");
-  assert.throws(() => readCsharpNumberErasure(stubFacts({}), use, int64, csharpTsValueTargetType(), "implicit"),
-    /no Host slot admission/u, "a missing admission at a broad use is an invariant failure");
+  const explicit = read({}, int64, csharpTsValueTargetType(), "explicit");
+  assert.equal(explicit.result === undefined && explicit.reads.admission === 0, true);
   const foreign = Object.freeze({ ...admitted({ kind: "identity" }), use: Object.freeze({ id: "other" }) });
-  assert.throws(() => readCsharpNumberErasure(stubFacts({ admission: foreign, slot: slotOutcome, value: valueOutcome }),
-    use, int64, csharpTsValueTargetType(), "implicit"), /another occurrence/u);
+  readThrows({ admission: foreign, slot: slotOutcome, value: valueOutcome }, /another occurrence/u);
+  readThrows({ admission: admitted({ kind: "identity" }), slot: slotOutcome, value: Object.freeze({ kind: "resolved", type: float64Descriptor }) },
+    /published value of the same occurrence/u);
+  readThrows({ admission: admitted({ kind: "exact-number-erasure", origin, result: Object.freeze({ kind: "primitive", primitive: "float32" }) }),
+    slot: slotOutcome, value: valueOutcome }, /float64 result/u, "no target width chooser: only the Host float64 result");
+});
+
+test("the Host destination domain: no destination reads no admission; inside it, missing evidence is an invariant (K-2678, K-2679)", () => {
+  // Deliberately absent (the key is given): an operation operand or a target-internal box. No admission is read.
+  const absent = read({ hostDestination: undefined });
+  assert.equal(absent.result === undefined && absent.reads.admission === 0 && absent.reads.represent === 0, true,
+    "a use with no Host destination flows into no slot and has no admission to read");
+  // K-2683: a non-broad Host destination (identity(original) into T, a string slot) is outside the A3 domain. The stub
+  // throws on any admission read, so a read here would fail: no read, no erasure, no invariant.
+  const narrow = read({ hostDestination: Object.freeze({ ...broadDestination, broad: false }) });
+  assert.equal(narrow.result === undefined && narrow.reads.admission === 0 && narrow.reads.represent === 0, true,
+    "a non-broad Host destination reads no admission, erases nothing and raises no invariant");
+  const narrowObject = read({ hostDestination: Object.freeze({ ...broadDestination, broad: false }) }, int64, csharpObjectTargetType());
+  assert.equal(narrowObject.result === undefined && narrowObject.reads.admission === 0, true,
+    "broadness is the Host's destination.broad, never the broad C# carrier of the conversion");
+  // Omitted (the default broad destination): the same call reads the admission, and its absence is an invariant.
+  readThrows({}, /no Host slot admission/u, "a missing admission at an authoritative broad destination is an invariant failure");
+  // The destination decides the domain, not the C# carriers: an int64 boxed into System.Object inside the domain reads it.
+  readThrows({}, /no Host slot admission/u, "System.Object carriers ask the same Host domain", int64, csharpObjectTargetType());
+});
+
+test("refused or failed evidence inside the domain is an invariant, never 'no erasure' (R5, I4)", () => {
+  readThrows({ hostDestination: Object.freeze({ kind: "refused", code: "TSONIC_LOCAL_TYPE_UNSUPPORTED", site: use }) },
+    /refused Host destination/u, "a late Host refusal of the destination is not a non-slot use");
   const refused = Object.freeze({ kind: "refused", use, slot: declaration, refusal: Object.freeze({ kind: "refused" }) });
-  assert.throws(() => readCsharpNumberErasure(stubFacts({ admission: refused, slot: slotOutcome, value: valueOutcome }),
-    use, int64, csharpTsValueTargetType(), "implicit"), /refused Host slot admission/u);
-  const otherSlot = Object.freeze({ ...slotOutcome, type: Object.freeze({ kind: "intrinsic", intrinsic: "unknown" }) });
-  assert.throws(() => readCsharpNumberErasure(stubFacts({ admission: admitted({ kind: "identity" }), slot: otherSlot, value: valueOutcome }),
-    use, int64, csharpTsValueTargetType(), "implicit"), /broad declared slot/u, "the destination must be the slot's published descriptor");
-  assert.throws(() => readCsharpNumberErasure(stubFacts({ admission: admitted({ kind: "identity" }), slot: slotOutcome,
-    value: Object.freeze({ kind: "resolved", type: float64Descriptor }) }), use, int64, csharpTsValueTargetType(), "implicit"),
-  /published value of the same occurrence/u);
-  assert.throws(() => readCsharpNumberErasure(stubFacts({ admission: admitted({ kind: "exact-number-erasure", origin,
-    result: Object.freeze({ kind: "primitive", primitive: "float32" }) }), slot: slotOutcome, value: valueOutcome }),
-  use, int64, csharpTsValueTargetType(), "implicit"), /float64 result/u, "no target width chooser: only the Host float64 result");
+  readThrows({ admission: refused, slot: slotOutcome, value: valueOutcome }, /refused Host slot admission/u);
+  readThrows({ admission: exactErasure, slot: slotOutcome, value: valueOutcome,
+    destination: Object.freeze({ kind: "csharp-refused", code: "CSHARP_TEST", message: "test", site: use }) },
+  /failed mapping does not waive its admission/u, "a failed representation is no evidence that the A3 obligation is absent");
+  readThrows({ admission: exactErasure, slot: slotOutcome, value: valueOutcome, destination: int64 },
+    /disagrees with the broad carrier/u, "a broad Host destination whose C# carrier is not broad is conflicting evidence");
+});
+
+test("the Host destination and the admission of one use name the same broad slot and published descriptor", () => {
+  const equalButOther = Object.freeze({ kind: "intrinsic", intrinsic: "unknown" });
+  readThrows({ admission: exactErasure, slot: slotOutcome, value: valueOutcome,
+    hostDestination: Object.freeze({ ...broadDestination, type: equalButOther }) },
+  /same broad slot and published descriptor/u, "values.destination must publish the admission's destination object");
+  readThrows({ admission: exactErasure, slot: slotOutcome, value: valueOutcome,
+    hostDestination: Object.freeze({ ...broadDestination, slot: Object.freeze({ id: "other slot" }) }) },
+  /same broad slot and published descriptor/u, "the admission must belong to the destination's own slot");
 });

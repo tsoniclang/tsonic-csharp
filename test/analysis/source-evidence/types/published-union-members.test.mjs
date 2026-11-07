@@ -4,7 +4,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { hostProgram, representationServices, representations, represented } from "../../../representation/host-fixture.mjs";
-import { representSourceUnionRole } from "../../../../dist/representation/index.js";
 import { csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../../../../dist/target-model/types/carriers/scalar-types.js";
 import { csharpRuntimeUnionTargetType, getCsharpRuntimeUnionArms, isCsharpAbsenceTargetType } from "../../../../dist/target-model/types/carriers/runtime-carriers.js";
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../../dist/target-model/types/carriers/nullable.js";
@@ -49,24 +48,6 @@ test("published union members keep the Host arms, roles and native widths positi
     const selected = represented(input.represent.type(arm.type, input.parameter, "value"));
     if (index === 0) assert.equal(isCsharpAbsenceTargetType(selected), true);
     else assert.equal(targetTypeRefEquals(selected, arms[index - 1]), true, "each Source arm maps to its positional .NET arm");
-  }
-});
-
-test("role selection over published members refuses foreign widths and reordered or absent carrier domains", () => {
-  const input = fixture();
-  const { sum, carrier } = input;
-  const armCarriers = sum.arms.map(arm => represented(input.represent.type(arm.type, input.parameter, "value")));
-  const roles = sum.roles.map(role => role.role);
-  const integerRole = sum.arms[2].role;
-  assert.notEqual(representSourceUnionRole(carrier, armCarriers[2], sum, armCarriers, integerRole, roles), undefined,
-    "the exact int32 role reads out of the published storage");
-  assert.equal(representSourceUnionRole(carrier, csharpSourcePrimitiveTargetType("uint32"), sum, armCarriers, integerRole, roles),
-    undefined, "the same checked numeric category is not original Source membership");
-  const payloads = armCarriers.slice(1);
-  for (const foreign of [csharpRuntimeUnionTargetType(payloads), csharpRuntimeUnionTargetType([...payloads].reverse()),
-    csharpNullableTargetType(csharpRuntimeUnionTargetType([...payloads].reverse())), csharpSourcePrimitiveTargetType("float64")]) {
-    assert.equal(representSourceUnionRole(foreign, armCarriers[2], sum, armCarriers, integerRole, roles), undefined,
-      "a different physical domain cannot borrow the published sum's authority");
   }
 });
 

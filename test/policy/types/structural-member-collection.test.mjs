@@ -29,7 +29,10 @@ function scenario(rejectedIndex, count = 3) {
     selected.push(index);
     return index === rejectedIndex ? csharpRefusal("CSHARP_FIXTURE_REFUSED", `field${index} has no carrier`, owner) : carrier;
   };
-  return { collect: () => representObjectMembers(members, context, represent), selected, members, carrier };
+  // The Host shape the members were published from: origins come from its descriptor members (R3 #22).
+  const shape = descriptor.kind === "shape" ? descriptor : descriptor.definition;
+  assert.equal(shape?.kind, "shape", "the interface publishes its shape definition");
+  return { collect: () => representObjectMembers(members, context, represent, shape), selected, members, carrier };
 }
 
 test("structural members stop at the first refused carrier without publishing a partial shape", () => {
@@ -68,7 +71,7 @@ function nativeBinderFixture(projections) {
   const declaration = program.nodes.find(node => program.ast.is.IsMethodSignatureDeclaration(node));
   assert.notEqual(declaration, undefined, "the authored method signature exists");
   const parameterDeclaration = program.ast.typeParameters(declaration)[0];
-  const parameter = csharpSourceTypeParameter(parameterDeclaration, program.ast);
+  const parameter = csharpSourceTypeParameter(parameterDeclaration, program.ast, program.facts.navigation.identity);
   assert.notEqual(parameter, undefined, "the authored binder has a C# identity");
   const storage = csharpOptionalStorageProjection(parameter);
   const operations = getCsharpGenericOptionalParts(storage).operations;

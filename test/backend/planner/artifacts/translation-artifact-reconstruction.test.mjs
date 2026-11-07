@@ -73,7 +73,6 @@ test("target-owned object shapes reconstruct from canonical artifact state", () 
     demand.requireObjectShapeCapability(
       undefined,
       outerType,
-      {},
       "json-serialization",
       "object-shape",
     ),
@@ -168,7 +167,7 @@ test("copied CLR methods cannot conflict with a generic declaration receiver in 
   for (const copyFirst of [false, true]) {
     const { demand, declaration, instance } = genericReceiverArtifacts();
     assert.equal(demand.registerObjectShape(instance, "synthetic").kind, "accepted", "the closed native owner is admitted");
-    const copy = () => demand.requireObjectShapeCapability(undefined, instance.targetType, {}, "method-values", "object-shape");
+    const copy = () => demand.requireObjectShapeCapability(undefined, instance.targetType, "method-values", "object-shape");
     const receiver = () => demand.requireObjectShapeMethodReceiver(declaration, declaration.members[0]);
     assert.equal((copyFirst ? copy() : receiver()).kind, "accepted", "the first exact requirement is admitted");
     const conflict = copyFirst ? receiver() : copy();
@@ -205,7 +204,7 @@ test("one exact native declaration publishes the selected capabilities for every
     for (const capabilityFirst of [false, true]) {
       const { demand, declaration, first, second, unrelated } = genericCapabilityArtifacts();
       assert.equal(demand.registerObjectShape(first, "synthetic").kind, "accepted", "the first closed carrier is admitted");
-      const request = () => demand.requireObjectShapeCapability(undefined, first.targetType, {}, capability, "object-shape");
+      const request = () => demand.requireObjectShapeCapability(undefined, first.targetType, capability, "object-shape");
       if (capabilityFirst) assert.equal(request().kind, "accepted", "the actual selected capability precedes the other use");
       assert.equal(demand.registerObjectShape(second, "synthetic").kind, "accepted", "a second native instantiation shares the declaration");
       assert.equal(demand.registerObjectShape(unrelated, "synthetic").kind, "accepted", "an unrelated plain declaration stays independent");

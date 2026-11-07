@@ -12,7 +12,6 @@ import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/recor
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
 import { readCsharpSelectedWritingReference } from "../callables/values/argument-passing.js";
 import { csharpCapturedBindingInitialization } from "../callables/values/capture-initialization.js";
-import { csharpLexicalCaptures } from "../callables/values/lexical-captures.js";
 
 export function analyzeCsharpClassFactories(
   source: TargetSourceProgramFacts,
@@ -33,7 +32,7 @@ export function analyzeCsharpClassFactories(
     const type = evidence.classConstructorType.get(declaration);
     const contract = getCsharpClassFactory(type);
     // Lexical captures of the class (captured bindings with their references, captured outer receivers), as F4 reads them.
-    const selected = csharpLexicalCaptures(source.facts, declaration);
+    const selected = source.facts.analyses.lexicalCaptures(declaration);
     const captures = selected.captures.map((capture, index): CsharpClassCapture | undefined => {
       const reference = capture.references[0];
       const type = storage.storageType.get(capture.declaration) ?? evidence.storageTargetType.get(capture.declaration) ??

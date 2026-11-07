@@ -1,20 +1,11 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { SourceTypeDescriptor, TargetSourceProgramFacts } from "@tsonic/target-api/source";
+import type { TargetSourceProgramFacts } from "@tsonic/target-api/source";
 import { publishedCsharpCallableInterface } from "../source-evidence/types/published-callable-interface.js";
+import { sourceInterfaceRepresentsJsArray } from "../program/source-facts.js";
 
 export function analyzeCsharpTypeOnlyDeclarations(source: TargetSourceProgramFacts, sourceFiles: readonly SourceFile[]): ReadonlySet<Node> {
   const declarations = new Set<Node>();
   const { syntax: ast, facts } = source;
-  /** The interface extends exactly one base, and that base is a JS array or readonly array (js-source-profile facts). */
-  const arrayRepresentation = (statement: Node): boolean => {
-    const heritage = facts.objects.heritage(statement);
-    if (!Array.isArray(heritage)) return false;
-    const bases = heritage.filter(edge => edge.kind === "extends");
-    if (bases.length !== 1) return false;
-    const base: SourceTypeDescriptor = { kind: "declared", declaration: bases[0]!.target, typeArguments: bases[0]!.typeArguments };
-    const collection = facts.profile.collection(base)?.kind;
-    return collection === "array" || collection === "readonly-array";
-  };
   const conditionalPredicate = (reference: Node): boolean => {
     for (let child = reference, owner = ast.parent(child); owner !== undefined; child = owner, owner = ast.parent(owner)) {
       if (ast.is.IsConditionalTypeNode(owner)) return ast.as.AsConditionalTypeNode(owner)?.ExtendsType === child;
@@ -39,7 +30,7 @@ export function analyzeCsharpTypeOnlyDeclarations(source: TargetSourceProgramFac
       declarations.add(statement);
       continue;
     }
-    if (arrayRepresentation(statement)) {
+    if (sourceInterfaceRepresentsJsArray(facts, statement)) {
       declarations.add(statement);
       continue;
     }

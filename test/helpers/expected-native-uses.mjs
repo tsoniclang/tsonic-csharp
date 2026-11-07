@@ -63,8 +63,10 @@ export function createExpectedNativeUseOwner(compiled) {
   const evidence = Object.freeze({ ...records,
     generator: Object.freeze({ get: node => source.facts.selections.generator(node) }),
     generatorTargetType: Object.freeze({ get: node => publishedGeneratorCarrier(records, node) }),
+    // The yield operand is the Host yield selection's operand (baseline: operations.yield(node).operand), never syntax.
     yieldTargetType: Object.freeze({ get: node => {
-      const operand = ast.is.IsYieldExpression(node) ? ast.as.AsYieldExpression(node)?.Expression : undefined;
+      const selected = ast.is.IsYieldExpression(node) ? source.facts.selections.yield(node) : undefined;
+      const operand = selected === undefined || selected.kind === "refused" ? undefined : selected.operand;
       return operand === undefined ? undefined : records.valueRead.get(operand)?.value;
     } }),
   });

@@ -26,7 +26,7 @@ function analyze(sourceText, surface = "native") {
     })));
   assert.equal(Object.hasOwn(program.records, "nativeParticipation"), true, "one published participation reader");
   // nextgen C-2542: Host storage is facts.analyses.storage over the TargetSourceProgramFacts the target received.
-  const storage = source.facts.analyses.storage({ sourceFiles: source.sourceFiles });
+  const storage = source.facts.analyses.storage({ sourceFiles: source.sourceFiles, premises: {} });
   assert.equal(storage.failureReason(), undefined, "bounded owned source domain");
   return { source, ast: source.syntax, nodes: storage.nodes, program, compiled };
 }

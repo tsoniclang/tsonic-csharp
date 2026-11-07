@@ -8,7 +8,8 @@ import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 
 const integer = csharpSourcePrimitiveTargetType("int32");
 const floating = csharpSourcePrimitiveTargetType("float64");
-const collection = () => createCsharpExpectedUseCollection({ ast: { kindName: () => "KindIdentifier" } });
+const collection = () => createCsharpExpectedUseCollection({ ast: { kindName: () => "KindIdentifier" },
+  facts: { navigation: { scopes: { role: () => [] } } } });
 const argument = effectiveIndex => ({ kind: "argument", sourceIndex: 0, effectiveIndex, parameterIndex: effectiveIndex });
 
 test("one expression feeding distinct effective arguments retains both exact requested target and integer intent", () => {

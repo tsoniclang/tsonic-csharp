@@ -1,7 +1,8 @@
 // Callable values -> .NET delegates; construct-only values -> the constructed class (or its local factory).
 // One call signature only: a delegate has exactly one signature (CSHARP_CALLABLE_OVERLOADS otherwise).
 import type { Node } from "@tsonic/tsts";
-import type { SourceTypeDescriptorSignature } from "@tsonic/target-api/source";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
+import type { SourceObjectMember, SourceTypeDescriptorSignature } from "@tsonic/target-api/source";
 import type { CsharpObjectShapeMemberFact, CsharpTargetParameter } from "../target-model/types/model.js";
 import { csharpDelegateTargetType } from "../target-model/types/carriers/delegates.js";
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../target-model/types/carriers/nullable.js";
@@ -9,9 +10,9 @@ import { getCsharpGenericOptionalParts } from "../target-model/types/projections
 import { isCsharpVoidTargetType } from "../target-model/types/identity.js";
 import { targetTypeRefEquals } from "../target-model/types/equality.js";
 import { selectCsharpSourceParameterVector } from "../policy/types/callables/parameter-vector.js";
-import { selectCsharpClassFactoryType } from "../analysis/project-types/class-factory-types.js";
+import { selectCsharpClassFactoryType } from "../policy/types/objects/class-factory-types.js";
 import { csharpSourceTypeParameter } from "../source/extension/type-parameters.js";
-import { csharpRefusal, isCsharpRefusal, representAll, type CsharpRefusal, type CsharpRepresentation,
+import { csharpRefusal, isCsharpRefusal, isSourceRefusal, representAll, type CsharpRefusal, type CsharpRepresentation,
   type CsharpRepresentationContext, type ShapeDescriptor } from "./context.js";
 import type { RepresentDescriptor } from "./sums.js";
 
@@ -23,14 +24,19 @@ export function representSignatureTypeParameters(signature: SourceTypeDescriptor
   if (signature.typeParameters.length === 0) return Object.freeze([]);
   const parameters: CsharpMemberTypeParameters[number][] = [];
   for (const declaration of signature.typeParameters) {
-    const parameter = csharpSourceTypeParameter(declaration, context.syntax);
+    const parameter = csharpSourceTypeParameter(declaration, context.syntax, context.facts.navigation.identity);
     if (parameter === undefined) return csharpRefusal("CSHARP_GENERIC_BINDER",
       "A generic binder has no C# identifier.", declaration);
     const snapshot = context.typeParameters.resolve(parameter);
-    if (snapshot.csharpConstraints.kind !== "resolved") return csharpRefusal("CSHARP_GENERIC_CONSTRAINT",
-      snapshot.csharpConstraints.reason, declaration);
+    const resolution = snapshot.csharpConstraints;
+    if (resolution.kind === "unsupported") return csharpRefusal("CSHARP_GENERIC_CONSTRAINT", resolution.reason, declaration);
+    // A descriptor representation carries only CSHARP_ refusals (CsharpRepresentation), so a Host-refused constraint
+    // part keeps the CSHARP_GENERIC_CONSTRAINT report it had before the `refused` arm, with the Host code and text.
+    if (resolution.kind === "refused") return csharpRefusal("CSHARP_GENERIC_CONSTRAINT",
+      `Generic binder '${parameter.name}' constraint was refused by the Host (${resolution.refusal.code}): ${resolution.refusal.reason}`,
+      declaration);
     parameters.push(Object.freeze({ declaration, identity: parameter.identity, name: parameter.name,
-      constraints: Object.freeze([...snapshot.csharpConstraints.constraints]) }));
+      constraints: Object.freeze([...resolution.constraints]) }));
   }
   const owner = signature.declaration;
   if (owner !== undefined) {
@@ -104,10 +110,13 @@ export function representConstructorValue(constructs: readonly SourceTypeDescrip
 
 /**
  * True when every member of a construct-carrying shape is the static side of the one class its construct signatures
- * belong to: a static member of that class or its class prototype (K-2448 #3). Syntax reads only (declaration kinds).
+ * belong to (K-2448 #3). R3 #8: the static side is read from Host object facts, not from modifiers: each published member
+ * (objects.members of this descriptor, one per descriptor member, in order) must be declared by that class and be
+ * `static`, or be its class prototype (Host origin `class-prototype`). The class is the owner of the construct
+ * signatures (declaration kinds only), confirmed by the Host construction record of that class.
  */
 export function isClassStaticSide(descriptor: ShapeDescriptor, context: CsharpRepresentationContext): boolean {
-  const { syntax } = context;
+  const { syntax, facts } = context;
   const owners = new Set<Node | undefined>(descriptor.constructs.map(signature => {
     const declaration = signature.declaration;
     if (declaration !== undefined && syntax.is.IsConstructorDeclaration(declaration)) return syntax.parent(declaration);
@@ -116,7 +125,11 @@ export function isClassStaticSide(descriptor: ShapeDescriptor, context: CsharpRe
   }));
   const owner = owners.size === 1 ? [...owners][0] : undefined;
   if (owner === undefined || !(syntax.is.IsClassDeclaration(owner) || syntax.is.IsClassExpression(owner))) return false;
-  return descriptor.members.every(member => member.origin.kind === "class-prototype" ? member.origin.owner === owner
-    : member.origin.kind === "declared" && syntax.parent(member.origin.declaration) === owner &&
-      syntax.hasModifierKind(member.origin.declaration, "static"));
+  if (isSourceRefusal(facts.objects.construction(owner))) return false;
+  const published = facts.objects.members(descriptor);
+  const members = isSourceRefusal(published) ? undefined : published as readonly SourceObjectMember[];
+  if (members === undefined || members.length !== descriptor.members.length) failTargetAnalysisInvariant("tsonic-csharp",
+    "The Host object facts of a construct-carrying shape must publish one member per descriptor member.", context.occurrence);
+  return descriptor.members.every((member, index) => member.origin.kind === "class-prototype" ? member.origin.owner === owner
+    : members[index]!.owner === owner && members[index]!.static);
 }

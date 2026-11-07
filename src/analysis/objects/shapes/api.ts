@@ -3,7 +3,7 @@
 // interface and struct shapes come from facts.objects.members of the declaration's own reference.
 import type { Node } from "@tsonic/tsts";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
-import { sourceTypeDescriptorStructure, type SourceObjectMember, type SourceTypeDescriptor,
+import { type SourceObjectMember, type SourceTypeDescriptor,
   type SourceTypeOutcome } from "@tsonic/target-api/source";
 import { sourceValueType } from "../../program/source-facts.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpSourceMemberKey, CsharpTargetNamedTypeRef,
@@ -25,9 +25,10 @@ import { readCsharpSourceStruct } from "../../../source/extension/markers.js";
 import type { CsharpSourceStruct } from "../../../target-model/records/program/source-markers.js";
 import { objectShapeMemberTargetName } from "../../../policy/identities/source-member-names.js";
 import { mergeCsharpObjectShapeSubjects } from "./construction.js";
-import { csharpProjectDeclarationDescriptor } from "./declaration-descriptors.js";
+import { csharpProjectDeclarationType } from "./declaration-descriptors.js";
 import { resolveCsharpCopiedObjectShape, retainCsharpMethodValueContracts } from "./method-values.js";
 import { createCsharpNativeShapeProjections } from "./native-projections.js";
+import { csharpSinglePresentSourceArm } from "./present-arms.js";
 import { resolveCsharpProviderObjectLiteralShape } from "./provider-construction.js";
 import type { CsharpObjectShapePolicyHost, CsharpRecursiveObjectShapePolicy } from "./model.js";
 
@@ -93,12 +94,14 @@ export function createCsharpObjectShapePolicy(host: CsharpObjectShapePolicyHost)
       return shape;
     }
     const binders = [...definition.outerTypeParameters, ...definition.typeParameters];
-    const members = services.facts.objects.members(csharpProjectDeclarationDescriptor(definition));
+    // R3 #17: the declaration's own Host type (values.type of the declaration, with its definition), never a C#-built
+    // descriptor, so objects.members yields the members and their Host origins.
+    const members = services.facts.objects.members(csharpProjectDeclarationType(services.facts, declaration));
     if (!Array.isArray(members)) return undefined;
     const facts = representObjectMembers((members as readonly SourceObjectMember[]).filter(member => !member.static),
       csharpRepresentationContext(services, declaration, "storage"));
     if (!Array.isArray(facts)) return undefined;
-    const arguments_ = binders.map(binder => csharpSourceTypeParameter(binder, host.ast));
+    const arguments_ = binders.map(binder => csharpSourceTypeParameter(binder, host.ast, services.facts.navigation.identity));
     if (arguments_.some(argument => argument === undefined)) return undefined;
     const outer = definition.outerTypeParameters.length;
     const targetType = host.projectTypeCatalog.targetTypeForDeclaration(declaration, [
@@ -161,26 +164,11 @@ export function createCsharpObjectShapePolicy(host: CsharpObjectShapePolicyHost)
   }
 
   /**
-   * The one present arm of a descriptor: `optional` lifted, and a sum whose arms are one value arm plus absence arms
-   * reduced to that arm (the same rule native construction applies to its constructions). undefined: several value
-   * arms, so no single shape.
+   * The one present arm of a published descriptor, read from its Host closed sum (present-arms.ts, R3 #13): the same
+   * rule native construction and property projections apply. undefined: several value arms or none, so no single shape.
    */
   function presentArm(descriptor: SourceTypeDescriptor): SourceTypeDescriptor | undefined {
-    const visited = new Set<SourceTypeDescriptor>();
-    let selected = descriptor;
-    while (!visited.has(selected)) {
-      visited.add(selected);
-      if (selected.kind === "optional") { selected = selected.value; continue; }
-      const structure = sourceTypeDescriptorStructure(selected);
-      if (structure.kind !== "union") return selected;
-      const present = structure.types.filter(arm => {
-        const armStructure = sourceTypeDescriptorStructure(arm);
-        return armStructure.kind !== "intrinsic" || armStructure.intrinsic !== "absence";
-      });
-      if (present.length !== 1) return undefined;
-      selected = present[0]!;
-    }
-    return failTargetAnalysisInvariant("tsonic-csharp", "A Host type descriptor contains itself as its only present arm.");
+    return csharpSinglePresentSourceArm(host.representation().facts, descriptor);
   }
 
   /**
@@ -237,7 +225,7 @@ export function createCsharpObjectShapePolicy(host: CsharpObjectShapePolicyHost)
     if (shape.members.some(member => member.sourceDeclarations?.some(declaration => {
       const parent = host.ast.parent(declaration);
       const owner = parent !== undefined && host.ast.is.IsTypeLiteralNode(parent) ? host.ast.parent(parent) : parent;
-      return owner !== undefined && classifyCsharpSourceProfileDeclaration(owner, host.ast) !== undefined;
+      return owner !== undefined && classifyCsharpSourceProfileDeclaration(owner, host.ast, host.representation().facts.profile) !== undefined;
     }) === true)) {
       failTargetAnalysisInvariant("tsonic-csharp", "A physical object-shape member cannot be owned by a native-mapped source-profile declaration.");
     }

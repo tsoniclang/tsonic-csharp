@@ -1,5 +1,5 @@
 import type { AstReader, Node } from "@tsonic/tsts";
-import { isSourceCallableBodyBoundary } from "@tsonic/target-api/source";
+import type { SourceProgramFacts } from "@tsonic/target-api/source";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpSourceEvidenceIndex } from "../../../target-model/records/program/source-evidence.js";
 import type { CsharpGeneratorFact, CsharpYieldFact } from "../../../target-model/records/callables/generators.js";
@@ -10,7 +10,7 @@ import { createCsharpGeneratorRecords } from "../../program/records/callables/ge
 import { requireCsharpRecord, type CsharpRequiredRecord } from "../../program/records/objects/required-records.js";
 
 export function analyzeCsharpGenerators(input: {
-  readonly ast: AstReader; readonly nodes: readonly Node[]; readonly evidence: CsharpSourceEvidenceIndex;
+  readonly ast: AstReader; readonly facts: SourceProgramFacts; readonly nodes: readonly Node[]; readonly evidence: CsharpSourceEvidenceIndex;
   readonly admitted: (node: Node) => boolean; readonly erased: (node: Node) => boolean;
   readonly required: CsharpRequiredRecord[];
 }) {
@@ -44,7 +44,7 @@ export function analyzeCsharpGenerators(input: {
     const pending = body === undefined ? [] : [body];
     while (pending.length > 0) {
       const current = pending.pop()!;
-      if (input.erased(current) || current !== body && isSourceCallableBodyBoundary(input.ast, current)) continue;
+      if (input.erased(current) || current !== body && input.facts.navigation.scopes.role(current).includes("callable-body")) continue;
       if (input.ast.is.IsReturnStatement(current) && !returnInsideFinally(input.ast, current, node)) hasExplicitReturn = true;
       if (!unsupportedYield && input.ast.is.IsYieldExpression(current) && input.evidence.yield.get(current)?.generator === node) {
         const reason = yieldRegionRejection(input.ast, current, node);

@@ -12,6 +12,7 @@ export interface CsharpAnalysisPolicyContextInput {
   readonly moduleCallables: CsharpPolicyContext["moduleCallables"];
   readonly integerRanges: CsharpPolicyContext["integerRanges"];
   readonly callOnlyAlias: CsharpPolicyContext["callOnlyAlias"];
+  readonly sourceCallable: CsharpPolicyContext["sourceCallable"];
   readonly input: TargetCompileInput;
   readonly sourceFiles: readonly SourceFile[];
   readonly sourceStorage: SourceStorageQueries;
@@ -39,6 +40,7 @@ export function createCsharpAnalysisPolicyContext(
     moduleCallables: context.moduleCallables,
     integerRanges: context.integerRanges,
     callOnlyAlias: context.callOnlyAlias,
+    sourceCallable: context.sourceCallable,
     ast: source.syntax,
     sourceFiles,
     sourceStorage: context.sourceStorage,

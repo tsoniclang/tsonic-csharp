@@ -28,10 +28,10 @@ export function selectCsharpNumericBinaryPromotion(
   );
   if (expectedPromotion !== undefined) return expectedPromotion;
   const selectedLeft = isNumericPrimitive(leftType) ? leftType
-    : isNumericPrimitive(rightType) && csharpLiteralIsRepresentableAs(input.facts.values.literal(leftNode), rightType)
+    : isNumericPrimitive(rightType) && csharpLiteralIsRepresentableAs(input.facts.values.literal(leftNode), rightType, input.facts.analyses.platform)
       ? rightType : undefined;
   const selectedRight = isNumericPrimitive(rightType) ? rightType
-    : isNumericPrimitive(leftType) && csharpLiteralIsRepresentableAs(input.facts.values.literal(rightNode), leftType)
+    : isNumericPrimitive(leftType) && csharpLiteralIsRepresentableAs(input.facts.values.literal(rightNode), leftType, input.facts.analyses.platform)
       ? leftType : undefined;
   if (selectedLeft === undefined || selectedRight === undefined) {
     return undefined;
@@ -102,7 +102,7 @@ function operandCanUseExpectedType(
   expected: SourcePrimitiveTargetType,
 ): boolean {
   return source.kind === "source-primitive" && source.name === expected.name ||
-    csharpLiteralIsRepresentableAs(input.facts.values.literal(node), expected);
+    csharpLiteralIsRepresentableAs(input.facts.values.literal(node), expected, input.facts.analyses.platform);
 }
 
 export function csharpUnaryNumericPromotion(
@@ -125,7 +125,7 @@ function literalAdaptation(
   return !targetTypeIsLiteralAdaptationCandidate(target) ||
       source.kind !== "source-primitive" ||
       source.name === target.name ||
-      !csharpLiteralIsRepresentableAs(input.facts.values.literal(node), target)
+      !csharpLiteralIsRepresentableAs(input.facts.values.literal(node), target, input.facts.analyses.platform)
     ? undefined
     : target;
 }

@@ -1,4 +1,4 @@
-import type { TargetTypeRef } from "./model.js";
+import type { CsharpRuntimeUnionTargetTypeRef, TargetTypeRef } from "./model.js";
 import { targetTypeRefEquals } from "./equality.js";
 import { csharpTargetTypeComponents } from "./components.js";
 import { failCsharpMetadataResourceLimit, snapshotCsharpMetadata, csharpMetadataDescriptors, createCsharpMetadataBudget, maximumCsharpMetadataEntries, maximumCsharpMetadataDepth } from "../metadata/immutable.js";
@@ -24,10 +24,25 @@ export function snapshotCsharpTargetTypes(
   return snapshot;
 }
 
+/** Q73: a source-sum carrier maps every present Host arm to a storage arm and uses every storage arm. */
+function sourceSumSlots(type: Partial<CsharpRuntimeUnionTargetTypeRef>): boolean {
+  const slots = type.csharpSourceSumSlots;
+  const categories = type.csharpSourceSumKeyCategories;
+  if (categories !== undefined && (!Array.isArray(categories) || slots === undefined || categories.length !== slots.length ||
+    categories.some(category => typeof category !== "string"))) return false;
+  if (slots === undefined) return type.csharpRuntimeUnionSemantics !== "source-sum";
+  const arity = type.csharpRuntimeUnionArms?.length ?? 0;
+  return type.csharpRuntimeUnionSemantics === "source-sum" && Array.isArray(slots) && slots.length >= arity &&
+    slots.every(slot => Number.isInteger(slot) && slot >= 0 && slot < arity) &&
+    Array.from({ length: arity }, (_, index) => index).every(index => slots.includes(index));
+}
+
 function csharpTypeIdentityAt(path: readonly (string | number)[]): boolean {
   const parent = path[path.length - 2];
   const key = path[path.length - 1];
   if (key === "csharpDeclaration") return true;
+  // The Host refusal of a `refused` constraint resolution keeps its site nodes by identity.
+  if (parent === "refusal" && (key === "site" || key === "related") && path[path.length - 3] === "csharpConstraints") return true;
   if (parent === "csharpClassFactory" && key === "declaration" ||
     parent === "csharpProjection" && (key === "declaration" || key === "source" || key === "sum")) return true;
   const shapeIndex = path.lastIndexOf("csharpRuntimeUnionObjectShapes");
@@ -95,7 +110,8 @@ export function isCsharpTargetTypeRef(value: unknown): value is TargetTypeRef {
               Array.isArray(type.csharpRuntimeUnionArms) && list(type.csharpRuntimeUnionArms, depth) && Array.isArray(type.typeArguments) &&
               type.csharpRuntimeUnionArms.length === type.typeArguments.length &&
               type.csharpRuntimeUnionArms.every((arm, index) =>
-                targetTypeRefEquals(arm, (type.typeArguments as readonly TargetTypeRef[])[index]!)));
+                targetTypeRefEquals(arm, (type.typeArguments as readonly TargetTypeRef[])[index]!)) &&
+              sourceSumSlots(type as Partial<CsharpRuntimeUnionTargetTypeRef>));
         break;
       case "type-parameter": valid = string(type.identity) && string(type.name) &&
         (type.csharpDeclaration === undefined || typeof type.csharpDeclaration === "object" && type.csharpDeclaration !== null) &&
@@ -116,6 +132,12 @@ export function isCsharpTargetTypeRef(value: unknown): value is TargetTypeRef {
     const resolution = input as Readonly<Record<string, unknown>>;
     const keys = Object.keys(resolution);
     if (resolution.kind === "unsupported") return keys.length === 2 && keys.includes("reason") && string(resolution.reason);
+    if (resolution.kind === "refused") {
+      const refusal = resolution.refusal as Readonly<Record<string, unknown>> | null | undefined;
+      return keys.length === 2 && keys.includes("refusal") && typeof refusal === "object" && refusal !== null &&
+        refusal.kind === "refused" && string(refusal.code) && typeof refusal.reason === "string" &&
+        typeof refusal.site === "object" && refusal.site !== null;
+    }
     if (resolution.kind !== "resolved" || keys.length !== 2 || !keys.includes("constraints") || !Array.isArray(resolution.constraints) ||
         !data(resolution.constraints) ||
         Object.keys(resolution.constraints).length !== resolution.constraints.length) return false;

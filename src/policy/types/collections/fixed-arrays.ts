@@ -27,8 +27,6 @@ export interface CsharpFixedArraySelection {
 }
 
 type DeclaredDescriptor = Extract<SourceTypeDescriptor, { readonly kind: "declared" }>;
-/** The Host FixedArray reference descriptor with its published extent (request R-C4-1 to writer A4). */
-type HostFixedArrayReference = DeclaredDescriptor & { readonly extent?: CsharpFixedArrayExtent };
 
 /** Whether a declaration is the canonical FixedArray declaration (its `fixed-array` type marker). */
 export function isCsharpFixedArrayDeclaration(sourceFacts: ReadonlySourceFactResolver | undefined, declaration: Node): boolean {
@@ -67,7 +65,7 @@ export function csharpFixedArrayReference(reference: DeclaredDescriptor, occurre
   const element = reference.typeArguments[0];
   if (element === undefined) failTargetAnalysisInvariant("tsonic-csharp",
     "A FixedArray reference must publish its element type argument.", occurrence);
-  const extent = (reference as HostFixedArrayReference).extent;
+  const extent = reference.extent;
   if (extent === undefined || typeof extent.length !== "bigint" || extent.length < 0n ||
     (extent.lengthRuntimeBase !== "number" && extent.lengthRuntimeBase !== "bigint")) failTargetAnalysisInvariant("tsonic-csharp",
     "A FixedArray reference must publish its exact extent (Host fact).", occurrence);

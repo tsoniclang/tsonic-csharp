@@ -1,11 +1,12 @@
 import type { AstReader, Node } from "@tsonic/tsts";
-import { isSourceCallableBodyBoundary, type SourceProgramFacts } from "@tsonic/target-api/source";
+import type { SourceProgramFacts } from "@tsonic/target-api/source";
 import { csharpLiteralIsRepresentableAs } from "../../../policy/conversions/literals.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 
 /** Visits the expressions a callable returns directly: an expression body, or each `return` operand of its own body. */
-export function forEachCsharpDirectReturnExpression(ast: AstReader, declaration: Node, consume: (expression: Node) => void): void {
+export function forEachCsharpDirectReturnExpression(ast: AstReader, facts: SourceProgramFacts, declaration: Node,
+  consume: (expression: Node) => void): void {
   const body = ast.body(declaration);
   if (body === undefined) return;
   if (ast.is.IsArrowFunction(declaration) && !ast.is.IsBlock(body)) {
@@ -15,7 +16,8 @@ export function forEachCsharpDirectReturnExpression(ast: AstReader, declaration:
   visit(body);
 
   function visit(node: Node): void {
-    if (node !== body && isSourceCallableBodyBoundary(ast, node)) return;
+    // A nested callable body (the Host `callable-body` role) owns its own returns.
+    if (node !== body && facts.navigation.scopes.role(node).includes("callable-body")) return;
     if (ast.is.IsReturnStatement(node)) {
       const expression = ast.as.AsReturnStatement(node)?.Expression;
       if (expression !== undefined) consume(expression);
@@ -35,13 +37,13 @@ export function csharpLiteralReturnsFit(ast: AstReader, declaration: Node, targe
   facts: SourceProgramFacts): boolean {
   let returns = 0;
   let fits = true;
-  forEachCsharpDirectReturnExpression(ast, declaration, (expression) => {
+  forEachCsharpDirectReturnExpression(ast, facts, declaration, (expression) => {
     returns++;
     const nullable = getCsharpNullableElementTargetType(target) !== undefined;
     const outcome = facts.values.type(expression);
     const absence = nullable && (ast.kindName(expression) === "KindNullKeyword" ||
       outcome.kind !== "refused" && outcome.type.kind === "intrinsic" && outcome.type.intrinsic === "absence");
-    fits &&= absence || csharpLiteralIsRepresentableAs(facts.values.literal(expression), target);
+    fits &&= absence || csharpLiteralIsRepresentableAs(facts.values.literal(expression), target, facts.analyses.platform);
   });
   return returns > 0 && fits;
 }

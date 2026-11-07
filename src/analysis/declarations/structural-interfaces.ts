@@ -1,4 +1,5 @@
 import type { AstReader } from "@tsonic/tsts";
+import type { SourceIdentityRoles } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
 import type { CsharpFinalStructuralInterfaceImplementation } from "../../target-model/records/objects/heritage.js";
@@ -14,6 +15,7 @@ import { objectShapeMethodInvocationName } from "../../target-model/names/object
 
 export function analyzeCsharpStructuralInterfaceEmission(input: {
   readonly ast: AstReader;
+  readonly identity: Pick<SourceIdentityRoles, "identity">;
   readonly shapes: CsharpObjectShapeClassifications<CsharpFinalStructuralInterfaceImplementation>;
   readonly names: CsharpNamePlan;
   readonly projectTypes: CsharpProjectTypeClassifications;
@@ -26,7 +28,7 @@ export function analyzeCsharpStructuralInterfaceEmission(input: {
       const definition = input.projectTypes.definitionContainingDeclaration(implementation.sourceNode);
       const names = new Map(sourceNames);
       if (definition !== undefined && (definition.outerTypeParameters.length !== 0 || definition.outerTypeProjections.length !== 0)) {
-        const parameters = definition.outerTypeParameters.map(parameter => csharpSourceTypeParameter(parameter, input.ast));
+        const parameters = definition.outerTypeParameters.map(parameter => csharpSourceTypeParameter(parameter, input.ast, input.identity));
         if (parameters.some(parameter => parameter === undefined)) failTargetAnalysisInvariant("tsonic-csharp",
           "A structural interface owner requires its exact lifted native binder identities.", implementation.sourceNode);
         const selected = generatedTypeParameterNames([

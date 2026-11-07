@@ -1,5 +1,5 @@
 import type { Node } from "@tsonic/tsts";
-import { HasSourceKind, isSourceCallableBodyBoundary, KindBlock } from "@tsonic/target-api/source";
+import { HasSourceKind, KindBlock } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpReturnContext } from "../../target-model/records/calls/return-contexts.js";
 import { selectCsharpAccessorReturnContext, selectCsharpCallableReturnContext } from "../../policy/types/callables/return-contexts.js";
@@ -110,7 +110,7 @@ export function createCsharpExpectedReturnTargets(
       if (targetType !== undefined) {
         return { expression, targetType, callable: owner };
       }
-      if (isSourceCallableBodyBoundary(policy.ast, owner)) {
+      if (policy.facts.navigation.scopes.role(owner).includes("callable-body")) {
         return undefined;
       }
     }

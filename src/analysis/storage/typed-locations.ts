@@ -7,13 +7,13 @@ import { selectCsharpTargetElement } from "../operations/members/selected-member
 import { targetTypeRefEquals, type TargetTypeRef } from "../../policy/types/index.js";
 
 import { classifyCsharpStorageReceiver } from "../../policy/operations/typed-locations/storage.js";
-import type { SourceMemberAccessSelection } from "@tsonic/target-api/source";
 
-/** The selected member a write targets is writable: one published member that is not readonly (Host object facts). */
-function csharpSelectedMemberWritable(input: CsharpPolicyContext, source: SourceMemberAccessSelection): boolean {
-  if (source.access === "read" || source.access === "call" || source.selected.kind !== "member") return false;
-  const member = input.facts.objects.member(source.receiverType, { kind: "string", value: source.name });
-  return member !== undefined && !member.readonly;
+/**
+ * The location an access names can be assigned: the Host storage selection's `writable` (the checker storage witness:
+ * not const, readonly or getter-only), independent of whether this use reads or writes it (an address-of reads).
+ */
+function csharpStorageWritable(input: CsharpPolicyContext, expression: Node): boolean {
+  return input.facts.selections.storage(expression)?.writable === true;
 }
 
 /** A represented receiver value, or undefined when .NET refuses it (reported at its value read). */
@@ -85,7 +85,7 @@ function selectCsharpPropertyStorage(
   }
   const source = selection.source;
   const selectedDeclaration = source.selected.kind === "member" ? source.selected.declarations[0] : undefined;
-  if (!csharpSelectedMemberWritable(input, source) || source.optionalChain) {
+  if (!csharpStorageWritable(input, expression) || source.optionalChain) {
     return storageRejected(
       "The selected property is not an exact writable C# member location.",
     );
@@ -177,8 +177,7 @@ function selectCsharpElementStorage(
     );
   }
   const source = selection.source;
-  const optionalElement = input.ast.as.AsElementAccessExpression(source.node)?.QuestionDotToken !== undefined;
-  if (source.readonly || source.access === "read" || optionalElement) {
+  if (!csharpStorageWritable(input, expression) || source.optionalChain) {
     return storageRejected(
       "The selected element is not an exact writable C# index location.",
     );

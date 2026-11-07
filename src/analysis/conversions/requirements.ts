@@ -26,7 +26,6 @@ import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { csharpSourceTypeParameter } from "../../source/extension/type-parameters.js";
 
 import { selectCsharpPropertyProjections } from "./property-projections.js";
-import { csharpSignatureParameters } from "../callables/calls/signature-parameters.js";
 import { sourceInstantiation } from "../program/source-facts.js";
 
 import { type CsharpCallConversionRequests } from "./use-admission.js";
@@ -273,7 +272,7 @@ export function collectCsharpConversionRequirements(input: CsharpConversionRequi
         policy.ast.is.IsTypeParameterDeclaration(argument.declaration) ? argument.declaration : undefined);
       const substitutions = new Map(parameters.flatMap((parameter, index) => {
         const type = call?.sourceTypeArguments?.[index];
-        const identity = parameter === undefined ? undefined : csharpSourceTypeParameter(parameter, policy.ast)?.identity;
+        const identity = parameter === undefined ? undefined : csharpSourceTypeParameter(parameter, policy.ast, policy.facts.navigation.identity)?.identity;
         return identity === undefined || type === undefined ? [] : [[identity, type] as const];
       }));
       for (const [index, argument] of selectedArguments.entries()) {
@@ -287,10 +286,10 @@ export function collectCsharpConversionRequirements(input: CsharpConversionRequi
         }
       }
       const boundParameterIndexes = new Set(source.arguments.map(binding => binding.parameterIndex));
-      const signatureParameters = csharpSignatureParameters(policy.ast, source.signature) ?? [];
-      for (const parameter of signatureParameters) {
-        const parameterIndex = parameter.index;
-        if (boundParameterIndexes.has(parameterIndex) || parameter.form === "rest" || !parameter.acceptsOmission) continue;
+      // RC2 #7: the omission slots are the Host selection's own signature slots (aligned with `parameters`), never
+      // re-derived from the signature syntax.
+      for (const [parameterIndex, parameter] of source.signatureParameters.entries()) {
+        if (boundParameterIndexes.has(parameterIndex) || parameter.kind !== "optional") continue;
         const absence = csharpAbsenceTargetType();
         const target = classification.sourceParameterTypes?.[parameterIndex];
         classifyPair(absence, target, "implicit", node);

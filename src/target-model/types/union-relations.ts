@@ -1,7 +1,8 @@
 import type { TargetTypeRef } from "./model.js";
 import { targetTypeRefEquals } from "./equality.js";
-import { getCsharpRuntimeUnionArms } from "./carriers/runtime-carriers.js";
-import type { CsharpTypeDefinitions } from "./source-union-definitions.js";
+import { getCsharpRuntimeUnionArms, isCsharpRuntimeUnionTargetType } from "./carriers/runtime-carriers.js";
+import { getCsharpNullableElementTargetType } from "./carriers/nullable.js";
+import { csharpSourceUnionIdentity, type CsharpTypeDefinitions } from "./source-union-definitions.js";
 import { csharpMetadataDescriptors } from "../metadata/immutable.js";
 import { snapshotCsharpTargetTypes } from "./snapshot.js";
 
@@ -14,6 +15,17 @@ export interface CsharpUnionArmMapping {
   readonly carrier: TargetTypeRef;
   readonly source: readonly CsharpUnionPathStep[];
   readonly target: readonly CsharpUnionPathStep[];
+}
+
+/**
+ * A carrier of a Source sum: a source-sum runtime union (an open sum is the same union over type-parameter arms, Q91)
+ * or a registered recursive-alias source union; Nullable lift allowed. Its arms are entered only along a Host relation
+ * (C-2479).
+ */
+export function isCsharpSourceSumCarrier(carrier: TargetTypeRef, definitions?: CsharpTypeDefinitions): boolean {
+  const present = getCsharpNullableElementTargetType(carrier) ?? carrier;
+  return isCsharpRuntimeUnionTargetType(present) && present.csharpRuntimeUnionSemantics === "source-sum" ||
+    csharpSourceUnionIdentity(present) !== undefined && definitions?.sourceUnionArms(present) !== undefined;
 }
 
 export function csharpUnionLeaves(carrier: TargetTypeRef, definitions?: CsharpTypeDefinitions):

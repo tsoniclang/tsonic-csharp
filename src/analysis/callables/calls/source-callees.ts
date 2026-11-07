@@ -27,8 +27,9 @@ export function classifyCsharpSourceCallee(
   policy: CsharpSourceCalleeHost,
   source: SourceCallSelection,
 ): CsharpSourceCalleeSelection {
+  // A representation CsharpRefusal met on the way travels with the rejection, so it is reported as it is (D1 §1.4).
   const reject = (reason: string, sourceContract: "required" | "not-applicable"): CsharpSourceCalleeSelection =>
-    Object.freeze({ kind: "rejected", reason, sourceContract });
+    Object.freeze({ kind: "rejected", reason, sourceContract, ...(refusal === undefined ? {} : { refusal }) });
   let refusal: CsharpRefusal | undefined;
   const represented = (value: CsharpRepresentation): TargetTypeRef | undefined => {
     if (value.kind !== "csharp-refused") return value;
@@ -77,7 +78,7 @@ export function classifyCsharpSourceCallee(
   const type = represented(receiverExpression === undefined ? policy.types.value(expression) : policy.types.readStorage(expression));
   if (selected === undefined || declaration === undefined) {
     if (type === undefined || getCsharpCallableValueSignature(getCsharpNullableElementTargetType(type) ?? type) === undefined) {
-      return reject(refusal?.message ?? "A source callee requires its exact selected declaration or native callable storage contract.", "required");
+      return reject("A source callee requires its exact selected declaration or native callable storage contract.", "required");
     }
   } else {
     const nominalMethod = policy.ast.is.IsClassDeclaration(policy.ast.parent(declaration));
@@ -90,7 +91,7 @@ export function classifyCsharpSourceCallee(
       (getCsharpMethodValue(type) === undefined || nominalMethod) &&
       receiverExpression !== undefined && methodDeclaration && selectedMethod) {
       const receiver = represented(policy.types.value(receiverExpression));
-      if (receiver === undefined) return reject(refusal?.message ?? "A direct source method requires its exact native receiver contract.",
+      if (receiver === undefined) return reject("A direct source method requires its exact native receiver contract.",
         policy.facts.navigation.identity.isProjectDeclaration(declaration) || policy.facts.navigation.identity.isProjectDeclaration(selected)
           ? "required" : "not-applicable");
       return Object.freeze({ kind: "method", expression, declaration: selected,
@@ -99,7 +100,7 @@ export function classifyCsharpSourceCallee(
   }
   if (type === undefined || getCsharpMethodValue(getCsharpNullableElementTargetType(type) ?? type) === undefined &&
       getCsharpDelegateSignature(getCsharpNullableElementTargetType(type) ?? type) === undefined) {
-    return reject(refusal?.message ?? "A source callable value requires its exact native delegate or method-value storage contract.", "required");
+    return reject("A source callable value requires its exact native delegate or method-value storage contract.", "required");
   }
   return Object.freeze({ kind: "value", expression, type });
 }

@@ -55,7 +55,8 @@ test("a non-binary node or an absent native target creates no contextual binary 
   assert.equal(Object.hasOwn(expressionEntry, "planExpressionWithExpectedType"), false, "the hint-based entry is removed");
   for (const [label, node, target] of [["non-binary node", other, int32], ["absent target", binary, undefined]]) {
     const current = context({ baseline: selection(int32), eligible: true, contextual: "untouched" });
-    const collection = createCsharpExpectedUseCollection({ ast: current.ast });
+    const collection = createCsharpExpectedUseCollection({ ast: current.ast,
+      facts: { navigation: { scopes: { role: () => [] } } } });
     collection.record(node, target, "required");
     for (let pending = collection.takePending(); pending !== undefined; pending = collection.takePending()) {
       current.propagation.propagate(pending);

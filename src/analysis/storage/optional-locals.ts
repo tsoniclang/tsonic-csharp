@@ -57,7 +57,7 @@ export function analyzeCsharpOptionalLocals(policy: CsharpPolicyContext, evidenc
     const parameters = new Map<string, readonly CsharpTypeParameterConstraint[]>();
     for (let owner: Node | undefined = node; owner !== undefined; owner = ast.parent(owner)) {
       for (const parameter of csharpSourceTypeParameters(owner, ast, scopes)) {
-        const identity = parameter === undefined ? undefined : csharpSourceTypeParameter(parameter, ast)?.identity;
+        const identity = parameter === undefined ? undefined : csharpSourceTypeParameter(parameter, ast, facts.navigation.identity)?.identity;
         const constraints = parameter === undefined ? undefined : evidence.typeParameterConstraints.get(parameter);
         if (identity !== undefined && constraints?.kind === "resolved") parameters.set(identity, constraints.constraints);
       }

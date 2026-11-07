@@ -1,13 +1,14 @@
 import assert from "node:assert/strict";
+import { knownNativePlatform64 } from "../../helpers/native-integer-platform.mjs";
 import test from "node:test";
-import { checkCsharpSourceTypeFlowObligation } from "../../../dist/policy/types/source-type-flow/obligations.js";
+import { checkCsharpSourceTypeFlowObligation } from "../../../dist/analysis/source-evidence/type-flow-obligation-checks.js";
 import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
 
 const primitive = primitive => Object.freeze({ kind: "primitive", primitive });
 const unexpected = () => assert.fail("a closed union write never reopens unrelated Source or Native evidence");
 const site = {};
 const host = {
-  target: { id: "csharp" }, typeParameterConstraints: {}, declaredType: () => undefined,
+  target: { id: "csharp" }, platform: knownNativePlatform64, typeParameterConstraints: {}, declaredType: () => undefined,
   retainShape: unexpected, shapeKind: unexpected, memberBound: unexpected,
   literalValues: { literalValue: { get: () => undefined } }, valueType: () => undefined,
   providers: createCsharpProviderRelationResolver({ providers: [], providerPolicies: [] }),

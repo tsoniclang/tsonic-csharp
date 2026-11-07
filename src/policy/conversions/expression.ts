@@ -8,7 +8,9 @@ import type { CsharpProviderArgumentAdapter } from "../../target-model/conversio
 import type { Node } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../types/index.js";
 import type { CsharpConversionShapeQueries } from "./shape-queries.js";
-import { csharpHostUnionUse, selectCsharpUnionArmMapping } from "./union-relations.js";
+import { csharpHostUnionUse, csharpSumArmSelection, selectCsharpHostArmMapping, selectCsharpUnionArmMapping,
+  type CsharpHostUnionRead } from "./union-relations.js";
+import { csharpUnionLeaves, isCsharpSourceSumCarrier } from "../../target-model/types/union-relations.js";
 import { selectCsharpRuntimeUnionProjection, selectDelegateConversion } from "./carriers.js";
 import { selectCsharpGuardedIntegerConversion } from "./integer-refinement.js";
 import { isCsharpRefLikeTargetType } from "../../target-model/types/ref-like.js";
@@ -51,7 +53,7 @@ export function selectCsharpExpressionConversion(
     (targetPrimitive.name === "float32" || targetPrimitive.name === "decimal" && Math.abs(literal.numeric.value) < 2 ** 96)) {
     return { kind: "implicit", proof: "checked-floating-literal" };
   }
-  return csharpLiteralIsRepresentableAs(literal, target)
+  return csharpLiteralIsRepresentableAs(literal, target, input.facts.analyses.platform)
     ? { kind: "implicit", proof: "literal" }
     : selected;
 }
@@ -125,6 +127,39 @@ export function selectCsharpProviderArgumentConversion(
   };
 }
 
+/**
+ * R3 #2: a narrowed read of a Source sum carrier realizes the Host relation at the read (map mode "narrowed-read" or
+ * extract-arm, C-2479); the arms are never mapped by carrier. A missing relation is an invariant failure (I4).
+ */
+function selectCsharpHostNarrowedRead(
+  input: Pick<CsharpPolicyContext, "typeDefinitions">,
+  storageType: TargetTypeRef,
+  selectedReadType: TargetTypeRef,
+  hostRead: CsharpHostUnionRead | undefined,
+): CsharpConversionSelection {
+  if (hostRead === undefined) throw new TypeError(
+    "A narrowed read of a Source sum carrier requires its Host narrowed-read relation (relations.at, C-2479).");
+  const definitions = input.typeDefinitions;
+  const { relation, sums } = hostRead;
+  if (relation.kind === "map") {
+    const arms = selectCsharpHostArmMapping(relation, sums.sum(relation.source), sums.sum(relation.destination),
+      storageType, selectedReadType, definitions);
+    return arms === undefined
+      ? { kind: "rejected", reason: "The .NET carriers cannot realize the Host narrowed-read arm map at this read." }
+      : { kind: "union-map", coverage: "target", arms };
+  }
+  const arm = csharpSumArmSelection(sums.sum(relation.sum), relation.arm, storageType, definitions);
+  const storageElement = getCsharpNullableElementTargetType(storageType);
+  if (arm.kind === "absence") return { kind: "rejected", reason: "A Host extract-arm read of the absence arm carries no payload." };
+  const leaf = csharpUnionLeaves(storageElement ?? storageType, definitions)
+    ?.find(candidate => candidate.path.length === 1 && candidate.path[0]!.index === arm.index);
+  const targetElement = getCsharpNullableElementTargetType(selectedReadType);
+  if (leaf === undefined || !targetTypeRefEquals(leaf.carrier, targetElement ?? selectedReadType)) return { kind: "rejected",
+    reason: "The payload slot of the Host-extracted union arm does not carry the narrowed read's representation." };
+  return { kind: "runtime-union-projection", path: leaf.path, armType: leaf.carrier,
+    retainsAbsence: storageElement !== undefined && targetElement !== undefined };
+}
+
 export function selectCsharpFlowReadConversion(
   input: Pick<
     CsharpPolicyContext,
@@ -133,6 +168,8 @@ export function selectCsharpFlowReadConversion(
   storageType: TargetTypeRef,
   selectedReadType: TargetTypeRef,
   selectedThrowable: boolean,
+  /** The Host narrowed-read relation at the read (csharpHostUnionRead); undefined when the use is not a Source read. */
+  hostRead: CsharpHostUnionRead | undefined,
 ): CsharpConversionSelection {
   if (targetTypeRefEquals(storageType, selectedReadType)) return { kind: "identity" };
   const nullableElement = getCsharpNullableElementTargetType(storageType);
@@ -142,6 +179,9 @@ export function selectCsharpFlowReadConversion(
       : { kind: "nullable-value", asserted: false };
   }
   const runtimeUnionArms = getCsharpRuntimeUnionArms(nullableElement ?? storageType, input.typeDefinitions);
+  if (runtimeUnionArms !== undefined && isCsharpSourceSumCarrier(storageType, input.typeDefinitions)) {
+    return selectCsharpHostNarrowedRead(input, storageType, selectedReadType, hostRead);
+  }
   if (runtimeUnionArms !== undefined) {
     const targetElement = getCsharpNullableElementTargetType(selectedReadType);
     const mapping = targetElement !== undefined && nullableElement === undefined ? undefined

@@ -1,3 +1,4 @@
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { csharpProviderBindingFromResolution } from "../../../providers/model/relation-resolver.js";
 import type { CsharpRawLocationSelection } from "../../../target-model/records/native/native-memory.js";
 import type { Node } from "@tsonic/tsts";
@@ -61,7 +62,10 @@ export function selectCsharpNativeMemoryLayout(
   } else {
     if (pointeeType.kind !== "target-named") return undefined;
     const members = input.facts.objects.members(layout.type);
-    if ("code" in members) return undefined;
+    // A Host members refusal is forwarded before C# analysis (facts.refusals()); reaching here is an invariant failure.
+    if ("code" in members) return failTargetAnalysisInvariant("tsonic-csharp",
+      `A Host object-fact refusal (${members.code}) reached C# native memory layout; Host refusals are forwarded before C# analysis.`,
+      members.site);
     const project = input.projectTypes.catalog.definitionForTarget(pointeeType);
     const sourceStruct = project?.kind === "struct"
       ? readCsharpSourceStruct(input.sourceFacts, project.declaration) : undefined;

@@ -12,6 +12,7 @@ import { selectCsharpJsValueReceiverExpressionOperation } from "./js-values.js";
 import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../policy/types/index.js";
 import { resolveCsharpObjectShapeMemberReadTargetType } from "./members/object-shape-members.js";
 import { selectCsharpFlowReadConversion } from "../../policy/conversions/index.js";
+import { csharpHostUnionRead } from "../../policy/conversions/union-relations.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpElementClassification, CsharpPropertyClassification, CsharpMemberReceiverProjection } from "../../target-model/records/operations/operations.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
@@ -44,7 +45,8 @@ export function classifyCsharpMemberReceiver(
   const target = optionalResultType(selected, source.optionalChain);
   if (raw === undefined || target === undefined || targetTypeRefEquals(raw, target)) return undefined;
   return Object.freeze({ source: raw, target,
-    conversion: admitCsharpConversionSelection(policy, raw, target, selectCsharpFlowReadConversion(policy, raw, target, isCsharpThrowableType(policy, target))) });
+    conversion: admitCsharpConversionSelection(policy, raw, target, selectCsharpFlowReadConversion(policy, raw, target, isCsharpThrowableType(policy, target),
+      csharpHostUnionRead(policy.facts, source.receiver))) });
 }
 
 export function elementSelectedTypes(
@@ -69,7 +71,8 @@ export function elementSelectedTypes(
   );
   const flowReadConversion = selection?.kind === "project-indexer" && source.access === "read" && selection.selectedReadType !== undefined
     ? admitCsharpConversionSelection(policy, selection.valueType, selection.selectedReadType,
-        selectCsharpFlowReadConversion(policy, selection.valueType, selection.selectedReadType, isCsharpThrowableType(policy, selection.selectedReadType)))
+        selectCsharpFlowReadConversion(policy, selection.valueType, selection.selectedReadType, isCsharpThrowableType(policy, selection.selectedReadType),
+          csharpHostUnionRead(policy.facts, source.node)))
     : undefined;
   return Object.freeze({
     ...(receiverType === undefined ? {} : { receiverType }),

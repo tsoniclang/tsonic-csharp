@@ -1,3 +1,4 @@
+import { knownNativePlatform64 } from "../../../helpers/native-integer-platform.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { planCsharpExactLiteralConversion, planCsharpLiteralUseRecipe } from "../../../../dist/backend/planner/expressions/literal-conversions.js";
@@ -19,7 +20,7 @@ function analyzeConstant(subject, carrier, selection, literal) {
     ast: { as: { AsParenthesizedExpression: () => undefined }, kindName: () => "NumericLiteral",
       is: { IsParenthesizedExpression: () => false, IsVoidExpression: () => false, IsNoSubstitutionTemplateLiteral: () => false } },
     demand: { entries: [{ use: { kind: "value", expression: subject, carrier } }] },
-    literals: { literalValue: { get: () => literal } }, exact: { exactLiteral: { get: () => selection } },
+    facts: { values: { literal: () => literal } }, exact: { exactLiteral: { get: () => selection } },
     values: { valueRead: { get: () => ({ source: carrier, value: carrier }) } },
     types: { typeEmission: { get: () => undefined } }, references: { identifierEmission: { get: () => undefined } },
   };
@@ -37,14 +38,14 @@ for (const [name, minimum, maximum] of [
     test(`native constant admission: ${name} ${boundary}`, () => {
       const target = primitive(name);
       const literal = { form: "numeric", number: value, integer: BigInt(value) };
-      const selected = selectCsharpExactLiteralConversion(literal, target, target);
+      const selected = selectCsharpExactLiteralConversion(literal, target, target, knownNativePlatform64);
       assert.equal(selected.kind, expected ? "resolved" : "rejected", "native integer range is decided before rendering");
       const admitted = analyzeCsharpLiteralAdmission({
         ast: { is: { IsNumericLiteral: () => true, IsBigIntLiteral: () => false,
           IsTemplateExpression: () => false, IsNoSubstitutionTemplateLiteral: () => false } },
         demand: { entries: [{ use: { kind: "value", expression: node, carrier: target } }],
           nativeUse: { expression: () => undefined } },
-        exact: { exactLiteral: { get: () => selected } }, literals: { literalValue: { get: () => literal } },
+        exact: { exactLiteral: { get: () => selected } }, facts: { values: { literal: () => literal } },
         values: { valueRead: { get: () => ({ source: target, value: target }) } },
       });
       assert.equal(admitted.issues.length, expected ? 0 : 1, "out-of-range values are rejected once at admission");
@@ -233,9 +234,9 @@ test("sealed native constant proofs distinguish scalar recipes from source value
   }
   for (const name of ["int8", "uint8", "int16", "uint16", "uint32"]) {
     const target = primitive(name);
-    assert.equal(analyzeConstant(node, target, selectCsharpExactLiteralConversion({ form: "numeric", integer: 0n, number: 0 }, target, target)), true, name + ": builtin integer recipe");
+    assert.equal(analyzeConstant(node, target, selectCsharpExactLiteralConversion({ form: "numeric", integer: 0n, number: 0 }, target, target, knownNativePlatform64)), true, name + ": builtin integer recipe");
     for (const literal of [{ form: "numeric", number: 0.5 }, { form: "numeric", number: Infinity }, undefined]) {
-      assert.equal(analyzeConstant(node, target, selectCsharpExactLiteralConversion(literal, target, target), literal), false,
+      assert.equal(analyzeConstant(node, target, selectCsharpExactLiteralConversion(literal, target, target, knownNativePlatform64), literal), false,
         name + ": unproven or non-integer values are not scalar constants");
     }
   }

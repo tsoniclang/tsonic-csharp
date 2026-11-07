@@ -3,7 +3,7 @@ import type { SourceStorageDomainBoundary, SourceStorageQueries } from "@tsonic/
 import { sourceTypeDescriptorStructure, type SourceProgramFacts } from "@tsonic/target-api/source";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetNamedTypeRef } from "../../../target-model/types/model.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../target-model/types/equality.js";
-import { createStructuralObjectShapeTarget } from "./construction.js";
+import { createStructuralObjectShapeTarget } from "../../../policy/types/objects/structural-shape-targets.js";
 import { csharpObjectMethodValueStorageKey, csharpStructuralObjectShapeIdentity } from "../../../target-model/types/object-shape-identity.js";
 import { csharpObjectShapeMethodDeclaration, csharpObjectShapeMethodRequiresProtocol, csharpPresentObjectShapeMethod } from "../../../target-model/types/method-values.js";
 import type { CsharpTypeParameterEnvironment } from "../../../target-model/records/types/type-parameter-constraints.js";
@@ -60,8 +60,10 @@ function selectMethodValueUses(inputs: CsharpMethodValueUseInputs) {
     const methodValue = facts.values.methodValueUse(node);
     if (methodValue !== undefined) add(methodValue.declaration, true);
     if (ast.is.IsMethodDeclaration(node) || ast.is.IsMethodSignatureDeclaration(node)) {
-      // .NET exposure coverage: a method reachable from outside the closed program keeps its method-value protocol.
-      if (facts.navigation.uses.summary(node).exported) add(node, true);
+      // .NET exposure coverage: a method reachable from outside the closed program, or a method member that is written
+      // (`obj.m = f`, the Host use summary), keeps its method-value protocol. A8 moves only the read decision to the Host.
+      const uses = facts.navigation.uses.summary(node);
+      if (uses.exported || uses.memberWritten) add(node, true);
       else {
         const subject = storage.memberSubjectFor(node);
         const domain = subject.kind === "resolved" ? storage.closedOriginsFor(subject.subject) : undefined;

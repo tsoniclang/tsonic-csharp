@@ -72,8 +72,8 @@ for (const surface of ["native", "js"]) {
     ` });
     assertCsharpCompilationSucceeded(compiled);
     const emitted = [...compiled.artifacts].filter(([path]) => path.endsWith(".cs")).map(([, text]) => text).join("\n");
-    assert.equal(emitted.includes("ISourceUnion3"), true,
-      "the canonical open template's three components retain three static original roles");
+    // Q91 (baseline capability): the open sum is the generic runtime union over its arms; no ISourceUnionN witness.
+    assert.equal(emitted.includes("ISourceUnion"), false, "no static role interface is emitted for an open sum");
     assert.equal(/\bobject\b|\bdynamic\b|\.Select\(|\.ToArray\(/u.test(emitted), false,
       "partial closure adds no boxing array repair or dynamic carrier");
     const output = executeCsharpConstruction(compiled, `source-union-nested-roles-${surface}`, false, false, [], `
@@ -108,7 +108,7 @@ for (const surface of ["native", "js"]) {
     ` });
     assertCsharpCompilationSucceeded(compiled);
     const emitted = [...compiled.artifacts].filter(([path]) => path.endsWith(".cs")).map(([, text]) => text).join("\n");
-    assert.equal(emitted.includes("ISourceUnion2"), true, "generic native methods retain their constrained static operation witness");
+    assert.equal(emitted.includes("ISourceUnion"), false, "Q91: the generic method takes the runtime union of its arms, with no constraint");
     const output = executeCsharpConstruction(compiled, `source-union-scalar-role-${surface}`, false, false, [], `
       var numeric = Tsonic.Generated.Index.numeric(17.5D);
       if (!numeric.Is2() || numeric.As2() != 17.5D) throw new System.Exception("number role");
@@ -143,7 +143,7 @@ for (const surface of ["native", "js"]) {
     ` });
     assertCsharpCompilationSucceeded(compiled);
     const emitted = [...compiled.artifacts].filter(([path]) => path.endsWith(".cs")).map(([, text]) => text).join("\n");
-    assert.equal(emitted.includes("ISourceUnion2"), true, "generic method operations use their exact static physical witness");
+    assert.equal(emitted.includes("ISourceUnion"), false, "Q91: generic method operations are the runtime union's own members");
     assert.equal(/\bobject\b|\bdynamic\b|\.Select\(|\.ToArray\(/u.test(emitted), false,
       "Source role closure does not manufacture boxed storage adapters or array copies");
     const output = executeCsharpConstruction(compiled, `source-union-role-${surface}`, false, false, [], `

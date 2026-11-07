@@ -167,8 +167,18 @@ test("opposite: a missing element fact is an invariant failure, never a fabricat
   const holder = {};
   const { expression, queries, program } = hostArrayFixture("1n, 3n", node => node === holder.first);
   holder.first = program.ast.elements(expression)[0];
-  assert.throws(() => queries.resolveArrayLiteral(expression),
+  const invariant = error => error instanceof Error && error.diagnostic?.code === "TSONIC_INTERNAL_ANALYSIS_INVARIANT";
+  assert.throws(() => queries.resolveArrayLiteral(expression), invariant,
     "a supported element without a published Host fact stops C# analysis instead of returning an unavailable carrier");
+  // Baseline control "unproven spread operand": a spread whose operand has no published Host fact never yields a
+  // fabricated element conversion; it stops C# analysis (I4).
+  const spread = {};
+  const unproven = hostArrayFixture("...input", node => node === spread.element || node === spread.operand);
+  spread.element = unproven.program.ast.elements(unproven.expression)[0];
+  spread.operand = unproven.program.ast.as.AsSpreadElement(spread.element)?.Expression;
+  assert.equal(spread.element !== undefined && spread.operand !== undefined, true, "the fixture has one spread element");
+  assert.throws(() => unproven.queries.resolveArrayLiteral(unproven.expression), invariant,
+    "an unproven spread operand never fabricates a literal element conversion");
 });
 
 test("an explicit generic call preserves the enclosing function's declared T array", () => {

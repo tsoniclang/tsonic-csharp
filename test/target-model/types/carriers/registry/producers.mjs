@@ -162,20 +162,6 @@ export const producersCarrierRegistry = Object.freeze([
     frozen: false,
   },
   {
-    id: "src/representation/sums.ts#representSourceUnionRole",
-    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
-    declaration: { module: "src/representation/sums.ts", symbol: "representSourceUnionRole" },
-    responsibility: "producers/resolve-union",
-    frozen: false,
-  },
-  {
-    id: "src/representation/sums.ts#representSourceUnionOperations",
-    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
-    declaration: { module: "src/representation/sums.ts", symbol: "representSourceUnionOperations" },
-    responsibility: "producers/resolve-union",
-    frozen: false,
-  },
-  {
     id: "src/representation/declared.ts#representDeclared",
     kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
     declaration: { module: "src/representation/declared.ts", symbol: "representDeclared" },

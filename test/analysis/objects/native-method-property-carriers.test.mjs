@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { assertCsharpCompilationSucceeded, withCsharpSessionRequest } from "../../helpers/direct-csharp-session.mjs";
-import { csharpSourceNodes } from "../../../dist/analysis/program/source-nodes.js";
 
 for (const surface of ["native", "js"]) {
   test(`${surface}: native method literals retain the shorthand parameter's exact checked value binding`, () => {
@@ -14,7 +13,7 @@ export function extract(value: Payload): (input: int32) => int32 { return value.
 export function copy(value: Payload): Payload { return { ...value }; }
 ` }, request => {
       const source = request.input.source;
-      const nodes = csharpSourceNodes(source.syntax, source.sourceFiles);
+      const nodes = source.facts.navigation.nodesForFiles(source.sourceFiles);
       const parameters = nodes.filter(node => source.syntax.is.IsParameterDeclaration(node) && source.syntax.text(source.syntax.name(node)) === "extra");
       const shorthands = nodes.filter(node => source.syntax.is.IsShorthandPropertyAssignment(node));
       assert.equal(parameters.length, 1, "the original native int32 parameter is unique");

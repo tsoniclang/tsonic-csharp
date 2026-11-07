@@ -46,24 +46,28 @@ test("object-shape reads retain exact authored member carriers through utility p
   );
 });
 
+// nextgen C-2542 (run 1 C6): the member applies when the Host member selection names one of the shape member's
+// declarations (member identity, R1), not when a checker source type matches. Same cases, same expectations.
+const memberSelection = declaration => Object.freeze({ selected: Object.freeze({ kind: "member", declarations: Object.freeze([declaration]) }) });
+
 test("object-shape read provenance fails closed for a different selected source type", () => {
-  const exactSourceType = {};
-  const unrelatedSourceType = {};
+  const exactDeclaration = {};
+  const unrelatedDeclaration = {};
   const targetType = { kind: "source-primitive", name: "int32" };
   const member = {
     sourceName: "value",
-    sourceTypes: [exactSourceType],
+    sourceDeclarations: [exactDeclaration],
     targetName: "value",
     memberKind: "property",
     type: targetType,
   };
 
   assert.strictEqual(
-    resolveCsharpObjectShapeMemberReadTargetType(member, exactSourceType),
+    resolveCsharpObjectShapeMemberReadTargetType(member, memberSelection(exactDeclaration)),
     targetType,
   );
   assert.equal(
-    resolveCsharpObjectShapeMemberReadTargetType(member, unrelatedSourceType),
+    resolveCsharpObjectShapeMemberReadTargetType(member, memberSelection(unrelatedDeclaration)),
     undefined,
   );
 });
@@ -73,16 +77,16 @@ test("a checked native string read projects its original reference out of an opa
   const other = {};
   const string = csharpStringTargetType();
   const storage = csharpTsValueTargetType();
-  const member = { sourceName: "checked", sourceTypes: [source], targetName: "native",
+  const member = { sourceName: "checked", sourceDeclarations: [source], targetName: "native",
     memberKind: "property", type: storage };
-  assert.equal(resolveCsharpObjectShapeMemberReadTargetType(member, source, undefined, string) === string,
+  assert.equal(resolveCsharpObjectShapeMemberReadTargetType(member, memberSelection(source), string) === string,
     true, "a checked reference read remains native string, not a dynamic operation");
-  assert.equal(resolveCsharpObjectShapeMemberReadTargetType(member, other, undefined, string) === undefined,
+  assert.equal(resolveCsharpObjectShapeMemberReadTargetType(member, memberSelection(other), string) === undefined,
     true, "target expectation alone cannot manufacture source correspondence");
-  assert.equal(resolveCsharpObjectShapeMemberReadTargetType(member, source) === storage,
+  assert.equal(resolveCsharpObjectShapeMemberReadTargetType(member, memberSelection(source)) === storage,
     true, "unrefined unknown provider reads retain their exact opaque storage");
   const integer = { kind: "source-primitive", name: "int64" };
-  assert.equal(resolveCsharpObjectShapeMemberReadTargetType(member, source, undefined, integer) === storage,
+  assert.equal(resolveCsharpObjectShapeMemberReadTargetType(member, memberSelection(source), integer) === storage,
     true, "opaque numeric fields cannot acquire speculative native storage");
 });
 

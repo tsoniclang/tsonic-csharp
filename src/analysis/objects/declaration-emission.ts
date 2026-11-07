@@ -14,6 +14,7 @@ import { csharpObjectShapeTypeParameters } from "../../policy/types/objects/owne
 import { csharpTargetTypeRenderingRejection } from "../../policy/types/model/renderability.js";
 import { createCsharpObjectShapeEmissionRecords } from "../program/records/objects/object-shape-emission.js";
 import { analyzeCsharpObjectShapeNames } from "./display-names.js";
+import { forwardSourceRefusal } from "../program/source-facts.js";
 import type { AstReader, Node } from "@tsonic/tsts";
 import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native/native-demand.js";
 import type { CsharpBindingPatternClassifications } from "../../target-model/records/objects/value-projections.js";
@@ -121,6 +122,8 @@ export function analyzeCsharpObjectShapeEmission(input: {
       declaredNames.add(name);
       declaredIdentities.add(parameter.identity);
       const resolution = parameter.csharpConstraints;
+      // A Host refusal of an authored constraint part is forwarded unchanged (R5).
+      if (resolution?.kind === "refused") { issues.push(forwardSourceRefusal(resolution.refusal)); continue; }
       if (resolution === undefined || resolution.kind === "unsupported") {
         refuse(resolution?.kind === "unsupported" ? resolution.reason : `Generated object-shape carrier '${fact.targetType.id}' has no sealed constraints for '${parameter.name}'.`);
         continue;

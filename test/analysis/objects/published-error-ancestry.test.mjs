@@ -1,15 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { analyzeCsharpNativeErrorAdmission } from "../../../dist/analysis/objects/error-storage-demands.js";
-import { csharpSourceNodes } from "../../../dist/analysis/program/source-nodes.js";
 import { withCsharpSessionRequest, assertCsharpCheckingSucceeded } from "../../helpers/direct-csharp-session.mjs";
 
 // Native Error ancestry is read from published heritage edges (facts.objects.heritage); the Error member inventory
-// from facts.objects.members / member (nextgen C-2542). The checker constructor-descriptor and propertyInfos paths
-// and their CSHARP_ERROR_ANCESTRY_NOT_PROVEN refusal are deleted (Host owns heritage).
+// from facts.objects.members / member (nextgen C-2542). The checker constructor-descriptor and propertyInfos paths are
+// deleted (Host owns heritage). An extends edge whose Host base type is not one declared instance type keeps the
+// baseline CSHARP_ERROR_ANCESTRY_NOT_PROVEN refusal at the base expression of an Error-typed literal (Q94).
 
 function namedClass(source, name) {
-  return csharpSourceNodes(source.syntax, source.sourceFiles).find(node => source.syntax.is.IsClassDeclaration(node) &&
+  return source.facts.navigation.nodesForFiles(source.sourceFiles).find(node => source.syntax.is.IsClassDeclaration(node) &&
     source.syntax.text(source.syntax.name(node)) === name);
 }
 
@@ -59,6 +59,12 @@ test("Error ancestry follows the published heritage edge, and a refused edge is 
     const retargeted = analyzeCsharpNativeErrorAdmission(withObjects(source, {
       heritage: node => node === derived ? [{ ...heritage[0], target: foreign }] : source.facts.objects.heritage(node),
     })).issues.map(issue => issue.code);
+    // Q94: a base whose Host instance type is not one declared type gives no proven ancestry.
+    const expression = source.syntax.as.AsExpressionWithTypeArguments(heritage[0].heritage).Expression;
+    const unproven = analyzeCsharpNativeErrorAdmission(withObjects(source, {
+      heritage: node => node === derived ? [{ ...heritage[0], type: Object.freeze({ kind: "intrinsic", intrinsic: "unknown" }) }]
+        : source.facts.objects.heritage(node),
+    })).issues.map(issue => [issue.code, issue.sourceNode === expression]);
     let invariant;
     try {
       analyzeCsharpNativeErrorAdmission(withObjects(source, {
@@ -69,11 +75,12 @@ test("Error ancestry follows the published heritage edge, and a refused edge is 
     } catch (error) {
       invariant = error;
     }
-    return { published, retargeted, invariant: invariant?.diagnostic?.code === "TSONIC_INTERNAL_ANALYSIS_INVARIANT" &&
+    return { published, retargeted, unproven, invariant: invariant?.diagnostic?.code === "TSONIC_INTERNAL_ANALYSIS_INVARIANT" &&
       invariant.diagnostic.sourceNode === derived };
   });
   assertCsharpCheckingSucceeded(compiled);
-  assert.deepEqual(value, { published: ["CSHARP_ERROR_OBJECT_LITERAL_UNSUPPORTED"], retargeted: [], invariant: true },
+  assert.deepEqual(value, { published: ["CSHARP_ERROR_OBJECT_LITERAL_UNSUPPORTED"], retargeted: [],
+    unproven: [["CSHARP_ERROR_ANCESTRY_NOT_PROVEN", true]], invariant: true },
     "the Error literal refusal follows the published edge; a refused edge fails the analysis invariant at its class");
 });
 

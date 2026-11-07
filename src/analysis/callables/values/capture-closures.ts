@@ -12,7 +12,6 @@ import { getCsharpMethodValue } from "../../../target-model/types/method-values.
 import type { CsharpTargetOperationClassifications } from "../../../target-model/records/operations/operations.js";
 import { readCsharpSelectedWritingReference } from "./argument-passing.js";
 import { csharpCapturedBindingInitialization } from "./capture-initialization.js";
-import { csharpLexicalCaptures } from "./lexical-captures.js";
 
 export function csharpCaptureSubtreeIsErased(
   node: Node,
@@ -45,7 +44,7 @@ export function analyzeCsharpNativeCaptures(
       if (discarded) return;
     }
     if (literal || source.syntax.is.IsFunctionDeclaration(node) && source.syntax.body(node) !== undefined) {
-      const lexical = csharpLexicalCaptures(source.facts, node);
+      const lexical = source.facts.analyses.lexicalCaptures(node);
       const namedSelf = selectCsharpNamedSelfBinding(source, node, lexical, evidence, issues);
       if (namedSelf !== undefined) namedSelfBindings.push(namedSelf);
       const contract = callables.get({ kind: "declaration", declaration: node });

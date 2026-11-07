@@ -8,6 +8,7 @@ import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { publishedCsharpCallableInterface } from "../source-evidence/types/published-callable-interface.js";
 import { csharpFreeTypeParameterIdentities, visitCsharpTargetTypeParameters } from "../../target-model/types/generic-references.js";
 import { csharpSourceTypeParameter } from "../../source/extension/type-parameters.js";
+import { sourceInterfaceRepresentsJsArray } from "../program/source-facts.js";
 import type { SourceHeritageEdge, SourceProgramFacts } from "@tsonic/target-api/source";
 import type { CsharpProviderRelationResolver } from "../../providers/model/relation-resolver.js";
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
@@ -41,18 +42,17 @@ export function csharpProjectHeritageEdges(facts: SourceProgramFacts, declaratio
 }
 
 /**
- * The .NET backing width of a project enum: Int32 when every published member constant (values.literal of the member,
- * request R-F5-A3) fits Int32, otherwise Int64. Non-integer and out-of-range enums are Host refusals.
+ * The .NET backing width of a project enum: the Host enum integer-width decision (facts.analyses.enumIntegerWidth, the
+ * one owner, R1). A refused enum is a Host refusal forwarded before C# analysis (facts.refusals()), so meeting one here,
+ * or meeting no decision for a checked project enum, is an invariant failure (I4).
  */
 function csharpEnumIntegerWidth(host: CsharpProjectTypeCatalogHost, declaration: Node): 32 | 64 {
-  let width: 32 | 64 = 32;
-  for (const member of host.ast.members(declaration)) {
-    if (member === undefined) continue;
-    const value = host.facts.values.literal(member)?.integer ?? failTargetAnalysisInvariant("tsonic-csharp",
-      "A project enum member requires its published integer constant.", member);
-    if (value < -2147483648n || value > 2147483647n) width = 64;
-  }
-  return width;
+  const width = host.facts.analyses.enumIntegerWidth(declaration);
+  if (width === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+    "A checked project enum requires its published integer-width decision.", declaration);
+  return width.kind === "rejected" ? failTargetAnalysisInvariant("tsonic-csharp",
+    "The enum integer width is a Host refusal at a node C# analyzed; Host refusals are forwarded before C# analysis.",
+    declaration) : width.integerWidth;
 }
 
 export function createCsharpProjectTypePolicy(
@@ -265,13 +265,9 @@ export function projectTypeDefinition(
   const local = kind === "class" && !host.ast.is.IsSourceFile(host.ast.parent(declaration)!);
   if (kind === "interface") {
     if (publishedCsharpCallableInterface(declaration, host) !== undefined) return { kind: "not-project-type" };
-    // An interface whose representation base is a JS array-like collection is that collection, not a project type
-    // (Host analysis facts.analyses.interfaceRepresentationBase, request R-F5-B3; collection kind from the JS profile facts).
-    const representation = host.facts.analyses.interfaceRepresentationBase(declaration);
-    // The base reference of the heritage edge: its target declaration applied to the edge's Host type arguments.
-    const collection = representation === undefined ? undefined : host.facts.profile.collection(Object.freeze({
-      kind: "declared" as const, declaration: representation.target, typeArguments: representation.typeArguments }));
-    if (collection?.kind === "array" || collection?.kind === "readonly-array" || collection?.kind === "typed-array") return { kind: "not-project-type" };
+    // An interface whose representation base is a JS array is that array, not a project type (the one reader,
+    // shared with declarations/type-only.ts).
+    if (sourceInterfaceRepresentsJsArray(host.facts, declaration)) return { kind: "not-project-type" };
   }
   const bindings = local ? publishedCsharpClassBindings(declaration, host) : undefined;
   if (local && bindings === undefined) return { kind: "not-project-type" };
@@ -283,7 +279,7 @@ export function projectTypeDefinition(
     (parameter): parameter is Node => parameter !== undefined,
   );
   const typeParameterBindings = [...outerTypeParameters, ...typeParameters].map((parameter) =>
-    csharpSourceTypeParameter(parameter, host.ast)
+    csharpSourceTypeParameter(parameter, host.ast, host.facts.navigation.identity)
   );
   if (
     typeParameters.length !== rawTypeParameters.length ||
@@ -351,10 +347,9 @@ export function selectCsharpProjectTypeHeritage(
   let baseType: TargetTypeRef | undefined;
   const interfaces: TargetTypeRef[] = [];
   for (const edge of csharpProjectHeritageEdges(host.facts, definition.declaration)) {
-    // The published heritage target applied to its published type arguments, represented once (I6); the source
-    // profile bases (Error → System.Exception) are part of that one mapping.
-    const target = host.types.represent({ kind: "declared", declaration: edge.target, typeArguments: edge.typeArguments },
-      edge.heritage, "type-argument");
+    // The published heritage base descriptor (SourceHeritageEdge.type, request FX-CC-H2), represented once (I6); the
+    // source profile bases (Error → System.Exception) are part of that one mapping.
+    const target = host.types.represent(edge.type, edge.heritage, "type-argument");
     if (target.kind === "csharp-refused") {
       return {
         kind: "unresolved",

@@ -2,15 +2,15 @@
 // SourceObjectFacts; C# decides only the generated storage (BF16 canonical shape factory), member names and
 // method-implementation captures.
 import type { Node } from "@tsonic/tsts";
-import type { SourceObjectMember, SourceTypeDescriptor } from "@tsonic/target-api/source";
-import { sourceTypeDescriptorMemberOriginsEqual } from "@tsonic/target-api/source";
+import type { SourceObjectMember, SourceTypeDescriptor, SourceTypeDescriptorMember } from "@tsonic/target-api/source";
+import { sourceTypeDescriptorMemberOriginsEqual, sourceTypeDescriptorStructure } from "@tsonic/target-api/source";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetNamedTypeRef, TargetTypeRef } from "../target-model/types/model.js";
 import { canonicalCsharpObjectShapeMembers, csharpObjectShapeMemberContractKey } from "../target-model/types/object-shape-identity.js";
 import { getCsharpMethodValue } from "../target-model/types/method-values.js";
 import { targetTypeRefEquals } from "../target-model/types/equality.js";
 import { objectShapeMemberTargetName } from "../policy/identities/source-member-names.js";
-import { createStructuralObjectShapeTarget } from "../analysis/objects/shapes/construction.js";
-import { sourceValueType } from "../analysis/program/source-facts.js";
+import { createStructuralObjectShapeTarget } from "../policy/types/objects/structural-shape-targets.js";
 import { csharpRefusal, csharpRepresentationContext, isCsharpRefusal, type CsharpRepresentation, type CsharpRepresentationContext } from "./context.js";
 import { representSourceType } from "./descriptors.js";
 import { csharpProviderBindingFromResolution } from "../providers/model/relation-resolver.js";
@@ -29,7 +29,10 @@ export function representObjectShape(
   represent: RepresentDescriptor,
 ): CsharpRepresentation {
   const instance = members.filter(member => !member.static);
-  const facts = representObjectMembers(instance, context, represent, type.kind === "shape" ? type : undefined);
+  // The Host members of a shape, or of a declared type with a definition, are published from that shape's descriptor
+  // members; the descriptor carries each member's Host origin (declared, mapped, class-prototype) and literal domain.
+  const structure = sourceTypeDescriptorStructure(type);
+  const facts = representObjectMembers(instance, context, represent, structure.kind === "shape" ? structure : undefined);
   if (isCsharpRefusal(facts)) return facts;
   const contract = instance.length !== 0 && instance.every(member => !context.syntax.is.IsObjectLiteralExpression(member.owner));
   return retainStructuralShape(facts, contract, instance, context);
@@ -40,7 +43,10 @@ export function representObjectMembers(
   instance: readonly SourceObjectMember[],
   context: CsharpRepresentationContext,
   represent: RepresentDescriptor = descriptor => representSourceType(descriptor, context),
-  /** The shape descriptor whose arm the members belong to: its member literal domains join the shape identity (R-A5-1). */
+  /**
+   * The shape descriptor the Host published the members from: each member's Host origin (BF16 / C-2524) and literal
+   * domain (R-A5-1) are read from its descriptor member. Without one, the members carry no origin.
+   */
   shape?: Extract<SourceTypeDescriptor, { readonly kind: "shape" }>,
 ): readonly CsharpObjectShapeMemberFact[] | ReturnType<typeof csharpRefusal> {
   const facts: CsharpObjectShapeMemberFact[] = [];
@@ -49,13 +55,16 @@ export function representObjectMembers(
     if (member.key.kind !== "string") return csharpRefusal("CSHARP_SHAPE_MEMBER_KEY",
       `Object member '${member.name}' has a ${member.key.kind} key; generated .NET storage names string keys only.`,
       member.declarations[0] ?? context.occurrence);
-    if (names.has(member.name)) return csharpRefusal("CSHARP_SHAPE_MEMBER_KEY",
+    // The member key is the Host key (R3 #14): shape members correspond by it, never by a display name.
+    const key = member.key.value;
+    if (names.has(key)) return csharpRefusal("CSHARP_SHAPE_MEMBER_KEY",
       `Object member '${member.name}' appears twice in one generated .NET shape.`, member.declarations[0] ?? context.occurrence);
-    names.add(member.name);
+    names.add(key);
     const site = member.declarations[0] ?? context.occurrence;
-    // A generated .NET property is read through its getter; an object-literal setter without a getter has no read carrier.
-    if (member.kind === "set" && context.syntax.is.IsObjectLiteralExpression(member.owner)) return csharpRefusal("CSHARP_SHAPE_SETTER_ONLY",
-      `Object-literal setter '${member.name}' has no getter and therefore no exact native read carrier.`, site);
+    // A .NET property is read through its getter; a setter without a getter (object literal, class or interface) has no
+    // read carrier. Baseline refused the setter-only class and interface accessor as well (member-declarations.ts).
+    if (member.kind === "set") return csharpRefusal("CSHARP_SHAPE_SETTER_ONLY",
+      `Setter '${member.name}' has no getter and therefore no exact native read carrier.`, site);
     // A native field marker (field<T>(), memory field bindings) names the member's storage type by its authored type node.
     const field = readCsharpSourceField(context.sourceFacts, member.declarations);
     const represented = represent(field === undefined ? member.type : authoredTypeDescriptor(field.sourceType, context));
@@ -66,21 +75,22 @@ export function representObjectMembers(
       `Method '${member.name}' has several signatures; a generated .NET shape member has one.`, member.declarations[0] ?? context.occurrence);
     const typeParameters = signature === undefined ? Object.freeze([]) : representSignatureTypeParameters(signature, context);
     if (isCsharpRefusal(typeParameters)) return typeParameters;
-    const accessor = member.kind === "get" || member.kind === "set" || member.kind === "accessor-pair";
+    const accessor = member.kind === "get" || member.kind === "accessor-pair";
     const bound = context.memoryBindings.hasBoundField(member.declarations);
     if (accessor && bound) return csharpRefusal("CSHARP_SHAPE_BOUND_ACCESSOR",
       `Accessor '${member.name}' cannot also be a bound native field.`, member.declarations[0] ?? context.occurrence);
-    const origin = member.declarations[0] === undefined ? undefined : Object.freeze({ kind: "declared" as const, declaration: member.declarations[0] });
-    const literals = shape?.members.find(candidate => candidate.name === member.name)?.literals;
+    const published = shape === undefined ? undefined : descriptorMemberOf(shape, member, site);
+    const origin = published?.origin;
+    const literals = published?.literals;
     facts.push(Object.freeze({
-      sourceKey: Object.freeze({ kind: "property", name: member.name }),
+      sourceKey: Object.freeze({ kind: "property", name: key }),
       sourceName: member.name,
       targetName: objectShapeMemberTargetName(member.name),
       memberKind: method ? "method" : "property",
       type: method ? getCsharpMethodValue(represented)?.contract ?? represented : represented,
       ...(typeParameters.length === 0 ? {} : { typeParameters }),
       ...(bound ? { bound: true as const } : {}),
-      ...(accessor ? { accessor: Object.freeze({ getter: true as const, setter: member.kind === "accessor-pair" || member.kind === "set" }) } : {}),
+      ...(accessor ? { accessor: Object.freeze({ getter: true as const, setter: member.kind === "accessor-pair" }) } : {}),
       optional: member.optional,
       readonly: member.readonly || field?.readonly === true,
       ...(origin === undefined ? {} : { origins: Object.freeze([origin]) }),
@@ -90,6 +100,26 @@ export function representObjectMembers(
     }));
   }
   return Object.freeze(facts);
+}
+
+/**
+ * The descriptor member a Host object member was published from (object-facts objects.ts objectMember): a declared
+ * origin names one of the member's declarations; a mapped origin is the member's own key and mapped owner; a
+ * class-prototype member is the owner's prototype member of that key. Exactly one must match (I4).
+ */
+export function descriptorMemberOf(shape: Extract<SourceTypeDescriptor, { readonly kind: "shape" }>, member: SourceObjectMember,
+  site: Node): SourceTypeDescriptorMember {
+  const matches = shape.members.filter(candidate => {
+    const origin = candidate.origin;
+    switch (origin.kind) {
+      case "declared": return member.declarations.includes(origin.declaration);
+      case "mapped": return origin.owner === member.owner && origin.key === member.key;
+      case "class-prototype": return origin.owner === member.owner && member.key.kind === "string" && candidate.name === member.key.value;
+    }
+  });
+  if (matches.length !== 1) failTargetAnalysisInvariant("tsonic-csharp",
+    "A Host object member must come from exactly one member of its published shape descriptor.", site);
+  return matches[0]!;
 }
 
 function retainStructuralShape(
@@ -152,7 +182,10 @@ function representMethodImplementation(
   for (const [index, capture] of [...captures.values()].entries()) {
     // K-2670 (R5 / I4): a captured binding's Host value is read through the shared invariant reader. Its refusal was
     // forwarded unchanged before C# analysis; meeting it here is a Host producer defect, never a new C# refusal.
-    const captured = sourceValueType(context.facts, capture.declaration);
+    const outcome = context.facts.values.type(capture.declaration);
+    if (outcome.kind === "refused") failTargetAnalysisInvariant("tsonic-csharp",
+      `A captured binding's refused Host value (${outcome.code}) reached the C# representation.`, capture.declaration);
+    const captured = outcome.type;
     const type = representSourceType(captured, csharpRepresentationContext(context, capture.declaration, "storage"));
     if (isCsharpRefusal(type)) return type;
     if (capture.reference === undefined) return csharpRefusal("CSHARP_OBJECT_METHODS", "A captured binding has no reference.", capture.declaration);

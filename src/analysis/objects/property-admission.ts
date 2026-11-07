@@ -59,11 +59,11 @@ export function analyzeCsharpPropertyAdmission(input: { readonly ast: AstReader;
     // (native demand requests that accessor for exactly these reads), so copies and comparisons see one delegate; a
     // method group would create a new delegate per read. Optional methods are always read from storage.
     const methodValue = objectShape !== undefined && shapeMember?.kind === "resolved" && shapeMember.member.memberKind === "method" &&
-      (shapeMember.member.optional === true || !csharpSelectionIsCallee(ast, selection.source));
+      (shapeMember.member.optional === true || !csharpSelectionIsCallee(selection.source));
     const generic = getCsharpMethodValue(rawReadType);
     const sourceProperty = declaration !== undefined && (ast.is.IsPropertyDeclaration(declaration) || ast.is.IsPropertySignatureDeclaration(declaration) ||
       ast.is.IsGetAccessorDeclaration(declaration) || sourceParameterIsProperty(ast, declaration));
-    if (generic !== undefined && generic.typeParameters.length > 0 && !csharpSelectionIsCallee(ast, selection.source) && declaration !== undefined &&
+    if (generic !== undefined && generic.typeParameters.length > 0 && !csharpSelectionIsCallee(selection.source) && declaration !== undefined &&
       ast.is.IsMethodDeclaration(declaration) && ast.is.IsClassDeclaration(ast.parent(declaration))) {
       refuse(node, "An extracted quantified nominal method has no supported native callable-value owner.", "CSHARP_GENERIC_METHOD_VALUE_NOT_REPRESENTABLE"); return;
     }
@@ -79,7 +79,7 @@ export function analyzeCsharpPropertyAdmission(input: { readonly ast: AstReader;
         refuse(node, "A generic method value lost its exact selected native owner.", "CSHARP_GENERIC_METHOD_VALUE_NOT_REPRESENTABLE"); return;
       }
     }
-    const flow = csharpSelectionAccessMode(selection.source) === "read" && !csharpSelectionIsCallee(ast, selection.source) && (shapeMember?.kind === "resolved" || sourceProperty);
+    const flow = csharpSelectionAccessMode(selection.source) === "read" && !csharpSelectionIsCallee(selection.source) && (shapeMember?.kind === "resolved" || sourceProperty);
     if (flow && shapeMember?.kind === "resolved" && selectedReadType === undefined) {
       refuse(node, "The exact selected source property read has no closed C# flow representation.", "CSHARP_PROPERTY_READ_NOT_REPRESENTED"); return;
     }

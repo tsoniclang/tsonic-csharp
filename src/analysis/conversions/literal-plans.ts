@@ -20,8 +20,8 @@ export function analyzeCsharpExactLiteralSelections(
     const role = request.propertyKey === undefined ? "value" : "property-key";
     if (producer.has(request.expression, request.target, role, request.source)) continue;
     producer.select(request.expression, request.target, role, request.source,
-      request.propertyKey === undefined ? selectCsharpExactLiteralConversion(literal, request.source, request.target)
-        : selectCsharpExactPropertyKeyConversion(request.propertyKey, request.target));
+      request.propertyKey === undefined ? selectCsharpExactLiteralConversion(literal, request.source, request.target, facts.analyses.platform)
+        : selectCsharpExactPropertyKeyConversion(request.propertyKey, request.target, facts.analyses.platform));
   }
   return producer.seal();
 }

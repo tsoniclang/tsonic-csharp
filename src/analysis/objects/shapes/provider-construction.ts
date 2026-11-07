@@ -4,6 +4,7 @@
 // belong to one literal: no index entries without an indexer relation, and every primitive initializer reaching its CLR
 // member type exactly or by an implicit primitive conversion. No checker Type is read (I2).
 import type { AstReader, Node } from "@tsonic/tsts";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { sourceTypeDescriptorMemberOriginsEqual, sourceTypeDescriptorStructure, type SourceProgramFacts, type SourceRefusal,
   type SourceTypeDescriptor } from "@tsonic/target-api/source";
 import { sourcePrimitiveImplicitlyConverts } from "../../../policy/conversions/source-primitives.js";
@@ -39,8 +40,11 @@ export function resolveCsharpProviderObjectLiteralShape(
   const outcome = facts.values.type(objectLiteral);
   const correspondence = outcome.kind === "refused" ? [] : outcome.memberCorrespondence ?? [];
   for (const member of shape.members) {
+    // Every provider shape member carries its Host origin (provider-shapes.ts); without it the per-initializer conversion
+    // check would be skipped, so a missing origin is an invariant failure (RC2 #4, I4), never a skip.
     const origin = member.origins?.[0];
-    if (origin === undefined) continue;
+    if (origin === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+      "A provider object-initializer member has no Host member origin.", objectLiteral);
     const expected = getCsharpNullableElementTargetType(member.type) ?? member.type;
     if (expected.kind !== "source-primitive") continue;
     for (const entry of correspondence) {

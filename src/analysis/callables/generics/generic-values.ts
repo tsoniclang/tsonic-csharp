@@ -1,7 +1,7 @@
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../target-model/types/model.js";
 import { getCsharpDelegateSignature } from "../../../target-model/types/carriers/delegates.js";
 import { csharpMethodValueType } from "../../../target-model/types/method-values.js";
-import { createStructuralObjectShapeTarget } from "../../objects/shapes/construction.js";
+import { createStructuralObjectShapeTarget } from "../../../policy/types/objects/structural-shape-targets.js";
 import type { CsharpTypeParameterEnvironment } from "../../../target-model/records/types/type-parameter-constraints.js";
 import { objectShapeMethodInvocationName } from "../../../target-model/names/object-members.js";
 

@@ -183,7 +183,7 @@ function adaptLiteralToExpectedType(
 ): TargetTypeRef | undefined {
   return selected !== undefined &&
       expected !== undefined &&
-      csharpLiteralIsRepresentableAs(input.facts.values.literal(node), expected)
+      csharpLiteralIsRepresentableAs(input.facts.values.literal(node), expected, input.facts.analyses.platform)
     ? expected
     : selected;
 }

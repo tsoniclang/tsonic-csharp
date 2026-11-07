@@ -55,6 +55,9 @@ test("declared callable union projection refuses foreign, ambiguous and spread b
     { bindings: [{ parameterIndex: 0, form: "value" }, { parameterIndex: 0, form: "value" }] }]) {
     assert.equal(inputs(options) === undefined, true, "an unproven argument correspondence refuses");
   }
+  // Parameter-index mismatch (baseline control { parameterIndex: 1 }): a callable argument bound to another parameter
+  // never projects this parameter's callable arm; the unbound parameter keeps its whole declared carrier.
+  assert.equal(inputs({ parameterIndex: 1 }) === declared, true, "a binding of another parameter selects no callable arm here");
 });
 
 test("declared callable union projection refuses missing and nonunique native callable arms", () => {

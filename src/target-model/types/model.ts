@@ -586,4 +586,8 @@ export type CsharpRuntimeUnionTargetTypeRef = CsharpTargetNamedTypeRef & {
   readonly csharpRuntimeUnionArms: readonly TargetTypeRef[];
   readonly csharpRuntimeUnionSemantics: "native-ordered" | "source-sum";
   readonly csharpRuntimeUnionObjectShapes?: readonly (CsharpObjectShapeFact | undefined)[];
+  /** source-sum only (Q73): per present Host arm, its storage arm position (coincident arms share one). */
+  readonly csharpSourceSumSlots?: readonly number[];
+  /** source-sum only (Q86): the Host key category of each present Host arm, as facts.profile.keyCategories publishes it. */
+  readonly csharpSourceSumKeyCategories?: readonly string[];
 };

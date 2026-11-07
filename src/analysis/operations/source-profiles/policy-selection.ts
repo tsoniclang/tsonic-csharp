@@ -8,21 +8,21 @@ import { csharpSourceProfileDiagnostic } from "../../../policy/operations/source
 import type { CsharpSourceProfileCallPolicyResult, CsharpSourceProfileElementPolicyResult, CsharpSourceProfileCallPolicy, CsharpSourceProfilePropertyPolicy, CsharpSourceProfileElementPolicy } from "../../../policy/model/source-profiles.js";
 import type { CsharpSourceProfilePropertyPolicyResult } from "../../../target-model/records/program/source-profile-invocations.js";
 import type { Node } from "@tsonic/tsts";
-import type { SourceElementAccessRecord } from "@tsonic/target-api/source";
-import { selectedCsharpSourceProfileOwner } from "../../../policy/identities/source-types.js";
-import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
+import { csharpElementIndexerIdentities } from "../collections/js-indexers.js";
 
 import type { TargetTypeRef } from "../../../policy/types/index.js";
 import type { CsharpProviderCallSelectionHost } from "../../../policy/model/provider-calls.js";
 import { csharpSourceProfileDeclarationIdentity } from "../../../policy/identities/selected-source.js";
 import type { CsharpSourceProfileDeclarationIdentity } from "../../../policy/identities/selected-source.js";
 import { createCsharpSourceProfileInputs } from "../../program/records/program/source-profile-inputs.js";
+import type { CsharpSourceProfileInputFacts } from "../../../target-model/records/program/source-profile-inputs.js";
+import type { ExtensionDiagnostic } from "@tsonic/tsts";
 import { sourceProfilePropertyIdentityMatches, sourceProfileIdentityMatches, selectExactlyOnePolicy } from "../../../policy/operations/source-profiles/source-profile-policy.js";
 import {
   csharpSourceProfileCallSource,
   csharpSourceProfileElementSource,
   csharpSourceProfilePropertySource,
-} from "../../../policy/operations/source-profiles/source-profile-sources.js";
+} from "./source-profile-sources.js";
 
 export function selectCsharpSourceProfileCallPolicy(
   host: CsharpProviderCallSelectionHost,
@@ -30,7 +30,7 @@ export function selectCsharpSourceProfileCallPolicy(
   policies: readonly CsharpSourceProfileCallPolicy[],
 ): CsharpSourceProfileCallPolicyResult | undefined {
   const source = csharpSourceProfileCallSource(host, call);
-  const identity = csharpSourceProfileDeclarationIdentity(host.ast, host.facts, host.sourceFacts, source.selection.signature);
+  const identity = csharpSourceProfileDeclarationIdentity(host.ast, host.facts, source.selection.signature);
   if (identity === undefined) return undefined;
   const matches = policies.filter((policy) => sourceProfileIdentityMatches(policy.source, identity));
   const selected = selectExactlyOnePolicy(matches, identity);
@@ -40,7 +40,8 @@ export function selectCsharpSourceProfileCallPolicy(
     inputs: createCsharpSourceProfileInputs(host, source.receiver === undefined
       ? source.arguments : [source.receiver, ...source.arguments], call, selected.policy.inputRequirements, source) };
   const candidate = selected.policy.select(context);
-  if (candidate?.kind !== "resolved" || selected.policy.finalizeArguments !== true) return candidate;
+  if (candidate?.kind !== "resolved") return inputRefusal(context.inputs) ?? candidate;
+  if (selected.policy.finalizeArguments !== true) return candidate;
   const finalized = finalizeCsharpRestSequences(context, candidate.call);
   const finalCall = finalized === undefined ? undefined : sealInvocationOnlyCallableArguments(context, finalized);
   return finalCall === undefined ? { kind: "rejected",
@@ -65,26 +66,13 @@ export function selectCsharpSourceProfilePropertyPolicy(
   if (selected.kind === "ambiguous") return { kind: "rejected", diagnostic: selected.diagnostic };
   const source = csharpSourceProfilePropertySource(host, access);
   const receiver = host.types.value(source.receiver.expression);
-  return selected.policy.select({ host, source, identity,
-    inputs: createCsharpSourceProfileInputs(host, [source.receiver], access),
+  const inputs = createCsharpSourceProfileInputs(host, [source.receiver], access);
+  const candidate = selected.policy.select({ host, source, identity, inputs,
     receiverType: receiverType ?? (receiver.kind === "csharp-refused" ? undefined : receiver),
-    readonly: selectedMemberReadonly(host, source.selection) });
-}
-
-/** Whether the selected member (or index signature) is readonly, from Host object facts. */
-function selectedMemberReadonly(
-  host: CsharpProviderCallSelectionHost,
-  selection: NonNullable<ReturnType<CsharpProviderCallSelectionHost["facts"]["selections"]["memberAccess"]>>,
-): boolean {
-  const selected = selection.selected;
-  if (selected.kind === "index-signature") {
-    const index = host.facts.objects.indexes(selection.receiverType).find(entry => entry.declaration === selected.declaration);
-    return index?.readonly ?? failTargetAnalysisInvariant("tsonic-csharp",
-      "The Host selected an index signature its object facts do not publish.", selection.use);
-  }
-  const member = host.facts.objects.member(selection.receiverType, { kind: "string", value: selection.name });
-  return member?.readonly ?? failTargetAnalysisInvariant("tsonic-csharp",
-    "The Host selected a member its object facts do not publish.", selection.use);
+    // The Host member-access selection states whether the selected member or index signature is readonly (any receiver:
+    // class, interface, array, primitive, union), as the element record does.
+    readonly: source.selection.readonly });
+  return candidate?.kind === "resolved" ? candidate : inputRefusal(inputs) ?? candidate;
 }
 
 /** Profile identities of the declarations the Host selected for a member access (several for merged declarations). */
@@ -96,33 +84,11 @@ export function sourceProfilePropertyIdentities(
   if (selection === undefined) return [];
   const declarations = selection.selected.kind === "member" ? selection.selected.declarations : [selection.selected.declaration];
   const identities = declarations.map((declaration) =>
-    csharpSourceProfileDeclarationIdentity(host.ast, host.facts, host.sourceFacts, declaration));
+    csharpSourceProfileDeclarationIdentity(host.ast, host.facts, declaration));
   return identities.length > 0 &&
       identities.every((candidate): candidate is CsharpSourceProfileDeclarationIdentity => candidate !== undefined)
     ? identities
     : [];
-}
-
-/**
- * The profile identity of an element access. A member or index-signature selection names its declaration. An array,
- * typed-array or string element has no declaration: its indexer identity is named by the Host collection fact
- * (profile.collection) or the string-character selection, under the target's profile owner, and keyed at the access.
- */
-function elementAccessIdentity(
-  host: CsharpProviderCallSelectionHost,
-  access: SourceElementAccessRecord,
-): CsharpSourceProfileDeclarationIdentity | undefined {
-  const selected = access.selected;
-  if (selected.kind === "member" || selected.kind === "index-signature") {
-    return csharpSourceProfileDeclarationIdentity(host.ast, host.facts, host.sourceFacts, selected.declaration);
-  }
-  if (selected.kind === "tuple") return undefined;
-  const collection = selected.kind === "string-character" ? "string" : host.facts.profile.collection(access.receiverType)?.kind;
-  const declaringName = collection === "array" ? "Array" : collection === "readonly-array" ? "ReadonlyArray"
-    : collection === "typed-array" ? "TypedArray" : collection === "string" ? "String" : undefined;
-  return declaringName === undefined ? undefined : Object.freeze({
-    owner: selectedCsharpSourceProfileOwner(host.target), kind: "indexer", declaringName, declaration: access.node,
-  });
 }
 
 export function selectCsharpSourceProfileElementPolicy(
@@ -131,11 +97,26 @@ export function selectCsharpSourceProfileElementPolicy(
   policies: readonly CsharpSourceProfileElementPolicy[],
 ): CsharpSourceProfileElementPolicyResult | undefined {
   const source = csharpSourceProfileElementSource(host, access);
-  const identity = elementAccessIdentity(host, source.access);
+  // Every indexer declaration the access selects (one per union arm, Host per-arm relation) must match one policy.
+  const identities = csharpElementIndexerIdentities(host, source.access);
+  const identity = identities?.[0];
   if (identity === undefined) return undefined;
-  const policy = selectExactlyOnePolicy(policies.filter(candidate => sourceProfileIdentityMatches(candidate.source, identity)), identity);
+  const policy = selectExactlyOnePolicy(policies.filter(candidate =>
+    identities!.every(selected => sourceProfileIdentityMatches(candidate.source, selected))), identity);
   if (policy.kind === "missing") return undefined;
   if (policy.kind === "ambiguous") return { kind: "rejected", diagnostic: policy.diagnostic };
-  return policy.policy.select({ host, source, identity, readonly: source.access.readonly,
-    inputs: createCsharpSourceProfileInputs(host, [source.receiver, source.argument], access) });
+  const inputs = createCsharpSourceProfileInputs(host, [source.receiver, source.argument], access);
+  const candidate = policy.policy.select({ host, source, identity, readonly: source.access.readonly, inputs });
+  return candidate?.kind === "resolved" ? candidate : inputRefusal(inputs) ?? candidate;
+}
+
+/**
+ * #79: a policy that selected nothing or rejected, over inputs one of whose carriers the C# representation refused,
+ * reports that refusal with its own code and message (a resolved selection is kept unchanged).
+ */
+function inputRefusal(inputs: CsharpSourceProfileInputFacts):
+  { readonly kind: "rejected"; readonly diagnostic: ExtensionDiagnostic } | undefined {
+  const refusal = inputs.refusal;
+  return refusal === undefined ? undefined
+    : Object.freeze({ kind: "rejected", diagnostic: csharpSourceProfileDiagnostic(refusal.code, 9101005, refusal.message) });
 }

@@ -84,9 +84,7 @@ export function classifyCsharpNativeLocation(
     if (property || namedElement) {
       const selection = memberSelection;
       if (selection?.kind !== "resolved" && selection?.kind !== "source-owned") return rejected("The property has no exact selected native member.");
-      if ("optionalChain" in selection.source ? selection.source.optionalChain
-        : policy.ast.as.AsElementAccessExpression(expression)?.QuestionDotToken !== undefined)
-        return rejected("An optional property access is not a native storage address.");
+      if (selection.source.optionalChain) return rejected("An optional property access is not a native storage address.");
       const declaration = csharpSelectedMemberDeclaration(selection.source);
       const classStorage = declaration === undefined ? undefined : classProperty(declaration);
       const sourceField = declaration === undefined ? undefined : readCsharpSourceField(policy.sourceFacts, [declaration]);
@@ -126,8 +124,7 @@ export function classifyCsharpNativeLocation(
     if (element) {
       const selection = memberSelection;
       if (selection?.kind !== "resolved" && selection?.kind !== "source-owned" && selection?.kind !== "project-indexer") return rejected("The element has no exact selected native index relation.");
-      if (policy.ast.as.AsElementAccessExpression(expression)?.QuestionDotToken !== undefined)
-        return rejected("An optional element access is not a native storage address.");
+      if (selection.source.optionalChain) return rejected("An optional element access is not a native storage address.");
       const representedReceiver = policy.types.value(selection.source.receiver);
       const receiverType = representedReceiver.kind === "csharp-refused" ? undefined : representedReceiver;
       return resolved(expression, storageType, assignment, storage.writable,

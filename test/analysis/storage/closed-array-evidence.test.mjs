@@ -13,7 +13,7 @@ function evidenceFor(sourceText) {
   const source = withCsharpSessionRequest({ sourceText, surface: "native" }, request => request.input.source).value;
   const sourceFiles = Object.freeze([...source.sourceFiles]);
   const pointerStorage = source.facts.analyses.extension(tsonicCoreAnalysisKey)
-    .pointerStorage(source.facts.analyses.storage({ sourceFiles }));
+    .pointerStorage(source.facts.analyses.storage({ sourceFiles, premises: {} }));
   return { source, sourceFiles, result: analyzeCsharpSourceEvidence(source, sourceFiles, unknownTypes,
     { types: unknownTypes, ast: source.syntax, facts: source.facts, sourceFacts: source.sourceFacts,
       callOnlyAlias: createCsharpSourceProfileCallableAliasQuery(source) }, pointerStorage) };

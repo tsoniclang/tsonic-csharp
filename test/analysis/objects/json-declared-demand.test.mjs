@@ -44,7 +44,7 @@ test("typed JSON roots keep their exact native declaration and strict serializer
   const record = shape("Typed", [property("count", { kind: "source-primitive", name: "int64" })]);
   const selected = fixture([record]);
   assert.equal(selected.engine.registerObjectShape(record, "synthetic").kind, "accepted", "the declared shape is admitted");
-  assert.equal(selected.engine.requireObjectShapeCapability(undefined, record.targetType, {}, "json-serialization", "object-shape").kind,
+  assert.equal(selected.engine.requireObjectShapeCapability(undefined, record.targetType, "json-serialization", "object-shape").kind,
     "accepted", "a strict native root retains its existing typed serializer policy");
   const artifact = selected.artifact(selected.engine.close(), record);
   assert.equal(artifact.fact === record && artifact.capabilities.includes("json-serialization"), true, "the original native carrier owns serialization");
@@ -56,7 +56,7 @@ test("general native writer availability does not make non-JSON native storage a
   const selected = fixture([record]);
   assert.equal(selected.engine.registerObjectShape(record, "synthetic").kind, "accepted", "ordinary native storage stays legal");
   selected.engine.registerGeneralJsonWriter(record);
-  const strict = selected.engine.requireObjectShapeCapability(undefined, record.targetType, {}, "json-serialization", "object-shape");
+  const strict = selected.engine.requireObjectShapeCapability(undefined, record.targetType, "json-serialization", "object-shape");
   assert.equal(strict.kind, "rejected", "an available general writer does not forge a strict closed-leaf proof");
   assert.match(strict.reason, /no closed JSON serialization policy/u, "the original opaque-leaf boundary is retained");
   assert.equal(selected.artifact(selected.engine.close(), record).jsonContract.kind, "properties", "the general runtime path owns actual value dispatch");
@@ -66,7 +66,7 @@ test("native writer publication preserves the exact reference carrier without in
   const record = shape("Identity", [property("count", { kind: "source-primitive", name: "int32" })]);
   const selected = fixture([record]);
   assert.equal(selected.engine.registerObjectShape(record, "synthetic").kind, "accepted", "the original native type is registered");
-  assert.equal(selected.engine.requireObjectShapeCapability(undefined, record.targetType, {}, "reference-identity", "object-shape").kind,
+  assert.equal(selected.engine.requireObjectShapeCapability(undefined, record.targetType, "reference-identity", "object-shape").kind,
     "accepted", "the actual reference contract is retained");
   selected.engine.registerGeneralJsonWriter(record);
   const closure = selected.engine.close();

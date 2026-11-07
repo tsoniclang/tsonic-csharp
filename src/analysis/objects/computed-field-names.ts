@@ -1,4 +1,4 @@
-import { failTargetAnalysisInvariant, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { Node } from "@tsonic/tsts";
 import type { SourceAnalysisFacts } from "@tsonic/target-api/source";
 
@@ -6,21 +6,23 @@ import type { SourceAnalysisFacts } from "@tsonic/target-api/source";
 export type CsharpSourcePropertyNameSelection = NonNullable<ReturnType<SourceAnalysisFacts["propertyName"]>>;
 
 /**
- * The .NET refusal for a selected property name that has no static named-field form. A Host property-name refusal
- * (dynamic or effectful computed keys, enum-constant limits) is forwarded before C# analysis and never reaches here.
+ * The .NET refusal for a selected property name that has no static named-field form, at a site that needs a native
+ * named field (binding patterns, value carriers, source evidence). The Host selection decides the name (`rejected`
+ * with its reason and failure kind, or `unique-symbol`); C# reports only that no native named field exists. Codes and
+ * messages are the baseline ones (Q93 option b, Q94).
  */
 export function csharpNativePropertyNameIssue(
   sourceNode: Node,
   selection: CsharpSourcePropertyNameSelection,
 ): TargetDiagnostic | undefined {
-  if (selection.kind === "rejected") return failTargetAnalysisInvariant("tsonic-csharp",
-    "A property name is a Host refusal at a node C# analyzed; Host refusals are forwarded before C# analysis.", sourceNode);
-  if (selection.kind !== "unique-symbol") return undefined;
+  if (selection.kind !== "rejected" && selection.kind !== "unique-symbol") return undefined;
   return Object.freeze({
-    code: "CSHARP_COMPUTED_FIELD_NAME_NOT_PROVEN",
+    code: selection.kind === "rejected" && selection.failure === "resource"
+      ? "CSHARP_ENUM_CONSTANT_RESOURCE_LIMIT" : "CSHARP_COMPUTED_FIELD_NAME_NOT_PROVEN",
     category: "error",
     source: "tsonic-csharp",
     sourceNode,
-    message: "A unique-symbol property can describe an erased type contract but has no static native named-field representation.",
+    message: selection.kind === "rejected" ? selection.reason
+      : "A unique-symbol property can describe an erased type contract but has no static native named-field representation.",
   });
 }

@@ -159,7 +159,7 @@ export function finalizeCsharpNativeEmission(
     operations: admittedOperations, values: analysis.valueReads, factories: classFactories, definitions: typeDefinitions });
   const receiverCallProperties = analyzeCsharpReceiverCallProperties(sourceStorage.nodes, admittedOperations, admittedControlNode);
   const restSequences = analyzeCsharpRestSequences(sourceStorage.nodes, admittedOperations, analysis.valueReads, admittedControlNode);
-  const jsCalls = analyzeCsharpJsCalls(source.syntax, sourceStorage.nodes, admittedOperations, admittedControlNode);
+  const jsCalls = analyzeCsharpJsCalls(source.syntax, source.facts, sourceStorage.nodes, admittedOperations, admittedControlNode);
   const callAdmission = analyzeCsharpCallAdmission(source.syntax, sourceStorage.nodes, admittedOperations, analysis.valueReads, admittedControlNode);
   const optionalCallChains = analyzeCsharpOptionalCallChains(source.syntax, sourceStorage.nodes, admittedOperations, nativeDemand, admittedControlNode);
   const nonCallableIssues = [
@@ -198,7 +198,7 @@ export function finalizeCsharpNativeEmission(
       `Native consumption '${incomplete.site.role}' requires completed '${incomplete.reason}' evidence before publication.` +
       (incomplete.message === undefined ? "" : ` ${incomplete.message.slice(0, 2048)}`), incomplete.expression);
   }
-  const generators = analyzeCsharpGenerators({ ast: source.syntax, nodes: sourceStorage.nodes, evidence: analysis.sourceEvidence,
+  const generators = analyzeCsharpGenerators({ ast: source.syntax, facts: source.facts, nodes: sourceStorage.nodes, evidence: analysis.sourceEvidence,
     admitted: admittedControlNode, erased: node => analysis.sourceEvidence.compileTimeMetadata.get(node) === true ||
       admittedOperations.nativeUnreachable.get(node) === true || nativeParticipation.participation.get(node) === "erased",
     required: analysis.requiredRecords });
@@ -329,7 +329,7 @@ export function finalizeCsharpNativeEmission(
     rendered: node => propertyAdmission.records.sourceMemberEmission.get(node)?.kind === "member" ||
       memberReceivers.records.nativeMethodCallee.get(node) !== undefined });
   if (memberNames.issues.length !== 0) return rejectedTargetStage(memberNames.issues);
-  const typeParameterEmission = analyzeCsharpTypeParameterEmission({ ast: source.syntax, nodes: sourceStorage.nodes,
+  const typeParameterEmission = analyzeCsharpTypeParameterEmission({ ast: source.syntax, identity: source.facts.navigation.identity, nodes: sourceStorage.nodes,
     evidence: analysis.sourceEvidence, admitted: admittedControlNode });
   if (typeParameterEmission.issues.length !== 0) return rejectedTargetStage(typeParameterEmission.issues);
   const identifierIssues = analyzeCsharpIdentifierEmission({ ast: source.syntax, nodes: sourceStorage.nodes, names,
@@ -482,7 +482,7 @@ export function finalizeCsharpNativeEmission(
     methods: analyzeCsharpMethodEmission(source.syntax, nativeMemberNames),
     classFields: analyzeCsharpClassFieldInitialization({ ast: source.syntax, nodes: sourceStorage.nodes, storage: analysis.storage }),
     lexicalValues: lexicalValues.records,
-    structuralInterfaces: analyzeCsharpStructuralInterfaceEmission({ ast: source.syntax,
+    structuralInterfaces: analyzeCsharpStructuralInterfaceEmission({ ast: source.syntax, identity: source.facts.navigation.identity,
       shapes: callableAdapters.objectShapes, names, projectTypes, projections: analysis.typeProjections, declarations: analysis.declarations }),
     nativeDeclarations: analyzeCsharpNativeDeclarationForms({ ast: source.syntax, nodes: sourceStorage.nodes, projectTypes, required: analysis.requiredRecords }),
     declarationModifiers: analyzeCsharpDeclarationModifiers({ ast: source.syntax, facts: source.facts, nodes: sourceStorage.nodes,

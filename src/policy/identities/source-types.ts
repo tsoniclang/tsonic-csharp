@@ -1,6 +1,6 @@
-import type { AstReader } from "@tsonic/tsts";
+import type { AstReader, Node } from "@tsonic/tsts";
 import type { TargetSelection } from "@tsonic/target-api";
-import type { SourceTypeDescriptor } from "@tsonic/target-api/source";
+import type { SourceJsApiFacts, SourceTypeDescriptor } from "@tsonic/target-api/source";
 import { isTsonicSourceProfileDeclarationPath } from "@tsonic/target-api/provider";
 import { csharpTargetId } from "../../target-model/identities/target.js";
 import { jsRegExpSourceProfileIdentity } from "@tsonic/js-source-profile";
@@ -215,17 +215,24 @@ const sourceProfileTypePolicies = Object.freeze([
 export function classifyCsharpSourceProfileType(
   type: SourceTypeDescriptor,
   ast: AstReader,
+  profile: SourceJsApiFacts,
 ): CsharpSourceProfileTypeIdentity | undefined {
   for (let current: SourceTypeDescriptor | undefined = type; current?.kind === "declared"; current = current.definition) {
-    const identity = classifyCsharpSourceProfileDeclaration(current.declaration, ast);
+    const identity = classifyCsharpSourceProfileDeclaration(current.declaration, ast, profile);
     if (identity !== undefined) return identity;
   }
   return undefined;
 }
 
+/**
+ * The C# carrier table row of a source-profile type declaration. A JS profile type is keyed by its Host-published JS
+ * API identity (facts.profile.identity, D18); C# never derives a JS identity from paths or names. A declaration of
+ * the C# target's own source profile (its declaration path) is keyed by its authored name.
+ */
 export function classifyCsharpSourceProfileDeclaration(
-  declaration: Parameters<AstReader["name"]>[0],
+  declaration: Node,
   ast: AstReader,
+  profile: SourceJsApiFacts,
 ): CsharpSourceProfileTypeIdentity | undefined {
   if (
     !ast.is.IsClassDeclaration(declaration) &&
@@ -234,15 +241,16 @@ export function classifyCsharpSourceProfileDeclaration(
   ) {
     return undefined;
   }
-  const sourceFile = ast.getSourceFile(declaration);
-  if (sourceFile === undefined) {
-    return undefined;
+  const js = profile.identity(declaration);
+  if (js !== undefined) {
+    return js.kind !== "type" || js.name === undefined ? undefined
+      : sourceProfileTypePolicies.find(policy => policy.ownerId === "js" && policy.sourceName === js.name);
   }
-  const fileName = ast.getFileName(sourceFile);
-  const ownerId = sourceProfileOwner(fileName);
+  const sourceFile = ast.getSourceFile(declaration);
   const nameNode = ast.name(declaration);
   if (
-    ownerId === undefined ||
+    sourceFile === undefined ||
+    !isTsonicSourceProfileDeclarationPath(ast.getFileName(sourceFile), csharpTargetId) ||
     nameNode === undefined ||
     !ast.is.IsIdentifier(nameNode)
   ) {
@@ -250,19 +258,8 @@ export function classifyCsharpSourceProfileDeclaration(
   }
   const sourceName = ast.text(nameNode);
   return sourceProfileTypePolicies.find(
-    (policy) => policy.ownerId === ownerId && policy.sourceName === sourceName,
+    (policy) => policy.ownerId === csharpTargetId && policy.sourceName === sourceName,
   );
-}
-
-function sourceProfileOwner(
-  fileName: string,
-): CsharpSourceProfileTypeIdentity["ownerId"] | undefined {
-  if (isTsonicSourceProfileDeclarationPath(fileName, csharpTargetId)) {
-    return csharpTargetId;
-  }
-  return isTsonicSourceProfileDeclarationPath(fileName, "js")
-    ? "js"
-    : undefined;
 }
 
 function sourceProfileTypePolicy(

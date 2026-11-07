@@ -177,11 +177,9 @@ export function analyzeCsharpCallableContracts(
     contracts, declarationContracts: nativeDeclarations, byDeclaration,
     byProjectConstructor, closedInputs, creationPaths, returnSelections }));
 
-  /** The parameter's declared slot is `unknown` (or `any`), from the published slot type. */
+  /** The parameter's declared slot is top (`unknown` or `any`): the Host slot's openness (the one classifier). */
   function declaredUnknown(parameter: Node): boolean {
-    if (policy.ast.typeNode(parameter) === undefined) return false;
-    const declared = sourceSlot(policy.facts, parameter).type;
-    return declared.kind === "intrinsic" && (declared.intrinsic === "unknown" || declared.intrinsic === "any");
+    return policy.ast.typeNode(parameter) !== undefined && sourceSlot(policy.facts, parameter).openness === "top";
   }
 
   function isClosedCallableAlias(alias: Node): boolean {

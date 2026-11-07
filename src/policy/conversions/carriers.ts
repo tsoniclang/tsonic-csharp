@@ -10,9 +10,9 @@ import { targetBindingSubstitutions } from "./provider-operators.js";
 import type { CsharpTargetBindingFact, CsharpTargetNamedTypeRef, TargetConstraint, TargetTypeParameter, TargetTypeRef } from "../types/index.js";
 import type { CsharpConversionMode, CsharpConversionSelection } from "../../target-model/conversions/selection.js";
 import type { CsharpPolicyContext } from "../model/context.js";
-import { csharpUnionLeaves } from "../../target-model/types/union-relations.js";
-import { csharpSumArmSelection, csharpUnionProjectionPath, selectCsharpHostArmMapping, selectCsharpUnionArmMapping,
-  selectCsharpUnionInjection, type CsharpHostUnionUse } from "./union-relations.js";
+import { csharpUnionLeaves, isCsharpSourceSumCarrier } from "../../target-model/types/union-relations.js";
+import { csharpSumArmSelection, csharpUnionProjectionPath, selectCsharpHostArmMapping, selectCsharpHostCollapsedMapSlot,
+  selectCsharpUnionArmMapping, selectCsharpUnionInjection, type CsharpHostUnionUse } from "./union-relations.js";
 import type { CsharpConversionShapeQueries } from "./shape-queries.js";
 import { csharpNativeRepresentationMatches } from "./native-representation.js";
 import { getCsharpCallableValueSignature, getCsharpTaskResultTargetType } from "../../target-model/types/carriers/delegates.js";
@@ -72,30 +72,46 @@ export function selectRuntimeUnionConversion(
 ): CsharpConversionSelection | undefined {
   const sourceElement = getCsharpNullableElementTargetType(source);
   const relation = hostUse?.relation;
-  // A Host map (narrowed read, widening write, cast) is realized arm-to-arm; the Host decided every arm's destination.
-  if (relation?.kind === "map") {
-    const arms = selectCsharpHostArmMapping(relation, hostUse!.sums.sum(relation.source), hostUse!.sums.sum(relation.destination),
-      source, target, input.typeDefinitions);
-    if (arms !== undefined) return { kind: "union-map", coverage: relation.mode === "write" ? "source" : "target", arms };
-  }
-  const injectionTarget = getCsharpRuntimeUnionArms(target, input.typeDefinitions) !== undefined;
-  const hostArm = relation?.kind === "select-arm" && injectionTarget
-    ? csharpSumArmSelection(hostUse!.sums.sum(relation.sum), relation.arm) : undefined;
+  const definitions = input.typeDefinitions;
+  const targetArms = getCsharpRuntimeUnionArms(target, definitions);
   const convertArm = hostUse?.convertArm ?? ((arm: TargetTypeRef) => selectCsharpConversion(input, source, arm, mode));
-  if (mode === "explicit" && sourceElement !== undefined && getCsharpRuntimeUnionArms(sourceElement, input.typeDefinitions) !== undefined &&
-    getCsharpRuntimeUnionArms(getCsharpNullableElementTargetType(target) ?? target, input.typeDefinitions) === undefined) {
+  // A Host map (widening write, cast) is realized arm-to-arm; the Host decided every arm's destination (C-2479).
+  if (relation?.kind === "map") {
+    const sourceSum = hostUse!.sums.sum(relation.source);
+    const destinationSum = hostUse!.sums.sum(relation.destination);
+    const arms = selectCsharpHostArmMapping(relation, sourceSum, destinationSum, source, target, definitions);
+    if (arms !== undefined) return { kind: "union-map", coverage: relation.mode === "write" ? "source" : "target", arms };
+    // Q73: a source sum stored in ONE carrier moves as one payload into the one destination slot its arms map to.
+    const slot = targetArms === undefined ? undefined
+      : selectCsharpHostCollapsedMapSlot(relation, sourceSum, destinationSum, source, target, definitions);
+    if (slot !== undefined) return selectCsharpUnionInjection(source, target, definitions, mode, convertArm, slot) ?? {
+      kind: "rejected", reason: "The value has no CLR conversion to the payload of the Host-mapped union arm." };
+    return { kind: "rejected", reason: "The .NET carriers of the two sums cannot realize the Host union map at this use." };
+  }
+  // A Host select-arm places the payload in exactly that arm's storage slot (coincident arms share one, Q73).
+  const hostArm = relation?.kind === "select-arm" && targetArms !== undefined
+    ? csharpSumArmSelection(hostUse!.sums.sum(relation.sum), relation.arm, target, definitions) : undefined;
+  if (hostArm !== undefined) return selectCsharpUnionInjection(source, target, definitions, mode, convertArm, hostArm) ?? {
+    kind: "rejected", reason: "The Host-selected union arm takes no payload." };
+  if (mode === "explicit" && sourceElement !== undefined && getCsharpRuntimeUnionArms(sourceElement, definitions) !== undefined &&
+    getCsharpRuntimeUnionArms(getCsharpNullableElementTargetType(target) ?? target, definitions) === undefined) {
     return selectCsharpRuntimeUnionProjection(input, source, target);
   }
-  const sourceArms = getCsharpRuntimeUnionArms(source, input.typeDefinitions);
-  const targetArms = getCsharpRuntimeUnionArms(target, input.typeDefinitions);
-  const completeInjection = selectCsharpUnionInjection(source, target, input.typeDefinitions, mode,
-    hostArm === undefined ? () => undefined : convertArm, hostArm);
-  if (completeInjection !== undefined) return completeInjection;
-  const widening = selectCsharpUnionArmMapping(source, target, "source", input.typeDefinitions,
-    (sourceArm, targetArm) => csharpUnionReferenceImplicitlyAccepts(input, sourceArm, targetArm));
-  if (widening !== undefined) return { kind: "union-map", coverage: "source", arms: widening };
-  const narrowing = mode === "explicit" ? selectCsharpUnionArmMapping(source, target, "target", input.typeDefinitions) : undefined;
-  if (narrowing !== undefined) return { kind: "union-map", coverage: "target", arms: narrowing };
+  const sourceArms = getCsharpRuntimeUnionArms(source, definitions);
+  // R3 #1: a Source sum is entered or mapped only along its Host relation. Without one, only native-ordered .NET unions
+  // keep the CLR pair proofs below; a Source sum target throws inside selectCsharpUnionInjection (invariant, I4).
+  const sourceSum = isCsharpSourceSumCarrier(source, definitions);
+  const targetSum = isCsharpSourceSumCarrier(target, definitions);
+  if (targetArms !== undefined && targetSum) return selectCsharpUnionInjection(source, target, definitions, mode, convertArm);
+  if (!sourceSum && !targetSum) {
+    const completeInjection = selectCsharpUnionInjection(source, target, definitions, mode, () => undefined);
+    if (completeInjection !== undefined) return completeInjection;
+    const widening = selectCsharpUnionArmMapping(source, target, "source", definitions,
+      (sourceArm, targetArm) => csharpUnionReferenceImplicitlyAccepts(input, sourceArm, targetArm));
+    if (widening !== undefined) return { kind: "union-map", coverage: "source", arms: widening };
+    const narrowing = mode === "explicit" ? selectCsharpUnionArmMapping(source, target, "target", definitions) : undefined;
+    if (narrowing !== undefined) return { kind: "union-map", coverage: "target", arms: narrowing };
+  }
   if (sourceArms !== undefined && targetArms !== undefined) return {
     kind: "rejected", reason: "C# runtime-union conversion requires the source representation to match one exact union arm. Every source arm requires unambiguous exact or native-reference payload correspondence.",
   };

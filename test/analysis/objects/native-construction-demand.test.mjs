@@ -175,7 +175,7 @@ ${source}`,
     });
     policy = createCsharpObjectShapePolicy({
       ast,
-      sourceStorage: facts.analyses.storage({ sourceFiles: view.sourceFiles }),
+      sourceStorage: facts.analyses.storage({ sourceFiles: view.sourceFiles, premises: {} }),
       projectTypeCatalog: services.projectTypes,
       typeParameterConstraints: createCsharpTypeParameterEnvironment(() => ({ kind: "resolved", constraints: [] })),
       representation: () => services,
@@ -352,6 +352,15 @@ test("declared native construction rejects lost fields, accessors, methods, inco
     assert.equal(selected.issues.some(issue => issue.node === literal && issue.code === "CSHARP_NATIVE_CONSTRUCTION_NOT_PROVEN"), true,
       `${label}: one native construction refusal; ${selected.label}`);
   }
+  // Missing shape publication (baseline control): a native destination whose effective shape is unpublished refuses.
+  const unpublished = nativeProgram({ context: contextRow("user"), source: `
+    export function run(): void { const value: ContextRow = { user: 1n }; void value; }` });
+  const unpublishedLiteral = unpublished.initializer("value");
+  const missing = unpublished.run({ resolveEffectiveShape: () => undefined });
+  assert.equal(missing.constructionFor(unpublishedLiteral), undefined, "missing publication: no native allocation");
+  assert.equal(missing.issues.length === 1 && missing.issues[0].node === unpublishedLiteral &&
+    missing.issues[0].code === "CSHARP_NATIVE_CONSTRUCTION_NOT_PROVEN" && missing.issues[0].message === nativeFailure, true,
+  `missing publication: the native construction refusal; ${missing.label}`);
   // Existing values (class / struct / enum storage, bound members) are not allocations: nothing is constructed.
   const existing = nativeProgram({ context: contextRow("user"), source: `
     declare class Seed { user: Words.int64; }

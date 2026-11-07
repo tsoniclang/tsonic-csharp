@@ -12,12 +12,15 @@ for (const surface of [undefined, "js"]) {
       compileTarget(request, observer) { received = request; return compileCsharpAnalysisTarget(request, observer); } });
     assert.equal(compiled.artifacts.size, 0);
     assert.deepEqual(compiled.result.diagnostics.map(diagnostic => diagnostic.code), ["TSONIC_UNCALLED_BINARY_ENTRY_MAIN"]);
-    // nextgen C-2542 (R-F5-B6): the refusal is Host-originated; C# forwards the facts.refusals() entry unchanged.
+    // nextgen C-2542 (R-F5-B6, Q33): the refusal is Host-originated (analyses.binaryEntryIssues of the entry file);
+    // whether the output is an executable is the target setting, so C# forwards that Host issue unchanged.
     const [diagnostic] = compiled.result.diagnostics;
-    const published = received.input.source.facts.refusals().filter(refusal => refusal.code === diagnostic.code);
+    const source = received.input.source;
+    const entry = source.syntax.getSourceFile(diagnostic.sourceNode);
+    const published = source.facts.analyses.binaryEntryIssues(entry).filter(issue => issue.code === diagnostic.code);
     assert.equal(published.length, 1, "one published Host refusal");
     assert.equal(diagnostic.message, published[0].message, "the Host message is forwarded unchanged");
-    assert.equal(diagnostic.sourceNode, published[0].site, "the Host site is forwarded unchanged");
+    assert.equal(diagnostic.sourceNode, published[0].node, "the Host site is forwarded unchanged");
   });
 
   for (const [name, source] of [

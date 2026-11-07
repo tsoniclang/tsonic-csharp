@@ -252,8 +252,10 @@ function mapConstructorPolicy(): CsharpSourceProfileCallPolicy {
     source: jsConstructIdentity("MapConstructor"),
     select(context): CsharpSourceProfileCallPolicyResult {
       const typeArguments = context.inputs.callTypeArguments;
-      const result = typeArguments?.length === 2
-        ? csharpJsMapTargetType(typeArguments[0]!, typeArguments[1]!)
+      // Q77/Q86: the key's Source categories are the one Host query over the key binder's Host descriptor.
+      const key = context.source.typeArguments[0];
+      const result = typeArguments?.length === 2 && key !== undefined
+        ? csharpJsMapTargetType(typeArguments[0]!, typeArguments[1]!, context.host.facts.profile.keyCategories(key.type))
         : undefined;
       const shape = getCsharpJsMapTargetTypes(result);
       if (result === undefined || shape === undefined) {
@@ -296,8 +298,10 @@ function setConstructorPolicy(): CsharpSourceProfileCallPolicy {
     source: jsConstructIdentity("SetConstructor"),
     select(context): CsharpSourceProfileCallPolicyResult {
       const typeArguments = context.inputs.callTypeArguments;
-      const result = typeArguments?.length === 1
-        ? csharpJsSetTargetType(typeArguments[0]!)
+      // Q77/Q86: the element's Source categories are the one Host query over the element binder's Host descriptor.
+      const elementBinder = context.source.typeArguments[0];
+      const result = typeArguments?.length === 1 && elementBinder !== undefined
+        ? csharpJsSetTargetType(typeArguments[0]!, context.host.facts.profile.keyCategories(elementBinder.type))
         : undefined;
       const element = getCsharpJsSetElementTargetType(result);
       if (result === undefined || element === undefined) {

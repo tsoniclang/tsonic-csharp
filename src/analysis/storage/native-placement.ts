@@ -203,7 +203,7 @@ export function analyzeCsharpRefLikePlacements(input: CsharpNativePlacementInput
             !input.source.facts.navigation.identity.isProjectDeclaration(callee.declaration)) continue;
           const allowed = callee.kind === "function" || callee.kind === "method"
             ? [(ast.is.IsFunctionDeclaration(callee.declaration) && ast.body(callee.declaration) === undefined
-                ? selectCsharpSourceCallableGenericAbi(ast, callee.declaration)
+                ? selectCsharpSourceCallableGenericAbi(ast, input.source.facts.navigation.identity, callee.declaration)
                 : input.callables.get({ kind: "declaration", declaration: callee.declaration })?.nativeSignature)
               ?.methodAllowsRefLikeTypeArguments]
             : callee.kind === "union-method" && sourceCall.unionCall?.kind === "resolved"

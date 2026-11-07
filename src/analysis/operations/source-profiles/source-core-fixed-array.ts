@@ -59,7 +59,7 @@ export function selectCsharpSourceCoreFixedArrayElement(
   const receiver = resolveFixedArrayReceiver(host, source.receiver);
   const index = host.ast.as.AsElementAccessExpression(access)?.ArgumentExpression;
   if (index === undefined) return undefined;
-  const integralLiteral = csharpLiteralIsRepresentableAs(host.facts.values.literal(index), csharpSourcePrimitiveTargetType("int32"));
+  const integralLiteral = csharpLiteralIsRepresentableAs(host.facts.values.literal(index), csharpSourcePrimitiveTargetType("int32"), host.facts.analyses.platform);
   const indexSelection = integralLiteral ? undefined : host.types.value(index);
   const indexType = integralLiteral ? csharpSourcePrimitiveTargetType("int32")
     : indexSelection === undefined || indexSelection.kind === "csharp-refused" ? undefined : indexSelection;

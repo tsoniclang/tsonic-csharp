@@ -26,6 +26,16 @@ export function selectCsharpIteration(
   }
   if (input.ast.is.IsForOfStatement(statement)) {
     const kind = input.ast.as.AsForInOrOfStatement(statement)?.AwaitModifier === undefined ? "for-of" : "for-await-of";
+    if (kind === "for-await-of") {
+      // A for-await without one iteration protocol: the Host publishes the per-arm protocols ("mixed") or none
+      // ("untyped") and raises no code; C# refuses the loop with its baseline texts (Q94, #47).
+      const published = input.facts.selections.iteration(statement);
+      if (published !== undefined && "kind" in published && published.kind === "unresolved-protocol") {
+        return rejectCsharpIteration(published.reason === "mixed"
+          ? "For-await union iteration requires every exact source alternative to select one target iteration policy."
+          : "Untyped dynamic for-await iteration has no closed C# target protocol.");
+      }
+    }
     return selectCsharpNativeIteration({ kind, statement, selection: sourceIteration(input.facts, statement) },
       iterableType, undefined, undefined);
   }

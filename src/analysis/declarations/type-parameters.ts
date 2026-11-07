@@ -1,10 +1,13 @@
 import type { AstReader, Node } from "@tsonic/tsts";
+import type { SourceIdentityRoles } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
 import { csharpSourceTypeParameter } from "../../source/extension/type-parameters.js";
 import { createCsharpTypeParameterEmissionProducer } from "../program/records/types/type-parameters.js";
+import { forwardSourceRefusal } from "../program/source-facts.js";
 
-export function analyzeCsharpTypeParameterEmission(input: { readonly ast: AstReader; readonly nodes: readonly Node[];
+export function analyzeCsharpTypeParameterEmission(input: { readonly ast: AstReader;
+  readonly identity: Pick<SourceIdentityRoles, "identity">; readonly nodes: readonly Node[];
   readonly evidence: CsharpSourceEvidenceIndex; readonly admitted: (node: Node) => boolean }) {
   const producer = createCsharpTypeParameterEmissionProducer();
   const issues: TargetDiagnostic[] = [];
@@ -13,7 +16,7 @@ export function analyzeCsharpTypeParameterEmission(input: { readonly ast: AstRea
     const owner = input.ast.parent(node);
     if (owner === undefined || !input.admitted(owner) || typeLevelOwner(input.ast, owner)) continue;
     const declaration = input.ast.as.AsTypeParameterDeclaration(node);
-    const parameter = csharpSourceTypeParameter(node, input.ast);
+    const parameter = csharpSourceTypeParameter(node, input.ast, input.identity);
     const name = input.ast.name(node);
     if (declaration === undefined || parameter === undefined || name === undefined)
       failTargetAnalysisInvariant("tsonic-csharp", "An admitted generic parameter requires its exact checked identity.", node);
@@ -23,6 +26,11 @@ export function analyzeCsharpTypeParameterEmission(input: { readonly ast: AstRea
     if (declaration.Expression !== undefined) {
       issues.push({ code: "CSHARP_TYPE_PARAMETER_CONSTRAINT", category: "error", source: "tsonic-csharp", sourceNode: node,
         message: "Expression-based generic type parameters are outside the current C# planning surface." });
+      continue;
+    }
+    // A Host refusal of an authored constraint part is forwarded unchanged (R5).
+    if (resolution.kind === "refused") {
+      issues.push(forwardSourceRefusal(resolution.refusal));
       continue;
     }
     if (resolution.kind === "unsupported") {

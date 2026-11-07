@@ -1,3 +1,4 @@
+import { knownNativePlatform64 } from "../../helpers/native-integer-platform.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { checkedSourceLiteralValues } from "../../helpers/source-literal-values.mjs";
@@ -85,7 +86,7 @@ test("small native integer recipes use exact scalar evidence without folding sel
       const literal = datum("numeric", { number: Number(value), integer: value });
       assert.deepEqual(select(literal, target, target),
         { kind: "resolved", recipe: { kind: "integer", target, width: name, value } }, `${name} ${value}`);
-      assert.equal(csharpLiteralIsRepresentableAs(literal, target), true, `${name}: exact bounds agree`);
+      assert.equal(csharpLiteralIsRepresentableAs(literal, target, knownNativePlatform64), true, `${name}: exact bounds agree`);
     }
     for (const value of [minimum - 1n, maximum + 1n]) {
       assert.equal(select(datum("numeric", { number: Number(value), integer: value }), primitive(name), primitive(name)).kind,
@@ -131,7 +132,7 @@ test("authored native float32 and decimal recipes preserve the exact token rathe
     const selected = select(value, primitive("float64"), target);
     const label = `${precision} ${spellings[index]}`;
     assert.equal(selected.kind === "resolved", accepted, label);
-    assert.equal(csharpLiteralIsRepresentableAs(value, target), accepted, `${label}: range selection agrees`);
+    assert.equal(csharpLiteralIsRepresentableAs(value, target, knownNativePlatform64), accepted, `${label}: range selection agrees`);
     if (!accepted) {
       assert.equal(selected.reason, `Source numeric literal is outside the '${precision}' range.`, label);
       continue;
@@ -152,7 +153,7 @@ test("an actual checked float64 value is not an authored F or M literal conversi
       numeric: Object.freeze({ kind: "checked-float64", value }) });
     for (const precision of ["float32", "decimal"]) {
       assert.deepEqual(select(literal, primitive("float64"), primitive(precision)), { kind: "not-applicable" }, `${precision} actual double`);
-      assert.equal(csharpLiteralIsRepresentableAs(literal, primitive(precision)), false,
+      assert.equal(csharpLiteralIsRepresentableAs(literal, primitive(precision), knownNativePlatform64), false,
         `${precision}: actual float64 conversion requires its selected operation, not literal adaptation`);
     }
   }

@@ -17,7 +17,6 @@ import { csharpNativePropertyNameIssue } from "../objects/computed-field-names.j
 import { isCsharpJsValueTargetType, targetTypeRefEquals, targetTypeRefKey } from "../../policy/types/index.js";
 import { isTypeParameterTargetRef } from "../../policy/ownership/type-categories.js";
 import { csharpTargetTypeComponents } from "../../target-model/types/components.js";
-import { csharpTsValueTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpTypeQueries } from "../../policy/model/type-resolution.js";
 import { csharpSourceTypeParameter } from "../../source/extension/type-parameters.js";
@@ -34,7 +33,7 @@ import { selectCsharpSourceArgument } from "../../source/extension/arguments.js"
 import { readCsharpSourceDefaultValue, readCsharpSourceField, readCsharpSourceStruct } from "../../source/extension/markers.js";
 import { createCsharpPointerBackingDemands } from "./pointer-backing.js";
 import { analyzeCsharpTypeOnlyDeclarations } from "../declarations/type-only.js";
-import { selectCsharpClassFactoryType } from "../project-types/class-factory-types.js";
+import { selectCsharpClassFactoryType } from "../../policy/types/objects/class-factory-types.js";
 import { isCsharpRefusal, type CsharpRefusal, type CsharpRepresentation } from "../../representation/index.js";
 import { csharpFixedArrayRefusalCode } from "../../policy/types/collections/fixed-arrays.js";
 
@@ -163,7 +162,10 @@ export function analyzeCsharpSourceEvidence(
     }
   }
 
-  /** Storage of a node: the slot it names (catch variables use the TS value carrier), else its own value. */
+  /**
+   * Storage of a node: the Host slot it names (a catch variable included: its Source type is the Host slot of the catch
+   * declaration, represented by the one mapping; R3 #12), else its own value.
+   */
   function storageOf(node: Node): CsharpRepresentation | undefined {
     if (ast.is.IsParenthesizedExpression(node)) {
       const inner = ast.as.AsParenthesizedExpression(node)?.Expression;
@@ -171,7 +173,6 @@ export function analyzeCsharpSourceEvidence(
     }
     const declaration = isValueDeclaration(node) ? node : facts.navigation.identity.target(node)?.declaration;
     if (declaration !== undefined && isValueDeclaration(declaration)) {
-      if (isCatchVariable(declaration)) return csharpTsValueTargetType();
       return facts.values.has(declaration) ? types.storage(declaration) : undefined;
     }
     return facts.values.has(node) ? types.value(node) : undefined;
@@ -180,12 +181,6 @@ export function analyzeCsharpSourceEvidence(
   function isValueDeclaration(node: Node): boolean {
     return ast.is.IsVariableDeclaration(node) || ast.is.IsParameterDeclaration(node) || ast.is.IsBindingElement(node) ||
       ast.is.IsPropertyDeclaration(node) || ast.is.IsPropertySignatureDeclaration(node);
-  }
-
-  function isCatchVariable(declaration: Node): boolean {
-    if (!ast.is.IsVariableDeclaration(declaration)) return false;
-    const parent = ast.parent(declaration);
-    return parent !== undefined && ast.is.IsCatchClause(parent) && ast.as.AsCatchClause(parent)?.VariableDeclaration === declaration;
   }
 
   function isCallableBody(node: Node): boolean {
@@ -308,13 +303,16 @@ export function analyzeCsharpSourceEvidence(
       const pointerReturn = types.resolvePointerReturn(node);
       if (pointerReturn !== undefined) pointerReturns.set(node, pointerReturn);
       const outcome = facts.values.callableReturn(node);
-      // A refused callable result is a Host refusal, forwarded before C# analysis; it has no C# return carrier.
+      // .NET rule (R3 #29): the return carrier is the PHYSICAL pointer-return carrier when the native storage analysis
+      // proved one (pointer-return.ts: every return produces pointer storage of one exact native pointee, so the C#
+      // method returns that Location<P>), as a physical read replaces a logical carrier (physical-reads.ts). Every other
+      // callable returns the represented Host result. A refused Host result is forwarded before C# analysis.
       const inferred = pointerReturn?.type ?? (outcome.kind === "refused" ? undefined
         : represented(types.represent(outcome.type, node, "return"), node, typeOnly));
       if (inferred !== undefined) inferredReturns.set(node, recordTargetType(inferred)!);
     }
     if (ast.is.IsTypeParameterDeclaration(node)) {
-      const parameter = csharpSourceTypeParameter(node, ast);
+      const parameter = csharpSourceTypeParameter(node, ast, facts.navigation.identity);
       if (parameter !== undefined) typeParameterConstraints.set(node, types.typeParameterConstraints(node, parameter));
     }
     ast.forEachChild(node, child => {
@@ -325,17 +323,20 @@ export function analyzeCsharpSourceEvidence(
   /**
    * A flow read: the Host publishes the narrowed read type at the occurrence (relations narrowed-read), so the
    * selected carrier is the occurrence's own representation; `exact` when it equals the principal slot type.
+   * The principal is the Host navigation target of the read (its storage declaration) and nothing else (R3 #11, C6-D5:
+   * never the solved group or an association component). A read with no storage declaration reads its own storage, so
+   * it is exact unless the Host publishes a narrowing relation at it (narrowed-read map or extract-arm). Pending Host
+   * request R-FXCR-11: publish the principal and exactness at the read.
    */
   function valueRefinement(node: Node, value: SourceTypeDescriptor, selectedTargetType: TargetTypeRef | undefined,
     readStorageTargetType: TargetTypeRef | undefined): CsharpValueRefinementClassification {
-    const outcome = facts.values.type(node);
-    const principalNode = csharpFlowReadPrincipalDeclaration(ast, facts.navigation.identity, node) ??
-      (outcome.kind === "refused" ? undefined : outcome.provenance.component?.declaration ?? outcome.provenance.group);
-    const principal = principalNode === undefined || !facts.values.has(principalNode) ? undefined : facts.values.type(principalNode);
-    const exact = principal !== undefined && principal.kind !== "refused" && sourceTypeDescriptorsEqual(value, principal.type);
     const relation = facts.relations.at(node);
     const narrowed = relation !== undefined && (relation.kind === "extract-arm" ||
       relation.kind === "map" && relation.mode === "narrowed-read");
+    const principalNode = csharpFlowReadPrincipalDeclaration(ast, facts.navigation.identity, node);
+    const principal = principalNode === undefined || !facts.values.has(principalNode) ? undefined : facts.values.type(principalNode);
+    const exact = principalNode === undefined ? !narrowed
+      : principal !== undefined && principal.kind !== "refused" && sourceTypeDescriptorsEqual(value, principal.type);
     const flowReadTargetType = recordTargetType(selectCsharpFlowReadCarrier({
       exactSourceRead: exact,
       nativeSourceRead: narrowed,

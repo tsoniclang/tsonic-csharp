@@ -51,7 +51,8 @@ function fixture(body, overrides = {}) {
   if (overrides.scopedTrailing === true) {
     const owner = source.syntax.statements(file).find(node => source.syntax.is.IsFunctionDeclaration(node) &&
       source.syntax.body(node) !== undefined && source.syntax.typeParameters(node).length > 0);
-    scopedBinder = csharpSourceTypeParameter(source.syntax.typeParameters(owner)[0], source.syntax);
+    scopedBinder = csharpSourceTypeParameter(source.syntax.typeParameters(owner)[0], source.syntax,
+      source.facts.navigation.identity);
     assert.equal(scopedBinder !== undefined, true, "exact source-owned enclosing binder");
     const trailing = overrides.foreignTrailing ? { ...scopedBinder, identity: "foreign:same-name" } : scopedBinder;
     scopedType = csharpDelegateTargetType("System.Func", [scopedBinder, scalar, csharpJsArrayTargetType(trailing)], scopedBinder);

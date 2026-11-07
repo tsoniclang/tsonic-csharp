@@ -2,11 +2,12 @@
 // the one descriptor -> TargetTypeRef mapping (representation/, I6) with real Host facts. Obligation tests prove only
 // the CLR half: the Host decided the Source relation; C# checks that the chosen .NET carrier can hold it, and refuses
 // with CSHARP_TYPE_FLOW_UNREPRESENTABLE (I7; the former CSHARP_UNSUPPORTED_AST is split by .NET reason, AGENT-D1-NOTES §1.5).
+import { knownNativePlatform64 } from "../../helpers/native-integer-platform.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { hostProgram, representationServices, representations, represented } from "../../representation/host-fixture.mjs";
 import { csharpRepresentationContext, isCsharpRefusal, representSourceType, representObject } from "../../../dist/representation/index.js";
-import { checkCsharpSourceTypeFlowObligation, checkCsharpSourceTypeFlowObligations } from "../../../dist/policy/types/source-type-flow/obligations.js";
+import { checkCsharpSourceTypeFlowObligation, checkCsharpSourceTypeFlowObligations } from "../../../dist/analysis/source-evidence/type-flow-obligation-checks.js";
 import { selectCsharpSourceTypeFlowIndexConversion, csharpSourceTypeFlowShiftCountType } from "../../../dist/policy/conversions/source-type-flow-index.js";
 import { analyzeCsharpSourceTypeFlowObligations } from "../../../dist/analysis/source-evidence/type-flow-obligations.js";
 import { csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
@@ -55,6 +56,7 @@ function obligationHost(profile = "native", overrides = {}) {
       const selected = represent(descriptor);
       return isCsharpRefusal(selected) ? undefined : selected;
     },
+    platform: knownNativePlatform64,
     literal: () => undefined,
     valueType: unexpected,
     arrayLiteral: unexpected,

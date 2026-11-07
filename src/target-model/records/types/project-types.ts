@@ -23,6 +23,8 @@ export interface CsharpProjectTypeIssue {
   readonly node: Node;
   readonly code: string;
   readonly message: string;
+  /** "tsonic" for a Host refusal forwarded unchanged; otherwise a C# (tsonic-csharp) issue. */
+  readonly source?: "tsonic";
 }
 
 interface CsharpProjectTypeDefinitionData {

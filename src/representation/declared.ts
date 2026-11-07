@@ -3,7 +3,7 @@
 // a project type or an external CLR binding. Each is decided from the declaration and its extension facts only.
 import { createHash } from "node:crypto";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
-import { sourceTypeDescriptorStructure, type SourceTypeDescriptor } from "@tsonic/target-api/source";
+import { sourceTypeDescriptorsEqual, sourceTypeDescriptorStructure, type SourceTypeDescriptor } from "@tsonic/target-api/source";
 import { providerVirtualDeclarationFactKey, sourceMarkerFactKey, sourcePrimitiveFactKey, type Node } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../target-model/types/model.js";
 import { csharpRuntimeLocationTargetType, csharpRuntimeRawPointerTargetType, getCsharpRuntimeUnionArms } from "../target-model/types/carriers/runtime-carriers.js";
@@ -32,7 +32,7 @@ export function representDeclared(descriptor: DeclaredDescriptor, context: Cshar
   if (syntax.is.IsTypeParameterDeclaration(declaration)) {
     if (descriptor.typeArguments.length !== 0) failTargetAnalysisInvariant("tsonic-csharp",
       "A generic binder reference carries no type arguments.", declaration);
-    const parameter = csharpSourceTypeParameter(declaration, syntax);
+    const parameter = csharpSourceTypeParameter(declaration, syntax, context.facts.navigation.identity);
     if (parameter === undefined) return csharpRefusal("CSHARP_GENERIC_BINDER", "A generic binder has no C# identifier.", declaration);
     return context.typeParameters.resolve(parameter);
   }
@@ -40,8 +40,8 @@ export function representDeclared(descriptor: DeclaredDescriptor, context: Cshar
   if (marker !== undefined) return marker;
   const arguments_ = representAll(descriptor.typeArguments, argument => represent(argument));
   if (isCsharpRefusal(arguments_)) return arguments_;
-  const profile = classifyCsharpSourceProfileDeclaration(declaration, syntax);
-  if (profile !== undefined) return representProfileType(profile, arguments_, context);
+  const profile = classifyCsharpSourceProfileDeclaration(declaration, syntax, context.facts.profile);
+  if (profile !== undefined) return representProfileType(profile, descriptor, arguments_, context);
   if (syntax.is.IsTypeAliasDeclaration(declaration)) return representAlias(descriptor, arguments_, context, represent);
   const project = context.projectTypes.definitionForDeclaration(declaration);
   if (project !== undefined) {
@@ -122,12 +122,17 @@ export function authoredTypeDescriptor(typeNode: Node, context: CsharpRepresenta
 }
 
 function representProfileType(profile: NonNullable<ReturnType<typeof classifyCsharpSourceProfileDeclaration>>,
-  arguments_: readonly TargetTypeRef[], context: CsharpRepresentationContext): CsharpRepresentation {
+  descriptor: DeclaredDescriptor, arguments_: readonly TargetTypeRef[], context: CsharpRepresentationContext): CsharpRepresentation {
   const dictionary = profile.kind === "record" && arguments_.length === 2
     ? csharpProviderBindingFromResolution(context.providers.findTargetBindingByMetadataName("System.Collections.Generic.Dictionary`2", "ordinary"))
     : undefined;
   const dictionaryCarrier = dictionary === undefined ? undefined : csharpTargetTypeFromBinding(dictionary, arguments_);
-  const selected = selectCsharpSourceProfileCarrier({ dictionaryCarrier }, profile, arguments_);
+  // Q77/Q86: the Source key category of each present arm of a Set element or Map key is the Host's
+  // (facts.profile.keyCategories of the key descriptor); undefined for a key that is not a union.
+  const key = profile.kind === "set" || profile.kind === "readonly-set" || profile.kind === "map" || profile.kind === "readonly-map"
+    ? descriptor.typeArguments[0] : undefined;
+  const keyCategories = key === undefined ? undefined : context.facts.profile.keyCategories(key);
+  const selected = selectCsharpSourceProfileCarrier({ dictionaryCarrier, keyCategories }, profile, arguments_);
   if (selected === undefined) return csharpRefusal("CSHARP_DECLARATION_BINDING",
     `Profile type '${profile.sourceName}' has no .NET carrier for these type arguments.`, context.occurrence);
   if (profile.kind !== "error") return selected;
@@ -167,7 +172,7 @@ function representProjectType(descriptor: DeclaredDescriptor, arguments_: readon
   // Generated binders (optional / collection-key / source-union projections) follow from the arguments by substitution.
   const bindings = new Map<string, TargetTypeRef>();
   for (const [index, parameter] of parameters.entries()) {
-    const native = csharpSourceTypeParameter(parameter, context.syntax);
+    const native = csharpSourceTypeParameter(parameter, context.syntax, context.facts.navigation.identity);
     if (native === undefined) return csharpRefusal("CSHARP_GENERIC_BINDER", "A generic binder has no C# identifier.", parameter);
     bindings.set(native.identity, arguments_[index]!);
   }
@@ -202,7 +207,7 @@ function representAlias(descriptor: DeclaredDescriptor, arguments_: readonly Tar
   }
   if (descriptor.definition === undefined) failTargetAnalysisInvariant("tsonic-csharp",
     "A type alias reference without a cut must carry its definition.", context.occurrence);
-  return representAliasApplication(declaration, identity, arguments_, descriptor.definition, context, represent);
+  return representAliasApplication(declaration, identity, arguments_, descriptor.definition, context, represent, descriptor.typeArguments);
 }
 
 /** Nested applications of one alias being built at once; a deeper nesting is polymorphic recursion (`T<V> = … T<V[]>`). */
@@ -217,7 +222,8 @@ function aliasUnionName(identity: string): string {
 }
 
 function representAliasApplication(declaration: Node, identity: string, arguments_: readonly TargetTypeRef[],
-  definition: SourceTypeDescriptor, context: CsharpRepresentationContext, represent: RepresentDescriptor): CsharpRepresentation {
+  definition: SourceTypeDescriptor, context: CsharpRepresentationContext, represent: RepresentDescriptor,
+  sourceArguments: readonly SourceTypeDescriptor[] | undefined): CsharpRepresentation {
   const key = aliasApplicationKey(identity, arguments_);
   const active = context.recursiveAliases.get(key);
   if (active !== undefined) {
@@ -225,7 +231,12 @@ function representAliasApplication(declaration: Node, identity: string, argument
       active.recursive = true;
       return active.reference;
     }
-    if (active.result !== undefined) return active.result;
+    // R3 #21: a finished application is reused only for the same Source application (literal type arguments such as
+    // Tagged<"a"> / Tagged<"b"> map to one .NET argument but are distinct shapes, R-A5-1), and a refusal is never
+    // reused, so every occurrence is refused at its own site (R5).
+    if (active.result !== undefined && !isCsharpRefusal(active.result) && sameSourceArguments(active.sourceArguments, sourceArguments)) {
+      return active.result;
+    }
   }
   let nesting = 0;
   for (const record of context.recursiveAliases.values()) if (record.identity === identity && record.building) nesting += 1;
@@ -235,7 +246,7 @@ function representAliasApplication(declaration: Node, identity: string, argument
   const carrier = csharpSourceUnionTargetType(identity, aliasUnionName(identity), arguments_);
   const absent = sourceTypeDescriptorStructure(definition).kind === "optional";
   const record: CsharpRecursiveAliasRecord = { identity, carrier, reference: absent ? csharpNullableTargetType(carrier) : carrier,
-    building: true, recursive: false };
+    building: true, recursive: false, sourceArguments };
   context.recursiveAliases.set(key, record);
   try {
     const result = represent(definition);
@@ -245,6 +256,11 @@ function representAliasApplication(declaration: Node, identity: string, argument
   } finally {
     record.building = false;
   }
+}
+
+function sameSourceArguments(left: readonly SourceTypeDescriptor[] | undefined, right: readonly SourceTypeDescriptor[] | undefined): boolean {
+  if (left === undefined || right === undefined) return left === right;
+  return left.length === right.length && left.every((argument, index) => sourceTypeDescriptorsEqual(argument, right[index]!));
 }
 
 /** Registers the alias template over its own binders (once), then proves this application is an instance of it. */
@@ -264,7 +280,7 @@ function registerRecursiveAlias(declaration: Node, identity: string, record: Csh
     if (context.typeDefinitions.sourceUnionArms(template) === undefined) {
       const body = context.syntax.as.AsTypeAliasDeclaration(declaration)?.Type;
       if (body === undefined) failTargetAnalysisInvariant("tsonic-csharp", "A type alias declaration has no authored body.", declaration);
-      const templateResult = representAliasApplication(declaration, identity, binders, authoredTypeDescriptor(body, context), context, represent);
+      const templateResult = representAliasApplication(declaration, identity, binders, authoredTypeDescriptor(body, context), context, represent, undefined);
       if (isCsharpRefusal(templateResult)) return templateResult;
     }
   }
@@ -282,7 +298,7 @@ function registerRecursiveAlias(declaration: Node, identity: string, record: Csh
 function aliasBinders(declaration: Node, context: CsharpRepresentationContext): readonly TargetTypeRef[] | CsharpRefusal {
   const binders: TargetTypeRef[] = [];
   for (const binder of context.syntax.typeParameters(declaration)) {
-    const parameter = binder === undefined ? undefined : csharpSourceTypeParameter(binder, context.syntax);
+    const parameter = binder === undefined ? undefined : csharpSourceTypeParameter(binder, context.syntax, context.facts.navigation.identity);
     if (parameter === undefined) return csharpRefusal("CSHARP_GENERIC_BINDER", "A generic binder has no C# identifier.", binder ?? declaration);
     binders.push(context.typeParameters.resolve(parameter));
   }

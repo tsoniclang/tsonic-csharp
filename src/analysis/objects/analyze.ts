@@ -16,7 +16,7 @@ import type { CsharpTargetOperationClassifications } from "../../target-model/re
 import type { CsharpObjectShapeAnalysis, CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
 import { collectCsharpInheritedInterfaces, selectCsharpStructuralInterface, type CsharpStructuralInterfaceRegistration } from "./structural-interfaces.js";
 import { mergeCsharpObjectShapeSubjects } from "./shapes/construction.js";
-import { csharpProjectDeclarationDescriptor } from "./shapes/declaration-descriptors.js";
+import { csharpProjectDeclarationType } from "./shapes/declaration-descriptors.js";
 import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
 import { csharpTargetTypeComponents } from "../../target-model/types/components.js";
 import type { CsharpStructuralInterfaceImplementation, CsharpTargetNamedTypeRef } from "../../target-model/types/model.js";
@@ -191,7 +191,7 @@ export function analyzeCsharpObjectShapes(
           if (definition?.kind !== "class" || shape === undefined ||
             policy.projectTypes.catalog.definitionForTarget(inherited)?.kind !== "interface") continue;
           if (!classifications.registerStructuralInterface(definition.declaration, type, inherited,
-            csharpProjectDeclarationDescriptor(definition))) {
+            csharpProjectDeclarationType(policy.facts, definition.declaration))) {
             declaredStructuralIssues.push(inheritedImplementationIssue(definition.declaration, type, inherited));
           }
         }

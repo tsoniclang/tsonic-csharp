@@ -53,7 +53,7 @@ export function representInstantiation(
   const bindings = new Map<string, TargetTypeRef>();
   const bind = (bound: readonly { readonly declaration: Node }[], represented: readonly CsharpRepresentation[]): boolean =>
     bound.every((binding, index) => {
-      const parameter = csharpSourceTypeParameter(binding.declaration, context.syntax);
+      const parameter = csharpSourceTypeParameter(binding.declaration, context.syntax, context.facts.navigation.identity);
       const selected = represented[index]!;
       if (parameter === undefined || isCsharpRefusal(selected)) return false;
       bindings.set(parameter.identity, selected);
@@ -117,12 +117,12 @@ function representDescriptor(descriptor: SourceTypeDescriptor, context: CsharpRe
       const sum = context.facts.sums.sumOf(descriptor);
       if (sum === undefined) failTargetAnalysisInvariant("tsonic-csharp",
         "A Host union descriptor must denote a published closed sum.", context.occurrence);
-      return representClosedSum(sum, context, represent);
+      return representClosedSum(sum, context, represent, descriptor);
     }
     case "optional": {
       if (descriptor.value.kind === "union") {
         const sum = context.facts.sums.sumOf(descriptor);
-        if (sum !== undefined) return representClosedSum(sum, context, represent);
+        if (sum !== undefined) return representClosedSum(sum, context, represent, descriptor.value);
       }
       const value = represent(descriptor.value);
       return isCsharpRefusal(value) ? value : csharpNullableTargetType(value);

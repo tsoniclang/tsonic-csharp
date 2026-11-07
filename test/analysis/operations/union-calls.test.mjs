@@ -1,5 +1,6 @@
-// Closed class-union calls (`(Left | Right).value(x)`): the Host per-arm relation at the call names each arm's method
-// (nextgen C-2542, R1); C# checks only native signatures, passing modes, omission/rest slots and the result join.
+// Closed class-union calls (`(Left | Right).value(x)`): the Host per-arm relation at the callee property access names
+// each arm's method and its instantiated member type (nextgen C-2542, R1; facts.ts per-arm "at the property access");
+// C# checks only native signatures, passing modes, omission/rest slots, the result join and call-site Promise adoption.
 // Basis for the port: AGENT-D1-NOTES.md §1 (selections.call, relations.at, sums.substitute) and D1-F2 notes.
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -9,6 +10,7 @@ import { csharpTargetNamedType } from "../../../dist/target-model/types/factorie
 import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { csharpRuntimeUnionTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
 import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
+import { csharpTaskTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
 
 function fixture() {
   const access = {};
@@ -32,16 +34,17 @@ function fixture() {
   const source = { use: call, callee: access, arguments: [], parameters: [parameterDescriptor],
     signatureParameters: [slot], result: { kind: "primitive", primitive: "int64" }, optionalChain: false };
   const union = csharpRuntimeUnionTargetType(arms);
-  const relation = { kind: "per-arm", use: call, sum: {}, arms: [{ arm: 0, member: declarations[0] }, { arm: 1, member: declarations[1] }] };
+  // The Host publishes per-arm at the property or element access (relations.ts perArm), never at the call node.
+  const relation = { kind: "per-arm", use: access, sum: {}, arms: declarations.map((member, arm) => ({ arm, member, type: methodTypes[arm] })) };
   const facts = {
-    relations: { at: use => use === call ? relation : undefined },
+    relations: { at: use => use === access ? relation : undefined },
     selections: {
       memberAccess: node => node === access ? { use: access, receiver, receiverType: { kind: "union" }, optionalChain: false } : undefined,
     },
     analyses: { propertyName: node => node === name ? { kind: "resolved", name: "value", constant: undefined } : undefined },
     sums: { sum: () => ({ arms: armDescriptors.map((type, role) => ({ role, type })), roles: [] }), substitute: type => type },
-    values: { slot: declaration => ({ kind: "slot", slot: declaration, type: methodTypes[declarations.indexOf(declaration)],
-      broad: false, authority: "declared" }) },
+    values: { slot: () => assert.fail("The arm member type is the per-arm relation's published `type`, not a C# slot read.") },
+    navigation: { identity: { isProjectDeclaration: () => true } },
   };
   const represent = descriptor => {
     if (descriptor === parameterDescriptor) return incoming;
@@ -58,7 +61,8 @@ function fixture() {
       typeParameters: () => [], parent: subject => owners[declarations.indexOf(subject)],
       as: { AsParameterDeclaration: parameter => parameter } },
     facts,
-    types: { represent, value: node => node === call ? integer : assert.fail("Only the call value is read."), instantiation: () => undefined },
+    types: { represent, value: node => node === call ? integer : assert.fail("Only the call value is read."), instantiation: () => undefined,
+      awaited: node => node === call ? integer : assert.fail("Only the call's Host awaited result is read.") },
     projectTypes: { catalog: { definitionForTarget: target => ({ kind: "class", declaration: owners[arms.indexOf(target)] }) } },
   };
   return { policy, source, relation, signatures, integer, incoming, slot, parameters, declarations, arms,
@@ -82,11 +86,28 @@ test("a call without a Host per-arm relation is not a union call", () => {
   assert.equal(input.select().kind, "not-union");
 });
 
+test("the per-arm relation is read at the callee property access, never at the call node", () => {
+  const input = fixture();
+  const relation = input.relation;
+  const call = input.source.use;
+  input.policy.facts.relations.at = use => use === call ? relation : undefined;
+  assert.equal(input.select().kind, "not-union", "a relation keyed by the call node is not the Host contract");
+});
+
+test("an arm method without its published per-arm member type is an invariant failure", () => {
+  const input = fixture();
+  input.relation.arms = [input.relation.arms[0], { arm: 1, member: input.declarations[1] }];
+  assert.throws(() => input.select(), /requires its published member type/);
+});
+
 const invalidSignatures = [
   ["unrepresentable arm method", input => { input.signatures[1] = undefined; }],
   ["lost incoming absence", input => { input.signatures[1].csharpDelegateSignature.parameters = [input.integer]; }],
   ["integer width mismatch", input => {
     input.signatures[1].csharpDelegateSignature.parameters = [csharpNullableTargetType(csharpSourcePrimitiveTargetType("int32"))];
+  }],
+  ["integer signedness mismatch", input => {
+    input.signatures[1].csharpDelegateSignature.parameters = [csharpNullableTargetType(csharpSourcePrimitiveTargetType("uint64"))];
   }],
   ["integer versus float", input => {
     input.signatures[1].csharpDelegateSignature.parameters = [csharpNullableTargetType(csharpSourcePrimitiveTargetType("float64"))];
@@ -94,6 +115,9 @@ const invalidSignatures = [
   ["native parameter count mismatch", input => { input.signatures[1].csharpDelegateSignature.parameters = []; }],
   ["passing mode count mismatch", input => { input.signatures[1].csharpDelegateSignature.parameterPassingModes = []; }],
   ["shared by-reference input", input => { input.signatures[1].csharpDelegateSignature.parameterPassingModes = ["byref-readonly"]; }],
+  ["mutable by-reference input", input => { input.signatures[1].csharpDelegateSignature.parameterPassingModes = ["byref-readwrite"]; }],
+  ["write-only input", input => { input.signatures[1].csharpDelegateSignature.parameterPassingModes = ["byref-writeonly-must-init"]; }],
+  ["unrecognized passing mode", input => { input.signatures[1].csharpDelegateSignature.parameterPassingModes = ["borrow"]; }],
   ["by-reference return", input => { input.signatures[1].csharpDelegateSignature.returnPassing = "byref-readonly"; }],
   ["missing omission contract", input => { delete input.signatures[1].csharpDelegateSignature.optionalParameterIndexes; }],
   ["unexpected native rest slot", input => { input.signatures[1].csharpDelegateSignature.restParameterIndex = 0; }],
@@ -103,7 +127,7 @@ const invalidSignatures = [
   }],
   ["result width mismatch", input => { input.signatures[1].csharpDelegateSignature.returnType = csharpSourcePrimitiveTargetType("int32"); }],
   ["static method is not an instance arm", input => { input.policy.ast.hasModifierKind = () => true; }],
-  ["arm without a Host member", input => { input.relation.arms = [input.relation.arms[0], { arm: 1 }]; }],
+  ["arm without a Host member", input => { input.relation.arms = [input.relation.arms[0], { arm: 1, type: input.relation.arms[1].type }]; }],
 ];
 
 for (const [name, mutate] of invalidSignatures) {
@@ -130,4 +154,42 @@ test("native rest contracts follow the Host signature slot, not initializer synt
     delete signature.csharpDelegateSignature.optionalParameterIndexes;
   }
   assert.equal(input.select().kind, "resolved");
+});
+
+// Call-site Promise adoption (C-1373): a physical Task<Task<T>> arm result unwraps at the call; the joined call result is
+// adopted the same way, so the join and each arm agree. The continuation result is the Host awaited result of the call.
+test("closed union arms keep call-site Promise adoption of a nested physical Task result", () => {
+  const input = fixture();
+  const inner = csharpTaskTargetType(input.integer);
+  const physical = csharpTaskTargetType(inner);
+  for (const signature of input.signatures) signature.csharpDelegateSignature.returnType = physical;
+  input.policy.types.value = node => node === input.source.use ? physical : assert.fail("Only the call value is read.");
+  const result = input.select();
+  assert.equal(result.kind, "resolved");
+  assert.equal(result.resultType === inner, true, "the joined result is the unwrapped payload Task");
+  assert.equal(result.methods.every(method => method.result.nativeType === physical && method.result.selectedType === inner &&
+    method.result.completion?.form === "direct" && Object.isFrozen(method.result)), true);
+});
+
+test("an ambient arm keeps its native Task layer without adoption", () => {
+  const input = fixture();
+  const inner = csharpTaskTargetType(input.integer);
+  const physical = csharpTaskTargetType(inner);
+  for (const signature of input.signatures) signature.csharpDelegateSignature.returnType = physical;
+  input.policy.types.value = node => node === input.source.use ? physical : assert.fail("Only the call value is read.");
+  input.policy.ast.hasModifierKind = (subject, kind) => kind === "ambient" && input.declarations.includes(subject);
+  const result = input.select();
+  assert.equal(result.kind, "resolved");
+  assert.equal(result.methods.every(method => method.result.selectedType === physical && method.result.completion === undefined), true);
+});
+
+test("a single-Task arm result is not adopted", () => {
+  const input = fixture();
+  const task = csharpTaskTargetType(input.integer);
+  for (const signature of input.signatures) signature.csharpDelegateSignature.returnType = task;
+  input.policy.types.value = node => node === input.source.use ? task : assert.fail("Only the call value is read.");
+  input.policy.types.awaited = () => assert.fail("No adoption reads the awaited result of a single Task.");
+  const result = input.select();
+  assert.equal(result.kind, "resolved");
+  assert.equal(result.methods.every(method => method.result.completion === undefined && method.result.selectedType === task), true);
 });

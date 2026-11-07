@@ -94,9 +94,23 @@ test("finite await consumes the published result and retains exact nested union 
   const boolean = csharpSourcePrimitiveTargetType("bool");
   const first = fixture.carrier("awaited");
   const second = fixture.carrier("awaited", 1);
+  // The Host awaited-arm relation (facts.values.awaitedArms, R6): per operand arm, the awaited arm each payload arm
+  // resolves to. C# only realizes that map on the carriers; it never matches arms by carrier (FX-CR R3, FXCR-2).
+  const slotType = index => program.facts.values.slot(program.ast.parameters(program.named("awaited"))[index]).type;
+  const sumOf = index => program.facts.sums.sumOf(slotType(index));
+  const [firstSum, secondSum, resultSum] = [sumOf(0), sumOf(1), sumOf(2)];
+  const operandIdentity = { family: {}, application: [] };
+  const operandSum = { identity: operandIdentity, arms: [{ role: 0, type: { kind: "declared", declaration: {}, typeArguments: [slotType(0)] } },
+    { role: 1, type: { kind: "declared", declaration: {}, typeArguments: [slotType(1)] } }] };
+  const sums = { sum: identity => identity === operandIdentity ? operandSum
+    : [firstSum, secondSum, resultSum].find(sum => sum.identity === identity) ?? assert.fail("only the published sums are read") };
+  const host = { sums, arms: { use: {}, operand: operandIdentity, awaited: resultSum.identity, arms: [
+    { arm: 0, payload: firstSum.identity, mapping: [0, 1] },
+    { arm: 1, payload: secondSum.identity, mapping: [0, 2] },
+  ] } };
   const completion = selectCsharpAwaitCompletion(csharpRuntimeUnionTargetType([
     csharpTaskTargetType(first), csharpTaskTargetType(second),
-  ]), fixture.carrier("awaited", 2), undefined, "consumed");
+  ]), fixture.carrier("awaited", 2), undefined, "consumed", host);
   assert.ok(completion);
   assert.equal(targetTypeRefEquals(completion.result, fixture.carrier("awaited", 2)), true,
     "the exact published awaited result, not a Native join, is the completion carrier");
@@ -105,6 +119,10 @@ test("finite await consumes the published result and retains exact nested union 
   assert.equal(completion.alternatives[1].resultMapping.arms.length, 2);
   assert.ok(Object.isFrozen(completion));
   assert.ok(Object.isFrozen(completion.alternatives));
+  assert.throws(() => selectCsharpAwaitCompletion(csharpRuntimeUnionTargetType([
+    csharpTaskTargetType(first), csharpTaskTargetType(second),
+  ]), fixture.carrier("awaited", 2), undefined, "consumed"), /Host awaited-arm relation/,
+  "a task result mapped into an awaited union without the Host relation is an invariant failure (I4)");
 });
 
 test("native Task completion preserves the exact physical result rather than renormalizing its generic ABI", () => {

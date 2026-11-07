@@ -5,7 +5,7 @@ import { assertCsharpRequiredRecords } from "../../../../dist/analysis/program/r
 import { createCsharpProjectTypeCatalog } from "../../../../dist/analysis/project-types/catalog.js";
 import { analyzeCsharpClassFactories } from "../../../../dist/analysis/project-types/class-factories.js";
 import { analyzeCsharpStorage } from "../../../../dist/analysis/storage/analyze.js";
-import { createCsharpSourceProfileStorageEffects } from "../../../../dist/analysis/operations/source-profiles/source-storage-effects.js";
+import { createCsharpSourceStorageTargetPremises } from "../../../../dist/analysis/operations/source-profiles/source-storage-effects.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../../dist/target-model/types/equality.js";
 import { compileCsharpRequiredRecordSource, csharpRequiredRecordFailure } from "../../../helpers/required-records.mjs";
 import { createExpectedNativeUseOwner } from "../../../helpers/expected-native-uses.mjs";
@@ -85,7 +85,7 @@ for (const surface of ["native", "js"]) {
   });
 
   test(`${surface}: the participation owner registers each native participation decision`, () => {
-    const storage = source.facts.analyses.storage({ sourceFiles: csharpProgramSourceFiles(program), effects: createCsharpSourceProfileStorageEffects(source, request.providers) });
+    const storage = source.facts.analyses.storage({ sourceFiles: csharpProgramSourceFiles(program), premises: createCsharpSourceStorageTargetPremises(source, request.providers) });
     assert.equal(storage.failureReason() === undefined, true, "bounded owned source domain");
     const rows = [];
     const admitted = analyzeCsharpNativeParticipation({

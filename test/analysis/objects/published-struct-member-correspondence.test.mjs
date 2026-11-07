@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { sourceTypeDescriptorStructure } from "@tsonic/target-api/source";
 import { compileCsharpAnalysisTarget, compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
-import { csharpSourceNodes } from "../../../dist/analysis/program/source-nodes.js";
 
 const sourceText = `
   import { struct, field } from "@tsonic/core/lang.js";
@@ -15,7 +14,7 @@ const sourceText = `
 function selected(source, name) {
   // The published value outcome of the declaration (facts.values.type), nextgen C-2542.
   const ast = source.syntax;
-  const node = csharpSourceNodes(ast, source.sourceFiles).find(node => ast.is.IsVariableDeclaration(node) && ast.text(ast.name(node)) === name);
+  const node = source.facts.navigation.nodesForFiles(source.sourceFiles).find(node => ast.is.IsVariableDeclaration(node) && ast.text(ast.name(node)) === name);
   const outcome = node === undefined ? undefined : source.facts.values.type(node);
   assert.equal(node !== undefined && outcome !== undefined && outcome.kind !== "refused", true, `actual ${name} publication`);
   const call = ast.as.AsVariableDeclaration(node)?.Initializer;

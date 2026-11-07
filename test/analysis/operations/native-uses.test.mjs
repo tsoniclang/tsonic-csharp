@@ -9,7 +9,7 @@ import { analyzeCsharpExactLiteralSelections } from "../../../dist/analysis/conv
 import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 import { publishedGenericProjections } from "../../helpers/expected-native-uses.mjs";
-import { createCsharpSourceProfileStorageEffects } from "../../../dist/analysis/operations/source-profiles/source-storage-effects.js";
+import { createCsharpSourceStorageTargetPremises } from "../../../dist/analysis/operations/source-profiles/source-storage-effects.js";
 
 function owners(sourceText, surface = "native") {
   // nextgen C-2542: the live session providers feed the storage effects, as in analyze.ts (facts.analyses.storage).
@@ -42,7 +42,7 @@ function owners(sourceText, surface = "native") {
       } } } });
   const input = { ast, sourceFiles: csharpProgramSourceFiles(program), facts: source.facts, evidence: records, operations: records,
     nativeExpressionIssues: [], sourceStorage: source.facts.analyses.storage({ sourceFiles: csharpProgramSourceFiles(program),
-      effects: createCsharpSourceProfileStorageEffects(source, providers) }),
+      premises: createCsharpSourceStorageTargetPremises(source, providers) }),
     declarations: records, objectShapes: program.objectShapes,
     exactLiteral: records.exactLiteral, propertyKeyBindings: expression => {
       const use = records.nativeExpression.get(expression)?.use;

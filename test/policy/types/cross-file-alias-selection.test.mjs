@@ -36,8 +36,10 @@ test("a cross-file mapped alias is one Host descriptor with its declaration owne
 
 test("compositional cross-file alias syntax retains its parameter order", () => {
   const { program, parameter, descriptor, represent } = fixture("export type View<First, Second> = [First, Second]", "View<Box, string>");
-  assert.deepEqual(descriptor.typeArguments.map(argument => argument.kind), ["declared", "string"]);
-  assert.deepEqual(descriptor.definition?.elements.map(element => element.type.kind), ["declared", "string"]);
+  // A tuple alias is transparent, as at baseline: the Host descriptor is the tuple itself, argument i in position i.
+  assert.equal(descriptor.kind, "tuple");
+  assert.deepEqual(descriptor.elements.map(element => element.type.kind), ["declared", "string"]);
+  assert.equal(descriptor.elements[0].type.kind === "declared" && descriptor.elements[0].type.declaration !== undefined, true);
   const carrier = represented(represent.slot(parameter));
   assert.equal(carrier.kind, "tuple");
   assert.deepEqual(carrier.elements.map(element => element.id), ["global::Fixture.Box", "System.String"],

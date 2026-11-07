@@ -17,6 +17,7 @@ import { csharpRuntimeUnionTargetType, csharpTargetNamedType, csharpStringTarget
 import { csharpJsArrayTargetType } from "../../../dist/target-model/types/carriers/js.js";
 import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { selectCsharpConversion } from "../../../dist/policy/conversions/core.js";
+import { csharpConversionIsApplicable } from "../../../dist/policy/conversions/applicability.js";
 import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
 import { header, emptyProviders, compile, diagnosticLabel, accepted, arrays, constructedArrays, destinationBodies, actualDestinationEvidence, actualUnionDestinationEvidence } from "./inferred-numeric-array-elements.fixtures.mjs";
 
@@ -54,6 +55,28 @@ test("an inferred numeric return contract is the represented Host callable retur
       const sum = program.facts.sums.sumOf(program.callableReturn(local));
       if (sum !== undefined) assert.equal(arms.length <= sum.arms.length, true, `${name}: arms come from the Host sum, never added`);
     }
+  }
+});
+
+// The negative controls of the deleted return-coverage proof (R4 #73) kept as CLR conversion controls: a union-element
+// array never converts to a carrier with an unrelated arm, a missing alternative, another rank, another tuple arity or a
+// missing native absence (the representation, not a C# reconciliation, decides the return; these stay distinct).
+test("numeric array carriers with unrelated arms, missing alternatives, rank, tuple arity or absence never convert", () => {
+  const integer = csharpSourcePrimitiveTargetType("int32");
+  const floating = csharpSourcePrimitiveTargetType("float64");
+  const text = csharpStringTargetType();
+  const native = element => Object.freeze({ kind: "array", element });
+  const policy = { projectTypes: { directSupertypes: () => [] }, providers: emptyProviders, target: {} };
+  const controls = [
+    ["unrelated actual arm", native(csharpRuntimeUnionTargetType([integer, text])), native(floating)],
+    ["missing checked alternative", native(integer), native(csharpRuntimeUnionTargetType([floating, text]))],
+    ["native array rank", { ...native(integer), rank: 2 }, native(integer)],
+    ["tuple arity", { kind: "tuple", elements: [integer] }, { kind: "tuple", elements: [integer, integer] }],
+    ["missing native absence", native(integer), native(csharpNullableTargetType(integer))],
+  ];
+  for (const [label, observed, baseline] of controls) for (const mode of ["implicit", "explicit"]) {
+    assert.equal(csharpConversionIsApplicable(selectCsharpConversion(policy, observed, baseline, mode), mode), false,
+      `${label}/${mode}: distinct native return carriers have no CLR conversion`);
   }
 });
 

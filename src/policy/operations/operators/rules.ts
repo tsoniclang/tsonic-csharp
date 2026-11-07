@@ -103,8 +103,8 @@ export function selectCsharpNativeBinaryOperation(
     const rightNullable = getCsharpNullableElementTargetType(rightType);
     const leftArms = getCsharpRuntimeUnionArms(leftNullable ?? leftType, input.typeDefinitions) ?? (leftNullable === undefined ? [] : [leftNullable]);
     const rightArms = getCsharpRuntimeUnionArms(rightNullable ?? rightType, input.typeDefinitions) ?? (rightNullable === undefined ? [] : [rightNullable]);
-    const rightCandidates = leftArms?.filter(arm => csharpLiteralIsRepresentableAs(input.facts.values.literal(right), arm));
-    const leftCandidates = rightArms?.filter(arm => csharpLiteralIsRepresentableAs(input.facts.values.literal(left), arm));
+    const rightCandidates = leftArms?.filter(arm => csharpLiteralIsRepresentableAs(input.facts.values.literal(right), arm, input.facts.analyses.platform));
+    const leftCandidates = rightArms?.filter(arm => csharpLiteralIsRepresentableAs(input.facts.values.literal(left), arm, input.facts.analyses.platform));
     if (rightCandidates?.length === 1) rightType = rightCandidates[0]!;
     if (leftCandidates?.length === 1) leftType = leftCandidates[0]!;
   }

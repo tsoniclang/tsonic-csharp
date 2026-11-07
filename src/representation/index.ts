@@ -20,7 +20,6 @@ export { csharpRefusal, csharpRepresentationContext, isCsharpRefusal, isCsharpRe
 export { representInstantiation, representObject, representSourceSum, representSourceType, representedSourceType,
   type CsharpInstantiationRepresentation } from "./descriptors.js";
 export { representAwaited, representCallableReturn, representSlot, representValue } from "./values.js";
-export { representSourceUnionOperations, representSourceUnionRole, sourceSumSelection } from "./sums.js";
 export { representSignatureTypeParameters, type CsharpMemberTypeParameters } from "./callables.js";
 export { createCsharpTypeParameterEnvironment, representTypeParameterConstraints } from "./generics.js";
 export { authoredTypeDescriptor } from "./declared.js";

@@ -404,7 +404,7 @@ for (const surface of ["native", "js"]) test(`general JSON writers follow the se
     objectShapes: { targetShapes: Object.freeze({ [targetTypeRefKey(type)]: shape }),
       resolveTarget: selected => selected === type ? shape : undefined } });
   assert.equal(engine.registerObjectShape(shape, "synthetic").kind, "accepted", "the same native identity is admitted");
-  assert.equal(engine.requireObjectShapeCapability(undefined, type, {}, "reference-identity", "value").kind,
+  assert.equal(engine.requireObjectShapeCapability(undefined, type, "reference-identity", "value").kind,
     "accepted", "the existing native reference identity form does not depend on JSON");
   const foreign = { ...shape, targetType: { ...type, id: "Example.Foreign" } };
   assert.throws(() => engine.registerGeneralJsonWriter(foreign), /exact admitted native shape/u,

@@ -29,7 +29,9 @@ export function classifyCsharpBoundFieldWrite(
   let receiver = source.receiver;
   while (policy.ast.is.IsPropertyAccessExpression(receiver) || policy.ast.is.IsElementAccessExpression(receiver)) {
     const type = policy.types.readStorage(receiver);
-    if (isCsharpRefusal(type) || !isCsharpValueTypeTargetType(type)) return undefined;
+    // A refused receiver storage carrier is a rejection with its own message, never dropped (R4 #35).
+    if (isCsharpRefusal(type)) return { kind: "rejected", reason: type.message };
+    if (!isCsharpValueTypeTargetType(type)) return undefined;
     const selected = selectedMember(policy, receiver);
     if (selected === undefined) return undefined;
     const shape = policy.objectShapes.resolveNode(selected.receiver);

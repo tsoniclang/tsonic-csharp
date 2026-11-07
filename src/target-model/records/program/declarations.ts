@@ -1,11 +1,13 @@
 import type { TargetTypeRef } from "../../types/model.js";
+import type { CsharpRefusal } from "../../types/representation.js";
 import type { CsharpRuntimeParameterDefault } from "../../types/parameter-defaults.js";
 import type { Node } from "@tsonic/tsts";
 import type { CsharpDefaultValueContract } from "../objects/value-projections.js";
 
 export type CsharpReturnTargetContract =
   | { readonly kind: "resolved"; readonly type: TargetTypeRef; readonly undefinedReturn?: boolean; readonly fallthroughUndefined?: boolean }
-  | { readonly kind: "rejected"; readonly reason: string };
+  /** `refusal`: a CsharpRefusal of the represented return, reported once with its own code and site (R4 #49). */
+  | { readonly kind: "rejected"; readonly reason: string; readonly refusal?: CsharpRefusal };
 
 export type CsharpDefaultParameterContract = CsharpRuntimeParameterDefault & {
   readonly acceptsOmission: boolean;

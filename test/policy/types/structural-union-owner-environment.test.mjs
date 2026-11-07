@@ -63,7 +63,8 @@ export function walk<Later, Earlier>(value: Tree<Later, Earlier>): Tree<Later, E
   assert.equal(isCsharpRefusal(carrier) || carrier.kind === "refused", false, "the recursive alias is representable");
   const union = carrier.kind === "target-named" ? carrier : undefined;
   assert.notEqual(csharpSourceUnionIdentity(union), undefined, "a named __TsonicUnion_ carrier closes the cycle");
-  const binders = program.ast.typeParameters(walk).map(declaration => csharpSourceTypeParameter(declaration, program.ast).identity);
+  const binders = program.ast.typeParameters(walk).map(declaration => csharpSourceTypeParameter(declaration, program.ast,
+    program.facts.navigation.identity).identity);
   assert.deepEqual(union.typeArguments.map(argument => argument.identity), binders,
     "carrier arguments keep the authored binder positions; they are not sorted");
   const arms = getCsharpRuntimeUnionArms(union, services.typeDefinitions);

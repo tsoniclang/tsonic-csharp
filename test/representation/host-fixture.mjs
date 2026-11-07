@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import { checkCsharpSource } from "../helpers/direct-csharp-session.mjs";
 import { createHostSourceProgram } from "../../../tsonic/packages/target-api/dist/public/host.js";
 import { createJsSourceApiFacts } from "../../../tsonic/packages/js-source-profile/dist/index.js";
+import { tsonicCoreSourceAnalyses } from "@tsonic/source-core";
 import {
   createCsharpRepresentationServices,
   csharpRepresentationContext,
@@ -24,7 +25,10 @@ import { csharpTargetNamedType } from "../../dist/target-model/types/factories.j
 export function hostProgram(sourceText, options = {}) {
   const checked = checkCsharpSource({ ...options, sourceText });
   assert.equal(checked.sourceDiagnosticsText, "", `the fixture program checks cleanly:\n${checked.sourceDiagnosticsText}`);
-  const host = createHostSourceProgram(checked.source, { profile: createJsSourceApiFacts, platform: { kind: "known", nativeIntegerBits: 64, basis: "test" } });
+  // The composition root's options (tsonic/packages/host/src/build.ts): the JS API profile and the source-core analyses
+  // (run 1 C1: the production program always registers source-core; a fixture without it is not a program C# receives).
+  const host = createHostSourceProgram(checked.source, { profile: createJsSourceApiFacts, analyses: [tsonicCoreSourceAnalyses],
+    platform: { kind: "known", nativeIntegerBits: 64, basis: "test" } });
   const ast = host.ast;
   const files = host.sourceFiles.filter(file => !ast.isDeclarationFile(file));
   const nodes = [];

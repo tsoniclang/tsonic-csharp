@@ -1,5 +1,5 @@
 import { csharpHostUnionUse } from "../../policy/conversions/union-relations.js";
-import { createCsharpDestructuringAssignmentAnalysis } from "./destructuring-assignments.js";
+import { createCsharpDestructuringAssignmentAnalysis, type CsharpBindingPropertySourceName } from "./destructuring-assignments.js";
 import { createCsharpBindingPatternProducer } from "../program/records/storage/binding-patterns.js";
 import type { AstReader, Node, SourceFile } from "@tsonic/tsts";
 import { csharpNativePropertyNameIssue } from "../objects/computed-field-names.js";
@@ -174,13 +174,14 @@ export function analyzeCsharpBindingPatterns(
       AsForInOrOfStatement(ast, statement)?.Initializer === list ? statement : undefined;
   }
 
-  function issue(node: Node, message: string, evidence: readonly string[] = [], code = "CSHARP_DESTRUCTURING_NOT_REPRESENTABLE"): void {
+  function issue(node: Node, message: string, evidence: readonly string[] = [], code = "CSHARP_DESTRUCTURING_NOT_REPRESENTABLE",
+    source?: "tsonic"): void {
     const patternRoot = root;
     if (patternRoot === undefined) {
       failTargetAnalysisInvariant("tsonic-csharp", "A binding-pattern candidate issue was recorded outside its pattern root.", node);
     }
     candidates.push(Object.freeze({ node, root: patternRoot, code, message,
-      evidence: Object.freeze([...new Set(evidence)]) }));
+      evidence: Object.freeze([...new Set(evidence)]), ...(source === undefined ? {} : { source }) }));
   }
 
   function recordSource(node: Node, source: CsharpBindingPatternSource): void {
@@ -367,21 +368,22 @@ export function analyzeCsharpBindingPatterns(
     analyzeNested(element.name, elementNode, target);
   }
 
-  function objectShapePropertyName(elementNode: Node): { readonly node: Node; readonly sourceName?: string; readonly reason?: string } | undefined {
+  function objectShapePropertyName(elementNode: Node): ({ readonly node: Node } & CsharpBindingPropertySourceName) | undefined {
     const element = AsBindingElement(ast, elementNode);
     const propertyName = element?.PropertyName ?? element?.name;
     if (propertyName === undefined) return undefined;
     return { node: propertyName, ...bindingPropertySourceName(propertyName) };
   }
 
-  function bindingPropertySourceName(propertyName: Node): { readonly sourceName?: string; readonly reason?: string } {
+  function bindingPropertySourceName(propertyName: Node): CsharpBindingPropertySourceName {
     if (ast.is.IsComputedPropertyName(propertyName) || ast.is.IsNumericLiteral(propertyName)) {
       const selected = input.facts.analyses.propertyName(propertyName);
       if (selected === undefined) failTargetAnalysisInvariant("tsonic-csharp",
         "A native binding property requires its completed checked property-name selection.", propertyName);
       if (selected.kind === "resolved") return { sourceName: selected.name };
       const issue = csharpNativePropertyNameIssue(propertyName, selected);
-      return issue === undefined ? {} : { reason: issue.message };
+      return issue === undefined ? {} : { reason: issue.message, code: issue.code,
+        ...(issue.source === "tsonic" ? { source: "tsonic" as const } : {}) };
     }
     return HasSourceKind(ast, propertyName, KindIdentifier) || HasSourceKind(ast, propertyName, KindStringLiteral)
       ? { sourceName: Node_Text(ast, propertyName) } : {};
@@ -417,7 +419,7 @@ export function analyzeCsharpBindingPatterns(
       const property = objectShapePropertyName(elementNode);
       if (property?.sourceName === undefined) {
         if (property?.reason !== undefined) {
-          issue(property.node, property.reason);
+          issue(property.node, property.reason, [], property.code, property.source);
           continue;
         }
         if (property !== undefined) issue(property.node, "Object destructuring from object-shape facts supports only identifier or string-literal property names.");
@@ -501,7 +503,7 @@ export function analyzeCsharpBindingPatterns(
       const identifier = HasSourceKind(ast, propertyName, KindIdentifier);
       const property = bindingPropertySourceName(propertyName);
       if (property.reason !== undefined) {
-        issue(propertyName, property.reason);
+        issue(propertyName, property.reason, [], property.code, property.source);
         continue;
       }
       const sourceName = property.sourceName;

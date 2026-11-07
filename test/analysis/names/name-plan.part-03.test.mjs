@@ -102,7 +102,7 @@ test(`${surface}: capture-free pre-seal names preserve nested, local, named and 
       const owner = methods.find(node => source.syntax.text(source.syntax.name(node)) === ownerName);
       assert.equal(owner !== undefined, true, `${ownerName}: the real checked callable is present`);
       const declaration = source.syntax.typeParameters(owner)[0];
-      const parameter = csharpSourceTypeParameter(declaration, source.syntax);
+      const parameter = csharpSourceTypeParameter(declaration, source.syntax, source.facts.navigation.identity);
       assert.equal(parameter !== undefined, true, `${ownerName}: the original checked binder identity is available`);
       const rename = names.typeParameterNames.find(selected => selected.identity === parameter.identity);
       const expected = unchanged.has(ownerName) ? parameter.name : rename?.name;
@@ -119,7 +119,7 @@ test(`${surface}: capture-free pre-seal names preserve nested, local, named and 
       const declaration = source.syntax.typeParameters(method)[0];
       const selected = names.resolve(source.syntax.name(declaration));
       const named = sourceName !== undefined && source.syntax.text(sourceName) === "NamedGeneric";
-      const parameter = csharpSourceTypeParameter(declaration, source.syntax);
+      const parameter = csharpSourceTypeParameter(declaration, source.syntax, source.facts.navigation.identity);
       assert.equal(parameter !== undefined, true, "the original checked method binder identity is available");
       const rename = names.typeParameterNames.find(candidate => candidate.identity === parameter.identity);
       assert.equal(selected.kind === "resolved" && (named

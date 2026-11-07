@@ -4,29 +4,6 @@ import { csharpTargetNamedType } from "../../../dist/target-model/types/factorie
 import { csharpQualifiedTypeRenderShape } from "../../../dist/target-model/types/render-shapes.js";
 import { csharpSourceErrorNames } from "../../../dist/target-model/identities/source-errors.js";
 import { snapshotCsharpMetadata } from "../../../dist/target-model/metadata/immutable.js";
-import { csharpSourceProfileDeclarationIdentity } from "../../../dist/policy/identities/selected-source.js";
-
-export function sourceErrorProtocolFixture(source) {
-  // nextgen C-2542: profile identities read the published facts and authored syntax (TargetSourceProgramFacts).
-  const ast = source.syntax;
-  const identities = source.sourceFiles.flatMap(file => {
-    return ast.statements(file).filter(statement => statement !== undefined && ast.is.IsInterfaceDeclaration(statement))
-      .flatMap(statement => ast.members(statement).map(member =>
-        csharpSourceProfileDeclarationIdentity(ast, source.facts, source.sourceFacts, member)))
-      .filter(identity => identity !== undefined);
-  });
-  const stackCaptures = identities.filter(identity => identity.kind === "member" &&
-    identity.declaringName === "ErrorConstructor" && identity.name === "captureStackTrace").map(identity => identity.declaration);
-  return Object.freeze({
-    fields: identities.filter(identity => identity.kind === "member" && identity.declaringName === "Error" &&
-      ["name", "message", "stack"].includes(identity.name)).map(identity => identity.declaration),
-    constructors: identities.filter(identity => (identity.kind === "call" || identity.kind === "construct") &&
-      csharpSourceErrorNames.some(name => identity.declaringName === `${name}Constructor`)).map(identity => identity.declaration),
-    stackCaptures,
-    storageMutators: stackCaptures.map(signature => ({ signature, sourceParameterIndex: 0 })),
-    retention: () => ({ kind: "ordinary" }),
-  });
-}
 
 export function createSourceErrorProviderFixture() {
   const bindings = snapshotCsharpMetadata([csharpExceptionTargetType(), csharpObjectTargetType(),

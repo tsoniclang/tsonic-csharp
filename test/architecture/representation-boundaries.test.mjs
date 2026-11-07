@@ -121,6 +121,24 @@ test("I6: the replaced Source type engines stay deleted", () => {
   assert.deepEqual(uses, []);
 });
 
+test("I6: C# builds no Source union or type-application descriptor outside src/representation (R-R4-57)", () => {
+  // The one union builder and the one substitution are the Host's (sums.join / sums.substitute; I6). A C# object
+  // literal `{ kind: "union", types }` or `{ kind: "declared", declaration, ... }` outside the representation layer
+  // builds a second union or applies a declaration itself. src/providers/** builds its own provider type expressions
+  // (a different model), so it is not scanned.
+  const construction = /\bkind\s*:\s*"(union|declared)"(\s+as\s+const)?\s*,\s*(types|declaration)\b/u;
+  const breaches = [];
+  for (const [file, text] of sources) {
+    if (file.startsWith("src/representation/") || file.startsWith("src/providers/")) continue;
+    text.split("\n").forEach((line, index) => {
+      const trimmed = line.trim();
+      if (trimmed.startsWith("//") || trimmed.startsWith("*")) return;
+      if (construction.test(line)) breaches.push(`${file}:${index + 1} builds a ${construction.exec(line)[1]} descriptor`);
+    });
+  }
+  assert.deepEqual(breaches, []);
+});
+
 test("I6 / R6: tsonic-csharp/src never sorts or dedupes union arms (Host order is authored-first, C-2459)", () => {
   const breaches = [];
   const unionWords = /\b(arms?|union|unions|members?Of|sum)\b|Arms?\b|Union/u;

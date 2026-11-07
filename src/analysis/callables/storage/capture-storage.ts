@@ -7,7 +7,7 @@ import type { CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../target
 import type { CsharpObjectShapeClassifications } from "../../../target-model/records/objects/object-shapes.js";
 import type { CsharpStorageIssue } from "../../../target-model/records/storage/storage.js";
 import type { CsharpCaptureStorageQueries } from "../../storage/index.js";
-import { createStructuralObjectShapeTarget } from "../../objects/shapes/construction.js";
+import { createStructuralObjectShapeTarget } from "../../../policy/types/objects/structural-shape-targets.js";
 import { csharpRuntimeLocationTargetType, csharpRuntimeNativeArrayTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { targetTypeRefKey } from "../../../target-model/types/equality.js";
 import type { CsharpSourceEvidenceIndex } from "../../../target-model/records/program/source-evidence.js";

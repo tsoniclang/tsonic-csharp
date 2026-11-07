@@ -7,14 +7,13 @@ import { isCsharpRefusal } from "../../representation/index.js";
 import { classifyMethodTypeArgumentProjections } from "./method-type-arguments.js";
 import { csharpErasedExpressionStatement, type CsharpOperationErasure } from "./statement-erasure.js";
 import type { CsharpAwaitCompletion } from "../../target-model/types/await-completions.js";
-import { selectCsharpSourceCallAwaitCompletion } from "../../policy/operations/control-flow/await-completions.js";
+import { csharpHostAwaitedArms, selectCsharpSourceCallAwaitCompletion } from "../../policy/operations/control-flow/await-completions.js";
 import { admitCsharpConversionSelection } from "../conversions/validation.js";
 import { csharpOperationConversionIssue, csharpSelectedCallConversionIssue } from "./conversion-admission.js";
 import { validateCsharpJsValueOperationSelection } from "../../policy/operations/js-values/selection.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
-import { targetTypeRefEquals } from "../../target-model/types/equality.js";
-import { sourceValueType } from "../program/source-facts.js";
-import { sourceTypeDescriptorStructure } from "@tsonic/target-api/source";
+import { sourceUnionRelation } from "../program/source-facts.js";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { selectCsharpClosedTypeTestPlan } from "../../policy/operations/operators/type-tests.js";
 import { selectCsharpOperatorForm } from "../../policy/operations/operators/operator-forms.js";
 import { getCsharpClassFactory } from "../../target-model/types/carriers/class-factories.js";
@@ -74,23 +73,6 @@ export function analyzeCsharpOperationConstruct(
   const issues = erasure.demandedInvocations.has(node) ? erasure.issues : scopeIssues;
   const erased = ast.is.IsExpressionStatement(node) && csharpErasedExpressionStatement(ast, node, erasure);
   if (erased) producer.erasedStatement.selected(node, true);
-  if (ast.is.IsAwaitExpression(node)) {
-    const expression = ast.as.AsAwaitExpression(node)?.Expression;
-    // The awaited operand carrier and the Host's awaited result (values.awaited) select the native completion.
-    const operandCarrier = expression === undefined ? undefined : policy.types.value(expression);
-    const awaitedCarrier = policy.types.awaited(node);
-    const refusal = operandCarrier !== undefined && isCsharpRefusal(operandCarrier) ? operandCarrier
-      : isCsharpRefusal(awaitedCarrier) ? awaitedCarrier : undefined;
-    if (refusal !== undefined) issues?.push(Object.freeze({ node, code: refusal.code, message: refusal.message }));
-    const completion = refusal !== undefined || operandCarrier === undefined || isCsharpRefusal(operandCarrier) ||
-      isCsharpRefusal(awaitedCarrier) ? undefined : selectCsharpSourceCallAwaitCompletion(operandCarrier, awaitedCarrier,
-        policy.typeDefinitions, policy.facts.navigation.expressions.resultUse(node));
-    const rejection = awaitResultMappingRejection(policy, completion);
-    if (rejection !== undefined) {
-      issues?.push(Object.freeze({ node, code: "CSHARP_AWAIT_RESULT_MAPPING_NOT_PROVEN", message: rejection }));
-    }
-    producer.await.selected(node, rejection === undefined ? completion : undefined);
-  }
   if (ast.is.IsSpreadElement(node)) {
     const expression = ast.as.AsSpreadElement(node)?.Expression;
     if (expression !== undefined) {
@@ -205,7 +187,7 @@ export function analyzeCsharpOperationConstruct(
       if (driver !== undefined) binaryExecutionDrivers.push(driver);
     }
     const constructed = jsValue.kind === "resolved" ? undefined : policy.types.value(node);
-    if (constructed !== undefined && isCsharpRefusal(constructed)) issues?.push(Object.freeze({ node, code: constructed.code, message: constructed.message }));
+    // A refused own value carrier is reported once, by the source evidence at its site (R4 #67).
     const selectedResultType = jsValue.kind === "resolved"
       ? jsValue.resultType
       : constructed !== undefined && !isCsharpRefusal(constructed) ? constructed : undefined;
@@ -306,7 +288,7 @@ export function analyzeCsharpOperationConstruct(
     const typeofComparison = classifyTypeofComparison(policy, node);
     const constructor = sourceOperator === "instanceof" ? expression?.Right : undefined;
     const instanceType = constructor === undefined ? undefined
-      : csharpInstanceType(policy, constructor);
+      : csharpInstanceType(policy, node, constructor);
     const instanceFactory = sourceOperator === "instanceof" && expression?.Right !== undefined
       ? evidence.nodeTargetType.get(expression.Right) : undefined;
     const instanceSource = sourceOperator === "instanceof" && expression?.Left !== undefined
@@ -374,7 +356,7 @@ export function analyzeCsharpOperationConstruct(
     const expression = ast.as.AsThrowStatement(node)?.Expression;
     if (expression !== undefined) {
       const thrown = policy.types.value(expression);
-      if (isCsharpRefusal(thrown)) issues?.push(Object.freeze({ node: expression, code: thrown.code, message: thrown.message }));
+      // A refused operand value carrier is reported once, by the source evidence at the operand (R4 #67).
       const sourceCarrier = isCsharpRefusal(thrown) ? undefined : thrown;
       producer.throwValue.selected(node, Object.freeze({ expression, sourceCarrier, targetCarrier: selectCsharpThrownOperandCarrier(policy, sourceCarrier, isCsharpThrowableType(policy, sourceCarrier)) }),
       );
@@ -413,10 +395,40 @@ export function analyzeCsharpOperationConstruct(
       }
     },
   );
+  // After the operand's own records: a source-call operand's adoption (call record sourceResult) composes the await.
+  if (ast.is.IsAwaitExpression(node)) analyzeCsharpAwait(node, policy, producer, issues);
   if (ast.is.IsBinaryExpression(node) || ast.is.IsPrefixUnaryExpression(node) || ast.is.IsPostfixUnaryExpression(node)) {
     producer.operatorForm.selected(node, selectCsharpOperatorForm(policy, node, producer.jsArrayMutation.get(node),
       producer.binary.get(node), producer.unary.get(node), (subject) => producer.property.get(subject)));
   }
+}
+
+/**
+ * The completion of `await e`: the operand carrier (the call record's selected result when the operand is a source call
+ * with a call-site adoption, else the operand value) and the Host's awaited result (values.awaited).
+ */
+function analyzeCsharpAwait(
+  node: Node,
+  policy: CsharpPolicyContext,
+  producer: CsharpOperationProducer,
+  issues: CsharpOperationIssue[] | undefined,
+): void {
+  const expression = policy.ast.as.AsAwaitExpression(node)?.Expression;
+  const operand = expression === undefined ? undefined : policy.facts.navigation.expressions.transparentOperand(expression);
+  const sourceResult = operand === undefined ? undefined : producer.call.get(operand)?.sourceResult;
+  const operandCarrier = expression === undefined ? undefined
+    : sourceResult?.completion !== undefined ? sourceResult.selectedType : policy.types.value(expression);
+  const awaitedCarrier = policy.types.awaited(node);
+  // A refused operand or awaited carrier (the await's own value, values.awaited(await) = values.type(await)) is reported
+  // once, by the source evidence at its site (R4 #67).
+  const completion = operandCarrier === undefined || isCsharpRefusal(operandCarrier) ||
+    isCsharpRefusal(awaitedCarrier) ? undefined : selectCsharpSourceCallAwaitCompletion(operandCarrier, awaitedCarrier,
+      policy.typeDefinitions, policy.facts.navigation.expressions.resultUse(node), csharpHostAwaitedArms(policy.facts, node), sourceResult);
+  const rejection = awaitResultMappingRejection(policy, completion);
+  if (rejection !== undefined) {
+    issues?.push(Object.freeze({ node, code: "CSHARP_AWAIT_RESULT_MAPPING_NOT_PROVEN", message: rejection }));
+  }
+  producer.await.selected(node, rejection === undefined ? completion : undefined);
 }
 
 function awaitResultMappingRejection(
@@ -441,17 +453,14 @@ function awaitResultMappingRejection(
 }
 
 /**
- * The instance carrier `x instanceof C` tests: every construct signature of the constructor's published value type
- * (callable or shape) must produce the same represented instance carrier.
+ * The instance carrier `x instanceof C` tests: the Host instance type of the test (relations.at(test).instance, the
+ * instance type the right operand constructs), represented once (I6). C# never derives it from construct signatures.
  */
-function csharpInstanceType(policy: CsharpPolicyContext, constructor: Node): TargetTypeRef | undefined {
-  const structure = sourceTypeDescriptorStructure(sourceValueType(policy.facts, constructor));
-  const signatures = structure.kind === "callable" || structure.kind === "shape" ? structure.constructs : [];
-  const instances = signatures.map(signature => {
-    const instance = policy.types.represent(signature.result, constructor, "value");
-    return isCsharpRefusal(instance) ? undefined : instance;
-  });
-  const selected = instances[0];
-  return selected !== undefined && instances.every(instance => instance !== undefined && targetTypeRefEquals(selected, instance))
-    ? selected : undefined;
+function csharpInstanceType(policy: CsharpPolicyContext, test: Node, constructor: Node): TargetTypeRef | undefined {
+  const relation = sourceUnionRelation(policy.facts, test);
+  if (relation?.kind !== "test" || relation.test !== "instanceof") return failTargetAnalysisInvariant("tsonic-csharp",
+    "An instanceof test requires its Host test relation.", test);
+  if (relation.instance === undefined) return undefined;
+  const instance = policy.types.represent(relation.instance, constructor, "value");
+  return isCsharpRefusal(instance) ? undefined : instance;
 }

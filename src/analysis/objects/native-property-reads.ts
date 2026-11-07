@@ -37,7 +37,7 @@ export function resolveCsharpNativePropertyRead(
   { readonly kind: "resolved"; readonly property: CsharpNativePropertyRead } {
   if (receiverCarrier === undefined) return { kind: "unresolved" };
   const selections = [...new Set(declarations)].flatMap(declaration => {
-    const identity = csharpSourceProfileDeclarationIdentity(host.ast, host.facts, host.sourceFacts, declaration);
+    const identity = csharpSourceProfileDeclarationIdentity(host.ast, host.facts, declaration);
     if (identity?.kind !== "member") return [];
     const selected = selectCsharpErrorNativeProperty(host, identity, receiverCarrier);
     return selected === undefined ? [] : [{ identity, selected }];

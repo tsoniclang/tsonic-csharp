@@ -1,3 +1,4 @@
+import { knownNativePlatform64 } from "../../../helpers/native-integer-platform.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { csharpArrayElementIsRepresentableAs } from "../../../../dist/policy/types/collections/array-elements.js";
@@ -42,9 +43,9 @@ test("contextual scalar writes use native literal fit rather than inferred-array
     }`);
     acceptedEffectiveSource(compiled);
     assertPrimitiveOccurrences(compiled, "value", "float64");
-    assert.equal(csharpArrayElementIsRepresentableAs(primitive("float64"), fixed("int64")), false,
+    assert.equal(csharpArrayElementIsRepresentableAs(primitive("float64"), fixed("int64"), knownNativePlatform64), false,
       `${surface}: an inferred array still cannot round the whole native int64 domain`);
-    assert.equal(csharpLiteralIsRepresentableAs(literal(1n, 1000n).literal, primitive("float64")), false,
+    assert.equal(csharpLiteralIsRepresentableAs(literal(1n, 1000n).literal, primitive("float64"), knownNativePlatform64), false,
       `${surface}: the actual native floating range remains mandatory`);
   }
 });
@@ -52,26 +53,26 @@ test("contextual scalar writes use native literal fit rather than inferred-array
 test("homogeneous native floating contributions retain their already-selected carrier", () => {
   for (const name of ["float32", "float64"]) {
     const inputs = Object.freeze([fixed(name), fixed(name)]);
-    for (const input of inputs) assert.equal(csharpArrayElementIsRepresentableAs(input.carrier, input), true);
+    for (const input of inputs) assert.equal(csharpArrayElementIsRepresentableAs(input.carrier, input, knownNativePlatform64), true);
     assert.equal(inputs.every(input => input.carrier.name === name && Object.isFrozen(input)), true, "native admission leaves every chosen contribution unchanged");
   }
   const authored = literal(1n, 100n);
   const value = Object.freeze({ ...authored.literal, number: 1e100 });
-  assert.equal(csharpLiteralIsRepresentableAs(value, primitive("float64")), true, "an explicitly selected native floating token retains its valid range");
+  assert.equal(csharpLiteralIsRepresentableAs(value, primitive("float64"), knownNativePlatform64), true, "an explicitly selected native floating token retains its valid range");
 });
 
 test("homogeneous floating identity cannot admit an out-of-range authored literal", () => {
   const value = Object.freeze({ ...literal(1n, 1000n).literal, number: Infinity });
-  for (const name of ["float32", "float64"]) assert.equal(csharpLiteralIsRepresentableAs(value, primitive(name)), false,
+  for (const name of ["float32", "float64"]) assert.equal(csharpLiteralIsRepresentableAs(value, primitive(name), knownNativePlatform64), false,
     `${name}: final native literal admission is required even when the type is identical`);
-  assert.equal(csharpArrayElementIsRepresentableAs(primitive("int32"), literal(1n, 100n)), false);
+  assert.equal(csharpArrayElementIsRepresentableAs(primitive("int32"), literal(1n, 100n), knownNativePlatform64), false);
 });
 
 for (const integer of ["int32", "uint32", "int64", "uint64", "native-int", "native-uint"]) {
   for (const reverse of [false, true]) test(`inferred float32 refuses the full ${integer} domain (${reverse})`, () => {
     const inputs = [fixed("float32"), fixed(integer)];
     if (reverse) inputs.reverse();
-    assert.equal(inputs.every(input => csharpArrayElementIsRepresentableAs(primitive("float32"), input)), false,
+    assert.equal(inputs.every(input => csharpArrayElementIsRepresentableAs(primitive("float32"), input, knownNativePlatform64)), false,
       "native element admission cannot round the whole actual integer domain");
   });
 }
@@ -80,7 +81,7 @@ for (const integer of ["int8", "uint8", "int16", "uint16", "char"]) {
   for (const reverse of [false, true]) test(`float32 exactly contains ${integer} (${reverse})`, () => {
     const inputs = [fixed("float32"), fixed(integer)];
     if (reverse) inputs.reverse();
-    assert.equal(inputs.every(input => csharpArrayElementIsRepresentableAs(primitive("float32"), input)), true,
+    assert.equal(inputs.every(input => csharpArrayElementIsRepresentableAs(primitive("float32"), input, knownNativePlatform64)), true,
       "the target's whole-domain lossless conversion remains independent of source inference");
   });
 }
@@ -89,7 +90,7 @@ for (const reverse of [false, true]) {
   test(`authored binary fractions may retarget to float32 (${reverse})`, () => {
     const inputs = [literal(5n, -1n), literal(125n, -2n)];
     if (reverse) inputs.reverse();
-    for (const input of inputs) assert.equal(csharpArrayElementIsRepresentableAs(primitive("float32"), input), true,
+    for (const input of inputs) assert.equal(csharpArrayElementIsRepresentableAs(primitive("float32"), input, knownNativePlatform64), true,
       "an already-chosen native float32 admits the exact authored binary fraction");
   });
   test(`a nonbinary authored fraction keeps its actual float64 default (${reverse})`, () => {
@@ -97,13 +98,13 @@ for (const reverse of [false, true]) {
     const compiled = compileEffectiveSource("native", `export function run(): boolean { ${body} return value > 0 && other === 1; }`);
     acceptedEffectiveSource(compiled);
     assertPrimitiveOccurrences(compiled, "value", "float64");
-    assert.equal(csharpArrayElementIsRepresentableAs(primitive("float32"), literal(1n, -1n)), false,
+    assert.equal(csharpArrayElementIsRepresentableAs(primitive("float32"), literal(1n, -1n), knownNativePlatform64), false,
       "the target cannot silently reinterpret an inexact decimal contribution as an exact float32");
   });
   test(`a genuine computed float64 remains fixed (${reverse})`, () => {
     const inputs = [fixed("float32"), fixed("float64")];
     if (reverse) inputs.reverse();
-    assert.equal(inputs.every(input => csharpArrayElementIsRepresentableAs(primitive("float32"), input)), false,
+    assert.equal(inputs.every(input => csharpArrayElementIsRepresentableAs(primitive("float32"), input, knownNativePlatform64)), false,
       "a checked floating value is not a flexible integer literal");
   });
 }
@@ -114,7 +115,7 @@ test("actual explicit numeric destinations preserve native conversions instead o
       providers: createCsharpProviderRelationResolver({ providers: [], providerPolicies: [] }) }, primitive("int32"), primitive(name), "implicit");
     assert.equal(conversion.kind === "implicit" && conversion.proof === "numeric", true, `${name}: the actual native numeric conversion is preserved`);
   }
-  assert.equal(csharpLiteralIsRepresentableAs(literal(16777217n, 0n, 16777217n).literal, primitive("float32")), true,
+  assert.equal(csharpLiteralIsRepresentableAs(literal(16777217n, 0n, 16777217n).literal, primitive("float32"), knownNativePlatform64), true,
     "an explicitly annotated native float32 destination retains its existing rounding contract");
 });
 
@@ -148,7 +149,7 @@ test("inferred nonnumeric and absent fallback arms never authorize authored inte
     const other = Object.freeze({ carrier, literal: undefined });
     for (const value of [literal(9007199254740993n, 0n, 9007199254740993n), literal(9007199254740993n, 0n, -9007199254740993n, "float64", true), literal(1n, 100n)]) {
       for (const inputs of [[other, value], [value, other]]) {
-        assert.equal(csharpArrayElementIsRepresentableAs(primitive("float64"), inputs.find(input => input === value)), false,
+        assert.equal(csharpArrayElementIsRepresentableAs(primitive("float64"), inputs.find(input => input === value), knownNativePlatform64), false,
           "a nonnumeric or absent neighbour cannot bypass exact native integer admission");
       }
     }
@@ -157,9 +158,9 @@ test("inferred nonnumeric and absent fallback arms never authorize authored inte
 
 test("an authored integer's actual floating default supplies an exact needed carrier, never a fabricated one", () => {
   const value = literal(16777217n, 0n, 16777217n, "int32");
-  assert.equal(csharpArrayElementIsRepresentableAs(primitive("float32"), value), false);
-  assert.equal(csharpArrayElementIsRepresentableAs(primitive("float64"), value), true);
-  assert.equal(csharpLiteralIsRepresentableAs(value.literal, primitive("float32")), true,
+  assert.equal(csharpArrayElementIsRepresentableAs(primitive("float32"), value, knownNativePlatform64), false);
+  assert.equal(csharpArrayElementIsRepresentableAs(primitive("float64"), value, knownNativePlatform64), true);
+  assert.equal(csharpLiteralIsRepresentableAs(value.literal, primitive("float32"), knownNativePlatform64), true,
     "the actual explicit rounding destination remains distinct from exact inference admission");
 });
 
@@ -167,7 +168,7 @@ for (const carrier of ["int32", "float64"]) test(`fitting authored integers reta
   const one = literal(1n, 0n, 1n, carrier);
   const two = literal(2n, 0n, 2n, carrier);
   for (const inputs of [[fixed("int32"), one], [one, fixed("int32")], [one, fixed("int32"), two]]) {
-    assert.equal(inputs.every(input => csharpArrayElementIsRepresentableAs(primitive("int32"), input)), true,
+    assert.equal(inputs.every(input => csharpArrayElementIsRepresentableAs(primitive("int32"), input, knownNativePlatform64)), true,
       "the actual authored integers fit the chosen native int32 carrier in every order");
   }
 });
@@ -210,7 +211,7 @@ for (const carrier of ["int32", "float64"]) test(`flexible integer literals reta
 
 test("a genuinely needed fractional contribution permits the exact existing float64 common carrier", () => {
   for (const inputs of [[fixed("int32"), fixed("uint32"), literal(5n, -1n)], [literal(5n, -1n), fixed("uint32"), fixed("int32")]]) {
-    assert.equal(inputs.every(input => csharpArrayElementIsRepresentableAs(primitive("float64"), input)), true,
+    assert.equal(inputs.every(input => csharpArrayElementIsRepresentableAs(primitive("float64"), input, knownNativePlatform64)), true,
       "an actually annotated double array admits every exact native input without a guessed source-type choice");
   }
   const compiled = compileEffectiveSource("native", `import type { int32, uint32 } from "@tsonic/core/types.js";
@@ -220,22 +221,22 @@ test("a genuinely needed fractional contribution permits the exact existing floa
 
 test("a canonical floating union arm never rounds an authored exact integer", () => {
   for (const [value, expected] of [[9007199254740992n, true], [9007199254740993n, false]]) {
-    assert.equal(csharpArrayElementIsRepresentableAs(primitive("float64"), literal(value, 0n, value)), expected,
+    assert.equal(csharpArrayElementIsRepresentableAs(primitive("float64"), literal(value, 0n, value), knownNativePlatform64), expected,
       "the exact native f64 boundary is checked without a host-number round trip");
   }
 });
 
 test("every inferred physical-union fallback proves authored integer exactness", () => {
   for (const value of [literal(9007199254740993n, 0n, 9007199254740993n), literal(9007199254740993n, 0n, -9007199254740993n, "float64", true), literal(1n, 100n)]) {
-    assert.equal(csharpArrayElementIsRepresentableAs(primitive("float64"), value), false, "no inferred arm can silently round the authored integer");
-    assert.equal(csharpLiteralIsRepresentableAs(value.literal, primitive("float64")), true,
+    assert.equal(csharpArrayElementIsRepresentableAs(primitive("float64"), value, knownNativePlatform64), false, "no inferred arm can silently round the authored integer");
+    assert.equal(csharpLiteralIsRepresentableAs(value.literal, primitive("float64"), knownNativePlatform64), true,
       "the same original token retains its explicitly annotated native rounding contract");
   }
 });
 
 test("authored integral tokens beyond bounded integer materialization stay flexible and exact", () => {
   for (const value of [literal(1n << 200n, 0n), literal(9007199254740994n, 0n, 9007199254740994n)]) {
-    assert.equal(csharpArrayElementIsRepresentableAs(primitive("float64"), value), true,
+    assert.equal(csharpArrayElementIsRepresentableAs(primitive("float64"), value, knownNativePlatform64), true,
       "actual binary-exact values above 2^53 remain admitted without a fabricated integer materialization or cap");
   }
 });
@@ -253,24 +254,24 @@ test("genuine checked native unions stay with the existing union owner", () => {
     const arms = getCsharpRuntimeUnionArms(csharpRuntimeUnionTargetType(inputs.map(input => input.carrier)));
     assert.equal(arms?.length === 2 && inputs.every(input => arms.includes(input.carrier)), true, "explicit native union arms retain their exact actual carriers");
   }
-  for (const integer of [1n, 9007199254740993n]) assert.equal(csharpArrayElementIsRepresentableAs(primitive("int64"), literal(integer, 0n, integer)), true,
+  for (const integer of [1n, 9007199254740993n]) assert.equal(csharpArrayElementIsRepresentableAs(primitive("int64"), literal(integer, 0n, integer), knownNativePlatform64), true,
     "a fitting authored integer retains the exact native wide carrier");
 });
 
 test("native signed zero and integer literal range remain actual constraints", () => {
   const negativeZero = Object.freeze({ ...literal(0n, 0n, 0n, "float64", true).literal, number: -0 });
   // An authored -0 is the integer zero in an integral slot (C-2301 integral negative zero, token 0); float64 keeps its sign.
-  assert.equal(csharpLiteralIsRepresentableAs(negativeZero, primitive("int32")), true);
-  assert.equal(csharpLiteralIsRepresentableAs(negativeZero, primitive("float64")), true);
+  assert.equal(csharpLiteralIsRepresentableAs(negativeZero, primitive("int32"), knownNativePlatform64), true);
+  assert.equal(csharpLiteralIsRepresentableAs(negativeZero, primitive("float64"), knownNativePlatform64), true);
   const beyond = literal(2147483648n, 0n, 2147483648n);
-  assert.equal(csharpArrayElementIsRepresentableAs(primitive("int32"), beyond), false);
-  assert.equal(csharpArrayElementIsRepresentableAs(primitive("float64"), beyond), true);
+  assert.equal(csharpArrayElementIsRepresentableAs(primitive("int32"), beyond, knownNativePlatform64), false);
+  assert.equal(csharpArrayElementIsRepresentableAs(primitive("float64"), beyond, knownNativePlatform64), true);
 });
 
 test("nonnumeric rows and input objects remain unchanged and immutable", () => {
   const carrier = Object.freeze({ kind: "array", element: primitive("int32") });
   const input = Object.freeze({ carrier, literal: undefined });
-  assert.equal(csharpArrayElementIsRepresentableAs(carrier, input), true, "an actual identical native carrier is admitted without a numeric choice");
+  assert.equal(csharpArrayElementIsRepresentableAs(carrier, input, knownNativePlatform64), true, "an actual identical native carrier is admitted without a numeric choice");
   assert.equal(Object.isFrozen(input) && input.carrier === carrier, true, "native admission cannot mutate the contribution or its identity");
 });
 

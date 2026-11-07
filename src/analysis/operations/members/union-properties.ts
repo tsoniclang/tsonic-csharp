@@ -1,6 +1,7 @@
 import type { CsharpUnionProperty } from "../../../target-model/records/objects/union-properties.js";
 import type { SourceMemberAccessSelection } from "@tsonic/target-api/source";
 import { sourceUnionRelation } from "../../program/source-facts.js";
+import { csharpSumArmSelection } from "../../../policy/conversions/union-relations.js";
 import type { CsharpProviderCallSelectionHost } from "../../../policy/model/provider-calls.js";
 import type { CsharpSourceProfilePropertyPolicyResult } from "../../../target-model/records/program/source-profile-invocations.js";
 
@@ -26,8 +27,15 @@ export function selectCsharpUnionProperty(
   // positional in the Host arm order (R6).
   const relation = sourceUnionRelation(host.facts, source.receiver);
   if (relation?.kind === "extract-arm") return undefined;
-  const guarded = relation?.kind === "map" && relation.mode === "narrowed-read"
-    ? relation.mapping.flatMap((destination, arm) => destination >= 0 ? [arm] : []) : undefined;
+  // Host arms (absence arms included) map to runtime-union storage slots through the one arm-to-slot rule
+  // (csharpSumArmSelection: absence is lifted, coincident arms share a slot); never by Host arm position (R6).
+  const narrowed = relation?.kind === "map" && relation.mode === "narrowed-read" ? relation : undefined;
+  const sourceSum = narrowed === undefined ? undefined : host.facts.sums.sum(narrowed.source);
+  const guarded = narrowed === undefined || sourceSum === undefined ? undefined : [...new Set(narrowed.mapping.flatMap((destination, arm) => {
+    if (destination < 0) return [];
+    const selected = csharpSumArmSelection(sourceSum, arm, carrier, host.typeDefinitions);
+    return selected.kind === "present" ? [selected.index] : [];
+  }))];
   if (guarded?.length === 1) return undefined;
   const indexes = variants.flatMap((_variant, index) => guarded === undefined || guarded.includes(index) ? [index] : []);
   if (indexes.length === 0) return undefined;

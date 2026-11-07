@@ -30,7 +30,9 @@ export function admitCsharpCallableResultAdapter(
   const sourceContract = admitCsharpCallableValueAdapter(policy, implementation.nativeSignature.sourceReturnType, target);
   if (sourceContract === undefined) return undefined;
   const conversion = admitCsharpConversionSelection(policy, implementation.returnType, target,
-    selectCsharpFlowReadConversion(policy, implementation.returnType, target, isCsharpThrowableType(policy, target)));
+    selectCsharpFlowReadConversion(policy, implementation.returnType, target, isCsharpThrowableType(policy, target),
+      // Not a Source read: a native adapter return carrier (a Source sum return carrier here is an invariant, I4).
+      undefined));
   return csharpConversionIsApplicable(conversion, "explicit")
     ? Object.freeze({ source: implementation.returnType, target, conversion }) : undefined;
 }

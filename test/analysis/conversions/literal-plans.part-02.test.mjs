@@ -1,3 +1,4 @@
+import { knownNativePlatform64 } from "../../helpers/native-integer-platform.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { analyzeCsharpConversions } from "../../../dist/analysis/conversions/analyze.js";
@@ -116,7 +117,7 @@ for (const surface of ["native", "js"]) for (const storage of ["direct", "nullab
       const emission = records.nativeExpression.get(expression);
       assert.equal(emission?.physical !== undefined, true, "the actual physical endpoint was admitted before literal publication");
       const carrier = emission.physical.carrier;
-      const expected = selectCsharpExactLiteralConversion(literal, physicalSource, carrier);
+      const expected = selectCsharpExactLiteralConversion(literal, physicalSource, carrier, knownNativePlatform64);
       const selected = records.exactLiteral.get(expression, carrier);
       assert.equal(expected.kind === (example.recipe === undefined ? "source-representation" : "resolved"), true,
         "the real native literal rule admits this source and endpoint without a value-specific workaround");
@@ -244,7 +245,7 @@ test(`${surface} rejected ${type} literal ${value} retains its precise native re
     const diagnostics = compiled.result.diagnostics;
     assert.equal(diagnostics.length, 1, "one exact native refusal, never an internal pending invariant");
     const literal = compiled.targetSource.facts.values.literal(diagnostics[0].sourceNode);
-    const selected = selectCsharpExactLiteralConversion(literal, primitive(type), primitive(type));
+    const selected = selectCsharpExactLiteralConversion(literal, primitive(type), primitive(type), knownNativePlatform64);
     // nextgen C-2542: CSHARP_UNSUPPORTED_AST is split; the literal emission site names CSHARP_LITERAL_NOT_REPRESENTABLE.
     assert.equal(selected.kind === "rejected" && diagnostics[0].code === "CSHARP_LITERAL_NOT_REPRESENTABLE" &&
       diagnostics[0].message === selected.reason, true, "the completed native literal owner supplies the exact retained reason");
@@ -270,7 +271,7 @@ test("exact literal selections exist only at requested keys and equal the native
   const exactLiteral = index.exactLiteral;
   assert.deepEqual(exactLiteral.get(wide, undefined), { kind: "not-applicable" }, "the explicit intrinsic request");
   for (const target of [primitive("int64"), csharpNullableTargetType(primitive("uint128"))]) {
-    assert.deepEqual(exactLiteral.get(wide, target), selectCsharpExactLiteralConversion(wideValue, primitive("int64"), target), targetTypeRefKey(target));
+    assert.deepEqual(exactLiteral.get(wide, target), selectCsharpExactLiteralConversion(wideValue, primitive("int64"), target, knownNativePlatform64), targetTypeRefKey(target));
   }
   assert.deepEqual(exactLiteral.get(text, csharpStringTargetType()), { kind: "source-representation" });
   assert.equal(exactLiteral.get(text, undefined), undefined, "no intrinsic request, no record");

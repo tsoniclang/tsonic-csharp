@@ -1,4 +1,4 @@
-import type { Node, AstReader, ReadonlySourceFactResolver } from "@tsonic/tsts";
+import type { Node, AstReader } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { selectCsharpArrayUnionElement, selectCsharpArrayUnionProperty } from "../members/number-array-unions.js";
 import { selectCsharpIndexedRecordElement, selectCsharpIndexedRecordProperty } from "../collections/indexed-records.js";
@@ -40,13 +40,12 @@ const elementPolicies = Object.freeze([
 export function selectCsharpSourceProfileConstructor(
   host: {
     readonly ast: AstReader;
-    readonly sourceFacts?: ReadonlySourceFactResolver;
     readonly providers: CsharpProviderRelationResolver;
     readonly facts: SourceProgramFacts;
   },
   declaration: Node,
 ): readonly CsharpTargetMember[] {
-  const identity = csharpSourceProfileDeclarationIdentity(host.ast, host.facts, host.sourceFacts, declaration);
+  const identity = csharpSourceProfileDeclarationIdentity(host.ast, host.facts, declaration);
   if (identity === undefined || identity.kind !== "construct") return [];
   return callPolicies.flatMap(policy => {
     if (policy.inheritableConstructor === undefined || !sourceProfileIdentityMatches(policy.source, identity)) return [];

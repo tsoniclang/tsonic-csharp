@@ -24,7 +24,7 @@ function sessionMethodValues(sourceText, isDeclaration) {
     ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
   visit(file);
-  const storage = source.facts.analyses.storage({ sourceFiles: source.sourceFiles });
+  const storage = source.facts.analyses.storage({ sourceFiles: source.sourceFiles, premises: {} });
   return { ast, declarations, storage, inputs: { storage, facts: source.facts, ast } };
 }
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
@@ -45,10 +45,12 @@ test("selected structural method storage participates in the sole published carr
       memberSubjectFor: () => Object.freeze({ kind: "unresolved", reason: "external method value" }),
     }),
     facts: Object.freeze({
+      // The Host method-value reads (values.methodValueUse, A8) select none here; the written member (Host use summary
+      // memberWritten, baseline retention input) keeps the method-value storage.
       navigation: Object.freeze({ uses: Object.freeze({ summary: () => Object.freeze({
-        firstClassUseCount: 1, exported: false, memberWritten: false,
+        exported: false, memberWritten: true,
       }) }) }),
-      values: Object.freeze({ has: () => false }),
+      values: Object.freeze({ has: () => false, methodValueUse: () => undefined }),
     }),
     ast: Object.freeze({ is: Object.freeze({
       IsMethodDeclaration: () => false,
@@ -60,7 +62,7 @@ test("selected structural method storage participates in the sole published carr
   const selected = retainCsharpMethodValueContracts({ targetType, members: [member] },
     shape => shape, environment, storage);
   assert.equal(selected.members[0].methodValueStorage?.kind, "delegate",
-    "the actual first-class method use selects delegate storage");
+    "a written method member selects delegate storage");
   assert.equal(targetTypeRefEquals(selected.targetType, targetType), false,
     "a physical delegate slot cannot reuse the native method-only carrier identity");
   const expected = createStructuralObjectShapeTarget(selected.members, selected.implements, environment, true);

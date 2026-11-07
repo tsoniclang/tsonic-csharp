@@ -1,5 +1,4 @@
 import type { Node } from "@tsonic/tsts";
-import { isSourceCallableBodyBoundary } from "@tsonic/target-api/source";
 import { targetUseSiteIdentity, type TargetUseSiteRef } from "@tsonic/target-api/analysis";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
@@ -41,7 +40,7 @@ interface SiteEntry {
   readonly requests: Map<TargetUseSiteRef | undefined, CsharpExpectedUseRequest>;
 }
 
-export function createCsharpExpectedUseCollection(policy: Pick<CsharpPolicyContext, "ast">): CsharpExpectedUseCollection {
+export function createCsharpExpectedUseCollection(policy: Pick<CsharpPolicyContext, "ast" | "facts">): CsharpExpectedUseCollection {
   const byExpression = new WeakMap<Node, Map<string, CsharpExpectedTypeUse>>();
   const expectedExpressions: Node[] = [];
   const targetTypes = new Map<string, TargetTypeRef>();
@@ -75,7 +74,7 @@ export function createCsharpExpectedUseCollection(policy: Pick<CsharpPolicyConte
     let use: CsharpExpectedTypeUse | undefined;
     let changed = false;
     if (expression !== undefined && targetType !== undefined) {
-      if (isSourceCallableBodyBoundary(policy.ast, expression)) contextualCallables.add(expression);
+      if (policy.facts.navigation.scopes.role(expression).includes("callable-body")) contextualCallables.add(expression);
       const key = targetTypeRefKey(targetType);
       let types = byExpression.get(expression);
       if (types === undefined) { types = new Map(); byExpression.set(expression, types); expectedExpressions.push(expression); }

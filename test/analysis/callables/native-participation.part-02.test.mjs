@@ -302,7 +302,7 @@ test(`${surface} malformed or budget-exhausted participation domains reject prec
   assert.equal(root !== undefined, true, "the actual checked finite domain has its original source-file root");
   const records = value.program.records;
   const limited = value.source.facts.analyses.storage({ sourceFiles: value.source.sourceFiles,
-    limits: { ...defaultSourceStorageLimits, maximumNodes: 1 } });
+    limits: { ...defaultSourceStorageLimits, maximumNodes: 1 }, premises: {} });
   assert.equal(limited.failureReason(), "Source storage transport exceeds its finite source-node budget.",
     "the budget control uses a real bounded source-storage failure, not an invented empty domain");
   assert.equal(limited.nodes.length < value.nodes.length, true, "the resource-exhausted checked domain is actually partial");

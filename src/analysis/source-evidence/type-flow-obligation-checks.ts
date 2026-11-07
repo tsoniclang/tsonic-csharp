@@ -2,25 +2,26 @@
 // Source relation holds; this file proves that the chosen .NET representation can carry it, and otherwise reports a
 // .NET-capability refusal (CSHARP_TYPE_FLOW_UNREPRESENTABLE). No Source relation is decided here (R2, I7).
 import type { Node } from "@tsonic/tsts";
-import type { SourceLiteralValue, SourceObligation } from "@tsonic/target-api/source";
+import type { SourceLiteralValue, SourceObligation, SourcePublishedPlatformFacts, SourceTypeFlowRefusal } from "@tsonic/target-api/source";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpPolicyContext } from "../../model/context.js";
-import type { CsharpSourceTypeFlowRelationHost } from "./relations.js";
-import type { CsharpNativeSourceCarrierSelection } from "../../../target-model/records/objects/object-shapes.js";
-import type { CsharpArrayLiteralSelection } from "../../../target-model/records/operations/array-literals.js";
-import type { TargetConstraint, TargetTypeRef } from "../../../target-model/types/model.js";
-import { csharpTargetTypeFailsConstraint, type CsharpConstraintSatisfactionHost } from "../../../analysis/operations/members/calls/constraint-satisfaction.js";
+import type { CsharpPolicyContext } from "../../policy/model/context.js";
+import type { CsharpSourceTypeFlowRelationHost } from "../../policy/types/source-type-flow/relations.js";
+import type { CsharpNativeSourceCarrierSelection } from "../../target-model/records/objects/object-shapes.js";
+import type { CsharpArrayLiteralSelection } from "../../target-model/records/operations/array-literals.js";
+import type { TargetConstraint, TargetTypeRef } from "../../target-model/types/model.js";
+import { csharpTargetTypeFailsConstraint, type CsharpConstraintSatisfactionHost } from "../operations/members/calls/constraint-satisfaction.js";
 import type { SourceTypeDescriptor } from "@tsonic/target-api/source";
-import { csharpSourceTypeFlowInterfaceAccepts } from "./relations.js";
-import { csharpLiteralIsRepresentableAs, selectCsharpExactLiteralConversion } from "../../conversions/literals.js";
-import { csharpArrayElementIsRepresentableAs } from "../collections/array-elements.js";
-import { conversionIsImplicitlyApplicable, selectCsharpConversion } from "../../conversions/core.js";
-import { csharpConversionIsApplicable } from "../../conversions/applicability.js";
-import { targetTypeRefEquals, targetTypeRefKey } from "../../../target-model/types/equality.js";
-import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
-import { isCsharpStringTargetType } from "../../../target-model/types/identity.js";
-import { getCsharpCollectionElementTargetType } from "../../../target-model/types/carriers/collections.js";
-import { getCsharpRuntimeUnionArms } from "../../../target-model/types/carriers/runtime-carriers.js";
+import { csharpSourceTypeFlowInterfaceAccepts } from "../../policy/types/source-type-flow/relations.js";
+import { csharpLiteralIsRepresentableAs, selectCsharpExactLiteralConversion } from "../../policy/conversions/literals.js";
+import { csharpArrayElementIsRepresentableAs } from "../../policy/types/collections/array-elements.js";
+import { conversionIsImplicitlyApplicable, selectCsharpConversion } from "../../policy/conversions/core.js";
+import { csharpConversionIsApplicable } from "../../policy/conversions/applicability.js";
+import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/equality.js";
+import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
+import { isCsharpStringTargetType } from "../../target-model/types/identity.js";
+import { getCsharpCollectionElementTargetType } from "../../target-model/types/carriers/collections.js";
+import { getCsharpRuntimeUnionArms } from "../../target-model/types/carriers/runtime-carriers.js";
+import { forwardSourceRefusal } from "../program/source-facts.js";
 
 export interface CsharpSourceTypeFlowObligationHost extends CsharpSourceTypeFlowRelationHost {
   readonly typeDefinitions: CsharpPolicyContext["typeDefinitions"];
@@ -28,6 +29,8 @@ export interface CsharpSourceTypeFlowObligationHost extends CsharpSourceTypeFlow
   readonly constraintHost: CsharpConstraintSatisfactionHost;
   /** The one mapping at an obligation site (storage position); a CSHARP_ refusal reads as "no representation". */
   represent(descriptor: SourceTypeDescriptor, site: Node): TargetTypeRef | undefined;
+  /** The Host platform facts (facts.analyses.platform): native-int literal fits are the Host's (Q89). */
+  readonly platform: SourcePublishedPlatformFacts;
   /** The Host literal value of a node (facts.values.literal). */
   literal(node: Node): SourceLiteralValue | undefined;
   valueType(node: Node): TargetTypeRef | undefined;
@@ -35,8 +38,11 @@ export interface CsharpSourceTypeFlowObligationHost extends CsharpSourceTypeFlow
   literalAdmission(node: Node, type: TargetTypeRef): CsharpNativeSourceCarrierSelection | undefined;
   /** The required contract of an obligation without a published requiredType (the instantiated call parameter). */
   requiredType(obligation: SourceObligation): TargetTypeRef | undefined;
-  /** The lowered .NET constraints of the binder an obligation names, with the call's binders substituted. */
-  nativeConstraints(obligation: SourceObligation, type: TargetTypeRef): readonly TargetConstraint[] | undefined;
+  /**
+   * The lowered .NET constraints of the binder an obligation names, with the call's binders substituted; the Host
+   * refusal of the binder's authored constraint when the Host refused it.
+   */
+  nativeConstraints(obligation: SourceObligation, type: TargetTypeRef): readonly TargetConstraint[] | SourceTypeFlowRefusal | undefined;
 }
 
 export function checkCsharpSourceTypeFlowObligations(
@@ -67,6 +73,8 @@ export function checkCsharpSourceTypeFlowObligation(
   if (obligation.kind === "constraint") {
     const constraints = host.nativeConstraints(obligation, chosen);
     if (constraints === undefined) return fail("A source constraint requires its actual lowered C# declaration constraints.");
+    // A Host refusal of the binder's authored constraint is forwarded unchanged (R5).
+    if ("kind" in constraints) return forwardSourceRefusal(constraints);
     for (const constraint of constraints) {
       if (constraint.kind === "implements") {
         if (!csharpSourceTypeFlowInterfaceAccepts(host, chosen, constraint.contract)) {
@@ -93,7 +101,7 @@ export function checkCsharpSourceTypeFlowObligation(
       const selected = host.arrayLiteral(site);
       if (selected.kind === "resolved") for (const [index, value] of literal.elements.entries()) {
         const physical = selected.elementCarriers[index];
-        if (physical === undefined || !csharpArrayElementIsRepresentableAs(physical, { carrier: physical, literal: value })) {
+        if (physical === undefined || !csharpArrayElementIsRepresentableAs(physical, { carrier: physical, literal: value }, host.platform)) {
           return Object.freeze({ source: "tsonic-csharp", sourceNode: obligation.site, category: "error",
             code: "CSHARP_ARRAY_ELEMENT_CARRIER_MISMATCH",
             message: "An inferred numeric union requires an exact canonical carrier for every authored integer literal." });
@@ -102,8 +110,8 @@ export function checkCsharpSourceTypeFlowObligation(
     }
     if (carrier.kind === "source-primitive" || isCsharpStringTargetType(carrier)) {
       const value = obligation.authority === "inferred" ? literal : host.literal(site);
-      if (literalFits(value, chosen)) return undefined;
-      const selection = selectCsharpExactLiteralConversion(value, chosen, chosen);
+      if (literalFits(value, chosen, host.platform)) return undefined;
+      const selection = selectCsharpExactLiteralConversion(value, chosen, chosen, host.platform);
       return fail(selection.kind === "rejected" ? selection.reason
         : `The retained source literal is not representable as '${targetTypeRefKey(chosen)}'.`);
     }
@@ -122,7 +130,7 @@ export function checkCsharpSourceTypeFlowObligation(
     if (actual === undefined) return fail("A native write check requires the exact projected value's Host-selected representation.");
     const literals = writtenLiteralValues(host, obligation);
     for (const literal of literals) {
-      if (literal !== undefined && !writtenLiteralFits(literal, chosen)) {
+      if (literal !== undefined && !writtenLiteralFits(literal, chosen, host.platform)) {
         return fail(`The written literal does not fit the existing '${targetTypeRefKey(chosen)}' storage.`);
       }
     }
@@ -164,20 +172,20 @@ function writtenLiteralValues(
   return literals;
 }
 
-function literalFits(value: SourceLiteralValue | undefined, carrier: TargetTypeRef): boolean {
+function literalFits(value: SourceLiteralValue | undefined, carrier: TargetTypeRef, platform: SourcePublishedPlatformFacts): boolean {
   const type = getCsharpNullableElementTargetType(carrier) ?? carrier;
   if (type.kind === "tuple") {
     return value?.form === "array" && value.elements.length === type.elements.length &&
-      type.elements.every((element, index) => literalFits(value.elements[index], element));
+      type.elements.every((element, index) => literalFits(value.elements[index], element, platform));
   }
-  return csharpLiteralIsRepresentableAs(value, type);
+  return csharpLiteralIsRepresentableAs(value, type, platform);
 }
 
-function writtenLiteralFits(value: SourceLiteralValue, carrier: TargetTypeRef): boolean {
+function writtenLiteralFits(value: SourceLiteralValue, carrier: TargetTypeRef, platform: SourcePublishedPlatformFacts): boolean {
   const type = getCsharpNullableElementTargetType(carrier) ?? carrier;
-  if (value.form !== "array") return type.kind !== "source-primitive" && !isCsharpStringTargetType(type) || literalFits(value, carrier);
+  if (value.form !== "array") return type.kind !== "source-primitive" && !isCsharpStringTargetType(type) || literalFits(value, carrier, platform);
   if (type.kind === "tuple") return value.elements.length === type.elements.length &&
-    value.elements.every((element, index) => element === undefined || writtenLiteralFits(element, type.elements[index]!));
+    value.elements.every((element, index) => element === undefined || writtenLiteralFits(element, type.elements[index]!, platform));
   const elementType = getCsharpCollectionElementTargetType(type);
-  return elementType === undefined || value.elements.every(element => element === undefined || writtenLiteralFits(element, elementType));
+  return elementType === undefined || value.elements.every(element => element === undefined || writtenLiteralFits(element, elementType, platform));
 }

@@ -31,7 +31,7 @@ import { retainCsharpMethodValueContracts } from "../../../dist/analysis/objects
 import { csharpCopiedObjectShapeMembers } from "../../../dist/policy/types/objects/method-environments.js";
 import { hostProgram, representationServices, representations, represented } from "../../representation/host-fixture.mjs";
 import { selectCsharpObjectMemberEmission } from "../../../dist/policy/types/objects/object-members.js";
-import { unexpectedNativeDispatchRead, emptyNativeDispatch, integer, noAuthoredNativeMethod, defaultEvidenceFixture, structuralInterfaceRecords, sourceContract, fixture, nativeBoundBase, nativeBoundDerived, genericBoundFixture, programs, nativeModes, adaptedNativeForwarder, nativeProofSource, buildNativeProof, buildNativeProject, genericCases, genericSource } from "./structural-forwarding.fixtures.mjs";
+import { unexpectedNativeDispatchRead, emptyNativeDispatch, integer, noAuthoredNativeMethod, noAuthoredNativeStorage, unreadSourceFacts, defaultEvidenceFixture, structuralInterfaceRecords, sourceContract, fixture, nativeBoundBase, nativeBoundDerived, genericBoundFixture, programs, nativeModes, adaptedNativeForwarder, nativeProofSource, buildNativeProof, buildNativeProject, genericCases, genericSource } from "./structural-forwarding.fixtures.mjs";
 
 test("a single native method contract and its extracted protocol publish the same canonical shape", () => {
   const member = Object.freeze({ sourceKey: { kind: "property", name: "run" }, sourceName: "run",
@@ -266,7 +266,6 @@ test("every actual authored native method uses the same body and copy protocol",
   const environment = createCsharpTypeParameterEnvironment(() => assert.fail("a monomorphic native method has no free generic constraint to resolve"));
   const subject = Object.freeze({ node: declaration });
   const sourceStorage = Object.freeze({
-    source: Object.freeze({ ast: Object.freeze({ is: Object.freeze({}) }) }),
     nodes: Object.freeze([]),
     memberSubjectFor: node => {
       assert.equal(node === declaration, true, "the native owner queries the exact authored method slot");
@@ -278,8 +277,11 @@ test("every actual authored native method uses the same body and copy protocol",
         boundaries: Object.freeze([{ kind: "external-write", subject, exposure: literal }]) });
     },
   });
+  // Method-value use inputs (CsharpMethodValueUseInputs): the storage queries above, published facts and syntax.
+  const methodValues = Object.freeze({ storage: sourceStorage, facts: unreadSourceFacts("the native method slot proof"),
+    ast: Object.freeze({ is: Object.freeze({}) }) });
   const admitted = retainCsharpMethodValueContracts({ targetType, members: Object.freeze([member]),
-    methodImplementation: implementation }, shape => shape, environment, sourceStorage);
+    methodImplementation: implementation }, shape => shape, environment, methodValues);
   assert.equal(admitted.methodImplementation === implementation, true, "native body and checked capture identity are retained");
   assert.equal(admitted.members[0].methodValueContract !== undefined, true, "an ordinary native body gets the existing method protocol");
   assert.equal(admitted.members[0].methodValueStorage === undefined, true, "the native body does not introduce a delegate storage field");
@@ -313,7 +315,7 @@ test("every actual authored native method uses the same body and copy protocol",
   ]) {
     const selected = retainCsharpMethodValueContracts({ targetType, members: Object.freeze([member]),
       methodImplementation: implementation }, shape => shape, environment, {
-        ...sourceStorage, memberWritesFor: () => selection,
+        ...methodValues, storage: { ...sourceStorage, memberWritesFor: () => selection },
       });
     assert.equal(selected.members[0].methodValueContract !== undefined, label === "complete readonly slot",
       `${label}: only the actual immutable native method contract removes delegate storage`);
@@ -346,7 +348,11 @@ test("authored bodies admit only exact closed delegate or optional protocol slot
     methodImplementation: { declaration, methods: [declaration], captures: [], identity: "selected-native-delegate" } },
     () => assert.fail("a selected native delegate cannot invent a second method protocol"),
     () => assert.fail("the selected monomorphic delegate has no generic constraint"), {
-      memberSubjectFor: () => assert.fail("an already-selected delegate is not reclassified from method mutation evidence"),
+      storage: Object.freeze({
+        memberSubjectFor: () => assert.fail("an already-selected delegate is not reclassified from method mutation evidence"),
+      }),
+      facts: unreadSourceFacts("an already-selected delegate"),
+      ast: Object.freeze({ is: Object.freeze({}) }),
     });
   assert.equal(retained.members[0] === selectedMember, true,
     "the exact required native delegate slot remains authoritative even for a fixed authored method");

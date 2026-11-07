@@ -6,7 +6,7 @@ import { csharpTargetNamedType } from "../factories.js";
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "./nullable.js";
 import { isCsharpValueTypeTargetType } from "../identity.js";
 import { csharpSourcePrimitiveTargetType, csharpJsStringTargetType, csharpStringTargetType } from "./scalar-types.js";
-import { getCsharpRuntimeUnionArms } from "./runtime-carriers.js";
+import { csharpSourceSumStorageSlot, getCsharpRuntimeUnionArms } from "./runtime-carriers.js";
 
 export const csharpJsArrayCarrierId = "Tsonic.CSharp.Js.JSArray`1";
 
@@ -40,41 +40,103 @@ export function csharpJsArrayTargetType(
 export function csharpJsMapTargetType(
   keyType: TargetTypeRef,
   valueType: TargetTypeRef,
+  keyCategories: CsharpJsKeyCategories,
 ): CsharpTargetNamedTypeRef {
   const entryType: TargetTypeRef = {
     kind: "tuple",
     elements: [keyType, valueType],
   };
   return {
-    ...csharpTargetNamedType("Tsonic.CSharp.Js.Map`3", [keyType, valueType, csharpJsCollectionKeyTargetType(keyType)], csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "Map"), { allowsRefLikeTypeArguments: [false, false, false], enumerableElementType: entryType, typeofRuntimeKind: "object" }),
+    ...csharpTargetNamedType("Tsonic.CSharp.Js.Map`3", [keyType, valueType, csharpJsCollectionKeyTargetType(keyType, keyCategories)], csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "Map"), { allowsRefLikeTypeArguments: [false, false, false], enumerableElementType: entryType, typeofRuntimeKind: "object" }),
     csharpJsSurfaceKind: "map",
   };
 }
 
 export function csharpJsSetTargetType(
   elementType: TargetTypeRef,
+  keyCategories: CsharpJsKeyCategories,
 ): CsharpTargetNamedTypeRef {
   return {
-    ...csharpTargetNamedType("Tsonic.CSharp.Js.Set`2", [elementType, csharpJsCollectionKeyTargetType(elementType)], csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "Set"), { allowsRefLikeTypeArguments: [false, false], enumerableElementType: elementType, typeofRuntimeKind: "object" }),
+    ...csharpTargetNamedType("Tsonic.CSharp.Js.Set`2", [elementType, csharpJsCollectionKeyTargetType(elementType, keyCategories)], csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "Set"), { allowsRefLikeTypeArguments: [false, false], enumerableElementType: elementType, typeofRuntimeKind: "object" }),
     csharpJsSurfaceKind: "set",
   };
 }
 
-export function csharpJsCollectionKeyTargetType(value: TargetTypeRef): TargetTypeRef {
+/**
+ * Q77: the Source key category of each PRESENT arm of a Set element or Map key, in authored Host arm order, as the Host
+ * publishes it for the collection (SourceJsCollectionFacts, X5; the N3' rule, the typeof category of the arm's origin).
+ * undefined only for a key that is not a union. "function" keys compare as objects.
+ */
+export type CsharpJsKeyCategory = "number" | "bigint" | "string" | "boolean" | "symbol" | "object" | "function";
+export type CsharpJsKeyCategories = readonly CsharpJsKeyCategory[] | undefined;
+
+const keyCategoryStructs: Readonly<Record<CsharpJsKeyCategory, string>> = Object.freeze({
+  number: "NumberKeyCategory", bigint: "BigIntKeyCategory", string: "StringKeyCategory", boolean: "BooleanKeyCategory",
+  symbol: "SymbolKeyCategory", object: "ObjectKeyCategory", function: "ObjectKeyCategory",
+});
+
+function csharpJsKeyCategoryTargetType(category: CsharpJsKeyCategory): TargetTypeRef {
+  const name = keyCategoryStructs[category];
+  return csharpTargetNamedType(`Tsonic.CSharp.Js.${name}`, undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", name),
+    { allowsRefLikeTypeArguments: [], valueType: true });
+}
+
+/**
+ * The Host key categories already carried by a sealed union collection key (its category arguments, one per storage
+ * arm), for matching an inferred projection against that actual key. undefined for a key that is not a union key.
+ */
+/**
+ * Q86: the Host key categories a union carrier carries (one per present Host arm, csharpSourceSumKeyCategories, set by
+ * the representation from facts.profile.keyCategories of the sum's descriptor). Read where a collection key is formed
+ * from a substituted binder and no descriptor is at hand. undefined for a carrier that is not such a union.
+ */
+export function csharpSourceSumKeyCategoriesOf(value: TargetTypeRef): CsharpJsKeyCategories {
+  const present = getCsharpNullableElementTargetType(value) ?? value;
+  const categories = (present as { readonly csharpSourceSumKeyCategories?: readonly string[] }).csharpSourceSumKeyCategories;
+  return categories as readonly CsharpJsKeyCategory[] | undefined;
+}
+
+export function csharpJsKeyCategoriesOf(key: TargetTypeRef): CsharpJsKeyCategories {
+  const union = key.kind === "target-named" && key.id === "Tsonic.CSharp.Js.OptionalCollectionKey`2" ? key.typeArguments?.[1] : key;
+  if (union?.kind !== "target-named" || !union.id.startsWith("Tsonic.CSharp.Js.UnionCollectionKey`")) return undefined;
+  const byStruct = new Map(Object.entries(keyCategoryStructs).map(([category, name]) => [`Tsonic.CSharp.Js.${name}`, category]));
+  return (union.typeArguments ?? []).flatMap((argument, index) => index % 2 === 1 && argument.kind === "target-named"
+    ? [byStruct.get(argument.id) as CsharpJsKeyCategory] : []);
+}
+
+/**
+ * The collection-key contract of a key carrier. A union key is `UnionCollectionKey<T1, C1, …, Tn, Cn>` over its storage
+ * arms, each paired with its Source category (Q77). The categories are the Host's, per present Host arm; a storage arm
+ * shared by coincident arms (Q73) takes the category of its FIRST Host arm in authored order (Q82). C# decides no
+ * category. A union key without its Host categories is an invariant failure.
+ */
+export function csharpJsCollectionKeyTargetType(value: TargetTypeRef, keyCategories: CsharpJsKeyCategories): TargetTypeRef {
   if (csharpFreeTypeParameterIdentities([value]).size !== 0) {
     return csharpProjectedType({ kind: "collection-key", arguments: [value] });
   }
   const present = getCsharpNullableElementTargetType(value);
   if (present !== undefined && isCsharpValueTypeTargetType(present)) {
-    return csharpTargetNamedType("Tsonic.CSharp.Js.OptionalCollectionKey`2", [present, csharpJsCollectionKeyTargetType(present)],
+    return csharpTargetNamedType("Tsonic.CSharp.Js.OptionalCollectionKey`2", [present, csharpJsCollectionKeyTargetType(present, keyCategories)],
       csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "OptionalCollectionKey"),
       { allowsRefLikeTypeArguments: [false, false], valueType: true });
   }
   const arms = getCsharpRuntimeUnionArms(value);
-  const name = arms === undefined ? "CollectionKey" : "UnionCollectionKey";
-  const arguments_ = arms ?? [value];
-  return csharpTargetNamedType(`Tsonic.CSharp.Js.${name}\`${arguments_.length}`, arguments_,
-    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", name),
+  if (arms === undefined) {
+    return csharpTargetNamedType("Tsonic.CSharp.Js.CollectionKey`1", [value], csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "CollectionKey"),
+      { allowsRefLikeTypeArguments: [false], valueType: true });
+  }
+  if (keyCategories === undefined) throw new TypeError(
+    "A union collection key requires the Host key category of every present arm (Q77, SourceJsCollectionFacts).");
+  const categories = arms.map((_, slot) => {
+    // Present Host arm i lands in storage slot csharpSourceSumStorageSlot(value, i); the first such arm decides (Q82).
+    const first = keyCategories.findIndex((_, index) => (csharpSourceSumStorageSlot(value, index) ?? index) === slot);
+    const category = first < 0 ? undefined : keyCategories[first];
+    if (category === undefined) throw new TypeError("Every storage arm of a union collection key needs the category of a Host arm.");
+    return csharpJsKeyCategoryTargetType(category);
+  });
+  const arguments_ = arms.flatMap((arm, index) => [arm, categories[index]!]);
+  return csharpTargetNamedType(`Tsonic.CSharp.Js.UnionCollectionKey\`${arguments_.length}`, arguments_,
+    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "UnionCollectionKey"),
     { allowsRefLikeTypeArguments: arguments_.map(() => false), valueType: true });
 }
 

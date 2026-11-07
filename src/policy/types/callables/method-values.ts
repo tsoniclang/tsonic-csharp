@@ -47,10 +47,8 @@ export function selectCsharpNativeQuantifierArguments(
     });
     resolving.delete(parameter.identity);
     if (!complete) return undefined;
-    const normalized = projection.kind === "optional" || projection.kind === "collection-key" ? csharpProjectedType({ ...projection,
-      arguments: [substituteTargetTypeParameters(projection.arguments[0], substitutions)] })
-      : csharpProjectedType({ ...projection,
-        arguments: projection.arguments.map(argument => substituteTargetTypeParameters(argument, substitutions)) });
+    const normalized = csharpProjectedType({ ...projection,
+      arguments: [substituteTargetTypeParameters(projection.arguments[0], substitutions)] });
     const candidates = targetParameters.filter(target => csharpTypeProjection(target) !== undefined &&
       targetTypeRefEquals(normalized, target));
     if (candidates.length !== 1 || selectedTargets.has(candidates[0]!.identity)) return undefined;

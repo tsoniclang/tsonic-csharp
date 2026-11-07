@@ -1,5 +1,6 @@
 import type { Node } from "@tsonic/tsts";
-import type { SourceObjectMember, SourceTypeDescriptor } from "@tsonic/target-api/source";
+import { sourceTypeDescriptorStructure, type SourceJoinedMember, type SourceTypeDescriptor } from "@tsonic/target-api/source";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpStructuralInterfaceImplementation, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpStructuralInterfaceMemberEvidence } from "../../target-model/records/objects/heritage.js";
@@ -7,7 +8,6 @@ import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../target-mo
 import { selectCsharpStructuralInterfaceImplementation } from "../../policy/types/objects/structural-implementation.js";
 import { targetTypeRefKey, targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { resolveCsharpNativePropertyRead } from "./native-property-reads.js";
-import { csharpProjectDeclarationDescriptor } from "./shapes/declaration-descriptors.js";
 
 export function collectCsharpInheritedInterfaces(
   policy: Pick<CsharpPolicyContext, "projectTypes">,
@@ -39,19 +39,26 @@ export function selectCsharpStructuralInterface(
   selectedSourceType: SourceTypeDescriptor | undefined,
 ): CsharpStructuralInterfaceImplementation | undefined {
   if (source === undefined || destination === undefined || selectedSourceType === undefined) return undefined;
-  // Member correspondence from Host object facts. The destination shape members are the Host instance members of the
-  // destination, one per string key, in Host order (representation/objects.ts); each is paired with the source member
-  // under the same key (objects.member). Index signatures have no interface form: a project declaration is checked on
-  // its Host descriptor; a generated shape never has them (the representation refuses members beside index signatures).
+  // Member correspondence is a Host object fact (PLAN §4.3, G8): the value at `expression` read into its Host destination,
+  // every destination member paired with the source member it reads (symbol keys included). As at baseline, a
+  // destination with call, construct or index signatures has no interface form, and every destination shape member
+  // must be paired.
   const { facts } = policy;
   const declared = policy.projectTypes.catalog.definitionForTarget(destination.targetType);
-  if (declared !== undefined && declared.kind !== "enum" &&
-    facts.objects.indexes(csharpProjectDeclarationDescriptor(declared)).length > 0) return undefined;
-  const pairs: { readonly source: SourceObjectMember; readonly destination: readonly unknown[] }[] = [];
-  for (const member of destination.members) {
-    const sourceMember = facts.objects.member(selectedSourceType, Object.freeze({ kind: "string" as const, value: member.sourceName }));
-    if (sourceMember === undefined) return undefined;
-    pairs.push({ source: sourceMember, destination: member.sourceSubjects ?? [] });
+  // The Host destination of the value (values.contextual) is the destination Source type; no destination, no interface.
+  const contextual = facts.values.contextual(expression);
+  if (contextual === undefined) return undefined;
+  if (contextual.kind === "refused") return failTargetAnalysisInvariant("tsonic-csharp",
+    "A structural destination is a Host refusal at a node C# analyzed; Host refusals are forwarded before C# analysis.", expression);
+  const structure = sourceTypeDescriptorStructure(contextual.type);
+  if (structure.kind === "shape" && (structure.calls.length > 0 || structure.constructs.length > 0 || structure.indexes.length > 0) ||
+    structure.kind === "callable") return undefined;
+  const correspondence = facts.objects.correspondence(selectedSourceType, contextual.type, "read");
+  if (correspondence.kind !== "available" || correspondence.members.length !== destination.members.length) return undefined;
+  const pairs: { readonly source: SourceJoinedMember; readonly destination: readonly Node[] }[] = [];
+  for (const pair of correspondence.members) {
+    if (pair.kind !== "present") return undefined;
+    pairs.push({ source: pair.source, destination: pair.destination.declarations });
   }
   const template = source.declarationTemplate ?? source;
   const destinationTemplate = destination.declarationTemplate;

@@ -4,7 +4,8 @@ import { selectCsharpPropertyProjections } from "../../../dist/analysis/conversi
 import { csharpNullableTargetType, csharpRuntimeUnionTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpTsValueTargetType } from "../../../dist/target-model/types/index.js";
 
 // nextgen C-2542: the projection reads published facts only. The value is a descriptor (facts.values.type), its
-// members are Host object members (facts.objects.members) paired by name, a sum arm maps to its carrier through
+// members are Host object members (facts.objects.members) paired by their Host member key (facts.objects.member, R3 #14),
+// the present arms are the Host closed sum's non-absence arms (facts.sums.sumOf, R3 #13), a sum arm maps to its carrier through
 // CsharpTypeQueries.represent, and a shape member is found by its source declaration. The checker doubles
 // (semanticsFor().types.expressionType / structuralMembers / nonNullableType / unionOrIntersectionTypes and
 // types.selectSourceUnionMember) are gone; each case below keeps its old meaning on these facts.
@@ -15,7 +16,7 @@ function shapeDescriptor(extra = {}) {
 }
 
 function objectMember(name, declarations, extra = {}) {
-  return Object.freeze({ key: Object.freeze({ kind: "property", name }), name, kind: "property", declarations, type: number,
+  return Object.freeze({ key: Object.freeze({ kind: "string", value: name }), name, kind: "property", declarations, type: number,
     optional: false, readonly: false, static: false, owner: {}, inherited: false, ...extra });
 }
 
@@ -47,7 +48,13 @@ function fixture() {
         return type === undefined ? refusal(node) : Object.freeze({ kind: "resolved", type });
       } }),
       sums: Object.freeze({ sumOf: descriptor => input.sums.get(descriptor) }),
-      objects: Object.freeze({ members: descriptor => input.members.get(descriptor) ?? refusal({}) }),
+      objects: Object.freeze({
+        members: descriptor => input.members.get(descriptor) ?? refusal({}),
+        member: (descriptor, key) => {
+          const members = input.members.get(descriptor);
+          return Array.isArray(members) ? members.find(member => member.key.kind === key.kind && member.key.value === key.value) : undefined;
+        },
+      }),
     }),
     types: Object.freeze({ represent: (descriptor, occurrence) => input.represented.get(descriptor) ??
       Object.freeze({ kind: "csharp-refused", code: "CSHARP_TEST_UNREPRESENTED", message: "No fixture representation.", site: occurrence }) }),
@@ -75,8 +82,9 @@ test("selected property projection rejects missing, unreadable, duplicated and o
     input => { input.members.set(input.sourceType, [objectMember("selected", [input.declaration], { kind: "method" })]); },
     // the source declaration selects more than one finalized shape member
     input => { input.shape = { ...input.shape, members: [...input.shape.members, { ...input.selected, targetName: "copy" }] }; },
-    // duplicated source members for one destination name
-    input => { input.members.set(input.sourceType, [objectMember("selected", [input.declaration]), objectMember("selected", [{}])]); },
+    // the source member of the destination key is static (no instance member; R3 #14 keyed correspondence; a Host type
+    // has one member per key, so the old duplicate-name case has no counterpart)
+    input => { input.members.set(input.sourceType, [objectMember("selected", [input.declaration], { static: true })]); },
     // a required destination member the source does not have
     input => { input.members.set(input.sourceType, [objectMember("unrelated", [input.unrelatedDeclaration])]); },
     // the value has no present part (old: the shape had no source type)
@@ -164,7 +172,10 @@ function unionFixture() {
 
 test("optional property projection uses the published present value type", () => {
   const input = fixture();
-  input.valueType = () => Object.freeze({ kind: "optional", value: input.sourceType });
+  const optional = Object.freeze({ kind: "optional", value: input.sourceType });
+  input.valueType = () => optional;
+  input.sums.set(optional, Object.freeze({ identity: {}, arms: Object.freeze([{ role: 0, type: input.sourceType },
+    { role: 1, type: Object.freeze({ kind: "intrinsic", intrinsic: "absence" }) }]), roles: Object.freeze([]) }));
   const projected = selectCsharpPropertyProjections({}, csharpNullableTargetType(input.source), input.destination, input.policy, input.shapes);
   assert.equal(projected?.length === 1 && projected[0].members[0] === input.selected, true, "native present member identity");
 });
@@ -177,9 +188,20 @@ test("union property projections consume each exact published sum arm", () => {
   assert.equal(projected.find(part => part.source === input.secondCarrier)?.members[0] === input.secondMember, true, "second exact native arm");
 });
 
+// Q73: arms that share one carrier are one storage arm; one projection serves them when they give the same physical member.
+test("coincident sum arms share one projection only when their physical members agree", () => {
+  const input = unionFixture();
+  input.represented.set(input.secondType, input.firstCarrier);
+  input.members.set(input.secondType, [objectMember("selected", [input.declaration])]);
+  const projected = selectCsharpPropertyProjections({}, input.firstCarrier, input.destination, input.policy, input.shapes);
+  assert.equal(projected?.length === 1 && projected[0].source === input.firstCarrier && projected[0].members[0] === input.selected,
+    true, "one storage arm, one projection");
+});
+
 // nextgen C-2542: the old "rejected" case (a rejected selectSourceUnionMember outcome) has no counterpart: the arm to
 // carrier map is CsharpTypeQueries.represent, whose only failure is a refusal ("unavailable" below).
-test("union property projection refuses unrepresented or multiply-mapped sum arms", () => {
+// "multiple": two arms coincide on one carrier but give different physical members, so no one projection serves both.
+test("union property projection refuses unrepresented or disagreeing coincident sum arms", () => {
   for (const kind of ["unavailable", "multiple"]) {
     const input = unionFixture();
     if (kind === "multiple") input.represented.set(input.secondType, input.firstCarrier);

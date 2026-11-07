@@ -30,6 +30,7 @@ import {
   type CsharpValueRepresentation,
 } from "../../representation/index.js";
 import type { CsharpTypeQueries } from "../../policy/model/type-resolution.js";
+import { sourceMemberAccess, sourceSlot } from "./source-facts.js";
 import { createCsharpNativeConstructionDemandQuery } from "../objects/native-construction-demand.js";
 import type { CsharpNativeConstructionDemandQueries } from "../../target-model/records/native/native-construction.js";
 import { emptyCsharpTypeDefinitions } from "../../target-model/types/source-union-definitions.js";
@@ -71,7 +72,7 @@ export interface CsharpTypeSystemHost {
   readonly integerRanges: import("../../target-model/records/operations/integer-ranges.js").CsharpIntegerRangeIndex;
   readonly objectMethodSources: CsharpObjectMethodSources;
   readonly sourceStorage: SourceStorageQueries;
-  callOnlyAlias(declaration: Node): import("../operations/source-profiles/callable-aliases.js").CsharpCallOnlyAlias | undefined;
+  callOnlyAlias(declaration: Node): import("@tsonic/target-api/source").SourceCallOnlyAliasRecord | undefined;
   readonly pointerStorage: TsonicPointerStorageRelation;
   readonly memoryBindings: TsonicMemoryBindings;
   readonly typeDefinitions?: CsharpTypeDefinitionWriter;
@@ -125,17 +126,25 @@ function createCsharpTypeQueries(
       }
       if (syntax.is.IsIdentifier(operand) || syntax.is.IsPropertyAccessExpression(operand)) {
         const declaration = facts.navigation.identity.target(operand)?.declaration;
-        const slot = declaration === undefined ? undefined : facts.values.slot(declaration);
-        if (slot !== undefined && slot.kind === "slot") {
-          const logical = representSourceType(slot.type, at(read, "storage"));
+        if (declaration !== undefined) {
+          // The declaration's published slot; a refused slot is a Host refusal forwarded before C# analysis, so it
+          // fails as an invariant (I4) and never falls back to the value read (R-R4-29).
+          const logical = representSourceType(sourceSlot(facts, declaration).type, at(read, "storage"));
           // R-C6-4: a binding read reads the storage its declaration holds. When the native storage selection gave
           // that declaration a physical carrier (struct value storage, closed array layout, closed callable input),
           // the one physical read owner selects it at the declaration, as the value read of the declaration does.
           // A member read keeps its member slot: members have no physical declaration storage.
           return isCsharpRefusal(logical) || !syntax.is.IsIdentifier(operand) ? logical
-            : targetOnly.physicalRead(declaration!, logical) ?? logical;
+            : targetOnly.physicalRead(declaration, logical) ?? logical;
+        }
+        // A member read with no member declaration (an index-signature member) stores the selected member's type,
+        // as at baseline (resolveMemberAccessTargetType), not the flow-narrowed value.
+        if (syntax.is.IsPropertyAccessExpression(operand)) {
+          return representSourceType(sourceMemberAccess(facts, operand).result, at(read, "storage"));
         }
       }
+      // A read with no declared storage (a call, literal or other computed value, or a declaration-less binding such
+      // as `undefined`) stores its value: its storage carrier is its value carrier (baseline resolveStorage).
       return queries.value(read);
     },
     callableReturn: declaration => admitted(representCallableReturn(declaration, at(declaration, "return")), declaration),

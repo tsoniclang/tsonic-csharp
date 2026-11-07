@@ -57,14 +57,14 @@ for (const surface of ["native", "js"]) {
     const element = csharpSourcePrimitiveTargetType("int64");
     const array = { kind: "array", element };
     for (const carrier of [object, array, element]) {
-      assert.equal(selectCsharpSourceProfileCarrier({ dictionaryCarrier: undefined }, identity, [carrier]) === carrier,
+      assert.equal(selectCsharpSourceProfileCarrier({ dictionaryCarrier: undefined, keyCategories: undefined }, identity, [carrier]) === carrier,
         true, "the dispatcher returns the exact selected carrier without reconstruction");
     }
     for (const arguments_ of [[], [object, array]]) {
-      assert.equal(selectCsharpSourceProfileCarrier({ dictionaryCarrier: undefined }, identity, arguments_) === undefined,
+      assert.equal(selectCsharpSourceProfileCarrier({ dictionaryCarrier: undefined, keyCategories: undefined }, identity, arguments_) === undefined,
         true, "missing and excess arguments cannot produce a carrier");
     }
-    assert.equal(selectCsharpSourceProfileCarrier({ dictionaryCarrier: undefined }, undefined, [object]) === undefined,
+    assert.equal(selectCsharpSourceProfileCarrier({ dictionaryCarrier: undefined, keyCategories: undefined }, undefined, [object]) === undefined,
       true, "an absent declaration identity does not trigger an argument fallback");
   });
 
@@ -103,7 +103,7 @@ test("project readonly spelling and changed mapped aliases cannot acquire the pr
   for (const declaration of aliases) {
     const identity = classifyCsharpSourceProfileDeclaration(declaration, checked.source.ast);
     assert.equal(identity === undefined, true, "neither spelling nor a mapped body is a trusted declaration identity");
-    assert.equal(selectCsharpSourceProfileCarrier({ dictionaryCarrier: undefined }, identity,
+    assert.equal(selectCsharpSourceProfileCarrier({ dictionaryCarrier: undefined, keyCategories: undefined }, identity,
       [csharpSourcePrimitiveTargetType("int64")]) === undefined, true, "the other alias owner remains authoritative");
   }
 });

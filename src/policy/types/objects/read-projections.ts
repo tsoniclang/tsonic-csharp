@@ -10,6 +10,7 @@ export function selectCsharpFlowReadProjection(
   refinement: CsharpValueRefinementClassification | undefined,
   deferredConstructorField: boolean,
   selectedThrowable: boolean,
+  hostRead: Parameters<typeof selectCsharpFlowReadConversion>[4],
 ): CsharpFlowReadProjection {
   if (storageType === undefined) return { kind: "identity" };
   if (storageType.kind === "type-parameter" && selectedType !== undefined &&
@@ -28,6 +29,6 @@ export function selectCsharpFlowReadProjection(
   if (target === undefined) return { kind: "rejected",
     reason: "The exact checked source value refinement has no closed C# representation." };
   if (targetTypeRefEquals(storageType, target)) return { kind: "identity" };
-  const selection = selectCsharpFlowReadConversion(policy, storageType, target, selectedThrowable);
+  const selection = selectCsharpFlowReadConversion(policy, storageType, target, selectedThrowable, hostRead);
   return selection.kind === "rejected" ? selection : { kind: "conversion", source: storageType, target, selection };
 }

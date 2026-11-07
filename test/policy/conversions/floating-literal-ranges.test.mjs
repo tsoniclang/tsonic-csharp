@@ -1,3 +1,4 @@
+import { knownNativePlatform64 } from "../../helpers/native-integer-platform.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { isDeepStrictEqual } from "node:util";
@@ -70,10 +71,10 @@ test("an authored literal is selected at float32, decimal and float16 only insid
     const target = primitive(name);
     const nullable = csharpNullableTargetType(target);
     return [
-      [`${tag}: selection`, selectCsharpExactLiteralConversion(value, primitive("float64"), target), expectation(name, value, fits)],
-      [`${tag}: nullable selection`, selectCsharpExactLiteralConversion(value, primitive("float64"), nullable), expectation(name, value, fits)],
-      [`${tag}: representable`, csharpLiteralIsRepresentableAs(value, target), fits],
-      [`${tag}: nullable representable`, csharpLiteralIsRepresentableAs(value, nullable), fits],
+      [`${tag}: selection`, selectCsharpExactLiteralConversion(value, primitive("float64"), target, knownNativePlatform64), expectation(name, value, fits)],
+      [`${tag}: nullable selection`, selectCsharpExactLiteralConversion(value, primitive("float64"), nullable, knownNativePlatform64), expectation(name, value, fits)],
+      [`${tag}: representable`, csharpLiteralIsRepresentableAs(value, target, knownNativePlatform64), fits],
+      [`${tag}: nullable representable`, csharpLiteralIsRepresentableAs(value, nullable, knownNativePlatform64), fits],
     ].filter(([, actual, expected]) => !isDeepStrictEqual(actual, expected)).map(([entry]) => entry);
   }));
   assert.deepEqual(mismatched, [], "all 25 original boundary rows retain positive, signed and nullable coverage");
@@ -84,15 +85,15 @@ test("float64 keeps every finite actual value without treating it as an authored
   const datum = value => Object.freeze({ form: "numeric", number: value,
     numeric: Object.freeze({ kind: "checked-float64", value }) });
   const failures = [Number.MAX_VALUE, 1e39, 65520, 2 ** 96, -Number.MAX_VALUE].flatMap(value => [
-    [`float64 ${value}: selection`, selectCsharpExactLiteralConversion(datum(value), primitive("float64"), float64), { kind: "source-representation" }],
-    [`float64 ${value}: representable`, csharpLiteralIsRepresentableAs(datum(value), float64), true],
+    [`float64 ${value}: selection`, selectCsharpExactLiteralConversion(datum(value), primitive("float64"), float64, knownNativePlatform64), { kind: "source-representation" }],
+    [`float64 ${value}: representable`, csharpLiteralIsRepresentableAs(datum(value), float64, knownNativePlatform64), true],
   ]).concat([
-    ["float16 without a finite number", selectCsharpExactLiteralConversion(Object.freeze({ form: "numeric" }), primitive("float64"), primitive("float16")),
+    ["float16 without a finite number", selectCsharpExactLiteralConversion(Object.freeze({ form: "numeric" }), primitive("float64"), primitive("float16"), knownNativePlatform64),
       { kind: "rejected", reason: "C# numeric literal conversion requires an exact finite source value." }],
     ...["float32", "decimal"].flatMap(name => [
-      [`${name} without authored evidence`, selectCsharpExactLiteralConversion(Object.freeze({ form: "numeric" }), primitive("float64"), primitive(name)),
+      [`${name} without authored evidence`, selectCsharpExactLiteralConversion(Object.freeze({ form: "numeric" }), primitive("float64"), primitive(name), knownNativePlatform64),
         { kind: "not-applicable" }],
-      [`${name} actual double is not an authored literal`, csharpLiteralIsRepresentableAs(datum(0.1), primitive(name)), false],
+      [`${name} actual double is not an authored literal`, csharpLiteralIsRepresentableAs(datum(0.1), primitive(name), knownNativePlatform64), false],
     ]),
   ]).filter(([, actual, expected]) => !isDeepStrictEqual(actual, expected)).map(([label]) => label);
   assert.deepEqual(failures, [], "literal admission never fabricates an authored token from an actual value");

@@ -9,7 +9,11 @@ import { providerVirtualDeclarationFactKey, type AstReader, type Node, type Read
 import { sourceTypeDescriptorStructure, type SourceObjectMember, type SourceProgramFacts, type SourceRefusal,
   type SourceTypeDescriptor } from "@tsonic/target-api/source";
 import type { CsharpProviderTargetRelation } from "../../../target-model/identities/provider-relations.js";
-import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../target-model/types/model.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpSourceMemberKey, TargetTypeRef } from "../../../target-model/types/model.js";
+import { csharpPropertySourceMemberKey, csharpSourceMemberDisplayName, csharpSourceMemberKeyParts, csharpSourceMemberKeysEqual,
+  csharpWellKnownSymbolKind, csharpWellKnownSymbolSourceMemberKey } from "../../../target-model/types/source-member-keys.js";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
+import { descriptorMemberOf } from "../../../representation/objects.js";
 import { canonicalProviderValue } from "../../../target-model/metadata/canonical-value.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
@@ -62,11 +66,16 @@ export function representCsharpProviderObjectShape(
   const names = new Set<string>();
   const members: CsharpObjectShapeMemberFact[] = [];
   for (const member of instance) {
-    if (member.name.length === 0 || names.has(member.name)) {
+    // The member key is the Host member key (RC2 #3): a string or numeric key, or a unique-symbol key whose Host
+    // property-name fact is a well-known symbol (baseline matched well-known-symbol provider members, R11).
+    const sourceKey = providerSourceMemberKey(input, member);
+    if (typeof sourceKey === "string") return refuse(sourceKey);
+    const identity = csharpSourceMemberKeyParts(sourceKey).join(":");
+    if (names.has(identity)) {
       return refuse(`Provider type member inventory is ambiguous at '${member.name}'; the Host must list each member once.`);
     }
-    names.add(member.name);
-    if (member.kind !== "property" || member.key.kind !== "string") {
+    names.add(identity);
+    if (member.kind !== "property") {
       return refuse(`Provider member '${member.name}' is not a property; an object initializer assigns fields and properties only.`);
     }
     const relation = providerMemberRelation(input, member, typeRelation);
@@ -76,7 +85,10 @@ export function representCsharpProviderObjectShape(
       relation.receiver.kind !== "instance" || target.parameters.length !== 0) {
       return refuse(`Provider member '${member.name}' is not an instance field or property without parameters.`);
     }
-    if (relation.source.memberKey.kind !== "property-key" || relation.source.memberKey.name !== member.name) {
+    const relationKey = relation.source.memberKey;
+    const bound = relationKey.kind === "property-key" ? csharpPropertySourceMemberKey(relationKey.name)
+      : csharpWellKnownSymbolSourceMemberKey(csharpWellKnownSymbolKind(relationKey.name));
+    if (!csharpSourceMemberKeysEqual(bound, sourceKey)) {
       return refuse(`Provider member '${member.name}' is bound to a CLR member of another Source member.`);
     }
     if (target.readonly === true) return refuse(`CLR member '${target.targetName}' is read-only; an object initializer cannot assign it.`);
@@ -92,12 +104,17 @@ export function representCsharpProviderObjectShape(
     if (!targetTypeRefEquals(sourceTarget, memberType)) {
       return refuse(`Provider member '${member.name}' is not stored exactly by CLR member '${target.targetName}' (different .NET type${member.optional ? " or absence" : ""}).`);
     }
-    const origin = structure.kind === "shape" ? structure.members.find(candidate => candidate.name === member.name)?.origin : undefined;
+    // The Host origin of the member is the origin of the descriptor member it was published from (RC2 #4): matched by
+    // Host member identity (declaration, mapped key, prototype owner), never by a name search. A published provider
+    // member always has one; a missing one is a Host producer defect (I4).
+    if (structure.kind !== "shape") return failTargetAnalysisInvariant("tsonic-csharp",
+      "A provider type with published members must have a published shape definition.", occurrence);
+    const origin = descriptorMemberOf(structure, member, member.declarations[0] ?? occurrence).origin;
     const declarations = Object.freeze([...member.declarations]);
     members.push(Object.freeze({
-      sourceKey: Object.freeze({ kind: "property" as const, name: member.name }),
-      sourceName: member.name,
-      ...(origin === undefined ? {} : { origins: Object.freeze([origin]) }),
+      sourceKey,
+      sourceName: csharpSourceMemberDisplayName(sourceKey),
+      origins: Object.freeze([origin]),
       sourceSubjects: declarations,
       sourceDeclarations: declarations,
       targetName: target.targetName,
@@ -108,6 +125,25 @@ export function representCsharpProviderObjectShape(
     }));
   }
   return Object.freeze({ targetType: carrier, members: Object.freeze(members), constructible: true });
+}
+
+/**
+ * The C# member key of a Host provider member, from its Host member key: a string key is its value, a numeric key its
+ * canonical string; a unique-symbol key is the well-known symbol that the Host property-name fact
+ * (`facts.analyses.propertyName`) publishes for every declaration name of the member. Anything else is the refusal message.
+ */
+function providerSourceMemberKey(input: CsharpProviderObjectShapeInput, member: SourceObjectMember): CsharpSourceMemberKey | string {
+  if (member.key.kind === "string") return csharpPropertySourceMemberKey(member.key.value);
+  if (member.key.kind === "number") return csharpPropertySourceMemberKey(String(member.key.value));
+  const symbols = member.declarations.map(declaration => {
+    const name = input.syntax.name(declaration);
+    const selected = name === undefined ? undefined : input.facts.analyses.propertyName(name);
+    return selected?.kind === "well-known-symbol" ? selected.symbol : undefined;
+  });
+  const [first] = symbols;
+  return first !== undefined && symbols.every(symbol => symbol === first)
+    ? csharpWellKnownSymbolSourceMemberKey(csharpWellKnownSymbolKind(first))
+    : `Provider member '${member.name}' has a symbol key that is not one well-known symbol; .NET binds well-known symbols only.`;
 }
 
 /** Whether a declaration is a provider type that declares object-initializer construction (applicability only). */

@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
-import { csharpSourceNodes } from "../../../dist/analysis/program/source-nodes.js";
 
 for (const surface of ["native", "js"]) {
   for (const order of ["getter-first", "setter-first", "getter-only"]) {
@@ -18,7 +17,7 @@ for (const surface of ["native", "js"]) {
       ` });
       assertCsharpCompilationSucceeded(compiled);
       const source = compiled.result.program.source;
-      const declaration = csharpSourceNodes(source.syntax, source.sourceFiles).find(node => source.syntax.is.IsVariableDeclaration(node) &&
+      const declaration = source.facts.navigation.nodesForFiles(source.sourceFiles).find(node => source.syntax.is.IsVariableDeclaration(node) &&
         source.syntax.text(source.syntax.name(node)) === "original");
       const literal = declaration === undefined ? undefined : source.syntax.as.AsVariableDeclaration(declaration)?.Initializer;
       assert.equal(literal !== undefined && source.syntax.is.IsObjectLiteralExpression(literal), true,

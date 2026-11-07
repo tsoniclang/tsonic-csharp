@@ -30,7 +30,7 @@ import { finalizeCsharpStructuralInterfaceForwarding } from "../../../dist/analy
 import { retainCsharpMethodValueContracts } from "../../../dist/analysis/objects/shapes/method-values.js";
 import { csharpCopiedObjectShapeMembers } from "../../../dist/policy/types/objects/method-environments.js";
 import { selectCsharpObjectMemberEmission } from "../../../dist/policy/types/objects/object-members.js";
-import { unexpectedNativeDispatchRead, emptyNativeDispatch, integer, noAuthoredNativeMethod, defaultEvidenceFixture, structuralInterfaceRecords, sourceContract, fixture, nativeBoundBase, nativeBoundDerived, genericBoundFixture, programs, nativeModes, adaptedNativeForwarder, nativeProofSource, buildNativeProof, buildNativeProject, genericCases, genericSource } from "./structural-forwarding.fixtures.mjs";
+import { unexpectedNativeDispatchRead, emptyNativeDispatch, integer, noAuthoredNativeMethod, noAuthoredNativeStorage, unreadSourceFacts, defaultEvidenceFixture, structuralInterfaceRecords, sourceContract, fixture, nativeBoundBase, nativeBoundDerived, genericBoundFixture, programs, nativeModes, adaptedNativeForwarder, nativeProofSource, buildNativeProof, buildNativeProject, genericCases, genericSource } from "./structural-forwarding.fixtures.mjs";
 
 for (const surface of Array.from(["native", "js"]).slice(1, 2)) {
 for (const [name, action, fixed] of Array.from([
@@ -130,9 +130,10 @@ test("a native rest-copy layout stores the required invocation protocol without 
     members: Object.freeze([Object.freeze({ ...signature, methodValueContract: selectedContract })]) });
   const policy = createCsharpObjectShapePolicy({
     typeParameterConstraints: createCsharpTypeParameterEnvironment(() => assert.fail("the monomorphic rest layout has no free native binder")),
-    ast: { is: {} }, sourceStorage: noAuthoredNativeMethod,
+    ast: { is: {} }, sourceStorage: noAuthoredNativeStorage,
     projectTypeCatalog: { definitionForTarget: () => undefined },
-    representation: () => assert.fail("copying a selected layout reads no Source fact"),
+    // The policy passes the representation's published facts to method-value selection; copying reads none of them.
+    representation: () => Object.freeze({ facts: unreadSourceFacts("copying a selected layout") }),
   });
   const copy = policy.resolveCopyShape(schema);
   assert.equal(copy !== undefined && copy !== schema, true, "a generated rest schema receives one materializable native copy layout");
@@ -162,9 +163,9 @@ test("a raw interface copy admits its method protocol before selecting native st
       csharpAllowsRefLike: false, constraints: Object.freeze([]) })]) })]) });
   const policy = createCsharpObjectShapePolicy({
     typeParameterConstraints: createCsharpTypeParameterEnvironment(() => assert.fail("method-local binders never become copy-owner generic parameters")),
-    ast: { is: {} }, sourceStorage: noAuthoredNativeMethod,
+    ast: { is: {} }, sourceStorage: noAuthoredNativeStorage,
     projectTypeCatalog: { definitionForTarget: () => undefined },
-    representation: () => assert.fail("copying an interface layout reads no Source fact"),
+    representation: () => Object.freeze({ facts: unreadSourceFacts("copying an interface layout") }),
   });
   const copied = policy.resolveCopyShape(shape);
   assert.equal(copied !== undefined && copied !== shape, true, "the interface has one physical copy representation");
@@ -212,18 +213,20 @@ test("native callable alpha substitution preserves selected bounded parameter me
   const ast = {
     is: { IsTypeParameterDeclaration: node => node === sourceParameter || node === implementationParameter },
     typeParameters: node => node.parameters,
-    name: node => node.name, text: name => name, getSourceFile: () => sourceFile, getPath: file => file.path,
-    kind: () => 22, pos: node => node.position, end: node => node.position + 5,
+    name: node => node.name, text: name => name,
   };
+  // The Host naming identity (facts.navigation.identity) of each binder double.
+  const identity = { identity: node => `${sourceFile.path}:${node.position}` };
+  const facts = { navigation: { identity } };
   const constraint = Object.freeze({ kind: "resolved", constraints: Object.freeze([{ kind: "keyword", keyword: "class" }]) });
-  const sourceType = Object.freeze({ ...csharpSourceTypeParameter(sourceParameter, ast), csharpConstraints: constraint });
-  const implementationType = Object.freeze({ ...csharpSourceTypeParameter(implementationParameter, ast), csharpConstraints: constraint });
+  const sourceType = Object.freeze({ ...csharpSourceTypeParameter(sourceParameter, ast, identity), csharpConstraints: constraint });
+  const implementationType = Object.freeze({ ...csharpSourceTypeParameter(implementationParameter, ast, identity), csharpConstraints: constraint });
   const contract = (declaration, parameter) => sourceContract({ sourceDeclaration: declaration,
     nativeSignature: { methodTypeParameterIdentities: Object.freeze([parameter.identity]), methodAllowsRefLikeTypeArguments: Object.freeze([false]) },
     nativeParameters: Object.freeze([{ sourceParameter: Object.freeze({}), targetParameter: Object.freeze({ name: "value",
       type: csharpNullableTargetType(parameter), passingMode: "by-value" }) }]), returnType: parameter });
   const implementation = contract(implementationDeclaration, implementationType);
-  const selected = instantiateCsharpInheritedCallable({ ast, projectTypes: {
+  const selected = instantiateCsharpInheritedCallable({ ast, facts, projectTypes: {
     instantiateMemberType: (_declaration, _receiver, type) => ({ kind: "resolved", type }),
   } }, contract(sourceDeclaration, sourceType), implementation, undefined);
   assert.equal(selected !== undefined, true, "the actual bounded generic callable can be alpha-instantiated");
@@ -243,9 +246,11 @@ test("distinct authored callable binders preserve a matching complete native pro
   const ast = {
     is: { IsTypeParameterDeclaration: node => node === sourceParameter || node === implementationParameter },
     typeParameters: node => node.parameters,
-    name: node => node.name, text: name => name, getSourceFile: () => sourceFile, getPath: file => file.path,
-    kind: () => 22, pos: node => node.position, end: node => node.position + 5,
+    name: node => node.name, text: name => name,
   };
+  // The Host naming identity (facts.navigation.identity) of each binder double.
+  const identity = { identity: node => `${sourceFile.path}:${node.position}` };
+  const facts = { navigation: { identity } };
   const contract = (declaration, parameter) => {
     const operations = csharpProjectedType({ kind: "optional", part: "operations", arguments: [parameter] });
     const storage = csharpNullableTargetType(parameter);
@@ -255,9 +260,9 @@ test("distinct authored callable binders preserve a matching complete native pro
       nativeParameters: Object.freeze([{ sourceParameter: Object.freeze({}), targetParameter: Object.freeze({
         name: "value", type: storage, passingMode: "by-value", optional: true }) }]), returnType: integer });
   };
-  const source = contract(sourceDeclaration, csharpSourceTypeParameter(sourceParameter, ast));
-  const implementation = contract(implementationDeclaration, csharpSourceTypeParameter(implementationParameter, ast));
-  const selected = instantiateCsharpInheritedCallable({ ast, projectTypes: {
+  const source = contract(sourceDeclaration, csharpSourceTypeParameter(sourceParameter, ast, identity));
+  const implementation = contract(implementationDeclaration, csharpSourceTypeParameter(implementationParameter, ast, identity));
+  const selected = instantiateCsharpInheritedCallable({ ast, facts, projectTypes: {
     instantiateMemberType: (_declaration, _receiver, type) => ({ kind: "resolved", type }),
   } }, source, implementation, undefined);
   assert.equal(selected !== undefined, true, "one actual authored binder aligns without truncating the three native binders");

@@ -1,5 +1,4 @@
 import { createCsharpIntegerRangeIndex } from "./records/operations/integer-ranges.js";
-import { isCsharpRefusal } from "../../representation/index.js";
 import { analyzeCsharpSourceAliasReexports } from "../source-modules/alias-reexports.js";
 import type { CsharpTargetProgram } from "../../target-model/records/target-program.js";
 import { analyzeCsharpRepresentationIteration, representationContractsEqual, type CsharpRepresentationContract } from "./iteration.js";
@@ -18,7 +17,6 @@ import { createCsharpSourceAttributeApplicationIndex } from "../attributes/appli
 import { createCsharpSafetyApplicationFactIndex } from "../safety/application-index.js";
 import type { CsharpAnalysisProgram, CsharpTargetAnalysisRequest } from "./model.js";
 import { forwardSourceRefusal } from "./source-facts.js";
-import { csharpSourceNodes } from "./source-nodes.js";
 import { createCsharpSourceIdentityPolicy } from "../../source/extension/identities.js";
 
 import { csharpTargetRepresentationContractId } from "../../target-model/identities/identities.js";
@@ -27,7 +25,7 @@ import { analyzeCsharpSourceModuleConstructions } from "../source-modules/index.
 import { composeCsharpBinaryExecutionDriver } from "../../target-model/metadata/binary-execution-drivers.js";
 import { analyzeCsharpModuleInitialization } from "../module-initialization/index.js";
 import { createCsharpSourceProfileCallableAliasQuery } from "../operations/source-profiles/callable-aliases.js";
-import { createCsharpSourceProfileStorageEffects } from "../operations/source-profiles/source-storage-effects.js";
+import { createCsharpSourceStorageTargetPremises } from "../operations/source-profiles/source-storage-effects.js";
 import { analyzeCsharpPromiseResults } from "../callables/async/promise-results.js";
 import { analyzeCsharpNativeErrorAdmission } from "../objects/error-storage-demands.js";
 
@@ -74,19 +72,11 @@ function analyzeCsharpTargetProgramBeforeSeal(
 ): TargetStageResult<CsharpAnalysisProgram> {
   const { input, configuration, providers } = request;
   const source = input.source;
-  // Every Host refusal is forwarded unchanged (code, message, site) before any C# analysis runs (R5). C# consumers
-  // therefore never meet a refused Source outcome (analysis/program/source-facts.ts).
+  // Every Host refusal is forwarded unchanged (code, message, site) before any C# analysis runs (R5), from the one
+  // collection `facts.refusals()` (CONTRACT.md: one collection; the enum and property-name refusals are folded into
+  // it, request FX-CC-H1). C# consumers therefore never meet a refused Source outcome (analysis/program/source-facts.ts).
   const sourceRefusals = source.facts.refusals();
   if (sourceRefusals.length !== 0) return rejectedTargetStage(sourceRefusals.map(forwardSourceRefusal));
-  // Host analysis refusals not folded into refusals() are forwarded the same way, before any C# analysis (R-C2-9).
-  // The property-name issue carries its Host code (request R-B2-3: SourcePropertyNameIssue gains `code`).
-  const analysisRefusals: TargetDiagnostic[] = [
-    ...source.facts.analyses.enumIssues().map(issue => Object.freeze({ code: issue.code, category: "error" as const,
-      source: "tsonic", message: issue.message, sourceNode: issue.sourceNode })),
-    ...source.facts.analyses.propertyNameIssues().map(issue => Object.freeze({ code: issue.code, category: "error" as const,
-      source: "tsonic", message: issue.reason, sourceNode: issue.node })),
-  ];
-  if (analysisRefusals.length !== 0) return rejectedTargetStage(analysisRefusals);
   const aliasIssues = analyzeCsharpSourceAliasReexports(source.syntax, source.sourceFiles);
   if (aliasIssues.length !== 0) return rejectedTargetStage(aliasIssues.map(diagnostic => ({
     ...targetDiagnosticFromExtension(diagnostic.nodeOrSpan, diagnostic), code: diagnostic.publicCode,
@@ -107,9 +97,11 @@ function analyzeCsharpTargetProgramBeforeSeal(
   const statementErasure = Object.freeze({ attributeApplications: sourceAttributeApplications, safetyApplications,
     errorNameInitializations: nativeErrors.nameInitializations });
   const sourceFiles = Object.freeze([...source.sourceFiles]);
-  const sourceNodes = csharpSourceNodes(source.syntax, sourceFiles);
+  // The Host node inventory (the one owner, the same inventory the Host storage transport walks; baseline order:
+  // files last-first, preorder per file). Request FX-CC-H4: facts.navigation.nodesForFiles.
+  const sourceNodes = source.facts.navigation.nodesForFiles(sourceFiles);
   const moduleCallables = analyzeCsharpModuleCallables(source.syntax, sourceNodes);
-  const sourceStorage = source.facts.analyses.storage({ sourceFiles, effects: createCsharpSourceProfileStorageEffects(source, providers) });
+  const sourceStorage = source.facts.analyses.storage({ sourceFiles, premises: createCsharpSourceStorageTargetPremises(source, providers) });
   const sourceStorageFailure = sourceStorage.failureReason();
   if (sourceStorageFailure !== undefined) return rejectedTargetStage([{
     code: "CSHARP_SOURCE_STORAGE_NOT_PROVEN", category: "error", source: "tsonic-csharp", message: sourceStorageFailure,
@@ -294,15 +286,25 @@ function analyzeCsharpTargetProgramBeforeSeal(
     outputType: configuration.outputType,
     operations: analysis.operations,
   });
-  if (moduleInitialization.issues.length > 0) {
-    return rejectedTargetStage(moduleInitialization.issues.map((issue) => ({
+  // An executable's entry-module refusals (TSONIC_UNCALLED_BINARY_ENTRY_MAIN) are Host-originated; whether the output
+  // is an executable is the C# target setting, so C# forwards them unchanged here, with the module issues, at the
+  // baseline position (Q33; public/source/analyses.ts binaryEntryIssues).
+  const entry = moduleInitialization.index.entrypointInitializer();
+  const entryRefusals = configuration.outputType === "Exe" && entry !== undefined
+    ? source.facts.analyses.binaryEntryIssues(entry).map(issue => Object.freeze({
+      ...forwardSourceRefusal(Object.freeze({ kind: "refused" as const, code: issue.code, message: issue.message, site: issue.node })),
+      evidence: issue.evidence,
+    }))
+    : [];
+  if (moduleInitialization.issues.length > 0 || entryRefusals.length > 0) {
+    return rejectedTargetStage([...moduleInitialization.issues.map((issue) => ({
       code: issue.code,
       message: issue.message,
       evidence: issue.evidence,
       sourceNode: issue.node,
       category: "error" as const,
       source: "tsonic-csharp",
-    })));
+    })), ...entryRefusals]);
   }
   const { classFactories, captureStorage, nativeDemand, bindingPatterns } = analysis;
   const flowReads = analyzeCsharpFlowReadProjections({ ...callablePolicy, sourceFiles: analysis.policy.sourceFiles },
@@ -338,7 +340,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
   // callable contract for its methods), so it is reported first, with them.
   // Completed native refusals precede their capture-storage and flow consequences; all three analyses are complete.
   if (refusals.length > 0) return rejectedTargetStage([...bindingPatterns.issues.map(issue => ({ code: issue.code, category: "error" as const,
-    source: "tsonic-csharp", message: issue.message, sourceNode: issue.node })), ...refusals]);
+    source: issue.source ?? "tsonic-csharp", message: issue.message, sourceNode: issue.node })), ...refusals]);
   if (captureStorage.issues.length > 0) return rejectedTargetStage(captureStorage.issues.map(issue => ({
     code: issue.code, category: "error" as const, source: "tsonic-csharp", sourceNode: issue.node, message: issue.message,
   })));
@@ -346,11 +348,8 @@ function analyzeCsharpTargetProgramBeforeSeal(
   const nativeValueCarriers = analyzeCsharpNativeValueCarriers(
     source.syntax, nativeDemand.requiredNativeValueDeclarations, analysis.sourceEvidence, {
       facts: source.facts,
-      // A .NET refusal of the field carrier is reported by the struct-field owner as an unselected carrier.
-      resolve: (descriptor, occurrence) => {
-        const carrier = analysis.policy.types.represent(descriptor, occurrence, "storage");
-        return isCsharpRefusal(carrier) ? undefined : carrier;
-      },
+      // A .NET refusal of the field carrier is reported as it is by the struct-field owner (D1 §1.4).
+      resolve: (descriptor, occurrence) => analysis.policy.types.represent(descriptor, occurrence, "storage"),
     }, analysis.objectShapes, analysis.requiredRecords,
   );
   if (nativeValueCarriers.issues.length > 0) return rejectCsharpAnalysisIssues(nativeValueCarriers.issues);

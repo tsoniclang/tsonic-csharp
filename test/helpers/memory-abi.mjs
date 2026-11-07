@@ -22,7 +22,7 @@ export function memoryAbiCapability(targetId, addressWidth = 64) {
           descriptor: { fingerprint: `proof-le${addressWidth}-v1`, byteOrder: "little", addressWidth },
         }],
         extensions: [{ identity: { id: providerId, version: "1" },
-          initialize(context) { context.registerSourceDeclarationProvider(provider); } }],
+          declarationProviders: [provider] }],
       };
     },
   };

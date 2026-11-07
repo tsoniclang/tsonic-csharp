@@ -1,3 +1,4 @@
+import { knownNativePlatform64 } from "../../helpers/native-integer-platform.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { analyzeCsharpExactLiteralSelections } from "../../../dist/analysis/conversions/literal-plans.js";
@@ -14,8 +15,9 @@ const primitive = name => csharpSourcePrimitiveTargetType(name);
 const literalConversion = Object.freeze({ kind: "implicit", proof: "literal" });
 const noOperations = Object.freeze({ unaryOperation: Object.freeze({ get: () => undefined }) });
 const [negativeZero, writtenFloatZero] = checkedSourceLiteralValues(["-0", "-0.0"]);
+// The literal owners read facts.values.literal (nextgen C-2542); this double publishes exactly the one constant.
 const valuesFor = (expression, value = negativeZero) => Object.freeze({
-  literalValue: Object.freeze({ get: node => node === expression ? value : undefined }),
+  values: Object.freeze({ literal: node => node === expression ? value : undefined }),
 });
 const invariant = text => error => error.diagnostic?.code === "TSONIC_INTERNAL_ANALYSIS_INVARIANT" &&
   error.message.includes(text);
@@ -93,7 +95,7 @@ test("conflicting sources never become first-wins before or after publication", 
   assert.throws(() => unknown.requestConversion(expression, source, target, literalConversion, source),
     invariant("required before literal publication"));
   const producer = createCsharpExactLiteralProducer();
-  const selected = selectCsharpExactLiteralConversion(negativeZero, source, target);
+  const selected = selectCsharpExactLiteralConversion(negativeZero, source, target, knownNativePlatform64);
   producer.select(expression, target, "value", source, selected);
   assert.equal(producer.has(expression, target, "value", primitive("int64")), true, "source identity is structural");
   assert.throws(() => producer.has(expression, target, "value", other), invariant("one completed native source carrier"));
@@ -146,7 +148,7 @@ test("integral zero is positive at every float endpoint and floating zeros retai
       for (const name of ["int8", "uint8", "int16", "uint16", "int32", "uint32", "int64", "uint64", "int128", "uint128", "native-int", "native-uint"]) {
         const source = primitive(name);
         for (const carrier of [source, csharpNullableTargetType(source)]) {
-          const selected = selectCsharpExactLiteralConversion(negativeZero, carrier, destination);
+          const selected = selectCsharpExactLiteralConversion(negativeZero, carrier, destination, knownNativePlatform64);
           assert.equal(selected.kind === "resolved" && selected.recipe.kind === "float" && selected.recipe.negative === false,
             true, `${name} -> ${precision}: completed integral zero is positive`);
           assert.equal(precision !== "float16" || selected.recipe.bits === 0, true, `${name}: positive Half bits`);
@@ -154,7 +156,7 @@ test("integral zero is positive at every float endpoint and floating zeros retai
       }
       for (const name of ["float16", "float32", "float64", "decimal"]) {
         for (const value of [negativeZero, writtenFloatZero]) {
-          const selected = selectCsharpExactLiteralConversion(value, primitive(name), destination);
+          const selected = selectCsharpExactLiteralConversion(value, primitive(name), destination, knownNativePlatform64);
           assert.equal(selected.kind === "resolved" && (selected.recipe.kind === "signed-zero" ||
             selected.recipe.kind === "float" && selected.recipe.negative === true), true,
           `${name} -> ${precision}: declared or written floating zero keeps its sign`);
@@ -162,7 +164,7 @@ test("integral zero is positive at every float endpoint and floating zeros retai
         }
       }
     }
-    assert.equal(selectCsharpExactLiteralConversion(negativeZero, undefined, target).kind, "not-applicable",
+    assert.equal(selectCsharpExactLiteralConversion(negativeZero, undefined, target, knownNativePlatform64).kind, "not-applicable",
       "an absent source never guesses the zero's native carrier");
   }
 });

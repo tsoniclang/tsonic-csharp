@@ -1,17 +1,14 @@
-// Closed Host sums -> CLR carriers (R6, A11, C-2459). Arms stay positional in the Host arm order: no sort, no
-// dedupe, no flattening. Absence arms are lifted to Nullable<T> / reference T?. A sum with open arms (free type
-// parameters) becomes a SourceUnionStorage projection whose operations are ISourceUnionN over the Host roles.
+// Closed Host sums -> CLR carriers (R6, A11, C-2459). Arms stay in the Host arm order: no sort, no flattening. Arms
+// whose .NET carriers are equal share one storage arm and keep their own roles (Q73 coincident roles); every Host arm
+// is placed through csharpSourceSumStorage, never chosen by carrier. Absence arms are lifted to Nullable<T> /
+// reference T?. A sum with open arms (free type parameters) is the same generic runtime union over its arms
+// (`string | T` -> Union<string, T>), substituted per instantiation (Q91, baseline capability); inside the generic body
+// the union struct's own members serve it, with no constraint.
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
-import type { SourceClosedSum, SourceTypeDescriptor } from "@tsonic/target-api/source";
+import type { SourceClosedSum, SourceKeyCategory, SourceTypeDescriptor } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../target-model/types/model.js";
-import { csharpAbsenceTargetType, csharpSourceSumTargetType, isCsharpAbsenceTargetType, isCsharpRuntimeUnionTargetType } from "../target-model/types/carriers/runtime-carriers.js";
-import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../target-model/types/carriers/nullable.js";
-import { targetTypeRefEquals } from "../target-model/types/equality.js";
-import { csharpFreeTypeParameterIdentities } from "../target-model/types/generic-references.js";
-import { csharpProjectedType, type CsharpSourceSumSelection } from "../target-model/types/projections.js";
-import { csharpTargetNamedType } from "../target-model/types/factories.js";
-import { csharpQualifiedTypeRenderShape } from "../target-model/types/render-shapes.js";
-import { resolveCsharpOptionalStorage } from "../policy/types/storage/optional-storage.js";
+import { csharpAbsenceTargetType, csharpSourceSumStorage, csharpSourceSumTargetType } from "../target-model/types/carriers/runtime-carriers.js";
+import { csharpNullableTargetType } from "../target-model/types/carriers/nullable.js";
 import { csharpRefusal, isCsharpRefusal, type CsharpRepresentation, type CsharpRepresentationContext } from "./context.js";
 
 export type RepresentDescriptor = (descriptor: SourceTypeDescriptor) => CsharpRepresentation;
@@ -28,13 +25,8 @@ function isAbsenceArm(type: SourceTypeDescriptor): boolean {
  * forged) is never relabelled as this view's. Identity is the record object, not its family, arms, names or ordinals.
  */
 function authenticateSum(sum: SourceClosedSum, context: CsharpRepresentationContext): void {
-  let own: SourceClosedSum | undefined;
-  try {
-    own = context.facts.sums.sum(sum.identity);
-  } catch {
-    own = undefined;
-  }
-  if (own !== sum) failTargetAnalysisInvariant("tsonic-csharp",
+  // No probe by catching (C2-D1): a foreign identity throws inside the Host's own query, and that invariant propagates.
+  if (context.facts.sums.sum(sum.identity) !== sum) failTargetAnalysisInvariant("tsonic-csharp",
     "A closed sum record is represented only under the program view that published it (E3, OI-LT).", context.occurrence);
 }
 
@@ -57,7 +49,7 @@ function assertSealedSum(sum: SourceClosedSum, site: CsharpRepresentationContext
 
 /** The sum carrier: positional Union<...> over the present arms, Nullable/`?` when an absence arm exists. */
 export function representClosedSum(sum: SourceClosedSum, context: CsharpRepresentationContext,
-  represent: RepresentDescriptor): CsharpRepresentation {
+  represent: RepresentDescriptor, descriptor?: SourceTypeDescriptor): CsharpRepresentation {
   authenticateSum(sum, context);
   assertSealedSum(sum, context.occurrence);
   const absent = sum.arms.some(arm => isAbsenceArm(arm.type));
@@ -69,178 +61,24 @@ export function representClosedSum(sum: SourceClosedSum, context: CsharpRepresen
     if (isCsharpRefusal(selected)) return selected;
     present.push(selected);
   }
-  const value = presentArms.length === 1 ? present[0]! : representPresentArms(sum, presentArms, present, context);
+  // Q86: the Host key category of each present arm (facts.profile.keyCategories of this sum's descriptor) travels on
+  // the union carrier, so a collection key over a binder instantiated with this union reads the Host answer.
+  const keyCategories = descriptor === undefined ? undefined : context.facts.profile.keyCategories(descriptor);
+  const value = csharpSourceSumStorage(present).storage.length === 1 ? present[0]!
+    : representPresentArms(present, context, keyCategories);
   if (isCsharpRefusal(value)) return value;
   return absent ? csharpNullableTargetType(value) : value;
 }
 
-function representPresentArms(
-  sum: SourceClosedSum,
-  presentArms: SourceClosedSum["arms"],
-  present: readonly TargetTypeRef[],
-  context: CsharpRepresentationContext,
-): CsharpRepresentation {
-  if (present.length > maximumUnionArity) return csharpRefusal("CSHARP_UNION_ARITY",
-    `The union has ${present.length} non-absent arms; the C# runtime union carries at most ${maximumUnionArity}.`, context.occurrence);
-  for (let left = 0; left < present.length; left += 1) {
-    for (let right = left + 1; right < present.length; right += 1) {
-      if (targetTypeRefEquals(present[left]!, present[right]!)) return csharpRefusal("CSHARP_UNION_ARMS_INDISTINGUISHABLE",
-        `Union arms ${left + 1} and ${right + 1} have the same .NET representation, so the runtime union cannot keep them apart.`,
-        context.occurrence);
-    }
-  }
-  if (csharpFreeTypeParameterIdentities(present).size === 0) {
-    const union = csharpSourceSumTargetType(present);
-    if (union === undefined) failTargetAnalysisInvariant("tsonic-csharp", "A 2..8-arm source sum must have a runtime union carrier.", context.occurrence);
-    return union;
-  }
-  // Open arms: the storage is chosen per instantiation; the operations are ISourceUnionN over the Host roles.
-  const roles = sum.roles.filter(role => role.arms.some(index => !isAbsenceArm(sum.arms[index]!.type)));
-  if (roles.length < 2 || roles.length > maximumUnionArity) return csharpRefusal("CSHARP_UNION_ARITY",
-    `An open union needs 2..${maximumUnionArity} generic roles; this one has ${roles.length}.`, context.occurrence);
-  const roleArguments: TargetTypeRef[] = [];
-  for (const role of roles) {
-    const roleArms = role.arms.filter(index => !isAbsenceArm(sum.arms[index]!.type));
-    const types = roleArms.map(index => present[presentArms.indexOf(sum.arms[index]!)]!);
-    const selected = types.length === 1 ? types[0]! : csharpSourceSumTargetType(types);
-    if (selected === undefined) return csharpRefusal("CSHARP_UNION_ARITY",
-      `A union role spans ${types.length} arms; the C# runtime union carries 2..${maximumUnionArity}.`, context.occurrence);
-    roleArguments.push(role.arms.length === roleArms.length ? selected : csharpNullableTargetType(selected));
-  }
-  const source = Object.freeze({ kind: "union" as const, types: Object.freeze(presentArms.map(arm => arm.type)) });
-  return csharpProjectedType({ kind: "source-union", part: "storage", source, sum: sourceSumSelection(sum, roles, context),
-    arguments: present, roleArguments });
-}
-
-export function sourceSumSelection(sum: SourceClosedSum, roles: SourceClosedSum["roles"],
-  context: CsharpRepresentationContext): CsharpSourceSumSelection {
-  authenticateSum(sum, context);
-  return Object.freeze({
-    owner: context.facts,
-    record: sum,
-    namingIdentity: context.facts.navigation.identity.identity(sum.identity.family),
-    roles: Object.freeze(roles.map(role => Object.freeze({ role: role.role,
-      type: role.arms.length === 1 ? sum.arms[role.arms[0]!]!.type
-        : Object.freeze({ kind: "union" as const, types: Object.freeze(role.arms.map(index => sum.arms[index]!.type)) }) }))),
-  });
-}
-
-interface PhysicalSourceArm {
-  readonly index: number;
-  readonly type: TargetTypeRef;
-  readonly absent: boolean;
-}
-
-/**
- * The runtime role-operations struct that reads Host role `sourceRole` out of `storage` (SourceUnions/*.cs).
- * `arms` are the represented arms of `sum`, positional; `sourceRoles` are the roles the storage domain covers.
- */
-export function representSourceUnionRole(
-  storage: TargetTypeRef,
-  role: TargetTypeRef,
-  sum: SourceClosedSum,
-  arms: readonly TargetTypeRef[],
-  sourceRole: number,
-  sourceRoles: readonly number[],
-): TargetTypeRef | undefined {
-  const relation = sum.roles[sourceRole];
-  if (relation === undefined || relation.role !== sourceRole || arms.length !== sum.arms.length ||
-    sourceRoles.length === 0 || sourceRoles.length > maximumUnionArity ||
-    new Set(sourceRoles).size !== sourceRoles.length || !sourceRoles.includes(sourceRole)) return undefined;
-  const domain = new Set<number>();
-  for (const role of sourceRoles) {
-    const selected = sum.roles[role];
-    if (selected === undefined || selected.role !== role) return undefined;
-    for (const index of selected.arms) domain.add(index);
-  }
-  const physical: readonly PhysicalSourceArm[] = sum.arms.map((arm, index) => ({ index,
-    type: arms[index]!, absent: isAbsenceArm(arm.type) })).filter(arm => domain.has(arm.index));
-  return sourceStorageMatches(storage, physical) ? projectSourceRole(storage, role, physical, relation.arms) : undefined;
-}
-
-/** The ISourceUnionN operations struct over `roles` (2..8) of the storage. */
-export function representSourceUnionOperations(
-  storage: TargetTypeRef,
-  roles: readonly TargetTypeRef[],
-  sum: SourceClosedSum,
-  arms: readonly TargetTypeRef[],
-  sourceRoles: readonly number[],
-): TargetTypeRef | undefined {
-  if (roles.length < 2 || roles.length > maximumUnionArity || sourceRoles.length !== roles.length) return undefined;
-  const operations = roles.map((role, index) => representSourceUnionRole(storage, role, sum, arms, sourceRoles[index]!, sourceRoles));
-  return operations.some(operation => operation === undefined) ? undefined
-    : runtimeRoleType(`SourceUnionOperations${roles.length}`, [storage, ...roles, ...operations as readonly TargetTypeRef[]]);
-}
-
-function sourceStorageMatches(storage: TargetTypeRef, arms: readonly PhysicalSourceArm[]): boolean {
-  if (arms.length === 1) return targetTypeRefEquals(storage, arms[0]!.type);
-  const absent = arms.filter(arm => arm.absent);
-  if (absent.length !== 0) {
-    const present = getCsharpNullableElementTargetType(storage);
-    return absent.length === 1 && present !== undefined && sourceStorageMatches(present, arms.filter(arm => !arm.absent));
-  }
-  return isCsharpRuntimeUnionTargetType(storage) && storage.csharpRuntimeUnionSemantics === "source-sum" &&
-    storage.csharpRuntimeUnionArms.length === arms.length &&
-    storage.csharpRuntimeUnionArms.every((arm, index) => targetTypeRefEquals(arm, arms[index]!.type));
-}
-
-function projectSourceRole(
-  storage: TargetTypeRef,
-  role: TargetTypeRef,
-  arms: readonly PhysicalSourceArm[],
-  roleArms: readonly number[],
-): TargetTypeRef | undefined {
-  if (roleArms.length === arms.length && roleArms.every((index, position) => index === arms[position]!.index) &&
-    targetTypeRefEquals(storage, role)) return runtimeRoleType("IdentitySourceUnionRole", [role]);
-  const storagePresent = getCsharpNullableElementTargetType(storage);
-  const rolePresent = getCsharpNullableElementTargetType(role);
-  if (storagePresent !== undefined) {
-    const absence = arms.filter(arm => arm.absent);
-    if (absence.length !== 1) return undefined;
-    const presentArms = arms.filter(arm => !arm.absent);
-    const presentRoleArms = roleArms.filter(index => index !== absence[0]!.index);
-    const storageOptional = optionalOperations(storagePresent);
-    if (storageOptional === undefined) return undefined;
-    if (roleArms.length === 1 && roleArms[0] === absence[0]!.index) return isCsharpAbsenceTargetType(role)
-      ? runtimeRoleType("AbsentSourceUnionRole", [storage, storagePresent, storageOptional]) : undefined;
-    if (rolePresent !== undefined) {
-      if (presentRoleArms.length === roleArms.length) return undefined;
-      const roleOptional = optionalOperations(rolePresent);
-      const inner = projectSourceRole(storagePresent, rolePresent, presentArms, presentRoleArms);
-      return roleOptional === undefined || inner === undefined ? undefined : runtimeRoleType("OptionalSourceUnionRole", [
-        storage, storagePresent, role, rolePresent, storageOptional, roleOptional, inner,
-      ]);
-    }
-    if (presentRoleArms.length !== roleArms.length) return undefined;
-    const inner = projectSourceRole(storagePresent, role, presentArms, presentRoleArms);
-    return inner === undefined ? undefined : runtimeRoleType("OptionalStorageSourceUnionRole", [
-      storage, storagePresent, role, storageOptional, inner,
-    ]);
-  }
-  if (rolePresent !== undefined || arms.some(arm => arm.absent) || !isCsharpRuntimeUnionTargetType(storage) ||
-    storage.csharpRuntimeUnionSemantics !== "source-sum") return undefined;
-  const nativeArms = storage.csharpRuntimeUnionArms;
-  if (nativeArms.length !== arms.length || nativeArms.some((arm, index) => !targetTypeRefEquals(arm, arms[index]!.type))) return undefined;
-  if (roleArms.length === 1) {
-    const index = arms.findIndex(arm => arm.index === roleArms[0]);
-    return index < 0 || !targetTypeRefEquals(nativeArms[index]!, role) ? undefined
-      : runtimeRoleType(`SourceUnionArm${index + 1}Of${arms.length}`, nativeArms);
-  }
-  if (!isCsharpRuntimeUnionTargetType(role) || role.csharpRuntimeUnionSemantics !== "source-sum") return undefined;
-  const components = role.csharpRuntimeUnionArms;
-  if (components.length !== roleArms.length) return undefined;
-  const operations = components.map((component, index) => projectSourceRole(storage, component, arms, [roleArms[index]!]));
-  return operations.some(operation => operation === undefined) ? undefined
-    : runtimeRoleType(`CompositeSourceUnionRole${components.length}`, [storage, ...components, ...operations as readonly TargetTypeRef[]]);
-}
-
-function runtimeRoleType(name: string, arguments_: readonly TargetTypeRef[]): TargetTypeRef {
-  return csharpTargetNamedType(`Tsonic.CSharp.Runtime.${name}\`${arguments_.length}`, arguments_,
-    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", name), {
-      allowsRefLikeTypeArguments: arguments_.map(() => false), valueType: true,
-    });
-}
-
-function optionalOperations(present: TargetTypeRef): TargetTypeRef | undefined {
-  return resolveCsharpOptionalStorage({ kind: "optional", part: "operations", arguments: [present] }, present);
+function representPresentArms(present: readonly TargetTypeRef[], context: CsharpRepresentationContext,
+  keyCategories: readonly SourceKeyCategory[] | undefined): CsharpRepresentation {
+  // Q73: equal carriers are one storage arm; both Host arms and their roles stay (storage cardinality is separate
+  // from role cardinality). Arity is the .NET storage arity.
+  const layout = csharpSourceSumStorage(present);
+  if (layout.storage.length > maximumUnionArity) return csharpRefusal("CSHARP_UNION_ARITY",
+    `The union has ${layout.storage.length} distinct non-absent .NET arms; the C# runtime union carries at most ${maximumUnionArity}.`,
+    context.occurrence);
+  const union = csharpSourceSumTargetType(layout.storage, layout.slots, keyCategories);
+  if (union === undefined) failTargetAnalysisInvariant("tsonic-csharp", "A 2..8-arm source sum must have a runtime union carrier.", context.occurrence);
+  return union;
 }

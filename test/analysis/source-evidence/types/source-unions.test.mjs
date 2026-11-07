@@ -1,12 +1,13 @@
 // Union arm selection for a written value (nextgen C-2542). The retired C# source-union index chose an arm from checked
-// numeric categories and carrier matches. The Host now selects the arm (facts.relations.at(use), kind "select-arm",
-// C-2479). C# proves only the CLR payload path into that arm (csharpHostArmSelection + selectCsharpUnionInjection).
-// Without a Host arm it proves exact carrier identity only (AGENT-C1-NOTES D6). Two arms with one .NET carrier
-// are refused rather than chosen between (CSHARP_UNION_ARMS_INDISTINGUISHABLE, R6).
+// numeric categories and carrier matches. The Host now selects the arm (facts.relations.write(use), kind "select-arm",
+// C-2479, Q1). C# proves only the CLR payload path into that arm's storage slot (csharpSumArmSelection +
+// selectCsharpUnionInjection). Without a Host arm it proves exact carrier identity only, and only into a native-ordered
+// .NET union (AGENT-C1-NOTES D6); a Source sum without its Host arm is an invariant (R3 #1). Two Host arms with one
+// .NET carrier share one storage arm and keep both roles (Q73).
 import assert from "node:assert/strict";
 import test from "node:test";
 import { hostProgram, representationServices, representations, represented } from "../../../representation/host-fixture.mjs";
-import { csharpHostArmSelection, selectCsharpUnionInjection } from "../../../../dist/policy/conversions/union-relations.js";
+import { csharpSumArmSelection, selectCsharpUnionInjection } from "../../../../dist/policy/conversions/union-relations.js";
 import { csharpBigIntegerTargetType, csharpRuntimeUnionTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType,
   getCsharpRuntimeUnionArms } from "../../../../dist/target-model/types/index.js";
 import { targetTypeRefEquals } from "../../../../dist/target-model/types/equality.js";
@@ -20,6 +21,11 @@ const sourceText = `
     const fromWide: uint64 | string = u;
     const fromNarrow: number | bigint = i;
   }
+  export function coincident(xs: string[], ys: readonly string[], n: number): void {
+    const fromMutable: string[] | readonly string[] | number = xs;
+    const fromReadonly: string[] | readonly string[] | number = ys;
+    const fromCount: string[] | readonly string[] | number = n;
+  }
 `;
 
 function fixture() {
@@ -29,12 +35,12 @@ function fixture() {
     const declaration = program.named(name, node => program.ast.is.IsVariableDeclaration(node));
     const value = program.nodes.find(node => program.ast.is.IsIdentifier(node) && program.ast.parent(node) === declaration &&
       node !== program.ast.name(declaration));
-    const relation = program.facts.relations.at(value);
+    const relation = program.facts.relations.write(value);
     assert.equal(relation?.kind, "select-arm", `${name}: the Host selects one arm for the written value`);
     const sum = program.facts.sums.sum(relation.sum);
     const target = represented(represent.slot(declaration));
     const source = represented(represent.value(value));
-    return { declaration, value, relation, sum, target, source, arm: csharpHostArmSelection(relation, sum) };
+    return { declaration, value, relation, sum, target, source, arm: csharpSumArmSelection(sum, relation.arm, target) };
   };
   return { program, represent, write };
 }
@@ -69,16 +75,23 @@ test("without a Host arm only exact carrier identity is proven; no applicable-ar
     { kind: "absence" }), undefined, "an absence arm takes no payload");
 });
 
-test("two Host arms with one .NET carrier are refused, never chosen between", () => {
+test("Q73: two Host arms with one .NET carrier are one storage arm; each Host arm reaches it through the slot map", () => {
   const input = fixture();
-  const selected = input.write("fromWide");
-  const wide = selected.sum.arms[selected.relation.arm].type;
-  const text = selected.sum.arms.find(arm => arm.type.kind === "string").type;
-  const sum = Object.freeze({ identity: selected.sum.identity,
-    arms: Object.freeze([wide, wide, text].map((type, role) => Object.freeze({ role, type }))),
-    roles: Object.freeze([0, 1, 2].map(role => Object.freeze({ role, arms: Object.freeze([role]) }))) });
-  assert.equal(input.represent.sum(sum, selected.value, "storage").code, "CSHARP_UNION_ARMS_INDISTINGUISHABLE",
-    "distinct Host arms with one .NET carrier have no CLR union that keeps them apart (R6: no dedupe in C#)");
-  assert.equal(targetTypeRefEquals(getCsharpRuntimeUnionArms(selected.target)[1 - selected.arm.index], csharpStringTargetType()), true,
-    "the published two-arm sum keeps both arms positionally");
+  const mutable = input.write("fromMutable");
+  const readonlyWrite = input.write("fromReadonly");
+  const count = input.write("fromCount");
+  assert.equal(mutable.sum.arms.length, 3, "the Host keeps string[] and readonly string[] as two arms (two roles)");
+  assert.notEqual(mutable.relation.arm, readonlyWrite.relation.arm, "the Host selects a different arm for each write");
+  const storage = getCsharpRuntimeUnionArms(mutable.target);
+  assert.equal(storage.length, 2, "the two coincident arms are one .NET storage arm (never CSHARP_UNION_ARMS_INDISTINGUISHABLE)");
+  assert.equal(mutable.arm.index === 0 && readonlyWrite.arm.index === 0, true, "both Host arms are placed in the one shared slot");
+  assert.equal(count.arm.index, 1, "the number arm keeps its own slot");
+  for (const selected of [mutable, readonlyWrite, count]) {
+    const conversion = selectCsharpUnionInjection(selected.source, selected.target, undefined, "implicit",
+      target => targetTypeRefEquals(target, selected.source) ? { kind: "identity" } : undefined, selected.arm);
+    assert.equal(conversion?.kind === "implicit" && conversion.armIndex === selected.arm.index, true,
+      "the payload goes to the Host arm's storage slot");
+  }
+  assert.throws(() => selectCsharpUnionInjection(mutable.source, mutable.target, undefined, "implicit", () => undefined), TypeError,
+    "a Source sum is never entered without its Host arm (R3 #1)");
 });

@@ -13,17 +13,28 @@ interface PublishedAssignmentSource {
   readonly tupleOffset?: number;
 }
 
+/**
+ * The source name of a binding or assignment property name, or the refusal of a name with no static named-field form:
+ * `reason` with its `code`, and `source: "tsonic"` for a Host property-name issue forwarded unchanged (Q93).
+ */
+export interface CsharpBindingPropertySourceName {
+  readonly sourceName?: string;
+  readonly reason?: string;
+  readonly code?: string;
+  readonly source?: "tsonic";
+}
+
 export function createCsharpDestructuringAssignmentAnalysis(input: CsharpBindingPatternAnalysisInput, callbacks: {
   readonly completesWithValue: (source: Node) => boolean;
   readonly admitSource: (node: Node, source: Node, description: string) => void;
   readonly recordAssignment: (node: Node, pattern: CsharpDestructuringAssignmentPattern) => void;
   readonly draftFor: (node: Node) => CsharpBindingProjectionFact | undefined;
-  readonly issue: (node: Node, message: string, evidence?: readonly string[], code?: string) => void;
+  readonly issue: (node: Node, message: string, evidence?: readonly string[], code?: string, source?: "tsonic") => void;
   readonly carrierDetail: (source: Node, reason: string) => { readonly reason: string; readonly evidence: readonly string[] };
   readonly recordSource: (node: Node, source: CsharpBindingPatternSource) => void;
   readonly recordElement: (node: Node, element: CsharpBindingElementProjection, initializer?: Node, presence?: boolean) => void;
   readonly recordBinding: (node: Node, name: Node, source: TargetTypeRef | undefined) => void;
-  readonly bindingPropertySourceName: (node: Node) => { readonly sourceName?: string; readonly reason?: string };
+  readonly bindingPropertySourceName: (node: Node) => CsharpBindingPropertySourceName;
   readonly recordObjectRest: (node: Node, rest: CsharpObjectShapeFact, source: CsharpObjectShapeFact,
     extracted: ReadonlySet<string>, description: string) => void;
 }) {
@@ -178,7 +189,7 @@ export function createCsharpDestructuringAssignmentAnalysis(input: CsharpBinding
       const property = assignmentPropertyName(element);
       if (property?.sourceName === undefined) {
         if (property?.reason !== undefined) {
-          issue(property.node, property.reason);
+          issue(property.node, property.reason, [], property.code, property.source);
           continue;
         }
         if (property !== undefined) issue(property.node, "Object destructuring assignment from object-shape facts supports only identifier or string-literal property names.");
@@ -223,7 +234,7 @@ export function createCsharpDestructuringAssignmentAnalysis(input: CsharpBinding
 
   function assignmentPropertyName(
     element: Extract<CsharpDestructuringAssignmentObjectElement, { readonly kind: "object-property" }>,
-  ): { readonly node: Node; readonly sourceName?: string; readonly reason?: string } | undefined {
+  ): ({ readonly node: Node } & CsharpBindingPropertySourceName) | undefined {
     const propertyName = element.propertyName ?? (element.target.kind === "node" ? element.target.node : undefined);
     if (propertyName === undefined) return undefined;
     return { node: propertyName, ...bindingPropertySourceName(propertyName) };

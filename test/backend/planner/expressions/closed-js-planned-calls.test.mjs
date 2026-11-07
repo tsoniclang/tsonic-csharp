@@ -22,23 +22,28 @@ function setup(optionalReceiver = false, optionalCall = false, element = false) 
   const call = { kind: "call" };
   let counter = 0;
   const syntax = {
-    is: { IsSpreadElement: () => false },
+    is: { IsSpreadElement: () => false, IsElementAccessExpression: subject => element && subject === member },
     arguments: () => [argument],
     pos: () => 1,
     text: () => "call",
     as: {
       AsCallExpression: () => ({ QuestionDotToken: optionalCall ? {} : undefined }),
       AsPropertyAccessExpression: () => ({ name: {}, QuestionDotToken: optionalReceiver ? {} : undefined }),
-      AsElementAccessExpression: () => ({ QuestionDotToken: optionalReceiver ? {} : undefined }),
+      AsElementAccessExpression: () => ({ ArgumentExpression: key, QuestionDotToken: optionalReceiver ? {} : undefined }),
     },
   };
   const selected = validateCsharpJsValueOperationSelection(selectCsharpJsValueCallOperation(
     { types: { value: () => carrier } }, {}, {}, element ? "element" : "property", optionalCall));
-  const source = { sourceCallee: { expression: member }, sourceCalleeAccess: {
-    kind: element ? "element" : "property", expression: member, receiver: { expression: receiver }, argument: { expression: key },
-  } };
+  // The Host call selection names the callee; its receiver and property name (or element key) come from the Host
+  // member-access / element-access selections of the callee (csharpCalleeAccess, R4 #12).
+  const source = { use: call, callee: member, receiver };
+  const facts = {
+    navigation: { expressions: { transparentOperand: subject => subject } },
+    selections: { memberAccess: subject => !element && subject === member ? { use: member, receiver, name: "call" } : undefined },
+    values: { elementAccess: subject => element && subject === member ? { node: member, receiver } : assert.fail("only the callee access is read") },
+  };
   // The analysis publishes the closed call's emission plan from the selected JS-value operation; the planner renders it.
-  const analyze = operation => analyzeCsharpJsCalls(syntax, [call], { selectedCall: { get: node => node === call
+  const analyze = operation => analyzeCsharpJsCalls(syntax, facts, [call], { selectedCall: { get: node => node === call
     ? { form: { kind: "js-value", operation }, source } : undefined } }, () => true);
   const analysis = analyze(selected);
   const input = { program: { source: { ast: syntax }, records: { jsCall: analysis.records.jsCall, typeEmission: csharpTypeEmissionRecord(),

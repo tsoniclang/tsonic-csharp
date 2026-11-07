@@ -93,13 +93,14 @@ export function sourceMethodTypeArguments(
   const instantiation = sourceInstantiation(host.facts, source.use);
   if (instantiation === undefined || instantiation.method.length === 0) return Object.freeze([]);
   const represented = host.types.instantiation(source.use)?.method;
-  const explicit = host.ast.typeArguments(source.use);
   return Object.freeze(instantiation.method.map((binder, index) => {
     const target = represented?.[index];
+    // Per-binder authored provenance from the Host instantiation (`authored`: the explicit type-argument node of this
+    // binder), so a partly explicit list keeps it for each explicit binder and defaulted binders have none.
     return Object.freeze({
       binder,
       target: target === undefined || target.kind === "csharp-refused" ? undefined : target,
-      ...(explicit.length === instantiation.method.length ? { explicitTypeNode: explicit[index]! } : {}),
+      ...(binder.authored === undefined ? {} : { explicitTypeNode: binder.authored }),
     });
   }));
 }

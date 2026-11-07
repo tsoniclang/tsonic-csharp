@@ -9,12 +9,11 @@ export function sealInvocationOnlyCallableArguments(
   call: CsharpSelectedTargetCall,
 ): CsharpSelectedTargetCall | undefined {
   if (call.origin !== "source-profile") return undefined;
-  // JS meaning (facts.profile, D18): callback parameters of a member that invokes them without storing them.
+  // JS meaning (facts.profile, D18): the parameters whose callback arguments the member invokes only synchronously
+  // during the call, never stored or deferred (the JS profile's per-parameter invocation table, as at baseline).
   const identity = context.identity;
-  const member = identity.owner !== "js" || identity.kind !== "member" ? undefined
-    : context.host.facts.profile.member(identity.declaration);
-  const parameterIndexes = member === undefined || !member.effects.invokesCallbacks || member.effects.storesArguments ? []
-    : member.parameters.flatMap((parameter, index) => parameter === "callback" ? [index] : []);
+  const parameterIndexes = identity.owner !== "js" || identity.kind !== "member" ? []
+    : context.host.facts.profile.invocationOnlyParameters(identity.declaration);
   const argumentIndexes = new Set<number>();
   for (const parameterIndex of parameterIndexes) {
     const bindings = context.source.bindings.filter(binding => binding.parameterIndex === parameterIndex);

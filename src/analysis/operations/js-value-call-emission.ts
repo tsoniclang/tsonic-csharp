@@ -4,9 +4,11 @@ import type { CsharpTargetOperationClassifications } from "../../target-model/re
 import type { CsharpJsCallEmission } from "../../target-model/records/calls/js-value-calls.js";
 import { csharpStringTargetType } from "../../target-model/types/index.js";
 import { createCsharpJsCallRecords } from "../program/records/calls/js-value-calls.js";
+import type { SourceProgramFacts } from "@tsonic/target-api/source";
+import { csharpCalleeAccess } from "./js-value-calls.js";
 
-export function analyzeCsharpJsCalls(ast: AstReader, nodes: readonly Node[], operations: CsharpTargetOperationClassifications,
-  admitted: (node: Node) => boolean) {
+export function analyzeCsharpJsCalls(ast: AstReader, facts: Pick<SourceProgramFacts, "navigation" | "selections" | "values">,
+  nodes: readonly Node[], operations: CsharpTargetOperationClassifications, admitted: (node: Node) => boolean) {
   const values = new Map<Node, CsharpJsCallEmission>();
   const issues: TargetDiagnostic[] = [];
   const refuse = (node: Node, code: `CSHARP_${string}`, message: string): void => { issues.push({ code, category: "error", source: "tsonic-csharp", sourceNode: node, message }); };
@@ -17,14 +19,9 @@ export function analyzeCsharpJsCalls(ast: AstReader, nodes: readonly Node[], ope
     const operation = classification.form.operation;
     const source = classification.source;
     const call = ast.as.AsCallExpression(node);
-    // The callee's authored member form (syntax only): a property or element access names a receiver and a key.
+    // The callee's member access, receiver and key from the Host selections (csharpCalleeAccess, through wrappers).
     const callee = source?.callee ?? call?.Expression;
-    const member = callee === undefined ? undefined : ast.is.IsPropertyAccessExpression(callee)
-      ? { kind: "property" as const, expression: callee, receiver: ast.as.AsPropertyAccessExpression(callee)?.Expression }
-      : ast.is.IsElementAccessExpression(callee)
-        ? { kind: "element" as const, expression: callee, receiver: ast.as.AsElementAccessExpression(callee)?.Expression,
-          key: ast.as.AsElementAccessExpression(callee)?.ArgumentExpression }
-        : undefined;
+    const member = source === undefined ? undefined : csharpCalleeAccess(ast, facts, source);
     const receiver = member === undefined ? callee : member.receiver;
     const arguments_ = ast.arguments(node);
     const exact = arguments_.filter((argument): argument is Node => argument !== undefined);
@@ -35,13 +32,11 @@ export function analyzeCsharpJsCalls(ast: AstReader, nodes: readonly Node[], ope
     }
     let selectedMember: CsharpJsCallEmission["member"];
     if (member !== undefined) {
-      const name = member.kind === "property" ? ast.as.AsPropertyAccessExpression(member.expression)?.name : undefined;
-      if (member.kind === "property" && name === undefined) failTargetAnalysisInvariant("tsonic-csharp", "A closed member call requires its exact authored property name.", node);
       if (member.kind === "element" && member.key === undefined) failTargetAnalysisInvariant("tsonic-csharp", "A closed element call requires its authored key.", node);
-      const syntax = member.kind === "property" ? ast.as.AsPropertyAccessExpression(member.expression) : ast.as.AsElementAccessExpression(member.expression);
+      const syntax = member.kind === "property" ? ast.as.AsPropertyAccessExpression(member.access) : ast.as.AsElementAccessExpression(member.access);
       selectedMember = Object.freeze({ read: operation.receiverReadOperation!, optional: syntax?.QuestionDotToken !== undefined,
         key: member.kind === "element" ? Object.freeze({ kind: "expression", expression: member.key! })
-          : Object.freeze({ kind: "literal", value: ast.text(name), carrier: csharpStringTargetType() }) });
+          : Object.freeze({ kind: "literal", value: member.name, carrier: csharpStringTargetType() }) });
     }
     values.set(node, { operation, present: operation.presentOperation, receiver, arguments: Object.freeze(exact),
       optionalCall: call?.QuestionDotToken !== undefined, callSubject: callee ?? receiver, member: selectedMember });

@@ -7,7 +7,6 @@ import type { CsharpConversionClassifications } from "../../../target-model/reco
 import type { CsharpSourceEvidenceIndex } from "../../../target-model/records/program/source-evidence.js";
 import type { CsharpDeclarationClassifications } from "../../../target-model/records/program/declarations.js";
 import type { SourceCallSelection } from "@tsonic/target-api/source";
-import { csharpSignatureParameters } from "../calls/signature-parameters.js";
 import type { CsharpSourceCallEmission, CsharpSourceArgumentsEmission, CsharpSourceArgumentEmissionGroup } from "../../../target-model/records/calls/source-call-emission.js";
 import { csharpAbsenceTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { isCsharpVoidTargetType } from "../../../target-model/types/identity.js";
@@ -49,7 +48,7 @@ export function analyzeCsharpSourceCallEmission(input: { readonly source: Target
       if (group.collect) { groups.push(Object.freeze({ kind: "collect", arguments: Object.freeze([...group.arguments]) })); continue; }
       const argument = group.arguments[0];
       if (argument !== undefined) { groups.push({ kind: "value", index: argument.index }); continue; }
-      const parameter = csharpSignatureParameters(ast, source.signature)?.[group.parameterIndex]?.declaration;
+      const parameter = source.signatureParameters[group.parameterIndex]?.declaration;
       const declaration = parameter === undefined ? undefined : ast.as.AsParameterDeclaration(parameter);
       if (declaration?.Initializer !== undefined && parameter !== undefined && input.declarations.runtimeDefault.get(parameter) === undefined) {
         refuse(node, "CSHARP_OMITTED_PARAMETER_DEFAULT_NOT_EVALUATED", `Omitted source-owned delegate parameter ${group.parameterIndex} has a default initializer that requires exact callee-side default evaluation before C# emission.`); return;
@@ -91,7 +90,12 @@ export function analyzeCsharpSourceCallEmission(input: { readonly source: Target
     if (csharpCallIsConstructorBaseCall(ast, node)) continue;
     if (classification.unionCall.kind === "rejected") { refuse(node, "CSHARP_UNION_CALL_DISPATCH", classification.unionCall.reason); continue; }
     const selected = classification.unionCall.kind === "resolved" ? undefined : classification.sourceCall;
-    if (selected?.kind === "rejected") { refuse(node, "CSHARP_SOURCE_CALLEE_NOT_REPRESENTABLE", selected.reason); continue; }
+    if (selected?.kind === "rejected") {
+      if (selected.refusal !== undefined) issues.push({ code: selected.refusal.code, category: "error", source: "tsonic-csharp",
+        sourceNode: selected.refusal.site, message: selected.refusal.message });
+      else refuse(node, "CSHARP_SOURCE_CALLEE_NOT_REPRESENTABLE", selected.reason);
+      continue;
+    }
     admitArguments(node, source, classification);
     const typeArguments = classification.sourceTypeArguments;
     if (typeArguments === undefined || typeArguments.some(carrier => !selectCsharpTypeEmission({ carrier }))) {

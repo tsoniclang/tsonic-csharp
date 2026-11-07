@@ -8,6 +8,7 @@ import { csharpNativePropertyNameIssue } from "./computed-field-names.js";
 import type { CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { CsharpRefusal } from "../../target-model/types/representation.js";
 import type {
   CsharpNativeValueCarriers,
   CsharpNativeValueField,
@@ -18,11 +19,11 @@ import type { CsharpProjectTypeIssue } from "../../target-model/records/types/pr
 import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/objects/required-records.js";
 import { csharpTargetTypeRenderingRejection } from "../../policy/types/model/renderability.js";
 import { csharpRuntimeRecordFieldTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
-import { csharpLexicalCaptures } from "../callables/values/lexical-captures.js";
 
 export interface CsharpNativeValueTypeSelection {
   readonly facts: SourceProgramFacts;
-  resolve(descriptor: SourceTypeDescriptor, occurrence: Node): TargetTypeRef | undefined;
+  /** The represented field carrier; a .NET refusal (CsharpRefusal) is reported as it is (code, message, site). */
+  resolve(descriptor: SourceTypeDescriptor, occurrence: Node): TargetTypeRef | CsharpRefusal;
 }
 
 export function analyzeCsharpNativeValueCarriers(
@@ -69,7 +70,9 @@ export function analyzeCsharpNativeValueCarriers(
         if (selected !== undefined) {
           const issue = csharpNativePropertyNameIssue(name, selected);
           if (issue !== undefined) {
-            issues.push(Object.freeze({ node: name, code: issue.code, message: issue.message }));
+            // A forwarded Host property-name issue keeps its Host origin (source "tsonic").
+            issues.push(Object.freeze({ node: name, code: issue.code, message: issue.message,
+              ...(issue.source === "tsonic" ? { source: "tsonic" as const } : {}) }));
             continue;
           }
         }
@@ -99,6 +102,10 @@ export function analyzeCsharpNativeValueCarriers(
       const descriptor = instantiation !== undefined && instantiation.method.length === authored.length && matches.length === 1
         ? instantiation.method[matches[0]!]!.type : undefined;
       const carrier = descriptor === undefined || call == null ? undefined : types.resolve(descriptor, call);
+      if (carrier !== undefined && carrier.kind === "csharp-refused") {
+        refuse(carrier.site, carrier.code, carrier.message);
+        continue;
+      }
       if (carrier === undefined) {
         refuse(field.sourceType, "CSHARP_STRUCT_FIELD_CARRIER_NOT_SELECTED", `Value-type field '${field.sourceName}' requires an exact selected native carrier before C# struct emission.`);
         continue;
@@ -135,7 +142,7 @@ export function analyzeCsharpObjectMethodSources(
     if (methods.length === 0) continue;
     const captures = new Map<Node, readonly CsharpObjectMethodSourceCapture[]>();
     for (const method of methods) {
-      const lexical = csharpLexicalCaptures(facts, method);
+      const lexical = facts.analyses.lexicalCaptures(method);
       captures.set(method, Object.freeze(lexical.captures
         .filter(capture => callOnlyAlias(capture.declaration) === undefined)
         .flatMap(capture => capture.references[0] === undefined ? [] : [Object.freeze({

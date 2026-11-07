@@ -330,8 +330,10 @@ for (const surface of ["native", "js"]) {
         "the full Box value remains the original RHS rather than being retyped as its projected numeric argument");
       assert.equal(write.valueType?.kind === "primitive" && write.valueType.primitive === argumentWidth, true,
         "the projected descriptor carries the actual selected Native width");
-      // nextgen C-2542: removed the valueVariable binder-path assertion; the variable path is checker-internal flow metadata
-      // and SourceObligation (checker-free, I1) does not publish it. The projected width above is the published result.
+      // The published flow position of the written value (SourceObligation.valueVariable, checker-free: node + path) keeps
+      // the actual Box binder declaration (baseline assertion restored, R4 #73).
+      assert.equal(write.valueVariable?.path.some(part => part.kind === "binder" && ast.is.IsTypeParameterDeclaration(part.declaration)), true,
+        "the Source metadata retains the actual Box binder declaration without a runtime property path or filtering");
       const selection = compiled.targetSource.facts.selections.call(write.call);
       assert.equal(write.argument === selection.arguments[0]?.argument &&
         write.parameter === ast.parameters(selection.signature)[0], true,

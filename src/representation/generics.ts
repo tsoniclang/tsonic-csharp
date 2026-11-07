@@ -62,7 +62,7 @@ export function createCsharpTypeParameterEnvironment(
 export function createCsharpSourceTypeParameterEnvironment(services: () => CsharpRepresentationServices): CsharpTypeParameterEnvironment {
   return createCsharpTypeParameterEnvironment(parameter => {
     const declaration = parameter.csharpDeclaration;
-    const selected = declaration === undefined ? undefined : csharpSourceTypeParameter(declaration, services().syntax);
+    const selected = declaration === undefined ? undefined : csharpSourceTypeParameter(declaration, services().syntax, services().facts.navigation.identity);
     if (declaration !== undefined && selected?.identity !== parameter.identity) return Object.freeze({ kind: "unsupported",
       reason: `Generic binder '${parameter.name}' has inconsistent source declaration identity.` });
     if (parameter.csharpConstraints !== undefined) return parameter.csharpConstraints;
@@ -90,10 +90,11 @@ function isNumericDescriptor(descriptor: SourceTypeDescriptor): boolean {
  * a declaration that is not a type-parameter declaration (no proof of an empty constraint set), a malformed
  * parenthesized or intersection part, a part whose representation is a CSHARP_ refusal, and a carrier with no C#
  * constraint clause.
- * A constraint part the Host refused is NOT R5 forwarding: R5 forwards Host refusals unchanged, before C# analysis
- * (analysis/program/analyze.ts). The Host answers authored type nodes lazily (solver `typeSyntax`), and those refusals
- * are not yet in facts.refusals(), so this branch can be reached by a valid program and stays until the Host collects
- * them (request R-C7-6, AGENT-C7-NOTES.md). After that it becomes the shared invariant reader (K-2670).
+ * A constraint part the Host refused is the `refused` result carrying that Host refusal. The Host answers authored type
+ * nodes lazily (solver `typeSyntax`), and a type-syntax refusal inside a declaration file (a library profile) stays out
+ * of facts.refusals(), so a valid program can reach it. Every binder is represented eagerly, and a reader forwards the
+ * refusal unchanged (R5) only where the binder is used (constraint satisfaction, generic numeric operations, binder
+ * emission).
  * Only a binder declaration without a `Constraint` is unconstrained (`resolved []`).
  */
 export function representTypeParameterConstraints(
@@ -127,9 +128,8 @@ export function representTypeParameterConstraints(
     let descriptor: SourceTypeDescriptor | undefined;
     if (!objectKeyword) {
       const outcome = services.facts.values.type(part);
-      // Pending R-C7-6: a lazy type-syntax refusal, not yet in facts.refusals() (see the comment above).
-      if (outcome.kind === "refused") return { kind: "unsupported",
-        reason: `Generic binder '${parameter.name}' constraint was refused by the Host (${outcome.code}): ${outcome.reason}` };
+      // A lazy Host type-syntax refusal of this constraint part (see the comment above).
+      if (outcome.kind === "refused") return { kind: "refused", refusal: outcome };
       descriptor = outcome.type;
     }
     const numeric = descriptor !== undefined && isNumericDescriptor(descriptor);
@@ -140,7 +140,7 @@ export function representTypeParameterConstraints(
       target = represented;
     }
     const resolved = selectCsharpNativeTypeParameterConstraint(target, parameter, objectKeyword, numeric);
-    if (resolved.kind === "unsupported") return resolved;
+    if (resolved.kind !== "resolved") return resolved;
     for (const item of resolved.constraints) constraints.set(csharpTypeParameterConstraintKey(item), item);
   }
   return { kind: "resolved", constraints: [...constraints.values()].sort(

@@ -67,11 +67,12 @@ test("authored and bodyless source generic slots publish the same declared anti-
   assertCsharpCompilationSucceeded(compiled);
   const program = compiled.result.program;
   const ast = program.source.syntax;
+  const identity = program.source.facts.navigation.identity;
   const declarations = csharpProgramSourceFiles(program).flatMap(file => ast.statements(file))
     .filter(node => ast.is.IsFunctionDeclaration(node) && ast.typeParameters(node).length > 0);
   assert.equal(declarations.length, 2, "the original authored and bodyless generic declarations remain checked");
   for (const declaration of declarations) {
-    const signature = selectCsharpSourceCallableGenericAbi(ast, declaration);
+    const signature = selectCsharpSourceCallableGenericAbi(ast, identity, declaration);
     assert.equal(signature !== undefined && signature.methodTypeParameterIdentities.length === 1 &&
       signature.methodTypeParameterIdentities[0].length > 0, true, "one exact declared generic slot");
     assert.deepEqual(signature.methodAllowsRefLikeTypeArguments, [false],
@@ -79,9 +80,9 @@ test("authored and bodyless source generic slots publish the same declared anti-
     assert.equal(Object.isFrozen(signature) && Object.isFrozen(signature.methodTypeParameterIdentities) &&
       Object.isFrozen(signature.methodAllowsRefLikeTypeArguments), true, "declared native metadata is immutable");
     const [parameter] = ast.typeParameters(declaration);
-    assert.equal(selectCsharpSourceCallableGenericAbi({ ...ast, typeParameters: () => [undefined] }, declaration) === undefined,
+    assert.equal(selectCsharpSourceCallableGenericAbi({ ...ast, typeParameters: () => [undefined] }, identity, declaration) === undefined,
       true, "a missing authored parameter cannot manufacture permission metadata");
-    assert.equal(selectCsharpSourceCallableGenericAbi({ ...ast, typeParameters: () => [parameter, parameter] }, declaration) === undefined,
+    assert.equal(selectCsharpSourceCallableGenericAbi({ ...ast, typeParameters: () => [parameter, parameter] }, identity, declaration) === undefined,
       true, "duplicate formal identity cannot manufacture a second native slot");
     if (ast.body(declaration) !== undefined) {
       const emitted = program.records.callableDeclaration.get(declaration)?.contract;

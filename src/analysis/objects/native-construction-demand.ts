@@ -111,9 +111,8 @@ export function createCsharpNativeConstructionDemandQuery(
     const declaration = host.ast.parent(node);
     const variable = declaration === undefined || !host.ast.is.IsVariableDeclaration(declaration)
       ? undefined : host.ast.as.AsVariableDeclaration(declaration);
-    let storageType = variable === undefined ? undefined : sourceSlot(host.facts, declaration!).type;
-    while (storageType?.kind === "optional") storageType = storageType.value;
-    const broadStorage = storageType?.kind === "intrinsic" && (storageType.intrinsic === "object" || storageType.intrinsic === "unknown");
+    // Broad storage (unknown / object / any / void, through options): the Host slot's broadness, the one classifier.
+    const broadStorage = variable !== undefined && sourceSlot(host.facts, declaration!).broad;
     const declarations = variable?.Initializer === node && !broadStorage ? [declaration!] : [];
     const retain = (shape: CsharpObjectShapeFact, hostProven = false): void => {
       publish(node, shape, hostProven);

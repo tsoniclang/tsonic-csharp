@@ -1,5 +1,5 @@
 import type { Node } from "@tsonic/tsts";
-import { sourceTypeDescriptorStructure, type SourceTypeDescriptor } from "@tsonic/target-api/source";
+import { sourceTypeDescriptorStructure, type SourceObjectMember, type SourceTypeDescriptor } from "@tsonic/target-api/source";
 import { sourceValueType } from "../program/source-facts.js";
 import type { CsharpPropertyProjection, CsharpPropertyProjectionMember } from "../../target-model/records/objects/property-projections.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
@@ -17,16 +17,7 @@ import {
 } from "../../target-model/types/index.js";
 import { csharpUnionLeaves } from "../../target-model/types/union-relations.js";
 import { resolveCsharpNativePropertyRead } from "../objects/native-property-reads.js";
-
-/** The present part of a published descriptor: an optional value, or a sum without its absence arms. */
-function presentDescriptor(type: SourceTypeDescriptor): SourceTypeDescriptor | undefined {
-  if (type.kind === "optional") return presentDescriptor(type.value);
-  if (type.kind === "intrinsic" && (type.intrinsic === "absence" || type.intrinsic === "void")) return undefined;
-  if (type.kind !== "union") return type;
-  const present = type.types.filter(arm => !(arm.kind === "intrinsic" && (arm.intrinsic === "absence" || arm.intrinsic === "void")));
-  return present.length === type.types.length ? type : present.length === 1 ? presentDescriptor(present[0]!)
-    : present.length === 0 ? undefined : Object.freeze({ kind: "union" as const, types: Object.freeze(present) });
-}
+import { csharpPresentSourceArms, csharpSinglePresentSourceArm } from "../objects/shapes/present-arms.js";
 
 /**
  * Native property projections of a value into a structural destination (a TsValue `properties` parameter).
@@ -43,16 +34,16 @@ export function selectCsharpPropertyProjections(
 ): readonly CsharpPropertyProjection[] | undefined {
   if (source === undefined) return undefined;
   const { facts } = policy;
-  const destinationType = presentDescriptor(destination);
+  // The present arms come from the Host closed sum (one reader, A11: void is published as absence; R3 #13).
+  const destinationType = csharpSinglePresentSourceArm(facts, destination, expression);
   if (destinationType === undefined) return undefined;
   const destinationStructure = sourceTypeDescriptorStructure(destinationType);
   if (destinationStructure.kind !== "shape" || destinationStructure.calls.length !== 0 ||
     destinationStructure.constructs.length !== 0 || destinationStructure.indexes.length !== 0) return undefined;
   const destinationMembers = facts.objects.members(destinationType);
   if (!Array.isArray(destinationMembers)) return undefined;
-  const presentSource = presentDescriptor(sourceValueType(facts, expression));
-  if (presentSource === undefined) return undefined;
-  const sum = facts.sums.sumOf(presentSource);
+  const sourceArms = csharpPresentSourceArms(facts, sourceValueType(facts, expression), expression);
+  if (sourceArms.length === 0) return undefined;
   const pending = [source];
   const visited = new Set<string>();
   const projections: CsharpPropertyProjection[] = [];
@@ -78,40 +69,72 @@ export function selectCsharpPropertyProjections(
       continue;
     }
     const shape = shapes.resolveTarget(selected);
-    let sourceType = presentSource;
-    if (sum !== undefined) {
-      const candidates = sum.arms.filter(arm => {
-        const represented = policy.types.represent(arm.type, expression, "value");
-        return represented.kind !== "csharp-refused" && targetTypeRefEquals(represented, selected);
-      });
-      if (candidates.length !== 1) return undefined;
-      sourceType = candidates[0]!.type;
+    // The Host arms this physical carrier stores. Arms whose carriers coincide (Q73: one storage arm, several roles)
+    // share one projection, so every coincident arm must give the same physical members.
+    const candidates = sourceArms.length === 1 ? sourceArms : sourceArms.filter(arm => {
+      const represented = policy.types.represent(arm, expression, "value");
+      return represented.kind !== "csharp-refused" && targetTypeRefEquals(represented, selected);
+    });
+    if (candidates.length === 0) return undefined;
+    let members: readonly CsharpPropertyProjectionMember[] | undefined;
+    for (const sourceType of candidates) {
+      const projected = projectArmMembers(sourceType, selected, shape, destinationMembers, policy);
+      if (projected === undefined || members !== undefined && !projectionMembersEqual(members, projected)) return undefined;
+      members = projected;
     }
-    const sourceMembers = facts.objects.members(sourceType);
-    if (!Array.isArray(sourceMembers)) return undefined;
-    const members: CsharpPropertyProjectionMember[] = [];
-    for (const target of destinationMembers) {
-      const matches = sourceMembers.filter(candidate => !candidate.static && candidate.name === target.name);
-      if (matches.length === 0) {
-        if (!target.optional) return undefined;
-        continue;
-      }
-      const sourceMember = matches[0]!;
-      if (matches.length !== 1 || target.kind !== "property" || sourceMember.kind === "method") return undefined;
-      const member = shape === undefined ? undefined
-        : resolveCsharpObjectShapeMemberBySelectedSubject(shape, sourceMember.declarations);
-      if (member?.kind === "resolved") {
-        if (member.member.memberKind !== "property") return undefined;
-        members.push(member.member);
-        continue;
-      }
-      if (member !== undefined && member.reason !== "not-in-finalized-shape") return undefined;
-      const native = resolveCsharpNativePropertyRead(sourceMember.declarations, selected, policy);
-      if (native.kind !== "resolved") return undefined;
-      members.push(Object.freeze({ native: native.property, sourceName: sourceMember.name }));
-    }
-    if (new Set(members.map(member => member.sourceName)).size !== members.length) return undefined;
-    projections.push(Object.freeze({ source: selected, members: Object.freeze(members) }));
+    projections.push(Object.freeze({ source: selected, members: members! }));
   }
   return Object.freeze(projections);
+}
+
+/**
+ * The physical members one source arm supplies for the destination members. Source and destination members correspond
+ * by their Host member key (`objects.member(type, key)`, R3 #14); a static member of that key is no instance member.
+ */
+function projectArmMembers(
+  sourceType: SourceTypeDescriptor,
+  selected: TargetTypeRef,
+  shape: ReturnType<Pick<CsharpObjectShapeClassifications, "resolveTarget">["resolveTarget"]>,
+  destinationMembers: readonly SourceObjectMember[],
+  policy: CsharpPolicyContext,
+): readonly CsharpPropertyProjectionMember[] | undefined {
+  const { facts } = policy;
+  const sourceMembers = facts.objects.members(sourceType);
+  if (!Array.isArray(sourceMembers)) return undefined;
+  const members: CsharpPropertyProjectionMember[] = [];
+  for (const target of destinationMembers) {
+    const sourceMember = facts.objects.member(sourceType, target.key);
+    if (sourceMember === undefined || sourceMember.static) {
+      if (!target.optional) return undefined;
+      continue;
+    }
+    if (target.kind !== "property" || sourceMember.kind === "method") return undefined;
+    const member = shape === undefined ? undefined
+      : resolveCsharpObjectShapeMemberBySelectedSubject(shape, sourceMember.declarations);
+    if (member?.kind === "resolved") {
+      if (member.member.memberKind !== "property") return undefined;
+      members.push(member.member);
+      continue;
+    }
+    if (member !== undefined && member.reason !== "not-in-finalized-shape") return undefined;
+    const native = resolveCsharpNativePropertyRead(sourceMember.declarations, selected, policy);
+    if (native.kind !== "resolved") return undefined;
+    members.push(Object.freeze({ native: native.property, sourceName: sourceMember.name }));
+  }
+  if (new Set(members.map(member => member.sourceName)).size !== members.length) return undefined;
+  return Object.freeze(members);
+}
+
+/** Coincident arms project the same physical path: the same shape member, or the same native member read. */
+function projectionMembersEqual(left: readonly CsharpPropertyProjectionMember[],
+  right: readonly CsharpPropertyProjectionMember[]): boolean {
+  return left.length === right.length && left.every((member, index) => {
+    const other = right[index]!;
+    if (member === other) return true;
+    if (member.native === undefined || other.native === undefined || member.sourceName !== other.sourceName) return false;
+    const [selected, candidate] = [member.native.member, other.native.member];
+    return selected.id === candidate.id && targetTypeRefEquals(selected.returnType, candidate.returnType) &&
+      (selected.declaringType === undefined ? candidate.declaringType === undefined
+        : candidate.declaringType !== undefined && targetTypeRefEquals(selected.declaringType, candidate.declaringType));
+  });
 }

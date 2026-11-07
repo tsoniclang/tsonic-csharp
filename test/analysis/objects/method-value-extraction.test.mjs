@@ -10,7 +10,7 @@ function sessionStorage(sourceText) {
   assert.equal(checked.sourceDiagnosticsText, "", "the unchanged authored method and its actual uses check");
   const { source } = checked;
   const file = source.sourceFiles.find(candidate => source.syntax.getFileName(candidate) === "/project/index.ts");
-  const storage = source.facts.analyses.storage({ sourceFiles: [file] });
+  const storage = source.facts.analyses.storage({ sourceFiles: [file], premises: {} });
   return { source, storage, inputs: { storage, facts: source.facts, ast: source.syntax } };
 }
 

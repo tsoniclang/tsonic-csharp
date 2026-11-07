@@ -1,3 +1,4 @@
+import type { SourceTypeFlowRefusal } from "@tsonic/target-api/source";
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "./model.js";
 import { targetTypeRefKey } from "./equality.js";
 
@@ -17,6 +18,14 @@ export type CsharpTypeParameterConstraintResolution =
   | {
       readonly kind: "unsupported";
       readonly reason: string;
+    }
+  | {
+      /**
+       * The Host refused an authored constraint part (a lazy type-syntax refusal). A reader forwards `refusal`
+       * unchanged (R5) where the binder is used; C# never re-codes it.
+       */
+      readonly kind: "refused";
+      readonly refusal: SourceTypeFlowRefusal;
     };
 
 export type CsharpExplicitImplementationConstraint = "class" | "default" | undefined;
@@ -48,6 +57,7 @@ export function csharpTypeParameterConstraintResolutionKey(
 ): string {
   return resolution === undefined ? "missing" : resolution.kind === "unsupported"
     ? JSON.stringify([resolution.kind, resolution.reason])
+    : resolution.kind === "refused" ? JSON.stringify([resolution.kind, resolution.refusal.code, resolution.refusal.reason])
     : JSON.stringify([...resolution.constraints.map(constraint => constraint.kind === "type"
       ? [constraint.kind, targetTypeRefKey(constraint.type)] : constraint.kind === "keyword"
         ? [constraint.kind, constraint.keyword] : [constraint.kind]),

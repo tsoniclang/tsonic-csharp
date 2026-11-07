@@ -43,7 +43,7 @@ test("unavailable object-shape capabilities fail at their exact owner without pu
     ast: {}, names: { typeParameterNames: [] }, captureStorage: { captureFrameShape: { get() {} } },
     conversions: { conversion: { get() {} } } });
   const requested = demand.requireObjectShapeCapability(undefined,
-    { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "MissingShape" }, {}, "json-serialization", "object-shape");
+    { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "MissingShape" }, "json-serialization", "object-shape");
   assert.equal(requested.kind, "rejected");
   assert.equal(requested.reason,
     "Selected 'json-serialization' operation requires an exact closed object-shape argument.");

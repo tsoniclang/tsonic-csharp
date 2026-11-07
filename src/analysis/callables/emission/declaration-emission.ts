@@ -28,7 +28,10 @@ export function analyzeCsharpCallableDeclarationEmission(input: {
     const returned = input.declarations.returnContract.get(node);
     if (returned === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted callable requires its finalized return contract.", node);
     if (returned.kind === "rejected") {
-      issues.push({ code: "CSHARP_CALLABLE_DECLARATION_EMISSION", category: "error", source: "tsonic-csharp", sourceNode: node, message: returned.reason });
+      // A represented-return CsharpRefusal keeps its own code and site (D1 §1.4); any other rejection is this file's.
+      issues.push(returned.refusal === undefined
+        ? { code: "CSHARP_CALLABLE_DECLARATION_EMISSION", category: "error", source: "tsonic-csharp", sourceNode: node, message: returned.reason }
+        : { code: returned.refusal.code, category: "error", source: "tsonic-csharp", sourceNode: returned.refusal.site, message: returned.refusal.message });
       continue;
     }
     const generator = input.generators.generator.get(node) !== undefined;

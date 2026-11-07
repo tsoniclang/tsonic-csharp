@@ -3,7 +3,6 @@ import test from "node:test";
 import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { assertNativeErrorWriteRefusals } from "../../helpers/native-error-refusals.mjs";
-import { csharpSourceNodes } from "../../../dist/analysis/program/source-nodes.js";
 
 for (const jsEnabled of [false, true]) {
   test(`C# ${jsEnabled ? "JS" : "native"} Error storage keeps exact cross-file nested generic write origins`, () => {
@@ -121,8 +120,8 @@ for (const surface of ["native", "js"]) {
     assert.match(emitted, /\.InnerException/u);
     assert.match(emitted, /\.GetType\(\)\.Name/u);
     assert.doesNotMatch(emitted, /Tsonic\.CSharp\.Runtime\.Error|ErrorObject|new ErrorOptions/u);
-    const { syntax, sourceFiles } = compiled.result.program.source;
-    const selections = csharpSourceNodes(syntax, sourceFiles).map(node =>
+    const { syntax, sourceFiles, facts } = compiled.result.program.source;
+    const selections = facts.navigation.nodesForFiles(sourceFiles).map(node =>
       compiled.result.program.records.selectedConstruction.get(node)?.target)
       .filter(selection => selection?.kind === "resolved" && selection.call.arguments.some(argument => argument.projection !== undefined));
     assert.equal(selections.length >= 2, true, "both source construction and native base invocation retain checked cause projections");

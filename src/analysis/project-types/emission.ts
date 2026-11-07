@@ -27,7 +27,7 @@ export function analyzeCsharpProjectEmission(input: {
     const definition = input.projectTypes.definitionContainingDeclaration(node);
     if (definition !== undefined) producer.declaration(node, definition);
     if (definition !== undefined && (definition.outerTypeParameters.length !== 0 || definition.outerTypeProjections.length !== 0)) {
-      const parameters = definition.outerTypeParameters.map(parameter => csharpSourceTypeParameter(parameter, input.source.syntax));
+      const parameters = definition.outerTypeParameters.map(parameter => csharpSourceTypeParameter(parameter, input.source.syntax, input.source.facts.navigation.identity));
       if (parameters.some(parameter => parameter === undefined))
         failTargetAnalysisInvariant("tsonic-csharp", "A lifted C# generic binder requires its sealed source identity.", node);
       const selected = generatedTypeParameterNames([

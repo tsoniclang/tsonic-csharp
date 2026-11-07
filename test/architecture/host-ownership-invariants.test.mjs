@@ -5,7 +5,8 @@
 //     host): every exported type, every exported function's and method's parameters and result, inherited interface
 //     members (Codex review K-2668), and the program a target receives (TargetCompileInput["source"]). Node and
 //     SourceFile are site keys. Type-level: a generated tsgo probe over the BUILT .d.ts files
-//     (host-ownership-probe/checker-free.ts).
+//     (host-ownership-probe/checker-free.ts). A row passes only when the walk proves the subject checker-free; a walk
+//     stopped by its layer limit ("unresolved") or by the compiler (TS2589) fails the row (Codex review K-2681).
 // I2  tsonic-csharp/src imports no checker type, never imports @tsonic/target-api/host or a Host-internal module,
 //     never asks a checker (semantics(...), effectiveTypes, getTypeAtLocation, resolveTypeWithState), and (Codex review
 //     K-2662) no extension fact key it reads declares a payload that is or contains a checker type: the same tsgo probe
@@ -102,7 +103,11 @@ const allowedSpecifiers = new Set([
   "@tsonic/target-api/provider", "@tsonic/target-api/source", "@tsonic/source-core", "@tsonic/source-core/extension",
   "@tsonic/source-core/facts", "@tsonic/js-source-profile",
 ]);
-const checkerAccess = /\b(?:source|program|host|input|policy|request|facts)\.(?:semantics|semanticsFor|hasSemantics|effectiveTypes)\b|\bsemantics(?:For)?\s*\(|\.types\.(?:resolve|authored|expression|effective)\w*\s*\(|\bgetTypeAtLocation\b|\bgetTypeChecker\b|\bresolveTypeWithState\b/gu;
+// The C# target-only queries of CsharpTypeQueries (policy/model/type-resolution.ts) answer .NET ABI questions over
+// published facts; they are not checker access and are excluded by name (R-R4-56).
+const csharpTargetOnlyTypeQueries = ["resolveArrayLiteral", "resolveBindingProjection", "resolvePointerReturn",
+  "resolvePointerStoragePointee", "resolveTypedLocationOperationPointee"];
+const checkerAccess = new RegExp(String.raw`\b(?:source|program|host|input|policy|request|facts)\.(?:semantics|semanticsFor|hasSemantics|effectiveTypes)\b|\bsemantics(?:For)?\s*\(|\.types\.(?!(?:${csharpTargetOnlyTypeQueries.join("|")})\b)(?:resolve|authored|expression|effective)\w*\s*\(|\bgetTypeAtLocation\b|\bgetTypeChecker\b|\bresolveTypeWithState\b`, "gu");
 
 export function i2Breaches(sources) {
   const breaches = [];
@@ -219,12 +224,16 @@ test("I7: C# originates only CSHARP_ codes and forwards Host refusals once, befo
 // Host fact is an invariant, read through the shared reader of analysis/program/source-facts.ts; no branch turns it into
 // a new C# refusal, a code-less `unsupported` or a generic `rejected` result. The census names the consumers whose
 // refused branch was switched to the shared reader (writer C7), and the one branch kept for a lazy Host fact that is not
-// yet in facts.refusals(): the type-syntax refusal of a generic constraint part (request R-C7-6).
+// in facts.refusals(): the type-syntax refusal of a generic constraint part. representation/generics.ts returns it as the
+// `refused` constraint resolution (FX-CR R3), forwarded unchanged at binder emission and type-flow obligations; the
+// descriptor representation of a generic signature (representation/callables.ts) has only CSHARP_ refusals
+// (CsharpRepresentation) and keeps its CSHARP_GENERIC_CONSTRAINT report (open: FX-CR R3, a Host refusal arm on the
+// descriptor representation).
 const r5SharedReaderConsumers = [
   "tsonic-csharp/src/representation/objects.ts",
   "tsonic-csharp/src/analysis/objects/shapes/api.ts",
 ];
-const r5PendingLazyFacts = new Map([["tsonic-csharp/src/representation/generics.ts", "R-C7-6"]]);
+const r5PendingLazyFacts = new Map([["tsonic-csharp/src/representation/callables.ts", "FX-CR R3"]]);
 const recodedHostRefusal = /\.kind\s*===\s*"refused"\s*\)?\s*(?:\?|return)\s*(?:csharpRefusal\s*\(|\{\s*kind:\s*"(?:unsupported|rejected)")/gu;
 
 export function r5Breaches(sources) {
@@ -404,9 +413,9 @@ function probeProject(directory, rows, controls) {
   fs.writeFileSync(path.join(directory, "controls.ts"), controls.text);
 }
 
-/** The probe text: one Check row per subject; `labels` maps each row's line to its subject. */
+/** The probe text: one row per subject; `labels` maps each row's line to its subject. */
 export function generateProbe(entries, factKeys) {
-  const lines = [`import type { Check, FactPayload, NoChecker, Resolved } from "./checker-free.js";`];
+  const lines = [`import type { Check, CheckClean, CheckerVerdictOf, FactPayload, Resolved } from "./checker-free.js";`];
   const labels = new Map();
   const unresolved = [];
   const row = (label, text) => { lines.push(text); labels.set(lines.length, label); };
@@ -421,25 +430,36 @@ export function generateProbe(entries, factKeys) {
         : declaration.kind === "class" ? `Entry${index}.${name}${args}`
           : `typeof Entry${index}.${name}`;
       if (declaration.kind === "type-of-value") { unresolved.push(`${entry.name}:${name} (type-only export of a value)`); continue; }
-      row(`I1 ${specifier} ${name}`, `export type I1_${index}_${name} = Check<NoChecker<${subject}>>;`);
+      row(`I1 ${specifier} ${name}`, `export type I1_${index}_${name} = CheckClean<CheckerVerdictOf<${subject}>>;`);
     }
   }
   lines.push(`import type { TargetCompileInput } from "@tsonic/target-api";`);
-  row("I1 TargetCompileInput[\"source\"]", `export type I1_compile_input_source = Check<NoChecker<TargetCompileInput["source"]>>;`);
+  row("I1 TargetCompileInput[\"source\"]", `export type I1_compile_input_source = CheckClean<CheckerVerdictOf<TargetCompileInput["source"]>>;`);
   for (const [index, key] of factKeys.entries()) {
     lines.push(`import type { ${key.name} as Key${index} } from ${JSON.stringify(builtSpecifier(key.specifier))};`);
     row(`I2 fact key ${key.name} payload resolved`, `export type I2_resolved_${key.name} = Check<Resolved<FactPayload<typeof Key${index}>>>;`);
-    row(`I2 fact key ${key.name} payload checker-free`, `export type I2_payload_${key.name} = Check<NoChecker<FactPayload<typeof Key${index}>>>;`);
+    row(`I2 fact key ${key.name} payload checker-free`, `export type I2_payload_${key.name} = CheckClean<CheckerVerdictOf<FactPayload<typeof Key${index}>>>;`);
   }
   return { text: `${lines.join("\n")}\n`, labels, unresolved };
 }
 
-/** Planted controls: rows tagged "breach" must fail to compile, rows tagged "clean" must compile. */
+/** `{ readonly f<depth>: … { readonly f1: <inner> } … }`: <inner> sits <depth> object levels down. */
+function nestedPayload(depth, inner) {
+  let text = inner;
+  for (let level = 1; level <= depth; level += 1) text = `{ readonly f${level}: ${text} }`;
+  return text;
+}
+
+/**
+ * Planted controls with the verdict each row must report: "checker" and "unresolved" rows must fail to compile with
+ * that verdict, "clean" rows must compile. "unresolved" rows prove the layer limit is never read as checker-free
+ * (K-2681); the deep clean and recursive rows prove recursive descriptors still terminate.
+ */
 export function generateControls() {
   const lines = [
     `import type { Node, Signature, SourceFile, Type } from "@tsonic/tsts";`,
     `import type { CheckedSourceProgram } from "@tsonic/tsts";`,
-    `import type { Check, FactPayload, NoChecker } from "./checker-free.js";`,
+    `import type { CheckClean, CheckerVerdictOf, FactPayload } from "./checker-free.js";`,
     `interface Base { readonly hidden: (program: CheckedSourceProgram) => void }`,
     `interface Derived extends Base { readonly name: string }`,
     `type Descriptor = { readonly kind: "array"; readonly element: Descriptor } | { readonly kind: "primitive"; readonly name: string };`,
@@ -447,30 +467,73 @@ export function generateControls() {
     `declare const cleanKey: { readonly snapshot: (value: { readonly site: Node; readonly file: SourceFile; readonly name: string }) => unknown };`,
     `type AliasedPayload = { readonly members: ReadonlyMap<string, readonly Type[]> };`,
     `interface Facts { readonly values: { type(node: Node): Descriptor; signature(node: Node): Signature | undefined } }`,
+    `declare const deepKey: { readonly snapshot: (value: ${nestedPayload(8, "{ readonly type: Type }")}) => unknown };`,
+    `type DeeperThanLimit = ${nestedPayload(70, "{ readonly type: Type }")};`,
+    `type DeepWithinLimit = ${nestedPayload(30, "{ readonly type: Type }")};`,
+    `type DeepClean = ${nestedPayload(8, "{ readonly name: string }")};`,
+    `type Grow<T> = { readonly value: T; readonly next: Grow<[T]> };`,
+    `interface TreeA { readonly kind: "a"; readonly children: readonly TreeB[]; readonly parent?: TreeA }`,
+    `interface TreeB { readonly kind: "b"; readonly owner: TreeA; readonly lookup: ReadonlyMap<string, TreeA | TreeB> }`,
+    `interface Overloaded { read(node: Node, type: Type): string; read(node: Node): string }`,
+    `type CallableWithCache = { (node: Node): string; readonly cache: Type };`,
+    `declare class Holder { constructor(type: Type); readonly name: string }`,
+    `type NodeWithType = Node & { readonly resolved: Type };`,
   ];
   const expected = new Map();
   const row = (verdict, text) => { lines.push(text); expected.set(lines.length, verdict); };
-  row("breach", `export type C1 = Check<NoChecker<FactPayload<typeof plantedKey>>>;`);
-  row("breach", `export type C2 = Check<NoChecker<AliasedPayload>>;`);
-  row("breach", `export type C3 = Check<NoChecker<Facts>>;`);
-  row("breach", `export type C4 = Check<NoChecker<(site: Node) => Type>>;`);
-  row("breach", `export type C4b = Check<NoChecker<Derived>>;`);
-  row("breach", `export type C4c = Check<NoChecker<{ read(node: Node, signature: Signature): string }>>;`);
-  row("clean", `export type C5 = Check<NoChecker<FactPayload<typeof cleanKey>>>;`);
-  row("clean", `export type C6 = Check<NoChecker<{ readonly type(node: Node): Descriptor; readonly sites: readonly Node[] }>>;`);
-  row("clean", `export type C7 = Check<NoChecker<ReadonlyMap<Node, Descriptor>>>;`);
+  row("checker", `export type C1 = CheckClean<CheckerVerdictOf<FactPayload<typeof plantedKey>>>;`);
+  row("checker", `export type C2 = CheckClean<CheckerVerdictOf<AliasedPayload>>;`);
+  row("checker", `export type C3 = CheckClean<CheckerVerdictOf<Facts>>;`);
+  row("checker", `export type C4 = CheckClean<CheckerVerdictOf<(site: Node) => Type>>;`);
+  row("checker", `export type C4b = CheckClean<CheckerVerdictOf<Derived>>;`);
+  row("checker", `export type C4c = CheckClean<CheckerVerdictOf<{ read(node: Node, signature: Signature): string }>>;`);
+  // K-2681: a checker Type eight levels down a fact payload (the old walk stopped at 7 and called it clean).
+  row("checker", `export type C8 = CheckClean<CheckerVerdictOf<FactPayload<typeof deepKey>>>;`);
+  row("checker", `export type C8b = CheckClean<CheckerVerdictOf<DeepWithinLimit>>;`);
+  // Past the layer limit (64) the walk reports unresolved, never clean; a generic that grows forever does too.
+  row("unresolved", `export type C9 = CheckClean<CheckerVerdictOf<DeeperThanLimit>>;`);
+  row("unresolved", `export type C10 = CheckClean<CheckerVerdictOf<Grow<string>>>;`);
+  row("checker", `export type C11 = CheckClean<CheckerVerdictOf<Overloaded>>;`);
+  row("checker", `export type C12 = CheckClean<CheckerVerdictOf<CallableWithCache>>;`);
+  row("checker", `export type C13 = CheckClean<CheckerVerdictOf<typeof Holder>>;`);
+  row("checker", `export type C14 = CheckClean<CheckerVerdictOf<NodeWithType>>;`);
+  // A sibling any / unknown would absorb a union of parts; each part is walked on its own.
+  row("checker", `export type C19 = CheckClean<CheckerVerdictOf<{ readonly a: any; readonly b: Type }>>;`);
+  row("checker", `export type C20 = CheckClean<CheckerVerdictOf<{ read(a: any, b: Type): void }>>;`);
+  row("checker", `export type C21 = CheckClean<CheckerVerdictOf<{ readonly a: unknown; readonly b: { readonly c: Type } }>>;`);
+  row("clean", `export type C5 = CheckClean<CheckerVerdictOf<FactPayload<typeof cleanKey>>>;`);
+  row("clean", `export type C6 = CheckClean<CheckerVerdictOf<{ type(node: Node): Descriptor; readonly sites: readonly Node[] }>>;`);
+  row("clean", `export type C7 = CheckClean<CheckerVerdictOf<ReadonlyMap<Node, Descriptor>>>;`);
+  row("clean", `export type C15 = CheckClean<CheckerVerdictOf<DeepClean>>;`);
+  row("clean", `export type C16 = CheckClean<CheckerVerdictOf<TreeA>>;`);
+  row("clean", `export type C17 = CheckClean<CheckerVerdictOf<{ read(node: Node): string; read(file: SourceFile, name: string): number }>>;`);
+  row("clean", `export type C18 = CheckClean<CheckerVerdictOf<Node | SourceFile | readonly Node[]>>;`);
   return { text: `${lines.join("\n")}\n`, expected };
 }
 
 /** Line numbers of tsgo errors per file name. */
 export function errorLines(output) {
   const lines = new Map();
-  for (const match of output.matchAll(/([\w.-]+\.ts)[(:](\d+)[,:]\d+\)?:?\s*-?\s*error\b/gu)) {
-    const file = match[1];
-    if (!lines.has(file)) lines.set(file, new Set());
-    lines.get(file).add(Number(match[2]));
-  }
+  for (const [file, verdicts] of errorVerdicts(output)) lines.set(file, new Set(verdicts.keys()));
   return lines;
+}
+
+/**
+ * The verdict of each failing line per file: "checker" or "unresolved" for a CheckClean row (TS2344 names the
+ * verdict), otherwise the error code (TS2589 when the compiler's own instantiation limit stopped the walk).
+ */
+export function errorVerdicts(output) {
+  const files = new Map();
+  for (const match of output.matchAll(/([\w.-]+\.ts)[(:](\d+)[,:]\d+\)?:?\s*-?\s*error\s+(TS\d+)?:?\s*([^\n]*)/gu)) {
+    const file = match[1];
+    if (!files.has(file)) files.set(file, new Map());
+    const verdict = /^Type '"(checker|unresolved)"' does not satisfy the constraint '"clean"'/u.exec(match[4] ?? "")?.[1]
+      ?? match[3] ?? "error";
+    const verdicts = files.get(file);
+    const line = Number(match[2]);
+    if (!verdicts.has(line)) verdicts.set(line, verdict);
+  }
+  return files;
 }
 
 test("I1 / I2 (K-2662): no checker type reaches the target-facing entries or any fact payload C# reads (tsgo probe)",
@@ -497,19 +560,22 @@ test("I1 / I2 (K-2662): no checker type reaches the target-facing entries or any
       const run = spawnSync(tsgo, ["--noEmit", "--pretty", "false", "-p", path.join(directory, "tsconfig.json")],
         { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
       const output = `${run.stdout ?? ""}${run.stderr ?? ""}`;
-      const errors = errorLines(output);
+      const errors = errorVerdicts(output);
       assert.equal(run.status === 0 || errors.size > 0, true, `tsgo failed without located diagnostics:\n${output.slice(0, 4000)}`);
       assert.equal(errors.has("controls.ts"), true, "the planted breaches are reported, so the probe was type-checked");
       const otherFiles = [...errors.keys()].filter(file => file !== "probe.ts" && file !== "controls.ts");
       assert.deepEqual(otherFiles, [], `the probe compiles against the built declarations:\n${output.slice(0, 4000)}`);
-      const controlErrors = errors.get("controls.ts") ?? new Set();
+      const controlErrors = errors.get("controls.ts") ?? new Map();
       for (const [line, verdict] of controls.expected) {
-        assert.equal(controlErrors.has(line), verdict === "breach", `control line ${line} (${verdict}):\n${output.slice(0, 2000)}`);
+        assert.equal(controlErrors.get(line) ?? "clean", verdict, `control line ${line} (${verdict}):\n${output.slice(0, 2000)}`);
       }
-      const probeErrors = [...(errors.get("probe.ts") ?? [])].sort((left, right) => left - right);
-      const unlabeled = probeErrors.filter(line => !probe.labels.has(line));
+      const probeErrors = [...(errors.get("probe.ts") ?? new Map())].sort(([left], [right]) => left - right);
+      const unlabeled = probeErrors.filter(([line]) => !probe.labels.has(line));
       assert.deepEqual(unlabeled, [], `probe import or syntax errors:\n${output.slice(0, 4000)}`);
-      assert.deepEqual(probeErrors.map(line => probe.labels.get(line)), [], "subjects that contain a checker type");
+      // A row fails as "checker" (a checker type is reachable), "unresolved" (the walk hit its depth limit: not proven
+      // checker-free, K-2681) or a compiler code such as TS2589 (the compiler's own instantiation limit; not proven).
+      assert.deepEqual(probeErrors.map(([line, verdict]) => `${probe.labels.get(line)}: ${verdict}`), [],
+        "subjects that contain a checker type or are not proven checker-free");
     } finally {
       fs.rmSync(directory, { recursive: true, force: true });
     }
@@ -550,4 +616,10 @@ test("negative controls: every text scan sees a planted breach and passes its cl
     `import { providerVirtualDeclarationFactKey, defineExtensionFactKey, type ExtensionFactKey } from "@tsonic/tsts";\nexport const localFactKey = defineExtensionFactKey({});`]]));
   assert.deepEqual(keys.map(key => key.name), ["localFactKey", "providerVirtualDeclarationFactKey"]);
   assert.deepEqual(errorLines("probe.ts(12,5): error TS2344: Type 'false' does not satisfy the constraint 'true'.\n").get("probe.ts"), new Set([12]));
+  assert.deepEqual(errorVerdicts([
+    `probe.ts(3,20): error TS2344: Type '"checker"' does not satisfy the constraint '"clean"'.`,
+    `probe.ts(4,20): error TS2344: Type '"unresolved"' does not satisfy the constraint '"clean"'.`,
+    "probe.ts(5,20): error TS2589: Type instantiation is excessively deep and possibly infinite.",
+    "probe.ts(6,20): error TS2344: Type 'false' does not satisfy the constraint 'true'.",
+  ].join("\n")).get("probe.ts"), new Map([[3, "checker"], [4, "unresolved"], [5, "TS2589"], [6, "TS2344"]]));
 });

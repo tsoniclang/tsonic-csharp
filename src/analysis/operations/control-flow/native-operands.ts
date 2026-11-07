@@ -1,3 +1,4 @@
+import { csharpCalleeAccess } from "../js-value-calls.js";
 import type { AstReader, ExtensionDiagnostic, Node } from "@tsonic/tsts";
 import type { SourceCallSelection, SourceProgramFacts } from "@tsonic/target-api/source";
 import { sourceNodesEqual } from "@tsonic/target-api/source";
@@ -22,7 +23,7 @@ import type { CsharpConversionMode } from "../../../target-model/conversions/sel
 
 export interface CsharpNativeOperandInput {
   readonly ast: AstReader;
-  readonly facts: Pick<SourceProgramFacts, "navigation">;
+  readonly facts: Pick<SourceProgramFacts, "navigation" | "selections" | "values">;
   readonly evidence: Pick<CsharpSourceEvidenceIndex, "compileTimeMetadata" | "sourceArgument" | "sourceDefaultValue" | "sourceField" | "sourceStruct">;
   readonly operations: Pick<CsharpTargetOperationClassifications, "nativeHandler" | "selectedCall" | "selectedConstruction" |
     "selectedProperty" | "selectedElement" | "operatorForm" | "binaryOperation" | "unaryOperation" | "jsArrayMutation" |
@@ -247,11 +248,12 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
       case "source-flow-rejected": return refused("operation-unresolved", call.form.sourceFlow.reason, call.form.sourceFlow.code);
       case "js-value": {
         if (call.form.operation.kind !== "resolved") return refused("operation-unresolved");
-        const access = call.source === undefined ? undefined : calleeAccess(call.source.callee);
+        const access = call.source === undefined ? undefined : csharpCalleeAccess(ast, input.facts, call.source);
         const receiver = access?.receiver ?? call.source?.callee;
+        const key = access?.kind === "element" ? access.key : undefined;
         return receiver === undefined ? refused("operation-unresolved") : chosen([
           ...use(receiver, { kind: access === undefined ? "callee" : "receiver" }),
-          ...guarded([...(access?.key !== undefined ? use(access.key, { kind: "key" }) : []), ...jsArguments()])]);
+          ...guarded([...(key !== undefined ? use(key, { kind: "key" }) : []), ...jsArguments()])]);
       }
       case "target": break;
     }
@@ -281,9 +283,9 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
     // so it has no runtime callee use; only a callee value is evaluated before the arguments.
     if (callee.kind === "function") return argumentsFirst([], guarded(arguments_));
     if (callee.kind === "value") return argumentsFirst(use(callee.expression, { kind: "callee" }), guarded(arguments_));
-    const access = calleeAccess(call.source.callee);
+    const access = csharpCalleeAccess(ast, input.facts, call.source);
     const receiver = receiverUses(callee.receiver.expression);
-    const key = guarded(access?.key !== undefined ? use(access.key, { kind: "key" }) : []);
+    const key = guarded(access?.kind === "element" && access.key !== undefined ? use(access.key, { kind: "key" }) : []);
     return argumentsFirst([...receiver, ...key], guarded(arguments_), [...key, ...receiver]);
   }
   if (ast.is.IsNewExpression(node)) {
@@ -511,14 +513,6 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
     if (selection?.kind === "source-owned") return chosen(receiverUses(selection.source.receiver));
     if (selection?.kind === "rejected") return refused("operation-unresolved");
     return selection?.kind === "union-property" ? chosen(use(ast.as.AsPropertyAccessExpression(node)?.Expression, { kind: "receiver" })) : refused("operation-unresolved");
-  }
-
-  /** The authored receiver and key of a property or element access callee (syntax only). */
-  function calleeAccess(callee: Node): { readonly receiver: Node | undefined; readonly key?: Node | undefined } | undefined {
-    if (ast.is.IsPropertyAccessExpression(callee)) return { receiver: ast.as.AsPropertyAccessExpression(callee)?.Expression };
-    if (!ast.is.IsElementAccessExpression(callee)) return undefined;
-    const element = ast.as.AsElementAccessExpression(callee);
-    return { receiver: element?.Expression, key: element?.ArgumentExpression };
   }
 
   function projectTarget(reference: Node | undefined) {

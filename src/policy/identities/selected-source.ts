@@ -1,6 +1,4 @@
-import type { AstReader, Node, ReadonlySourceFactResolver } from "@tsonic/tsts";
-import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
-import { jsSourceApiIdentity } from "@tsonic/js-source-profile";
+import type { AstReader, Node } from "@tsonic/tsts";
 import { isTsonicSourceProfileDeclarationPath } from "@tsonic/target-api/provider";
 import { csharpTargetId } from "../../target-model/identities/target.js";
 import type { SourceProgramFacts } from "@tsonic/target-api/source";
@@ -18,16 +16,13 @@ export interface CsharpSourceProfileDeclarationIdentity {
 export function csharpSourceProfileDeclarationIdentity(
   ast: AstReader,
   facts: SourceProgramFacts,
-  sourceFacts: ReadonlySourceFactResolver | undefined,
   declaration: Node | undefined,
 ): CsharpSourceProfileDeclarationIdentity | undefined {
   if (declaration === undefined) {
     return undefined;
   }
-  if (sourceFacts === undefined) failTargetAnalysisInvariant("tsonic-csharp",
-    "Source-profile identity requires the program's source facts.", declaration);
-  // The JS identity is the JS source profile's (jsSourceApiIdentity, D18); C# keys its tables by it.
-  const js = jsSourceApiIdentity({ ast, sourceFacts, wellKnownSymbol: (node: Node) => facts.selections.wellKnownSymbol(node) }, declaration);
+  // The JS identity is the Host-published JS API identity (facts.profile.identity, D18); C# keys its tables by it.
+  const js = facts.profile.identity(declaration);
   if (js !== undefined) return Object.freeze({ owner: "js", ...js });
   // The C# target's own source profile (declarations under the csharp profile path) is identified here.
   const sourceFile = ast.getSourceFile(declaration);

@@ -9,6 +9,7 @@ import { csharpTargetNamedType } from "../../../../target-model/types/index.js";
 import { csharpJsEventLoopBinaryExecutionDriver } from "../../../../target-model/project/binary-execution-drivers.js";
 import { resolveCsharpOptionalStorage } from "../../../types/storage/optional-storage.js";
 import { resolveCsharpSourceProfileGenericResult } from "../source-profile-result.js";
+import { sourceTypeDescriptorsEqual } from "@tsonic/target-api/source";
 
 const objectType = csharpObjectTargetType();
 const rejectionType = csharpNullableTargetType(objectType);
@@ -199,8 +200,10 @@ function promiseResolveMember(
   const explicit = context.source.typeArguments?.[0];
   const inputResult = getCsharpTaskResultTargetType(argument);
   if (inputResult === undefined && explicit?.explicit !== true) {
-    // One representation (I6): identical published Source types have equal C# carriers at the same position.
-    if (explicit === undefined || !targetTypeRefEquals(argument, task.result)) return undefined;
+    // As at baseline: the argument's carrier is T's carrier, or the argument's published Source type is T's (Host
+    // descriptor identity; carriers of identical Source types may differ by occurrence, e.g. physical or narrowed reads).
+    if (explicit === undefined || !targetTypeRefEquals(argument, task.result) &&
+      !sourceTypeDescriptorsEqual(context.source.arguments[0]!.type, explicit.type)) return undefined;
   }
   const result = explicit?.explicit !== true
     ? inputResult ?? argument

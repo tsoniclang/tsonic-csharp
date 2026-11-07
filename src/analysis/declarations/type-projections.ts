@@ -54,7 +54,7 @@ export function analyzeCsharpTypeProjections(
       if (free.size === 0) continue;
       for (let owner: Node | undefined = node; owner !== undefined; owner = ast.parent(owner)) {
         const parameters = csharpSourceTypeParameters(owner, ast, source.facts.navigation.scopes).flatMap(parameter => {
-          const identity = parameter === undefined ? undefined : csharpSourceTypeParameter(parameter, ast)?.identity;
+          const identity = parameter === undefined ? undefined : csharpSourceTypeParameter(parameter, ast, source.facts.navigation.identity)?.identity;
           return identity === undefined ? [] : [identity];
         });
         if (ast.is.IsTypeAliasDeclaration(owner)) break;
@@ -64,7 +64,7 @@ export function analyzeCsharpTypeProjections(
         }
         if (ast.is.IsClassDeclaration(owner) || ast.is.IsClassExpression(owner)) {
           const outer = publishedCsharpClassBindings(owner, { ast, facts: source.facts })?.outer
-            .map(parameter => csharpSourceTypeParameter(parameter, ast)?.identity) ?? [];
+            .map(parameter => csharpSourceTypeParameter(parameter, ast, source.facts.navigation.identity)?.identity) ?? [];
           if ([...free].every(name => outer.includes(name))) record(outerByDeclaration, owner, projection);
         }
       }

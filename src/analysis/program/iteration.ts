@@ -136,6 +136,7 @@ export function analyzeCsharpRepresentationIteration(
     moduleCallables: typeHost.moduleCallables,
     integerRanges: typeHost.integerRanges,
     callOnlyAlias: typeHost.callOnlyAlias,
+    sourceCallable: representations.sourceCallable,
     input,
     sourceFiles,
     sourceStorage,

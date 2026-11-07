@@ -131,6 +131,19 @@ test("provider construction refuses missing, contradictory or unrelated native r
   }
 });
 
+// RC2 #5, signed Q92: the object-initializer readonly rule is what C# can assign. A CLR member without a public setter
+// (`readonly` from HasPublicSetter / IsInitOnly) is refused with the C# code CSHARP_PROVIDER_CONSTRUCTION (I7),
+// whatever the Source modifier; a writable CLR member is assigned, also for a Source `readonly` member.
+test("Q92: provider readonly follows C# assignability, with a CSHARP_ refusal", () => {
+  const writable = fixture({ readonly: true }).select();
+  assert.equal(isCsharpRefusal(writable), false, "Source readonly + writable CLR member: the initializer assigns it");
+  for (const options of [{ readonly: true, targetMember: { readonly: true } }, { targetMember: { readonly: true } }]) {
+    const refused = fixture(options).select();
+    assert.equal(isCsharpRefusal(refused) && refused.code === "CSHARP_PROVIDER_CONSTRUCTION", true,
+      `${options.readonly ? "Source readonly" : "Source writable"} + read-only CLR member: refused with the C# code`);
+  }
+});
+
 test("two distinct field bindings for one Source member are refused", () => {
   const value = fixture();
   value.input.providers.resolveMember = () => ({ kind: "resolved", relations: [

@@ -410,7 +410,7 @@ export function analyzeCsharpNativeArtifactDemand(
     const property = input.operations.selectedProperty.get(node);
     const owned = property?.sourceOwned;
     if (property?.selection.kind === "source-owned" && owned?.objectShape !== undefined && owned.shapeMember?.kind === "resolved" &&
-      owned.shapeMember.member.memberKind === "method" && (!csharpSelectionIsCallee(input.ast, property.selection.source) || owned.shapeMember.member.optional === true)) {
+      owned.shapeMember.member.memberKind === "method" && (!csharpSelectionIsCallee(property.selection.source) || owned.shapeMember.member.optional === true)) {
       capability(node, owned.objectShape.targetType, "method-values");
     }
     if (input.ast.is.IsObjectLiteralExpression(node) && use.objectShape !== undefined) demandLiteral(node, use.objectShape);

@@ -1,3 +1,4 @@
+import { knownNativePlatform64 } from "../../../helpers/native-integer-platform.mjs";
 import { assertNoTargetDiagnostics } from "../../../../../tsonic/test/scripts/diagnostic-assertions.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -37,14 +38,14 @@ test("union literal arms consume sealed exact recipes without evaluating a BigIn
     const right = reversed ? dynamic : constant;
     const leftType = reversed ? big : union;
     const rightType = reversed ? union : big;
-    const policy = { literalValues: { literalValue: { get: node => node === constant ? literal : undefined } },
+    const policy = { facts: { values: { literal: node => node === constant ? literal : undefined }, analyses: { platform: knownNativePlatform64 } },
       providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) }, objectShapes: { resolveTarget() {} },
       projectTypes: { catalog: { definitionForTarget() {} } } };
     const arms = selectCsharpUnionEquality(leftType, rightType, policy, { left, right });
     const selection = { kind: "resolved", sourceOperator: "===", left, right, leftType, rightType,
       resultType: csharpSourcePrimitiveTargetType("bool"), targetOperation: { kind: "union-equality", negated: false, arms } };
     const exact = { exactLiteral: { get: (node, target) => node === constant
-      ? selectCsharpExactLiteralConversion(literal, big, target) : { kind: "not-applicable" } } };
+      ? selectCsharpExactLiteralConversion(literal, big, target, knownNativePlatform64) : { kind: "not-applicable" } } };
     const node = {};
     const analysis = sealed(node, selection, exact);
     const seen = [];
@@ -91,7 +92,7 @@ test("union equality rejects stale carriers, paths, operations, coverage and pol
   const integer = csharpSourcePrimitiveTargetType("int64");
   const string = csharpStringTargetType();
   const union = csharpRuntimeUnionTargetType([integer, string]);
-  const policy = { literalValues: { literalValue: { get: () => undefined } },
+  const policy = { facts: { values: { literal: () => undefined }, analyses: { platform: knownNativePlatform64 } },
     providers: { findTargetBindingByTargetId() { return { kind: "missing" }; } }, objectShapes: { resolveTarget() {} },
     projectTypes: { catalog: { definitionForTarget() {} } } };
   const arms = selectCsharpUnionEquality(union, string, policy, { left: {}, right: {} });
@@ -124,7 +125,7 @@ test("nullable union equality plans canonical native presence guards with each o
   const integer = csharpSourcePrimitiveTargetType("int64");
   const text = csharpStringTargetType();
   const base = csharpTargetNamedType("fixture.Base", [], { kind: "named", name: "Base" }, { allowsRefLikeTypeArguments: [], sourceDeclarationKind: "class" });
-  const policy = { literalValues: { literalValue: { get: () => undefined } },
+  const policy = { facts: { values: { literal: () => undefined }, analyses: { platform: knownNativePlatform64 } },
     providers: { findTargetBindingByTargetId() { return { kind: "missing" }; } }, objectShapes: { resolveTarget() {} },
     projectTypes: { catalog: { definitionForTarget() {} } } };
   const union = csharpNullableTargetType(csharpRuntimeUnionTargetType([integer, text, base]));

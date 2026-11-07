@@ -8,8 +8,6 @@ import {
   isCsharpRefusal,
   representSourceSum,
   representSourceType,
-  representSourceUnionOperations,
-  representSourceUnionRole,
 } from "../../dist/representation/index.js";
 import {
   csharpAbsenceTargetType,
@@ -21,7 +19,7 @@ import {
   targetTypeRefEquals,
   targetTypeRefKey,
 } from "../../dist/target-model/types/index.js";
-import { csharpTypeProjection } from "../../dist/target-model/types/projections.js";
+import { createCsharpSourceProjectionNumbering, csharpTypeProjection } from "../../dist/target-model/types/projections.js";
 
 const node = name => Object.freeze({ kind: "fixture-node", name });
 const site = node("site");
@@ -64,6 +62,7 @@ function services(sums = new Map(), profile = "native", view = publishedSums) {
     platform: Object.freeze({ nativeInteger: Object.freeze({ kind: "known", nativeIntegerBits: 64, basis: "test" }), targetFramework: "net10.0" }),
     typeParameters: createCsharpTypeParameterEnvironment(() => ({ kind: "resolved", constraints: [] })),
     recursiveAliases: new Map(),
+    sourceProjections: createCsharpSourceProjectionNumbering(),
     genericProjections: () => [],
   });
 }
@@ -109,10 +108,19 @@ test("A11: a sum that still carries a void arm is a Host invariant breach", () =
   assert.throws(() => representSourceSum(sumOf([primitive("uint64"), Object.freeze({ kind: "intrinsic", intrinsic: "void" })]), context()));
 });
 
-test("two arms with one .NET carrier are refused, not merged (CSHARP_UNION_ARMS_INDISTINGUISHABLE)", () => {
-  const represented = representSourceSum(sumOf([primitive("int32"), primitive("int32")]), context());
-  assert.equal(isCsharpRefusal(represented), true);
-  assert.equal(represented.code, "CSHARP_UNION_ARMS_INDISTINGUISHABLE");
+// Q73 (Claude ruling; R3 #4/#5): arms that share one .NET carrier become ONE storage arm that keeps both original
+// roles. Never a refusal: the program compiled at baseline, where equal carriers were one arm.
+test("Q73: two Host arms with one .NET carrier are one storage arm with coincident roles", () => {
+  const int32 = csharpSourcePrimitiveTargetType("int32");
+  const single = representSourceSum(sumOf([primitive("int32"), primitive("int32")]), context());
+  assert.equal(isCsharpRefusal(single), false, "never CSHARP_UNION_ARMS_INDISTINGUISHABLE");
+  assert.equal(targetTypeRefEquals(single, int32), true, "one storage arm: the sum carrier is int itself, as at baseline");
+  const optional = representSourceSum(sumOf([primitive("int32"), absence, primitive("int32")]), context());
+  assert.equal(targetTypeRefEquals(optional, csharpNullableTargetType(int32)), true, "the absence lift is unchanged");
+  const mixed = representSourceSum(sumOf([primitive("int32"), string, primitive("int32")]), context());
+  assert.deepEqual(getCsharpRuntimeUnionArms(mixed).map(targetTypeRefKey), [int32, csharpStringTargetType()].map(targetTypeRefKey),
+    "storage arms in first-occurrence Host order");
+  assert.deepEqual(mixed.csharpSourceSumSlots, [0, 1, 0], "both int Host arms point to the one int storage arm");
 });
 
 test("more than eight present arms is a .NET arity refusal", () => {
@@ -121,7 +129,7 @@ test("more than eight present arms is a .NET arity refusal", () => {
   assert.equal(represented.code, "CSHARP_UNION_ARITY");
 });
 
-test("a sum with an open arm is a SourceUnionStorage projection over the Host roles", () => {
+test("Q91: a sum with an open arm is the generic runtime union over its arms (no projection, no constraint)", () => {
   const binder = node("T");
   const open = Object.freeze({ kind: "type-parameter", identity: "fixture:T", name: "T",
     csharpConstraints: Object.freeze({ kind: "resolved", constraints: Object.freeze([]) }) });
@@ -130,25 +138,14 @@ test("a sum with an open arm is a SourceUnionStorage projection over the Host ro
   const withBinder = Object.freeze({ ...base, typeParameters: { resolve: () => environment.resolve(open) },
     syntax: new Proxy({}, { get: (_target, key) => key === "is"
       ? new Proxy({}, { get: (_t, predicate) => value => predicate === "IsTypeParameterDeclaration" && value === binder })
-      : ({ name: () => node("T-name"), text: () => "T", getSourceFile: () => node("file"), getPath: () => "/fixture.ts",
-        kind: () => 1, pos: () => 10, end: () => 11 })[key] ?? (() => undefined) }) });
+      : ({ name: () => node("T-name"), text: () => "T" })[key] ?? (() => undefined) }) });
   const descriptor = Object.freeze({ kind: "declared", declaration: binder, typeArguments: Object.freeze([]) });
   const represented = representSourceSum(sumOf([descriptor, string]), csharpRepresentationContext(withBinder, site, "storage"));
   if (isCsharpRefusal(represented)) assert.fail(represented.message);
-  const projection = csharpTypeProjection(represented)?.csharpProjection;
-  assert.equal(projection?.kind, "source-union");
-  assert.equal(projection.arguments.length, 2);
-  assert.equal(projection.roleArguments.length, 2);
-});
-
-test("role operations: one arm of a two-arm sum reads through SourceUnionArmNOf2", () => {
-  const sum = sumOf([primitive("int32"), string]);
-  const storage = representSourceSum(sum, context());
-  const arms = [int32, csharpStringTargetType()];
-  const second = representSourceUnionRole(storage, csharpStringTargetType(), sum, arms, 1, [0, 1]);
-  assert.equal(second.id, "Tsonic.CSharp.Runtime.SourceUnionArm2Of2`2");
-  const operations = representSourceUnionOperations(storage, arms, sum, arms, [0, 1]);
-  assert.equal(operations.id, "Tsonic.CSharp.Runtime.SourceUnionOperations2`5");
+  assert.equal(csharpTypeProjection(represented), undefined, "no SourceUnionStorage projection");
+  const arms = getCsharpRuntimeUnionArms(represented);
+  assert.equal(represented.csharpRuntimeUnionSemantics === "source-sum" && arms.length === 2 && arms[0].kind === "type-parameter" &&
+    targetTypeRefEquals(arms[1], csharpStringTargetType()), true, "T | string is Union<T, string>");
 });
 
 test("arrays: native T[] in the native profile, JSArray<T> in the JS profile", () => {

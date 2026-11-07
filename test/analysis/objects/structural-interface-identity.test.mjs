@@ -9,9 +9,10 @@ const floating = { kind: "source-primitive", name: "float64" };
 const symbol = {};
 // Published descriptor of the selected source value (nextgen C-2542).
 const sourceType = { kind: "declared", declaration: {}, typeArguments: [] };
-const valueKey = { kind: "string", value: "value" };
-const objectMember = declaration => ({ key: valueKey, name: "value", kind: "property", declarations: [declaration],
-  type: { kind: "primitive", primitive: "int64" }, optional: false, readonly: false, static: false, owner: {}, inherited: false });
+// The Host destination of the value and a member joined over its present arms (correspondence pairs).
+const destinationType = { kind: "declared", declaration: {}, typeArguments: [] };
+const joined = declaration => ({ name: "value", optional: false, readonly: false, receiverType: sourceType, declarations: [declaration],
+  getters: [], setters: [], read: "property", type: { kind: "primitive", primitive: "int64" } });
 const expression = {};
 const carrier = (id, argument = integer) => ({ kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id, typeArguments: [argument],
   csharpStructuralContract: true });
@@ -22,14 +23,17 @@ function classifications(source, destination) {
   const shapes = new Map([source, destination].map(value => [targetTypeRefKey(value.targetType), value]));
   const policy = {
     sourceFiles: [], objectShapes: { resolveTarget: type => shapes.get(targetTypeRefKey(type)) },
-    projectTypes: { directSupertypes: () => [] },
-    // Member correspondence from Host object facts (nextgen C-2542). The old `purpose === "read"` assertion checked a
-    // checker structuralMembers argument; facts.objects has no purpose parameter, so it is removed.
-    facts: { objects: {
-      indexes: () => [],
-      members: () => [objectMember(symbol)],
-      member(type, key) { assert.equal(type, sourceType); assert.deepEqual(key, valueKey); return objectMember(symbol); },
-    } },
+    projectTypes: { directSupertypes: () => [], catalog: { definitionForTarget: () => undefined } },
+    // Member correspondence from the Host object facts (nextgen C-2542, run 1 C4): objects.correspondence from the
+    // supplied source endpoint into the value's Host destination (values.contextual), for a read.
+    facts: {
+      values: { contextual: () => ({ kind: "resolved", type: destinationType }) },
+      objects: { correspondence(from, to, purpose) {
+        assert.equal(from, sourceType); assert.equal(to, destinationType); assert.equal(purpose, "read");
+        const members = [{ kind: "present", source: joined(symbol), destination: joined(symbol) }];
+        return { kind: "available", members, pairs: members };
+      } },
+    },
   };
   return analyzeCsharpObjectShapes(policy, { targetTypes: [] }, {  });
 }

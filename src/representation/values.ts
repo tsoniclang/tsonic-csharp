@@ -54,8 +54,8 @@ function representOutcome(outcome: SourceEffectiveTypeOutcome, node: Node,
 }
 
 function representOccurrenceCarrier(node: Node, context: CsharpRepresentationContext): TargetTypeRef | undefined {
-  const facts = context.sourceFacts;
-  if (facts === undefined) return undefined;
+  // Layout queries, raw addresses and keep-alive are Host records (context.facts); only the JS string marker reads the
+  // extension fact resolver, so a program without one still gets the three Host-record carriers (R3 #30).
   if (selectCsharpLayoutObservation(context.facts, node)?.kind === "layout-query") return csharpSourcePrimitiveTargetType("native-uint");
   const rawAddress = readCsharpSourceRawAddress(context.facts, node);
   if (rawAddress?.kind === "resolved") {
@@ -67,6 +67,7 @@ function representOccurrenceCarrier(node: Node, context: CsharpRepresentationCon
       : csharpNullableReferenceTargetType(csharpRuntimeRawPointerTargetType());
   }
   if (readCsharpSourceKeepAlive(context.facts, node) !== undefined) return csharpVoidTargetType();
-  if (readCsharpSourceJsStringMarker(facts, node)) return csharpJsStringTargetType();
+  const facts = context.sourceFacts;
+  if (facts !== undefined && readCsharpSourceJsStringMarker(facts, node)) return csharpJsStringTargetType();
   return undefined;
 }

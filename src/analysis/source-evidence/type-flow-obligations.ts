@@ -1,16 +1,16 @@
 // The C# realization check of every Host type-flow obligation (facts.obligations(), nextgen C-2542). The Host
 // published each obligation (interface, read-only, constraint, literal admission, write fit); C# checks only that the
-// chosen .NET representation carries it (policy/types/source-type-flow/obligations.ts). Inputs are published facts
+// chosen .NET representation carries it (type-flow-obligation-checks.ts). Inputs are published facts
 // and the one representation; no checker Type is read (I2).
 import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import { sourceTypeDescriptorsEqual, type SourceObligation, type SourceTypeDescriptor } from "@tsonic/target-api/source";
+import { sourceTypeDescriptorsEqual, type SourceObligation, type SourceTypeDescriptor, type SourceTypeFlowRefusal } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpNativeConstructionDemandQueries } from "../../target-model/records/native/native-construction.js";
 import type { CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
 import type { CsharpDictionaryLiteralRecords } from "../../target-model/records/objects/dictionary-literals.js";
 import type { TargetConstraint, TargetTypeRef } from "../../target-model/types/model.js";
-import { checkCsharpSourceTypeFlowObligation } from "../../policy/types/source-type-flow/obligations.js";
+import { checkCsharpSourceTypeFlowObligation } from "./type-flow-obligation-checks.js";
 import { substituteTargetTypeParameters } from "../../policy/types/resolution/substitution.js";
 import { csharpSourceTypeParameter } from "../../source/extension/type-parameters.js";
 import { selectCsharpConversion } from "../../policy/conversions/core.js";
@@ -48,6 +48,7 @@ export function analyzeCsharpSourceTypeFlowObligations(
       typeDefinitions: policy.typeDefinitions,
       constraintHost: policy,
       represent,
+      platform: facts.analyses.platform,
       literal: node => facts.values.literal(node),
       valueType,
       arrayLiteral: node => types.resolveArrayLiteral(node),
@@ -131,26 +132,30 @@ function associatedParameter(policy: CsharpPolicyContext, obligation: SourceObli
   return parameter === undefined ? undefined : representedOrUndefined(types.represent(parameter.type, obligation.argument, "storage"));
 }
 
-/** The .NET constraints of the binder an obligation names, with the call's receiver and method binders substituted. */
+/**
+ * The .NET constraints of the binder an obligation names, with the call's receiver and method binders substituted.
+ * A Host refusal of the binder's authored constraint is returned unchanged for forwarding (R5).
+ */
 function loweredNativeConstraints(
   policy: CsharpPolicyContext,
   obligation: SourceObligation,
   chosen: TargetTypeRef,
-): readonly TargetConstraint[] | undefined {
+): readonly TargetConstraint[] | SourceTypeFlowRefusal | undefined {
   const { ast, facts, types } = policy;
   const node = obligation.required;
   const declaration = ast.is.IsTypeParameterDeclaration(node) ? node : ast.parent(node);
   if (declaration === undefined || !ast.is.IsTypeParameterDeclaration(declaration)) return undefined;
-  const parameter = csharpSourceTypeParameter(declaration, ast);
+  const parameter = csharpSourceTypeParameter(declaration, ast, facts.navigation.identity);
   if (parameter === undefined) return undefined;
   const resolution = types.typeParameterConstraints(declaration, parameter);
+  if (resolution.kind === "refused") return resolution.refusal;
   if (resolution.kind !== "resolved") return undefined;
   const substitutions = new Map<string, TargetTypeRef>([[parameter.identity, chosen]]);
   const call = obligation.call;
   const instantiation = call === undefined ? undefined : facts.instantiations.at(call);
   if (instantiation?.kind === "refused") return undefined;
   for (const argument of instantiation === undefined || call === undefined ? [] : [...instantiation.receiver, ...instantiation.method]) {
-    const binder = csharpSourceTypeParameter(argument.declaration, ast);
+    const binder = csharpSourceTypeParameter(argument.declaration, ast, facts.navigation.identity);
     const type = representedOrUndefined(types.represent(argument.type, call!, "type-argument"));
     if (binder === undefined || type === undefined) return undefined;
     substitutions.set(binder.identity, type);

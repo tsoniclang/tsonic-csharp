@@ -8,6 +8,7 @@ import type { CsharpTargetOperationClassifications } from "../../target-model/re
 import type { CsharpValueReadClassifications } from "../../target-model/records/operations/conversions.js";
 import type { CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
 import { admitCsharpConversionSelection } from "./validation.js";
+import { csharpHostUnionRead } from "../../policy/conversions/union-relations.js";
 
 export function analyzeCsharpFlowReadProjections(
   policy: Pick<CsharpPolicyContext, "ast" | "sourceFiles" | "facts" | "typeDefinitions" | "projectTypes" | "providers" | "target"> & {
@@ -31,6 +32,7 @@ export function analyzeCsharpFlowReadProjections(
       const selected = selectCsharpFlowReadProjection(
         policy, read?.flowReadStorage, read?.flowReadValue, evidence.valueRefinement.get(node), deferredConstructorFieldRead(policy.ast, node),
         isCsharpThrowableType(policy, evidence.valueRefinement.get(node)?.flowReadTargetType),
+        csharpHostUnionRead(policy.facts, node),
       );
       const projection = selected.kind === "conversion"
         ? { ...selected, selection: admitCsharpConversionSelection(policy, selected.source, selected.target, selected.selection) }

@@ -63,6 +63,22 @@ test("published class binder vectors preserve original outer, unused, anonymous 
   const outerValue = source.ast.typeParameters(program.named("shadow"))[0];
   assert.equal(publishedCsharpClassBindings(shadowed, source).outer.includes(outerValue), false,
     "a shadowed outer binder of the same name is not the binder the class closes over");
+  // Completeness (baseline: the full checked vector): every outer binder a class body references is published, in
+  // enclosing order, so an empty or partial outer vector fails.
+  const binder = (owner, index) => source.ast.typeParameters(program.named(owner))[index];
+  const innerValue = source.ast.typeParameters(program.named("inner"))[0];
+  const closes = [
+    [classes[1], [binder("outer", 0), binder("nested", 0)], "Local closes over First and Third"],
+    [classes[2], [binder("outer", 0)], "the anonymous class closes over First"],
+    [shadowed, [innerValue], "the shadowing Local closes over inner's Value"],
+  ];
+  for (const [declaration, referenced, label] of closes) {
+    const outer = publishedCsharpClassBindings(declaration, source).outer;
+    assert.equal(referenced.every(node => node !== undefined && outer.includes(node)), true, `${label}: published`);
+    const enclosing = enclosingBinders(source.ast, declaration);
+    assert.equal(outer.every((node, index) => index === 0 ||
+      enclosing.indexOf(outer[index - 1]) > enclosing.indexOf(node)), true, `${label}: outer binders keep enclosing order`);
+  }
 });
 
 test("local class catalogs consume canonical binders while all raw query paths are trapped", () => {
@@ -89,7 +105,7 @@ test("outer projection ownership consumes the same canonical class binding vecto
   const declaration = classes[1];
   const binders = publishedCsharpClassBindings(declaration, source);
   const selectedNode = source.ast.members(declaration)[0];
-  const outer = csharpSourceTypeParameter(binders.outer[0], source.ast);
+  const outer = csharpSourceTypeParameter(binders.outer[0], source.ast, source.facts.navigation.identity);
   const projection = csharpProjectedType({ kind: "optional", part: "storage", arguments: [outer] });
   const absent = { get: () => undefined };
   const projections = analyzeCsharpTypeProjections(source, {

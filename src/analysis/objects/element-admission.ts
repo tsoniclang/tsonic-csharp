@@ -64,7 +64,7 @@ export function analyzeCsharpElementAdmission(input: { readonly ast: AstReader; 
     const elementSyntax = ast.as.AsElementAccessExpression(node);
     const key = elementSyntax?.ArgumentExpression ?? failTargetAnalysisInvariant("tsonic-csharp", "An element access requires its argument expression.", node);
     const common = { receiver: selection.source.receiver, key, result,
-      optional: elementSyntax?.QuestionDotToken !== undefined, projection: classification.receiverProjection };
+      optional: selection.source.optionalChain, projection: classification.receiverProjection };
     let emission: CsharpElementEmission;
     if (selection.kind === "project-indexer") {
       if (!selectCsharpTypeEmission({ carrier: selection.keyType })) { refuse(node, "The exact selected project index key has no renderable C# target type.", "CSHARP_PROJECT_INDEX_KEY_NOT_RENDERABLE"); continue; }

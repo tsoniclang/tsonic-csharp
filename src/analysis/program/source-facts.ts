@@ -7,7 +7,6 @@ import type { Node } from "@tsonic/tsts";
 import { failTargetAnalysisInvariant, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   SourceCallSelection,
-  SourceClosedSum,
   SourceDeclarationTarget,
   SourceInstantiation,
   SourceIterationSelection,
@@ -55,18 +54,6 @@ export function sourceSlot(facts: SourceProgramFacts, slot: Node): Admitted<Retu
   return outcome.kind === "refused" ? refusedInvariant("The slot type", slot) : outcome;
 }
 
-/** The published return type of a callable declaration (values.callableReturn). */
-export function sourceCallableReturn(facts: SourceProgramFacts, declaration: Node): SourceTypeDescriptor {
-  const outcome = facts.values.callableReturn(declaration);
-  return outcome.kind === "refused" ? refusedInvariant("The callable return", declaration) : outcome.type;
-}
-
-/** The published result of `await e` or of an awaited callable result (values.awaited). */
-export function sourceAwaitedType(facts: SourceProgramFacts, node: Node): SourceTypeDescriptor {
-  const outcome = facts.values.awaited(node);
-  return outcome.kind === "refused" ? refusedInvariant("The awaited type", node) : outcome.type;
-}
-
 /** The selected callee of a call, `new`, tagged template or super call (selections.call). */
 export function sourceCallSelection(facts: SourceProgramFacts, use: Node): SourceCallSelection {
   const selected = facts.selections.call(use);
@@ -79,10 +66,15 @@ export function sourceMemberAccess(facts: SourceProgramFacts, use: Node): Source
   return facts.selections.memberAccess(use) ?? missingInvariant("member access selection", use);
 }
 
-/** The iteration protocol of a for-of, spread, destructuring or yield* (selections.iteration). */
+/**
+ * The iteration protocol of a for-of, spread, destructuring or yield* (selections.iteration). A for-await without one
+ * protocol ("unresolved-protocol") is refused by the loop selection (operations/iteration/selection.ts) before this read.
+ */
 export function sourceIteration(facts: SourceProgramFacts, statement: Node): SourceIterationSelection {
   const selected = facts.selections.iteration(statement);
   if (selected === undefined) return missingInvariant("iteration selection", statement);
+  if ("kind" in selected && selected.kind === "unresolved-protocol") return failTargetAnalysisInvariant("tsonic-csharp",
+    "An unresolved for-await iteration protocol reached a protocol read; the loop selection refuses it first.", statement);
   return "code" in selected ? refusedInvariant("The iteration selection", statement) : selected;
 }
 
@@ -104,9 +96,16 @@ export function sourceUnionRelation(facts: SourceProgramFacts, use: Node): Admit
   return relation?.kind === "refused" ? refusedInvariant("The union relation", use) : relation;
 }
 
-/** The closed sum a union descriptor denotes; undefined only for a non-union descriptor. */
-export function sourceSumOf(facts: SourceProgramFacts, descriptor: SourceTypeDescriptor): SourceClosedSum | undefined {
-  return facts.sums.sumOf(descriptor);
+/**
+ * The interface re-expresses a JS array: its representation base (analyses.interfaceRepresentationBase: the single
+ * `extends` edge of an interface whose type is identical to that base) is a JS array or readonly array by the JS
+ * profile collection fact of the published base descriptor (SourceHeritageEdge.type). The one reader for this question
+ * (declarations/type-only.ts, project-types/type-policy.ts); baseline `isArrayLike(selectedType)` (no typed arrays).
+ */
+export function sourceInterfaceRepresentsJsArray(facts: SourceProgramFacts, declaration: Node): boolean {
+  const base = facts.analyses.interfaceRepresentationBase(declaration);
+  const collection = base === undefined ? undefined : facts.profile.collection(base.type)?.kind;
+  return collection === "array" || collection === "readonly-array";
 }
 
 /** A Host refusal forwarded unchanged (R5): code, message and site. C# never rewrites or re-codes it. */

@@ -248,7 +248,7 @@ for (const surface of [undefined, "js"]) {
       assert.equal(compiled.result.program !== undefined, true, "analysis program is published");
       const { source, sourceFiles } = compiled.result.program;
       // The Host storage analysis is a Source fact (facts.analyses.storage, nextgen C-2542).
-      const storage = source.facts.analyses.storage({ sourceFiles });
+      const storage = source.facts.analyses.storage({ sourceFiles, premises: {} });
       const method = storage.nodes.find(node => source.facts.navigation.identity.isProjectDeclaration(node) &&
         (external ? source.syntax.is.IsMethodSignatureDeclaration(node) : source.syntax.is.IsMethodDeclaration(node)));
       assert.equal(method !== undefined, true, "the original checked method declaration exists");

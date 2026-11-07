@@ -5,6 +5,7 @@ import type { Node } from "@tsonic/tsts";
 import { sourceObjectMemberDeclarations, sourceParameterIsProperty } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { isCsharpRefusal } from "../../representation/index.js";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
 
 export function classifyCsharpClassPropertyStorage(
@@ -26,11 +27,14 @@ export function classifyCsharpClassPropertyStorage(
           !sourceParameterIsProperty(policy.ast, member)) continue;
         const declaration = policy.ast.as.AsPropertyDeclaration(member) ?? policy.ast.as.AsParameterDeclaration(member)!;
         const field = evidence.sourceField.get([member, declaration.name, declaration.Type, declaration.Initializer]);
-        // The member's own dispatch (its implementation in its declaring class) and the contracts it implements (Host object facts).
+        // The member's own dispatch (its implementation in its declaring class) and the contracts it implements (Host object
+        // facts). A Host refusal of either is forwarded before C# analysis (facts.refusals()), so it is an invariant here.
         const implementation = policy.facts.objects.implementation(node, member);
-        const dispatch = typeof implementation === "object" && !("code" in implementation) ? implementation : undefined;
+        if (implementation !== "unrelated" && "code" in implementation) refusedObjectFact(implementation.code, member);
+        const dispatch = implementation === "unrelated" ? undefined : implementation;
         const contracts = policy.facts.objects.contracts(member);
-        const interfaceProperty = Array.isArray(contracts) && contracts.some(contract =>
+        if (!Array.isArray(contracts)) refusedObjectFact((contracts as { readonly code: string }).code, member);
+        const interfaceProperty = (contracts as readonly Node[]).some(contract =>
           policy.ast.is.IsPropertySignatureDeclaration(contract));
         const kind = field !== undefined ? "field"
           : policy.ast.hasModifierKind(member, "abstract") ||
@@ -45,4 +49,9 @@ export function classifyCsharpClassPropertyStorage(
     }
     policy.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
   }
+}
+
+function refusedObjectFact(code: string, site: Node): never {
+  return failTargetAnalysisInvariant("tsonic-csharp",
+    `A Host object-fact refusal (${code}) reached C# class property storage; Host refusals are forwarded before C# analysis.`, site);
 }

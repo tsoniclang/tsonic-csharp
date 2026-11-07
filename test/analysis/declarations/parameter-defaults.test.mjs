@@ -4,17 +4,19 @@ import { hostProgram } from "../../representation/host-fixture.mjs";
 import { analyzeCsharpDeclarations } from "../../../dist/analysis/declarations/analyze.js";
 import { getCsharpNullableElementTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 
-// nextgen C-2542: omission is read from the owner's authored parameter list (analysis/callables/calls/signature-parameters.ts:
-// an optional or defaulted parameter with no required parameter after it accepts omission), not from a checker
-// declarationSignatureInfo double. Each omission value is now produced by a real program instead of an injected flag.
-function fixture(acceptsOmission) {
+// nextgen C-2542: omission is read from the Host signature slots (facts.analyses.signatureParameters, kind "optional"),
+// not from a checker declarationSignatureInfo double. Each omission value is produced by a real program; `slots`
+// replaces the published slots of the owner (missing or foreign slot evidence).
+function fixture(acceptsOmission, slots) {
   const program = hostProgram(`import type { int32 } from "@tsonic/core/types.js";
     export function run(value: int32 = 1${acceptsOmission ? "" : ", last: int32"}): void {}`);
   const ast = program.ast;
   const file = program.files[0];
   const owner = program.named("run");
   const parameter = ast.parameters(owner)[0];
-  const policy = { ast, sourceFiles: [file], facts: program.facts,
+  const facts = slots === undefined ? program.facts : Object.freeze({ ...program.facts, analyses: Object.freeze({
+    ...program.facts.analyses, signatureParameters: node => node === owner ? slots(parameter) : program.facts.analyses.signatureParameters(node) }) });
+  const policy = { ast, sourceFiles: [file], facts,
     types: { callableReturn(declaration) {
       const published = program.facts.values.callableReturn(declaration);
       assert.equal(published !== undefined && published.kind !== "refused" && published.provenance.occurrence === declaration &&
@@ -46,7 +48,11 @@ test("native default declarations retain exact omission independently of their i
   }
 });
 
-// nextgen C-2542: the case "a native default rejects missing or foreign declaration-slot evidence" is removed. It
-// injected a missing or foreign checker declarationSignatureInfo slot; the slot is now the parameter's own position in
-// its owner's authored parameter list, which cannot be missing or foreign for a parameter of that owner (the remaining
-// guard is a failTargetAnalysisInvariant in declarations/analyze.ts).
+test("a native default rejects missing or foreign declaration-slot evidence instead of guessing omission", () => {
+  const foreign = Object.freeze({});
+  for (const slots of [() => undefined, () => [], () => [Object.freeze({ declaration: foreign, kind: "optional" })]]) {
+    for (const acceptsOmission of [false, true]) {
+      assert.throws(fixture(acceptsOmission, slots).selected, /requires its exact declaration slot/u);
+    }
+  }
+});

@@ -1,3 +1,4 @@
+import { knownNativePlatform64 } from "../../helpers/native-integer-platform.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { analyzeCsharpConversions } from "../../../dist/analysis/conversions/analyze.js";
@@ -42,9 +43,9 @@ test("native property-key literals retain exact tokens and the identical source 
     "the Host enum constant is transported, not re-evaluated");
   assert.equal(Object.isFrozen(enumKey) && Object.isFrozen(index.exactLiteral) && selected.every(Object.isFrozen), true,
     "source constants and native literal publications remain immutable");
-  assert.equal(selectCsharpExactPropertyKeyConversion(value.selections[2], primitive("int32")).kind, "rejected",
+  assert.equal(selectCsharpExactPropertyKeyConversion(value.selections[2], primitive("int32"), knownNativePlatform64).kind, "rejected",
     "the same exact wide key still respects the native int32 range");
-  assert.equal(selectCsharpExactPropertyKeyConversion(value.selections[0], primitive("int64")).kind, "rejected",
+  assert.equal(selectCsharpExactPropertyKeyConversion(value.selections[0], primitive("int64"), knownNativePlatform64).kind, "rejected",
     "a checked string key never becomes an inferred numeric conversion");
 });
 
@@ -65,7 +66,7 @@ test("an exact property-key requirement cannot borrow the same node's value lite
 test("exact property-key floating tokens render native D without parsing or an intermediate float", () => {
   const value = checkedPropertyKeys();
   for (const precision of ["float16", "float32", "float64", "decimal"]) {
-    const admitted = selectCsharpExactPropertyKeyConversion(value.selections[4], primitive(precision));
+    const admitted = selectCsharpExactPropertyKeyConversion(value.selections[4], primitive(precision), knownNativePlatform64);
     assert.equal(admitted.kind === "resolved", true, `${precision}: the native token is admitted`);
     const planned = planCsharpExactLiteralRecipe(undefined, admitted.recipe);
     assert.equal(planned.kind === "resolved", true, `${precision}: the exact token renders`);
@@ -99,7 +100,7 @@ test("Half authored midpoint neighbors follow native Double-to-Half semantics in
   const expected = [0x3c00, 0x3c00, 0x8000, 1];
   const nodeBits = spellings.map(token => new Uint16Array(new Float16Array([Math.f16round(Number(token))]).buffer)[0]);
   assert.deepEqual(nodeBits, expected, "Node parses each authored Double before rounding it to native Half");
-  const selected = checkedSourceLiteralValues(spellings).map(value => selectCsharpExactLiteralConversion(value, primitive("float64"), primitive("float16")));
+  const selected = checkedSourceLiteralValues(spellings).map(value => selectCsharpExactLiteralConversion(value, primitive("float64"), primitive("float16"), knownNativePlatform64));
   const expressions = selected.map((selection, index) => {
     assert.equal(selection.kind === "resolved" && selection.recipe.kind === "float" && selection.recipe.bits === expected[index], true,
       `${index}: the checked Double-to-Half value is selected before rendering`);

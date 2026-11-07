@@ -14,7 +14,7 @@ import type { CsharpSelectedTargetCall, CsharpTargetElementInvocation } from "..
 
 // Source-profile policy contexts carry C# views of the Host selections (nextgen C-2542): each view holds the raw Host
 // record unchanged (`selection` / `access`) plus published reads only (built by F3 in
-// policy/operations/source-profiles/source-profile-sources.ts). The JS meaning of a declaration is `host.facts.profile`.
+// analysis/operations/source-profiles/source-profile-sources.ts). The JS meaning of a declaration is `host.facts.profile`.
 
 export interface CsharpSourceProfileIdentitySelector {
   readonly owner: CsharpSourceProfileOwner;

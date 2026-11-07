@@ -178,7 +178,7 @@ export function analyzeCsharpStorage(
     if (!contextual) {
       return;
     }
-    const parameters = csharpSignatureParameters(policy.ast, node)?.map(parameter => parameter.declaration);
+    const parameters = csharpSignatureParameters(policy, node)?.map(parameter => parameter.declaration);
     if (parameters === undefined) return;
     const declarationContract = callables.get({ kind: "declaration", declaration: node });
     const parameterTypes = declarationContract?.bodyInputs !== undefined
@@ -207,8 +207,8 @@ export function analyzeCsharpStorage(
         const targetType: TargetTypeRef = tupleRest === undefined ? parameterTypes[nativeIndex]!
           : Object.freeze({ kind: "tuple", elements: Object.freeze(parameterTypes.slice(nativeIndex, nativeIndex + width)) });
         nativeIndex += width;
-        const declaredSlot = declaration?.Type === undefined ? undefined : sourceSlot(policy.facts, parameter).type;
-        const broad = declaredSlot?.kind === "intrinsic" && (declaredSlot.intrinsic === "unknown" || declaredSlot.intrinsic === "any");
+        // A declared top slot (unknown / any): the Host slot's openness (the one classifier), never a C# descriptor test.
+        const broad = declaration?.Type !== undefined && sourceSlot(policy.facts, parameter).openness === "top";
         const effectiveAuthored = broad ? undefined : authored === undefined ||
             policy.ast.questionToken(parameter) === undefined
           ? authored
@@ -259,7 +259,7 @@ export function analyzeCsharpStorage(
     if (owner === undefined || !policy.ast.is.IsObjectLiteralExpression(owner)) {
       return;
     }
-    const parameter = csharpSignatureParameters(policy.ast, node)?.map(entry => entry.declaration);
+    const parameter = csharpSignatureParameters(policy, node)?.map(entry => entry.declaration);
     if (parameter === undefined) return;
     if (parameter.length !== 1) {
       return;

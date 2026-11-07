@@ -9,13 +9,15 @@ import type { Node } from "@tsonic/tsts";
 
 import type { SourceStorageProducer } from "@tsonic/target-api/analysis";
 import type { SourceClosedSum, SourceInstantiation, SourceTypeDescriptor } from "@tsonic/target-api/source";
-import type { CsharpRepresentation, CsharpRepresentationContext } from "../../representation/index.js";
+// The representation data types live in target-model (policy may not import representation/, R8 layer contract;
+// request FX-CC-R1 to FX-CR); representation/ implements the one mapping over them.
+import type { CsharpRepresentation, CsharpRepresentationPosition } from "../../target-model/types/representation.js";
 import type { CsharpPointerReturnContract } from "../../target-model/records/calls/pointer-return.js";
 import type { CsharpSourceTypedLocationOperation } from "../../source/extension/typed-locations.js";
 import type { CsharpArrayLiteralSelection } from "../../target-model/records/operations/array-literals.js";
 
 /** Where a represented type is used: storage (fields, locals, parameters), a value-only use, a type argument or a return. */
-export type CsharpTypePosition = CsharpRepresentationContext["position"];
+export type CsharpTypePosition = CsharpRepresentationPosition;
 
 /** The represented per-use instantiation (receiver binders, method binders, parameters, result), from the Host record. */
 export interface CsharpInstantiationRepresentation {

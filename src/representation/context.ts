@@ -10,27 +10,22 @@ import type { CsharpCaptureInitialization } from "../target-model/types/model.js
 import type { CsharpTypeParameterEnvironment } from "../target-model/records/types/type-parameter-constraints.js";
 import type { CsharpProviderRelationResolver } from "../providers/model/relation-resolver.js";
 import type { CsharpProjectedType } from "../target-model/types/projections.js";
-import type { CsharpTypeDefinitionWriter } from "../analysis/program/records/types/type-definitions.js";
-import type { SourcePlatformFacts } from "@tsonic/target-api/source";
+import type { CsharpSourceUnionDefinition, CsharpTypeDefinitions } from "../target-model/types/source-union-definitions.js";
+import type { SourcePublishedPlatformFacts } from "@tsonic/target-api/source";
+import type { CsharpRefusal, CsharpRepresentation, CsharpRepresentationPosition } from "../target-model/types/representation.js";
 
-/** A .NET-capability refusal (CSHARP_* only, R5). Host refusals are forwarded unchanged, never wrapped. */
-export interface CsharpRefusal {
-  readonly kind: "csharp-refused";
-  readonly code: `CSHARP_${string}`;
-  readonly message: string;
-  readonly site: Node;
-}
+export type { CsharpRefusal, CsharpRepresentation, CsharpRepresentationPosition } from "../target-model/types/representation.js";
+
 
 /** Platform facts the mapping needs. The native integer premise is the Host-published fact (facts.analyses.platform, E24, N5). */
 export interface CsharpPlatformBridge {
-  readonly nativeInteger: SourcePlatformFacts;
+  readonly nativeInteger: SourcePublishedPlatformFacts;
   readonly targetFramework: string;
 }
 
 /** Which source profile the program uses: plain native, or the JS profile with its runtime library. */
 export type CsharpRepresentationProfile = "native" | "js";
 
-export type CsharpRepresentation = TargetTypeRef | CsharpRefusal;
 /** Node-keyed entries also forward the Host refusal unchanged. */
 export type CsharpValueRepresentation = TargetTypeRef | CsharpRefusal | SourceTypeFlowRefusal;
 
@@ -59,7 +54,8 @@ export interface CsharpRepresentationInputs {
   /** Whether a captured binding is initialized when the capture is taken (navigation fact, read by D). */
   captureInitialization(declaration: Node): CsharpCaptureInitialization;
   readonly shapes: CsharpRepresentationShapeRegistry;
-  readonly typeDefinitions: CsharpTypeDefinitionWriter;
+  /** The program's type definitions and the writer of recursive-alias source unions (analysis supplies its writer). */
+  readonly typeDefinitions: CsharpTypeDefinitions & { registerSourceUnion(definition: CsharpSourceUnionDefinition): boolean };
   /** Extra generated binders of a generic declaration (optional / collection-key / source-union projections). */
   genericProjections(declaration: Node): readonly CsharpProjectedType[];
 }
@@ -72,6 +68,8 @@ export interface CsharpRecursiveAliasRecord {
   readonly reference: TargetTypeRef;
   building: boolean;
   recursive: boolean;
+  /** The Source type arguments of this application (undefined for the template over the alias's own binders). */
+  readonly sourceArguments: readonly SourceTypeDescriptor[] | undefined;
   result?: CsharpRepresentation;
 }
 
@@ -87,20 +85,32 @@ export interface CsharpRepresentationContext extends CsharpRepresentationService
   /** The occurrence being represented; refusal site and key for per-use facts. */
   readonly occurrence: Node;
   /** Storage (fields, locals, parameters), a value-only use, a generic argument or a return. */
-  readonly position: "storage" | "value" | "type-argument" | "return";
+  readonly position: CsharpRepresentationPosition;
 }
 
+/**
+ * The one context-extension path (R-F1-3). A context always extends the services object itself: a caller that passes a
+ * context (`representSlot` at values.ts, `withRepresentationPosition`) extends that context's services, never the
+ * frozen context, so no inherited read-only `occurrence`/`position` is assigned and prototype chains do not grow.
+ */
 export function csharpRepresentationContext(
   services: CsharpRepresentationServices,
   occurrence: Node,
   position: CsharpRepresentationContext["position"] = "value",
 ): CsharpRepresentationContext {
-  return Object.freeze(Object.assign(Object.create(services) as CsharpRepresentationServices, { occurrence, position })) as CsharpRepresentationContext;
+  return Object.freeze(Object.assign(Object.create(representationServicesOf(services)) as CsharpRepresentationServices,
+    { occurrence, position })) as CsharpRepresentationContext;
+}
+
+function representationServicesOf(services: CsharpRepresentationServices): CsharpRepresentationServices {
+  let current = services;
+  while (Object.prototype.hasOwnProperty.call(current, "occurrence")) current = Object.getPrototypeOf(current) as CsharpRepresentationServices;
+  return current;
 }
 
 export function withRepresentationPosition(context: CsharpRepresentationContext,
   position: CsharpRepresentationContext["position"]): CsharpRepresentationContext {
-  return context.position === position ? context : csharpRepresentationContext(Object.getPrototypeOf(context), context.occurrence, position);
+  return context.position === position ? context : csharpRepresentationContext(context, context.occurrence, position);
 }
 
 export function csharpRefusal(code: `CSHARP_${string}`, message: string, site: Node): CsharpRefusal {

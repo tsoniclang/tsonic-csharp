@@ -3,10 +3,9 @@ import test from "node:test";
 import { sourceTypeDescriptorMemberOriginsEqual } from "@tsonic/target-api/source";
 import { compileCsharpSource, compileCsharpAnalysisTarget, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { nativeAbsenceSource } from "../../../../tsonic/test/fixtures/native-absence.mjs";
-import { csharpSourceNodes } from "../../../dist/analysis/program/source-nodes.js";
 
 // The Source facts program's nodes, in Host program order (nextgen C-2542: navigation.nodes is a C# syntax walk).
-const sourceNodes = source => csharpSourceNodes(source.syntax, source.sourceFiles);
+const sourceNodes = source => source.facts.navigation.nodesForFiles(source.sourceFiles);
 
 function originalLiteral(source) {
   const ast = source.syntax;

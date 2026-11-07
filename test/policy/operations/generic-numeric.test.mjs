@@ -62,11 +62,17 @@ test("native numeric evidence requires the exact binder publication, carrier and
   const { input, state, expression, carrier, scalar } = scenario();
   const zero = { kind: "literal", text: "0" };
   assert.equal(selectCsharpGenericNumericOperation(input, "<", expression, zero, carrier, scalar)?.kind, "generic-numeric");
+  {
+    // A default publication (the binder's own default type flow) is the same exact binder evidence.
+    const fresh = scenario();
+    fresh.state.publication = { ...fresh.state.publication, kind: "default" };
+    assert.equal(selectCsharpGenericNumericOperation(fresh.input, "<", fresh.expression, zero, fresh.carrier, fresh.scalar)?.kind,
+      "generic-numeric", "default");
+  }
   for (const [name, change] of [
-    ["refused publication", () => { state.publication = { kind: "refused", code: "TSONIC_LOCAL_TYPE_SIGNATURE", site: expression, reason: "" }; }],
+    ["non-parameter declaration", () => { state.publication = { kind: "resolved", type: { kind: "declared", declaration: expression, typeArguments: [] } }; }],
     ["non-binder", () => { state.publication = { kind: "resolved", type: { kind: "primitive", primitive: "int32" } }; }],
     ["different carrier", () => { state.represented = { ...carrier, identity: "foreign" }; }],
-    ["CSHARP_ refusal", () => { state.represented = { kind: "csharp-refused", code: "CSHARP_UNION_ARITY", message: "", site: expression }; }],
     ["no INumber bound", () => { state.constraints = { kind: "resolved", constraints: [] }; }],
   ]) {
     const fresh = scenario();
@@ -74,6 +80,17 @@ test("native numeric evidence requires the exact binder publication, carrier and
     Object.assign(fresh.state, state);
     assert.equal(selectCsharpGenericNumericOperation(fresh.input, "<", fresh.expression, zero, fresh.carrier, fresh.scalar), undefined, name);
     Object.assign(state, scenario().state);
+  }
+  // RC2 #6 (I4, R5; baseline threw TSONIC_INTERNAL_ANALYSIS_INVARIANT): a refused Host publication or a refused C#
+  // representation of the operand is an invariant failure, never "not a generic-numeric operation".
+  for (const [name, change] of [
+    ["refused publication", fresh => { fresh.state.publication = { kind: "refused", code: "TSONIC_LOCAL_TYPE_SIGNATURE", site: fresh.expression, reason: "" }; }],
+    ["CSHARP_ refusal", fresh => { fresh.state.represented = { kind: "csharp-refused", code: "CSHARP_UNION_ARITY", message: "", site: fresh.expression }; }],
+  ]) {
+    const fresh = scenario();
+    change(fresh);
+    assert.throws(() => selectCsharpGenericNumericOperation(fresh.input, "<", fresh.expression, zero, fresh.carrier, fresh.scalar),
+      /TSONIC_INTERNAL_ANALYSIS_INVARIANT|invariant|refused/iu, name);
   }
 });
 

@@ -1,3 +1,4 @@
+import { createTargetContributedCompilerExtension } from "../../../../tsonic/packages/host/dist/index.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { TstsSourceProviderContractVersion } from "@tsonic/tsts";
@@ -61,7 +62,8 @@ function extension(plugin, selectedSurfaceIds = []) {
     capability: plugin,
   });
   assert.equal(contributions.extensions.length, 1);
-  return contributions.extensions[0];
+  // K-2682: a target contribution is data only; the Host composition root builds its compiler extension.
+  return createTargetContributedCompilerExtension(contributions.extensions[0]);
 }
 
 function registeredProvider(sourceExtension) {

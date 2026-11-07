@@ -89,7 +89,7 @@ export function createCsharpSourceEvidenceTypeQueries(
     const fits = (required: TargetTypeRef, actual: TargetTypeRef, value: Node | undefined): boolean => {
       const literal = value === undefined ? undefined : facts.values.literal(value);
       if (literal !== undefined) {
-        const selected = selectCsharpExactLiteralConversion(literal, actual, required);
+        const selected = selectCsharpExactLiteralConversion(literal, actual, required, facts.analyses.platform);
         if (selected.kind === "rejected") {
           rejection ??= Object.freeze({ kind: "rejected", subject: value!, code: "CSHARP_LITERAL_NOT_REPRESENTABLE", reason: selected.reason });
           return false;
@@ -192,35 +192,18 @@ export function createCsharpSourceEvidenceTypeQueries(
     return states;
   }
 
-  /** The Host type of a storage subject: the subject node's type, then its projection through Host object facts. */
-  function subjectType(producer: SourceStorageProducer): SourceTypeDescriptor | undefined {
-    const { subject } = producer;
-    const root = subject.kind === "return" ? facts.values.callableReturn(subject.node) : facts.values.type(subject.node);
-    if (root.kind === "refused") return undefined;
-    let type: SourceTypeDescriptor | undefined = root.type;
-    for (const component of subject.projection) {
-      if (type === undefined) return undefined;
-      const present: SourceTypeDescriptor = type.kind === "optional" ? type.value : type;
-      const structure: SourceTypeDescriptor = present.kind === "declared" && present.definition !== undefined ? present.definition : present;
-      if (component.kind === "array-element") type = structure.kind === "array" ? structure.element : undefined;
-      else if (component.kind === "tuple-element") type = structure.kind === "tuple" ? structure.elements[component.index]?.type : undefined;
-      else {
-        const members = facts.objects.members(present);
-        type = Array.isArray(members)
-          ? (members as Exclude<typeof members, { readonly kind: "refused" }>).find(member => member.declarations.includes(component.declaration))?.type
-          : undefined;
-      }
-    }
-    return type;
-  }
-
+  /**
+   * The pointee of a pointer storage producer. The producer's Source type is the Host storage record's own descriptor
+   * (`SourceStorageProducer.type`, from the Host storage owner's `typeFor`, components projected by the Host; R3 #9);
+   * C# never re-projects a subject through arrays, tuples or members. Per activation, the generic binders are bound by
+   * the Host instantiations and the Host's sole substitution (activationBindings: pending Host request R-FXCR-9).
+   */
   function resolvePointerStoragePointee(producer: SourceStorageProducer): CsharpPointerStoragePointeeSelection {
     const states = activationBindings(producer.subject.node, producer.bindings, 0);
     if (states === undefined || states.length === 0) return {
       kind: "unresolved", reason: "The pointer producer has no complete canonical native activation bindings.",
     };
-    const type = subjectType(producer);
-    if (type === undefined) return { kind: "unresolved", reason: "The pointer producer has no Host-published storage type." };
+    const type = producer.type;
     const pointees = states.map(bindings => {
       const carrier = represent(bindings.size === 0 ? type : facts.sums.substitute(type, bindings), producer.subject.node, "storage");
       return isCsharpRefusal(carrier) ? undefined : csharpRuntimeLocationPointee(getCsharpNullableElementTargetType(carrier) ?? carrier);
@@ -243,8 +226,15 @@ export function createCsharpSourceEvidenceTypeQueries(
     if (operation.explicitPointeeTypeNode !== undefined) return represent(operation.pointeeType, site, "storage");
     switch (operation.kind) {
       case "location-address": {
-        const slot = operation.storageDeclaration === undefined ? undefined : facts.values.slot(operation.storageDeclaration);
-        return represent(slot?.kind === "slot" ? slot.type : operation.storageType, operation.storageExpression, "storage");
+        // One source per storage form (R3 #10): a declaration-backed storage is its Host slot; a member or element
+        // place (no storage declaration in the Host pointer record) is the Host type of the place expression. A refused
+        // slot is a Host refusal and is forwarded before C# analysis; it never falls back to the expression type.
+        if (operation.storageDeclaration === undefined) return represent(operation.storageType, operation.storageExpression, "storage");
+        const slot = facts.values.slot(operation.storageDeclaration);
+        if (slot.kind !== "slot") return failTargetAnalysisInvariant("tsonic-csharp",
+          `A refused Host storage slot (${slot.code}) reached a typed-location pointee; Host refusals are forwarded before C# analysis.`,
+          operation.storageDeclaration);
+        return represent(slot.type, operation.storageExpression, "storage");
       }
       case "location-allocate":
         return represent(operation.initialType, operation.initialExpression);
@@ -253,8 +243,21 @@ export function createCsharpSourceEvidenceTypeQueries(
       case "location-hash":
         return pointee(represent(operation.locationType, operation.locationExpression));
       case "location-equal": {
-        const left = pointee(represent(operation.leftType, operation.leftExpression));
-        return isCsharpRefusal(left) ? pointee(represent(operation.rightType, operation.rightExpression)) : left;
+        // One rule over both operands (R3 #10): each operand is represented once and a .NET refusal of either is
+        // reported; every operand whose carrier is a location contributes its pointee, and all contributions must be the
+        // same pointee. Neither operand is a retry route for the other.
+        const operands = [represent(operation.leftType, operation.leftExpression), represent(operation.rightType, operation.rightExpression)];
+        const refused = operands.find(isCsharpRefusal);
+        if (refused !== undefined) return refused;
+        const pointees = (operands as readonly TargetTypeRef[]).flatMap(selected => {
+          const location = csharpRuntimeLocationPointee(selected);
+          return location === undefined ? [] : [location];
+        });
+        const first = pointees[0];
+        if (first === undefined) return missing();
+        return pointees.every(selected => targetTypeRefEquals(selected, first)) ? first
+          : csharpRefusal("CSHARP_TYPED_LOCATION_POINTEE",
+            "The two operands of a typed-location comparison have different .NET pointee carriers.", site);
       }
       case "location-bind":
       case "location-view":

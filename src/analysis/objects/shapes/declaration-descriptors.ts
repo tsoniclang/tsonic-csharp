@@ -1,16 +1,15 @@
-// The open Source type of a project class / interface / struct declaration, as a Host descriptor.
-import type { SourceTypeDescriptor } from "@tsonic/target-api/source";
-import type { CsharpProjectTypeDefinition } from "../../../target-model/records/types/project-types.js";
+// The Source type of a project class / interface / struct declaration, read from the Host (R3 #17, I6). C# builds no
+// descriptor for it: the Host publishes the declaration's own (instance) type as `values.type(declaration)`, with its
+// definition, so `objects.members` of it yields the members and their Host origins.
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
+import type { SourceProgramFacts, SourceTypeDescriptor } from "@tsonic/target-api/source";
+import type { Node } from "@tsonic/tsts";
 
-/**
- * The declaration's own reference over its own binders (outer binders first, then the declaration's), each binder a
- * type-parameter reference. The project shape of the declaration is the Host members of this descriptor; member keys,
- * member declarations and index signatures do not depend on the instantiation.
- */
-export function csharpProjectDeclarationDescriptor(
-  definition: Pick<CsharpProjectTypeDefinition, "declaration" | "outerTypeParameters" | "typeParameters">,
-): SourceTypeDescriptor {
-  const binders = [...definition.outerTypeParameters, ...definition.typeParameters];
-  return Object.freeze({ kind: "declared", declaration: definition.declaration, typeArguments: Object.freeze(binders.map(binder =>
-    Object.freeze({ kind: "declared" as const, declaration: binder, typeArguments: Object.freeze([]) }))) });
+/** The Host type of a project type declaration. A refusal here is a Host refusal reached after forwarding (I4). */
+export function csharpProjectDeclarationType(facts: Pick<SourceProgramFacts, "values">, declaration: Node): SourceTypeDescriptor {
+  const outcome = facts.values.type(declaration);
+  if (outcome.kind === "refused") failTargetAnalysisInvariant("tsonic-csharp",
+    `The Host refused the type of a project type declaration (${outcome.code}); Host refusals are forwarded before C# analysis.`,
+    declaration);
+  return outcome.type;
 }

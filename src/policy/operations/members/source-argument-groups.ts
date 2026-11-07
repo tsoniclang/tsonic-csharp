@@ -1,6 +1,8 @@
 // Groups the Host argument correspondence of a selected call onto a native parameter vector (nextgen C-2542).
 // Argument → parameter correspondence, spread forms and the selected signature's parameter kinds are Host facts
-// (facts.selections.call); this file decides only the C# parameter grouping (fixed slots, params arrays).
+// (facts.selections.call); this file decides only the C# parameter grouping (fixed slots, params arrays). Every
+// authored argument (authored syntax: the call's argument list) must have its selected binding, as at baseline: an
+// authored argument without one (`f(a, ...[])`) would otherwise lose its evaluation.
 import type { SourceCallSelection } from "@tsonic/target-api/source";
 import type { CsharpSourceArgumentGroup, CsharpSourceArgumentGrouping, CsharpSourceArgumentGroupingEntry } from "../../../target-model/records/operations/operations.js";
 import type { CsharpTargetParameter, TargetTypeRef } from "../../../target-model/types/model.js";
@@ -9,6 +11,7 @@ export function selectCsharpSourceArgumentGrouping(
   source: SourceCallSelection,
   parameters: readonly CsharpTargetParameter[] | undefined,
   argumentParameterTypes: readonly (TargetTypeRef | undefined)[] | undefined,
+  authoredArgumentCount: number,
   exactArity = false,
 ): CsharpSourceArgumentGrouping {
   if (parameters === undefined) return Object.freeze({ kind: "unresolved",
@@ -24,12 +27,11 @@ export function selectCsharpSourceArgumentGrouping(
   }
   const restIndex = parameters.findIndex(parameter => parameter.paramsArray === true);
   const sourceRestIndex = sourceParameters.findIndex(parameter => parameter.kind === "rest");
-  const argumentCount = bindings.reduce((count, binding) => Math.max(count, binding.argumentIndex + 1), 0);
   const bindingsBySource: { readonly binding: SourceCallSelection["arguments"][number]; readonly index: number }[][] =
-    Array.from({ length: argumentCount }, () => []);
+    Array.from({ length: authoredArgumentCount }, () => []);
   const effective = new Set<number>();
   for (const [index, binding] of bindings.entries()) {
-    if (!Number.isSafeInteger(binding.argumentIndex) || binding.argumentIndex < 0 ||
+    if (!Number.isSafeInteger(binding.argumentIndex) || binding.argumentIndex < 0 || binding.argumentIndex >= authoredArgumentCount ||
       !Number.isSafeInteger(binding.effectiveIndex) || binding.effectiveIndex < 0 || binding.effectiveIndex >= bindings.length ||
       effective.has(binding.effectiveIndex) || !Number.isSafeInteger(binding.parameterIndex) || binding.parameterIndex < 0) {
       return Object.freeze({ kind: "inconsistent", reason: "Selected argument keys must be complete, unique and within their source domains." });
@@ -54,7 +56,7 @@ export function selectCsharpSourceArgumentGrouping(
       if (binding.effectiveIndex !== nextEffective || sourceParameter === undefined ||
         sourceSlotIndex !== binding.parameterIndex ||
         (binding.mode === "positional") === (sourceParameter.kind === "rest") ||
-        (binding.form === "spread-sequence") !== (binding.mode === "spread") ||
+        binding.form === "spread-sequence" && sourceParameter.kind !== "rest" ||
         binding.form === "spread-element" && binding.spreadElement !== nextTupleElement ||
         binding.form !== "spread-element" && binding.spreadElement !== undefined) {
         return Object.freeze({ kind: "inconsistent", reason: "Source argument order, parameter provenance and spread identities must match the selected contract exactly." });

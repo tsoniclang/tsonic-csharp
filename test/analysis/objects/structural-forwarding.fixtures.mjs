@@ -41,11 +41,22 @@ const emptyNativeDispatch = Object.freeze({
 
 const integer = Object.freeze({ kind: "source-primitive", name: "int32" });
 
-const noAuthoredNativeMethod = Object.freeze({
-  source: Object.freeze({ ast: Object.freeze({ is: Object.freeze({ IsMethodSignatureDeclaration: () => false }) }) }),
+// A published-facts stand-in that fails on any read: the paths using it must not consult a Source fact.
+const unreadSourceFacts = owner => new Proxy(Object.freeze({}), {
+  get: (_target, key) => typeof key === "symbol" ? undefined
+    : assert.fail(`${owner} reads no Source fact (facts.${String(key)})`),
+});
+// Storage queries of a program with no authored native method slot (the policy host's sourceStorage).
+const noAuthoredNativeStorage = Object.freeze({
   nodes: Object.freeze([]),
   memberSubjectFor: () => assert.fail("an abstract protocol has no authored native slot"),
   memberWritesFor: () => assert.fail("an abstract protocol has no authored native writes"),
+});
+// Method-value use inputs (CsharpMethodValueUseInputs: storage queries, published facts, authored syntax) over it.
+const noAuthoredNativeMethod = Object.freeze({
+  storage: noAuthoredNativeStorage,
+  facts: unreadSourceFacts("an abstract protocol"),
+  ast: Object.freeze({ is: Object.freeze({ IsMethodSignatureDeclaration: () => false }) }),
 });
 
 function defaultEvidenceFixture(kind) {
@@ -100,6 +111,7 @@ function defaultEvidenceFixture(kind) {
 
 function structuralInterfaceRecords(objectShapes, sourceType) {
   return analyzeCsharpStructuralInterfaceEmission({ ast: {},
+    identity: { identity: () => assert.fail("no structural owner here lifts a generic binder") },
     shapes: { knownShapes: () => [{ targetType: sourceType }], structuralImplementations: type => objectShapes.structuralImplementations(type) },
     names: { typeParameterNames: [] }, projectTypes: { definitionContainingDeclaration: () => undefined },
     projections: { genericProjection: { get: () => [] } }, declarations: { methodWrite: { get: () => undefined } } });
@@ -428,4 +440,4 @@ export function ${control.name}(present: boolean): int32 {
 }`).join("\n")}`;
 }
 
-export { unexpectedNativeDispatchRead, emptyNativeDispatch, integer, noAuthoredNativeMethod, defaultEvidenceFixture, structuralInterfaceRecords, sourceContract, fixture, nativeBoundBase, nativeBoundDerived, genericBoundFixture, programs, nativeModes, adaptedNativeForwarder, nativeProofSource, buildNativeProof, buildNativeProject, genericCases, genericSource };
+export { unexpectedNativeDispatchRead, emptyNativeDispatch, integer, noAuthoredNativeMethod, noAuthoredNativeStorage, unreadSourceFacts, defaultEvidenceFixture, structuralInterfaceRecords, sourceContract, fixture, nativeBoundBase, nativeBoundDerived, genericBoundFixture, programs, nativeModes, adaptedNativeForwarder, nativeProofSource, buildNativeProof, buildNativeProject, genericCases, genericSource };

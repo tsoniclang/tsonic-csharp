@@ -5,6 +5,7 @@ import type { TargetTypeRef } from "../../types/model.js";
 import type { CsharpObjectShapeFact } from "../../types/model.js";
 import type { CsharpDelegateSignatureShape } from "../../types/model.js";
 import type { CsharpCallArgumentProjection } from "../objects/members.js";
+import type { CsharpRefusal } from "../../types/representation.js";
 import type { SourceCallSelection, SourceElementAccessRecord, SourceMemberAccessSelection, SourceTypeDescriptor } from "@tsonic/target-api/source";
 
 /** A value input of a source-profile use: the expression and its published value type. */
@@ -88,4 +89,9 @@ export interface CsharpSourceProfileInputFacts {
   readonly typeArgument: { readonly get: (source: CsharpSourceProfileTypeArgumentSource) => TargetTypeRef | undefined };
   readonly objectShape: { readonly get: (node: Node | undefined) => CsharpObjectShapeFact | undefined };
   readonly typeArguments: readonly CsharpSourceProfileTypeArgumentInput[];
+  /**
+   * The first .NET refusal met while representing an input carrier (a carrier above reads undefined for it). Policy
+   * selection reports it with its own code and message when the policy selects nothing or rejects.
+   */
+  readonly refusal?: CsharpRefusal;
 }

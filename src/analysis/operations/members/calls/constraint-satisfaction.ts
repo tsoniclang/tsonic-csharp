@@ -1,7 +1,7 @@
 import { csharpProviderBindingFromResolution } from "../../../../providers/model/relation-resolver.js";
 import type { AstReader } from "@tsonic/tsts";
 import { csharpSourceTypeParameter } from "../../../../source/extension/type-parameters.js";
-import type { SourceTypeDescriptor } from "@tsonic/target-api/source";
+import type { SourceProgramFacts, SourceTypeDescriptor } from "@tsonic/target-api/source";
 import type { CsharpProviderRelationResolver } from "../../../../providers/model/relation-resolver.js";
 import type { CsharpTargetBindingFact, CsharpTargetMember, CsharpTargetTypeParameter, TargetConstraint, TargetTypeRef } from "../../../../target-model/types/model.js";
 import { csharpTargetBindingFact } from "../../../../target-model/types/model.js";
@@ -18,6 +18,8 @@ import { readCsharpSourceStruct } from "../../../../source/extension/markers.js"
 import { isCsharpNonNullableValueType } from "../../../../policy/constraints/native-types.js";
 export interface CsharpConstraintSatisfactionHost {
   readonly ast: AstReader;
+  /** The Host facts; the generic binder identity is `navigation.identity`. */
+  readonly facts: Pick<SourceProgramFacts, "navigation">;
   readonly providers: CsharpProviderRelationResolver;
   readonly projectTypes: CsharpProjectTypePolicy;
   readonly sourceFacts?: import("@tsonic/tsts").ReadonlySourceFactResolver;
@@ -282,10 +284,15 @@ function selectedSourceConstraintSatisfies(
 ): boolean | undefined {
   if (descriptor.kind !== "declared" || !host.ast.is.IsTypeParameterDeclaration(descriptor.declaration)) return undefined;
   const declaration = descriptor.declaration;
-  const parameter = csharpSourceTypeParameter(declaration, host.ast);
+  const parameter = csharpSourceTypeParameter(declaration, host.ast, host.facts.navigation.identity);
   if (parameter === undefined) return false;
   // The binder constraints represented from their Host descriptors (representation/generics, via CsharpTypeQueries).
   const resolution = host.types.typeParameterConstraints(declaration, parameter);
+  // A Host-refused constraint proves no target constraint for this provider candidate. This channel is a candidate
+  // filter (selection.ts joins the reasons of rejected candidates), so it carries no diagnostic; the Host refusal is
+  // forwarded unchanged where the binder itself is used: its emission (declarations/type-parameters.ts) and its
+  // type-flow obligations (source-evidence/type-flow-obligation-checks.ts).
+  if (resolution.kind === "refused") return false;
   return resolution.kind === "resolved" &&
     sourceConstraintsImplyTargetConstraint(
       host,

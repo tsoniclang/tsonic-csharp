@@ -36,9 +36,10 @@ export function analyzeCsharpGenericAdoption(input: {
 }): readonly TargetDiagnostic[] {
   const adoption = input.source.facts.analyses.genericAdoption({ projectRoot: input.projectRoot, nodes: input.nodes,
     premises: input.premises, budget: input.budget });
+  // The adoption issues are Host refusals (TSONIC_GENERIC_ASYNC_ADOPTION_UNSUPPORTED): forwarded unchanged (R5, I7).
   return Object.freeze(adoption.kind === "unresolved" ? [ownershipDiagnostic(adoption)]
     : adoption.issues.map(issue => Object.freeze({ code: sourceGenericAdoptionDiagnosticCode,
-      category: "error" as const, source: "tsonic-csharp", sourceNode: issue.site, sourceSpan: issue.sourceSpan,
+      category: "error" as const, source: "tsonic", sourceNode: issue.site, sourceSpan: issue.sourceSpan,
       message: issue.message, evidence: issue.evidence })));
 }
 
@@ -113,7 +114,7 @@ export function analyzeCsharpPromiseResults(input: {
         if (type.kind === "union") for (const part of type.types) inspect(part);
         else if (type.kind === "optional") inspect(type.value);
         else if (type.kind === "declared") {
-          const profile = classifyCsharpSourceProfileDeclaration(type.declaration, ast);
+          const profile = classifyCsharpSourceProfileDeclaration(type.declaration, ast, facts.profile);
           if (profile?.kind === "promise") {
             if (profile.ownerId === "js") js = true; else native = true;
           }
@@ -180,7 +181,8 @@ export function analyzeCsharpPromiseResults(input: {
       const selected = ownership.forCall(node);
       if (selected.kind === "unresolved") { diagnostics.push(ownershipDiagnostic(selected)); continue; }
       if (selected.kind === "resolved" && selected.decision === "rejected") {
-        diagnostics.push(Object.freeze({ code: selected.diagnostic.code, category: "error", source: "tsonic-csharp",
+        // A Host ownership decision (TSONIC_NATIVE_ASYNC_RESULT_DISCARDED / _BORROWED_ASYNC_RESULT_ESCAPES), forwarded unchanged.
+        diagnostics.push(Object.freeze({ code: selected.diagnostic.code, category: "error", source: "tsonic",
           sourceNode: selected.diagnostic.at, message: selected.diagnostic.message }));
         continue;
       }
@@ -189,7 +191,7 @@ export function analyzeCsharpPromiseResults(input: {
       const outcome = facts.values.type(node);
       let descriptor = outcome.kind === "refused" ? undefined : outcome.type;
       while (descriptor?.kind === "optional") descriptor = descriptor.value;
-      const profile = descriptor?.kind !== "declared" ? undefined : classifyCsharpSourceProfileDeclaration(descriptor.declaration, ast);
+      const profile = descriptor?.kind !== "declared" ? undefined : classifyCsharpSourceProfileDeclaration(descriptor.declaration, ast, facts.profile);
       observeDiscard = profile?.kind === "promise" && profile.ownerId === "js";
     }
     results.set(node, Object.freeze({ disposition, ...(disposition.kind === "discarded" && observeDiscard ? { discard: selection } : {}) }));

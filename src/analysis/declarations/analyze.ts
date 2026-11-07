@@ -67,7 +67,7 @@ export function analyzeCsharpDeclarations(
       if (parameter?.Initializer !== undefined && selected !== undefined) {
         const owner = policy.ast.parent(node);
         const signature = owner === undefined ? undefined : selectCsharpParameterDefaultContext(policy, evidence, owner);
-        const parameters = owner === undefined ? undefined : csharpSignatureParameters(policy.ast, owner);
+        const parameters = owner === undefined ? undefined : csharpSignatureParameters(policy, owner);
         const index = parameters?.findIndex(candidate => candidate.declaration === node) ?? -1;
         const incoming = index < 0 || signature?.restParameterIndex !== undefined && index >= signature.restParameterIndex
           ? undefined : signature?.parameters[index];
@@ -116,7 +116,8 @@ function classifyReturnContract(
   declaration: Node,
 ): CsharpReturnTargetContract {
   const type = policy.types.callableReturn(declaration);
-  if (type.kind === "csharp-refused") return { kind: "rejected", reason: type.message };
+  // The CsharpRefusal travels with the rejected contract and is reported once, as it is (declaration emission).
+  if (type.kind === "csharp-refused") return { kind: "rejected", reason: type.message, refusal: type };
   const pointer = evidence.pointerReturn.get(declaration);
   const contract: CsharpReturnTargetContract = { kind: "resolved", type,
     ...(pointer === undefined ? {} : { undefinedReturn: pointer.undefinedReturn, fallthroughUndefined: pointer.fallthroughUndefined }) };

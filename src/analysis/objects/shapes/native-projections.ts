@@ -9,7 +9,8 @@ import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../../target
 import { csharpSourceMemberKeysEqual } from "../../../target-model/types/source-member-keys.js";
 import { csharpObjectShapeMethodDeclaration, csharpPresentObjectShapeMethod } from "../../../target-model/types/method-values.js";
 import { csharpObjectMethodHasFixedNativeExposure } from "../../../policy/types/objects/object-members.js";
-import { createStructuralObjectShapeTarget, mergeCsharpObjectShapeSubjects } from "./construction.js";
+import { mergeCsharpObjectShapeSubjects } from "./construction.js";
+import { createStructuralObjectShapeTarget } from "../../../policy/types/objects/structural-shape-targets.js";
 import { csharpObjectMethodValueIsExtracted, resolveCsharpWritableMethodContract, type CsharpMethodValueUseInputs } from "./method-values.js";
 import { projectCsharpNativeSourceStorageCarrier } from "../value-domain-carriers.js";
 import { createCsharpMetadataBudget } from "../../../target-model/metadata/immutable.js";

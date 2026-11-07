@@ -1,4 +1,5 @@
-// The Source view of a source-profile use, built from published facts only (nextgen C-2542, R2, I2, I4).
+// The Source view of a source-profile use (analysis: it reads published facts; policy may not import analysis, R8),
+// built from published facts only (nextgen C-2542, R2, I2, I4).
 // Call type arguments come from facts.instantiations.at(use); parameters, result and argument correspondence from
 // facts.selections.call(use); value types from facts.values.type. A missing fact is an invariant failure.
 import type { AstReader, Node } from "@tsonic/tsts";
@@ -9,7 +10,7 @@ import {
   sourceInstantiation,
   sourceMemberAccess,
   sourceValueType,
-} from "../../../analysis/program/source-facts.js";
+} from "../../program/source-facts.js";
 import type {
   CsharpSourceProfileCallSource,
   CsharpSourceProfileElementSource,
@@ -34,7 +35,6 @@ export function csharpSourceProfileCallSource(host: CsharpSourceProfileSourceHos
   const instantiation = sourceInstantiation(host.facts, call);
   const authored: Node[] = [];
   for (const binding of selection.arguments) if (!authored.includes(binding.argument)) authored.push(binding.argument);
-  const explicit = host.ast.typeArguments(call).length > 0;
   return Object.freeze({
     call,
     selection,
@@ -42,8 +42,10 @@ export function csharpSourceProfileCallSource(host: CsharpSourceProfileSourceHos
     arguments: Object.freeze(authored.map(argument => csharpSourceProfileValue(host, argument))),
     parameters: selection.parameters,
     bindings: selection.arguments,
+    // Per binder: explicit exactly when that binder was given an authored type argument (Host per-binder
+    // provenance `authored`, request FX-CC-H3; a defaulted binder of a partly explicit call is not explicit).
     typeArguments: Object.freeze((instantiation?.method ?? []).map(argument => Object.freeze({
-      binder: argument.declaration, type: argument.type, explicit }))),
+      binder: argument.declaration, type: argument.type, explicit: argument.authored !== undefined }))),
   });
 }
 

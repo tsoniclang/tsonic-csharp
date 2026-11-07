@@ -17,7 +17,7 @@ export function csharpCallableParametersEqual(
 }
 
 export function instantiateCsharpInheritedCallable(
-  policy: Pick<CsharpPolicyContext, "ast" | "projectTypes">, source: SourceCallableSourceContract, implementation: SourceCallableSourceContract,
+  policy: Pick<CsharpPolicyContext, "ast" | "facts" | "projectTypes">, source: SourceCallableSourceContract, implementation: SourceCallableSourceContract,
   receiver: TargetTypeRef | undefined,
 ): SourceCallableSourceContract | undefined {
   if (source.nativeSignature.methodTypeParameterIdentities.length !== implementation.nativeSignature.methodTypeParameterIdentities.length) return undefined;
@@ -26,7 +26,7 @@ export function instantiateCsharpInheritedCallable(
     if (source.nativeSignature.methodTypeParameterIdentities.some((identity, index) => identity !== implementation.nativeSignature.methodTypeParameterIdentities[index])) return undefined;
   } else {
     const authored = (contract: SourceCallableSourceContract) => policy.ast.typeParameters(contract.sourceDeclaration)
-      .map(parameter => parameter === undefined ? undefined : csharpSourceTypeParameter(parameter, policy.ast));
+      .map(parameter => parameter === undefined ? undefined : csharpSourceTypeParameter(parameter, policy.ast, policy.facts.navigation.identity));
     const sourceParameters = authored(source);
     const implementationParameters = authored(implementation);
     if (sourceParameters.length !== implementationParameters.length ||

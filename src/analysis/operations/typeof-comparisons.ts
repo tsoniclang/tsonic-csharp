@@ -46,13 +46,12 @@ export function selectCsharpTypeofSelection(
   const record = policy.facts.values.typeofCategory(operation, operand);
   if (record.kind === "refused") return failTargetAnalysisInvariant("tsonic-csharp",
     "A refused typeof site is a Host refusal; Host refusals are forwarded before C# analysis.", operation);
-  // The absent value's category. undefined-only: "undefined"; null-only: "object". both / unavailable: the program's one
-  // native absence, which the runtime reads as "object" (TsValue.ApplyDynamicTypeof(null)). The one comparison where
-  // that differs from a both-admitting TypeScript value, `typeof v === "undefined"` and its negations, is the Host N7
-  // refusal; every other category literal has one answer for both null and undefined.
-  const absent = record.admission === "undefined-only" ? "undefined" as const : "object" as const;
+  // The absent value's category is the Host decision (SourceNullishAdmission.absentCategory, published for every
+  // admission other than "none"; C-2479 2(c), Q20). C# never decides it.
+  const absent = record.admission === "none" ? undefined
+    : record.absentCategory ?? missing(operation, "the absent category of a nullish-admitting operand");
   if (isCsharpAbsenceTargetType(carrier)) {
-    if (record.admission === "none") return missing(operation, "a nullish admission for an absence-only operand");
+    if (absent === undefined) return missing(operation, "a nullish admission for an absence-only operand");
     return Object.freeze({ kind: "static" as const, carrier, result: absent });
   }
   const element = getCsharpNullableElementTargetType(carrier);
@@ -62,11 +61,13 @@ export function selectCsharpTypeofSelection(
     : sumCategories(policy, operation, present, record.sum);
   if (isCsharpRefusal(value)) return value;
   if (element === undefined) {
-    if (record.admission !== "none") return missing(operation, "the nullable carrier of a nullish-admitting operand");
+    if (absent !== undefined) return missing(operation, "the nullable carrier of a nullish-admitting operand");
     return Object.freeze({ kind: "static" as const, carrier, result: value });
   }
+  // admission "none" on a nullable physical carrier: the Host proves no absent value reaches the operation, so the
+  // absent branch is unreachable; it reads the runtime category of the C# null (a target fact, not a Source decision).
   return Object.freeze({ kind: "static" as const, carrier,
-    result: Object.freeze({ kind: "optional" as const, sourceCarrier: carrier, element, value, absent }) });
+    result: Object.freeze({ kind: "optional" as const, sourceCarrier: carrier, element, value, absent: absent ?? "object" }) });
 }
 
 /** Host closed-arm categories projected onto the carrier of the present arms (absence is lifted to the nullable). */

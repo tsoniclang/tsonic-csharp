@@ -2,7 +2,7 @@ import type { TargetTypeRef } from "../../../target-model/types/model.js";
 
 import { csharpAsyncGeneratorTargetType, csharpGeneratorTargetType, csharpIteratorResultTargetType } from "../../../target-model/types/carriers/generators.js";
 import { closeCsharpGeneratorProtocolType } from "../../types/callables/generators.js";
-import { csharpJsArrayTargetType, csharpJsDateTargetType, csharpJsMapTargetType, csharpJsRegExpExecArrayTargetType, csharpJsRegExpIndicesArrayTargetType, csharpJsRegExpMatchArrayTargetType, csharpJsRegExpNamedGroupsTargetType, csharpJsRegExpNamedIndicesTargetType, csharpJsRegExpStringIteratorTargetType, csharpJsRegExpTargetType, csharpExactJsRegExpExecArrayTargetType, csharpExactJsRegExpIndicesArrayTargetType, csharpExactJsRegExpMatchArrayTargetType, csharpExactJsRegExpNamedGroupsTargetType, csharpExactJsRegExpNamedIndicesTargetType, csharpExactJsRegExpStringIteratorTargetType, csharpJsSetTargetType, csharpJsWeakMapTargetType, csharpJsWeakSetTargetType, csharpJsArrayBufferTargetType, csharpJsDataViewTargetType, csharpJsTypedArrayTargetType, csharpJsPromiseFulfilledResultTargetType, csharpJsPromiseRejectedResultTargetType, csharpJsIntlTargetType, type CsharpJsTypedArrayName } from "../../../target-model/types/carriers/js.js";
+import { csharpJsArrayTargetType, csharpJsDateTargetType, csharpJsMapTargetType, csharpJsRegExpExecArrayTargetType, csharpJsRegExpIndicesArrayTargetType, csharpJsRegExpMatchArrayTargetType, csharpJsRegExpNamedGroupsTargetType, csharpJsRegExpNamedIndicesTargetType, csharpJsRegExpStringIteratorTargetType, csharpJsRegExpTargetType, csharpExactJsRegExpExecArrayTargetType, csharpExactJsRegExpIndicesArrayTargetType, csharpExactJsRegExpMatchArrayTargetType, csharpExactJsRegExpNamedGroupsTargetType, csharpExactJsRegExpNamedIndicesTargetType, csharpExactJsRegExpStringIteratorTargetType, csharpJsSetTargetType, csharpJsWeakMapTargetType, csharpJsWeakSetTargetType, csharpJsArrayBufferTargetType, csharpJsDataViewTargetType, csharpJsTypedArrayTargetType, csharpJsPromiseFulfilledResultTargetType, csharpJsPromiseRejectedResultTargetType, csharpJsIntlTargetType, type CsharpJsKeyCategories, type CsharpJsTypedArrayName } from "../../../target-model/types/carriers/js.js";
 import { classifyCsharpSourceProfileType } from "../../identities/source-types.js";
 
 import { csharpTaskTargetType } from "../../../target-model/types/carriers/delegates.js";
@@ -11,7 +11,11 @@ import { csharpEnumerableTargetType, csharpRecordDictionaryCarrier } from "../..
 import { csharpSourceErrorTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 
 export function selectCsharpSourceProfileCarrier(
-  data: { readonly dictionaryCarrier: TargetTypeRef | undefined },
+  /**
+   * `keyCategories`: the Host key categories of the Map key / Set element descriptor (facts.profile.keyCategories, Q86),
+   * computed by the caller from the descriptor it represents; C# decides no category.
+   */
+  data: { readonly dictionaryCarrier: TargetTypeRef | undefined; readonly keyCategories: CsharpJsKeyCategories },
   identity: ReturnType<typeof classifyCsharpSourceProfileType>,
   typeArguments: readonly TargetTypeRef[],
 ): TargetTypeRef | undefined {
@@ -153,12 +157,12 @@ export function selectCsharpSourceProfileCarrier(
     case "map":
     case "readonly-map":
       return typeArguments.length === 2
-        ? csharpJsMapTargetType(typeArguments[0]!, typeArguments[1]!)
+        ? csharpJsMapTargetType(typeArguments[0]!, typeArguments[1]!, data.keyCategories)
         : undefined;
     case "set":
     case "readonly-set":
       return typeArguments.length === 1
-        ? csharpJsSetTargetType(typeArguments[0]!)
+        ? csharpJsSetTargetType(typeArguments[0]!, data.keyCategories)
         : undefined;
     case "weak-map":
       return typeArguments.length === 2

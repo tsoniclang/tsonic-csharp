@@ -1,7 +1,7 @@
 import type { AstReader } from "@tsonic/tsts";
-import type { CsharpProjectTypeCatalog } from "../../target-model/records/types/project-types.js";
-import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
-import { csharpClassFactoryTargetType } from "../../target-model/types/carriers/class-factories.js";
+import type { CsharpProjectTypeCatalog } from "../../../target-model/records/types/project-types.js";
+import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
+import { csharpClassFactoryTargetType } from "../../../target-model/types/carriers/class-factories.js";
 
 export function selectCsharpClassFactoryType(
   ast: AstReader,

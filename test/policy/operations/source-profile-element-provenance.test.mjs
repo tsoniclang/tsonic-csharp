@@ -26,6 +26,8 @@ function fixture(options = {}) {
     facts: {
       values: { elementAccess: node => node === access ? record : assert.fail("only the selected access is read") },
       selections: { wellKnownSymbol: () => undefined },
+      // A non-union receiver: no per-arm relation at the access, so the element record's declaration is the indexer.
+      relations: { at: () => undefined },
     },
     providers: createCsharpProviderRelationResolver({ providers: [], providerPolicies: [] }),
     projectTypes: { directSupertypes: () => [] },

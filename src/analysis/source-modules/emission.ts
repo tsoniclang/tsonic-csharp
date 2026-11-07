@@ -43,9 +43,15 @@ export function analyzeCsharpSourceFileEmission(input: {
       }
       if (!ast.is.IsExportAssignment(statement)) continue;
       const assignment = ast.as.AsExportAssignment(statement);
-      // `export =` is a CommonJS module form the Host refuses (request R-F5-B4); an export assignment always has an expression.
-      if (assignment?.IsExportEquals || assignment?.Expression === undefined) failTargetAnalysisInvariant("tsonic-csharp",
-        "An export assignment reached C# analysis without a Host refusal or without its expression.", statement);
+      // `export =` (a CommonJS module export) keeps its baseline C# refusal and text (Q94: no refusal-code move in
+      // wave 1; listed for the maintainer as an I7 question). An export assignment always has an expression.
+      if (assignment?.IsExportEquals) {
+        issues.push(Object.freeze({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: statement,
+          message: "Export equals requires finalized TSTS CommonJS module-export facts before C# emission." }));
+        continue;
+      }
+      if (assignment?.Expression === undefined) failTargetAnalysisInvariant("tsonic-csharp",
+        "An export assignment reached C# analysis without its expression.", statement);
     }
   }
   return Object.freeze({ records: createCsharpSourceFileEmissionRecords(factories), issues: Object.freeze(issues) });

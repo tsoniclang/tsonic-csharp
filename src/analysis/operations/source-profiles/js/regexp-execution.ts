@@ -1,3 +1,4 @@
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { jsRegExpSourceProfileIdentity } from "@tsonic/js-source-profile";
 import type { Node } from "@tsonic/tsts";
 import { csharpSourceProfileDeclarationIdentity } from "../../../../policy/identities/selected-source.js";
@@ -29,8 +30,9 @@ export function csharpRegExpReceiverHasNativeExecution(
   if (ast.kindName(origin) === "KindRegularExpressionLiteral") return true;
   if (!ast.is.IsNewExpression(origin)) return false;
   const selected = facts.selections.call(origin);
-  const identity = selected === undefined || selected.kind === "refused" ? undefined
-    : csharpSourceProfileDeclarationIdentity(ast, facts, context.host.sourceFacts, selected.signature);
+  if (selected !== undefined && selected.kind === "refused") return failTargetAnalysisInvariant("tsonic-csharp",
+    `A Host call-selection refusal (${selected.code}) reached C# analysis; Host refusals are forwarded before C# analysis.`, origin);
+  const identity = selected === undefined ? undefined : csharpSourceProfileDeclarationIdentity(ast, facts, selected.signature);
   return identity?.owner === "js" && identity.kind === "construct" &&
     identity.declaringName === jsRegExpSourceProfileIdentity.owners.regExpConstructor;
 }

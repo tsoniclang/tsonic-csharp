@@ -1,6 +1,6 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import type { SourceProgramFacts } from "@tsonic/target-api/source";
-import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import { failTargetAnalysisInvariant, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { HasSyntacticModifier, ModifierFlagsAbstract, ModifierFlagsAccessor, ModifierFlagsAmbient, ModifierFlagsConst, ModifierFlagsOverride, ModifierFlagsPrivate, ModifierFlagsProtected, ModifierFlagsPublic, ModifierFlagsReadonly, sourceClassFieldIsTypeOnly, sourceParameterIsProperty } from "@tsonic/target-api/source";
 import type { CsharpNativeParticipationInput, CsharpNativeUseClassifications } from "../../target-model/records/native/native-demand.js";
 import type { CsharpProjectTypeClassifications } from "../../target-model/records/types/project-types.js";
@@ -54,7 +54,13 @@ export function admitCsharpNativeDeclarations(
     }
     if (ast.is.IsMethodDeclaration(node)) {
       const returned = declarations.returnContract.get(node);
-      if (returned?.kind === "rejected") refuse(node, "CSHARP_METHOD_RETURN_CONTRACT", returned.reason);
+      // A represented-return CsharpRefusal is reported once, as it is: by the declaration emission for a method with a
+      // body (declaration-emission.ts), here for a bodyless one (D1 §1.4). Any other rejected contract is this file's.
+      if (returned?.kind === "rejected" && returned.refusal === undefined) refuse(node, "CSHARP_METHOD_RETURN_CONTRACT", returned.reason);
+      if (returned?.kind === "rejected" && returned.refusal !== undefined && ast.body(node) === undefined) {
+        issues.push(Object.freeze({ code: returned.refusal.code, category: "error", source: "tsonic-csharp",
+          sourceNode: returned.refusal.site, message: returned.refusal.message }));
+      }
       const dispatch = methodDispatch.get(node);
       if (dispatch?.kind !== "method") {
         refuse(node, "CSHARP_METHOD_DISPATCH_NOT_PROVEN", "A method has no sealed native dispatch contract.");
@@ -81,11 +87,14 @@ export function admitCsharpNativeDeclarations(
       if (write !== undefined) {
         const owner = ast.parent(node);
         const heritage = owner === undefined ? undefined : facts.objects.heritage(owner);
+        // A refused heritage is a Host refusal, forwarded with facts.refusals() before C# analysis (R5, I7).
+        if (heritage !== undefined && !Array.isArray(heritage)) failTargetAnalysisInvariant("tsonic-csharp",
+          "A class heritage is a Host refusal at a node C# analyzed; Host refusals are forwarded before C# analysis.", owner!);
         if (csharpTargetTypeRenderingRejection(write.type) !== undefined ||
           csharpSourceTypeParameters(node, ast, facts.navigation.scopes).some(parameter => parameter !== undefined) ||
           ast.hasModifierKind(node, "static") || ast.hasModifierKind(node, "abstract") ||
           dispatch?.overridesBase === true || dispatch?.hasDerivedOverride === true ||
-          heritage !== undefined && (!Array.isArray(heritage) || heritage.length > 0)) {
+          heritage !== undefined && Array.isArray(heritage) && heritage.length > 0) {
           refuse(node, "CSHARP_WRITABLE_METHOD_SHAPE", "A writable source method requires a closed non-generic instance delegate without native inheritance or interface dispatch obligations.");
         }
       }

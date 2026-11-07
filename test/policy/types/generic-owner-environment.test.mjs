@@ -243,7 +243,7 @@ export function identity<Outer extends Container<int32>>(value: Outer): Outer { 
 
 test("source constraint resolution uses exact declaration identity once and seals native results", () => {
   const { program, declaration, services, queries } = constrainedProgram();
-  const outer = csharpSourceTypeParameter(declaration, program.ast);
+  const outer = csharpSourceTypeParameter(declaration, program.ast, program.facts.navigation.identity);
   assert.equal(outer.csharpDeclaration === declaration, true, "the binder carries its declaration");
   const first = services.typeParameters.resolve(outer).csharpConstraints;
   assert.equal(first.kind, "resolved");
@@ -271,7 +271,7 @@ export function pick<Selected extends Container<int32>>(value: Selected): Select
   const declaration = program.nodes.find(node => program.ast.is.IsTypeParameterDeclaration(node) &&
     program.ast.text(program.ast.name(node)) === "Selected");
   const services = representationServices(program);
-  const selected = csharpSourceTypeParameter(declaration, program.ast);
+  const selected = csharpSourceTypeParameter(declaration, program.ast, program.facts.navigation.identity);
   const first = services.typeParameters.resolve(selected).csharpConstraints;
   assert.equal(first.kind, "resolved", "the declaration's own constraint is complete without a consumer context");
   assert.equal(first.constraints.some(constraint => constraint.kind === "type" &&

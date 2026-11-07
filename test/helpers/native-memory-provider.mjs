@@ -123,7 +123,7 @@ export function nativeMemoryProvider({ missingRelation = false, wrongCarrier = f
     moduleOwnership: [{ specifierPrefix: moduleSpecifier, providerId }],
     sourceCompilerContributions() {
       return { extensions: [{ identity: { id: providerId, version: "1" },
-        initialize(context) { context.registerSourceDeclarationProvider(provider); } }] };
+        declarationProviders: [provider] }] };
     },
     createTargetContributions() { return [csharpProviderPolicyContribution({ providerId, providerVersion: "1", targetBindings: [ownerBinding], relations, rejections: [] })]; },
   };

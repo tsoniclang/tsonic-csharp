@@ -3,47 +3,27 @@
 // facts.analyses.callOnlyAlias, SourceAnalysisFacts by B2); C# keeps only aliases whose selected declaration is a
 // source-profile function or a member of an uninitialized profile variable.
 import type { Node } from "@tsonic/tsts";
-import type { TargetSourceProgramFacts } from "@tsonic/target-api/source";
+import type { SourceCallOnlyAliasRecord, TargetSourceProgramFacts } from "@tsonic/target-api/source";
 import { isTsonicSourceProfileDeclarationPath } from "@tsonic/target-api/provider";
 import type { CsharpPolicyContext } from "../../../policy/model/context.js";
 import { csharpSourceProfileDeclarationIdentity } from "../../../policy/identities/selected-source.js";
 
-/** A call-only alias C# lowers to direct profile calls: declarations and nodes only (I2). */
-export interface CsharpCallOnlyAlias {
-  /** The aliased value expression (identifier or member access). */
-  readonly expression: Node;
-  /** The selected callable declaration. */
-  readonly selectedDeclaration: Node;
-  /** The member access node when the alias names a member (`obj.method`). */
-  readonly member?: Node;
-  readonly receiverDeclaration?: Node;
-  /** Every overload declaration of the aliased callable, authored order. */
-  readonly declarations: readonly Node[];
-  /** Every call through the alias. */
-  readonly calls: readonly Node[];
-}
-
+/** The Host call-only alias records C# lowers to direct profile calls (declarations and nodes only, I2). */
 export function createCsharpSourceProfileCallableAliasQuery(source: TargetSourceProgramFacts):
-  (declaration: Node) => CsharpCallOnlyAlias | undefined {
-  const select = (declaration: Node) => source.facts.analyses.callOnlyAlias(declaration);
-  const policy = { ast: source.syntax, facts: source.facts, sourceFacts: source.sourceFacts };
+  (declaration: Node) => SourceCallOnlyAliasRecord | undefined {
+  const policy = { ast: source.syntax, facts: source.facts };
   return declaration => {
-    const alias = select(declaration);
-    return alias !== undefined && acceptsSourceProfileAlias(alias, policy) ? Object.freeze({
-      expression: alias.expression, selectedDeclaration: alias.selectedDeclaration,
-      ...(alias.member === undefined ? {} : { member: alias.member }),
-      ...(alias.receiverDeclaration === undefined ? {} : { receiverDeclaration: alias.receiverDeclaration }),
-      declarations: alias.declarations, calls: alias.calls,
-    }) : undefined;
+    const alias = source.facts.analyses.callOnlyAlias(declaration);
+    return alias !== undefined && acceptsSourceProfileAlias(alias, policy) ? alias : undefined;
   };
 }
 
 function acceptsSourceProfileAlias(
-  alias: CsharpCallOnlyAlias,
-  policy: Pick<CsharpPolicyContext, "ast" | "facts" | "sourceFacts">,
+  alias: SourceCallOnlyAliasRecord,
+  policy: Pick<CsharpPolicyContext, "ast" | "facts">,
 ): boolean {
   const identity = csharpSourceProfileDeclarationIdentity(
-    policy.ast, policy.facts, policy.sourceFacts, alias.selectedDeclaration,
+    policy.ast, policy.facts, alias.selectedDeclaration,
   );
   if (identity === undefined) return false;
   if (alias.member === undefined) return policy.ast.is.IsFunctionDeclaration(alias.selectedDeclaration);

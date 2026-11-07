@@ -1,5 +1,5 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
-import { HasSyntacticModifier, isSourceCallableBodyBoundary, ModifierFlagsAsync } from "@tsonic/target-api/source";
+import { HasSyntacticModifier, ModifierFlagsAsync } from "@tsonic/target-api/source";
 import { csharpCallableValueType } from "../../policy/types/callables/value-type.js";
 import { csharpSourceArgumentExpectedType, csharpTargetParameterValueType, getCsharpGeneratorProtocol } from "../../policy/types/index.js";
 import { csharpSelectedTargetArgumentBindings, csharpSourceOwnedArgumentBindings, csharpProviderArgumentSourceCarrier } from "../../policy/operations/members/native-use-arguments.js";
@@ -258,7 +258,7 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
   function sourceArgumentExpectedType(expression: Node | undefined, parameter: Parameters<typeof csharpSourceArgumentExpectedType>[0],
     sourceForm: Parameters<typeof csharpSourceArgumentExpectedType>[1]): TargetTypeRef | undefined {
     const declared = csharpSourceArgumentExpectedType(parameter, sourceForm);
-    if (expression === undefined || parameter.csharpSourceArgumentAdapter === undefined || !isSourceCallableBodyBoundary(policy.ast, expression)) return declared;
+    if (expression === undefined || parameter.csharpSourceArgumentAdapter === undefined || !policy.facts.navigation.scopes.role(expression).includes("callable-body")) return declared;
     const callable = callables.get({ kind: "declaration", declaration: expression });
     if (callable === undefined) return undefined;
     if (callable.nativeSignature.methodTypeParameterIdentities.length > 0) return declared;

@@ -33,7 +33,7 @@ function operandCarrier(input: CsharpPolicyContext, expression: Node): TargetTyp
 
 function selectRawIdentity(input: CsharpPolicyContext, node: Node):
   Exclude<CsharpNativePointerOperationSelection, { readonly kind: "not-native-pointer" }> | undefined {
-  const identity = readCsharpSourceRawPointerIdentity(input.facts, input.sourceFacts, node);
+  const identity = readCsharpSourceRawPointerIdentity(input.facts, node);
   if (identity !== undefined) {
     const arguments_ = input.ast.arguments(node);
     const carrier = csharpRuntimeRawPointerTargetType();

@@ -198,7 +198,7 @@ test("only a type parameter with an actual value-parameter collision is renamed 
     const parent = source.syntax.parent(identifier);
     const declaration = parent !== undefined && source.syntax.is.IsTypeParameterDeclaration(parent) && source.syntax.name(parent) === identifier
       ? parent : source.facts.navigation.identity.target(identifier)?.declaration;
-    const parameter = declaration === undefined ? undefined : csharpSourceTypeParameter(declaration, source.syntax);
+    const parameter = declaration === undefined ? undefined : csharpSourceTypeParameter(declaration, source.syntax, source.facts.navigation.identity);
     const spelling = source.syntax.text(identifier);
     const selected = plan.resolve(identifier);
     if (parameter?.identity === plan.typeParameterNames[0].identity) {

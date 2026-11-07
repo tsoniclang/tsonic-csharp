@@ -29,8 +29,17 @@ export interface CsharpPolicyContext extends CsharpProviderCallSelectionHost {
   readonly pointerStorage: import("@tsonic/source-core/facts").TsonicPointerStorageRelation;
   readonly moduleCallables: import("../../target-model/records/callables/module-callables.js").CsharpModuleCallableIdentities;
   readonly integerRanges: import("../../target-model/records/operations/integer-ranges.js").CsharpIntegerRangeIndex;
-  /** A JS source-profile call-only alias of a declaration (F3: analysis/operations/source-profiles/callable-aliases.ts). */
-  callOnlyAlias(declaration: Node): import("../../analysis/operations/source-profiles/callable-aliases.js").CsharpCallOnlyAlias | undefined;
+  /**
+   * A JS source-profile call-only alias of a declaration: the Host record (analyses.callOnlyAlias) that
+   * analysis/operations/source-profiles/callable-aliases.ts admits for the source profile.
+   */
+  callOnlyAlias(declaration: Node): import("@tsonic/target-api/source").SourceCallOnlyAliasRecord | undefined;
+  /**
+   * The callable ABI contract (passing modes, optional and params slots, contract carriers) a call use reaches, from the
+   * Host call selection: the one owner of the callee ABI (callables/calls), read by source-call arguments (R4 #6).
+   */
+  sourceCallable(use: Node, selection: "checked" | "implementation"):
+    import("../../target-model/records/callables/source-callable-contract.js").SourceCallableContract | undefined;
   readonly typeDefinitions?: import("../../target-model/types/source-union-definitions.js").CsharpTypeDefinitions;
   readonly ast: AstReader;
   readonly sourceFiles: readonly SourceFile[];

@@ -4,9 +4,7 @@ import type { SourceCallSelection } from "@tsonic/target-api/source";
 import type { CsharpProviderTargetRelation } from "../../../../target-model/identities/provider-relations.js";
 
 import { substituteCsharpTargetMember, targetTypeRefEquals } from "../../../../policy/types/index.js";
-import { selectCsharpConversion } from "../../../../policy/conversions/index.js";
-import { csharpConversionIsApplicable } from "../../../../policy/conversions/applicability.js";
-import type { TargetTypeRef } from "../../../../target-model/types/model.js";
+import { compareCsharpConversionTargets } from "../../../../policy/conversions/conversion-targets.js";
 
 import { csharpSourceArgumentPassingMode } from "../../../../source/extension/arguments.js";
 import { selectCsharpProviderPointerResult } from "../../pointers/provider-result.js";
@@ -218,22 +216,6 @@ export function compareInstantiatedProviderCalls(
     return "equivalent";
   }
   return leftBetter ? "left" : "right";
-}
-
-/**
- * C# better conversion target (ECMA-334 12.6.4.7): T1 is better than T2 when an implicit conversion T1 → T2 exists
- * and none T2 → T1. A .NET overload rule over target carriers only.
- */
-function compareCsharpConversionTargets(
-  host: Pick<CsharpProviderCallSelectionHost, "projectTypes" | "providers" | "target" | "typeDefinitions" | "objectShapes">,
-  left: TargetTypeRef,
-  right: TargetTypeRef,
-): "left" | "right" | "equivalent" | "incomparable" {
-  if (targetTypeRefEquals(left, right)) return "equivalent";
-  const leftToRight = csharpConversionIsApplicable(selectCsharpConversion(host, left, right, "implicit"), "implicit");
-  const rightToLeft = csharpConversionIsApplicable(selectCsharpConversion(host, right, left, "implicit"), "implicit");
-  if (leftToRight === rightToLeft) return leftToRight ? "equivalent" : "incomparable";
-  return leftToRight ? "left" : "right";
 }
 
 function validateProviderCallRelation(

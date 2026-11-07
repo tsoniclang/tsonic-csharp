@@ -14,7 +14,7 @@ import { executeCsharpConstruction } from "../../helpers/native-construction.mjs
 import { memoryAbiCapability } from "../../helpers/memory-abi.mjs";
 import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
-import { createCsharpSourceProfileStorageEffects } from "../../../dist/analysis/operations/source-profiles/source-storage-effects.js";
+import { createCsharpSourceStorageTargetPremises } from "../../../dist/analysis/operations/source-profiles/source-storage-effects.js";
 
 const emissionPrograms = [
   ["class and static initializers", `
@@ -73,7 +73,7 @@ const discardedPrograms = [
 ];
 
 function owners(sourceText, surface = "js") {
-  // nextgen C-2542: the storage query is facts.analyses.storage({ sourceFiles, effects }) with the C# source-profile effects
+  // nextgen C-2542: the storage query is facts.analyses.storage({ sourceFiles, premises }) with the C# target premises (JS effects are Host facts)
   // over the live session providers, the same input analyze.ts gives it (createSourceStorageQuery is no longer public).
   const { compiled, value: providers } = withCsharpSessionRequest({ sourceText, surface }, request => request.providers);
   assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
@@ -105,7 +105,7 @@ function owners(sourceText, surface = "js") {
       } } } });
   const input = { ast, sourceFiles: csharpProgramSourceFiles(program), facts: source.facts, evidence: records, operations: records,
     nativeExpressionIssues: [], sourceStorage: source.facts.analyses.storage({ sourceFiles: csharpProgramSourceFiles(program),
-      effects: createCsharpSourceProfileStorageEffects(source, providers) }),
+      premises: createCsharpSourceStorageTargetPremises(source, providers) }),
     declarations: records, objectShapes: program.objectShapes,
     exactLiteral: records.exactLiteral, propertyKeyBindings: expression => {
       const use = records.nativeExpression.get(expression)?.use;
