@@ -62,6 +62,17 @@ export function admitCsharpConversionSelection(
     const sourceElement = getCsharpNullableElementTargetType(current.source);
     const targetElement = getCsharpNullableElementTargetType(current.target);
     switch (selected.kind) {
+      case "number-erasure":
+        if (selected.admission.kind !== "admitted" || selected.admission.conversion.kind !== "exact-number-erasure" ||
+          selected.admission.conversion.result.kind !== "primitive" || selected.admission.conversion.result.primitive !== "float64" ||
+          selected.intermediate.kind !== "source-primitive" || selected.intermediate.name !== "float64") return {
+          kind: "rejected", reason: "A number erasure requires its exact published Source admission and float64 completion.",
+        };
+        descend(selected, [
+          { kind: "enter", source: selected.intermediate, target: current.target, selection: selected.intermediateToTarget },
+          { kind: "enter", source: current.source, target: selected.intermediate, selection: selected.sourceToIntermediate },
+        ]);
+        break;
       case "identity":
         if (current.source === undefined || current.target === undefined ||
           !targetTypeRefEquals(current.source, current.target)) {
@@ -206,6 +217,9 @@ function conversionRenderingRejection(input: CsharpConversionAdmissionInput): Cs
       break;
     case "exact-integer":
       required = [selection.input, selection.output];
+      break;
+    case "number-erasure":
+      required = [source, selection.intermediate, target];
       break;
     case "absence":
       required = [source, target, getCsharpGenericOptionalParts(target)?.operations ?? target];

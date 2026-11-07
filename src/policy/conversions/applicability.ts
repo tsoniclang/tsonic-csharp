@@ -3,6 +3,8 @@ export function csharpConversionIsApplicable(
   selection: CsharpConversionSelection,
   mode: CsharpConversionMode,
 ): boolean {
+  if (selection.kind === "number-erasure") return mode === "implicit" &&
+    csharpConversionIsApplicable(selection.sourceToIntermediate, mode) && csharpConversionIsApplicable(selection.intermediateToTarget, mode);
   if (selection.kind === "nullable-map") return csharpConversionIsApplicable(selection.conversion, mode);
   return selection.kind === "identity" ||
     selection.kind === "absence" ||

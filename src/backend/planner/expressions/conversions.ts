@@ -120,6 +120,14 @@ export function applyCsharpConversionSelection(
     return undefined;
   }
   switch (selection.kind) {
+    case "number-erasure": {
+      const value = applyCsharpConversionSelection(node, sourceFile, input, diagnostics, sourceType, selection.intermediate,
+        selection.sourceToIntermediate, expression, prelude, operandStability, absenceConstant, callable);
+      const type = renderRequiredTargetType(input.scope.typeParameterNames, node, selection.intermediate, diagnostics);
+      if (value === undefined || type === undefined) return undefined;
+      return applyCsharpConversionSelection(node, sourceFile, input, diagnostics, selection.intermediate, targetType,
+        selection.intermediateToTarget, { kind: "CastExpression", type, expression: value }, prelude, operandStability);
+    }
     case "union-map":
       return planCsharpUnionMapping(node, expression, sourceType, targetType, selection, input, diagnostics);
     case "never": {

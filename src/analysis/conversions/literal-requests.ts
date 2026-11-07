@@ -81,6 +81,9 @@ export function createCsharpExactLiteralRequestCollector(literalValues: SourceLi
         request(expression, physicalSource, entry.source);
       } else if (current.kind === "nullable-map") {
         pending.push({ source: current.sourceElement, target: current.targetElement, selection: current.conversion });
+      } else if (current.kind === "number-erasure") {
+        pending.push({ source: entry.source, target: current.intermediate, selection: current.sourceToIntermediate });
+        pending.push({ source: current.intermediate, target: entry.target, selection: current.intermediateToTarget });
       } else if (current.kind === "implicit" && current.proof === "runtime-union-arm") {
         pending.push({ source: entry.source, target: current.armType, selection: current.sourceToArm });
       } else if (current.kind === "provider-argument-adapter") {

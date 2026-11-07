@@ -11,6 +11,7 @@ export type CsharpProviderArgumentAdapter =
 import type { TargetTypeRef } from "../types/index.js";
 import type { CsharpUnionArmMapping, CsharpUnionPathStep } from "../types/union-relations.js";
 import type { CsharpIntegerRefinementConversion } from "./integer-refinement.js";
+import type { SourceSlotAdmission } from "@tsonic/target-api/source";
 
 export type CsharpConversionMode = "implicit" | "explicit";
 
@@ -28,6 +29,13 @@ export type CsharpConversionSelection =
   | { readonly kind: "exact-integer"; readonly input: TargetTypeRef; readonly output: TargetTypeRef; readonly nullable: boolean }
   | { readonly kind: "integer-truncation"; readonly signed: boolean; readonly width: number }
   | { readonly kind: "identity" }
+  | {
+      readonly kind: "number-erasure";
+      readonly admission: Extract<SourceSlotAdmission, { readonly kind: "admitted" }>;
+      readonly intermediate: TargetTypeRef;
+      readonly sourceToIntermediate: CsharpConversionSelection;
+      readonly intermediateToTarget: CsharpConversionSelection;
+    }
   | { readonly kind: "absence" }
   | { readonly kind: "array-like-union"; readonly arms: readonly TargetTypeRef[] }
   | { readonly kind: "runtime-union-reference"; readonly arms: readonly TargetTypeRef[]; readonly target: TargetTypeRef }

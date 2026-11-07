@@ -37,6 +37,8 @@ import { sourceTransparentExpressionOperand } from "@tsonic/target-api/source";
 import { readCsharpSelectedWritingReference } from "../callables/values/argument-passing.js";
 import { sourceAnnotationHint } from "@tsonic/target-api/source";
 import { csharpIntegralConversionAnnotationHint } from "./integral-hints.js";
+import { sourceTypeDescriptorsEqual } from "@tsonic/target-api/source";
+import { representCsharpSourceType } from "../../policy/types/source-type-flow/representation.js";
 
 const maximumConversionClassifications = 1_048_576;
 
@@ -258,7 +260,10 @@ export function analyzeCsharpConversions(
     let selections = expressionSelections.get(expression);
     const previousClassification = selections?.get(key);
     const previous = previousClassification?.selection;
-    if (previous !== undefined && previous.kind !== "rejected") {
+    const numberErasure = mode === "implicit" ? selectNumberErasure(expression, source, target) : undefined;
+    if (previous !== undefined && previous.kind !== "rejected" && (numberErasure === undefined ||
+      previous.kind === "number-erasure" && numberErasure.kind === "number-erasure" &&
+      previous.admission === numberErasure.admission)) {
       return previous;
     }
     prepareStructuralDependencies(expression, source, target);
@@ -294,7 +299,7 @@ export function analyzeCsharpConversions(
       : selectedCall.call.targetMember.parameters[argument.targetParameterIndex];
     const parameterConversion = parameter === undefined ? undefined : selectCsharpSourceTypeFlowIndexConversion(
       policy.effectiveTypes.get(expression), { kind: "parameter", expression, parameter }, source, target);
-    let candidate = indexConversion ?? countConversion ?? parameterConversion ?? selectCsharpIntegerTruncationConversion(policy, expression, sourceFile, source, target) ?? selectCsharpExpressionConversion(
+    let candidate = numberErasure ?? indexConversion ?? countConversion ?? parameterConversion ?? selectCsharpIntegerTruncationConversion(policy, expression, sourceFile, source, target) ?? selectCsharpExpressionConversion(
       conversionPolicy,
       expression,
       source,
@@ -338,6 +343,35 @@ export function analyzeCsharpConversions(
       selected.strategy === "adaptation" ? operandStability(expression) : "snapshot" }));
     admitCsharpDelegateEmission(delegateContracts, source, target, selected);
     return selected;
+  }
+
+  function selectNumberErasure(expression: Node, source: TargetTypeRef, target: TargetTypeRef): CsharpConversionSelection | undefined {
+    const admission = policy.effectiveTypes.slotAdmission(expression);
+    if (admission?.kind !== "admitted" || admission.conversion.kind !== "exact-number-erasure") return undefined;
+    const outcome = policy.effectiveTypes.get(expression);
+    const slot = policy.effectiveTypes.declaredSlot(admission.slot);
+    const origin = policy.effectiveTypes.get(admission.conversion.origin);
+    if (admission.use !== expression || slot?.slot !== admission.slot || !sourceTypeDescriptorsEqual(slot.type, admission.destination) ||
+      outcome === undefined || outcome.kind === "refused" || outcome.provenance.occurrence !== expression ||
+      !sourceTypeDescriptorsEqual(outcome.construction ?? outcome.type, admission.value) ||
+      origin === undefined || origin.kind === "refused" || origin.provenance.occurrence !== admission.conversion.origin ||
+      policy.ast.getSourceFile(admission.conversion.origin) !== origin.provenance.sourceFile ||
+      policy.ast.getSourceFile(expression) !== outcome.provenance.sourceFile) {
+      return failTargetAnalysisInvariant("tsonic-csharp", "An exact number erasure requires its original published use, slot, value and numeric origin.", expression);
+    }
+    const representation = policy.types.sourceTypeFlowRepresentation(expression);
+    const destination = representCsharpSourceType(representation, admission.destination);
+    const intermediate = representCsharpSourceType(representation, admission.conversion.result);
+    const value = representCsharpSourceType(representation, admission.value);
+    if (destination === undefined || intermediate === undefined || value === undefined) return Object.freeze({ kind: "rejected",
+      code: "CSHARP_UNSUPPORTED_AST", reason: "An exact Source number erasure requires renderable native value, result and destination carriers." });
+    if (!targetTypeRefEquals(destination, target)) return undefined;
+    if (!targetTypeRefEquals(value, source)) return failTargetAnalysisInvariant("tsonic-csharp",
+      "An exact number erasure must retain the published native producer carrier.", expression);
+    const sourceToIntermediate = classifyPair(source, intermediate, "implicit", expression);
+    const intermediateToTarget = classifyPair(intermediate, target, "implicit", expression);
+    if (sourceToIntermediate === undefined || intermediateToTarget === undefined) return undefined;
+    return Object.freeze({ kind: "number-erasure", admission, intermediate, sourceToIntermediate, intermediateToTarget });
   }
 
   function requestLiteralConversion(expression: Node, source: TargetTypeRef, target: TargetTypeRef,

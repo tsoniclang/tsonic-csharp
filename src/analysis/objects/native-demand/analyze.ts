@@ -173,6 +173,10 @@ export function analyzeCsharpNativeArtifactDemand(
     if (selection === undefined) return;
     if (selection.kind === "js-value-box") {
       demandBox(node, source);
+    } else if (selection.kind === "number-erasure") {
+      demandType(selection.intermediate, node);
+      demandConversion(node, source, selection.intermediate, selection.sourceToIntermediate);
+      demandConversion(node, selection.intermediate, target, selection.intermediateToTarget);
     } else if (selection.kind === "nullable-map") {
       demandConversion(node, selection.sourceElement, selection.targetElement, selection.conversion);
     } else if (selection.kind === "implicit" && selection.proof === "runtime-union-arm") {
