@@ -11,15 +11,18 @@ import { isCsharpJsValueTargetType, csharpSourcePrimitiveTargetType } from "../.
 import { csharpConstructorBaseCall } from "../emission/constructor-entry.js";
 import { createCsharpArgumentPassingRecords } from "../../program/records/calls/argument-passing.js";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
-import type { CsharpSourceArgumentSelection, CsharpSourceArgumentSelectionResult } from "../../../source/extension/arguments.js";
+import type { CsharpSourceArgumentSelection } from "../../../source/extension/arguments.js";
 import type { CsharpTargetCallSelection } from "../../../target-model/records/operations/member-selections.js";
 
+/** The Native admission of one sealed Source passing selection: every rejection here is a real Native mode, parameter or place rule. */
+export type CsharpNativeArgumentPassingSource =
+  | { readonly kind: "resolved"; readonly argument: CsharpSourceArgumentSelection }
+  | { readonly kind: "rejected"; readonly reason: string };
+
 export function readCsharpArgumentPassingSource(source: Pick<TargetSourceProgramFacts, "syntax">,
-  evidence: Pick<CsharpSourceEvidenceIndex, "sourceArgument">, request: CsharpNativeArgumentRequest): CsharpSourceArgumentSelectionResult {
-  const selected = evidence.sourceArgument.get(request.node);
-  if (selected === undefined) return { kind: "rejected", reason: "C# call planning received an argument without sealed passing evidence." };
-  if (selected.kind === "rejected") return selected;
-  const argument = selected.argument;
+  evidence: Pick<CsharpSourceEvidenceIndex, "sourceArgument">, request: CsharpNativeArgumentRequest): CsharpNativeArgumentPassingSource {
+  const argument = evidence.sourceArgument.get(request.node);
+  if (argument === undefined) return { kind: "rejected", reason: "C# call planning received an argument without sealed passing evidence." };
   const mode = argument.passingMode;
   if (mode !== "by-value" && mode !== "byref-writeonly-must-init" && mode !== "byref-readwrite" && mode !== "byref-readonly")
     return { kind: "rejected", reason: `C# argument emission does not support finalized argument-passing mode '${mode}'.` };
@@ -33,7 +36,7 @@ export function readCsharpArgumentPassingSource(source: Pick<TargetSourceProgram
     return { kind: "rejected", reason: `Selected target parameter '${parameter.name}' declares nullable output on non-writing passing mode '${mode}'.` };
   if (!isAstNode(source.syntax, argument.storageExpression))
     return { kind: "rejected", reason: "Argument-passing facts must carry exact source storage expressions before C# argument emission." };
-  return selected;
+  return { kind: "resolved", argument };
 }
 
 export function* readCsharpSelectedWritingArguments(source: Pick<TargetSourceProgramFacts, "syntax">,
@@ -85,8 +88,8 @@ export function analyzeCsharpArgumentPassing(input: { readonly source: TargetSou
         if (argument === undefined) continue;
         const target = selected?.sourceArgumentParameterTypes?.[index] ?? input.evidence.nodeTargetType.get(argument);
         const evidence = input.evidence.sourceArgument.get(argument);
-        if (target !== undefined && evidence?.kind === "resolved") requests.push({
-          node: argument, target, passing: evidence.argument.passingMode, parameter: undefined,
+        if (target !== undefined && evidence !== undefined) requests.push({
+          node: argument, target, passing: evidence.passingMode, parameter: undefined,
         });
       }
     }

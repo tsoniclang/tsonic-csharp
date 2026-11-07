@@ -16,7 +16,7 @@ test("generic native callback binding retains the actual published native result
   ` });
   assertCsharpCompilationSucceeded(compiled);
   const program = compiled.result.program;
-  const ast = program.source.ast;
+  const ast = program.source.syntax;
   const pending = [...csharpProgramSourceFiles(program)];
   const arrows = [];
   const calls = [];

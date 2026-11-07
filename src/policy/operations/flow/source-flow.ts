@@ -9,7 +9,7 @@ export function selectCsharpSourceFlowCall(
   input: CsharpPolicyContext,
   call: Node,
 ): CsharpSourceFlowCallSelection {
-  const keepAlive = readCsharpSourceKeepAlive(input.sourceFacts, call);
+  const keepAlive = readCsharpSourceKeepAlive(input.facts, call);
   if (keepAlive !== undefined) {
     const arguments_ = input.ast.arguments(call);
     if (keepAlive.call !== call || arguments_.length !== 1 || arguments_[0] !== keepAlive.valueExpression) {

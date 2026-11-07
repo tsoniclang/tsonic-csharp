@@ -1,11 +1,9 @@
-import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
-import type { CsharpResolvedIteration } from "../../../target-model/records/operations/selection.js";
+import type { CsharpLoopIterationSource, CsharpResolvedIteration } from "../../../target-model/records/operations/selection.js";
 
-import type { SourceIterationSelection } from "@tsonic/target-api/source";
-
-// The Host iteration selection (facts.selections.iteration) with its statement form (request R-F3-B3: `form`, and the
-// "property-keys" protocol for for-in). Union and untyped-dynamic iteration are Host refusals before C# runs.
-type CsharpIterationSource = SourceIterationSelection;
+// The loop form with the Host iteration selection (facts.selections.iteration) for for-of / for-await-of.
+// Union and untyped-dynamic iteration are Host refusals before C# runs.
+type CsharpOfIterationSource = Exclude<CsharpLoopIterationSource, { readonly kind: "for-in" }>;
+type CsharpInIterationSource = Extract<CsharpLoopIterationSource, { readonly kind: "for-in" }>;
 
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../types/index.js";
 import { csharpStringTargetType, getCsharpCollectionElementTargetType, isCsharpRecordDictionaryTargetType, isCsharpStringTargetType, targetTypeRefEquals } from "../../types/index.js";
@@ -30,27 +28,26 @@ export type CsharpForAwaitOfIteration = Extract<
 >;
 
 export function selectCsharpNativeIteration(
-  source: CsharpIterationSource,
+  source: CsharpLoopIterationSource,
   iterableType: TargetTypeRef,
   elementType: TargetTypeRef | undefined,
   objectShape: CsharpObjectShapeFact | undefined,
 ): CsharpOperationSelection<CsharpResolvedIteration> {
-  if (source.form === "for-await-of") return selectForAwaitOf(source, iterableType);
-  if (source.form === "for-of") return selectForOf(source, iterableType);
-  if (source.form !== "for-in") failTargetAnalysisInvariant("tsonic-csharp",
-    "A spread, destructuring or yield* iteration is not a loop iteration.", source.statement);
+  if (source.kind !== "for-in") {
+    return source.kind === "for-await-of" ? selectForAwaitOf(source, iterableType) : selectForOf(source, iterableType);
+  }
   return elementType === undefined ? rejectCsharpIteration("The published property-key type does not have a closed C# target representation.")
     : selectForIn(source, iterableType, elementType, objectShape);
 }
 
 function selectForAwaitOf(
-  source: CsharpIterationSource,
+  source: CsharpOfIterationSource,
   iterableType: TargetTypeRef,
 ): CsharpOperationSelection<CsharpResolvedIteration> {
   if (
     isCsharpStringTargetType(iterableType) &&
     (
-      source.protocol === "string" || source.protocol === "iterator"
+      source.selection.protocol === "string" || source.selection.protocol === "iterator"
     )
   ) {
     const policy = (iterableType as CsharpTargetNamedTypeRef)
@@ -74,7 +71,7 @@ function selectForAwaitOf(
       "The selected C# async-iterable representation does not prove an enumerable target element.",
     );
   }
-  switch (source.protocol) {
+  switch (source.selection.protocol) {
     case "async-iterator":
       return {
         kind: "resolved",
@@ -98,13 +95,11 @@ function selectForAwaitOf(
       return rejectCsharpIteration(
         "The exact source string iteration mechanism requires a selected target string carrier.",
       );
-    case "property-keys":
-      return failTargetAnalysisInvariant("tsonic-csharp", "A for-await-of iteration has no property-key protocol.", source.statement);
   }
 }
 
 function selectForOf(
-  source: CsharpIterationSource,
+  source: CsharpOfIterationSource,
   iterableType: TargetTypeRef,
 ): CsharpOperationSelection<CsharpResolvedIteration> {
   if (isCsharpStringTargetType(iterableType)) {
@@ -148,7 +143,7 @@ function selectForOf(
 }
 
 function selectForIn(
-  source: CsharpIterationSource,
+  source: CsharpInIterationSource,
   iterableType: TargetTypeRef,
   elementType: TargetTypeRef,
   objectShape: CsharpObjectShapeFact | undefined,
@@ -218,5 +213,5 @@ function selectForIn(
 export function rejectCsharpIteration(
   reason: string,
 ): Extract<CsharpOperationSelection<never>, { readonly kind: "rejected" }> {
-  return { kind: "rejected", reason };
+  return { kind: "rejected", reason, code: "CSHARP_ITERATION_PROTOCOL" };
 }

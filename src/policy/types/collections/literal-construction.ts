@@ -8,10 +8,11 @@ import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import type { AstReader, Node } from "@tsonic/tsts";
 import type { CsharpNativeSourceCarrierSelection } from "../../../target-model/records/objects/object-shapes.js";
 
-export function csharpArrayLiteralElisionIssue(ast: AstReader, node: Node): Extract<CsharpNativeSourceCarrierSelection, { readonly kind: "rejected" }> | undefined {
+export function csharpArrayLiteralElisionIssue(ast: AstReader, node: Node):
+  Extract<CsharpNativeSourceCarrierSelection, { readonly kind: "rejected" }> & { readonly code: "CSHARP_ARRAY_LITERAL_HOLE" } | undefined {
   return !ast.is.IsArrayLiteralExpression(node) || !ast.elements(node).some(element =>
     element === undefined || ast.kindName(element) === "KindOmittedExpression") ? undefined : Object.freeze({
-    kind: "rejected", subject: node, code: "CSHARP_ARRAY_LITERAL_HOLE",
+    kind: "rejected", subject: node, code: "CSHARP_ARRAY_LITERAL_HOLE" as const,
     reason: "Sparse array literal elisions require closed JSArray hole construction facts before C# emission; dense array carriers must not compact holes.",
   });
 }

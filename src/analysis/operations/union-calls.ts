@@ -37,7 +37,7 @@ export function classifyCsharpUnionCall(
     source.arguments.some(argument => csharpSourceArgumentPassingMode(policy.sourceFacts, argument.argument) !== "by-value")) {
     return reject("Closed class-union calls require a present receiver and exact value-argument passing contracts.");
   }
-  const parameterCarriers = source.parameters.map(parameter => policy.types.represent(parameter, source.use, "storage"));
+  const parameterCarriers = source.parameters.map(parameter => policy.types.represent(parameter.type, source.use, "storage"));
   const resultCarrier = policy.types.value(source.use);
   const instantiation = policy.types.instantiation(source.use);
   const methodArguments = instantiation?.method ?? [];

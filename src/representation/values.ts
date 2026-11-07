@@ -1,6 +1,10 @@
 // Node-keyed representation: one SourceProgramFacts read, then the one mapping. A Host refusal is forwarded unchanged
 // (R5). Occurrence extension facts that select a .NET carrier the Source type does not name (layout queries, raw
 // addresses, keep-alive, JS string markers on a value) are applied here, from the occurrence only.
+// This is the LOGICAL carrier. A read of a declaration whose native storage selection chose a physical carrier (struct
+// value storage, closed array layout, closed callable input) reads that carrier instead; the one owner of that choice
+// is analysis/source-evidence/physical-reads.ts, composed by CsharpTypeQueries.value (K-2664). It needs C# planning
+// state (scoped storage, the shape registry), which this mapping must not read.
 import type { Node } from "@tsonic/tsts";
 import type { SourceEffectiveTypeOutcome, SourceTypeFlowRefusal } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
@@ -52,15 +56,17 @@ function representOutcome(outcome: SourceEffectiveTypeOutcome, node: Node,
 function representOccurrenceCarrier(node: Node, context: CsharpRepresentationContext): TargetTypeRef | undefined {
   const facts = context.sourceFacts;
   if (facts === undefined) return undefined;
-  if (selectCsharpLayoutObservation(facts, node)?.kind === "layout-query") return csharpSourcePrimitiveTargetType("native-uint");
-  const rawAddress = readCsharpSourceRawAddress(facts, node);
-  if (rawAddress !== undefined) {
-    // The address integer width is the active platform's native integer width (N5).
+  if (selectCsharpLayoutObservation(context.facts, node)?.kind === "layout-query") return csharpSourcePrimitiveTargetType("native-uint");
+  const rawAddress = readCsharpSourceRawAddress(context.facts, node);
+  if (rawAddress?.kind === "resolved") {
+    // The address integer width is the operation's own data layout ABI in the Host record (the same field source-core
+    // types the result uint32 / uint64 from), not the platform's native integer width: an explicit 32-bit address ABI
+    // is valid in a 64-bit build (E24 keeps data layouts and the platform premise separate).
     return rawAddress.operation === "raw-to-address-integer"
-      ? csharpSourcePrimitiveTargetType(context.platform.nativeIntegerBits === 32 ? "uint32" : "uint64")
+      ? csharpSourcePrimitiveTargetType(rawAddress.addressWidth === 32 ? "uint32" : "uint64")
       : csharpNullableReferenceTargetType(csharpRuntimeRawPointerTargetType());
   }
-  if (readCsharpSourceKeepAlive(facts, node) !== undefined) return csharpVoidTargetType();
+  if (readCsharpSourceKeepAlive(context.facts, node) !== undefined) return csharpVoidTargetType();
   if (readCsharpSourceJsStringMarker(facts, node)) return csharpJsStringTargetType();
   return undefined;
 }

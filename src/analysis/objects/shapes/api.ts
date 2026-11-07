@@ -1,9 +1,11 @@
 // The object-shape registry (BF16 canonical shapes) over Host object facts. A shape is found by its .NET carrier;
 // the carrier of a node comes from the one representation (facts.values -> representSourceType). Project class,
 // interface and struct shapes come from facts.objects.members of the declaration's own reference.
-import type { Node, SourceFile } from "@tsonic/tsts";
+import type { Node } from "@tsonic/tsts";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
-import type { SourceObjectMember, SourceTypeDescriptor } from "@tsonic/target-api/source";
+import { sourceTypeDescriptorStructure, type SourceObjectMember, type SourceTypeDescriptor,
+  type SourceTypeOutcome } from "@tsonic/target-api/source";
+import { sourceValueType } from "../../program/source-facts.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpSourceMemberKey, CsharpTargetNamedTypeRef,
   CsharpRuntimeUnionTargetTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpObjectLiteralTargetShapeResolution, CsharpProjectConstructibleTypeProjection } from "../../../target-model/records/objects/object-shapes.js";
@@ -23,6 +25,7 @@ import { readCsharpSourceStruct } from "../../../source/extension/markers.js";
 import type { CsharpSourceStruct } from "../../../target-model/records/program/source-markers.js";
 import { objectShapeMemberTargetName } from "../../../policy/identities/source-member-names.js";
 import { mergeCsharpObjectShapeSubjects } from "./construction.js";
+import { csharpProjectDeclarationDescriptor } from "./declaration-descriptors.js";
 import { resolveCsharpCopiedObjectShape, retainCsharpMethodValueContracts } from "./method-values.js";
 import { createCsharpNativeShapeProjections } from "./native-projections.js";
 import { resolveCsharpProviderObjectLiteralShape } from "./provider-construction.js";
@@ -90,9 +93,7 @@ export function createCsharpObjectShapePolicy(host: CsharpObjectShapePolicyHost)
       return shape;
     }
     const binders = [...definition.outerTypeParameters, ...definition.typeParameters];
-    const self: SourceTypeDescriptor = Object.freeze({ kind: "declared", declaration, typeArguments: Object.freeze(binders.map(binder =>
-      Object.freeze({ kind: "declared" as const, declaration: binder, typeArguments: Object.freeze([]) }))) });
-    const members = services.facts.objects.members(self);
+    const members = services.facts.objects.members(csharpProjectDeclarationDescriptor(definition));
     if (!Array.isArray(members)) return undefined;
     const facts = representObjectMembers((members as readonly SourceObjectMember[]).filter(member => !member.static),
       csharpRepresentationContext(services, declaration, "storage"));
@@ -146,6 +147,53 @@ export function createCsharpObjectShapePolicy(host: CsharpObjectShapePolicyHost)
     return rememberTargetShape(Object.freeze({ targetType, members: Object.freeze(members), constructible: true }));
   }
 
+  /**
+   * The published Host outcome of a node C# analyzes. Host refusals were forwarded unchanged before C# analysis (R5), so
+   * a refused outcome is read through the shared invariant reader (analysis/program/source-facts.ts), which fails as a
+   * Host producer defect; it never becomes a C# rejection (K-2670, I4).
+   */
+  function publishedOutcome(node: Node): Exclude<SourceTypeOutcome, { readonly kind: "refused" }> {
+    const facts = host.representation().facts;
+    const outcome = facts.values.type(node);
+    if (outcome.kind !== "refused") return outcome;
+    sourceValueType(facts, node);
+    return failTargetAnalysisInvariant("tsonic-csharp", "The shared Source reader admitted a refused value.", node);
+  }
+
+  /**
+   * The one present arm of a descriptor: `optional` lifted, and a sum whose arms are one value arm plus absence arms
+   * reduced to that arm (the same rule native construction applies to its constructions). undefined: several value
+   * arms, so no single shape.
+   */
+  function presentArm(descriptor: SourceTypeDescriptor): SourceTypeDescriptor | undefined {
+    const visited = new Set<SourceTypeDescriptor>();
+    let selected = descriptor;
+    while (!visited.has(selected)) {
+      visited.add(selected);
+      if (selected.kind === "optional") { selected = selected.value; continue; }
+      const structure = sourceTypeDescriptorStructure(selected);
+      if (structure.kind !== "union") return selected;
+      const present = structure.types.filter(arm => {
+        const armStructure = sourceTypeDescriptorStructure(arm);
+        return armStructure.kind !== "intrinsic" || armStructure.intrinsic !== "absence";
+      });
+      if (present.length !== 1) return undefined;
+      selected = present[0]!;
+    }
+    return failTargetAnalysisInvariant("tsonic-csharp", "A Host type descriptor contains itself as its only present arm.");
+  }
+
+  /**
+   * The object-initializer shape of a CLR provider type at one occurrence (provider-construction.ts: the type-level
+   * shape of provider-shapes.ts plus the occurrence's own literal checks), the refusal that stops it, or undefined when
+   * `arm` is not a provider type declaring object-initializer construction (the applicability test native
+   * construction uses too).
+   */
+  function resolveProviderShape(occurrence: Node, arm: SourceTypeDescriptor, carrier: TargetTypeRef) {
+    return resolveCsharpProviderObjectLiteralShape(host.representation(), occurrence, arm,
+      getCsharpNullableElementTargetType(carrier) ?? carrier);
+  }
+
   function resolveNode(node: Node | undefined): CsharpObjectShapeFact | undefined {
     if (node === undefined) return undefined;
     const remembered = nodeShapes.get(node);
@@ -153,7 +201,30 @@ export function createCsharpObjectShapePolicy(host: CsharpObjectShapePolicyHost)
     const outcome = host.representation().facts.values.type(node);
     if (outcome.kind === "refused") return undefined;
     // An object literal's shape is its Host construction (the selected arm's object, C-2479), not its destination.
-    return resolveTarget(representedCarrier(outcome.construction ?? outcome.type, node));
+    const construction = outcome.construction ?? outcome.type;
+    const carrier = representedCarrier(construction, node);
+    if (carrier === undefined) return undefined;
+    // A CLR provider type with object-initializer construction has no registered Source shape: its shape is built from
+    // its provider member relations at this occurrence (R-C5-2). A refused provider shape gives no shape here; the
+    // object-literal resolution reports the refusal's reason.
+    const arm = presentArm(construction);
+    const provider = arm === undefined ? undefined : resolveProviderShape(node, arm, carrier);
+    if (provider !== undefined) return "kind" in provider ? undefined : remember(node, provider);
+    return resolveTarget(carrier);
+  }
+
+  /**
+   * The .NET carrier of the shape published at a node: the represented present arm of its Host construction (else its
+   * type), published at this very occurrence (R-C5-1). Native construction requires a retained declaration or read to
+   * carry the construction's own carrier, and proves a literal's member correspondence only against the represented
+   * published shape (BF16: one canonical registered carrier per shape). undefined: the outcome is published at another
+   * occurrence, or it has several value arms.
+   */
+  function publishedShapeTarget(node: Node): TargetTypeRef | undefined {
+    const outcome = publishedOutcome(node);
+    if (outcome.provenance.occurrence !== node) return undefined;
+    const arm = presentArm(outcome.construction ?? outcome.type);
+    return arm === undefined ? undefined : representedCarrier(arm, node);
   }
 
   function remember(node: Node, shape: CsharpObjectShapeFact): CsharpObjectShapeFact {
@@ -206,33 +277,33 @@ export function createCsharpObjectShapePolicy(host: CsharpObjectShapePolicyHost)
     return shape;
   }
 
-  function resolveTypeMember(type: SourceTypeDescriptor | undefined, sourceFile: SourceFile,
+  function resolveTypeMember(type: SourceTypeDescriptor | undefined, occurrence: Node,
     sourceKey: CsharpSourceMemberKey): CsharpObjectShapeMemberFact | undefined {
     if (type === undefined) return undefined;
-    const shape = resolveTarget(representedCarrier(type, sourceFile));
+    const shape = resolveTarget(representedCarrier(type, occurrence));
     const members = shape?.members.filter(member => csharpSourceMemberKeysEqual(member.sourceKey, sourceKey)) ?? [];
     return members.length === 1 ? members[0] : undefined;
   }
 
   function resolveObjectLiteralTargetShape(expectedShape: CsharpObjectShapeFact | undefined,
     objectLiteral: Node): CsharpObjectLiteralTargetShapeResolution {
-    const outcome = host.representation().facts.values.type(objectLiteral);
-    if (outcome.kind === "refused") return { kind: "rejected", subject: outcome.site, reason: outcome.reason };
-    const carrier = representedCarrier(outcome.construction ?? outcome.type, objectLiteral);
+    const outcome = publishedOutcome(objectLiteral);
+    const construction = outcome.construction ?? outcome.type;
+    const carrier = representedCarrier(construction, objectLiteral);
     if (carrier === undefined) return { kind: "rejected", subject: objectLiteral,
       reason: "The object literal's Host construction type has no .NET shape." };
+    // A CLR provider type constructed by an object initializer: the shape over its provider member relations, or the
+    // precise reason it cannot be built (a CSHARP_ refusal, or the forwarded Host refusal of the member inventory).
+    // It is checked for every literal before the registry is read: the literal checks (index entries, primitive
+    // initializers) belong to this literal, not to the carrier an earlier literal registered.
+    const arm = presentArm(construction);
+    const provider = arm === undefined ? undefined : resolveProviderShape(objectLiteral, arm, carrier);
+    if (provider !== undefined && "kind" in provider) return { kind: "rejected", subject: provider.site, reason: provider.message };
     if (expectedShape !== undefined && targetTypeRefEquals(getCsharpNullableElementTargetType(carrier) ?? carrier, expectedShape.targetType)) {
       return { kind: "resolved", shape: remember(objectLiteral, expectedShape) };
     }
-    const known = resolveTarget(carrier);
-    if (known !== undefined) return { kind: "resolved", shape: remember(objectLiteral, known) };
-    // A CLR provider type constructed by an object initializer: the shape over its provider member relations, or the
-    // precise reason it cannot be built (a CSHARP_ refusal, or the forwarded Host refusal of the member inventory).
-    const provider = resolveCsharpProviderObjectLiteralShape(host.representation(), objectLiteral,
-      outcome.construction ?? outcome.type, getCsharpNullableElementTargetType(carrier) ?? carrier);
-    if (provider === undefined) return { kind: "not-applicable" };
-    if ("kind" in provider) return { kind: "rejected", subject: provider.site, reason: provider.message };
-    return { kind: "resolved", shape: remember(objectLiteral, provider) };
+    const known = provider ?? resolveTarget(carrier);
+    return known === undefined ? { kind: "not-applicable" } : { kind: "resolved", shape: remember(objectLiteral, known) };
   }
 
   function resolveProjectConstructibleSelectedType(targetType: TargetTypeRef, descriptor: SourceTypeDescriptor,
@@ -259,6 +330,7 @@ export function createCsharpObjectShapePolicy(host: CsharpObjectShapePolicyHost)
     resolveCopyShape: (shape: CsharpObjectShapeFact, source?: CsharpObjectShapeFact) =>
       resolveCsharpCopiedObjectShape(shape, host.ast, environment, resolveNode, rememberTargetShape, methodValues(), source),
     resolveNode,
+    publishedShapeTarget,
     resolveTarget,
     resolveTypeMember,
     resolveObjectLiteralTargetShape,

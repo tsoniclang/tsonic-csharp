@@ -1,14 +1,12 @@
-import type { ExtensionFactSubject, Node, ReadonlySourceFactResolver } from "@tsonic/tsts";
+import type { Node } from "@tsonic/tsts";
+import type { SourceProgramFacts } from "@tsonic/target-api/source";
+import { csharpSourceCoreAnalyses } from "./source-core.js";
 
-import { tsonicKeepAliveFactKey } from "@tsonic/source-core/facts";
-
+/** keepalive(value): the source-core Host record. */
 export function readCsharpSourceKeepAlive(
-  sourceFacts: ReadonlySourceFactResolver | undefined,
-  subject: ExtensionFactSubject | undefined,
+  facts: SourceProgramFacts,
+  subject: Node,
 ): { readonly call: Node; readonly valueExpression: Node } | undefined {
-  const fact = sourceFacts?.getFact(subject, tsonicKeepAliveFactKey);
-  return fact === undefined ? undefined : Object.freeze({
-    call: fact.call,
-    valueExpression: fact.valueExpression,
-  });
+  const record = csharpSourceCoreAnalyses(facts).memory.keepAlive(subject);
+  return record === undefined ? undefined : Object.freeze({ call: record.call, valueExpression: record.value.expression });
 }

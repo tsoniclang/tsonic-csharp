@@ -12,9 +12,10 @@ export function csharpTypedArrayWriteHasNativeCarriers(
 export function selectCsharpNativeTypedArrayUpdate(
   element: TargetTypeRef, indexType: TargetTypeRef | undefined, receiver: Node, index: Node,
   increment: boolean, prefix: boolean,
-): CsharpTypedArrayUpdate | { readonly kind: "rejected"; readonly reason: string } {
+): CsharpTypedArrayUpdate | { readonly kind: "rejected"; readonly reason: string; readonly code: `CSHARP_${string}` } {
   const resultType = csharpUnaryNumericPromotion(element);
   return resultType === undefined || indexType === undefined
-    ? { kind: "rejected", reason: "Typed array updates require native numeric storage and index carriers." }
+    ? { kind: "rejected", reason: "Typed array updates require native numeric storage and index carriers.",
+        code: "CSHARP_TYPED_ARRAY_MUTATION_NOT_PROVEN" }
     : { kind: "update-typed-element", receiver, index, indexType, resultType, increment, prefix };
 }

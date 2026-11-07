@@ -1,5 +1,5 @@
 import { selectCsharpNativeIntegerTruncationConversion } from "../../policy/conversions/integer-truncation.js";
-import type { Node, SourceFile } from "@tsonic/tsts";
+import type { Node } from "@tsonic/tsts";
 
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { selectCsharpTargetCall } from "../operations/members/selected-members.js";
@@ -15,13 +15,12 @@ const truncations = new Map([
 export function selectCsharpIntegerTruncationConversion(
   policy: CsharpPolicyContext,
   expression: Node,
-  sourceFile: SourceFile | undefined,
   source: TargetTypeRef,
   target: TargetTypeRef,
 ): CsharpConversionSelection | undefined {
-  if (sourceFile === undefined || !policy.ast.is.IsCallExpression(expression) ||
+  if (!policy.ast.is.IsCallExpression(expression) ||
     target.kind !== "source-primitive" || !targetTypeRefEquals(source, csharpBigIntegerTargetType())) return undefined;
-  const selection = selectCsharpTargetCall(policy, expression, sourceFile);
+  const selection = selectCsharpTargetCall(policy, expression);
   if (selection.kind !== "resolved") return undefined;
   const signed = truncations.get(selection.call.targetMember.id);
   const authored = policy.ast.arguments(selection.source.use);

@@ -1,5 +1,7 @@
 import type { CsharpResolvedResourceManagement, CsharpResourceDisposalOperation } from "../../target-model/records/storage/management.js";
 import type { Node } from "@tsonic/tsts";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
+import { sourceResourceSelection } from "../program/source-facts.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { TargetTypeRef } from "../../policy/types/index.js";
 
@@ -16,16 +18,14 @@ export function selectCsharpResourceManagement(
   input: CsharpPolicyContext,
   declaration: Node,
 ): CsharpOperationSelection<CsharpResolvedResourceManagement> {
-  const source = input.facts.selections.resource(declaration);
-  if (source === undefined) {
-    return rejected("The Host published no resource selection for this declaration.");
-  }
+  const source = sourceResourceSelection(input.facts, declaration) ?? failTargetAnalysisInvariant("tsonic-csharp",
+    "The Host published no resource selection for a using declaration.", declaration);
   const storage = input.types.storage(declaration);
-  if (storage.kind === "csharp-refused") return rejected(storage.message);
+  if (storage.kind === "csharp-refused") return rejected(storage.message, storage.code);
   const alternatives: { readonly targetType: TargetTypeRef; readonly disposal: CsharpResourceDisposalOperation }[] = [];
   for (const alternative of source.alternatives) {
     const targetType = input.types.represent(alternative.type, declaration, "value");
-    if (targetType.kind === "csharp-refused") return rejected(targetType.message);
+    if (targetType.kind === "csharp-refused") return rejected(targetType.message, targetType.code);
     alternatives.push({ targetType, disposal: resolveDisposalOperation(alternative.kind) });
   }
   return selectCsharpNativeResourceManagement(source, storage, alternatives, input.typeDefinitions);
@@ -41,6 +41,7 @@ function resolveDisposalOperation(
 
 function rejected(
   reason: string,
+  code: `CSHARP_${string}`,
 ): Extract<CsharpOperationSelection<never>, { readonly kind: "rejected" }> {
-  return { kind: "rejected", reason };
+  return { kind: "rejected", reason, code };
 }

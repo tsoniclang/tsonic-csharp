@@ -1,8 +1,10 @@
-import type { ExtensionFactSubject, ReadonlySourceFactResolver } from "@tsonic/tsts";
-import { resolveTsonicMemoryLayoutObservation } from "@tsonic/source-core/facts";
+import type { Node } from "@tsonic/tsts";
+import type { SourceProgramFacts } from "@tsonic/target-api/source";
+import { csharpSourceCoreAnalyses } from "../../../source/extension/source-core.js";
 
-export function selectCsharpLayoutObservation(facts: ReadonlySourceFactResolver | undefined, node: ExtensionFactSubject) {
-  const selected = facts === undefined ? undefined : resolveTsonicMemoryLayoutObservation(facts, node);
+/** sizeof / alignof / strideof / fieldoffsetof: the exact value of the source-core Host observation record. */
+export function selectCsharpLayoutObservation(facts: SourceProgramFacts, node: Node) {
+  const selected = csharpSourceCoreAnalyses(facts).memory.observation(node);
   if (selected === undefined) return undefined;
   return selected.kind === "rejected"
     ? Object.freeze({ kind: "rejected" as const, operation: "layout-query" as const, reason: selected.reason })

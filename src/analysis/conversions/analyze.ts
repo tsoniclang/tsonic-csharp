@@ -34,9 +34,11 @@ import { getCsharpNullableElementTargetType } from "../../target-model/types/car
 import { isCsharpVoidTargetType } from "../../target-model/types/identity.js";
 import { createCsharpDelegateContractProducer } from "../program/records/callables/callable-conversions.js";
 import { admitCsharpDelegateEmission, admitCsharpDelegateOperand } from "./callable-emission.js";
-import type { SourceDeclarationTarget } from "@tsonic/target-api/source";
+import type { SourceDeclarationTarget, SourceTypeDescriptor } from "@tsonic/target-api/source";
 import { readCsharpSelectedWritingReference } from "../callables/values/argument-passing.js";
 import { csharpIntegralConversionAnnotationHint } from "./integral-hints.js";
+import { csharpNumberErasureSupersedes, readCsharpNumberErasure } from "./number-erasure.js";
+import { selectCsharpExactNumberErasure } from "../../policy/conversions/carriers.js";
 
 const maximumConversionClassifications = 1_048_576;
 
@@ -106,6 +108,9 @@ export function analyzeCsharpConversions(
   let preparedValueReads: CsharpValueReadClassifications | undefined;
   let sealedClassifications: CsharpConversionClassifications | undefined;
   const literalRequests = createCsharpExactLiteralRequestCollector(policy.facts);
+  // The Host admission of each erasure use is read through the one descriptor → carrier mapping (A3).
+  const erasureHost = Object.freeze({ facts: policy.facts,
+    represent: (descriptor: SourceTypeDescriptor, occurrence: Node) => policy.types.represent(descriptor, occurrence, "value") });
   const conversionPolicy = Object.freeze({
     integerRanges: policy.integerRanges,
     ast: policy.ast, typeDefinitions: policy.typeDefinitions,
@@ -162,12 +167,18 @@ export function analyzeCsharpConversions(
     close(nativeDemand, requiredRecords, captures, creations) {
       if (closed) return failTargetAnalysisInvariant("tsonic-csharp", "Native conversion preparation closes exactly once.");
       if (preparedClassifications === undefined || preparedValueReads === undefined) failTargetAnalysisInvariant("tsonic-csharp", "Native conversion uses require completed preparation.");
-      const admitted = sealCsharpConversionUses(policy.ast, nativeDemand, selectedOperations, (expression, source, target, mode, exactInteger, boundary, sourceCompletion) => {
+      const admitted = sealCsharpConversionUses(policy.ast, nativeDemand, selectedOperations, (expression, source, target, mode, exactInteger, retained, sourceCompletion) => {
+        // A boundary selection (a provider argument mapping) is a pair relation. At a use whose Host admission is exact
+        // number erasure it is superseded by the use-scoped erasure (A3); any other boundary there is conflicting.
+        const erased = retained !== undefined && readCsharpNumberErasure(erasureHost, expression, source, target, mode) !== undefined;
+        if (erased && !csharpNumberErasureSupersedes(retained.selection)) return failTargetAnalysisInvariant("tsonic-csharp",
+          "A boundary conversion conflicts with the Host exact number erasure at this use.", expression);
+        const boundary = erased ? undefined : retained;
         const selected = boundary === undefined ? classifyExpression(expression, source, target, mode, exactInteger, sourceCompletion) : boundary.selection;
         if (selected === undefined) return undefined;
         admitCsharpDelegateEmission(delegateContracts, source, target, selected);
         issues.push(...admitCsharpDelegateOperand(policy.ast, captures, creations, delegateContracts, expression, source, target, selected));
-        if (boundary === undefined && sourceCompletion?.kind !== "void") classifyPair(source, target, mode, expression);
+        if (retained === undefined && sourceCompletion?.kind !== "void") classifyPair(source, target, mode, expression);
         const key = csharpConversionKey(source, target, mode);
         if (boundary !== undefined) {
           const selections = expressionSelections.get(expression) ?? new Map();
@@ -246,12 +257,32 @@ export function analyzeCsharpConversions(
     if (source === undefined || target === undefined) {
       return csharpUnavailableConversion;
     }
+    // The Host admission of this exact use is read before any cached classification is accepted (A3): the cache is
+    // keyed by use, and a pair classified at another use lends no authority here.
+    const erasure = readCsharpNumberErasure(erasureHost, expression, source, target, mode);
     const key = csharpConversionKey(source, target, mode);
     let selections = expressionSelections.get(expression);
     const previousClassification = selections?.get(key);
     const previous = previousClassification?.selection;
     if (previous !== undefined && previous.kind !== "rejected") {
+      if ((previous.kind === "exact-number-erasure") !== (erasure !== undefined)) return failTargetAnalysisInvariant("tsonic-csharp",
+        "A cached native conversion conflicts with the Host slot admission of the same use.", expression);
       return previous;
+    }
+    if (erasure !== undefined) {
+      if (!reserveClassification(expression)) return undefined;
+      // The float64 result follows the ordinary CLR relation into the destination (a number box).
+      const boxed = classifyPair(erasure.result, target, "implicit", expression);
+      if (boxed === undefined) return undefined;
+      const selected = admitCsharpConversionSelection(conversionPolicy, source, target,
+        selectCsharpExactNumberErasure(erasure.input, erasure.result, boxed), sourceCompletion);
+      if (preparedValueReads !== undefined) requestLiteralConversion(expression, source, target, selected, preparedValueReads);
+      if (selections === undefined) {
+        selections = new Map();
+        expressionSelections.set(expression, selections);
+      }
+      selections.set(key, Object.freeze({ source, target, selection: selected, operandStability: "snapshot" as const }));
+      return selected;
     }
     prepareStructuralDependencies(expression, source, target);
     if (!reserveClassification(expression)) {
@@ -287,7 +318,7 @@ export function analyzeCsharpConversions(
       : selectedCall.call.targetMember.parameters[argument.targetParameterIndex];
     const parameterConversion = parameter === undefined ? undefined : selectCsharpSourceTypeFlowIndexConversion(
       policy.facts.values.type(expression), { kind: "parameter", expression, parameter }, source, target);
-    let candidate = indexConversion ?? countConversion ?? parameterConversion ?? selectCsharpIntegerTruncationConversion(policy, expression, sourceFile, source, target) ?? selectCsharpExpressionConversion(
+    let candidate = indexConversion ?? countConversion ?? parameterConversion ?? selectCsharpIntegerTruncationConversion(policy, expression, source, target) ?? selectCsharpExpressionConversion(
       conversionPolicy,
       expression,
       source,

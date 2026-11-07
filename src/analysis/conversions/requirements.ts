@@ -341,7 +341,7 @@ export function collectCsharpConversionRequirements(input: CsharpConversionRequi
         roots.set(targetTypeRefKey(type), type); propertyProjectionRoots.set(subject, roots);
       }
       const binding = selection.source.arguments.find(binding => binding.argument === subject);
-      const parameterType = binding === undefined ? undefined : selection.source.parameters[binding.parameterIndex];
+      const parameterType = binding === undefined ? undefined : selection.source.parameters[binding.parameterIndex]?.type;
       const projected = parameterType === undefined ? undefined
         : selectCsharpPropertyProjections(subject, type, parameterType, policy, objectShapes);
       if (projected === undefined) {

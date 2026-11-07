@@ -4,7 +4,6 @@ import test from "node:test";
 import { selectCsharpNativeHandler } from "../../../dist/policy/operations/pointers/native-handlers.js";
 import { selectCsharpNativePointerOperation } from "../../../dist/analysis/operations/pointers/native-pointers.js";
 import { rawPointerOperationFactKey } from "@tsonic/tsts";
-import { tsonicNativePointerOperationFactKey } from "@tsonic/source-core/facts";
 import { csharpRuntimeRawPointerTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
 
 const binding = Object.freeze({ kind: "field" });
@@ -71,22 +70,30 @@ for (const [row, handler, cases] of precedence) {
 test("unchosen native pointer candidates do no carrier-resolution work on exact checked identities", () => {
   const node = {};
   const operand = {};
-  const sourceType = {};
+  const descriptor = { kind: "intrinsic", intrinsic: "unknown" };
   const scalar = { kind: "source-primitive", name: "int32" };
   const raw = csharpRuntimeRawPointerTargetType();
   const pointer = { kind: "pointer", pointee: scalar };
-  const native = { operation: "load", pointerExpression: operand, pointerType: sourceType };
-  const identity = { call: node, operation: "hash-raw-pointer", pointerExpression: operand, pointerType: sourceType };
-  for (const [name, facts, carrier, expected, queries] of [
-    ["ordinary", new Map(), undefined, "not-native-pointer", 0],
-    ["native load", new Map([[tsonicNativePointerOperationFactKey, native]]), pointer, "load", 1],
-    ["raw identity", new Map([[rawPointerOperationFactKey, identity]]), raw, "raw-identity", 1],
+  // The native pointer operation is the source-core Host record (K-2662); the raw identity is the checker-free Legacy
+  // witness (operand nodes only) with Host operand descriptors.
+  const native = { kind: "resolved", operation: "load", call: node, pointer: { expression: operand, type: descriptor },
+    pointee: descriptor, result: descriptor };
+  const identity = { call: node, operation: "hash-raw-pointer", pointerExpression: operand };
+  for (const [name, record, facts, carrier, expected, queries] of [
+    ["ordinary", undefined, new Map(), undefined, "not-native-pointer", 0],
+    ["native load", native, new Map(), pointer, "load", 1],
+    ["raw identity", undefined, new Map([[rawPointerOperationFactKey, identity]]), raw, "raw-identity", 1],
   ]) {
     let reads = 0;
+    const core = {
+      memory: { rawLocation: () => undefined, rawAddress: () => undefined, observation: () => undefined },
+      pointers: { native: subject => subject === node ? record : undefined, view: () => undefined },
+    };
     const policy = { sourceFacts: { getFact: (subject, key) => subject === node ? facts.get(key) : undefined },
+      facts: { analyses: { extension: () => core }, values: { type: () => ({ kind: "resolved", type: descriptor }) } },
       ast: { is: { IsCallExpression: subject => subject === node }, arguments: () => [operand] },
-      types: { resolveSelectedValue(subject, selectedType) {
-        reads++; assert.equal(subject === operand && selectedType === sourceType, true, name); return carrier;
+      types: { value(subject) {
+        reads++; assert.equal(subject === operand, true, name); return carrier;
       } } };
     const selected = selectCsharpNativePointerOperation(policy, node, {});
     assert.equal(selected.kind, expected, name);

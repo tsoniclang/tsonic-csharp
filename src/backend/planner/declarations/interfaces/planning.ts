@@ -54,7 +54,7 @@ export function planInterfaceDeclaration(
 ): CsharpInterfaceDeclaration {
   const declaration = AsInterfaceDeclaration(input.program.source.ast, node);
   if (declaration === undefined) failCsharpPlannerInvariant("An admitted interface requires its checked source declaration.", node);
-  const objectShape = getCsharpObjectShapeFactForNode(node, sourceFile, input);
+  const objectShape = getCsharpObjectShapeFactForNode(node, input);
   const interfaces = planInterfaceHeritage(node, input);
   const jsonSerializable = objectShape !== undefined && objectShapeRequiresJsonSerialization(input, objectShape);
   const members = (declaration.Members?.Nodes ?? []).flatMap((member): CsharpInterfaceMember[] => {

@@ -64,7 +64,7 @@ export function selectCsharpEmittedExpressions(input: CsharpCallPlanningRecords 
 export function csharpCallIsPlannedAsSourceCall(node: Node, records: CsharpCallPlanningRecords): boolean {
   const call = records.operations.selectedCall.get(node);
   const argument = records.evidence.sourceArgument.get(node);
-  if (argument?.kind === "resolved" && argument.argument.passingMode !== "by-value" && argument.argument.storageExpression !== node) return false;
+  if (argument !== undefined && argument.passingMode !== "by-value" && argument.storageExpression !== node) return false;
   if (call?.target?.kind !== "source-owned" || records.evidence.sourceDefaultValue.get(node) !== undefined ||
     records.operations.nativeHandler.get(node) !== undefined) return false;
   const form = call.form.kind;

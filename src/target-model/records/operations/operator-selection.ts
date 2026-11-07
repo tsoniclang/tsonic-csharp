@@ -7,7 +7,7 @@ import type { Node } from "@tsonic/tsts";
 
 export type CsharpOperationSelection<T> =
   | T
-  | { readonly kind: "rejected"; readonly reason: string };
+  | { readonly kind: "rejected"; readonly reason: string; readonly code: `CSHARP_${string}` };
 
 export interface CsharpResolvedBinaryOperation {
   readonly kind: "resolved";

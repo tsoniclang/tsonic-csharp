@@ -18,5 +18,6 @@ export function selectCsharpNativeElementDeletion(
     return { kind: "resolved", receiver: receiverExpression, index: indexExpression,
       keyType: csharpSourcePrimitiveTargetType("float64"), targetMemberName: mutation.deleteAtMemberName };
   }
-  return { kind: "rejected", reason: "Deletion requires an exact native indexed-record or JS Array deletion contract." };
+  return { kind: "rejected", reason: "Deletion requires an exact native indexed-record or JS Array deletion contract.",
+    code: "CSHARP_ELEMENT_DELETION_NOT_PROVEN" };
 }

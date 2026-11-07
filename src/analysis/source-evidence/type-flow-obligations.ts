@@ -77,8 +77,14 @@ export function analyzeCsharpSourceTypeFlowObligations(
 }
 
 /**
- * An inferred object-literal admission whose literal is the initializer of its principal declaration, both typed
- * exactly as the obligation: the registered construction shape is retained for both and is the obligation's carrier.
+ * The physical carrier of an inferred object-literal admission (K-2664, WP0 A5, BF16 fix-forward): the literal is the
+ * A5 initializer of its principal declaration (`provenance.principal`; never the solved group, an AST parent or the
+ * literal itself), the literal and the principal are published in one file with exactly the obligation's descriptor,
+ * and the literal's native construction is the carrier both of them read. The read owner (physical-reads.ts, composed
+ * by `types.value`) has already proven that carrier: equal scoped storage, the BF16 canonical value storage of the
+ * logical shape, and exact member origins and widths. The construction shape must be the registered shape of that
+ * carrier. Any other case returns undefined and the obligation is checked against its logical representation with an
+ * ordinary C# conversion proof (no waiver).
  */
 function retainedLiteralShape(
   policy: CsharpPolicyContext,
@@ -107,12 +113,8 @@ function retainedLiteralShape(
   if (selectedType === undefined || storageType === undefined || !targetTypeRefEquals(selectedType, selected.targetType) ||
     !targetTypeRefEquals(storageType, selected.targetType)) return undefined;
   const registered = objectShapes.resolveTarget(selected.targetType);
-  if (registered === undefined || !targetTypeRefEquals(registered.targetType, selected.targetType) ||
-    !csharpObjectShapesEqual(registered, selected.shape)) return undefined;
-  const retained = policy.objectShapes.retainConstructionSource(occurrence, registered);
-  const retainedPrincipal = policy.objectShapes.retainConstructionSource(declaration, registered);
-  return retained !== undefined && retainedPrincipal !== undefined && csharpObjectShapesEqual(registered, retained) &&
-    csharpObjectShapesEqual(registered, retainedPrincipal) ? retained.targetType : undefined;
+  return registered !== undefined && targetTypeRefEquals(registered.targetType, selected.targetType) &&
+    csharpObjectShapesEqual(registered, selected.shape) ? registered.targetType : undefined;
 }
 
 /** The instantiated call parameter an argument obligation names (selections.call parameters, after instantiation). */
@@ -126,7 +128,7 @@ function associatedParameter(policy: CsharpPolicyContext, obligation: SourceObli
   if (selection === undefined || selection.kind === "refused") return undefined;
   const correspondence = selection.arguments.find(entry => entry.argument === obligation.argument);
   const parameter = correspondence === undefined ? undefined : selection.parameters[correspondence.parameterIndex];
-  return parameter === undefined ? undefined : representedOrUndefined(types.represent(parameter, obligation.argument, "storage"));
+  return parameter === undefined ? undefined : representedOrUndefined(types.represent(parameter.type, obligation.argument, "storage"));
 }
 
 /** The .NET constraints of the binder an obligation names, with the call's receiver and method binders substituted. */

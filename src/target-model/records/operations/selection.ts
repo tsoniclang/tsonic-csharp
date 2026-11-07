@@ -35,11 +35,19 @@ export type CsharpAdmittedIteration =
       readonly binding: CsharpForInKeyBinding;
     });
 
+/**
+ * The Source side of a loop iteration. for-of / for-await-of carry the Host iteration selection
+ * (facts.selections.iteration); for-in has none: its key type is the key binding's storage.
+ */
+export type CsharpLoopIterationSource =
+  | { readonly kind: "for-of" | "for-await-of"; readonly statement: Node; readonly selection: SourceIterationSelection }
+  | { readonly kind: "for-in"; readonly statement: Node };
+
 export type CsharpResolvedIteration =
   | {
       readonly kind: "resolved";
       readonly iterationKind: "for-await-of";
-      readonly source: SourceIterationSelection;
+      readonly source: Exclude<CsharpLoopIterationSource, { readonly kind: "for-in" }>;
       readonly iterableType: TargetTypeRef;
       readonly elementType: TargetTypeRef;
       readonly lowering: {
@@ -52,7 +60,7 @@ export type CsharpResolvedIteration =
   | {
       readonly kind: "resolved";
       readonly iterationKind: "for-of";
-      readonly source: SourceIterationSelection;
+      readonly source: Exclude<CsharpLoopIterationSource, { readonly kind: "for-in" }>;
       readonly iterableType: TargetTypeRef;
       readonly elementType: TargetTypeRef;
       readonly lowering: { readonly kind: "foreach" } | {
@@ -64,7 +72,7 @@ export type CsharpResolvedIteration =
   | {
       readonly kind: "resolved";
       readonly iterationKind: "for-of";
-      readonly source: SourceIterationSelection;
+      readonly source: Exclude<CsharpLoopIterationSource, { readonly kind: "for-in" }>;
       readonly iterableType: TargetTypeRef;
       readonly elementType: TargetTypeRef;
       readonly lowering: {
@@ -75,7 +83,7 @@ export type CsharpResolvedIteration =
   | {
       readonly kind: "resolved";
       readonly iterationKind: "for-in";
-      readonly source: SourceIterationSelection;
+      readonly source: Extract<CsharpLoopIterationSource, { readonly kind: "for-in" }>;
       readonly iterableType: TargetTypeRef;
       readonly elementType: TargetTypeRef;
       readonly lowering: {
@@ -86,7 +94,7 @@ export type CsharpResolvedIteration =
   | {
       readonly kind: "resolved";
       readonly iterationKind: "for-in";
-      readonly source: SourceIterationSelection;
+      readonly source: Extract<CsharpLoopIterationSource, { readonly kind: "for-in" }>;
       readonly iterableType: TargetTypeRef;
       readonly elementType: TargetTypeRef;
       readonly lowering: Extract<
@@ -97,7 +105,7 @@ export type CsharpResolvedIteration =
   | {
       readonly kind: "resolved";
       readonly iterationKind: "for-in";
-      readonly source: SourceIterationSelection;
+      readonly source: Extract<CsharpLoopIterationSource, { readonly kind: "for-in" }>;
       readonly iterableType: TargetTypeRef;
       readonly elementType: TargetTypeRef;
       readonly lowering: Extract<

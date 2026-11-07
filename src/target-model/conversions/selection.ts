@@ -109,6 +109,17 @@ export type CsharpConversionSelection =
     }
   | { readonly kind: "js-value-box" }
   | {
+      /**
+       * N3′/WP0 A3: the Host admitted exact number erasure at this one use. The int64 value converts exactly to float64
+       * (`result`), which then follows `conversion` (float64 → destination). Use-scoped: only an expression conversion
+       * record carries it, never a pair record.
+       */
+      readonly kind: "exact-number-erasure";
+      readonly input: TargetTypeRef;
+      readonly result: TargetTypeRef;
+      readonly conversion: CsharpConversionSelection;
+    }
+  | {
       readonly kind: "js-value-cast";
       readonly runtimeUnionArms?: readonly TargetTypeRef[];
     }

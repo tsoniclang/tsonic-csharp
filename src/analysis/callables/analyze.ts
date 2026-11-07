@@ -26,6 +26,7 @@ import type { CsharpConversionClassifications } from "../../target-model/records
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
 import { csharpConversionIsApplicable } from "../../policy/conversions/applicability.js";
 import { csharpArgumentVectorCallbackResultMatches } from "../../policy/conversions/callable-completions.js";
+import { csharpCallableImplementation } from "./implementation.js";
 
 export function analyzeCsharpCallableContracts(
   policy: CsharpPolicyContext,
@@ -279,9 +280,8 @@ export function analyzeCsharpCallableContracts(
       }
     } else if ((policy.ast.is.IsFunctionDeclaration(node) || policy.ast.is.IsMethodDeclaration(node) ||
         policy.ast.is.IsConstructorDeclaration(node)) && source.facts.navigation.identity.isProjectDeclaration(node)) {
-      const implementation = source.facts.objects.callableImplementation(node);
-      if (implementation !== "unrelated" && implementation.kind !== "refused" &&
-        source.facts.navigation.identity.isProjectDeclaration(implementation) &&
+      const implementation = csharpCallableImplementation(source.facts, node);
+      if (implementation !== "unrelated" && source.facts.navigation.identity.isProjectDeclaration(implementation) &&
         isCsharpSourceCallableArtifactDeclaration(policy.ast, implementation)) {
         checkedDeclarations.push({ declaration: node, sourceFile });
       }

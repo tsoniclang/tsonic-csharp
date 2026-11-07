@@ -14,8 +14,8 @@ export function classifyCsharpModuleFieldDemand(
     if (evidence.compileTimeMetadata.get(node) || IsTypeSyntaxNode(policy.ast, node) ||
       policy.facts.navigation.scopes.unreachable(node)) return;
     const selected = selectCsharpSourceArgument(policy.sourceFacts, node);
-    if (selected.kind === "resolved" && selected.argument.passingMode !== "by-value") {
-      const expression = selected.argument.storageExpression;
+    if (selected.passingMode !== "by-value") {
+      const expression = selected.storageExpression;
       const declaration = policy.facts.selections.storage(expression)?.declaration;
       if (declaration !== undefined && (policy.ast.is.IsVariableDeclaration(declaration) ||
         policy.ast.is.IsBindingElement(declaration)) && policy.facts.navigation.scopes.isModuleScoped(declaration)) {

@@ -9,8 +9,7 @@ export type CsharpRegularExpressionLiteralSelection =
     }
   | {
       readonly kind: "rejected";
-      readonly code:
-        | "CSHARP_JS_REGEXP_SYNTAX_INVALID"
-        | "CSHARP_JS_REGEXP_TARGET_NOT_PROVEN";
+      // The regexp policy codes, or the representation refusal of the literal's carrier, forwarded.
+      readonly code: `CSHARP_${string}`;
       readonly message: string;
     };

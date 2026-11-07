@@ -1,6 +1,6 @@
 import type { Node } from "@tsonic/tsts";
 import { tsonicDataLayoutFactKey } from "@tsonic/source-core/facts";
-import type { TsonicDataLayoutFact, TsonicMemoryLayoutFact } from "@tsonic/source-core/facts";
+import type { TsonicDataLayoutFact, TsonicMemoryLayoutRecord } from "@tsonic/source-core/facts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { csharpNativeArrayMemoryLayoutRejection, selectCsharpDeclaredNativeMemoryLayout, selectCsharpNativeMemoryLayout, selectCsharpRawLocation } from "../operations/pointers/native-memory.js";
 import type { CsharpNativeMemoryLayout } from "../../target-model/operations/native-memory.js";
@@ -41,7 +41,7 @@ export function prepareCsharpNativeBacking(
   const reject = (node: Node, message: string): void => {
     issues.push(Object.freeze({ node, code: "CSHARP_NATIVE_BACKING_NOT_PROVEN", message }));
   };
-  const retainLayout = (origin: Node, use: Node, layout: TsonicMemoryLayoutFact, native: CsharpNativeMemoryLayout): boolean => {
+  const retainLayout = (origin: Node, use: Node, layout: TsonicMemoryLayoutRecord, native: CsharpNativeMemoryLayout): boolean => {
     const previous = retainedLayouts.get(origin);
     if (previous !== undefined && (previous.stride !== layout.stride ||
       !tsonicDataLayoutFactKey.equals(previous.dataLayout, layout.dataLayout) ||
@@ -118,13 +118,13 @@ export function prepareCsharpNativeBacking(
             ...component.declarations.map(node => [node, "binding"] as [Node, "binding"]),
             ...component.references.map(node => [node, "reference"] as [Node, "reference"]),
             ...component.literals.map(node => [node, "literal"] as [Node, "literal"]),
-            ...component.elements.map(element => [element.expression, "element"] as [Node, "element"]),
+            ...component.elements.map(element => [element, "element"] as [Node, "element"]),
           ];
           const valid = component.declarations.every(node => {
             const carrier = evidence.storageTargetType.get(node);
             return carrier?.kind === "array" && targetTypeRefEquals(carrier.element, selected.pointeeType);
           }) && component.elements.every(element => {
-            const target = operations.selectedElement.get(element.expression);
+            const target = operations.selectedElement.get(element);
             return target?.receiverType?.kind === "array" && targetTypeRefEquals(target.receiverType.element, selected.pointeeType);
           }) && subjects.every(([node]) => {
             const previous = arrays.get(node);
@@ -180,7 +180,7 @@ export function prepareCsharpNativeBacking(
     finalize(objectShapes: CsharpObjectShapeClassifications) {
       if (finalized) return failTargetAnalysisInvariant("tsonic-csharp", "Native field backing finalizes exactly once per complete representation iteration.");
       finalized = true;
-      return finalizeCsharpNativeFieldBacking(policy, evidence, operations, objectShapes, fieldDemands);
+      return finalizeCsharpNativeFieldBacking(policy, operations, objectShapes, fieldDemands);
     },
     entries: Object.freeze([...backings].map(([subject, geometry]) => Object.freeze({ subject, layout: geometry.layout }))),
     get: (subject: Node) => backings.get(subject)?.layout });
@@ -188,7 +188,6 @@ export function prepareCsharpNativeBacking(
 
 function finalizeCsharpNativeFieldBacking(
   policy: CsharpPolicyContext,
-  evidence: CsharpSourceEvidenceAnalysis,
   operations: CsharpTargetOperationClassifications,
   objectShapes: CsharpObjectShapeClassifications,
   fieldDemands: readonly CsharpNativeFieldDemand[],

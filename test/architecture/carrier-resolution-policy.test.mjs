@@ -35,10 +35,12 @@ test("recursive object-shape policies cannot re-enter the public type resolver",
   const failures = [];
   for (const filePath of recursivePolicyFiles) {
     const text = readFileSync(filePath, "utf8");
-    if (/\b(?:host|input)\.types\.(?:resolveNode|resolveSelectedType|resolveType)\b/u.test(text)) {
+    // nextgen C-2542: the public type queries are CsharpTypeQueries (value, represent, storage, ...); the retired
+    // resolver names stay banned too.
+    if (/\b(?:host|input)\.types\.(?:value|represent|representSum|storage|readStorage|callableReturn|awaited|instantiation|resolveNode|resolveSelectedType|resolveType)\b/u.test(text)) {
       failures.push(`${repoRelative(filePath)}: re-enters the public type resolver from recursive shape analysis`);
     }
-    if (/\bcreateCsharpTypePolicy\b/u.test(text)) {
+    if (/\bcreateCsharp(?:TypePolicy|TypeAnalysis)\b/u.test(text)) {
       failures.push(`${repoRelative(filePath)}: constructs a fresh public type resolver during recursive shape analysis`);
     }
   }

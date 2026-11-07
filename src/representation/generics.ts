@@ -88,8 +88,12 @@ function isNumericDescriptor(descriptor: SourceTypeDescriptor): boolean {
  * C# constraints of one generic binder, from the Host descriptor of each authored constraint part.
  * Every form .NET cannot state is one precise `unsupported` result, never a throw and never a guess:
  * a declaration that is not a type-parameter declaration (no proof of an empty constraint set), a malformed
- * parenthesized or intersection part, a constraint part the Host refused (its code and message forwarded, R5),
- * a part whose representation is a CSHARP_ refusal, and a carrier with no C# constraint clause.
+ * parenthesized or intersection part, a part whose representation is a CSHARP_ refusal, and a carrier with no C#
+ * constraint clause.
+ * A constraint part the Host refused is NOT R5 forwarding: R5 forwards Host refusals unchanged, before C# analysis
+ * (analysis/program/analyze.ts). The Host answers authored type nodes lazily (solver `typeSyntax`), and those refusals
+ * are not yet in facts.refusals(), so this branch can be reached by a valid program and stays until the Host collects
+ * them (request R-C7-6, AGENT-C7-NOTES.md). After that it becomes the shared invariant reader (K-2670).
  * Only a binder declaration without a `Constraint` is unconstrained (`resolved []`).
  */
 export function representTypeParameterConstraints(
@@ -123,6 +127,7 @@ export function representTypeParameterConstraints(
     let descriptor: SourceTypeDescriptor | undefined;
     if (!objectKeyword) {
       const outcome = services.facts.values.type(part);
+      // Pending R-C7-6: a lazy type-syntax refusal, not yet in facts.refusals() (see the comment above).
       if (outcome.kind === "refused") return { kind: "unsupported",
         reason: `Generic binder '${parameter.name}' constraint was refused by the Host (${outcome.code}): ${outcome.reason}` };
       descriptor = outcome.type;

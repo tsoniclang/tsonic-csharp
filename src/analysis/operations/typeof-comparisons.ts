@@ -5,72 +5,113 @@ import type { CsharpTypeofRuntimeKind } from "../../policy/types/index.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpBinaryClassification } from "../../target-model/records/operations/operations.js";
 import type { CsharpTypeofResult } from "../../target-model/types/runtime-kind.js";
-import type { SourceNullishAdmission, SourceTypeDescriptor } from "@tsonic/target-api/source";
+import type { SourceNullishAdmission, SourceTypeDescriptor, SourceTypeofCategoryName } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
 import { getCsharpRuntimeUnionArms, isCsharpAbsenceTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
-import { isCsharpRefusal, type CsharpRefusal } from "../../representation/index.js";
+import { csharpRefusal, isCsharpRefusal, type CsharpRefusal } from "../../representation/index.js";
+import { selectCsharpJsTypeofOperation } from "./js-values.js";
 
 /**
- * The typeof result of `typeof operand` (or a typeof comparison) at one operation (N3', A1, A7, C-2479 decision 2 (c)).
- * Category authority is the Host typeof record only (facts.values.typeofCategory), taken from the declared TS type
- * before erasure: a scalar operand carries one category, a closed-sum operand carries the category of every closed arm.
- * C# only projects the Host categories onto the physical carrier (the nullable element, or the runtime union arms
- * positional in Host arm order, R6) and emits the runtime test; it never classifies a category from a carrier (a Q1
- * int64 of number origin stays "number"). A missing published category for a supported form is an invariant failure.
+ * How C# answers `typeof operand` at one operation (N3', N7, A1, A7, C-2479 decision 2 (c), K-2665):
+ * - `dynamic`: the operand's carrier is the opaque JS value (TsValue: `unknown`, `any`). The existing runtime operation
+ *   `TsValue.ApplyDynamicTypeof` (jsTypeof, published for the operand node) reads the category at run time. No static
+ *   category is selected or required: the Host proves none for an opaque value, and its absent admission is unproven.
+ * - `static`: a closed carrier. The Host typeof record (facts.values.typeofCategory) is the only category authority:
+ *   C# projects it onto the physical carrier (the nullable element, or the runtime union arms positional in Host arm
+ *   order, R6). It never classifies a category from a carrier (a Q1 int64 of number origin stays "number", K-2658).
+ * - a CSHARP_ refusal: a closed carrier whose Host category is unproven (a type parameter, `object`, an arm whose
+ *   values prove no single category). The carrier cannot recover the TypeScript category (one native carrier holds
+ *   number- and bigint-origin wide integers) and the target keeps no runtime category for it.
+ * A missing Host mapping for a supported form (an arm of a published closed sum, the nullable carrier of a nullish
+ * operand) is an invariant failure.
  */
-export function selectCsharpTypeofResult(
+export type CsharpTypeofSelection =
+  | { readonly kind: "dynamic" }
+  | { readonly kind: "static"; readonly carrier: TargetTypeRef; readonly result: CsharpTypeofResult }
+  | CsharpRefusal;
+
+const dynamicTypeof = Object.freeze({ kind: "dynamic" as const });
+
+export function selectCsharpTypeofSelection(
   policy: CsharpPolicyContext,
   operation: Node,
   operand: Node,
-): CsharpTypeofResult | CsharpRefusal {
+): CsharpTypeofSelection {
+  // The dynamic operation is decided first, by the same selection the emission reads (jsTypeof), so a static
+  // classification never preempts it.
+  if (selectCsharpJsTypeofOperation(policy, operand).kind === "resolved") return dynamicTypeof;
   const carrier = policy.types.value(operand);
   if (isCsharpRefusal(carrier)) return carrier;
-  const admission = policy.facts.values.typeofCategory(operation, operand);
-  if (admission.admission === "both" || admission.admission === "unavailable") return failTargetAnalysisInvariant("tsonic-csharp",
-    "typeof over a value that may be null or undefined (or is unproved) is a Host refusal; Host refusals are forwarded before C# analysis.",
-    operation);
-  const absent = admission.admission === "undefined-only" ? "undefined" as const : "object" as const;
+  const record = policy.facts.values.typeofCategory(operation, operand);
+  if (record.kind === "refused") return failTargetAnalysisInvariant("tsonic-csharp",
+    "A refused typeof site is a Host refusal; Host refusals are forwarded before C# analysis.", operation);
+  // The absent value's category. undefined-only: "undefined"; null-only: "object". both / unavailable: the program's one
+  // native absence, which the runtime reads as "object" (TsValue.ApplyDynamicTypeof(null)). The one comparison where
+  // that differs from a both-admitting TypeScript value, `typeof v === "undefined"` and its negations, is the Host N7
+  // refusal; every other category literal has one answer for both null and undefined.
+  const absent = record.admission === "undefined-only" ? "undefined" as const : "object" as const;
   if (isCsharpAbsenceTargetType(carrier)) {
-    if (admission.admission === "none") return missing(operation, "an absence-only operand without a nullish admission");
-    return absent;
+    if (record.admission === "none") return missing(operation, "a nullish admission for an absence-only operand");
+    return Object.freeze({ kind: "static" as const, carrier, result: absent });
   }
   const element = getCsharpNullableElementTargetType(carrier);
   const present = element ?? carrier;
-  const value = admission.sum === undefined
-    ? admission.category ?? missing(operation, "a scalar typeof category")
-    : sumCategories(policy, operation, present, admission.sum);
+  const value = record.sum === undefined
+    ? record.category ?? notProven(operation)
+    : sumCategories(policy, operation, present, record.sum);
+  if (isCsharpRefusal(value)) return value;
   if (element === undefined) {
-    if (admission.admission !== "none") return missing(operation, "the nullable carrier of a nullish-admitting operand");
-    return value;
+    if (record.admission !== "none") return missing(operation, "the nullable carrier of a nullish-admitting operand");
+    return Object.freeze({ kind: "static" as const, carrier, result: value });
   }
-  return Object.freeze({ kind: "optional" as const, sourceCarrier: carrier, element, value, absent });
+  return Object.freeze({ kind: "static" as const, carrier,
+    result: Object.freeze({ kind: "optional" as const, sourceCarrier: carrier, element, value, absent }) });
 }
 
-/** Host closed-arm categories projected onto the runtime union arms (present arms in Host order; absence is lifted). */
+/** Host closed-arm categories projected onto the carrier of the present arms (absence is lifted to the nullable). */
 function sumCategories(
   policy: CsharpPolicyContext,
   operation: Node,
   carrier: TargetTypeRef,
   published: NonNullable<SourceNullishAdmission["sum"]>,
-): CsharpTypeofResult {
+): CsharpTypeofResult | CsharpRefusal {
   const sum = policy.facts.sums.sum(published.identity);
-  const present = [...published.arms]
-    .filter(entry => !isAbsenceDescriptor(sum.arms[entry.arm]?.type ?? missing(operation, "a closed arm of the published sum")))
-    .sort((left, right) => left.arm - right.arm);
+  // Every closed arm, once, from its role (A7). An arm listed by two roles carries one category.
+  const categories = new Map<number, SourceTypeofCategoryName | "unproven">();
+  for (const role of published.roles) {
+    for (const entry of role.arms) {
+      const known = categories.get(entry.arm);
+      if (known !== undefined && known !== entry.category) missing(operation, "one category per closed arm");
+      categories.set(entry.arm, entry.category);
+    }
+  }
+  if (categories.size !== sum.arms.length) missing(operation, "exactly one category per closed arm of the published sum");
+  const present: (SourceTypeofCategoryName | "unproven")[] = [];
+  for (const [index, arm] of sum.arms.entries()) {
+    const category = categories.get(index) ?? missing(operation, "a category for every closed arm of the published sum");
+    if (!isAbsenceDescriptor(arm.type)) present.push(category);
+  }
   const arms = getCsharpRuntimeUnionArms(carrier, policy.typeDefinitions);
   if (arms === undefined) {
-    // A sum whose present arms share one carrier (one present arm) has a scalar carrier; its single Host category applies.
-    if (present.length !== 1) return missing(operation, "the runtime union carrier of a multi-arm sum");
-    return present[0]!.category;
+    // One scalar carrier holds every present arm, so they share one category.
+    if (present.includes("unproven")) return notProven(operation);
+    if (new Set(present).size !== 1) return missing(operation, "a runtime union carrier for closed arms of different categories");
+    return present[0] as CsharpTypeofRuntimeKind;
   }
   if (arms.length !== present.length) return missing(operation, "one published category per runtime union arm");
+  if (present.includes("unproven")) return notProven(operation);
   return Object.freeze({ kind: "runtime-union" as const, sourceCarrier: carrier,
-    arms: Object.freeze(arms.map((arm, index) => Object.freeze({ carrier: arm, result: present[index]!.category }))) });
+    arms: Object.freeze(arms.map((arm, index) => Object.freeze({ carrier: arm, result: present[index] as CsharpTypeofRuntimeKind }))) });
 }
 
 function isAbsenceDescriptor(type: SourceTypeDescriptor): boolean {
   return type.kind === "intrinsic" && (type.intrinsic === "absence" || type.intrinsic === "void");
+}
+
+function notProven(operation: Node): CsharpRefusal {
+  return csharpRefusal("CSHARP_TYPEOF_RUNTIME_KIND_NOT_PROVEN",
+    "C# typeof translation requires one exact statically proven target runtime kind.", operation);
 }
 
 function missing(operation: Node, subject: string): never {
@@ -89,15 +130,14 @@ export function classifyTypeofComparison(
   if (runtimeKind === undefined) {
     return undefined;
   }
-  const category = selectCsharpTypeofResult(policy, comparison, guard.sourceOperand);
-  const carrier = policy.types.value(guard.sourceOperand);
+  const selected = selectCsharpTypeofSelection(policy, comparison, guard.sourceOperand);
   return Object.freeze({
     operand: guard.sourceOperand,
     runtimeKind,
-    selection: isCsharpRefusal(carrier)
-      ? Object.freeze({ kind: "rejected" as const, reason: carrier.message, code: carrier.code })
-      : isCsharpRefusal(category) ? Object.freeze({ kind: "rejected" as const, reason: category.message, code: category.code })
-      : selectCsharpTypeofComparison(carrier, category, runtimeKind, guard.negated),
+    // A dynamic operand compares the runtime typeof string (typeof-emission); it has no static category selection.
+    selection: selected.kind === "dynamic" ? selected
+      : isCsharpRefusal(selected) ? Object.freeze({ kind: "rejected" as const, reason: selected.message, code: selected.code })
+      : selectCsharpTypeofComparison(selected.carrier, selected.result, runtimeKind, guard.negated),
   });
 }
 

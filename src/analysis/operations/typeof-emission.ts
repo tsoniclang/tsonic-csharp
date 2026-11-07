@@ -52,6 +52,12 @@ export function analyzeCsharpTypeofEmission(input: { readonly ast: AstReader; re
       ? "C# planning received a typeof expression without a sealed operation classification."
       : "C# planning received a typeof comparison without a sealed operation classification.", node);
     if (selected.kind === "rejected") { refuse(node, selected.code, selected.reason); continue; }
+    // One decision (K-2665): an opaque JS-value operand is typed at run time by its dynamic typeof operation, and its
+    // comparison was classified dynamic by the same selection (selectCsharpTypeofSelection).
+    if (comparison !== undefined && (comparison.selection.kind === "dynamic") !== (selected.kind === "resolved")) {
+      failTargetAnalysisInvariant("tsonic-csharp",
+        "A typeof comparison is dynamic exactly when its operand has the dynamic JS-value typeof operation.", node);
+    }
     let operation: CsharpTypeofOperationEmission;
     if (selected.kind === "resolved") operation = Object.freeze({ kind: "js-value", operation: selected });
     else if (comparison?.selection.kind === "rejected") { refuse(node, comparison.selection.code, comparison.selection.reason); continue; }
@@ -59,7 +65,8 @@ export function analyzeCsharpTypeofEmission(input: { readonly ast: AstReader; re
     else {
       const carrier = input.values.valueRead.get(operand)?.value;
       const category = comparison?.selection.kind === "runtime-category-test" ? comparison.selection.category : input.operations.typeofRuntimeKind.get(operand);
-      // The category is the one selected from the Host typeof record (selectCsharpTypeofResult); it is not re-derived here.
+      // The category is the one selected from the Host typeof record (selectCsharpTypeofSelection); it is not re-derived
+      // here. A closed operand without a selected category was refused there (CSHARP_TYPEOF_RUNTIME_KIND_NOT_PROVEN).
       if (carrier === undefined || category === undefined ||
         comparison?.selection.kind === "runtime-category-test" && !targetTypeRefEquals(carrier, comparison.selection.sourceCarrier)) {
         refuse(node, "CSHARP_TYPEOF_RUNTIME_KIND_NOT_PROVEN", isTypeof ? "C# typeof translation requires one exact statically proven target runtime kind."

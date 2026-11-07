@@ -1,4 +1,5 @@
 import { rejectCsharpAnalysisIssues } from "./issues.js";
+import { csharpCallableImplementation } from "../callables/implementation.js";
 import { csharpProviderBindingFromResolution } from "../../providers/model/relation-resolver.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import { analyzeCsharpCaptureStorage } from "../callables/storage/capture-storage.js";
@@ -9,7 +10,7 @@ import { analyzeCsharpClassFactories } from "../project-types/class-factories.js
 import { analyzeCsharpClassInitialization } from "../project-types/class-initialization.js";
 
 import type { CsharpRequiredRecord } from "./records/objects/required-records.js";
-import { sourceCallableValueExpression } from "@tsonic/target-api/source";
+import { sourceCallableValueExpression, type SourceProgramFacts } from "@tsonic/target-api/source";
 import { sourceCallSelection } from "./source-facts.js";
 import { analyzeCsharpExactLiteralSelections } from "../conversions/literal-plans.js";
 
@@ -24,7 +25,7 @@ import type { CsharpExpectedNativeUse } from "../../target-model/records/native/
 import { createCsharpProjectTypeCatalog } from "../project-types/catalog.js";
 import { createCsharpTypeDefinitionRegistry } from "../project-types/type-definitions.js";
 
-import { failTargetAnalysisInvariant, rejectedTargetStage, resolvedTargetStage } from "@tsonic/target-api/artifacts";
+import { rejectedTargetStage, resolvedTargetStage } from "@tsonic/target-api/artifacts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 
 import { createCsharpTypeAnalysis } from "./type-system.js";
@@ -349,8 +350,20 @@ export function analyzeCsharpRepresentationIteration(
 }
 
 /**
+ * The implementation of a selected project signature. A signature with a body is its own implementation; a non-project
+ * signature has no project implementation. A bodyless project signature (an overload) needs the Host's
+ * signature-to-implementation fact, which SourceProgramFacts does not publish yet (request R-E1-1:
+ * `objects.callableImplementation(contract): Node | "unrelated" | SourceRefusal`, D1 R-B1 / R-F4-2).
+ */
+function callableImplementation(facts: SourceProgramFacts, signature: Node): Node {
+  // The Host implementation of the selected signature; "unrelated" keeps the signature itself (baseline behaviour).
+  const implementation = csharpCallableImplementation(facts, signature);
+  return implementation === "unrelated" ? signature : implementation;
+}
+
+/**
  * The callable contract a source call reaches: the selected declaration from the Host call selection, or with
- * "implementation" the implementation the Host publishes for a contract declaration (objects.callableImplementation).
+ * "implementation" the implementation of the selected signature (callableImplementation).
  */
 function sourceCallableContract(
   input: CsharpTargetAnalysisRequest["input"],
@@ -374,15 +387,13 @@ function sourceCallableContract(
     }
   }
   if (call.declaration !== undefined && input.source.syntax.is.IsClassDeclaration(call.declaration)) {
-    const constructor = typeSystem?.projectTypes.implicitConstructorForSignature(call.declaration, call.signature, call.parameters);
+    const constructor = typeSystem?.projectTypes.implicitConstructorForSignature(call.declaration, call.signature,
+      call.parameters.map(parameter => parameter.type));
     if (constructor !== undefined) {
       return callables.get({ kind: "project-constructor", targetMemberId: constructor.targetMember.id });
     }
   }
-  const implementation = selection === "implementation" ? facts.objects.callableImplementation(call.signature) : "unrelated";
-  if (typeof implementation === "object" && "code" in implementation) failTargetAnalysisInvariant("tsonic-csharp",
-    "A callable implementation is a Host refusal at a node C# analyzed; Host refusals are forwarded before C# analysis.", use);
-  const declaration = implementation === "unrelated" ? call.signature : implementation;
+  const declaration = selection === "implementation" ? callableImplementation(facts, call.signature) : call.signature;
   return declaration !== undefined && facts.navigation.identity.isProjectDeclaration(declaration)
     ? callables.get({ kind: "declaration", declaration })
     : undefined;

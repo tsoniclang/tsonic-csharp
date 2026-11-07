@@ -151,7 +151,7 @@ for (const surface of ["native", "js"]) {
     assert.equal(compiled.result.diagnostics.length, 0,
       `bounded native admission: ${compiled.result.diagnostics.map(issue => `${issue.code}: ${issue.message}`).join(" | ")}`);
     const generated = [...compiled.artifacts.values()].join("\n");
-    const ast = compiled.result.program.source.ast;
+    const ast = compiled.result.program.source.syntax;
     const referenceOwners = new Set(["ReferenceOptionalBody", "NominalOptionalBody", "OuterOptionalBody"]);
     let referenceMethods = 0;
     const inspect = node => {

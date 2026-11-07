@@ -1,5 +1,5 @@
 import type { CsharpTypedLocationStorageSelection } from "../../target-model/records/storage/typed-location-storage.js";
-import type { Node, SourceFile } from "@tsonic/tsts";
+import type { Node } from "@tsonic/tsts";
 import { AsVariableDeclaration } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { selectCsharpTargetProperty } from "../operations/members/selected-members.js";
@@ -25,7 +25,6 @@ export function selectCsharpTypedLocationStorage(
   input: CsharpPolicyContext,
   expression: Node,
   valueType: TargetTypeRef,
-  sourceFile: SourceFile,
   active: WeakSet<Node>,
   selectedDeclaration: Node | undefined,
 ): CsharpTypedLocationStorageSelection {
@@ -49,7 +48,6 @@ export function selectCsharpTypedLocationStorage(
         input,
         expression,
         valueType,
-        sourceFile,
         active,
       );
     }
@@ -58,7 +56,6 @@ export function selectCsharpTypedLocationStorage(
         input,
         expression,
         valueType,
-        sourceFile,
       );
     }
     return storageRejected(
@@ -73,10 +70,9 @@ function selectCsharpPropertyStorage(
   input: CsharpPolicyContext,
   expression: Node,
   valueType: TargetTypeRef,
-  sourceFile: SourceFile,
   active: WeakSet<Node>,
 ): CsharpTypedLocationStorageSelection {
-  const selection = selectCsharpTargetProperty(input, expression, sourceFile);
+  const selection = selectCsharpTargetProperty(input, expression);
   if (selection.kind === "union-property") return storageRejected(
     "A native union operation is not one directly addressable writable property.");
   if (selection.kind !== "resolved" && selection.kind !== "source-owned") {
@@ -146,7 +142,6 @@ function selectCsharpPropertyStorage(
     input,
     source.receiver,
     receiverType,
-    sourceFile,
     active,
   );
   return receiverStorage.kind === "rejected"
@@ -167,9 +162,8 @@ function selectCsharpElementStorage(
   input: CsharpPolicyContext,
   expression: Node,
   valueType: TargetTypeRef,
-  sourceFile: SourceFile,
 ): CsharpTypedLocationStorageSelection {
-  const selection = selectCsharpTargetElement(input, expression, sourceFile);
+  const selection = selectCsharpTargetElement(input, expression);
   if (
     selection.kind !== "resolved" &&
     selection.kind !== "project-indexer" &&
@@ -232,7 +226,6 @@ function selectWritableReceiverStorage(
   input: CsharpPolicyContext,
   receiver: Node,
   receiverType: TargetTypeRef,
-  sourceFile: SourceFile,
   active: WeakSet<Node>,
 ): CsharpTypedLocationStorageSelection {
   const storage = input.facts.selections.storage(receiver);
@@ -261,7 +254,6 @@ function selectWritableReceiverStorage(
     input,
     storage.storageExpression,
     receiverType,
-    sourceFile,
     active,
     storage.declaration,
   );

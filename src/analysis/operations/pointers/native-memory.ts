@@ -4,8 +4,8 @@ import type { Node } from "@tsonic/tsts";
 import type { SourceTypeDescriptor } from "@tsonic/target-api/source";
 import type { CsharpRepresentation } from "../../../representation/index.js";
 import { sourceSlot } from "../../program/source-facts.js";
-import { countTsonicMemoryLayoutValues } from "@tsonic/source-core/facts";
-import type { TsonicDataLayoutFact, TsonicMemoryLayoutFact } from "@tsonic/source-core/facts";
+import { countTsonicMemoryLayoutRecordValues } from "@tsonic/source-core/facts";
+import type { TsonicDataLayoutFact, TsonicMemoryLayoutRecord } from "@tsonic/source-core/facts";
 import { providerVirtualDeclarationFactKey } from "@tsonic/tsts";
 import { csharpFixedArrayRepresentationRejection } from "../../../policy/types/collections/fixed-arrays.js";
 import { readCsharpSourceStruct } from "../../../source/extension/markers.js";
@@ -27,18 +27,18 @@ const represented = (representation: CsharpRepresentation): TargetTypeRef | unde
 const physicalIdentity = (type: SourceTypeDescriptor): unknown => type.kind === "declared" ? type.declaration : type;
 
 export function selectCsharpNativeMemoryLayout(
-  input: CsharpPolicyContext, layout: TsonicMemoryLayoutFact,
-  selected = new Map<TsonicMemoryLayoutFact, CsharpNativeMemoryLayout | undefined>(),
+  input: CsharpPolicyContext, layout: TsonicMemoryLayoutRecord,
+  selected = new Map<TsonicMemoryLayoutRecord, CsharpNativeMemoryLayout | undefined>(),
 ): CsharpNativeMemoryLayout | undefined {
-  if (selected.size === 0 && countTsonicMemoryLayoutValues(layout, 131_072) === undefined) return undefined;
+  if (selected.size === 0 && countTsonicMemoryLayoutRecordValues(layout, 131_072) === undefined) return undefined;
   if (selected.has(layout)) return selected.get(layout);
   selected.set(layout, undefined);
-  // source-core layout facts carry Host descriptors (request R-F1-6); C# only represents them.
+  // The source-core layout record carries Host descriptors (K-2662, I1); C# only represents them.
   const arrayElement = layout.kind === "array" ? represented(input.types.represent(
-    layout.fixedArray.elementSourceType, layout.fixedArray.elementType ?? layout.call, "storage")) : undefined;
+    layout.fixedArray.element, layout.fixedArray.elementTypeNode ?? layout.call, "storage")) : undefined;
   const pointeeType: TargetTypeRef | undefined = layout.kind === "array"
     ? arrayElement === undefined ? undefined : { kind: "array", element: arrayElement }
-    : represented(input.types.represent(layout.sourceType, layout.explicitTypeNode ?? layout.call, "storage"));
+    : represented(input.types.represent(layout.type, layout.explicitTypeNode ?? layout.call, "storage"));
   if (pointeeType === undefined) return undefined;
   if (layout.kind === "array") {
     if (csharpFixedArrayRepresentationRejection(layout.fixedArray) !== undefined ||
@@ -60,7 +60,7 @@ export function selectCsharpNativeMemoryLayout(
     if (layout.fields.length !== 0 || csharpNativeScalarByteSize(pointeeType, layout.dataLayout.addressWidth) !== layout.byteSize) return undefined;
   } else {
     if (pointeeType.kind !== "target-named") return undefined;
-    const members = input.facts.objects.members(layout.sourceType);
+    const members = input.facts.objects.members(layout.type);
     if ("code" in members) return undefined;
     const project = input.projectTypes.catalog.definitionForTarget(pointeeType);
     const sourceStruct = project?.kind === "struct"
@@ -72,9 +72,9 @@ export function selectCsharpNativeMemoryLayout(
       : targetFields?.kind === "struct" ? targetFields.csharpNativeMemoryFieldIds : undefined;
     if (completeFields === undefined || new Set(completeFields).size !== completeFields.length) return undefined;
     for (const field of layout.fields) {
-      const property = members.find(candidate => candidate.declarations.includes(field.selectedDeclaration));
+      const property = members.find(candidate => candidate.declarations.includes(field.declaration));
       if (property === undefined || property.optional) return undefined;
-      const child = selectCsharpNativeMemoryLayout(input, field.fieldLayout, selected);
+      const child = selectCsharpNativeMemoryLayout(input, field.layout, selected);
       if (child === undefined) return undefined;
       let name: string;
       let identity: string;
@@ -84,9 +84,9 @@ export function selectCsharpNativeMemoryLayout(
         if (sourceField === undefined || sourceField.readonly) return undefined;
         name = sourceField.sourceName;
         identity = name;
-        type = represented(input.types.represent(field.fieldType, sourceField.sourceType, "storage"));
+        type = represented(input.types.represent(field.type, sourceField.sourceType, "storage"));
       } else {
-        const declaration = input.sourceFacts?.getFact(field.selectedDeclaration, providerVirtualDeclarationFactKey);
+        const declaration = input.sourceFacts?.getFact(field.declaration, providerVirtualDeclarationFactKey);
         const resolution = input.providers.resolveMember(declaration);
         if (resolution.kind !== "resolved" || resolution.relations.length !== 1) return undefined;
         const relation = resolution.relations[0]!;
@@ -227,9 +227,9 @@ function csharpNativeScalarByteSize(carrier: TargetTypeRef, addressWidth: 32 | 6
   return sizes[carrier.name];
 }
 
-export function csharpNativeArrayMemoryLayoutRejection(root: TsonicMemoryLayoutFact): string | undefined {
+export function csharpNativeArrayMemoryLayoutRejection(root: TsonicMemoryLayoutRecord): string | undefined {
   const pending = [root];
-  const visited = new Set<TsonicMemoryLayoutFact>();
+  const visited = new Set<TsonicMemoryLayoutRecord>();
   while (pending.length !== 0) {
     const layout = pending.pop()!;
     if (visited.has(layout)) continue;
@@ -240,13 +240,13 @@ export function csharpNativeArrayMemoryLayoutRejection(root: TsonicMemoryLayoutF
       pending.push(layout.elementLayout);
       continue;
     }
-    for (const field of layout.fields) pending.push(field.fieldLayout);
+    for (const field of layout.fields) pending.push(field.layout);
   }
   return undefined;
 }
 
 export function selectCsharpRawLocation(input: CsharpPolicyContext, node: Node): CsharpRawLocationSelection | undefined {
-  const selected = readCsharpRawLocation(input.ast, input.sourceFacts, node);
+  const selected = readCsharpRawLocation(input.facts, node);
   if (selected === undefined) return undefined;
   const reject = (reason: string): CsharpRawLocationSelection => ({ kind: "rejected", operation: "raw-location", reason });
   if (selected.kind === "rejected") return reject(selected.reason);
@@ -254,9 +254,9 @@ export function selectCsharpRawLocation(input: CsharpPolicyContext, node: Node):
   if (layout === undefined) return reject(csharpNativeArrayMemoryLayoutRejection(selected.layout) ??
     "The selected layout has no closed all-bit-pattern C# native value representation.");
   const operation = selected.operation;
-  const inputType = represented(input.types.value(selected.expression));
+  const inputType = represented(input.types.value(selected.operand.expression));
   if (inputType === undefined) return reject("The raw conversion operand has no exact native carrier.");
-  if (operation.operation === "to-raw") {
+  if (operation === "to-raw") {
     const pointee = csharpRuntimeLocationPointee(inputType);
     if (!isCsharpAbsenceTargetType(inputType) &&
       (pointee === undefined || !targetTypeRefEquals(pointee, layout.pointeeType))) {
@@ -267,14 +267,14 @@ export function selectCsharpRawLocation(input: CsharpPolicyContext, node: Node):
     if (!isCsharpAbsenceTargetType(raw) && !targetTypeRefEquals(raw, csharpRuntimeRawPointerTargetType())) {
       return reject("Reinterpretation requires the exact raw address carrier.");
     }
-    const pointee = operation.explicitPointeeTypeNode === undefined ? layout.pointeeType
-      : represented(input.types.represent(operation.pointeeType, operation.explicitPointeeTypeNode, "type-argument"));
+    const pointee = selected.explicitPointeeTypeNode === undefined ? layout.pointeeType
+      : represented(input.types.represent(selected.pointee, selected.explicitPointeeTypeNode, "type-argument"));
     if (pointee === undefined || !targetTypeRefEquals(pointee, layout.pointeeType)) {
       return reject("Reinterpretation and its selected layout have different exact C# pointee types.");
     }
   }
-  return Object.freeze({ kind: "raw-location", method: operation.operation === "to-raw" ? "ToRaw" : "Reinterpret",
-    expression: selected.expression,
-    inputType: csharpNullableReferenceTargetType(operation.operation === "to-raw"
+  return Object.freeze({ kind: "raw-location", method: operation === "to-raw" ? "ToRaw" : "Reinterpret",
+    expression: selected.operand.expression,
+    inputType: csharpNullableReferenceTargetType(operation === "to-raw"
       ? csharpRuntimeLocationTargetType(layout.pointeeType) : csharpRuntimeRawPointerTargetType()), layout });
 }

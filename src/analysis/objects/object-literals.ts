@@ -12,7 +12,7 @@ import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef 
 import type { CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
 import type { CsharpObjectMethodRecords } from "../../target-model/records/objects/object-methods.js";
 import type { CsharpObjectMemberRecords } from "../../target-model/records/objects/object-members.js";
-import { csharpPropertySourceMemberKey, csharpWellKnownSymbolSourceMemberKey, resolveCsharpObjectShapeMemberBySourceKey, csharpObjectShapeMemberLookupFailureMessage, csharpDelegateTargetType, getCsharpNullableElementTargetType, targetTypeRefEquals } from "../../target-model/types/index.js";
+import { csharpPropertySourceMemberKey, csharpWellKnownSymbolSourceMemberKey, csharpWellKnownSymbolKind, resolveCsharpObjectShapeMemberBySourceKey, csharpObjectShapeMemberLookupFailureMessage, csharpDelegateTargetType, getCsharpNullableElementTargetType, targetTypeRefEquals } from "../../target-model/types/index.js";
 import { getCsharpGenericOptionalParts } from "../../target-model/types/projections.js";
 import { csharpObjectShapeMethodDeclaration } from "../../target-model/types/method-values.js";
 import { objectShapeStorageMemberName, objectShapeAccessorGetterStorageMemberName, objectShapeAccessorSetterStorageMemberName } from "../../target-model/names/object-members.js";
@@ -45,10 +45,11 @@ export function analyzeCsharpObjectLiterals(input: {
     if (name !== undefined && (ast.is.IsComputedPropertyName(name) || ast.is.IsNumericLiteral(name))) {
       const selected = input.facts.analyses.propertyName(name);
       if (selected === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted static property requires its Host property-name selection.", property);
-      if (selected.kind === "refused") failTargetAnalysisInvariant("tsonic-csharp",
+      if (selected.kind === "rejected") failTargetAnalysisInvariant("tsonic-csharp",
         "A property name is a Host refusal at a node C# analyzed; Host refusals are forwarded before C# analysis.", property);
       if (selected.kind === "unique-symbol") { reject(property, "Object-shape object initializers require identifier, string-literal, or numeric-literal property names.", "CSHARP_UNIQUE_SYMBOL_FIELD_NOT_NAMED"); return undefined; }
-      key = selected.kind === "name" ? csharpPropertySourceMemberKey(selected.name) : csharpWellKnownSymbolSourceMemberKey(selected.symbol);
+      key = selected.kind === "resolved" ? csharpPropertySourceMemberKey(selected.name)
+        : csharpWellKnownSymbolSourceMemberKey(csharpWellKnownSymbolKind(selected.symbol));
     } else {
       const selected = ObjectLiteralProperty_SourceName(ast, property);
       if (selected.kind === "rejected") {
@@ -90,7 +91,7 @@ export function analyzeCsharpObjectLiterals(input: {
       if (kind === KindSpreadAssignment) {
         const expression = AsSpreadAssignment(ast, property)?.Expression;
         if (expression === undefined) { reject(property, "Object literal spread requires a source expression.", "CSHARP_OBJECT_SPREAD_NOT_REPRESENTABLE"); continue; }
-        const sourceShape = input.shapes.resolveNode(expression, ast.getSourceFile(expression));
+        const sourceShape = input.shapes.resolveNode(expression);
         if (sourceShape === undefined) { reject(property, "Object literal spread requires finalized provider object-shape facts for the spread expression before C# emission.", "CSHARP_OBJECT_SPREAD_NOT_REPRESENTABLE"); continue; }
         const shared = sourceShape.methodImplementation !== undefined && sourceShape.methodImplementation.identity === shape.methodImplementation?.identity && targetTypeRefEquals(sourceShape.targetType, shape.targetType);
         const fields: { readonly source: string; readonly target: string; readonly carrier: TargetTypeRef }[] = [];

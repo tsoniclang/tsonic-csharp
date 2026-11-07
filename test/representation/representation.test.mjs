@@ -61,7 +61,7 @@ function services(sums = new Map(), profile = "native", view = publishedSums) {
   });
   return Object.freeze({
     facts, profile, syntax, sourceFacts: undefined,
-    platform: Object.freeze({ nativeIntegerBits: 64, targetFramework: "net10.0" }),
+    platform: Object.freeze({ nativeInteger: Object.freeze({ kind: "known", nativeIntegerBits: 64, basis: "test" }), targetFramework: "net10.0" }),
     typeParameters: createCsharpTypeParameterEnvironment(() => ({ kind: "resolved", constraints: [] })),
     recursiveAliases: new Map(),
     genericProjections: () => [],

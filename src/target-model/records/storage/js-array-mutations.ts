@@ -16,4 +16,5 @@ export type CsharpJsArrayMutationSelection =
   | {
       readonly kind: "rejected";
       readonly reason: string;
+      readonly code: `CSHARP_${string}`;
     };

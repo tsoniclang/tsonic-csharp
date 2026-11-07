@@ -1,7 +1,7 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetSourceProgramFacts } from "@tsonic/target-api/source";
-import { selectTsonicRawLocationFacts } from "@tsonic/source-core/facts";
 import type { TsonicPointerStorageRelation } from "@tsonic/source-core/facts";
+import { readCsharpRawLocation } from "../../source/extension/native-memory.js";
 import type { CsharpPointerBackingProducer, CsharpPointerBackingUse } from "../../target-model/records/storage/pointer-backing.js";
 import type { CsharpTypeQueries } from "../../policy/model/type-resolution.js";
 
@@ -18,14 +18,14 @@ export function createCsharpPointerBackingDemands(
     },
     record(node: Node): void {
       if (!source.syntax.is.IsCallExpression(node)) return;
-      const selected = selectTsonicRawLocationFacts(source.syntax, source.sourceFacts, node);
+      const selected = readCsharpRawLocation(source.facts, node);
       if (selected === undefined) return;
       if (selected.kind === "rejected") {
         issues.push(Object.freeze({ node, reason: selected.reason }));
         return;
       }
-      if (selected.operation.operation !== "to-raw") return;
-      const backing = storage.value(selected.expression);
+      if (selected.operation !== "to-raw") return;
+      const backing = storage.value(selected.operand.expression);
       if (backing.kind === "unresolved") {
         issues.push(...backing.issues);
         return;

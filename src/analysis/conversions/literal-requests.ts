@@ -79,6 +79,10 @@ export function createCsharpExactLiteralRequestCollector(facts: SourceProgramFac
         request(expression, physicalSource, entry.target);
       } else if (current.kind === "js-value-box") {
         request(expression, physicalSource, entry.source);
+      } else if (current.kind === "exact-number-erasure") {
+        // A3: the literal is requested for the erasure destination (float64), never boxed as its int64 carrier.
+        request(expression, physicalSource, current.result);
+        pending.push({ source: current.result, target: entry.target, selection: current.conversion });
       } else if (current.kind === "nullable-map") {
         pending.push({ source: current.sourceElement, target: current.targetElement, selection: current.conversion });
       } else if (current.kind === "implicit" && current.proof === "runtime-union-arm") {

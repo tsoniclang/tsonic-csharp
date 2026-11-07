@@ -17,7 +17,7 @@ const represented = (input: CsharpPolicyContext, node: Node): TargetTypeRef | un
 
 /** A write or update of a JS typed-array element (Host element access selects the TypedArray indexer). */
 export function selectCsharpTypedArrayMutation(input: CsharpPolicyContext, node: Node):
-  CsharpTypedArrayMutation | CsharpTypedArrayUpdate | { readonly kind: "rejected"; readonly reason: string } | undefined {
+  CsharpTypedArrayMutation | CsharpTypedArrayUpdate | { readonly kind: "rejected"; readonly reason: string; readonly code: `CSHARP_${string}` } | undefined {
   const operator = sourceOperatorFromKindName(input.ast.operatorKindName(node));
   const update = operator === "++" || operator === "--";
   if (operator === undefined || (!update && !isCsharpAssignmentOperator(operator))) return undefined;
@@ -41,7 +41,8 @@ export function selectCsharpTypedArrayMutation(input: CsharpPolicyContext, node:
   if (value === undefined) return undefined;
   const valueType = represented(input, value);
   if (!csharpTypedArrayWriteHasNativeCarriers(element, valueType)) {
-    return { kind: "rejected", reason: "Typed array writes require exact native numeric storage and value carriers." };
+    return { kind: "rejected", reason: "Typed array writes require exact native numeric storage and value carriers.",
+      code: "CSHARP_TYPED_ARRAY_MUTATION_NOT_PROVEN" };
   }
   const calculation = operator === "=" ? undefined : selectCsharpBinaryOperands(input, left, value,
     operator.slice(0, -1) as CsharpSourceOperator, element,

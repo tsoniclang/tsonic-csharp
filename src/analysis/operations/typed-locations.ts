@@ -22,7 +22,7 @@ export function csharpTypedLocationLoweringRefusal(operation: string, reason: st
 export function selectCsharpTypedLocationOperation(
   input: CsharpPolicyContext, node: Node,
 ): CsharpTypedLocationOperationSelection {
-  const source = readCsharpSourceTypedLocationOperation(input.sourceFacts, node);
+  const source = readCsharpSourceTypedLocationOperation(input.ast, input.facts, node);
   if (source === undefined) return { kind: "not-typed-location" };
   const native = source.kind === "location-load" || source.kind === "location-store"
     ? selectCsharpNativeRefReturn(input, source.locationExpression) : undefined;

@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { tsonicFixedArrayFactKey } from "@tsonic/source-core/facts";
 import { createCsharpSourceEvidenceTypeQueries } from "../../../../dist/analysis/source-evidence/type-queries.js";
 import { hostProgram, representationServices } from "../../../representation/host-fixture.mjs";
 import {
@@ -76,8 +75,6 @@ test("C# fixed-array selection reads inferred evidence from the published descri
   assert.ok(call);
   const descriptor = program.type(call);
   assert.equal(descriptor.kind, "declared", "the inferred call value is the published FixedArray reference");
-  const sourceFacts = program.host.sourceFacts;
-  assert.equal(sourceFacts.getFact(call, tsonicFixedArrayFactKey), undefined);
   const unreached = () => assert.fail("fixed-array selection reads only the descriptor and extension markers");
   const queries = createCsharpSourceEvidenceTypeQueries(representationServices(program),
     { pointerStorage: {}, sourceStorage: {}, conversions: unreached });
@@ -91,7 +88,6 @@ test("C# fixed-array selection reads inferred evidence from the published descri
   assert.deepEqual(queries.selectFixedArray(descriptor, call), selected, "the selection is a function of the descriptor");
   assert.equal(queries.selectFixedArray({ kind: "array", readonly: false, element: { kind: "string" } }, call), undefined,
     "an ordinary array descriptor is not a fixed array");
-  assert.equal(sourceFacts.getFact(call, tsonicFixedArrayFactKey), undefined, "selection publishes no extension fact");
 });
 
 for (const [name, extent, body, reason] of [

@@ -43,7 +43,7 @@ export function planClassDeclaration(
   const selected = input.program.records.nativeClass.get(node);
   if (selected === undefined) failCsharpPlannerInvariant("An admitted class requires its selected native declaration inventory.", node);
   const { staticCompanion, name: className } = selected;
-  const objectShape = getCsharpObjectShapeFactForNode(node, sourceFile, input);
+  const objectShape = getCsharpObjectShapeFactForNode(node, input);
   const heritage = planClassHeritage(node, input);
   const interfaces = [...heritage.interfaces, csharpClosedValueCarrierInterfaceType()];
   if (factory?.identity !== undefined) interfaces.push(csharpTypeFromTargetTypeRef(factory.identity.type, input.scope.typeParameterNames)!);

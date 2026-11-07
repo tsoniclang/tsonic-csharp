@@ -32,8 +32,7 @@ export function createCsharpAnalysisPolicyContext(
   const { input, sourceFiles, providers, sourceIdentities, typeSystem } = context;
   const source = input.source;
   const valueDomainCarriers = analyzeCsharpValueDomainCarriers({ sourceStorage: context.sourceStorage,
-    types: typeSystem.analysisTypes,
-    typeParameters: typeSystem.representation.typeParameters, objectShapes: typeSystem.objectShapes, facts: source.facts },
+    types: typeSystem.analysisTypes, objectShapes: typeSystem.objectShapes, facts: source.facts },
     context.sourceStorage.invocations.flatMap(node => source.syntax.arguments(node).filter((argument): argument is NonNullable<typeof argument> => argument !== undefined)));
   const policy: CsharpPolicyContext = Object.freeze({
     facts: source.facts,
@@ -49,6 +48,7 @@ export function createCsharpAnalysisPolicyContext(
     target: input.target,
     providers,
     types: typeSystem.analysisTypes,
+    typeParameters: typeSystem.representation.typeParameters,
     typeDefinitions: typeSystem.typeDefinitions,
     objectShapes: typeSystem.objectShapes,
     projectTypes: typeSystem.projectTypes,

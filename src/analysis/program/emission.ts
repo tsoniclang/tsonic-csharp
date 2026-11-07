@@ -224,7 +224,7 @@ export function finalizeCsharpNativeEmission(
   }, analysis.requiredRecords);
   if (objectShapeClosure.kind === "rejected") return objectShapeClosure;
   // Boxing is planned after native demand: the demanded conversions name every value they box into the closed JS value.
-  const jsValueBoxing = analyzeCsharpJsValueBoxing({ ast: source.syntax, demand: nativeDemand, values: analysis.valueReads,
+  const jsValueBoxing = analyzeCsharpJsValueBoxing({ ast: source.syntax, conversions, demand: nativeDemand, values: analysis.valueReads,
     exact: exactLiterals, boxSites });
   if (jsValueBoxing.issues.length > 0) return rejectedTargetStage(jsValueBoxing.issues);
   const nativeMemberNames = analyzeCsharpNativeMemberNames({
@@ -316,7 +316,7 @@ export function finalizeCsharpNativeEmission(
     references: sourceReferences.records, receivers: receiverTypes, admitted: admittedControlNode });
   if (memberReceivers.issues.length !== 0) return rejectedTargetStage(memberReceivers.issues);
   const elementAdmission = analyzeCsharpElementAdmission({ ast: source.syntax, nodes: sourceStorage.nodes, operations: admittedOperations,
-    demand: nativeDemand, admitted: admittedControlNode, receivers: memberReceivers.records, facts: source.facts,
+    demand: nativeDemand, admitted: admittedControlNode, receivers: memberReceivers.records,
     policy: analysis.policy });
   if (elementAdmission.issues.length !== 0) return rejectedTargetStage(elementAdmission.issues);
   const propertyAdmission = analyzeCsharpPropertyAdmission({ ast: source.syntax, nodes: sourceStorage.nodes,

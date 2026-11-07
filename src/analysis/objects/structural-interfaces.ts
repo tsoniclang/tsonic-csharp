@@ -1,6 +1,5 @@
 import type { Node } from "@tsonic/tsts";
-import { sourceTypeDescriptorStructure, type SourceObjectMember, type SourceTypeDescriptor } from "@tsonic/target-api/source";
-import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
+import type { SourceObjectMember, SourceTypeDescriptor } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpStructuralInterfaceImplementation, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpStructuralInterfaceMemberEvidence } from "../../target-model/records/objects/heritage.js";
@@ -8,6 +7,7 @@ import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../target-mo
 import { selectCsharpStructuralInterfaceImplementation } from "../../policy/types/objects/structural-implementation.js";
 import { targetTypeRefKey, targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { resolveCsharpNativePropertyRead } from "./native-property-reads.js";
+import { csharpProjectDeclarationDescriptor } from "./shapes/declaration-descriptors.js";
 
 export function collectCsharpInheritedInterfaces(
   policy: Pick<CsharpPolicyContext, "projectTypes">,
@@ -38,30 +38,27 @@ export function selectCsharpStructuralInterface(
   source: CsharpObjectShapeFact | undefined, destination: CsharpObjectShapeFact | undefined,
   selectedSourceType: SourceTypeDescriptor | undefined,
 ): CsharpStructuralInterfaceImplementation | undefined {
-  if (source === undefined || destination?.sourceType === undefined || selectedSourceType === undefined) return undefined;
-  // Member correspondence from Host object facts: each destination member (objects.members) and the source member
-  // under the same key (objects.member). A destination with call, construct or index signatures has no interface form.
+  if (source === undefined || destination === undefined || selectedSourceType === undefined) return undefined;
+  // Member correspondence from Host object facts. The destination shape members are the Host instance members of the
+  // destination, one per string key, in Host order (representation/objects.ts); each is paired with the source member
+  // under the same key (objects.member). Index signatures have no interface form: a project declaration is checked on
+  // its Host descriptor; a generated shape never has them (the representation refuses members beside index signatures).
   const { facts } = policy;
-  const destinationStructure = sourceTypeDescriptorStructure(destination.sourceType);
-  if ((destinationStructure.kind === "shape" || destinationStructure.kind === "callable") &&
-    (destinationStructure.calls.length > 0 || destinationStructure.constructs.length > 0) ||
-    facts.objects.indexes(destination.sourceType).length > 0) return undefined;
-  const destinationMembers = facts.objects.members(destination.sourceType);
-  if ("code" in destinationMembers) return failTargetAnalysisInvariant("tsonic-csharp",
-    "Destination members are a Host refusal at a node C# analyzed; Host refusals are forwarded before C# analysis.", expression);
-  if (destinationMembers.length !== destination.members.length) return undefined;
-  const pairs: { readonly source: SourceObjectMember; readonly destination: SourceObjectMember }[] = [];
-  for (const member of destinationMembers) {
-    const sourceMember = facts.objects.member(selectedSourceType, member.key);
+  const declared = policy.projectTypes.catalog.definitionForTarget(destination.targetType);
+  if (declared !== undefined && declared.kind !== "enum" &&
+    facts.objects.indexes(csharpProjectDeclarationDescriptor(declared)).length > 0) return undefined;
+  const pairs: { readonly source: SourceObjectMember; readonly destination: readonly unknown[] }[] = [];
+  for (const member of destination.members) {
+    const sourceMember = facts.objects.member(selectedSourceType, Object.freeze({ kind: "string" as const, value: member.sourceName }));
     if (sourceMember === undefined) return undefined;
-    pairs.push({ source: sourceMember, destination: member });
+    pairs.push({ source: sourceMember, destination: member.sourceSubjects ?? [] });
   }
   const template = source.declarationTemplate ?? source;
   const destinationTemplate = destination.declarationTemplate;
   const members: CsharpStructuralInterfaceMemberEvidence[] = [];
   for (const pair of pairs) {
     const sourceSubjects = pair.source.declarations;
-    const destinationSubjects = pair.destination.declarations;
+    const destinationSubjects = pair.destination;
     const read = resolveCsharpObjectShapeMemberBySelectedSubject(source, sourceSubjects);
     const write = resolveCsharpObjectShapeMemberBySelectedSubject(destination, destinationSubjects);
     const open = resolveCsharpObjectShapeMemberBySelectedSubject(template, sourceSubjects);
@@ -95,10 +92,9 @@ export function selectCsharpStructuralInterface(
     (destination.targetType as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind !== "interface") {
     return selectedImplementation;
   }
-  const definition = policy.projectTypes.catalog.definitionForTarget(destination.targetType);
-  if (definition?.kind !== "interface") return selectedImplementation;
+  if (declared?.kind !== "interface") return selectedImplementation;
   const ownsMember = (member: CsharpObjectShapeMemberFact): boolean =>
-    member.sourceDeclarations?.some(declaration => policy.ast.parent(declaration) === definition.declaration) === true;
+    member.sourceDeclarations?.some(declaration => policy.ast.parent(declaration) === declared.declaration) === true;
   return Object.freeze({ ...selectedImplementation,
     methods: Object.freeze(selectedImplementation.methods.filter(method => ownsMember(method.member))),
     properties: Object.freeze(selectedImplementation.properties.filter(property => ownsMember(property.member))),

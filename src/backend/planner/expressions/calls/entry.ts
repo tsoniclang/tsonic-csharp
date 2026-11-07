@@ -34,7 +34,7 @@ function translateCsharpCallExpressionCore(node: Node, sourceFile: SourceFile, i
     const value = planCallArgument(argument.argument, sourceFile, input, diagnostics, form.typeTest.sourceCarrier);
     return projectCsharpPlannedValue(node, sourceFile, input, diagnostics, value,
       (selected, prelude) => planCsharpClosedTypeTest(selected, form.typeTest, input, createDestructuringPlannerState(sourceFile, input.program.source.ast), prelude,
-        readCsharpNativeDiscardEvaluation(input, argument.expression)));
+        readCsharpNativeDiscardEvaluation(input, argument.argument)));
   }
   if (form.kind === "keep-alive") {
     const value = planExpression(form.sourceFlow.valueExpression, sourceFile, input, diagnostics);

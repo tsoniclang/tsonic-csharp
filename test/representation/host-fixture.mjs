@@ -24,7 +24,7 @@ import { csharpTargetNamedType } from "../../dist/target-model/types/factories.j
 export function hostProgram(sourceText, options = {}) {
   const checked = checkCsharpSource({ ...options, sourceText });
   assert.equal(checked.sourceDiagnosticsText, "", `the fixture program checks cleanly:\n${checked.sourceDiagnosticsText}`);
-  const host = createHostSourceProgram(checked.source, { profile: createJsSourceApiFacts });
+  const host = createHostSourceProgram(checked.source, { profile: createJsSourceApiFacts, platform: { kind: "known", nativeIntegerBits: 64, basis: "test" } });
   const ast = host.ast;
   const files = host.sourceFiles.filter(file => !ast.isDeclarationFile(file));
   const nodes = [];
@@ -120,7 +120,7 @@ export function representationServices(program, overrides = {}) {
   const unreached = input => () => assert.fail(`This representation fixture does not supply ${input}.`);
   return createCsharpRepresentationServices({
     facts: program.facts,
-    platform: Object.freeze({ nativeIntegerBits: 64, targetFramework: "net10.0" }),
+    platform: Object.freeze({ nativeInteger: Object.freeze({ kind: "known", nativeIntegerBits: 64, basis: "test" }), targetFramework: "net10.0" }),
     profile: "native",
     syntax: program.ast,
     sourceFacts: program.host.sourceFacts,

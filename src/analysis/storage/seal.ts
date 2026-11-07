@@ -80,8 +80,8 @@ export function sealCsharpStorage(
         operations.classPropertyStorage.get, classifications, evidence.readStorageTargetType.get));
     }
     const passing = selectCsharpSourceArgument(policy.sourceFacts, node);
-    if (passing.kind === "resolved" && passing.argument.passingMode !== "by-value") {
-      const expression = passing.argument.storageExpression;
+    if (passing.passingMode !== "by-value") {
+      const expression = passing.storageExpression;
       const declaration = sourceProjectDeclaration(policy.facts, expression);
       const property = operations.selectedProperty.get(expression)?.sourceOwned;
       const shape = property?.objectShape;

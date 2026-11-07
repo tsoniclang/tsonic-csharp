@@ -126,7 +126,7 @@ export function classifyCsharpNativeLocation(
     if (element) {
       const selection = memberSelection;
       if (selection?.kind !== "resolved" && selection?.kind !== "source-owned" && selection?.kind !== "project-indexer") return rejected("The element has no exact selected native index relation.");
-      if (policy.ast.as.AsElementAccessExpression(selection.source.node)?.QuestionDotToken !== undefined)
+      if (policy.ast.as.AsElementAccessExpression(expression)?.QuestionDotToken !== undefined)
         return rejected("An optional element access is not a native storage address.");
       const representedReceiver = policy.types.value(selection.source.receiver);
       const receiverType = representedReceiver.kind === "csharp-refused" ? undefined : representedReceiver;

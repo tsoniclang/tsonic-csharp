@@ -7,7 +7,8 @@ import {
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
   directProviderHost,
-  passingFact,
+  argumentPassingFact,
+  declarationPassingFact,
   providerBinding,
   providerConstructor,
   providerDeclaration,
@@ -555,7 +556,7 @@ function int32ProviderAdapter() {
 
 function byrefNativeEvidence(source, mode, target, includeArgument = true) {
   const parameter = source.evidence.signatureParameters[0].declaration;
-  const facts = [passingFact(parameter, mode)];
+  const facts = [declarationPassingFact(parameter, mode)];
   if (!includeArgument) return { facts };
   const argument = source.evidence.arguments[0].argument;
   const reference = source.program.facts.navigation.identity.target(argument);
@@ -563,6 +564,6 @@ function byrefNativeEvidence(source, mode, target, includeArgument = true) {
   const storage = declaration === undefined ? undefined : source.program.syntax.name(declaration);
   assert.equal(storage !== undefined && storage !== argument, true,
     "the same checked input's storage declaration and call read retain distinct original occurrences");
-  facts.push(passingFact(argument, mode, storage));
+  facts.push(argumentPassingFact(argument, mode, storage));
   return { facts, nodeTypes: [[storage, target]] };
 }

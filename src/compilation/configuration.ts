@@ -2,6 +2,7 @@ import type { TargetSelection } from "@tsonic/target-api";
 import type { CsharpTargetConfiguration } from "../target-model/configuration/model.js";
 import { readOptionalStringOption, readOptionalBooleanOption, readCsharpLanguageDialect, readCsharpMemorySafetyRules, readCsharpReferences, readCsharpTargetFramework, readCsharpOutputType, readCsharpUserProjectFile, readCsharpProperties, readCsharpProviderReferences, validateCsharpTargetOptionKeys, validateCsharpSafetyConfiguration } from "../options/target.js";
 import { resolveCsharpProjectConfiguration } from "../options/user-project.js";
+import { resolveCsharpPlatform } from "../target-model/configuration/platform.js";
 import { resolveCsharpReflectionReferencePaths } from "../providers/native/acquisition/reference-paths.js";
 
 export function createCsharpTargetConfiguration(
@@ -15,6 +16,8 @@ export function createCsharpTargetConfiguration(
   const references = readCsharpReferences(target);
   const targetFramework = readCsharpTargetFramework(target);
   validateCsharpSafetyConfiguration(languageDialect, memorySafetyRules);
+  const project = resolveCsharpProjectConfiguration(readCsharpUserProjectFile(target), projectDirectory, targetOutputRoot);
+  const properties = readCsharpProperties(target);
   return Object.freeze({
     assemblyName: readOptionalStringOption(target, "assemblyName"),
     implicitUsings: readOptionalBooleanOption(target, "implicitUsings"),
@@ -23,12 +26,9 @@ export function createCsharpTargetConfiguration(
     namespace: readOptionalStringOption(target, "namespace"),
     nullable: readOptionalBooleanOption(target, "nullable"),
     outputType: readCsharpOutputType(target),
-    project: resolveCsharpProjectConfiguration(
-      readCsharpUserProjectFile(target),
-      projectDirectory,
-      targetOutputRoot,
-    ),
-    properties: readCsharpProperties(target),
+    platform: resolveCsharpPlatform(project, properties),
+    project,
+    properties,
     publishAot: readOptionalBooleanOption(target, "publishAot"),
     references: Object.freeze(
       references.map((reference) => Object.freeze(reference)),

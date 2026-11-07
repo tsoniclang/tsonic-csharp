@@ -2,7 +2,7 @@ import { analyzeCsharpCallOperation } from "./call-operation.js";
 import { classifyCsharpNativeCallArguments, classifyCsharpSourceCallArguments } from "./source-call-arguments.js";
 import { classifyCsharpBorrowedSequenceInput } from "./borrowed-sequences.js";
 
-import { classifyTypeofComparison, selectCsharpTypeofResult } from "./typeof-comparisons.js";
+import { classifyTypeofComparison, selectCsharpTypeofSelection } from "./typeof-comparisons.js";
 import { isCsharpRefusal } from "../../representation/index.js";
 import { classifyMethodTypeArgumentProjections } from "./method-type-arguments.js";
 import { csharpErasedExpressionStatement, type CsharpOperationErasure } from "./statement-erasure.js";
@@ -113,10 +113,12 @@ export function analyzeCsharpOperationConstruct(
   producer.jsTypeof.selected(node, selectCsharpJsTypeofOperation(policy, node),
   );
   if (ast.is.IsTypeOfExpression(node)) {
+    // A dynamic operand (an opaque JS value) is typed at run time by the jsTypeof operation published for the operand
+    // node; only a closed operand records a static category. A refused selection is reported once, by the typeof
+    // emission (analyzeCsharpTypeofEmission), which finds no category for this operand (K-2665).
     const operand = ast.as.AsTypeOfExpression(node)?.Expression;
-    const selected = operand === undefined ? undefined : selectCsharpTypeofResult(policy, node, operand);
-    if (selected !== undefined && isCsharpRefusal(selected)) issues?.push(Object.freeze({ node, code: selected.code, message: selected.message }));
-    else if (operand !== undefined && selected !== undefined) producer.typeofRuntimeKind.selected(operand, selected);
+    const selected = operand === undefined ? undefined : selectCsharpTypeofSelection(policy, node, operand);
+    if (operand !== undefined && selected?.kind === "static") producer.typeofRuntimeKind.selected(operand, selected.result);
   }
   if (ast.is.IsIdentifier(node)) {
     producer.providerValue.selected(node, selectCsharpProviderValue(policy, node),

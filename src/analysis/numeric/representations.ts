@@ -12,10 +12,9 @@ export function analyzeCsharpNumericRepresentations(input: {
   readonly evidence: CsharpSourceEvidenceIndex;
   readonly operations: CsharpTargetOperationClassifications;
 }): CsharpNumericRepresentations {
-  // The Host integer-range analysis (facts.analyses.integerRanges, B2): which number remainders are exact int32
+  // The Host integer-range analysis (facts.analyses.exactInt32Remainders): which number remainders are exact int32
   // remainders. Number-ness is the Host descriptor decision, not the C# carrier.
-  const ranges = input.source.facts.analyses.integerRanges();
-  const selected = ranges.exactInt32Remainders.filter(expression => {
+  const selected = input.source.facts.analyses.exactInt32Remainders().filter(expression => {
     const operation = input.operations.binaryOperation.get(expression)?.target;
     return operation?.kind === "resolved" && operation.sourceOperator === "%" &&
       operation.targetOperation.kind === "operator" && operation.targetOperation.operator === "%" &&

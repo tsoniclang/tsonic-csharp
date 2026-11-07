@@ -44,24 +44,17 @@ export function validateArgumentsTargetSelectedParameters(
       host.sourceFacts,
       sourceExpression,
     );
-    if (sourceArgument.kind === "rejected") {
-      return {
-        kind: "rejected",
-        reason:
-          `Source argument ${binding.sourceArgumentIndex} is invalid. ${sourceArgument.reason}`,
-      };
-    }
     if (
-      sourceArgument.argument.passingMode !==
+      sourceArgument.passingMode !==
         argument.targetParameter.passingMode
     ) {
       return {
         kind: "rejected",
         reason:
-          `Source argument ${binding.sourceArgumentIndex} uses '${sourceArgument.argument.passingMode}', but exact target parameter '${argument.targetParameter.name}' requires '${argument.targetParameter.passingMode}'.`,
+          `Source argument ${binding.sourceArgumentIndex} uses '${sourceArgument.passingMode}', but exact target parameter '${argument.targetParameter.name}' requires '${argument.targetParameter.passingMode}'.`,
       };
     }
-    const sourceSelection = host.types.value(sourceArgument.argument.storageExpression);
+    const sourceSelection = host.types.value(sourceArgument.storageExpression);
     const sourceType = sourceSelection.kind === "csharp-refused" ? undefined : sourceSelection;
     const targetType = csharpTargetParameterValueType(
       argument.targetParameter,
@@ -70,7 +63,7 @@ export function validateArgumentsTargetSelectedParameters(
     if (sourceType === undefined) {
       if (
         argument.targetParameter.csharpAcceptsCheckedSourceArgument === true &&
-        sourceArgument.argument.passingMode === "by-value"
+        sourceArgument.passingMode === "by-value"
       ) {
         argumentMappings.push({
           kind: "checked-source",
@@ -88,12 +81,12 @@ export function validateArgumentsTargetSelectedParameters(
     }
     const parameterRelation = relation.parameters.find((candidate) =>
       candidate.targetParameterIndex === argument.targetParameterIndex);
-    if (sourceArgument.argument.passingMode !== "by-value") {
+    if (sourceArgument.passingMode !== "by-value") {
       if (!csharpTargetStorageIdentityEquals(sourceType, targetType)) {
         return {
           kind: "rejected",
           reason:
-            `Source argument ${binding.sourceArgumentIndex} with C# representation '${targetTypeRefKey(sourceType)}' cannot satisfy exact target parameter '${argument.targetParameter.name}' with passing mode '${sourceArgument.argument.passingMode}' and representation '${targetTypeRefKey(targetType)}'. Exact C# by-reference passing requires one CLR storage identity; nullable-reference annotations may differ, but the underlying storage type may not.`,
+            `Source argument ${binding.sourceArgumentIndex} with C# representation '${targetTypeRefKey(sourceType)}' cannot satisfy exact target parameter '${argument.targetParameter.name}' with passing mode '${sourceArgument.passingMode}' and representation '${targetTypeRefKey(targetType)}'. Exact C# by-reference passing requires one CLR storage identity; nullable-reference annotations may differ, but the underlying storage type may not.`,
         };
       }
       argumentMappings.push({
@@ -101,16 +94,16 @@ export function validateArgumentsTargetSelectedParameters(
         effectiveArgumentIndex: argument.effectiveArgumentIndex,
         sourceType,
         targetType,
-        passingMode: sourceArgument.argument.passingMode,
+        passingMode: sourceArgument.passingMode,
         proof: "storage-identity",
       });
       continue;
     }
-    const conversion = selectCsharpSourceTypeFlowIndexConversion(host.facts.values.type(sourceArgument.argument.storageExpression),
-      { kind: "parameter", expression: sourceArgument.argument.storageExpression, parameter: argument.targetParameter }, sourceType, targetType)
+    const conversion = selectCsharpSourceTypeFlowIndexConversion(host.facts.values.type(sourceArgument.storageExpression),
+      { kind: "parameter", expression: sourceArgument.storageExpression, parameter: argument.targetParameter }, sourceType, targetType)
       ?? selectCsharpProviderArgumentConversion(
       host,
-      sourceArgument.argument.storageExpression,
+      sourceArgument.storageExpression,
       sourceType,
       targetType,
       parameterRelation?.argumentAdapter,
@@ -131,12 +124,12 @@ export function validateArgumentsTargetSelectedParameters(
           conversion.kind === "ambiguous"
         ? ` ${conversion.reason}`
         : "";
-      const hint = csharpIntegralConversionAnnotationHint(sourceArgument.argument.storageExpression, sourceType, targetType,
-        { ast: host.ast, facts: host.facts });
+      const hint = csharpIntegralConversionAnnotationHint(sourceArgument.storageExpression, sourceType, targetType,
+        host.facts);
       return {
         kind: "rejected",
         reason:
-          `Source argument ${binding.sourceArgumentIndex} with C# representation '${targetTypeRefKey(sourceType)}' cannot satisfy exact target parameter '${argument.targetParameter.name}' with passing mode '${sourceArgument.argument.passingMode}' and representation '${targetTypeRefKey(csharpTargetParameterValueType(argument.targetParameter, argument.sourceForm))}'.${detail}${hint === undefined ? "" : ` ${hint}`}`,
+          `Source argument ${binding.sourceArgumentIndex} with C# representation '${targetTypeRefKey(sourceType)}' cannot satisfy exact target parameter '${argument.targetParameter.name}' with passing mode '${sourceArgument.passingMode}' and representation '${targetTypeRefKey(csharpTargetParameterValueType(argument.targetParameter, argument.sourceForm))}'.${detail}${hint === undefined ? "" : ` ${hint}`}`,
       };
     }
     argumentMappings.push({

@@ -36,6 +36,8 @@ export function selectJsValueConversion(
       ? { kind: "implicit", proof: "native-representation" }
       : { kind: "rejected", reason: "C# JsValue conversion requires one exact closed non-generic native representation." };
   }
+  // The CLR pair relation: box the carrier as it is. Whether a Source use erases its value first is not a pair fact;
+  // the use's Host admission composes it (selectCsharpExactNumberErasure), so this box never decides number erasure.
   if (targetJsValue) {
     return { kind: "js-value-box" };
   }
@@ -45,6 +47,20 @@ export function selectJsValueConversion(
       ? {}
       : { runtimeUnionArms: getCsharpRuntimeUnionArms(target, definitions) }),
   };
+}
+
+/**
+ * N3′/WP0 A3: the conversion of one Source use whose Host admission is `exact-number-erasure`: the exact
+ * int64 → float64 conversion (`input` → `result`), then the ordinary CLR relation `conversion` from the float64 carrier
+ * to the destination (a number box). The Host proved exactness; no width, range or exactness is chosen here.
+ */
+export function selectCsharpExactNumberErasure(
+  input: TargetTypeRef,
+  result: TargetTypeRef,
+  conversion: CsharpConversionSelection,
+): CsharpConversionSelection {
+  if (conversion.kind === "rejected" || conversion.kind === "ambiguous") return conversion;
+  return Object.freeze({ kind: "exact-number-erasure", input, result, conversion });
 }
 
 export function selectRuntimeUnionConversion(

@@ -41,8 +41,8 @@ export function analyzeCsharpOptionalLocals(policy: CsharpPolicyContext, evidenc
   };
   for (const node of nodes) {
     const passing = evidence.sourceArgument.get(node);
-    if (passing?.kind === "resolved" && passing.argument.passingMode !== "by-value") {
-      const declaration = sourceProjectDeclaration(facts, unwrap(passing.argument.storageExpression));
+    if (passing !== undefined && passing.passingMode !== "by-value") {
+      const declaration = sourceProjectDeclaration(facts, unwrap(passing.storageExpression));
       if (declaration !== undefined) addressed.add(declaration);
     }
     const operation = selectedOperations.typedLocation.get(node);
@@ -190,7 +190,7 @@ export function analyzeCsharpOptionalLocals(policy: CsharpPolicyContext, evidenc
         continue;
       }
       const passing = evidence.sourceArgument.get(use.reference);
-      if (passing?.kind === "resolved" && passing.argument.passingMode !== "by-value") { valid = false; break; }
+      if (passing !== undefined && passing.passingMode !== "by-value") { valid = false; break; }
       const asserted = parent === undefined ? undefined : evidence.nodeTargetType.get(parent);
       if (parent !== undefined && ast.is.IsNonNullExpression(parent)) {
         const contextual = evidence.contextualType.get(parent)?.targetType;

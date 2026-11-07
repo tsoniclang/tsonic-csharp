@@ -42,8 +42,8 @@ export function selectCsharpSourceCoreFixedArrayElement(
 ): CsharpSourceProfileElementPolicyResult | undefined {
   const source = host.facts.values.elementAccess(access);
   const selected = source.selected;
-  const subjects = selected.kind === "member" || selected.kind === "index-signature" || selected.kind === "element"
-    ? [selected.declaration] : [];
+  // The FixedArray index is a provider member or index signature; an array/tuple/string element selects no provider declaration.
+  const subjects = selected.kind === "member" || selected.kind === "index-signature" ? [selected.declaration] : [];
   const signature = resolveCsharpProviderDeclarationEvidence(host.sourceFacts, subjects, "signature");
   const declaration = signature.kind === "resolved" || signature.kind === "conflict"
     ? signature

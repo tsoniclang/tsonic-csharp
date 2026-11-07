@@ -1,6 +1,9 @@
-import type { AstReader, ExtensionFactSubject, ReadonlySourceFactResolver } from "@tsonic/tsts";
-import { selectTsonicRawLocationFacts } from "@tsonic/source-core/facts";
+import type { Node } from "@tsonic/tsts";
+import type { SourceProgramFacts } from "@tsonic/target-api/source";
+import type { TsonicRawLocationRecord, TsonicRejectedRecord } from "@tsonic/source-core/facts";
+import { csharpSourceCoreAnalyses } from "./source-core.js";
 
-export function readCsharpRawLocation(ast: AstReader, facts: ReadonlySourceFactResolver | undefined, subject: ExtensionFactSubject): ReturnType<typeof selectTsonicRawLocationFacts> {
-  return facts === undefined ? undefined : selectTsonicRawLocationFacts(ast, facts, subject);
+/** torawptr / reinterpretrawptr with its finalized layout: the source-core Host record (descriptors, operand roles). */
+export function readCsharpRawLocation(facts: SourceProgramFacts, subject: Node): TsonicRawLocationRecord | TsonicRejectedRecord | undefined {
+  return csharpSourceCoreAnalyses(facts).memory.rawLocation(subject);
 }

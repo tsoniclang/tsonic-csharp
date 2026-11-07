@@ -19,7 +19,7 @@ export function selectCsharpNativePointerOperation(
   node: Node,
 ): CsharpNativePointerOperationSelection {
   const rawLocation = selectCsharpRawLocation(input, node);
-  const layout = selectCsharpLayoutObservation(input.sourceFacts, node);
+  const layout = selectCsharpLayoutObservation(input.facts, node);
   const address = selectCsharpRawAddress(input, node);
   return selectTargetNativePointerOperation(rawLocation, layout, address,
     selectRawIdentity(input, node), selectNativePointer(input, node)) ?? { kind: "not-native-pointer" };
@@ -33,7 +33,7 @@ function operandCarrier(input: CsharpPolicyContext, expression: Node): TargetTyp
 
 function selectRawIdentity(input: CsharpPolicyContext, node: Node):
   Exclude<CsharpNativePointerOperationSelection, { readonly kind: "not-native-pointer" }> | undefined {
-  const identity = readCsharpSourceRawPointerIdentity(input.sourceFacts, node);
+  const identity = readCsharpSourceRawPointerIdentity(input.facts, input.sourceFacts, node);
   if (identity !== undefined) {
     const arguments_ = input.ast.arguments(node);
     const carrier = csharpRuntimeRawPointerTargetType();
@@ -57,14 +57,12 @@ function selectRawIdentity(input: CsharpPolicyContext, node: Node):
 
 function selectNativePointer(input: CsharpPolicyContext, node: Node):
   Exclude<CsharpNativePointerOperationSelection, { readonly kind: "not-native-pointer" }> | undefined {
-  const source = readCsharpSourceNativePointerOperation(
-    input.sourceFacts,
-    node,
-  );
+  const source = readCsharpSourceNativePointerOperation(input.facts, node);
   if (source === undefined) {
     return undefined;
   }
-  const pointerType = operandCarrier(input, source.pointerExpression);
+  if (source.kind === "rejected") return rejected(source.operation, source.reason);
+  const pointerType = operandCarrier(input, source.pointer.expression);
   if (pointerType?.kind !== "pointer") {
     return rejected(
       source.operation,
@@ -72,8 +70,8 @@ function selectNativePointer(input: CsharpPolicyContext, node: Node):
     );
   }
   if (source.explicitPointeeTypeNode !== undefined) {
-    // source-core publishes the selected pointee as a Host descriptor (request R-F1-6).
-    const explicitPointee = input.types.represent(source.pointeeType, source.explicitPointeeTypeNode, "type-argument");
+    // The source-core Host record publishes the selected pointee as a Host descriptor (K-2662).
+    const explicitPointee = input.types.represent(source.pointee, source.explicitPointeeTypeNode, "type-argument");
     if (
       explicitPointee.kind === "csharp-refused" ||
       !targetTypeRefEquals(explicitPointee, pointerType.pointee)
@@ -86,7 +84,7 @@ function selectNativePointer(input: CsharpPolicyContext, node: Node):
   }
   const base: CsharpResolvedNativePointerOperationBase = {
     call: node,
-    pointerExpression: source.pointerExpression,
+    pointerExpression: source.pointer.expression,
     pointerType,
     pointeeType: pointerType.pointee,
   };
@@ -94,7 +92,7 @@ function selectNativePointer(input: CsharpPolicyContext, node: Node):
     case "load":
       return { ...base, kind: source.operation };
     case "store": {
-      const valueType = operandCarrier(input, source.valueExpression);
+      const valueType = operandCarrier(input, source.value.expression);
       return valueType === undefined
         ? rejected(
             source.operation,
@@ -103,11 +101,11 @@ function selectNativePointer(input: CsharpPolicyContext, node: Node):
         : {
             ...base,
             kind: source.operation,
-            valueExpression: source.valueExpression,
+            valueExpression: source.value.expression,
           };
     }
     case "offset": {
-      const offsetType = operandCarrier(input, source.offsetExpression);
+      const offsetType = operandCarrier(input, source.offset.expression);
       return offsetType === undefined ||
           !targetTypeRefEquals(
             offsetType,
@@ -120,7 +118,7 @@ function selectNativePointer(input: CsharpPolicyContext, node: Node):
         : {
             ...base,
             kind: source.operation,
-            offsetExpression: source.offsetExpression,
+            offsetExpression: source.offset.expression,
             offsetType,
           };
     }

@@ -6,7 +6,7 @@
 // A CSHARP_ representation refusal is a .NET-capability issue and is reported at its site.
 import type { ExtensionFactSubject, Node, SourceFile } from "@tsonic/tsts";
 import { providerVirtualDeclarationFactKey } from "@tsonic/tsts";
-import type { SourceTypeDescriptor, TargetSourceProgramFacts } from "@tsonic/target-api/source";
+import type { SourceTypeDescriptor, SourceYieldSelection, TargetSourceProgramFacts } from "@tsonic/target-api/source";
 import { sourceClassFieldIsTypeOnly, sourceTypeDescriptorsEqual } from "@tsonic/target-api/source";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
@@ -65,7 +65,7 @@ export function analyzeCsharpSourceEvidence(
   const refinements = new WeakMap<Node, CsharpValueRefinementClassification>();
   const generators = new WeakMap<Node, NonNullable<ReturnType<typeof facts.selections.generator>>>();
   const generatorTargetTypes = new WeakMap<Node, TargetTypeRef>();
-  const yields = new WeakMap<Node, NonNullable<ReturnType<typeof facts.selections.generator>>>();
+  const yields = new WeakMap<Node, SourceYieldSelection>();
   const yieldTargetTypes = new WeakMap<Node, TargetTypeRef>();
   const wellKnownSymbols = new WeakMap<Node, CsharpWellKnownSymbolKind>();
   const inferredReturns = new WeakMap<Node, TargetTypeRef>();
@@ -288,13 +288,17 @@ export function analyzeCsharpSourceEvidence(
       const carrier = represented(types.callableReturn(node), node, typeOnly);
       if (carrier !== undefined) generatorTargetTypes.set(node, carrier);
     }
-    if (ast.is.IsYieldExpression(node)) {
-      const callable = facts.navigation.scopes.enclosing(node, "callable-body");
-      const enclosing = callable === undefined ? undefined : facts.selections.generator(callable);
-      if (enclosing === undefined) failTargetAnalysisInvariant("tsonic-csharp", "A yield expression requires its enclosing Host generator selection.", node);
-      yields.set(node, enclosing);
-      const operand = ast.as.AsYieldExpression(node)?.Expression;
-      const carrier = represented(operand === undefined ? types.represent(enclosing.yieldType, node, "value") : types.value(operand), node, typeOnly);
+    const yielded = ast.is.IsYieldExpression(node) ? facts.selections.yield(node) : undefined;
+    if (ast.is.IsYieldExpression(node) && yielded === undefined) {
+      failTargetAnalysisInvariant("tsonic-csharp", "A yield expression requires its Host yield selection.", node);
+    }
+    // A refused yield (delegation) is a Host refusal, forwarded before C# analysis; it records no yield evidence.
+    if (yielded !== undefined && yielded.kind !== "refused") {
+      const enclosing = facts.selections.generator(yielded.generator);
+      if (enclosing === undefined) failTargetAnalysisInvariant("tsonic-csharp", "A yield expression requires its generator's Host generator selection.", node);
+      yields.set(node, yielded);
+      const carrier = represented(yielded.operand === undefined ? types.represent(enclosing.yieldType, node, "value")
+        : types.value(yielded.operand), node, typeOnly);
       if (carrier !== undefined) yieldTargetTypes.set(node, carrier);
     }
     const wellKnownSymbol = facts.selections.wellKnownSymbol(node);

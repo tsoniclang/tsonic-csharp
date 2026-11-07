@@ -7,7 +7,6 @@ import {
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
   directProviderHost,
-  passingFact,
   providerBinding,
   providerConstructor,
   providerDeclaration,

@@ -1,4 +1,5 @@
 import { createCsharpIntegerRangeIndex } from "./records/operations/integer-ranges.js";
+import { isCsharpRefusal } from "../../representation/index.js";
 import { analyzeCsharpSourceAliasReexports } from "../source-modules/alias-reexports.js";
 import type { CsharpTargetProgram } from "../../target-model/records/target-program.js";
 import { analyzeCsharpRepresentationIteration, representationContractsEqual, type CsharpRepresentationContract } from "./iteration.js";
@@ -21,6 +22,7 @@ import { csharpSourceNodes } from "./source-nodes.js";
 import { createCsharpSourceIdentityPolicy } from "../../source/extension/identities.js";
 
 import { csharpTargetRepresentationContractId } from "../../target-model/identities/identities.js";
+import { csharpPlatformPremisesEqual } from "../../target-model/configuration/platform.js";
 import { analyzeCsharpSourceModuleConstructions } from "../source-modules/index.js";
 import { composeCsharpBinaryExecutionDriver } from "../../target-model/metadata/binary-execution-drivers.js";
 import { analyzeCsharpModuleInitialization } from "../module-initialization/index.js";
@@ -126,9 +128,16 @@ function analyzeCsharpTargetProgramBeforeSeal(
   const callOnlyAlias = createCsharpSourceProfileCallableAliasQuery(source);
   const typeHost = {
     facts: source.facts,
-    // N5: the native integer width comes from the platform bridge. Every supported .NET runtime identifier of this
-    // target (x64, arm64) is 64-bit; a 32-bit bridge would set 32 here.
-    platform: Object.freeze({ nativeIntegerBits: 64 as const, targetFramework: configuration.targetFramework }),
+    // N5 / E24: the native integer premise is the Host-published fact, the same one every Host native-int width
+    // decision used. It must be the C# target's own premise (target-model/configuration/platform.ts), which the
+    // composition root passes from TargetCompilationSession.sourcePlatform(); anything else is a transport defect.
+    platform: Object.freeze({
+      nativeInteger: csharpPlatformPremisesEqual(source.facts.analyses.platform, configuration.platform.premise)
+        ? source.facts.analyses.platform
+        : failTargetAnalysisInvariant("tsonic-csharp",
+          "The Host platform premise (facts.analyses.platform) is not the C# target's own premise (E24)."),
+      targetFramework: configuration.targetFramework,
+    }),
     profile: input.target.surfaces?.includes("js") === true ? "js" as const : "native" as const,
     moduleCallables,
     integerRanges: createCsharpIntegerRangeIndex(source, sourceNodes),
@@ -316,7 +325,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
         }];
       }
     }
-    if (use.message === undefined && use.reason !== "argument-refused" && use.reason !== "source-argument-rejected" &&
+    if (use.message === undefined && use.reason !== "argument-refused" &&
       use.reason !== "property-key-refused") return [];
     return [{ sourceNode: use.expression, source: "tsonic-csharp", category: "error",
       code: use.code ?? failTargetAnalysisInvariant(
@@ -337,7 +346,11 @@ function analyzeCsharpTargetProgramBeforeSeal(
   const nativeValueCarriers = analyzeCsharpNativeValueCarriers(
     source.syntax, nativeDemand.requiredNativeValueDeclarations, analysis.sourceEvidence, {
       facts: source.facts,
-      resolve: (descriptor, occurrence) => analysis.policy.types.represent(descriptor, occurrence, "storage"),
+      // A .NET refusal of the field carrier is reported by the struct-field owner as an unselected carrier.
+      resolve: (descriptor, occurrence) => {
+        const carrier = analysis.policy.types.represent(descriptor, occurrence, "storage");
+        return isCsharpRefusal(carrier) ? undefined : carrier;
+      },
     }, analysis.objectShapes, analysis.requiredRecords,
   );
   if (nativeValueCarriers.issues.length > 0) return rejectCsharpAnalysisIssues(nativeValueCarriers.issues);

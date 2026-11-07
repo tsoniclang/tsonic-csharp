@@ -211,7 +211,7 @@ export interface CsharpNativeExpressionRecord {
 
 export type CsharpNativeUnadmittedReason =
   | "argument-refused" | "argument-unresolved" | "argument-inconsistent" | "argument-expression-unresolved"
-  | "expression-form-unresolved" | "operation-unresolved" | "source-argument-rejected" | "construction-unresolved"
+  | "expression-form-unresolved" | "operation-unresolved" | "construction-unresolved"
   | "completion-unresolved" | "use-context-unresolved" | "expected-use-pending" | "cyclic-use" | "callable-creation" | "property-key-refused";
 
 export type CsharpNativeUnadmitted =

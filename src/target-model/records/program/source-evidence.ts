@@ -3,20 +3,13 @@ import type { CsharpTypeParameterConstraintResolution } from "../../types/generi
 import type { TargetTypeRef } from "../../types/model.js";
 import type { CsharpSourceDefaultValue, CsharpSourceField, CsharpSourceStruct } from "./source-markers.js";
 import type { Node } from "@tsonic/tsts";
-import type { SourceGeneratorSelection, SourceTypeDescriptor } from "@tsonic/target-api/source";
+import type { SourceGeneratorSelection, SourceTypeDescriptor, SourceYieldSelection } from "@tsonic/target-api/source";
 
-export type CsharpSourceArgumentClassification =
-  | {
-      readonly kind: "resolved";
-      readonly argument: {
-        readonly passingMode: import("@tsonic/tsts").ArgumentPassingMode;
-        readonly storageExpression: Node;
-      };
-    }
-  | {
-      readonly kind: "rejected";
-      readonly reason: string;
-    };
+/** WP0 A4: the frozen Source passing selection of one expression (its mode and exact storage occurrence). */
+export interface CsharpSourceArgumentClassification {
+  readonly passingMode: import("@tsonic/tsts").ArgumentPassingMode;
+  readonly storageExpression: Node;
+}
 
 export type CsharpContextualTupleClassification =
   | {
@@ -72,8 +65,8 @@ export interface CsharpSourceEvidenceIndex {
   readonly valueRefinement: { readonly get: (node: Node) => CsharpValueRefinementClassification | undefined };
   readonly generator: { readonly get: (node: Node) => SourceGeneratorSelection | undefined };
   readonly generatorTargetType: { readonly get: (node: Node) => TargetTypeRef | undefined };
-  /** The generator selection of the callable that encloses a yield expression. */
-  readonly yield: { readonly get: (node: Node) => SourceGeneratorSelection | undefined };
+  /** The Host yield selection (generator declaration, value or delegate, operand, delegated iteration); absent when refused. */
+  readonly yield: { readonly get: (node: Node) => SourceYieldSelection | undefined };
   readonly yieldTargetType: { readonly get: (node: Node) => TargetTypeRef | undefined };
   /** The well-known symbol a computed key or element access names (selections.wellKnownSymbol), as the C# member-key kind. */
   readonly wellKnownSymbol: { readonly get: (node: Node) => import("../../types/model.js").CsharpWellKnownSymbolKind | undefined };

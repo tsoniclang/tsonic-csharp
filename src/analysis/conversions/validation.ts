@@ -19,6 +19,7 @@ import { csharpNativeRepresentationMatches } from "../../policy/conversions/nati
 import type { CsharpNativeCompletion } from "../../target-model/records/native/native-demand.js";
 import { isCsharpVoidTargetType } from "../../target-model/types/identity.js";
 import { instantiateCsharpCallableContract } from "../../policy/conversions/generic-callable.js";
+import { csharpNumberErasureCandidate } from "./number-erasure.js";
 
 type CsharpUnionValidationPolicy = Pick<CsharpPolicyContext, "typeDefinitions" | "projectTypes" | "providers"> & CsharpConversionShapeQueries;
 
@@ -111,6 +112,15 @@ export function admitCsharpConversionSelection(
           return { kind: "rejected", reason: "Nullable conversion requires its exact sealed source and destination element carriers." };
         }
         descend(selected, [{ kind: "enter", source: sourceElement, target: targetElement, selection: selected.conversion }]);
+        break;
+      case "exact-number-erasure":
+        // The use-scoped erasure (A3) starts at the exact int64 carrier and continues from its float64 result.
+        if (current.source === undefined || !targetTypeRefEquals(current.source, selected.input) ||
+          !csharpNumberErasureCandidate(current.source, current.target, "implicit") ||
+          selected.result.kind !== "source-primitive" || selected.result.name !== "float64") {
+          return { kind: "rejected", reason: "Exact number erasure requires its int64 source carrier, a broad destination and a float64 result." };
+        }
+        descend(selected, [{ kind: "enter", source: selected.result, target: current.target, selection: selected.conversion }]);
         break;
       case "implicit": {
         if (selected.proof === "native-representation") {
@@ -226,6 +236,9 @@ function conversionRenderingRejection(input: CsharpConversionAdmissionInput): Cs
       break;
     case "nullable-map":
       required = [getCsharpNullableElementTargetType(source), target];
+      break;
+    case "exact-number-erasure":
+      required = [selection.result];
       break;
     case "runtime-union-reference":
       required = [getCsharpNullableElementTargetType(target) ?? target];

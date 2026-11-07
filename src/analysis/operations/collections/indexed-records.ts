@@ -24,7 +24,7 @@ export function selectCsharpIndexedRecordElement(
     return { kind: "rejected", diagnostic: csharpSourceProfileDiagnostic("CSHARP_RECORD_INDEX_NOT_CLOSED", 9100024,
       "Indexed records require exact native key/value carriers and a writable index signature when mutated.") };
   }
-  const contract = indexedRecordMember(receiver, key, value, { readonly: source.readonly });
+  const contract = indexedRecordMember(receiver, key, value, source.readonly);
   return {
     kind: "resolved",
     targetMember: contract.member,
@@ -54,7 +54,7 @@ export function selectCsharpIndexedRecordProperty(
     return { kind: "rejected", diagnostic: csharpSourceProfileDiagnostic("CSHARP_RECORD_INDEX_NOT_CLOSED", 9100024,
       "Named records require their exact string index signature, native value carrier and writable storage when mutated.") };
   }
-  const contract = indexedRecordMember(receiver, key, value, { readonly: index.readonly });
+  const contract = indexedRecordMember(receiver, key, value, index.readonly);
   return { kind: "resolved", targetMember: contract.member, receiver: { kind: "instance" },
     invocation: { kind: "source-name-indexer", optionalRead: contract.optionalRead && source.access === "read" } };
 }

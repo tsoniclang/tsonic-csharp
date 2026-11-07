@@ -1,20 +1,14 @@
-import { tsonicNativePointerOperationFactKey } from "@tsonic/source-core/facts";
-import type { TsonicNativePointerOperationFact } from "@tsonic/source-core/facts";
-import type { ExtensionFactSubject, ReadonlySourceFactResolver } from "@tsonic/tsts";
+import type { Node } from "@tsonic/tsts";
+import type { SourceProgramFacts } from "@tsonic/target-api/source";
+import type { TsonicNativePointerRecord, TsonicNativePointerRejection } from "@tsonic/source-core/facts";
+import { csharpSourceCoreAnalyses } from "./source-core.js";
 
-export type CsharpSourceNativePointerOperation =
-  TsonicNativePointerOperationFact;
+export type CsharpSourceNativePointerOperation = TsonicNativePointerRecord;
 
+/** loadnativeptr / storenativeptr / offsetnativeptr: the source-core Host record (operand roles with descriptors). */
 export function readCsharpSourceNativePointerOperation(
-  sourceFacts: ReadonlySourceFactResolver | undefined,
-  subject: ExtensionFactSubject | undefined,
-): CsharpSourceNativePointerOperation | undefined {
-  if (subject === undefined) {
-    return undefined;
-  }
-  const operation = sourceFacts?.getFact(
-    subject,
-    tsonicNativePointerOperationFactKey,
-  );
-  return operation;
+  facts: SourceProgramFacts,
+  subject: Node,
+): CsharpSourceNativePointerOperation | TsonicNativePointerRejection | undefined {
+  return csharpSourceCoreAnalyses(facts).pointers.native(subject);
 }

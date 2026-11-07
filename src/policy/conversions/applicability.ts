@@ -3,7 +3,7 @@ export function csharpConversionIsApplicable(
   selection: CsharpConversionSelection,
   mode: CsharpConversionMode,
 ): boolean {
-  if (selection.kind === "nullable-map") return csharpConversionIsApplicable(selection.conversion, mode);
+  if (selection.kind === "nullable-map" || selection.kind === "exact-number-erasure") return csharpConversionIsApplicable(selection.conversion, mode);
   return selection.kind === "identity" ||
     selection.kind === "absence" ||
     selection.kind === "union-map" && (selection.coverage === "source" || mode === "explicit") ||

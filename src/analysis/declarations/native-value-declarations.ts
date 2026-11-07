@@ -204,7 +204,7 @@ export function admitCsharpRawInterfaceDeclarations(
   for (const node of nodes) {
     if (!ast.is.IsInterfaceDeclaration(node) || nativeUse.order(node) === undefined || metadata.get(node) ||
       participation.get(node) === "erased" || unreachable.get(node)) continue;
-    const shape = shapes.resolveNode(node, ast.getSourceFile(node));
+    const shape = shapes.resolveNode(node);
     if (shape === undefined) continue;
     if (artifacts.get(objectShapeArtifactKey(shape))?.capabilities.includes("method-values") && !rendered(shape, true)) {
       refuse(node, "CSHARP_INTERFACE_METHOD_VALUE", "An interface method value requires its exact native callable storage contract.");

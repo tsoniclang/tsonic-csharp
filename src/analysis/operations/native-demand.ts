@@ -33,6 +33,13 @@ interface UseState {
   readonly visited: VisitedUse;
 }
 
+/**
+ * The expected native use of a value stays pending with the refusal of its expected construction or representation
+ * (analysis/expected-types). The pending entry carries the message only, so the native demand owner reports it under
+ * this code.
+ */
+const expectedUseRefusalCode = "CSHARP_EXPECTED_USE_NOT_ADMITTED";
+
 type PendingExpectedUse = CsharpNativeDemandAnalysisInput["expected"]["pending"][number];
 
 interface ExpectedSlot {
@@ -150,18 +157,23 @@ export function analyzeCsharpNativeDemand(
       ...(discardedPresence === undefined ? {} : { discardedPresence }) });
   }
 
-  function pending(site: TargetUseSiteRef, expression: Node, reason: CsharpNativeUnadmittedReason, message?: string, code?: string): VisitedUse {
-    if (message !== undefined && code === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+  function pending(site: TargetUseSiteRef, expression: Node, reason: CsharpNativeUnadmittedReason, message?: string,
+    code?: `CSHARP_${string}`): VisitedUse {
+    if (message === undefined) {
+      unadmitted.push(Object.freeze({ kind: "pending-use", site, expression, reason }));
+      return Object.freeze({ site, expression, completion: undefined });
+    }
+    // A native refusal is reported with its message and exact CSHARP_ code.
+    if (code === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
       "A native refusal message requires its exact CSHARP_ code.", expression);
-    if (reason === "expression-form-unresolved" && message !== undefined) {
+    if (reason === "expression-form-unresolved") {
       if (!refusedSourceExpressions.has(expression)) {
         refusedSourceExpressions.add(expression);
         unadmitted.push(Object.freeze({ kind: "source-refusal", requiredBy: expression, diagnostic: Object.freeze({
-          sourceNode: expression, source: "tsonic-csharp", category: "error", code: code!, message,
+          sourceNode: expression, source: "tsonic-csharp", category: "error", code, message,
         }) }));
       }
-    } else unadmitted.push(Object.freeze({ kind: "pending-use", site, expression, reason,
-      ...(message === undefined ? {} : { message }), ...(code === undefined ? {} : { code }) }));
+    } else unadmitted.push(Object.freeze({ kind: "pending-use", site, expression, reason, message, code }));
     return Object.freeze({ site, expression, completion: undefined });
   }
 
@@ -309,7 +321,8 @@ export function analyzeCsharpNativeDemand(
       if (matching.length === 1 && candidates?.pending.length === 0) site = matching[0]!.site;
       else if (candidates !== undefined && candidates.pending.length > 0) {
         const refusals = candidates.pending.filter(entry => entry.expression === expression);
-        if (refusals.length === 1) return pending(refusals[0]!.site, expression, "expected-use-pending", refusals[0]!.message);
+        if (refusals.length === 1) return pending(refusals[0]!.site, expression, "expected-use-pending", refusals[0]!.message,
+          refusals[0]!.message === undefined ? undefined : expectedUseRefusalCode);
         return pending(site, expression, "expected-use-pending");
       }
     }
@@ -343,7 +356,7 @@ export function analyzeCsharpNativeDemand(
     const expected = input.expected.expectedUse.get(site);
     const withheld = exactPending.get(site.subject)?.get(targetUseSiteIdentity(site));
     if (withheld !== undefined) return pending(site, expression, "expected-use-pending",
-      withheld.message === undefined ? withheld.reason : withheld.message.slice(0, 2048));
+      withheld.message === undefined ? withheld.reason : withheld.message.slice(0, 2048), expectedUseRefusalCode);
     requireCsharpRecord(requiredRecords, { family: "sourceArgument", subject: expression,
       construct: "native expression passing", producer: "analyzeCsharpNativeDemand" });
     if (ast.is.IsArrowFunction(expression) || ast.is.IsFunctionExpression(expression)) requireCsharpRecord(requiredRecords, {
@@ -408,7 +421,8 @@ export function analyzeCsharpNativeDemand(
       const keys: CsharpNativePropertyKey[] = [];
       for (const binding of bindings) {
         const literal = input.exactLiteral.get(binding.name, binding.target, "property-key");
-        if (literal?.kind === "rejected") return pending(site, expression, "property-key-refused", literal.reason);
+        if (literal?.kind === "rejected") return pending(site, expression, "property-key-refused", literal.reason,
+          "CSHARP_PROPERTY_KEY_NOT_REPRESENTABLE");
         if (literal?.kind !== "resolved") return failTargetAnalysisInvariant("tsonic-csharp", "A native dictionary key requires its selected exact literal recipe.", binding.name);
         requireCsharpRecord(requiredRecords, { family: "exactLiteral", subject: binding.name, target: binding.target,
           role: "property-key",

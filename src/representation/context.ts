@@ -11,6 +11,7 @@ import type { CsharpTypeParameterEnvironment } from "../target-model/records/typ
 import type { CsharpProviderRelationResolver } from "../providers/model/relation-resolver.js";
 import type { CsharpProjectedType } from "../target-model/types/projections.js";
 import type { CsharpTypeDefinitionWriter } from "../analysis/program/records/types/type-definitions.js";
+import type { SourcePlatformFacts } from "@tsonic/target-api/source";
 
 /** A .NET-capability refusal (CSHARP_* only, R5). Host refusals are forwarded unchanged, never wrapped. */
 export interface CsharpRefusal {
@@ -20,9 +21,9 @@ export interface CsharpRefusal {
   readonly site: Node;
 }
 
-/** Platform facts the mapping needs. The native integer width comes from the active platform bridge (N5). */
+/** Platform facts the mapping needs. The native integer premise is the Host-published fact (facts.analyses.platform, E24, N5). */
 export interface CsharpPlatformBridge {
-  readonly nativeIntegerBits: 32 | 64;
+  readonly nativeInteger: SourcePlatformFacts;
   readonly targetFramework: string;
 }
 

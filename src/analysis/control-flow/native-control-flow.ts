@@ -60,7 +60,7 @@ export function admitCsharpIterationBindings(
     const selected = operations.iteration.get(node);
     if (selected === undefined || selected.kind === "rejected") {
       const statement = policy.ast.as.AsForInOrOfStatement(node);
-      refuse(statement?.Expression ?? statement?.Initializer ?? node, "CSHARP_ITERATION_PROTOCOL", selected?.reason ??
+      refuse(statement?.Expression ?? statement?.Initializer ?? node, selected?.code ?? "CSHARP_ITERATION_PROTOCOL", selected?.reason ??
         `C# planning received a ${policy.ast.is.IsForInStatement(node) ? "for-in" : "for-of"} statement without a sealed target classification.`);
       continue;
     }
@@ -308,7 +308,7 @@ export function admitCsharpStatementBindings(
     } else if (ast.is.IsSwitchStatement(node)) {
       const selected = operations.switchStatement.get(node);
       if (selected === undefined || selected.kind === "rejected") {
-        refuse(node, "CSHARP_SWITCH_NOT_REPRESENTABLE", selected?.reason ?? "Switch requires sealed C# classification.");
+        refuse(node, selected?.code ?? "CSHARP_SWITCH_NOT_REPRESENTABLE", selected?.reason ?? "Switch requires sealed C# classification.");
       }
     } else if (ast.is.IsCatchClause(node)) {
       const clause = ast.as.AsCatchClause(node);
@@ -372,7 +372,7 @@ export function admitCsharpStatementBindings(
       }
       if (selected === undefined) {
         refuse(node, "CSHARP_RESOURCE_NOT_CLASSIFIED", "C# planning received a resource declaration without a sealed target classification.");
-      } else if (selected.kind === "rejected") refuse(node, "CSHARP_RESOURCE_DISPOSAL", selected.reason);
+      } else if (selected.kind === "rejected") refuse(node, selected.code, selected.reason);
       else if (kind === "using" && (selected.registration.kind === "direct"
         ? selected.registration.disposal.kind !== "sync"
         : selected.registration.arms.some(arm => arm.disposal.kind !== "sync"))) {

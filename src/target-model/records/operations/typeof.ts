@@ -14,6 +14,10 @@ export type CsharpTypeofComparisonSelection =
       readonly negated: boolean;
     }
   | {
+      /** An opaque JS-value operand: the runtime typeof string (TsValue.ApplyDynamicTypeof) is compared (K-2665). */
+      readonly kind: "dynamic";
+    }
+  | {
       readonly kind: "rejected";
       readonly reason: string;
       readonly code: `CSHARP_${string}`;

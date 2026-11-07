@@ -8,6 +8,8 @@ import { csharpSourceProfileDiagnostic } from "../../../policy/operations/source
 import type { CsharpSourceProfileCallPolicyResult, CsharpSourceProfileElementPolicyResult, CsharpSourceProfileCallPolicy, CsharpSourceProfilePropertyPolicy, CsharpSourceProfileElementPolicy } from "../../../policy/model/source-profiles.js";
 import type { CsharpSourceProfilePropertyPolicyResult } from "../../../target-model/records/program/source-profile-invocations.js";
 import type { Node } from "@tsonic/tsts";
+import type { SourceElementAccessRecord } from "@tsonic/target-api/source";
+import { selectedCsharpSourceProfileOwner } from "../../../policy/identities/source-types.js";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 
 import type { TargetTypeRef } from "../../../policy/types/index.js";
@@ -101,16 +103,35 @@ export function sourceProfilePropertyIdentities(
     : [];
 }
 
+/**
+ * The profile identity of an element access. A member or index-signature selection names its declaration. An array,
+ * typed-array or string element has no declaration: its indexer identity is named by the Host collection fact
+ * (profile.collection) or the string-character selection, under the target's profile owner, and keyed at the access.
+ */
+function elementAccessIdentity(
+  host: CsharpProviderCallSelectionHost,
+  access: SourceElementAccessRecord,
+): CsharpSourceProfileDeclarationIdentity | undefined {
+  const selected = access.selected;
+  if (selected.kind === "member" || selected.kind === "index-signature") {
+    return csharpSourceProfileDeclarationIdentity(host.ast, host.facts, host.sourceFacts, selected.declaration);
+  }
+  if (selected.kind === "tuple") return undefined;
+  const collection = selected.kind === "string-character" ? "string" : host.facts.profile.collection(access.receiverType)?.kind;
+  const declaringName = collection === "array" ? "Array" : collection === "readonly-array" ? "ReadonlyArray"
+    : collection === "typed-array" ? "TypedArray" : collection === "string" ? "String" : undefined;
+  return declaringName === undefined ? undefined : Object.freeze({
+    owner: selectedCsharpSourceProfileOwner(host.target), kind: "indexer", declaringName, declaration: access.node,
+  });
+}
+
 export function selectCsharpSourceProfileElementPolicy(
   host: CsharpProviderCallSelectionHost,
   access: Node,
   policies: readonly CsharpSourceProfileElementPolicy[],
 ): CsharpSourceProfileElementPolicyResult | undefined {
   const source = csharpSourceProfileElementSource(host, access);
-  const selected = source.access.selected;
-  const declaration = selected.kind === "member" || selected.kind === "index-signature" || selected.kind === "element"
-    ? selected.declaration : undefined;
-  const identity = csharpSourceProfileDeclarationIdentity(host.ast, host.facts, host.sourceFacts, declaration);
+  const identity = elementAccessIdentity(host, source.access);
   if (identity === undefined) return undefined;
   const policy = selectExactlyOnePolicy(policies.filter(candidate => sourceProfileIdentityMatches(candidate.source, identity)), identity);
   if (policy.kind === "missing") return undefined;

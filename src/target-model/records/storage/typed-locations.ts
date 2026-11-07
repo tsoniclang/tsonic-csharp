@@ -8,6 +8,7 @@ export type CsharpTypedLocationOperationSelection =
       readonly kind: "rejected";
       readonly operation: CsharpTypedLocationOperationKind;
       readonly reason: string;
+      readonly code?: string;
     }
   | CsharpResolvedTypedLocationOperation;
 
@@ -19,7 +20,7 @@ export type CsharpNativeRefReturnSelection =
       readonly returnType: TargetTypeRef | undefined;
     }
   | { readonly kind: "not-native" }
-  | { readonly kind: "rejected"; readonly reason: string };
+  | { readonly kind: "rejected"; readonly reason: string; readonly code?: string };
 
 export type CsharpTypedLocationOperationKind =
   | "location-address"

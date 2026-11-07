@@ -4,6 +4,8 @@ import { csharpSourceDiagnosticLabel } from "../../helpers/source-diagnostic-lab
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 
+// Basis for `kind(undefined)` / `missing` = "undefined" (was "object"): C-2479 decision 2 (c), PLAN.md §4.3 typeof row:
+// an operand admitting undefined but not null reads "undefined" at its absent value (nextgen C-2542, K-2658, K-2665).
 for (const surface of [undefined, "js"]) {
   test(`optional union refinement retains absence on ${surface ?? "native"}`, { timeout: 300_000 }, () => {
     const compiled = compileCsharpSource({ surface, sourceText: `
@@ -37,8 +39,8 @@ export function run(): boolean {
   const compared = typeof countedNumber(calls) === "number";
   const inverse = typeof countedNumber(calls) !== "number";
   return selectHost("host") === "host" && selectHost(() => "callback") === "callback" &&
-    selectHost(undefined) === undefined && kind("host") === "string" && kind(undefined) === "object" &&
-    present === "string" && missing === "object" && direct === "number" && compared && !inverse && calls.value === 5 &&
+    selectHost(undefined) === undefined && kind("host") === "string" && kind(undefined) === "undefined" &&
+    present === "string" && missing === "undefined" && direct === "number" && compared && !inverse && calls.value === 5 &&
     limit(undefined) === 10 && limit(8) === 8 && limit("four") === 4 &&
     selectText("kept") === "kept" && selectText(undefined) === undefined && selectText(3) === undefined &&
     exactInteger(undefined) === 0n && exactInteger(7) === 1n && exactInteger(9007199254740993n) === 9007199254740993n;

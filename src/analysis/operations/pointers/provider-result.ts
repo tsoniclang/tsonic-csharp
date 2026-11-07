@@ -1,4 +1,5 @@
-import { selectTsonicProviderPointerResult } from "@tsonic/source-core/facts";
+import { foldTsonicProviderPointerResult } from "@tsonic/source-core/facts";
+import { csharpSourceCoreAnalyses } from "../../../source/extension/source-core.js";
 import type { SourceCallSelection, SourceProviderTypeParameterSelection } from "@tsonic/target-api/source";
 import type { CsharpProviderCallInstantiationHost } from "../../../policy/model/provider-calls.js";
 import { csharpRuntimeLocationTargetType, csharpRuntimeRawPointerTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
@@ -8,14 +9,13 @@ import { csharpJsArrayTargetType } from "../../../target-model/types/carriers/js
 import { selectedCsharpSourceProfileOwner } from "../../../policy/identities/source-types.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 
-/** The pointer result of a provider call, from the Host call selection and published descriptors (source-core protocol). */
+/** The pointer result of a provider call: the source-core Host shape of the call, folded into C# carriers. */
 export function selectCsharpProviderPointerResult(
   host: CsharpProviderCallInstantiationHost,
   source: SourceCallSelection,
   typeParameter: (parameter: SourceProviderTypeParameterSelection) => TargetTypeRef | undefined,
 ) {
-  if (host.sourceFacts === undefined) return undefined;
-  return selectTsonicProviderPointerResult<TargetTypeRef>(source, host.ast, host.facts, host.sourceFacts, {
+  return foldTsonicProviderPointerResult<TargetTypeRef>(csharpSourceCoreAnalyses(host.facts).providerPointerResult(source.use), {
     primitive: csharpSourcePrimitiveTargetType,
     raw: csharpRuntimeRawPointerTargetType,
     pointer: csharpRuntimeLocationTargetType,

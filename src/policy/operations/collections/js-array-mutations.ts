@@ -13,6 +13,7 @@ export function selectCsharpNativeArrayLengthWrite(
       kind: "rejected",
       reason:
         "The selected mutable JS Array length property has no closed C# mutation carrier.",
+      code: "CSHARP_JS_ARRAY_MUTATION_NOT_PROVEN",
     };
   }
   return {

@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { csharpSourcePrimitiveTargetType, isCsharpArrayIndexTargetType, isCsharpIntegralTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
-import { analyzeSourceLiteralValues } from "@tsonic/target-api/source";
 import { acceptedEffectiveSource, assertNativeEffectiveRefusal, assertPrimitiveOccurrences, compileEffectiveSource, projectNodes } from "../../helpers/source-effective-types.mjs";
 import * as literalPolicy from "../../../dist/policy/conversions/literals.js";
 import { csharpStringTargetType, csharpBigIntegerTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
@@ -30,10 +29,11 @@ test("published scalar construction retains one physical payload before every de
         : `import type { ${declared} } from "@tsonic/core/types.js";`;
       const compiled = compileEffectiveSource(surface, `${imported} export function run(): (${storage})[] { return [${spelling}]; }`);
       acceptedEffectiveSource(compiled);
-      const ast = compiled.targetSource.ast;
+      const ast = compiled.targetSource.syntax;
       const aggregate = projectNodes(compiled, node => ast.is.IsArrayLiteralExpression(node))[0];
       const expression = ast.elements(aggregate)[0];
-      const outcome = compiled.targetSource.effectiveTypes.get(expression);
+      // nextgen C-2542: the received TargetSourceProgramFacts publishes value outcomes through facts.values.
+      const outcome = compiled.targetSource.facts.values.type(expression);
       assert.equal(outcome !== undefined && outcome.kind !== "refused", true,
         `${surface}/${name}/${form}: the original Source occurrence publishes its outcome`);
       const produced = outcome.construction ?? outcome.type;
@@ -50,13 +50,14 @@ test("published scalar construction retains one physical payload before every de
     export function run(value: int32): int32 { return value; }`);
   acceptedEffectiveSource(nonliteral);
   const nonliteralReturn = projectNodes(nonliteral, (node, ast) => ast.is.IsReturnStatement(node))[0];
-  const nonliteralValue = nonliteral.targetSource.ast.as.AsReturnStatement(nonliteralReturn)?.Expression;
-  assert.equal(analyzeSourceLiteralValues(nonliteral.targetSource.ast, nonliteral.targetSource.navigation.sourceFiles)
-    .literalValue.get(nonliteralValue) === undefined, true, "a nonliteral read supplies no authored scalar literal");
+  const nonliteralValue = nonliteral.targetSource.syntax.as.AsReturnStatement(nonliteralReturn)?.Expression;
+  // nextgen C-2542: the literal index is Host-internal; facts.values.literal is its publication (R-B7).
+  assert.equal(nonliteral.targetSource.facts.values.literal(nonliteralValue) === undefined, true,
+    "a nonliteral read supplies no authored scalar literal");
   const unannotated = compileEffectiveSource("native", "export function run() { return -2147483648; }");
   acceptedEffectiveSource(unannotated);
   const ownReturn = projectNodes(unannotated, (node, ast) => ast.is.IsReturnStatement(node))[0];
-  const ownValue = unannotated.targetSource.ast.as.AsReturnStatement(ownReturn)?.Expression;
+  const ownValue = unannotated.targetSource.syntax.as.AsReturnStatement(ownReturn)?.Expression;
   assert.equal(targetTypeRefEquals(unannotated.result.program.records.valueRead.get(ownValue)?.value,
     csharpSourcePrimitiveTargetType("int64")), true, "no authored storage still keeps the Source int64 creation default");
   const aggregate = compileEffectiveSource("native", "export function run() { return [1]; }");
@@ -67,7 +68,9 @@ test("published scalar construction retains one physical payload before every de
   for (const storage of ["int32", "int32 | undefined", "int32 | boolean"]) {
     const overflow = compileEffectiveSource("native", `import type { int32 } from "@tsonic/core/types.js";
       export function run(): (${storage})[] { return [2147483648]; }`);
-    assertNativeEffectiveRefusal(overflow, "Source bigint literal is outside the exact 'int32' range.", "2147483648");
+    // nextgen C-2542 (I7): the refusal carries its .NET-reason code (analysis/operations/literals.ts).
+    assertNativeEffectiveRefusal(overflow, "CSHARP_LITERAL_NOT_REPRESENTABLE",
+      "Source bigint literal is outside the exact 'int32' range.", "2147483648");
   }
 });
 
@@ -119,9 +122,9 @@ test("integer negative zero defaults to int64 while written floating zero retain
       const text = acceptedEffectiveSource(compiled);
       const declarations = projectNodes(compiled, (node, ast) => ast.is.IsVariableDeclaration(node) && ast.text(ast.name(node)) === "negative");
       assert.equal(declarations.length, 1, "one original negative-zero declaration");
-      const ast = compiled.targetSource.ast;
+      const ast = compiled.targetSource.syntax;
       const initializer = ast.as.AsVariableDeclaration(declarations[0])?.Initializer;
-      const literal = analyzeSourceLiteralValues(ast, [ast.getSourceFile(declarations[0])]).literalValue.get(initializer);
+      const literal = compiled.targetSource.facts.values.literal(initializer);
       assert.equal(Object.is(literal?.number, -0), true, `${surface}/${token}: the actual checked authored literal retains its sign`);
       assertPrimitiveOccurrences(compiled, "negative", token === "0" ? "int64" : "float64");
       assertPrimitiveOccurrences(compiled, "positive", "int64");

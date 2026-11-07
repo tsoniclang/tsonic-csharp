@@ -15,6 +15,7 @@ import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpTypeDefinitions } from "../../../target-model/types/source-union-definitions.js";
 import { isCsharpRefLikeTargetType } from "../../../target-model/types/ref-like.js";
 import { selectCsharpPromiseDiscard } from "../../../policy/types/callables/promise-results.js";
+import { sourceResourceSelection } from "../../program/source-facts.js";
 
 function ownershipDiagnostic(selection: SourceDeclarationOwnershipUnresolved): TargetDiagnostic {
   const cause = selection.cause;
@@ -145,7 +146,7 @@ export function analyzeCsharpPromiseResults(input: {
     suspensionFor(value, use) {
       if (use === "resource-cleanup") {
         const resource = input.records.resource.get(value.node);
-        const selected = facts.selections.resource(value.node);
+        const selected = sourceResourceSelection(facts, value.node);
         if (resource?.kind !== "resolved" || selected === undefined || resource.source.declaration !== selected.declaration ||
           selected.declaration !== value.node || !selected.async)
           return unresolved(value.node, "Cleanup suspension requires this declaration's completed native disposal registration.");

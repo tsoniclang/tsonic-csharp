@@ -1,13 +1,11 @@
-import { analyzeSourceArtifactFiles } from "@tsonic/target-api/analysis";
 import type { TargetSourceProgramFacts } from "@tsonic/target-api/source";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpSourceModuleConstructionIndex } from "../../target-model/records/program/source-modules.js";
 import { createCsharpSourceArtifactRecords } from "../program/records/program/artifacts.js";
 
 export function analyzeCsharpSourceArtifacts(source: TargetSourceProgramFacts, constructions: CsharpSourceModuleConstructionIndex) {
-  // Module dependencies come from the published role model (request R-F5-B5).
-  const selected = analyzeSourceArtifactFiles({ ast: source.syntax, sourceFiles: source.sourceFiles,
-    navigation: source.facts.navigation, constructions: constructions.entries() });
+  // The Host artifact-file analysis over the program's source files and module dependencies (facts.analyses).
+  const selected = source.facts.analyses.artifactFiles(constructions.entries());
   const issues: readonly TargetDiagnostic[] = Object.freeze(selected.issues.map(issue => ({
     category: "error" as const, source: "tsonic-csharp", sourceNode: issue.sourceFile,
     code: issue.kind === "source-identity" ? "CSHARP_SOURCE_FILE_ARTIFACT_IDENTITY_MISSING"

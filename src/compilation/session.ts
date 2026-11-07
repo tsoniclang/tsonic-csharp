@@ -2,6 +2,7 @@ import { classifyCsharpProjectConfiguration } from "./project.js";
 import { printCsharpRuntimeProject } from "../print/project/runtime.js";
 import type { TargetCompilationSession, TargetCompilationSessionContext, TargetCompileInput, TargetSourceCompilerContributions, TargetSourceProfileContributions } from "@tsonic/target-api";
 import type { TargetCompileResult, TargetRuntimeContributions } from "@tsonic/target-api/artifacts";
+import type { SourcePlatformFacts } from "@tsonic/target-api/source";
 import { resolve } from "node:path";
 import { createDotnetReflectionTypeDataProvider, dotnetModuleSpecifierPolicy } from "../providers/native/index.js";
 import { createDotnetSourceDeclarationProviderSet } from "../providers/native/projection/provider.js";
@@ -83,6 +84,14 @@ export function createCsharpCompilationSession(
   });
   let state: CsharpCompilationSessionState = "created";
   return Object.freeze({
+    /**
+     * The native integer premise of this build (E24, N5), resolved by the C# target configuration
+     * (target-model/configuration/platform.ts). The composition root passes it to the Host as
+     * TargetSourceProgramOptions.platform; the C# analysis checks the published fact against it.
+     */
+    sourcePlatform(): SourcePlatformFacts {
+      return configuration.platform.premise;
+    },
     sourceProfileContributions(): TargetSourceProfileContributions {
       requireState(state, "created", "sourceProfileContributions");
       state = "profile-contributed";

@@ -24,9 +24,9 @@ import type { CsharpFinalStructuralInterfaceImplementation } from "../../../targ
 import type { CsharpDefaultValueContract } from "../../../target-model/records/objects/value-projections.js";
 import type { CsharpTargetCallSelection } from "../../../target-model/records/operations/member-selections.js";
 import type { CsharpConversionSelection } from "../../../target-model/conversions/selection.js";
-import type { CsharpObjectShapeFact, CsharpObjectShapeCapability, CsharpRuntimeUnionTargetTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeCapability, CsharpRuntimeUnionTargetTypeRef, CsharpSourceMemberKey, TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpObjectShapeMethodDeclaration } from "../../../target-model/types/method-values.js";
-import { csharpPropertySourceMemberKey, csharpWellKnownSymbolSourceMemberKey } from "../../../target-model/types/source-member-keys.js";
+import { csharpPropertySourceMemberKey, csharpWellKnownSymbolKind, csharpWellKnownSymbolSourceMemberKey } from "../../../target-model/types/source-member-keys.js";
 import { resolveCsharpObjectShapeMemberBySourceKey } from "../../../target-model/types/object-shape-members.js";
 import { csharpTargetTypeComponents } from "../../../target-model/types/components.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../target-model/types/equality.js";
@@ -382,8 +382,6 @@ export function analyzeCsharpNativeArtifactDemand(
 
   function demandUseArtifacts(use: Exclude<CsharpNativeUse, { readonly kind: "erased" }>): void {
     const node = use.expression;
-    const file = input.ast.getSourceFile(node);
-    if (file === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted native use requires its source file.", node);
     const flow = use.kind === "location" ? undefined : input.flowReads.flowReadProjection.get(node);
     if (flow?.kind === "conversion") demandConversion(node, flow.source, flow.target, flow.selection);
     if (input.operations.jsCondition.get(node)?.kind === "resolved" && use.completion.kind === "value") demandBox(node, use.completion.type);
@@ -415,11 +413,11 @@ export function analyzeCsharpNativeArtifactDemand(
       owned.shapeMember.member.memberKind === "method" && (!csharpSelectionIsCallee(input.ast, property.selection.source) || owned.shapeMember.member.optional === true)) {
       capability(node, owned.objectShape.targetType, "method-values");
     }
-    if (input.ast.is.IsObjectLiteralExpression(node) && use.objectShape !== undefined) demandLiteral(node, use.objectShape, file);
+    if (input.ast.is.IsObjectLiteralExpression(node) && use.objectShape !== undefined) demandLiteral(node, use.objectShape);
     const selectedCall = input.operations.selectedCall.get(node);
     const selectedConstruction = input.operations.selectedConstruction.get(node);
     for (const classification of [selectedCall, selectedConstruction]) {
-      if (classification?.target !== undefined) demandCall(node, classification.target, file);
+      if (classification?.target !== undefined) demandCall(node, classification.target);
       for (const { projection } of classification?.methodTypeArgumentProjections ?? []) {
         if (projection.kind === "resolved") demandShape(projection.shape, node);
       }
@@ -446,9 +444,9 @@ export function analyzeCsharpNativeArtifactDemand(
     }
     const yielded = input.sourceEvidence.yield.get(node);
     if (yielded !== undefined && use.completion.kind === "value") {
-      const delegated = input.ast.as.AsYieldExpression(node)?.AsteriskToken !== undefined;
+      const delegated = yielded.kind === "delegate";
       const protocol = getCsharpGeneratorProtocol(delegated ? input.sourceEvidence.yieldTargetType.get(node)
-        : input.sourceEvidence.generatorTargetType.get(yielded.callable));
+        : input.sourceEvidence.generatorTargetType.get(yielded.generator));
       if (protocol !== undefined) demandPair(node, delegated ? protocol.returnType : protocol.nextType, use.completion.type);
     }
   }
@@ -463,7 +461,7 @@ export function analyzeCsharpNativeArtifactDemand(
     }
   }
 
-  function demandLiteral(node: Node, shape: CsharpObjectShapeFact, file: SourceFile): void {
+  function demandLiteral(node: Node, shape: CsharpObjectShapeFact): void {
     for (const property of input.ast.children(node)) {
       if (property === undefined) continue;
       if (input.ast.is.IsSpreadAssignment(property)) {
@@ -477,12 +475,7 @@ export function analyzeCsharpNativeArtifactDemand(
         continue;
       }
       if (!input.ast.is.IsMethodDeclaration(property) || !input.facts.navigation.scopes.usesLexicalThis(property)) continue;
-      const name = input.ast.name(property);
-      const selectedName = name === undefined ? undefined : input.facts.analyses.propertyName(name);
-      const ordinary = ObjectLiteralProperty_SourceName(input.ast, property);
-      const key = selectedName?.kind === "name" ? csharpPropertySourceMemberKey(selectedName.name)
-        : selectedName?.kind === "well-known-symbol" ? csharpWellKnownSymbolSourceMemberKey(selectedName.symbol)
-          : ordinary.kind === "resolved" ? csharpPropertySourceMemberKey(ordinary.name) : undefined;
+      const key = objectLiteralMethodKey(property);
       const member = key === undefined ? undefined : resolveCsharpObjectShapeMemberBySourceKey(shape, key, "checked-object-literal-property");
       if (member?.kind === "resolved") {
         if (member.member.memberKind !== "method") {
@@ -498,7 +491,23 @@ export function analyzeCsharpNativeArtifactDemand(
     }
   }
 
-  function demandCall(node: Node, selection: CsharpTargetCallSelection, file: SourceFile): void {
+  // Computed and numeric names: the Host property-name fact (a rejected name is a Host refusal, forwarded before C#
+  // analysis; a unique symbol has no static member key). Identifier and string names: the authored name.
+  function objectLiteralMethodKey(property: Node): CsharpSourceMemberKey | undefined {
+    const name = input.ast.name(property);
+    if (name !== undefined && (input.ast.is.IsComputedPropertyName(name) || input.ast.is.IsNumericLiteral(name))) {
+      const selected = input.facts.analyses.propertyName(name);
+      if (selected === undefined) failTargetAnalysisInvariant("tsonic-csharp", "A computed object literal method name requires its Host property-name selection.", property);
+      if (selected.kind === "rejected") failTargetAnalysisInvariant("tsonic-csharp",
+        "A property name is a Host refusal at a node C# analyzed; Host refusals are forwarded before C# analysis.", property);
+      return selected.kind === "resolved" ? csharpPropertySourceMemberKey(selected.name)
+        : selected.kind === "well-known-symbol" ? csharpWellKnownSymbolSourceMemberKey(csharpWellKnownSymbolKind(selected.symbol)) : undefined;
+    }
+    const ordinary = ObjectLiteralProperty_SourceName(input.ast, property);
+    return ordinary.kind === "resolved" ? csharpPropertySourceMemberKey(ordinary.name) : undefined;
+  }
+
+  function demandCall(node: Node, selection: CsharpTargetCallSelection): void {
     if (selection.kind !== "resolved") return;
     for (const argument of selection.call.targetMethodTypeArguments) demandType(argument.targetType, node);
     if (selection.call.origin === "provider") for (const mapping of selection.call.argumentMappings) {

@@ -73,7 +73,7 @@ export function createExpectedNativeUseOwner(compiled) {
   const unrelated = () => assert.fail("These expected-use fixtures require only published primitive and array representations.");
   const services = createCsharpRepresentationServices({
     facts: source.facts,
-    platform: Object.freeze({ nativeIntegerBits: 64, targetFramework: "net10.0" }),
+    platform: Object.freeze({ nativeInteger: Object.freeze({ kind: "known", nativeIntegerBits: 64, basis: "test" }), targetFramework: "net10.0" }),
     profile: compiled.target.surfaces?.includes("js") === true ? "js" : "native",
     syntax: ast,
     sourceFacts: source.sourceFacts,

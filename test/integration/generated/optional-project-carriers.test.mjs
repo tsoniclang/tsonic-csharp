@@ -38,7 +38,7 @@ export function run(): boolean {
 ` });
     assertCsharpCompilationSucceeded(compiled);
     const program = compiled.result.program;
-    const ast = program.source.ast;
+    const ast = program.source.syntax;
     const declaration = csharpProgramSourceFiles(program).flatMap(file => ast.statements(file)).find(node =>
       node !== undefined && ast.is.IsClassDeclaration(node) && ast.text(ast.name(node)) === "Base");
     const definition = program.projectTypes.definitionContainingDeclaration(declaration);

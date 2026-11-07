@@ -12,11 +12,11 @@ export function selectCsharpSwitch(input: CsharpPolicyContext, node: Node): Csha
   const expression = statement?.Expression;
   const block = statement?.CaseBlock === undefined ? undefined : input.ast.as.AsCaseBlock(statement.CaseBlock);
   const clauses = block?.Clauses?.Nodes.filter((clause): clause is Node => clause !== undefined);
-  if (expression === undefined || clauses === undefined) return { kind: "rejected", reason: "Switch requires its exact governing expression and clauses." };
+  if (expression === undefined || clauses === undefined) return { kind: "rejected", reason: "Switch requires its exact governing expression and clauses.", code: "CSHARP_SWITCH_NOT_REPRESENTABLE" };
   const type = input.types.value(expression);
   if (isCsharpRefusal(type)) return { kind: "rejected", reason: type.message, code: type.code };
   const defaults = clauses.filter(clause => input.ast.is.IsDefaultClause(clause));
-  if (defaults.length > 1) return { kind: "rejected", reason: "Switch cannot contain multiple default clauses." };
+  if (defaults.length > 1) return { kind: "rejected", reason: "Switch cannot contain multiple default clauses.", code: "CSHARP_SWITCH_NOT_REPRESENTABLE" };
   const native = csharpSwitchCarrierSupportsNativeDispatch(type);
   if (native && clauses.every(clause => input.ast.is.IsDefaultClause(clause) ||
     constantLabel(input, input.ast.as.AsCaseOrDefaultClause(clause)?.Expression))) return Object.freeze({
@@ -31,7 +31,7 @@ export function selectCsharpSwitch(input: CsharpPolicyContext, node: Node): Csha
       continue;
     }
     const candidate = input.ast.as.AsCaseOrDefaultClause(clause)?.Expression;
-    if (candidate === undefined) return { kind: "rejected", reason: "Switch case has no checked expression." };
+    if (candidate === undefined) return { kind: "rejected", reason: "Switch case has no checked expression.", code: "CSHARP_SWITCH_NOT_REPRESENTABLE" };
     const label = input.types.value(candidate);
     if (isCsharpRefusal(label)) return { kind: "rejected", reason: label.message, code: label.code };
     const comparison = selectCsharpBinaryOperands(input, expression, candidate, "===",

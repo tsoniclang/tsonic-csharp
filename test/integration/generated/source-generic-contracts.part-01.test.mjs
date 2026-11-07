@@ -147,7 +147,7 @@ export function run(): boolean {
 ` });
     assertCsharpCompilationSucceeded(compiled);
     const declarations = [];
-    const ast = compiled.result.program.source.ast;
+    const ast = compiled.result.program.source.syntax;
     const collect = node => {
       if (ast.is.IsVariableDeclaration(node)) declarations.push(node);
       ast.forEachChild(node, child => { if (child !== undefined) collect(child); });

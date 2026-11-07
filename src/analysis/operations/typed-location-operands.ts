@@ -9,7 +9,7 @@ import { csharpTargetCallRefusal } from "../callables/calls/call-refusals.js";
 // refusal is the root diagnostic (RULINGS 2026-10-23, option b). The operand is the call itself or an unwritten local
 // initialized by it, followed through further such locals.
 export function selectCsharpRefusedTypedLocationOperandCall(policy: CsharpPolicyContext, node: Node): CsharpOperationIssue | undefined {
-  const source = readCsharpSourceTypedLocationOperation(policy.sourceFacts, node);
+  const source = readCsharpSourceTypedLocationOperation(policy.ast, policy.facts, node);
   if (source === undefined) return undefined;
   const operands = source.kind === "location-equal" ? [source.leftExpression, source.rightExpression]
     : "locationExpression" in source ? [source.locationExpression] : [];

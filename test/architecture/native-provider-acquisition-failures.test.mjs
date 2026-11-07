@@ -107,7 +107,7 @@ const policyFamilies = [
   ["native memory layout", host => selectCsharpNativeMemoryLayout({ ...host,
     ast: { getSourceFile: () => undefined }, types: { represent: () => carrier },
     projectTypes: { catalog: { definitionForTarget: () => undefined } },
-  }, { kind: "value", call: {}, sourceType: {}, fields: [], byteSize: 4n, byteAlignment: 4n, stride: 4n,
+  }, { kind: "value", call: {}, type: {}, fields: [], byteSize: 4n, byteAlignment: 4n, stride: 4n,
     dataLayout: { addressWidth: 64, byteOrder: "little" } }, {})],
   ["project heritage kind", host => {
     const declaration = Object.freeze({});

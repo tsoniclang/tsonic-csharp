@@ -394,19 +394,10 @@ export function analyzeCsharpStorage(
       if (expression === undefined) {
         continue;
       }
-      const selected = selectCsharpSourceArgument(
+      const { storageExpression } = selectCsharpSourceArgument(
         policy.sourceFacts,
         expression,
       );
-      if (selected.kind === "rejected") {
-        issues.push(issue(
-          expression,
-          "CSHARP_STORAGE_ARGUMENT_FACT_INVALID",
-          selected.reason,
-        ));
-        continue;
-      }
-      const storageExpression = selected.argument.storageExpression;
       const declaration = sourceProjectTarget(policy.facts, storageExpression)
         ?.declaration;
       if (declaration === undefined) {

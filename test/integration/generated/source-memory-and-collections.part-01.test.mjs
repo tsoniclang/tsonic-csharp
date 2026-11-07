@@ -70,7 +70,7 @@ test(`dense numeric arrays reject deletion before copying for ${initializer}`, {
       const issues = compiled.result.diagnostics.filter(issue =>
         issue.category === "error" && issue.code === "TSONIC_LOCAL_TYPE_UNSUPPORTED");
       const matches = issues.filter(issue => {
-        const ast = compiled.targetSource.ast;
+        const ast = compiled.targetSource.syntax;
         const range = issue.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
         return range?.kind === "authored" &&
           ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end) === "delete values[0]";

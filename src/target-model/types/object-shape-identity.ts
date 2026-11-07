@@ -31,7 +31,25 @@ export function csharpObjectShapeMemberContractParts(
         ? "getter-setter"
         : "getter",
     csharpObjectShapeMemberTypeKey(member),
+    ...csharpObjectShapeMemberLiteralParts(member),
   ];
+}
+
+/**
+ * The member's Host literal domain (R-A5-1): distinct literal keys, sorted, as the Host compares them (a set). Two arms
+ * that differ only in a discriminant literal are two generated .NET shapes; the member type stays the base type.
+ */
+function csharpObjectShapeMemberLiteralParts(member: CsharpObjectShapeMemberFact): readonly string[] {
+  if (member.literals === undefined) return [];
+  const keys = new Set(member.literals.map(literal => {
+    switch (literal.kind) {
+      case "string": return `s:${literal.value}`;
+      case "boolean": return `b:${String(literal.value)}`;
+      case "bigint": return `n:${literal.value.toString()}`;
+      case "number": return Number.isInteger(literal.value) ? `n:${BigInt(literal.value).toString()}` : `n:${String(literal.value)}`;
+    }
+  }));
+  return ["literals", JSON.stringify([...keys].sort())];
 }
 
 export function csharpObjectShapeMemberTypeKey(member: CsharpObjectShapeMemberFact): string {

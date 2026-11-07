@@ -36,23 +36,26 @@ test("C2530 a returned generic method retains its Source identity and the curren
   const methods = [];
   const functions = [];
   const visit = node => {
-    if (source.ast.is.IsMethodDeclaration(node)) methods.push(node);
-    if (source.ast.is.IsFunctionDeclaration(node)) functions.push(node);
-    source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    if (source.syntax.is.IsMethodDeclaration(node)) methods.push(node);
+    if (source.syntax.is.IsFunctionDeclaration(node)) functions.push(node);
+    source.syntax.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
-  for (const file of source.sourceFiles) if (!source.ast.isDeclarationFile(file)) visit(file);
+  for (const file of source.sourceFiles) if (!source.syntax.isDeclarationFile(file)) visit(file);
   assert.equal(methods.length === 1 && functions.length === 1, true, "one exact original method and returned callable owner");
-  const publication = source.effectiveTypes.callableReturn(functions[0]);
+  // nextgen C-2542: the target receives TargetSourceProgramFacts; the callable return is facts.values.callableReturn.
+  const publication = source.facts.values.callableReturn(functions[0]);
   assert.equal(publication !== undefined && publication.kind !== "refused" && publication.type.kind === "callable", true,
     "the Host publishes the original quantified callable, not a fabricated Native result");
   assert.equal(publication.type.calls.length, 1);
   const signature = publication.type.calls[0];
-  const binders = source.ast.typeParameters(methods[0]);
+  const binders = source.syntax.typeParameters(methods[0]);
   assert.equal(signature.declaration === methods[0] && signature.typeParameters.length === 1 && binders.length === 1 &&
     signature.typeParameters[0] === binders[0], true, "the actual published return retains the original method and ordered binder identity");
   const issues = compiled.result.diagnostics.filter(issue => issue.category === "error");
   assert.equal(issues.length, 1);
-  assert.equal(issues[0].code, "CSHARP_UNSUPPORTED_AST");
+  // nextgen C-2542 (I7): CSHARP_UNSUPPORTED_AST is split into .NET-reason codes; this site (property-admission.ts:68)
+  // names its reason. Message, source and site are unchanged.
+  assert.equal(issues[0].code, "CSHARP_GENERIC_METHOD_VALUE_NOT_REPRESENTABLE");
   assert.equal(issues[0].source, "tsonic-csharp");
   assert.equal(issues[0].message, "An extracted quantified nominal method has no supported native callable-value owner.",
     "C2530 permits the measured current Native refusal instead of claiming an unrepresented sealed carrier");

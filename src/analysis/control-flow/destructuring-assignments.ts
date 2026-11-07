@@ -1,4 +1,4 @@
-import type { Node, SourceFile } from "@tsonic/tsts";
+import type { Node } from "@tsonic/tsts";
 import { AsBinaryExpression, AsObjectLiteralExpression, AsPropertyAssignment, AsShorthandPropertyAssignment, AsSpreadAssignment, AsSpreadElement, HasSourceKind, KindArrayLiteralExpression, KindBinaryExpression, KindEqualsToken, KindIdentifier, KindObjectLiteralExpression, KindOmittedExpression, KindPropertyAssignment, KindShorthandPropertyAssignment, KindSpreadAssignment, KindSpreadElement, Node_Expression, sourceTypeDescriptorStructure, sourceTypeDescriptorTupleValue, type SourceTypeDescriptor } from "@tsonic/target-api/source";
 import { selectCsharpBindingPatternProjection } from "../../policy/types/objects/binding-projection.js";
 import type { CsharpObjectShapeFact, TargetTypeRef } from "../../target-model/types/index.js";
@@ -15,7 +15,7 @@ interface PublishedAssignmentSource {
 
 export function createCsharpDestructuringAssignmentAnalysis(input: CsharpBindingPatternAnalysisInput, callbacks: {
   readonly completesWithValue: (source: Node) => boolean;
-  readonly admitSource: (node: Node, source: Node, file: SourceFile, description: string) => void;
+  readonly admitSource: (node: Node, source: Node, description: string) => void;
   readonly recordAssignment: (node: Node, pattern: CsharpDestructuringAssignmentPattern) => void;
   readonly draftFor: (node: Node) => CsharpBindingProjectionFact | undefined;
   readonly issue: (node: Node, message: string, evidence?: readonly string[], code?: string) => void;
@@ -33,7 +33,7 @@ export function createCsharpDestructuringAssignmentAnalysis(input: CsharpBinding
   const assignmentDefaults = new WeakSet<Node>();
   return Object.freeze({ analyze: analyzeAssignment, isDefault: (node: Node) => assignmentDefaults.has(node) });
 
-  function analyzeAssignment(node: Node, sourceFile: SourceFile): void {
+  function analyzeAssignment(node: Node): void {
     const selected = input.operations.binaryOperation.get(node)?.destructuring;
     if (selected?.kind !== "resolved") return;
     const pattern = assignmentPattern(selected.pattern);
@@ -43,32 +43,30 @@ export function createCsharpDestructuringAssignmentAnalysis(input: CsharpBinding
     }
     recordAssignment(node, pattern);
     if (!completesWithValue(selected.source)) return;
-    admitSource(selected.pattern, selected.source, sourceFile, "Destructuring assignment source");
+    admitSource(selected.pattern, selected.source, "Destructuring assignment source");
     const outcome = input.facts.values.type(selected.source);
     const published = outcome === undefined || outcome.kind === "refused" ? undefined : outcome.type;
-    analyzeAssignmentPattern(pattern, selected.source, sourceFile, input.valueReads.valueRead.get(selected.source)?.value,
+    analyzeAssignmentPattern(pattern, selected.source, input.valueReads.valueRead.get(selected.source)?.value,
       published === undefined ? undefined : { type: published });
   }
 
   function analyzeAssignmentPattern(
     pattern: CsharpDestructuringAssignmentPattern,
     sourceNode: Node,
-    sourceFile: SourceFile,
     sourceCarrier: TargetTypeRef | undefined,
     published: PublishedAssignmentSource | undefined,
   ): void {
     recordAssignment(pattern.sourceNode, pattern);
     if (pattern.kind === "array") {
-      analyzeArrayAssignmentPattern(pattern, sourceNode, sourceFile, sourceCarrier, published);
+      analyzeArrayAssignmentPattern(pattern, sourceNode, sourceCarrier, published);
     } else {
-      analyzeObjectAssignmentPattern(pattern, sourceNode, sourceFile, sourceCarrier, published);
+      analyzeObjectAssignmentPattern(pattern, sourceNode, sourceCarrier, published);
     }
   }
 
   function analyzeArrayAssignmentPattern(
     pattern: Extract<CsharpDestructuringAssignmentPattern, { readonly kind: "array" }>,
     sourceNode: Node,
-    sourceFile: SourceFile,
     sourceCarrier: TargetTypeRef | undefined,
     published: PublishedAssignmentSource | undefined,
   ): void {
@@ -88,22 +86,22 @@ export function createCsharpDestructuringAssignmentAnalysis(input: CsharpBinding
       recordElement(element.sourceNode, projection.element, element.initializer, bindingCarrier.kind === "array");
       const child = arrayAssignmentSource(published, index, element.rest);
       if (projection.element.kind === "array-rest" || projection.element.kind === "tuple-rest") {
-        analyzeAssignmentTarget(element.target, element.sourceNode, sourceFile, projection.element.restCarrier, child);
+        analyzeAssignmentTarget(element.target, element.sourceNode, projection.element.restCarrier, child);
         continue;
       }
       if (projection.element.kind !== "array-element") continue;
       const { elementCarrier, tupleDefault } = projection.element;
       if (elementCarrier === undefined) continue;
       if (element.initializer === undefined) {
-        analyzeAssignmentTarget(element.target, element.sourceNode, sourceFile, elementCarrier, child);
+        analyzeAssignmentTarget(element.target, element.sourceNode, elementCarrier, child);
       } else if (tupleDefault !== undefined) {
-        analyzeAssignmentTarget(element.target, element.sourceNode, sourceFile,
+        analyzeAssignmentTarget(element.target, element.sourceNode,
           tupleDefault.kind === "planned" ? tupleDefault.carrier : elementCarrier,
           tupleDefault.kind === "unused" ? child : presentAssignmentSource(child));
       } else if (bindingCarrier.kind === "array") {
         const defaultValue = draftFor(element.sourceNode)?.defaultValue;
         if (defaultValue !== undefined) {
-          analyzeAssignmentTarget(element.target, element.sourceNode, sourceFile, defaultValue.target,
+          analyzeAssignmentTarget(element.target, element.sourceNode, defaultValue.target,
             presentAssignmentSource(child));
         }
       }
@@ -139,7 +137,6 @@ export function createCsharpDestructuringAssignmentAnalysis(input: CsharpBinding
   function analyzeObjectAssignmentPattern(
     pattern: Extract<CsharpDestructuringAssignmentPattern, { readonly kind: "object" }>,
     sourceNode: Node,
-    sourceFile: SourceFile,
     sourceCarrier: TargetTypeRef | undefined,
     published: PublishedAssignmentSource | undefined,
   ): void {
@@ -175,7 +172,7 @@ export function createCsharpDestructuringAssignmentAnalysis(input: CsharpBinding
     for (const element of pattern.elements) {
       if (element.kind === "object-rest") {
         if (shape === undefined) issue(element.sourceNode, "Object rest destructuring assignment requires finalized provider object-shape facts before C# emission.");
-        else analyzeObjectAssignmentRest(element, shape, extractedSourceNames, sourceFile);
+        else analyzeObjectAssignmentRest(element, shape, extractedSourceNames);
         continue;
       }
       const property = assignmentPropertyName(element);
@@ -213,12 +210,12 @@ export function createCsharpDestructuringAssignmentAnalysis(input: CsharpBinding
         ? { type: native.sourceType } : undefined;
       recordElement(element.sourceNode, selected.element, element.initializer);
       if (element.initializer === undefined) {
-        analyzeAssignmentTarget(element.target, element.sourceNode, sourceFile, carrier, child);
+        analyzeAssignmentTarget(element.target, element.sourceNode, carrier, child);
         continue;
       }
       const defaultValue = draftFor(element.sourceNode)?.defaultValue;
       if (defaultValue !== undefined) {
-        analyzeAssignmentTarget(element.target, element.sourceNode, sourceFile, defaultValue.target,
+        analyzeAssignmentTarget(element.target, element.sourceNode, defaultValue.target,
           presentAssignmentSource(child));
       }
     }
@@ -236,7 +233,6 @@ export function createCsharpDestructuringAssignmentAnalysis(input: CsharpBinding
     element: Extract<CsharpDestructuringAssignmentObjectElement, { readonly kind: "object-rest" }>,
     sourceShape: CsharpObjectShapeFact,
     extractedSourceNames: ReadonlySet<string>,
-    sourceFile: SourceFile,
   ): void {
     if (element.target.kind !== "node" || !HasSourceKind(ast, element.target.node, KindIdentifier)) {
       issue(element.sourceNode, "Object rest destructuring assignment requires an identifier assignment target.");
@@ -255,13 +251,12 @@ export function createCsharpDestructuringAssignmentAnalysis(input: CsharpBinding
   function analyzeAssignmentTarget(
     target: CsharpDestructuringAssignmentTarget,
     projectionNode: Node,
-    sourceFile: SourceFile,
     carrier: TargetTypeRef | undefined,
     published: PublishedAssignmentSource | undefined,
   ): void {
     if (target.kind === "pattern") {
       recordBinding(projectionNode, target.pattern.sourceNode, carrier);
-      analyzeAssignmentPattern(target.pattern, projectionNode, sourceFile, carrier, published);
+      analyzeAssignmentPattern(target.pattern, projectionNode, carrier, published);
     } else if (!HasSourceKind(ast, target.node, KindIdentifier)) {
       issue(target.node, "Destructuring assignment target supports source-owned identifiers and nested destructuring patterns only.");
     } else {

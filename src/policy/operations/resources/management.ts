@@ -116,5 +116,5 @@ function canonicalDisposalAlternatives(
 function rejected(
   reason: string,
 ): Extract<CsharpOperationSelection<never>, { readonly kind: "rejected" }> {
-  return { kind: "rejected", reason };
+  return { kind: "rejected", reason, code: "CSHARP_RESOURCE_DISPOSAL" };
 }

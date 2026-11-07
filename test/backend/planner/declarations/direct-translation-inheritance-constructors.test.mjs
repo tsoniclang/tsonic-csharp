@@ -128,7 +128,7 @@ for (const surface of ["native", "js"]) {
       "the existing entry owner, not a new selector, establishes the direct-only correction domain");
       const call = csharpConstructorBaseCall(ast, constructor)?.call;
       const argument = ast.as.AsCallExpression(call).Arguments.Nodes[0];
-      assert.equal(program.records.sourceArgument.get(argument)?.argument.passingMode,
+      assert.equal(program.records.sourceArgument.get(argument)?.passingMode,
         ["byref-readwrite", "byref-readonly", "byref-writeonly-must-init"][index],
         "the renderer consumes the final admitted source mode");
     }

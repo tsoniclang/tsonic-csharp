@@ -13,7 +13,7 @@ export function csharpNativePropertyNameIssue(
   sourceNode: Node,
   selection: CsharpSourcePropertyNameSelection,
 ): TargetDiagnostic | undefined {
-  if (selection.kind === "refused") return failTargetAnalysisInvariant("tsonic-csharp",
+  if (selection.kind === "rejected") return failTargetAnalysisInvariant("tsonic-csharp",
     "A property name is a Host refusal at a node C# analyzed; Host refusals are forwarded before C# analysis.", sourceNode);
   if (selection.kind !== "unique-symbol") return undefined;
   return Object.freeze({

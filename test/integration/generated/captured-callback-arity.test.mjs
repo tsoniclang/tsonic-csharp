@@ -3,6 +3,7 @@ import test from "node:test";
 import { capturedCallbackAritySource } from "../../../../tsonic/test/fixtures/captured-callback-arity.mjs";
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
+import { csharpSourceNodes } from "../../../dist/analysis/program/source-nodes.js";
 
 for (const surface of [undefined, "js"]) {
   test(`captured native methods retain their sealed arity independently of contextual callbacks (${surface ?? "native"})`,
@@ -11,8 +12,10 @@ for (const surface of [undefined, "js"]) {
       assertCsharpCompilationSucceeded(compiled);
       const generated = [...compiled.artifacts.values()].join("\n");
       const program = compiled.result.program;
-      const ast = program.source.ast;
-      const nodes = program.source.navigation.nodesForFiles(program.sourceFiles);
+      // nextgen C-2542: the analysis program's source is the TargetSourceProgramFacts (syntax reader `.syntax`); its node
+      // inventory is the C# syntax walk over the program's source files (analysis/program/source-nodes.ts).
+      const ast = program.source.syntax;
+      const nodes = csharpSourceNodes(ast, program.sourceFiles);
       const lambdas = nodes.filter(node => ast.is.IsArrowFunction(node) || ast.is.IsFunctionExpression(node));
       assert.equal(lambdas.length, 6, "all six original callback/value bodies retain their own source contracts");
       const expectedNames = [[], [], ["first", "second"], ["first"], ["first", "second", "third"], []];

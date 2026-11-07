@@ -1,13 +1,14 @@
 import type { CsharpNamedSelfBinding } from "../../../target-model/records/callables/capture-storage.js";
 import type { Node } from "@tsonic/tsts";
-import type { SourceLexicalCaptureSelection, TargetSourceProgramFacts } from "@tsonic/target-api/source";
+import type { TargetSourceProgramFacts } from "@tsonic/target-api/source";
+import type { CsharpLexicalCaptureSelection } from "./lexical-captures.js";
 import type { CsharpSourceEvidenceIndex } from "../../../target-model/records/program/source-evidence.js";
 import type { CsharpStorageIssue } from "../../../target-model/records/storage/storage.js";
 
 export function selectCsharpNamedSelfBinding(
   source: TargetSourceProgramFacts,
   declaration: Node,
-  lexical: SourceLexicalCaptureSelection,
+  lexical: CsharpLexicalCaptureSelection,
   evidence: Pick<CsharpSourceEvidenceIndex, "compileTimeMetadata">,
   issues: CsharpStorageIssue[],
 ): CsharpNamedSelfBinding | undefined {

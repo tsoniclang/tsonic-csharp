@@ -268,7 +268,9 @@ export function projectTypeDefinition(
     // An interface whose representation base is a JS array-like collection is that collection, not a project type
     // (Host analysis facts.analyses.interfaceRepresentationBase, request R-F5-B3; collection kind from the JS profile facts).
     const representation = host.facts.analyses.interfaceRepresentationBase(declaration);
-    const collection = representation === undefined ? undefined : host.facts.profile.collection(representation.type);
+    // The base reference of the heritage edge: its target declaration applied to the edge's Host type arguments.
+    const collection = representation === undefined ? undefined : host.facts.profile.collection(Object.freeze({
+      kind: "declared" as const, declaration: representation.target, typeArguments: representation.typeArguments }));
     if (collection?.kind === "array" || collection?.kind === "readonly-array" || collection?.kind === "typed-array") return { kind: "not-project-type" };
   }
   const bindings = local ? publishedCsharpClassBindings(declaration, host) : undefined;

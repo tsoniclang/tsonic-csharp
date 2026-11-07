@@ -1,9 +1,8 @@
 import type { TargetTypeRef } from "../../types/model.js";
-import type { TsonicRawMemoryOperationFact } from "@tsonic/source-core/facts";
+import type { TsonicRawAddressRecord } from "@tsonic/source-core/facts";
 import type { Node } from "@tsonic/tsts";
 
-export type CsharpSourceRawAddressOperation = Extract<TsonicRawMemoryOperationFact,
-  { readonly operation: "byte-offset" | "raw-to-address-integer" | "address-integer-to-raw" }>;
+export type CsharpSourceRawAddressOperation = TsonicRawAddressRecord;
 
 export type CsharpRawAddressSelection =
   | { readonly kind: "rejected"; readonly operation: CsharpSourceRawAddressOperation["operation"]; readonly reason: string }

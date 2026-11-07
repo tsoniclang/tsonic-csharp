@@ -77,7 +77,7 @@ test("selected native address and reference storage cannot be split by a narrowe
       target: node => node === reference ? { declaration, sourceFile: {}, project: true } : undefined } } } }, {
       compileTimeMetadata: { get: () => false },
       sourceArgument: { get: node => node !== call || nativeAddress ? undefined
-        : { kind: "resolved", argument: { storageExpression: reference, passingMode: kind } } },
+        : { storageExpression: reference, passingMode: kind } },
       nodeTargetType: { get: () => payload }, contextualType: { get: () => ({ targetType: payload }) },
       storageTargetType: { get: () => storage },
     }, [call, declaration], {

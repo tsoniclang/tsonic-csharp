@@ -14,10 +14,18 @@ export function analyzeCsharpSourceAliasReexports(ast: AstReader, sourceFiles: r
   return diagnostics;
 }
 
+// A C# target refusal (R5/I7: a CSHARP_ code for a .NET reason). @tsonic/csharp/lang.js is the C# target's own marker
+// module (out / ref / inref parameter modes, struct, field, attribute, defaultof, fnptr; source/profiles/source-modules.ts).
+// The C# source-semantics extension binds each marker to its .NET form (a by-reference parameter mode, a struct or field
+// declaration, an attribute, default(T), a function pointer) only where it is imported from that module. A local barrel
+// re-export carries no binding, so the re-exported marker has no proven .NET form. The Host does not own this rule: the
+// marker module and its meanings exist only in the C# target.
+const csharpLangMarkerReexportCode = "CSHARP_LANG_MARKER_REEXPORT";
+
 const unsupportedCsharpLangReExportDiagnostic = {
-  extensionCode: "CSHARP_SOURCE_LANG_REEXPORT_UNSUPPORTED",
+  extensionCode: csharpLangMarkerReexportCode,
   numericCode: 9100170,
-  message: "Re-exporting @tsonic/csharp/lang.js aliases through a local barrel is unsupported; import C# source aliases directly so target ownership remains proven.",
+  message: "Re-exporting @tsonic/csharp/lang.js markers through a local barrel is unsupported: the C# target binds each marker to its .NET form only where it is imported from @tsonic/csharp/lang.js, and a re-export carries no binding. Import C# markers directly.",
 } as const;
 
 const langModule = csharpSourceSemanticsModules().find(module => module.moduleSpecifier === csharpLangModule);
@@ -47,7 +55,7 @@ function recordUnsupportedCsharpLangReExportDiagnostics(
       extensionId: csharpSourceSemanticsExtensionId,
       extensionCode: unsupportedCsharpLangReExportDiagnostic.extensionCode,
       numericCode: unsupportedCsharpLangReExportDiagnostic.numericCode,
-      publicCode: `TSONIC_CSHARP_${unsupportedCsharpLangReExportDiagnostic.numericCode}`,
+      publicCode: csharpLangMarkerReexportCode,
       category: "error",
       message: unsupportedCsharpLangReExportDiagnostic.message,
       nodeOrSpan: statement,

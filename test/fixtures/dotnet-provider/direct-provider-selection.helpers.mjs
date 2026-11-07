@@ -520,15 +520,14 @@ export function providerFact(subject, declaration) {
   return { subject, key: providerVirtualDeclarationFactKey, value: declaration };
 }
 
-export function passingFact(subject, mode, storageExpression) {
-  return {
-    subject,
-    key: argumentPassingFactKey,
-    value: {
-      mode,
-      ...(storageExpression === undefined ? {} : { storageExpression }),
-    },
-  };
+/** WP0 A4: a provider parameter declaration carries the declaration role (mode only). */
+export function declarationPassingFact(subject, mode) {
+  return { subject, key: argumentPassingFactKey, value: { role: "declaration", mode } };
+}
+
+/** WP0 A4: an argument use carries the argument role with its required exact storage occurrence. */
+export function argumentPassingFact(subject, mode, storageExpression) {
+  return { subject, key: argumentPassingFactKey, value: { role: "argument", mode, storageExpression } };
 }
 
 export function typeEvidence(entries) {

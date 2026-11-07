@@ -47,16 +47,14 @@ export function classifyCsharpNativeCallArguments(
  */
 function sourceCallNativeParameters(policy: CsharpPolicyContext, source: SourceCallSelection): readonly CsharpTargetParameter[] | undefined {
   const parameters: CsharpTargetParameter[] = [];
-  for (const [index, descriptor] of source.parameters.entries()) {
-    const slot = source.signatureParameters[index];
-    const type = policy.types.represent(descriptor, source.use, "storage");
-    if (slot === undefined || isCsharpRefusal(type)) return undefined;
-    const name = policy.ast.name(slot.declaration);
+  for (const parameter of source.parameters) {
+    const type = policy.types.represent(parameter.type, source.use, "storage");
+    if (isCsharpRefusal(type)) return undefined;
     parameters.push(Object.freeze({
-      name: name === undefined ? `arg${index}` : policy.ast.text(name),
+      name: parameter.name,
       passingMode: "by-value" as const,
-      optional: slot.kind === "optional",
-      paramsArray: slot.kind === "rest",
+      optional: parameter.kind === "optional",
+      paramsArray: parameter.kind === "rest",
       type,
     }));
   }
@@ -71,8 +69,8 @@ export function classifyCsharpSourceCallArguments(
 ): Pick<CsharpSourceCallArgumentClassification,
   "sourceParameterTypes" | "sourceArgumentParameterTypes" | "sourceArgumentGrouping"> {
   const sourceNativeParameters = sourceCallNativeParameters(policy, source);
-  const sourceParameterTypes = Object.freeze(source.parameters.map(descriptor => {
-    const type = policy.types.represent(descriptor, source.use, "storage");
+  const sourceParameterTypes = Object.freeze(source.parameters.map(parameter => {
+    const type = policy.types.represent(parameter.type, source.use, "storage");
     return isCsharpRefusal(type) ? undefined : type;
   }));
   const sourceArgumentParameterTypes = Object.freeze(source.arguments.map(binding => {

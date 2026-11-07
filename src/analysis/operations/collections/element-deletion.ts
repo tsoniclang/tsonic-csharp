@@ -14,11 +14,12 @@ export function selectCsharpElementDeletion(
 ): CsharpElementDeletionSelection {
   const operand = input.ast.as.AsDeleteExpression(node)?.Expression;
   if (operand === undefined || !input.ast.is.IsElementAccessExpression(operand)) {
-    return { kind: "rejected", reason: "Deletion requires one exact element access." };
+    return { kind: "rejected", reason: "Deletion requires one exact element access.", code: "CSHARP_ELEMENT_DELETION_NOT_PROVEN" };
   }
   const source = input.facts.values.elementAccess(operand);
   if (source.selected.kind !== "index-signature" && source.selected.kind !== "element" || source.readonly) {
-    return { kind: "rejected", reason: "Deletion requires one exact mutable index signature." };
+    return { kind: "rejected", reason: "Deletion requires one exact mutable index signature.",
+      code: "CSHARP_ELEMENT_DELETION_NOT_PROVEN" };
   }
   const receiver = input.types.represent(source.receiverType, source.receiver, "value");
   return selectCsharpNativeElementDeletion(receiver.kind === "csharp-refused" ? undefined : receiver, source.receiver,

@@ -36,7 +36,7 @@ export interface CsharpNativeOperandInput {
 }
 
 export type CsharpNativeOperandRefusal = "argument-refused" | "argument-unresolved" | "argument-inconsistent"
-  | "argument-expression-unresolved" | "expression-form-unresolved" | "operation-unresolved" | "source-argument-rejected" | "construction-unresolved"
+  | "argument-expression-unresolved" | "expression-form-unresolved" | "operation-unresolved" | "construction-unresolved"
   | "callable-creation";
 
 export type CsharpNativeOperandStep =
@@ -51,7 +51,7 @@ export interface CsharpNativeOperandSelection {
   readonly carrier?: TargetTypeRef;
   readonly refusal?: CsharpNativeOperandRefusal;
   readonly refusalMessage?: string;
-  readonly refusalCode?: string;
+  readonly refusalCode?: `CSHARP_${string}`;
   readonly sourceDiagnostic?: ExtensionDiagnostic;
   readonly discardedGuard?: CsharpNativeDiscardedGuard;
 }
@@ -123,7 +123,7 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
   const chosen = (runtime: readonly CsharpNativeChildUse[], flow: CsharpNativeOperandSelection["flow"] = "sequence",
     planning: readonly CsharpNativeOperandStep[] = plan(runtime), own = carrier): CsharpNativeOperandSelection =>
     Object.freeze({ runtime: Object.freeze([...runtime]), planning: Object.freeze([...planning]), flow, resultUse, carrier: own });
-  const refused = (refusal: CsharpNativeOperandRefusal, refusalMessage?: string, refusalCode?: string): CsharpNativeOperandSelection =>
+  const refused = (refusal: CsharpNativeOperandRefusal, refusalMessage?: string, refusalCode?: `CSHARP_${string}`): CsharpNativeOperandSelection =>
     Object.freeze({ ...chosen([]), refusal, ...(refusalMessage === undefined ? {} : { refusalMessage }),
       ...(refusalCode === undefined ? {} : { refusalCode }) });
   const sourceSelection = (flow: CsharpNativeOperandSelection["flow"] = "sequence", own = carrier): CsharpNativeOperandSelection => {
@@ -157,9 +157,8 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
   }
   if (evidence.sourceDefaultValue.get(node) !== undefined) return chosen([]);
   const passing = evidence.sourceArgument.get(node);
-  if (passing?.kind === "rejected") return refused("source-argument-rejected", passing.reason, "CSHARP_ARGUMENT_STORAGE_NOT_PROVEN");
-  if (passing?.kind === "resolved" && !sourceNodesEqual(ast, passing.argument.storageExpression, node)) {
-    return chosen(use(passing.argument.storageExpression, { kind: "operand", position: "only" }, undefined, "location"));
+  if (passing !== undefined && !sourceNodesEqual(ast, passing.storageExpression, node)) {
+    return chosen(use(passing.storageExpression, { kind: "operand", position: "only" }, undefined, "location"));
   }
   const optionalLocal = input.optionalLocals.get(node);
   if (optionalLocal !== undefined) {

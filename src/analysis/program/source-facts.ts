@@ -14,6 +14,7 @@ import type {
   SourceMemberAccessSelection,
   SourceProgramFacts,
   SourceRefusal,
+  SourceResourceSelection,
   SourceTypeDescriptor,
   SourceTypeFlowRefusal,
   SourceUnionRelation,
@@ -83,6 +84,12 @@ export function sourceIteration(facts: SourceProgramFacts, statement: Node): Sou
   const selected = facts.selections.iteration(statement);
   if (selected === undefined) return missingInvariant("iteration selection", statement);
   return "code" in selected ? refusedInvariant("The iteration selection", statement) : selected;
+}
+
+/** The resource selection of a `using` / `await using` declaration (selections.resource); undefined for any other. */
+export function sourceResourceSelection(facts: SourceProgramFacts, declaration: Node): SourceResourceSelection | undefined {
+  const selected = facts.selections.resource(declaration);
+  return selected !== undefined && "code" in selected ? refusedInvariant("The resource selection", declaration) : selected;
 }
 
 /** The per-use instantiation of a generic use; undefined when neither receiver nor signature has binders. */

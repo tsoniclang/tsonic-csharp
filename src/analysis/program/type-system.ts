@@ -8,11 +8,12 @@ import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { TargetSelection } from "@tsonic/target-api";
 import type { SourceStorageQueries } from "@tsonic/target-api/analysis";
 import type { SourceProgramFacts } from "@tsonic/target-api/source";
-import type { TsonicMemoryBindingIndex, TsonicPointerStorageRelation } from "@tsonic/source-core/facts";
+import type { TsonicMemoryBindings, TsonicPointerStorageRelation } from "@tsonic/source-core/facts";
 import type { AstReader, Node, ReadonlySourceFactResolver, SourceFile } from "@tsonic/tsts";
 import {
   createCsharpRepresentationServices,
   csharpRepresentationContext,
+  isCsharpRefusal,
   isSourceRefusal,
   representAwaited,
   representCallableReturn,
@@ -72,7 +73,7 @@ export interface CsharpTypeSystemHost {
   readonly sourceStorage: SourceStorageQueries;
   callOnlyAlias(declaration: Node): import("../operations/source-profiles/callable-aliases.js").CsharpCallOnlyAlias | undefined;
   readonly pointerStorage: TsonicPointerStorageRelation;
-  readonly memoryBindings: TsonicMemoryBindingIndex;
+  readonly memoryBindings: TsonicMemoryBindings;
   readonly typeDefinitions?: CsharpTypeDefinitionWriter;
 }
 
@@ -111,7 +112,11 @@ function createCsharpTypeQueries(
   const queries: CsharpTypeQueries = {
     represent: (descriptor, occurrence, position) => representSourceType(descriptor, at(occurrence, position)),
     representSum: (sum, occurrence, position) => representSourceSum(sum, at(occurrence, position)),
-    value: node => admitted(representValue(node, at(node, "value")), node),
+    // K-2664 / A5 + BF16: the logical carrier, or the physical carrier selected by the exact-occurrence read owner.
+    value: node => {
+      const logical = admitted(representValue(node, at(node, "value")), node);
+      return isCsharpRefusal(logical) ? logical : targetOnly.physicalRead(node, logical) ?? logical;
+    },
     storage: slot => admitted(representSlot(slot, at(slot, "storage")), slot),
     readStorage(read) {
       const operand = facts.navigation.expressions.transparentOperand(read);
@@ -121,7 +126,15 @@ function createCsharpTypeQueries(
       if (syntax.is.IsIdentifier(operand) || syntax.is.IsPropertyAccessExpression(operand)) {
         const declaration = facts.navigation.identity.target(operand)?.declaration;
         const slot = declaration === undefined ? undefined : facts.values.slot(declaration);
-        if (slot !== undefined && slot.kind === "slot") return representSourceType(slot.type, at(read, "storage"));
+        if (slot !== undefined && slot.kind === "slot") {
+          const logical = representSourceType(slot.type, at(read, "storage"));
+          // R-C6-4: a binding read reads the storage its declaration holds. When the native storage selection gave
+          // that declaration a physical carrier (struct value storage, closed array layout, closed callable input),
+          // the one physical read owner selects it at the declaration, as the value read of the declaration does.
+          // A member read keeps its member slot: members have no physical declaration storage.
+          return isCsharpRefusal(logical) || !syntax.is.IsIdentifier(operand) ? logical
+            : targetOnly.physicalRead(declaration!, logical) ?? logical;
+        }
       }
       return queries.value(read);
     },
@@ -177,6 +190,8 @@ function createCsharpTypeSystem(
   });
   // The array-literal element fit needs the CLR conversion proof and pointer pointees need storage activations (R-C2-4).
   const types = createCsharpTypeQueries(services, () => initialized(bindingProjections, "The binding projection policy"), {
+    scopedTargetType: node => representations.scopedTargetType(node),
+    closedInputContract: node => representations.closedInputContract(node),
     pointerStorage: host.pointerStorage,
     sourceStorage: host.sourceStorage,
     conversions: () => ({
@@ -187,13 +202,14 @@ function createCsharpTypeSystem(
       objectShapes: initialized(objectShapes, "The object-shape registry"),
     }),
   });
+  // The shape registry reads Host facts only through the one representation; its binders resolve in the program's one
+  // type-parameter environment (the representation services' own).
   objectShapes = createCsharpObjectShapePolicy({
-    ...host,
-    representation: services,
-    types,
-    representations,
+    ast: host.ast,
+    sourceStorage: host.sourceStorage,
     projectTypeCatalog,
-    projectTypes: () => initialized(projectTypes, "C# project heritage"),
+    typeParameterConstraints: services.typeParameters,
+    representation: () => services,
   });
   bindingProjections = createCsharpBindingProjectionPolicy({
     ...host,

@@ -42,6 +42,7 @@ import { planCsharpDelegateAdapter } from "./callable-conversions.js";
 import type { CsharpPlannedCallable } from "./planned-values.js";
 import { planCsharpAbsentValue } from "./optional-storage.js";
 import { planCsharpDiscardedStatement } from "../statements/statement-output.js";
+import { csharpNumberErasureCandidate, csharpNumberErasureSupersedes } from "../../../target-model/conversions/number-erasure.js";
 
 export function readCsharpConversionClassification(
   node: Node,
@@ -107,7 +108,7 @@ export function applyCsharpConversionSelection(
   diagnostics: TargetDiagnostic[],
   sourceType: TargetTypeRef | undefined,
   targetType: TargetTypeRef | undefined,
-  selection: CsharpConversionSelection,
+  pairSelection: CsharpConversionSelection,
   expression: CsharpExpression | undefined,
   prelude: CsharpStatement[],
   operandStability: "stable" | "snapshot",
@@ -119,7 +120,16 @@ export function applyCsharpConversionSelection(
   if (expression === undefined) {
     return undefined;
   }
+  const selection = useScopedCsharpConversion(node, input, sourceType, targetType, pairSelection);
   switch (selection.kind) {
+    case "exact-number-erasure": {
+      // A3: the exact int64 → float64 conversion at this use (the operand is evaluated once, inside the cast), then
+      // the float64 value follows its own relation (a number box). The int64 producer and read are unchanged.
+      const result = renderRequiredTargetType(input.scope.typeParameterNames, node, selection.result, diagnostics);
+      return result === undefined ? undefined : applyCsharpConversionSelection(node, sourceFile, input, diagnostics,
+        selection.result, targetType, selection.conversion, { kind: "CastExpression", type: result, expression }, prelude,
+        operandStability, absenceConstant, callable);
+    }
     case "union-map":
       return planCsharpUnionMapping(node, expression, sourceType, targetType, selection, input, diagnostics);
     case "never": {
@@ -345,6 +355,21 @@ export function applyCsharpConversionSelection(
     case "rejected":
       return failCsharpPlannerInvariant(`C# conversion reached planning after pre-seal refusal: ${selection.reason}`, node);
   }
+}
+
+/**
+ * The conversion of this exact use. A pair-scoped relation (a provider argument mapping, a planned-value pair record)
+ * never decides number erasure: when analysis sealed an exact number erasure for this use and pair, that use-scoped
+ * record governs (A3). Any relation other than the plain int64 box it supersedes is conflicting evidence.
+ */
+function useScopedCsharpConversion(node: Node, input: CsharpPlanningContext, sourceType: TargetTypeRef | undefined,
+  targetType: TargetTypeRef | undefined, selection: CsharpConversionSelection): CsharpConversionSelection {
+  if (selection.kind === "exact-number-erasure" || !csharpNumberErasureCandidate(sourceType, targetType, "implicit")) return selection;
+  const sealed = input.program.records.expressionConversion.get(node, sourceType, targetType, "implicit")?.selection;
+  if (sealed?.kind !== "exact-number-erasure") return selection;
+  if (!csharpNumberErasureSupersedes(selection)) failCsharpPlannerInvariant(
+    "A planned conversion conflicts with the sealed Host exact number erasure of the same use.", node);
+  return sealed;
 }
 
 function applyLiftedProviderArgumentAdapter(

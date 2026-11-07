@@ -110,14 +110,14 @@ export function analyzeCsharpBindingPatterns(
     completesWithValue, admitSource, recordAssignment, draftFor: node => facts.get(node), issue, carrierDetail,
     recordSource, recordElement, recordBinding, bindingPropertySourceName, recordObjectRest,
   });
-  for (const sourceFile of input.sourceFiles) visit(sourceFile, sourceFile);
+  for (const sourceFile of input.sourceFiles) visit(sourceFile);
   return Object.freeze({
     bindingPatternProjection: lookup,
     candidates: Object.freeze(candidates),
     entries: Object.freeze([...facts].map(([node, fact]) => Object.freeze({ node, fact, root: roots.get(node)! }))),
   });
 
-  function visit(node: Node, sourceFile: SourceFile): void {
+  function visit(node: Node): void {
     if (input.evidence.compileTimeMetadata.get(node) || input.operations.nativeUnreachable.get(node) ||
       input.participation.get(node) === "erased" || isCsharpUnusedTupleDefault(ast, lookup, node)) return;
     if (ast.is.IsVariableDeclaration(node)) {
@@ -127,16 +127,16 @@ export function analyzeCsharpBindingPatterns(
         const forOf = forOfHeadStatement(node);
         if (forOf !== undefined) {
           root = forOf;
-          analyzePattern(name, node, sourceFile, input.storage.storageType.get(node));
+          analyzePattern(name, node, input.storage.storageType.get(node));
         } else if (variable?.Initializer !== undefined) {
           root = node;
-          admitSource(name, variable.Initializer, sourceFile, "Destructuring source expression");
+          admitSource(name, variable.Initializer, "Destructuring source expression");
           if (completesWithValue(variable.Initializer)) {
             const selected = input.initializerUses.get(node);
             if (selected == null || selected.expression !== variable.Initializer) {
               issue(name, "Destructuring source requires its exact admitted physical initializer expression and carrier.");
             } else if (!isCsharpNeverTargetType(selected.carrier) && !isCsharpVoidTargetType(selected.carrier)) {
-              analyzePattern(name, variable.Initializer, sourceFile, selected.carrier);
+              analyzePattern(name, variable.Initializer, selected.carrier);
             }
           }
         }
@@ -147,13 +147,13 @@ export function analyzeCsharpBindingPatterns(
       const ownerParticipation = owner === undefined ? undefined : input.participation.get(owner);
       if (name !== undefined && isBindingPattern(name) && ownerParticipation !== undefined && ownerParticipation !== "erased") {
         root = node;
-        analyzePattern(name, node, sourceFile, input.storage.storageType.get(node));
+        analyzePattern(name, node, input.storage.storageType.get(node));
       }
     } else if (ast.is.IsBinaryExpression(node) && !assignments.isDefault(node)) {
       root = node;
-      assignments.analyze(node, sourceFile);
+      assignments.analyze(node);
     }
-    ast.forEachChild(node, (child) => { if (child !== undefined) visit(child, sourceFile); });
+    ast.forEachChild(node, (child) => { if (child !== undefined) visit(child); });
   }
 
   function completesWithValue(source: Node): boolean {
@@ -237,7 +237,7 @@ export function analyzeCsharpBindingPatterns(
       : { reason: defaultReason, evidence: [] };
   }
 
-  function admitSource(diagnosticNode: Node, source: Node, sourceFile: SourceFile, description: string): void {
+  function admitSource(diagnosticNode: Node, source: Node, description: string): void {
     if (input.valueReads.valueRead.get(source)?.value !== undefined) return;
     if (input.objectShapes.resolveNode(source) !== undefined) return;
     issue(diagnosticNode,
@@ -245,9 +245,9 @@ export function analyzeCsharpBindingPatterns(
       [unprovenCarrierEvidence]);
   }
 
-  function analyzeNested(name: Node, elementNode: Node, sourceFile: SourceFile, carrier: TargetTypeRef | undefined): void {
+  function analyzeNested(name: Node, elementNode: Node, carrier: TargetTypeRef | undefined): void {
     recordBinding(elementNode, name, carrier);
-    if (isBindingPattern(name)) analyzePattern(name, elementNode, sourceFile, carrier);
+    if (isBindingPattern(name)) analyzePattern(name, elementNode, carrier);
   }
 
   function recordBinding(node: Node, name: Node, source: TargetTypeRef | undefined): void {
@@ -276,15 +276,15 @@ export function analyzeCsharpBindingPatterns(
     facts.set(node, Object.freeze({ ...facts.get(node), assignmentPattern: pattern }));
   }
 
-  function analyzePattern(pattern: Node, sourceNode: Node, sourceFile: SourceFile, sourceCarrierOverride: TargetTypeRef | undefined): void {
+  function analyzePattern(pattern: Node, sourceNode: Node, sourceCarrierOverride: TargetTypeRef | undefined): void {
     if (HasSourceKind(ast, pattern, KindArrayBindingPattern)) {
-      analyzeArrayPattern(pattern, sourceNode, sourceFile, sourceCarrierOverride);
+      analyzeArrayPattern(pattern, sourceNode, sourceCarrierOverride);
     } else if (HasSourceKind(ast, pattern, KindObjectBindingPattern)) {
-      analyzeObjectPattern(pattern, sourceNode, sourceFile, sourceCarrierOverride);
+      analyzeObjectPattern(pattern, sourceNode, sourceCarrierOverride);
     }
   }
 
-  function analyzeArrayPattern(pattern: Node, sourceNode: Node, sourceFile: SourceFile, sourceCarrier: TargetTypeRef | undefined): void {
+  function analyzeArrayPattern(pattern: Node, sourceNode: Node, sourceCarrier: TargetTypeRef | undefined): void {
     const selected = selectCsharpBindingPatternProjection({ kind: "array-source", carrier: sourceCarrier });
     if (selected.kind !== "source" || selected.source.kind !== "array-source") {
       const detail = carrierDetail(sourceNode, "Runtime carrier fact is missing for the array destructuring source expression.");
@@ -304,26 +304,26 @@ export function analyzeCsharpBindingPatterns(
       if (projection.kind !== "element") continue;
       recordElement(elementNode, projection.element, element.Initializer, bindingCarrier.kind === "array");
       if (projection.element.kind === "array-rest" || projection.element.kind === "tuple-rest") {
-        analyzeNested(name, elementNode, sourceFile, projection.element.restCarrier);
+        analyzeNested(name, elementNode, projection.element.restCarrier);
         continue;
       }
       if (projection.element.kind !== "array-element") continue;
       const { elementCarrier, tupleDefault } = projection.element;
       if (elementCarrier === undefined) continue;
       if (element.Initializer === undefined) {
-        analyzeNested(name, elementNode, sourceFile, elementCarrier);
+        analyzeNested(name, elementNode, elementCarrier);
       } else if (tupleDefault !== undefined) {
-        analyzeNested(name, elementNode, sourceFile, tupleDefault.kind === "planned" ? tupleDefault.carrier : elementCarrier);
+        analyzeNested(name, elementNode, tupleDefault.kind === "planned" ? tupleDefault.carrier : elementCarrier);
       } else if (bindingCarrier.kind === "array") {
         const defaultValue = facts.get(elementNode)?.defaultValue;
         if (defaultValue !== undefined) {
-          analyzeNested(name, elementNode, sourceFile, defaultValue.target);
+          analyzeNested(name, elementNode, defaultValue.target);
         }
       }
     }
   }
 
-  function analyzeObjectPattern(pattern: Node, sourceNode: Node, sourceFile: SourceFile, sourceCarrier: TargetTypeRef | undefined): void {
+  function analyzeObjectPattern(pattern: Node, sourceNode: Node, sourceCarrier: TargetTypeRef | undefined): void {
     const shape = sourceCarrier === undefined ? input.objectShapes.resolveNode(sourceNode)
       : input.objectShapes.resolveTarget(sourceCarrier);
     const elements = ast.elements(pattern);
@@ -337,24 +337,24 @@ export function analyzeCsharpBindingPatterns(
       }
       recordSource(pattern, native.source);
       for (const element of elements) {
-        if (element !== undefined) analyzeNativeElement(element, sourceFile, native.source.carrier);
+        if (element !== undefined) analyzeNativeElement(element, native.source.carrier);
       }
       return;
     }
     const selected = selectCsharpBindingPatternProjection({ kind: "object-source", shape,
       sourceOwned: input.evidence.sourceOwnedProjectShape.get(sourceNode) === true });
     if (selected.kind === "source" && selected.source.kind === "object-shape-source") {
-      analyzeObjectShapePattern(pattern, selected.source.shape, sourceFile);
+      analyzeObjectShapePattern(pattern, selected.source.shape);
       return;
     }
     if (selected.kind === "source" && selected.source.kind === "source-owned-source") {
-      analyzeSourceOwnedPattern(pattern, sourceNode, sourceFile, sourceCarrier ?? input.evidence.nodeTargetType.get(sourceNode));
+      analyzeSourceOwnedPattern(pattern, sourceNode, sourceCarrier ?? input.evidence.nodeTargetType.get(sourceNode));
       return;
     }
     issue(pattern, "Object destructuring requires an exact source-owned declaration or target object-shape policy.");
   }
 
-  function analyzeNativeElement(elementNode: Node, sourceFile: SourceFile, carrier: TargetTypeRef): void {
+  function analyzeNativeElement(elementNode: Node, carrier: TargetTypeRef): void {
     const element = AsBindingElement(ast, elementNode);
     const projection = input.evidence.bindingProjection.get(elementNode)?.nativeRead;
     if (element?.name === undefined || projection === undefined || projection.node !== elementNode ||
@@ -364,7 +364,7 @@ export function analyzeCsharpBindingPatterns(
     }
     recordElement(elementNode, { kind: "native-member", property: projection.property }, element.Initializer);
     const target = element.Initializer === undefined ? projection.property.member.returnType : facts.get(elementNode)?.defaultValue?.target;
-    analyzeNested(element.name, elementNode, sourceFile, target);
+    analyzeNested(element.name, elementNode, target);
   }
 
   function objectShapePropertyName(elementNode: Node): { readonly node: Node; readonly sourceName?: string; readonly reason?: string } | undefined {
@@ -387,7 +387,7 @@ export function analyzeCsharpBindingPatterns(
       ? { sourceName: Node_Text(ast, propertyName) } : {};
   }
 
-  function analyzeObjectShapePattern(pattern: Node, shape: CsharpObjectShapeFact, sourceFile: SourceFile): void {
+  function analyzeObjectShapePattern(pattern: Node, shape: CsharpObjectShapeFact): void {
     recordSource(pattern, { kind: "object-shape-source", shape });
     const publishedType = publishedPatternType(pattern);
     const structure = publishedType === undefined ? undefined : sourceTypeDescriptorStructure(publishedType);
@@ -406,12 +406,12 @@ export function analyzeCsharpBindingPatterns(
       const name = element.name;
       if (element.DotDotDotToken !== undefined) {
         if (name === undefined || !HasSourceKind(ast, name, KindIdentifier)) continue;
-        analyzeObjectShapeRest(elementNode, name, shape, extractedSourceNames, sourceFile);
+        analyzeObjectShapeRest(elementNode, name, shape, extractedSourceNames);
         continue;
       }
       if (name === undefined) continue;
       if (input.evidence.bindingProjection.get(elementNode)?.nativeRead !== undefined) {
-        analyzeNativeElement(elementNode, sourceFile, shape.targetType);
+        analyzeNativeElement(elementNode, shape.targetType);
         continue;
       }
       const property = objectShapePropertyName(elementNode);
@@ -435,12 +435,12 @@ export function analyzeCsharpBindingPatterns(
       const carrier = selected.element.kind === "object-shape-member" ? selected.element.member.type : selected.element.carrier;
       recordElement(elementNode, selected.element, element.Initializer);
       if (element.Initializer === undefined) {
-        analyzeNested(name, elementNode, sourceFile, carrier);
+        analyzeNested(name, elementNode, carrier);
         continue;
       }
       const defaultValue = facts.get(elementNode)?.defaultValue;
       if (defaultValue !== undefined) {
-        analyzeNested(name, elementNode, sourceFile, defaultValue.target);
+        analyzeNested(name, elementNode, defaultValue.target);
       }
     }
   }
@@ -457,7 +457,6 @@ export function analyzeCsharpBindingPatterns(
     name: Node,
     sourceShape: CsharpObjectShapeFact,
     extractedSourceNames: ReadonlySet<string>,
-    sourceFile: SourceFile,
   ): void {
     const restContract = input.objectShapes.resolveNode(name);
     const restShape = restContract === undefined ? undefined : input.objectShapes.resolveCopyShape(restContract);
@@ -482,7 +481,7 @@ export function analyzeCsharpBindingPatterns(
     else if (selected.kind === "unresolved") for (const reason of selected.reasons) issue(elementNode, reason);
   }
 
-  function analyzeSourceOwnedPattern(pattern: Node, sourceNode: Node, sourceFile: SourceFile, receiverCarrier: TargetTypeRef | undefined): void {
+  function analyzeSourceOwnedPattern(pattern: Node, sourceNode: Node, receiverCarrier: TargetTypeRef | undefined): void {
     recordSource(pattern, { kind: "source-owned-source" });
     const outcome = input.facts.values.type(sourceNode);
     const structure = outcome.kind === "refused" ? undefined : sourceTypeDescriptorStructure(outcome.type);
@@ -495,7 +494,7 @@ export function analyzeCsharpBindingPatterns(
       if (name === undefined) continue;
       if (input.evidence.bindingProjection.get(elementNode)?.nativeRead !== undefined) {
         if (receiverCarrier === undefined) issue(elementNode, "A native member binding requires its exact finalized input carrier.");
-        else analyzeNativeElement(elementNode, sourceFile, receiverCarrier);
+        else analyzeNativeElement(elementNode, receiverCarrier);
         continue;
       }
       const propertyName = element.PropertyName ?? name;
@@ -532,7 +531,7 @@ export function analyzeCsharpBindingPatterns(
         issue(elementNode, "Object destructuring source property requires its exact finalized native extraction carrier before C# emission.");
         continue;
       }
-      analyzeNested(name, elementNode, sourceFile, carrier);
+      analyzeNested(name, elementNode, carrier);
     }
   }
 

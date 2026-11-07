@@ -16,4 +16,4 @@ export type CsharpSwitchSelection =
       readonly clauses: readonly { readonly node: Node; readonly comparison?: CsharpResolvedBinaryOperation }[];
       readonly defaultIndex: number;
     }
-  | { readonly kind: "rejected"; readonly reason: string };
+  | { readonly kind: "rejected"; readonly reason: string; readonly code: `CSHARP_${string}` };

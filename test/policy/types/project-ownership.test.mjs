@@ -19,7 +19,7 @@ test("project type classification rejects foreign declarations before any Source
     const selected = [];
     const services = Object.freeze({
       facts: untouched, syntax, profile: "native", sourceFacts: Object.freeze({ getFact: () => undefined }),
-      platform: Object.freeze({ nativeIntegerBits: 64, targetFramework: "net10.0" }),
+      platform: Object.freeze({ nativeInteger: Object.freeze({ kind: "known", nativeIntegerBits: 64, basis: "test" }), targetFramework: "net10.0" }),
       projectTypes: Object.freeze({
         definitionForDeclaration(node) { selected.push(node); return undefined; },
         targetTypeForDeclaration: () => assert.fail("a foreign declaration has no project target type"),

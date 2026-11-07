@@ -207,7 +207,7 @@ export function analyzeCsharpSource(options) {
   try {
     const runtime = checked.runtimeContributions();
     checked.targetSession.compile({
-      source: csharpTestSourceProgram(checked.source),
+      source: csharpTestSourceProgram(checked.source, checked.targetSession.sourcePlatform()),
       sourcePackages: checked.sourcePackages,
       project: checked.project,
       target: checked.target,
@@ -254,7 +254,7 @@ export function compileCsharpSource(options) {
     } else {
       const runtime = checked.runtimeContributions();
       compiled = checked.targetSession.compile({
-        source: csharpTestSourceProgram(checked.source),
+        source: csharpTestSourceProgram(checked.source, checked.targetSession.sourcePlatform()),
         sourcePackages: checked.sourcePackages,
         project: checked.project,
         target: checked.target,

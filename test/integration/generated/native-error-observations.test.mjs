@@ -3,6 +3,7 @@ import test from "node:test";
 import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { isCsharpVoidTargetType } from "../../../dist/target-model/types/index.js";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
+import { csharpSourceNodes } from "../../../dist/analysis/program/source-nodes.js";
 
 for (const surface of [undefined, "js"]) {
   test(`native ${surface ?? "native"} Error abstractions observe original live fields without allocation`, { timeout: 300_000 }, () => {
@@ -70,7 +71,7 @@ sealed class MutableException : Exception {
     const emitted = [...compiled.artifacts.values()].join("\n");
     assert.match(emitted, /capture\(System\.Exception error\)/u);
     const program = compiled.result.program;
-    const captures = program.source.navigation.nodes.filter(node => program.source.ast.is.IsCallExpression(node))
+    const captures = csharpSourceNodes(program.source.syntax, program.sourceFiles).filter(node => program.source.syntax.is.IsCallExpression(node))
       .map(node => ({ node, selected: program.records.selectedCall.get(node)?.target }))
       .filter(entry => entry.selected?.kind === "resolved" &&
         entry.selected.call.targetMember.id.endsWith("System.Runtime.ExceptionServices.ExceptionDispatchInfo.SetCurrentStackTrace"));
@@ -157,7 +158,7 @@ GC.KeepAlive(retained); GC.KeepAlive(options); GC.KeepAlive(alias);
     ` });
     assertCsharpCompilationSucceeded(compiled);
     const program = compiled.result.program;
-    const calls = program.source.navigation.nodes.filter(node => program.source.ast.is.IsCallExpression(node))
+    const calls = csharpSourceNodes(program.source.syntax, program.sourceFiles).filter(node => program.source.syntax.is.IsCallExpression(node))
       .map(node => ({ node, selected: program.records.selectedCall.get(node)?.target,
         emission: program.records.targetCallEmission.get(node) }))
       .filter(entry => entry.selected?.kind === "resolved" && entry.selected.call.condition !== undefined);

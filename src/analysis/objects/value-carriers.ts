@@ -18,6 +18,7 @@ import type { CsharpProjectTypeIssue } from "../../target-model/records/types/pr
 import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/objects/required-records.js";
 import { csharpTargetTypeRenderingRejection } from "../../policy/types/model/renderability.js";
 import { csharpRuntimeRecordFieldTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
+import { csharpLexicalCaptures } from "../callables/values/lexical-captures.js";
 
 export interface CsharpNativeValueTypeSelection {
   readonly facts: SourceProgramFacts;
@@ -134,7 +135,7 @@ export function analyzeCsharpObjectMethodSources(
     if (methods.length === 0) continue;
     const captures = new Map<Node, readonly CsharpObjectMethodSourceCapture[]>();
     for (const method of methods) {
-      const lexical = facts.analyses.lexicalCaptures(method);
+      const lexical = csharpLexicalCaptures(facts, method);
       captures.set(method, Object.freeze(lexical.captures
         .filter(capture => callOnlyAlias(capture.declaration) === undefined)
         .flatMap(capture => capture.references[0] === undefined ? [] : [Object.freeze({

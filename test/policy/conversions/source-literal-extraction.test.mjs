@@ -8,7 +8,7 @@ function literals(sourceText, surface = "native") {
   const compiled = compileCsharpSource({ surface, sourceText });
   const program = compiled.result.program;
   assert.equal(program !== undefined, true, `${surface}: the program publishes`);
-  const ast = program.source.ast;
+  const ast = program.source.syntax;
   const found = [];
   const visit = (node) => {
     const datum = program.records.literalValue.get(node);
@@ -109,10 +109,10 @@ export function decimalDefault(value: decimal = -1.50): decimal { return value; 
       `${surface}: the native token never uses the lossy double summary`);
     assert.doesNotThrow(() => JSON.stringify(compiled.result.plan), `${surface}: every native token remains JSON-safe`);
     const program = compiled.result.program;
-    const defaults = csharpProgramSourceFiles(program).flatMap(file => program.source.ast.statements(file))
-      .filter(node => node !== undefined && program.source.ast.is.IsFunctionDeclaration(node))
-      .flatMap(node => program.source.ast.parameters(node))
-      .filter(node => program.source.ast.as.AsParameterDeclaration(node)?.Initializer !== undefined);
+    const defaults = csharpProgramSourceFiles(program).flatMap(file => program.source.syntax.statements(file))
+      .filter(node => node !== undefined && program.source.syntax.is.IsFunctionDeclaration(node))
+      .flatMap(node => program.source.syntax.parameters(node))
+      .filter(node => program.source.syntax.as.AsParameterDeclaration(node)?.Initializer !== undefined);
     assert.equal(defaults.length === 2 && defaults.every(node => program.records.runtimeDefault.get(node) !== undefined), true,
       `${surface}: exact native numeric defaults use the sealed runtime-default producer, not the inline-literal allowlist`);
   }
@@ -155,8 +155,9 @@ test("checked float64 provenance keeps genuine native conversion operations and 
       const compiled = compileCsharpSource({ surface,
         sourceText: `import type { ${target} } from "@tsonic/core/types.js"; export function value(): ${target} { return ${literal}; }`,
         compileTarget(request) {
-          const ast = request.input.source.ast;
-          const source = { ...request.input.source, ast: { ...ast, authoredRange(node) {
+          // nextgen C-2542: the received TargetSourceProgramFacts carries its authored-syntax reader as `syntax`.
+          const ast = request.input.source.syntax;
+          const source = { ...request.input.source, syntax: { ...ast, authoredRange(node) {
             return node !== undefined && ast.is.IsNumericLiteral(node) ? { kind: "synthetic" } : ast.authoredRange(node);
           } } };
           return compileCsharpTarget({ ...request, input: { ...request.input, source } });

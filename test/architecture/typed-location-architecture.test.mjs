@@ -13,18 +13,24 @@ const neutralFactReaders = new Map([
   ["defaultValueFactKey", ["src/source/extension/markers.ts"]],
   ["fieldFactKey", ["src/source/extension/markers.ts"]],
   ["flowStateFactKey", ["src/policy/operations/flow/source-flow.ts"]],
-  ["tsonicKeepAliveFactKey", ["src/source/extension/reachability.ts"]],
   ["functionPointerFactKey", ["src/source/extension/markers.ts"]],
   ["pointerFactKey", ["src/source/extension/markers.ts"]],
   ["rawPointerFactKey", ["src/source/extension/markers.ts"]],
   ["rawPointerOperationFactKey", ["src/source/extension/raw-pointers.ts"]],
-  ["pointerOperationFactKey", ["src/source/extension/typed-locations.ts"]],
   ["structFactKey", ["src/source/extension/markers.ts"]],
-  ["tsonicNativePointerOperationFactKey", ["src/source/extension/native-pointers.ts"]],
   ["tsonicSafetyBuilderFactKey", ["src/source/extension/explicit-safety.ts"]],
   ["tsonicUnsafeContextFactKey", ["src/source/extension/explicit-safety.ts"]],
   ["createTsonicAttributeApplicationFactIndex", ["src/analysis/attributes/application-index.ts"]],
 ]);
+
+// Legacy memory and pointer witnesses that carry no target contract: C# reads their Host records instead (K-2662).
+const legacyMemoryPointerWitnesses = [
+  "pointerOperationFactKey", "tsonicKeepAliveFactKey", "tsonicNativePointerOperationFactKey", "tsonicPointerViewFactKey",
+  "tsonicRawMemoryOperationFactKey", "tsonicMemoryLayoutFactKey", "tsonicMemoryFieldLayoutFactKey",
+  "tsonicMemoryLayoutQueryFactKey", "tsonicFixedArrayFactKey", "tsonicMemoryFieldBindingFactKey",
+  "tsonicMemoryRecordBindingFactKey", "tsonicMemoryTypeFactKey", "TsonicMemoryLayoutFact", "TsonicRawMemoryOperationFact",
+  "TsonicPointerViewFact", "TsonicNativePointerOperationFact",
+];
 
 function sourceFiles(directory) {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -37,14 +43,20 @@ function sourceFiles(directory) {
   });
 }
 
-test("neutral typed-location facts enter C# through one policy adapter", () => {
+test("typed-location operations enter C# as Host records through one adapter", () => {
+  const failures = sourceFiles(sourceRoot).flatMap((path) => {
+    const text = readFileSync(path, "utf8");
+    return legacyMemoryPointerWitnesses.filter((name) => new RegExp(`\\b${name}\\b`, "u").test(text))
+      .map((name) => `${path.slice(repositoryRoot.length + 1)}: ${name}`);
+  });
+  assert.deepEqual(failures, []);
+  const adapter = readFileSync(join(sourceRoot, "source/extension/typed-locations.ts"), "utf8");
+  assert.match(adapter, /facts\.selections\.pointerOperation\(subject\)/u);
+  assert.match(adapter, /csharpSourceCoreAnalyses\(facts\)\.pointers\.view\(subject\)/u);
   const occurrences = sourceFiles(sourceRoot)
-    .filter((path) => readFileSync(path, "utf8").includes("pointerOperationFactKey"))
+    .filter((path) => readFileSync(path, "utf8").includes("selections.pointerOperation("))
     .map((path) => path.slice(repositoryRoot.length + 1));
-
-  assert.deepEqual(occurrences, [
-    "src/source/extension/typed-locations.ts",
-  ]);
+  assert.deepEqual(occurrences, ["src/source/extension/typed-locations.ts"]);
 });
 
 test("every neutral marker fact enters C# through one target-owned adapter", () => {
@@ -207,14 +219,14 @@ test("native backing uses one neutral identity relation without the legacy layou
   assert.match(analysis, /const pointerBackingRecords = pointerBacking\.seal\(\)/u);
   assert.match(analysis, /pointerBackingUses: pointerBackingRecords\.uses/u);
   const collection = readFileSync(join(sourceRoot, "analysis/source-evidence/pointer-backing.ts"), "utf8");
-  assert.match(collection, /storage\.value\(selected\.expression\)/u);
+  assert.match(collection, /storage\.value\(selected\.operand\.expression\)/u);
   assert.match(collection, /types\.resolvePointerStoragePointee\(producer\.storage\)/u);
   assert.match(collection, /seal\(\)\s*\{\s*return Object\.freeze\(\{ uses: Object\.freeze\(\[\.\.\.uses\]\), issues: Object\.freeze\(\[\.\.\.issues\]\) \}\)/u);
   assert.doesNotMatch(collection, /uses:\s*\(\)\s*=>/u);
   assert.doesNotMatch(collection, /createTsonicPointerBackingQueries|createTsonicPointerStorageRelation/u);
   const composition = readFileSync(join(sourceRoot, "analysis/program/analyze.ts"), "utf8");
-  assert.equal([...composition.matchAll(/createTsonicPointerStorageRelation\(source, sourceStorage\)/gu)].length, 1);
-  assert.match(composition, /createTsonicMemoryBindingFactsIndex\(source\)/u);
+  assert.equal([...composition.matchAll(/core\.pointerStorage\(sourceStorage\)/gu)].length, 1);
+  assert.match(composition, /core\.memoryBindings/u);
   const domains = readFileSync(join(sourceRoot, "analysis/operations/pointers/storage-domain.ts"), "utf8");
   assert.match(domains, /input\.pointerStorage\.value\(expression\)/u);
   assert.match(domains, /input\.sourceStorage\.typeFor\(boundary\.subject\)/u);
@@ -242,9 +254,10 @@ test("scalar and scalar-array backing consumes declared geometry and only checks
   const owner = readFileSync(join(sourceRoot, "analysis/operations/pointers/native-memory.ts"), "utf8");
   const declared = owner.slice(owner.indexOf("export function selectCsharpDeclaredNativeMemoryLayout("),
     owner.indexOf("function csharpNativeScalarByteSize("));
-  assert.match(declared, /input\.types\.selectFixedArray\(work\.sourceType, work\.sourceFile\)/u);
+  // The fixed array is a function of the Host descriptor and its occurrence (selectFixedArray(descriptor, occurrence)).
+  assert.match(declared, /input\.types\.selectFixedArray\(work\.sourceType, work\.occurrence\)/u);
   assert.match(declared, /csharpNativeScalarByteSize\(work\.carrier, dataLayout\.addressWidth\)/u);
-  assert.doesNotMatch(declared, /TsonicMemoryLayoutFact|byteSize|byteAlignment|layout\.stride|selectCsharpNativeMemoryLayout/u);
+  assert.doesNotMatch(declared, /TsonicMemoryLayoutFact|TsonicMemoryLayoutRecord|byteSize|byteAlignment|layout\.stride|selectCsharpNativeMemoryLayout/u);
 });
 
 

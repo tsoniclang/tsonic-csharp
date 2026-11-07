@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { hostProgram } from "../../representation/host-fixture.mjs";
-import { compileEffectiveSource } from "../../helpers/source-effective-types.mjs";
 import { sealCsharpAnalysisProgram } from "../../../dist/analysis/program/index.js";
 import { compileCsharpSource, checkCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { analyzeCsharpBindingPatterns, isCsharpUnusedTupleDefault } from "../../../dist/analysis/control-flow/binding-patterns.js";

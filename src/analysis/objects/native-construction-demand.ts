@@ -1,4 +1,4 @@
-import { providerVirtualDeclarationFactKey, type Node } from "@tsonic/tsts";
+import type { Node } from "@tsonic/tsts";
 import { sourceTypeDescriptorStructure, type SourceTypeOutcome } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { sourceSlot } from "../program/source-facts.js";
@@ -17,6 +17,7 @@ import { createCsharpNativeConstructionRecords } from "../program/records/native
 import { selectCsharpConversion } from "../../policy/conversions/core.js";
 import { selectCsharpHostLiteralCorrespondence } from "./shapes/host-correspondence.js";
 import { csharpProviderObjectLiteralIndexerFailure } from "./shapes/provider-construction.js";
+import { isCsharpProviderObjectInitializerType } from "./shapes/provider-shapes.js";
 import type { CsharpProjectTypePolicy } from "../../target-model/records/types/project-types.js";
 
 interface CsharpNativeConstructionHost extends Pick<CsharpTypeSystemHost,
@@ -89,17 +90,13 @@ export function createCsharpNativeConstructionDemandQuery(
     while (descriptor.kind === "optional") descriptor = descriptor.value;
     const structure = sourceTypeDescriptorStructure(descriptor);
     if ((structure.kind === "shape" || structure.kind === "callable") && structure.constructs.length !== 0) return;
-    const subjects = descriptor.kind === "declared" ? [descriptor.declaration] : [];
     // An object literal typed `any` is a Host value refusal (request R-F5-A2); C# never originates it.
     if (descriptor.kind === "intrinsic" && descriptor.intrinsic === "any") failTargetAnalysisInvariant("tsonic-csharp",
       "An object literal of type any must be refused by the Host before C# analysis.", node);
-    const native = subjects.some(subject => {
-      const fact = host.sourceFacts?.getFact(subject, providerVirtualDeclarationFactKey);
-      if (fact === undefined) return false;
-      const provider = host.providers.resolveType(fact);
-      return provider.kind === "resolved" && provider.relations.some(relation =>
-        relation.kind === "type" && relation.objectLiteralConstruction?.kind === "object-initializer");
-    });
+    // Native: the declared type is a CLR provider type with object-initializer construction. One applicability test
+    // (provider-shapes.ts), shared with the object-shape registry that builds the provider shape (shapes/api.ts).
+    const native = descriptor.kind === "declared" && isCsharpProviderObjectInitializerType(
+      { sourceFacts: host.sourceFacts, providers: host.providers }, descriptor.declaration);
     const nativeFailure = "The declared native construction cannot retain all exact fields, absence and native storage without a copied or adapted object.";
     const indexerFailure = native ? csharpProviderObjectLiteralIndexerFailure(descriptor, node, host) : undefined;
     if (indexerFailure !== undefined) {

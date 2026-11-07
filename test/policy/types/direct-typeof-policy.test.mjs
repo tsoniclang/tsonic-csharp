@@ -11,7 +11,7 @@ import { createCsharpTypeDefinitionRegistry } from "../../../dist/analysis/proje
 import { selectCsharpClosedTypeTestPlan } from "../../../dist/policy/operations/operators/type-tests.js";
 
 // Basis (nextgen C-2542, K-2658, N3'): typeof comparisons read the Host typeof categories (facts.values.typeofCategory),
-// projected onto the physical carrier by selectCsharpTypeofResult. These fixtures state the published categories.
+// projected onto the physical carrier by selectCsharpTypeofSelection. These fixtures state the published categories.
 function optional(sourceCarrier, value, absent = "object") {
   return Object.freeze({ kind: "optional", sourceCarrier, element: getCsharpNullableElementTargetType(sourceCarrier), value, absent });
 }

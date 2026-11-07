@@ -1,12 +1,13 @@
 import type { CsharpSourceRawAddressOperation } from "../../target-model/records/storage/raw-addresses.js";
-import type { ExtensionFactSubject, ReadonlySourceFactResolver } from "@tsonic/tsts";
-import { readTsonicRawMemoryOperation } from "@tsonic/source-core/facts";
+import type { Node } from "@tsonic/tsts";
+import type { SourceProgramFacts } from "@tsonic/target-api/source";
+import type { TsonicRawAddressRejection } from "@tsonic/source-core/facts";
+import { csharpSourceCoreAnalyses } from "./source-core.js";
 
+/** Raw address arithmetic (offsetrawptr, rawptrtoaddressinteger, addressintegertorawptr): the source-core Host record. */
 export function readCsharpSourceRawAddress(
-  facts: ReadonlySourceFactResolver | undefined,
-  subject: ExtensionFactSubject | undefined,
-): CsharpSourceRawAddressOperation | undefined {
-  const fact = facts === undefined ? undefined : readTsonicRawMemoryOperation(facts, subject);
-  return fact?.operation === "byte-offset" || fact?.operation === "raw-to-address-integer" ||
-    fact?.operation === "address-integer-to-raw" ? fact : undefined;
+  facts: SourceProgramFacts,
+  subject: Node,
+): CsharpSourceRawAddressOperation | TsonicRawAddressRejection | undefined {
+  return csharpSourceCoreAnalyses(facts).memory.rawAddress(subject);
 }

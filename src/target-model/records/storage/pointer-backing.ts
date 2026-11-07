@@ -1,5 +1,5 @@
 import type { Node } from "@tsonic/tsts";
-import type { TsonicMemoryLayoutFact, TsonicPointerStorageProducer } from "@tsonic/source-core/facts";
+import type { TsonicMemoryLayoutRecord, TsonicPointerStorageProducer } from "@tsonic/source-core/facts";
 import type { TargetTypeRef } from "../../types/model.js";
 
 export interface CsharpPointerBackingProducer {
@@ -11,5 +11,5 @@ export interface CsharpPointerBackingUse {
   readonly call: Node;
   readonly producers: readonly CsharpPointerBackingProducer[];
   readonly includesAbsence: boolean;
-  readonly layout: TsonicMemoryLayoutFact;
+  readonly layout: TsonicMemoryLayoutRecord;
 }

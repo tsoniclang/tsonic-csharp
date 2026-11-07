@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
+import { csharpSourceNodes } from "../../../dist/analysis/program/source-nodes.js";
 
 for (const surface of ["native", "js"]) {
   test(`native ${surface} Error binding reads retain checked native members, defaults, identity and zero allocation`, () => {
@@ -24,26 +25,28 @@ for (const surface of ["native", "js"]) {
     assertCsharpCompilationSucceeded(compiled);
     const { program } = compiled.result;
     const { source } = program;
+    // nextgen C-2542: TargetSourceProgramFacts (syntax reader `.syntax`); nodes from the C# syntax walk.
+    const nodes = csharpSourceNodes(source.syntax, program.sourceFiles);
     const expected = new Map([
       ["message", "System.Exception.Message"],
       ["name", "System.Type.Name"],
       ["stack", "System.Exception.StackTrace"],
     ]);
     for (const [name, memberId] of expected) {
-      const declaration = source.navigation.nodes.find(node => source.ast.is.IsFunctionDeclaration(node) &&
-        source.ast.text(source.ast.name(node)) === name);
+      const declaration = nodes.find(node => source.syntax.is.IsFunctionDeclaration(node) &&
+        source.syntax.text(source.syntax.name(node)) === name);
       assert.equal(declaration !== undefined, true, `${name}: one actual authored declaration`);
-      const parameter = source.ast.parameters(declaration)[0];
+      const parameter = source.syntax.parameters(declaration)[0];
       const contract = program.records.callableDeclaration.get(declaration)?.contract;
       assert.equal(contract?.nativeParameters.length === 1 && contract.nativeParameters[0].sourceParameter === parameter, true,
         `${name}: the one original signature slot owns the native formal`);
       const carrier = contract.nativeParameters[0].targetParameter.type;
       assert.equal(carrier.kind === "target-named" && (carrier.id === "System.Exception" || carrier.id.endsWith("::System.Exception")), true,
         `${name}: the natural readonly formal retains its real native Exception ABI`);
-      const pattern = source.ast.name(parameter);
+      const pattern = source.syntax.name(parameter);
       const fact = program.records.bindingPatternProjection.get(pattern)?.source;
       assert.equal(fact?.kind === "native-source", true, `${name}: native input is not relabelled as a source-owned shape`);
-      const element = source.ast.elements(pattern)[0];
+      const element = source.syntax.elements(pattern)[0];
       const projection = program.records.bindingPatternProjection.get(element)?.element;
       assert.equal(projection?.kind === "native-member" && projection.property.member.id.endsWith(memberId), true,
         `${name}: the original checked member admits the exact native property/helper`);

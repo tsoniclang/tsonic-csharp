@@ -69,12 +69,9 @@ export function analyzeCsharpExpressionEmission(input: { readonly source: Target
       }
       if (ast.is.IsClassExpression(node) || input.evidence.sourceDefaultValue.get(node) !== undefined) storage = node;
       else {
-        const argument = input.evidence.sourceArgument.get(node)
-          ?? failTargetAnalysisInvariant("tsonic-csharp", "An admitted source expression requires its checked argument-passing evidence.", node);
-        if (argument.kind === "rejected") {
-          issues.push({ code: "CSHARP_ARGUMENT_STORAGE_NOT_PROVEN", category: "error", source: "tsonic-csharp", sourceNode: node, message: argument.reason }); continue;
-        }
-        storage = argument.argument.storageExpression;
+        storage = (input.evidence.sourceArgument.get(node)
+          ?? failTargetAnalysisInvariant("tsonic-csharp", "An admitted source expression requires its checked argument-passing evidence.", node))
+          .storageExpression;
       }
     }
     const integerTruncation = conversion?.kind === "integer-truncation" && use.kind === "converted"

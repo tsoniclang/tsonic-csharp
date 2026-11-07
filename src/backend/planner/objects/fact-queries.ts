@@ -1,6 +1,5 @@
 import type {
   Node,
-  SourceFile,
 } from "@tsonic/tsts";
 import type {
   CsharpObjectShapeFact,
@@ -11,8 +10,7 @@ import type {
 
 export function getCsharpObjectShapeFactForNode(
   node: Node | undefined,
-  sourceFile: SourceFile,
   input: CsharpPlanningContext,
 ): CsharpObjectShapeFact | undefined {
-  return input.program.records.nodeObjectShape.get(node, sourceFile);
+  return input.program.records.nodeObjectShape.get(node);
 }

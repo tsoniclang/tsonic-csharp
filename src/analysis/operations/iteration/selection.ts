@@ -1,7 +1,6 @@
 import type { CsharpResolvedIteration } from "../../../target-model/records/operations/selection.js";
 
 import type { Node } from "@tsonic/tsts";
-import type { SourceIterationSelection } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../../policy/model/context.js";
 
 import type { CsharpOperationSelection } from "../../../target-model/records/operations/operator-selection.js";
@@ -11,10 +10,6 @@ import { sourceIteration } from "../../program/source-facts.js";
 import { selectCsharpNativeIteration, rejectCsharpIteration } from "../../../policy/operations/iteration/selection.js";
 
 /** A loop iteration: for-of / for-await-of read the Host iteration protocol; for-in reads its key binding type. */
-export type CsharpSourceIteration =
-  | { readonly kind: "for-of" | "for-await-of"; readonly statement: Node; readonly selection: SourceIterationSelection }
-  | { readonly kind: "for-in"; readonly statement: Node };
-
 export function selectCsharpIteration(
   input: CsharpPolicyContext,
   statement: Node,

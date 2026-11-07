@@ -27,6 +27,8 @@ import { getCsharpGenericOptionalParts } from "../../target-model/types/projecti
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import type { CsharpSourceTypedLocationOperation } from "../../source/extension/typed-locations.js";
 import { resolveCsharpPointerReturnContract } from "../callables/ownership/pointer-return.js";
+import type { SourceCallableSourceContract } from "../../target-model/records/callables/source-callable-contract.js";
+import { selectCsharpPhysicalRead } from "./physical-reads.js";
 import { csharpRefusal, csharpRepresentationContext, isCsharpRefusal, representSourceType,
   type CsharpRepresentation, type CsharpRepresentationServices } from "../../representation/index.js";
 
@@ -35,12 +37,21 @@ export interface CsharpSourceEvidenceTypeQueryHost {
   readonly pointerStorage: TsonicPointerStorageRelation;
   readonly sourceStorage: SourceStorageQueries;
   conversions(): Pick<CsharpPolicyContext, "typeDefinitions" | "projectTypes" | "providers" | "target"> & CsharpConversionShapeQueries;
+  /** The native storage carrier selected for a node (current constructions, then the planning iteration; K-2664). */
+  scopedTargetType(node: Node): TargetTypeRef | undefined;
+  /** The closed callable input contract of a callable value or its binding (planning iteration). */
+  closedInputContract(node: Node): SourceCallableSourceContract | undefined;
 }
 
 export type CsharpSourceEvidenceTypeQueries = Pick<CsharpTypeQueries, "resolveArrayLiteral" | "nativeGuardResult" |
   "resolvePointerReturn" | "resolvePointerStoragePointee" | "resolveTypedLocationOperationPointee"> & {
   /** The FixedArray a descriptor denotes (element descriptor + Host extent), or undefined (R-C4-1, R-C4-2). */
   selectFixedArray(type: SourceTypeDescriptor, occurrence: Node): CsharpFixedArraySelection | undefined;
+  /**
+   * The physical carrier a read of `node` uses instead of its represented logical carrier (physical-reads.ts), or
+   * undefined when the logical carrier stays. CsharpTypeQueries.value composes it: `physicalRead(node, logical) ?? logical`.
+   */
+  physicalRead(node: Node, logical: TargetTypeRef): TargetTypeRef | undefined;
 };
 
 /** Activation binding chains deeper than this are refused as unresolved pointer backing (a C# analysis budget). */
@@ -262,5 +273,13 @@ export function createCsharpSourceEvidenceTypeQueries(
     }, declaration),
     resolvePointerStoragePointee,
     resolveTypedLocationOperationPointee,
+    physicalRead: (node: Node, logical: TargetTypeRef) => selectCsharpPhysicalRead({
+      facts,
+      syntax: ast,
+      scopedTargetType: selected => host.scopedTargetType(selected),
+      closedInputContract: selected => host.closedInputContract(selected),
+      objectShapes: host.conversions().objectShapes ?? failTargetAnalysisInvariant("tsonic-csharp",
+        "A physical read was requested before the object-shape registry was initialized.", node),
+    }, node, logical),
   });
 }

@@ -10,14 +10,13 @@ import {
   isCsharpJsValueTargetType,
   targetTypeRefKey,
   targetTypeRefEquals,
-  getCsharpRuntimeUnionArms,
 } from "../../policy/types/index.js";
-import { selectCsharpObjectLiteralUnionCarrier, csharpObjectLiteralDestinationDeclarations } from "./shapes/union-construction.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
 import type { CsharpObjectShapeAnalysis, CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
 import { collectCsharpInheritedInterfaces, selectCsharpStructuralInterface, type CsharpStructuralInterfaceRegistration } from "./structural-interfaces.js";
 import { mergeCsharpObjectShapeSubjects } from "./shapes/construction.js";
+import { csharpProjectDeclarationDescriptor } from "./shapes/declaration-descriptors.js";
 import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
 import { csharpTargetTypeComponents } from "../../target-model/types/components.js";
 import type { CsharpStructuralInterfaceImplementation, CsharpTargetNamedTypeRef } from "../../target-model/types/model.js";
@@ -189,9 +188,10 @@ export function analyzeCsharpObjectShapes(
         const definition = policy.projectTypes.catalog.definitionForTarget(type);
         for (const inherited of policy.projectTypes.directSupertypes(type) ?? []) {
           enqueuePhysicalType(inherited);
-          if (definition?.kind !== "class" || shape?.sourceType === undefined ||
+          if (definition?.kind !== "class" || shape === undefined ||
             policy.projectTypes.catalog.definitionForTarget(inherited)?.kind !== "interface") continue;
-          if (!classifications.registerStructuralInterface(definition.declaration, type, inherited, shape.sourceType)) {
+          if (!classifications.registerStructuralInterface(definition.declaration, type, inherited,
+            csharpProjectDeclarationDescriptor(definition))) {
             declaredStructuralIssues.push(inheritedImplementationIssue(definition.declaration, type, inherited));
           }
         }
@@ -252,9 +252,8 @@ export function analyzeCsharpObjectShapes(
             const baseKey = targetTypeRefKey(base);
             pending.push(base);
             if (provided.has(baseKey)) continue;
-            const baseShape = byTarget.get(baseKey) ?? policy.objectShapes.resolveTarget(base);
-            const checkedMethodProtocol = baseShape?.sourceType === undefined &&
-              structuralImplementations(request.source).some(implementation => implementation.methods.some(method =>
+            // A method-value protocol interface (a member's methodValueContract) is provided by the method value itself.
+            const checkedMethodProtocol = structuralImplementations(request.source).some(implementation => implementation.methods.some(method =>
                 method.member.methodValueContract !== undefined && targetTypeRefEquals(method.member.methodValueContract, base)));
             if (checkedMethodProtocol) continue;
             const requestKey = JSON.stringify([targetTypeRefKey(request.source), baseKey]);
@@ -294,21 +293,17 @@ export function analyzeCsharpObjectShapes(
     Map<string, CsharpObjectLiteralTargetShapeResolution>
   >();
   const literalUnionCarriers = new WeakMap<Node, ReadonlyMap<string, TargetTypeRef>>();
-  const unionTypes = evidence.targetTypes.filter(type =>
-    getCsharpRuntimeUnionArms(getCsharpNullableElementTargetType(type) ?? type, policy.typeDefinitions) !== undefined);
   for (const [literal] of objectLiterals) {
+    // The union arm an object literal constructs is the Host write relation (select-arm, discriminant rule D-8): the
+    // literal's Host construction carrier inside the union carrier of its Host destination. C# selects no arm.
     const unionCarriers = new Map<string, TargetTypeRef>();
-    const elements = policy.ast.properties(literal).map(element => element === undefined
-      ? undefined : policy.facts.selections.objectLiteralElement(element));
-    for (const type of unionTypes) {
+    const relation = policy.facts.relations.write(literal);
+    const destination = evidence.contextualType.get(literal)?.targetType;
+    const construction = evidence.nodeTargetType.get(literal);
+    if (relation?.kind === "select-arm" && destination !== undefined && construction !== undefined) {
       reserveClassification();
-      const carrier = selectCsharpObjectLiteralUnionCarrier(type, elements, policy.objectShapes.resolveTarget,
-        (element, candidate) => csharpObjectLiteralDestinationDeclarations(element, candidate),
-        policy.typeDefinitions, evidence.nodeTargetType.get(literal));
-      if (carrier !== undefined) {
-        unionCarriers.set(targetTypeRefKey(type), carrier);
-        rememberShape(policy.objectShapes.resolveTarget(carrier));
-      }
+      unionCarriers.set(targetTypeRefKey(destination), construction);
+      rememberShape(policy.objectShapes.resolveTarget(construction));
     }
     literalUnionCarriers.set(literal, unionCarriers);
     const results = new Map<string, CsharpObjectLiteralTargetShapeResolution>();

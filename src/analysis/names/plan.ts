@@ -311,7 +311,7 @@ export function createCsharpSourceNameBuilder(
       );
     } else if (host.ast.is.IsComputedPropertyName(node)) {
       const selected = host.facts.analyses.propertyName(node);
-      const name = selected?.kind === "name" ? objectShapeMemberTargetName(selected.name) : undefined;
+      const name = selected?.kind === "resolved" ? objectShapeMemberTargetName(selected.name) : undefined;
       if (name !== undefined) sourceNames.add(name);
       resolutions.set(node, name === undefined
         ? rejected("The computed source name has no admitted static C# field identity.")
@@ -320,7 +320,7 @@ export function createCsharpSourceNameBuilder(
       host.ast.name(host.ast.parent(node)) === node) {
       const numeric = host.ast.is.IsNumericLiteral(node) ? host.facts.analyses.propertyName(node) : undefined;
       const literal = host.ast.is.IsNumericLiteral(node) ? undefined : ObjectLiteralProperty_SourceName(host.ast, host.ast.parent(node));
-      const name = numeric?.kind === "name" ? objectShapeMemberTargetName(numeric.name)
+      const name = numeric?.kind === "resolved" ? objectShapeMemberTargetName(numeric.name)
         : literal?.kind === "resolved" ? objectShapeMemberTargetName(literal.name) : undefined;
       if (name !== undefined) sourceNames.add(name);
       resolutions.set(node, name === undefined

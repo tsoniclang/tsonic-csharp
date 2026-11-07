@@ -10,6 +10,7 @@ import { getCsharpMethodValue } from "../target-model/types/method-values.js";
 import { targetTypeRefEquals } from "../target-model/types/equality.js";
 import { objectShapeMemberTargetName } from "../policy/identities/source-member-names.js";
 import { createStructuralObjectShapeTarget } from "../analysis/objects/shapes/construction.js";
+import { sourceValueType } from "../analysis/program/source-facts.js";
 import { csharpRefusal, csharpRepresentationContext, isCsharpRefusal, type CsharpRepresentation, type CsharpRepresentationContext } from "./context.js";
 import { representSourceType } from "./descriptors.js";
 import { csharpProviderBindingFromResolution } from "../providers/model/relation-resolver.js";
@@ -22,13 +23,13 @@ import { readCsharpSourceField } from "../source/extension/markers.js";
 
 /** The native shape for a Source object type whose members the Host published (members in Host order). */
 export function representObjectShape(
-  _type: SourceTypeDescriptor,
+  type: SourceTypeDescriptor,
   members: readonly SourceObjectMember[],
   context: CsharpRepresentationContext,
   represent: RepresentDescriptor,
 ): CsharpRepresentation {
   const instance = members.filter(member => !member.static);
-  const facts = representObjectMembers(instance, context, represent);
+  const facts = representObjectMembers(instance, context, represent, type.kind === "shape" ? type : undefined);
   if (isCsharpRefusal(facts)) return facts;
   const contract = instance.length !== 0 && instance.every(member => !context.syntax.is.IsObjectLiteralExpression(member.owner));
   return retainStructuralShape(facts, contract, instance, context);
@@ -39,6 +40,8 @@ export function representObjectMembers(
   instance: readonly SourceObjectMember[],
   context: CsharpRepresentationContext,
   represent: RepresentDescriptor = descriptor => representSourceType(descriptor, context),
+  /** The shape descriptor whose arm the members belong to: its member literal domains join the shape identity (R-A5-1). */
+  shape?: Extract<SourceTypeDescriptor, { readonly kind: "shape" }>,
 ): readonly CsharpObjectShapeMemberFact[] | ReturnType<typeof csharpRefusal> {
   const facts: CsharpObjectShapeMemberFact[] = [];
   const names = new Set<string>();
@@ -68,6 +71,7 @@ export function representObjectMembers(
     if (accessor && bound) return csharpRefusal("CSHARP_SHAPE_BOUND_ACCESSOR",
       `Accessor '${member.name}' cannot also be a bound native field.`, member.declarations[0] ?? context.occurrence);
     const origin = member.declarations[0] === undefined ? undefined : Object.freeze({ kind: "declared" as const, declaration: member.declarations[0] });
+    const literals = shape?.members.find(candidate => candidate.name === member.name)?.literals;
     facts.push(Object.freeze({
       sourceKey: Object.freeze({ kind: "property", name: member.name }),
       sourceName: member.name,
@@ -80,6 +84,7 @@ export function representObjectMembers(
       optional: member.optional,
       readonly: member.readonly || field?.readonly === true,
       ...(origin === undefined ? {} : { origins: Object.freeze([origin]) }),
+      ...(literals === undefined ? {} : { literals }),
       sourceDeclarations: Object.freeze([...member.declarations]),
       sourceSubjects: Object.freeze([...member.declarations]),
     }));
@@ -145,10 +150,10 @@ function representMethodImplementation(
   const names = new Set(members.map(member => member.targetName));
   const fields: NonNullable<CsharpObjectShapeFact["methodImplementation"]>["captures"][number][] = [];
   for (const [index, capture] of [...captures.values()].entries()) {
-    const outcome = context.facts.values.type(capture.declaration);
-    if (outcome.kind === "refused") return csharpRefusal("CSHARP_OBJECT_METHODS",
-      `A captured binding was refused by the Host (${outcome.code}).`, capture.declaration);
-    const type = representSourceType(outcome.type, csharpRepresentationContext(context, capture.declaration, "storage"));
+    // K-2670 (R5 / I4): a captured binding's Host value is read through the shared invariant reader. Its refusal was
+    // forwarded unchanged before C# analysis; meeting it here is a Host producer defect, never a new C# refusal.
+    const captured = sourceValueType(context.facts, capture.declaration);
+    const type = representSourceType(captured, csharpRepresentationContext(context, capture.declaration, "storage"));
     if (isCsharpRefusal(type)) return type;
     if (capture.reference === undefined) return csharpRefusal("CSHARP_OBJECT_METHODS", "A captured binding has no reference.", capture.declaration);
     let fieldName = `__tsonic_capture${index}`;
