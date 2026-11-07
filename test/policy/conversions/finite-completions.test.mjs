@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
 import test from "node:test";
+import { createPublishedSourceUnionFixture } from "../../helpers/published-source-unions.mjs";
 import {
-  combineCsharpTargetUnionMembers, csharpAbsenceTargetType, csharpNullableTargetType, csharpRuntimeUnionTargetType,
+  csharpAbsenceTargetType, csharpNullableTargetType, csharpRuntimeUnionTargetType,
   csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpTaskTargetType,
   csharpVoidTargetType, targetTypeRefEquals, csharpTsValueTargetType,
 } from "../../../dist/target-model/types/index.js";
@@ -17,11 +18,16 @@ const policy = {
 const integer = csharpSourcePrimitiveTargetType("int32");
 const string = csharpStringTargetType();
 const unit = csharpVoidTargetType();
+const fixture = createPublishedSourceUnionFixture(`
+  import type { int32 } from "@tsonic/core/types.js";
+  declare function awaited(first: int32 | string, second: int32 | boolean,
+    result: int32 | string | boolean, optional: int32 | undefined): void;
+`);
 
 test("an unused bare generic await has one native Task type-test completion", () => {
   const parameter = { kind: "type-parameter", name: "Value", identity: "fixture.Value" };
-  assert.equal(selectCsharpAwaitCompletion(parameter), undefined, "a consumed bare generic result remains F4");
-  const completion = selectCsharpAwaitCompletion(parameter, undefined, "discarded");
+  assert.equal(selectCsharpAwaitCompletion(parameter, undefined, "consumed", undefined), undefined, "a consumed bare generic result remains F4");
+  const completion = selectCsharpAwaitCompletion(parameter, undefined, "discarded", undefined);
   assert.equal(completion?.form === "task-test" && completion.discard && targetTypeRefEquals(completion.result, unit), true,
     "discarded F3 has no fabricated Awaited<Value> result");
   assert.equal(completion.alternatives.length, 0, "a runtime Task test does not invent a native payload");
@@ -32,7 +38,7 @@ test("a declared generic value-or-Task await retains its native T result and bot
   const parameter = { kind: "type-parameter", name: "Value", identity: "fixture.Value" };
   const task = csharpTaskTargetType(parameter);
   const carrier = csharpRuntimeUnionTargetType([parameter, task]);
-  const completion = selectCsharpAwaitCompletion(carrier);
+  const completion = selectCsharpAwaitCompletion(carrier, undefined, "consumed", parameter);
   assert.equal(completion?.result === parameter && completion.form === "branches", true,
     "F2 is native T, not a guessed or erased Awaited<T>");
   assert.equal(completion.alternatives[0].carrier === parameter && completion.alternatives[0].task === false &&
@@ -54,27 +60,29 @@ test("finite Task results enter exact union arms without changing Task identity 
 
 test("finite await preserves synchronous values and nullable Task result absence", () => {
   for (const carrier of [integer, string, csharpAbsenceTargetType()]) {
-    assert.ok(targetTypeRefEquals(selectCsharpAwaitCompletion(carrier).result, carrier));
+    assert.ok(targetTypeRefEquals(selectCsharpAwaitCompletion(carrier, undefined, "consumed", undefined).result, carrier));
   }
   const optional = csharpNullableTargetType(integer);
   for (const task of [csharpTaskTargetType(optional), csharpNullableTargetType(csharpTaskTargetType(integer))]) {
-    assert.ok(targetTypeRefEquals(selectCsharpAwaitCompletion(task).result, optional));
+    assert.ok(targetTypeRefEquals(selectCsharpAwaitCompletion(task, undefined, "consumed", undefined).result, optional));
   }
   const union = csharpRuntimeUnionTargetType([integer, csharpTaskTargetType(optional)]);
-  const completion = selectCsharpAwaitCompletion(union);
+  const completion = selectCsharpAwaitCompletion(union, undefined, "consumed", fixture.carrier("awaited", 3));
   assert.ok(targetTypeRefEquals(completion.result, optional));
   assert.deepEqual(completion.alternatives.map(alternative => alternative.task), [false, true]);
   assert.deepEqual(completion.alternatives.map(alternative => alternative.sourcePath[0].index), [0, 1]);
 });
 
-test("finite await joins multiple closed results and retains exact nested union maps", () => {
+test("finite await consumes the published result and retains exact nested union maps", () => {
   const boolean = csharpSourcePrimitiveTargetType("bool");
-  const first = combineCsharpTargetUnionMembers([integer, string]);
-  const second = combineCsharpTargetUnionMembers([integer, boolean]);
+  const first = fixture.carrier("awaited");
+  const second = fixture.carrier("awaited", 1);
   const completion = selectCsharpAwaitCompletion(csharpRuntimeUnionTargetType([
     csharpTaskTargetType(first), csharpTaskTargetType(second),
-  ]));
+  ]), undefined, "consumed", fixture.carrier("awaited", 2));
   assert.ok(completion);
+  assert.equal(targetTypeRefEquals(completion.result, fixture.carrier("awaited", 2)), true,
+    "the exact published awaited result, not a Native join, is the completion carrier");
   assert.equal(completion.alternatives.length, 2);
   assert.equal(completion.alternatives[0].resultMapping.arms.length, 2);
   assert.equal(completion.alternatives[1].resultMapping.arms.length, 2);
@@ -94,7 +102,7 @@ test("native Task completion preserves the exact physical result rather than ren
     ["native optional result", csharpNullableTargetType(nested)],
     ["native nested Task result", csharpTaskTargetType(nested)],
   ]) {
-    const completion = selectCsharpAwaitCompletion(csharpTaskTargetType(result));
+    const completion = selectCsharpAwaitCompletion(csharpTaskTargetType(result), undefined, "consumed", undefined);
     assert.equal(completion !== undefined, true, `${label}: a closed native Task is admitted`);
     assert.equal(completion.result === result, true, `${label}: the actual native TResult is unchanged`);
     assert.equal(completion.form, "direct", `${label}: one native await, not a result remapping`);
@@ -106,15 +114,15 @@ test("native Task completion preserves the exact physical result rather than ren
 
 test("identity await and equal native Task alternatives retain their actual carrier layout", () => {
   const result = csharpRuntimeUnionTargetType([string, integer, integer]);
-  const identity = selectCsharpAwaitCompletion(result);
+  const identity = selectCsharpAwaitCompletion(result, undefined, "consumed", undefined);
   assert.equal(identity?.form, "identity", "a native non-Task result remains a synchronous value");
   assert.equal(identity?.result === result, true, "identity await does not reorder or collapse native union slots");
   const task = csharpTaskTargetType(result);
-  const completion = selectCsharpAwaitCompletion(csharpRuntimeUnionTargetType([task, task]));
+  const completion = selectCsharpAwaitCompletion(csharpRuntimeUnionTargetType([task, task]), undefined, "consumed", undefined);
   assert.equal(completion?.result === result, true, "the same actual TResult requires no heterogeneous join");
   assert.equal(completion?.alternatives.every(alternative => alternative.resultMapping === undefined && alternative.resultPath.length === 0), true,
     "equal native Task alternatives retain their existing result without reconstructing its payload");
-  const optional = selectCsharpAwaitCompletion(csharpNullableTargetType(task));
+  const optional = selectCsharpAwaitCompletion(csharpNullableTargetType(task), undefined, "consumed", undefined);
   assert.equal(optional !== undefined && targetTypeRefEquals(optional.result, csharpNullableTargetType(result)), true,
     "a genuinely optional receiver adds only the native nullable result wrapper");
   assert.equal(optional?.alternatives[0].result === result && optional.alternatives[0].resultMapping === undefined, true,
@@ -122,13 +130,13 @@ test("identity await and equal native Task alternatives retain their actual carr
 });
 
 test("finite await rejects open carriers and recursive union definitions", () => {
-  assert.equal(selectCsharpAwaitCompletion(undefined), undefined);
-  assert.equal(selectCsharpAwaitCompletion(csharpTsValueTargetType()), undefined);
-  assert.equal(selectCsharpAwaitCompletion({ kind: "type-parameter", name: "T", identity: "T" }), undefined);
+  assert.equal(selectCsharpAwaitCompletion(undefined, undefined, "consumed", undefined), undefined);
+  assert.equal(selectCsharpAwaitCompletion(csharpTsValueTargetType(), undefined, "consumed", undefined), undefined);
+  assert.equal(selectCsharpAwaitCompletion({ kind: "type-parameter", name: "T", identity: "T" }, undefined, "consumed", undefined), undefined);
   const carrier = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "Cycle" };
   assert.equal(selectCsharpAwaitCompletion(carrier, {
     sourceUnionArms: selected => selected.id === "Cycle" ? [carrier] : undefined,
-  }), undefined);
+  }, "consumed", undefined), undefined);
 });
 
 test("closed union payloads may widen absence without inventing an absent source", () => {

@@ -1,5 +1,6 @@
 import type { CsharpObjectShapeFact, CsharpTargetNamedTypeRef, TargetTypeRef, CsharpRuntimeUnionTargetTypeRef } from "../model.js";
 import type { SourceTypeDescriptor } from "@tsonic/target-api/source";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { csharpQualifiedTypeRenderShape } from "../render-shapes.js";
 import { csharpTargetNamedType } from "../factories.js";
 import { targetTypeRefKey, targetTypeRefEquals } from "../equality.js";
@@ -104,7 +105,11 @@ export function combineCsharpTargetUnionMembers(
   source: Extract<SourceTypeDescriptor, { readonly kind: "union" }>,
   projection: { readonly sum: CsharpSourceSumSelection; readonly roles: readonly TargetTypeRef[] } | undefined,
 ): TargetTypeRef | undefined {
-  if (source?.kind !== "union" || source.types.length !== members.length || members.length < 2) return undefined;
+  if (source?.kind !== "union") return undefined;
+  if (source.types.some(member => member.kind === "union" || member.kind === "optional" ||
+    member.kind === "intrinsic" && (member.intrinsic === "absence" || member.intrinsic === "void"))) failTargetAnalysisInvariant("tsonic-csharp",
+      "A published Source union descriptor must be flattened and lift every absence payload.");
+  if (source.types.length !== members.length || members.length < 2) return undefined;
   if (csharpFreeTypeParameterIdentities(members).size !== 0) return projection === undefined || members.length > 8 ||
     projection.roles.length !== projection.sum.roles.length ? undefined : csharpProjectedType({
     kind: "source-union", part: "storage", source, sum: projection.sum, arguments: members, roleArguments: projection.roles,

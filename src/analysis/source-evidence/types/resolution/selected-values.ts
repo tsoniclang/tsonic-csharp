@@ -1,15 +1,18 @@
 import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import type { CsharpTypeResolutionState } from "./model.js";
+import { sourceTypeDescriptorStructure } from "@tsonic/target-api/source";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
-import { csharpSourceUnionMembersMatch } from "../../../../target-model/types/carriers/runtime-carriers.js";
+import { csharpSourceUnionMembersMatch, getCsharpRuntimeUnionArms } from "../../../../target-model/types/carriers/runtime-carriers.js";
+import { getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
 import { resolveCsharpSourceTypeDescriptor } from "./effective-types.js";
 
 import { nextState } from "./state.js";
 import { reconcileCsharpSelectedTargetType } from "../../../../policy/types/resolution/selected-type-evidence.js";
 
-import { selectCsharpAuthoredUnionRefinement, sourceRefinementOnlyRemovesNullish } from "./source-union-refinement.js";
+import { sourceRefinementOnlyRemovesNullish } from "./source-union-refinement.js";
 
 import { resolveCsharpUnionMemberCarrier } from "./source-evidence.js";
 
@@ -51,21 +54,32 @@ export function resolveAuthoredAndSelectedSourceType(
   const authoredSemanticType = selectedQueries.types.authoredType(
     authoredTypeNode,
   );
+  const publication = host.effectiveTypes.get(authoredTypeNode);
+  if (publication?.kind === "refused") return undefined;
+  if (publication !== undefined && publication.provenance.occurrence !== authoredTypeNode) failTargetAnalysisInvariant(
+    "tsonic-csharp", "An authored union refinement requires its identical Source occurrence.", authoredTypeNode);
+  const descriptor = publication === undefined ? undefined : sourceTypeDescriptorStructure(publication.type);
+  if (descriptor?.kind === "union" || descriptor?.kind === "optional") {
+    const component = state.sourceComponent;
+    const selectedDescriptor = component?.selectedType === selectedType ? component.descriptor
+      : authoredSemanticType !== undefined && selectedQueries.types.isIdentical(authoredSemanticType, selectedType)
+        ? publication!.type : undefined;
+    if (selectedDescriptor === undefined) failTargetAnalysisInvariant("tsonic-csharp",
+      "An authored union refinement requires its published selected Source component.", authoredTypeNode);
+    return resolveCsharpUnionMemberCarrier(scope, authored, descriptor, selectedDescriptor, authoredTypeNode, state);
+  }
+  if (getCsharpRuntimeUnionArms(getCsharpNullableElementTargetType(authored) ?? authored, host.typeDefinitions) !== undefined) {
+    if (publication === undefined) failTargetAnalysisInvariant("tsonic-csharp",
+      "An authored union refinement requires its original published Source descriptor.", authoredTypeNode);
+    return authoredSemanticType !== undefined && selectedQueries.types.isIdentical(authoredSemanticType, selectedType)
+      ? authored : undefined;
+  }
   if (authoredSemanticType === undefined) {
     return resolveTypeWithState(
       selectedType,
       selectedSourceFile,
       nextState(state),
     );
-  }
-  const unionRefinement = selectCsharpAuthoredUnionRefinement(
-    authored, authoredSemanticType, selectedType, selectedQueries,
-    type => resolveCsharpUnionMemberCarrier(scope, authored, type, selectedQueries, state),
-    host.structuralTypes.resolveTarget,
-    host.typeDefinitions,
-  );
-  if (unionRefinement.kind !== "not-applicable") {
-    return unionRefinement.kind === "resolved" ? unionRefinement.type : undefined;
   }
   const authoredSelection = selectedQueries.types.authoredSelection(
     authoredTypeNode,

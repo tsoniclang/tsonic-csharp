@@ -10,7 +10,8 @@ import type { CsharpRecursiveTypeResolver, CsharpTypePolicyHost, CsharpTypePolic
 
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 
-import { createCsharpSourceUnionIndex } from "./source-unions.js";
+import { resolveCsharpPublishedUnionMembers } from "./source-evidence.js";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { createCsharpSourceUnionDefinitions } from "./union-definitions.js";
 import { createCsharpFixedArrayTypeQuery } from "./source-markers.js";
 import { selectCsharpNativeFlowMembers, selectCsharpNativeFlowTypeMembers, selectCsharpNativeGuardResult } from "./native-flow-refinement.js";
@@ -280,9 +281,14 @@ export function createCsharpTypeResolutionServices(
     resolveStorage: methods.resolveStorage,
     resolveReadStorage: methods.resolveReadStorage,
     resolveType: methods.resolveType,
-    selectSourceUnionMember: (carrier: TargetTypeRef, selected: Type, sourceFile: SourceFile) => {
-      const queries = host.semantics(sourceFile);
-      return scope.sourceUnions.select(carrier, queries.types.literalBaseType(selected) ?? selected, queries);
+    sourceUnionMembers: (occurrence: Node, carrier: TargetTypeRef) => {
+      const publication = host.effectiveTypes.get(occurrence);
+      if (publication === undefined) failTargetAnalysisInvariant("tsonic-csharp",
+        "A Source union member lookup requires its original occurrence publication.", occurrence);
+      if (publication.kind === "refused") return undefined;
+      if (publication.provenance.occurrence !== occurrence) failTargetAnalysisInvariant("tsonic-csharp",
+        "A Source union member lookup cannot consume a foreign occurrence publication.", occurrence);
+      return resolveCsharpPublishedUnionMembers(scope, carrier, publication.type, occurrence, { depth: 0 });
     },
     resolveValue: methods.resolveValue,
     resolveSelectedValue: methods.resolveSelectedValue,
@@ -300,7 +306,6 @@ export function createCsharpTypeResolutionServices(
   } satisfies CsharpTypePolicy);
   scope = Object.freeze({
     host,
-    sourceUnions: createCsharpSourceUnionIndex(host.typeDefinitions),
     sourceUnionDefinitions: createCsharpSourceUnionDefinitions(host, methods.resolveTypeWithState),
     activeNodes: new WeakSet<Node>(),
     policy,

@@ -1,8 +1,12 @@
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../model.js";
 import { csharpQualifiedTypeRenderShape } from "../render-shapes.js";
+import { csharpProjectedType } from "../projections.js";
+import { csharpFreeTypeParameterIdentities } from "../generic-references.js";
 import { csharpTargetNamedType } from "../factories.js";
-import { csharpNullableTargetType } from "./nullable.js";
+import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "./nullable.js";
+import { isCsharpValueTypeTargetType } from "../identity.js";
 import { csharpSourcePrimitiveTargetType, csharpJsStringTargetType, csharpStringTargetType } from "./scalar-types.js";
+import { getCsharpRuntimeUnionArms } from "./runtime-carriers.js";
 
 export const csharpJsArrayCarrierId = "Tsonic.CSharp.Js.JSArray`1";
 
@@ -42,7 +46,7 @@ export function csharpJsMapTargetType(
     elements: [keyType, valueType],
   };
   return {
-    ...csharpTargetNamedType("Tsonic.CSharp.Js.Map`2", [keyType, valueType], csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "Map"), { allowsRefLikeTypeArguments: [false, false], enumerableElementType: entryType, typeofRuntimeKind: "object" }),
+    ...csharpTargetNamedType("Tsonic.CSharp.Js.Map`3", [keyType, valueType, csharpJsCollectionKeyTargetType(keyType)], csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "Map"), { allowsRefLikeTypeArguments: [false, false, false], enumerableElementType: entryType, typeofRuntimeKind: "object" }),
     csharpJsSurfaceKind: "map",
   };
 }
@@ -51,9 +55,27 @@ export function csharpJsSetTargetType(
   elementType: TargetTypeRef,
 ): CsharpTargetNamedTypeRef {
   return {
-    ...csharpTargetNamedType("Tsonic.CSharp.Js.Set`1", [elementType], csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "Set"), { allowsRefLikeTypeArguments: [false], enumerableElementType: elementType, typeofRuntimeKind: "object" }),
+    ...csharpTargetNamedType("Tsonic.CSharp.Js.Set`2", [elementType, csharpJsCollectionKeyTargetType(elementType)], csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "Set"), { allowsRefLikeTypeArguments: [false, false], enumerableElementType: elementType, typeofRuntimeKind: "object" }),
     csharpJsSurfaceKind: "set",
   };
+}
+
+export function csharpJsCollectionKeyTargetType(value: TargetTypeRef): TargetTypeRef {
+  if (csharpFreeTypeParameterIdentities([value]).size !== 0) {
+    return csharpProjectedType({ kind: "collection-key", arguments: [value] });
+  }
+  const present = getCsharpNullableElementTargetType(value);
+  if (present !== undefined && isCsharpValueTypeTargetType(present)) {
+    return csharpTargetNamedType("Tsonic.CSharp.Js.OptionalCollectionKey`2", [present, csharpJsCollectionKeyTargetType(present)],
+      csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "OptionalCollectionKey"),
+      { allowsRefLikeTypeArguments: [false, false], valueType: true });
+  }
+  const arms = getCsharpRuntimeUnionArms(value);
+  const name = arms === undefined ? "CollectionKey" : "UnionCollectionKey";
+  const arguments_ = arms ?? [value];
+  return csharpTargetNamedType(`Tsonic.CSharp.Js.${name}\`${arguments_.length}`, arguments_,
+    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", name),
+    { allowsRefLikeTypeArguments: arguments_.map(() => false), valueType: true });
 }
 
 export function csharpJsWeakMapTargetType(
@@ -217,17 +239,19 @@ export function getCsharpJsMapTargetTypes(
 ): {
   readonly key: TargetTypeRef;
   readonly value: TargetTypeRef;
+  readonly keyContract: TargetTypeRef;
 } | undefined {
   if (
     type?.kind !== "target-named" ||
     (type as CsharpTargetNamedTypeRef).csharpJsSurfaceKind !== "map" ||
-    type.typeArguments?.length !== 2
+    type.typeArguments?.length !== 3
   ) {
     return undefined;
   }
   return {
     key: type.typeArguments[0]!,
     value: type.typeArguments[1]!,
+    keyContract: type.typeArguments[2]!,
   };
 }
 
@@ -236,7 +260,7 @@ export function getCsharpJsSetElementTargetType(
 ): TargetTypeRef | undefined {
   return type?.kind === "target-named" &&
       (type as CsharpTargetNamedTypeRef).csharpJsSurfaceKind === "set" &&
-      type.typeArguments?.length === 1
+      type.typeArguments?.length === 2
     ? type.typeArguments[0]
     : undefined;
 }

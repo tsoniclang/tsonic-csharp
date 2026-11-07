@@ -45,7 +45,7 @@ function annotatedNumericProgram() {
     assert.equal(companion.includes(program.source), true, `${program.name}: every original function body is retained`);
     companion = companion.replace(program.source, annotated);
   }
-  return `${companion}\nexport function floatingNegativeZero(): number { return -0; }`;
+  return companion;
 }
 
 for (const surface of Array.from(["native", "js"]).slice(0, 2)) {
@@ -150,7 +150,6 @@ test(`${surface} inferred numeric arrays preserve values, physical arms, roundin
     const mixedLong = armOf("wideFloatUnionValues", "int64");
     const mixedDouble = armOf("wideFloatUnionValues", "float64");
     const inferredDouble = armOf("inferredHeterogeneousValues", "float64");
-    const inferredLong = armOf("inferredHeterogeneousValues", "int64");
     const nativeProgram = `
 using Subject = Tsonic.Generated.Index;
 ${methods.map(method => method.baseline).join("\n")}
@@ -200,10 +199,9 @@ if (!decimalUnion[1].Is${exactDecimal}() || decimalUnion[1].As${exactDecimal}() 
     optionalUnion[0].HasValue || !optionalUnion[1].HasValue || optionalUnion[1].GetValueOrDefault() != 9007199254740992D)
     throw new System.Exception("canonical explicit decimal, single or nullable native arm admission changed");
 var inferredUnion = Subject.inferredHeterogeneous(0.5D);
-if (inferredUnion[1].As${inferredDouble}() != 0.5D || inferredUnion[2].As${inferredLong}() != 9007199254740994L ||
+if (inferredUnion[1].As${inferredDouble}() != 0.5D || inferredUnion[2].As${inferredDouble}() != 9007199254740994D ||
     inferredUnion[3].As${inferredDouble}() != 0.1D ||
-    inferredUnion[4].As${inferredLong}() != 0L ||
-    System.BitConverter.DoubleToUInt64Bits(Subject.floatingNegativeZero()) != 0x8000000000000000UL)
+    System.BitConverter.DoubleToUInt64Bits(inferredUnion[4].As${inferredDouble}()) != 0x8000000000000000UL)
     throw new System.Exception("exact inferred heterogeneous tokens, computed values or signed zero changed");
 for (int index = 0; index < 512; index++) {
 ${methods.map(({ method }) => `System.GC.KeepAlive(Subject.${method}(-1, 4294967295U)); System.GC.KeepAlive(Baseline_${method}(-1, 4294967295U));`).join("\n")}

@@ -21,6 +21,9 @@ export function createCsharpTypeParameterEnvironment(
     if (descriptors.kind?.value !== "type-parameter") throw new TypeError("A native generic owner requires exact parameter carriers.");
     const previous = cache.get(parameter.identity);
     const keys = Object.keys(descriptors);
+    if (previous !== undefined && keys.length === 3 &&
+      keys.every(key => key === "kind" || key === "identity" || key === "name") &&
+      parameter.name === previous.snapshot.name) return previous.snapshot;
     if (previous !== undefined && (parameter === previous.snapshot ||
       keys.length === Object.keys(previous.input).length &&
       keys.every(key => descriptors[key]!.value === previous.input[key]?.value))) return previous.snapshot;

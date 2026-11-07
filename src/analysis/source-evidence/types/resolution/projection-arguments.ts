@@ -1,5 +1,5 @@
 import type { Node } from "@tsonic/tsts";
-import { sourceNodeIdentity, sourceTypeDescriptorSum, sourceTypeDescriptorsEqual, type SourceEffectiveTypeArgument, type SourceTypeDescriptor } from "@tsonic/target-api/source";
+import { sourceNodeIdentity, sourceTypeDescriptorSum, sourceTypeDescriptorsEqual, type SourceClosedSum, type SourceEffectiveTypeArgument, type SourceTypeDescriptor } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import type { CsharpProjectedType, CsharpSourceSumSelection } from "../../../../target-model/types/projections.js";
 import { csharpSourceTypeParameter } from "../../../../source/extension/type-parameters.js";
@@ -17,6 +17,7 @@ import { csharpProjectedType } from "../../../../target-model/types/projections.
 import { csharpFreeTypeParameterIdentities } from "../../../../target-model/types/generic-references.js";
 import { resolveCsharpSourceUnionOperations } from "../../../../policy/types/storage/source-union-storage.js";
 import { csharpPublishedSourceReferences } from "./type-bindings.js";
+import { csharpJsCollectionKeyTargetType } from "../../../../target-model/types/carriers/js.js";
 
 export interface CsharpPublishedProjectionInput {
   readonly bindings: readonly SourceEffectiveTypeArgument[];
@@ -24,6 +25,43 @@ export interface CsharpPublishedProjectionInput {
 }
 
 const sourceSumOwners = new WeakMap<object, object>();
+
+function publishedOpenSourceSum(scope: CsharpTypeResolutionScope, descriptor: SourceTypeDescriptor, family: Node):
+    SourceClosedSum | undefined {
+  const pending = [descriptor];
+  const visited = new Set<SourceTypeDescriptor>();
+  const records = new Set<SourceClosedSum>();
+  for (let index = 0; index < pending.length; index++) {
+    const selected = pending[index]!;
+    if (visited.has(selected)) continue;
+    visited.add(selected);
+    const record = sourceTypeDescriptorSum(scope.host.ast, selected);
+    if (record?.identity.family === family && scope.host.effectiveTypes.sum(record.identity) === record &&
+      record.identity.application.every(argument => argument.kind === "declared" &&
+        argument.typeArguments.length === 0 && scope.host.ast.is.IsTypeParameterDeclaration(argument.declaration))) records.add(record);
+    switch (selected.kind) {
+      case "declared":
+        pending.push(...selected.typeArguments);
+        if (selected.definition !== undefined) pending.push(selected.definition);
+        break;
+      case "union": pending.push(...selected.types); break;
+      case "optional": pending.push(selected.value); break;
+      case "array": pending.push(selected.element); break;
+      case "tuple": pending.push(...selected.elements.map(element => element.type)); break;
+      case "shape":
+        pending.push(...selected.members.map(member => member.type),
+          ...selected.indexes.flatMap(member => [member.key, member.value]));
+        pending.push(...[...selected.calls, ...selected.constructs].flatMap(signature =>
+          [...signature.parameters.map(parameter => parameter.type), signature.result]));
+        break;
+      case "callable":
+        pending.push(...[...selected.calls, ...selected.constructs].flatMap(signature =>
+          [...signature.parameters.map(parameter => parameter.type), signature.result]));
+        break;
+    }
+  }
+  return records.size === 1 ? records.values().next().value : undefined;
+}
 
 export function resolveCsharpPublishedSourceSum(
   scope: CsharpTypeResolutionScope,
@@ -39,7 +77,7 @@ export function resolveCsharpPublishedSourceSum(
   if (record === undefined || host.effectiveTypes.sum(record.identity) !== record) return undefined;
   const original = host.effectiveTypes.get(record.identity.family);
   if (original === undefined || original.kind === "refused") return undefined;
-  const open = sourceTypeDescriptorSum(host.ast, original.type);
+  const open = publishedOpenSourceSum(scope, original.construction ?? original.type, record.identity.family);
   if (open === undefined || open.identity.family !== record.identity.family ||
     host.effectiveTypes.sum(open.identity) !== open || open.identity.application.length !== record.identity.application.length ||
     open.arms.length !== open.roles.length) return undefined;
@@ -120,6 +158,8 @@ export function resolveCsharpProjectionArguments(
       let result: TargetTypeRef | undefined;
       if (contract.kind === "optional") {
         result = resolveCsharpOptionalStorage(contract, targetArguments[0]!);
+      } else if (contract.kind === "collection-key") {
+        result = csharpJsCollectionKeyTargetType(targetArguments[0]!);
       } else if (contract.kind === "source-union") {
         if (scope.host.effectiveTypes.sum(contract.sum.record.identity) !== contract.sum.record) return undefined;
         const retained = csharpPublishedSourceReferences([contract.source, ...contract.sum.roles.map(role => role.type),

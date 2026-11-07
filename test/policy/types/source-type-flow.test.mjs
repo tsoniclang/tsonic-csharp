@@ -101,13 +101,8 @@ test("declarations and reads use only their actual Host outcome across every pub
       const forbidden = () => assert.fail(`${label}: a missing Host fact cannot trigger a second Source chooser`);
       const rejections = [];
       const host = { ast: source.ast, target: { id: "csharp" }, typeParameterConstraints: {},
-        effectiveTypes: {
-          get(selected) { assert.equal(selected === node, true, label); return outcome; },
-          methodValueUse(selected) {
-            assert.equal(selected === node, true, label);
-            return source.effectiveTypes.methodValueUse(selected);
-          },
-        },
+        effectiveTypes: { sum: source.effectiveTypes.sum, methodValueUse: source.effectiveTypes.methodValueUse,
+          get(selected) { assert.equal(selected === node, true, label); return outcome; } },
         semantics: forbidden, semanticsFor: forbidden, navigation: { referenceFor: forbidden },
         representations: { scopedTargetType: forbidden },
         objectShapes: { resolveNativeParameter(owner, parameter, type) {
@@ -336,7 +331,7 @@ test("runtime representation obligations exclude only proven compile-time metada
   for (const classification of [true, false, undefined]) {
     let representations = 0;
     const issues = analyzeCsharpSourceTypeFlowObligations({ ast: source.ast,
-      effectiveTypes: { get: source.effectiveTypes.get, obligations: () => obligations },
+      effectiveTypes: { get: source.effectiveTypes.get, sum: source.effectiveTypes.sum, obligations: () => obligations },
       types: { sourceTypeFlowRepresentation() {
         representations += 1;
         return { ...representationHost("native"),

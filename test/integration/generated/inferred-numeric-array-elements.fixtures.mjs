@@ -9,7 +9,8 @@ import { getCsharpRuntimeUnionArms } from "../../../dist/target-model/types/carr
 import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { csharpJsArrayTargetType } from "../../../dist/target-model/types/carriers/js.js";
 import { csharpEnumerableTargetType } from "../../../dist/target-model/types/carriers/collections.js";
-import { combineCsharpTargetUnionMembers } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
+import { representCsharpSourceType } from "../../../dist/policy/types/source-type-flow/representation.js";
+import { resolveCsharpPublishedSourceSum } from "../../../dist/analysis/source-evidence/types/resolution/projection-arguments.js";
 import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 import { isCsharpStringTargetType, isCsharpJsStringTargetType } from "../../../dist/target-model/types/identity.js";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
@@ -193,10 +194,35 @@ const operationControls = [
   ["sort", "values.sort(); return JSON.stringify(values) === EXPECTED_SORT;"],
 ];
 
-function expectedOperationRefusals(operation, size) {
+function expectedOperationRefusals(operation, size, compiled) {
   const primitive = csharpSourcePrimitiveTargetType;
-  const union = combineCsharpTargetUnionMembers([primitive("int32"), primitive("uint32"),
-    ...(size === 3 ? [primitive("float64")] : [])]);
+  const source = compiled.nativeStage.source;
+  const ast = source.ast;
+  const declarations = [];
+  const visit = node => {
+    if (ast.is.IsVariableDeclaration(node) && ast.text(ast.name(node)) === "values") declarations.push(node);
+    ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+  };
+  visit(compiled.source.getSourceFile("/project/index.ts"));
+  assert.equal(declarations.length, 1, "the unchanged operation program has exactly one original values binding");
+  const outcome = source.effectiveTypes.get(declarations[0]);
+  assert.equal(outcome !== undefined && outcome.kind !== "refused" && outcome.type.kind === "array" &&
+    outcome.provenance.occurrence === declarations[0], true,
+  "expected diagnostics consume this compilation's exact published array descriptor");
+  const element = outcome.type.element;
+  assert.equal(element.kind === "union" && element.types.length === size &&
+    element.types.every(type => type.kind === "primitive"), true, "the exact declared primitive domain is unchanged");
+  assert.deepEqual(element.types.map(type => type.primitive).sort(),
+    size === 2 ? ["int32", "uint32"] : ["float64", "int32", "uint32"],
+    "the authored inventory stays fixed; only Host publication supplies its order");
+  const unexpected = () => assert.fail("the original diagnostic fixture requires no shape, callable or declaration inference");
+  const union = representCsharpSourceType({ target: compiled.target, typeParameterConstraints: {},
+    sourceSum: descriptor => resolveCsharpPublishedSourceSum({ host: { ast, effectiveTypes: source.effectiveTypes } }, descriptor),
+    declaredType: unexpected, indexType: unexpected, callableType: unexpected, constructorType: unexpected,
+    shapeKind: unexpected, memberDeclaration: unexpected, classStaticSide: unexpected, memberTypeParameters: unexpected,
+    retainShape: unexpected,
+  }, element);
+  assert.equal(union !== undefined, true, "the same published closed primitive sum has one native carrier");
   const refused = (message, text, code = "CSHARP_UNSUPPORTED_AST") => ({ code, message, text });
   const conversion = (text, source = union, target = primitive("float64")) => refused(
     `No exact C# implicit conversion relates '${targetTypeRefKey(source)}' to '${targetTypeRefKey(target)}'.`, text);

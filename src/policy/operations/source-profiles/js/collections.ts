@@ -205,6 +205,7 @@ function mapGetMember(
           name: "TValue", csharpAllowsRefLike: false,
           ...(valueType ? { constraints: [{ kind: "value-type" as const }] } : {}),
         },
+        { name: "TCollectionKey", csharpAllowsRefLike: false },
       ],
     },
   );
@@ -360,6 +361,7 @@ function mapCallShape(
   readonly receiver: TargetTypeRef;
   readonly key: TargetTypeRef;
   readonly value: TargetTypeRef;
+  readonly keyContract: TargetTypeRef;
 } | undefined {
   const receiver = resolveCsharpSelectedSourceValue(
     context,
@@ -444,7 +446,7 @@ function mapTypeArguments(
   context: CsharpSourceProfileCallPolicyContext,
 ): readonly TargetTypeRef[] | undefined {
   const shape = mapCallShape(context);
-  return shape === undefined ? undefined : [shape.key, shape.value];
+  return shape === undefined ? undefined : [shape.key, shape.value, shape.keyContract];
 }
 
 function rejectedCollectionConstruction(

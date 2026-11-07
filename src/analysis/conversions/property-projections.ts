@@ -15,6 +15,7 @@ import {
 } from "../../target-model/types/index.js";
 import { csharpUnionLeaves } from "../../target-model/types/union-relations.js";
 import { resolveCsharpNativePropertyRead } from "../objects/native-property-reads.js";
+import type { CsharpPublishedSourceUnionMember } from "../../policy/model/type-resolution.js";
 
 export function selectCsharpPropertyProjections(
   expression: Node,
@@ -30,6 +31,7 @@ export function selectCsharpPropertyProjections(
   const pending = [source];
   const visited = new Set<string>();
   const projections: CsharpPropertyProjection[] = [];
+  let publishedMembers: readonly CsharpPublishedSourceUnionMember[] | undefined;
   while (pending.length > 0) {
     const selected = pending.pop()!;
     const key = targetTypeRefKey(selected);
@@ -47,8 +49,10 @@ export function selectCsharpPropertyProjections(
       continue;
     }
     const leaves = csharpUnionLeaves(selected, policy.typeDefinitions);
-    if (leaves !== undefined && leaves.some(leaf => leaf.path.length > 0)) {
-      pending.push(...leaves.map(leaf => leaf.carrier));
+    if (publishedMembers === undefined && leaves !== undefined && leaves.some(leaf => leaf.path.length > 0)) {
+      publishedMembers = policy.types.sourceUnionMembers(expression, source);
+      if (publishedMembers === undefined) return undefined;
+      pending.push(...publishedMembers.map(member => member.carrier));
       continue;
     }
     const shape = shapes.resolveTarget(selected);
@@ -58,12 +62,14 @@ export function selectCsharpPropertyProjections(
     if (presentSource === undefined) return undefined;
     let sourceType = presentSource;
     if (semantics.types.isUnion(presentSource)) {
-      const candidates = semantics.types.unionOrIntersectionTypes(presentSource).filter(member => {
-        const retained = policy.types.selectSourceUnionMember(source, member, semantics.sourceFile);
-        return retained.kind === "resolved" && targetTypeRefEquals(retained.carrier, selected);
-      });
+      const candidates = publishedMembers?.filter(member => targetTypeRefEquals(member.carrier, selected)) ?? [];
       if (candidates.length !== 1) return undefined;
-      sourceType = candidates[0]!;
+      const descriptor = candidates[0]!.descriptor;
+      const declared = descriptor.kind === "declared"
+        ? policy.semanticsFor(descriptor.declaration).declarations.declaredType(descriptor.declaration) : undefined;
+      const inventory = shape?.sourceType ?? declared;
+      if (inventory === undefined) return undefined;
+      sourceType = inventory;
     }
     const correspondence = semantics.types.structuralMembers(sourceType, destinationType, "read");
     if (correspondence.kind !== "available" || correspondence.destination.calls.length !== 0 ||

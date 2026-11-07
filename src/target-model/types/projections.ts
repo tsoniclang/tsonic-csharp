@@ -22,6 +22,11 @@ export interface CsharpOptionalTypeProjection {
   readonly arguments: readonly [TargetTypeRef];
 }
 
+export interface CsharpCollectionKeyTypeProjection {
+  readonly kind: "collection-key";
+  readonly arguments: readonly [TargetTypeRef];
+}
+
 interface CsharpSourceUnionProjection {
   readonly kind: "source-union";
   readonly source: SourceTypeDescriptor;
@@ -40,39 +45,52 @@ export interface CsharpSourceSumSelection {
   readonly roles: readonly { readonly role: number; readonly type: SourceTypeDescriptor }[];
 }
 
-const sourceSumProjectionIdentities = new WeakMap<SourceClosedSum, number>();
-let nextSourceSumProjectionIdentity = 0;
-
-const sourceStorageProjections = new WeakMap<object, {
+interface SourceStorageProjection {
   readonly source: SourceTypeDescriptor;
   readonly arguments: readonly TargetTypeRef[];
   readonly identity: number;
   readonly namingIdentity: string;
-}[]>();
+}
+
+const sourceProjectionOwners = new WeakMap<object, {
+  nextIdentity: number;
+  readonly sums: WeakMap<SourceClosedSum, number>;
+  readonly storage: SourceStorageProjection[];
+}>();
+
+function sourceProjectionOwner(owner: object) {
+  let selected = sourceProjectionOwners.get(owner);
+  if (selected === undefined) {
+    selected = { nextIdentity: 0, sums: new WeakMap(), storage: [] };
+    sourceProjectionOwners.set(owner, selected);
+  }
+  return selected;
+}
 
 function sourceStorageProjection(projection: CsharpSourceUnionTypeProjection) {
-  const entries = sourceStorageProjections.get(projection.sum.owner) ?? [];
+  const owner = sourceProjectionOwner(projection.sum.owner);
+  const entries = owner.storage;
   const selected = entries.find(entry => sourceTypeDescriptorsEqual(entry.source, projection.source) &&
     entry.arguments.length === projection.arguments.length &&
     entry.arguments.every((argument, index) => targetTypeRefEquals(argument, projection.arguments[index]!)));
   if (selected !== undefined) return selected;
   const entry = { source: projection.source, arguments: Object.freeze([...projection.arguments]),
-    identity: nextSourceSumProjectionIdentity++, namingIdentity: projection.sum.namingIdentity };
+    identity: owner.nextIdentity++, namingIdentity: projection.sum.namingIdentity };
   entries.push(entry);
-  sourceStorageProjections.set(projection.sum.owner, entries);
   return entry;
 }
 
-function sourceSumProjectionIdentity(record: SourceClosedSum): number {
-  let identity = sourceSumProjectionIdentities.get(record);
+function sourceSumProjectionIdentity(sum: CsharpSourceSumSelection): number {
+  const owner = sourceProjectionOwner(sum.owner);
+  let identity = owner.sums.get(sum.record);
   if (identity === undefined) {
-    identity = nextSourceSumProjectionIdentity++;
-    sourceSumProjectionIdentities.set(record, identity);
+    identity = owner.nextIdentity++;
+    owner.sums.set(sum.record, identity);
   }
   return identity;
 }
 
-export type CsharpTypeProjection = CsharpConditionalTypeProjection | CsharpOptionalTypeProjection | CsharpSourceUnionTypeProjection;
+export type CsharpTypeProjection = CsharpConditionalTypeProjection | CsharpOptionalTypeProjection | CsharpSourceUnionTypeProjection | CsharpCollectionKeyTypeProjection;
 
 export type CsharpProjectedType = Extract<TargetTypeRef, { readonly kind: "type-parameter" }> & {
   readonly csharpProjection: CsharpTypeProjection;
@@ -90,13 +108,17 @@ export function csharpProjectedType(projection: CsharpTypeProjection): CsharpPro
   const storage = projection.kind === "source-union" && projection.part === "storage" ? sourceStorageProjection(projection) : undefined;
   const key = JSON.stringify([projection.kind,
     projection.kind === "conditional" ? projection.identity : projection.kind === "optional" ? "native-optional"
-      : storage?.identity ?? sourceSumProjectionIdentity(projection.sum.record),
+      : projection.kind === "collection-key" ? "native-collection-key"
+      : storage?.identity ?? sourceSumProjectionIdentity(projection.sum),
     projection.arguments.map(targetTypeRefKey)]);
   const namingKey = projection.kind === "source-union"
     ? JSON.stringify([projection.kind, storage?.namingIdentity ?? projection.sum.namingIdentity, projection.arguments.map(targetTypeRefKey)]) : key;
   const identity = createHash("sha256").update(namingKey).digest("hex").slice(0, 16);
   const name = projection.kind === "conditional" ? `${projection.sourceName}Result_${identity}`
+    : projection.kind === "collection-key" ? `CollectionKey_${identity}`
     : `${projection.kind === "optional" ? "Optional" : "SourceUnion"}${projection.part === "storage" ? "Storage" : "Operations"}_${identity}`;
+  const parameterIdentity = JSON.stringify(["projection", key,
+    projection.kind === "conditional" || projection.kind === "collection-key" ? "result" : projection.part]);
   const constraints: readonly CsharpTypeParameterConstraint[] = projection.kind === "optional" && projection.part === "operations"
     ? [{ kind: "keyword", keyword: "struct" }, { kind: "type", type: csharpTargetNamedType("Tsonic.CSharp.Runtime.IOptionalStorage`2", [projection.arguments[0], csharpProjectedType({ ...projection, part: "storage" })], csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "IOptionalStorage"), { allowsRefLikeTypeArguments: [false, false],}) }]
     : projection.kind === "source-union" && projection.part === "operations"
@@ -105,15 +127,18 @@ export function csharpProjectedType(projection: CsharpTypeProjection): CsharpPro
       projection.arguments,
       csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", `ISourceUnion${projection.sum.roles.length}`),
       { allowsRefLikeTypeArguments: projection.arguments.map(() => false) }) }]
+    : projection.kind === "collection-key"
+    ? [{ kind: "keyword", keyword: "struct" }, { kind: "type", type: csharpTargetNamedType("Tsonic.CSharp.Js.ICollectionKey`2", [projection.arguments[0],
+      Object.freeze({ kind: "type-parameter", identity: parameterIdentity, name })],
+      csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "ICollectionKey"), { allowsRefLikeTypeArguments: [false, false] }) }]
     : [];
   const contract = projection.kind === "conditional" ? Object.freeze({ ...projection,
     sourceArguments: Object.freeze([...projection.sourceArguments]), arguments: Object.freeze([...projection.arguments]),
-  }) : projection.kind === "optional" ? Object.freeze({ ...projection,
+  }) : projection.kind === "optional" || projection.kind === "collection-key" ? Object.freeze({ ...projection,
     arguments: Object.freeze([projection.arguments[0]]) as readonly [TargetTypeRef] })
     : projection.part === "storage" ? Object.freeze({ ...projection, roleArguments: Object.freeze([...projection.roleArguments]),
       arguments: Object.freeze([...projection.arguments]) }) : Object.freeze({ ...projection, arguments: Object.freeze([...projection.arguments]) });
-  return Object.freeze({ kind: "type-parameter", identity: JSON.stringify(["projection", key,
-    projection.kind === "conditional" ? "result" : projection.part]), name, csharpProjection: contract,
+  return Object.freeze({ kind: "type-parameter", identity: parameterIdentity, name, csharpProjection: contract,
     csharpProjectionConstraints: Object.freeze(constraints) });
 }
 

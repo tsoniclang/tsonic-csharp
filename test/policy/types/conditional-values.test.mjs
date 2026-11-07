@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createPublishedSourceUnionFixture } from "../../helpers/published-source-unions.mjs";
 import { analyzeSourceLiteralValues } from "@tsonic/target-api/source";
 import { selectCsharpBinaryOperands } from "../../../dist/analysis/operations/operators.js";
 import { csharpBinarySelectionsEqual } from "../../helpers/binary-selections.mjs";
@@ -7,11 +8,18 @@ import { selectCsharpConversion, selectCsharpExpressionConversion } from "../../
 import { csharpAbsenceTargetType, csharpNullableTargetType, csharpRuntimeUnionTargetType,
   csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpTargetNamedType, csharpVoidTargetType,
   csharpTsValueTargetType,
-  combineCsharpTargetUnionMembers, getCsharpNullableElementTargetType, getCsharpRuntimeUnionArms,
+  getCsharpNullableElementTargetType, getCsharpRuntimeUnionArms,
   targetTypeRefEquals } from "../../../dist/target-model/types/index.js";
 
 const boolean = csharpSourcePrimitiveTargetType("bool");
 const integer = csharpSourcePrimitiveTargetType("uint64");
+const record = csharpTargetNamedType("fixture.Record", undefined, undefined, { allowsRefLikeTypeArguments: [] });
+const fixture = createPublishedSourceUnionFixture(`
+  import type { uint64 } from "@tsonic/core/types.js";
+  declare class Record { readonly value: string; }
+  declare function conditional(present: boolean | uint64, optional: boolean | uint64 | undefined,
+    repeated: boolean | (uint64 | undefined) | undefined, object: boolean | Record): void;
+`, { Record: () => record });
 const value = { kind: "value" };
 const rightValue = { kind: "value" };
 const trueLiteral = { kind: "KindTrueKeyword" };
@@ -53,8 +61,8 @@ test("sequence completion demand is sealed independently of its checked value ca
 });
 
 test("conditional values preserve finite native arms, exact width and one absence", () => {
-  const expected = csharpNullableTargetType(combineCsharpTargetUnionMembers([boolean, integer]));
-  const combined = combineCsharpTargetUnionMembers([boolean, csharpNullableTargetType(integer), csharpAbsenceTargetType()]);
+  const expected = fixture.carrier("conditional", 1);
+  const combined = fixture.carrier("conditional", 2);
   assert.ok(targetTypeRefEquals(combined, expected));
   assert.equal(getCsharpRuntimeUnionArms(combined), undefined);
   assert.deepEqual(getCsharpRuntimeUnionArms(getCsharpNullableElementTargetType(combined)), [boolean, integer]);
@@ -84,8 +92,7 @@ test("constant boolean conditions select only their reachable native payload", (
 });
 
 test("conditional value admission never invents truthiness, numeric conversion or object boxing", () => {
-  const record = csharpTargetNamedType("fixture.Record", undefined, undefined, { allowsRefLikeTypeArguments: [],});
-  const expected = combineCsharpTargetUnionMembers([boolean, record]);
+  const expected = fixture.carrier("conditional", 3);
   const selected = selectCsharpBinaryOperands(input, trueLiteral, value, "&&", record,
     node => node === trueLiteral ? boolean : record);
   assert.equal(selected.kind, "resolved");
@@ -107,7 +114,17 @@ test("conditional value admission never invents truthiness, numeric conversion o
 
 test("comma condition completion selects its exact literal branch without dropping preceding effects", () => {
   const sequence = { kind: "BinaryExpression", operator: "KindCommaToken", left: value, right: trueLiteral };
-  const selected = selectCsharpBinaryOperands(input, sequence, rightValue, "&&", integer,
+  const context = { ...input,
+    effectiveTypes: { get: node => {
+      assert.equal(node === sequence, true, "the synthetic comma has no Source publication");
+      return undefined;
+    } },
+    navigation: { expressionResultUse: node => {
+      assert.equal(node === trueLiteral, true, "the same comma final operand is consumed");
+      return "consumed";
+    } },
+  };
+  const selected = selectCsharpBinaryOperands(context, sequence, rightValue, "&&", integer,
     node => node === sequence ? boolean : integer);
   assert.equal(selected.kind, "resolved");
   assert.equal(selected.targetOperation.branch, "right");

@@ -1,20 +1,11 @@
-import type { ExtensionFactSubject, Node } from "@tsonic/tsts";
+import type { ExtensionFactSubject } from "@tsonic/tsts";
 import type { CsharpTypePolicyHost } from "../source-evidence/types/resolution/model.js";
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
 import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../target-model/types/object-shape-members.js";
-import { csharpMethodValueCoversContract, csharpMethodValueType, csharpObjectShapeMethodDeclaration, csharpPresentObjectShapeMethod, getCsharpMethodValue } from "../../target-model/types/method-values.js";
+import { csharpMethodValueType, csharpObjectShapeMethodDeclaration, csharpPresentObjectShapeMethod } from "../../target-model/types/method-values.js";
 import { csharpSourceMemberKeyParts } from "../../target-model/types/source-member-keys.js";
 import { selectCsharpMethodValueEnvironment } from "../../policy/types/objects/method-environments.js";
 import { csharpNullableTargetType } from "../../target-model/types/carriers/nullable.js";
-
-export function selectCsharpPublishedMethodValue(
-  owner: TargetTypeRef | undefined, declaration: Node, contract: TargetTypeRef, host: CsharpTypePolicyHost,
-): TargetTypeRef | undefined {
-  if (!host.ast.is.IsMethodDeclaration(declaration) && !host.ast.is.IsMethodSignatureDeclaration(declaration)) return undefined;
-  const selected = selectCsharpMethodValue(owner, [declaration], host, "value");
-  return getCsharpMethodValue(selected) !== undefined && selected !== undefined &&
-    csharpMethodValueCoversContract(selected, contract) ? selected : undefined;
-}
 
 export function selectCsharpMethodValue(
   owner: TargetTypeRef | undefined, subjects: readonly ExtensionFactSubject[], host: CsharpTypePolicyHost, role: "value" | "call" | "storage",

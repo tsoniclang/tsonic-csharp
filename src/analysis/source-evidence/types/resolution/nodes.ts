@@ -24,8 +24,9 @@ import type { CsharpSourceCallResult } from "../../../../target-model/operations
 import { csharpSourceValueResult, refineCsharpSourceValueResult } from "./call-results.js";
 import { resolveCsharpSourceEffectiveType, type CsharpEffectiveSourceTypeSelection } from "./effective-types.js";
 import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
+import { csharpObjectShapesEqual } from "../../../../target-model/types/object-shape-equality.js";
+import { createCsharpObjectShapeValueStorage } from "../../../../policy/types/objects/shape-carriers.js";
 import { csharpCallableValueType, csharpClosedInvocationMatches } from "../../../../policy/types/callables/value-type.js";
-import { selectCsharpPublishedMethodValue } from "../../../objects/method-values.js";
 export function resolveNodeValueWithState(
   scope: CsharpTypeResolutionScope,
   node: Node | undefined,
@@ -48,9 +49,7 @@ function resolveNodeResultWithState(
   const effective = resolveCsharpSourceEffectiveType(scope, node, state);
   if (effective !== undefined) {
     if (effective.result === undefined) return undefined;
-    const method = selectedPublishedMethodRead(scope, node, sourceFile, effective, state);
-    if (method !== undefined) return Object.freeze({ ...effective.result, nativeType: method, selectedType: method });
-    const physical = selectedClosedCallableRead(scope, node, effective);
+    const physical = selectedPhysicalRead(scope, node, effective);
     if (physical !== undefined) return Object.freeze({ ...effective.result, nativeType: physical, selectedType: physical });
     if (!host.ast.is.IsArrayLiteralExpression(node)) return effective.result;
     const queries = sourceFile === undefined ? host.semanticsFor(node) : host.semantics(sourceFile);
@@ -214,28 +213,18 @@ function resolveFallbackNodeCarrier(
       queries.types.authoredType(node), queries.sourceFile, nextState(state));
 }
 
-function selectedPublishedMethodRead(
-  scope: CsharpTypeResolutionScope, node: Node, sourceFile: SourceFile | undefined,
-  effective: CsharpEffectiveSourceTypeSelection, state: CsharpTypeResolutionState,
-): TargetTypeRef | undefined {
-  const { host } = scope;
-  if (effective.result === undefined) return undefined;
-  const method = host.effectiveTypes.methodValueUse(node);
-  if (method === undefined || method.occurrence !== node) return undefined;
-  const owner = scope.resolveNodeWithState(method.receiver, sourceFile, nextState(state));
-  return selectCsharpPublishedMethodValue(owner, method.declaration, effective.result.selectedType, host);
-}
-
-function selectedClosedCallableRead(
+function selectedPhysicalRead(
   { host }: CsharpTypeResolutionScope,
   node: Node,
   effective: CsharpEffectiveSourceTypeSelection,
 ): TargetTypeRef | undefined {
   if (effective.result === undefined || effective.outcome.kind === "refused" ||
-    effective.outcome.type.kind !== "callable") return undefined;
+    effective.outcome.type.kind !== "callable" &&
+    effective.outcome.type.kind !== "shape") return undefined;
   const declaration = host.ast.is.IsIdentifier(node) ? host.navigation.sourceReferenceFor(node)?.declaration
     : host.ast.is.IsVariableDeclaration(node) || host.ast.is.IsArrowFunction(node) ||
-      host.ast.is.IsFunctionExpression(node) ? node : undefined;
+      host.ast.is.IsFunctionExpression(node) || effective.outcome.type.kind === "shape" &&
+      host.ast.is.IsObjectLiteralExpression(node) ? node : undefined;
   if (declaration === undefined) return undefined;
   const principal = host.effectiveTypes.get(declaration);
   if (principal === undefined || principal.kind === "refused" || principal.provenance.occurrence !== declaration ||
@@ -243,6 +232,19 @@ function selectedClosedCallableRead(
   const selected = host.representations.scopedTargetType(node);
   const storage = host.representations.scopedTargetType(declaration);
   if (selected === undefined || storage === undefined || !targetTypeRefEquals(selected, storage)) return undefined;
+  if (effective.outcome.type.kind === "shape") {
+    const represented = host.objectShapes.resolveTarget(effective.result.selectedType);
+    const physical = represented === undefined ? undefined : createCsharpObjectShapeValueStorage(represented);
+    if (physical === undefined || !targetTypeRefEquals(physical.targetType, selected)) return undefined;
+    const shape = host.objectShapes.resolveTarget(selected);
+    const sourceFile = host.ast.getSourceFile(node);
+    if (shape === undefined || sourceFile === undefined || !targetTypeRefEquals(shape.targetType, selected)) return undefined;
+    const retained = host.objectShapes.retainConstructionSource(node, shape, sourceFile);
+    const retainedPrincipal = declaration === node ? retained
+      : host.objectShapes.retainConstructionSource(declaration, shape, sourceFile);
+    return retained !== undefined && retainedPrincipal !== undefined && csharpObjectShapesEqual(shape, retained) &&
+      csharpObjectShapesEqual(shape, retainedPrincipal) ? selected : undefined;
+  }
   if (effective.outcome.type.kind !== "callable" || host.ast.is.IsVariableDeclaration(declaration) &&
     host.ast.typeNode(declaration) !== undefined) return undefined;
   const contract = host.representations.closedInputContract(node);

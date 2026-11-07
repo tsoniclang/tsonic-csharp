@@ -26,9 +26,19 @@ export function selectCsharpNativeFlowCarrier(
     next = index + 1;
   }
   if (members.length === 1) return members[0];
-  if (selected !== undefined && csharpSourceUnionMembersMatch(selected, members)) return selected;
+  const matches = (candidate: TargetTypeRef): boolean => {
+    const element = getCsharpNullableElementTargetType(candidate);
+    const payload = element ?? candidate;
+    if (!isCsharpRuntimeUnionTargetType(payload) || payload.csharpRuntimeUnionSemantics !== "native-ordered") {
+      return csharpSourceUnionMembersMatch(candidate, members);
+    }
+    const ordered = element === undefined ? payload.csharpRuntimeUnionArms
+      : [...payload.csharpRuntimeUnionArms, csharpAbsenceTargetType()];
+    return ordered.length === members.length && ordered.every((member, index) => targetTypeRefEquals(member, members[index]!));
+  };
+  if (selected !== undefined && matches(selected)) return selected;
   const selectedPresent = getCsharpNullableElementTargetType(selected);
-  if (selectedPresent !== undefined && csharpSourceUnionMembersMatch(selectedPresent, members)) return selectedPresent;
+  if (selectedPresent !== undefined && matches(selectedPresent)) return selectedPresent;
   if (!isCsharpRuntimeUnionTargetType(present) || present.csharpRuntimeUnionSemantics !== "native-ordered") return undefined;
   const payloads = members.filter(member => !isCsharpAbsenceTargetType(member));
   const carrier = payloads.length === 1 ? payloads[0] : csharpRuntimeUnionTargetType(payloads);

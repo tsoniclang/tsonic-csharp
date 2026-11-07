@@ -12,7 +12,6 @@ import type { CsharpSourceCallParameterReadDomain, ResolvedSourceCallInfo } from
 import type { CsharpSourceTargetTypeBinding } from "../../../../target-model/types/model.js";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import { classifyCsharpSourceProfileType } from "../../../../policy/identities/source-types.js";
-import { type CsharpSourceUnionIndex } from "./source-unions.js";
 import { createCsharpSourceUnionDefinitions } from "./union-definitions.js";
 
 import { type CsharpArrayLiteralSelection } from "../../../../target-model/records/operations/array-literals.js";
@@ -31,7 +30,6 @@ export interface CsharpTypeResolutionScope {
     state: CsharpTypeResolutionState,
   ): CsharpPointerReturnContract | undefined;
   readonly host: CsharpTypePolicyHost;
-  readonly sourceUnions: CsharpSourceUnionIndex;
   readonly sourceUnionDefinitions: ReturnType<typeof createCsharpSourceUnionDefinitions>;
   readonly activeNodes: WeakSet<Node>;
   readonly policy: CsharpTypePolicy;

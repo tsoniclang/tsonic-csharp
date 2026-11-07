@@ -50,7 +50,7 @@ test(`C130 ${surface}: ${formName} ${operation} uses native number semantics or 
         assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
           "an unsupported cross-arm operation is refused before the seal and emits no artifact");
         const observed = errors.map(diagnostic).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
-        const expected = expectedOperationRefusals(operation, size).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
+        const expected = expectedOperationRefusals(operation, size, compiled).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
         assert.equal(observed.length === expected.length && observed.every((issue, index) =>
           issue.code === expected[index].code && issue.message === expected[index].message && issue.text === expected[index].text), true,
         `${formName}/${operation}: the complete exact code, native reason and authored source node match its declared operation contract`);
@@ -101,7 +101,7 @@ test(`C130 ${surface}: ${formName} ${operation} uses native number semantics or 
         assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
           "an unsupported cross-arm operation is refused before the seal and emits no artifact");
         const observed = errors.map(diagnostic).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
-        const expected = expectedOperationRefusals(operation, size).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
+        const expected = expectedOperationRefusals(operation, size, compiled).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
         assert.equal(observed.length === expected.length && observed.every((issue, index) =>
           issue.code === expected[index].code && issue.message === expected[index].message && issue.text === expected[index].text), true,
         `${formName}/${operation}: the complete exact code, native reason and authored source node match its declared operation contract`);
@@ -154,7 +154,7 @@ test(`C130 ${surface}: ${formName} ${operation} uses native number semantics or 
         assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
           "an unsupported cross-arm operation is refused before the seal and emits no artifact");
         const observed = errors.map(diagnostic).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
-        const expected = expectedOperationRefusals(operation, size).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
+        const expected = expectedOperationRefusals(operation, size, compiled).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
         assert.equal(observed.length === expected.length && observed.every((issue, index) =>
           issue.code === expected[index].code && issue.message === expected[index].message && issue.text === expected[index].text), true,
         `${formName}/${operation}: the complete exact code, native reason and authored source node match its declared operation contract`);
@@ -205,7 +205,7 @@ test(`C130 ${surface}: ${formName} ${operation} uses native number semantics or 
         assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
           "an unsupported cross-arm operation is refused before the seal and emits no artifact");
         const observed = errors.map(diagnostic).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
-        const expected = expectedOperationRefusals(operation, size).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
+        const expected = expectedOperationRefusals(operation, size, compiled).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
         assert.equal(observed.length === expected.length && observed.every((issue, index) =>
           issue.code === expected[index].code && issue.message === expected[index].message && issue.text === expected[index].text), true,
         `${formName}/${operation}: the complete exact code, native reason and authored source node match its declared operation contract`);
@@ -260,7 +260,7 @@ test(`C130 ${surface}: ${formName} ${operation} uses native number semantics or 
         assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
           "an unsupported cross-arm operation is refused before the seal and emits no artifact");
         const observed = errors.map(diagnostic).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
-        const expected = expectedOperationRefusals(operation, size).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
+        const expected = expectedOperationRefusals(operation, size, compiled).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
         assert.equal(observed.length === expected.length && observed.every((issue, index) =>
           issue.code === expected[index].code && issue.message === expected[index].message && issue.text === expected[index].text), true,
         `${formName}/${operation}: the complete exact code, native reason and authored source node match its declared operation contract`);

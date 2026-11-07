@@ -12,6 +12,14 @@ import type { CsharpArrayLiteralSelection } from "../../target-model/records/ope
 import type { CsharpSourceCallParameterReadDomain, ResolvedSourceCallInfo } from "../../target-model/records/calls/source-calls.js";
 import type { CsharpSourceCallResult } from "../../target-model/operations/source-call-results.js";
 import type { CsharpNativeSourceCarrierSelection } from "../../target-model/records/objects/object-shapes.js";
+import type { SourceTypeDescriptor } from "@tsonic/target-api/source";
+
+export interface CsharpPublishedSourceUnionMember {
+  readonly descriptor: SourceTypeDescriptor;
+  readonly carrier: TargetTypeRef;
+  readonly role: number;
+  readonly arm: number;
+}
 
 export type CsharpNodeTypeResolution = (Extract<CsharpNativeSourceCarrierSelection, { readonly kind: "rejected" }> & {
   readonly sourceResult?: never;
@@ -36,8 +44,7 @@ export interface CsharpTypeQueries {
   resolveStorage(node: Node | undefined, sourceFile?: SourceFile): TargetTypeRef | undefined;
   resolveReadStorage(node: Node | undefined, sourceFile?: SourceFile): TargetTypeRef | undefined;
   resolveType(type: Type | undefined, sourceFile: SourceFile): TargetTypeRef | undefined;
-  selectSourceUnionMember(carrier: TargetTypeRef, selected: Type, sourceFile: SourceFile):
-    { readonly kind: "unavailable" | "rejected" } | { readonly kind: "resolved"; readonly carrier: TargetTypeRef };
+  sourceUnionMembers(occurrence: Node, carrier: TargetTypeRef): readonly CsharpPublishedSourceUnionMember[] | undefined;
   resolveValue(
     node: Node | undefined,
     sourceFile: SourceFile,

@@ -324,3 +324,46 @@ test("callback ABI agreement keeps exact parameters and the same canonical array
     csharpDelegateTargetType("System.Func", [integer], { kind: "array", element: integer })), false,
   "Source union closure does not replace a callable result with a different native width");
 });
+test("Source projection identities are local to each actual program view", () => {
+  const independent = () => {
+    const checked = createCompilerSessionFromFiles({ currentDirectory: "/view", files: {
+      "/view/index.ts": "declare function select<Value>(value: string | Value): void;",
+    }, compilerOptions: { strict: true } }).checkSource();
+    assert.equal(checked.diagnostics.length, 0);
+    const source = createTargetSourceProgram(checked);
+    const ast = source.ast;
+    let declaration;
+    ast.forEachChild(checked.getSourceFile("/view/index.ts"), node => {
+      if (node !== undefined && ast.is.IsFunctionDeclaration(node)) declaration = node;
+    });
+    const selected = source.effectiveTypes.get(ast.parameters(declaration)[0]);
+    assert.equal(selected !== undefined && selected.kind !== "refused" && selected.type.kind === "union", true);
+    const represented = representCsharpSourceType({ target: { id: "csharp" }, typeParameterConstraints: {},
+      sourceSum: descriptor => resolveCsharpPublishedSourceSum({ host: { ast, effectiveTypes: source.effectiveTypes } }, descriptor),
+      declaredType: original => csharpSourceTypeParameter(original, ast) ?? unexpected(),
+      retainShape: unexpected, indexType: unexpected, callableType: unexpected, constructorType: unexpected,
+      shapeKind: unexpected, memberDeclaration: unexpected, classStaticSide: unexpected, memberTypeParameters: unexpected,
+    }, selected.type);
+    assert.equal(represented !== undefined, true);
+    return represented;
+  };
+  const first = independent();
+  const unrelated = fixture().represent(fixture().open);
+  assert.equal(unrelated !== undefined, true, "another program may allocate its own projections between these views");
+  const second = independent();
+  assert.equal(first.name, second.name, "emitted names are already independent of other program activity");
+  assert.equal(first.identity, second.identity, "semantic projection identities must not consume a module-global counter");
+});
+
+test("malformed Source union descriptors cannot retain nested sums or absence payload members", () => {
+  const input = fixture();
+  const native = [csharpStringTargetType(), csharpSourcePrimitiveTargetType("int64")];
+  for (const component of [{ kind: "intrinsic", intrinsic: "absence" },
+    { kind: "intrinsic", intrinsic: "void" },
+    { kind: "optional", value: input.text }, input.open]) {
+    const malformed = { ...input.open, types: [input.open.types[0], component] };
+    assert.throws(() => combineCsharpTargetUnionMembers(native, malformed, undefined),
+      { message: "A published Source union descriptor must be flattened and lift every absence payload." });
+  }
+});
+

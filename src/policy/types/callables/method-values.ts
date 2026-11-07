@@ -47,7 +47,7 @@ export function selectCsharpNativeQuantifierArguments(
     });
     resolving.delete(parameter.identity);
     if (!complete) return undefined;
-    const normalized = projection.kind === "optional" ? csharpProjectedType({ ...projection,
+    const normalized = projection.kind === "optional" || projection.kind === "collection-key" ? csharpProjectedType({ ...projection,
       arguments: [substituteTargetTypeParameters(projection.arguments[0], substitutions)] })
       : csharpProjectedType({ ...projection,
         arguments: projection.arguments.map(argument => substituteTargetTypeParameters(argument, substitutions)) });

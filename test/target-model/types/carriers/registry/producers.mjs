@@ -127,13 +127,6 @@ export const producersCarrierRegistry = Object.freeze([
     frozen: false,
   },
   {
-    id: "src/analysis/source-evidence/types/resolution/source-union-refinement.ts#retainCsharpUnionObjectShapes",
-    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
-    declaration: { module: "src/analysis/source-evidence/types/resolution/source-union-refinement.ts", symbol: "retainCsharpUnionObjectShapes" },
-    responsibility: "producers/retain-union-object-shapes",
-    frozen: false,
-  },
-  {
     id: "src/analysis/source-evidence/types/resolution/source-evidence.ts#resolveTypeParameter",
     kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
     declaration: { module: "src/analysis/source-evidence/types/resolution/source-evidence.ts", symbol: "resolveTypeParameter" },

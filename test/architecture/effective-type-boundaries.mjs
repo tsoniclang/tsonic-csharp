@@ -31,7 +31,6 @@ export const declarationConverterAllowances = Object.freeze([
   ["src/analysis/source-evidence/types/resolution/union-definitions.ts", "resolve", "resolveType", "binding.argument", "declared union alias application argument"],
   ["src/analysis/source-evidence/types/resolution/union-definitions.ts", "resolve", "resolveType", "binding.parameter", "declared union alias binder"],
   ["src/analysis/source-evidence/types/resolution/union-definitions.ts", "resolve", "resolveType", "declared", "declared union template definition"],
-  ["src/analysis/source-evidence/types/resolution/source-evidence.ts", "resolveCsharpUnionMemberCarrier", "scope.resolveTypeWithState", "selectedType", "retained authored union arm"],
   ["src/analysis/source-evidence/types/resolution/conditional-types.ts", "resolveCsharpConditionalApplication", "scope.resolveTypeWithState", "sourceType", "checked conditional type application component"],
   ["src/analysis/source-evidence/types/resolution/conditional-types.ts", "resolveCsharpSemanticConditionalType", "scope.resolveTypeWithState", "binding.argument", "conditional declaration type argument"],
   ["src/analysis/source-evidence/types/resolution/nodes.ts", "resolveNodeResultWithState", "resolveTypeWithState", "queries.types.authoredType(node)", "authored array type syntax"],
@@ -48,7 +47,6 @@ export const declarationConverterAllowances = Object.freeze([
   ["src/analysis/source-evidence/types/resolution/calls.ts", "resolveSourceCallReceiverTargetType", "resolveTypeWithState", "source.sourceResultType", "selected constructor instance declaration only outside the same call's Host publication domain"],
   ["src/analysis/source-evidence/types/resolution/source-profiles.ts", "resolveUnionType", "resolveTypeWithState", "member", "actual declared union member"],
   ["src/analysis/source-evidence/types/resolution/source-profiles.ts", "resolveSourceTypeComponentEvidence", "resolveTypeWithState", "component.selectedType", "retained declared Source component without authored syntax"],
-  ["src/analysis/source-evidence/types/resolution/source-union-refinement.ts", "selectCsharpAuthoredUnionRefinement", "resolveType", "member", "actual authored union refinement arm"],
   ["src/policy/conversions/union-relations.ts", "select", "input.resolveType", "type", "authored union arm-layout comparison"],
 ].map(([file, owner, callee, argument, basis, metadataLeaf]) => Object.freeze({ file, owner, callee, argument, basis, metadataLeaf })));
 

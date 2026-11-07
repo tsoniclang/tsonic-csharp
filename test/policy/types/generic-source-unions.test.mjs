@@ -7,7 +7,10 @@ import { csharpTargetNamedType } from "../../../dist/target-model/types/factorie
 import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
 import { inferCsharpTargetTypeParameterBindings, substituteObjectShapeFactTargetTypeParameters } from "../../../dist/policy/types/resolution/substitution.js";
-import { selectCsharpAuthoredUnionRefinement, sourceRefinementOnlyRemovesNullish } from "../../../dist/analysis/source-evidence/types/resolution/source-union-refinement.js";
+import { sourceRefinementOnlyRemovesNullish } from "../../../dist/analysis/source-evidence/types/resolution/source-union-refinement.js";
+import { resolveCsharpUnionMemberCarrier } from "../../../dist/analysis/source-evidence/types/resolution/source-evidence.js";
+import { createPublishedSourceUnionFixture } from "../../helpers/published-source-unions.mjs";
+import { sourceTypeDescriptorStructure } from "@tsonic/target-api/source";
 import { selectCsharpConversion } from "../../../dist/policy/conversions/core.js";
 import { selectCsharpObjectLiteralUnionCarrier } from "../../../dist/analysis/objects/shapes/union-construction.js";
 import { csharpSourceUnionTargetType } from "../../../dist/target-model/types/source-union-definitions.js";
@@ -17,6 +20,26 @@ const byte = { kind: "source-primitive", name: "uint8" };
 const integer = { kind: "source-primitive", name: "int32" };
 const parameter = { kind: "type-parameter", identity: "Element", name: "Element" };
 const arm = (name, argument) => ({ kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: name, typeArguments: [argument] });
+
+function publishedSelection(source, occurrence, descriptor, natives = new Map()) {
+  const forbidden = () => assert.fail("an exact published union component cannot retry a checked carrier");
+  const host = { ast: source.ast, effectiveTypes: source.effectiveTypes, navigation: source.navigation,
+    sourceFacts: source.sourceFacts, target: { id: "csharp" }, typeParameterConstraints: {},
+    hasSemantics: source.semantics.includes, semanticsFor: source.semantics.forNode,
+    representations: { scopedTargetType: () => undefined, genericProjections: () => [] },
+    projectTypeCatalog: {
+      definitionForDeclaration: declaration => !natives.has(declaration) ? undefined : {
+        outerTypeParameters: [], typeParameters: [], outerTypeProjections: [], typeProjections: [],
+      },
+      targetTypeForDeclaration(declaration, arguments_) {
+        assert.equal(arguments_.length, 0, "the original closed Native classes have no Source binders");
+        return natives.get(declaration);
+      },
+    } };
+  const scope = { host, resolveTypeWithState: forbidden,
+    selectDirectSourceFacts: () => ({ kind: "not-applicable" }) };
+  return (carrier, selected) => resolveCsharpUnionMemberCarrier(scope, carrier, descriptor, selected, occurrence, { depth: 0 });
+}
 
 test("union literal construction requires one total declaration-identity match", () => {
   const firstDeclaration = {};
@@ -108,36 +131,38 @@ test("shape substitution keeps one symbolic declaration through multiple instant
 });
 
 test("source-union refinement requires exact unique member declarations", () => {
-  const firstDeclaration = {};
-  const secondDeclaration = {};
-  const selectedType = {};
-  const declaredType = {};
-  const selectedSymbol = {};
+  const fixture = createPublishedSourceUnionFixture(`
+    import type { uint8 } from "@tsonic/core/types.js";
+    declare class First { value: uint8; }
+    declare class Second { value: uint8; }
+    declare class Foreign { value: uint8; }
+    declare function nominal(value: First | Second | undefined): void;
+    declare function foreign(value: Foreign): void;
+    declare function shared(value: { value: uint8 }): void;
+    declare function missing(value: unknown): void;
+  `);
+  const firstDeclaration = fixture.declaration("First");
+  const secondDeclaration = fixture.declaration("Second");
   const shapes = [firstDeclaration, secondDeclaration].map((declaration, index) => ({
     targetType: arm(`Arm${index}`, byte), members: [{
       sourceName: "value", targetName: "value", memberKind: "property", type: byte,
       sourceDeclarations: [declaration],
     }],
   }));
-  let declarations = [firstDeclaration];
-  const queries = {
-    types: { refinement: () => ({ kind: "members", types: [selectedType] }), isNullish: () => false, isVoidLike: () => false,
-      unionOrIntersectionTypes: () => [selectedType, {}],
-      propertyInfos: () => [{ symbol: selectedSymbol, rootSymbols: [] }], },
-    declarations: { symbolDeclarations: () => declarations },
-  };
+  const descriptor = fixture.descriptor("nominal");
+  const occurrence = fixture.ast.parameters(fixture.declaration("nominal"))[0];
+  const select = publishedSelection(fixture.source, occurrence, descriptor,
+    new Map([[firstDeclaration, shapes[0].targetType], [secondDeclaration, shapes[1].targetType]]));
   const union = csharpRuntimeUnionTargetType(shapes.map(shape => shape.targetType), shapes);
-  const select = value => selectCsharpAuthoredUnionRefinement(value, declaredType, selectedType, queries, () => undefined,
-    type => shapes.find(shape => targetTypeRefEquals(shape.targetType, type)));
-  const selected = select(csharpNullableTargetType(union));
-  assert.equal(selected.kind, "resolved");
-  assert(targetTypeRefEquals(selected.type, shapes[0].targetType));
-  declarations = [{}];
-  assert.equal(select(union).kind, "rejected");
-  declarations = [firstDeclaration, secondDeclaration];
-  assert.equal(select(union).kind, "rejected");
-  declarations = [];
-  assert.equal(select(union).kind, "rejected");
+  const selectedType = descriptor.value.types.find(type => type.kind === "declared" && type.declaration === firstDeclaration);
+  const nullable = csharpNullableTargetType(union);
+  const selected = select(nullable, selectedType);
+  assert.equal(selected !== undefined, true);
+  assert(targetTypeRefEquals(selected, shapes[0].targetType));
+  assert.equal(select(nullable, fixture.descriptor("foreign")) === undefined, true);
+  assert.equal(select(nullable, fixture.descriptor("shared")) === undefined, true);
+  assert.equal(select(nullable, fixture.descriptor("missing")) === undefined, true);
+  assert.equal(select(union, selectedType) === undefined, true, "missing Native absence cannot borrow the Source domain");
 });
 
 test("checked void union members select only an already-admitted native absence", () => {
@@ -160,13 +185,18 @@ test("checked void union members select only an already-admitted native absence"
   const later = csharpTargetNamedType("source.Later", undefined, { kind: "named", name: "Later" },
     { allowsRefLikeTypeArguments: [], sourceDeclarationKind: "class" });
   const union = csharpRuntimeUnionTargetType([csharpStringTargetType(), later]);
-  const resolve = carrier => selectCsharpAuthoredUnionRefinement(carrier, declared, selected, queries,
-    () => undefined, () => undefined);
+  const outcome = source.effectiveTypes.get(source.ast.typeNode(alias));
+  assert.equal(outcome !== undefined && outcome.kind !== "refused", true, "the same original union has its Source publication");
+  const descriptor = sourceTypeDescriptorStructure(outcome.type);
+  assert.equal(descriptor.kind, "optional", "A11 publishes the original void arm as one absence");
+  const laterDeclaration = source.navigation.nodes.find(node => source.ast.is.IsClassDeclaration(node));
+  const select = publishedSelection(source, source.ast.typeNode(alias), descriptor, new Map([[laterDeclaration, later]]));
+  const resolve = carrier => select(carrier, { kind: "intrinsic", intrinsic: "absence" });
   const absent = resolve(csharpNullableTargetType(union));
-  assert.equal(absent.kind === "resolved" && targetTypeRefEquals(absent.type, csharpAbsenceTargetType()), true,
+  assert.equal(absent !== undefined && targetTypeRefEquals(absent, csharpAbsenceTargetType()), true,
     "the source void value uses the nullable union's one proven absence, never a present payload");
-  assert.equal(resolve(union).kind, "rejected", "a non-optional native union cannot manufacture an absent variant");
-  assert.equal(resolve(csharpVoidTargetType()).kind, "not-applicable", "ordinary native void remains a completion, not value storage");
+  assert.equal(resolve(union) === undefined, true, "a non-optional native union cannot manufacture an absent variant");
+  assert.equal(resolve(csharpVoidTargetType()) === undefined, true, "ordinary native void remains a completion, not value storage");
 });
 
 test("nullish refinement retains a native carrier only for the complete non-nullish selection", () => {
@@ -182,9 +212,10 @@ test("nullish refinement retains a native carrier only for the complete non-null
     isNullish: type => type === absent,
   } };
   assert(sourceRefinementOnlyRemovesNullish(declared, present, queries));
-  assert.deepEqual(selectCsharpAuthoredUnionRefinement(csharpNullableTargetType(byte), declared, present,
-    queries, () => { throw new Error("native carrier must not be reconstructed"); }, () => undefined),
-  { kind: "resolved", type: byte });
+  const fixture = createPublishedSourceUnionFixture('import type { uint8 } from "@tsonic/core/types.js"; declare function present(value: uint8 | undefined): void;');
+  const descriptor = fixture.descriptor("present");
+  const select = publishedSelection(fixture.source, fixture.ast.parameters(fixture.declaration("present"))[0], descriptor);
+  assert.deepEqual(select(csharpNullableTargetType(byte), descriptor.value), byte);
   for (const invalid of [[], [other], [present, absent], [present, present]]) {
     members = invalid;
     assert.equal(sourceRefinementOnlyRemovesNullish(declared, present, queries), false);

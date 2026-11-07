@@ -6,53 +6,69 @@ import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "..
 import { csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../../../dist/target-model/types/index.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 import { snapshotCsharpTargetTypes, isCsharpTargetTypeRef } from "../../../dist/target-model/types/snapshot.js";
+import { createPublishedSourceUnionFixture } from "../../helpers/published-source-unions.mjs";
+import { csharpSourceTypeParameter } from "../../../dist/source/extension/type-parameters.js";
+import { getCsharpGenericSourceUnionParts } from "../../../dist/target-model/types/projections.js";
 
 const integer = csharpSourcePrimitiveTargetType("int64");
 const text = csharpStringTargetType();
-const parameter = Object.freeze({ kind: "type-parameter", identity: "union-semantics:Value", name: "Value" });
+const repeatedInteger = csharpRuntimeUnionTargetType([integer, integer]);
+const fixture = createPublishedSourceUnionFixture(`
+  import type { int64 } from "@tsonic/core/types.js";
+  declare class Native<Value> { readonly value: Value; }
+  declare class FixedNative { readonly value: int64; }
+  declare function formations(value: string | int64): void;
+  declare function flattened(value: (int64 | string) | int64 | string, duplicate: int64 | int64): void;
+  declare function mixed(value: FixedNative | string): void;
+  declare function generic<Value>(value: string | Value, reversed: Value | string, native: Native<Value> | string): void;
+  declare function absent(value: int64 | string | undefined): void;
+`, { Native: arguments_ => csharpRuntimeUnionTargetType([arguments_[0], arguments_[0]]), FixedNative: () => repeatedInteger });
+const parameter = csharpSourceTypeParameter(fixture.ast.typeParameters(fixture.declaration("generic"))[0], fixture.ast);
 
 test("the existing union formations publish required source-sum versus ordered-native semantics", () => {
   const ordered = csharpRuntimeUnionTargetType([text, integer]);
-  const sum = combineCsharpTargetUnionMembers([text, integer]);
+  const sum = fixture.carrier("formations");
   assert.equal(ordered.csharpRuntimeUnionSemantics, "native-ordered");
   assert.equal(sum.csharpRuntimeUnionSemantics, "source-sum");
   assert.equal(isCsharpRuntimeUnionTargetType(ordered) && isCsharpRuntimeUnionTargetType(sum), true);
   assert.equal(targetTypeRefEquals(ordered.typeArguments[0], text), true, "the native declaration keeps its first slot");
-  assert.equal(targetTypeRefEquals(sum.typeArguments[0], integer), true, "the source sum is canonical by exact carrier identity");
+  assert.equal(targetTypeRefEquals(sum.typeArguments[0], text), true, "the source sum keeps the sealed first authored Source order");
 });
 
 test("only authored source sums flatten and deduplicate; an explicit native union stays an atomic arm", () => {
-  const ordered = csharpRuntimeUnionTargetType([integer, integer]);
-  const inner = combineCsharpTargetUnionMembers([integer, text]);
-  const flattened = combineCsharpTargetUnionMembers([inner, integer, text]);
+  const ordered = repeatedInteger;
+  const inner = fixture.carrier("formations");
+  const flattened = fixture.carrier("flattened");
   assert.equal(targetTypeRefEquals(flattened, inner), true, "nested source sums share one canonical identity");
-  const mixed = combineCsharpTargetUnionMembers([ordered, text]);
+  const mixed = fixture.carrier("mixed");
   const arms = getCsharpRuntimeUnionArms(mixed);
   assert.equal(arms.length, 2);
   assert.equal(arms.some(arm => arm === ordered), true, "no flattening or copy of the native generic struct");
   assert.equal(ordered.typeArguments.length === 2 && ordered.typeArguments.every(arm => arm === integer), true,
     "native repeated slots are not a one-arm source sum");
-  assert.equal(combineCsharpTargetUnionMembers([integer, integer]) === integer, true,
+  assert.equal(targetTypeRefEquals(fixture.carrier("flattened", 1), integer), true,
     "a source sum of one exact identity needs no union");
 });
 
 test("semantic equality and keys retain the sum fact without changing native argument order", () => {
-  const sum = combineCsharpTargetUnionMembers([text, parameter]);
-  const reordered = combineCsharpTargetUnionMembers([parameter, text]);
+  const sum = fixture.carrier("generic");
+  const reordered = fixture.carrier("generic", 1);
   const ordered = csharpRuntimeUnionTargetType(getCsharpRuntimeUnionArms(sum));
   assert.equal(targetTypeRefEquals(sum, reordered), true);
   assert.equal(targetTypeRefKey(sum), targetTypeRefKey(reordered));
   assert.equal(targetTypeRefEquals(sum, ordered), false, "equal physical slots cannot erase the source template's semantics");
   assert.notEqual(targetTypeRefKey(sum), targetTypeRefKey(ordered));
+  assert.equal(getCsharpGenericSourceUnionParts(sum)?.members.length, 2,
+    "open Source storage uses its retained physical projection rather than a fixed ordered CLR ABI");
   assert.equal(targetTypeRefEquals(csharpRuntimeUnionTargetType([text, parameter]),
     csharpRuntimeUnionTargetType([parameter, text])), false, "native generic parameters remain positional");
 });
 
 test("snapshots preserve the required fact and every ordered native duplicate payload", () => {
   const native = csharpRuntimeUnionTargetType([parameter, parameter]);
-  const sum = combineCsharpTargetUnionMembers([native, text]);
+  const sum = fixture.carrier("generic", 2);
   const [snapshot] = snapshotCsharpTargetTypes([sum]);
-  assert.equal(snapshot.csharpRuntimeUnionSemantics, "source-sum");
+  assert.equal(snapshot.csharpProjection.kind, "source-union");
   assert.equal(targetTypeRefEquals(snapshot, sum), true);
   const nested = getCsharpRuntimeUnionArms(snapshot).find(arm => isCsharpRuntimeUnionTargetType(arm));
   assert.equal(nested.csharpRuntimeUnionSemantics, "native-ordered");
@@ -75,11 +91,13 @@ test("a union snapshot rejects missing, invented or contradictory semantics inst
 });
 
 test("absence stays outside the canonical source sum without changing its native payload slots", () => {
-  const sum = combineCsharpTargetUnionMembers([integer, text]);
-  const optional = combineCsharpTargetUnionMembers([csharpNullableTargetType(integer), text]);
+  const sum = fixture.carrier("formations");
+  const optional = fixture.carrier("absent");
   const present = getCsharpNullableElementTargetType(optional);
   assert.equal(present.csharpRuntimeUnionSemantics, "source-sum");
   assert.equal(targetTypeRefEquals(present, sum), true);
   assert.equal(getCsharpRuntimeUnionArms(present).length, 2);
   assert.equal(isCsharpTargetTypeRef(optional), true);
+  assert.equal(combineCsharpTargetUnionMembers([integer, text]) === undefined, true,
+    "the retired Native-only Source union factory cannot choose an authored order");
 });

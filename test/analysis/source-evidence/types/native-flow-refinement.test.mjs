@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createCompilerSessionFromFiles } from "@tsonic/tsts";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
-import { selectCsharpNativeFlowMembers } from "../../../../dist/analysis/source-evidence/types/resolution/native-flow-refinement.js";
+import { selectCsharpNativeFlowCarrier, selectCsharpNativeFlowMembers } from "../../../../dist/analysis/source-evidence/types/resolution/native-flow-refinement.js";
 import { csharpJsArrayTargetType, csharpJsDateTargetType, csharpJsRegExpTargetType } from "../../../../dist/target-model/types/carriers/js.js";
 import { csharpStringTargetType, csharpObjectTargetType, csharpSourcePrimitiveTargetType } from "../../../../dist/target-model/types/carriers/scalar-types.js";
 import { csharpRuntimeUnionTargetType, getCsharpRuntimeUnionArms } from "../../../../dist/target-model/types/carriers/runtime-carriers.js";
@@ -12,8 +12,6 @@ import { resolveSelectedValueWithState, resolveSelectedValueResultWithState } fr
 import { csharpSourceValueResult } from "../../../../dist/analysis/source-evidence/types/resolution/call-results.js";
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../../dist/target-model/types/carriers/nullable.js";
 import { targetTypeRefEquals } from "../../../../dist/target-model/types/equality.js";
-import { combineCsharpTargetUnionMembers } from "../../../../dist/target-model/types/carriers/runtime-carriers.js";
-import { retainCsharpUnionObjectShapes } from "../../../../dist/analysis/source-evidence/types/resolution/source-union-refinement.js";
 
 test("native nominal guard selection completes partial typeof evidence through the exact constructor owner", () => {
   const checked = createCompilerSessionFromFiles({ currentDirectory: "/src", files: { "/src/index.ts": `
@@ -131,6 +129,7 @@ test("selected native values materialize all surviving exact union arms and reta
   const packet = csharpJsDateTargetType();
   const shape = { targetType: packet, members: [] };
   const storage = csharpNullableTargetType(csharpRuntimeUnionTargetType([string, integer, bytes, packet]));
+  const closed = csharpRuntimeUnionTargetType([string, integer, packet], [undefined, undefined, shape]);
   const declaration = source.navigation.referenceFor(reads[0]).declaration;
   const nativeCarriers = new Map([[nominalDeclarations.get("Bytes"), bytes], [nominalDeclarations.get("Packet"), packet]]);
   assert.equal([...nativeCarriers.keys()].every(declaration => declaration !== undefined), true,
@@ -153,8 +152,7 @@ test("selected native values materialize all surviving exact union arms and reta
           "the Native nominal guard retains its actual selected constructor declaration");
         return nativeCarriers.get(guard.declaration);
       });
-      const carrier = members === undefined ? storage : combineCsharpTargetUnionMembers(members);
-      return retainCsharpUnionObjectShapes(carrier, selected => targetTypeRefEquals(selected, packet) ? shape : undefined);
+      return members === undefined ? storage : selectCsharpNativeFlowCarrier(storage, closed, members, undefined);
   });
   const arms = getCsharpRuntimeUnionArms(selected[0]);
   assert.equal(arms?.length, 3);
@@ -214,7 +212,7 @@ function guardedArraySelection(body) {
         "a Native guard unit boundary uses the real occurrence publication without relabelling its primitive type");
       const members = selectCsharpNativeFlowMembers(host, node, storage,
         () => assert.fail("these exact array/typeof guards have no nominal constructor query"));
-      return members === undefined ? storage : combineCsharpTargetUnionMembers(members);
+      return members === undefined ? storage : selectCsharpNativeFlowCarrier(storage, undefined, members, undefined);
   });
   return { selected, string, integer, array, storage };
 }

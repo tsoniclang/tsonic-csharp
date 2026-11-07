@@ -149,13 +149,15 @@ function unionFixture() {
     return actual === firstType ? input.correspondence : secondCorrespondence;
   };
   input.policy.semanticsFor = () => ({ types, sourceFile });
-  input.policy.types = { selectSourceUnionMember(source, selected, file) {
-    assert.equal(source === carrier && file === sourceFile, true, "existing retained source-union index");
-    return { kind: "resolved", carrier: selected === firstType ? firstCarrier : secondCarrier };
+  const members = [{ descriptor: { kind: "shape" }, carrier: firstCarrier, role: 0, arm: 0 },
+    { descriptor: { kind: "shape" }, carrier: secondCarrier, role: 1, arm: 1 }];
+  input.policy.types = { sourceUnionMembers(_occurrence, source) {
+    assert.equal(source === carrier, true, "the same occurrence retains its authenticated E3 physical vector");
+    return members;
   } };
   input.shapes = { resolveTarget: selected => selected === firstCarrier ? input.shape
     : selected === secondCarrier ? { ...input.shape, targetType: secondCarrier, sourceType: secondType, members: [secondMember] } : undefined };
-  return { ...input, source: carrier, firstCarrier, secondCarrier, firstType, secondType, secondMember, types };
+  return { ...input, source: carrier, firstCarrier, secondCarrier, firstType, secondType, secondMember, types, members };
 }
 
 test("optional property projection uses the existing non-nullable checked source", () => {
@@ -183,10 +185,9 @@ test("union property projection refuses missing conflicting or multiply-mapped c
     if (kind === "multiple") {
       const alias = {};
       input.types.unionOrIntersectionTypes = () => [input.firstType, input.secondType, alias];
-      const select = input.policy.types.selectSourceUnionMember;
-      input.policy.types.selectSourceUnionMember = (source, selected, file) => select(source, selected === alias ? input.firstType : selected, file);
+      input.policy.types.sourceUnionMembers = () => [...input.members, { ...input.members[0], descriptor: alias }];
     } else {
-      input.policy.types.selectSourceUnionMember = () => ({ kind });
+      input.policy.types.sourceUnionMembers = () => undefined;
     }
     assert.equal(selectCsharpPropertyProjections({}, input.source, input.destination, input.policy, input.shapes) === undefined,
       true, kind);
