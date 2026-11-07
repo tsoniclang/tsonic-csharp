@@ -8,7 +8,6 @@ import { isCsharpStringTargetType, isCsharpJsStringTargetType } from "../../../d
 import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 import { checkCsharpSource } from "../../helpers/direct-csharp-session.mjs";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { analyzeCsharpDeclarations } from "../../../dist/analysis/declarations/analyze.js";
 import { csharpRuntimeUnionTargetType, csharpTargetNamedType, csharpStringTargetType } from "../../../dist/target-model/types/index.js";
 import { csharpJsArrayTargetType } from "../../../dist/target-model/types/carriers/js.js";
@@ -28,7 +27,7 @@ function assertIntegerDefaultConstruction(compiled, label, otherKinds = ["string
     ? "string" : arm.kind === "source-primitive" ? arm.name : arm.kind);
   if (present !== undefined) kinds.push("absence");
   assert.deepEqual(kinds.sort(), ["int64", ...otherKinds].sort(), label + ": exact native arms, never a floating integer carrier");
-  const ast = program.source.ast;
+  const ast = program.source.syntax;
   const pending = [...csharpProgramSourceFiles(program)];
   let integers = 0;
   while (pending.length > 0) {
@@ -36,7 +35,7 @@ function assertIntegerDefaultConstruction(compiled, label, otherKinds = ["string
     const range = ast.is.IsNumericLiteral(node) ? ast.authoredRange(node) : undefined;
     const file = range?.kind === "authored" ? ast.getSourceFile(node) : undefined;
     if (range?.kind === "authored" && file !== undefined && ast.getSourceText(file).slice(range.start, range.end) === "9007199254740993") {
-      const outcome = program.source.effectiveTypes.get(node);
+      const outcome = program.source.facts.values.type(node);
       const physical = outcome === undefined || outcome.kind === "refused" ? undefined : outcome.construction ?? outcome.type;
       assert.equal(physical?.kind === "primitive" && physical.primitive === "int64", true,
         label + ": the same authored integer has its exact Source construction");
@@ -53,7 +52,7 @@ test(`${surface} an actual generic union argument selects the literal's physical
       export function run(): number {
         const values = ["text", 9007199254740993, -9007199254740993, 1e100]; consume<number>(values); return 7;
       }`));
-    const ast = program.source.ast;
+    const ast = program.source.syntax;
     let call;
     let array;
     const visit = node => {
@@ -121,7 +120,7 @@ test(`${surface} inferred heterogeneous counter-controls preserve exact integers
     const refused = compile(surface, original);
     assertPublishedRefusal({ ...refused, targetSource: refused.nativeStage.source },
       "TSONIC_LOCAL_TYPE_UNSUPPORTED", "1606938044258990275541962092341162602522202993782792835301376");
-    assert.equal(refused.nativeStage.source.effectiveTypes.refusals()[0].reason,
+    assert.equal(refused.nativeStage.source.facts.refusals()[0].message,
       "An unbound integer literal is outside the exact 'int64' range. Annotate it with an exact native type or use bigint.",
       "C2360 Q1 refuses the original unannotated integer beyond int64 rather than inventing a floating default");
     const companion = original
@@ -149,7 +148,7 @@ test(`${surface} a self-inferred ${name} is not an authored rounding destination
     const compiled = compile(surface, body);
     assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
     const issue = compiled.nativeStage.diagnostics[0];
-    const ast = compiled.nativeStage.source.ast;
+    const ast = compiled.nativeStage.source.syntax;
     const range = issue?.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
     const text = range?.kind !== "authored" ? undefined : ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end);
     assert.equal(compiled.targetDiagnostics.length === 1 && issue.code === "TSONIC_LOCAL_TYPE_MIXED_ELEMENTS" &&
@@ -222,7 +221,7 @@ test(`${surface} an annotated physical array preserves the original later incomp
         const values: float32[] = [narrow, signed]; single(values); double(values); }`);
     assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
     const issue = compiled.nativeStage.diagnostics[0];
-    const ast = compiled.nativeStage.source.ast;
+    const ast = compiled.nativeStage.source.syntax;
     const range = issue?.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
     const text = range?.kind !== "authored" ? undefined : ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end);
     const owner = issue?.sourceNode === undefined ? undefined : ast.parent(issue.sourceNode);
@@ -232,7 +231,7 @@ test(`${surface} an annotated physical array preserves the original later incomp
     const expected = surface === "native"
       ? "No exact C# implicit conversion relates 'array:1:source:float32' to 'array:1:source:float64'."
       : "No exact C# implicit conversion relates 'target:Tsonic.CSharp.Js.JSArray`1<source:float32>' to 'target:Tsonic.CSharp.Js.JSArray`1<source:float64>'.";
-    assert.equal(compiled.targetDiagnostics.length === 1 && issue.code === "CSHARP_UNSUPPORTED_AST" &&
+    assert.equal(compiled.targetDiagnostics.length === 1 && issue.code === "CSHARP_VALUE_USE_NOT_ADMITTED" &&
       issue.message === expected && text === "values" && ownerText === "double(values)", true,
       `the incompatible native use is refused without retyping the earlier literal, copying its array or repairing storage; ${diagnosticLabel(compiled)}`);
     assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
@@ -253,7 +252,7 @@ test(`${surface} a stored callable retains numeric body admission after a discar
       const unused = () => { const values = [narrow, signed]; return values[0]; }; void unused; return 7; }`);
     assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
     const issue = compiled.nativeStage.diagnostics[0];
-    const ast = compiled.nativeStage.source.ast;
+    const ast = compiled.nativeStage.source.syntax;
     const range = issue?.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
     const text = range?.kind !== "authored" ? undefined : ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end);
     assert.equal(compiled.targetDiagnostics.length === 1 && issue.code === "TSONIC_LOCAL_TYPE_MIXED_ELEMENTS" &&
@@ -323,13 +322,15 @@ test(`${surface} every inferred union fallback proves exact canonical integers (
     if (["single fixed peer", "single fixed peer reversed", "negative token", "unmaterialized integral token"].includes(name)) {
       const issues = compiled.nativeStage.diagnostics;
       const issue = issues[0];
-      const ast = compiled.nativeStage.source.ast;
+      const ast = compiled.nativeStage.source.syntax;
       const range = issue?.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
       const text = range?.kind !== "authored" ? undefined : ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end);
       const expected = name === "unmaterialized integral token"
         ? "The retained source literal is not representable as 'source:int32'."
         : "Source bigint literal is outside the exact 'int32' range.";
-      assert.equal(issues.length === 1 && issue.code === "CSHARP_UNSUPPORTED_AST" && issue.message === expected &&
+      // nextgen C-2542: was CSHARP_UNSUPPORTED_AST; both messages come from the literal-admission obligation check
+      // (policy/types/source-type-flow/obligations.ts fail()), whose split code is CSHARP_TYPE_FLOW_UNREPRESENTABLE.
+      assert.equal(issues.length === 1 && issue.code === "CSHARP_TYPE_FLOW_UNREPRESENTABLE" && issue.message === expected &&
         text === elements.split(", ").find(element => element !== "signed"), true,
         "C19 chooses the one fixed int32 peer and D2 refuses the actual non-fitting literal without reclassifying it as MIXED");
       assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
@@ -338,7 +339,7 @@ test(`${surface} every inferred union fallback proves exact canonical integers (
     }
     const issues = compiled.nativeStage.diagnostics;
     const issue = issues[0];
-    const ast = compiled.nativeStage.source.ast;
+    const ast = compiled.nativeStage.source.syntax;
     const range = issue?.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
     const text = range?.kind !== "authored" ? undefined : ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end);
     assert.equal(issues.length === 1 && issue.code === "CSHARP_ARRAY_ELEMENT_CARRIER_MISMATCH" &&

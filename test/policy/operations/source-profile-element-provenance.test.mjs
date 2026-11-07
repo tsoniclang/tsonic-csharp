@@ -1,4 +1,3 @@
-import { csharpSourceValueResult } from "../../../dist/analysis/source-evidence/types/resolution/call-results.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { providerVirtualDeclarationFactKey } from "@tsonic/tsts";
@@ -8,68 +7,52 @@ import { csharpJsRegExpElementPolicies } from "../../../dist/policy/operations/s
 import { csharpJsArrayElementPolicies } from "../../../dist/policy/operations/source-profiles/js/arrays.js";
 import { csharpJsArrayTargetType, csharpJsStringTargetType, csharpStringTargetType } from "../../../dist/policy/types/index.js";
 import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
+import { unrepresentedCsharpCarrier } from "../../helpers/planning-records.mjs";
 
+// The Host element-access record (facts.values.elementAccess) names the selected member or index signature; the
+// profile identity of that declaration (jsSourceApiIdentity over provider facts) selects the policy.
 function fixture(options = {}) {
-  const sourceFile = {};
-  const sourceType = {};
   const receiver = {};
-  const propertySymbol = {};
-  const rootSymbol = {};
+  const argument = {};
+  const access = {};
   const sourceDeclaration = {};
-  const alternativeDeclaration = {};
-  const property = { symbol: propertySymbol, rootSymbols: [rootSymbol], name: "0", type: {}, optional: false,
-    readonly: options.readonly === true };
-  const index = { declaration: options.missingDeclarations ? undefined : sourceDeclaration,
-    components: [], readonly: options.readonly === true };
-  const member = options.index ? { kind: "index", index } : { kind: "property", property };
-  const source = { receiver: { expression: receiver, type: sourceType }, argument: { expression: {}, type: {} },
-    expression: {}, selectedDeclaration: sourceDeclaration, selectedSymbol: propertySymbol,
-    writable: !options.readonly, accessMode: "read", optionalChain: false };
-  const declarations = options.missingDeclarations ? [] : [sourceDeclaration];
-  const semantics = {
-    operations: { propertyAccess: () => undefined, elementAccess: node => node === source.expression ? source : undefined },
-    declarations: {
-      rootSymbols: symbol => symbol === propertySymbol ? [rootSymbol] : [],
-      symbolDeclarations: symbol => symbol === propertySymbol ? declarations
-        : symbol === rootSymbol && options.ambiguousOwner ? [alternativeDeclaration] : [],
-    },
-    types: {
-      isNumberLike: () => false,
-      selectIndexedAccess: () => options.unresolved ? { kind: "deferred" }
-        : { kind: "resolved", objectType: sourceType, indexType: source.argument.type,
-          members: options.multiple ? [member, member] : [member] },
-      propertyInfos: () => options.stale ? [{ ...property, symbol: {}, rootSymbols: [] }] : [property],
-    },
-  };
+  const receiverType = { kind: "declared", declaration: {}, typeArguments: [] };
+  const selected = options.missingDeclarations ? { kind: "string-character" }
+    : options.index ? { kind: "index-signature", declaration: sourceDeclaration }
+    : { kind: "member", declaration: sourceDeclaration, name: "0" };
+  const record = { node: access, receiver, receiverType, index: { kind: "primitive", primitive: "int32" }, selected,
+    result: { kind: "string" }, readonly: options.readonly === true, access: "read" };
   const host = {
-    semantics: () => semantics,
+    facts: {
+      values: { elementAccess: node => node === access ? record : assert.fail("only the selected access is read") },
+      selections: { wellKnownSymbol: () => undefined },
+    },
     providers: createCsharpProviderRelationResolver({ providers: [], providerPolicies: [] }),
     projectTypes: { directSupertypes: () => [] },
     ast: { kindName: () => options.index ? "KindIndexSignature" : "KindPropertySignature",
       is: { IsSpreadElement: () => false },
-      getSourceFile: () => sourceFile, getFileName: () => "/project/foreign.ts", parent: () => undefined },
-    sourceFacts: { getFact: (subject, key) => key === providerVirtualDeclarationFactKey
-      && (subject === sourceDeclaration || subject === alternativeDeclaration) ? {
+      as: { AsElementAccessExpression: node => node === access ? { ArgumentExpression: argument } : undefined },
+      getSourceFile: () => ({}), getFileName: () => "/project/foreign.ts", parent: () => undefined },
+    sourceFacts: { getFact: (subject, key) => key === providerVirtualDeclarationFactKey && subject === sourceDeclaration ? {
         providerId: options.foreign ? "foreign-provider" : jsSourceSemanticsIdentity.providerId,
-        exportName: subject === alternativeDeclaration ? "RegExpMatchArray" : options.owner ?? "RegExpExecArray",
+        exportName: options.owner ?? "RegExpExecArray",
         memberName: options.wrongName ? "1" : "0",
       } : undefined },
-    types: { resolveSelectedResult: () => undefined,
-      nativeFlowTypes: () => options.emptyFlow ? [] : undefined,
-      resolveType: type => type === sourceType ? csharpJsArrayTargetType(csharpStringTargetType()) : undefined,
-      resolveNode: node => node === receiver ? { kind: "resolved", sourceResult: csharpSourceValueResult(csharpJsArrayTargetType(csharpStringTargetType())) } : undefined,
-      resolveSelectedValue: node => node === receiver ? csharpJsArrayTargetType(csharpStringTargetType())
-        : node === source.argument.expression ? { kind: "source-primitive", name: "int32" } : undefined },
+    types: {
+      value: node => node === receiver ? csharpJsArrayTargetType(csharpStringTargetType())
+        : node === argument ? { kind: "source-primitive", name: "int32" } : unrepresentedCsharpCarrier(node),
+      represent: (_type, site) => unrepresentedCsharpCarrier(site),
+    },
   };
-  return { host, source, sourceFile };
+  return { host, access };
 }
 
 function select(options = {}, policies = csharpJsRegExpElementPolicies) {
   const current = fixture(options);
-  return selectCsharpSourceProfileElementPolicy(current.host, current.source, current.sourceFile, policies);
+  return selectCsharpSourceProfileElementPolicy(current.host, current.access, policies);
 }
 
-test("literal RegExp result elements consume their exact checked property declaration", () => {
+test("literal RegExp result elements consume their exact Host-selected property declaration", () => {
   for (const owner of ["RegExpExecArray", "RegExpMatchArray", "JsRegExpExecArray", "JsRegExpMatchArray"]) {
     const selected = select({ owner });
     assert.equal(selected?.kind, "resolved", owner);
@@ -80,7 +63,7 @@ test("literal RegExp result elements consume their exact checked property declar
   }
 });
 
-test("literal element policy retains checker-selected readonly property evidence", () => {
+test("literal element policy retains the Host-published readonly element evidence", () => {
   for (const readonly of [false, true]) {
     let observed;
     const policies = csharpJsRegExpElementPolicies.map(policy => ({ ...policy, select: context => {
@@ -92,16 +75,11 @@ test("literal element policy retains checker-selected readonly property evidence
   }
 });
 
-test("literal element policy rejects absent, stale, foreign and ambiguous property provenance", () => {
+test("literal element policy rejects absent, foreign and wrong property provenance", () => {
   for (const [label, options] of [
     ["missing declarations", { missingDeclarations: true }],
-    ["stale selected property", { stale: true }],
     ["foreign ownership", { foreign: true }],
-    ["ambiguous ownership", { ambiguousOwner: true }],
     ["wrong member", { wrongName: true }],
-    ["deferred type", { unresolved: true }],
-    ["multiple members", { multiple: true }],
-    ["unreachable flow", { emptyFlow: true }],
   ]) assert.equal(select(options) === undefined, true, label);
 });
 

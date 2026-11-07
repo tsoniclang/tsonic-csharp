@@ -2,30 +2,32 @@ import type { Node } from "@tsonic/tsts";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpNativeSourceCarrierSelection } from "../../../target-model/records/objects/object-shapes.js";
 import type { CsharpObjectShapePolicyHost } from "./model.js";
-import type { CsharpTypeResolutionState } from "../../source-evidence/types/resolution/model.js";
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../target-model/types/equality.js";
 import { csharpObjectShapeMemberContractKey } from "../../../target-model/types/object-shape-identity.js";
 import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../../target-model/types/object-shape-members.js";
+import { csharpSourceMemberKeysEqual } from "../../../target-model/types/source-member-keys.js";
 import { csharpObjectShapeMethodDeclaration, csharpPresentObjectShapeMethod } from "../../../target-model/types/method-values.js";
 import { csharpObjectMethodHasFixedNativeExposure } from "../../../policy/types/objects/object-members.js";
 import { createStructuralObjectShapeTarget, mergeCsharpObjectShapeSubjects } from "./construction.js";
-import { csharpObjectMethodValueIsExtracted, resolveCsharpWritableMethodContract } from "./method-values.js";
+import { csharpObjectMethodValueIsExtracted, resolveCsharpWritableMethodContract, type CsharpMethodValueUseInputs } from "./method-values.js";
 import { projectCsharpNativeSourceStorageCarrier } from "../value-domain-carriers.js";
 import { createCsharpMetadataBudget } from "../../../target-model/metadata/immutable.js";
 
 interface CsharpNativeShapeProjectionOwner {
   resolveTarget(type: TargetTypeRef | undefined): CsharpObjectShapeFact | undefined;
-  resolveProjectInterfaceShape(type: CsharpTargetNamedTypeRef, state: CsharpTypeResolutionState): CsharpObjectShapeFact | undefined;
   rememberTargetShape(shape: CsharpObjectShapeFact): CsharpObjectShapeFact;
+  /** The represented carrier of a value node (facts.values.type + representation). */
+  representNode(node: Node): TargetTypeRef | undefined;
 }
 
 export function createCsharpNativeShapeProjections(
-  host: Pick<CsharpObjectShapePolicyHost, "ast" | "sourceStorage" | "semantics" | "typeResolver" | "typeParameterConstraints">,
+  host: Pick<CsharpObjectShapePolicyHost, "ast" | "sourceStorage" | "typeParameterConstraints">,
+  methodValues: () => CsharpMethodValueUseInputs,
   owner: CsharpNativeShapeProjectionOwner,
 ) {
   const environment = host.typeParameterConstraints;
-  const { resolveTarget, resolveProjectInterfaceShape, rememberTargetShape } = owner;
+  const { resolveTarget, rememberTargetShape, representNode } = owner;
 
   function resolveNativeParameter(
     declaration: Node,
@@ -39,8 +41,7 @@ export function createCsharpNativeShapeProjections(
     const target = present.kind === "target-named" ? present as CsharpTargetNamedTypeRef : undefined;
     if (target === undefined || target.csharpStructuralContract !== true && target.csharpSourceDeclarationKind !== "interface")
       return Object.freeze({ kind: "resolved", type });
-    const shape = resolveTarget(present) ?? (target?.csharpSourceDeclarationKind === "interface"
-      ? resolveProjectInterfaceShape(target, { depth: 0 }) : undefined);
+    const shape = resolveTarget(present);
     if (shape === undefined || !shape.members.some(member => member.memberKind === "method") ||
       host.ast.body(declaration) === undefined) return Object.freeze({ kind: "resolved", type });
     const demand = host.sourceStorage.formalMemberWriteDemand(declaration, parameter);
@@ -64,7 +65,7 @@ export function createCsharpNativeShapeProjections(
     parameter: Node,
     written: readonly CsharpObjectShapeMemberFact[],
   ): CsharpObjectShapeFact {
-    if (shape.sourceType === undefined || shape.methodImplementation !== undefined || shape.targetType.kind !== "target-named" ||
+    if (shape.methodImplementation !== undefined || shape.targetType.kind !== "target-named" ||
       (shape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract !== true) return shape;
     const candidates = new Set(shape.members.filter(member => member.memberKind === "method" &&
       member.methodValueStorage?.kind === "delegate" && member.optional !== true &&
@@ -78,26 +79,22 @@ export function createCsharpNativeShapeProjections(
     for (const origin of origins.origins) {
       budget.reserve(1);
       const carrier = projectCsharpNativeSourceStorageCarrier(
-        host.typeResolver.resolveNode(origin.subject.node, origin.sourceFile, { depth: 0 }),
+        representNode(origin.subject.node),
         origin.subject, { resolveTarget }, budget.reserve,
       );
       const source = resolveTarget(carrier);
       if (source === undefined) return shape;
-      const pairs = host.semantics(origin.sourceFile).types.structuralMembers(origin.type, shape.sourceType, "read");
-      if (pairs.kind !== "available") return shape;
+      // Destination and source members correspond by their Host member key (structural member identity).
       const selected = new Map<CsharpObjectShapeMemberFact, TargetTypeRef>();
-      for (const pair of pairs.members) {
-        if (pair.kind !== "present") continue;
-        const destination = resolveCsharpObjectShapeMemberBySelectedSubject(shape,
-          [pair.destination.property.symbol, ...pair.destination.property.rootSymbols, ...pair.destination.declarations]);
-        if (destination.kind !== "resolved" || !candidates.has(destination.member)) continue;
-        const member = resolveCsharpObjectShapeMemberBySelectedSubject(source,
-          [pair.source.property.symbol, ...pair.source.property.rootSymbols, ...pair.source.declarations]);
+      for (const destinationMember of candidates) {
+        const destination = { kind: "resolved" as const, member: destinationMember };
+        const matches = source.members.filter(candidate => csharpSourceMemberKeysEqual(candidate.sourceKey, destinationMember.sourceKey));
+        const member = matches.length === 1 ? { kind: "resolved" as const, member: matches[0]! } : { kind: "unresolved" as const };
         if (member.kind !== "resolved" || member.member.methodValueStorage !== undefined ||
           member.member.methodValueContract === undefined || !targetTypeRefEquals(member.member.type, destination.member.type)) continue;
         const declaration = csharpObjectShapeMethodDeclaration(source, member.member);
         const physical = declaration === undefined ? undefined : host.sourceStorage.memberSubjectFor(declaration);
-        if (declaration === undefined || csharpObjectMethodValueIsExtracted(host.sourceStorage, declaration) || physical?.kind !== "resolved" ||
+        if (declaration === undefined || csharpObjectMethodValueIsExtracted(methodValues(), declaration) || physical?.kind !== "resolved" ||
           !csharpObjectMethodHasFixedNativeExposure(host.sourceStorage.memberWritesFor(physical.subject))) continue;
         selected.set(destination.member, member.member.methodValueContract);
       }
@@ -124,7 +121,6 @@ export function createCsharpNativeShapeProjections(
         ...candidate,
         ...(signature.sourceSubjects === undefined ? {} : { sourceSubjects: signature.sourceSubjects }),
         ...(signature.sourceDeclarations === undefined ? {} : { sourceDeclarations: signature.sourceDeclarations }),
-        ...(signature.sourceTypes === undefined ? {} : { sourceTypes: signature.sourceTypes }),
       }) };
       protocols.set(key, mergeCsharpObjectShapeSubjects(protocol, correspondence));
     }

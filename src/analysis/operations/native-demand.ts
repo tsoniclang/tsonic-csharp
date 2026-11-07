@@ -3,7 +3,6 @@ import type { Node } from "@tsonic/tsts";
 import type { CsharpTargetNamedTypeRef } from "../../target-model/types/model.js";
 import { targetUseSiteIdentity, type SourceStorageSubject, type TargetUseSiteRef } from "@tsonic/target-api/analysis";
 import { failTargetAnalysisInvariant, targetDiagnosticFromExtension } from "@tsonic/target-api/artifacts";
-import { sourceExpressionValueInputs, sourceTransparentExpressionOperand } from "@tsonic/target-api/source";
 import { csharpNativeConstructIsErased, selectCsharpNativeConstructSteps } from "./control-flow/native-constructs.js";
 import { selectCsharpNativeOperandUses, selectCsharpNativeSourceRefusal, type CsharpNativeOperandSelection, type CsharpNativeOperandStep } from "./control-flow/native-operands.js";
 import { selectCsharpNativeCompletion, type CsharpNativeCompletionFlow } from "../../policy/operations/control-flow/native-completion.js";
@@ -46,6 +45,12 @@ export function analyzeCsharpNativeDemand(
   requiredRecords: CsharpRequiredRecord[],
 ): CsharpNativeDemandAnalysis {
   const { ast } = input;
+  const { navigation } = input.facts;
+  // One step through a value-transparent wrapper (parentheses, non-null, satisfies, type assertion), or undefined.
+  const transparentOperand = (expression: Node): Node | undefined => {
+    const operand = navigation.expressions.transparentOperand(expression);
+    return operand === expression ? undefined : operand;
+  };
   const baseCalls = new WeakMap<Node, Node>();
   const unusedDefaults = new WeakSet<Node>();
   const requiredCatchBindings = new WeakSet<Node>();
@@ -60,7 +65,7 @@ export function analyzeCsharpNativeDemand(
     }
     if (isCsharpUnusedTupleDefault(ast, input.bindingPatterns.bindingPatternProjection, node)) unusedDefaults.add(node);
     if (ast.is.IsIdentifier(node)) {
-      const declaration = input.navigation.sourceReferenceFor(node)?.declaration;
+      const declaration = navigation.identity.target(node)?.declaration;
       const clause = declaration === undefined ? undefined : ast.parent(declaration);
       if (declaration !== undefined && ast.is.IsVariableDeclaration(declaration) && clause !== undefined &&
         ast.is.IsCatchClause(clause) && ast.name(declaration) !== node) {
@@ -146,11 +151,13 @@ export function analyzeCsharpNativeDemand(
   }
 
   function pending(site: TargetUseSiteRef, expression: Node, reason: CsharpNativeUnadmittedReason, message?: string, code?: string): VisitedUse {
+    if (message !== undefined && code === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+      "A native refusal message requires its exact CSHARP_ code.", expression);
     if (reason === "expression-form-unresolved" && message !== undefined) {
       if (!refusedSourceExpressions.has(expression)) {
         refusedSourceExpressions.add(expression);
         unadmitted.push(Object.freeze({ kind: "source-refusal", requiredBy: expression, diagnostic: Object.freeze({
-          sourceNode: expression, source: "tsonic-csharp", category: "error", code: code ?? "CSHARP_UNSUPPORTED_AST", message,
+          sourceNode: expression, source: "tsonic-csharp", category: "error", code: code!, message,
         }) }));
       }
     } else unadmitted.push(Object.freeze({ kind: "pending-use", site, expression, reason,
@@ -203,7 +210,7 @@ export function analyzeCsharpNativeDemand(
     }
     const diagnostic = selectCsharpNativeSourceRefusal(input, requiredBy);
     if (diagnostic === undefined) return issues !== undefined;
-    const dependencies = sourceExpressionValueInputs(ast, requiredBy);
+    const dependencies = navigation.expressions.valueInputs(requiredBy);
     if (dependencies?.some(input => refuseSourceExpression(input.expression))) return true;
     if (!refusedSourceExpressions.has(requiredBy)) {
       refusedSourceExpressions.add(requiredBy);
@@ -214,9 +221,9 @@ export function analyzeCsharpNativeDemand(
   }
 
   function refuseAmbientValueUse(expression: Node): boolean {
-    const declaration = input.navigation.sourceReferenceFor(expression)?.declaration;
+    const declaration = navigation.identity.target(expression)?.declaration;
     if (declaration === undefined || !ast.is.IsVariableDeclaration(declaration) ||
-      !input.navigation.isProjectDeclaration(declaration) || !input.evidence.compileTimeMetadata.get(declaration)) return false;
+      !navigation.identity.isProjectDeclaration(declaration) || !input.evidence.compileTimeMetadata.get(declaration)) return false;
     const list = ast.parent(declaration);
     const statement = list === undefined ? undefined : ast.parent(list);
     if (statement === undefined || !ast.is.IsVariableStatement(statement) ||
@@ -232,13 +239,13 @@ export function analyzeCsharpNativeDemand(
   }
 
   function refuseSourceWrite(child: CsharpNativeChildUse): boolean {
-    const inputs = sourceExpressionValueInputs(ast, child.expression)?.map(entry => entry.expression) ?? [];
+    const inputs = navigation.expressions.valueInputs(child.expression)?.map(entry => entry.expression) ?? [];
     if (child.access === "location") inputs.push(child.expression);
     let refused = false;
     for (const candidate of inputs) {
       let reference = candidate;
       for (;;) {
-        const inner = sourceTransparentExpressionOperand(ast, reference);
+        const inner = transparentOperand(reference);
         if (inner === undefined) break;
         reference = inner;
       }
@@ -256,7 +263,7 @@ export function analyzeCsharpNativeDemand(
       if (selected.write.receiver !== undefined) {
         const subject = selected.write.receiver;
         const declaration = subject.projection.length === 0 && ast.is.IsIdentifier(subject.node)
-          ? input.navigation.sourceReferenceFor(subject.node)?.declaration : undefined;
+          ? navigation.identity.target(subject.node)?.declaration : undefined;
         const receiver = declaration ?? subject;
         const reasons = refusedSourceWriteReasons.get(receiver) ?? new Set<string>();
         if (reasons.has(selected.write.reason)) continue;
@@ -349,7 +356,7 @@ export function analyzeCsharpNativeDemand(
     const selected: CsharpNativeOperandSelection = expected?.literal === undefined
       ? selectCsharpNativeOperandUses(policyInput, expression, child.access)
       : Object.freeze({ runtime: Object.freeze([]), planning: Object.freeze([]), flow: "sequence", carrier: expected.carrier,
-        resultUse: input.navigation.expressionResultUse(expression) });
+        resultUse: navigation.expressions.resultUse(expression) });
     const expectedChildren = new Map<string, TargetUseSiteRef[]>();
     for (const reference of expected?.construction?.children ?? expected?.children ?? []) {
       const matching = expectedChildren.get(reference.role) ?? [];
@@ -378,7 +385,7 @@ export function analyzeCsharpNativeDemand(
     if (expected === undefined && child.context?.target !== undefined &&
       (selected.carrier === undefined || !targetTypeRefEquals(child.context.target, selected.carrier))) return pending(site, expression, "expected-use-pending");
     const forwardedDiscard = expected === undefined && selected.carrier === undefined && selected.resultUse === "discarded" &&
-      sourceTransparentExpressionOperand(ast, expression) !== undefined && runtime.length === 1 &&
+      transparentOperand(expression) !== undefined && runtime.length === 1 &&
       runtime[0]!.visited.discardedPresence !== undefined;
     const discarded = (forwardedDiscard || runtime.some(entry => entry.visited.completion?.kind === "void") ||
       selected.discardedGuard !== undefined && isCsharpVoidTargetType(selected.carrier)) &&
@@ -390,7 +397,7 @@ export function analyzeCsharpNativeDemand(
     // A value whose checked source type resolved to no C# carrier (for example a structural view of foreign fields the
     // project does not own) is unsupported source, refused at its first native consumption.
     if (inputCompletion === undefined && selectedCarrier === undefined) return pending(site, expression, "completion-unresolved",
-      "The checked source value has no closed C# type representation.", "CSHARP_UNSUPPORTED_AST");
+      "The checked source value has no closed C# type representation.", "CSHARP_VALUE_NOT_REPRESENTABLE");
     if (inputCompletion === undefined) return pending(site, expression, "completion-unresolved");
     const physical = inputCompletion.kind === "void" && discarded ? csharpVoidTargetType() : selectedCarrier;
     if (physical === undefined) return pending(site, expression, "completion-unresolved");
@@ -473,7 +480,7 @@ export function analyzeCsharpNativeDemand(
   function erasedExpression(expression: Node): "discarded-callable" | "erased-statement" | false {
     const cached = erasedExpressions.get(expression);
     if (cached !== undefined) return cached;
-    const operand = sourceTransparentExpressionOperand(ast, expression);
+    const operand = transparentOperand(expression);
     erasedExpressions.set(expression, false);
     const erased = input.evidence.compileTimeMetadata.get(expression) ? "erased-statement" : input.participation.get(expression) === "erased" ||
       discardedCallableRead(expression) ? "discarded-callable" : operand === undefined ? false : erasedExpression(operand);
@@ -485,7 +492,7 @@ export function analyzeCsharpNativeDemand(
   // of that binding discarded, and the function value is never created, so the read is erased with it.
   function discardedCallableRead(expression: Node): boolean {
     if (!ast.is.IsIdentifier(expression)) return false;
-    const declaration = input.navigation.sourceReferenceFor(expression)?.declaration;
+    const declaration = navigation.identity.target(expression)?.declaration;
     if (declaration === undefined || !ast.is.IsVariableDeclaration(declaration) || ast.name(declaration) === expression) return false;
     const initializer = ast.as.AsVariableDeclaration(declaration)?.Initializer;
     return initializer !== undefined && erasedExpression(initializer) === "discarded-callable";
@@ -504,7 +511,7 @@ export function analyzeCsharpNativeDemand(
         : Object.freeze({ kind: "short-circuit", guard, left: runtime[0]!.visited.site, leftPresence: left, right });
     }
     const operation = input.operations.binaryOperation.get(expression)?.target;
-    if (sourceTransparentExpressionOperand(ast, expression) !== undefined || operation?.kind === "resolved" &&
+    if (transparentOperand(expression) !== undefined || operation?.kind === "resolved" &&
       (operation.targetOperation.kind === "sequence" || operation.targetOperation.kind === "conditional-value")) {
       const last = runtime[runtime.length - 1];
       if (last !== undefined) return Object.freeze({ kind: "sequence",

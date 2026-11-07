@@ -27,7 +27,7 @@ export function run(): boolean {
 }` });
     assertCsharpCompilationSucceeded(compiled);
     const program = compiled.result.program;
-    const ast = program.source.ast;
+    const ast = program.source.syntax;
     let owner;
     const visit = node => {
       if (ast.is.IsClassDeclaration(node) && ast.text(ast.name(node)) === "Box") owner = node;

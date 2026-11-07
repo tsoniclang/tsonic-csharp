@@ -11,6 +11,10 @@ import { csharpDelegateTargetType } from "../../../../dist/target-model/types/ca
 import { completeCsharpDeclarationHeritage } from "../../../../dist/analysis/project-types/heritage.js";
 import { admitCsharpRawInterfaceDeclarations } from "../../../../dist/analysis/declarations/native-value-declarations.js";
 import { createCsharpPlanningContext } from "../../../../dist/backend/planner/context.js";
+import { sealCsharpAnalysisProgram } from "../../../../dist/analysis/program/index.js";
+
+// The planner reads the sealed program (records and syntax only), as in production (nextgen C-2542).
+const sealedProgram = program => program === undefined ? undefined : sealCsharpAnalysisProgram(program);
 import { planInterfaceDeclaration } from "../../../../dist/backend/planner/declarations/interfaces/planning.js";
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../../helpers/direct-csharp-session.mjs";
 
@@ -82,7 +86,7 @@ for (const preview of [false, true]) {
       ${preview ? "safety<Base>().method(value => value.invoke).requiresunsafe(); safety<Derived>().method(value => value.invoke).requiresunsafe();" : ""}
     `, ...(preview ? { targetOptions: { languageDialect: "csharp15-preview", memorySafetyRules: "preview" } } : {}) });
     assertCsharpCompilationSucceeded(compiled);
-    const program = compiled.result.program;
+    const program = sealedProgram(compiled.result.program);
     const ast = program.source.ast;
     const declarations = projectFiles(compiled).flatMap(file => ast.statements(file))
       .filter(node => node !== undefined && ast.is.IsInterfaceDeclaration(node));
@@ -196,7 +200,7 @@ test("completed raw-interface admission owns exact member rendering refusals", (
     export function use(value: View): number { return value.read(7); }
   ` });
   assertCsharpCompilationSucceeded(compiled);
-  const program = compiled.result.program;
+  const program = sealedProgram(compiled.result.program);
   const ast = program.source.ast;
   const declaration = projectFiles(compiled).flatMap(file => ast.statements(file))
     .find(node => node !== undefined && ast.is.IsInterfaceDeclaration(node));
@@ -212,9 +216,9 @@ test("completed raw-interface admission owns exact member rendering refusals", (
   assert.equal(original.length, 0, "a completed valid native shape is not rejected");
   for (const control of [
     { label: "method signature", shape: { ...shape, members: [{ ...shape.members[0], type: opaque }] },
-      inherited: false, message: "An interface method value requires its exact native callable storage contract." },
+      inherited: false, code: "CSHARP_INTERFACE_METHOD_VALUE", message: "An interface method value requires its exact native callable storage contract." },
     { label: "inherited signature", shape, inherited: true,
-      message: "An inherited interface requires exact native member signatures." },
+      code: "CSHARP_INHERITED_INTERFACE_SIGNATURE", message: "An inherited interface requires exact native member signatures." },
   ]) {
     const invalid = control.inherited ? { ...shape, implements: [opaque] } : control.shape;
     const views = { resolveNode: () => invalid, resolveTarget: type => type === opaque
@@ -223,7 +227,8 @@ test("completed raw-interface admission owns exact member rendering refusals", (
       program.records, program.records.compileTimeMetadata, program.records.nativeParticipation,
       program.records.nativeUnreachable);
     assert.equal(issues.length, 1, `${control.label}: exactly one admission refusal`);
-    assert.equal(issues[0].code, "CSHARP_UNSUPPORTED_AST", `${control.label}: unchanged diagnostic code`);
+    // nextgen C-2542: CSHARP_UNSUPPORTED_AST is split; each admission refusal names its .NET reason.
+    assert.equal(issues[0].code, control.code, `${control.label}: the split diagnostic code`);
     assert.equal(issues[0].message, control.message, `${control.label}: unchanged diagnostic reason`);
     assert.equal(issues[0].sourceNode === declaration, true, `${control.label}: unchanged exact declaration identity`);
   }

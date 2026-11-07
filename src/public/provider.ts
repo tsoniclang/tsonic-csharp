@@ -31,7 +31,7 @@ export { csharpJsDateTargetType } from "../target-model/types/carriers/js.js";
 export { csharpJsArrayTargetType } from "../target-model/types/carriers/js.js";
 export { csharpJsTypedArrayTargetType } from "../target-model/types/carriers/js.js";
 export { csharpTsValueTargetType } from "../target-model/types/carriers/runtime-carriers.js";
-export { csharpRuntimeUnionTargetType, csharpAbsenceTargetType, combineCsharpTargetUnionMembers } from "../target-model/types/carriers/runtime-carriers.js";
+export { csharpRuntimeUnionTargetType, csharpAbsenceTargetType, csharpSourceSumTargetType } from "../target-model/types/carriers/runtime-carriers.js";
 export {
   csharpProviderPolicyContribution,
 } from "../providers/model/provider-policy-contribution.js";

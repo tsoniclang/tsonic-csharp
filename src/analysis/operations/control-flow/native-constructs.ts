@@ -1,5 +1,5 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
-import { IsTypeSyntaxNode, sourceClassFieldIsTypeOnly, sourceConstructValueInputs, type SourceValueInput } from "@tsonic/target-api/source";
+import { IsTypeSyntaxNode, sourceClassFieldIsTypeOnly, type SourceValueInput } from "@tsonic/target-api/source";
 import type { CsharpAttributeApplicationIndex } from "../../../target-model/records/program/attributes.js";
 import type { CsharpClassInitializationIndex } from "../../../target-model/records/objects/class-initialization.js";
 import type { CsharpNativeParticipationInput } from "../../../target-model/records/native/native-demand.js";
@@ -71,7 +71,8 @@ export function selectCsharpNativeConstructSteps(input: CsharpNativeConstructInp
     return finish([...attributes, ...parameters(), ...(call === undefined ? [] : use(call, { kind: "effect" })),
       ...(body === undefined ? [] : [construct(body)])]);
   }
-  const sourceInputs = sourceConstructValueInputs(ast, node);
+  // The evaluation inputs of a statement or construct, in evaluation order, with their slots (Host role model, E1-1).
+  const sourceInputs = input.facts.navigation.expressions.constructInputs(node);
   const sourceUse = (entry: SourceValueInput): readonly CsharpNativeOperandStep[] => {
     if (entry.slot.kind === "thrown" && input.operations.exactCatchRethrow.get(node) ||
       entry.slot.kind === "initializer" && ast.is.IsVariableDeclaration(node) && input.evidence.sourceStruct.get(node) !== undefined) return [];

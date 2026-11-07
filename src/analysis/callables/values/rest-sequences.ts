@@ -23,13 +23,13 @@ export function analyzeCsharpRestSequences(nodes: readonly Node[], operations: C
       if (values.has(sequence)) continue;
       const actual = reads.valueRead.get(sequence.expression)?.value;
       if (actual === undefined || !targetTypeRefEquals(actual, sequence.sourceType) || sequence.elements.length !== (actual.kind === "tuple" ? actual.elements.length : 1)) {
-        issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: sequence.expression,
+        issues.push({ code: "CSHARP_REST_SEQUENCE_NOT_REPRESENTABLE", category: "error", source: "tsonic-csharp", sourceNode: sequence.expression,
           message: "A selected rest sequence requires its exact native source carrier and element conversions." });
         continue;
       }
       const selected = selectCsharpSequenceEmission(actual, sequence.targetElementType, sequence.elements.map(element => ({ carrier: element.type, conversion: element.conversion })));
       if (selected.kind === "rejected") {
-        issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: sequence.expression, message: selected.reason });
+        issues.push({ code: "CSHARP_REST_SEQUENCE_NOT_REPRESENTABLE", category: "error", source: "tsonic-csharp", sourceNode: sequence.expression, message: selected.reason });
         continue;
       }
       carriers.push(selected.value.carrier, selected.value.sequence.resultCarrier, sequence.targetElementType,

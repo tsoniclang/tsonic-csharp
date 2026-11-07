@@ -29,7 +29,7 @@ export function analyzeCsharpTargetOperations(
   const binaryExecutionDrivers: import("../../target-model/types/model.js").CsharpTargetBinaryExecutionDriver[] = [];
   const issues: CsharpOperationIssue[] = [];
   const erasure = createCsharpOperationErasure(policy.ast, erasureIndexes, issues);
-  for (const sourceFile of policy.sourceFiles) analyzeCsharpOperationConstruct(sourceFile, sourceFile,
+  for (const sourceFile of policy.sourceFiles) analyzeCsharpOperationConstruct(sourceFile,
     policy, evidence, erasure, producer, binaryExecutionDrivers, issues);
   const nativeHandler = analyzeCsharpNativeHandlers(nodes, {
     memoryBinding: producer.memoryBinding,

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createSourceStorageQuery, defaultSourceStorageLimits } from "@tsonic/target-api/analysis";
+import { defaultSourceStorageLimits } from "@tsonic/target-api/analysis";
 import { assertCsharpCheckingSucceeded, assertCsharpCompilationSucceeded, compileCsharpSource, compileCsharpAnalysisTarget } from "../../helpers/direct-csharp-session.mjs";
 import { compileCsharpNativeUseSource } from "../../helpers/expected-native-uses.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
@@ -15,13 +15,13 @@ test(
   const compiled = compileCsharpNativeUseSource({ sourceText: example.sourceText, surface });
   assertCsharpCheckingSucceeded(compiled);
   const source = compiled.nativeStage.source;
-  const ast = source.ast;
+  const ast = source.syntax;
   const nodes = [];
   const visit = node => {
     nodes.push(node);
     ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
-  for (const file of source.navigation.sourceFiles) visit(file);
+  for (const file of source.sourceFiles) visit(file);
   const ambient = nodes.find(node => {
     if (!ast.is.IsVariableDeclaration(node) || ast.text(ast.name(node)) !== "external") return false;
     const list = ast.parent(node);
@@ -29,7 +29,7 @@ test(
     return statement !== undefined && ast.is.IsVariableStatement(statement) && ast.hasModifierKind(statement, "ambient");
   });
   assert.equal(ambient !== undefined, true, `${example.name}: the original ambient source declaration is preserved`);
-  const references = source.navigation.declarationUses(ambient).filter(use => use.kind !== "type-only" && use.kind !== "source-linkage");
+  const references = source.facts.navigation.uses.uses(ambient).filter(use => use.kind !== "type-only" && use.kind !== "source-linkage");
   assert.equal(references.length, example.references, `${example.name}: checked source references are not filtered or rewritten`);
   if (example.errors !== 0) {
     const issues = compiled.nativeStage.diagnostics;
@@ -49,7 +49,7 @@ test(
   assert.equal(program.records.compileTimeMetadata.get(ambient), true,
     `${example.name}: source-only declaration metadata remains available without an invented native binding`);
   if (example.name === "original dormant") {
-    const declarations = analyzeCsharpTypeOnlyDeclarations(source, source.navigation.sourceFiles);
+    const declarations = analyzeCsharpTypeOnlyDeclarations(source, source.sourceFiles);
     assert.equal(declarations.has(ambient) && declarations.has(ast.parent(ast.parent(ambient))), true,
       "the one metadata producer preserves both original ambient declaration identities");
     assert.equal(Object.hasOwn(declarations, "issues") || Object.hasOwn(declarations, "declarations"), false,
@@ -138,7 +138,7 @@ test(`${surface} a top-level namespace is refused in analysis before any publica
     assertCsharpCheckingSucceeded(compiled);
     const issues = compiled.result.diagnostics.filter(issue => issue.category === "error");
     assert.deepEqual(issues.map(({ code, message }) => [code, message]),
-      [["CSHARP_UNSUPPORTED_AST", "Top-level statement is outside the current C# planning surface."]],
+      [["CSHARP_TOP_LEVEL_STATEMENT_NOT_PLANNED", "Top-level statement is outside the current C# planning surface."]] /* nextgen C-2542: CSHARP_UNSUPPORTED_AST split (source-modules/emission.ts) */,
       "the namespace keeps its one source refusal");
     assert.equal(compiled.source.ast.is.IsModuleDeclaration(issues[0].sourceNode), true, "the refusal is on the namespace");
     assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0, true,

@@ -101,9 +101,10 @@ function literalFixture(change = () => {}) {
   const state = { source, shape, initializers, literal, members, literalAvailable: true, keyAvailable: false,
     keyEffects: { invokes: false, mutates: false, suspends: false, mayThrow: false } };
   change(state);
-  const program = { ast: { name: () => state.keyAvailable ? key : undefined,
+  // The Source facts program (nextgen C-2542): `syntax` reads the key; key effects come from facts.navigation.expressions.
+  const program = { syntax: { name: () => state.keyAvailable ? key : undefined,
     is: { IsComputedPropertyName: node => node === key }, as: { AsComputedPropertyName: () => ({ Expression: key }) } },
-    navigation: { expressionEffects: () => state.keyEffects } };
+    facts: { navigation: { expressions: { effects: () => state.keyEffects } } } };
   const analysis = analyzeCsharpPropertyValueProjection({ propertyProjectionRoots: [{ node: current.node, carrier: source }],
     propertyProjection: { get: (subject, carrier) => subject === current.node && carrier === source ? members : undefined } },
   { resolveTarget: carrier => carrier === source ? shape : undefined }, undefined,

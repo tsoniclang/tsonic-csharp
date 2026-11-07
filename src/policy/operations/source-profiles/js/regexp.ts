@@ -336,7 +336,7 @@ function regexpConstructionMember(
   context: CsharpSourceProfileCallPolicyContext,
   form: "constructor" | "call",
 ): CsharpTargetMember | undefined {
-  const arguments_ = context.source.sourceArguments;
+  const arguments_ = context.source.arguments;
   if (arguments_.length > 2) {
     return undefined;
   }
@@ -407,7 +407,7 @@ function resolveArgumentType(
   context: CsharpSourceProfileCallPolicyContext,
   index: number,
 ): TargetTypeRef | undefined {
-  const argument = context.source.sourceArguments[index];
+  const argument = context.source.arguments[index];
   return argument === undefined
     ? undefined
     : context.inputs.values.get(argument.expression);
@@ -416,8 +416,8 @@ function resolveArgumentType(
 function regexpConstructionParameterMapping(
   context: CsharpSourceProfileCallPolicyContext,
 ): readonly (number | undefined)[] {
-  const argumentCount = context.source.sourceArguments.length;
-  return context.source.sourceSelectedSignatureParameters?.map(
+  const argumentCount = context.source.arguments.length;
+  return context.source.parameters?.map(
     (_parameter, sourceIndex) =>
       sourceIndex < argumentCount ? sourceIndex : undefined,
   ) ?? [];
@@ -461,7 +461,7 @@ function regexpInputMember(
   const sourceName = operation === "test" || operation === "exec"
     ? regexpMembers[operation]
     : wellKnown[operation === "matchAll" ? "matchAll" : operation];
-  const receiver = context.source.sourceReceiver?.expression;
+  const receiver = context.source.receiver?.expression;
   const nativeTest = operation === "test" && !exact && receiver !== undefined &&
     context.inputs.nativeRegExpReceivers.has(receiver);
   const targetName = nativeTest ? "testNative" : operation;

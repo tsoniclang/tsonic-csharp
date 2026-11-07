@@ -14,7 +14,7 @@ test(`unannotated parameter keeps its contextual native input on ${surface}: ${n
     const compiled = compileCsharpSource({ surface, sourceText });
     assertCsharpCompilationSucceeded(compiled);
     const program = compiled.result.program;
-    const { ast } = program.source;
+    const ast = program.source.syntax;
     const parameters = new Set();
     const references = [];
     const visit = node => {
@@ -33,11 +33,11 @@ test(`unannotated parameter keeps its contextual native input on ${surface}: ${n
       if (ast.is.IsIdentifier(node)) references.push(node);
       ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
     };
-    program.source.navigation.sourceFiles.forEach(visit);
+    program.source.sourceFiles.forEach(visit);
     assert.equal(parameters.size > 0, true, "the witness observes an actual unannotated native parameter declaration");
     let reads = 0;
     for (const reference of references) {
-      const declaration = program.source.navigation.referenceFor(reference)?.declaration;
+      const declaration = program.source.facts.navigation.identity.target(reference)?.declaration;
       if (!parameters.has(declaration)) continue;
       const storage = program.records.valueRead.get(reference)?.storage;
       if (storage === undefined) continue;
@@ -60,7 +60,7 @@ test(`unannotated parameter keeps its contextual native input on ${surface}: ${n
     const compiled = compileCsharpSource({ surface, sourceText });
     assertCsharpCompilationSucceeded(compiled);
     const program = compiled.result.program;
-    const { ast } = program.source;
+    const ast = program.source.syntax;
     const parameters = new Set();
     const references = [];
     const visit = node => {
@@ -79,11 +79,11 @@ test(`unannotated parameter keeps its contextual native input on ${surface}: ${n
       if (ast.is.IsIdentifier(node)) references.push(node);
       ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
     };
-    program.source.navigation.sourceFiles.forEach(visit);
+    program.source.sourceFiles.forEach(visit);
     assert.equal(parameters.size > 0, true, "the witness observes an actual unannotated native parameter declaration");
     let reads = 0;
     for (const reference of references) {
-      const declaration = program.source.navigation.referenceFor(reference)?.declaration;
+      const declaration = program.source.facts.navigation.identity.target(reference)?.declaration;
       if (!parameters.has(declaration)) continue;
       const storage = program.records.valueRead.get(reference)?.storage;
       if (storage === undefined) continue;
@@ -121,10 +121,10 @@ test(`authored generic inputs retain their own binder and exact native integer o
     const program = compiled.result.program;
     const declarations = [];
     const visit = node => {
-      if (program.source.ast.is.IsArrowFunction(node) && program.source.ast.typeParameters(node).length > 0) declarations.push(node);
-      program.source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+      if (program.source.syntax.is.IsArrowFunction(node) && program.source.syntax.typeParameters(node).length > 0) declarations.push(node);
+      program.source.syntax.forEachChild(node, child => { if (child !== undefined) visit(child); });
     };
-    program.source.navigation.sourceFiles.forEach(visit);
+    program.source.sourceFiles.forEach(visit);
     assert.equal(declarations.length, 1, "the valid source has one actual authored generic body");
     const contract = program.records.callableDeclaration.get(declarations[0])?.contract;
     assert.equal(contract?.kind === "source" && contract.nativeParameters.length === 2, true,

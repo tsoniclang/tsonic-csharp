@@ -1,5 +1,5 @@
 import type { Node } from "@tsonic/tsts";
-import type { TargetSourceProgram } from "@tsonic/target-api/source";
+import type { TargetSourceProgramFacts } from "@tsonic/target-api/source";
 import type { CsharpSourceEvidenceIndex } from "../../../target-model/records/program/source-evidence.js";
 import type { CsharpStorageIssue } from "../../../target-model/records/storage/storage.js";
 import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
@@ -9,7 +9,7 @@ import { csharpCapturedPlaceContractsEqual } from "../storage/captured-place-con
 const maximumGenericClosureCaptures = 131_072;
 
 export function selectCsharpGenericFrameClosures(
-  source: TargetSourceProgram,
+  source: TargetSourceProgramFacts,
   evidence: CsharpSourceEvidenceIndex,
   captures: readonly CsharpNativeClosureCapture[],
   groups: Map<Node, Map<Node, CsharpCapturedPlaceContract>>,
@@ -20,15 +20,15 @@ export function selectCsharpGenericFrameClosures(
   let capturesCount = 0;
   for (const capture of captures) {
     const node = capture.owner;
-    const declaration = source.ast.is.IsFunctionDeclaration(node);
-    if (!source.ast.is.IsArrowFunction(node) && !source.ast.is.IsFunctionExpression(node) && !declaration) continue;
-    if (declaration && (source.ast.typeParameters(node).length === 0 ||
-        !source.navigation.declarationUseSummary(node).uses.some(use => use.kind === "first-class" &&
+    const declaration = source.syntax.is.IsFunctionDeclaration(node);
+    if (!source.syntax.is.IsArrowFunction(node) && !source.syntax.is.IsFunctionExpression(node) && !declaration) continue;
+    if (declaration && (source.syntax.typeParameters(node).length === 0 ||
+        !source.facts.navigation.uses.summary(node).uses.some(use => use.kind === "first-class" &&
           evidence.compileTimeMetadata.get(use.reference) !== true))) continue;
     const type = capture.type;
     const method = getCsharpMethodValue(type);
     if (declaration && (method === undefined || method.typeParameters.length === 0)) continue;
-    if (source.ast.typeParameters(node).length === 0 && method === undefined) continue;
+    if (source.syntax.typeParameters(node).length === 0 && method === undefined) continue;
     if (method === undefined) {
       issues.push({ node, code: "CSHARP_GENERIC_CALLABLE_CONTRACT_NOT_CLOSED",
         message: "A generic callable value requires its exact quantified native invocation contract." });

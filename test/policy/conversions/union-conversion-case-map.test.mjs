@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { selectCsharpConversion } from "../../../dist/policy/conversions/core.js";
-import { csharpSourceUnionLayoutsMatch } from "../../../dist/policy/conversions/union-relations.js";
+import { selectCsharpUnionInjection } from "../../../dist/policy/conversions/union-relations.js";
+import { hostProgram, representationServices, representations, represented } from "../../representation/host-fixture.mjs";
 import { admitCsharpConversionSelection } from "../../../dist/analysis/conversions/validation.js";
 import { csharpAbsenceTargetType, csharpDelegateTargetType, csharpNullableTargetType,
   csharpRuntimeUnionTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType,
-  csharpTargetNamedType, csharpTaskTargetType, targetTypeRefEquals } from "../../../dist/target-model/types/index.js";
+  csharpTargetNamedType, csharpTaskTargetType, getCsharpRuntimeUnionArms, targetTypeRefEquals, targetTypeRefKey } from "../../../dist/target-model/types/index.js";
 
 const integer = csharpSourcePrimitiveTargetType("int32");
 const wide = csharpSourcePrimitiveTargetType("int64");
@@ -22,28 +23,28 @@ const policy = { projectTypes: { directSupertypes: carrier =>
 providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) }, target: {} };
 const parameter = Object.freeze({ kind: "type-parameter", identity: "union.fixture:Value", name: "Value" });
 
-test("logical source union correspondence selects a physical producer layout, never an array conversion", () => {
-  const first = csharpRuntimeUnionTargetType([text, floating]);
-  const second = csharpRuntimeUnionTargetType([floating, text]);
-  const source = { kind: "array", element: first };
-  const target = { kind: "array", element: second };
-  assert.equal(csharpSourceUnionLayoutsMatch(source, target), true,
-    "the producer may publish its actual unique union layout for the same logical source array");
+// The deleted csharpSourceUnionLayoutsMatch recognized two runtime-union layouts as one "logical" source union (return
+// layout inference). The Host now publishes each union with its arms authored-first (C-2459) and C# keeps that order
+// (R6): two orders are two distinct .NET carriers, and no array reinterpretation joins them.
+test("each published union keeps its authored arm order; a permuted layout is a distinct carrier, never an array conversion", () => {
+  const program = hostProgram(`
+    export function forward(value: (string | number)[]): void {}
+    export function backward(value: (number | string)[]): void {}
+    export function nested(value: (boolean | string | number)[]): void {}
+  `);
+  const represent = representations(representationServices(program));
+  const carrier = name => represented(represent.slot(program.ast.parameters(program.named(name))[0]));
+  const source = carrier("forward");
+  const target = carrier("backward");
+  assert.deepEqual(getCsharpRuntimeUnionArms(source.element).map(targetTypeRefKey), [text, floating].map(targetTypeRefKey),
+    "string | number -> Union<string, double>");
+  assert.deepEqual(getCsharpRuntimeUnionArms(target.element).map(targetTypeRefKey), [floating, text].map(targetTypeRefKey),
+    "number | string -> Union<double, string>: no sort normalizes the two orders (R6)");
   assert.equal(targetTypeRefEquals(source, target), false, "the native generic instantiations remain physically distinct");
   assert.equal(selectCsharpConversion(policy, source, target, "implicit")?.kind, "rejected",
-    "layout correspondence never invents an array reinterpretation, copy or boxed conversion");
-  assert.equal(csharpSourceUnionLayoutsMatch({ kind: "array", element: csharpRuntimeUnionTargetType([text, integer]) }, target), false,
-    "different numeric native carriers are not a source-layout permutation");
-  assert.equal(csharpSourceUnionLayoutsMatch({ kind: "array", element: first, rank: 2 }, target), false,
-    "native array rank remains exact");
-  assert.equal(csharpSourceUnionLayoutsMatch(csharpNullableTargetType(source), target), false,
-    "logical layout cannot remove an actual native absence state");
-  assert.equal(csharpSourceUnionLayoutsMatch(csharpRuntimeUnionTargetType([integer, integer]),
-    csharpRuntimeUnionTargetType([integer, text])), false, "ambiguous physical arm occurrences are not normalized away");
-  const nested = csharpRuntimeUnionTargetType([boolean, first]);
-  const flat = csharpRuntimeUnionTargetType([floating, boolean, text]);
-  assert.equal(csharpSourceUnionLayoutsMatch(nested, flat), true,
-    "nested and flattened logical alternatives retain a unique complete native-leaf correspondence");
+    "a permuted layout never invents an array reinterpretation, copy or boxed conversion");
+  assert.deepEqual(getCsharpRuntimeUnionArms(carrier("nested").element).map(targetTypeRefKey),
+    [boolean, text, floating].map(targetTypeRefKey), "a three-arm union is flat and positional");
 });
 const forms = [
   ["scalar", integer],
@@ -91,16 +92,24 @@ test("a complete union used as one exact native arm is not needlessly decomposed
     "the unchanged complete payload is admitted");
 });
 
-test("unique native scalar conversions enter nested unions through the one candidate owner", () => {
+// Which arm a converted (non-identical) payload enters is a Host relation (C-2479 select-arm). Without it, C# proves
+// only exact carrier identity and never searches for a convertible arm (AGENT-C1-NOTES D6, R6).
+test("a native scalar conversion enters a union arm only through the Host-selected arm", () => {
   for (const [source, arm] of [[integer, wide], [derived, base]]) {
-    const target = csharpRuntimeUnionTargetType([reference("Unused"), csharpRuntimeUnionTargetType([arm, text])]);
-    const selected = selectCsharpConversion(policy, source, target, "implicit");
-    assert.equal(selected.kind === "implicit" && selected.proof === "runtime-union-arm", true,
-      "the outer target has one exact native payload conversion");
-    assert.equal(selected.sourceToArm.proof, "runtime-union-arm", "native conversion reaches the complete nested path");
-    assert.equal(selected.sourceToArm.sourceToArm.kind, "implicit", "the native leaf conversion is retained explicitly");
-    assert.equal(admitCsharpConversionSelection(policy, source, target, selected) === selected, true,
-      "the full conversion tree is independently admitted before sealing");
+    const nested = csharpRuntimeUnionTargetType([reference("Unused"), csharpRuntimeUnionTargetType([arm, text])]);
+    const searched = selectCsharpConversion(policy, source, nested, "implicit");
+    assert.equal(searched.kind, "rejected", "no convertible-arm search without a Host arm");
+    assert.equal(searched.reason, "C# runtime-union conversion requires the source representation to match one exact union arm.");
+    const target = csharpRuntimeUnionTargetType([arm, text]);
+    const convert = selected => selectCsharpConversion(policy, source, selected, "implicit");
+    assert.equal(selectCsharpUnionInjection(source, target, undefined, "implicit", convert), undefined,
+      "without a Host arm the injection proves nothing beyond exact identity");
+    const selected = selectCsharpUnionInjection(source, target, undefined, "implicit", convert, { kind: "present", index: 0 });
+    assert.equal(selected.kind === "implicit" && selected.proof === "runtime-union-arm" && selected.armIndex === 0, true,
+      "the Host-selected arm receives the payload");
+    assert.equal(selected.sourceToArm.kind, "implicit", "the native leaf conversion is retained explicitly");
+    assert.equal(selectCsharpUnionInjection(source, target, undefined, "implicit", convert, { kind: "present", index: 1 }).kind,
+      "rejected", "a Host arm whose payload has no CLR conversion is refused, not replaced by another arm");
   }
 });
 
@@ -113,8 +122,8 @@ test("exact payload identity wins over convertible arms and ambiguous conversion
     const source = targetTypeRefEquals(arms[0], wide) || targetTypeRefEquals(arms[0], floating) ? integer : derived;
     const result = selectCsharpConversion(policy, source, csharpRuntimeUnionTargetType(arms), "implicit");
     assert.equal(result.kind, "rejected", "equally applicable native conversions do not depend on source arm order");
-    assert.equal(result.reason, "C# runtime-union conversion has more than one applicable native payload arm.",
-      "the one union owner provides the precise ambiguity refusal");
+    assert.equal(result.reason, "C# runtime-union conversion requires the source representation to match one exact union arm.",
+      "C# never chooses among applicable arms; the Host relation selects the arm (C-2479)");
   }
 });
 

@@ -1,14 +1,13 @@
 import { csharpProviderBindingFromResolution } from "../../../../providers/model/relation-resolver.js";
-import type { AstReader, SourceFile, Type } from "@tsonic/tsts";
+import type { AstReader } from "@tsonic/tsts";
 import { csharpSourceTypeParameter } from "../../../../source/extension/type-parameters.js";
-import type { SourceFileSemantics } from "@tsonic/target-api/source";
+import type { SourceTypeDescriptor } from "@tsonic/target-api/source";
 import type { CsharpProviderRelationResolver } from "../../../../providers/model/relation-resolver.js";
 import type { CsharpTargetBindingFact, CsharpTargetMember, CsharpTargetTypeParameter, TargetConstraint, TargetTypeRef } from "../../../../target-model/types/model.js";
 import { csharpTargetBindingFact } from "../../../../target-model/types/model.js";
 import { getCsharpNullableElementTargetType, isCsharpNullableReferenceTargetType, isCsharpValueTypeTargetType, targetTypeRefKey } from "../../../../target-model/types/index.js";
 import type { CsharpTypeParameterConstraint } from "../../../../target-model/types/generic-constraints.js";
 import { csharpTypeParameterConstraintsImply } from "../../../../policy/constraints/type-parameter-constraints.js";
-import { resolveCsharpTypeParameterConstraints } from "../../../source-evidence/types/resolution/type-parameter-constraints.js";
 import type { CsharpSelectedTargetMethodTypeArgument } from "../../../../target-model/records/objects/members.js";
 import { csharpTargetTypeSatisfiesNativeConstraint, implementedConstraintType } from "../../../../policy/conversions/carriers.js";
 import type { CsharpTypeQueries } from "../../../../policy/model/type-resolution.js";
@@ -23,7 +22,6 @@ export interface CsharpConstraintSatisfactionHost {
   readonly projectTypes: CsharpProjectTypePolicy;
   readonly sourceFacts?: import("@tsonic/tsts").ReadonlySourceFactResolver;
   readonly types: CsharpTypeQueries;
-  semantics(sourceFile: SourceFile): SourceFileSemantics;
 }
 
 export interface CsharpProviderConstraintSelection {
@@ -32,7 +30,6 @@ export interface CsharpProviderConstraintSelection {
   readonly targetMember: CsharpTargetMember;
   readonly methodArguments: readonly CsharpSelectedTargetMethodTypeArgument[];
   readonly invocationArguments: readonly CsharpSelectedTargetMethodTypeArgument[];
-  readonly sourceFile: SourceFile;
 }
 
 export function validateCsharpProviderConstraints(
@@ -44,7 +41,6 @@ export function validateCsharpProviderConstraints(
     selection.targetBinding.typeParameters ?? [],
     selection.bindingArguments,
     `target binding '${selection.targetBinding.id}'`,
-    selection.sourceFile,
   );
   if (bindingError !== undefined) {
     return bindingError;
@@ -54,7 +50,6 @@ export function validateCsharpProviderConstraints(
     selection.targetMember.typeParameters ?? [],
     selection.methodArguments,
     `target member '${selection.targetMember.id}'`,
-    selection.sourceFile,
   );
   if (methodError !== undefined) {
     return methodError;
@@ -67,7 +62,6 @@ export function validateCsharpProviderConstraints(
     const argumentError = validateConstructedTargetType(
       host,
       argument.targetType,
-      selection.sourceFile,
       new Set(),
     );
     if (argumentError !== undefined) {
@@ -96,7 +90,6 @@ export function validateCsharpProviderConstraints(
         kind: "implements",
         contract: declaringType,
       },
-      selection.sourceFile,
     );
     if (dispatchError !== undefined) {
       return `Static target member '${selection.targetMember.id}' requires dispatch type '${targetTypeRefKey(dispatchArgument.targetType)}' to implement '${targetTypeRefKey(declaringType)}'. ${dispatchError}`;
@@ -110,7 +103,6 @@ function validateTypeParameterArguments(
   parameters: readonly CsharpTargetTypeParameter[],
   arguments_: readonly CsharpSelectedTargetMethodTypeArgument[],
   owner: string,
-  sourceFile: SourceFile,
 ): string | undefined {
   if (parameters.length !== arguments_.length) {
     return `C# ${owner} requires ${parameters.length} target type arguments, but ${arguments_.length} were selected.`;
@@ -133,7 +125,6 @@ function validateTypeParameterArguments(
         host,
         argument,
         substituted,
-        sourceFile,
       );
       if (reason !== undefined) {
         return `C# ${owner} type argument '${targetTypeRefKey(argument.targetType)}' for '${parameter.name}' does not satisfy '${constraintDescription(host, substituted)}'. ${reason}`;
@@ -147,7 +138,6 @@ export function csharpTargetTypeFailsConstraint(
   host: CsharpConstraintSatisfactionHost,
   argument: CsharpSelectedTargetMethodTypeArgument,
   constraint: TargetConstraint,
-  sourceFile: SourceFile,
 ): string | undefined {
   const target = argument.targetType;
   if (
@@ -156,9 +146,8 @@ export function csharpTargetTypeFailsConstraint(
   ) {
     const sourceConstraint = selectedSourceConstraintSatisfies(
       host,
-      argument.selectedType,
+      argument.descriptor,
       constraint,
-      sourceFile,
     );
     if (sourceConstraint !== undefined) {
       return sourceConstraint ? undefined :
@@ -209,7 +198,6 @@ export function csharpTargetTypeFailsConstraint(
 function validateConstructedTargetType(
   host: CsharpConstraintSatisfactionHost,
   type: TargetTypeRef,
-  sourceFile: SourceFile,
   active: Set<string>,
 ): string | undefined {
   switch (type.kind) {
@@ -219,7 +207,6 @@ function validateConstructedTargetType(
       return validateConstructedTargetType(
         host,
         type.element,
-        sourceFile,
         active,
       );
     case "tuple":
@@ -227,7 +214,6 @@ function validateConstructedTargetType(
         const error = validateConstructedTargetType(
           host,
           element,
-          sourceFile,
           active,
         );
         if (error !== undefined) return error;
@@ -242,7 +228,6 @@ function validateConstructedTargetType(
           const error = validateConstructedTargetType(
             host,
             argument,
-            sourceFile,
             active,
           );
           if (error !== undefined) return error;
@@ -264,14 +249,12 @@ function validateConstructedTargetType(
             targetType,
           })),
           `constructed target type '${binding.id}'`,
-          sourceFile,
         );
         if (constraintError !== undefined) return constraintError;
         for (const argument of arguments_) {
           const error = validateConstructedTargetType(
             host,
             argument,
-            sourceFile,
             active,
           );
           if (error !== undefined) return error;
@@ -291,28 +274,18 @@ function validateConstructedTargetType(
   }
 }
 
+/** A Host type-argument descriptor that is a type-parameter reference satisfies a target constraint through its declared constraint. */
 function selectedSourceConstraintSatisfies(
   host: CsharpConstraintSatisfactionHost,
-  selectedType: Type,
+  descriptor: SourceTypeDescriptor,
   targetConstraint: TargetConstraint,
-  sourceFile: SourceFile,
 ): boolean | undefined {
-  const semantics = host.semantics(sourceFile);
-  const symbol = semantics.declarations.typeSymbol(selectedType);
-  if (symbol === undefined) return undefined;
-  const declarations = semantics.declarations.symbolDeclarations(symbol)
-    .filter((declaration) =>
-      host.ast.is.IsTypeParameterDeclaration(declaration));
-  if (declarations.length !== 1) return undefined;
-  const declaration = declarations[0]!;
+  if (descriptor.kind !== "declared" || !host.ast.is.IsTypeParameterDeclaration(descriptor.declaration)) return undefined;
+  const declaration = descriptor.declaration;
   const parameter = csharpSourceTypeParameter(declaration, host.ast);
   if (parameter === undefined) return false;
-  const resolution = resolveCsharpTypeParameterConstraints(
-    declaration,
-    parameter,
-    sourceFile,
-    host,
-  );
+  // The binder constraints represented from their Host descriptors (representation/generics, via CsharpTypeQueries).
+  const resolution = host.types.typeParameterConstraints(declaration, parameter);
   return resolution.kind === "resolved" &&
     sourceConstraintsImplyTargetConstraint(
       host,
@@ -427,11 +400,8 @@ function isCsharpUnmanagedType(
         active.add(key);
         try {
           return fact.fields.every((field) => {
-            const fieldType = host.types.resolveNode(
-              field.sourceType,
-              project.sourceFile,
-            )?.sourceResult?.selectedType;
-            return fieldType !== undefined &&
+            const fieldType = host.types.storage(field.sourceType);
+            return fieldType.kind !== "csharp-refused" &&
               isCsharpUnmanagedType(host, fieldType, active);
           });
         } finally {

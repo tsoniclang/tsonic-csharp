@@ -1,12 +1,9 @@
 export * from "./literals.js";
 export * from "./source-primitives.js";
 export type {
-  CsharpCommonImplicitTargetSelection, CsharpConversionMode, CsharpConversionSelection,
+  CsharpConversionMode, CsharpConversionSelection,
   CsharpConversionTargetPreference,
 } from "../../target-model/conversions/selection.js";
-export {
-  compareCsharpImplicitConversionTargets,
-} from "./common-target.js";
 export {
   selectCsharpConversion,
 } from "./core.js";

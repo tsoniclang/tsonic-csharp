@@ -27,8 +27,8 @@ export function translateSelectedTargetCall(node: Node, sourceFile: SourceFile, 
   if (selected === undefined) failCsharpPlannerInvariant("An admitted target call requires its exact native invocation plan.", node);
   const arguments_ = translateSelectedTargetArguments(node, sourceFile, input, diagnostics, planExpression, planCallArgument);
   if (arguments_ === undefined) return undefined;
-  const receiver = !selected.instance || selected.source.sourceReceiver === undefined ? undefined :
-    translateCsharpSelectedReceiver(selected.source.sourceReceiver, sourceFile, input, diagnostics, planExpression);
+  const receiver = !selected.instance || selected.source.receiver === undefined ? undefined :
+    translateCsharpSelectedReceiver({ expression: selected.source.receiver }, sourceFile, input, diagnostics, planExpression);
   if (selected.instance && receiver?.kind !== "value") failCsharpPlannerInvariant("An admitted instance call requires its exact native receiver acquisition.", node);
   return composeCsharpPlannedCall(node, sourceFile, input, diagnostics, receiver?.kind === "value" ? receiver.value : undefined, arguments_, (value, args) => {
     if (selected.invocation.kind === "guarded-method") {
@@ -55,9 +55,9 @@ function buildSelectedTargetCall(node: Node, selected: CsharpTargetCallEmission,
       if (invocation.form === "task") return argument;
       const owner = nativeType(invocation.owner);
       if (invocation.form === "absence") {
-        const source = selected.source.sourceArguments[0];
-        const evaluation = source === undefined && selected.source.sourceArguments.length === 0 ? "omit"
-          : readCsharpNativeDiscardEvaluation(input, source?.expression
+        const source = selected.source.arguments[0];
+        const evaluation = source === undefined && selected.source.arguments.length === 0 ? "omit"
+          : readCsharpNativeDiscardEvaluation(input, source?.argument
             ?? failCsharpPlannerInvariant("An admitted task resolution requires its exact original native argument.", node));
         if (evaluation === "evaluate") {
           const discarded = planCsharpDiscardedStatement(argument, selected.selection.targetMember.parameters[0]!.type);

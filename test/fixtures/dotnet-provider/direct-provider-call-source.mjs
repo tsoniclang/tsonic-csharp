@@ -1,6 +1,6 @@
+import { csharpTestSourceProgram } from "../../helpers/target-source-program.mjs";
 import assert from "node:assert/strict";
 import { createCompilerSessionFromFiles, createSourceSemanticsExtension, formatDiagnostics, sourcePrimitive } from "@tsonic/tsts";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
 
 export function checkedProviderCall(spec) {
   const files = {
@@ -22,24 +22,24 @@ export function checkedProviderCall(spec) {
   }).checkSource();
   assert.equal(checked.diagnostics.length, 0, formatDiagnostics(checked.diagnostics.filter(issue => issue !== undefined)).slice(0, 2048));
   assert.equal(checked.extensionDiagnostics.length, 0, "the Native unit's authored Source declarations pass extension checking");
-  const program = createTargetSourceProgram(checked);
+  const program = csharpTestSourceProgram(checked);
   const file = checked.getSourceFile("/src/index.ts");
   assert.equal(file !== undefined, true, "the actual checked call file exists");
   const calls = [];
   const visit = node => {
-    if (program.ast.is.IsCallExpression(node) || program.ast.is.IsNewExpression(node)) calls.push(node);
-    program.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    if (program.syntax.is.IsCallExpression(node) || program.syntax.is.IsNewExpression(node)) calls.push(node);
+    program.syntax.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
   visit(file);
   assert.equal(calls.length, 1, "one actual authored call owns this Native relation fixture");
   const call = calls[0];
-  const sourceFile = program.ast.getSourceFile(call);
-  const queries = program.semantics.forNode(call);
-  const evidence = queries.operations.call(call);
-  assert.equal(evidence?.call === call && sourceFile === file, true,
-    "the exact selected call and the eagerly computed Host publication share the original checked occurrence");
-  const signatureDeclaration = queries.declarations.signatureDeclaration(evidence.selectedSignature);
-  assert.equal(signatureDeclaration !== undefined, true, "the actual selected declaration is retained");
+  const sourceFile = program.syntax.getSourceFile(call);
+  // The Host call selection (facts.selections.call) of the actual checked call (nextgen C-2542).
+  const evidence = program.facts.selections.call(call);
+  assert.equal(evidence !== undefined && !("code" in evidence) && evidence.use === call && sourceFile === file, true,
+    "the exact selected call and the published Host selection share the original checked occurrence");
+  const signatureDeclaration = evidence.signature;
+  assert.equal(signatureDeclaration !== undefined, true, "the actual selected signature declaration is published");
   const result = Object.freeze({ program, sourceFile, call, signatureDeclaration, evidence });
   return result;
 }

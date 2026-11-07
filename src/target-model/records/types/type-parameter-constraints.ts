@@ -1,4 +1,5 @@
-import type { SourceFile, Type } from "@tsonic/tsts";
+import type { SourceFile } from "@tsonic/tsts";
+import type { SourceTypeDescriptor } from "@tsonic/target-api/source";
 
 import type { TargetTypeRef } from "../../types/model.js";
 import type { CsharpTypeParameterConstraintResolution } from "../../types/generic-constraints.js";
@@ -8,7 +9,8 @@ type TypeParameter = Extract<TargetTypeRef, { readonly kind: "type-parameter" }>
 
 export interface CsharpTypeParameterSourceEvidence {
   readonly sourceFile: SourceFile;
-  readonly sourceType: Type;
+  /** The published descriptor bound to the type parameter at this use (instantiation or declared type). */
+  readonly sourceType: SourceTypeDescriptor;
 }
 
 export type CsharpTypeParameterSnapshot = TypeParameter & {

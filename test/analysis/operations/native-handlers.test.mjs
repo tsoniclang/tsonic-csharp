@@ -6,7 +6,7 @@ import { assertCsharpRequiredRecords } from "../../../dist/analysis/program/reco
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 
 function handlersByCallee(program) {
-  const ast = program.source.ast;
+  const ast = program.source.syntax;
   const handlers = [];
   for (const sourceFile of csharpProgramSourceFiles(program)) {
     const text = String(ast.getSourceText(sourceFile));

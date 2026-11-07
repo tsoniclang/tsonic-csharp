@@ -1,39 +1,56 @@
+// Object-literal shape entrypoints (nextgen C-2542, I2, C-2479). The shape registry has no checker-Type entrypoint:
+// a literal's shape is the .NET shape of its Host construction (facts.values.type(literal).construction ?? type),
+// represented by the one mapping (I6).
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createCompilerSessionFromFiles } from "@tsonic/tsts";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { createCsharpObjectShapePolicy } from "../../../dist/analysis/objects/shapes/api.js";
-import { createCsharpTypeParameterEnvironment } from "../../../dist/analysis/source-evidence/types/resolution/type-parameter-environment.js";
+import { createCsharpTypeParameterEnvironment, isCsharpRepresented } from "../../../dist/representation/index.js";
+import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
+import { hostProgram, representationServices, representations } from "../../representation/host-fixture.mjs";
 
 function fixture() {
-  const checked = createCompilerSessionFromFiles({ currentDirectory: "/entrypoint", files: {
-    "/entrypoint/index.ts": "interface Options { value: number; } const value: Options = { value: 1 };",
-  }, compilerOptions: { strict: true } }).checkSource();
-  assert.equal(checked.diagnostics.length, 0, "the unchanged literal program is Source-valid");
-  const source = createTargetSourceProgram(checked);
-  const file = checked.getSourceFile("/entrypoint/index.ts");
-  const nodes = [];
-  const visit = node => { nodes.push(node); source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); }); };
-  visit(file);
-  const literal = nodes.find(node => source.ast.is.IsObjectLiteralExpression(node));
+  const program = hostProgram("interface Options { value: number; } export const value: Options = { value: 1 };");
+  const literal = program.nodes.find(node => program.ast.is.IsObjectLiteralExpression(node));
   assert.equal(literal !== undefined, true, "the original authored allocation is retained");
-  const actual = source.semantics.forFile(file).types.expressionType(literal);
-  assert.equal(actual !== undefined, true, "the fixture has the actual checked Type, not a fabricated descriptor Type");
-  const unexpected = () => assert.fail("a raw literal request must not select or reconstruct Source evidence");
-  const policy = createCsharpObjectShapePolicy({ ast: source.ast,
+  const reads = [];
+  const values = Object.freeze({ ...program.facts.values, type: node => {
+    reads.push(node);
+    return program.facts.values.type(node);
+  } });
+  const facts = Object.freeze({ ...program.facts, values });
+  const services = representationServices(program, { facts });
+  const unexpected = () => assert.fail("a literal shape request reads Host facts only");
+  const policy = createCsharpObjectShapePolicy({
+    ast: program.ast,
+    sourceStorage: new Proxy({}, { get: unexpected }),
+    projectTypeCatalog: services.projectTypes,
     typeParameterConstraints: createCsharpTypeParameterEnvironment(unexpected),
-    semantics: unexpected, semanticsFor: unexpected,
+    representation: () => services,
   });
-  return { policy, actual, literal, file };
+  return { program, policy, literal, reads, services };
 }
 
-test("the orphan raw-Type shape endpoint is absent rather than a compatibility overload", () => {
+test("the shape registry exposes no checker-Type entrypoint (I2)", () => {
   const { policy } = fixture();
-  assert.equal(typeof policy.resolveType, "undefined", "literal ownership is selected by the canonical occurrence entrypoints");
+  assert.equal(typeof policy.resolveType, "undefined", "no raw-Type shape endpoint");
+  assert.equal(typeof policy.resolveTypeWithState, "undefined", "no checked structural endpoint");
 });
 
-test("the retained checked structural endpoint refuses a literal before any Source retry", () => {
-  const { policy, actual, literal, file } = fixture();
-  assert.equal(policy.resolveTypeWithState(actual, file, literal, { depth: 0 }) === undefined, true,
-    "the separate checked structural proof cannot act as a raw literal entrypoint");
+test("a literal's shape is the represented Host construction of that literal, read from facts.values", () => {
+  const { program, policy, literal, reads, services } = fixture();
+  const outcome = program.facts.values.type(literal);
+  assert.notEqual(outcome.kind, "refused", "the Host publishes the literal's construction");
+  const carrier = representations(services).type(outcome.construction ?? outcome.type, literal, "storage");
+  assert.equal(isCsharpRepresented(carrier), true);
+  reads.length = 0;
+  const shape = policy.resolveNode(literal);
+  assert.equal(reads.includes(literal), true, "the registry reads the Host fact of the literal itself");
+  assert.equal(shape !== undefined && targetTypeRefEquals(shape.targetType, carrier), true,
+    "the shape is the .NET type of the Host construction, not a type rebuilt from the destination");
+});
+
+test("opposite: a node without an object construction has no literal shape", () => {
+  const { program, policy } = fixture();
+  const one = program.nodes.find(node => program.ast.is.IsNumericLiteral(node));
+  assert.equal(policy.resolveNode(one), undefined, "a number value has no object shape");
 });

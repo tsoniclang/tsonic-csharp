@@ -1,12 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { tsonicFixedArrayFactKey } from "@tsonic/source-core/facts";
-import { createCsharpFixedArrayTypeQuery } from "../../../../dist/analysis/source-evidence/types/resolution/source-markers.js";
+import { createCsharpSourceEvidenceTypeQueries } from "../../../../dist/analysis/source-evidence/type-queries.js";
+import { hostProgram, representationServices } from "../../../representation/host-fixture.mjs";
 import {
   assertCsharpCheckingSucceeded,
   assertCsharpCompilationSucceeded,
-  checkCsharpSource,
   compileCsharpSource,
 } from "../../../helpers/direct-csharp-session.mjs";
 
@@ -65,39 +64,34 @@ export function forward(values: Bytes): Bytes { return identity(values); }
   assert.match(output, /public static byte\[\] forward\(byte\[\] values\)/u);
 });
 
-test("C# fixed-array selection caches inferred evidence without publishing Type facts", () => {
-  const checked = checkCsharpSource({ files: {
+// Nextgen C-2542: the selection reads the published Host descriptor of the inferred call value (facts.values.type) and
+// the extension marker of the FixedArray declaration it names; it never reads a checker Type and publishes no fact.
+test("C# fixed-array selection reads inferred evidence from the published descriptor without publishing facts", () => {
+  const program = hostProgram(`import { produce } from "./external.js";
+    export function forward() { return produce(); }`, { files: {
     "external.d.ts": `import type { FixedArray } from "@tsonic/core/types.js";
       export declare function produce(): FixedArray<string, 4>;`,
-  }, sourceText: `import { produce } from "./external.js";
-    export function forward() { return produce(); }` });
-  assertCsharpCheckingSucceeded(checked);
-  const source = createTargetSourceProgram(checked.source);
-  const sourceFile = source.sourceFiles.find(file => source.ast.getPath(file) === "/project/index.ts");
-  assert.ok(sourceFile);
-  let call;
-  const visit = node => {
-    if (source.ast.is.IsCallExpression(node)) call = node;
-    source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
-  };
-  visit(sourceFile);
+  } });
+  const call = program.nodes.find(node => program.ast.is.IsCallExpression(node));
   assert.ok(call);
-  const type = source.semantics.forFile(sourceFile).types.expressionType(call);
-  assert.ok(type);
-  assert.equal(source.sourceFacts.getFact(type, tsonicFixedArrayFactKey), undefined);
-  let queryCount = 0;
-  const select = createCsharpFixedArrayTypeQuery({ sourceFacts: source.sourceFacts,
-    semantics(file) { queryCount += 1; return source.semantics.forFile(file); } });
-  const selected = select(type, sourceFile);
+  const descriptor = program.type(call);
+  assert.equal(descriptor.kind, "declared", "the inferred call value is the published FixedArray reference");
+  const sourceFacts = program.host.sourceFacts;
+  assert.equal(sourceFacts.getFact(call, tsonicFixedArrayFactKey), undefined);
+  const unreached = () => assert.fail("fixed-array selection reads only the descriptor and extension markers");
+  const queries = createCsharpSourceEvidenceTypeQueries(representationServices(program),
+    { pointerStorage: {}, sourceStorage: {}, conversions: unreached });
+  const selected = queries.selectFixedArray(descriptor, call);
   assert.equal(selected?.kind, "selected");
-  assert.equal(selected.fact.sourceType, type);
-  assert.equal(selected.fact.elementType, undefined);
   assert.equal(selected.fact.length, 4n);
   assert.equal(selected.fact.lengthRuntimeBase, "number");
-  assert.ok(Object.isFrozen(selected.fact));
-  assert.equal(select(type, sourceFile), selected);
-  assert.equal(queryCount, 1);
-  assert.equal(source.sourceFacts.getFact(type, tsonicFixedArrayFactKey), undefined);
+  assert.equal("sourceType" in selected.fact && typeof selected.fact.sourceType === "object" &&
+    selected.fact.sourceType !== null && "flags" in selected.fact.sourceType, false, "the selection carries no checker Type");
+  assert.ok(Object.isFrozen(selected) && Object.isFrozen(selected.fact));
+  assert.deepEqual(queries.selectFixedArray(descriptor, call), selected, "the selection is a function of the descriptor");
+  assert.equal(queries.selectFixedArray({ kind: "array", readonly: false, element: { kind: "string" } }, call), undefined,
+    "an ordinary array descriptor is not a fixed array");
+  assert.equal(sourceFacts.getFact(call, tsonicFixedArrayFactKey), undefined, "selection publishes no extension fact");
 });
 
 for (const [name, extent, body, reason] of [

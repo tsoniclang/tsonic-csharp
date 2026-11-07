@@ -1,18 +1,46 @@
 import type { CsharpAwaitAlternative, CsharpAwaitCompletion } from "../../../target-model/types/await-completions.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import type { CsharpSourceCallResult } from "../../../target-model/operations/source-call-results.js";
 import type { CsharpTypeDefinitions } from "../../../target-model/types/source-union-definitions.js";
 import { csharpUnionLeaves } from "../../../target-model/types/union-relations.js";
 import { csharpUnionProjectionPath, selectCsharpUnionArmMapping } from "../../conversions/union-relations.js";
-import { combineCsharpTargetUnionMembers, csharpAbsenceTargetType, getCsharpRuntimeUnionArms, isCsharpAbsenceTargetType, isCsharpJsValueTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
-import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
+import { getCsharpRuntimeUnionArms, isCsharpAbsenceTargetType, isCsharpJsValueTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
+import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { isCsharpVoidTargetType } from "../../../target-model/types/identity.js";
 import { csharpVoidTargetType } from "../../../target-model/types/carriers/scalar-types.js";
-import { getCsharpTaskResultTargetType } from "../../../target-model/types/carriers/delegates.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 
+/**
+ * The task/value alternatives of an awaited operand carrier: one per native leaf (a union carrier contributes its
+ * leaves), each with its task result. Undefined when a leaf has no native await form. Target-only (no Source decision).
+ */
+export function selectCsharpAwaitAlternatives(
+  carrier: TargetTypeRef | undefined, definitions: CsharpTypeDefinitions | undefined,
+): readonly Omit<CsharpAwaitAlternative, "resultPath" | "resultMapping">[] | undefined {
+  if (carrier === undefined) return undefined;
+  const present = getCsharpNullableElementTargetType(carrier);
+  const leaves = getCsharpRuntimeUnionArms(present ?? carrier, definitions) === undefined
+    ? [{ carrier: present ?? carrier, path: [] }]
+    : csharpUnionLeaves(present ?? carrier, definitions);
+  if (leaves === undefined) return undefined;
+  if (leaves.length === 0 || leaves.some(leaf => leaf.carrier.kind === "type-parameter" && leaf.path.length === 0 ||
+    leaf.carrier.kind === "opaque" || isCsharpJsValueTargetType(leaf.carrier))) return undefined;
+  return Object.freeze(leaves.map(leaf => {
+    const taskResult = leaf.carrier.kind === "target-named"
+      ? (leaf.carrier as { readonly csharpTaskResultType?: TargetTypeRef }).csharpTaskResultType : undefined;
+    const result = taskResult ?? leaf.carrier;
+    return Object.freeze({ carrier: leaf.carrier, sourcePath: leaf.path,
+      result, task: taskResult !== undefined,
+      resultForm: isCsharpVoidTargetType(result) ? "void" as const : isCsharpAbsenceTargetType(result) ? "absence" as const : "value" as const });
+  }));
+}
+
+/**
+ * The native completion of awaiting a carrier. The awaited result is the Host one (facts.values.awaited, represented);
+ * C# only maps each task/value alternative of the operand carrier onto it and never combines a union itself (R6).
+ */
 export function selectCsharpAwaitCompletion(
   carrier: TargetTypeRef | undefined,
+  awaited: TargetTypeRef,
   definitions?: CsharpTypeDefinitions,
   resultUse: "consumed" | "discarded" = "consumed",
 ): CsharpAwaitCompletion | undefined {
@@ -22,34 +50,10 @@ export function selectCsharpAwaitCompletion(
     form: "task-test", discard: true, excludeUnmatched: false, result: csharpVoidTargetType(),
     alternatives: Object.freeze([]), optional: false,
   }) : undefined;
-  const leaves = getCsharpRuntimeUnionArms(present ?? carrier, definitions) === undefined
-    ? [{ carrier: present ?? carrier, path: [] }]
-    : csharpUnionLeaves(present ?? carrier, definitions);
-  if (leaves === undefined) return undefined;
-  if (leaves.length === 0 || leaves.some(leaf => leaf.carrier.kind === "type-parameter" && leaf.path.length === 0 ||
-    leaf.carrier.kind === "opaque" || isCsharpJsValueTargetType(leaf.carrier))) return undefined;
-  const alternatives = leaves.map(leaf => {
-    const taskResult = leaf.carrier.kind === "target-named"
-      ? (leaf.carrier as { readonly csharpTaskResultType?: TargetTypeRef }).csharpTaskResultType : undefined;
-    const result = taskResult ?? leaf.carrier;
-    return { carrier: leaf.carrier, sourcePath: leaf.path,
-      result, task: taskResult !== undefined,
-      resultForm: isCsharpVoidTargetType(result) ? "void" as const : isCsharpAbsenceTargetType(result) ? "absence" as const : "value" as const };
-  });
-  const results = alternatives.flatMap(alternative => {
-    const element = getCsharpNullableElementTargetType(alternative.result);
-    return element === undefined ? [alternative.result] : [element, csharpAbsenceTargetType()];
-  });
-  if (present !== undefined && results.some(result => !isCsharpVoidTargetType(result))) {
-    results.push(csharpVoidTargetType());
-  }
+  const alternatives = selectCsharpAwaitAlternatives(carrier, definitions);
+  if (alternatives === undefined) return undefined;
   const identity = !alternatives.some(alternative => alternative.task);
-  const first = alternatives[0]!.result;
-  const uniform = alternatives.every(alternative => targetTypeRefEquals(alternative.result, first));
-  const result = identity ? carrier : uniform
-    ? present !== undefined && !isCsharpVoidTargetType(first) ? csharpNullableTargetType(first) : first
-    : combineCsharpTargetUnionMembers(results);
-  if (result === undefined) return undefined;
+  const result = identity ? carrier : awaited;
   const resultElement = getCsharpNullableElementTargetType(result) ?? result;
   const selected = alternatives.map(alternative => {
     const resultPath = identity ? alternative.sourcePath
@@ -76,23 +80,12 @@ export function selectCsharpAwaitCompletion(
   return native;
 }
 
+/** The completion of `await e`: the operand carrier and the Host awaited result (facts.values.awaited) represented. */
 export function selectCsharpSourceCallAwaitCompletion(
-  selected: CsharpSourceCallResult | undefined,
+  operand: TargetTypeRef,
+  awaited: TargetTypeRef,
   definitions: CsharpTypeDefinitions | undefined,
   resultUse: "consumed" | "discarded",
 ): CsharpAwaitCompletion | undefined {
-  if (selected === undefined) return undefined;
-  const native = selectCsharpAwaitCompletion(selected.selectedType, definitions, resultUse);
-  if (native === undefined) return undefined;
-  const present = getCsharpNullableElementTargetType(selected.selectedType) ?? selected.selectedType;
-  const selectedContinuation = getCsharpTaskResultTargetType(selected.nativeType) !== undefined &&
-    targetTypeRefEquals(selected.nativeType, present) ? selected.completion : undefined;
-  const continuation = selectedContinuation === undefined || !native.optional || selectedContinuation.optional
-    ? selectedContinuation : Object.freeze({ ...selectedContinuation, optional: true,
-      result: isCsharpVoidTargetType(selectedContinuation.result) ? selectedContinuation.result
-        : csharpNullableTargetType(selectedContinuation.result) });
-  return continuation === undefined ? native : Object.freeze({ ...native,
-    result: continuation.result, discard: continuation.discard,
-    adoption: Object.freeze({ native, continuation }),
-  });
+  return selectCsharpAwaitCompletion(operand, awaited, definitions, resultUse);
 }

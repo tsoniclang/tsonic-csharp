@@ -16,20 +16,19 @@ function fixture(sourceText, surface = "native") {
   return withCsharpSessionRequest({ sourceText, surface }, request => {
     const original = request.input.source;
     let closed = false;
-    const source = { ...original, ast: { ...original.ast,
-      parent(node) { assert.equal(closed, false, "parent queries finish before publication"); return original.ast.parent(node); },
+    const source = { ...original, syntax: { ...original.syntax,
+      parent(node) { assert.equal(closed, false, "parent queries finish before publication"); return original.syntax.parent(node); },
     } };
     const result = analyzeCsharpAnalysisProgram({ ...request, input: { ...request.input, source } });
     assert.equal(result.kind === "resolved", true, result.diagnostics.map(value => value.message).join("\n"));
     const nodes = [];
     function visit(node) {
       nodes.push(node);
-      original.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+      original.syntax.forEachChild(node, child => { if (child !== undefined) visit(child); });
     }
-    for (const file of original.navigation.sourceFiles) visit(file);
+    for (const file of original.sourceFiles) visit(file);
     closed = true;
-    return { program: result.value, nodes, ast: original.ast, navigation: original.navigation,
-      effectiveTypes: original.effectiveTypes };
+    return { program: result.value, nodes, ast: original.syntax, facts: original.facts };
   }).value;
 }
 
@@ -107,9 +106,9 @@ for (const surface of ["native", "js"]) test(`${surface} guarded catch reads ret
     value.ast.is.IsIdentifier(value.ast.as.AsPropertyAccessExpression(node).Expression));
   assert.equal(members.length, 1, "the checked program retains its single guarded catch property read");
   const receiver = value.ast.as.AsPropertyAccessExpression(members[0]).Expression;
-  const declaration = value.navigation.sourceReferenceFor(receiver)?.declaration;
-  const principal = declaration === undefined ? undefined : value.effectiveTypes.get(declaration);
-  const published = value.effectiveTypes.get(receiver);
+  const declaration = value.facts.navigation.identity.target(receiver)?.declaration;
+  const principal = declaration === undefined ? undefined : value.facts.values.type(declaration);
+  const published = value.facts.values.type(receiver);
   assert.equal(principal?.kind === "resolved" && principal.type.kind === "intrinsic" &&
     principal.type.intrinsic === "unknown", true, "catch storage remains the original unknown value declaration");
   assert.equal(published?.kind === "resolved" && published.type.kind === "declared" &&
@@ -158,7 +157,7 @@ for (const surface of ["native", "js"]) test(`${surface} native write locations 
   `, surface);
   const records = value.program.records;
   const input = {
-    ast: value.ast, navigation: value.program.sourceNavigation,
+    ast: value.ast, facts: value.facts,
     evidence: records, operations: records, valueReads: records,
     optionalLocals: { get: node => records.localBinding.get(node)?.optionalLocal },
     classFactories: { classFactory: records.classFactory, factories: value.program.classFactories },
@@ -440,7 +439,7 @@ test("struct value-union narrowed payloads retain sealed native projection on bo
       `${surface}: value payload is extracted before member access`);
     const discriminant = value.nodes.find(node => value.ast.is.IsPropertyAccessExpression(node) &&
       value.ast.text(value.ast.name(node)) === "kind");
-    assert.equal(value.navigation.sourceReferenceFor(discriminant) === undefined, true,
+    assert.equal(value.facts.navigation.identity.target(discriminant) === undefined, true,
       "a shared union field has no single declaration to recover from the reference index");
     assert.equal(value.program.records.flowReadProjection.get(discriminant)?.kind, "identity",
       "the exact selected source member still owns that field read");
@@ -495,8 +494,8 @@ for (const surface of ["native", "js"]) {
         }
       }
       if (!value.ast.is.IsIdentifier(node)) continue;
-      const selected = value.navigation.sourceReferenceFor(node);
-      const use = selected === undefined ? undefined : value.navigation.declarationUses(selected.declaration)
+      const selected = value.facts.navigation.identity.target(node);
+      const use = selected === undefined ? undefined : value.facts.navigation.uses.uses(selected.declaration)
         .find(candidate => candidate.reference === node);
       const runtime = use !== undefined && use.kind !== "type-only" && use.kind !== "source-linkage" &&
         (use.role !== "write" || use.throughMember);
@@ -549,38 +548,9 @@ for (const surface of ["native", "js"]) {
     assertCsharpCompilationSucceeded(compileCsharpSource({ sourceText, surface }));
   });
 
-  test(`${surface} ambiguous runtime-read evidence rejects before program publication or planning`, () => {
-    withCsharpSessionRequest({ sourceText: "export function read(value: number): number { return value; }", surface }, request => {
-    const original = request.input.source;
-    const declaration = original.ast.statements(original.navigation.sourceFiles[0])[0];
-    const statement = original.ast.statements(original.ast.body(declaration))[0];
-    const subject = original.ast.as.AsReturnStatement(statement).Expression;
-    const source = { ...original, semantics: { ...original.semantics,
-      selectValueTypeRefinement(node) {
-        const selected = original.semantics.selectValueTypeRefinement(node);
-        if (node !== subject) return selected;
-        assert.equal(selected.kind, "resolved", "the negative case keeps the exact checked declaration/type identities");
-        return { ...selected, refinement: { kind: "ambiguous" } };
-      },
-    } };
-    let planned = 0;
-    let materialized = 0;
-    const result = runTargetCompilationStages({
-      analyze: () => analyzeCsharpAnalysisProgram({ ...request, input: { ...request.input, source } }),
-      plan() { planned += 1; throw new Error("rejected source must not reach planning"); },
-      materialize() { materialized += 1; throw new Error("rejected source must not emit artifacts"); },
-    });
-    assert.equal(result.kind, "rejected");
-    assert.equal(Object.hasOwn(result, "value"), false, "no sealed program or output escapes rejection");
-    assert.equal(result.diagnostics.length, 1);
-    assert.equal(result.diagnostics[0].code, "CSHARP_FLOW_READ_PROJECTION_NOT_PROVEN");
-    assert.equal(result.diagnostics[0].sourceNode === subject, true, "the exact failed read is retained");
-    assert.equal(result.diagnostics[0].source, "tsonic-csharp");
-    assert.match(result.diagnostics[0].message, /checked source value refinement is ambiguous/u);
-    assert.equal(planned, 0);
-    assert.equal(materialized, 0);
-    });
-  });
+  // nextgen C-2542: the "ambiguous runtime-read evidence" case is removed. It injected an ambiguous checker refinement
+  // through semantics.selectValueTypeRefinement; the refinement is now the Host relation at the use (facts.relations.at),
+  // which has no ambiguous outcome (a Host refusal is forwarded at the program entry), so C# has no such producer.
 }
 
 test("missing or malformed sealed flow projections fail only through the internal planner invariant", () => {

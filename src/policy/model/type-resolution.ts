@@ -1,90 +1,60 @@
-import type { Node, SourceFile, Type } from "@tsonic/tsts";
+// The C# policy model's type queries (nextgen C-2542, I2, I6).
+//
+// Inputs are published Source facts and descriptors only: no checker Type, Signature, Symbol or ResolvedSource*Info.
+// Every Source question (value type, slot, return, instantiation, sum, relation) is answered by SourceProgramFacts;
+// these queries only represent the Host answer in .NET through the one mapping (representation/), or answer a
+// target-only question (array literal storage, guard folding, binding projection, pointer and typed-location ABI).
+// A missing Host fact for a supported form is an invariant failure inside the implementation, never `undefined`.
+import type { Node } from "@tsonic/tsts";
 
-import type { TsonicFixedArraySelection } from "@tsonic/source-core/facts";
 import type { SourceStorageProducer } from "@tsonic/target-api/analysis";
+import type { SourceClosedSum, SourceInstantiation, SourceTypeDescriptor } from "@tsonic/target-api/source";
+import type { CsharpRepresentation, CsharpRepresentationContext } from "../../representation/index.js";
 import type { CsharpPointerReturnContract } from "../../target-model/records/calls/pointer-return.js";
-
 import type { CsharpSourceTypedLocationOperation } from "../../source/extension/typed-locations.js";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
-
 import type { CsharpArrayLiteralSelection } from "../../target-model/records/operations/array-literals.js";
 
-import type { CsharpSourceCallParameterReadDomain, ResolvedSourceCallInfo } from "../../target-model/records/calls/source-calls.js";
-import type { CsharpSourceCallResult } from "../../target-model/operations/source-call-results.js";
-import type { CsharpNativeSourceCarrierSelection } from "../../target-model/records/objects/object-shapes.js";
+/** Where a represented type is used: storage (fields, locals, parameters), a value-only use, a type argument or a return. */
+export type CsharpTypePosition = CsharpRepresentationContext["position"];
 
-export type CsharpNodeTypeResolution = (Extract<CsharpNativeSourceCarrierSelection, { readonly kind: "rejected" }> & {
-  readonly sourceResult?: never;
-}) | {
-  readonly kind: "resolved";
-  readonly sourceResult: CsharpSourceCallResult;
-};
+/** The represented per-use instantiation (receiver binders, method binders, parameters, result), from the Host record. */
+export interface CsharpInstantiationRepresentation {
+  readonly instantiation: Exclude<SourceInstantiation, { readonly kind: "refused" }>;
+  readonly receiver: readonly CsharpRepresentation[];
+  readonly method: readonly CsharpRepresentation[];
+  readonly parameters: readonly CsharpRepresentation[];
+  readonly result: CsharpRepresentation;
+}
 
 export interface CsharpTypeQueries {
-  sourceTypeFlowRepresentation(occurrence: Node | undefined): import("../types/source-type-flow/representation.js").CsharpSourceTypeRepresentationHost;
-  resolveArrayLiteral(node: Node, sourceFile: SourceFile): CsharpArrayLiteralSelection;
+  /** The one descriptor → TargetTypeRef mapping (I6) at an occurrence. */
+  represent(descriptor: SourceTypeDescriptor, occurrence: Node, position: CsharpTypePosition): CsharpRepresentation;
+  /** A closed sum, arms positional in Host order (R6). */
+  representSum(sum: SourceClosedSum, occurrence: Node, position: CsharpTypePosition): CsharpRepresentation;
+  /** `facts.values.type(node)` represented as a value. */
+  value(node: Node): CsharpRepresentation;
+  /** `facts.values.slot(slot)` represented as storage (declaration, parameter, field, property, element binding). */
+  storage(slot: Node): CsharpRepresentation;
+  /** The storage a read expression reads (identifier, member or element read → the slot it names, else its value). */
+  readStorage(read: Node): CsharpRepresentation;
+  /** `facts.values.callableReturn(declaration)` represented as a return. */
+  callableReturn(declaration: Node): CsharpRepresentation;
+  /** `facts.values.awaited(node)` represented as a value. */
+  awaited(node: Node): CsharpRepresentation;
+  /** `facts.instantiations.at(use)` represented; undefined when the use has no generic binders. */
+  instantiation(use: Node): CsharpInstantiationRepresentation | undefined;
+  /** C# constraints of one generic binder declaration, from the Host descriptors of its authored constraint parts. */
+  typeParameterConstraints(declaration: Node, parameter: Extract<import("../../target-model/types/model.js").TargetTypeRef, { readonly kind: "type-parameter" }>):
+    import("../../target-model/types/generic-constraints.js").CsharpTypeParameterConstraintResolution;
+  /** Target-only: the C# storage of an array literal (List<T>, T[], JSArray role) from its published element type. */
+  resolveArrayLiteral(node: Node): CsharpArrayLiteralSelection;
+  /** Target-only: a guard whose native value is constant (folded by the planner). */
   nativeGuardResult(expression: Node): boolean | undefined;
-  nativeUnreachable(node: Node): boolean;
-  nativeFlowMembers(reference: Node, sourceCarrier: TargetTypeRef): readonly TargetTypeRef[] | undefined;
-  nativeFlowTypes(reference: Node, sourceType: Type): readonly Type[] | undefined;
-  resolveBindingProjection(node: Node, sourceFile: SourceFile): import("../../target-model/records/storage/binding-projection-policy.js").CsharpBindingProjection | undefined;
-  selectFixedArray(type: Type, sourceFile: SourceFile): TsonicFixedArraySelection | undefined;
+  /** Target-only: the native projection of a destructuring binding. */
+  resolveBindingProjection(node: Node): import("../../target-model/records/storage/binding-projection-policy.js").CsharpBindingProjection | undefined;
+  /** Target-only: a fixed-array marker carrier selected for a published descriptor. */
+  selectFixedArray(type: SourceTypeDescriptor, occurrence: Node): import("../types/collections/fixed-arrays.js").CsharpFixedArraySelection | undefined;
   resolvePointerReturn(declaration: Node): CsharpPointerReturnContract | undefined;
   resolvePointerStoragePointee(producer: SourceStorageProducer): import("../../target-model/records/storage/pointer-storage.js").CsharpPointerStoragePointeeSelection;
-  resolveNode(node: Node | undefined, sourceFile?: SourceFile): CsharpNodeTypeResolution | undefined;
-  resolveCallableReturn(declaration: Node): TargetTypeRef | undefined;
-  resolveStorage(node: Node | undefined, sourceFile?: SourceFile): TargetTypeRef | undefined;
-  resolveReadStorage(node: Node | undefined, sourceFile?: SourceFile): TargetTypeRef | undefined;
-  resolveType(type: Type | undefined, sourceFile: SourceFile): TargetTypeRef | undefined;
-  selectSourceUnionMember(carrier: TargetTypeRef, selected: Type, sourceFile: SourceFile):
-    { readonly kind: "unavailable" | "rejected" } | { readonly kind: "resolved"; readonly carrier: TargetTypeRef };
-  resolveValue(
-    node: Node | undefined,
-    sourceFile: SourceFile,
-  ): TargetTypeRef | undefined;
-  resolveSelectedValue(
-    node: Node,
-    selectedType: Type,
-    sourceFile: SourceFile,
-  ): TargetTypeRef | undefined;
-  resolveSelectedType(
-    authoredTypeNode: Node | undefined,
-    selectedType: Type | undefined,
-    selectedSourceFile: SourceFile,
-  ): TargetTypeRef | undefined;
-  resolveSelectedResult(
-    occurrence: Node,
-    selectedDeclaration: Node | undefined,
-    selectedType: Type | undefined,
-    selectedSourceFile: SourceFile,
-  ): TargetTypeRef | undefined;
-  resolveTypedLocationOperationPointee(
-    operation: CsharpSourceTypedLocationOperation,
-    sourceFile: SourceFile,
-  ): TargetTypeRef | undefined;
-  resolveSourceCallTypeArguments(
-    source: ResolvedSourceCallInfo,
-    sourceFile: SourceFile,
-  ): readonly TargetTypeRef[] | undefined;
-  resolveSourceCallParameter(
-    source: ResolvedSourceCallInfo,
-    parameterIndex: number,
-    sourceFile: SourceFile,
-    domain: CsharpSourceCallParameterReadDomain,
-  ): TargetTypeRef | undefined;
-  resolveSourceCallParameters(
-    source: ResolvedSourceCallInfo,
-    sourceFile: SourceFile,
-  ): readonly import("../../target-model/types/model.js").CsharpTargetParameter[] | undefined;
-  resolveSourceCallArgumentParameter(
-    source: ResolvedSourceCallInfo,
-    binding: ResolvedSourceCallInfo["sourceArgumentBindings"][number],
-    sourceFile: SourceFile,
-    excludedSourceArgumentIndexes?: ReadonlySet<number>,
-  ): TargetTypeRef | undefined;
-  resolveSourceCallResult(
-    source: ResolvedSourceCallInfo,
-    sourceFile: SourceFile,
-    nativeType: TargetTypeRef | undefined,
-  ): CsharpSourceCallResult | undefined;
+  resolveTypedLocationOperationPointee(operation: CsharpSourceTypedLocationOperation): CsharpRepresentation;
 }

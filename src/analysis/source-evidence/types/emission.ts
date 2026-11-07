@@ -33,7 +33,7 @@ export function analyzeCsharpTypeEmission(input: { readonly ast: AstReader; read
     const key = targetTypeRefKey(carrier);
     let valid = admissions.get(key);
     if (valid === undefined) { valid = selectCsharpTypeEmission({ carrier }); admissions.set(key, valid); }
-    if (!valid) issues.push({ code: carrier.kind === "opaque" ? "CSHARP_OPAQUE_TARGET_TYPE_UNSUPPORTED" : "CSHARP_UNSUPPORTED_AST",
+    if (!valid) issues.push({ code: carrier.kind === "opaque" ? "CSHARP_OPAQUE_TARGET_TYPE_UNSUPPORTED" : "CSHARP_TARGET_TYPE_UNEMITTABLE",
       category: "error", source: "tsonic-csharp", sourceNode: node, message: carrier.kind === "opaque"
         ? `Opaque target type '${carrier.id}' has no renderable C# source representation.`
         : `C# type policy resolved '${carrier.kind}', but that target type has no renderable C# syntax.` });

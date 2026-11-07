@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
-import { createSourceStorageQuery, targetUseSiteIdentity } from "@tsonic/target-api/analysis";
+import { targetUseSiteIdentity } from "@tsonic/target-api/analysis";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { analyzeCsharpBindingPatterns } from "../../../dist/analysis/control-flow/binding-patterns.js";
 import { analyzeCsharpNativeDemand } from "../../../dist/analysis/operations/native-demand.js";
@@ -97,7 +96,7 @@ test(`${surface} annotated spread and union companions preserve every original n
   assert.equal(compiled.targetDiagnostics.length === 0 && program !== undefined, true,
     compiled.targetDiagnostics.map(({ code, message }) => `${code}: ${message}`).join("; "));
   const arrays = new Map();
-  const ast = program.source.ast;
+  const ast = program.source.syntax;
   const visit = node => {
     if (ast.is.IsVariableDeclaration(node)) {
       const declaration = ast.as.AsVariableDeclaration(node);
@@ -220,7 +219,7 @@ test(`${surface} actual structural callable returns retain every native-backed p
   assert.equal(compiled.targetDiagnostics.length === 0 && compiled.result.program !== undefined, true,
     compiled.targetDiagnostics.map(({ code, message }) => `${code}: ${message}`).join("; "));
   const program = compiled.result.program;
-  const ast = program.source.ast;
+  const ast = program.source.syntax;
   const producers = [];
   const visit = node => {
     if (ast.is.IsFunctionDeclaration(node) && ["create", "createOther"].includes(ast.text(ast.name(node)))) producers.push(node);
@@ -254,7 +253,7 @@ test(`${surface} actual native delegate variance preserves identity and allocate
   assert.equal(compiled.targetDiagnostics.length === 0 && compiled.result.program !== undefined, true,
     compiled.targetDiagnostics.map(({ code, message }) => `${code}: ${message}`).join("; "));
   const program = compiled.result.program;
-  const ast = program.source.ast;
+  const ast = program.source.syntax;
   const returns = [];
   const visit = node => {
     if (ast.is.IsReturnStatement(node)) {
@@ -295,7 +294,7 @@ test("tagged template operands have finite contexts without changing the retaine
     export function run(value: number): string { return tag\`value=\${value}\`; }`, surface: "js" });
   assert.equal(compiled.sourceDiagnosticsText === "", true, "the tagged-template control is source-valid");
   const errors = compiled.result.diagnostics.filter(diagnostic => diagnostic.category === "error");
-  assert.equal(errors.length === 1 && errors[0].code === "CSHARP_UNSUPPORTED_AST" &&
+  assert.equal(errors.length === 1 && errors[0].code === "CSHARP_EXPRESSION_FORM_NOT_PLANNED" &&
     errors[0].message === "Expression is outside the current C# planning surface.", true,
     "the unsupported tagged renderer keeps its exact source refusal, never an emission-context invariant");
 });
@@ -312,8 +311,8 @@ test("transparent wrappers of discarded callable creation remain erased without 
   const program = compiled.result.program;
   const wrappers = [];
   const visit = node => {
-    if (program.source.ast.is.IsExpressionStatement(node)) wrappers.push(program.source.ast.as.AsExpressionStatement(node).Expression);
-    program.source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    if (program.source.syntax.is.IsExpressionStatement(node)) wrappers.push(program.source.syntax.as.AsExpressionStatement(node).Expression);
+    program.source.syntax.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
   for (const file of csharpProgramSourceFiles(program)) visit(file);
   assert.equal(wrappers.length, 3, "all three authored creation effects are represented");

@@ -38,7 +38,7 @@ export function analyzeCsharpConstructorEmission(input: {
       if (selected === undefined) failTargetAnalysisInvariant("tsonic-csharp", "Constructor admission requires each argument's exact native sequencing evidence.", argument);
       const helper = selected.sequenced || selected.completion !== "value";
       if (selected.carrier === undefined || selected.completion === "void" || (prepared || helper) && selected.passing !== undefined) {
-        issues.push({ source: "tsonic-csharp", category: "error", code: "CSHARP_UNSUPPORTED_AST", sourceNode: prepared ? node : argument,
+        issues.push({ source: "tsonic-csharp", category: "error", code: prepared ? "CSHARP_PREPARED_CONSTRUCTOR_ARGUMENT_STORAGE" : "CSHARP_BASE_ARGUMENT_SEQUENCE", sourceNode: prepared ? node : argument,
           message: prepared
             ? "Prepared constructor arguments require exact native value storage; managed references cannot be stored in a value packet."
             : "A sequenced native base argument requires its exact value result and direct parameter storage contract." });

@@ -1,9 +1,7 @@
 import type { AstReader, Node } from "@tsonic/tsts";
-import type { SourceProgramNavigation } from "@tsonic/target-api/source";
+import type { SourceProgramFacts } from "@tsonic/target-api/source";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import { HasSyntacticModifier, ModifierFlagsAbstract, ModifierFlagsAccessor, ModifierFlagsAmbient,
-  ModifierFlagsConst, ModifierFlagsOverride, ModifierFlagsPrivate, ModifierFlagsProtected, ModifierFlagsPublic,
-  ModifierFlagsReadonly, sourceClassFieldIsTypeOnly, sourceParameterIsProperty } from "@tsonic/target-api/source";
+import { HasSyntacticModifier, ModifierFlagsAbstract, ModifierFlagsAccessor, ModifierFlagsAmbient, ModifierFlagsConst, ModifierFlagsOverride, ModifierFlagsPrivate, ModifierFlagsProtected, ModifierFlagsPublic, ModifierFlagsReadonly, sourceClassFieldIsTypeOnly, sourceParameterIsProperty } from "@tsonic/target-api/source";
 import type { CsharpNativeParticipationInput, CsharpNativeUseClassifications } from "../../target-model/records/native/native-demand.js";
 import type { CsharpProjectTypeClassifications } from "../../target-model/records/types/project-types.js";
 import type { CsharpStorageClassifications } from "../../target-model/records/storage/storage.js";
@@ -28,7 +26,7 @@ export function admitCsharpNativeDeclarations(
   nodes: readonly Node[],
   nativeUse: CsharpNativeUseClassifications["nativeUse"],
   projectTypes: Pick<CsharpProjectTypeClassifications, "heritageForDeclaration">,
-  authoredHeritage: Pick<SourceProgramNavigation, "declaredHeritage">,
+  facts: SourceProgramFacts,
   metadata: Pick<CsharpSourceEvidenceIndex, "compileTimeMetadata" | "sourceField">,
   storage: Pick<CsharpStorageClassifications, "storageType" | "nativeBacking" | "typedLocationIdentity">,
   participation: CsharpNativeParticipationInput["participation"],
@@ -39,9 +37,8 @@ export function admitCsharpNativeDeclarations(
   captures: Pick<CsharpCaptureStorage, "capturedBinding" | "physicalStorageType">,
 ): readonly TargetDiagnostic[] {
   const issues: TargetDiagnostic[] = [];
-  const refuse = (node: Node, message: string): void => {
-    issues.push(Object.freeze({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp",
-      sourceNode: node, message }));
+  const refuse = (node: Node, code: `CSHARP_${string}`, message: string): void => {
+    issues.push(Object.freeze({ code, category: "error", source: "tsonic-csharp", sourceNode: node, message }));
   };
   for (const node of nodes) {
     if (nativeUse.order(node) === undefined || metadata.compileTimeMetadata.get(node) ||
@@ -51,45 +48,45 @@ export function admitCsharpNativeDeclarations(
       const owner = ast.parent(node);
       if (owner !== undefined && !ast.is.IsSourceFile(owner) && !ast.is.IsModuleDeclaration(owner) &&
         ast.kindName(owner) !== "KindModuleBlock") {
-        refuse(node, "Statement is outside the current C# planning surface.");
+        refuse(node, "CSHARP_LOCAL_TYPE_DECLARATION", "Statement is outside the current C# planning surface.");
         continue;
       }
     }
     if (ast.is.IsMethodDeclaration(node)) {
       const returned = declarations.returnContract.get(node);
-      if (returned?.kind === "rejected") refuse(node, returned.reason);
+      if (returned?.kind === "rejected") refuse(node, "CSHARP_METHOD_RETURN_CONTRACT", returned.reason);
       const dispatch = methodDispatch.get(node);
       if (dispatch?.kind !== "method") {
-        refuse(node, "A method has no sealed native dispatch contract.");
+        refuse(node, "CSHARP_METHOD_DISPATCH_NOT_PROVEN", "A method has no sealed native dispatch contract.");
       } else {
         if (csharpTargetTypeRenderingRejection(dispatch.implementation.returnType) !== undefined) {
-          refuse(node, "A method's sealed native return contract is not renderable.");
+          refuse(node, "CSHARP_METHOD_RETURN_NOT_RENDERABLE", "A method's sealed native return contract is not renderable.");
         }
         for (const parameter of dispatch.implementation.nativeParameters) {
           const type = parameter.targetParameter.type;
           if (csharpTargetTypeRenderingRejection(type) === undefined) continue;
           issues.push(Object.freeze({ category: "error", source: "tsonic-csharp", sourceNode: parameter.sourceParameter,
-            code: type.kind === "opaque" ? "CSHARP_OPAQUE_TARGET_TYPE_UNSUPPORTED" : "CSHARP_UNSUPPORTED_AST",
+            code: type.kind === "opaque" ? "CSHARP_OPAQUE_TARGET_TYPE_UNSUPPORTED" : "CSHARP_TARGET_TYPE_NOT_RENDERABLE",
             message: type.kind === "opaque" ? `Opaque target type '${type.id}' has no renderable C# source representation.`
               : `C# type policy resolved '${type.kind}', but that target type has no renderable C# syntax.` }));
         }
         for (const adapter of dispatch.adapters) {
           if (csharpTargetTypeRenderingRejection(adapter.contract.returnType) !== undefined ||
             adapter.contract.nativeParameters.some(parameter => csharpTargetTypeRenderingRejection(parameter.targetParameter.type) !== undefined)) {
-            refuse(node, "A sealed callable adapter has an unrenderable native signature.");
+            refuse(node, "CSHARP_CALLABLE_ADAPTER_NOT_RENDERABLE", "A sealed callable adapter has an unrenderable native signature.");
           }
         }
       }
       const write = declarations.methodWrite.get(node);
       if (write !== undefined) {
         const owner = ast.parent(node);
-        const heritage = owner === undefined ? undefined : authoredHeritage.declaredHeritage(owner);
+        const heritage = owner === undefined ? undefined : facts.objects.heritage(owner);
         if (csharpTargetTypeRenderingRejection(write.type) !== undefined ||
-          csharpSourceTypeParameters(node, ast).some(parameter => parameter !== undefined) ||
+          csharpSourceTypeParameters(node, ast, facts.navigation.scopes).some(parameter => parameter !== undefined) ||
           ast.hasModifierKind(node, "static") || ast.hasModifierKind(node, "abstract") ||
           dispatch?.overridesBase === true || dispatch?.hasDerivedOverride === true ||
-          heritage?.kind === "resolved" && heritage.edges.length > 0) {
-          refuse(node, "A writable source method requires a closed non-generic instance delegate without native inheritance or interface dispatch obligations.");
+          heritage !== undefined && (!Array.isArray(heritage) || heritage.length > 0)) {
+          refuse(node, "CSHARP_WRITABLE_METHOD_SHAPE", "A writable source method requires a closed non-generic instance delegate without native inheritance or interface dispatch obligations.");
         }
       }
     }
@@ -100,7 +97,7 @@ export function admitCsharpNativeDeclarations(
         const types = heritage.baseType === undefined ? heritage.interfaces : [heritage.baseType, ...heritage.interfaces];
         for (const type of types) {
           if (csharpTargetTypeRenderingRejection(type) !== undefined) {
-            refuse(node, "Canonical project heritage contains a target type that cannot be rendered in C#.");
+            refuse(node, "CSHARP_HERITAGE_NOT_RENDERABLE", "Canonical project heritage contains a target type that cannot be rendered in C#.");
           }
         }
       }
@@ -111,14 +108,14 @@ export function admitCsharpNativeDeclarations(
         if (csharpTargetTypeRenderingRejection(factory.factoryType) !== undefined ||
           csharpTargetTypeRenderingRejection(factory.contract.instance) !== undefined ||
           factory.identity !== undefined && csharpTargetTypeRenderingRejection(factory.identity.type) !== undefined) {
-          refuse(node, "A class evaluation requires every sealed native capture owner.");
+          refuse(node, "CSHARP_CLASS_CAPTURE_OWNER", "A class evaluation requires every sealed native capture owner.");
         }
         for (const capture of factory.captures) {
           const shared = captures.capturedBinding.get(capture.declaration);
           const carrier = shared === undefined ? captures.physicalStorageType.get(capture.declaration, capture.type)
             : shared.frame.shape.targetType;
           if (csharpTargetTypeRenderingRejection(carrier) !== undefined) {
-            refuse(capture.declaration, "A class capture has no renderable native storage.");
+            refuse(capture.declaration, "CSHARP_CLASS_CAPTURE_NOT_RENDERABLE", "A class capture has no renderable native storage.");
           }
         }
       }
@@ -131,7 +128,7 @@ export function admitCsharpNativeDeclarations(
           metadata.sourceField.get([member, property.name, property.Type, property.Initializer]) === undefined) {
           const carrier = storage.storageType.get(member);
           if (carrier === undefined || csharpTargetTypeRenderingRejection(carrier) !== undefined) {
-            refuse(member, "A class initializer requires its exact native value contract.");
+            refuse(member, "CSHARP_CLASS_INITIALIZER_CONTRACT", "A class initializer requires its exact native value contract.");
           }
         }
         if (kind === "KindPropertyDeclaration" && ast.hasModifierKind(member, "static") &&
@@ -149,7 +146,7 @@ export function admitCsharpNativeDeclarations(
         }
         if (kind !== "KindConstructor" && kind !== "KindClassStaticBlockDeclaration" && kind !== "KindMethodDeclaration" &&
           kind !== "KindPropertyDeclaration" && kind !== "KindParameter" && kind !== "KindGetAccessor" && kind !== "KindSetAccessor") {
-          refuse(member, "Class member is outside the current C# planning surface.");
+          refuse(member, "CSHARP_CLASS_MEMBER_KIND", "Class member is outside the current C# planning surface.");
         }
       }
     } else if (ast.is.IsInterfaceDeclaration(node)) {
@@ -157,13 +154,13 @@ export function admitCsharpNativeDeclarations(
         if (member === undefined || metadata.compileTimeMetadata.get(member)) continue;
         const kind = ast.kindName(member);
         if (kind !== "KindMethodSignature" && kind !== "KindPropertySignature" && kind !== "KindIndexSignature") {
-          refuse(member, "Interface member is outside the current C# planning surface.");
+          refuse(member, "CSHARP_INTERFACE_MEMBER_KIND", "Interface member is outside the current C# planning surface.");
         }
         if (kind === "KindMethodSignature" && participation.get(member) === "signature" &&
           ast.parameters(member).some(parameter => {
             if (parameter === undefined) return false;
             return storage.nativeBacking.get(parameter) !== undefined || storage.typedLocationIdentity.get(parameter);
-          })) refuse(member, "Interface methods cannot publish destructuring parameter preludes.");
+          })) refuse(member, "CSHARP_INTERFACE_DESTRUCTURING_PARAMETER", "Interface methods cannot publish destructuring parameter preludes.");
       }
     }
   }
@@ -201,9 +198,8 @@ export function admitCsharpRawInterfaceDeclarations(
       (member.typeParameters ?? []).every(parameter => parameter.constraints.every(constraint =>
         constraint.kind !== "type" || csharpTargetTypeRenderingRejection(constraint.type) === undefined));
   });
-  const refuse = (node: Node, message: string): void => {
-    issues.push(Object.freeze({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp",
-      sourceNode: node, message }));
+  const refuse = (node: Node, code: `CSHARP_${string}`, message: string): void => {
+    issues.push(Object.freeze({ code, category: "error", source: "tsonic-csharp", sourceNode: node, message }));
   };
   for (const node of nodes) {
     if (!ast.is.IsInterfaceDeclaration(node) || nativeUse.order(node) === undefined || metadata.get(node) ||
@@ -211,13 +207,13 @@ export function admitCsharpRawInterfaceDeclarations(
     const shape = shapes.resolveNode(node, ast.getSourceFile(node));
     if (shape === undefined) continue;
     if (artifacts.get(objectShapeArtifactKey(shape))?.capabilities.includes("method-values") && !rendered(shape, true)) {
-      refuse(node, "An interface method value requires its exact native callable storage contract.");
+      refuse(node, "CSHARP_INTERFACE_METHOD_VALUE", "An interface method value requires its exact native callable storage contract.");
     }
     for (const type of shape.implements ?? []) {
       const inherited = shapes.resolveTarget(type);
       if (inherited !== undefined && !rendered(inherited,
         artifacts.get(objectShapeArtifactKey(inherited))?.capabilities.includes("method-values") === true)) {
-        refuse(node, "An inherited interface requires exact native member signatures.");
+        refuse(node, "CSHARP_INHERITED_INTERFACE_SIGNATURE", "An inherited interface requires exact native member signatures.");
       }
     }
   }
@@ -225,7 +221,7 @@ export function admitCsharpRawInterfaceDeclarations(
 }
 
 function admitCsharpDeclarationModifiers(ast: AstReader, node: Node,
-  refuse: (node: Node, message: string) => void): void {
+  refuse: (node: Node, code: `CSHARP_${string}`, message: string) => void): void {
   const modifiers = [
     { flag: ModifierFlagsPublic, name: "public" },
     { flag: ModifierFlagsPrivate, name: "private" },
@@ -240,7 +236,7 @@ function admitCsharpDeclarationModifiers(ast: AstReader, node: Node,
   const visibility = ["public", "private", "protected"];
   const check = (context: string, allowed: readonly string[] = []): void => {
     for (const modifier of modifiers) {
-      if (!allowed.includes(modifier.name) && HasSyntacticModifier(ast, node, modifier.flag)) refuse(node,
+      if (!allowed.includes(modifier.name) && HasSyntacticModifier(ast, node, modifier.flag)) refuse(node, "CSHARP_TYPESCRIPT_ONLY_MODIFIER",
         `TypeScript-only modifier '${modifier.name}' on ${context} is outside the native runtime-shape source subset. Use standard ECMAScript runtime shape or target/provider facts instead.`);
     }
   };

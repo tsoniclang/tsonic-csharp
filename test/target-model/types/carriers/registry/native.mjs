@@ -141,13 +141,6 @@ export const nativeCarrierRegistry = Object.freeze([
     frozen: false,
   },
   {
-    id: "src/target-model/types/carriers/runtime-carriers.ts#combineCsharpTargetUnionMembers",
-    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
-    declaration: { module: "src/target-model/types/carriers/runtime-carriers.ts", symbol: "combineCsharpTargetUnionMembers" },
-    responsibility: "js/ts-union-target-type",
-    frozen: false,
-  },
-  {
     id: "src/target-model/types/source-union-definitions.ts#csharpSourceUnionTargetType",
     kinds: ["target-named"],
     declaration: { module: "src/target-model/types/source-union-definitions.ts", symbol: "csharpSourceUnionTargetType" },
@@ -264,6 +257,13 @@ export const nativeCarrierRegistry = Object.freeze([
     kinds: ["target-named"],
     declaration: { module: "src/target-model/types/carriers/collections.ts", symbol: "csharpListTargetType" },
     responsibility: "vocabulary/growable-sequence",
+    frozen: false,
+  },
+  {
+    id: "src/target-model/types/carriers/runtime-carriers.ts#csharpSourceSumTargetType",
+    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
+    declaration: { module: "src/target-model/types/carriers/runtime-carriers.ts", symbol: "csharpSourceSumTargetType" },
+    responsibility: "js/ts-union-target-type",
     frozen: false,
   },
 ]);

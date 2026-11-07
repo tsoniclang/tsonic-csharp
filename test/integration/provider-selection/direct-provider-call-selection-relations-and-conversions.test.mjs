@@ -39,8 +39,7 @@ test("an exact selected provider signature closes one target call", () => {
   });
   const selected = selectCsharpProviderCall(
     fixture.host,
-    fixture.call,
-    fixture.sourceFile,
+    fixture.call
   );
   assert.equal(selected.kind, "resolved");
   assert.equal(selected.call.targetMember.id, fixture.member.id);
@@ -60,8 +59,7 @@ test("same-spelling source calls without provider evidence remain source-owned",
   });
   const selected = selectCsharpTargetCall(
     fixture.host,
-    fixture.call,
-    fixture.sourceFile,
+    fixture.call
   );
   assert.equal(selected.kind, "source-owned");
   assert.match(selected.reason, /no provider declaration evidence/u);
@@ -77,8 +75,8 @@ test("project-owned implicit constructors adapt an exact inherited provider sign
       id: "tsonic.source:project",
     },
   };
-  const projectConstructors = source => new Map([[source.evidence.sourceCallee.selectedDeclaration, new Map([[
-    source.evidence.selectedSignature,
+  const projectConstructors = source => new Map([[source.evidence.declaration, new Map([[
+    source.evidence.signature,
     { targetMember: projectMember, baseMemberId: baseMember.id },
   ]])]]);
   const fixture = createCallFixture({
@@ -88,8 +86,7 @@ test("project-owned implicit constructors adapt an exact inherited provider sign
   });
   const selected = selectCsharpTargetCall(
     fixture.host,
-    fixture.call,
-    fixture.sourceFile,
+    fixture.call
   );
   assert.equal(selected.kind, "resolved");
   assert.equal(selected.call.targetMember.id, projectMember.id);
@@ -99,10 +96,10 @@ test("project-owned implicit constructors adapt an exact inherited provider sign
 test("project-owned aliases of exact provider methods do not request constructor forwarding", () => {
   const member = providerMethod();
   const fixture = createCallFixture({ projectMethodAlias: true, member });
-  assert.equal(fixture.source.sourceReceiver !== undefined &&
-    fixture.host.navigation.isProjectDeclaration(fixture.source.sourceCallee.selectedDeclaration), true,
+  assert.equal(fixture.source.receiver !== undefined && fixture.source.declaration !== undefined &&
+    fixture.host.facts.navigation.identity.isProjectDeclaration(fixture.source.declaration), true,
   "the real project-owned member alias retains an instance receiver and the original provider signature");
-  const selected = selectCsharpTargetCall(fixture.host, fixture.call, fixture.sourceFile);
+  const selected = selectCsharpTargetCall(fixture.host, fixture.call);
   assert.equal(selected.kind, "resolved");
   assert.deepEqual(selected.call.targetMember, member);
 });
@@ -114,8 +111,7 @@ test("project-owned inherited provider signatures fail closed without an exact f
   });
   const selected = selectCsharpTargetCall(
     fixture.host,
-    fixture.call,
-    fixture.sourceFile,
+    fixture.call
   );
   assert.equal(selected.kind, "missing");
   assert.match(selected.reason, /no exact implicit constructor relation/u);
@@ -147,8 +143,7 @@ test("selected provider signatures do not search sibling overload identities", (
   });
   const selected = selectCsharpProviderCall(
     fixture.host,
-    fixture.call,
-    fixture.sourceFile,
+    fixture.call
   );
   assert.equal(selected.kind, "not-provider");
   assert.match(selected.reason, /no C# target relation/u);
@@ -185,8 +180,7 @@ test("multiple exact target relations remain ambiguous instead of being ranked",
   });
   const selected = selectCsharpProviderCall(
     fixture.host,
-    fixture.call,
-    fixture.sourceFile,
+    fixture.call
   );
   assert.equal(selected.kind, "ambiguous");
   assert.deepEqual(selected.candidates, [
@@ -227,8 +221,7 @@ test("collapsed source overloads select the uniquely best implicit C# target con
 
   const selected = selectCsharpProviderCall(
     fixture.host,
-    fixture.call,
-    fixture.sourceFile,
+    fixture.call
   );
 
   assert.equal(selected.kind, "resolved");
@@ -244,8 +237,7 @@ test("exact selected signatures reject incompatible target argument representati
   });
   const selected = selectCsharpProviderCall(
     fixture.host,
-    fixture.call,
-    fixture.sourceFile,
+    fixture.call
   );
   assert.equal(selected.kind, "missing");
   assert.match(
@@ -272,13 +264,11 @@ test("exact provider argument adapters close otherwise invalid target conversion
 
   const rejected = selectCsharpProviderCall(
     withoutAdapter.host,
-    withoutAdapter.call,
-    withoutAdapter.sourceFile,
+    withoutAdapter.call
   );
   const selected = selectCsharpProviderCall(
     withAdapter.host,
-    withAdapter.call,
-    withAdapter.sourceFile,
+    withAdapter.call
   );
 
   assert.equal(rejected.kind, "missing");
@@ -300,7 +290,7 @@ test("published int64 parameter narrowing does not require a provider adapter", 
       targetParameters: [targetParameter("value", csharpSourcePrimitiveTargetType("int32"))],
       sourceParametersRelations: [parameterRelation({ argumentAdapter: adapter })],
     });
-    const selected = selectCsharpProviderCall(fixture.host, fixture.call, fixture.sourceFile);
+    const selected = selectCsharpProviderCall(fixture.host, fixture.call);
     assert.equal(selected.kind, "resolved");
     assert.equal(selected.call.argumentMappings[0]?.conversion.kind, "checked-native-integer");
   }
@@ -313,7 +303,7 @@ test("a numeric provider adapter is not replaced by an integer cast", () => {
     targetParameters: [targetParameter("value", csharpSourcePrimitiveTargetType("int32"))],
     sourceParametersRelations: [parameterRelation({ argumentAdapter: adapter })],
   });
-  const selected = selectCsharpProviderCall(fixture.host, fixture.call, fixture.sourceFile);
+  const selected = selectCsharpProviderCall(fixture.host, fixture.call);
   assert.equal(selected.kind, "resolved");
   assert.equal(selected.call.argumentMappings[0]?.conversion.kind, "provider-argument-adapter");
 });
@@ -337,8 +327,7 @@ test("provider calls accept exact lifted implicit conversions between nullable v
 
   const selected = selectCsharpProviderCall(
     fixture.host,
-    fixture.call,
-    fixture.sourceFile,
+    fixture.call
   );
 
   assert.equal(selected.kind, "resolved");
@@ -364,8 +353,7 @@ test("provider calls lift exact static argument adapters over nullable value car
 
   const selected = selectCsharpProviderCall(
     fixture.host,
-    fixture.call,
-    fixture.sourceFile,
+    fixture.call
   );
 
   assert.equal(selected.kind, "resolved");
@@ -385,7 +373,7 @@ test("lifted provider adapters use one native operand and preserve absence round
     targetParameters: [targetParameter("value", targetType)],
     sourceParametersRelations: [parameterRelation({ argumentAdapter: int32ProviderAdapter() })],
   });
-  const selected = selectCsharpProviderCall(fixture.host, fixture.call, fixture.sourceFile);
+  const selected = selectCsharpProviderCall(fixture.host, fixture.call);
   assert.equal(selected.kind, "resolved");
   const conversion = selected.call.argumentMappings[0].conversion;
   assert.equal(conversion.kind, "lifted-provider-argument-adapter");
@@ -476,8 +464,7 @@ test("provider calls reject nullable adapter lifting when element identities dif
 
   const selected = selectCsharpProviderCall(
     fixture.host,
-    fixture.call,
-    fixture.sourceFile,
+    fixture.call
   );
 
   assert.equal(selected.kind, "missing");
@@ -498,8 +485,7 @@ test("checked-source parameter acceptance is scoped to the exact provider relati
   });
   const selected = selectCsharpProviderCall(
     fixture.host,
-    fixture.call,
-    fixture.sourceFile,
+    fixture.call
   );
   assert.equal(selected.kind, "resolved");
   assert.equal(
@@ -526,8 +512,7 @@ test("checked-source acceptance never discards an available exact conversion", (
 
   const selected = selectCsharpProviderCall(
     fixture.host,
-    fixture.call,
-    fixture.sourceFile,
+    fixture.call
   );
 
   assert.equal(selected.kind, "resolved");
@@ -556,8 +541,7 @@ test("optional source and target parameters may be omitted only when both contra
   });
   const selected = selectCsharpProviderCall(
     fixture.host,
-    fixture.call,
-    fixture.sourceFile,
+    fixture.call
   );
   assert.equal(selected.kind, "resolved");
   assert.deepEqual(selected.call.arguments, []);
@@ -578,8 +562,7 @@ test("optional omission fails closed when the target parameter remains required"
   });
   const selected = selectCsharpProviderCall(
     fixture.host,
-    fixture.call,
-    fixture.sourceFile,
+    fixture.call
   );
   assert.equal(selected.kind, "missing");
   assert.match(selected.reason, /does not supply every required parameter/u);
@@ -634,8 +617,7 @@ test("provider generic constraints accept only exactly proven target categories"
     assert.equal(
       selectCsharpProviderCall(
         accepted.host,
-        accepted.call,
-        accepted.sourceFile,
+        accepted.call
       ).kind,
       "resolved",
       row.name,
@@ -647,8 +629,7 @@ test("provider generic constraints accept only exactly proven target categories"
     );
     const selection = selectCsharpProviderCall(
       rejected.host,
-      rejected.call,
-      rejected.sourceFile,
+      rejected.call
     );
     assert.equal(selection.kind, "missing", row.name);
     assert.match(selection.reason, row.diagnostic, row.name);
@@ -701,8 +682,7 @@ test("provider constructor and interface constraints use exact project type fact
   assert.equal(
     selectCsharpProviderCall(
       constructible.host,
-      constructible.call,
-      constructible.sourceFile,
+      constructible.call
     ).kind,
     "resolved",
   );
@@ -713,8 +693,7 @@ test("provider constructor and interface constraints use exact project type fact
   );
   const abstractSelection = selectCsharpProviderCall(
     abstract.host,
-    abstract.call,
-    abstract.sourceFile,
+    abstract.call
   );
   assert.equal(abstractSelection.kind, "missing");
   assert.match(
@@ -737,8 +716,7 @@ test("provider constructor and interface constraints use exact project type fact
   assert.equal(
     selectCsharpProviderCall(
       implementing.host,
-      implementing.call,
-      implementing.sourceFile,
+      implementing.call
     ).kind,
     "resolved",
   );
@@ -756,8 +734,7 @@ test("provider constructor and interface constraints use exact project type fact
   );
   const unrelatedSelection = selectCsharpProviderCall(
     unrelated.host,
-    unrelated.call,
-    unrelated.sourceFile,
+    unrelated.call
   );
   assert.equal(unrelatedSelection.kind, "missing");
   assert.match(
@@ -813,8 +790,7 @@ test("static-interface dispatch validates the exact selected invocation type", (
   });
   const selection = selectCsharpProviderCall(
     fixture.host,
-    fixture.call,
-    fixture.sourceFile,
+    fixture.call
   );
   assert.equal(selection.kind, "resolved");
   assert.deepEqual(
@@ -888,12 +864,9 @@ function createCallFixture(options = {}) {
     relations,
     facts,
     calls: [[source.call, source.evidence]],
-    signatureDeclarations: [[
-      source.evidence.selectedSignature,
-      source.signatureDeclaration,
-    ]],
     nodeTypes: native.nodeTypes,
-    semanticTypes: native.semanticTypes,
+    descriptorTypes: native.descriptorTypes,
+    instantiations: native.instantiations,
     ...(options.objectShapes === undefined
       ? {}
       : { objectShapes: options.objectShapes }),
@@ -912,15 +885,6 @@ function createCallFixture(options = {}) {
     ...(options.projectDirectSupertypes === undefined
       ? {}
       : { projectDirectSupertypes: options.projectDirectSupertypes }),
-    ...(options.effectiveTypeArguments === undefined
-      ? {}
-      : { effectiveTypeArguments: options.effectiveTypeArguments }),
-    ...(options.typeSymbols === undefined
-      ? {}
-      : { typeSymbols: options.typeSymbols }),
-    ...(options.symbolDeclarations === undefined
-      ? {}
-      : { symbolDeclarations: options.symbolDeclarations }),
   });
   return {
     ...direct,

@@ -28,7 +28,6 @@ import { createStructuralObjectShapeTarget, mergeCsharpObjectShapeSubjects } fro
 import { finalizeCsharpStructuralInterfaceForwarding } from "../../../dist/analysis/objects/structural-forwarding.js";
 import { retainCsharpMethodValueContracts } from "../../../dist/analysis/objects/shapes/method-values.js";
 import { csharpCopiedObjectShapeMembers } from "../../../dist/policy/types/objects/method-environments.js";
-import { selectCsharpObjectMethodImplementation } from "../../../dist/analysis/objects/shapes/method-implementations.js";
 import { selectCsharpObjectMemberEmission } from "../../../dist/policy/types/objects/object-members.js";
 import { unexpectedNativeDispatchRead, emptyNativeDispatch, integer, noAuthoredNativeMethod, defaultEvidenceFixture, structuralInterfaceRecords, sourceContract, fixture, nativeBoundBase, nativeBoundDerived, genericBoundFixture, programs, nativeModes, adaptedNativeForwarder, nativeProofSource, buildNativeProof, buildNativeProject, genericCases, genericSource } from "./structural-forwarding.fixtures.mjs";
 

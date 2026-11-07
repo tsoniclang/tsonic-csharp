@@ -15,6 +15,7 @@ import { publishCsharpNativeArtifactDemand } from "../../../dist/analysis/progra
 import { objectShapeArtifactKey } from "../../../dist/target-model/records/objects/object-shape-keys.js";
 import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 import { createCsharpPlanningContext } from "../../../dist/backend/planner/context.js";
+import { sealCsharpAnalysisProgram } from "../../../dist/analysis/program/index.js";
 import { csharpObjectShapeArtifact } from "../../../dist/backend/planner/artifacts/object-shapes.js";
 import { csharpObjectShapeMemberContractKey } from "../../../dist/target-model/types/object-shape-identity.js";
 import { monomorphicStructuralOptionalFiles } from "../../../../tsonic/test/fixtures/generic-structural-methods.mjs";
@@ -96,7 +97,8 @@ for (const surface of ["native", "js"]) for (const [name, body] of programs) {
       assert.equal(artifact.dependencies.every(key => demand.get(key) !== undefined), true, "every demanded component is published");
       assert.equal(artifact.key === objectShapeArtifactKey(artifact.fact), true, "canonical target-owned artifact key");
     }
-    const context = createCsharpPlanningContext(program);
+    // The backend plans from the sealed program (records and syntax only), as in production (nextgen C-2542).
+    const context = createCsharpPlanningContext(sealCsharpAnalysisProgram(program));
     assert.equal(Object.hasOwn(context, "artifacts") || Object.isFrozen(context) === false, false,
       "no artifact graph, decision or mutation API survives in the backend");
     assert.equal(context.program.records.objectShapeArtifact === demand, true, "the backend holds the sealed demand by identity");
@@ -104,14 +106,15 @@ for (const surface of ["native", "js"]) for (const [name, body] of programs) {
       "the backend reads exactly the sealed artifact");
     assert.equal(demand.artifacts.every(artifact => demand.get(artifact.key) === artifact), true, "render-time demand reads cannot change publication");
     assert.equal([...compiled.artifacts.values()].some(text => text.includes("class ") || text.includes("struct ")), true, "native declarations are emitted");
-    const subject = nodes.find(node => source.ast.is.IsFunctionDeclaration(node));
+    const subject = nodes.find(node => source.syntax.is.IsFunctionDeclaration(node));
     const row = { family: "objectShapeArtifact", key: demand.artifacts[0].key, subject,
       construct: "native object-shape artifact", producer: "analyzeCsharpNativeArtifactDemand" };
     assertCsharpRequiredRecords(program.records, [row]);
     const missing = Object.freeze({ ...demand, get: key => key === row.key ? undefined : demand.get(key) });
     assert.throws(() => createCsharpProgramRecords(csharpRecordInput({ ...program.records, objectShapeArtifact: missing }), [row]),
       /Required C# semantic plan 'objectShapeArtifact'/u, "a missing actual artifact prevents publication");
-    const invalidContext = createCsharpPlanningContext({ ...program, records: { ...program.records, objectShapeArtifact: missing } });
+    const invalidContext = createCsharpPlanningContext({ ...sealCsharpAnalysisProgram(program),
+      records: { ...program.records, objectShapeArtifact: missing } });
     assert.throws(() => csharpObjectShapeArtifact(invalidContext, demand.artifacts[0].fact),
       /sealed artifact record/u, "an impossible missing record cannot become a false capability answer");
     assert.throws(() => assertCsharpRequiredRecords(program.records, [{ ...row, key: "foreign-owner" }]),
@@ -141,22 +144,22 @@ for (const surface of ["native", "js"]) test(`${surface}: source-only generic me
     export function identity(): Identity { return { identity<Value>(value: Value): Value { return value; } }; }
     export function run(): boolean { return identity().identity<int32>(7 as int32) === 7; }
   `, surface);
-  const alias = nodes.find(node => source.ast.is.IsTypeAliasDeclaration(node) &&
-    source.ast.text(source.ast.name(node)) === "UnconsumedIdentity");
+  const alias = nodes.find(node => source.syntax.is.IsTypeAliasDeclaration(node) &&
+    source.syntax.text(source.syntax.name(node)) === "UnconsumedIdentity");
   assert.equal(alias !== undefined, true, "the negative control is a real checked private alias");
-  const viewNode = source.ast.typeNode(alias);
-  assert.equal(viewNode !== undefined && source.ast.is.IsTypeLiteralNode(viewNode), true,
+  const viewNode = source.syntax.typeNode(alias);
+  assert.equal(viewNode !== undefined && source.syntax.is.IsTypeLiteralNode(viewNode), true,
     "the negative control has its own authored structural source view");
   const sourceOnly = program.records.nodeObjectShape.get(viewNode);
   assert.equal(sourceOnly !== undefined, true, "the source-only view was classified and sealed before artifact demand");
-  const memberDeclaration = nodes.find(node => source.ast.is.IsMethodSignatureDeclaration(node) &&
-    source.ast.text(source.ast.name(node)) === "unconsumedIdentity");
+  const memberDeclaration = nodes.find(node => source.syntax.is.IsMethodSignatureDeclaration(node) &&
+    source.syntax.text(source.syntax.name(node)) === "unconsumedIdentity");
   const sourceOnlyMember = sourceOnly.members.find(member => member.sourceName === "unconsumedIdentity");
   assert.equal(memberDeclaration !== undefined && sourceOnlyMember?.memberKind === "method" &&
     sourceOnlyMember.typeParameters?.length === 1 && sourceOnlyMember.sourceDeclarations?.includes(memberDeclaration) === true &&
     sourceOnly.methodImplementation === undefined, true,
     "the absent artifact witness is actual checked generic source evidence, not a manufactured implementation");
-  const literal = nodes.find(node => source.ast.is.IsObjectLiteralExpression(node));
+  const literal = nodes.find(node => source.syntax.is.IsObjectLiteralExpression(node));
   const selected = program.records.nativeExpression.get(literal)?.use;
   const storage = program.records.storageType.get(literal);
   assert.equal(selected !== undefined && selected.kind !== "erased" && selected.objectShape !== undefined && storage !== undefined, true,
@@ -187,8 +190,8 @@ for (const surface of ["native", "js"]) test(`${surface}: required physical bind
       return value.count === 7;
     }
   `, surface);
-  const declaration = nodes.find(node => source.ast.is.IsVariableDeclaration(node) &&
-    source.ast.as.AsVariableDeclaration(node)?.Initializer === undefined);
+  const declaration = nodes.find(node => source.syntax.is.IsVariableDeclaration(node) &&
+    source.syntax.as.AsVariableDeclaration(node)?.Initializer === undefined);
   const carrier = program.records.storageType.get(declaration);
   const shape = program.objectShapes.resolveTarget(carrier);
   assert.equal(carrier !== undefined && shape !== undefined, true, "the actual uninitialized native binding has its exact physical carrier");
@@ -347,9 +350,11 @@ test("constructor refusals and other participating native refusals share one com
   assert.equal(diagnostics.some(diagnostic => diagnostic.code === "CSHARP_JS_SOURCE_PROFILE_OPERATION_UNSUPPORTED" &&
     diagnostic.message === "Proxy traps redefine object operations dynamically and have no closed C# source-to-source representation."), true,
   "exact constructor diagnostic transport");
-  assert.equal(diagnostics.some(diagnostic => diagnostic.code === "CSHARP_UNSUPPORTED_AST" &&
+  // nextgen C-2542: CSHARP_UNSUPPORTED_AST is split; an expression form outside the planning surface is
+  // CSHARP_EXPRESSION_FORM_NOT_PLANNED (expression-emission.ts; request R-T5-2 for native-operands.ts).
+  assert.equal(diagnostics.some(diagnostic => diagnostic.code === "CSHARP_EXPRESSION_FORM_NOT_PLANNED" &&
     diagnostic.message === "Expression is outside the current C# planning surface."), true, "the existing independent native refusal is retained");
-  const tagged = diagnostics.find(diagnostic => diagnostic.code === "CSHARP_UNSUPPORTED_AST");
+  const tagged = diagnostics.find(diagnostic => diagnostic.code === "CSHARP_EXPRESSION_FORM_NOT_PLANNED");
   assert.equal(compiled.source.ast.is.IsTaggedTemplateExpression(tagged.sourceNode), true,
     "the independent refusal belongs to the actual tagged template, not an unrelated tag-body operation");
 });

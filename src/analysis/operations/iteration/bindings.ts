@@ -1,3 +1,4 @@
+import { csharpHostUnionUse } from "../../../policy/conversions/union-relations.js";
 import type { CsharpForInKeyBinding, CsharpForOfBinding } from "../../../target-model/records/operations/selection.js";
 import type { CsharpStorageClassifications } from "../../../target-model/records/storage/storage.js";
 import { selectCsharpConversion } from "../../../policy/conversions/index.js";
@@ -41,8 +42,8 @@ export function selectCsharpForInKeyBinding(
   } else {
     if (!ast.is.IsIdentifier(initializer)) return refuse(initializer,
       "For-in initializer binding is outside the current C# planning surface.");
-    const selected = input.navigation.sourceReferenceFor(initializer)?.declaration;
-    if (selected === undefined) return refuse(initializer, "For-in assignment requires its exact checked binding declaration.");
+    const selected = input.facts.navigation.identity.target(initializer)?.declaration;
+    if (selected === undefined) return refuse(initializer, "For-in assignment requires its exact binding declaration.");
     node = initializer;
     name = initializer;
     declaration = selected;
@@ -100,7 +101,7 @@ export function selectCsharpForOfBinding(
   } else {
     if (!ast.is.IsIdentifier(initializer)) return refuse(initializer,
       "For-of initializer binding is outside the current C# planning surface.");
-    const selected = input.navigation.sourceReferenceFor(initializer)?.declaration;
+    const selected = input.facts.navigation.identity.target(initializer)?.declaration;
     if (selected === undefined) return refuse(initializer, "For-of assignment requires its exact checked binding declaration.");
     declaration = selected;
     node = initializer;
@@ -116,7 +117,8 @@ export function selectCsharpForOfBinding(
     (csharpTargetTypeRenderingRejection(iteration.lowering.policy.highSurrogateMethod.declaringType) !== undefined ||
       csharpTargetTypeRenderingRejection(iteration.lowering.policy.lowSurrogateMethod.declaringType) !== undefined)) return refuse(statement,
     "String code-point surrogate test requires a renderable static target method policy.");
-  const conversion = selectCsharpConversion(input, iteration.elementType, storageType, "implicit");
+  // The element written into the binding storage injects into a union only along the Host relation (R-C2-7).
+  const conversion = selectCsharpConversion(input, iteration.elementType, storageType, "implicit", csharpHostUnionUse(input.facts, node));
   if (!csharpConversionIsApplicable(conversion, "implicit")) return refuse(node,
     "For-of element requires an exact implicit native conversion to its binding storage.");
   return { kind: "resolved", binding: Object.freeze({ node, declaration, storageType, conversion, ...form }) };

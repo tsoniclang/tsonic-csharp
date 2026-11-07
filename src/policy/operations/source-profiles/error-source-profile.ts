@@ -137,7 +137,7 @@ export const csharpErrorSourceProfilePropertyPolicies:
       errorProperties.map(property => Object.freeze({
         source: errorIdentity(owner, "member", property.sourceName),
         select: (context: CsharpSourceProfilePropertyPolicyContext): CsharpSourceProfilePropertyPolicyResult | undefined =>
-          selectNativeErrorProperty(context.host, property, context.receiverType, context.source.accessMode),
+          selectNativeErrorProperty(context.host, property, context.receiverType, context.source.selection.access),
       })),
     ),
   );
@@ -156,7 +156,7 @@ function selectNativeErrorProperty(
   host: Pick<CsharpSourceProfilePropertyPolicyContext["host"], "providers" | "projectTypes" | "typeDefinitions">,
   property: typeof errorProperties[number],
   receiverType: TargetTypeRef | undefined,
-  accessMode: CsharpSourceProfilePropertyPolicyContext["source"]["accessMode"],
+  accessMode: CsharpSourceProfilePropertyPolicyContext["source"]["selection"]["access"],
 ): CsharpSourceProfilePropertyPolicyResult | undefined {
   const { native } = property;
   const exception = host.providers.publishNativeIdentities(exceptionType);
@@ -201,7 +201,7 @@ function errorCallPolicy(
         member.value,
         noReceiver,
       );
-      const withOptions = context.source.sourceArguments[1] !== undefined;
+      const withOptions = context.source.arguments[1] !== undefined;
       const cause = context.inputs.errorCause;
       const projected = call === undefined || withOptions && cause?.kind !== "resolved" ? undefined
         : withOptions && cause?.kind === "resolved" ? Object.freeze({ ...call,

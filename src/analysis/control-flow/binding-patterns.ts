@@ -1,27 +1,13 @@
+import { csharpHostUnionUse } from "../../policy/conversions/union-relations.js";
 import { createCsharpDestructuringAssignmentAnalysis } from "./destructuring-assignments.js";
 import { createCsharpBindingPatternProducer } from "../program/records/storage/binding-patterns.js";
 import type { AstReader, Node, SourceFile } from "@tsonic/tsts";
 import { csharpNativePropertyNameIssue } from "../objects/computed-field-names.js";
-import { sourceTypeDescriptorStructure, type SourceFileSemantics, type SourceEffectiveTypes, type SourceTypeDescriptor } from "@tsonic/target-api/source";
+import { sourceTypeDescriptorStructure, type SourceProgramFacts, type SourceTypeDescriptor } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { tryCsharpIdentifier } from "../../target-model/names/identifiers.js";
 import { getCsharpNullableElementTargetType, isCsharpValueTypeTargetType, targetTypeRefEquals } from "../../target-model/types/index.js";
-import {
-  AsBinaryExpression,
-  AsBindingElement,
-  AsBindingPattern,
-  AsForInOrOfStatement,
-  AsParameterDeclaration,
-  AsVariableDeclaration,
-  HasSourceKind,
-  KindArrayBindingPattern,
-  KindForOfStatement,
-  KindIdentifier,
-  KindObjectBindingPattern,
-  KindStringLiteral,
-  KindVariableDeclarationList,
-  Node_Text,
-} from "@tsonic/target-api/source";
+import { AsBinaryExpression, AsBindingElement, AsBindingPattern, AsForInOrOfStatement, AsParameterDeclaration, AsVariableDeclaration, HasSourceKind, KindArrayBindingPattern, KindForOfStatement, KindIdentifier, KindObjectBindingPattern, KindStringLiteral, KindVariableDeclarationList, Node_Text } from "@tsonic/target-api/source";
 import type { CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
@@ -53,9 +39,8 @@ import { resolveCsharpBindingSourceType } from "./binding-source-types.js";
 
 export interface CsharpBindingPatternAnalysisInput {
   readonly ast: AstReader;
-  readonly effectiveTypes: SourceEffectiveTypes;
+  readonly facts: SourceProgramFacts;
   readonly sourceFacts?: CsharpPolicyContext["sourceFacts"];
-  readonly semanticsFor: (node: Node) => SourceFileSemantics;
   readonly sourceFiles: readonly SourceFile[];
   readonly participation: CsharpNativeParticipationInput["participation"];
   readonly evidence: CsharpSourceEvidenceIndex;
@@ -63,7 +48,7 @@ export interface CsharpBindingPatternAnalysisInput {
   readonly valueReads: CsharpValueReadClassifications;
   readonly initializerUses: Pick<ReadonlyMap<object, Pick<CsharpExpectedNativeUse, "expression" | "carrier"> | null>, "get">;
   readonly objectShapes: CsharpObjectShapeClassifications;
-  readonly typePolicy: Pick<CsharpPolicyContext["types"], "resolveNode">;
+  readonly typePolicy: Pick<CsharpPolicyContext["types"], "value">;
   readonly conversionPolicy: Parameters<typeof selectCsharpConversion>[0];
   readonly storage: Pick<CsharpStorageClassifications, "storageType">;
 }
@@ -189,7 +174,7 @@ export function analyzeCsharpBindingPatterns(
       AsForInOrOfStatement(ast, statement)?.Initializer === list ? statement : undefined;
   }
 
-  function issue(node: Node, message: string, evidence: readonly string[] = [], code = "CSHARP_UNSUPPORTED_AST"): void {
+  function issue(node: Node, message: string, evidence: readonly string[] = [], code = "CSHARP_DESTRUCTURING_NOT_REPRESENTABLE"): void {
     const patternRoot = root;
     if (patternRoot === undefined) {
       failTargetAnalysisInvariant("tsonic-csharp", "A binding-pattern candidate issue was recorded outside its pattern root.", node);
@@ -254,7 +239,7 @@ export function analyzeCsharpBindingPatterns(
 
   function admitSource(diagnosticNode: Node, source: Node, sourceFile: SourceFile, description: string): void {
     if (input.valueReads.valueRead.get(source)?.value !== undefined) return;
-    if (input.objectShapes.resolveNode(source, sourceFile) !== undefined) return;
+    if (input.objectShapes.resolveNode(source) !== undefined) return;
     issue(diagnosticNode,
       `${description} requires a finalized runtime carrier fact before C# emission. ${unprovenCarrierReason}`,
       [unprovenCarrierEvidence]);
@@ -273,7 +258,8 @@ export function analyzeCsharpBindingPatterns(
       issue(name, "Destructuring binding requires its exact renderable finalized native storage carrier before C# emission.");
       return;
     }
-    const selected = selectCsharpConversion(input.conversionPolicy, source, target, "implicit");
+    // A destructured value written into a union storage injects along the Host relation at the binding (R-C2-7).
+    const selected = selectCsharpConversion(input.conversionPolicy, source, target, "implicit", csharpHostUnionUse(input.facts, name));
     const conversion = admitCsharpConversionSelection(input.conversionPolicy, source, target, selected);
     if (conversion.kind === "rejected") {
       issue(name, conversion.reason);
@@ -338,7 +324,7 @@ export function analyzeCsharpBindingPatterns(
   }
 
   function analyzeObjectPattern(pattern: Node, sourceNode: Node, sourceFile: SourceFile, sourceCarrier: TargetTypeRef | undefined): void {
-    const shape = sourceCarrier === undefined ? input.objectShapes.resolveNode(sourceNode, sourceFile)
+    const shape = sourceCarrier === undefined ? input.objectShapes.resolveNode(sourceNode)
       : input.objectShapes.resolveTarget(sourceCarrier);
     const elements = ast.elements(pattern);
     if (elements.length > 0 && elements.every(element => element !== undefined &&
@@ -390,7 +376,7 @@ export function analyzeCsharpBindingPatterns(
 
   function bindingPropertySourceName(propertyName: Node): { readonly sourceName?: string; readonly reason?: string } {
     if (ast.is.IsComputedPropertyName(propertyName) || ast.is.IsNumericLiteral(propertyName)) {
-      const selected = input.semanticsFor(propertyName).propertyNames.get(propertyName);
+      const selected = input.facts.analyses.propertyName(propertyName);
       if (selected === undefined) failTargetAnalysisInvariant("tsonic-csharp",
         "A native binding property requires its completed checked property-name selection.", propertyName);
       if (selected.kind === "resolved") return { sourceName: selected.name };
@@ -461,7 +447,7 @@ export function analyzeCsharpBindingPatterns(
 
   function publishedPatternType(pattern: Node): SourceTypeDescriptor | undefined {
     if (publishedPatternTypes.has(pattern)) return publishedPatternTypes.get(pattern);
-    const selected = resolveCsharpBindingSourceType(pattern, ast, input.effectiveTypes);
+    const selected = resolveCsharpBindingSourceType(pattern, ast, input.facts);
     publishedPatternTypes.set(pattern, selected);
     return selected;
   }
@@ -473,7 +459,7 @@ export function analyzeCsharpBindingPatterns(
     extractedSourceNames: ReadonlySet<string>,
     sourceFile: SourceFile,
   ): void {
-    const restContract = input.objectShapes.resolveNode(name, sourceFile);
+    const restContract = input.objectShapes.resolveNode(name);
     const restShape = restContract === undefined ? undefined : input.objectShapes.resolveCopyShape(restContract);
     if (restShape === undefined) {
       issue(elementNode, "Object rest destructuring requires finalized provider object-shape facts for the rest binding.");
@@ -498,8 +484,8 @@ export function analyzeCsharpBindingPatterns(
 
   function analyzeSourceOwnedPattern(pattern: Node, sourceNode: Node, sourceFile: SourceFile, receiverCarrier: TargetTypeRef | undefined): void {
     recordSource(pattern, { kind: "source-owned-source" });
-    const outcome = input.effectiveTypes.get(sourceNode);
-    const structure = outcome === undefined || outcome.kind === "refused" ? undefined : sourceTypeDescriptorStructure(outcome.type);
+    const outcome = input.facts.values.type(sourceNode);
+    const structure = outcome.kind === "refused" ? undefined : sourceTypeDescriptorStructure(outcome.type);
     const members = structure?.kind === "shape" ? structure.members : [];
     const elements = AsBindingPattern(ast, pattern)?.Elements?.Nodes ?? [];
     for (const elementNode of elements) {
@@ -536,8 +522,12 @@ export function analyzeCsharpBindingPatterns(
       }
       recordElement(elementNode, { ...selected.element, propertyName: targetName });
       const member = members.find(candidate => candidate.name === sourceName);
-      const carrier = member === undefined ? undefined
-        : input.typePolicy.resolveNode(elementNode, sourceFile)?.sourceResult?.selectedType;
+      const represented = member === undefined ? undefined : input.typePolicy.value(elementNode);
+      if (represented?.kind === "csharp-refused") {
+        issue(elementNode, represented.message, [], represented.code);
+        continue;
+      }
+      const carrier = represented;
       if (carrier === undefined) {
         issue(elementNode, "Object destructuring source property requires its exact finalized native extraction carrier before C# emission.");
         continue;

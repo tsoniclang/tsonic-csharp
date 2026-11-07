@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { nativeFinallyOverrideSource } from "../../../../tsonic/test/fixtures/native-completion-regions.mjs";
 import { compileCsharpSource, checkCsharpSource } from "../../helpers/direct-csharp-session.mjs";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
+import { hostProgram } from "../../representation/host-fixture.mjs";
 import { admitCsharpNativeDeclarations } from "../../../dist/analysis/declarations/native-value-declarations.js";
 import { admitCsharpNativeStorageBindings, admitCsharpStatementBindings } from "../../../dist/analysis/control-flow/native-control-flow.js";
 import { createCsharpPlanningContext } from "../../../dist/backend/planner/context.js";
@@ -32,7 +32,8 @@ test(`runtime-shape modifier refusals have one pre-seal declaration owner on ${s
     const compiled = compileCsharpSource({ surface, sourceText: "export class View { accessor value: number = 1; }" });
     assert.equal(compiled.sourceDiagnosticsText, "", "the auto-accessor is valid checked TypeScript");
     assert.equal(compiled.targetDiagnostics.length, 1, "the source modifier is refused exactly once");
-    assert.equal(compiled.targetDiagnostics[0].code, "CSHARP_UNSUPPORTED_AST", "the original source code is retained");
+    // nextgen C-2542: CSHARP_UNSUPPORTED_AST is split; the modifier site names CSHARP_TYPESCRIPT_ONLY_MODIFIER.
+    assert.equal(compiled.targetDiagnostics[0].code, "CSHARP_TYPESCRIPT_ONLY_MODIFIER", "the original source code is retained");
     assert.equal(compiled.targetDiagnostics[0].message,
       "TypeScript-only modifier 'accessor' on property declaration is outside the native runtime-shape source subset. Use standard ECMAScript runtime shape or target/provider facts instead.",
       "the original role and message are retained");
@@ -65,7 +66,7 @@ test(`for-of declarations, assignment destinations and string iteration use admi
       assert.equal(compiled.sourceDiagnosticsText, "", "native loop source is checked");
       assert.equal(compiled.targetDiagnostics.length, 0, "native binding conversions are admitted once");
       const program = compiled.result.program;
-      const ast = program.source.ast;
+      const ast = program.source.syntax;
       let count = 0;
       const visit = node => {
         if (ast.is.IsForOfStatement(node)) {
@@ -108,8 +109,8 @@ test("published for-in records contain immutable physical bindings and conversio
   assert.equal(program !== undefined, true, "the admitted program is published");
   let loop;
   const visit = node => {
-    if (program.source.ast.is.IsForInStatement(node)) loop = node;
-    program.source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    if (program.source.syntax.is.IsForInStatement(node)) loop = node;
+    program.source.syntax.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
   csharpProgramSourceFiles(program).forEach(visit);
   const iteration = program.records.iteration.get(loop);
@@ -123,38 +124,37 @@ test("published for-in records contain immutable physical bindings and conversio
 });
 
 test("catch admission owns every missing, invalid and unrenderable physical carrier refusal", () => {
-  const checked = checkCsharpSource({ sourceText: `
+  const source = hostProgram(`
     export function run(): void { try {} catch (error) { void error; } }
-  ` });
-  assert.equal(checked.sourceDiagnosticsText, "", "the catch witness is valid checked source");
-  const source = createTargetSourceProgram(checked.source);
+  `);
   const ast = source.ast;
   let clause;
   const visit = node => {
     if (ast.is.IsCatchClause(node)) clause = node;
     ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
-  source.navigation.sourceFiles.forEach(visit);
+  source.files.forEach(visit);
   const declaration = ast.as.AsCatchClause(clause).VariableDeclaration;
   const name = ast.name(declaration);
   for (const control of [
-    { label: "missing classification", throwable: undefined, carrier: undefined,
+    // nextgen C-2542: CSHARP_UNSUPPORTED_AST is split; each catch refusal names its own .NET reason code.
+    { label: "missing classification", code: "CSHARP_CATCH_VARIABLE_NOT_CLASSIFIED", throwable: undefined, carrier: undefined,
       message: "Catch variable has no sealed C# throwable classification." },
-    { label: "missing physical carrier", throwable: false, carrier: undefined,
+    { label: "missing physical carrier", code: "CSHARP_CATCH_CARRIER_NOT_PROVEN", throwable: false, carrier: undefined,
       message: "Catch variables require finalized TSTS/provider exception-carrier facts before C# emission. C# runtime representation is not proven by authored source facts, the selected source profile, project declarations, or an exact provider relation." },
-    { label: "nonexception physical carrier", throwable: false, carrier: { kind: "source-primitive", name: "bool" },
+    { label: "nonexception physical carrier", code: "CSHARP_CATCH_CARRIER_NOT_THROWABLE", throwable: false, carrier: { kind: "source-primitive", name: "bool" },
       message: "Catch variables require finalized TSTS/provider exception-carrier facts before C# emission. Resolved catch variable carrier is neither a target throwable carrier nor a closed TsValue catch carrier." },
-    { label: "unrenderable physical carrier", throwable: true, carrier: { kind: "opaque", id: "missing" },
+    { label: "unrenderable physical carrier", code: "CSHARP_CATCH_CARRIER_NOT_RENDERABLE", throwable: true, carrier: { kind: "opaque", id: "missing" },
       message: "Catch variable carrier must render to a closed C# type before C# emission." },
   ]) {
-    const issues = admitCsharpStatementBindings(ast, [clause],
+    const issues = admitCsharpStatementBindings({ syntax: ast, facts: source.facts }, [clause],
       { order: () => [{ kind: "construct", construct: declaration }] },
       { throwable: { get: () => control.throwable }, nativeUnreachable: { get: () => false } },
       { storageType: { get: () => control.carrier } }, { get: () => undefined },
-      { get: () => undefined }, { get: () => false });
+      { get: () => undefined }, { get: () => false }, { get: () => undefined });
     assert.equal(issues.length, 1, `${control.label}: one native admission owner`);
     assert.equal(issues[0].sourceNode === name, true, `${control.label}: exact original source subject`);
-    assert.equal(issues[0].code, "CSHARP_UNSUPPORTED_AST", `${control.label}: original refusal code`);
+    assert.equal(issues[0].code, control.code, `${control.label}: original refusal code`);
     assert.equal(issues[0].message, control.message, `${control.label}: original refusal message`);
   }
 });
@@ -193,11 +193,12 @@ test(`a yield binding-pattern refusal belongs to statement admission on ${surfac
     assert.equal(compiled.sourceDiagnosticsText, "", "the post-resume binding pattern is checked source");
     const issues = compiled.result.diagnostics.filter(issue => issue.category === "error");
     assert.equal(issues.length, 1, "one statement owner retains the existing unsupported post-resume refusal");
-    assert.equal(issues[0].code, "CSHARP_UNSUPPORTED_AST", "the original source refusal code is unchanged");
+    // nextgen C-2542: CSHARP_UNSUPPORTED_AST is split; the yield binding site names CSHARP_YIELD_INITIALIZER_DESTRUCTURING.
+    assert.equal(issues[0].code, "CSHARP_YIELD_INITIALIZER_DESTRUCTURING", "the original source refusal code is unchanged");
     assert.equal(issues[0].message,
       "A yield initializer with a binding pattern requires an explicit post-resume destructuring plan.",
       "the original source refusal message is unchanged");
-    const ast = createTargetSourceProgram(compiled.source).ast;
+    const ast = compiled.source.ast;
     assert.equal(ast.is.IsArrayBindingPattern(issues[0].sourceNode), true,
       "the exact authored binding pattern remains the diagnostic subject");
     assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0, true,

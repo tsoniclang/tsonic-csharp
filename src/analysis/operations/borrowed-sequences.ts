@@ -1,5 +1,6 @@
 import type { CsharpBorrowedSequenceInput } from "../../target-model/records/storage/borrowed-sequences.js";
-import type { Node, SourceFile } from "@tsonic/tsts";
+import type { Node } from "@tsonic/tsts";
+import { isCsharpRefusal } from "../../representation/index.js";
 import { sourceSequenceInputChoice, sourceSequenceInputIsEmpty } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 
@@ -10,13 +11,14 @@ import { getCsharpGenericOptionalParts } from "../../target-model/types/projecti
 export function classifyCsharpBorrowedSequenceInput(
   policy: CsharpPolicyContext,
   expression: Node,
-  sourceFile: SourceFile,
 ): CsharpBorrowedSequenceInput | undefined {
   const choice = sourceSequenceInputChoice(policy.ast, expression);
   if (choice === undefined) return undefined;
   const spread = policy.ast.parent(expression);
   const array = spread === undefined ? undefined : policy.ast.parent(spread);
-  const sourceCarrier = array === undefined ? undefined : policy.types.resolveNode(array, sourceFile)?.sourceResult?.selectedType;
+  // A refused array or input carrier is reported at its own value read; the sequence is then simply not borrowed.
+  const arrayCarrier = array === undefined ? undefined : policy.types.value(array);
+  const sourceCarrier = arrayCarrier === undefined || isCsharpRefusal(arrayCarrier) ? undefined : arrayCarrier;
   if (array === undefined || sourceCarrier === undefined ||
     getCsharpCollectionElementTargetType(sourceCarrier) === undefined) return undefined;
   const inputs: CsharpBorrowedSequenceInput["inputs"][number][] = [];
@@ -25,8 +27,8 @@ export function classifyCsharpBorrowedSequenceInput(
       inputs.push(Object.freeze({ kind: "empty", expression: node }));
       continue;
     }
-    const carrier = policy.types.resolveNode(node, sourceFile)?.sourceResult?.selectedType;
-    if (carrier === undefined) return undefined;
+    const carrier = policy.types.value(node);
+    if (isCsharpRefusal(carrier)) return undefined;
     const optional = getCsharpGenericOptionalParts(carrier)?.element ?? getCsharpNullableElementTargetType(carrier);
     const presentCarrier = optional ?? carrier;
     const element = getCsharpCollectionElementTargetType(presentCarrier);

@@ -127,7 +127,7 @@ export interface CsharpProgramRecordInput {
   readonly generators: CsharpGeneratorRecords;
   readonly objectShapeDemand: CsharpObjectShapeDemand;
   readonly nativeValueCarriers: CsharpNativeValueCarriers;
-  readonly literalValues: import("@tsonic/target-api/source").SourceLiteralIndex;
+  readonly facts: import("@tsonic/target-api/source").SourceProgramFacts;
   readonly nativeParticipation: CsharpNativeParticipationInput;
   readonly nativeDemand: CsharpNativeUseClassifications;
   readonly bindingPatterns: CsharpBindingPatternClassifications;
@@ -226,7 +226,8 @@ export function createCsharpProgramRecords(
     ...input.localBindings,
     objectShapeArtifact: input.objectShapeDemand,
     nativeValueDeclaration: input.nativeValueCarriers.nativeValueDeclaration,
-    literalValue: input.literalValues.literalValue,
+    literalValue: Object.freeze({ get: (node: import("@tsonic/tsts").Node) => input.facts.values.literal(node) }),
+    bindingIterationScope: Object.freeze({ get: (declaration: import("@tsonic/tsts").Node) => input.facts.navigation.scopes.iterationScope(declaration) }),
     nativeParticipation: input.nativeParticipation.participation,
     nativeUse: Object.freeze({ get: input.nativeDemand.nativeUse.get }),
     nativeOrder: Object.freeze({ get: input.nativeDemand.nativeUse.order }),
@@ -313,7 +314,6 @@ export function createCsharpProgramRecords(
     storageTargetType: input.sourceEvidence.storageTargetType,
     readStorageTargetType: input.sourceEvidence.readStorageTargetType,
     contextualType: input.sourceEvidence.contextualType,
-    signatureDeclaration: input.sourceEvidence.signatureDeclaration,
     contextualTuple: input.sourceEvidence.contextualTuple,
     constantValue: input.sourceEvidence.constantValue,
     valueRefinement: input.sourceEvidence.valueRefinement,

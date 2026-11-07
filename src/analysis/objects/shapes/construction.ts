@@ -4,7 +4,7 @@ import { csharpEmptyObjectTargetType } from "../../../target-model/types/carrier
 
 import { targetTypeRefKey } from "../../../target-model/types/equality.js";
 import type { CsharpTypeParameterEnvironment } from "../../../target-model/records/types/type-parameter-constraints.js";
-import { csharpObjectShapeTypeParameters, closeCsharpOwnerTypeParameterEnvironment } from "../../source-evidence/types/resolution/owner-type-parameter-environment.js";
+import { csharpObjectShapeTypeParameters, closeCsharpOwnerTypeParameterEnvironment } from "../../../policy/types/objects/owner-type-parameters.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../target-model/types/model.js";
 
 import { selectCsharpStructuralObjectCarrier } from "../../../policy/types/objects/shape-carriers.js";
@@ -42,7 +42,6 @@ export function mergeCsharpObjectShapeSubjects(
   );
   return {
     ...left,
-    ...(left.sourceType === undefined && right.sourceType !== undefined ? { sourceType: right.sourceType } : {}),
     ...(right.declarationTemplate === undefined ? {} : {
       declarationTemplate: left.declarationTemplate === undefined ? right.declarationTemplate
         : mergeCsharpObjectShapeSubjects(left.declarationTemplate, right.declarationTemplate),
@@ -62,10 +61,6 @@ export function mergeCsharpObjectShapeSubjects(
       const currentDeclarations = declarations === undefined ? otherDeclarations
         : otherDeclarations === undefined || declarations.length === otherDeclarations.length &&
           declarations.every(declaration => otherDeclarations.includes(declaration)) ? declarations : [];
-      const sourceTypes = new Set([
-        ...(member.sourceTypes ?? []),
-        ...(other.sourceTypes ?? []),
-      ]);
       const origins = [...(member.origins ?? []), ...(other.origins ?? [])].filter((origin, index, alternatives) =>
         alternatives.findIndex(candidate => sourceTypeDescriptorMemberOriginsEqual(candidate, origin)) === index);
       const { sourceDeclarations: _sourceDeclarations, ...physicalMember } = member;
@@ -76,9 +71,6 @@ export function mergeCsharpObjectShapeSubjects(
         ...(subjects.size === 0
           ? {}
           : { sourceSubjects: Object.freeze([...subjects]) }),
-        ...(sourceTypes.size === 0
-          ? {}
-          : { sourceTypes: Object.freeze([...sourceTypes]) }),
       };
     }),
   };

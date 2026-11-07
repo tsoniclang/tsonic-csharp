@@ -21,7 +21,7 @@ export async function run(): Promise<boolean> {
     assertCsharpCompilationSucceeded(compiled);
     const program = compiled.result.program;
     assert.equal(program !== undefined, true, "the selected native constructor publishes its checked callback contracts");
-    const ast = program.source.ast;
+    const ast = program.source.syntax;
     let checked = 0;
     const visit = node => {
       if (ast.is.IsArrowFunction(node)) {
@@ -67,7 +67,7 @@ export function run(): boolean { return new Plain().result === 5 && new Recursiv
 ` });
     assertCsharpCompilationSucceeded(compiled);
     const program = compiled.result.program;
-    const ast = program.source.ast;
+    const ast = program.source.syntax;
     const arguments_ = [];
     const visit = node => {
       if (ast.is.IsArrowFunction(node) || ast.is.IsFunctionExpression(node)) arguments_.push(node);
@@ -101,7 +101,7 @@ export const expression = function* (): Generator<int, string, int> {
 ` });
     assertCsharpCompilationSucceeded(compiled);
     const program = compiled.result.program;
-    const ast = program.source.ast;
+    const ast = program.source.syntax;
     const expressions = [];
     const visit = node => {
       if (ast.is.IsFunctionExpression(node)) expressions.push(node);
@@ -126,8 +126,9 @@ export class Derived extends Base {
 }
 ` });
     assert.equal(compiled.sourceDiagnosticsText, "", "the original pre-super closure is valid checked source");
+    // nextgen C-2542: CSHARP_UNSUPPORTED_AST is split; callables/analyze.ts names CSHARP_DERIVED_CONSTRUCTOR_STATEMENTS_BEFORE_BASE.
     assert.deepEqual(compiled.result.diagnostics.map(({ code, message }) => ({ code, message })), [{
-      code: "CSHARP_UNSUPPORTED_AST",
+      code: "CSHARP_DERIVED_CONSTRUCTOR_STATEMENTS_BEFORE_BASE",
       message: "A native C# derived constructor requires super(...) as its first statement; statements before base initialization are not supported.",
     }]);
     const issue = compiled.result.diagnostics[0];

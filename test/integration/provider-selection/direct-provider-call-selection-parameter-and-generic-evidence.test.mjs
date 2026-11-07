@@ -49,21 +49,20 @@ test("rest arguments retain one declared parameter identity and target params sl
   });
   const selected = selectCsharpProviderCall(
     fixture.host,
-    fixture.call,
-    fixture.sourceFile,
+    fixture.call
   );
   assert.equal(selected.kind, "resolved");
   assert.deepEqual(
     selected.call.arguments.map((argument) => argument.targetParameterIndex),
     [0, 0],
   );
-  const declaration = fixture.host.semantics(fixture.sourceFile).declarations.signatureDeclaration(fixture.source.selectedSignature);
-  assert.equal(fixture.source.sourceSelectedSignatureParameters.length === 1 &&
-    fixture.source.sourceSelectedSignatureParameters[0].rest === true &&
-    fixture.source.sourceSelectedSignatureParameters[0].parameterDeclaration === fixture.host.ast.parameters(declaration)[0] &&
-    fixture.source.sourceArgumentBindings.length === 2 &&
-    fixture.source.sourceArgumentBindings.every(binding => binding.sourceParameterIndex === 0 && binding.sourceParameterForm === "rest-element"), true,
-  "both actual checked argument bindings retain the one original authored rest parameter");
+  const declaration = fixture.source.signature;
+  const parameters = fixture.source.signatureParameters;
+  assert.equal(parameters.length === 1 && parameters[0].kind === "rest" &&
+    parameters[0].declaration === fixture.host.ast.parameters(declaration)[0] &&
+    fixture.source.arguments.length === 2 &&
+    fixture.source.arguments.every(binding => binding.parameterIndex === 0 && binding.mode === "rest-element"), true,
+  "both published argument correspondences retain the one original authored rest parameter");
 });
 
 test("byref parameter modes require the exact finalized source parameter fact", () => {
@@ -84,8 +83,7 @@ test("byref parameter modes require the exact finalized source parameter fact", 
   });
   const selected = selectCsharpProviderCall(
     fixture.host,
-    fixture.call,
-    fixture.sourceFile,
+    fixture.call
   );
   assert.equal(selected.kind, "resolved");
   assert.equal(
@@ -112,8 +110,7 @@ test("missing byref source facts cannot be inferred from target parameter mode",
   });
   const selected = selectCsharpProviderCall(
     fixture.host,
-    fixture.call,
-    fixture.sourceFile,
+    fixture.call
   );
   assert.equal(selected.kind, "missing");
   assert.match(selected.reason, /uses 'by-value'.*requires 'byref-readwrite'/u);
@@ -141,8 +138,7 @@ test("byref arguments reject implicit storage conversions", () => {
 
   const selected = selectCsharpProviderCall(
     fixture.host,
-    fixture.call,
-    fixture.sourceFile,
+    fixture.call
   );
 
   assert.equal(selected.kind, "missing");
@@ -174,8 +170,7 @@ test("byref arguments use CLR storage identity across nullable-reference annotat
 
   const selected = selectCsharpProviderCall(
     fixture.host,
-    fixture.call,
-    fixture.sourceFile,
+    fixture.call
   );
 
   assert.equal(selected.kind, "resolved");
@@ -208,15 +203,15 @@ test("selected method type arguments close generic target methods directly", () 
   });
   const selected = selectCsharpProviderCall(
     fixture.host,
-    fixture.call,
-    fixture.sourceFile,
+    fixture.call
   );
   assert.equal(selected.kind, "resolved");
   const argument = selected.call.targetMethodTypeArguments[0];
+  const published = fixture.host.facts.instantiations.at(fixture.call);
   assert.equal(selected.call.targetMethodTypeArguments.length === 1 && argument.kind === "selected-source" &&
-    argument.selectedType === fixture.source.sourceSelectedMethodTypeArguments[0].selectedType &&
-    argument.explicitTypeNode === fixture.source.sourceSelectedMethodTypeArguments[0].explicitTypeNode, true,
-  "the selected Native argument retains both original checked Type and authored-node identities");
+    argument.descriptor === published?.method[0]?.type &&
+    argument.explicitTypeNode === fixture.host.ast.typeArguments(fixture.call)[0], true,
+  "the selected Native argument retains both the published binder descriptor and the authored-node identity");
   assert.deepEqual(argument.targetType, int32);
   assert.deepEqual(selected.call.targetMember.parameters[0].type, int32);
   assert.deepEqual(selected.call.targetMember.returnType, int32);
@@ -250,8 +245,8 @@ test("published provider arguments validate implicit native bounds independent o
       sourceArgumentTargets,
       nativeTypeArguments: [{ selectedTarget: expected }],
     });
-    const publication = fixture.host.effectiveTypes.callInstantiation(fixture.call);
-    const declaration = fixture.host.semantics(fixture.sourceFile).declarations.signatureDeclaration(fixture.source.selectedSignature);
+    const publication = fixture.host.facts.instantiations.at(fixture.call);
+    const declaration = fixture.source.signature;
     assert.equal(publication?.method.length === 1 &&
       publication.method[0].declaration === fixture.host.ast.typeParameters(declaration)[0], true,
     "the one published argument belongs to the exact selected Source declaration binder");
@@ -262,7 +257,7 @@ test("published provider arguments validate implicit native bounds independent o
     assert.equal(scalar?.kind === "primitive" && scalar.primitive === (nullable ?? expected).name &&
       (argument.kind === "optional") === (nullable !== undefined), true,
     `the real Source default publishes exact width and absence: expected=${(nullable ?? expected).name}, kind=${scalar?.kind}, primitive=${scalar?.primitive}, optional=${argument.kind === "optional"}`);
-    const selected = selectCsharpProviderCall(fixture.host, fixture.call, fixture.sourceFile);
+    const selected = selectCsharpProviderCall(fixture.host, fixture.call);
     assert.equal(selected.kind, "resolved", selected.kind === "resolved" ? "resolved" : selected.reason);
     assert.deepEqual(selected.call.targetMethodTypeArguments[0].targetType, expected);
     assert.deepEqual(selected.call.targetMember.returnType, expected);
@@ -284,7 +279,7 @@ test("inferred provider method bounds cannot widen invariant native carriers", (
     sourceArgumentTargets: [invariant(csharpSourcePrimitiveTargetType("int32")), invariant(float64)],
     nativeTypeArguments: [{ selectedTarget: float64 }],
   });
-  const selected = selectCsharpProviderCall(fixture.host, fixture.call, fixture.sourceFile);
+  const selected = selectCsharpProviderCall(fixture.host, fixture.call);
   assert.equal(selected.kind, "missing");
   assert.match(selected.reason, /cannot satisfy exact target parameter/u);
 });
@@ -304,10 +299,17 @@ test("generic method closure fails when selected type-argument evidence is absen
     sourceArgumentTargets: [csharpSourcePrimitiveTargetType("int32")],
     nativeTypeArguments: [{ selectedTarget: csharpSourcePrimitiveTargetType("int32") }],
   });
-  assert.equal(fixture.source.sourceSelectedMethodTypeArguments.length, 1,
-    "the real checked declaration retains its selected generic argument before corruption");
-  const invalid = { ...fixture.source, sourceSelectedMethodTypeArguments: [] };
-  const selected = instantiateCsharpProviderCall(fixture.host, fixture.relation, invalid, fixture.sourceFile);
+  const published = fixture.host.facts.instantiations.at(fixture.call);
+  assert.equal(published?.method.length, 1,
+    "the real checked declaration publishes its selected generic argument before corruption");
+  // The per-use instantiation is the only source of method binders (facts.instantiations.at): a publication without
+  // them must not close the provider method.
+  const facts = Object.freeze({ ...fixture.host.facts, instantiations: Object.freeze({
+    at: use => use === fixture.call ? Object.freeze({ ...published, method: [] }) : fixture.host.facts.instantiations.at(use),
+  }) });
+  const host = Object.freeze({ ...fixture.host, facts,
+    types: Object.freeze({ ...fixture.host.types, instantiation: () => undefined }) });
+  const selected = instantiateCsharpProviderCall(host, fixture.relation, fixture.source);
   assert.equal(selected.kind, "rejected");
   assert.match(selected.reason, /method type-argument evidence/u);
 });
@@ -339,8 +341,7 @@ test("receiver evidence closes generic provider bindings before member substitut
   });
   const selected = selectCsharpProviderCall(
     fixture.host,
-    fixture.call,
-    fixture.sourceFile,
+    fixture.call
   );
   assert.equal(selected.kind, "resolved");
   assert.deepEqual(selected.call.targetMember.returnType, stringType);
@@ -377,8 +378,7 @@ test("target-parameter receiver relations do not consume the first explicit argu
   });
   const selected = selectCsharpProviderCall(
     fixture.host,
-    fixture.call,
-    fixture.sourceFile,
+    fixture.call
   );
   assert.equal(selected.kind, "resolved");
   assert.equal(selected.call.receiver.kind, "target-parameter");
@@ -398,8 +398,7 @@ test("constructor selection retains the exact provider signature", () => {
   });
   const selected = selectCsharpProviderCall(
     fixture.host,
-    fixture.call,
-    fixture.sourceFile,
+    fixture.call
   );
   assert.equal(selected.kind, "resolved");
   assert.equal(selected.call.targetMember.kind, "constructor");
@@ -413,7 +412,7 @@ for (const [obsolete, reason] of [
   test(`native constructor admission refuses ${obsolete === undefined ? "missing" : "positive"} obsolescence evidence`, () => {
     const constructor = { ...providerConstructor(), csharpConstructorObsolete: obsolete };
     const fixture = createCallFixture({ member: constructor, receiver: false, targetParameters: [] });
-    const selected = selectCsharpProviderCall(fixture.host, fixture.call, fixture.sourceFile);
+    const selected = selectCsharpProviderCall(fixture.host, fixture.call);
     assert.equal(selected.kind, "missing", "only exact nonobsolete constructor evidence is admitted");
     assert.equal(selected.reason, reason, "native admission preserves the precise refusal");
   });
@@ -442,8 +441,7 @@ test("generic constructor families close from selected operation type arguments"
   });
   const selected = selectCsharpProviderCall(
     fixture.host,
-    fixture.call,
-    fixture.sourceFile,
+    fixture.call
   );
   assert.equal(selected.kind, "resolved");
   assert.deepEqual(selected.call.targetMember.declaringType, {
@@ -494,12 +492,9 @@ function createCallFixture(options = {}) {
     relations,
     facts,
     calls: [[source.call, source.evidence]],
-    signatureDeclarations: [[
-      source.evidence.selectedSignature,
-      source.signatureDeclaration,
-    ]],
     nodeTypes: native.nodeTypes,
-    semanticTypes: native.semanticTypes,
+    descriptorTypes: native.descriptorTypes,
+    instantiations: native.instantiations,
     ...(options.objectShapes === undefined
       ? {}
       : { objectShapes: options.objectShapes }),
@@ -559,12 +554,13 @@ function int32ProviderAdapter() {
 }
 
 function byrefNativeEvidence(source, mode, target, includeArgument = true) {
-  const parameter = source.evidence.sourceSelectedSignatureParameters[0].parameterDeclaration;
+  const parameter = source.evidence.signatureParameters[0].declaration;
   const facts = [passingFact(parameter, mode)];
   if (!includeArgument) return { facts };
-  const argument = source.evidence.sourceArguments[0].expression;
-  const declaration = source.program.navigation.referenceFor(argument)?.declaration;
-  const storage = declaration === undefined ? undefined : source.program.ast.name(declaration);
+  const argument = source.evidence.arguments[0].argument;
+  const reference = source.program.facts.navigation.identity.target(argument);
+  const declaration = reference?.project === true ? reference.declaration : undefined;
+  const storage = declaration === undefined ? undefined : source.program.syntax.name(declaration);
   assert.equal(storage !== undefined && storage !== argument, true,
     "the same checked input's storage declaration and call read retain distinct original occurrences");
   facts.push(passingFact(argument, mode, storage));

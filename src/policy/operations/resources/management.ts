@@ -4,11 +4,11 @@ import type { TargetTypeRef } from "../../types/index.js";
 import { getCsharpRuntimeUnionArms, getCsharpNullableElementTargetType, isCsharpAbsenceTargetType, targetTypeRefEquals } from "../../types/index.js";
 import type { CsharpOperationSelection } from "../../../target-model/records/operations/operator-selection.js";
 
-import type { ResolvedSourceResourceManagementInfo } from "@tsonic/tsts";
+import type { SourceResourceSelection } from "@tsonic/target-api/source";
 import type { CsharpTypeDefinitions } from "../../../target-model/types/source-union-definitions.js";
 
 export function selectCsharpNativeResourceManagement(
-  source: ResolvedSourceResourceManagementInfo,
+  source: SourceResourceSelection,
   storageType: TargetTypeRef,
   alternatives: readonly { readonly targetType: TargetTypeRef; readonly disposal: CsharpResourceDisposalOperation }[],
   definitions: CsharpTypeDefinitions | undefined,

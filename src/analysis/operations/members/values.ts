@@ -1,13 +1,13 @@
 import type { CsharpProviderValueRelation, CsharpProviderValueSelection } from "../../../target-model/records/operations/value-selection.js";
 import type { Node, ReadonlySourceFactResolver } from "@tsonic/tsts";
-import type { SourceProgramNavigation } from "@tsonic/target-api/source";
+import type { SourceProgramFacts } from "@tsonic/target-api/source";
 import type { CsharpProviderRelationResolver } from "../../../providers/model/relation-resolver.js";
 
 import { resolveCsharpProviderDeclarationEvidence } from "../../../source/extension/provider-identities.js";
 
 export interface CsharpProviderValueSelectionHost {
   readonly sourceFacts?: ReadonlySourceFactResolver;
-  readonly navigation: SourceProgramNavigation;
+  readonly facts: SourceProgramFacts;
   readonly providers: CsharpProviderRelationResolver;
 }
 
@@ -15,14 +15,10 @@ export function selectCsharpProviderValue(
   host: CsharpProviderValueSelectionHost,
   node: Node,
 ): CsharpProviderValueSelection {
-  const reference = host.navigation.sourceReferenceFor(node);
+  const reference = host.facts.navigation.identity.target(node);
   const declaration = resolveCsharpProviderDeclarationEvidence(
     host.sourceFacts,
-    [
-      reference?.declaration,
-      reference?.symbol,
-      node,
-    ],
+    [reference?.declaration, node],
     "export",
   );
   if (declaration.kind === "missing") {

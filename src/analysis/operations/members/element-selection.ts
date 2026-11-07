@@ -1,5 +1,6 @@
-import type { ExtensionDiagnostic, Node, SourceFile } from "@tsonic/tsts";
-import type { SourceFileSemantics } from "@tsonic/target-api/source";
+import type { ExtensionDiagnostic, Node } from "@tsonic/tsts";
+import type { SourceElementAccessRecord } from "@tsonic/target-api/source";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpProviderTargetRelation } from "../../../target-model/identities/provider-relations.js";
 import type { CsharpTargetMember } from "../../../policy/types/index.js";
 import { targetTypeRefEquals } from "../../../policy/types/index.js";
@@ -9,9 +10,6 @@ import { resolveCsharpProviderElementRelations } from "./relations.js";
 import { selectCsharpSourceTypeFlowIndexConversion } from "../../../policy/conversions/source-type-flow-index.js";
 import type { CsharpTargetElementSelection } from "../../../target-model/records/operations/member-selections.js";
 
-type ResolvedSourceElementAccessInfo = NonNullable<
-  ReturnType<SourceFileSemantics["operations"]["elementAccess"]>
->;
 type CsharpProviderSignatureRelation = Extract<
   CsharpProviderTargetRelation,
   { readonly kind: "signature" }
@@ -19,7 +17,7 @@ type CsharpProviderSignatureRelation = Extract<
 
 import { providerReceiverMatchesElement, csharpProviderElementSupportsAccess } from "../../../policy/operations/members/element-selection.js";
 export interface CsharpSelectedProviderElement {
-  readonly source: ResolvedSourceElementAccessInfo;
+  readonly source: SourceElementAccessRecord;
   readonly relation: CsharpProviderSignatureRelation;
   readonly targetMember: CsharpTargetMember;
   readonly targetParameterIndex: number;
@@ -33,7 +31,7 @@ export type CsharpProviderElementSelection =
     }
   | {
       readonly kind: "not-provider";
-      readonly source: ResolvedSourceElementAccessInfo;
+      readonly source: SourceElementAccessRecord;
       readonly reason: string;
     }
   | {
@@ -53,21 +51,9 @@ export type CsharpProviderElementSelection =
 export function selectCsharpProviderElement(
   host: CsharpProviderCallSelectionHost,
   elementAccess: Node,
-  sourceFile: SourceFile,
 ): CsharpProviderElementSelection {
-  const source = host.semantics(sourceFile)
-    .operations.elementAccess(elementAccess);
-  if (source === undefined) {
-    return {
-      kind: "missing",
-      reason: "The checker did not resolve an exact source element access.",
-    };
-  }
-  const resolution = resolveCsharpProviderElementRelations(
-    host,
-    elementAccess,
-    sourceFile,
-  );
+  const source = host.facts.values.elementAccess(elementAccess);
+  const resolution = resolveCsharpProviderElementRelations(host, elementAccess);
   if (resolution.kind === "missing") {
     return {
       kind: "not-provider",
@@ -84,7 +70,7 @@ export function selectCsharpProviderElement(
   const candidates = resolution.relations
     .filter((relation) => relation.kind === "signature")
     .map((relation) =>
-      instantiateProviderElement(host, relation, source, sourceFile))
+      instantiateProviderElement(host, relation, source))
     .filter(
       (candidate): candidate is CsharpSelectedProviderElement =>
         candidate !== undefined,
@@ -111,8 +97,7 @@ export function selectCsharpProviderElement(
 function instantiateProviderElement(
   host: CsharpProviderCallSelectionHost,
   relation: CsharpProviderSignatureRelation,
-  source: ResolvedSourceElementAccessInfo,
-  sourceFile: SourceFile,
+  source: SourceElementAccessRecord,
 ): CsharpSelectedProviderElement | undefined {
   if (
     relation.targetMember.kind !== "indexer" ||
@@ -137,15 +122,8 @@ function instantiateProviderElement(
     relation.bindingTypeParameters,
     relation.bindingTypeArgumentSource === "receiver" ||
         relation.bindingTypeArgumentSource === "callee"
-      ? [{
-          node: source.receiver.expression,
-          type: source.receiver.type,
-        }]
-      : [{
-          node: source.expression,
-          type: source.sourceReadType ?? source.sourceWriteType,
-        }],
-    sourceFile,
+      ? [{ node: source.receiver }]
+      : [{ node: source.node }],
   );
   const targetParameter = targetMember?.parameters[
     parameterRelation.targetParameterIndex
@@ -155,21 +133,20 @@ function instantiateProviderElement(
     targetParameter === undefined ||
     targetParameter.passingMode !== parameterRelation.targetPassingMode ||
     !providerReceiverMatchesElement(relation, source) ||
-    !csharpProviderElementSupportsAccess(targetMember, source.accessMode)
+    !csharpProviderElementSupportsAccess(targetMember, source.access)
   ) {
     return undefined;
   }
   if (targetParameter.csharpAcceptsCheckedSourceArgument !== true) {
-    const sourceArgumentType = host.types.resolveValue(
-      source.argument.expression,
-      sourceFile,
-    );
-    if (sourceArgumentType === undefined) return undefined;
+    const argument = host.ast.as.AsElementAccessExpression(source.node)?.ArgumentExpression ??
+      failTargetAnalysisInvariant("tsonic-csharp", "A Host element access record names a node without an index expression.", source.node);
+    const sourceArgumentType = host.types.value(argument);
+    if (sourceArgumentType.kind === "csharp-refused") return undefined;
     if (!targetTypeRefEquals(sourceArgumentType, targetParameter.type)) {
       const selection: CsharpTargetElementSelection = { kind: "resolved", source, targetMember,
         targetParameterIndex: parameterRelation.targetParameterIndex, receiver: relation.receiver,
         invocation: { kind: "indexer" }, origin: "provider" };
-      const conversion = selectCsharpSourceTypeFlowIndexConversion(host.effectiveTypes.get(source.argument.expression),
+      const conversion = selectCsharpSourceTypeFlowIndexConversion(host.facts.values.type(argument),
         { kind: "element", selection }, sourceArgumentType, targetParameter.type);
       if (conversion !== undefined) return { source, relation, targetMember,
         targetParameterIndex: parameterRelation.targetParameterIndex,

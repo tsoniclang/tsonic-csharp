@@ -1,4 +1,3 @@
-import { csharpSourceValueResult } from "../../../../dist/analysis/source-evidence/types/resolution/call-results.js";
 import { assertNoTargetDiagnostics } from "../../../../../tsonic/test/scripts/diagnostic-assertions.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -34,7 +33,7 @@ function setup(optionalReceiver = false, optionalCall = false, element = false) 
     },
   };
   const selected = validateCsharpJsValueOperationSelection(selectCsharpJsValueCallOperation(
-    { types: { resolveNode: () => ({ kind: "resolved", sourceResult: csharpSourceValueResult(carrier) }) } }, {}, {}, {}, element ? "element" : "property", optionalCall));
+    { types: { value: () => carrier } }, {}, {}, element ? "element" : "property", optionalCall));
   const source = { sourceCallee: { expression: member }, sourceCalleeAccess: {
     kind: element ? "element" : "property", expression: member, receiver: { expression: receiver }, argument: { expression: key },
   } };

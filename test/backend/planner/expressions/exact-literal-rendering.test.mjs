@@ -89,16 +89,16 @@ test("target-typed double spelling retains the actual int64 input recipe and wid
   ` });
   assertCsharpCompilationSucceeded(compiled);
   const program = compiled.result.program;
-  const { ast } = program.source;
+  const ast = program.source.syntax;
   const literals = [];
   const visit = current => {
     if (ast.is.IsNumericLiteral(current) && ast.text(current) === "3") literals.push(current);
     ast.forEachChild(current, child => { if (child !== undefined) visit(child); });
   };
-  program.source.navigation.sourceFiles.filter(file => ast.getFileName(file) === "/project/index.ts").forEach(visit);
+  program.source.sourceFiles.filter(file => ast.getFileName(file) === "/project/index.ts").forEach(visit);
   assert.equal(literals.length, 1);
   const selected = literals[0];
-  const source = program.source.effectiveTypes.get(selected);
+  const source = program.source.facts.values.type(selected);
   const read = program.records.valueRead.get(selected)?.value;
   const emission = program.records.literalEmission.get(selected);
   assert.equal(source?.kind !== "refused" && source?.type.kind === "primitive" && source.type.primitive === "int64", true,

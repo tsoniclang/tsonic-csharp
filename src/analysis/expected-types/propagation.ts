@@ -1,3 +1,4 @@
+import { csharpWellKnownSymbolKind } from "../../target-model/types/source-member-keys.js";
 import type { Node } from "@tsonic/tsts";
 import type { TargetUseSiteRef } from "@tsonic/target-api/analysis";
 import { ObjectLiteralProperty_SourceName } from "@tsonic/target-api/source";
@@ -12,7 +13,6 @@ import { csharpSourceTypeFlowShiftCountType } from "../../policy/conversions/sou
 import type { CsharpExpectedTypeIssue } from "../../target-model/records/types/expected-types.js";
 import type { CsharpExactLiteralRequest, CsharpNativePropertyKeyBinding } from "../../target-model/conversions/exact-literals.js";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
-import { representCsharpSourceType } from "../../policy/types/source-type-flow/representation.js";
 import type { CsharpExpectedUseCollection } from "./collection.js";
 import type {
   CsharpExpectedTypeAnalysisInput,
@@ -174,9 +174,7 @@ export function createCsharpExpectedTypePropagation(
     parent?: TargetUseSiteRef,
     mode: CsharpConversionMode = "implicit",
   ): void {
-    const effective = policy.effectiveTypes.get(expression);
-    const construction = effective === undefined ? objectShapes.resolveObjectLiteralUnionCarrier(expression, targetType) ?? targetType
-      : input.evidence.nodeTargetType.get(expression);
+    const construction = input.evidence.nodeTargetType.get(expression);
     if (construction === undefined) return;
     const carrier = getCsharpNullableElementTargetType(construction) ?? construction;
     const indexedValueType = isCsharpRecordDictionaryTargetType(carrier) && carrier.kind === "target-named"
@@ -227,13 +225,13 @@ export function createCsharpExpectedTypePropagation(
       const selected = propertyName !== undefined &&
           (policy.ast.is.IsComputedPropertyName(propertyName) || policy.ast.is.IsNumericLiteral(propertyName))
         ? (() => {
-            const selectedName = policy.semanticsFor(property).propertyNames.get(propertyName);
+            const selectedName = policy.facts.analyses.propertyName(propertyName);
             return selectedName?.kind !== "resolved" && selectedName?.kind !== "well-known-symbol"
               ? undefined
               : resolveCsharpObjectShapeMemberBySourceKey(
                   resolution.shape,
                   selectedName.kind === "resolved" ? csharpPropertySourceMemberKey(selectedName.name)
-                    : csharpWellKnownSymbolSourceMemberKey(selectedName.symbol),
+                    : csharpWellKnownSymbolSourceMemberKey(csharpWellKnownSymbolKind(selectedName.symbol)),
                   "checked-object-literal-property",
                 );
           })()
@@ -282,7 +280,7 @@ export function createCsharpExpectedTypePropagation(
     for (const property of policy.ast.properties(expression)) {
       if (property === undefined || !policy.ast.is.IsPropertyAssignment(property) && !policy.ast.is.IsShorthandPropertyAssignment(property)) continue;
       const name = policy.ast.name(property);
-      const propertyKey = name === undefined ? undefined : policy.semanticsFor(name).propertyNames.get(name);
+      const propertyKey = name === undefined ? undefined : policy.facts.analyses.propertyName(name);
       if (name === undefined || propertyKey === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
         "A native dictionary key requires its canonical checked property-name selection.", property);
       propertyKeyRequests.push(Object.freeze({ expression: name, source: undefined, target, propertyKey }));
@@ -338,10 +336,10 @@ export function createCsharpExpectedTypePropagation(
     parent?: TargetUseSiteRef,
     mode: CsharpConversionMode = "implicit",
   ): void {
-    const published = policy.effectiveTypes.get(expression);
-    const sourceCarrier = published === undefined ? selectCsharpArrayLiteralCarrier(targetType,
-      valueReadStages.get(expression)?.operationValue, policy.typeDefinitions) : published.kind === "refused" ? undefined
-      : representCsharpSourceType(policy.types.sourceTypeFlowRepresentation(expression), published.construction ?? published.type);
+    const published = policy.facts.values.type(expression);
+    const represented = published.kind === "refused" ? undefined
+      : policy.types.represent(published.construction ?? published.type, expression, "value");
+    const sourceCarrier = represented?.kind === "csharp-refused" ? undefined : represented;
     const requested = sourceCarrier === undefined ? undefined : selectCsharpArrayLiteralCarrier(targetType, sourceCarrier, policy.typeDefinitions);
     const carrier = csharpArrayInputDomainsEqual(sourceCarrier, requested) ? requested : sourceCarrier;
     if (carrier === undefined) return;
@@ -376,7 +374,7 @@ export function createCsharpExpectedTypePropagation(
         node !== undefined &&
         !policy.ast.is.IsSpreadElement(node)
       ) {
-        const literal = policy.literalValues.literalValue.get(node);
+        const literal = policy.facts.values.literal(node);
         const physical = literal === undefined || literal.form === "array" ? undefined : valueReadStages.get(node)?.operationValue;
         if (physical !== undefined && !targetTypeRefEquals(physical, elementTarget)) {
           let native = nonArrayCarriers.get(node);

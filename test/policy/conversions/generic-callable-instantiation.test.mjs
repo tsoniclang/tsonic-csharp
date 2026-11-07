@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createCsharpTypeParameterEnvironment } from "../../../dist/analysis/source-evidence/types/resolution/type-parameter-environment.js";
+import { createCsharpTypeParameterEnvironment } from "../../../dist/representation/index.js";
 import { selectCsharpCallableInstantiation } from "../../../dist/policy/conversions/generic-callable.js";
 import { selectCsharpConversion } from "../../../dist/policy/conversions/core.js";
 import { admitCsharpConversionSelection } from "../../../dist/analysis/conversions/validation.js";
@@ -78,14 +78,14 @@ export function run(): boolean {
     const program = compiled.result.program;
     const constraints = [];
     const visit = node => {
-      if (program.source.ast.is.IsTypeParameterDeclaration(node)) {
+      if (program.source.syntax.is.IsTypeParameterDeclaration(node)) {
         const selected = program.records.typeParameterConstraints.get(node);
         assert.equal(selected?.kind, "resolved", "the authored numeric binder retains one completed native constraint");
         constraints.push(...selected.constraints.filter(constraint => constraint.kind === "type"));
       }
-      program.source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+      program.source.syntax.forEachChild(node, child => { if (child !== undefined) visit(child); });
     };
-    for (const file of program.source.sourceFiles) if (program.source.ast.getFileName(file) === "/project/index.ts") visit(file);
+    for (const file of program.source.sourceFiles) if (program.source.syntax.getFileName(file) === "/project/index.ts") visit(file);
     assert.equal(constraints.length, 2, "both source numeric domains retain their original native INumber constraint");
     for (const constraint of constraints) {
       const argument = constraint.type.typeArguments?.[0];

@@ -21,12 +21,12 @@ export function analyzeCsharpTypeParameterEmission(input: { readonly ast: AstRea
     if (resolution === undefined)
       failTargetAnalysisInvariant("tsonic-csharp", "An admitted generic parameter requires its finalized native constraint classification.", node);
     if (declaration.Expression !== undefined) {
-      issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: node,
+      issues.push({ code: "CSHARP_TYPE_PARAMETER_CONSTRAINT", category: "error", source: "tsonic-csharp", sourceNode: node,
         message: "Expression-based generic type parameters are outside the current C# planning surface." });
       continue;
     }
     if (resolution.kind === "unsupported") {
-      issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: declaration.Constraint ?? node, message: resolution.reason });
+      issues.push({ code: "CSHARP_TYPE_PARAMETER_CONSTRAINT", category: "error", source: "tsonic-csharp", sourceNode: declaration.Constraint ?? node, message: resolution.reason });
       continue;
     }
     producer.publish(node, { identity: parameter.identity, name, constraints: resolution.constraints });

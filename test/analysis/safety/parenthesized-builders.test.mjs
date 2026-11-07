@@ -77,7 +77,7 @@ for (const surface of ["native", "js"]) {
       compiled.targetDiagnostics.map(({ code, message }) => `${code}: ${message}`).join("; "));
     const program = compiled.result.program;
     assert.equal(program !== undefined, true, "native analysis publishes the exact sealed program");
-    const ast = program.source.ast;
+    const ast = program.source.syntax;
     const wrappers = [];
     const calls = [];
     const visit = node => {

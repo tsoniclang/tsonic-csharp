@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
-import { analyzeSourceLiteralValues } from "@tsonic/target-api/source";
 import { analyzeCsharpExpectedTypes } from "../../dist/analysis/expected-types/analyze.js";
 import { createCsharpProviderRelationResolver } from "../../dist/providers/native/projection/relation-resolution.js";
 import { compileCsharpSource, compileCsharpAnalysisTarget } from "./direct-csharp-session.mjs";
 import { csharpProgramSourceFiles } from "./program-source-files.mjs";
 import { csharpAsyncGeneratorTargetType, csharpGeneratorTargetType } from "../../dist/target-model/types/carriers/generators.js";
+import { createCsharpRepresentationServices, csharpRepresentationContext, representSourceType } from "../../dist/representation/index.js";
 
 // The published generator fact of a declaration carries its protocol; its declared carrier is the protocol's generator type.
 export function publishedGeneratorCarrier(records, node) {
@@ -44,8 +44,8 @@ export function compileCsharpNativeUseSource(options) {
 export function createExpectedNativeUseOwner(compiled) {
   const program = compiled.result.program;
   const source = program.source;
-  assert.equal(source.effectiveTypes !== undefined, true, "the original compiled Host publication is retained by the Native owner");
-  const ast = source.ast;
+  assert.equal(source.facts !== undefined, true, "the original compiled Host publication is retained by the Native owner");
+  const ast = source.syntax;
   const records = program.records;
   const nodes = [];
   const pending = [...csharpProgramSourceFiles(program)];
@@ -61,38 +61,39 @@ export function createExpectedNativeUseOwner(compiled) {
   const byDeclaration = new Map(contracts.map(contract => [contract.sourceDeclaration, contract]));
   const typeProjections = publishedGenericProjections(records, nodes);
   const evidence = Object.freeze({ ...records,
-    generator: Object.freeze({ get: node => source.semantics.forNode(node).operations.generator(node) }),
+    generator: Object.freeze({ get: node => source.facts.selections.generator(node) }),
     generatorTargetType: Object.freeze({ get: node => publishedGeneratorCarrier(records, node) }),
-    yield: Object.freeze({ get: node => source.semantics.forNode(node).operations.yield(node) }),
     yieldTargetType: Object.freeze({ get: node => {
-      const yielded = source.semantics.forNode(node).operations.yield(node);
-      return yielded?.operand === undefined ? undefined : records.valueRead.get(yielded.operand.expression)?.value;
+      const operand = ast.is.IsYieldExpression(node) ? ast.as.AsYieldExpression(node)?.Expression : undefined;
+      return operand === undefined ? undefined : records.valueRead.get(operand)?.value;
     } }),
   });
-  const unrelatedRepresentation = () => assert.fail("These expected-use fixtures require only published primitive and array representations.");
-  const representation = Object.freeze({
-    target: compiled.target,
-    typeParameterConstraints: Object.freeze({ resolve: unrelatedRepresentation }),
-    declaredType: unrelatedRepresentation,
-    indexType: unrelatedRepresentation,
-    callableType: unrelatedRepresentation,
-    constructorType: unrelatedRepresentation,
-    memberDeclaration: unrelatedRepresentation,
-    classStaticSide: unrelatedRepresentation,
-    shapeKind: unrelatedRepresentation,
-    memberTypeParameters: unrelatedRepresentation,
-    retainShape: unrelatedRepresentation,
+  // The real C# representation (the one descriptor -> TargetTypeRef mapping, I6) over the compiled Source facts. These
+  // fixtures need only primitive and array representations, so every target catalog input fails if it is reached.
+  const unrelated = () => assert.fail("These expected-use fixtures require only published primitive and array representations.");
+  const services = createCsharpRepresentationServices({
+    facts: source.facts,
+    platform: Object.freeze({ nativeIntegerBits: 64, targetFramework: "net10.0" }),
+    profile: compiled.target.surfaces?.includes("js") === true ? "js" : "native",
+    syntax: ast,
+    sourceFacts: source.sourceFacts,
+    providers: createCsharpProviderRelationResolver({ providers: [], providerPolicies: [] }),
+    projectTypes: Object.freeze({ definitionForDeclaration: unrelated, definitionForTarget: unrelated, targetTypeForDeclaration: unrelated }),
+    memoryBindings: Object.freeze({ hasBoundField: unrelated }),
+    objectMethodSources: Object.freeze({ get: unrelated }),
+    captureInitialization: unrelated,
+    shapes: Object.freeze({ retainShape: unrelated, resolveCallableValue: unrelated }),
+    typeDefinitions: program.typeDefinitions,
+    genericProjections: () => [],
   });
-  const policy = { ast, sourceFiles: csharpProgramSourceFiles(program), navigation: source.navigation,
-    effectiveTypes: source.effectiveTypes,
-    types: { sourceTypeFlowRepresentation: occurrence => {
-      assert.equal(nodes.includes(occurrence), true, "the identical compiled Source occurrence owns its native representation");
-      return representation;
-    } },
+  const represent = (descriptor, occurrence, position) => {
+    assert.equal(nodes.includes(occurrence), true, "the identical compiled Source occurrence owns its native representation");
+    return representSourceType(descriptor, csharpRepresentationContext(services, occurrence, position));
+  };
+  const policy = { ast, sourceFiles: csharpProgramSourceFiles(program), facts: source.facts,
+    types: { represent },
     target: compiled.target, providers: createCsharpProviderRelationResolver({ providers: [], providerPolicies: [] }),
     objectShapes: program.objectShapes, projectTypes: program.projectTypes,
-    literalValues: analyzeSourceLiteralValues(ast, csharpProgramSourceFiles(program)),
-    semantics: source.semantics.forFile, semanticsFor: source.semantics.forNode,
     typeDefinitions: program.typeDefinitions };
   const input = { policy, evidence, operations: records, objectShapes: program.objectShapes,
     callables: { contracts, declarationContracts: contracts, closedInputType: records.callableTarget.get,

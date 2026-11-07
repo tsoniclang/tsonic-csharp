@@ -1,11 +1,10 @@
-import { csharpSourceValueResult } from "../../../dist/analysis/source-evidence/types/resolution/call-results.js";
+import { csharpTestSourceProgram } from "../../helpers/target-source-program.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { createCompilerSessionFromFiles, formatDiagnostics } from "@tsonic/tsts";
-import { createTargetSourceProgram, Node_Initializer } from "@tsonic/target-api/source";
-import { createSourceStorageQuery } from "@tsonic/target-api/analysis";
+import { Node_Initializer } from "@tsonic/target-api/source";
 import { selectedValueDomainHasTargetType } from "../../helpers/value-domain-carriers.mjs";
 import { analyzeCsharpValueDomainCarriers, projectCsharpNativeSourceStorageCarrier } from "../../../dist/analysis/objects/value-domain-carriers.js";
 import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
@@ -64,24 +63,26 @@ function fixture() {
     },
   }).checkSource();
   assert.equal(checked.diagnostics.length, 0, "checked cross-file generic source");
-  const source = createTargetSourceProgram(checked);
+  const source = csharpTestSourceProgram(checked);
   const file = checked.getSourceFile("/src/index.ts");
   const nodes = new Map();
   const visit = node => {
-    if (source.ast.is.IsVariableDeclaration(node)) nodes.set(source.ast.text(source.ast.name(node)), node);
-    source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    if (source.syntax.is.IsVariableDeclaration(node)) nodes.set(source.syntax.text(source.syntax.name(node)), node);
+    source.syntax.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
   visit(file);
-  const storage = createSourceStorageQuery(source, source.navigation.sourceFiles);
+  // nextgen C-2542: shared storage is the Host analysis fact (facts.analyses.storage); its types are Host descriptors.
+  const storage = source.facts.analyses.storage({ sourceFiles: source.sourceFiles });
   const first = storage.subject(nodes.get("first"));
   assert.equal(first.kind, "resolved");
   const firstType = storage.typeFor(first.subject);
   assert.equal(firstType.kind, "resolved");
-  const queries = source.semantics.forFile(file);
-  const relationship = queries.types.structuralMembers(firstType.type, firstType.type, "correspondence");
-  assert.equal(relationship.kind, "available");
-  const members = new Map(relationship.members.map(pair => [pair.source.property.name, pair.source]));
-  return { source, file, storage, nodes, queries, members, firstType: firstType.type };
+  // nextgen C-2542: the member subjects are the Host object facts of the storage descriptor (facts.objects.members),
+  // not a checker structuralMembers correspondence.
+  const published = source.facts.objects.members(firstType.type);
+  assert.equal(Array.isArray(published), true, "the Holder<object> descriptor publishes its members");
+  const members = new Map(published.map(selected => [selected.name, selected]));
+  return { source, file, storage, nodes, members, firstType: firstType.type };
 }
 
 function domain(input, carrier, projection, root = "first", selected = "selected") {
@@ -90,15 +91,16 @@ function domain(input, carrier, projection, root = "first", selected = "selected
   assert.equal(origin.kind, "resolved", "exact projection is interned by shared storage");
   const typed = input.storage.typeFor(origin.subject);
   assert.equal(typed.kind, "resolved", "exact projection has checked selected field type");
-  const expression = Node_Initializer(input.source.ast, input.nodes.get(selected));
+  const expression = Node_Initializer(input.source.syntax, input.nodes.get(selected));
   const host = {
     sourceStorage: { ...input.storage,
       closedOriginsFor: () => ({ kind: "complete", origins: [{ subject: origin.subject, type: typed.type, sourceFile: typed.sourceFile }] }),
     },
-    semantics: file => input.source.semantics.forFile(file),
-    types: { resolveNode(selectedNode, file) {
-      assert.equal(selectedNode === node && file === input.file, true, "retain original physical owner, never resolve field source type");
-      return { kind: "resolved", sourceResult: csharpSourceValueResult(carrier) };
+    facts: input.source.facts,
+    // CsharpTypeQueries.value(node): the represented Host value of the owner (nextgen C-2542; replaces resolveNode).
+    types: { value(selectedNode) {
+      assert.equal(selectedNode === node, true, "retain original physical owner, never resolve field source type");
+      return carrier;
     } },
   };
   return { host, expression, origin: origin.subject };
@@ -117,7 +119,7 @@ function shape(input, selected, field = "value", options = {}) {
   const evidence = input.members.get(field);
   const carrier = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: "Physical.Holder", typeArguments: [selected] };
   const member = { sourceName: field, sourceKey: { kind: "property", name: field }, targetName: field,
-    sourceSubjects: evidence.declarations, sourceTypes: [evidence.property.type], memberKind: "property",
+    sourceSubjects: evidence.declarations, sourceTypes: [evidence.type], memberKind: "property",
     type: selected, optional: field === "optional", ...options };
   return { carrier, fact: { targetType: carrier, sourceType: input.firstType, members: [member] } };
 }
@@ -225,7 +227,7 @@ test("finite value-domain budgets distinguish exact completion from source-owned
   assert.equal(completed.issues.length, 0);
   assert.equal(completed.carrierFor(selected.expression) === exact, true);
 
-  const next = Node_Initializer(input.source.ast, input.nodes.get("optional"));
+  const next = Node_Initializer(input.source.syntax, input.nodes.get("optional"));
   const exhausted = createCsharpMetadataBudget();
   exhausted.reserve(exhausted.remaining() - 3);
   const failed = analyzeCsharpValueDomainCarriers(selected.host, [selected.expression, next], exhausted);
@@ -294,7 +296,6 @@ test("value-domain budget exhaustion rejects program publication instead of emit
       },
     } });
     const { compileCsharpSource, assertCsharpCheckingSucceeded } = await import(${JSON.stringify(helper)});
-    const { createTargetSourceProgram } = await import("@tsonic/target-api/source");
     const { annotatedEmptyValues } = await import(${JSON.stringify(new URL("../../helpers/source-effective-empty-values.mjs", import.meta.url).href)});
     const compiled = compileCsharpSource({ surface: "js", sourceText: annotatedEmptyValues(${JSON.stringify(frozenEmptyStorageSources[0][1])}) });
     assertCsharpCheckingSucceeded(compiled);
@@ -305,7 +306,7 @@ test("value-domain budget exhaustion rejects program publication instead of emit
     assert.equal(compiled.targetDiagnostics[0].category, "error");
     assert.equal(compiled.result.diagnostics[0].sourceNode === failureNode, true,
       "the diagnostic retains exact source-owner identity through the stage rejection");
-    assert.equal(createTargetSourceProgram(compiled.source).ast.getSourceFile(failureNode) ===
+    assert.equal(compiled.source.ast.getSourceFile(failureNode) ===
       compiled.source.getSourceFile("/project/index.ts"), true, "the failure belongs to the actual authored file");
     assert.equal(compiled.artifacts.size, 0, "neither accepted target output nor a slower fallback is published");
   `;
@@ -323,8 +324,9 @@ test("sealed value domains retain exact source identity without source or physic
   selectShape(selected.host, value);
   const valueDomainCarriers = analyzeCsharpValueDomainCarriers(selected.host, [selected.expression]);
   const unavailable = () => { throw new Error("source and native carrier proof is already complete"); };
-  selected.host.semantics = unavailable;
-  selected.host.types.resolveNode = unavailable;
+  // nextgen C-2542: the sealed proof must not reread Host facts or C# carriers (facts / types.value replace semantics / resolveNode).
+  selected.host.facts = new Proxy({}, { get: unavailable });
+  selected.host.types.value = unavailable;
   selected.host.objectShapes.resolveTarget = unavailable;
   selected.host.sourceStorage.closedOriginsFor = unavailable;
   selected.host.sourceStorage.failureReason = unavailable;

@@ -40,8 +40,8 @@ export const csharpNativeSourceProfileCallPolicies:
       select(
         context: CsharpSourceProfileCallPolicyContext,
       ): CsharpSourceProfileCallPolicyResult {
-        const receiverType = context.source.sourceReceiver === undefined ? undefined
-          : context.inputs.values.get(context.source.sourceReceiver.expression);
+        const receiverType = context.source.receiver === undefined ? undefined
+          : context.inputs.values.get(context.source.receiver.expression);
         const resultType = context.inputs.results.get(context.source.call);
         if (
           receiverType === undefined ||
@@ -128,12 +128,9 @@ export const csharpNativeSourceProfileElementPolicies:
       ): CsharpSourceProfileElementPolicyResult {
         const declaringType = resolveCsharpSelectedSourceValue(context, context.source.receiver);
         const elementType = getCsharpReadOnlyIndexableCollectionElementTargetType(declaringType);
-        const selectedSourceResult =
-          context.source.sourceReadType ?? context.source.sourceWriteType;
-        const indexType = context.inputs.nodes.get(context.source.argument.expression);
+        const indexType = context.inputs.values.get(context.source.argument.expression);
         if (
-          declaringType === undefined || elementType === undefined ||
-          selectedSourceResult === undefined
+          declaringType === undefined || elementType === undefined
         ) {
           return rejectedNativeProfileElement(
             `The checked ${declaringName} index access does not resolve to one exact native C# array element carrier.`,

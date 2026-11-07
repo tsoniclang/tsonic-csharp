@@ -19,7 +19,7 @@ export function analyzeCsharpObjectInitialization(node: Node, shape: CsharpObjec
     const existing = slots.get(name);
     if (existing !== undefined) {
       inlineUnique = false;
-      if (!targetTypeRefEquals(existing.carrier, carrier)) issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error",
+      if (!targetTypeRefEquals(existing.carrier, carrier)) issues.push({ code: "CSHARP_OBJECT_MEMBER_CARRIER_CONFLICT", category: "error",
         source: "tsonic-csharp", sourceNode: node, message: "Native object construction requires one exact storage carrier for every initialized member." });
       if (!optional) existing.definite = true;
       return;
@@ -46,7 +46,7 @@ export function analyzeCsharpObjectInitialization(node: Node, shape: CsharpObjec
     member.accessor === undefined && !authored.has(member.targetName) && !slots.has(member.targetName)
     ? [Object.freeze({ name: member.targetName, carrier: member.type })] : []);
   for (const member of deferred) append(member.name, member.carrier, false);
-  if (!exits && [...slots.values()].some(slot => !slot.definite)) issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error",
+  if (!exits && [...slots.values()].some(slot => !slot.definite)) issues.push({ code: "CSHARP_OBJECT_MEMBER_NOT_DEFINITELY_INITIALIZED", category: "error",
     source: "tsonic-csharp", sourceNode: node, message: "Native object construction requires a definite value for every required storage member." });
   return { value: Object.freeze({ inlineUnique, deferred: Object.freeze(deferred), slots: Object.freeze([...slots.values()].map(({ name, carrier, initializeAbsence }) =>
     Object.freeze({ name, carrier, initializeAbsence }))) }), issues: Object.freeze(issues) };

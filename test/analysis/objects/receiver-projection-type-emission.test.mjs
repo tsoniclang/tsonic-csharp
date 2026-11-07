@@ -31,7 +31,7 @@ for (const surface of [undefined, "js"]) {
           "the optional receiver plan retains the exact native present carrier");
         assert.equal(target.optionalStorage.kind, "native", "the receiver uses native absence storage without a new wrapper");
       }
-      program.source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+      program.source.syntax.forEachChild(node, child => { if (child !== undefined) visit(child); });
     };
     for (const file of program.source.sourceFiles) visit(file);
     assert.equal(elementProjections, 3, "all three element projections include direct and effectful receivers");

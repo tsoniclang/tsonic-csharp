@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { nativeFinallyOverrideSource } from "../../../../tsonic/test/fixtures/native-completion-regions.mjs";
 import { compileCsharpSource, checkCsharpSource } from "../../helpers/direct-csharp-session.mjs";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
+import { hostProgram } from "../../representation/host-fixture.mjs";
+import { sealCsharpAnalysisProgram } from "../../../dist/analysis/program/index.js";
 import { admitCsharpNativeDeclarations } from "../../../dist/analysis/declarations/native-value-declarations.js";
 import { admitCsharpNativeStorageBindings, admitCsharpStatementBindings } from "../../../dist/analysis/control-flow/native-control-flow.js";
 import { createCsharpPlanningContext } from "../../../dist/backend/planner/context.js";
@@ -45,7 +46,7 @@ test(`destructuring sources have exact final native renderability before publica
     assert.equal(compiled.sourceDiagnosticsText, "", "both source forms are checked native bindings");
     assert.equal(compiled.targetDiagnostics.length, 0, "both final native sources are admitted");
     const program = compiled.result.program;
-    const ast = program.source.ast;
+    const ast = program.source.syntax;
     const forms = [];
     const visit = node => {
       if (ast.is.IsVariableDeclaration(node)) {
@@ -76,11 +77,13 @@ test(`destructuring sources have exact final native renderability before publica
         program.records.compileTimeMetadata, program.records.nativeUnreachable);
       assert.equal(issues.length, 1, `${form.description}: one pre-seal refusal owner`);
       assert.equal(issues[0].sourceNode === form.subject, true, `${form.description}: original source subject`);
-      assert.equal(issues[0].code, "CSHARP_UNSUPPORTED_AST", `${form.description}: original refusal code`);
+      // nextgen C-2542: CSHARP_UNSUPPORTED_AST is split; the destructuring source site names its .NET reason.
+      assert.equal(issues[0].code, "CSHARP_DESTRUCTURING_SOURCE_CARRIER", `${form.description}: original refusal code`);
       assert.equal(issues[0].message, `${form.description} requires its admitted native source carrier before C# emission.`,
         `${form.description}: original refusal message`);
       const diagnostics = [];
-      const input = createCsharpPlanningContext({ ...program, records: { ...program.records, nativeExpression } });
+      // The planner receives the sealed program (records + syntax), as compileCsharpAnalysisTarget seals it.
+      const input = createCsharpPlanningContext(sealCsharpAnalysisProgram({ ...program, records: { ...program.records, nativeExpression } }));
       assert.throws(() => getCsharpTypeForExpressionCarrier(form.source, input, diagnostics, form.subject, form.description),
         error => error.message.includes("admitted native source carrier rendering"),
         `${form.description}: bypassing admission is a separate renderer invariant`);
@@ -96,12 +99,12 @@ test("generator return renders the native function's already selected return syn
   assert.equal(compiled.sourceDiagnosticsText, "", "the generator is checked native source");
   assert.equal(compiled.targetDiagnostics.length, 0, "the native protocol is admitted");
   const program = compiled.result.program;
-  const ast = program.source.ast;
+  const ast = program.source.syntax;
   const declaration = csharpProgramSourceFiles(program).flatMap(file => ast.statements(file))
     .find(node => node !== undefined && ast.is.IsFunctionDeclaration(node));
   const statement = ast.children(ast.body(declaration))
     .find(node => node !== undefined && ast.is.IsReturnStatement(node));
-  const context = createCsharpPlanningContext(program);
+  const context = createCsharpPlanningContext(sealCsharpAnalysisProgram(program));
   const protocol = program.records.generator.get(declaration);
   assert.equal(protocol !== undefined && statement !== undefined, true,
     "the real published generator supplies the exact return statement and native protocol");
@@ -182,9 +185,10 @@ test(`local enum refusal belongs to declaration admission on ${surface}`, () => 
     assert.equal(compiled.sourceDiagnosticsText, "", "the local enum is checked source");
     const issues = compiled.result.diagnostics.filter(issue => issue.category === "error");
     assert.equal(issues.length, 1, "the existing refusal has one admission owner");
-    assert.equal(issues[0].code, "CSHARP_UNSUPPORTED_AST", "the original code is preserved");
+    // nextgen C-2542: CSHARP_UNSUPPORTED_AST is split; C# has no local type declarations (CSHARP_LOCAL_TYPE_DECLARATION).
+    assert.equal(issues[0].code, "CSHARP_LOCAL_TYPE_DECLARATION", "the original code is preserved");
     assert.equal(issues[0].message, "Statement is outside the current C# planning surface.", "the original reason is preserved");
-    assert.equal(createTargetSourceProgram(compiled.source).ast.is.IsEnumDeclaration(issues[0].sourceNode), true,
+    assert.equal(compiled.source.ast.is.IsEnumDeclaration(issues[0].sourceNode), true,
       "the diagnostic keeps the same declaration node");
     assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0, true,
       "the refusal precedes record publication, planning and artifacts");
@@ -220,7 +224,8 @@ test(`local interface statements are refused by declaration admission before pub
     assert.equal(compiled.sourceDiagnosticsText, "", "the local interface is checked source, not malformed grammar");
     const issues = compiled.result.diagnostics.filter(issue => issue.category === "error");
     assert.equal(issues.length, 1, "one declaration admission owner preserves the original refusal");
-    assert.equal(issues[0].code, "CSHARP_UNSUPPORTED_AST", "the existing source refusal code is unchanged");
+    // nextgen C-2542: CSHARP_UNSUPPORTED_AST is split; C# has no local type declarations (CSHARP_LOCAL_TYPE_DECLARATION).
+    assert.equal(issues[0].code, "CSHARP_LOCAL_TYPE_DECLARATION", "the existing source refusal code is unchanged");
     assert.equal(issues[0].message, "Statement is outside the current C# planning surface.",
       "the existing source refusal reason is unchanged");
     assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined, true,
@@ -238,10 +243,11 @@ test(`local type declarations in switch clauses are refused before publication o
       assert.equal(compiled.sourceDiagnosticsText, "", "the exact clause declaration is valid checked source");
       const issues = compiled.result.diagnostics.filter(issue => issue.category === "error");
       assert.equal(issues.length, 1, "one existing declaration owner retains the original refusal");
-      assert.equal(issues[0].code, "CSHARP_UNSUPPORTED_AST", "the exact original code is preserved");
+      // nextgen C-2542: CSHARP_UNSUPPORTED_AST is split; C# has no local type declarations (CSHARP_LOCAL_TYPE_DECLARATION).
+      assert.equal(issues[0].code, "CSHARP_LOCAL_TYPE_DECLARATION", "the exact original code is preserved");
       assert.equal(issues[0].message, "Statement is outside the current C# planning surface.",
         "the exact original source reason is preserved");
-      const ast = createTargetSourceProgram(compiled.source).ast;
+      const ast = compiled.source.ast;
       assert.equal(ast.kindName(issues[0].sourceNode), kind, "the exact local declaration remains the diagnostic node");
       assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0, true,
         "a clause declaration refusal precedes successful publication, planning and artifacts");
@@ -263,7 +269,7 @@ test(`retained destructuring publishes exact extraction, destination and admitte
     assert.equal(compiled.sourceDiagnosticsText, "", "all extraction and destination types are checked source");
     assert.equal(compiled.targetDiagnostics.length, 0, "all retained projections are admitted before publication");
     const program = compiled.result.program;
-    const ast = program.source.ast;
+    const ast = program.source.syntax;
     const projections = [];
     const visit = node => {
       const fact = program.records.bindingPatternProjection.get(node);
@@ -281,7 +287,7 @@ test(`retained destructuring publishes exact extraction, destination and admitte
     const first = projections.find(entry => ast.text(entry.fact.binding.node) === "value");
     assert.equal(first !== undefined, true, "the corruption witness keeps the exact authored member binding");
     const pattern = ast.parent(first.node);
-    const context = createCsharpPlanningContext(program);
+    const context = createCsharpPlanningContext(sealCsharpAnalysisProgram(program));
     const corrupted = { ...program, records: { ...program.records,
       bindingPatternProjection: { get: node => node === first.node
         ? { ...first.fact, binding: undefined } : program.records.bindingPatternProjection.get(node) } } };
@@ -309,7 +315,7 @@ test("checked labeled transfers require their exact active renderer target", () 
   assert.equal(compiled.sourceDiagnosticsText, "", "both transfers have checked source targets");
   assert.equal(compiled.targetDiagnostics.length, 0, "the unmodified native label producer renders both transfers");
   const program = compiled.result.program;
-  const ast = program.source.ast;
+  const ast = program.source.syntax;
   const transfers = [];
   const visit = node => {
     if (ast.is.IsBreakStatement(node) || ast.is.IsContinueStatement(node)) transfers.push(node);
@@ -323,7 +329,7 @@ test("checked labeled transfers require their exact active renderer target", () 
     const message = ast.is.IsBreakStatement(transfer)
       ? "A checked labeled break lost its active native label target."
       : "A checked labeled continue lost its active native iteration target.";
-    assert.throws(() => render(transfer, createCsharpPlanningContext(program), diagnostics, createDestructuringPlannerState()),
+    assert.throws(() => render(transfer, createCsharpPlanningContext(sealCsharpAnalysisProgram(program)), diagnostics, createDestructuringPlannerState()),
       error => error.message.includes(message), "only a deliberately missing active renderer stack reaches the invariant");
     assert.equal(diagnostics.length, 0, "invalid renderer state does not relabel a source program as unsupported");
   }
@@ -333,9 +339,9 @@ test("generated native helpers require their constructed scope and paired parame
   const compiled = compileCsharpSource({ sourceText: "export function run(): number { return 1; }" });
   assert.equal(compiled.targetDiagnostics.length, 0, "the helper corruption witness starts from a valid published program");
   const program = compiled.result.program;
-  const ast = program.source.ast;
+  const ast = program.source.syntax;
   const node = csharpProgramSourceFiles(program).flatMap(file => ast.statements(file)).find(statement => ast.is.IsFunctionDeclaration(statement));
-  const context = createCsharpPlanningContext(program);
+  const context = createCsharpPlanningContext(sealCsharpAnalysisProgram(program));
   for (const control of [
     { name: "missing containing native type", input: context, parameters: [] },
     { name: "mismatched constructed argument list", input: { ...context,
@@ -358,12 +364,12 @@ test("every emitted class property has one selected physical storage record", ()
   assert.equal(compiled.sourceDiagnosticsText, "", "property source is checked");
   assert.equal(compiled.targetDiagnostics.length, 0, "native class property selection succeeds");
   const program = compiled.result.program;
-  const ast = program.source.ast;
+  const ast = program.source.syntax;
   const declaration = csharpProgramSourceFiles(program).flatMap(file => ast.statements(file))
     .find(node => node !== undefined && ast.is.IsClassDeclaration(node) && ast.text(ast.name(node)) === "View");
   const properties = ast.members(declaration).filter(node => node !== undefined && ast.is.IsPropertyDeclaration(node));
   assert.equal(properties.length, 2, "both native fields retain their original declarations");
-  const context = createCsharpPlanningContext(program);
+  const context = createCsharpPlanningContext(sealCsharpAnalysisProgram(program));
   for (const property of properties) {
     assert.equal(program.records.classPropertyStorage.get(property)?.kind, "field",
       "the single class-property producer records each exact field");
@@ -397,17 +403,15 @@ test(`admitted constant switch labels remain direct native syntax on ${surface}`
 
 for (const declarationKind of Array.from(["interface", "class"]).slice(0, 2)) {
 test(`${declarationKind} native heritage renderability is refused by its owner before publication`, () => {
-  const checked = checkCsharpSource({ sourceText: `export ${declarationKind} View { value: number${declarationKind === "class" ? " = 1" : ""}; }` });
-  assert.equal(checked.sourceDiagnosticsText, "", "the admission witness has valid native source");
-  const source = createTargetSourceProgram(checked.source);
+  const source = hostProgram(`export ${declarationKind} View { value: number${declarationKind === "class" ? " = 1" : ""}; }`);
   const ast = source.ast;
-  const declaration = source.navigation.sourceFiles.flatMap(file => ast.statements(file))
+  const declaration = source.files.flatMap(file => ast.statements(file))
     .find(node => node !== undefined && (ast.is.IsInterfaceDeclaration(node) || ast.is.IsClassDeclaration(node)) &&
       ast.text(ast.name(node)) === "View");
   assert.equal(declaration !== undefined, true, "the checked interface is present");
   const issues = admitCsharpNativeDeclarations(ast, [declaration], { order: () => [] },
     { heritageForDeclaration: () => ({ interfaces: [{ kind: "opaque", id: "missing" }] }) },
-    source.navigation,
+    source.facts,
     { compileTimeMetadata: { get: () => false }, sourceField: { get: () => undefined } },
     { storageType: { get: () => ({ kind: "source-primitive", name: "float64" }) } },
     { get: () => undefined }, { get: () => false },
@@ -416,7 +420,8 @@ test(`${declarationKind} native heritage renderability is refused by its owner b
     { captureFrame: { get: () => undefined }, capturedBinding: { get: () => undefined },
       physicalStorageType: { get: (_node, type) => type } });
   assert.equal(issues.length, 1, "one pre-seal declaration owner refuses the native carrier");
-  assert.equal(issues[0]?.code, "CSHARP_UNSUPPORTED_AST", "the original refusal code is retained");
+  // nextgen C-2542: CSHARP_UNSUPPORTED_AST is split; the heritage site names CSHARP_HERITAGE_NOT_RENDERABLE.
+  assert.equal(issues[0]?.code, "CSHARP_HERITAGE_NOT_RENDERABLE", "the original refusal code is retained");
   assert.equal(issues[0]?.message, "Canonical project heritage contains a target type that cannot be rendered in C#.",
     "the original refusal message is retained");
   assert.equal(issues[0]?.sourceNode === declaration, true, "the refusal stays on its exact source declaration");
@@ -424,11 +429,9 @@ test(`${declarationKind} native heritage renderability is refused by its owner b
 }
 
 test("declaration admission consumes exact retained masks, not empty construction order guesses", () => {
-  const checked = checkCsharpSource({ sourceText: "export class View {}" });
-  assert.equal(checked.sourceDiagnosticsText, "", "the empty native class is valid");
-  const source = createTargetSourceProgram(checked.source);
+  const source = hostProgram("export class View {}");
   const ast = source.ast;
-  const declaration = source.navigation.sourceFiles.flatMap(file => ast.statements(file))
+  const declaration = source.files.flatMap(file => ast.statements(file))
     .find(node => node !== undefined && ast.is.IsClassDeclaration(node));
   for (const control of [
     { label: "retained empty class", participation: undefined, metadata: false, unreachable: false, count: 1 },
@@ -438,7 +441,7 @@ test("declaration admission consumes exact retained masks, not empty constructio
   ]) {
     const issues = admitCsharpNativeDeclarations(ast, [declaration], { order: () => [] },
       { heritageForDeclaration: () => ({ interfaces: [{ kind: "opaque", id: "missing" }] }) },
-      source.navigation,
+      source.facts,
       { compileTimeMetadata: { get: () => control.metadata }, sourceField: { get: () => undefined } },
       { storageType: { get: () => ({ kind: "source-primitive", name: "float64" }) } },
       { get: () => control.participation }, { get: () => control.unreachable },
@@ -466,7 +469,8 @@ test(`runtime-shape modifier refusals have one pre-seal declaration owner on ${s
     const compiled = compileCsharpSource({ surface, sourceText: "export class View { accessor value: number = 1; }" });
     assert.equal(compiled.sourceDiagnosticsText, "", "the auto-accessor is valid checked TypeScript");
     assert.equal(compiled.targetDiagnostics.length, 1, "the source modifier is refused exactly once");
-    assert.equal(compiled.targetDiagnostics[0].code, "CSHARP_UNSUPPORTED_AST", "the original source code is retained");
+    // nextgen C-2542: CSHARP_UNSUPPORTED_AST is split; the modifier site names CSHARP_TYPESCRIPT_ONLY_MODIFIER.
+    assert.equal(compiled.targetDiagnostics[0].code, "CSHARP_TYPESCRIPT_ONLY_MODIFIER", "the original source code is retained");
     assert.equal(compiled.targetDiagnostics[0].message,
       "TypeScript-only modifier 'accessor' on property declaration is outside the native runtime-shape source subset. Use standard ECMAScript runtime shape or target/provider facts instead.",
       "the original role and message are retained");
@@ -499,7 +503,7 @@ test(`for-of declarations, assignment destinations and string iteration use admi
       assert.equal(compiled.sourceDiagnosticsText, "", "native loop source is checked");
       assert.equal(compiled.targetDiagnostics.length, 0, "native binding conversions are admitted once");
       const program = compiled.result.program;
-      const ast = program.source.ast;
+      const ast = program.source.syntax;
       let count = 0;
       const visit = node => {
         if (ast.is.IsForOfStatement(node)) {

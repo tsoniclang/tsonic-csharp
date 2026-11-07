@@ -97,7 +97,7 @@ test(`${surface}: present native lambda inputs adapt without evaluating an absen
   const program = compiled.result.program;
   let entries = 0;
   const visit = node => {
-    if (program.source.ast.is.IsArrowFunction(node)) {
+    if (program.source.syntax.is.IsArrowFunction(node)) {
       const parameter = program.records.callableDeclaration.get(node).contract.parameters[0];
       const entry = program.records.lambdaParameterEntry.get(parameter);
       assert.equal(entry.kind, "conversion", "the admitted present native input retains its actual boxing adaptation");
@@ -106,9 +106,9 @@ test(`${surface}: present native lambda inputs adapt without evaluating an absen
         "the same selected parameter conversion owns its complete native boxing demand before artifact sealing");
       entries += 1;
     }
-    program.source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    program.source.syntax.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
-  program.source.navigation.sourceFiles.forEach(visit);
+  program.source.sourceFiles.forEach(visit);
   assert.equal(entries, 1, "the witness observes the actual defaulted native lambda");
   executeCsharpConstruction(compiled, `present-native-lambda-default-${surface}`);
 });

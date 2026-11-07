@@ -12,8 +12,12 @@ import { csharpTypeEmissionRecord } from "../../../helpers/planning-records.mjs"
 // analysis for the receiver a test selects and plans it.
 function receive(evidence, input, diagnostics, planExpression, projection) {
   const access = {};
-  const memberReceiver = analyzeCsharpMemberReceiverTypes({ source: { ast: input.program.source.ast }, nodes: [access],
-    operations: { selectedProperty: { get: node => node === access ? { selection: { kind: "resolved", source: { receiver: evidence } } } : undefined },
+  // The selection's Source half is the published SourceMemberAccessSelection (nextgen C-2542): receiver expression,
+  // receiver descriptor and, when the receiver names a value, its declaration.
+  const source = { use: access, receiver: evidence.expression, receiverType: evidence.type,
+    ...(evidence.valueDeclaration === undefined ? {} : { receiverValue: { declaration: evidence.valueDeclaration } }) };
+  const memberReceiver = analyzeCsharpMemberReceiverTypes({ source: { syntax: input.program.source.ast, facts: {} }, nodes: [access],
+    operations: { selectedProperty: { get: node => node === access ? { selection: { kind: "resolved", source } } : undefined },
       selectedElement: { get: () => undefined }, selectedCall: { get: () => undefined }, selectedConstruction: { get: () => undefined } },
     projects: input.program.records, factories: input.program.records });
   const records = { ...input.program.records, memberReceiver };

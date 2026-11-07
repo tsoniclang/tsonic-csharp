@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createCsharpTypeParameterEnvironment } from "../../../dist/analysis/source-evidence/types/resolution/type-parameter-environment.js";
+import { createCsharpTypeParameterEnvironment } from "../../../dist/representation/index.js";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 
 const environment = createCsharpTypeParameterEnvironment(parameter => parameter.csharpConstraints ??

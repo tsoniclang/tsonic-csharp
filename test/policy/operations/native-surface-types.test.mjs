@@ -104,7 +104,7 @@ test("Intl native digit counts and comparison results retain int32 including opt
     const declarations = projectNodes(compiled, (node, ast) =>
       ast.is.IsVariableDeclaration(node) && ast.text(ast.name(node)) === name);
     assert.equal(declarations.length, 1, name);
-    const outcome = compiled.targetSource.effectiveTypes.get(declarations[0]);
+    const outcome = compiled.targetSource.facts.values.type(declarations[0]);
     assert.equal(outcome !== undefined && outcome.kind !== "refused" && outcome.type.kind === "optional" &&
       outcome.type.value.kind === "primitive" && outcome.type.value.primitive === "int32", true, name);
   }

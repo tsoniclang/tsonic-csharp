@@ -1,7 +1,4 @@
-import type { ResolvedSourceWellKnownSymbolInfo } from "@tsonic/tsts";
-import type { CsharpSourceMemberKey } from "./model.js";
-
-type ResolvedWellKnownSymbolKind = ResolvedSourceWellKnownSymbolInfo["kind"];
+import type { CsharpSourceMemberKey, CsharpWellKnownSymbolKind as ResolvedWellKnownSymbolKind } from "./model.js";
 
 export function csharpPropertySourceMemberKey(
   name: string,
@@ -79,4 +76,16 @@ export function csharpWellKnownSymbolTargetMemberName(
     case "unscopables":
       return undefined;
   }
+}
+
+const wellKnownSymbolKinds: ReadonlySet<string> = new Set<ResolvedWellKnownSymbolKind>([
+  "async-dispose", "async-iterator", "dispose", "has-instance", "is-concat-spreadable", "iterator", "match", "match-all",
+  "replace", "search", "species", "split", "to-primitive", "to-string-tag", "unscopables",
+]);
+
+/** A Host well-known symbol name ("Symbol.asyncIterator" or "asyncIterator") as the C# member-key kind ("async-iterator"). */
+export function csharpWellKnownSymbolKind(symbol: string): ResolvedWellKnownSymbolKind {
+  const kind = symbol.replace(/^Symbol\./u, "").replace(/[A-Z]/gu, letter => `-${letter.toLowerCase()}`);
+  if (!wellKnownSymbolKinds.has(kind)) throw new TypeError(`Unknown well-known symbol '${symbol}' in a Host selection.`);
+  return kind as ResolvedWellKnownSymbolKind;
 }

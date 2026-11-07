@@ -317,7 +317,7 @@ test("repeated carriers classify published occurrences and the final merge, neve
   };
   const builder = analyzeCsharpObjectShapes({ ast, sourceFiles: [file], typeDefinitions: {},
     projectTypes: { directSupertypes: () => undefined },
-    semantics: () => ({ operations: { objectLiteralElement: () => undefined } }),
+    facts: { selections: { objectLiteralElement: () => undefined } },
     objectShapes: {
       resolveNode: node => shapes.get(node), resolveType: () => undefined,
       resolveTarget: () => undefined, resolveCopyShape: () => undefined,
@@ -361,10 +361,10 @@ export function project(): string {
 }` }, request => {
     const original = request.input.source;
     let sealed = false;
-    const source = { ...original, ast: { ...original.ast,
+    const source = { ...original, syntax: { ...original.syntax,
       ...Object.fromEntries(["parent", "properties", "authoredRange"].map(name => [name, (...arguments_) => {
         assert.equal(sealed, false, `${name} is an analysis-only own-property input`);
-        return original.ast[name](...arguments_);
+        return original.syntax[name](...arguments_);
       }])),
     } };
     const analysis = analyzeCsharpAnalysisProgram({ ...request, input: { ...request.input, source } });
@@ -372,10 +372,10 @@ export function project(): string {
     assert.equal(analysis.diagnostics.length, 0);
     const literals = [];
     const visit = node => {
-      if (source.ast.is.IsObjectLiteralExpression(node)) literals.push(node);
-      source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+      if (source.syntax.is.IsObjectLiteralExpression(node)) literals.push(node);
+      source.syntax.forEachChild(node, child => { if (child !== undefined) visit(child); });
     };
-    for (const file of source.navigation.sourceFiles) visit(file);
+    for (const file of source.sourceFiles) visit(file);
     assert.equal(literals.length, 3);
     sealed = true;
     const orders = [["2", "10", "tail", "01"], ["2", "10", "01", "tail"], ["tail", "current"]];

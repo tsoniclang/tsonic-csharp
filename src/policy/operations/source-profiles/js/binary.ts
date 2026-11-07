@@ -197,7 +197,7 @@ export const csharpJsBinaryElementPolicies:
               false,
             );
       },
-      (context) => context.source.accessMode === "read"
+      (context) => context.source.access.access === "read"
         ? { kind: "method", targetName: "Get" }
         : { kind: "indexer" },
     ),
@@ -228,7 +228,7 @@ function dataViewMember(
 ): CsharpTargetMember | undefined {
   const receiver = resolveCsharpSelectedSourceValue(
     context,
-    context.source.sourceReceiver,
+    context.source.receiver,
   );
   if (
     receiver?.kind !== "target-named" ||
@@ -259,7 +259,7 @@ function typedArrayConstructor(
   const target = context.inputs.results.get(context.source.call);
   if (target?.kind !== "target-named" || csharpJsTypedArrayElementTargetType(target) === undefined) return undefined;
   const name = target.id.slice(target.id.lastIndexOf(".") + 1);
-  const argument = resolveCsharpSelectedSourceValue(context, context.source.sourceArguments[0]);
+  const argument = resolveCsharpSelectedSourceValue(context, context.source.arguments[0]);
   const element = numericArrayElement(argument);
   if (element !== undefined) {
     return Object.freeze({
@@ -299,7 +299,7 @@ function typedArrayConstructor(
     diagnostic: csharpSourceProfileDiagnostic("CSHARP_JS_SOURCE_PROFILE_OPERATION_UNSUPPORTED", 9101002,
       `${name} requires an exact native length, numeric source or ArrayBuffer view; the C# runtime has no parameterless constructor.`),
   };
-  const parameters = context.source.sourceSelectedSignatureParameters.length === 3
+  const parameters = context.source.parameters.length === 3
     ? [
         targetParameter("buffer", arrayBufferType),
         targetParameter("byteOffset", intType, { optional: true }),
@@ -327,7 +327,7 @@ function typedArrayMethod(
     return undefined;
   }
   const source = name === "set"
-    ? resolveCsharpSelectedSourceValue(context, context.source.sourceArguments[0])
+    ? resolveCsharpSelectedSourceValue(context, context.source.arguments[0])
     : undefined;
   const parameters = source?.kind === "target-named" && csharpJsTypedArrayElementTargetType(source) !== undefined
     ? [targetParameter("source", source), targetParameter("offset", intType, { optional: true })]
@@ -343,8 +343,8 @@ function typedArrayMethod(
       : name === "includes" || name === "indexOf"
         ? (() => {
           const value = csharpJsNumericArgument(context);
-          const from = context.source.sourceArguments.length > 1 ? csharpJsNumericArgument(context, 1) : undefined;
-          return value === undefined || context.source.sourceArguments.length > 1 && from === undefined
+          const from = context.source.arguments.length > 1 ? csharpJsNumericArgument(context, 1) : undefined;
+          return value === undefined || context.source.arguments.length > 1 && from === undefined
             ? undefined : [value, from ?? targetParameter("fromIndex", intType, { optional: true })];
         })()
         : typedArrayMethodParameters(name, csharpJsTypedArrayElementTargetType(receiver)!);
@@ -448,7 +448,7 @@ function typedArrayCallReceiver(
 ): CsharpTargetNamedTypeRef | undefined {
   const receiver = resolveCsharpSelectedSourceValue(
     context,
-    context.source.sourceReceiver,
+    context.source.receiver,
   );
   return receiver?.kind === "target-named" &&
       (receiver as CsharpTargetNamedTypeRef).csharpJsSurfaceKind === "typed-array"

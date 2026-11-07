@@ -122,7 +122,10 @@ export interface CsharpProgramRecords extends CsharpSourceNameRecords, CsharpSta
   readonly localBinding: { readonly get: (subject: Node | undefined) => CsharpLocalBindingCompletion | undefined };
   readonly objectShapeArtifact: CsharpObjectShapeDemand;
   readonly nativeValueDeclaration: CsharpNativeValueCarriers["nativeValueDeclaration"];
-  readonly literalValue: import("@tsonic/target-api/source").SourceLiteralIndex["literalValue"];
+  /** facts.values.literal (the Host literal fact). */
+  /** facts.navigation.scopes.iterationScope: the loop whose iteration owns a binding (per-iteration bindings). */
+  readonly bindingIterationScope: { readonly get: (declaration: import("@tsonic/tsts").Node) => import("@tsonic/tsts").Node | undefined };
+  readonly literalValue: { readonly get: (node: import("@tsonic/tsts").Node) => import("@tsonic/target-api/source").SourceLiteralValue | undefined };
   readonly nativeParticipation: CsharpNativeParticipationInput["participation"];
   readonly nativeUse: CsharpNativeUseRecords["nativeUse"];
   readonly nativeOrder: CsharpNativeUseRecords["nativeOrder"];
@@ -232,7 +235,6 @@ export interface CsharpProgramRecords extends CsharpSourceNameRecords, CsharpSta
   readonly storageTargetType: CsharpSourceEvidenceIndex["storageTargetType"];
   readonly readStorageTargetType: CsharpSourceEvidenceIndex["readStorageTargetType"];
   readonly contextualType: CsharpSourceEvidenceIndex["contextualType"];
-  readonly signatureDeclaration: CsharpSourceEvidenceIndex["signatureDeclaration"];
   readonly contextualTuple: CsharpSourceEvidenceIndex["contextualTuple"];
   readonly constantValue: CsharpSourceEvidenceIndex["constantValue"];
   readonly valueRefinement: CsharpSourceEvidenceIndex["valueRefinement"];

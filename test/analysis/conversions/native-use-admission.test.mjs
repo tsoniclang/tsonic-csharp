@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createCsharpTypeParameterEnvironment } from "../../../dist/analysis/source-evidence/types/resolution/type-parameter-environment.js";
-import { createTargetSourceProgram, analyzeSourceLiteralValues } from "@tsonic/target-api/source";
-import { compileCsharpSource, checkCsharpSource, assertCsharpCheckingSucceeded } from "../../helpers/direct-csharp-session.mjs";
+import { createCsharpTypeParameterEnvironment } from "../../../dist/representation/index.js";
+import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { hostProgram } from "../../representation/host-fixture.mjs";
 import { analyzeCsharpExpectedTypes } from "../../../dist/analysis/expected-types/analyze.js";
 import { admitCsharpExpectedNativeUses, collectCsharpExpectedNativeUseSites } from "../../../dist/analysis/expected-types/native-uses.js";
 import { analyzeCsharpExactLiteralSelections } from "../../../dist/analysis/conversions/literal-plans.js";
@@ -31,13 +31,12 @@ let nativeConversionSyntax;
 
 function actualNativeConversionSyntax() {
   if (nativeConversionSyntax !== undefined) return nativeConversionSyntax;
-  const checked = checkCsharpSource({ surface: "native", sourceText: `
+  const program = hostProgram(`
     export function selected(value: unknown): unknown { return value; }
     export function unselected(value: unknown): unknown { return value; }
-  ` });
-  assertCsharpCheckingSucceeded(checked);
-  const source = createTargetSourceProgram(checked.source);
-  const file = checked.source.getSourceFile("/project/index.ts");
+  `, { surface: "native" });
+  const source = { ast: program.ast, facts: program.facts };
+  const file = program.files[0];
   assert.equal(file !== undefined, true, "the Native conversion controls retain their checked source file");
   const returns = [];
   const visit = node => {
@@ -47,7 +46,7 @@ function actualNativeConversionSyntax() {
   visit(file);
   assert.equal(returns.length === 2 && returns.every(row => row.expression !== undefined &&
     source.ast.parent(row.expression) === row.statement), true, "each actual operand has its real checked return parent");
-  assert.equal(source.effectiveTypes.refusals().length === 0, true,
+  assert.equal(source.facts.refusals().length === 0, true,
     "the actual declared operand publication contains no Host language refusal");
   nativeConversionSyntax = Object.freeze({ source, expression: returns[0].expression, other: returns[1].expression });
   return nativeConversionSyntax;
@@ -119,16 +118,16 @@ export function anonymous(present: boolean): int32 {
     compiled.result.diagnostics.map(({ code, message }) => `${code}: ${message}`).join("; "));
   const declarations = [];
   const visit = node => {
-    if (program.source.ast.is.IsMethodSignatureDeclaration(node)) declarations.push(node);
-    program.source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    if (program.source.syntax.is.IsMethodSignatureDeclaration(node)) declarations.push(node);
+    program.source.syntax.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
   for (const file of csharpProgramSourceFiles(program)) visit(file);
   assert.equal(declarations.length, 1, "the real selected TypeLiteral has one authored method signature");
   const signature = declarations[0];
-  assert.equal(isCsharpSourceCallableArtifactDeclaration(program.source.ast, signature), true,
+  assert.equal(isCsharpSourceCallableArtifactDeclaration(program.source.syntax, signature), true,
     "the unchanged mandatory callable contract producer receives the actual selected declaration");
   assert.equal(program.records.nativeParticipation.get(signature), "signature", "generic metadata does not materialize a type-only body");
-  assert.equal(program.source.ast.body(signature) === undefined, true, "the source signature remains body-free");
+  assert.equal(program.source.syntax.body(signature) === undefined, true, "the source signature remains body-free");
   assert.equal(compiled.artifacts.size > 0, true, "actual native generic admission no longer refuses an existing valid source signature");
 });
 
@@ -153,8 +152,9 @@ test("flow admission consumes the completed actual shape view and publishes pure
   const policy = { ast: { is: { IsIdentifier: node => node === expression,
     IsPropertyAccessExpression: () => false, IsElementAccessExpression: () => false },
     forEachChild(node, visit) { if (node === file) visit(expression); }, parent: () => undefined },
-    sourceFiles: [file], navigation: { sourceReferenceFor: node => node === expression ? { declaration } : undefined,
-      declarationUses: () => [{ kind: "runtime", role: "read", reference: expression }] },
+    sourceFiles: [file], facts: { navigation: {
+      identity: { target: node => node === expression ? { declaration, project: true } : undefined },
+      uses: { uses: () => [{ kind: "runtime", role: "read", reference: expression }] } } },
     projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) },
     target: {}, objectShapes: actualShapes };
   const admitted = analyzeCsharpFlowReadProjections(policy, evidence, operations, valueReads);
@@ -329,11 +329,10 @@ for (const wrapper of ["direct", "delegate", "tuple", "native-generic"]) test(wr
   let structuralClosed = false;
   let registrations = 0;
   const policy = { sourceFiles: [], target: {},
-    ast: syntax.ast, effectiveTypes: syntax.effectiveTypes,
-    navigation: { referenceFor: () => undefined }, projectTypes: { directSupertypes: () => [] },
+    ast: syntax.ast, facts: syntax.facts, projectTypes: { directSupertypes: () => [] },
     providers: { findTargetBindingByTargetId: id => id === "Owner.Covariant" ? { kind: "resolved", binding: { id, target: "csharp", kind: "interface",
       sourceName: "Covariant", targetName: "Covariant", typeParameters: [{ identity: "Owner.Covariant:T", name: "T", variance: "out" }] } }
-      : { kind: "missing" } }, literalValues: { literalValue: none } };
+      : { kind: "missing" } } };
   const shape = { targetType: source, sourceType: {}, members: [], implements: [] };
   const contract = { targetType: target, sourceType: {}, members: [] };
   const shapes = { resolveNode: () => undefined, resolveTarget: type => type === source ? shape : type === target ? contract : undefined,
@@ -378,24 +377,22 @@ function owners(sourceText, surface) {
   const program = compiled.result.program;
   assert.equal(program !== undefined, true, compiled.result.diagnostics.map(item => `${item.code}: ${item.message}`).join("; "));
   const source = program.source;
-  const ast = source.ast;
+  const ast = source.syntax;
   const nodes = [];
   const walk = node => { nodes.push(node); ast.forEachChild(node, child => { if (child !== undefined) walk(child); }); };
   for (const file of csharpProgramSourceFiles(program)) walk(file);
   const records = program.records;
-  const literalValues = analyzeSourceLiteralValues(ast, csharpProgramSourceFiles(program));
   const contracts = nodes.filter(node => ast.is.IsFunctionDeclaration(node) && ast.body(node) !== undefined).flatMap(node => {
     const declared = records.returnContract.get(node);
     return declared?.kind === "resolved" ? [{ sourceDeclaration: node, returnType: declared.type }] : [];
   });
-  const expected = analyzeCsharpExpectedTypes({ ast, sourceFiles: csharpProgramSourceFiles(program), literalValues,
-    effectiveTypes: source.effectiveTypes,
-    semantics: source.semantics.forFile, semanticsFor: source.semantics.forNode, typeDefinitions: program.typeDefinitions }, records, records, program.objectShapes,
+  const expected = analyzeCsharpExpectedTypes({ ast, sourceFiles: csharpProgramSourceFiles(program), facts: source.facts,
+    typeDefinitions: program.typeDefinitions }, records, records, program.objectShapes,
     { declarationContracts: contracts, closedInputType: () => undefined, get: () => undefined },
     { get: node => { const read = records.valueRead.get(node); return read === undefined ? undefined
       : { literalTarget: read.selectedOperation ?? read.source, operationValue: read.selectedOperation ?? read.source }; } }, records,
     publishedGenericProjections(records, nodes));
-  const exact = analyzeCsharpExactLiteralSelections(literalValues, [
+  const exact = analyzeCsharpExactLiteralSelections(source.facts, [
     ...expected.constructions.propertyKeyRequests,
     ...expected.nativeUseSites.requests.flatMap(request =>
       request.expression === undefined ? [] : [{ expression: request.expression, source: records.valueRead.get(request.expression)?.source, target: request.targetType }]),
@@ -403,7 +400,7 @@ function owners(sourceText, surface) {
   const final = { ast, exactLiteral: exact.exactLiteral, callableCreation: { get: () => undefined }, valueRead: records.valueRead,
     absentValue: { get: () => false }, operations: records };
   const initializer = name => ast.as.AsVariableDeclaration(nodes.find(node => ast.is.IsVariableDeclaration(node) && ast.text(ast.name(node)) === name)).Initializer;
-  return { source, ast, nodes, program, expected, final, initializer, literalValues };
+  return { source, ast, nodes, program, expected, final, initializer, facts: source.facts };
 }
 
 for (const surface of ["native", "js"]) test(`${surface} real expected requests admit selected numeric carriers without integer-summary substitution`, () => {
@@ -499,7 +496,7 @@ function nativeCreations(value, overrides = {}) {
     captures, contracts,
     operations: { selectedCall: { get: () => undefined }, selectedConstruction: { get: () => undefined } },
     storage: records, expectedTypes: value.expected, evidence: records, conversions: records,
-    literals: value.literalValues, ...overrides });
+    ...overrides });
   assert.equal(creationResult.kind, "resolved", "the original creation fixture has no quotation syntax refusal");
   return creationResult.value;
 }
@@ -614,11 +611,11 @@ for (const surface of ["native", "js"]) test(`${surface} contextual async creati
     "the original async program reaches Native creation with no Source or target refusal");
   const program = compiled.result.program;
   const arrows = [];
-  const visit = node => { if (program.source.ast.is.IsArrowFunction(node)) arrows.push(node);
-    program.source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); }); };
+  const visit = node => { if (program.source.syntax.is.IsArrowFunction(node)) arrows.push(node);
+    program.source.syntax.forEachChild(node, child => { if (child !== undefined) visit(child); }); };
   visit(compiled.source.getSourceFile("/project/index.ts"));
   assert.equal(arrows.length, 1, "the original program has one exact async implementation");
-  const returned = program.source.effectiveTypes.callableReturn(arrows[0]);
+  const returned = program.source.facts.values.callableReturn(arrows[0]);
   const creation = program.records.callableCreation.get(arrows[0]);
   const payload = getCsharpTaskResultTargetType(getCsharpLambdaSignature(creation?.carrier)?.returnType);
   assert.equal(returned?.kind === "resolved" && returned.type.kind === "declared" &&

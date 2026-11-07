@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createCsharpTypeParameterEnvironment } from "../../../dist/analysis/source-evidence/types/resolution/type-parameter-environment.js";
+import { createCsharpTypeParameterEnvironment } from "../../../dist/representation/index.js";
 import { createCsharpNativeFieldBacking } from "../../../dist/analysis/storage/native-field-backing.js";
 
 const integer = { kind: "source-primitive", name: "uint32" };

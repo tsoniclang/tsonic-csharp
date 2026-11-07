@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
-import { createSourceStorageQuery, targetUseSiteIdentity } from "@tsonic/target-api/analysis";
+import { targetUseSiteIdentity } from "@tsonic/target-api/analysis";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { analyzeCsharpBindingPatterns } from "../../../dist/analysis/control-flow/binding-patterns.js";
 import { analyzeCsharpNativeDemand } from "../../../dist/analysis/operations/native-demand.js";
@@ -84,13 +83,15 @@ for (const surface of ["native", "js"]) {
 }
 
 test("discarded native assignment consumption uses only its actual left storage without inventing a Source result", () => {
+  // nextgen C-2542: the policy reads facts.values.type / types.readStorage (D1 §1.2, §1.4). The discarded-write storage
+  // substitute was deleted (F2 operators.ts, I4: every operation node has a published outcome), so a result without a
+  // carrier is rejected whatever its use; a Host refusal reaching C# is an invariant failure, not a rejection.
   const expression = Object.freeze({});
   const left = Object.freeze({});
   const right = Object.freeze({});
   const storage = csharpSourcePrimitiveTargetType("int64");
-  let resultUse = "discarded";
   let operatorKind = "KindEqualsToken";
-  let outcome;
+  let outcome = Object.freeze({ kind: "resolved", type: { kind: "primitive", primitive: "int64" } });
   let result;
   let storageReads = 0;
   const policy = {
@@ -98,33 +99,41 @@ test("discarded native assignment consumption uses only its actual left storage 
       IsParenthesizedExpression: () => false, IsArrayLiteralExpression: () => false, IsObjectLiteralExpression: () => false },
     as: { AsBinaryExpression: subject => subject === expression ? { Left: left, Right: right } : undefined },
     operatorKindName: () => operatorKind },
-    effectiveTypes: { get: subject => subject === expression ? outcome : undefined },
-    navigation: { expressionResultUse: subject => { assert.equal(subject === expression, true); return resultUse; } },
-    types: { resolveReadStorage: subject => { assert.equal(subject === left, true, "only actual left storage is read"); storageReads += 1; return storage; } },
-    literalValues: { literalValue: { get: () => undefined } },
+    facts: {
+      values: {
+        type: subject => { assert.equal(subject === expression, true, "only the operation's own published outcome is read"); return outcome; },
+        literal: () => undefined,
+      },
+      navigation: { expressions: { resultUse: () => assert.fail("an assignment result never depends on its use") } },
+    },
+    types: {
+      readStorage: subject => { assert.equal(subject === left, true, "only actual left storage is read"); storageReads += 1; return storage; },
+      represent: () => assert.fail("an outcome without a construction is represented through the operation's own carrier"),
+    },
     providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) },
     objectShapes: { resolveTarget: () => undefined }, projectTypes: { catalog: { definitionForTarget: () => undefined } },
     integerRanges: { get: () => false },
   };
   const typeFor = subject => subject === expression ? result : subject === left || subject === right ? storage : undefined;
-  const selected = selectCsharpBinaryOperation(policy, expression, typeFor);
-  assert.equal(selected.kind === "resolved" && selected.resultType === storage, true,
-    "a discarded write represents its selected location without requiring an unused Source value");
-  assert.equal(storageReads > 0, true, "the produced representation is backed by the actual write storage");
-  resultUse = "consumed";
+  const missing = selectCsharpBinaryOperation(policy, expression, typeFor);
+  // nextgen C-2542: was "resolved with the left storage" through the deleted discarded-write substitute (F2 notes §2 operators.ts).
+  assert.equal(missing.kind === "rejected" &&
+    missing.reason === "The checked binary expression has no closed C# representation for every operand and result.", true,
+  "a write without a result carrier never takes its location's storage as a substitute result");
+  assert.equal(storageReads > 0, true, "the assignment reads the actual write storage of its left operand");
   assert.equal(selectCsharpBinaryOperation(policy, expression, typeFor, storage).kind, "rejected",
     "an expected result and a left carrier cannot manufacture a consumed Source value");
-  resultUse = "discarded";
-  outcome = Object.freeze({ kind: "refused" });
-  assert.equal(selectCsharpBinaryOperation(policy, expression, typeFor).kind, "rejected",
+  outcome = Object.freeze({ kind: "refused", code: "TSONIC_TEST_REFUSAL", message: "refused", site: expression });
+  // nextgen C-2542: was a "rejected" selection; Host refusals are forwarded before C# analysis (D1 §1.2), so reaching one is an invariant failure.
+  assert.throws(() => selectCsharpBinaryOperation(policy, expression, typeFor),
+    error => error instanceof Error && error.diagnostic?.code === "TSONIC_INTERNAL_ANALYSIS_INVARIANT",
     "an actual Source refusal is not replaced by discarded write storage");
-  outcome = undefined;
+  outcome = Object.freeze({ kind: "resolved", type: { kind: "primitive", primitive: "int64" } });
   operatorKind = "KindPlusToken";
   assert.equal(selectCsharpBinaryOperation(policy, expression, typeFor).kind, "rejected",
     "discarded nonassignment operations do not obtain a substitute result type");
   operatorKind = "KindEqualsToken";
   result = csharpSourcePrimitiveTargetType("int64");
-  outcome = Object.freeze({ kind: "resolved", type: { kind: "primitive", primitive: "int64" } });
   const published = selectCsharpBinaryOperation(policy, expression, typeFor);
   assert.equal(published.kind === "resolved" && published.resultType === result, true,
     "an existing Source result is always preserved as the exact canonical result object");

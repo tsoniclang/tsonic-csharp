@@ -1,5 +1,5 @@
 import type { Node } from "@tsonic/tsts";
-import type { SourceLiteralIndex } from "@tsonic/target-api/source";
+import type { SourceProgramFacts } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpConversionSelection } from "../../target-model/conversions/selection.js";
 import type { CsharpExactLiteralRequest } from "../../target-model/conversions/exact-literals.js";
@@ -31,7 +31,7 @@ interface CsharpRequestedLiteralEndpoint {
   readonly positions: number[];
 }
 
-export function createCsharpExactLiteralRequestCollector(literalValues: SourceLiteralIndex): CsharpExactLiteralRequestCollector {
+export function createCsharpExactLiteralRequestCollector(facts: SourceProgramFacts): CsharpExactLiteralRequestCollector {
   const requests: CsharpExactLiteralRequest[] = [];
   const requestedTargets = new WeakMap<Node, Map<string, CsharpRequestedLiteralEndpoint>>();
   let closed = false;
@@ -55,7 +55,7 @@ export function createCsharpExactLiteralRequestCollector(literalValues: SourceLi
     operations: Pick<CsharpTargetOperationClassifications, "unaryOperation">,
   ): void {
     if (closed) return failTargetAnalysisInvariant("tsonic-csharp", "Closed native literal requests cannot read another source use.", expression);
-    if (literalValues.literalValue.get(expression) === undefined) return;
+    if (facts.values.literal(expression) === undefined) return;
     request(expression, physicalSource);
     for (const target of sourceTypes) request(expression, physicalSource, target);
     for (const target of expectedTypes) request(expression, physicalSource, target);
@@ -70,7 +70,7 @@ export function createCsharpExactLiteralRequestCollector(literalValues: SourceLi
     selection: CsharpConversionSelection,
     physicalSource: TargetTypeRef | undefined,
   ): void {
-    if (literalValues.literalValue.get(expression) === undefined) return;
+    if (facts.values.literal(expression) === undefined) return;
     const pending: { readonly source: TargetTypeRef; readonly target: TargetTypeRef; readonly selection: CsharpConversionSelection }[] =
       [{ source, target, selection }];
     for (let entry = pending.pop(); entry !== undefined; entry = pending.pop()) {

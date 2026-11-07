@@ -26,7 +26,7 @@ export function selectCsharpEmittedExpressions(input: CsharpCallPlanningRecords 
   const unplannedCallees = new Set<Node>();
   for (const node of input.nodes) {
     const call = input.operations.selectedCall.get(node);
-    const callee = call?.source?.sourceCallee.expression;
+    const callee = call?.source?.callee;
     if (callee !== undefined && !(csharpCallIsPlannedAsSourceCall(node, input) && call?.unionCall.kind !== "resolved") &&
       callee !== input.jsCalls.jsCall.get(node)?.receiver) unplannedCallees.add(callee);
   }
@@ -40,7 +40,7 @@ export function selectCsharpEmittedExpressions(input: CsharpCallPlanningRecords 
       for (let storage: CsharpTypedLocationStorage | undefined = handler.selection.storage; storage !== undefined;
         storage = storage.kind === "value-property-storage" ? storage.receiverStorage : undefined) retain(storage.expression);
     }
-    const callee = input.operations.selectedCall.get(node)?.source?.sourceCallee.expression;
+    const callee = input.operations.selectedCall.get(node)?.source?.callee;
     if (callee !== undefined) {
       const jsReceiver = input.jsCalls.jsCall.get(node)?.receiver;
       if (jsReceiver !== undefined) retain(jsReceiver);
@@ -48,10 +48,10 @@ export function selectCsharpEmittedExpressions(input: CsharpCallPlanningRecords 
     }
     const property = input.operations.selectedProperty.get(node)?.selection;
     if (property?.kind === "source-owned" && input.modules.get(node) === undefined &&
-      input.receivers.get(property.source.receiver.expression, property.source.receiver.valueDeclaration)?.kind !== "type") retain(property.source.receiver.expression);
+      input.receivers.get(property.source.receiver, property.source.receiverValue?.declaration)?.kind !== "type") retain(property.source.receiver);
     const element = input.operations.selectedElement.get(node)?.target;
     if (element?.kind === "source-owned" &&
-      input.receivers.get(element.source.receiver.expression, element.source.receiver.valueDeclaration)?.kind !== "type") retain(element.source.receiver.expression);
+      input.receivers.get(element.source.receiver, undefined)?.kind !== "type") retain(element.source.receiver);
   }
   return emitted;
 }

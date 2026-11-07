@@ -7,6 +7,10 @@ import {
 import { executeCsharpConstruction } from "../../../helpers/native-construction.mjs";
 import { admitCsharpNativeStorageBindings } from "../../../../dist/analysis/control-flow/native-control-flow.js";
 import { createCsharpPlanningContext } from "../../../../dist/backend/planner/context.js";
+import { sealCsharpAnalysisProgram } from "../../../../dist/analysis/program/index.js";
+
+// The planner reads the sealed program (records and syntax only), as in production (nextgen C-2542).
+const sealedProgram = program => program === undefined ? undefined : sealCsharpAnalysisProgram(program);
 import { createDestructuringPlannerState } from "../../../../dist/backend/planner/bindings/binding-state.js";
 import { planLocalDeclaration } from "../../../../dist/backend/planner/bindings/locals.js";
 import { csharpProgramSourceFiles } from "../../../helpers/program-source-files.mjs";
@@ -179,7 +183,7 @@ test("local storage has one final carrier and no syntax, lambda or source-eviden
     "export function run(): number { let value: number = 7; return value; }" });
   assert.equal(compiled.sourceDiagnosticsText, "", "the local carrier control is checked source");
   assert.equal(compiled.targetDiagnostics.length, 0, "the local carrier control is admitted");
-  const program = compiled.result.program;
+  const program = sealedProgram(compiled.result.program);
   const ast = program.source.ast;
   let declaration;
   const visit = node => {
@@ -238,7 +242,7 @@ test("iteration and catch bindings stay with their admitted owners rather than l
   ` });
   assert.equal(compiled.sourceDiagnosticsText, "", "the independent binding-owner control is checked source");
   assert.equal(compiled.targetDiagnostics.length, 0, "iteration and catch owners admit their exact native bindings");
-  const program = compiled.result.program;
+  const program = sealedProgram(compiled.result.program);
   const ast = program.source.ast;
   const bindings = [];
   const visit = node => {

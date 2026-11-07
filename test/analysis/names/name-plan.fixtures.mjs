@@ -1,8 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createCompilerSessionFromFiles, formatDiagnostics } from "@tsonic/tsts";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
-import { assertCsharpCompilationSucceeded, checkCsharpSource, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { analyzeCsharpSource, assertCsharpCompilationSucceeded, checkCsharpSource, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { createCsharpSourceNameBuilder } from "../../../dist/analysis/names/plan.js";
 import { analyzeCsharpAnalysisProgram } from "../../../dist/analysis/program/index.js";
@@ -22,33 +20,31 @@ const analyzeCompletedCsharpProgram = request => analyzeCsharpAnalysisProgram(co
 
 const nativeMemberNames = Object.freeze({ issues: Object.freeze([]), memberHiding: Object.freeze([]) });
 
+// The name builder over the Source facts program the C# session built for `sourceText` (nextgen C-2542: the name
+// host is `{ ast, facts, sourceFiles, sourceIdentities }`; createTargetSourceProgram needs the composition's profile,
+// so the fixture reads the program the session handed to the target instead of building one from a bare checker).
 function checkedNames(sourceText) {
-  const checked = createCompilerSessionFromFiles({
-    currentDirectory: "/project",
-    files: { "/project/index.ts": sourceText },
-    compilerOptions: { strict: true, target: "es2022", module: "esnext" },
-  }).checkSource();
-  assert.equal(checked.diagnostics.length, 0, formatDiagnostics(checked.diagnostics));
-  const source = createTargetSourceProgram(checked);
-  const file = checked.getSourceFile("/project/index.ts");
+  const checked = analyzeCsharpSource({ sourceText });
+  assert.equal(checked.sourceDiagnosticsText, "", "the authored names are checked source");
+  const { source } = checked;
+  const file = source.sourceFiles.find(candidate => source.syntax.getFileName(candidate) === "/project/index.ts");
   assert.ok(file);
   const builder = createCsharpSourceNameBuilder({
-    ast: source.ast,
-    navigation: source.navigation,
+    ast: source.syntax,
+    facts: source.facts,
     sourceFiles: [file],
     sourceIdentities: { node: () => undefined },
-    semanticsFor: source.semantics.forNode,
   });
   const identifiers = [];
   const nodes = [];
   const bindingRoots = [];
   const visit = node => {
     nodes.push(node);
-    if (source.ast.is.IsIdentifier(node)) identifiers.push(node);
-    if (source.ast.is.IsParameterDeclaration(node) || source.ast.is.IsVariableDeclaration(node) ||
-      source.ast.is.IsForOfStatement(node) || source.ast.is.IsForInStatement(node) ||
-      source.ast.is.IsFunctionDeclaration(node)) bindingRoots.push(node);
-    source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    if (source.syntax.is.IsIdentifier(node)) identifiers.push(node);
+    if (source.syntax.is.IsParameterDeclaration(node) || source.syntax.is.IsVariableDeclaration(node) ||
+      source.syntax.is.IsForOfStatement(node) || source.syntax.is.IsForInStatement(node) ||
+      source.syntax.is.IsFunctionDeclaration(node)) bindingRoots.push(node);
+    source.syntax.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
   visit(file);
   return { source, builder, identifiers, nodes, bindingRoots: Object.freeze(bindingRoots) };

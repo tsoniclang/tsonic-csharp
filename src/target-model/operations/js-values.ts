@@ -21,7 +21,7 @@ export interface CsharpJsValueInvocation {
 
 export type CsharpJsValueOperationSelection =
   | { readonly kind: "not-js-value" }
-  | { readonly kind: "rejected"; readonly reason: string }
+  | { readonly kind: "rejected"; readonly code: `CSHARP_${string}`; readonly reason: string }
   | {
       readonly kind: "resolved";
       readonly runtimeMember: CsharpJsValueRuntimeMember;

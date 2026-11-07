@@ -1,5 +1,5 @@
 import type { AstReader, Node } from "@tsonic/tsts";
-import type { SourceProgramNavigation } from "@tsonic/target-api/source";
+import type { SourceProgramFacts } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpProgramRecords } from "../../target-model/records/program.js";
 import type { CsharpLocalBindingCompletion } from "../../target-model/records/storage/local-bindings.js";
@@ -10,7 +10,7 @@ import type { CsharpOptionalLocalPlan } from "./optional-locals.js";
 import { csharpSourcePrimitiveTargetType, csharpVoidTargetType } from "../../target-model/types/carriers/scalar-types.js";
 
 export function analyzeCsharpLocalBindings(input: {
-  readonly ast: AstReader; readonly navigation: SourceProgramNavigation; readonly nodes: readonly Node[];
+  readonly ast: AstReader; readonly facts: SourceProgramFacts; readonly nodes: readonly Node[];
   readonly admitted: (node: Node) => boolean;
   readonly nativeRefs: CsharpProgramRecords["nativeRefReturn"]; readonly storage: CsharpProgramRecords["storageType"];
   readonly moduleInitialization: CsharpProgramRecords["moduleBindingInitialization"];
@@ -30,7 +30,7 @@ export function analyzeCsharpLocalBindings(input: {
       ? input.nativeRefs.get(initializer) : undefined;
     const carrier = nativeRef?.kind === "resolved" ? nativeRef.returnType : input.storage.get(node);
     if (carrier === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted local requires its native storage carrier before publication.", node);
-    const recursiveInitializer = initializer !== undefined && input.navigation.declarationUseSummary(node).uses.some(use => {
+    const recursiveInitializer = initializer !== undefined && input.facts.navigation.uses.summary(node).uses.some(use => {
       if (use.kind === "type-only") return false;
       for (let current: Node | undefined = use.reference; current !== undefined; current = input.ast.parent(current)) {
         if (current === initializer) return true;

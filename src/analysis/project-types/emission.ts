@@ -1,5 +1,6 @@
 import type { Node } from "@tsonic/tsts";
-import { referenceQueryNode, type TargetSourceProgram, authoredTypeParameterNames, generatedTypeParameterNames } from "@tsonic/target-api/source";
+import { referenceQueryNode, type TargetSourceProgramFacts, authoredTypeParameterNames, generatedTypeParameterNames } from "@tsonic/target-api/source";
+import { sourceProjectTarget } from "../program/source-facts.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpProjectTypeClassifications } from "../../target-model/records/types/project-types.js";
 import type { CsharpClassFactoryIndex } from "../../target-model/records/objects/class-factories.js";
@@ -11,7 +12,7 @@ import type { CsharpGenericProjectionIndex } from "../../target-model/records/ty
 import { csharpSourceTypeParameter } from "../../source/extension/type-parameters.js";
 
 export function analyzeCsharpProjectEmission(input: {
-  readonly source: TargetSourceProgram;
+  readonly source: TargetSourceProgramFacts;
   readonly nodes: readonly Node[];
   readonly projectTypes: CsharpProjectTypeClassifications;
   readonly factories: CsharpClassFactoryIndex;
@@ -26,29 +27,29 @@ export function analyzeCsharpProjectEmission(input: {
     const definition = input.projectTypes.definitionContainingDeclaration(node);
     if (definition !== undefined) producer.declaration(node, definition);
     if (definition !== undefined && (definition.outerTypeParameters.length !== 0 || definition.outerTypeProjections.length !== 0)) {
-      const parameters = definition.outerTypeParameters.map(parameter => csharpSourceTypeParameter(parameter, input.source.ast));
+      const parameters = definition.outerTypeParameters.map(parameter => csharpSourceTypeParameter(parameter, input.source.syntax));
       if (parameters.some(parameter => parameter === undefined))
         failTargetAnalysisInvariant("tsonic-csharp", "A lifted C# generic binder requires its sealed source identity.", node);
       const selected = generatedTypeParameterNames([
         ...parameters.filter(parameter => parameter !== undefined), ...definition.outerTypeProjections,
-      ], [...authoredTypeParameterNames(node, input.source.ast),
+      ], [...authoredTypeParameterNames(node, input.source.syntax),
         ...input.names.typeParameterNames.map(parameter => parameter.name),
         ...input.projections.genericProjection.get(node).map(parameter => parameter.name)]);
       producer.names(node, [...selected].map(entry => Object.freeze(entry)));
     } else producer.names(node, []);
-    if (referenceQueryNode(input.source.ast, node) === undefined) continue;
-    const reference = input.source.navigation.referenceFor(node);
-    if (reference === undefined || !input.source.navigation.isProjectDeclaration(reference.declaration) ||
+    if (referenceQueryNode(input.source.syntax, node) === undefined) continue;
+    const reference = sourceProjectTarget(input.source.facts, node);
+    if (reference === undefined || !input.source.facts.navigation.identity.isProjectDeclaration(reference.declaration) ||
       reference.sourceFile.IsDeclarationFile || input.evidence.providerVirtualDeclaration.get(reference.declaration)) continue;
     const declaration = reference.declaration;
-    if (!input.source.ast.is.IsClassDeclaration(declaration) && !input.source.ast.is.IsClassExpression(declaration) &&
-      !input.source.ast.is.IsInterfaceDeclaration(declaration) && !input.source.ast.is.IsEnumDeclaration(declaration)) continue;
+    if (!input.source.syntax.is.IsClassDeclaration(declaration) && !input.source.syntax.is.IsClassExpression(declaration) &&
+      !input.source.syntax.is.IsInterfaceDeclaration(declaration) && !input.source.syntax.is.IsEnumDeclaration(declaration)) continue;
     producer.reference(node, declaration);
     if (declarations.has(declaration)) continue;
     declarations.add(declaration);
-    const name = input.source.ast.name(declaration);
+    const name = input.source.syntax.name(declaration);
     if (name === undefined && input.factories.classFactory.get(declaration) === undefined) {
-      issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: declaration,
+      issues.push({ code: "CSHARP_ANONYMOUS_TYPE_REFERENCE_NOT_NAMED", category: "error", source: "tsonic-csharp", sourceNode: declaration,
         message: "Project source type reference requires a declaration name resolved by TSTS." });
       continue;
     }

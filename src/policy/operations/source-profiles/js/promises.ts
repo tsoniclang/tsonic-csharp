@@ -60,16 +60,16 @@ function promiseContinuationMember(
   context: CsharpSourceProfileCallPolicyContext,
   name: "then" | "catch",
 ): CsharpTargetMember | undefined {
-  const receiver = resolveCsharpSelectedSourceValue(context, context.source.sourceReceiver);
+  const receiver = resolveCsharpSelectedSourceValue(context, context.source.receiver);
   const input = getCsharpTaskResultTargetType(receiver);
   if (receiver === undefined || input === undefined) return undefined;
-  const callbackResults = context.source.sourceArguments.map(argument =>
+  const callbackResults = context.source.arguments.map(argument =>
     getCsharpDelegateSignature(resolveCsharpSelectedSourceValue(context, argument))?.returnType);
-  const fulfilled = context.source.sourceArguments[0];
+  const fulfilled = context.source.arguments[0];
   const fulfilledType = resolveCsharpSelectedSourceValue(context, fulfilled);
   if (name === "then" && (fulfilled === undefined || isCsharpAbsenceTargetType(fulfilledType) ||
     fulfilledType !== undefined && isCsharpVoidTargetType(fulfilledType))) {
-    const rejected = context.source.sourceArguments[1];
+    const rejected = context.source.arguments[1];
     const rejectedType = resolveCsharpSelectedSourceValue(context, rejected);
     const absentRejected = rejected === undefined || isCsharpAbsenceTargetType(rejectedType) ||
       rejectedType !== undefined && isCsharpVoidTargetType(rejectedType);
@@ -79,8 +79,8 @@ function promiseContinuationMember(
   if (output === undefined || name === "catch" && !targetTypeRefEquals(input, output.result)) return undefined;
   const asynchronous = name === "then" && callbackResults[0] !== undefined &&
     getCsharpTaskResultTargetType(callbackResults[0]) !== undefined;
-  const selected = context.source.sourceSelectedMethodTypeArguments?.[0];
-  const result = name === "catch" ? input : selected?.explicitTypeNode !== undefined
+  const selected = context.source.typeArguments?.[0];
+  const result = name === "catch" ? input : selected?.explicit === true
     ? context.inputs.typeArgument.get(selected)
     : getCsharpTaskResultTargetType(callbackResults[0]) ?? callbackResults[0];
   if (result === undefined) return undefined;
@@ -182,8 +182,8 @@ function promiseResolveMember(
     return undefined;
   }
   const runtime = promiseRuntimeType(task.result);
-  const argument = resolveCsharpSelectedSourceValue(context, context.source.sourceArguments[0]);
-  if (context.source.sourceArguments.length === 0) {
+  const argument = resolveCsharpSelectedSourceValue(context, context.source.arguments[0]);
+  if (context.source.arguments.length === 0) {
     return isCsharpVoidTargetType(task.result)
       ? staticMethod(
           "Tsonic.CSharp.Js.PromiseRuntime.Resolve:void",
@@ -196,17 +196,17 @@ function promiseResolveMember(
       : undefined;
   }
   if (argument === undefined) return undefined;
-  const explicit = context.source.sourceSelectedMethodTypeArguments?.[0];
+  const explicit = context.source.typeArguments?.[0];
   const inputResult = getCsharpTaskResultTargetType(argument);
-  if (inputResult === undefined && explicit?.explicitTypeNode === undefined) {
-    if (explicit === undefined || !targetTypeRefEquals(argument, task.result) &&
-      !context.inputs.identicalTypes.get(context.source.sourceArguments[0]!.type)?.has(explicit.selectedType)) return undefined;
+  if (inputResult === undefined && explicit?.explicit !== true) {
+    // One representation (I6): identical published Source types have equal C# carriers at the same position.
+    if (explicit === undefined || !targetTypeRefEquals(argument, task.result)) return undefined;
   }
-  const result = explicit?.explicitTypeNode === undefined
+  const result = explicit?.explicit !== true
     ? inputResult ?? argument
     : context.inputs.typeArgument.get(explicit);
   if (result === undefined || inputResult !== undefined && !targetTypeRefEquals(inputResult, result)) return undefined;
-  if (context.source.sourceArguments.length === 1 && isCsharpVoidTargetType(result)) {
+  if (context.source.arguments.length === 1 && isCsharpVoidTargetType(result)) {
     return promiseResolutionMember(argument, result);
   }
   const parameter = inputResult === undefined ? result : argument;
@@ -248,7 +248,7 @@ function promiseCombinatorMember(
   name: string,
 ): CsharpTargetMember | undefined {
   const task = resolveResultTask(context);
-  const argument = resolveCsharpSelectedSourceValue(context, context.source.sourceArguments[0]);
+  const argument = resolveCsharpSelectedSourceValue(context, context.source.arguments[0]);
   const argumentElement = getCsharpCollectionElementTargetType(argument);
   if (task === undefined || argument === undefined || argumentElement === undefined) {
     return undefined;
@@ -281,7 +281,7 @@ function promiseFinallyMember(
 ): CsharpTargetMember | undefined {
   const receiver = resolveCsharpSelectedSourceValue(
     context,
-    context.source.sourceReceiver,
+    context.source.receiver,
   );
   const result = receiver === undefined
     ? undefined

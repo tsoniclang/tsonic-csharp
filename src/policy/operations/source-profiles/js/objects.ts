@@ -53,21 +53,16 @@ export const csharpJsObjectCallPolicies:
     jsCallPolicy(
       jsMemberIdentity("ObjectConstructor", "freeze"),
       context => {
-        const argument = resolveCsharpSelectedSourceValue(context, context.source.sourceArguments[0]);
+        const argument = resolveCsharpSelectedSourceValue(context, context.source.arguments[0]);
         if (argument === undefined) return undefined;
         return staticMethod("js.ObjectConstructor.freeze", "freeze", "freeze", objectType,
           [targetParameter("value", argument)], argument, { csharpInvocation: { kind: "value-identity" } });
       }, noReceiver),
-    jsCallPolicy(jsMemberIdentity("ObjectConstructor", "isFrozen"), () => ({
-      kind: "rejected",
-      diagnostic: csharpSourceProfileDiagnostic("TSONIC_IS_FROZEN_UNSUPPORTED", 9101002,
-        "Object.isFrozen has no native equivalent; immutability is a compile-time property. Use readonly declarations instead."),
-    }), noReceiver),
     jsCallPolicy(
       jsMemberIdentity("ObjectConstructor", "is"),
       context => {
-        const value = resolveCsharpSelectedSourceValue(context, context.source.sourceArguments[0]);
-        const other = resolveCsharpSelectedSourceValue(context, context.source.sourceArguments[1]);
+        const value = resolveCsharpSelectedSourceValue(context, context.source.arguments[0]);
+        const other = resolveCsharpSelectedSourceValue(context, context.source.arguments[1]);
         const isScalar = (type: TargetTypeRef | undefined): type is TargetTypeRef =>
           type !== undefined && (type.kind === "source-primitive" ||
             targetTypeRefEquals(type, stringType) || targetTypeRefEquals(type, csharpBigIntegerTargetType()));
@@ -173,7 +168,7 @@ function objectCollectionMember(
 ): ObjectMemberSelection {
   const argumentType = resolveCsharpSelectedSourceValue(
     context,
-    context.source.sourceArguments[0],
+    context.source.arguments[0],
   );
   const refused = nativeOwnSetRefusal(context, [argumentType]);
   if (refused !== undefined) return refused;
@@ -192,7 +187,7 @@ function objectCollectionMember(
         refinedResultType,
         objectShapeProjectionOptions(
           context,
-          context.source.sourceArguments[0],
+          context.source.arguments[0],
           argumentType,
           row.result,
           0,
@@ -233,7 +228,7 @@ function objectHasOwnMember(
 ): ObjectMemberSelection {
   const valueType = resolveCsharpSelectedSourceValue(
     context,
-    context.source.sourceArguments[0],
+    context.source.arguments[0],
   );
   const refused = nativeOwnSetRefusal(context, [valueType]);
   if (refused !== undefined) return refused;
@@ -251,7 +246,7 @@ function objectHasOwnMember(
         boolType,
         objectShapeProjectionOptions(
           context,
-          context.source.sourceArguments[0],
+          context.source.arguments[0],
           valueType,
           "has-own",
           0,
@@ -264,18 +259,18 @@ function objectAssignMember(
 ): ObjectMemberSelection {
   const targetType = resolveCsharpSelectedSourceValue(
     context,
-    context.source.sourceArguments[0],
+    context.source.arguments[0],
   );
   const sourceType = resolveCsharpSelectedSourceValue(
     context,
-    context.source.sourceArguments[1],
+    context.source.arguments[1],
   );
   const refused = nativeOwnSetRefusal(context, [targetType, sourceType]);
   if (refused !== undefined) return refused;
   if (
     targetType !== undefined &&
     sourceType !== undefined &&
-    context.source.sourceArguments.length === 2 &&
+    context.source.arguments.length === 2 &&
     isCsharpRecordDictionaryTargetType(targetType) &&
     targetTypeRefEquals(targetType, sourceType)
   ) {
@@ -293,7 +288,7 @@ function objectAssignMember(
   }
   // A fresh object-literal target (`Object.assign({ count }, { label })`) is constructed at the call's merged result
   // shape, so the assignment writes every source property into a declared member of the returned object.
-  const targetExpression = context.source.sourceArguments[0]?.expression;
+  const targetExpression = context.source.arguments[0]?.expression;
   const merged = targetExpression !== undefined && context.host.ast.is.IsObjectLiteralExpression(targetExpression)
     ? context.inputs.results.get(context.source.call) : undefined;
   const assignedType = merged !== undefined && merged.kind === "target-named" && "csharpGeneratedStructuralStorage" in merged &&
@@ -303,9 +298,9 @@ function objectAssignMember(
     : context.inputs.objectShape.get(targetExpression);
   const sourceShape = sourceType === undefined
     ? undefined
-    : context.inputs.objectShape.get(context.source.sourceArguments[1]?.expression);
+    : context.inputs.objectShape.get(context.source.arguments[1]?.expression);
   return targetType === undefined || assignedType === undefined ||
-      context.source.sourceArguments.length !== 2 ||
+      context.source.arguments.length !== 2 ||
       sourceType === undefined ||
       targetShape === undefined ||
       sourceShape === undefined
@@ -324,7 +319,7 @@ function objectAssignMember(
         assignedType,
         objectShapeProjectionOptions(
           context,
-          context.source.sourceArguments[0],
+          context.source.arguments[0],
           assignedType,
           "assign",
           0,
@@ -339,7 +334,7 @@ function objectPrototypeHasOwnMember(
 ): ObjectMemberSelection {
   const receiverType = resolveCsharpSelectedSourceValue(
     context,
-    context.source.sourceReceiver,
+    context.source.receiver,
   );
   const refused = nativeOwnSetRefusal(context, [receiverType]);
   if (refused !== undefined) return refused;
@@ -355,7 +350,7 @@ function objectPrototypeHasOwnMember(
         boolType,
         objectShapeProjectionOptions(
           context,
-          context.source.sourceReceiver,
+          context.source.receiver,
           receiverType,
           "has-own",
           0,
@@ -369,7 +364,7 @@ function objectToStringPolicy(): CsharpSourceProfileCallPolicy {
     source: jsMemberIdentity("Object", "toString"),
     finalizeArguments: true,
     select(context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0]): CsharpSourceProfileCallPolicyResult {
-      const receiver = resolveCsharpSelectedSourceValue(context, context.source.sourceReceiver);
+      const receiver = resolveCsharpSelectedSourceValue(context, context.source.receiver);
       const native = receiver !== undefined && context.inputs.throwableCarriers.has(receiver);
       const member = native ? context.host.providers.publishNativeIdentities<CsharpTargetMember>({
         id: "System.Exception.ToString", sourceName: "toString", targetName: "ToString", kind: "method",
@@ -391,7 +386,7 @@ function objectToStringMember(
 ): CsharpTargetMember | undefined {
   const receiverType = resolveCsharpSelectedSourceValue(
     context,
-    context.source.sourceReceiver,
+    context.source.receiver,
   );
   return receiverType === undefined
     ? undefined
@@ -413,13 +408,13 @@ function jsonStringifyMember(
 ): CsharpTargetMember | undefined {
   const valueType = resolveCsharpSelectedSourceValue(
     context,
-    context.source.sourceArguments[0],
+    context.source.arguments[0],
   );
   const declaredReplacer = context.inputs.parameters[1];
   const callback = getCsharpDelegateSignature(getCsharpNullableElementTargetType(declaredReplacer) ?? declaredReplacer) !== undefined;
   const selectedReplacerType = callback ? undefined : resolveCsharpSelectedSourceValue(
     context,
-    context.source.sourceArguments[1],
+    context.source.arguments[1],
   );
   if (!callback && getCsharpDelegateSignature(selectedReplacerType) !== undefined) return undefined;
   const replacerType = callback

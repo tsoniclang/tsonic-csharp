@@ -3,6 +3,7 @@ import test from "node:test";
 import { analyzeCsharpCaptureStorage } from "../../../dist/analysis/callables/storage/capture-storage.js";
 import { csharpRuntimeLocationTargetType, csharpRuntimeNativeArrayTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
+import { createCsharpTypeParameterEnvironment } from "../../../dist/representation/index.js";
 
 test("physical capture decisions are complete before publication and final reads do not select backing", () => {
   const scalar = { kind: "source-primitive", name: "int64" };
@@ -18,14 +19,18 @@ test("physical capture decisions are complete before publication and final reads
     nativeArray: lookup(new Map([[declarations[1], { layout }]])),
     storageType: lookup(new Map([[declarations[2], scalar]])),
     typedLocationIdentity: { get() { assert.equal(closed, false, "physical identity is an analysis-only input"); return false; } } };
-  const source = { ast: { is: { IsVariableDeclaration(declaration) {
+  // nextgen C-2542: the capture owner reads a TargetSourceProgramFacts (syntax, facts, sourceFiles) and the program's one
+  // type-parameter environment (new last parameter); this fixture has no source file to visit.
+  const source = { syntax: { is: { IsVariableDeclaration(declaration) {
     assert.equal(declarations.includes(declaration), true, "the fixture classifies its own original physical capture subject");
     return false;
-  } } }, navigation: { sourceFiles: [] } };
+  } } }, facts: { navigation: { uses: { summary: () => ({ uses: [] }) }, scopes: { bindingScope: () => undefined, unused: () => false } } },
+  sourceFiles: [] };
+  const environment = createCsharpTypeParameterEnvironment(() => ({ kind: "resolved", constraints: [] }));
   const result = analyzeCsharpCaptureStorage(source, { knownShapes: () => [] }, storage, {},
     declarations.map(declaration => ({ declaration, type: parameter, mutable: false, initialization: "initialized" })),
     { get: () => undefined, closedInputType: () => undefined }, { get: () => false },
-    { selectedCall: { get: () => undefined }, selectedConstruction: { get: () => undefined } });
+    { selectedCall: { get: () => undefined }, selectedConstruction: { get: () => undefined } }, environment);
   assert.equal(result.issues.length, 0);
   closed = true;
   const expected = [csharpRuntimeLocationTargetType(scalar), csharpRuntimeNativeArrayTargetType(scalar), scalar, parameter];

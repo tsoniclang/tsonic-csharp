@@ -1,9 +1,5 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
-import { AsBinaryExpression, AsObjectLiteralExpression, AsPropertyAssignment, AsShorthandPropertyAssignment,
-  AsSpreadAssignment, AsSpreadElement, HasSourceKind, KindArrayLiteralExpression, KindBinaryExpression, KindEqualsToken,
-  KindIdentifier, KindObjectLiteralExpression, KindOmittedExpression, KindPropertyAssignment, KindShorthandPropertyAssignment,
-  KindSpreadAssignment, KindSpreadElement, Node_Expression, sourceTypeDescriptorStructure, sourceTypeDescriptorTupleValue,
-  type SourceTypeDescriptor } from "@tsonic/target-api/source";
+import { AsBinaryExpression, AsObjectLiteralExpression, AsPropertyAssignment, AsShorthandPropertyAssignment, AsSpreadAssignment, AsSpreadElement, HasSourceKind, KindArrayLiteralExpression, KindBinaryExpression, KindEqualsToken, KindIdentifier, KindObjectLiteralExpression, KindOmittedExpression, KindPropertyAssignment, KindShorthandPropertyAssignment, KindSpreadAssignment, KindSpreadElement, Node_Expression, sourceTypeDescriptorStructure, sourceTypeDescriptorTupleValue, type SourceTypeDescriptor } from "@tsonic/target-api/source";
 import { selectCsharpBindingPatternProjection } from "../../policy/types/objects/binding-projection.js";
 import type { CsharpObjectShapeFact, TargetTypeRef } from "../../target-model/types/index.js";
 import type { CsharpBindingElementProjection, CsharpBindingPatternSource, CsharpBindingProjectionFact,
@@ -48,7 +44,7 @@ export function createCsharpDestructuringAssignmentAnalysis(input: CsharpBinding
     recordAssignment(node, pattern);
     if (!completesWithValue(selected.source)) return;
     admitSource(selected.pattern, selected.source, sourceFile, "Destructuring assignment source");
-    const outcome = input.effectiveTypes.get(selected.source);
+    const outcome = input.facts.values.type(selected.source);
     const published = outcome === undefined || outcome.kind === "refused" ? undefined : outcome.type;
     analyzeAssignmentPattern(pattern, selected.source, sourceFile, input.valueReads.valueRead.get(selected.source)?.value,
       published === undefined ? undefined : { type: published });
@@ -147,16 +143,15 @@ export function createCsharpDestructuringAssignmentAnalysis(input: CsharpBinding
     sourceCarrier: TargetTypeRef | undefined,
     published: PublishedAssignmentSource | undefined,
   ): void {
-    const shape = sourceCarrier === undefined ? input.objectShapes.resolveNode(sourceNode, sourceFile)
+    const shape = sourceCarrier === undefined ? input.objectShapes.resolveNode(sourceNode)
       : input.objectShapes.resolveTarget(sourceCarrier);
     const nativeProperties = new Map<Node, ReturnType<typeof resolveCsharpPublishedNativePropertyRead>>();
-    const semantics = input.semanticsFor(pattern.sourceNode);
     for (const element of pattern.elements) {
       if (element.kind !== "object-property") continue;
       const sourceName = assignmentPropertyName(element)?.sourceName;
       if (sourceName === undefined) continue;
       nativeProperties.set(element.sourceNode, resolveCsharpPublishedNativePropertyRead(published?.type, sourceName,
-        sourceCarrier, semantics, { ...input.conversionPolicy, ast, sourceFacts: input.sourceFacts }));
+        sourceCarrier, { ...input.conversionPolicy, ast, facts: input.facts, sourceFacts: input.sourceFacts }));
     }
     if (shape === undefined && ![...nativeProperties.values()].some(property => property.kind === "resolved")) {
       issue(pattern.sourceNode, "Object destructuring assignment requires finalized provider object-shape facts before C# emission.");
@@ -247,7 +242,7 @@ export function createCsharpDestructuringAssignmentAnalysis(input: CsharpBinding
       issue(element.sourceNode, "Object rest destructuring assignment requires an identifier assignment target.");
       return;
     }
-    const restContract = input.objectShapes.resolveNode(element.target.node, sourceFile);
+    const restContract = input.objectShapes.resolveNode(element.target.node);
     const restShape = restContract === undefined ? undefined : input.objectShapes.resolveCopyShape(restContract);
     if (restShape === undefined) {
       issue(element.sourceNode, "Object rest destructuring assignment requires finalized provider object-shape facts for the rest target.");

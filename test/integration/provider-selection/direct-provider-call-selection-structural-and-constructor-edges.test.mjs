@@ -64,8 +64,7 @@ test("target operations can consume selected method type arguments as structural
   });
   const selected = selectCsharpProviderCall(
     fixture.host,
-    fixture.call,
-    fixture.sourceFile,
+    fixture.call
   );
   assert.equal(selected.kind, "resolved");
   assert.deepEqual(selected.call.targetMember.declaringType, {
@@ -106,8 +105,7 @@ test("constructor selection does not fall through to a same-shaped sibling signa
   });
   const selected = selectCsharpProviderCall(
     fixture.host,
-    fixture.call,
-    fixture.sourceFile,
+    fixture.call
   );
   assert.equal(selected.kind, "not-provider");
 });
@@ -123,8 +121,7 @@ test("representable numeric literals satisfy exact integral target parameters", 
   });
   const selected = selectCsharpProviderCall(
     fixture.host,
-    fixture.call,
-    fixture.sourceFile,
+    fixture.call
   );
   assert.equal(selected.kind, "resolved");
 });
@@ -158,15 +155,13 @@ test("exact generated object-shape contracts satisfy their implemented target in
   });
   const selected = selectCsharpProviderCall(
     fixture.host,
-    fixture.call,
-    fixture.sourceFile,
+    fixture.call
   );
   assert.equal(selected.kind, "resolved");
   const instantiated = instantiateCsharpProviderCall(
     fixture.host,
     fixture.relation,
-    fixture.source,
-    fixture.sourceFile,
+    fixture.source
   );
   assert.equal(instantiated.kind, "resolved");
   assert.equal(
@@ -215,12 +210,9 @@ function createCallFixture(options = {}) {
     relations,
     facts,
     calls: [[source.call, source.evidence]],
-    signatureDeclarations: [[
-      source.evidence.selectedSignature,
-      source.signatureDeclaration,
-    ]],
     nodeTypes: native.nodeTypes,
-    semanticTypes: native.semanticTypes,
+    descriptorTypes: native.descriptorTypes,
+    instantiations: native.instantiations,
     ...(options.objectShapes === undefined
       ? {}
       : { objectShapes: options.objectShapes }),

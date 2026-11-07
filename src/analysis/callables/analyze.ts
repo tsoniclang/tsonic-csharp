@@ -14,7 +14,9 @@ import type { CsharpCallableContractIndex, CsharpClosedCallableInput, CsharpCall
 import type { CsharpGenericProjectionIndex } from "../../target-model/records/types/type-projections.js";
 import { closeCsharpProjectCallableContracts } from "../project-types/callable-contracts.js";
 import { csharpCallableValueType, csharpClosedInvocationMatches } from "../../policy/types/callables/value-type.js";
-import { sourceExpressionCallArgument, sourceTransparentExpressionOperand, type TargetSourceProgram } from "@tsonic/target-api/source";
+import type { TargetSourceProgramFacts } from "@tsonic/target-api/source";
+import type { SourceClosedCallableArgument } from "@tsonic/target-api/source";
+import { sourceSlot } from "../program/source-facts.js";
 import { csharpDelegateSignatureHasSupportedPassingModes, getCsharpLambdaSignature, getCsharpExpressionTreeDelegateType } from "../../target-model/types/carriers/delegates.js";
 import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
 import { csharpFreeTypeParameterIdentities } from "../../target-model/types/generic-references.js";
@@ -31,7 +33,7 @@ export function analyzeCsharpCallableContracts(
   declarations: CsharpDeclarationClassifications,
   names: CsharpSourceNameResolver,
   projections: CsharpGenericProjectionIndex,
-  source: TargetSourceProgram,
+  source: TargetSourceProgramFacts,
   conversions: CsharpCallableConversionPolicy & Pick<CsharpConversionClassifications, "conversion">,
   operations: Pick<CsharpTargetOperationClassifications, "selectedCall" | "selectedConstruction">,
 ): TargetStageResult<CsharpCallableContractIndex> {
@@ -55,7 +57,7 @@ export function analyzeCsharpCallableContracts(
     visit(sourceFile, sourceFile);
   }
   const nativeDeclarations = [...closeCsharpProjectCallableContracts({
-    ast: policy.ast, navigation: policy.navigation,
+    ast: policy.ast, facts: policy.facts,
     typeDefinitions: conversions.typeDefinitions, projectTypes: conversions.projectTypes,
     providers: conversions.providers, target: conversions.target, objectShapes: conversions.objectShapes,
   }, declarationContracts)];
@@ -66,8 +68,8 @@ export function analyzeCsharpCallableContracts(
     byDeclaration.set(contract.sourceDeclaration, contract);
     contracts[index] = contract;
   }
-  for (const { declaration, sourceFile } of checkedDeclarations) {
-    const contract = selectCsharpSourceCallableAbi(policy, evidence, declarations, names, declaration, sourceFile, projections, operations, conversions, issues, recordReturn);
+  for (const { declaration } of checkedDeclarations) {
+    const contract = selectCsharpSourceCallableAbi(policy, evidence, declarations, names, declaration, projections, operations, conversions, issues, recordReturn);
     if (contract !== undefined) {
       creationPaths.set(contract, "analyzeCsharpCallableContracts.checkedDeclarations -> selectCsharpSourceCallableAbi");
       byDeclaration.set(declaration, contract);
@@ -94,13 +96,13 @@ export function analyzeCsharpCallableContracts(
   for (const [declaration, contract] of byDeclaration) {
     const nativeType = csharpCallableValueType(contract);
     if (nativeType === undefined) continue;
-    const immediate = sourceExpressionCallArgument(declaration, source);
+    const immediate = policy.facts.analyses.callArgument(declaration);
     const selected = immediate === undefined ? undefined : nativeInput(immediate, false);
     const signature = getCsharpLambdaSignature(selected);
     const selfFlows = policy.ast.is.IsFunctionExpression(declaration) && policy.ast.name(declaration) !== undefined
-      ? source.navigation.declarationUses(declaration).filter(use => use.kind !== "type-only" &&
+      ? source.facts.navigation.uses.uses(declaration).filter(use => use.kind !== "type-only" &&
         !evidence.compileTimeMetadata.get(use.reference) && !(use.kind === "direct-call" && use.role === "call-target"))
-        .map(use => source.navigation.expressionValueFlow(use.reference)) : [];
+        .map(use => source.facts.navigation.expressions.valueFlow(use.reference)) : [];
     const selfEscapes = selfFlows.some(flow => flow.escapes || flow.memberWritten || flow.receiverUsed || flow.hasUnclassifiedUse ||
       flow.aliasDeclarations.some(alias => policy.ast.typeNode(alias) !== undefined));
     if (!selfEscapes && selected !== undefined && signature !== undefined && getCsharpExpressionTreeDelegateType(selected) === undefined &&
@@ -121,7 +123,7 @@ export function analyzeCsharpCallableContracts(
       continue;
     }
     if (immediate === undefined && (policy.ast.is.IsArrowFunction(declaration) || policy.ast.is.IsFunctionExpression(declaration))) {
-      const flow = source.navigation.expressionValueFlow(declaration);
+      const flow = source.facts.navigation.expressions.valueFlow(declaration);
       if (flow.aliasDeclarations.length > 0 && flow.aliasDeclarations.length <= 1024 && flow.uses.length <= 131072 &&
         !flow.memberWritten && !flow.receiverUsed && !flow.identityCompared && !flow.captured && !flow.returned &&
         !flow.yielded && !flow.storedOutsideBinding && !flow.exported && !flow.hasUnclassifiedUse &&
@@ -130,16 +132,13 @@ export function analyzeCsharpCallableContracts(
         let carrier: TargetTypeRef | undefined;
         let consistent = uses.length !== 0 && !contract.nativeParameters.some(parameter => {
           if (csharpFreeTypeParameterIdentities([parameter.targetParameter.type]).size === 0) return false;
-          const node = policy.ast.typeNode(parameter.sourceParameter);
-          const queries = policy.semanticsFor(parameter.sourceParameter);
-          const type = node === undefined ? undefined : queries.types.authoredType(node);
-          return type !== undefined && (queries.types.isUnknown(type) || queries.types.isAny(type));
+          return declaredUnknown(parameter.sourceParameter);
         });
         const binders = csharpFreeTypeParameterIdentities([nativeType]);
         let nativeContract = contract;
         for (const use of uses) {
           if (!consistent) break;
-          const argument = use.role === "argument" ? sourceExpressionCallArgument(use.reference, source) : undefined;
+          const argument = use.role === "argument" ? policy.facts.analyses.callArgument(use.reference) : undefined;
           const candidate = argument === undefined ? undefined : nativeInput(argument, true);
           const completed = candidate === undefined ? undefined : nativeConsumerContract(contract, nativeType, candidate);
           if (candidate === undefined || completed === undefined ||
@@ -177,9 +176,16 @@ export function analyzeCsharpCallableContracts(
     contracts, declarationContracts: nativeDeclarations, byDeclaration,
     byProjectConstructor, closedInputs, creationPaths, returnSelections }));
 
+  /** The parameter's declared slot is `unknown` (or `any`), from the published slot type. */
+  function declaredUnknown(parameter: Node): boolean {
+    if (policy.ast.typeNode(parameter) === undefined) return false;
+    const declared = sourceSlot(policy.facts, parameter).type;
+    return declared.kind === "intrinsic" && (declared.intrinsic === "unknown" || declared.intrinsic === "any");
+  }
+
   function isClosedCallableAlias(alias: Node): boolean {
     return policy.ast.is.IsVariableDeclaration(alias) && policy.ast.variableDeclarationKind(alias) === "const" &&
-      policy.ast.typeNode(alias) === undefined && !source.navigation.declarationUseSummary(alias).bindingWritten;
+      policy.ast.typeNode(alias) === undefined && !source.facts.navigation.uses.summary(alias).bindingWritten;
   }
 
   function nativeConsumerContract(contract: SourceCallableSourceContract, nativeType: TargetTypeRef,
@@ -195,11 +201,7 @@ export function analyzeCsharpCallableContracts(
       const type = signature.parameters[index];
       if (type === undefined) return undefined;
       if (targetTypeRefEquals(type, parameter.targetParameter.type)) { parameters.push(parameter); continue; }
-      const node = policy.ast.typeNode(parameter.sourceParameter);
-      const queries = policy.semanticsFor(parameter.sourceParameter);
-      const declared = node === undefined ? undefined : queries.types.authoredType(node);
-      if (declared === undefined || !queries.types.isUnknown(declared) && !queries.types.isAny(declared) ||
-        !nativeParameterBodyUnchanged(parameter.sourceParameter, type)) return undefined;
+      if (!declaredUnknown(parameter.sourceParameter) || !nativeParameterBodyUnchanged(parameter.sourceParameter, type)) return undefined;
       const conversion = conversions.conversion.get(type, parameter.targetParameter.type, "implicit");
       if (conversion === undefined || !csharpConversionIsApplicable(conversion, "implicit")) return undefined;
       parameters.push(Object.freeze({ ...parameter, targetParameter: Object.freeze({ ...parameter.targetParameter, type }) }));
@@ -210,7 +212,7 @@ export function analyzeCsharpCallableContracts(
   }
 
   function nativeParameterBodyUnchanged(parameter: Node, type: TargetTypeRef): boolean {
-    const summary = source.navigation.declarationUseSummary(parameter);
+    const summary = source.facts.navigation.uses.summary(parameter);
     if (summary.bindingWritten || summary.memberWritten || summary.hasUnclassifiedValueUse ||
       type.kind !== "source-primitive") return false;
     return summary.uses.every(use => {
@@ -218,7 +220,7 @@ export function analyzeCsharpCallableContracts(
       if (use.role !== "comparison" || use.throughMember || use.captured) return false;
       let reference = use.reference;
       for (let parent = policy.ast.parent(reference); parent !== undefined &&
-        sourceTransparentExpressionOperand(policy.ast, parent) === reference; parent = policy.ast.parent(reference)) reference = parent;
+        policy.facts.navigation.expressions.transparentOperand(parent) === reference; parent = policy.ast.parent(reference)) reference = parent;
       const parent = policy.ast.parent(reference);
       const binary = parent === undefined ? undefined : policy.ast.as.AsBinaryExpression(parent);
       const operator = parent === undefined ? undefined : policy.ast.operatorKindName(parent);
@@ -229,7 +231,7 @@ export function analyzeCsharpCallableContracts(
     });
   }
 
-  function nativeInput(argument: NonNullable<ReturnType<typeof sourceExpressionCallArgument>>, invocationOnly: boolean): TargetTypeRef | undefined {
+  function nativeInput(argument: SourceClosedCallableArgument, invocationOnly: boolean): TargetTypeRef | undefined {
     const operation = policy.ast.is.IsNewExpression(argument.call)
       ? operations.selectedConstruction.get(argument.call) : operations.selectedCall.get(argument.call);
     const selected = operation?.target;
@@ -240,16 +242,6 @@ export function analyzeCsharpCallableContracts(
     const bindings = call.arguments.filter(binding => binding.sourceArgumentIndex === argument.argumentIndex);
     if (bindings.length !== 1 || bindings[0]!.sourceForm !== "value" ||
       bindings[0]!.targetParameter.passingMode !== "by-value" || bindings[0]!.targetParameter.paramsArray === true) return undefined;
-    const checked = policy.semanticsFor(argument.call).operations.call(argument.call);
-    const original = checked?.sourceArguments[argument.argumentIndex]?.expression;
-    if (original === undefined) return undefined;
-    let expression = original;
-    for (let operand = sourceTransparentExpressionOperand(policy.ast, expression); operand !== undefined;
-      operand = sourceTransparentExpressionOperand(policy.ast, expression)) expression = operand;
-    let actual = argument.argument;
-    for (let operand = sourceTransparentExpressionOperand(policy.ast, actual); operand !== undefined;
-      operand = sourceTransparentExpressionOperand(policy.ast, actual)) actual = operand;
-    if (expression !== actual) return undefined;
     const target = bindings[0]!.targetParameter.type;
     return getCsharpNullableElementTargetType(target) === undefined ? target : undefined;
   }
@@ -259,7 +251,7 @@ export function analyzeCsharpCallableContracts(
     if (policy.ast.is.IsConstructorDeclaration(node)) {
       const baseCall = csharpConstructorBaseCall(policy.ast, node);
       if (baseCall !== undefined && baseCall.statementIndex !== 0) {
-        issues.push({ source: "tsonic-csharp", category: "error", code: "CSHARP_UNSUPPORTED_AST", sourceNode: baseCall.call,
+        issues.push({ source: "tsonic-csharp", category: "error", code: "CSHARP_DERIVED_CONSTRUCTOR_STATEMENTS_BEFORE_BASE", sourceNode: baseCall.call,
           message: "A native C# derived constructor requires super(...) as its first statement; statements before base initialization are not supported." });
         return;
       }
@@ -272,7 +264,6 @@ export function analyzeCsharpCallableContracts(
         declarations,
         names,
         node,
-        sourceFile,
         projections,
         operations,
         conversions,
@@ -287,11 +278,11 @@ export function analyzeCsharpCallableContracts(
         declarationContracts.push(contract);
       }
     } else if ((policy.ast.is.IsFunctionDeclaration(node) || policy.ast.is.IsMethodDeclaration(node) ||
-        policy.ast.is.IsConstructorDeclaration(node)) && source.navigation.isProjectDeclaration(node)) {
-      const implementation = source.navigation.callableImplementation(node);
-      if (implementation.kind === "resolved" &&
-        source.navigation.isProjectDeclaration(implementation.implementation.declaration) &&
-        isCsharpSourceCallableArtifactDeclaration(policy.ast, implementation.implementation.declaration)) {
+        policy.ast.is.IsConstructorDeclaration(node)) && source.facts.navigation.identity.isProjectDeclaration(node)) {
+      const implementation = source.facts.objects.callableImplementation(node);
+      if (implementation !== "unrelated" && implementation.kind !== "refused" &&
+        source.facts.navigation.identity.isProjectDeclaration(implementation) &&
+        isCsharpSourceCallableArtifactDeclaration(policy.ast, implementation)) {
         checkedDeclarations.push({ declaration: node, sourceFile });
       }
     }

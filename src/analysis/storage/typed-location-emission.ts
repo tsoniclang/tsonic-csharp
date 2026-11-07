@@ -1,5 +1,5 @@
 import type { Node } from "@tsonic/tsts";
-import type { TargetSourceProgram } from "@tsonic/target-api/source";
+import type { TargetSourceProgramFacts } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpStorageClassifications } from "../../target-model/records/storage/storage.js";
@@ -15,7 +15,7 @@ import { createCsharpTypedLocationEmissionRecords } from "../program/records/sto
 import { csharpTypedLocationLoweringRefusal } from "../operations/typed-locations.js";
 import type { CsharpSourceMemberNameRecords } from "../../target-model/records/program/source-member-names.js";
 
-export function analyzeCsharpTypedLocationEmission(input: { readonly source: TargetSourceProgram; readonly nodes: readonly Node[];
+export function analyzeCsharpTypedLocationEmission(input: { readonly source: TargetSourceProgramFacts; readonly nodes: readonly Node[];
   readonly storage: CsharpStorageClassifications; readonly operations: CsharpTargetOperationClassifications;
   readonly members: CsharpObjectMemberRecords; readonly memberNames: CsharpSourceMemberNameRecords;
   readonly admitted: (node: Node) => boolean }) {
@@ -23,7 +23,7 @@ export function analyzeCsharpTypedLocationEmission(input: { readonly source: Tar
   const storage = new Map<CsharpTypedLocationStorage, CsharpTypedStorageEmission>();
   const issues: TargetDiagnostic[] = [];
   const carriers: TargetTypeRef[] = [];
-  const refuse = (node: Node, message: string): void => { issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: node, message }); };
+  const refuse = (node: Node, message: string): void => { issues.push({ code: "CSHARP_TYPED_LOCATION_EMISSION", category: "error", source: "tsonic-csharp", sourceNode: node, message }); };
   const locationIssue = (node: Node, kind: CsharpTypedLocationOperationKind, reason: string): void =>
     refuse(node, csharpTypedLocationLoweringRefusal(kind, reason));
   const admitStorage = (subject: CsharpTypedLocationStorage): void => {
@@ -51,7 +51,7 @@ export function analyzeCsharpTypedLocationEmission(input: { readonly source: Tar
       const selection = property?.selection;
       if (property?.receiverProjection === undefined &&
         (selection?.kind === "source-owned" || selection?.kind === "resolved") &&
-        selection.source.receiver.expression === subject.receiverStorage.expression) {
+        selection.source.receiver === subject.receiverStorage.expression) {
         if (selection.kind === "source-owned") memberName = input.memberNames.sourceMemberName.get(subject.expression)?.read;
         else if (selection.receiver.kind === "instance" && selection.targetMember.kind === "field" &&
           !selection.targetMember.static && !selection.targetMember.readonly &&
@@ -79,7 +79,7 @@ export function analyzeCsharpTypedLocationEmission(input: { readonly source: Tar
     carriers.push(...types);
     if (types.some(carrier => !selectCsharpTypeEmission({ carrier }))) { locationIssue(node, selection.kind, "The selected C# typed-location operation is not renderable."); continue; }
     if (selection.kind === "location-address") admitStorage(selection.storage);
-    const suspends = selection.kind === "location-store" && input.source.navigation.expressionEffects(selection.valueExpression).suspends;
+    const suspends = selection.kind === "location-store" && input.source.facts.navigation.expressions.effects(selection.valueExpression).suspends;
     const address = selection.kind === "location-store" && selection.location.kind === "native-ref-return"
       ? input.storage.nativeLocation.get(selection.location.expression) : undefined;
     if (selection.kind === "location-store" && selection.location.kind === "native-ref-return") {

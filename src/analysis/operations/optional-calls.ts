@@ -1,7 +1,8 @@
-import type { SourceFile } from "@tsonic/tsts";
+import { csharpHostUnionUse } from "../../policy/conversions/union-relations.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpTargetCallSelection } from "../../target-model/records/operations/member-selections.js";
-import type { ResolvedSourceCallInfo } from "../../target-model/records/calls/source-calls.js";
+import type { SourceCallSelection } from "@tsonic/target-api/source";
+import { isCsharpRefusal } from "../../representation/index.js";
 import { selectCsharpConversion } from "../../policy/conversions/index.js";
 import { getCsharpDelegateSignature, getCsharpNullableElementTargetType } from "../../target-model/types/index.js";
 import { getCsharpMethodValue } from "../../target-model/types/method-values.js";
@@ -11,32 +12,32 @@ import type { CsharpCallClassification } from "../../target-model/records/operat
 import { admitCsharpConversionSelection } from "../conversions/validation.js";
 
 export function classifyCsharpOptionalCallCallee(
-  policy: CsharpPolicyContext, source: ResolvedSourceCallInfo | undefined, sourceFile: SourceFile,
+  policy: CsharpPolicyContext, source: SourceCallSelection | undefined,
 ): CsharpCallClassification["optionalCallee"] {
-  if (source === undefined || policy.ast.as.AsCallExpression(source.call)?.QuestionDotToken === undefined) return undefined;
-  const selected = policy.types.resolveReadStorage(source.sourceCallee.expression, sourceFile);
-  if (selected === undefined) return undefined;
+  if (source === undefined || policy.ast.as.AsCallExpression(source.use)?.QuestionDotToken === undefined) return undefined;
+  // A refused callee storage is reported at the callee's own read.
+  const selected = policy.types.readStorage(source.callee);
+  if (isCsharpRefusal(selected)) return undefined;
   const type = getCsharpNullableElementTargetType(selected) ?? getCsharpGenericOptionalParts(selected)?.element ?? selected;
   return getCsharpDelegateSignature(type) === undefined && getCsharpMethodValue(type) === undefined && !isCsharpJsValueTargetType(type)
-    ? undefined : Object.freeze({ expression: source.sourceCallee.expression, storage: selected, type, guard: true });
+    ? undefined : Object.freeze({ expression: source.callee, storage: selected, type, guard: true });
 }
 
 export function classifyCsharpOptionalCallReceiver(
   policy: CsharpPolicyContext,
-  source: ResolvedSourceCallInfo | undefined,
+  source: SourceCallSelection | undefined,
   target: CsharpTargetCallSelection | undefined,
-  sourceFile: SourceFile,
 ): CsharpCallClassification["optionalReceiver"] {
-  if (source?.optionalChain !== true || source.sourceReceiver === undefined ||
-    policy.ast.as.AsCallExpression(source.call)?.QuestionDotToken !== undefined) {
+  if (source?.optionalChain !== true || source.receiver === undefined ||
+    policy.ast.as.AsCallExpression(source.use)?.QuestionDotToken !== undefined) {
     return undefined;
   }
-  const receiver = source.sourceReceiver;
-  const selected = policy.types.resolveReadStorage(receiver.expression, sourceFile);
-  if (selected === undefined) return undefined;
+  const receiver = source.receiver;
+  const selected = policy.types.readStorage(receiver);
+  if (isCsharpRefusal(selected)) return undefined;
   const type = getCsharpNullableElementTargetType(selected) ?? getCsharpGenericOptionalParts(selected)?.element ?? selected;
-  const access = source.sourceCalleeAccess?.expression;
-  const guard = access !== undefined && (
+  const access = source.callee;
+  const guard = (
     policy.ast.as.AsPropertyAccessExpression(access)?.QuestionDotToken !== undefined ||
     policy.ast.as.AsElementAccessExpression(access)?.QuestionDotToken !== undefined
   );
@@ -44,14 +45,14 @@ export function classifyCsharpOptionalCallReceiver(
     ? target.call.targetMember.parameters[target.call.receiver.targetParameterIndex]
     : undefined;
   return Object.freeze({
-    expression: receiver.expression,
+    expression: receiver,
     storage: selected,
     type,
     guard,
     ...(parameter === undefined ? {} : {
       parameterType: parameter.type,
       conversion: admitCsharpConversionSelection(policy, type, parameter.type,
-        selectCsharpConversion(policy, type, parameter.type, "implicit")),
+        selectCsharpConversion(policy, type, parameter.type, "implicit", csharpHostUnionUse(policy.facts, receiver))),
     }),
   });
 }

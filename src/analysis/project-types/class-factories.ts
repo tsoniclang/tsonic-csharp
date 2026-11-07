@@ -1,6 +1,6 @@
 import type { CsharpClassCapture, CsharpClassFactory, CsharpClassFactoryIndex } from "../../target-model/records/objects/class-factories.js";
 import type { Node } from "@tsonic/tsts";
-import { sourceLexicalCaptures, type TargetSourceProgram } from "@tsonic/target-api/source";
+import type { TargetSourceProgramFacts } from "@tsonic/target-api/source";
 import type { CsharpProjectTypeCatalog } from "../../target-model/records/types/project-types.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
 import type { CsharpStorageClassifications, CsharpStorageIssue } from "../../target-model/records/storage/storage.js";
@@ -14,7 +14,7 @@ import { readCsharpSelectedWritingReference } from "../callables/values/argument
 import { csharpCapturedBindingInitialization } from "../callables/values/capture-initialization.js";
 
 export function analyzeCsharpClassFactories(
-  source: TargetSourceProgram,
+  source: TargetSourceProgramFacts,
   catalog: CsharpProjectTypeCatalog,
   evidence: CsharpSourceEvidenceIndex,
   storage: Pick<CsharpStorageClassifications, "storageType">,
@@ -31,17 +31,18 @@ export function analyzeCsharpClassFactories(
       construct: "local class definition", producer: "analyzeCsharpClassFactories" });
     const type = evidence.classConstructorType.get(declaration);
     const contract = getCsharpClassFactory(type);
-    const selected = sourceLexicalCaptures(declaration, [declaration], source.ast, source.navigation, "source");
+    // Lexical captures of the class (captured bindings with their references, captured outer receivers), as F4 reads them.
+    const selected = source.facts.analyses.lexicalCaptures(declaration);
     const captures = selected.captures.map((capture, index): CsharpClassCapture | undefined => {
       const reference = capture.references[0];
       const type = storage.storageType.get(capture.declaration) ?? evidence.storageTargetType.get(capture.declaration) ??
         (reference === undefined ? undefined : evidence.nodeTargetType.get(reference));
       return reference === undefined || type === undefined ? undefined : Object.freeze({
         declaration: capture.declaration, reference, type, fieldName: names.temporaryName(`capture${index}`),
-        mutable: source.navigation.declarationUseSummary(capture.declaration).bindingWritten ||
-          source.navigation.declarationUseSummary(capture.declaration).uses.some(use =>
+        mutable: source.facts.navigation.uses.summary(capture.declaration).bindingWritten ||
+          source.facts.navigation.uses.summary(capture.declaration).uses.some(use =>
             readCsharpSelectedWritingReference(source, evidence, selectedCalls, use.reference) !== undefined),
-        initialization: csharpCapturedBindingInitialization(capture.declaration, source.ast, source.navigation),
+        initialization: csharpCapturedBindingInitialization(capture.declaration, source.facts.analyses),
       });
     });
     if (contract === undefined || type?.kind !== "target-named" || definition.scopeName === undefined ||
@@ -56,11 +57,11 @@ export function analyzeCsharpClassFactories(
       continue;
     }
     const hasInstanceCaptures = selected.captures.flatMap(capture => capture.references).some(reference => {
-      for (let owner = source.ast.parent(reference); owner !== undefined && owner !== declaration; owner = source.ast.parent(owner)) {
-        if (source.ast.is.IsMethodDeclaration(owner) || source.ast.is.IsGetAccessorDeclaration(owner) || source.ast.is.IsSetAccessorDeclaration(owner)) {
-          return source.ast.parent(owner) === declaration && !source.ast.hasModifierKind(owner, "static");
+      for (let owner = source.syntax.parent(reference); owner !== undefined && owner !== declaration; owner = source.syntax.parent(owner)) {
+        if (source.syntax.is.IsMethodDeclaration(owner) || source.syntax.is.IsGetAccessorDeclaration(owner) || source.syntax.is.IsSetAccessorDeclaration(owner)) {
+          return source.syntax.parent(owner) === declaration && !source.syntax.hasModifierKind(owner, "static");
         }
-        if (source.ast.is.IsPropertyDeclaration(owner) || source.ast.is.IsConstructorDeclaration(owner)) return false;
+        if (source.syntax.is.IsPropertyDeclaration(owner) || source.syntax.is.IsConstructorDeclaration(owner)) return false;
       }
       return false;
     });

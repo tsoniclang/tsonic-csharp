@@ -29,8 +29,7 @@ function csharpTypeIdentityAt(path: readonly (string | number)[]): boolean {
   const key = path[path.length - 1];
   if (key === "csharpDeclaration") return true;
   if (parent === "csharpClassFactory" && key === "declaration" ||
-    parent === "csharpProjection" && key === "declaration" ||
-    path[path.length - 3] === "csharpProjection" && parent === "sourceArguments" && typeof key === "number") return true;
+    parent === "csharpProjection" && (key === "declaration" || key === "source" || key === "sum")) return true;
   const shapeIndex = path.lastIndexOf("csharpRuntimeUnionObjectShapes");
   if (shapeIndex < 0 || typeof path[shapeIndex + 1] !== "number") return false;
   let offset = shapeIndex + 2;

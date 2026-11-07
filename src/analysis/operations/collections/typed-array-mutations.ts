@@ -1,13 +1,22 @@
 import type { CsharpTypedArrayMutation, CsharpTypedArrayUpdate } from "../../../target-model/records/storage/typed-array-mutations.js";
-import type { Node, SourceFile } from "@tsonic/tsts";
+import type { Node } from "@tsonic/tsts";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpPolicyContext } from "../../../policy/model/context.js";
-import { csharpSourceProfileDeclarationIdentity } from "../../../policy/identities/selected-source.js";
+import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import { selectCsharpJsIndexer } from "./js-indexers.js";
 import { csharpJsTypedArrayElementTargetType } from "../../../policy/types/index.js";
 import { isCsharpAssignmentOperator, sourceOperatorFromKindName, type CsharpSourceOperator } from "../../../target-model/syntax/operators.js";
 import { selectCsharpBinaryOperands } from "../operators.js";
 
 import { selectCsharpNativeTypedArrayUpdate, csharpTypedArrayWriteHasNativeCarriers } from "../../../policy/operations/collections/typed-array-mutations.js";
-export function selectCsharpTypedArrayMutation(input: CsharpPolicyContext, node: Node, sourceFile: SourceFile):
+
+const represented = (input: CsharpPolicyContext, node: Node): TargetTypeRef | undefined => {
+  const value = input.types.value(node);
+  return value.kind === "csharp-refused" ? undefined : value;
+};
+
+/** A write or update of a JS typed-array element (Host element access selects the TypedArray indexer). */
+export function selectCsharpTypedArrayMutation(input: CsharpPolicyContext, node: Node):
   CsharpTypedArrayMutation | CsharpTypedArrayUpdate | { readonly kind: "rejected"; readonly reason: string } | undefined {
   const operator = sourceOperatorFromKindName(input.ast.operatorKindName(node));
   const update = operator === "++" || operator === "--";
@@ -19,24 +28,25 @@ export function selectCsharpTypedArrayMutation(input: CsharpPolicyContext, node:
   const value = binary?.Right;
   while (left !== undefined && input.ast.is.IsParenthesizedExpression(left)) left = input.ast.as.AsParenthesizedExpression(left)?.Expression;
   if (left === undefined || (!update && value === undefined) || !input.ast.is.IsElementAccessExpression(left)) return undefined;
-  const source = input.semantics(sourceFile).operations.elementAccess(left);
-  const identity = csharpSourceProfileDeclarationIdentity(input.ast, input.semantics(sourceFile), input.sourceFacts, source?.selectedDeclaration);
-  if (source === undefined || identity?.owner !== "js" || identity.kind !== "indexer" || identity.declaringName !== "TypedArray") return undefined;
-  const element = csharpJsTypedArrayElementTargetType(input.types.resolveNode(source.receiver.expression, sourceFile)?.sourceResult?.selectedType);
+  const source = input.facts.values.elementAccess(left);
+  if (selectCsharpJsIndexer(input, source) !== "TypedArray") return undefined;
+  const index = input.ast.as.AsElementAccessExpression(left)?.ArgumentExpression ?? failTargetAnalysisInvariant("tsonic-csharp",
+    "An element access has no index expression.", left);
+  const element = csharpJsTypedArrayElementTargetType(represented(input, source.receiver));
   if (update && element !== undefined) {
-    const indexType = input.types.resolveNode(source.argument.expression, sourceFile)?.sourceResult?.selectedType;
-    return selectCsharpNativeTypedArrayUpdate(element, indexType, source.receiver.expression,
-      source.argument.expression, operator === "++", input.ast.is.IsPrefixUnaryExpression(node));
+    const indexType = represented(input, index);
+    return selectCsharpNativeTypedArrayUpdate(element, indexType, source.receiver,
+      index, operator === "++", input.ast.is.IsPrefixUnaryExpression(node));
   }
   if (value === undefined) return undefined;
-  const valueType = input.types.resolveNode(value, sourceFile)?.sourceResult?.selectedType;
+  const valueType = represented(input, value);
   if (!csharpTypedArrayWriteHasNativeCarriers(element, valueType)) {
     return { kind: "rejected", reason: "Typed array writes require exact native numeric storage and value carriers." };
   }
   const calculation = operator === "=" ? undefined : selectCsharpBinaryOperands(input, left, value,
     operator.slice(0, -1) as CsharpSourceOperator, element,
-    operand => operand === left ? element : input.types.resolveNode(operand, sourceFile)?.sourceResult?.selectedType);
+    operand => operand === left ? element : represented(input, operand));
   if (calculation?.kind === "rejected") return calculation;
-  return { kind: "set-typed-element", receiver: source.receiver.expression, index: source.argument.expression,
+  return { kind: "set-typed-element", receiver: source.receiver, index,
     value, resultType: calculation?.resultType ?? valueType!, ...(calculation === undefined ? {} : { calculation }) };
 }

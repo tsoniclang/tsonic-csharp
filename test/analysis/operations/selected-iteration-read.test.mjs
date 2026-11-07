@@ -6,27 +6,35 @@ import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../hel
 
 const integer = csharpSourcePrimitiveTargetType("int32");
 const array = { kind: "array", element: integer };
-const iteration = { iterationKind: "for-of", mechanism: { kind: "array-like-index" } };
+// The Host iteration selection (facts.selections.iteration) of a for-of over an array; C# reads the represented
+// iterable carrier it is given and never asks for another value representation.
+const statement = {};
+const iteration = { statement, protocol: "array", iterable: { kind: "array", readonly: false, element: { kind: "primitive", primitive: "int32" } },
+  element: { kind: "primitive", primitive: "int32" } };
 const policy = {
-  semantics: () => ({ operations: { iteration: () => iteration } }),
-  types: { resolveNode: () => assert.fail("an early logical descriptor cannot replace the selected read") },
+  ast: { is: { IsForOfStatement: node => node === statement }, as: { AsForInOrOfStatement: () => ({ AwaitModifier: undefined }) } },
+  facts: { selections: { iteration: node => node === statement ? iteration : undefined } },
+  types: {
+    value: () => assert.fail("an early logical descriptor cannot replace the selected read"),
+    storage: () => assert.fail("an early logical descriptor cannot replace the selected read"),
+  },
 };
 
 test("iteration consumes the exact finalized read carrier rather than reopening its logical union", () => {
-  const selected = selectCsharpIteration(policy, {}, {}, {}, array);
+  const selected = selectCsharpIteration(policy, statement, {}, array);
   assert.equal(selected.kind === "resolved", true);
   assert.equal(selected.iterableType === array && selected.elementType === integer, true,
     "the existing read and element identities are retained");
 });
 
 test("missing selected iteration reads refuse without retrying the raw occurrence", () => {
-  const selected = selectCsharpIteration(policy, {}, {}, {}, undefined);
+  const selected = selectCsharpIteration(policy, statement, {}, undefined);
   assert.equal(selected.kind, "rejected");
   assert.equal(selected.reason, "The checked iterable expression does not have a closed C# target representation.");
 });
 
 test("a selected noniterable carrier cannot be replaced by an alternative raw array", () => {
-  const selected = selectCsharpIteration(policy, {}, {}, {}, integer);
+  const selected = selectCsharpIteration(policy, statement, {}, integer);
   assert.equal(selected.kind, "rejected");
   assert.equal(selected.reason, "The selected C# iterable representation does not prove an enumerable target element.");
 });

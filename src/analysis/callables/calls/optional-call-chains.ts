@@ -10,7 +10,7 @@ export function analyzeCsharpOptionalCallChains(ast: AstReader, nodes: readonly 
   demand: CsharpNativeDemandAnalysis, admitted: (node: Node) => boolean) {
   const values = new Map<Node, CsharpOptionalCallChain>();
   const issues: TargetDiagnostic[] = [];
-  const refuse = (node: Node, message: string): void => { issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: node, message }); };
+  const refuse = (node: Node, message: string): void => { issues.push({ code: "CSHARP_OPTIONAL_CALL_CHAIN", category: "error", source: "tsonic-csharp", sourceNode: node, message }); };
   for (const node of nodes) {
     if (!admitted(node) || !ast.is.IsCallExpression(node)) continue;
     const steps: CsharpOptionalCallStep[] = [];
@@ -29,7 +29,7 @@ export function analyzeCsharpOptionalCallChains(ast: AstReader, nodes: readonly 
         invalid = true;
         break;
       }
-      steps.push({ node: current, expression: selected.expression, callee: classification.source?.sourceCallee.expression,
+      steps.push({ node: current, expression: selected.expression, callee: classification.source?.callee,
         storage: selected.storage, type: selected.type, guard: selected.guard,
         argument: receiver?.parameterType === undefined || receiver.conversion === undefined ? undefined :
           Object.freeze({ type: receiver.parameterType, conversion: receiver.conversion }) });

@@ -7,6 +7,6 @@ export type { CsharpResolvedIteration } from "../../target-model/records/operati
 export type { CsharpResolvedResourceManagement, CsharpResourceDisposalArm, CsharpResourceDisposalOperation } from "../../target-model/records/storage/management.js";
 export type { CsharpTypedLocationOperationKind } from "../../target-model/records/storage/typed-locations.js";
 export type { CsharpTypedLocationStorage } from "../../target-model/records/storage/typed-location-storage.js";
-export type { CsharpProviderArgumentMapping, CsharpSelectedCallArgument, CsharpSelectedTargetCall, ResolvedSourceCallInfo } from "../../target-model/records/objects/members.js";
+export type { CsharpProviderArgumentMapping, CsharpSelectedCallArgument, CsharpSelectedTargetCall } from "../../target-model/records/objects/members.js";
 export type { CsharpTargetCallSelection, CsharpTargetElementSelection, CsharpTargetPropertySelection } from "../../target-model/records/operations/member-selections.js";
 export type { CsharpJsValueOperationSelection } from "../../target-model/operations/js-values.js";

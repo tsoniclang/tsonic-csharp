@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createCsharpTypeParameterEnvironment } from "../../../dist/analysis/source-evidence/types/resolution/type-parameter-environment.js";
+import { createCsharpTypeParameterEnvironment } from "../../../dist/representation/index.js";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
@@ -29,7 +29,6 @@ import { createStructuralObjectShapeTarget, mergeCsharpObjectShapeSubjects } fro
 import { finalizeCsharpStructuralInterfaceForwarding } from "../../../dist/analysis/objects/structural-forwarding.js";
 import { retainCsharpMethodValueContracts } from "../../../dist/analysis/objects/shapes/method-values.js";
 import { csharpCopiedObjectShapeMembers } from "../../../dist/policy/types/objects/method-environments.js";
-import { selectCsharpObjectMethodImplementation } from "../../../dist/analysis/objects/shapes/method-implementations.js";
 import { selectCsharpObjectMemberEmission } from "../../../dist/policy/types/objects/object-members.js";
 import { unexpectedNativeDispatchRead, emptyNativeDispatch, integer, noAuthoredNativeMethod, defaultEvidenceFixture, structuralInterfaceRecords, sourceContract, fixture, nativeBoundBase, nativeBoundDerived, genericBoundFixture, programs, nativeModes, adaptedNativeForwarder, nativeProofSource, buildNativeProof, buildNativeProject, genericCases, genericSource } from "./structural-forwarding.fixtures.mjs";
 
@@ -97,7 +96,7 @@ export function make(seed: int32) {
 ` });
       assertCsharpCompilationSucceeded(compiled);
       const program = compiled.result.program;
-      const ast = program.source.ast;
+      const ast = program.source.syntax;
       let literal;
       let declaration;
       const visit = node => {
@@ -122,17 +121,18 @@ export function make(seed: int32) {
 
 test("a native rest-copy layout stores the required invocation protocol without inventing a body", () => {
   const integer = { kind: "source-primitive", name: "int32" };
-  const sourceType = Object.freeze({});
   const signature = Object.freeze({ sourceKey: Object.freeze({ kind: "property", name: "run" }),
     sourceName: "run", targetName: "run", memberKind: "method", type: csharpDelegateTargetType("System.Func", [integer], integer) });
   const selectedContract = createStructuralObjectShapeTarget([signature], undefined,
     createCsharpTypeParameterEnvironment(() => assert.fail("the selected monomorphic protocol has no free native binder")), true);
   const schema = Object.freeze({ targetType: Object.freeze({ kind: "target-named", id: "tsonic.shape:rest-schema",
     csharpGeneratedStructuralStorage: true, csharpAllowsRefLikeTypeArguments: Object.freeze([]) }),
-    sourceType, members: Object.freeze([Object.freeze({ ...signature, methodValueContract: selectedContract })]) });
+    members: Object.freeze([Object.freeze({ ...signature, methodValueContract: selectedContract })]) });
   const policy = createCsharpObjectShapePolicy({
     typeParameterConstraints: createCsharpTypeParameterEnvironment(() => assert.fail("the monomorphic rest layout has no free native binder")),
     ast: { is: {} }, sourceStorage: noAuthoredNativeMethod,
+    projectTypeCatalog: { definitionForTarget: () => undefined },
+    representation: () => assert.fail("copying a selected layout reads no Source fact"),
   });
   const copy = policy.resolveCopyShape(schema);
   assert.equal(copy !== undefined && copy !== schema, true, "a generated rest schema receives one materializable native copy layout");
@@ -142,8 +142,9 @@ test("a native rest-copy layout stores the required invocation protocol without 
   "the rest field stores the original input's exact selected native invocation contract, never a CLR delegate adaptation");
   assert.equal(member.methodValueContract === selectedContract, true, "copying retains the actual published input contract identity");
   assert.equal(copy.methodImplementation === undefined, true, "copying an abstract field never manufactures an authored source body");
-  assert.equal(copy.sourceType === sourceType, true,
-    "the copied physical layout retains its exact checked source type for pre-seal structural view publication");
+  assert.equal("sourceType" in copy, false, "the copied physical layout carries no checker source type (I2)");
+  assert.equal(member.sourceKey === signature.sourceKey, true,
+    "the copied layout keeps the exact Source member key that structural view publication pairs on");
   const unselected = policy.resolveCopyShape({ ...schema, members: [signature] });
   assert.equal(unselected.members[0].methodValueContract === undefined, true,
     "an absent body alone cannot invent a native protocol for an ordinary monomorphic callable field");
@@ -161,7 +162,9 @@ test("a raw interface copy admits its method protocol before selecting native st
       csharpAllowsRefLike: false, constraints: Object.freeze([]) })]) })]) });
   const policy = createCsharpObjectShapePolicy({
     typeParameterConstraints: createCsharpTypeParameterEnvironment(() => assert.fail("method-local binders never become copy-owner generic parameters")),
-    ast: { is: {} },
+    ast: { is: {} }, sourceStorage: noAuthoredNativeMethod,
+    projectTypeCatalog: { definitionForTarget: () => undefined },
+    representation: () => assert.fail("copying an interface layout reads no Source fact"),
   });
   const copied = policy.resolveCopyShape(shape);
   assert.equal(copied !== undefined && copied !== shape, true, "the interface has one physical copy representation");
@@ -343,28 +346,37 @@ test("structural publication closes late inherited obligations through its singl
   const makeShape = (name, declarationKind) => Object.freeze({
     targetType: csharpTargetNamedType(`test.${name}`, undefined, { kind: "named", name },
       { sourceDeclarationKind: declarationKind, allowsRefLikeTypeArguments: [] }),
-    sourceType: Object.freeze({}), members: [Object.freeze({ sourceKey: { kind: "property", name: "value" },
+    sourceType: Object.freeze({ kind: "declared", declaration: Object.freeze({}), typeArguments: Object.freeze([]) }),
+    members: [Object.freeze({ sourceKey: { kind: "property", name: "value" },
       sourceName: "value", targetName: "value", memberKind: "property", type: integer, sourceSubjects: [Object.freeze({})] })],
   });
   const body = makeShape("Body", "class"), view = makeShape("View", "interface"), base = makeShape("Base", "interface");
   const shapes = [body, view, base];
   let correspondenceReads = 0;
+  const valueMember = subject => Object.freeze({ key: Object.freeze({ kind: "string", value: "value" }), name: "value", kind: "property",
+    declarations: [subject], type: Object.freeze({ kind: "primitive", primitive: "int64" }), optional: false, readonly: false,
+    static: false, owner: Object.freeze({}), inherited: false });
   const policy = {
     sourceFiles: [], objectShapes: {
       resolveTarget: type => shapes.find(shape => targetTypeRefKey(shape.targetType) === targetTypeRefKey(type)),
       resolveCopyShape: shape => shape,
     }, projectTypes: { directSupertypes: () => [], catalog: { definitionForTarget: () => undefined } },
-    semanticsFor: () => ({ types: { structuralMembers(source, destination, purpose) {
-      assert.equal(purpose, "read", "inherited native implementations require readable source members");
-      correspondenceReads += 1;
-      const sourceShape = shapes.find(shape => shape.sourceType === source);
-      const destinationShape = shapes.find(shape => shape.sourceType === destination);
-      assert.equal(sourceShape !== undefined && destinationShape !== undefined, true, "both checked source identities are retained");
-      return { kind: "available", destination: { calls: [], constructs: [], indexes: [] }, members: [{ kind: "present",
-        source: { property: { symbol: sourceShape.members[0].sourceSubjects[0], rootSymbols: [] }, declarations: [] },
-        destination: { property: { symbol: destinationShape.members[0].sourceSubjects[0], rootSymbols: [] }, declarations: [] },
-      }] };
-    } } }),
+    // Host object facts (nextgen C-2542): `correspondenceReads` counts source-member reads (objects.member), the old
+    // structuralMembers calls. The old `purpose === "read"` assertion is removed (facts.objects has no purpose).
+    facts: { objects: {
+      indexes: () => [],
+      members(destination) {
+        const destinationShape = shapes.find(shape => shape.sourceType === destination);
+        assert.equal(destinationShape !== undefined, true, "the destination's published descriptor is retained");
+        return [valueMember(destinationShape.members[0].sourceSubjects[0])];
+      },
+      member(source) {
+        correspondenceReads += 1;
+        const sourceShape = shapes.find(shape => shape.sourceType === source);
+        assert.equal(sourceShape !== undefined, true, "the source's published descriptor is retained");
+        return valueMember(sourceShape.members[0].sourceSubjects[0]);
+      },
+    } },
   };
   const analyzed = analyzeCsharpObjectShapes(policy, { targetTypes: [] }, {});
   assert.equal(analyzed.registerStructuralInterface({}, body.targetType, view.targetType, body.sourceType), true, "the original checked body/view edge");
@@ -399,7 +411,8 @@ test("structural method admission rejects every unrenderable selected native sig
     const checked = finalizeCsharpStructuralInterfaceForwarding(value.policy,
       { ...selected, ...(slot === "interface" ? { interfaceType: opaque } : {}) }, [method]);
     assert.equal(checked.issues.length === 1 && checked.issues[0].node === original.declaration &&
-      checked.issues[0].code === "CSHARP_UNSUPPORTED_AST" &&
+      // nextgen C-2542: split code for a forwarding signature without a native representation.
+      checked.issues[0].code === "CSHARP_INTERFACE_FORWARDING_SIGNATURE_NOT_REPRESENTABLE" &&
       checked.issues[0].message === "An analyzed interface method has no exact native forwarding signature.", true,
     `${slot}: the actual selected native slot is refused at admission, not mislabeled as an internal failure`);
     assert.equal(checked.implementation.methods.length, 0, `${slot}: no partially renderable method enters the sealed graph`);
@@ -781,7 +794,7 @@ test(`structural ${name} uses the completed native method ABI (${surface})`, () 
         "the authored initializer/value is emitted once, not copied into a forwarding body");
       if (name === "unused incoming parameter") {
         const { program } = compiled.result;
-        const ast = program.source.ast;
+        const ast = program.source.syntax;
         let declaration;
         const visit = node => {
           if (ast.is.IsMethodDeclaration(node) && ast.text(ast.name(node)) === "read") declaration = node;

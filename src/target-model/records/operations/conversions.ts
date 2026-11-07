@@ -2,7 +2,7 @@ import type { CsharpConversionMode, CsharpConversionSelection } from "../../conv
 import type { CsharpDelegateContractRecords } from "../callables/callable-conversions.js";
 import type { TargetTypeRef } from "../../types/model.js";
 import type { CsharpClosedShapeMemberProjection } from "../objects/closed-object-shapes.js";
-import type { SourceProjectReference } from "@tsonic/target-api/source";
+import type { SourceDeclarationTarget } from "@tsonic/target-api/source";
 import type { Node } from "@tsonic/tsts";
 
 export interface CsharpConversionIssue {
@@ -40,7 +40,7 @@ export interface CsharpConversionClassifications extends CsharpDelegateContractR
   readonly propertyProjection: { readonly get: (expression: Node, source: TargetTypeRef) => readonly CsharpClosedShapeMemberProjection[] | undefined };
   readonly delegateAdapters: { readonly get: (scope: Node) => readonly CsharpDelegateAdapterIdentity[] };
   readonly delegateAdapter: { readonly get: (expression: Node, source: TargetTypeRef, target: TargetTypeRef) => CsharpDelegateAdapterIdentity | undefined };
-  readonly directCallableReference: { readonly get: (expression: Node) => SourceProjectReference | undefined };
+  readonly directCallableReference: { readonly get: (expression: Node) => SourceDeclarationTarget | undefined };
   readonly conversion: { readonly get: (source: TargetTypeRef | undefined, target: TargetTypeRef | undefined, mode: CsharpConversionMode) => CsharpConversionSelection | undefined };
   readonly expressionConversion: { readonly get: (expression: Node, source: TargetTypeRef | undefined, target: TargetTypeRef | undefined, mode: CsharpConversionMode) => CsharpExpressionConversion | undefined };
 }

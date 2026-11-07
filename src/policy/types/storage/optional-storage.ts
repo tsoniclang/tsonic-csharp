@@ -6,7 +6,8 @@ import { csharpQualifiedTypeRenderShape } from "../../../target-model/types/rend
 import { isCsharpValueTypeTargetType } from "../../../target-model/types/identity.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { csharpConstraintsRequireReference } from "../../../target-model/types/generic-constraints.js";
-import { combineCsharpTargetUnionMembers, csharpAbsenceTargetType, isCsharpAbsenceTargetType, isCsharpJsValueTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
+import { isCsharpAbsenceTargetType, isCsharpJsValueTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
+import { csharpNullableTargetType } from "../../../target-model/types/carriers/nullable.js";
 
 export function resolveCsharpOptionalStorage(
   contract: CsharpOptionalTypeProjection,
@@ -16,7 +17,7 @@ export function resolveCsharpOptionalStorage(
     csharpConstraintsRequireReference(element.csharpConstraints.constraints))) {
     return csharpProjectedType({ ...contract, arguments: [element] });
   }
-  const storage = combineCsharpTargetUnionMembers([element, csharpAbsenceTargetType()]);
+  const storage = csharpNullableTargetType(element);
   if (storage === undefined || contract.part === "storage") return storage;
   let name: string;
   let arguments_: readonly TargetTypeRef[];

@@ -36,7 +36,7 @@ export function analyzeCsharpObjectMemberEmission(input: {
         authored: csharpObjectShapeMethodDeclaration(shape, member) !== undefined, deferred: deferred.has(member.targetName),
         implementsInterface: (shape.implements?.length ?? 0) !== 0, nativeField: input.storage.nativeField.get(shape.targetType, member.targetName) });
       if (selection.kind === "rejected") {
-        if (generated || member.bound === true) issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp",
+        if (generated || member.bound === true) issues.push({ code: "CSHARP_OBJECT_MEMBER_NOT_EMITTABLE", category: "error", source: "tsonic-csharp",
           sourceNode: member.sourceDeclarations?.[0] ?? shape.methodImplementation?.declaration, message: selection.reason });
         continue;
       }

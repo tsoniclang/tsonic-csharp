@@ -12,7 +12,7 @@ const integer = csharpSourcePrimitiveTargetType("int32");
 const floating = csharpSourcePrimitiveTargetType("float64");
 const boolean = csharpSourcePrimitiveTargetType("bool");
 const callable = (result, parameters = [], options = {}) => csharpDelegateTargetType("System.Func", parameters, result, options);
-const policy = { literalValues: { literalValue: { get: () => undefined } },
+const policy = { facts: { values: { literal: () => undefined } },
   providers: { findTargetBindingByTargetId() { return { kind: "missing" }; } }, objectShapes: { resolveTarget() {} },
   projectTypes: { directSupertypes: () => [], catalog: { definitionForTarget() {} } }, target: {} };
 
@@ -86,7 +86,7 @@ test("binary callable identity never adapts either selected native operand", () 
   const input = { ...policy, ast: { is: { IsBinaryExpression: () => false,
     IsObjectLiteralExpression: () => false, IsArrayLiteralExpression: () => false,
     IsStringLiteral: () => false, IsNoSubstitutionTemplateLiteral: () => false },
-    kindName: () => "KindIdentifier" }, literalValues: { literalValue: { get: () => undefined } },
+    kindName: () => "KindIdentifier" }, facts: { values: { literal: () => undefined } },
     types: { resolveReadStorage: () => undefined } };
   for (const [leftType, rightType] of [[inferred, annotated], [annotated, inferred]]) {
     for (const operator of ["===", "!=="]) {

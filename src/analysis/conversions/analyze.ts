@@ -4,7 +4,8 @@ import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { selectCsharpConversion, selectCsharpExpressionConversion } from "../../policy/conversions/index.js";
 import type { CsharpConversionMode, CsharpConversionSelection } from "../../target-model/conversions/selection.js";
 import { csharpTargetBindingFact, isCsharpReferenceCarrier, targetTypeRefKey, targetTypeRefEquals } from "../../policy/types/index.js";
-import { isSourceOwnedCallableRuntimeCarrierSubject, isSourceOwnedProjectReference } from "../source-evidence/types/resolution/source-ownership.js";
+import { isSourceOwnedCallableRuntimeCarrierSubject, isSourceOwnedProjectReference } from "./source-ownership.js";
+import { sourceProjectTarget } from "../program/source-facts.js";
 
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpClosedShapeMemberProjection } from "../../target-model/records/objects/closed-object-shapes.js";
@@ -33,9 +34,8 @@ import { getCsharpNullableElementTargetType } from "../../target-model/types/car
 import { isCsharpVoidTargetType } from "../../target-model/types/identity.js";
 import { createCsharpDelegateContractProducer } from "../program/records/callables/callable-conversions.js";
 import { admitCsharpDelegateEmission, admitCsharpDelegateOperand } from "./callable-emission.js";
-import { sourceTransparentExpressionOperand } from "@tsonic/target-api/source";
+import type { SourceDeclarationTarget } from "@tsonic/target-api/source";
 import { readCsharpSelectedWritingReference } from "../callables/values/argument-passing.js";
-import { sourceAnnotationHint } from "@tsonic/target-api/source";
 import { csharpIntegralConversionAnnotationHint } from "./integral-hints.js";
 
 const maximumConversionClassifications = 1_048_576;
@@ -47,34 +47,34 @@ export function csharpConversionOperandStability(expression: Node, policy: Cshar
   for (let current: Node | undefined = expression; current !== undefined;) {
     if (seen.has(current)) return "snapshot";
     seen.add(current);
-    const transparent = sourceTransparentExpressionOperand(policy.ast, current);
-    if (transparent !== undefined) { current = transparent; continue; }
+    const transparent = policy.facts.navigation.expressions.transparentOperand(current);
+    if (transparent !== current) { current = transparent; continue; }
     const kind = policy.ast.kindName(current);
     if (kind === "KindThisKeyword" || kind === "KindSuperKeyword" || kind === "KindNullKeyword" ||
       kind === "KindTrueKeyword" || kind === "KindFalseKeyword" || kind === "KindStringLiteral" ||
       kind === "KindNumericLiteral" || kind === "KindBigIntLiteral" || kind === "KindNoSubstitutionTemplateLiteral") return "stable";
     if (policy.ast.is.IsIdentifier(current)) {
-      const reference = policy.navigation.referenceFor(current);
+      const reference = sourceProjectTarget(policy.facts, current);
       return reference !== undefined && isSourceOwnedProjectReference(reference, policy) &&
         policy.ast.getSourceFile(reference.declaration) === reference.sourceFile &&
         (policy.ast.is.IsVariableDeclaration(reference.declaration) || policy.ast.is.IsParameterDeclaration(reference.declaration) ||
           policy.ast.is.IsFunctionDeclaration(reference.declaration)) &&
-        !policy.navigation.declarationUseSummary(reference.declaration).bindingWritten &&
-        !policy.navigation.declarationUseSummary(reference.declaration).uses.some(use =>
-          readCsharpSelectedWritingReference(policy, evidence, operations, use.reference) !== undefined) ? "stable" : "snapshot";
+        !policy.facts.navigation.uses.summary(reference.declaration).bindingWritten &&
+        !policy.facts.navigation.uses.summary(reference.declaration).uses.some(use =>
+          readCsharpSelectedWritingReference({ syntax: policy.ast }, evidence, operations, use.reference) !== undefined) ? "stable" : "snapshot";
     }
     const property = operations.selectedProperty.get(current);
     if (property?.selection.kind === "resolved") {
       const { targetMember, receiver, source } = property.selection;
       if (targetMember.kind !== "field" || targetMember.readonly !== true) return "snapshot";
       if (receiver.kind === "none") return "stable";
-      current = source.receiver.expression;
+      current = source.receiver;
       continue;
     }
     if (property?.selection.kind === "source-owned") {
       const member = property.sourceOwned?.shapeMember;
       if (member?.kind !== "resolved" || member.member.readonly !== true || member.member.accessor !== undefined) return "snapshot";
-      current = property.selection.source.receiver.expression;
+      current = property.selection.source.receiver;
       continue;
     }
     return "snapshot";
@@ -99,18 +99,18 @@ export function analyzeCsharpConversions(
   const issues: CsharpConversionIssue[] = [];
   const propertyProjections = new WeakMap<Node, ReadonlyMap<string, readonly CsharpClosedShapeMemberProjection[]>>();
   const propertyProjectionRoots = new Map<Node, Map<string, TargetTypeRef>>();
-  const directCallables = new WeakMap<Node, NonNullable<ReturnType<CsharpPolicyContext["navigation"]["referenceFor"]>>>();
+  const directCallables = new WeakMap<Node, SourceDeclarationTarget>();
   let classificationCount = 0;
   let closed = false;
   let preparedClassifications: CsharpPreparedConversionClassifications | undefined;
   let preparedValueReads: CsharpValueReadClassifications | undefined;
   let sealedClassifications: CsharpConversionClassifications | undefined;
-  const literalRequests = createCsharpExactLiteralRequestCollector(policy.literalValues);
+  const literalRequests = createCsharpExactLiteralRequestCollector(policy.facts);
   const conversionPolicy = Object.freeze({
     integerRanges: policy.integerRanges,
-    ast: policy.ast, literalValues: policy.literalValues, typeDefinitions: policy.typeDefinitions,
+    ast: policy.ast, typeDefinitions: policy.typeDefinitions,
     projectTypes: policy.projectTypes, providers: policy.providers, target: policy.target,
-    navigation: policy.navigation, sourceFacts: policy.sourceFacts, objectShapes,
+    facts: policy.facts, sourceFacts: policy.sourceFacts, objectShapes,
   });
 
   const openClassifications: CsharpConversionClassifications = {
@@ -162,7 +162,7 @@ export function analyzeCsharpConversions(
     close(nativeDemand, requiredRecords, captures, creations) {
       if (closed) return failTargetAnalysisInvariant("tsonic-csharp", "Native conversion preparation closes exactly once.");
       if (preparedClassifications === undefined || preparedValueReads === undefined) failTargetAnalysisInvariant("tsonic-csharp", "Native conversion uses require completed preparation.");
-      const admitted = sealCsharpConversionUses(nativeDemand, selectedOperations, (expression, source, target, mode, exactInteger, boundary, sourceCompletion) => {
+      const admitted = sealCsharpConversionUses(policy.ast, nativeDemand, selectedOperations, (expression, source, target, mode, exactInteger, boundary, sourceCompletion) => {
         const selected = boundary === undefined ? classifyExpression(expression, source, target, mode, exactInteger, sourceCompletion) : boundary.selection;
         if (selected === undefined) return undefined;
         admitCsharpDelegateEmission(delegateContracts, source, target, selected);
@@ -183,16 +183,8 @@ export function analyzeCsharpConversions(
         return selected;
       }, requiredRecords, issues, callConversions);
       issues.push(...admitted.issues.map(issue => {
-        const bindings = {
-          ast: policy.ast, navigation: policy.navigation,
-          call: (node: Node) => {
-            const construction = policy.ast.is.IsNewExpression(node) ? selectedOperations.selectedConstruction.get(node)?.target : undefined;
-            return policy.ast.is.IsCallExpression(node) ? selectedOperations.selectedCall.get(node)?.source
-              : construction?.kind === "resolved" || construction?.kind === "source-owned" ? construction.source : undefined;
-          },
-        };
-        const hint = csharpIntegralConversionAnnotationHint(issue.node, issue.source, issue.target, bindings) ??
-          sourceAnnotationHint(issue.node, bindings);
+        const hint = csharpIntegralConversionAnnotationHint(issue.node, issue.source, issue.target, policy.facts) ??
+          policy.facts.analyses.annotationHint(issue.node);
         return hint === undefined ? issue : Object.freeze({ ...issue, message: `${issue.message} ${hint}` });
       }));
       delegateAdapters = sealCsharpDelegateAdapterIdentities(policy, preparedValueReads, admitted.expressions, issues);
@@ -266,34 +258,35 @@ export function analyzeCsharpConversions(
       return undefined;
     }
     const sourceFile = policy.ast.getSourceFile(expression);
-    const reference = policy.navigation.referenceFor(expression);
+    const reference = sourceProjectTarget(policy.facts, expression);
     if (reference !== undefined && isSourceOwnedProjectReference(reference, policy) &&
       (policy.moduleCallables.get(reference.declaration) !== undefined ||
         policy.ast.is.IsFunctionDeclaration(reference.declaration) &&
         policy.ast.is.IsSourceFile(policy.ast.parent(reference.declaration)) &&
-        !policy.navigation.declarationUseSummary(reference.declaration).bindingWritten)) {
+        !policy.facts.navigation.uses.summary(reference.declaration).bindingWritten)) {
       directCallables.set(expression, Object.freeze({ ...reference }));
     }
     const elementAccess = policy.ast.parent(expression);
     const selectedElement = elementAccess === undefined ? undefined : selectedOperations.selectedElement.get(elementAccess)?.target;
-    const retainedIndex = selectedElement?.kind === "resolved" && selectedElement.source.argument.expression === expression &&
+    const retainedIndex = selectedElement?.kind === "resolved" &&
+      policy.ast.as.AsElementAccessExpression(selectedElement.source.node)?.ArgumentExpression === expression &&
       selectedElement.indexConversion !== undefined && targetTypeRefEquals(selectedElement.indexConversion.source, source) &&
       targetTypeRefEquals(selectedElement.indexConversion.target, target) ? selectedElement.indexConversion.selection : undefined;
-    const indexConversion = retainedIndex ?? selectCsharpSourceTypeFlowIndexConversion(policy.effectiveTypes.get(expression),
+    const indexConversion = retainedIndex ?? selectCsharpSourceTypeFlowIndexConversion(policy.facts.values.type(expression),
       selectedElement === undefined ? undefined : { kind: "element", selection: selectedElement }, source, target);
     const binary = elementAccess === undefined ? undefined : selectedOperations.binaryOperation.get(elementAccess)?.target;
     const countConversion = binary?.kind !== "resolved" || binary.right !== expression ? undefined
-      : selectCsharpSourceTypeFlowIndexConversion(policy.effectiveTypes.get(expression), { kind: "shift-count", operation: binary }, source, target);
+      : selectCsharpSourceTypeFlowIndexConversion(policy.facts.values.type(expression), { kind: "shift-count", operation: binary }, source, target);
     const selectedCall = elementAccess === undefined ? undefined : selectedOperations.selectedCall.get(elementAccess)?.target ??
       selectedOperations.selectedConstruction.get(elementAccess)?.target;
     const argumentIndex = selectedCall?.kind !== "resolved" ? undefined
-      : selectedCall.source.sourceArguments.findIndex(argument => argument.expression === expression);
+      : policy.ast.arguments(selectedCall.source.use).indexOf(expression);
     const argument = selectedCall?.kind !== "resolved" || argumentIndex === undefined ? undefined
       : selectedCall.call.arguments.find(argument => argument.sourceArgumentIndex === argumentIndex);
     const parameter = argument === undefined || selectedCall?.kind !== "resolved" ? undefined
       : selectedCall.call.targetMember.parameters[argument.targetParameterIndex];
     const parameterConversion = parameter === undefined ? undefined : selectCsharpSourceTypeFlowIndexConversion(
-      policy.effectiveTypes.get(expression), { kind: "parameter", expression, parameter }, source, target);
+      policy.facts.values.type(expression), { kind: "parameter", expression, parameter }, source, target);
     let candidate = indexConversion ?? countConversion ?? parameterConversion ?? selectCsharpIntegerTruncationConversion(policy, expression, sourceFile, source, target) ?? selectCsharpExpressionConversion(
       conversionPolicy,
       expression,
@@ -307,11 +300,7 @@ export function analyzeCsharpConversions(
     const selected = admitCsharpConversionSelection(conversionPolicy, source, target, candidate.kind === "delegate-adapter" && candidate.strategy === "adaptation" &&
         (
           sourceFile === undefined ||
-          !isSourceOwnedCallableRuntimeCarrierSubject(
-            expression,
-            sourceFile,
-            policy,
-          )
+          !isSourceOwnedCallableRuntimeCarrierSubject(expression, policy)
         )
       ? Object.freeze({
           kind: "rejected" as const,
@@ -323,7 +312,7 @@ export function analyzeCsharpConversions(
       isSourceOwnedProjectReference(reference, policy) &&
       (policy.moduleCallables.get(reference.declaration) !== undefined ||
         policy.ast.is.IsFunctionDeclaration(reference.declaration) &&
-        !policy.navigation.declarationUseSummary(reference.declaration).bindingWritten)) {
+        !policy.facts.navigation.uses.summary(reference.declaration).bindingWritten)) {
       const direct = Object.freeze({ ...reference });
       directCallables.set(expression, direct);
       const name = policy.ast.name(reference.declaration);
@@ -342,7 +331,7 @@ export function analyzeCsharpConversions(
 
   function requestLiteralConversion(expression: Node, source: TargetTypeRef, target: TargetTypeRef,
     selection: CsharpConversionSelection, valueReads: CsharpValueReadClassifications): void {
-    if (policy.literalValues.literalValue.get(expression) === undefined) return;
+    if (policy.facts.values.literal(expression) === undefined) return;
     const physicalSource = valueReads.valueRead.get(expression)?.value;
     if (physicalSource === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
       "Literal conversion requests require completed value reads.", expression);
@@ -365,9 +354,11 @@ export function analyzeCsharpConversions(
       const target = getCsharpNullableElementTargetType(pair.target) ?? pair.target;
       const shape = objectShapes.resolveTarget(source);
       const contract = objectShapes.resolveTarget(target);
-      if (shape?.sourceType !== undefined && contract !== undefined && !targetTypeRefEquals(source, target) &&
+      if (shape !== undefined && contract !== undefined && !targetTypeRefEquals(source, target) &&
         shape.implements?.some(implemented => targetTypeRefEquals(implemented, target)) !== true) {
-        objectShapes.registerStructuralInterface(expression, pair.source, pair.target, shape.sourceType);
+        const described = policy.facts.values.type(expression);
+        objectShapes.registerStructuralInterface(expression, pair.source, pair.target,
+          described.kind === "refused" ? undefined : described.type);
       }
       const from = getCsharpDelegateSignature(source);
       const to = getCsharpDelegateSignature(target);

@@ -56,7 +56,6 @@ test("target-owned object shapes reconstruct from canonical artifact state", () 
     ast: {},
     names: { typeParameterNames: [] }, captureStorage: { captureFrameShape: { get() {} } },
     conversions: { conversion: { get() {} } },
-    navigation: {},
     objectShapes: {
       targetShapes: Object.freeze(Object.fromEntries(shapes)),
       resolveTarget(type) {
@@ -100,7 +99,7 @@ test("object-shape receiver requirements are complete and immutable before publi
     type: csharpDelegateTargetType("System.Func", [], { kind: "source-primitive", name: "int32" }) };
   const shape = { targetType: { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "Example.Counter" }, members: [method] };
   const host = { hasJsRuntime, ast: {}, names: { typeParameterNames: [] }, captureStorage: { captureFrameShape: { get() {} } },
-    conversions: { conversion: { get() {} } }, navigation: {},
+    conversions: { conversion: { get() {} } },
     objectShapes: { targetShapes: Object.freeze({ [targetTypeRefKey(shape.targetType)]: shape }), resolveTarget() { return shape; } } };
   const before = createCsharpObjectShapeDemandEngine(host);
   assert.equal(before.registerObjectShape(shape, "synthetic").kind, "accepted");
@@ -251,7 +250,7 @@ test("one exact native declaration retains every selected projection and each so
 test("source-file artifacts have no object-shape publication or reconstruction route", () => {
   const demand = createCsharpObjectShapeDemandEngine({ hasJsRuntime, ast: {}, names: { typeParameterNames: [] },
     captureStorage: { captureFrameShape: { get() {} } }, conversions: { conversion: { get() {} } },
-    navigation: {}, objectShapes: { targetShapes: Object.freeze({}), resolveTarget() {} } });
+    objectShapes: { targetShapes: Object.freeze({}), resolveTarget() {} } });
   const publication = publishDemand(demand);
   assert.equal(publication.get("source-file:index.ts"), undefined);
   assert.equal(publication.artifacts.length, 0);

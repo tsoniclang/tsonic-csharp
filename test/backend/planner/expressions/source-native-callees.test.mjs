@@ -12,6 +12,14 @@ import { analyzeCsharpSourceMemberNames } from "../../../../dist/analysis/object
 
 const plannerInvariant = message => error => error instanceof Error && error.phase === "planning" && error.message === message;
 
+// The published member-access selection of a direct method callee `expression` on `receiver` (nextgen C-2542:
+// SourceMemberAccessSelection replaces the checker property-access record; `access: "call"` replaces `callCallee`).
+const receiverDescriptor = Object.freeze({ kind: "declared", declaration: Object.freeze({}), typeArguments: Object.freeze([]) });
+function memberCallSelection(expression, receiver, declaration, access = "call") {
+  return { use: expression, receiver, receiverType: receiverDescriptor, name: "read",
+    selected: { kind: "member", declarations: [declaration] }, result: receiverDescriptor, access, optionalChain: false };
+}
+
 // The member-receiver analysis seals native callee acquisition for one source-owned call whose callee is `expression`.
 function sealedCallees({ selected, property, member, projects = {}, identifier = false, references = {} }) {
   const call = {};
@@ -22,8 +30,8 @@ function sealedCallees({ selected, property, member, projects = {}, identifier =
     selectedConstruction: { get: () => undefined },
     sourceMember: { get: node => node === selected.expression ? member : undefined },
   };
-  const source = { ast: { name: () => undefined, is: { IsIdentifier: node => identifier && node === selected.expression } },
-    navigation: { expressionEffects: () => ({ suspends: false }) } };
+  const source = { syntax: { name: () => undefined, is: { IsIdentifier: node => identifier && node === selected.expression } },
+    facts: { navigation: { expressions: { effects: () => ({ suspends: false }) } } } };
   const nodes = [call, selected.expression];
   const receivers = analyzeCsharpMemberReceiverTypes({ source, nodes, operations,
     projects: { projectSourceReference: { get: () => undefined }, projectSourceType: { get: () => undefined }, ...projects },
@@ -69,8 +77,7 @@ test("native method planning requires one exact closed member contract", () => {
   const member = { memberKind: "method", targetName: "read", type: carrier };
   const sourceOwned = { objectShape: { targetType: carrier, members: [member] }, shapeMember: { kind: "resolved", member },
     jsValueOperation: { kind: "not-js-value" }, runtimeUnionProperty: { kind: "not-runtime-union" } };
-  const classification = { selection: { kind: "source-owned", source: { callCallee: true,
-    selectedDeclaration: declaration, receiver: { expression: receiver, type: {} } } }, sourceOwned };
+  const classification = { selection: { kind: "source-owned", source: memberCallSelection(expression, receiver, declaration) }, sourceOwned };
   const plan = subject => {
     assert.equal(subject === receiver, true, "only the receiver is evaluated");
     return csharpPlannedValue(carrier, { kind: "IdentifierName", name: "receiver" });
@@ -93,7 +100,7 @@ test("native method planning requires one exact closed member contract", () => {
   for (const [label, fact] of [
     ["missing classification", undefined],
     ["not a direct callee", { ...classification, selection: { ...classification.selection,
-      source: { ...classification.selection.source, callCallee: false } } }],
+      source: memberCallSelection(expression, receiver, declaration, "read") } }],
     ["missing shape member", { ...classification, sourceOwned: { ...sourceOwned, shapeMember: undefined } }],
     ["rejected shape member", { ...classification, sourceOwned: { ...sourceOwned, shapeMember: { kind: "rejected" } } }],
     ["stored callable field", { ...classification, sourceOwned: { ...sourceOwned,
@@ -117,8 +124,7 @@ test("generic class static callees remain exact namespace syntax, never runtime 
   const className = {};
   const file = { IsDeclarationFile: false };
   const sourceOwned = { jsValueOperation: { kind: "not-js-value" }, runtimeUnionProperty: { kind: "not-runtime-union" } };
-  const classification = { selection: { kind: "source-owned", source: { callCallee: true,
-    selectedDeclaration: declaration, receiver: { expression: receiver, type: {} } } }, sourceOwned };
+  const classification = { selection: { kind: "source-owned", source: memberCallSelection(expression, receiver, declaration) }, sourceOwned };
   const selected = { kind: "method", expression, declaration };
   // The receiver names a project class: the project emission publishes its source type, so the receiver is a type.
   const projects = { projectSourceReference: { get: node => node === receiver ? classDeclaration : undefined },
@@ -187,7 +193,7 @@ for (const surface of ["native", "js"]) {
           "an optional void call does not manufacture a nullable value");
         guarded += 1;
       }
-      program.source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+      program.source.syntax.forEachChild(node, child => { if (child !== undefined) visit(child); });
     };
     for (const file of program.sourceFiles) visit(file);
     assert.equal(guarded, 3, "lazy argument, returned void and throwing argument controls all retain their guards");

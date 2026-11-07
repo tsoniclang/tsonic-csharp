@@ -1,4 +1,4 @@
-import type { Node, SourceFile, Type } from "@tsonic/tsts";
+import type { Node } from "@tsonic/tsts";
 import type { SourceTypeDescriptor } from "@tsonic/target-api/source";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpSourceMemberKey, TargetTypeRef } from "../../types/model.js";
 
@@ -8,7 +8,7 @@ export type CsharpProjectConstructibleTypeProjection =
   | { readonly kind: "rejected"; readonly reason: string };
 
 export interface CsharpObjectShapeRecords {
-  readonly nodeObjectShape: { readonly get: (node: Node | undefined, sourceFile?: SourceFile) => CsharpObjectShapeFact | undefined };
+  readonly nodeObjectShape: { readonly get: (node: Node | undefined) => CsharpObjectShapeFact | undefined };
   readonly targetObjectShape: { readonly get: (carrier: TargetTypeRef | undefined) => CsharpObjectShapeFact | undefined };
 }
 import type { CsharpObjectShapeProjectionKind } from "../../types/model.js";
@@ -28,17 +28,13 @@ export interface CsharpObjectShapeClassifications<StructuralImplementation = imp
   methodImplementationHasCopies(shape: CsharpObjectShapeFact): boolean;
   resolveCopyShape(shape: CsharpObjectShapeFact): CsharpObjectShapeFact | undefined;
   resolveObjectLiteralUnionCarrier(node: Node, type: TargetTypeRef): TargetTypeRef | undefined;
-  resolveNode(
-    node: Node | undefined,
-    sourceFile?: SourceFile,
-  ): CsharpObjectShapeFact | undefined;
+  resolveNode(node: Node | undefined): CsharpObjectShapeFact | undefined;
   resolveTarget(
     type: TargetTypeRef | undefined,
   ): CsharpObjectShapeFact | undefined;
   resolveObjectLiteralTargetShape(
     expectedShape: CsharpObjectShapeFact | undefined,
     objectLiteral: Node,
-    sourceFile?: SourceFile,
   ): CsharpObjectLiteralTargetShapeResolution | undefined;
 }
 
@@ -64,32 +60,27 @@ export type CsharpNativeSourceCarrierSelection =
   | { readonly kind: "rejected"; readonly subject: Node; readonly code: string; readonly reason: string; readonly type?: never };
 
 export interface CsharpObjectShapePolicy {
-  retainConstructionSource(node: Node, shape: CsharpObjectShapeFact, sourceFile: SourceFile): CsharpObjectShapeFact | undefined;
+  retainConstructionSource(node: Node, shape: CsharpObjectShapeFact): CsharpObjectShapeFact | undefined;
   retainShape(shape: CsharpObjectShapeFact, occurrence: Node | undefined): CsharpObjectShapeFact | undefined;
   resolveNativeParameter(declaration: Node, parameter: Node, type: TargetTypeRef): CsharpNativeSourceCarrierSelection;
   resolveNativeReturn(declaration: Node, type: TargetTypeRef, observed: readonly TargetTypeRef[]): CsharpNativeSourceCarrierSelection;
   resolveCallableValue(signature: TargetTypeRef,
     typeParameters: NonNullable<CsharpObjectShapeMemberFact["typeParameters"]>): TargetTypeRef | undefined;
   resolveCopyShape(shape: CsharpObjectShapeFact, source?: CsharpObjectShapeFact): CsharpObjectShapeFact | undefined;
-  resolveNode(
-    node: Node | undefined,
-    sourceFile?: SourceFile,
-  ): CsharpObjectShapeFact | undefined;
+  resolveNode(node: Node | undefined): CsharpObjectShapeFact | undefined;
   resolveTarget(type: TargetTypeRef | undefined): CsharpObjectShapeFact | undefined;
   resolveTypeMember(
-    type: Type | undefined,
-    sourceFile: SourceFile,
+    type: SourceTypeDescriptor | undefined,
+    occurrence: Node,
     sourceKey: CsharpSourceMemberKey,
   ): CsharpObjectShapeMemberFact | undefined;
   resolveObjectLiteralTargetShape(
     expectedShape: CsharpObjectShapeFact | undefined,
     objectLiteral: Node,
-    sourceFile: SourceFile,
   ): CsharpObjectLiteralTargetShapeResolution;
   resolveProjectConstructibleSelectedType(
     targetType: TargetTypeRef,
     descriptor: SourceTypeDescriptor,
     contextNode: Node,
-    sourceFile: SourceFile,
   ): CsharpProjectConstructibleTypeProjection;
 }

@@ -8,44 +8,67 @@ import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/type
 import { isCsharpStringTargetType, isCsharpJsStringTargetType } from "../../../dist/target-model/types/identity.js";
 import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
-import { checkCsharpSource } from "../../helpers/direct-csharp-session.mjs";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
-import { analyzeCsharpDeclarations, reconcileInferredReturnTargetContract } from "../../../dist/analysis/declarations/analyze.js";
+import { assertCsharpCompilationSucceeded, checkCsharpSource, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { hostProgram, representationServices, representations } from "../../representation/host-fixture.mjs";
+import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
+import { csharpTestSourceProgram } from "../../helpers/target-source-program.mjs";
+import { analyzeCsharpDeclarations } from "../../../dist/analysis/declarations/analyze.js";
 import { csharpRuntimeUnionTargetType, csharpTargetNamedType, csharpStringTargetType } from "../../../dist/target-model/types/index.js";
 import { csharpJsArrayTargetType } from "../../../dist/target-model/types/carriers/js.js";
 import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
-import { csharpNumericReturnBaselineCovered } from "../../../dist/policy/conversions/union-relations.js";
 import { selectCsharpConversion } from "../../../dist/policy/conversions/core.js";
 import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
 import { header, emptyProviders, compile, diagnosticLabel, accepted, arrays, constructedArrays, destinationBodies, actualDestinationEvidence, actualUnionDestinationEvidence } from "./inferred-numeric-array-elements.fixtures.mjs";
 
-test("inferred numeric return coverage preserves complete native union layouts without converting their arrays", () => {
+// Nextgen C-2542: the inferred return of a callable is the Host callable-return fact (facts.values.callableReturn),
+// represented once (I6). The deleted C# return reconciliation (reconcileInferredReturnTargetContract) and its numeric
+// baseline proof (csharpNumericReturnBaselineCovered) compared a coarse checked baseline with the observed native ABI;
+// that comparison was a second Source decision in C# and has no successor. What remains: (1) the published C# return
+// contract IS the representation of the Host return, arms in Host order (R6); (2) the CLR conversion proofs between a
+// union-element array and a coarse array still reject both directions.
+const inferredReturns = `import type { int32, uint32 } from "@tsonic/core/types.js";
+export function mixed(flag: boolean, small: int32, wide: uint32) { return flag ? [small, wide, 1.5] : [wide]; }
+export function nested(small: int32) { return [[small], [2.5]]; }
+export function pair(small: int32) { return [[small], [1.5]] as const; }
+export function maybe(flag: boolean, small: int32) { return flag ? [small] : undefined; }`;
+
+test("an inferred numeric return contract is the represented Host callable return (no C# baseline reconciliation)", () => {
+  const program = hostProgram(inferredReturns);
+  const services = representationServices(program);
+  const compiled = compileCsharpSource({ sourceText: inferredReturns });
+  assertCsharpCompilationSucceeded(compiled);
+  const analysis = compiled.result.program;
+  const declarations = analysis.source.sourceFiles.filter(file => !analysis.source.syntax.isDeclarationFile(file))
+    .flatMap(file => analysis.source.syntax.statements(file)).filter(node => analysis.source.syntax.is.IsFunctionDeclaration(node));
+  assert.equal(declarations.length, 4);
+  for (const declaration of declarations) {
+    const name = analysis.source.syntax.text(analysis.source.syntax.name(declaration));
+    const contract = analysis.records.returnContract.get(declaration);
+    assert.equal(contract?.kind, "resolved", name);
+    const local = program.named(name);
+    const expected = representations(services).callableReturn(local);
+    assert.equal(expected.kind !== "csharp-refused" && expected.kind !== "refused", true, `${name}: the Host return is representable`);
+    assert.equal(targetTypeRefEquals(contract.type, expected), true,
+      `${name}: the published return ABI is the one representation of the Host callable return`);
+    for (const arms of [getCsharpRuntimeUnionArms(expected)].filter(Boolean)) {
+      const sum = program.facts.sums.sumOf(program.callableReturn(local));
+      if (sum !== undefined) assert.equal(arms.length <= sum.arms.length, true, `${name}: arms come from the Host sum, never added`);
+    }
+  }
+});
+
+test("coarse and union-element numeric arrays are distinct CLR carriers in both conversion directions", () => {
   const integer = csharpSourcePrimitiveTargetType("int32");
   const unsigned = csharpSourcePrimitiveTargetType("uint32");
   const floating = csharpSourcePrimitiveTargetType("float64");
   const union = csharpRuntimeUnionTargetType([integer, unsigned, floating]);
-  const duplicate = csharpRuntimeUnionTargetType([floating, floating]);
   const native = element => Object.freeze({ kind: "array", element });
-  const tuple = elements => Object.freeze({ kind: "tuple", elements: Object.freeze(elements) });
   const policy = { projectTypes: { directSupertypes: () => [] },
     providers: emptyProviders, target: {} };
-  const controls = [
+  for (const [label, observed, baseline] of [
     ["native array", native(union), native(floating)],
     ["JS array", csharpJsArrayTargetType(union), csharpJsArrayTargetType(floating)],
-    ["nested arrays", native(csharpJsArrayTargetType(union)), native(csharpJsArrayTargetType(floating))],
-    ["tuple positions", tuple([native(union), csharpJsArrayTargetType(union)]), tuple([native(floating), csharpJsArrayTargetType(floating)])],
-    ["optional array", csharpNullableTargetType(native(union)), csharpNullableTargetType(native(floating))],
-    ["duplicate native ABI slots", native(duplicate), native(floating)],
-  ];
-  for (const [label, observed, baseline] of controls) {
-    assert.equal(csharpNumericReturnBaselineCovered({ source: observed, baseline, definitions: undefined,
-      convert: (source, target) => selectCsharpConversion(policy, source, target, "implicit") }), true,
-    `${label}: every actual native arm and checked coarse alternative corresponds`);
-    const selected = reconcileInferredReturnTargetContract(policy, baseline, [observed], false);
-    assert.equal(selected.kind === "resolved" && selected.type === observed, true,
-      `${label}: inferred return publication retains the one actual native ABI by identity`);
-  }
-  for (const [label, observed, baseline] of controls.slice(0, 2)) for (const mode of ["implicit", "explicit"]) {
+  ]) for (const mode of ["implicit", "explicit"]) {
     assert.equal(selectCsharpConversion(policy, observed, baseline, mode).kind, "rejected",
       `${label}/${mode}: coarse source coverage never authorizes a different physical array conversion`);
     assert.equal(selectCsharpConversion(policy, baseline, observed, mode).kind, "rejected",
@@ -53,27 +76,7 @@ test("inferred numeric return coverage preserves complete native union layouts w
   }
 });
 
-test("numeric return coverage refuses missing arms, unrelated carriers and contradictory native collection metadata", () => {
-  const integer = csharpSourcePrimitiveTargetType("int32");
-  const floating = csharpSourcePrimitiveTargetType("float64");
-  const text = csharpStringTargetType();
-  const native = element => Object.freeze({ kind: "array", element });
-  const policy = { projectTypes: { directSupertypes: () => [] },
-    providers: emptyProviders, target: {} };
-  const controls = [
-    ["unrelated actual arm", native(csharpRuntimeUnionTargetType([integer, text])), native(floating)],
-    ["missing checked alternative", native(integer), native(csharpRuntimeUnionTargetType([floating, text]))],
-    ["native array rank", { ...native(integer), rank: 2 }, native(floating)],
-    ["tuple arity", { kind: "tuple", elements: [integer] }, { kind: "tuple", elements: [floating, floating] }],
-    ["missing native absence", native(integer), native(csharpNullableTargetType(floating))],
-    ["contradictory collection payload", { ...csharpJsArrayTargetType(integer), csharpReadOnlyIndexableElementType: text }, csharpJsArrayTargetType(floating)],
-  ];
-  for (const [label, observed, baseline] of controls) assert.equal(csharpNumericReturnBaselineCovered({ source: observed,
-    baseline, definitions: undefined, convert: (source, target) => selectCsharpConversion(policy, source, target, "implicit") }), false,
-  `${label}: a complete independent baseline proof is still required`);
-});
-
-test("numeric baseline identity cannot hide contradictory native collection slots at any nesting", () => {
+test("contradictory native collection metadata keeps one physical carrier identity at any nesting", () => {
   const integer = csharpSourcePrimitiveTargetType("int32");
   const text = csharpStringTargetType();
   const actual = csharpJsArrayTargetType(integer);
@@ -89,13 +92,8 @@ test("numeric baseline identity cannot hide contradictory native collection slot
     "csharpReadOnlyIndexableElementType", "csharpDenseMutableElementType"]) {
     const contradictory = { ...actual, [field]: text };
     for (const [label, wrap] of wrappers) {
-      const source = wrap(actual);
-      const target = wrap(contradictory);
-      assert.equal(targetTypeRefKey(source) === targetTypeRefKey(target), true,
+      assert.equal(targetTypeRefKey(wrap(actual)) === targetTypeRefKey(wrap(contradictory)), true,
         `${field}/${label}: the physical native carrier identity is intentionally unchanged`);
-      for (const [observed, baseline] of [[source, target], [target, source]]) assert.equal(csharpNumericReturnBaselineCovered({
-        source: observed, baseline, definitions: undefined, convert: () => assert.fail("contradictory metadata is not a conversion"),
-      }), false, `${field}/${label}: neither baseline direction accepts contradictory slot metadata`);
     }
   }
 });
@@ -115,8 +113,8 @@ test("authored native generic return ABIs are not rewritten by a nested logical 
     export function tuple(value: [Values, Values]): [Values, Values] { return value; }
   ` });
   assert.equal(checked.sourceDiagnosticsText, "", "every declaration and alias uses actual checked semantic types");
-  const source = createTargetSourceProgram(checked.source);
-  const { ast } = source;
+  const source = csharpTestSourceProgram(checked.source);
+  const ast = source.syntax;
   const file = checked.source.getSourceFile("/project/index.ts");
   const text = csharpStringTargetType();
   const numeric = csharpSourcePrimitiveTargetType("float64");
@@ -152,11 +150,11 @@ test("authored native generic return ABIs are not rewritten by a nested logical 
   const absent = Object.freeze({ get: () => undefined });
   const evidence = { compileTimeMetadata: absent, pointerReturn: absent, contextualType: absent,
     inferredCallableReturnType: absent, nodeTargetType: { get: node => authored.get(node) } };
-  const policy = { ast, sourceFiles: [file], semanticsFor: source.semantics.forNode,
+  const policy = { ast, sourceFiles: [file], facts: source.facts,
     types: {
-      resolveType: () => assert.fail("callable return contracts must not convert raw checker types"),
-      resolveCallableReturn(declaration) {
-        const published = source.effectiveTypes.callableReturn(declaration);
+      represent: () => assert.fail("callable return contracts represent only the published callable return"),
+      callableReturn(declaration) {
+        const published = source.facts.values.callableReturn(declaration);
         assert.equal(published !== undefined && published.kind !== "refused" &&
           published.provenance.occurrence === declaration, true,
           "the declared return belongs to this exact real checked callable");
@@ -186,7 +184,7 @@ test(`${surface} inferred array binding and field storage retain their actual co
       export function destination() { let demandedValues = [1, 2]; return select(demandedValues); }
       export class Counter { values = [1, 2]; current() { return this.values[0]; } }
     `));
-    const ast = program.source.ast;
+    const ast = program.source.syntax;
     const found = new Set();
     const visit = node => {
       if (ast.is.IsVariableDeclaration(node) || ast.is.IsPropertyDeclaration(node)) {
@@ -229,7 +227,7 @@ test(`${surface} inferred float32/${type} refuses precision loss (${order})`, ()
 test(`${surface} an annotated float32/${type} destination retains its actual native rounding (${order})`, () => {
       const program = accepted(compile(surface, `export function run(narrow: float32, value: ${type}): number {
         const values: float32[] = [${order}]; return values[0]; }`));
-      const ast = program.source.ast;
+      const ast = program.source.syntax;
       const literals = [];
       const visit = node => {
         if (ast.is.IsArrayLiteralExpression(node)) literals.push(node);

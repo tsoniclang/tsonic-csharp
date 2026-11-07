@@ -4,9 +4,10 @@ import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { SourceCallableSourceContract } from "../../target-model/records/callables/source-callable-contract.js";
 import { admitCsharpCallableValueAdapter, type CsharpCallableConversionPolicy } from "../callables/native/adapters.js";
 import { csharpCallableParametersEqual, instantiateCsharpInheritedCallable } from "../callables/generics/instantiation.js";
+import { csharpMemberContracts } from "./member-dispatch.js";
 
 export function closeCsharpProjectCallableContracts(
-  policy: Pick<CsharpPolicyContext, "ast" | "navigation"> & CsharpCallableConversionPolicy,
+  policy: Pick<CsharpPolicyContext, "ast" | "facts"> & CsharpCallableConversionPolicy,
   contracts: readonly SourceCallableSourceContract[],
 ): readonly SourceCallableSourceContract[] {
   const original = new Map(contracts.map(contract => [contract.sourceDeclaration, contract]));
@@ -24,9 +25,9 @@ export function closeCsharpProjectCallableContracts(
     if (owner?.kind !== "class") return implementation;
     active.add(declaration);
     let selected = implementation;
-    const inherited = policy.navigation.memberContracts(declaration);
+    const inherited = csharpMemberContracts(policy.facts, declaration);
     const receiver = policy.projectTypes.catalog.targetTypeForDeclaration(owner.declaration, owner.typeParameterBindings);
-    for (const baseDeclaration of inherited.kind === "resolved" ? inherited.contracts : []) {
+    for (const baseDeclaration of inherited) {
       const baseOwner = policy.projectTypes.catalog.definitionForDeclaration(policy.ast.parent(baseDeclaration));
       const base = original.get(baseDeclaration);
       if (baseOwner?.kind !== "class" || base === undefined) continue;

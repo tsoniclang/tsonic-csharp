@@ -1,13 +1,10 @@
-import type { AstReader, Node } from "@tsonic/tsts";
-import { sourceBindingCapturedBeforeFirstWrite, sourceBindingCapturedBeforeInitialization,
-  type SourceProgramNavigation } from "@tsonic/target-api/source";
+import type { Node } from "@tsonic/tsts";
+import type { SourceAnalysisFacts } from "@tsonic/target-api/source";
 import type { CsharpCaptureInitialization } from "../../../target-model/types/model.js";
 
 export function csharpCapturedBindingInitialization(
   declaration: Node,
-  ast: AstReader,
-  navigation: Pick<SourceProgramNavigation, "declarationUses">,
+  analyses: Pick<SourceAnalysisFacts, "capturedBeforeInitialization" | "capturedBeforeFirstWrite">,
 ): CsharpCaptureInitialization {
-  return sourceBindingCapturedBeforeInitialization(declaration, ast, navigation) ||
-    sourceBindingCapturedBeforeFirstWrite(declaration, ast, navigation) ? "deferred" : "initialized";
+  return analyses.capturedBeforeInitialization(declaration) || analyses.capturedBeforeFirstWrite(declaration) ? "deferred" : "initialized";
 }

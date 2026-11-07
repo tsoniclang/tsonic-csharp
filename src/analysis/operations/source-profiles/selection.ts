@@ -1,8 +1,8 @@
-import type { SourceFile, Node, AstReader, ReadonlySourceFactResolver } from "@tsonic/tsts";
+import type { Node, AstReader, ReadonlySourceFactResolver } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { selectCsharpArrayUnionElement, selectCsharpArrayUnionProperty } from "../members/number-array-unions.js";
 import { selectCsharpIndexedRecordElement, selectCsharpIndexedRecordProperty } from "../collections/indexed-records.js";
-import type { SourceFileSemantics } from "@tsonic/target-api/source";
+import type { SourceProgramFacts } from "@tsonic/target-api/source";
 import type { CsharpProviderCallSelectionHost } from "../../../policy/model/provider-calls.js";
 import { csharpJsSourceProfileCallPolicies, csharpJsSourceProfileElementPolicies, csharpJsSourceProfilePropertyPolicies } from "../../../policy/operations/source-profiles/js/index.js";
 import { csharpNativeSourceProfileCallPolicies, csharpNativeSourceProfileElementPolicies, csharpNativeSourceProfilePropertyPolicies } from "../../../policy/operations/source-profiles/native-source-profile.js";
@@ -15,14 +15,7 @@ import { csharpSourceProfileDeclarationIdentity } from "../../../policy/identiti
 import type { CsharpTargetMember } from "../../../target-model/types/model.js";
 import { sourceProfileIdentityMatches } from "../../../policy/operations/source-profiles/source-profile-policy.js";
 import { selectCsharpSourceProfileCallPolicy, selectCsharpSourceProfileElementPolicy, selectCsharpSourceProfilePropertyPolicy } from "./policy-selection.js";
-import type { ResolvedSourceCallInfo } from "../../../target-model/records/calls/source-calls.js";
 import type { CsharpProviderRelationResolver } from "../../../providers/model/relation-resolver.js";
-type ResolvedSourcePropertyAccessInfo = NonNullable<
-  ReturnType<SourceFileSemantics["operations"]["propertyAccess"]>
->;
-type ResolvedSourceElementAccessInfo = NonNullable<
-  ReturnType<SourceFileSemantics["operations"]["elementAccess"]>
->;
 
 const callPolicies = Object.freeze([
   ...csharpErrorSourceProfileCallPolicies,
@@ -49,12 +42,11 @@ export function selectCsharpSourceProfileConstructor(
     readonly ast: AstReader;
     readonly sourceFacts?: ReadonlySourceFactResolver;
     readonly providers: CsharpProviderRelationResolver;
-    semanticsFor(node: Node): SourceFileSemantics;
+    readonly facts: SourceProgramFacts;
   },
   declaration: Node,
 ): readonly CsharpTargetMember[] {
-  const identity = csharpSourceProfileDeclarationIdentity(host.ast,
-    host.semanticsFor(declaration), host.sourceFacts, declaration);
+  const identity = csharpSourceProfileDeclarationIdentity(host.ast, host.facts, host.sourceFacts, declaration);
   if (identity === undefined || identity.kind !== "construct") return [];
   return callPolicies.flatMap(policy => {
     if (policy.inheritableConstructor === undefined || !sourceProfileIdentityMatches(policy.source, identity)) return [];
@@ -63,58 +55,36 @@ export function selectCsharpSourceProfileConstructor(
   });
 }
 
+/** Profile selection for a call, `new` or tagged template the Host selected (facts.selections.call). */
 export function selectCsharpComposedSourceProfileCall(
   host: CsharpProviderCallSelectionHost,
-  source: ResolvedSourceCallInfo,
-  sourceFile: SourceFile,
+  call: Node,
 ): CsharpSourceProfileCallPolicyResult | undefined {
-  return selectCsharpSourceProfileCallPolicy(
-    host,
-    source,
-    sourceFile,
-    callPolicies,
-  );
+  return selectCsharpSourceProfileCallPolicy(host, call, callPolicies);
 }
 
+/** Profile selection for a member access the Host selected (facts.selections.memberAccess). */
 export function selectCsharpComposedSourceProfileProperty(
   host: CsharpProviderCallSelectionHost,
-  source: ResolvedSourcePropertyAccessInfo,
-  sourceFile: SourceFile,
+  access: Node,
 ): CsharpSourceProfilePropertyPolicyResult | undefined {
-  const union = selectCsharpArrayUnionProperty(host, source, sourceFile);
-  if (union !== undefined) return union;
-  const record = selectCsharpIndexedRecordProperty(host, source, sourceFile);
-  if (record !== undefined) return record;
-  return selectCsharpSourceProfilePropertyForCarrier(
-    host,
-    source,
-    sourceFile,
-    undefined,
-  );
+  return selectCsharpArrayUnionProperty(host, access) ?? selectCsharpIndexedRecordProperty(host, access) ??
+    selectCsharpSourceProfilePropertyForCarrier(host, access, undefined);
 }
 
 export function selectCsharpSourceProfilePropertyForCarrier(
   host: CsharpProviderCallSelectionHost,
-  source: ResolvedSourcePropertyAccessInfo,
-  sourceFile: SourceFile,
+  access: Node,
   receiverType: TargetTypeRef | undefined,
 ): CsharpSourceProfilePropertyPolicyResult | undefined {
-  return selectCsharpSourceProfilePropertyPolicy(host, source, sourceFile, propertyPolicies, receiverType);
+  return selectCsharpSourceProfilePropertyPolicy(host, access, propertyPolicies, receiverType);
 }
 
+/** Profile selection for an element access the Host selected (facts.values.elementAccess). */
 export function selectCsharpComposedSourceProfileElement(
   host: CsharpProviderCallSelectionHost,
-  source: ResolvedSourceElementAccessInfo,
-  sourceFile: SourceFile,
+  access: Node,
 ): CsharpSourceProfileElementPolicyResult | undefined {
-  const union = selectCsharpArrayUnionElement(host, source, sourceFile);
-  if (union !== undefined) return union;
-  const record = selectCsharpIndexedRecordElement(host, source, sourceFile);
-  if (record !== undefined) return record;
-  return selectCsharpSourceProfileElementPolicy(
-    host,
-    source,
-    sourceFile,
-    elementPolicies,
-  );
+  return selectCsharpArrayUnionElement(host, access) ?? selectCsharpIndexedRecordElement(host, access) ??
+    selectCsharpSourceProfileElementPolicy(host, access, elementPolicies);
 }

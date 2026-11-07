@@ -11,11 +11,22 @@ import { getCsharpTypeFromProjectSourceReferenceNode } from "../types/project-so
 import type { CsharpTypeNode } from "../../target-ast/syntax/index.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
+/** The receiver expression of a selected member or call, and its value declaration when the Host names one. */
+export type CsharpPlannedReceiverSubject = Pick<CsharpSelectedReceiverEvidence, "expression" | "valueDeclaration">;
+
+/** The receiver subject of a Host member, element or call selection (a call without a receiver has none). */
+export function csharpSelectionReceiver(
+  source: import("@tsonic/target-api/source").SourceMemberAccessSelection | import("@tsonic/target-api/source").SourceElementAccessRecord,
+): CsharpPlannedReceiverSubject {
+  return { expression: source.receiver, ...("receiverValue" in source && source.receiverValue?.declaration !== undefined
+    ? { valueDeclaration: source.receiverValue.declaration } : {}) };
+}
+
 export type CsharpPlannedReceiver =
   | { readonly kind: "type"; readonly expression: CsharpTypeNode }
   | { readonly kind: "value"; readonly value: CsharpPlannedValue };
 
-function csharpProjectTypeReceiver(receiver: CsharpSelectedReceiverEvidence,
+function csharpProjectTypeReceiver(receiver: CsharpPlannedReceiverSubject,
   input: CsharpPlanningContext, diagnostics: TargetDiagnostic[]): CsharpTypeNode | undefined {
   const selected = input.program.records.memberReceiver.get(receiver.expression, receiver.valueDeclaration);
   if (selected === undefined) failCsharpPlannerInvariant("An admitted member receiver requires its exact native acquisition plan.", receiver.expression);
@@ -26,7 +37,7 @@ function csharpProjectTypeReceiver(receiver: CsharpSelectedReceiverEvidence,
     ?? failCsharpPlannerInvariant("An admitted type receiver requires its exact native declaration reference.", selected.reference);
 }
 
-export function translateCsharpSelectedReceiver(receiver: CsharpSelectedReceiverEvidence, sourceFile: SourceFile,
+export function translateCsharpSelectedReceiver(receiver: CsharpPlannedReceiverSubject, sourceFile: SourceFile,
   input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], planExpression: ExpressionPlanner,
   projection?: CsharpMemberReceiverProjection): CsharpPlannedReceiver | undefined {
   const projectType = csharpProjectTypeReceiver(receiver, input, diagnostics);

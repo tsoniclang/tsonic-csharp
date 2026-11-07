@@ -5,6 +5,10 @@ import {
   compileCsharpSource,
 } from "../../../helpers/direct-csharp-session.mjs";
 import { createCsharpPlanningContext } from "../../../../dist/backend/planner/context.js";
+import { sealCsharpAnalysisProgram } from "../../../../dist/analysis/program/index.js";
+
+// The planner reads the sealed program (records and syntax only), as in production (nextgen C-2542).
+const sealedProgram = program => program === undefined ? undefined : sealCsharpAnalysisProgram(program);
 import { planStatements } from "../../../../dist/backend/planner/statements/planning.js";
 import { csharpProgramSourceFiles } from "../../../helpers/program-source-files.mjs";
 
@@ -49,7 +53,8 @@ for (const surface of ["native", "js"]) {
     assert.equal(compiled.result.program === undefined, true, "the module admission owns this source refusal");
     const errors = compiled.result.diagnostics.filter(issue => issue.category === "error");
     assert.equal(errors.length, 1, "the foreign module obligation keeps its exact one existing refusal");
-    assert.equal(errors[0].code, "CSHARP_UNSUPPORTED_AST", "the foreign source code is unchanged");
+    // nextgen C-2542: split code for a top-level statement outside the C# planning surface.
+    assert.equal(errors[0].code, "CSHARP_TOP_LEVEL_STATEMENT_NOT_PLANNED", "the refusal code names its .NET reason");
     assert.equal(errors[0].message, "Top-level statement is outside the current C# planning surface.",
       "the foreign late refusal is not relabelled as an internal error");
     const node = errors[0].sourceNode;
@@ -62,7 +67,7 @@ for (const surface of ["native", "js"]) {
       export function run(): int32 { return 1; }
     ` });
     assertCsharpCompilationSucceeded(admitted);
-    const program = admitted.result.program;
+    const program = sealedProgram(admitted.result.program);
     const ast = program.source.ast;
     let moduleOnly;
     const visit = current => {

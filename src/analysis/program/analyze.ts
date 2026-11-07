@@ -7,16 +7,17 @@ import { finalizeCsharpNativeEmission } from "./emission.js";
 
 import { analyzeCsharpProjectCallableAdapters } from "../project-types/callable-adapters.js";
 
-import { analyzeSourceLiteralValues } from "@tsonic/target-api/source";
 
-import { createTsonicPointerStorageRelation, createTsonicMemoryBindingFactsIndex } from "@tsonic/source-core/facts";
 import { rejectedTargetStage, resolvedTargetStage, failTargetAnalysisInvariant, targetDiagnosticFromExtension } from "@tsonic/target-api/artifacts";
 import { resolveTargetContractFixedPoint } from "@tsonic/target-api/analysis";
+import { tsonicCoreAnalysisKey } from "@tsonic/source-core/facts";
 import type { TargetStageResult, TargetDiagnostic } from "@tsonic/target-api/artifacts";
 
 import { createCsharpSourceAttributeApplicationIndex } from "../attributes/application-index.js";
 import { createCsharpSafetyApplicationFactIndex } from "../safety/application-index.js";
 import type { CsharpAnalysisProgram, CsharpTargetAnalysisRequest } from "./model.js";
+import { forwardSourceRefusal } from "./source-facts.js";
+import { csharpSourceNodes } from "./source-nodes.js";
 import { createCsharpSourceIdentityPolicy } from "../../source/extension/identities.js";
 
 import { csharpTargetRepresentationContractId } from "../../target-model/identities/identities.js";
@@ -24,7 +25,6 @@ import { analyzeCsharpSourceModuleConstructions } from "../source-modules/index.
 import { composeCsharpBinaryExecutionDriver } from "../../target-model/metadata/binary-execution-drivers.js";
 import { analyzeCsharpModuleInitialization } from "../module-initialization/index.js";
 import { createCsharpSourceProfileCallableAliasQuery } from "../operations/source-profiles/callable-aliases.js";
-import { createSourceStorageQuery } from "@tsonic/target-api/analysis";
 import { createCsharpSourceProfileStorageEffects } from "../operations/source-profiles/source-storage-effects.js";
 import { analyzeCsharpPromiseResults } from "../callables/async/promise-results.js";
 import { analyzeCsharpNativeErrorAdmission } from "../objects/error-storage-demands.js";
@@ -35,7 +35,6 @@ import { analyzeCsharpNativeValueCarriers, analyzeCsharpObjectMethodSources } fr
 import { analyzeCsharpModuleCallables } from "../callables/module-callables.js";
 import { analyzeCsharpSourceTypeFlowObligations } from "../source-evidence/type-flow-obligations.js";
 import { analyzeCsharpDictionaryLiterals } from "../objects/dictionary-literals.js";
-import { representCsharpSourceType } from "../../policy/types/source-type-flow/representation.js";
 import { csharpRepresentationDifference } from "./representation-differences.js";
 
 type CsharpAnalysisRejection = Extract<TargetStageResult<never>, { readonly kind: "rejected" }>;
@@ -50,7 +49,7 @@ export function analyzeCsharpTargetProgram(
 
 /** The sealed target program of a complete analysis program: its records, host and syntax tree only. */
 export function sealCsharpAnalysisProgram(program: CsharpAnalysisProgram): CsharpTargetProgram {
-  return Object.freeze({ records: program.records, host: program.host, source: Object.freeze({ ast: program.source.ast }) });
+  return Object.freeze({ records: program.records, host: program.host, source: Object.freeze({ ast: program.source.syntax }) });
 }
 
 /** The complete analysis program: the sealed records with the analysis catalogs they were built from. */
@@ -73,70 +72,76 @@ function analyzeCsharpTargetProgramBeforeSeal(
 ): TargetStageResult<CsharpAnalysisProgram> {
   const { input, configuration, providers } = request;
   const source = input.source;
-  const typeFlowRefusals = source.effectiveTypes.refusals();
-  if (typeFlowRefusals.length !== 0) return rejectedTargetStage(typeFlowRefusals.map(refusal => Object.freeze({
-    code: refusal.code, category: "error" as const, source: refusal.source,
-    sourceNode: refusal.site, message: refusal.reason,
-  })));
-  const aliasIssues = analyzeCsharpSourceAliasReexports(source.ast, source.navigation.sourceFiles);
+  // Every Host refusal is forwarded unchanged (code, message, site) before any C# analysis runs (R5). C# consumers
+  // therefore never meet a refused Source outcome (analysis/program/source-facts.ts).
+  const sourceRefusals = source.facts.refusals();
+  if (sourceRefusals.length !== 0) return rejectedTargetStage(sourceRefusals.map(forwardSourceRefusal));
+  // Host analysis refusals not folded into refusals() are forwarded the same way, before any C# analysis (R-C2-9).
+  // The property-name issue carries its Host code (request R-B2-3: SourcePropertyNameIssue gains `code`).
+  const analysisRefusals: TargetDiagnostic[] = [
+    ...source.facts.analyses.enumIssues().map(issue => Object.freeze({ code: issue.code, category: "error" as const,
+      source: "tsonic", message: issue.message, sourceNode: issue.sourceNode })),
+    ...source.facts.analyses.propertyNameIssues().map(issue => Object.freeze({ code: issue.code, category: "error" as const,
+      source: "tsonic", message: issue.reason, sourceNode: issue.node })),
+  ];
+  if (analysisRefusals.length !== 0) return rejectedTargetStage(analysisRefusals);
+  const aliasIssues = analyzeCsharpSourceAliasReexports(source.syntax, source.sourceFiles);
   if (aliasIssues.length !== 0) return rejectedTargetStage(aliasIssues.map(diagnostic => ({
     ...targetDiagnosticFromExtension(diagnostic.nodeOrSpan, diagnostic), code: diagnostic.publicCode,
   })));
-  if (source.semantics.enumConstants.issues.length !== 0) return rejectedTargetStage(source.semantics.enumConstants.issues);
   const nativeErrors = analyzeCsharpNativeErrorAdmission(source);
   if (nativeErrors.issues.length !== 0) return rejectedTargetStage(nativeErrors.issues);
-  const memoryBindings = createTsonicMemoryBindingFactsIndex(source);
-  const sourceAttributeApplications = createCsharpSourceAttributeApplicationIndex(source, source.navigation.sourceFiles);
+  // Host analyses are reached only through facts.analyses (supervisor ruling; I2): never with a program handle.
+  // Source-core analyses are the typed extension record (request R-B2-1: memoryBindings and pointerStorage join it).
+  const core = source.facts.analyses.extension(tsonicCoreAnalysisKey);
+  const memoryBindings = core.memoryBindings;
+  const sourceAttributeApplications = createCsharpSourceAttributeApplicationIndex(source, source.sourceFiles);
   const safetyApplications = createCsharpSafetyApplicationFactIndex({
-    ast: source.ast,
-    sourceFiles: source.navigation.sourceFiles,
+    ast: source.syntax,
+    sourceFiles: source.sourceFiles,
     sourceFacts: source.sourceFacts,
-    navigation: source.navigation,
+    facts: source.facts,
   });
   const statementErasure = Object.freeze({ attributeApplications: sourceAttributeApplications, safetyApplications,
     errorNameInitializations: nativeErrors.nameInitializations });
-  const sourceFiles = Object.freeze([...source.navigation.sourceFiles]);
-  const sourceNodes = source.navigation.nodesForFiles(sourceFiles);
-  const moduleCallables = analyzeCsharpModuleCallables(source.ast, sourceNodes);
-  const literalValues = analyzeSourceLiteralValues(source.ast, sourceFiles);
-  const sourceStorage = createSourceStorageQuery(source, sourceFiles, undefined, createCsharpSourceProfileStorageEffects(source, providers));
+  const sourceFiles = Object.freeze([...source.sourceFiles]);
+  const sourceNodes = csharpSourceNodes(source.syntax, sourceFiles);
+  const moduleCallables = analyzeCsharpModuleCallables(source.syntax, sourceNodes);
+  const sourceStorage = source.facts.analyses.storage({ sourceFiles, effects: createCsharpSourceProfileStorageEffects(source, providers) });
   const sourceStorageFailure = sourceStorage.failureReason();
   if (sourceStorageFailure !== undefined) return rejectedTargetStage([{
     code: "CSHARP_SOURCE_STORAGE_NOT_PROVEN", category: "error", source: "tsonic-csharp", message: sourceStorageFailure,
   }]);
   const sourceIdentities = createCsharpSourceIdentityPolicy(
-    source.ast,
+    source.syntax,
     input.paths.projectRoot,
     input.sourcePackages,
   );
   const nameHost = Object.freeze({
-    ast: source.ast,
-    navigation: source.navigation,
+    ast: source.syntax,
+    facts: source.facts,
     sourceFiles,
     sourceIdentities,
-    semanticsFor: source.semantics.forNode,
   });
   const callOnlyAlias = createCsharpSourceProfileCallableAliasQuery(source);
   const typeHost = {
-    effectiveTypes: source.effectiveTypes,
+    facts: source.facts,
+    // N5: the native integer width comes from the platform bridge. Every supported .NET runtime identifier of this
+    // target (x64, arm64) is 64-bit; a 32-bit bridge would set 32 here.
+    platform: Object.freeze({ nativeIntegerBits: 64 as const, targetFramework: configuration.targetFramework }),
+    profile: input.target.surfaces?.includes("js") === true ? "js" as const : "native" as const,
     moduleCallables,
     integerRanges: createCsharpIntegerRangeIndex(source, sourceNodes),
-    enumConstants: source.semantics.enumConstants,
-    literalValues,
     sourceStorage,
     callOnlyAlias,
-    objectMethodSources: analyzeCsharpObjectMethodSources(source.ast, sourceNodes, source.navigation, callOnlyAlias),
-    ast: source.ast,
+    objectMethodSources: analyzeCsharpObjectMethodSources(source.syntax, sourceNodes, source.facts, callOnlyAlias),
+    ast: source.syntax,
     sourceFiles,
     sourceFacts: source.sourceFacts,
-    navigation: source.navigation,
     providers,
-    pointerStorage: createTsonicPointerStorageRelation(source, sourceStorage),
+    pointerStorage: core.pointerStorage(sourceStorage),
     memoryBindings,
     target: input.target,
-    semantics: source.semantics.forFile,
-    semanticsFor: source.semantics.forNode,
-    hasSemantics: source.semantics.includes,
   };
   let transition: { readonly previous: CsharpRepresentationContract; readonly repeated: CsharpRepresentationContract } | undefined;
   const closure = resolveTargetContractFixedPoint<CsharpRepresentationContract, CsharpAnalysisRejection>({
@@ -176,7 +181,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
   if (closure.kind === "rejected") {
     const failure = closure.failures[0]!;
     if (closure.failures.length === 1 && failure.cause !== undefined) return failure.cause;
-    const changes = transition === undefined ? [] : csharpRepresentationDifference(transition.previous, transition.repeated, sourceIdentities.node, source.ast);
+    const changes = transition === undefined ? [] : csharpRepresentationDifference(transition.previous, transition.repeated, sourceIdentities.node, source.syntax);
     if (changes.length !== 0) process.stderr.write(`${changes.join("\n")}\n`);
     return rejectedTargetStage(closure.failures.flatMap(failure => failure.cause?.diagnostics ?? [{
       code: "CSHARP_TARGET_CONTRACT_CLOSURE_REJECTED",
@@ -216,7 +221,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
     }]);
   }
   const callablePolicy = Object.freeze({
-    ast: analysis.policy.ast, navigation: analysis.policy.navigation,
+    ast: analysis.policy.ast, facts: analysis.policy.facts,
     typeDefinitions: analysis.policy.typeDefinitions, projectTypes: analysis.policy.projectTypes,
     providers: analysis.policy.providers, target: analysis.policy.target, objectShapes: analysis.objectShapes,
   });
@@ -242,7 +247,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
   if (analysisIssues.length > 0) {
     return rejectCsharpAnalysisIssues(analysisIssues);
   }
-  const dictionaryLiterals = analyzeCsharpDictionaryLiterals(source.ast, analysis.nativeDemand);
+  const dictionaryLiterals = analyzeCsharpDictionaryLiterals(source.syntax, analysis.nativeDemand);
   if (dictionaryLiterals.issues.length !== 0) return rejectedTargetStage(dictionaryLiterals.issues);
   const typeFlowIssues = analyzeCsharpSourceTypeFlowObligations(analysis.policy, analysis.objectShapes,
     analysis.typeSystem.nativeConstruction, dictionaryLiterals.records, analysis.sourceEvidence.compileTimeMetadata);
@@ -301,7 +306,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
     if (use.reason === "construction-unresolved") {
       const construction = analysis.operations.selectedConstruction.get(use.expression);
       if (construction?.jsValue.kind === "rejected") return [{ sourceNode: use.expression,
-        source: "tsonic-csharp", category: "error", code: "CSHARP_UNSUPPORTED_AST", message: construction.jsValue.reason }];
+        source: "tsonic-csharp", category: "error", code: construction.jsValue.code, message: construction.jsValue.reason }];
       const selected = construction?.target;
       if (selected?.kind === "missing" || selected?.kind === "conflict" || selected?.kind === "ambiguous") {
         const code = selected.kind === "missing" ? "CSHARP_TARGET_CONSTRUCTION_NOT_CLOSED"
@@ -314,8 +319,10 @@ function analyzeCsharpTargetProgramBeforeSeal(
     if (use.message === undefined && use.reason !== "argument-refused" && use.reason !== "source-argument-rejected" &&
       use.reason !== "property-key-refused") return [];
     return [{ sourceNode: use.expression, source: "tsonic-csharp", category: "error",
-      code: use.code ?? "CSHARP_UNSUPPORTED_AST", message: use.message ?? failTargetAnalysisInvariant(
-        "tsonic-csharp", "A native source refusal requires its exact admitted reason.", use.expression),
+      code: use.code ?? failTargetAnalysisInvariant(
+        "tsonic-csharp", "A native refusal requires its exact CSHARP_ code.", use.expression),
+      message: use.message ?? failTargetAnalysisInvariant(
+        "tsonic-csharp", "A native refusal requires its exact admitted reason.", use.expression),
     }];
   });
   // A refused destructuring binding is the root cause of refusals at its later uses (an incomplete rest copy has no
@@ -328,11 +335,10 @@ function analyzeCsharpTargetProgramBeforeSeal(
   })));
   if (flowReads.issues.length > 0) return rejectCsharpAnalysisIssues(flowReads.issues);
   const nativeValueCarriers = analyzeCsharpNativeValueCarriers(
-    source.ast, nativeDemand.requiredNativeValueDeclarations, analysis.sourceEvidence, {
-      effectiveTypes: source.effectiveTypes,
-      resolve: (descriptor, occurrence) => representCsharpSourceType(analysis.policy.types.sourceTypeFlowRepresentation(occurrence), descriptor),
-    }, analysis.objectShapes,
-    source.semantics.forNode, analysis.requiredRecords,
+    source.syntax, nativeDemand.requiredNativeValueDeclarations, analysis.sourceEvidence, {
+      facts: source.facts,
+      resolve: (descriptor, occurrence) => analysis.policy.types.represent(descriptor, occurrence, "storage"),
+    }, analysis.objectShapes, analysis.requiredRecords,
   );
   if (nativeValueCarriers.issues.length > 0) return rejectCsharpAnalysisIssues(nativeValueCarriers.issues);
   if (bindingPatterns.issues.length > 0) return rejectCsharpAnalysisIssues(bindingPatterns.issues);

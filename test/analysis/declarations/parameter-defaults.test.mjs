@@ -1,37 +1,22 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { checkCsharpSource } from "../../helpers/direct-csharp-session.mjs";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
+import { hostProgram } from "../../representation/host-fixture.mjs";
 import { analyzeCsharpDeclarations } from "../../../dist/analysis/declarations/analyze.js";
 import { getCsharpNullableElementTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 
-function fixture(acceptsOmission, foreign = false) {
-  const checked = checkCsharpSource({ sourceText: `import type { int32 } from "@tsonic/core/types.js";
-    export function run(value: int32 = 1): void {}
-    declare function other(value: int32): void;` });
-  assert.equal(checked.sourceDiagnosticsText, "");
-  const source = createTargetSourceProgram(checked.source);
-  const file = source.sourceFiles.find(file => !source.ast.isDeclarationFile(file));
-  const owners = source.ast.statements(file).filter(node => source.ast.is.IsFunctionDeclaration(node));
-  const owner = owners.find(node => source.ast.text(source.ast.name(node)) === "run");
-  const other = owners.find(node => source.ast.text(source.ast.name(node)) === "other");
-  const parameter = source.ast.parameters(owner)[0];
-  const foreignParameter = source.ast.parameters(other)[0];
-  const queries = source.semantics.forNode(parameter);
-  const signature = queries.types.declarationSignatureInfo(owner);
-  assert.equal(signature?.parameters[0]?.declaration === parameter, true,
-    "the original checked callable, parameter, initializer and eager publication belong to the same Source program");
-  const selectedQueries = { ...queries, types: { ...queries.types,
-    declarationSignatureInfo(declaration) {
-      if (declaration !== owner) return queries.types.declarationSignatureInfo(declaration);
-      return acceptsOmission === undefined ? undefined : { ...signature,
-        parameters: [{ ...signature.parameters[0], declaration: foreign ? foreignParameter : parameter, acceptsOmission }] };
-    },
-  } };
-  const policy = { ast: source.ast, sourceFiles: [file], effectiveTypes: source.effectiveTypes,
-    navigation: source.navigation, semanticsFor: node => node === owner || node === parameter ? selectedQueries : source.semantics.forNode(node),
-    types: { resolveCallableReturn(declaration) {
-      const published = source.effectiveTypes.callableReturn(declaration);
+// nextgen C-2542: omission is read from the owner's authored parameter list (analysis/callables/calls/signature-parameters.ts:
+// an optional or defaulted parameter with no required parameter after it accepts omission), not from a checker
+// declarationSignatureInfo double. Each omission value is now produced by a real program instead of an injected flag.
+function fixture(acceptsOmission) {
+  const program = hostProgram(`import type { int32 } from "@tsonic/core/types.js";
+    export function run(value: int32 = 1${acceptsOmission ? "" : ", last: int32"}): void {}`);
+  const ast = program.ast;
+  const file = program.files[0];
+  const owner = program.named("run");
+  const parameter = ast.parameters(owner)[0];
+  const policy = { ast, sourceFiles: [file], facts: program.facts,
+    types: { callableReturn(declaration) {
+      const published = program.facts.values.callableReturn(declaration);
       assert.equal(published !== undefined && published.kind !== "refused" && published.provenance.occurrence === declaration &&
         published.type.kind === "intrinsic" && published.type.intrinsic === "void", true,
         "the return contract consumes this real callable's Host-published void descriptor");
@@ -40,8 +25,8 @@ function fixture(acceptsOmission, foreign = false) {
   const valueType = { kind: "source-primitive", name: "int32" };
   const evidence = { compileTimeMetadata: new Map(), pointerReturn: new Map(), inferredCallableReturnType: new Map(),
     nodeTargetType: { get: node => node === parameter
-      ? valueType : source.ast.kindName(node) === "KindVoidKeyword" ? { kind: "void" } : undefined },
-    contextualType: new Map(), expressionType: { get: node => queries.types.expressionType(node) } };
+      ? valueType : ast.kindName(node) === "KindVoidKeyword" ? { kind: "void" } : undefined },
+    contextualType: new Map() };
   return { parameter, selected: () => analyzeCsharpDeclarations(policy, evidence,
     { selectedProperty: new Map(), selectedCall: new Map() }).runtimeDefault.get(parameter) };
 }
@@ -61,8 +46,7 @@ test("native default declarations retain exact omission independently of their i
   }
 });
 
-test("a native default rejects missing or foreign declaration-slot evidence instead of guessing omission", () => {
-  for (const input of [fixture(undefined), fixture(true, true), fixture(false, true)]) {
-    assert.throws(input.selected, /requires its exact checked declaration slot/u);
-  }
-});
+// nextgen C-2542: the case "a native default rejects missing or foreign declaration-slot evidence" is removed. It
+// injected a missing or foreign checker declarationSignatureInfo slot; the slot is now the parameter's own position in
+// its owner's authored parameter list, which cannot be missing or foreign for a parameter of that owner (the remaining
+// guard is a failTargetAnalysisInvariant in declarations/analyze.ts).

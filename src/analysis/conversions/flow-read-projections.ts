@@ -10,7 +10,7 @@ import type { CsharpObjectShapeClassifications } from "../../target-model/record
 import { admitCsharpConversionSelection } from "./validation.js";
 
 export function analyzeCsharpFlowReadProjections(
-  policy: Pick<CsharpPolicyContext, "ast" | "sourceFiles" | "navigation" | "typeDefinitions" | "projectTypes" | "providers" | "target"> & {
+  policy: Pick<CsharpPolicyContext, "ast" | "sourceFiles" | "facts" | "typeDefinitions" | "projectTypes" | "providers" | "target"> & {
     readonly objectShapes: Pick<CsharpObjectShapeClassifications, "resolveNode" | "resolveTarget">;
   },
   evidence: CsharpSourceEvidenceIndex,
@@ -53,16 +53,16 @@ export function analyzeCsharpFlowReadProjections(
       if (operations.sourceMember.get(node) === undefined) return false;
       const selected = policy.ast.is.IsPropertyAccessExpression(node)
         ? operations.selectedProperty.get(node)?.selection : operations.selectedElement.get(node)?.target;
-      return selected?.kind === "source-owned" && selected.source.accessMode === "read" && !selected.source.callCallee;
+      return selected?.kind === "source-owned" && selected.source.access === "read";
     }
     // The parameter named by a type predicate (`value is Buffer`) is a type position, never a runtime read.
     const parent = policy.ast.parent(node);
     if (parent !== undefined && policy.ast.kindName(parent) === "KindTypePredicate") return false;
-    const reference = policy.navigation.sourceReferenceFor(node);
+    const reference = policy.facts.navigation.identity.target(node);
     if (reference === undefined) return false;
     let reads = runtimeReads.get(reference.declaration);
     if (reads === undefined) {
-      reads = new Set(policy.navigation.declarationUses(reference.declaration)
+      reads = new Set(policy.facts.navigation.uses.uses(reference.declaration)
         .filter(use => use.kind !== "type-only" && use.kind !== "source-linkage" &&
           (use.role !== "write" || use.throughMember))
         .map(use => use.reference));

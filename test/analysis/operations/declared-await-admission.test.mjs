@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createCompilerSessionFromFiles, formatDiagnostics } from "@tsonic/tsts";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
+import { csharpTestSourceProgram } from "../../helpers/target-source-program.mjs";
 import { analyzeCsharpAwaitAdmission } from "../../../dist/analysis/callables/async/await-admission.js";
 import { selectCsharpAwaitCompletion } from "../../../dist/policy/operations/control-flow/await-completions.js";
 import { promiseConstructorMember, promiseResolutionMember } from "../../../dist/policy/operations/source-profiles/promise-source-profile.js";
@@ -31,22 +31,23 @@ function fixture(body) {
   }).checkSource();
   const diagnostics = checked.diagnostics.filter(diagnostic => diagnostic !== undefined);
   assert.equal(diagnostics.length, 0, formatDiagnostics(diagnostics).slice(0, 1024));
-  const source = createTargetSourceProgram(checked);
+  const source = csharpTestSourceProgram(checked);
   const file = checked.getSourceFile("/src/index.ts");
   assert.equal(file !== undefined, true, "the original checked file is present");
   const awaits = [];
   const visit = node => {
-    if (source.ast.is.IsAwaitExpression(node)) awaits.push(node);
-    source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    if (source.syntax.is.IsAwaitExpression(node)) awaits.push(node);
+    source.syntax.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
   visit(file);
   assert.equal(awaits.length, 1, "one exact checked await owns the completion");
   const node = awaits[0];
-  return { ast: source.ast, navigation: source.navigation, node, expression: source.ast.as.AsAwaitExpression(node).Expression };
+  return { ast: source.syntax, facts: source.facts, node, expression: source.syntax.as.AsAwaitExpression(node).Expression };
 }
 
 function admit(selected, changes = {}) {
-  const completion = selectCsharpAwaitCompletion(awaitedTask, undefined, "consumed");
+  // nextgen C-2542: the selector takes the Host awaited result (carrier, awaited, definitions, resultUse).
+  const completion = selectCsharpAwaitCompletion(awaitedTask, awaited, undefined, "consumed");
   assert.equal(completion !== undefined, true, "a native Task has a completed signature");
   const carriers = new Map([[selected.expression, { value: awaitedTask }], [selected.node, { value: awaited }]]);
   if (changes.missingOperand) carriers.delete(selected.expression);
@@ -55,7 +56,7 @@ function admit(selected, changes = {}) {
   const use = { kind: changes.erased ? "erased" : "runtime", expression: selected.node };
   return analyzeCsharpAwaitAdmission({
     ast: selected.ast,
-    navigation: selected.navigation,
+    facts: selected.facts,
     demand: { entries: changes.repeated ? [{ use }, { use }] : [{ use }] },
     values: { valueRead: carriers },
     operations: { awaitCompletion: new Map(changes.missingCompletion ? [] : [[selected.node, completion]]) },
@@ -85,7 +86,7 @@ for (const [name, body] of [
       const issues = admit(selected, changes);
       assert.equal(issues.length, 1);
       assert.equal(issues[0].sourceNode === selected.node, true, "the original used await is the issue subject");
-      assert.equal(issues[0].code, "CSHARP_UNSUPPORTED_AST");
+      assert.equal(issues[0].code, "CSHARP_AWAIT_COMPLETION");
       assert.match(issues[0].message, /finalized await-result carrier/u);
     }
   });
@@ -166,8 +167,8 @@ test("discarded bare-T await publishes one native Task test and no invented resu
     assert.equal(file !== undefined, true, "the original declaration is retained");
     const awaits = [];
     const visit = node => {
-      if (program.source.ast.is.IsAwaitExpression(node)) awaits.push(node);
-      program.source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+      if (program.source.syntax.is.IsAwaitExpression(node)) awaits.push(node);
+      program.source.syntax.forEachChild(node, child => { if (child !== undefined) visit(child); });
     };
     visit(file);
     assert.equal(awaits.length, 1);

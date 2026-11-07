@@ -1,4 +1,4 @@
-import type { Node, SourceFile } from "@tsonic/tsts";
+import type { Node } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpSelectedTargetCall } from "../../target-model/records/objects/members.js";
 import type { CsharpCallClassification, CsharpOperationIssue } from "../../target-model/records/operations/operations.js";
@@ -8,7 +8,6 @@ export function classifyMethodTypeArgumentProjections(
   policy: CsharpPolicyContext,
   selection: CsharpSelectedTargetCall,
   contextNode: Node,
-  sourceFile: SourceFile,
   issues: CsharpOperationIssue[] | undefined,
 ): NonNullable<
   CsharpCallClassification["methodTypeArgumentProjections"]
@@ -16,7 +15,7 @@ export function classifyMethodTypeArgumentProjections(
   const projections = selection.targetMember
     .csharpMethodTypeArgumentProjections ?? [];
   const refuse = (message: string, node: Node = contextNode): void => {
-    issues?.push(Object.freeze({ node, code: "CSHARP_UNSUPPORTED_AST", message }));
+    issues?.push(Object.freeze({ node, code: "CSHARP_METHOD_TYPE_ARGUMENT_PROJECTION", message }));
   };
   const indexed = new Map(projections.map(projection => [projection.targetTypeParameterIndex, projection]));
   if (indexed.size !== projections.length) {
@@ -30,7 +29,7 @@ export function classifyMethodTypeArgumentProjections(
   return Object.freeze(selection.targetMethodTypeArguments.map((argument, index) => {
     const required = indexed.has(index);
     const projection = required && argument.kind === "selected-source"
-      ? policy.objectShapes.resolveProjectConstructibleSelectedType(argument.targetType, argument.descriptor, contextNode, sourceFile)
+      ? policy.objectShapes.resolveProjectConstructibleSelectedType(argument.targetType, argument.descriptor, contextNode)
       : required ? Object.freeze({ kind: "rejected" as const, reason: "Exact source-selected type evidence is required." })
         : Object.freeze({ kind: "unchanged" as const });
     const subject = argument.kind === "selected-source" ? argument.explicitTypeNode ?? contextNode : contextNode;

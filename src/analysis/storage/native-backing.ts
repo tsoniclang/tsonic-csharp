@@ -13,7 +13,6 @@ import type { CsharpTargetOperationClassifications } from "../../target-model/re
 import type { CsharpNativeArrayStorage, CsharpStorageIssue } from "../../target-model/records/storage/storage.js";
 import type { CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
 import { createCsharpNativeFieldBacking } from "./native-field-backing.js";
-import { createCsharpSourceTypeParameterEnvironment } from "../source-evidence/types/resolution/type-parameter-environment.js";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 
 interface CsharpNativeFieldDemand {
@@ -56,12 +55,7 @@ export function prepareCsharpNativeBacking(
   };
   for (const use of evidence.pointerBackingUses) {
     const layout = use.layout;
-    const layoutFile = policy.ast.getSourceFile(layout.call);
-    if (layoutFile === undefined) {
-      reject(use.call, "The native backing descriptor and origin require exact source files.");
-      continue;
-    }
-    const descriptor = selectCsharpNativeMemoryLayout(policy, layout, layoutFile);
+    const descriptor = selectCsharpNativeMemoryLayout(policy, layout);
     if (descriptor === undefined) {
       reject(use.call, csharpNativeArrayMemoryLayoutRejection(layout) ??
         "Physical backing requires an exact closed all-bit-pattern native layout.");
@@ -74,14 +68,9 @@ export function prepareCsharpNativeBacking(
           message: "Physical pointer backing requires an allocation, address or reinterpretation, not a logical pointer." }));
         continue;
       }
-      const originFile = producer.source.storage.sourceFile;
-      if (originFile !== policy.ast.getSourceFile(origin.call)) {
-        reject(use.call, "The native backing descriptor and origin require exact source files.");
-        continue;
-      }
       if (origin.operation === "reinterpret") {
         if (!retainLayout(origin.call, use.call, layout, descriptor)) continue;
-        const restored = selectCsharpRawLocation(policy, origin.call, originFile);
+        const restored = selectCsharpRawLocation(policy, origin.call);
         if (restored?.kind !== "raw-location" || !csharpNativeMemoryLayoutsEqual(descriptor, restored.layout)) {
           reject(origin.call, "The reinterpreted location does not prove the demanded physical layout.");
         }
@@ -102,7 +91,7 @@ export function prepareCsharpNativeBacking(
           ? fieldDemands.find(demand => demand.call === origin.call) : backings.get(subject);
       if (declared === undefined) {
         const selected = selectCsharpDeclaredNativeMemoryLayout(policy, operation.pointeeType,
-          origin.pointeeType, originFile, layout.dataLayout, valueRead);
+          origin.pointee, origin.call, layout.dataLayout, valueRead);
         if (selected.kind === "rejected") {
           if (!rejectedLayouts.has(use.call)) {
             rejectedLayouts.add(use.call);
@@ -211,7 +200,7 @@ function finalizeCsharpNativeFieldBacking(
     return Object.freeze({ ...demand, shape, member });
   });
   const fields = createCsharpNativeFieldBacking(objectShapes.knownShapes(),
-    createCsharpSourceTypeParameterEnvironment(policy.ast, declaration => evidence.typeParameterConstraints.get(declaration)));
+    policy.typeParameters);
   const issues: CsharpStorageIssue[] = [];
   for (const demand of demands) {
     const { shape, member, layout } = demand;

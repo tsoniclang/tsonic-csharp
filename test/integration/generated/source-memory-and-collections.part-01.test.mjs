@@ -77,9 +77,9 @@ test(`dense numeric arrays reject deletion before copying for ${initializer}`, {
       });
       assert.equal(matches.length, 1, "C9 rejects the exact original delete occurrence, independently of any other reported family");
       const issue = matches[0];
-      const retained = compiled.targetSource.effectiveTypes.refusals().filter(refusal =>
+      const retained = compiled.targetSource.facts.refusals().filter(refusal =>
         refusal.site === issue.sourceNode && refusal.code === issue.code);
-      assert.equal(issue.source === "tsonic" && retained.length === 1 && issue.message === retained[0].reason, true,
+      assert.equal(issue.source === "tsonic" && retained.length === 1 && issue.message === retained[0].message, true,
         "the identical published Host refusal supplies the code, original occurrence and reason");
       assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
         "the refused original program publishes no Native output");

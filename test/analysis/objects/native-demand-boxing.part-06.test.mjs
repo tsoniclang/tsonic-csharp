@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createCsharpTypeParameterEnvironment } from "../../../dist/analysis/source-evidence/types/resolution/type-parameter-environment.js";
+import { createCsharpTypeParameterEnvironment } from "../../../dist/representation/index.js";
 import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { compileCsharpRequiredRecordSource } from "../../helpers/required-records.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
@@ -89,9 +89,9 @@ for (const [name, body] of Array.from([
   ]).slice(0, 3)) {
 test(`${surface}: ${name} selects physical value storage before publication and preserves native observations`, { timeout: 300_000 }, () => {
     const selected = compileCsharpRequiredRecordSource(header + body, surface);
-    const declaration = selected.nodes.find(node => (selected.source.ast.is.IsVariableDeclaration(node) &&
-      selected.source.ast.text(selected.source.ast.as.AsVariableDeclaration(node).name) === "value") ||
-      (selected.source.ast.is.IsBindingElement(node) && selected.source.ast.text(selected.source.ast.as.AsBindingElement(node).name) === "value"));
+    const declaration = selected.nodes.find(node => (selected.source.syntax.is.IsVariableDeclaration(node) &&
+      selected.source.syntax.text(selected.source.syntax.as.AsVariableDeclaration(node).name) === "value") ||
+      (selected.source.syntax.is.IsBindingElement(node) && selected.source.syntax.text(selected.source.syntax.as.AsBindingElement(node).name) === "value"));
     assert.equal(declaration !== undefined, true, `${name}: one actual checked storage declaration`);
     const carrier = selected.program.records.storageType.get(declaration);
     assert.equal(carrier?.csharpValueType === true, true, `${name}: the original storage owner publishes the native value carrier`);
@@ -112,8 +112,8 @@ for (const [name, body] of Array.from([
   ]).slice(0, 3)) {
 test(`${surface}: ${name} retains reference storage and native identity`, { timeout: 300_000 }, () => {
     const selected = compileCsharpRequiredRecordSource(header + body, surface);
-    const declaration = selected.nodes.find(node => selected.source.ast.is.IsVariableDeclaration(node) &&
-      selected.source.ast.text(selected.source.ast.as.AsVariableDeclaration(node).name) === "value");
+    const declaration = selected.nodes.find(node => selected.source.syntax.is.IsVariableDeclaration(node) &&
+      selected.source.syntax.text(selected.source.syntax.as.AsVariableDeclaration(node).name) === "value");
     assert.equal(declaration !== undefined, true, `${name}: actual original declaration`);
     const carrier = selected.program.records.storageType.get(declaration);
     assert.equal(carrier !== undefined && carrier.csharpValueType !== true, true, `${name}: the original identity-bearing carrier is retained`);

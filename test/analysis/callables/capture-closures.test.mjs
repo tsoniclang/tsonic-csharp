@@ -1,7 +1,7 @@
+import { csharpTestSourceProgram } from "../../helpers/target-source-program.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createCompilerSessionFromFiles, formatDiagnostics } from "@tsonic/tsts";
-import { createTargetSourceProgram, sourceCallableDefinitionIsDiscarded } from "@tsonic/target-api/source";
 import { analyzeCsharpNativeCaptures } from "../../../dist/analysis/callables/values/capture-closures.js";
 import { createCaptureContractFixture } from "../../helpers/capture-contracts.mjs";
 import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
@@ -18,7 +18,7 @@ function fixture(text) {
     compilerOptions: { strict: true, target: "es2022", module: "esnext" },
   }).checkSource();
   assert.equal(checked.diagnostics.length, 0, formatDiagnostics(checked.diagnostics.slice(0, 4)).slice(0, 1024));
-  const source = createTargetSourceProgram(checked);
+  const source = csharpTestSourceProgram(checked);
   const file = checked.getSourceFile("/project/index.ts");
   assert.equal(file !== undefined, true, "exact checked fixture");
   const declarations = new Map();
@@ -30,21 +30,22 @@ function fixture(text) {
   const creationDemand = new Map();
   const loops = [];
   const visit = node => {
-    if (source.ast.is.IsForStatement(node)) loops.push(node);
-    if (source.ast.is.IsVariableDeclaration(node) || source.ast.is.IsBindingElement(node) ||
-      source.ast.is.IsParameterDeclaration(node) || source.ast.is.IsFunctionDeclaration(node)) {
-      const name = source.ast.name(node);
-      if (name !== undefined && source.ast.is.IsIdentifier(name)) declarations.set(source.ast.text(name), node);
-      types.set(node, source.ast.is.IsFunctionDeclaration(node) ? callable : scalar);
+    if (source.syntax.is.IsForStatement(node)) loops.push(node);
+    if (source.syntax.is.IsVariableDeclaration(node) || source.syntax.is.IsBindingElement(node) ||
+      source.syntax.is.IsParameterDeclaration(node) || source.syntax.is.IsFunctionDeclaration(node)) {
+      const name = source.syntax.name(node);
+      if (name !== undefined && source.syntax.is.IsIdentifier(name)) declarations.set(source.syntax.text(name), node);
+      types.set(node, source.syntax.is.IsFunctionDeclaration(node) ? callable : scalar);
     }
-    if (source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node)) {
+    if (source.syntax.is.IsArrowFunction(node) || source.syntax.is.IsFunctionExpression(node)) {
       types.set(node, callable);
-      creationDemand.set(node, sourceCallableDefinitionIsDiscarded(node, source.ast, source.navigation));
+      // nextgen C-2542: creation demand is the Host analysis fact (sourceCallableDefinitionIsDiscarded is Host-internal).
+      creationDemand.set(node, source.facts.analyses.callableDefinitionDiscarded(node));
     }
-    if (source.ast.kindName(node) === "KindThisKeyword" || source.ast.kindName(node) === "KindSuperKeyword") {
+    if (source.syntax.kindName(node) === "KindThisKeyword" || source.syntax.kindName(node) === "KindSuperKeyword") {
       types.set(node, Object.freeze({ kind: "target-named", id: "Fixture.Receiver", csharpAllowsRefLikeTypeArguments: [] }));
     }
-    source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    source.syntax.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
   visit(file);
   const evidence = { compileTimeMetadata: { get: node => metadata.has(node) },
@@ -57,7 +58,7 @@ function fixture(text) {
   };
   const owner = name => {
     const selected = declaration(name);
-    return source.ast.as.AsVariableDeclaration(selected)?.Initializer ?? selected;
+    return source.syntax.as.AsVariableDeclaration(selected)?.Initializer ?? selected;
   };
   const select = (physicalType = (_declaration, type) => type) => {
     const issues = [];
@@ -107,8 +108,8 @@ test("prepared constructor default and body closures share the exact parameter a
     }`);
   input.runtimeDefaults.add(input.declaration("adjust"));
   const selected = input.select();
-  const constructor = input.source.ast.parent(input.declaration("value"));
-  const body = input.source.ast.body(constructor);
+  const constructor = input.source.syntax.parent(input.declaration("value"));
+  const body = input.source.syntax.body(constructor);
   assert.equal(selected.issues.length, 0);
   assert.equal(selected.captures.length, 2);
   assert.equal(selected.captures.every(capture => capture.values[0]?.scope === body), true);
@@ -123,10 +124,10 @@ test("a default-only constructor capture retains its callable-body activation", 
     }`);
   input.runtimeDefaults.add(input.declaration("adjust"));
   const selected = input.select();
-  const constructor = input.source.ast.parent(input.declaration("value"));
+  const constructor = input.source.syntax.parent(input.declaration("value"));
   assert.equal(selected.issues.length, 0);
   assert.equal(selected.captures.length, 1);
-  assert.equal(selected.captures[0]?.values[0]?.scope === input.source.ast.body(constructor), true);
+  assert.equal(selected.captures[0]?.values[0]?.scope === input.source.syntax.body(constructor), true);
 });
 
 test("constructor capture rejects a missing exact physical carrier", () => {
@@ -325,7 +326,7 @@ test("destructured header bindings retain their exact declaration and activation
   }`);
   const selected = input.select();
   const index = input.declaration("index");
-  assert.equal(input.source.ast.is.IsBindingElement(index), true);
+  assert.equal(input.source.syntax.is.IsBindingElement(index), true);
   assert.equal(selected.issues.length, 0);
   assert.equal(selected.places.get(index)?.type === scalar, true);
   assert.equal(selected.places.get(index)?.scope === input.loops[0], true);
@@ -406,7 +407,7 @@ test("existing non-loop deferred initialization retains its native activation ow
     return read;
   }`);
   const selected = input.select();
-  const scope = input.source.ast.body(input.declaration("outer"));
+  const scope = input.source.syntax.body(input.declaration("outer"));
   assert.equal(selected.issues.length, 0);
   assert.equal(selected.places.size, 1);
   assert.equal(selected.places.get(input.declaration("value"))?.type === scalar, true);

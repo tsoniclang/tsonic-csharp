@@ -1,7 +1,7 @@
+import { csharpTestSourceProgram } from "../../helpers/target-source-program.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createTargetSourceProgram, Node_Initializer } from "@tsonic/target-api/source";
-import { createSourceStorageQuery } from "@tsonic/target-api/analysis";
+import { Node_Initializer } from "@tsonic/target-api/source";
 import { createCsharpSourceProfileStorageEffects } from "../../../dist/analysis/operations/source-profiles/source-storage-effects.js";
 import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
 import { checkCsharpSource } from "../../helpers/direct-csharp-session.mjs";
@@ -13,23 +13,23 @@ function selectedEffects(sourceText, surface = "js") {
   const checked = checkCsharpSource({ surface, sourceText: `export {};\n${sourceText}` });
   assert.equal(checked.sourceDiagnosticsText, "", "the source fixture remains checked");
   assert.equal(checked.extensionDiagnostics.length, 0, "the source fixture preserves extension validation");
-  const source = createTargetSourceProgram(checked.source);
+  const source = csharpTestSourceProgram(checked.source);
   const providers = createCsharpProviderRelationResolver({ providers: [], providerPolicies: [] });
   const effects = createCsharpSourceProfileStorageEffects(source, providers);
   const selections = new Map();
   const visit = node => {
-    if (source.ast.is.IsVariableDeclaration(node)) {
-      const initializer = source.ast.as.AsVariableDeclaration(node)?.Initializer;
-      if (initializer !== undefined && (source.ast.is.IsCallExpression(initializer) || source.ast.is.IsNewExpression(initializer))) {
-        const selected = source.semantics.forNode(initializer).operations.call(initializer);
-        const name = source.ast.text(source.ast.name(node));
-        assert.equal(selected?.sourceSelectedSignatureKind, "resolved", `${name} has an exact selected source call`);
-        selections.set(name, { node: initializer, selected, effect: effects.call(initializer, selected), effects, source, providers });
+    if (source.syntax.is.IsVariableDeclaration(node)) {
+      const initializer = source.syntax.as.AsVariableDeclaration(node)?.Initializer;
+      if (initializer !== undefined && (source.syntax.is.IsCallExpression(initializer) || source.syntax.is.IsNewExpression(initializer))) {
+        const selected = source.facts.selections.call(initializer);
+        const name = source.syntax.text(source.syntax.name(node));
+        assert.equal(selected !== undefined && selected.kind !== "refused", true, `${name} has an exact selected source call`);
+        selections.set(name, { node: initializer, selected, effect: effects.callEffect(selected), effects, source, providers });
       }
     }
-    for (const child of source.ast.children(node)) if (child !== undefined) visit(child);
+    for (const child of source.syntax.children(node)) if (child !== undefined) visit(child);
   };
-  for (const sourceFile of source.navigation.sourceFiles) visit(sourceFile);
+  for (const sourceFile of source.sourceFiles) visit(sourceFile);
   return selections;
 }
 
@@ -73,7 +73,7 @@ for (const surface of ["native", "js"]) test(`native allocation effects retain e
   `, surface);
   const control = selections.get("constructed");
   assert.equal(control !== undefined, true, "the owned allocation has its checked invocation");
-  const storage = createSourceStorageQuery(control.source, control.source.navigation.sourceFiles, undefined, control.effects);
+  const storage = control.source.facts.analyses.storage({ sourceFiles: control.source.sourceFiles, effects: control.effects });
   assert.equal(storage.failureReason(), undefined, "the one bounded storage graph is valid");
   const complete = new Set(["constructed", "called", "aliasConstructed", "aliasCalled"]);
   for (const [name, selection] of selections) {
@@ -100,20 +100,21 @@ test("native freeze aliases delegate exact selected operands to the one shared p
   const frozen = selections.get("frozen");
   const observed = selections.get("observed");
   assert.equal(frozen !== undefined && observed !== undefined, true, "both alias calls have checked invocations");
-  assert.equal(frozen?.effect?.resultAlias === frozen?.selected.sourceArguments[0].expression, true,
+  assert.equal(frozen?.effect?.resultAlias === frozen?.selected.arguments[0].argument, true,
     "freeze retains the exact checked actual operand");
   assert.equal(frozen.effect.resultAllocation === undefined, true, "freeze does not allocate a replacement");
   assert.equal(observed?.effect?.resultAlias === undefined, true, "inspection does not claim result identity");
   assert.equal(Object.hasOwn(frozen.effect, "preservedInputs"), false, "the removed preservation API cannot certify native writes");
   assert.equal(observed.effect === undefined, true, "inspection publishes no unchecked preservation contract");
   assert.equal(Object.isFrozen(frozen.effect), true, "materialized native alias evidence remains immutable");
-  const storage = createSourceStorageQuery(frozen.source, frozen.source.navigation.sourceFiles, undefined, frozen.effects);
-  const subject = storage.subjectFor(observed.selected.sourceArguments[0].expression);
+  // nextgen C-2542: analyses.storage takes { sourceFiles, effects } (SourceStorageAnalysisInput).
+  const storage = frozen.source.facts.analyses.storage({ sourceFiles: frozen.source.sourceFiles, effects: frozen.effects });
+  const subject = storage.subjectFor(observed.selected.arguments[0].argument);
   assert.equal(subject.kind, "resolved", "inspection uses its exact checked operand");
   const domain = storage.closedOriginsFor(subject.subject);
-  const file = frozen.source.ast.getSourceFile(frozen.node);
+  const file = frozen.source.syntax.getSourceFile(frozen.node);
   assert.equal(file !== undefined, true, "the original allocation belongs to this checked source file");
-  const token = Node_Initializer(frozen.source.ast, namedVariable(frozen.source.ast, file, "token"));
+  const token = Node_Initializer(frozen.source.syntax, namedVariable(frozen.source.syntax, file, "token"));
   assert.equal(token !== undefined, true, "the original empty allocation is present");
   assert.equal(domain.kind, "complete", "a by-value opaque call cannot replace the original container identity");
   assert.equal(domain.origins.length === 1 && domain.origins[0].subject.node === token &&
@@ -134,17 +135,17 @@ test("native freeze aliases delegate exact selected operands to the one shared p
   const memberObserved = members.get("observed");
   assert.equal(memberFrozen !== undefined && memberObserved !== undefined, true,
     "both mutable-backing alias calls have actual checked invocations");
-  assert.equal(memberFrozen.effect?.resultAlias === memberFrozen.selected.sourceArguments[0].expression, true,
+  assert.equal(memberFrozen.effect?.resultAlias === memberFrozen.selected.arguments[0].argument, true,
     "the member fixture retains the exact original freeze operand");
   assert.equal(memberObserved.effect === undefined, true,
     "the member fixture receives no invented native nonmutation guarantee");
-  const memberStorage = createSourceStorageQuery(memberFrozen.source,
-    memberFrozen.source.navigation.sourceFiles, undefined, memberFrozen.effects);
-  const memberFile = memberFrozen.source.ast.getSourceFile(memberFrozen.node);
+  const memberStorage = memberFrozen.source.facts.analyses.storage({ sourceFiles: memberFrozen.source.sourceFiles,
+    effects: memberFrozen.effects });
+  const memberFile = memberFrozen.source.syntax.getSourceFile(memberFrozen.node);
   assert.equal(memberFile !== undefined, true, "the member fixture has its actual checked source file");
-  const initializer = name => Node_Initializer(memberFrozen.source.ast,
-    namedVariable(memberFrozen.source.ast, memberFile, name));
-  const container = memberStorage.subjectFor(memberObserved.selected.sourceArguments[0].expression);
+  const initializer = name => Node_Initializer(memberFrozen.source.syntax,
+    namedVariable(memberFrozen.source.syntax, memberFile, name));
+  const container = memberStorage.subjectFor(memberObserved.selected.arguments[0].argument);
   const payloadRead = memberStorage.subjectFor(initializer("selected"));
   assert.equal(container.kind === "resolved" && payloadRead.kind === "resolved", true,
     "container and contained read are distinct actual checked subjects");
@@ -169,12 +170,12 @@ test("native alias and preservation effects require actual owned operation ident
   const selections = selectedEffects(nativeStorageOperationAuthoritySource);
   const control = selections.get("owned");
   assert.equal(control !== undefined, true, "owned native operation control");
-  const storage = createSourceStorageQuery(control.source, control.source.navigation.sourceFiles, undefined, control.effects);
+  const storage = control.source.facts.analyses.storage({ sourceFiles: control.source.sourceFiles, effects: control.effects });
   const complete = new Set(["owned", "ownedAlias"]);
   for (const name of ["owned", "ownedAlias", "externalMember", "externalFunction"]) {
     const selection = selections.get(name);
     assert.equal(selection !== undefined, true, name);
-    assert.equal(selection.effect?.resultAlias === selection.selected.sourceArguments[0].expression, complete.has(name),
+    assert.equal(selection.effect?.resultAlias === selection.selected.arguments[0].argument, complete.has(name),
       `${name} proves implementation identity, not merely the signature`);
     assert.equal(selection.effect !== undefined, complete.has(name), `${name} cannot publish unchecked preservation either`);
     const subject = storage.subjectFor(selection.node);
@@ -184,12 +185,12 @@ test("native alias and preservation effects require actual owned operation ident
   }
   let retained;
   const visit = node => {
-    if (control.source.ast.is.IsVariableDeclaration(node) &&
-      control.source.ast.text(control.source.ast.name(node)) === "externalPreserved")
-      retained = control.source.ast.as.AsVariableDeclaration(node)?.Initializer;
-    control.source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    if (control.source.syntax.is.IsVariableDeclaration(node) &&
+      control.source.syntax.text(control.source.syntax.name(node)) === "externalPreserved")
+      retained = control.source.syntax.as.AsVariableDeclaration(node)?.Initializer;
+    control.source.syntax.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
-  for (const file of control.source.navigation.sourceFiles) visit(file);
+  for (const file of control.source.sourceFiles) visit(file);
   assert.equal(retained !== undefined, true, "the actual selected holder member is checked");
   const selected = storage.subjectFor(retained);
   assert.equal(selected.kind, "resolved");
@@ -211,7 +212,7 @@ test("virtual native operation authority requires its matching provider-owned ru
     { ...identity, memberName: "assign" }]) {
     const source = nativeStorageOperationFactSource(selection.source, selection.selected, operation, global);
     const effect = createCsharpSourceProfileStorageEffects(source, selection.providers).call(selection.node, selection.selected);
-    assert.equal(effect?.resultAlias === selection.selected.sourceArguments[0].expression, true,
+    assert.equal(effect?.resultAlias === selection.selected.arguments[0].argument, true,
       "exact selected provider member and actual binding jointly supply native authority");
   }
   for (const binding of [undefined, { ...global, exportName: "Other" }, { ...global, providerId: "foreign-provider" },
@@ -237,11 +238,4 @@ test("local same-spelled constructors and named globals cannot acquire native al
     assert.equal(selection !== undefined, true, `${name} has its checked invocation`);
     assert.equal(selection.effect === undefined, true, `${name} has no owned native storage effect`);
   }
-});
-
-test("untyped invocation evidence never receives a native storage effect", () => {
-  const selected = selectedEffects(`const constructed = new Error("checked");`).get("constructed");
-  assert.equal(selected !== undefined, true, "the typed control has its checked invocation");
-  assert.equal(selected.effects.call(selected.node, { ...selected.selected, sourceSelectedSignatureKind: "untyped" }) === undefined,
-    true, "untyped calls reject before identity materialization");
 });

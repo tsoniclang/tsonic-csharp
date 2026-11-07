@@ -22,12 +22,12 @@ export function analyzeCsharpCaptureMethods(ast: AstReader, captures: CsharpCapt
     for (const method of frame.methods) {
       const selected = selectCsharpObjectLiteralCallable({ carrier: method.type, storage: method.type, receiver: undefined });
       if (selected.kind === "rejected" || ast.getSourceFile(method.declaration) === undefined) {
-        issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: method.declaration,
+        issues.push({ code: "CSHARP_CAPTURED_METHOD_SIGNATURE_NOT_SEALED", category: "error", source: "tsonic-csharp", sourceNode: method.declaration,
           message: "A native captured method requires its sealed callable signature." }); continue;
       }
       const body = callables.get({ kind: "declaration", declaration: method.declaration });
       if (body === undefined || body.kind !== "source" || body.sourceDeclaration !== method.declaration) {
-        issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: method.declaration,
+        issues.push({ code: "CSHARP_CAPTURED_METHOD_BODY_NOT_ADMITTED", category: "error", source: "tsonic-csharp", sourceNode: method.declaration,
           message: "A native captured method requires its actual admitted source body contract." }); continue;
       }
       if (selected.signature.returnPassing !== undefined ||
@@ -35,7 +35,7 @@ export function analyzeCsharpCaptureMethods(ast: AstReader, captures: CsharpCapt
           mode !== (body.nativeParameters[index]?.targetParameter.passingMode ?? "by-value")) ||
         body.nativeParameters.some((parameter, index) =>
           parameter.targetParameter.passingMode !== (selected.signature.parameterPassingModes[index] ?? "by-value"))) {
-        issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: method.declaration,
+        issues.push({ code: "CSHARP_DELEGATE_PASSING_MODE_MISMATCH", category: "error", source: "tsonic-csharp", sourceNode: method.declaration,
           message: "A by-reference native delegate binding requires an exact native method group or delegate value; the source body has a different native passing contract." });
         continue;
       }
@@ -50,13 +50,13 @@ export function analyzeCsharpCaptureMethods(ast: AstReader, captures: CsharpCapt
         const canonical = candidate === undefined ? undefined : csharpMethodValueType(value.owner, value.method, value.identity,
           candidate.type, (candidate.typeParameters ?? []).map(parameter => parameter.identity));
         if (candidate === undefined || canonical === undefined || !csharpMethodValueContractsEqual(method.type, canonical)) {
-          issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: method.declaration,
+          issues.push({ code: "CSHARP_CAPTURED_GENERIC_METHOD_NOT_INVOCABLE", category: "error", source: "tsonic-csharp", sourceNode: method.declaration,
             message: "A captured generic method requires its complete native source and immutable-body invocation contract." });
           continue;
         }
         const signature = getCsharpDelegateSignature(candidate.type);
         if (signature === undefined) {
-          issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: method.declaration,
+          issues.push({ code: "CSHARP_CAPTURED_GENERIC_METHOD_NOT_INVOCABLE", category: "error", source: "tsonic-csharp", sourceNode: method.declaration,
             message: "A captured generic method requires its exact native invocation signature." });
           continue;
         }

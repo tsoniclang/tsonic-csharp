@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { assertNativeLoopRefusals } from "../../../helpers/native-loop-refusals.mjs";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
+import { sealCsharpAnalysisProgram } from "../../../../dist/analysis/program/index.js";
 import {
   assertCsharpCompilationSucceeded,
   compileCsharpSource,
@@ -131,8 +131,9 @@ for (const surface of ["native", "js"]) {
       assert.equal(diagnostic.message,
         `Static member '${control.emittedName ?? control.name}' and instance member '${control.emittedName ?? control.name}' cannot share the emitted C# name '${control.emittedName ?? control.name}' (${control.nativeCode}).`,
         "the exact refusal identifies both members and the native C# constraint");
-      const source = createTargetSourceProgram(compiled.source);
-      const ast = source.ast;
+      // The checked program's syntax (nextgen C-2542: createTargetSourceProgram needs the composition's profile; the
+      // refused compilation publishes no analysis program, and only authored syntax is read here).
+      const ast = compiled.source.ast;
       let subject;
       const visit = node => {
         const name = ast.name(node);
@@ -141,7 +142,7 @@ for (const surface of ["native", "js"]) {
           !ast.hasModifierKind(node, "static")) subject = name;
         ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
       };
-      source.navigation.sourceFiles.forEach(visit);
+      compiled.source.sourceFiles.forEach(visit);
       assert.equal(subject !== undefined && diagnostic.sourceNode === subject, true,
         "the exact second authored member name owns the refusal");
       assert.equal(compiled.artifacts.size, 0, "the native name collision emits no artifacts");
@@ -171,7 +172,8 @@ test("destructuring assignment operation, pattern and rendering scope are indepe
     export function run(): number { let value = 0; [value] = [7]; return value; }
   ` });
   assertCsharpCompilationSucceeded(compiled);
-  const program = compiled.result.program;
+  // The planner reads the sealed program (records and syntax only), as in production (nextgen C-2542).
+  const program = sealCsharpAnalysisProgram(compiled.result.program);
   const ast = program.source.ast;
   let assignment;
   const visit = node => {

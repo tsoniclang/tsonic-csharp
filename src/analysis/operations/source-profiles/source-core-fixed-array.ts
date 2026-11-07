@@ -1,6 +1,7 @@
 import { tsonicFixedArrayProviderMember } from "@tsonic/source-core/facts";
-import type { SourceFile } from "@tsonic/tsts";
-import type { SourceFileSemantics } from "@tsonic/target-api/source";
+import type { Node } from "@tsonic/tsts";
+import type { SourceMemberAccessSelection } from "@tsonic/target-api/source";
+import { sourceMemberAccess } from "../../program/source-facts.js";
 import { resolveCsharpProviderDeclarationEvidence } from "../../../source/extension/provider-identities.js";
 import { csharpFixedArrayRepresentationRejection } from "../../../policy/types/collections/fixed-arrays.js";
 import { csharpSourcePrimitiveTargetType, isCsharpArrayIndexTargetType, targetTypeRefKey } from "../../../target-model/types/index.js";
@@ -11,34 +12,23 @@ import { csharpSourceProfileDiagnostic } from "../../../policy/operations/source
 import { csharpLiteralIsRepresentableAs } from "../../../policy/conversions/literals.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 
-type ResolvedSourcePropertyAccessInfo = NonNullable<
-  ReturnType<SourceFileSemantics["operations"]["propertyAccess"]>
->;
-type ResolvedSourceElementAccessInfo = NonNullable<
-  ReturnType<SourceFileSemantics["operations"]["elementAccess"]>
->;
-
 import { selectCsharpFixedArrayPropertyPlan, selectCsharpFixedArrayElementPlan } from "../../../policy/operations/source-profiles/source-core-fixed-array.js";
 export function selectCsharpSourceCoreFixedArrayProperty(
   host: CsharpProviderCallSelectionHost,
-  source: ResolvedSourcePropertyAccessInfo,
-  sourceFile: SourceFile,
+  access: Node,
 ): CsharpSourceProfilePropertyPolicyResult | undefined {
-  const declaration = resolveCsharpProviderDeclarationEvidence(
-    host.sourceFacts,
-    [source.selectedDeclaration, source.selectedSymbol],
-    "member",
-  );
+  const source = sourceMemberAccess(host.facts, access);
+  const declaration = resolveCsharpProviderDeclarationEvidence(host.sourceFacts, selectedDeclarations(source), "member");
   if (
     declaration.kind !== "resolved" ||
     tsonicFixedArrayProviderMember(declaration.declaration) !== "length"
   ) {
     return undefined;
   }
-  const rejection = fixedArrayReceiverRejection(host, source.receiver, sourceFile);
+  const rejection = fixedArrayReceiverRejection(host, source.receiver, source.receiverType);
   if (rejection !== undefined) return rejectedFixedArrayOperation(rejection);
-  const receiver = resolveFixedArrayReceiver(host, source.receiver, sourceFile);
-  if (receiver === undefined || source.accessMode !== "read") {
+  const receiver = resolveFixedArrayReceiver(host, source.receiver);
+  if (receiver === undefined || source.access !== "read") {
     return rejectedFixedArrayOperation(
       "The selected FixedArray.length access does not have one exact readonly C# array receiver contract.",
     );
@@ -48,37 +38,31 @@ export function selectCsharpSourceCoreFixedArrayProperty(
 
 export function selectCsharpSourceCoreFixedArrayElement(
   host: CsharpProviderCallSelectionHost,
-  source: ResolvedSourceElementAccessInfo,
-  sourceFile: SourceFile,
+  access: Node,
 ): CsharpSourceProfileElementPolicyResult | undefined {
-  const signature = resolveCsharpProviderDeclarationEvidence(
-    host.sourceFacts,
-    [source.selectedDeclaration, source.selectedSymbol],
-    "signature",
-  );
+  const source = host.facts.values.elementAccess(access);
+  const selected = source.selected;
+  const subjects = selected.kind === "member" || selected.kind === "index-signature" || selected.kind === "element"
+    ? [selected.declaration] : [];
+  const signature = resolveCsharpProviderDeclarationEvidence(host.sourceFacts, subjects, "signature");
   const declaration = signature.kind === "resolved" || signature.kind === "conflict"
     ? signature
-    : resolveCsharpProviderDeclarationEvidence(
-        host.sourceFacts,
-        [source.selectedDeclaration, source.selectedSymbol],
-        "member",
-      );
+    : resolveCsharpProviderDeclarationEvidence(host.sourceFacts, subjects, "member");
   if (
     declaration.kind !== "resolved" ||
     tsonicFixedArrayProviderMember(declaration.declaration) !== "index"
   ) {
     return undefined;
   }
-  const rejection = fixedArrayReceiverRejection(host, source.receiver, sourceFile);
+  const rejection = fixedArrayReceiverRejection(host, source.receiver, source.receiverType);
   if (rejection !== undefined) return rejectedFixedArrayOperation(rejection);
-  const receiver = resolveFixedArrayReceiver(host, source.receiver, sourceFile);
-  const integralLiteral = csharpLiteralIsRepresentableAs(host.literalValues.literalValue.get(source.argument.expression), csharpSourcePrimitiveTargetType("int32"));
-  const indexSelection = integralLiteral ? undefined : host.types.resolveNode(
-    source.argument.expression,
-    sourceFile,
-  );
-  const indexType = integralLiteral ? csharpSourcePrimitiveTargetType("int32") : indexSelection?.kind === "rejected"
-    ? undefined : indexSelection?.sourceResult.selectedType;
+  const receiver = resolveFixedArrayReceiver(host, source.receiver);
+  const index = host.ast.as.AsElementAccessExpression(access)?.ArgumentExpression;
+  if (index === undefined) return undefined;
+  const integralLiteral = csharpLiteralIsRepresentableAs(host.facts.values.literal(index), csharpSourcePrimitiveTargetType("int32"));
+  const indexSelection = integralLiteral ? undefined : host.types.value(index);
+  const indexType = integralLiteral ? csharpSourcePrimitiveTargetType("int32")
+    : indexSelection === undefined || indexSelection.kind === "csharp-refused" ? undefined : indexSelection;
   if (
     receiver === undefined ||
     indexType === undefined ||
@@ -95,30 +79,28 @@ export function selectCsharpSourceCoreFixedArrayElement(
   return selectCsharpFixedArrayElementPlan(receiver.carrier, indexType);
 }
 
+function selectedDeclarations(source: SourceMemberAccessSelection): readonly Node[] {
+  return source.selected.kind === "member" ? source.selected.declarations : [source.selected.declaration];
+}
+
 function fixedArrayReceiverRejection(
   host: CsharpProviderCallSelectionHost,
-  receiver: ResolvedSourcePropertyAccessInfo["receiver"],
-  sourceFile: SourceFile,
+  receiver: Node,
+  receiverType: SourceMemberAccessSelection["receiverType"],
 ): string | undefined {
-  const selected = host.types.selectFixedArray(receiver.type, sourceFile);
+  const selected = host.types.selectFixedArray(receiverType, receiver);
   if (selected === undefined) return undefined;
-  return selected.kind === "invalid" ? selected.reason : csharpFixedArrayRepresentationRejection(selected.fact);
+  return csharpFixedArrayRepresentationRejection(selected.fact);
 }
 
 function resolveFixedArrayReceiver(
   host: CsharpProviderCallSelectionHost,
-  receiver: ResolvedSourcePropertyAccessInfo["receiver"],
-  sourceFile: SourceFile,
+  receiver: Node,
 ): {
   readonly carrier: Extract<TargetTypeRef, { readonly kind: "array" }>;
 } | undefined {
-  const selected = host.types.resolveNode(
-    receiver.expression,
-    sourceFile,
-  );
-  if (selected?.kind === "rejected") return undefined;
-  const carrier = selected?.sourceResult.selectedType;
-  return carrier?.kind === "array"
+  const carrier = host.types.value(receiver);
+  return carrier.kind === "array"
     ? { carrier }
     : undefined;
 }

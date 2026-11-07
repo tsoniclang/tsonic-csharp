@@ -1,36 +1,21 @@
+// The object-shape registry and its inputs. Shapes come from Host object facts through the one representation
+// (representation/); this module keeps the canonical .NET shape per carrier (BF16) and answers carrier lookups.
+import type { AstReader } from "@tsonic/tsts";
+import type { SourceStorageQueries } from "@tsonic/target-api/analysis";
 import type { CsharpObjectShapePolicy } from "../../../target-model/records/objects/object-shapes.js";
+import type { CsharpProjectTypeCatalog } from "../../../target-model/records/types/project-types.js";
+import type { CsharpTypeParameterEnvironment } from "../../../target-model/records/types/type-parameter-constraints.js";
+import type { CsharpRepresentationServices } from "../../../representation/index.js";
 
-import type { Node, SourceFile, Type } from "@tsonic/tsts";
-import type { CsharpObjectShapeFact, TargetTypeRef } from "../../../target-model/types/model.js";
-import type { CsharpProjectTypeCatalog, CsharpProjectTypePolicy } from "../../../target-model/records/types/project-types.js";
-import type { CsharpPlanningRepresentationQueries, CsharpRecursiveTypeResolver, CsharpTypePolicyBaseHost, CsharpTypeResolutionState } from "../../source-evidence/types/resolution/model.js";
-
-export type CsharpStructuralUnionResolution =
-  | { readonly kind: "not-applicable" }
-  | { readonly kind: "rejected" }
-  | { readonly kind: "resolved"; readonly type: TargetTypeRef };
-
-export interface CsharpObjectShapePolicyHost extends CsharpTypePolicyBaseHost {
-  readonly typeParameterConstraints: import("../../../target-model/records/types/type-parameter-constraints.js").CsharpTypeParameterEnvironment;
-  readonly representations: CsharpPlanningRepresentationQueries;
+export interface CsharpObjectShapePolicyHost {
+  readonly ast: AstReader;
+  readonly sourceStorage: SourceStorageQueries;
   readonly projectTypeCatalog: CsharpProjectTypeCatalog;
-  projectTypes(): CsharpProjectTypePolicy;
-  readonly typeResolver: CsharpRecursiveTypeResolver;
+  readonly typeParameterConstraints: CsharpTypeParameterEnvironment;
+  /** Late-bound: the registry is itself an input of the representation services. */
+  representation(): CsharpRepresentationServices;
 }
 
 export interface CsharpRecursiveObjectShapePolicy extends CsharpObjectShapePolicy {
-  resolveReference(type: Type): TargetTypeRef | undefined;
-  resolveUnion(type: Type, sourceFile: SourceFile, state: CsharpTypeResolutionState): CsharpStructuralUnionResolution;
-  publishedShapeTarget(node: Node): TargetTypeRef | undefined;
-  resolveNodeWithState(
-    node: Node | undefined,
-    sourceFile: SourceFile | undefined,
-    state: CsharpTypeResolutionState,
-  ): CsharpObjectShapeFact | undefined;
-  resolveTypeWithState(
-    type: Type | undefined,
-    sourceFile: SourceFile,
-    authoredTypeRoot: Node | undefined,
-    state: CsharpTypeResolutionState,
-  ): CsharpObjectShapeFact | undefined;
+  knownShapes(): readonly import("../../../target-model/types/model.js").CsharpObjectShapeFact[];
 }

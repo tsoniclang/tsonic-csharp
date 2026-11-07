@@ -54,7 +54,7 @@ export function analyzeCsharpStructuralObjectEmission(input: {
     const contracts: CsharpMethodValueContractEmission[] = [];
     const refuse = (message: string, member?: CsharpObjectShapeMemberFact): void => {
       if (artifact === undefined) return;
-      issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp",
+      issues.push({ code: "CSHARP_STRUCTURAL_MEMBER_NOT_RENDERABLE", category: "error", source: "tsonic-csharp",
         sourceNode: member?.sourceDeclarations?.[0] ?? shape.methodImplementation?.declaration, message });
     };
     const admit = (type: TargetTypeRef, member?: CsharpObjectShapeMemberFact): boolean => {

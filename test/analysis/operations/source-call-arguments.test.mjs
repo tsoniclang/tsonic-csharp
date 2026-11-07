@@ -7,7 +7,7 @@ import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs
 function calls(compiled) {
   const program = compiled.result.program;
   assert.equal(program !== undefined, true, "analyzed program is present");
-  const ast = program.source.ast;
+  const ast = program.source.syntax;
   const selected = [];
   for (const file of csharpProgramSourceFiles(program)) {
     if (!String(ast.getPath(file)).endsWith("/index.ts")) continue;
@@ -38,17 +38,21 @@ for (const surface of [undefined, "js"]) test(`source argument owner publishes e
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.equal(compiled.result.diagnostics.length, 0);
   const selected = calls(compiled);
+  const ast = compiled.result.program.source.syntax;
   assert.equal(selected.length, 5, "five actual call owners ran");
   for (const call of selected) {
     const classification = call.classification;
     const grouping = classification?.sourceArgumentGrouping;
     assert.equal(grouping?.kind, "grouped", call.text);
     assert.equal("sourceNativeParameters" in classification, false, `${call.text}: no alternate raw parameter path`);
-    assert.equal(grouping.arguments.length, classification.source.sourceArgumentBindings.length, `${call.text}: complete binding count`);
+    // nextgen C-2542: the classification carries the Host SourceCallSelection; its argument correspondences (arguments[i],
+    // in effective order, each naming its argument node and parameterIndex) replace sourceArgumentBindings/sourceArguments.
+    assert.equal(grouping.arguments.length, classification.source.arguments.length, `${call.text}: complete binding count`);
     for (const entry of grouping.arguments) {
-      assert.equal(entry.binding === classification.source.sourceArgumentBindings[entry.effectiveArgumentIndex], true, `${call.text}: binding identity`);
-      assert.equal(entry.expression === classification.source.sourceArguments[entry.sourceArgumentIndex].expression, true, `${call.text}: expression identity`);
-      assert.equal(entry.sourceParameterIndex === entry.binding.sourceParameterIndex, true, `${call.text}: source parameter key`);
+      assert.equal(entry.binding === classification.source.arguments[entry.effectiveArgumentIndex], true, `${call.text}: binding identity`);
+      assert.equal(entry.expression === entry.binding.argument &&
+        entry.expression === ast.arguments(call.node)[entry.sourceArgumentIndex], true, `${call.text}: expression identity`);
+      assert.equal(entry.sourceParameterIndex === entry.binding.parameterIndex, true, `${call.text}: source parameter key`);
       assert.equal(Object.isFrozen(entry), true, `${call.text}: frozen binding`);
     }
     assert.equal(Object.isFrozen(grouping) && Object.isFrozen(grouping.groups), true, `${call.text}: immutable groups`);
@@ -73,8 +77,8 @@ test("tuple spreads preserve exact per-call refusal without admitting a prefix",
   const refused = compiled.result.diagnostics.map(diagnostic => [diagnostic.code, diagnostic.message,
     ast.is.IsCallExpression(diagnostic.sourceNode) ? text(diagnostic.sourceNode) : undefined]);
   assert.deepEqual(refused.sort((left, right) => String(left[2]).localeCompare(String(right[2]))), [
-    ["CSHARP_UNSUPPORTED_AST", "Source-owned tuple-spread arguments require an explicit expansion plan.", "pair(...values)"],
-    ["CSHARP_UNSUPPORTED_AST", "Source-owned tuple-spread arguments require an explicit expansion plan.", "triple(1 as int32, ...values)"],
+    ["CSHARP_ARGUMENT_BINDING_NOT_PROVEN", "Source-owned tuple-spread arguments require an explicit expansion plan.", "pair(...values)"],
+    ["CSHARP_ARGUMENT_BINDING_NOT_PROVEN", "Source-owned tuple-spread arguments require an explicit expansion plan.", "triple(1 as int32, ...values)"],
   ], "one original refusal on each original call; no prefix is admitted");
 });
 

@@ -13,7 +13,6 @@ import type { CsharpSourceEvidenceIndex } from "../../target-model/records/progr
 import type { CsharpStorageRepresentationClassifications } from "../../target-model/records/storage/storage.js";
 import type { TargetTypeRef } from "../../target-model/types/index.js";
 import { getCsharpGeneratorProtocol } from "../../target-model/types/carriers/generators.js";
-import { representCsharpSourceType } from "../../policy/types/source-type-flow/representation.js";
 
 export interface CsharpValueReadStageAnalysis {
   readonly issues: readonly CsharpOperationIssue[];
@@ -72,29 +71,33 @@ export function analyzeCsharpValueReadStages(
     const source = evidence.nodeTargetType.get(node);
     const declaredStorage = evidence.storageTargetType.get(node);
     const readStorage = evidence.readStorageTargetType.get(node);
-    const literal = policy.literalValues.literalValue.get(node);
+    const literal = policy.facts.values.literal(node);
     const literalConstruction = source !== undefined && literal !== undefined && literal.form !== "array";
     let selectedOperation: TargetTypeRef | undefined;
     if (literalConstruction) {
       const parent = policy.ast.parent(node);
       const authored = parent !== undefined && policy.ast.is.IsPrefixUnaryExpression(parent) &&
-        policy.literalValues.literalValue.get(parent) !== undefined ? parent : node;
-      const outcome = policy.effectiveTypes.get(authored);
-      const physical = outcome === undefined || outcome.kind === "refused" ? undefined : outcome.construction ??
+        policy.facts.values.literal(parent) !== undefined ? parent : node;
+      const outcome = policy.facts.values.type(authored);
+      const physical = outcome.kind === "refused" ? undefined : outcome.construction ??
         (outcome.type.kind === "primitive" || outcome.type.kind === "string" || outcome.type.kind === "intrinsic" &&
           (outcome.type.intrinsic === "bigint" || outcome.type.intrinsic === "absence") ? outcome.type : undefined);
       if (physical !== undefined) {
-        selectedOperation = representCsharpSourceType(policy.types.sourceTypeFlowRepresentation(authored), physical);
-      } else if (outcome !== undefined && outcome.kind !== "refused" && outcome.type.kind === "intrinsic" &&
+        const represented = policy.types.represent(physical, authored, "value");
+        if (represented.kind === "csharp-refused") issues.push(Object.freeze({ node: represented.site, code: represented.code, message: represented.message }));
+        else selectedOperation = represented;
+      } else if (outcome.kind !== "refused" && outcome.type.kind === "intrinsic" &&
         (outcome.type.intrinsic === "unknown" || outcome.type.intrinsic === "object" || outcome.type.intrinsic === "any")) {
-        issues.push(Object.freeze({ node, code: "CSHARP_UNSUPPORTED_AST",
+        issues.push(Object.freeze({ node, code: "CSHARP_SCALAR_CONSTRUCTION_SOURCE",
           message: "A scalar construction requires its exact produced Source value before native storage conversion." }));
       }
     } else if (source !== undefined && literal?.form === "array") {
-      const outcome = policy.effectiveTypes.get(node);
-      const construction = outcome === undefined || outcome.kind === "refused" ? undefined : outcome.construction;
+      const outcome = policy.facts.values.type(node);
+      const construction = outcome.kind === "refused" ? undefined : outcome.construction;
+      const represented = construction === undefined ? undefined : policy.types.represent(construction, node, "value");
+      if (represented?.kind === "csharp-refused") issues.push(Object.freeze({ node: represented.site, code: represented.code, message: represented.message }));
       selectedOperation = construction === undefined ? operations.operationResultType.get(node)
-        : representCsharpSourceType(policy.types.sourceTypeFlowRepresentation(node), construction);
+        : represented?.kind === "csharp-refused" ? undefined : represented;
     } else selectedOperation = operations.operationResultType.get(node) ?? yieldResumeType(node);
     const narrowedRead = evidence.valueRefinement.get(node)?.flowReadTargetType;
     const member = operations.sourceMember.get(node);
@@ -115,9 +118,9 @@ export function analyzeCsharpValueReadStages(
   function yieldResumeType(node: Node): TargetTypeRef | undefined {
     const yielded = evidence.yield.get(node);
     if (yielded === undefined) return undefined;
-    const protocol = getCsharpGeneratorProtocol(yielded.yieldKind === "delegate"
-      ? evidence.yieldTargetType.get(node) : evidence.generatorTargetType.get(yielded.generator.declaration));
-    return yielded.yieldKind === "delegate" ? protocol?.returnType : protocol?.nextType;
+    const protocol = getCsharpGeneratorProtocol(yielded.kind === "delegate"
+      ? evidence.yieldTargetType.get(node) : evidence.generatorTargetType.get(yielded.generator));
+    return yielded.kind === "delegate" ? protocol?.returnType : protocol?.nextType;
   }
 }
 

@@ -1,140 +1,107 @@
+// Call results and their await completions (nextgen C-2542, I2, I6).
+// A call's value type is the Host one (facts.values.type(call) / callableReturn) and the result of `await e` is the
+// Host awaited result (facts.values.awaited). C# represents both and maps each task/value alternative of the operand
+// carrier onto the represented awaited result (selectCsharpAwaitCompletion). The old C# reconciliation of a native
+// result with a checker-selected result (selectCsharpSourceCallResult / declaration adoption) was a dual path and is
+// gone: there is exactly one source of the call result, and C# never re-selects a nominal or broad carrier.
 import assert from "node:assert/strict";
 import test from "node:test";
-import { completeCsharpSourceDeclarationCallAdoption, refineCsharpSourceValueResult, selectCsharpSourceCallResult } from "../../../dist/analysis/source-evidence/types/resolution/call-results.js";
-import { csharpTsValueTargetType, csharpEmptyObjectTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
-import { csharpRuntimeUnionTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
+import { selectCsharpAwaitCompletion } from "../../../dist/policy/operations/control-flow/await-completions.js";
 import { csharpTaskTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
-import { selectCsharpAwaitCompletion, selectCsharpSourceCallAwaitCompletion } from "../../../dist/policy/operations/control-flow/await-completions.js";
 import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
-import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
+import { csharpStringTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
+import { csharpTsValueTargetType, getCsharpRuntimeUnionArms } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
+import { targetTypeRefEquals, targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
+import { hostProgram, representationServices, representations, represented } from "../../representation/host-fixture.mjs";
 
-const base = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "fixture.Base" };
-const child = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "fixture.Child" };
-const unrelated = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "fixture.Other" };
-const scalar = { kind: "source-primitive", name: "uint64" };
-const host = {
-  projectTypeCatalog: { definitionForTarget: carrier => carrier === base || carrier === child ? { kind: "class" } : undefined },
-  projectTypes: () => ({ directSupertypes: carrier => carrier === child ? [base] : [] }),
-  providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) },
+const program = hostProgram(`
+export class Base { tag: string = "base"; }
+export class Child extends Base { extra: string = "child"; }
+declare function external(): Promise<string>;
+export async function direct(): Promise<string> { return "x"; }
+export function mixed(flag: boolean): Promise<string> | string { return flag ? direct() : "y"; }
+export function maybe(flag: boolean): Promise<string> | undefined { return flag ? direct() : undefined; }
+export function make(): Base { return new Child(); }
+export function broad(): unknown { return 7; }
+export async function use(flag: boolean): Promise<string> {
+  const a = await direct();
+  const b = await mixed(flag);
+  const c = await maybe(flag);
+  const d = await external();
+  const e = make();
+  const f = broad();
+  return a + b + (c ?? "") + d + e.tag + String(f);
+}
+`);
+const represent = representations(representationServices(program));
+const string = csharpStringTargetType();
+const { ast, facts } = program;
+const awaits = program.nodes.filter(node => ast.is.IsAwaitExpression(node));
+const awaitOf = name => awaits.find(node => ast.text(node).startsWith(`await ${name}(`));
+const awaited = node => {
+  const outcome = facts.values.awaited(node);
+  assert.notEqual(outcome.kind, "refused", "the Host publishes the awaited result of a supported await");
+  return represented(represent.type(outcome.type, node, "value"));
 };
+const operand = node => represented(represent.value(ast.as.AsAwaitExpression(node).Expression));
 
-const declaration = Object.freeze({});
-const declarationHost = {
-  ...host,
-  navigation: { isProjectDeclaration: node => { assert.equal(node === declaration, true); return true; } },
-  ast: {
-    parent: node => { assert.equal(node === declaration, true); return undefined; },
-    hasModifierKind: (node, kind) => { assert.equal(node === declaration && kind === "ambient", true); return false; },
-  },
-};
-
-test("a completed declared source call records exactly one native Task unwrapping", () => {
-  const payload = csharpTaskTargetType(scalar);
-  const nativeType = csharpTaskTargetType(payload);
-  const raw = selectCsharpSourceCallResult(host, nativeType, () => assert.fail("raw native signature is exact"));
-  assert.equal(raw.selectedType === nativeType && raw.completion === undefined, true,
-    "a native signature does not gain source adoption merely from its Task shape");
-  const selected = completeCsharpSourceDeclarationCallAdoption(declarationHost, declaration, raw);
-  assert.equal(selected.nativeType === nativeType && selected.selectedType === payload &&
-    selected.completion.form === "direct" && selected.completion.result === scalar, true,
-  "the source boundary records its one missing native Unwrap with original ABI and payload identity");
-  assert.equal(selectCsharpAwaitCompletion(nativeType).result === payload, true,
-    "the generic native await remains exactly one layer");
+test("a declared source call awaits exactly one native Task layer to the Host awaited result", () => {
+  const node = awaitOf("direct");
+  assert.equal(targetTypeRefEquals(represented(represent.callableReturn(program.named("direct"))), csharpTaskTargetType(string)), true);
+  assert.equal(targetTypeRefEquals(operand(node), csharpTaskTargetType(string)), true, "the call value is the Host call type");
+  const result = awaited(node);
+  assert.equal(targetTypeRefEquals(result, string), true);
+  const completion = selectCsharpAwaitCompletion(operand(node), result, undefined, "consumed");
+  assert.equal(completion.form, "direct");
+  assert.equal(completion.result === result, true, "the completion result is the represented Host awaited result");
+  assert.equal(completion.alternatives.length === 1 && completion.alternatives[0].task, true, "one Unwrap, never a second");
+  assert.equal(completion.optional, false);
 });
 
-test("a declared source Task union records its own post-await arm completion without changing the physical ABI", () => {
-  const payload = csharpRuntimeUnionTargetType([csharpTaskTargetType(scalar), scalar]);
-  const nativeType = csharpTaskTargetType(payload);
-  const raw = selectCsharpSourceCallResult(host, nativeType, () => assert.fail("raw native signature is exact"));
-  const selected = completeCsharpSourceDeclarationCallAdoption(declarationHost, declaration, raw);
-  assert.equal(selected.nativeType === nativeType && targetTypeRefEquals(selected.selectedType, nativeType), true,
-    "the real returned Task and its union payload are not copied or coerced");
-  const awaited = selectCsharpSourceCallAwaitCompletion(selected, undefined, "consumed");
-  assert.equal(awaited.adoption.native.result === payload && awaited.adoption.continuation === selected.completion &&
-    targetTypeRefEquals(awaited.result, scalar), true,
-  "the same immutable declaration-owned operation supplies the native outer await and selected arm await");
-  assert.equal(selectCsharpAwaitCompletion(nativeType).result === payload, true,
-    "an undecorated native Task preserves its exact union TResult");
-  assert.equal(Object.isFrozen(selected) && Object.isFrozen(selected.completion) && Object.isFrozen(awaited.adoption), true);
+test("a Task-or-value union awaits per Host arm without changing the physical ABI", () => {
+  const node = awaitOf("mixed");
+  const carrier = operand(node);
+  const sum = program.sum(program.callableReturn(program.named("mixed")));
+  assert.deepEqual(sum.arms.map(arm => arm.type.kind), ["declared", "string"], "Host order is authored-first (C-2459)");
+  assert.deepEqual(getCsharpRuntimeUnionArms(carrier).map(targetTypeRefKey),
+    [csharpTaskTargetType(string), string].map(targetTypeRefKey), "the runtime union keeps the Host arm order (R6)");
+  const completion = selectCsharpAwaitCompletion(carrier, awaited(node), undefined, "consumed");
+  assert.equal(completion.form, "branches");
+  assert.deepEqual(completion.alternatives.map(alternative => alternative.task), [true, false]);
+  assert.equal(completion.alternatives.every(alternative => targetTypeRefEquals(alternative.result, string)), true);
+  assert.equal(completion.excludeUnmatched, true, "each alternative is read from its own runtime-union arm");
+  assert.equal(Object.isFrozen(completion) && Object.isFrozen(completion.alternatives), true);
 });
 
-test("source result selection retains exact native and checked nominal carriers", () => {
-  const result = selectCsharpSourceCallResult(host, base, () => child);
-  assert.equal(result.nativeType, base);
-  assert.equal(result.selectedType, child);
-  assert.ok(Object.isFrozen(result));
-  for (const selected of [base, unrelated, undefined]) {
-    assert.deepEqual(selectCsharpSourceCallResult(host, base, () => selected), { nativeType: base, selectedType: base });
-  }
-  assert.deepEqual(selectCsharpSourceCallResult(host, scalar, () => assert.fail("native scalar result must not be reinterpreted")),
-    { nativeType: scalar, selectedType: scalar });
-  assert.equal(selectCsharpSourceCallResult(host, undefined, () => child), undefined);
+test("an optional Task preserves absence through the completion (A11)", () => {
+  const node = awaitOf("maybe");
+  const carrier = operand(node);
+  assert.equal(targetTypeRefEquals(carrier, csharpNullableTargetType(csharpTaskTargetType(string))), true);
+  const result = awaited(node);
+  assert.equal(targetTypeRefEquals(result, csharpNullableTargetType(string)), true, "the Host awaited result keeps absence");
+  const completion = selectCsharpAwaitCompletion(carrier, result, undefined, "consumed");
+  assert.equal(completion.optional, true);
+  assert.equal(targetTypeRefEquals(completion.result, csharpNullableTargetType(string)), true);
+  assert.equal(completion.alternatives.length === 1 && completion.alternatives[0].task, true);
 });
 
-test("nominal result selection cannot invent inheritance or generic relationships", () => {
-  const disconnected = { ...host, projectTypes: () => ({ directSupertypes: () => [] }) };
-  assert.deepEqual(selectCsharpSourceCallResult(disconnected, base, () => child), { nativeType: base, selectedType: base });
-  const differentBase = { ...host, projectTypes: () => ({ directSupertypes: carrier => carrier === child ? [unrelated] : [] }) };
-  assert.deepEqual(selectCsharpSourceCallResult(differentBase, base, () => child), { nativeType: base, selectedType: base });
+test("an ambient declaration's physical Task is awaited the same single way", () => {
+  const node = awaitOf("external");
+  assert.equal(targetTypeRefEquals(operand(node), csharpTaskTargetType(string)), true);
+  assert.equal(selectCsharpAwaitCompletion(operand(node), awaited(node), undefined, "consumed").form, "direct");
 });
 
-test("broad native results retain exact selected overload results without changing native scalar carriers", () => {
-  const native = csharpTsValueTargetType();
-  for (const selectedType of [scalar, { kind: "source-primitive", name: "float64" }, child, native]) {
-    const result = selectCsharpSourceCallResult(host, native, () => selectedType);
-    assert.deepEqual(result, { nativeType: native, selectedType });
-    assert.ok(Object.isFrozen(result));
-  }
-  assert.deepEqual(selectCsharpSourceCallResult(host, native, () => csharpEmptyObjectTargetType()),
-    { nativeType: native, selectedType: native });
-  assert.equal(selectCsharpSourceCallResult(host, native, () => undefined), undefined);
-  assert.deepEqual(selectCsharpSourceCallResult(host, scalar, () => assert.fail("exact scalar storage is authoritative")),
-    { nativeType: scalar, selectedType: scalar });
+test("nominal and broad call results are the Host types; C# never re-selects a narrower carrier", () => {
+  const make = ast.as.AsVariableDeclaration(program.named("e")).Initializer;
+  const result = represented(represent.value(make));
+  assert.equal(result.kind === "target-named" && result.id === "global::Fixture.Base", true,
+    "a call declared to return Base is Base, even though it builds a Child");
+  const broad = ast.as.AsVariableDeclaration(program.named("f")).Initializer;
+  assert.equal(targetTypeRefEquals(represented(represent.value(broad)), csharpTsValueTargetType()), true,
+    "an unknown result stays the broad TsValue carrier");
 });
 
-test("nullable direct source adoption keeps one physical Task and does not repeat its native Unwrap", () => {
-  const payload = csharpTaskTargetType(scalar);
-  const nativeType = csharpTaskTargetType(payload);
-  const raw = selectCsharpSourceCallResult(host, nativeType, () => assert.fail("native signature is exact"));
-  const selected = completeCsharpSourceDeclarationCallAdoption(declarationHost, declaration, raw);
-  const refined = refineCsharpSourceValueResult(selected, csharpNullableTargetType(selected.selectedType));
-  assert.equal(refined.nativeType === nativeType && refined.completion === selected.completion, true);
-  assert.equal(Object.isFrozen(refined), true);
-  const awaited = selectCsharpSourceCallAwaitCompletion(refined, undefined, "consumed");
-  assert.equal(awaited.adoption === undefined, true, "the call boundary already unwraps the native Task once");
-  assert.equal(targetTypeRefEquals(awaited.result, csharpNullableTargetType(scalar)), true);
-});
-
-test("nullable deferred source adoption preserves absence through both frozen completion phases", () => {
-  const payload = csharpRuntimeUnionTargetType([csharpTaskTargetType(scalar), scalar]);
-  const nativeType = csharpTaskTargetType(payload);
-  const raw = selectCsharpSourceCallResult(host, nativeType, () => assert.fail("native signature is exact"));
-  const selected = completeCsharpSourceDeclarationCallAdoption(declarationHost, declaration, raw);
-  const refined = refineCsharpSourceValueResult(selected, csharpNullableTargetType(selected.selectedType));
-  const awaited = selectCsharpSourceCallAwaitCompletion(refined, undefined, "consumed");
-  assert.equal(refined.nativeType === nativeType && refined.completion === selected.completion, true);
-  assert.equal(awaited.adoption.native.optional && awaited.adoption.continuation.optional, true);
-  assert.equal(awaited.adoption.continuation.alternatives === selected.completion.alternatives, true,
-    "nullable projection reuses the same checked arm and conversion mapping identities");
-  assert.equal(targetTypeRefEquals(awaited.result, csharpNullableTargetType(scalar)), true);
-  assert.equal(Object.isFrozen(awaited.adoption) && Object.isFrozen(awaited.adoption.continuation), true);
-});
-
-test("checked declaration adoption retains physical Task layers inside an ambient containing declaration", () => {
-  const container = Object.freeze({});
-  const nativeType = csharpTaskTargetType(csharpTaskTargetType(scalar));
-  const raw = selectCsharpSourceCallResult(host, nativeType, () => assert.fail("native signature is exact"));
-  const ambient = {
-    ...host,
-    navigation: { isProjectDeclaration: node => { assert.equal(node === declaration, true); return true; } },
-    ast: {
-      parent: node => { assert.equal(node === declaration, true); return container; },
-      hasModifierKind: (node, kind) => {
-        assert.equal((node === declaration || node === container) && kind === "ambient", true);
-        return node === container;
-      },
-    },
-  };
-  assert.equal(completeCsharpSourceDeclarationCallAdoption(ambient, declaration, raw) === raw, true);
-  assert.equal(raw.nativeType === nativeType && raw.selectedType === nativeType && raw.completion === undefined, true);
+test("an await completion without a carrier or over an opaque payload selects nothing", () => {
+  assert.equal(selectCsharpAwaitCompletion(undefined, string), undefined);
+  assert.equal(selectCsharpAwaitCompletion({ kind: "opaque", id: "fixture" }, string), undefined);
 });

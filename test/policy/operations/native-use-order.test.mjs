@@ -1,6 +1,7 @@
+import { csharpTestSourceProgram } from "../../helpers/target-source-program.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createTargetSourceProgram, sourceSequenceInputChoice } from "@tsonic/target-api/source";
+import { sourceSequenceInputChoice } from "@tsonic/target-api/source";
 import { checkCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { selectCsharpNativeOperandUses } from "../../../dist/analysis/operations/control-flow/native-operands.js";
 import { selectCsharpNativeCompletion } from "../../../dist/policy/operations/control-flow/native-completion.js";
@@ -30,8 +31,8 @@ const checked = checkCsharpSource({ sourceText: `
   export const borrowedValues = [0, ...(sourceValues() ?? fallbackValues() ?? neverValues()), 2];
 ` });
 assert.equal(checked.sourceDiagnosticsText === "", true, checked.sourceDiagnosticsText);
-const source = createTargetSourceProgram(checked.source);
-const ast = source.ast;
+const source = csharpTestSourceProgram(checked.source);
+const ast = source.syntax;
 const nodes = [];
 const walk = node => { nodes.push(node); ast.forEachChild(node, child => { if (child !== undefined) walk(child); }); };
 for (const file of source.sourceFiles) walk(file);
@@ -45,16 +46,18 @@ const no = { get: () => false };
 const record = { sourceArgumentIndex: 0, effectiveArgumentIndex: 0, sourceParameterIndex: 0, parameterIndex: 0,
   expression: argument, sourceForm: "value", type: scalar };
 const classification = grouping => ({ form: { kind: "target", optionalReceiverRouting: "call" },
-  target: { kind: "source-owned" }, source: { sourceCallee: { expression: member },
-    sourceCalleeAccess: { kind: "property", receiver: { expression: receiver } } },
+  // nextgen C-2542: the classification's source is the Host call selection (SourceCallSelection: use, callee node).
+  target: { kind: "source-owned" }, source: { use: call, callee: member, arguments: [{ argument, parameterIndex: 0, mode: "positional" }] },
   sourceCall: { kind: "method", receiver: { expression: receiver, type: scalar } }, unionCall: { kind: "not-union" },
   sourceArgumentGrouping: grouping });
 const input = selected => ({ ast, evidence: { compileTimeMetadata: no, sourceArgument: none, sourceDefaultValue: none },
   operations: { selectedCall: { get: node => node === call ? selected : undefined }, nativeHandler: none, borrowedSequence: none },
   valueReads: { valueRead: { get: () => ({ value: scalar }) } }, bindingPatterns: { bindingPatternProjection: none },
   unusedDefault: no, callableCreation: none, optionalLocals: none, classFactories: { classFactory: none },
-  navigation: { sourceReferenceFor: () => undefined, referenceFor: () => undefined, isProjectDeclaration: () => false,
-    expressionResultUse: source.navigation.expressionResultUse } });
+  // nextgen C-2542: the operand owner reads the Host role model (facts.navigation); the double keeps the real expression
+  // roles and answers no identity target, as the old navigation double did.
+  facts: { navigation: { ...source.facts.navigation, identity: { ...source.facts.navigation.identity,
+    target: () => undefined, isProjectDeclaration: () => false } } } });
 
 test("source method runtime order differs from planning order without a copied argument binder", () => {
   const selected = selectCsharpNativeOperandUses(input(classification({ kind: "grouped", arguments: [record], groups: [] })), call);
@@ -226,18 +229,18 @@ test("discarded selections retain native condition and effect order without a So
     }
   ` });
   assert.equal(checked.sourceDiagnosticsText, "", checked.sourceDiagnosticsText);
-  const source = createTargetSourceProgram(checked.source);
-  const ast = source.ast;
+  const source = csharpTestSourceProgram(checked.source);
+  const ast = source.syntax;
   const selections = [];
   const visit = node => {
     if ((ast.is.IsConditionalExpression(node) || ast.is.IsBinaryExpression(node)) &&
-      source.navigation.expressionResultDisposition(node).kind === "discarded") selections.push(node);
+      source.facts.navigation.expressions.resultDisposition(node).kind === "discarded") selections.push(node);
     ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
   source.sourceFiles.forEach(visit);
   assert.equal(selections.length, 4);
   for (const node of selections) {
-    const value = { ...input(undefined), ast, navigation: source.navigation,
+    const value = { ...input(undefined), ast, facts: source.facts,
       valueReads: { valueRead: { get: selected => {
         assert.equal(selected === node, true, "the discarded node has no Source-produced value carrier");
         return undefined;

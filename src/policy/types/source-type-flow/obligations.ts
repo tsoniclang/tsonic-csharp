@@ -1,14 +1,16 @@
-import type { Node, SourceFile } from "@tsonic/tsts";
-import type { SourceLiteralIndex, SourceLiteralValue, SourceTypeFlowAssociation, SourceTypeFlowObligation } from "@tsonic/target-api/source";
+// CLR realization of the Host type-flow obligations (facts.obligations()): the Host decided that each obligation's
+// Source relation holds; this file proves that the chosen .NET representation can carry it, and otherwise reports a
+// .NET-capability refusal (CSHARP_TYPE_FLOW_UNREPRESENTABLE). No Source relation is decided here (R2, I7).
+import type { Node } from "@tsonic/tsts";
+import type { SourceLiteralValue, SourceObligation } from "@tsonic/target-api/source";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpPolicyContext } from "../../model/context.js";
-import type { CsharpSourceTypeRepresentationHost } from "./representation.js";
 import type { CsharpSourceTypeFlowRelationHost } from "./relations.js";
 import type { CsharpNativeSourceCarrierSelection } from "../../../target-model/records/objects/object-shapes.js";
 import type { CsharpArrayLiteralSelection } from "../../../target-model/records/operations/array-literals.js";
 import type { TargetConstraint, TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpTargetTypeFailsConstraint, type CsharpConstraintSatisfactionHost } from "../../../analysis/operations/members/calls/constraint-satisfaction.js";
-import { representCsharpSourceType } from "./representation.js";
+import type { SourceTypeDescriptor } from "@tsonic/target-api/source";
 import { csharpSourceTypeFlowInterfaceAccepts } from "./relations.js";
 import { csharpLiteralIsRepresentableAs, selectCsharpExactLiteralConversion } from "../../conversions/literals.js";
 import { csharpArrayElementIsRepresentableAs } from "../collections/array-elements.js";
@@ -20,23 +22,26 @@ import { isCsharpStringTargetType } from "../../../target-model/types/identity.j
 import { getCsharpCollectionElementTargetType } from "../../../target-model/types/carriers/collections.js";
 import { getCsharpRuntimeUnionArms } from "../../../target-model/types/carriers/runtime-carriers.js";
 
-export interface CsharpSourceTypeFlowObligationHost extends CsharpSourceTypeRepresentationHost, CsharpSourceTypeFlowRelationHost {
-  readonly literalValues: SourceLiteralIndex;
+export interface CsharpSourceTypeFlowObligationHost extends CsharpSourceTypeFlowRelationHost {
   readonly typeDefinitions: CsharpPolicyContext["typeDefinitions"];
+  readonly target: CsharpPolicyContext["target"];
   readonly constraintHost: CsharpConstraintSatisfactionHost;
+  /** The one mapping at an obligation site (storage position); a CSHARP_ refusal reads as "no representation". */
+  represent(descriptor: SourceTypeDescriptor, site: Node): TargetTypeRef | undefined;
+  /** The Host literal value of a node (facts.values.literal). */
+  literal(node: Node): SourceLiteralValue | undefined;
   valueType(node: Node): TargetTypeRef | undefined;
   arrayLiteral(node: Node): CsharpArrayLiteralSelection;
   literalAdmission(node: Node, type: TargetTypeRef): CsharpNativeSourceCarrierSelection | undefined;
-  requiredType(node: Node, association: SourceTypeFlowAssociation | undefined): TargetTypeRef | undefined;
-  nativeConstraints(node: Node, type: TargetTypeRef, association: SourceTypeFlowAssociation | undefined): {
-    readonly sourceFile: SourceFile;
-    readonly constraints: readonly TargetConstraint[];
-  } | undefined;
+  /** The required contract of an obligation without a published requiredType (the instantiated call parameter). */
+  requiredType(obligation: SourceObligation): TargetTypeRef | undefined;
+  /** The lowered .NET constraints of the binder an obligation names, with the call's binders substituted. */
+  nativeConstraints(obligation: SourceObligation, type: TargetTypeRef): readonly TargetConstraint[] | undefined;
 }
 
 export function checkCsharpSourceTypeFlowObligations(
   host: CsharpSourceTypeFlowObligationHost,
-  obligations: readonly SourceTypeFlowObligation[],
+  obligations: readonly SourceObligation[],
 ): readonly TargetDiagnostic[] {
   return Object.freeze(obligations.flatMap(obligation => {
     const issue = checkCsharpSourceTypeFlowObligation(host, obligation);
@@ -44,23 +49,25 @@ export function checkCsharpSourceTypeFlowObligations(
   }));
 }
 
+/** `chosen` overrides the representation of `obligation.type` (the retained physical shape of an inferred literal). */
 export function checkCsharpSourceTypeFlowObligation(
   host: CsharpSourceTypeFlowObligationHost,
-  obligation: SourceTypeFlowObligation,
+  obligation: SourceObligation,
+  chosenRepresentation?: TargetTypeRef,
 ): TargetDiagnostic | undefined {
   const fail = (message: string): TargetDiagnostic => Object.freeze({
     source: "tsonic-csharp",
     sourceNode: obligation.site,
-    code: "CSHARP_UNSUPPORTED_AST",
+    code: "CSHARP_TYPE_FLOW_UNREPRESENTABLE",
     category: "error",
     message,
   });
-  const chosen = representCsharpSourceType(host, obligation.type);
+  const chosen = chosenRepresentation ?? host.represent(obligation.type, obligation.site);
   if (chosen === undefined) return fail("The Host-selected source type has no closed native C# representation.");
   if (obligation.kind === "constraint") {
-    const selected = host.nativeConstraints(obligation.required, chosen, obligation.association);
-    if (selected === undefined) return fail("A source constraint requires its actual lowered C# declaration constraints.");
-    for (const constraint of selected.constraints) {
+    const constraints = host.nativeConstraints(obligation, chosen);
+    if (constraints === undefined) return fail("A source constraint requires its actual lowered C# declaration constraints.");
+    for (const constraint of constraints) {
       if (constraint.kind === "implements") {
         if (!csharpSourceTypeFlowInterfaceAccepts(host, chosen, constraint.contract)) {
           return fail(`Native type '${targetTypeRefKey(chosen)}' does not directly implement '${targetTypeRefKey(constraint.contract)}' with identical type arguments.`);
@@ -68,7 +75,7 @@ export function checkCsharpSourceTypeFlowObligation(
         continue;
       }
       const reason = csharpTargetTypeFailsConstraint(host.constraintHost,
-        { kind: "target-derived", targetType: chosen }, constraint, selected.sourceFile);
+        { kind: "target-derived", targetType: chosen }, constraint);
       if (reason !== undefined) return fail(reason);
     }
     return undefined;
@@ -79,7 +86,7 @@ export function checkCsharpSourceTypeFlowObligation(
     }
     const site = obligation.value ?? obligation.site;
     const carrier = getCsharpNullableElementTargetType(chosen) ?? chosen;
-    const literal = obligation.authority === "inferred" ? host.literalValues.literalValue.get(site) : undefined;
+    const literal = obligation.authority === "inferred" ? host.literal(site) : undefined;
     const element = getCsharpCollectionElementTargetType(carrier);
     if (obligation.authority === "inferred" && literal?.form === "array" && element !== undefined &&
       (getCsharpRuntimeUnionArms(element, host.typeDefinitions) !== undefined || getCsharpNullableElementTargetType(element) !== undefined)) {
@@ -94,7 +101,7 @@ export function checkCsharpSourceTypeFlowObligation(
       }
     }
     if (carrier.kind === "source-primitive" || isCsharpStringTargetType(carrier)) {
-      const value = obligation.authority === "inferred" ? literal : host.literalValues.literalValue.get(site);
+      const value = obligation.authority === "inferred" ? literal : host.literal(site);
       if (literalFits(value, chosen)) return undefined;
       const selection = selectCsharpExactLiteralConversion(value, chosen, chosen);
       return fail(selection.kind === "rejected" ? selection.reason
@@ -111,9 +118,9 @@ export function checkCsharpSourceTypeFlowObligation(
     const descriptor = obligation.valueType;
     const actual = descriptor === undefined
       ? obligation.value === undefined || obligation.valueVariable !== undefined ? undefined : host.valueType(obligation.value)
-      : representCsharpSourceType(host, descriptor);
+      : host.represent(descriptor, obligation.site);
     if (actual === undefined) return fail("A native write check requires the exact projected value's Host-selected representation.");
-    const literals = writtenLiteralValues(host.literalValues, obligation);
+    const literals = writtenLiteralValues(host, obligation);
     for (const literal of literals) {
       if (literal !== undefined && !writtenLiteralFits(literal, chosen)) {
         return fail(`The written literal does not fit the existing '${targetTypeRefKey(chosen)}' storage.`);
@@ -132,8 +139,8 @@ export function checkCsharpSourceTypeFlowObligation(
       : `The write requires a native conversion from '${targetTypeRefKey(actual)}' to '${targetTypeRefKey(chosen)}' without changing the binding's type.`);
   }
   const required = obligation.requiredType === undefined
-    ? host.requiredType(obligation.required, obligation.association)
-    : representCsharpSourceType(host, obligation.requiredType);
+    ? host.requiredType(obligation)
+    : host.represent(obligation.requiredType, obligation.site);
   if (required === undefined) return fail("A native type-flow obligation requires its exact declared target contract.");
   if (targetTypeRefEquals(chosen, required)) return undefined;
   return csharpSourceTypeFlowInterfaceAccepts(host, chosen, required) ? undefined
@@ -141,13 +148,13 @@ export function checkCsharpSourceTypeFlowObligation(
 }
 
 function writtenLiteralValues(
-  index: SourceLiteralIndex,
-  obligation: SourceTypeFlowObligation,
+  host: Pick<CsharpSourceTypeFlowObligationHost, "literal">,
+  obligation: SourceObligation,
 ): readonly (SourceLiteralValue | undefined)[] {
   const variable = obligation.valueVariable;
   const node = variable?.node ?? obligation.value;
   if (node === undefined) return [];
-  let literals: readonly (SourceLiteralValue | undefined)[] = [index.literalValue.get(node)];
+  let literals: readonly (SourceLiteralValue | undefined)[] = [host.literal(node)];
   for (const part of variable?.path ?? []) {
     if (part.kind === "optional-value") continue;
     if (part.kind !== "element" && part.kind !== "tuple") return [];

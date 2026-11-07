@@ -1,4 +1,3 @@
-import { csharpSourceValueResult } from "../../../../dist/analysis/source-evidence/types/resolution/call-results.js";
 import { assertNoTargetDiagnostics } from "../../../../../tsonic/test/scripts/diagnostic-assertions.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -16,7 +15,7 @@ const effect = name => ({ kind: "ExpressionStatement", expression: { kind: "Invo
 const nodes = value => value === null || typeof value !== "object" ? [] : [value, ...Object.values(value).flatMap(nodes)];
 
 test("closed logical RHS statement regions execute only in their selected native branch", () => {
-  const policy = { types: { resolveNode: () => ({ kind: "resolved", sourceResult: csharpSourceValueResult(carrier) }), resolveReadStorage: () => undefined } };
+  const policy = { types: { value: () => carrier, readStorage: node => ({ kind: "csharp-refused", code: "CSHARP_FIXTURE_UNREPRESENTED", message: "This fixture has no storage read.", site: node }) } };
   for (const [operator, expectedBranch] of [["&&", "thenBody"], ["||", "elseBody"], ["??", "thenBody"]]) {
     let count = 0;
     const leftNode = {};
@@ -29,7 +28,7 @@ test("closed logical RHS statement regions execute only in their selected native
     const input = { program: { source: { ast: { pos: () => 1 } }, records: { jsValueBoxing: boxing.records.jsValueBoxing,
       typeEmission: csharpTypeEmissionRecord(), nativeConstant: { get: () => false }, nativeAbsence: { get: () => false } } }, scope: {},
       names: { temporaryName: () => `local${count++}` } };
-    const selected = validateCsharpJsValueOperationSelection(selectCsharpJsValueBinaryOperation(policy, {}, {}, {}, operator));
+    const selected = validateCsharpJsValueOperationSelection(selectCsharpJsValueBinaryOperation(policy, {}, {}, operator));
     const diagnostics = [];
     const planned = planCsharpJsValueLogical({}, {}, input, diagnostics, selected, leftNode, rightNode,
       csharpPlannedValue(carrier, identifier("left"), [effect("leftPrelude")]),

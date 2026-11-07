@@ -42,9 +42,9 @@ for (const readonly of [false, true]) {
       const arrows = projectNodes(compiled, (node, ast) => ast.is.IsArrowFunction(node));
       assert.equal(arrows.length, 1, "one original inline callback is retained");
       const arrow = arrows[0];
-      const ast = compiled.targetSource.ast;
-      const selected = compiled.targetSource.semantics.forNode(arrow).operations.call(ast.parent(arrow));
-      const declaration = selected?.sourceSelectedSignatureParameters[0]?.parameterDeclaration;
+      const ast = compiled.targetSource.syntax;
+      const selected = compiled.targetSource.facts.selections.call(ast.parent(arrow));
+      const declaration = selected === undefined || "code" in selected ? undefined : selected.signatureParameters[0]?.declaration;
       const callback = declaration === undefined ? undefined : ast.typeNode(declaration);
       const index = callback === undefined ? undefined : ast.parameters(callback)[indexPosition];
       const annotation = index === undefined ? undefined : ast.typeNode(index);

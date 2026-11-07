@@ -1,6 +1,6 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import { AsParenthesizedExpression, KindNullKeyword } from "@tsonic/target-api/source";
-import type { SourceLiteralIndex } from "@tsonic/target-api/source";
+import type { SourceProgramFacts } from "@tsonic/target-api/source";
 import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native/native-demand.js";
 import type { CsharpExactLiteralRecipe, CsharpExactLiteralSelectionIndex } from "../../target-model/conversions/exact-literals.js";
 import type { CsharpValueReadClassifications } from "../../target-model/records/operations/conversions.js";
@@ -12,7 +12,7 @@ import { isCsharpStringTargetType } from "../../target-model/types/identity.js";
 import { createCsharpNativeConstantRecords } from "../program/records/native/native-constants.js";
 
 export function analyzeCsharpNativeConstants(input: { readonly ast: AstReader; readonly demand: CsharpNativeDemandAnalysis;
-  readonly literals: SourceLiteralIndex; readonly exact: CsharpExactLiteralSelectionIndex; readonly values: CsharpValueReadClassifications;
+  readonly facts: Pick<SourceProgramFacts, "values">; readonly exact: CsharpExactLiteralSelectionIndex; readonly values: CsharpValueReadClassifications;
   readonly types: CsharpTypeEmissionRecords; readonly references: CsharpSourceReferenceRecords }) {
   const values = new Map<Node, Map<string, boolean>>();
   const absence = new Map<Node, Map<string, boolean>>();
@@ -35,7 +35,7 @@ export function analyzeCsharpNativeConstants(input: { readonly ast: AstReader; r
       literalNode = expression;
     }
     const exact = input.exact.exactLiteral.get(literalNode, carrier);
-    const literal = input.literals.literalValue.get(literalNode);
+    const literal = input.facts.values.literal(literalNode);
     const storage = input.types.typeEmission.get(carrier)?.optionalStorage;
     const absent = storage?.kind === "native" && storage.absence && !storage.jsValue &&
       (input.ast.kindName(literalNode) === KindNullKeyword || input.ast.is.IsVoidExpression(literalNode) ||

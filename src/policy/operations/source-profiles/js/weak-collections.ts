@@ -62,7 +62,7 @@ function weakMapShape(context: CsharpSourceProfileCallPolicyContext): {
 } | undefined {
   const receiver = resolveCsharpSelectedSourceValue(
     context,
-    context.source.sourceReceiver,
+    context.source.receiver,
   );
   const shape = getCsharpJsWeakMapTargetTypes(receiver);
   return receiver === undefined || shape === undefined ||
@@ -77,7 +77,7 @@ function weakSetShape(context: CsharpSourceProfileCallPolicyContext): {
 } | undefined {
   const receiver = resolveCsharpSelectedSourceValue(
     context,
-    context.source.sourceReceiver,
+    context.source.receiver,
   );
   const element = getCsharpJsWeakSetElementTargetType(receiver);
   return receiver === undefined || element === undefined ||
@@ -161,7 +161,7 @@ function weakMapConstructor(
     elements: [arguments_[0]!, arguments_[1]!],
   };
   return {
-    id: context.source.sourceArguments.length === 0
+    id: context.source.arguments.length === 0
       ? "Tsonic.CSharp.Js.WeakMap..ctor()"
       : "Tsonic.CSharp.Js.WeakMap..ctor(IEnumerable)",
     sourceName: "constructor",
@@ -186,7 +186,7 @@ function weakSetConstructor(
   }
   const target = csharpJsWeakSetTargetType(arguments_[0]!);
   return {
-    id: context.source.sourceArguments.length === 0
+    id: context.source.arguments.length === 0
       ? "Tsonic.CSharp.Js.WeakSet..ctor()"
       : "Tsonic.CSharp.Js.WeakSet..ctor(IEnumerable)",
     sourceName: "constructor",
@@ -207,7 +207,7 @@ function weakConstructorParameters(
   name: string,
   collection: TargetTypeRef,
 ): readonly ReturnType<typeof targetParameter>[] {
-  const sourceArgument = context.source.sourceArguments[0];
+  const sourceArgument = context.source.arguments[0];
   if (sourceArgument === undefined) {
     return [];
   }
@@ -223,7 +223,7 @@ function weakConstructorParameters(
 function weakConstructorParameterMapping(
   context: CsharpSourceProfileCallPolicyContext,
 ): readonly (number | undefined)[] {
-  return context.source.sourceArguments.length === 0 ? [undefined] : [0];
+  return context.source.arguments.length === 0 ? [undefined] : [0];
 }
 
 function weakMapTypeArguments(

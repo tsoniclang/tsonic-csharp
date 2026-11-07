@@ -144,8 +144,8 @@ function originalNativeProgram(name, selected) {
   if (name === "same-role-uses") return nativeCostProgram("var pair = Index.pair(3, 4); return pair.first.left + pair.second.right;",
     "var pair = new NativePair { first = new NativeLeft { left = 3 }, second = new NativeRight { right = 4 } }; return pair.first.left + pair.second.right;",
     "sealed class NativeLeft { public int left; } sealed class NativeRight { public int right; } sealed class NativePair { public required NativeLeft first; public required NativeRight second; }");
-  const parameter = selected.nodes.find(node => selected.source.ast.is.IsParameterDeclaration(node));
-  const parameterType = selected.source.ast.as.AsParameterDeclaration(parameter)?.Type;
+  const parameter = selected.nodes.find(node => selected.source.syntax.is.IsParameterDeclaration(node));
+  const parameterType = selected.source.syntax.as.AsParameterDeclaration(parameter)?.Type;
   assert.equal(parameterType !== undefined, true, `${name}: the original parameter has its authored type`);
   const carrier = selected.program.records.nodeTargetType.get(parameterType);
   assert.equal(carrier !== undefined, true, `${name}: the authored parameter type has its sealed carrier`);

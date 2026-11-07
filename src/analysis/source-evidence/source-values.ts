@@ -1,12 +1,12 @@
 import type { AstReader, Node } from "@tsonic/tsts";
-import type { SourceProgramNavigation } from "@tsonic/target-api/source";
+import type { SourceIdentityRoles } from "@tsonic/target-api/source";
 
 export function csharpFlowReadPrincipalDeclaration(
   ast: AstReader,
-  navigation: Pick<SourceProgramNavigation, "sourceReferenceFor">,
+  identity: Pick<SourceIdentityRoles, "target">,
   node: Node,
 ): Node | undefined {
-  const declaration = navigation.sourceReferenceFor(node)?.declaration;
+  const declaration = identity.target(node)?.declaration;
   return declaration !== undefined && (ast.is.IsVariableDeclaration(declaration) ||
     ast.is.IsParameterDeclaration(declaration) || ast.is.IsBindingElement(declaration) ||
     ast.is.IsPropertyDeclaration(declaration) || ast.is.IsPropertySignatureDeclaration(declaration))

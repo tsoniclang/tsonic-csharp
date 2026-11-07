@@ -1,6 +1,6 @@
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { Node } from "@tsonic/tsts";
-import { IsTypeSyntaxNode, sourceDeclarationIsModuleScoped } from "@tsonic/target-api/source";
+import { IsTypeSyntaxNode } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
 import { selectCsharpSourceArgument } from "../../source/extension/arguments.js";
@@ -12,13 +12,13 @@ export function classifyCsharpModuleFieldDemand(
   const fields = new Set<Node>();
   const visit = (node: Node): void => {
     if (evidence.compileTimeMetadata.get(node) || IsTypeSyntaxNode(policy.ast, node) ||
-      policy.types.nativeUnreachable(node)) return;
+      policy.facts.navigation.scopes.unreachable(node)) return;
     const selected = selectCsharpSourceArgument(policy.sourceFacts, node);
     if (selected.kind === "resolved" && selected.argument.passingMode !== "by-value") {
       const expression = selected.argument.storageExpression;
-      const declaration = policy.semanticsFor(expression).operations.storage(expression)?.declaration;
+      const declaration = policy.facts.selections.storage(expression)?.declaration;
       if (declaration !== undefined && (policy.ast.is.IsVariableDeclaration(declaration) ||
-        policy.ast.is.IsBindingElement(declaration)) && sourceDeclarationIsModuleScoped(declaration, policy.ast)) {
+        policy.ast.is.IsBindingElement(declaration)) && policy.facts.navigation.scopes.isModuleScoped(declaration)) {
         if (fields.size >= 131_072 && !fields.has(declaration))
           failTargetAnalysisInvariant("tsonic-csharp", "Native module-field demand exceeded its finite storage budget.", node);
         fields.add(declaration);

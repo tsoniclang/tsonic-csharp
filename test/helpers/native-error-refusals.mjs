@@ -1,19 +1,19 @@
+import { csharpTestSourceProgram } from "./target-source-program.mjs";
 import assert from "node:assert/strict";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
 
 export function nativeErrorDiagnosticText(compiled, diagnostic) {
-  const source = createTargetSourceProgram(compiled.source);
+  const source = csharpTestSourceProgram(compiled.source);
   const nodes = new Set();
   const visit = node => {
     nodes.add(node);
-    source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    source.syntax.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
-  for (const file of source.navigation.sourceFiles) visit(file);
+  for (const file of source.sourceFiles) visit(file);
   const node = diagnostic.sourceNode;
   assert.equal(node !== undefined && nodes.has(node), true, "the identical checked source node owns the refusal");
-  const range = source.ast.authoredRange(node);
+  const range = source.syntax.authoredRange(node);
   assert.equal(range.kind, "authored", "the refusal retains its original authored range");
-  const text = source.ast.getSourceText(source.ast.getSourceFile(node));
+  const text = source.syntax.getSourceText(source.syntax.getSourceFile(node));
   assert.equal(range.start >= 0 && range.end >= range.start && range.end <= text.length, true,
     "the complete node range belongs to the actual checked source file");
   return text.slice(range.start, range.end);

@@ -1,50 +1,41 @@
-import type { SourceFileSemantics } from "@tsonic/target-api/source";
-import type { ResolvedSourceCallInfo } from "../../../target-model/records/calls/source-calls.js";
+// Groups the Host argument correspondence of a selected call onto a native parameter vector (nextgen C-2542).
+// Argument → parameter correspondence, spread forms and the selected signature's parameter kinds are Host facts
+// (facts.selections.call); this file decides only the C# parameter grouping (fixed slots, params arrays).
+import type { SourceCallSelection } from "@tsonic/target-api/source";
 import type { CsharpSourceArgumentGroup, CsharpSourceArgumentGrouping, CsharpSourceArgumentGroupingEntry } from "../../../target-model/records/operations/operations.js";
 import type { CsharpTargetParameter, TargetTypeRef } from "../../../target-model/types/model.js";
 
 export function selectCsharpSourceArgumentGrouping(
-  source: ResolvedSourceCallInfo,
+  source: SourceCallSelection,
   parameters: readonly CsharpTargetParameter[] | undefined,
   argumentParameterTypes: readonly (TargetTypeRef | undefined)[] | undefined,
-  parameterSlots: ReturnType<SourceFileSemantics["operations"]["callParameterSlots"]>,
   exactArity = false,
 ): CsharpSourceArgumentGrouping {
-  if (source.sourceSelectedSignatureKind !== "resolved") return Object.freeze({ kind: "unresolved",
-    reason: "Source arguments require their finalized checked signature." });
   if (parameters === undefined) return Object.freeze({ kind: "unresolved",
     reason: "Source arguments require their finalized native parameter vector." });
-  if (parameterSlots === undefined) return Object.freeze({ kind: "unresolved",
-    reason: "Source arguments require their finalized checked parameter slots." });
-  const bindings = source.sourceArgumentBindings;
+  const bindings = source.arguments;
   if (argumentParameterTypes !== undefined && argumentParameterTypes.length !== bindings.length) {
-    return Object.freeze({ kind: "inconsistent", reason: "Argument parameter types must correspond to every checked binding." });
+    return Object.freeze({ kind: "inconsistent", reason: "Argument parameter types must correspond to every selected binding." });
   }
+  const sourceParameters = source.parameters;
   if (parameters.some((parameter, index) => parameter.paramsArray === true && index !== parameters.length - 1) ||
-    parameterSlots.some((slot, index) => slot.form === "rest" && index !== parameterSlots.length - 1)) {
+    sourceParameters.some((parameter, index) => parameter.kind === "rest" && index !== sourceParameters.length - 1)) {
     return Object.freeze({ kind: "inconsistent", reason: "A rest slot must be the final parameter in its own contract." });
   }
   const restIndex = parameters.findIndex(parameter => parameter.paramsArray === true);
-  const sourceRestIndex = parameterSlots.findIndex(slot => slot.form === "rest");
-  const sourceParameters = new Map<number, ResolvedSourceCallInfo["sourceSelectedSignatureParameters"][number]>();
-  for (const parameter of source.sourceSelectedSignatureParameters) {
-    if (!Number.isSafeInteger(parameter.parameterIndex) || parameter.parameterIndex < 0 || sourceParameters.has(parameter.parameterIndex)) {
-      return Object.freeze({ kind: "inconsistent", reason: "Checked source parameter identities must be unique nonnegative indices." });
-    }
-    sourceParameters.set(parameter.parameterIndex, parameter);
-  }
-  const bindingsBySource: { readonly binding: ResolvedSourceCallInfo["sourceArgumentBindings"][number]; readonly index: number }[][] =
-    Array.from({ length: source.sourceArguments.length }, () => []);
+  const sourceRestIndex = sourceParameters.findIndex(parameter => parameter.kind === "rest");
+  const argumentCount = bindings.reduce((count, binding) => Math.max(count, binding.argumentIndex + 1), 0);
+  const bindingsBySource: { readonly binding: SourceCallSelection["arguments"][number]; readonly index: number }[][] =
+    Array.from({ length: argumentCount }, () => []);
   const effective = new Set<number>();
   for (const [index, binding] of bindings.entries()) {
-    const sourceIndex = binding.sourceArgumentIndex;
-    if (!Number.isSafeInteger(sourceIndex) || sourceIndex < 0 || sourceIndex >= source.sourceArguments.length ||
-      !Number.isSafeInteger(binding.effectiveArgumentIndex) || binding.effectiveArgumentIndex < 0 || binding.effectiveArgumentIndex >= bindings.length ||
-      effective.has(binding.effectiveArgumentIndex) || !Number.isSafeInteger(binding.sourceParameterIndex) || binding.sourceParameterIndex < 0) {
-      return Object.freeze({ kind: "inconsistent", reason: "Checked argument keys must be complete, unique and within their source domains." });
+    if (!Number.isSafeInteger(binding.argumentIndex) || binding.argumentIndex < 0 ||
+      !Number.isSafeInteger(binding.effectiveIndex) || binding.effectiveIndex < 0 || binding.effectiveIndex >= bindings.length ||
+      effective.has(binding.effectiveIndex) || !Number.isSafeInteger(binding.parameterIndex) || binding.parameterIndex < 0) {
+      return Object.freeze({ kind: "inconsistent", reason: "Selected argument keys must be complete, unique and within their source domains." });
     }
-    effective.add(binding.effectiveArgumentIndex);
-    bindingsBySource[sourceIndex]!.push({ binding, index });
+    effective.add(binding.effectiveIndex);
+    bindingsBySource[binding.argumentIndex]!.push({ binding, index });
   }
   const entries: CsharpSourceArgumentGroupingEntry[] = [];
   const bound = new Set<number>();
@@ -52,52 +43,50 @@ export function selectCsharpSourceArgumentGrouping(
   let previousParameter = -1;
   let tupleExpansion = false;
   let pending = false;
-  for (const [sourceArgumentIndex, argument] of source.sourceArguments.entries()) {
-    const selectedBindings = bindingsBySource[sourceArgumentIndex]!;
-    if (selectedBindings.length === 0 || selectedBindings.length > 1 && selectedBindings.some(({ binding }) => binding.sourceForm !== "spread-element")) {
-      return Object.freeze({ kind: "inconsistent", reason: "Every source argument needs its complete checked binding, never a duplicated value or a missing prefix." });
+  for (const [sourceArgumentIndex, selectedBindings] of bindingsBySource.entries()) {
+    if (selectedBindings.length === 0 || selectedBindings.length > 1 && selectedBindings.some(({ binding }) => binding.form !== "spread-element")) {
+      return Object.freeze({ kind: "inconsistent", reason: "Every source argument needs its complete selected binding, never a duplicated value or a missing prefix." });
     }
     let nextTupleElement = 0;
     for (const { binding, index } of selectedBindings) {
-      const sourceSlotIndex = sourceRestIndex < 0 ? binding.effectiveArgumentIndex : Math.min(sourceRestIndex, binding.effectiveArgumentIndex);
-      const sourceSlot = parameterSlots[sourceSlotIndex];
-      const sourceParameter = sourceParameters.get(binding.sourceParameterIndex);
-      if (binding.effectiveArgumentIndex !== nextEffective || sourceSlot === undefined || sourceParameter === undefined ||
-        sourceSlot.sourceParameterIndex !== binding.sourceParameterIndex ||
-        (binding.sourceParameterForm === "parameter") === sourceParameter.rest ||
-        (binding.sourceForm === "spread-sequence") !== (binding.sourceParameterForm === "rest-sequence") ||
-        binding.sourceForm === "spread-element" && binding.spreadElementIndex !== nextTupleElement ||
-        binding.sourceForm !== "spread-element" && binding.spreadElementIndex !== undefined) {
-        return Object.freeze({ kind: "inconsistent", reason: "Source argument order, parameter provenance and spread identities must match the checked contract exactly." });
+      const sourceSlotIndex = sourceRestIndex < 0 ? binding.effectiveIndex : Math.min(sourceRestIndex, binding.effectiveIndex);
+      const sourceParameter = sourceParameters[binding.parameterIndex];
+      if (binding.effectiveIndex !== nextEffective || sourceParameter === undefined ||
+        sourceSlotIndex !== binding.parameterIndex ||
+        (binding.mode === "positional") === (sourceParameter.kind === "rest") ||
+        (binding.form === "spread-sequence") !== (binding.mode === "spread") ||
+        binding.form === "spread-element" && binding.spreadElement !== nextTupleElement ||
+        binding.form !== "spread-element" && binding.spreadElement !== undefined) {
+        return Object.freeze({ kind: "inconsistent", reason: "Source argument order, parameter provenance and spread identities must match the selected contract exactly." });
       }
       nextEffective += 1;
-      if (binding.sourceForm === "spread-element") nextTupleElement += 1;
-      const parameterIndex = restIndex < 0 ? binding.effectiveArgumentIndex : Math.min(restIndex, binding.effectiveArgumentIndex);
+      if (binding.form === "spread-element") nextTupleElement += 1;
+      const parameterIndex = restIndex < 0 ? binding.effectiveIndex : Math.min(restIndex, binding.effectiveIndex);
       const parameter = parameters[parameterIndex];
-      if (parameter === undefined || binding.sourceForm === "spread-sequence" && parameter.paramsArray !== true) {
-        return Object.freeze({ kind: "refused", reason: "The checked argument cannot bind the selected native parameter contract." });
+      if (parameter === undefined || binding.form === "spread-sequence" && parameter.paramsArray !== true) {
+        return Object.freeze({ kind: "refused", reason: "The selected argument cannot bind the selected native parameter contract." });
       }
       if (parameterIndex < previousParameter || parameterIndex === previousParameter && parameter.paramsArray !== true) {
         return Object.freeze({ kind: "inconsistent", reason: "Native parameter bindings must preserve source order and bind fixed slots only once." });
       }
       previousParameter = parameterIndex;
       bound.add(parameterIndex);
-      if (binding.sourceForm === "spread-element") tupleExpansion = true;
+      if (binding.form === "spread-element") tupleExpansion = true;
       const type = argumentParameterTypes?.[index];
       if (type === undefined) { pending = true; continue; }
-      entries.push(Object.freeze({ binding, expression: argument.expression, sourceArgumentIndex,
-        effectiveArgumentIndex: binding.effectiveArgumentIndex, sourceParameterIndex: binding.sourceParameterIndex, parameterIndex,
-        sourceForm: binding.sourceForm, type, parameter: Object.freeze({ name: parameter.name, type, passingMode: "by-value",
+      entries.push(Object.freeze({ binding, expression: binding.argument, sourceArgumentIndex,
+        effectiveArgumentIndex: binding.effectiveIndex, sourceParameterIndex: binding.parameterIndex, parameterIndex,
+        sourceForm: binding.form, type, parameter: Object.freeze({ name: parameter.name, type, passingMode: "by-value",
           ...(parameter.optional === true ? { optional: true } : {}),
-          ...(parameter.paramsArray === true && binding.sourceForm === "spread-sequence" ? { paramsArray: true } : {}),
+          ...(parameter.paramsArray === true && binding.form === "spread-sequence" ? { paramsArray: true } : {}),
         }) }));
     }
   }
   if (parameters.some((parameter, index) => !bound.has(index) && parameter.optional !== true && parameter.paramsArray !== true)) {
-    return Object.freeze({ kind: "refused", reason: "A required native parameter has no checked source argument." });
+    return Object.freeze({ kind: "refused", reason: "A required native parameter has no selected source argument." });
   }
   if (tupleExpansion) return Object.freeze({ kind: "refused", reason: "Source-owned tuple-spread arguments require an explicit expansion plan." });
-  if (pending) return Object.freeze({ kind: "unresolved", reason: "Every checked source argument requires its finalized native parameter type." });
+  if (pending) return Object.freeze({ kind: "unresolved", reason: "Every selected source argument requires its finalized native parameter type." });
   const byParameter: CsharpSourceArgumentGroupingEntry[][] = Array.from({ length: parameters.length }, () => []);
   for (const entry of entries) byParameter[entry.parameterIndex]!.push(entry);
   const groups: CsharpSourceArgumentGroup[] = [];

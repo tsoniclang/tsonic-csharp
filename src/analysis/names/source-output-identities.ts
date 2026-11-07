@@ -1,6 +1,6 @@
 import { relative, resolve } from "node:path";
 import { providerVirtualDeclarationFactKey, type AstReader, type Node, type SourceFile } from "@tsonic/tsts";
-import type { TargetSourceProgram } from "@tsonic/target-api/source";
+import type { TargetSourceProgramFacts } from "@tsonic/target-api/source";
 import type { TargetCompilationPaths } from "@tsonic/target-api";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpSourceFileOutputIdentity } from "../../target-model/records/program/source-files.js";
@@ -16,7 +16,7 @@ export interface CsharpSourceOutputIdentityPlannerHost {
   readonly sourceFiles: readonly SourceFile[];
   readonly paths: TargetCompilationPaths;
   readonly generatedTypeNames: readonly string[];
-  readonly sourceFacts: TargetSourceProgram["sourceFacts"];
+  readonly sourceFacts: TargetSourceProgramFacts["sourceFacts"];
 }
 
 

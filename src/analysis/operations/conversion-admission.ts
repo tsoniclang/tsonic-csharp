@@ -18,7 +18,7 @@ export function csharpSelectedCallConversionIssue(
 ): CsharpOperationIssue | undefined {
   if (selection?.kind !== "resolved") return undefined;
   const issue = (conversion: CsharpConversionSelection): CsharpOperationIssue | undefined =>
-    csharpOperationConversionIssue(selection.source.call, conversion, "CSHARP_CALL_ARGUMENT_CONVERSION_NOT_PROVEN");
+    csharpOperationConversionIssue(selection.source.use, conversion, "CSHARP_CALL_ARGUMENT_CONVERSION_NOT_PROVEN");
   if (selection.call.origin === "provider") for (const mapping of selection.call.argumentMappings) {
     if (mapping.kind !== "by-value") continue;
     const rejected = issue(admitCsharpConversionSelection(policy, mapping.sourceType, mapping.targetType, mapping.conversion));

@@ -1,14 +1,15 @@
+import { csharpTestSourceProgram } from "../../helpers/target-source-program.mjs";
 import assert from "node:assert/strict";
 import { csharpFrameClosureMethodName } from "../../../dist/target-model/names/capture-methods.js";
 import test from "node:test";
 import { createCompilerSessionFromFiles, formatDiagnostics } from "@tsonic/tsts";
-import { createTargetSourceProgram, sourceLexicalCaptures } from "@tsonic/target-api/source";
 import { analyzeCsharpCaptureStorage } from "../../../dist/analysis/callables/storage/capture-storage.js";
 import { csharpConstructorCapturedPlaces } from "../../../dist/analysis/callables/emission/constructor-entry.js";
 import { sealCsharpCaptureStorage } from "../../../dist/analysis/program/records/callables/capture-storage.js";
 import { csharpMethodValueType } from "../../../dist/target-model/types/method-values.js";
 import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
 import { createCaptureContractFixture } from "../../helpers/capture-contracts.mjs";
+import { createCsharpTypeParameterEnvironment } from "../../../dist/representation/index.js";
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 
 const scalar = Object.freeze({ kind: "source-primitive", name: "float64" });
@@ -20,10 +21,13 @@ function fixture(text) {
     compilerOptions: { strict: true, target: "es2022", module: "esnext" },
   }).checkSource();
   assert.equal(checked.diagnostics.length, 0, formatDiagnostics(checked.diagnostics.slice(0, 4)).slice(0, 1024));
-  const actual = createTargetSourceProgram(checked);
-  const source = { ...actual, navigation: { ...actual.navigation,
-    expressionValueFlow() { throw new Error("Ordinary native capture does not consult all-destination value flow."); },
-  } };
+  const actual = csharpTestSourceProgram(checked);
+  // nextgen C-2542: the all-destination value-flow spy moves to the published role fact facts.navigation.expressions.valueFlow.
+  const navigation = actual.facts.navigation;
+  const source = { ...actual, facts: { ...actual.facts, navigation: { ...navigation,
+    expressions: { ...navigation.expressions,
+      valueFlow() { throw new Error("Ordinary native capture does not consult all-destination value flow."); } },
+  } } };
   const declarations = new Map();
   const types = new Map();
   const metadata = new Set();
@@ -32,22 +36,22 @@ function fixture(text) {
   const storageTypes = new Map();
   const contexts = new Map();
   const visit = node => {
-    if (source.ast.is.IsVariableDeclaration(node) || source.ast.is.IsBindingElement(node) ||
-        source.ast.is.IsParameterDeclaration(node) || source.ast.is.IsFunctionDeclaration(node) ||
-        source.ast.is.IsClassDeclaration(node)) {
-      const name = source.ast.name(node);
-      if (name !== undefined && source.ast.is.IsIdentifier(name)) {
-        const spelling = source.ast.text(name);
+    if (source.syntax.is.IsVariableDeclaration(node) || source.syntax.is.IsBindingElement(node) ||
+        source.syntax.is.IsParameterDeclaration(node) || source.syntax.is.IsFunctionDeclaration(node) ||
+        source.syntax.is.IsClassDeclaration(node)) {
+      const name = source.syntax.name(node);
+      if (name !== undefined && source.syntax.is.IsIdentifier(name)) {
+        const spelling = source.syntax.text(name);
         const values = declarations.get(spelling) ?? [];
         values.push(node);
         declarations.set(spelling, values);
       }
-      types.set(node, source.ast.is.IsFunctionDeclaration(node) ? callable : scalar);
+      types.set(node, source.syntax.is.IsFunctionDeclaration(node) ? callable : scalar);
     }
-    if (source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node)) types.set(node, callable);
-    source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    if (source.syntax.is.IsArrowFunction(node) || source.syntax.is.IsFunctionExpression(node)) types.set(node, callable);
+    source.syntax.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
-  for (const file of source.navigation.sourceFiles) visit(file);
+  for (const file of source.sourceFiles) visit(file);
   const binding = (name, index = 0) => {
     const selected = declarations.get(name)?.[index];
     assert.equal(selected !== undefined, true, `original checked declaration ${name}/${index}`);
@@ -55,8 +59,8 @@ function fixture(text) {
   };
   const owner = (name, index = 0) => {
     const selected = binding(name, index);
-    return source.ast.as.AsVariableDeclaration(selected)?.Initializer ??
-      source.ast.as.AsParameterDeclaration(selected)?.Initializer ?? selected;
+    return source.syntax.as.AsVariableDeclaration(selected)?.Initializer ??
+      source.syntax.as.AsParameterDeclaration(selected)?.Initializer ?? selected;
   };
   const evaluate = () => analyzeCsharpCaptureStorage(source, { knownShapes: () => [] }, {
     nativeBacking: { get: () => undefined }, nativeArray: { get: () => undefined },
@@ -67,7 +71,9 @@ function fixture(text) {
     typeParameterConstraints: { get: () => undefined },
     contextualType: { get: node => contexts.get(node) },
   }, classCaptures, createCaptureContractFixture(source, node => types.get(node)), { get: node => erased.has(node) },
-    { selectedCall: { get: () => undefined }, selectedConstruction: { get: () => undefined } });
+    { selectedCall: { get: () => undefined }, selectedConstruction: { get: () => undefined } },
+    // nextgen C-2542: new last argument, the program view's one type-parameter environment.
+    createCsharpTypeParameterEnvironment(() => ({ kind: "resolved", constraints: [] })));
   return { source, binding, owner, evaluate, types, metadata, erased, classCaptures, storageTypes, contexts };
 }
 
@@ -141,17 +147,17 @@ for (const destructured of [false, true]) {
     assert.equal(result.frames.length, 1, "only the required class construction entry protocol");
     const declaration = input.binding("value");
     let parameterDeclaration = declaration;
-    while (input.source.ast.is.IsBindingElement(parameterDeclaration)) {
-      parameterDeclaration = input.source.ast.parent(input.source.ast.parent(parameterDeclaration));
+    while (input.source.syntax.is.IsBindingElement(parameterDeclaration)) {
+      parameterDeclaration = input.source.syntax.parent(input.source.syntax.parent(parameterDeclaration));
     }
-    const constructor = input.source.ast.parent(parameterDeclaration);
-    const selected = csharpConstructorCapturedPlaces(input.source.ast, constructor, result);
+    const constructor = input.source.syntax.parent(parameterDeclaration);
+    const selected = csharpConstructorCapturedPlaces(input.source.syntax, constructor, result);
     assert.equal(selected.length, 1);
     assert.equal(selected[0].declaration === declaration, true);
-    assert.equal(selected[0].scope === input.source.ast.body(constructor), true);
+    assert.equal(selected[0].scope === input.source.syntax.body(constructor), true);
     const protocol = result.constructorCapture.get(constructor);
     assert.equal(protocol !== undefined && protocol.declaration === constructor, true);
-    assert.equal(protocol.owner === input.source.ast.parent(constructor), true);
+    assert.equal(protocol.owner === input.source.syntax.parent(constructor), true);
     assert.equal(protocol.scope === selected[0].scope, true);
     assert.equal(protocol.places[0].declaration === declaration, true);
     assert.equal(protocol.frame === result.frames[0], true);
@@ -174,7 +180,8 @@ test("a genuinely mutable local-class protocol and an ordinary lambda share the 
   }`);
   const declaration = input.binding("value");
   const owner = input.binding("Holder");
-  const selected = sourceLexicalCaptures(owner, [owner], input.source.ast, input.source.navigation, "source");
+  // nextgen C-2542: the class's lexical captures are the Host analysis fact (R-F4-1), not the Host-internal navigation helper.
+  const selected = input.source.facts.analyses.lexicalCaptures(owner);
   assert.equal(selected.captures.length, 1);
   input.classCaptures.push({ declaration, reference: selected.captures[0].references[0],
     type: scalar, mutable: true, fieldName: "originalValue", initialization: "initialized" });
@@ -258,7 +265,7 @@ test("a missing quantified native protocol is refused at the original value rath
   const result = input.evaluate();
   assert.equal(result.issues.length, 1);
   assert.equal(result.issues[0].code, "CSHARP_GENERIC_CALLABLE_CONTRACT_NOT_CLOSED");
-  assert.equal(input.source.ast.is.IsArrowFunction(result.issues[0].node), true);
+  assert.equal(input.source.syntax.is.IsArrowFunction(result.issues[0].node), true);
   assert.equal(result.frames.length, 0);
   assert.equal(result.captureClosure.get(result.issues[0].node) === undefined, true);
 });
@@ -366,7 +373,7 @@ for (const classification of ["metadata", "erased"]) {
       export class Derived extends Base {
         constructor(value: number) { const read = () => value; super(read); }
       }`);
-    const file = input.source.navigation.sourceFiles[0];
+    const file = input.source.sourceFiles[0];
     input[classification].add(file);
     const result = input.evaluate();
     assert.equal(result.issues.length, 0);

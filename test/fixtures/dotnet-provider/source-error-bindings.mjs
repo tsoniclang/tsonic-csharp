@@ -7,11 +7,12 @@ import { snapshotCsharpMetadata } from "../../../dist/target-model/metadata/immu
 import { csharpSourceProfileDeclarationIdentity } from "../../../dist/policy/identities/selected-source.js";
 
 export function sourceErrorProtocolFixture(source) {
-  const identities = source.sourceFiles.filter(file => source.semantics.includes(file)).flatMap(file => {
-    const semantics = source.semantics.forFile(file);
-    return source.ast.statements(file).filter(statement => statement !== undefined && source.ast.is.IsInterfaceDeclaration(statement))
-      .flatMap(statement => source.ast.members(statement).map(member =>
-        csharpSourceProfileDeclarationIdentity(source.ast, semantics, source.sourceFacts, member)))
+  // nextgen C-2542: profile identities read the published facts and authored syntax (TargetSourceProgramFacts).
+  const ast = source.syntax;
+  const identities = source.sourceFiles.flatMap(file => {
+    return ast.statements(file).filter(statement => statement !== undefined && ast.is.IsInterfaceDeclaration(statement))
+      .flatMap(statement => ast.members(statement).map(member =>
+        csharpSourceProfileDeclarationIdentity(ast, source.facts, source.sourceFacts, member)))
       .filter(identity => identity !== undefined);
   });
   const stackCaptures = identities.filter(identity => identity.kind === "member" &&

@@ -2,7 +2,7 @@ import type { AstReader, Node } from "@tsonic/tsts";
 import { csharpFrameClosureMethodName } from "../../target-model/names/capture-methods.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { AsVariableDeclaration, sourceClassFieldIsTypeOnly, sourceObjectMemberDeclarations,
-  sourceDeclarationIsModuleScoped, sourceParameterIsProperty } from "@tsonic/target-api/source";
+  sourceParameterIsProperty, type SourceProgramFacts } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant, targetDiagnosticFromExtension } from "@tsonic/target-api/artifacts";
 import type { CsharpNativeMemberIdentity, CsharpNativeMemberNames } from "../../target-model/names/model.js";
 import type { CsharpProjectCallableAdapters } from "../../target-model/records/callables/callable-adapters.js";
@@ -39,6 +39,7 @@ import { objectShapeStorageMemberName, objectShapeBoundStorageMemberName,
 
 export interface CsharpNativeMemberNameInput {
   readonly ast: AstReader;
+  readonly facts: SourceProgramFacts;
   readonly nodes: readonly Node[];
   readonly nativeUse: CsharpNativeUseClassifications["nativeUse"];
   readonly metadata: Pick<CsharpSourceEvidenceIndex, "compileTimeMetadata" | "wellKnownSymbol" | "sourceField" | "sourceStruct">;
@@ -180,7 +181,7 @@ export function analyzeCsharpNativeMemberNames(input: CsharpNativeMemberNameInpu
       const selected = input.names.resolve(nameNode);
       const symbol = nameNode === undefined ? undefined : input.metadata.wellKnownSymbol.get(nameNode);
       const name = selected.kind === "resolved" ? selected.name : symbol === undefined ? undefined
-        : csharpWellKnownSymbolTargetMemberName(symbol.kind);
+        : csharpWellKnownSymbolTargetMemberName(symbol);
       if (name === undefined) {
         if (sourceParameterIsProperty(input.ast, member)) return [];
         const description = method ? "Method name" : accessor ? "Accessor name" : "Class field";
@@ -278,13 +279,13 @@ export function analyzeCsharpNativeMemberNames(input: CsharpNativeMemberNameInpu
       }
     };
     for (const root of roots) {
-      if (!sourceDeclarationIsModuleScoped(root, input.ast) || input.metadata.compileTimeMetadata.get(root) ||
+      if (!input.facts.navigation.scopes.isModuleScoped(root) || input.metadata.compileTimeMetadata.get(root) ||
         input.metadata.sourceStruct.get(root) !== undefined) continue;
       const declaration = AsVariableDeclaration(input.ast, root);
       if (declaration !== undefined) binding(root, declaration.name);
     }
     for (const node of input.nodes) {
-      if (!sourceDeclarationIsModuleScoped(node, input.ast) || input.metadata.compileTimeMetadata.get(node) ||
+      if (!input.facts.navigation.scopes.isModuleScoped(node) || input.metadata.compileTimeMetadata.get(node) ||
         input.unreachable.get(node)) continue;
       if (input.ast.is.IsFunctionDeclaration(node) && input.participation.get(node) === "body") {
         const contract = input.callables.get({ kind: "declaration", declaration: node });

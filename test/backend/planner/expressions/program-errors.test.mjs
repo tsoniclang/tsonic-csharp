@@ -3,6 +3,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../../helpers/direct-csharp-session.mjs";
 import { createCsharpPlanningContext } from "../../../../dist/backend/planner/context.js";
+import { sealCsharpAnalysisProgram } from "../../../../dist/analysis/program/index.js";
+
+// The planner reads the sealed program (records and syntax only), as in production (nextgen C-2542).
+const sealedProgram = program => program === undefined ? undefined : sealCsharpAnalysisProgram(program);
 import { planThrowStatement } from "../../../../dist/backend/planner/statements/statement-simple.js";
 import { admitCsharpStatementBindings } from "../../../../dist/analysis/control-flow/native-control-flow.js";
 import { csharpStringTargetType } from "../../../../dist/target-model/types/index.js";
@@ -14,7 +18,7 @@ test("native throw planning requires its exact sealed operand, source carrier an
   assert.deepEqual(compiled.extensionDiagnostics, []);
   assertCsharpCompilationSucceeded(compiled);
   assertNoTargetDiagnostics(compiled.result.diagnostics);
-  const program = compiled.result.program;
+  const program = sealedProgram(compiled.result.program);
   const source = program.source;
   const declaration = csharpProgramSourceFiles(program).flatMap(file => source.ast.statements(file))
     .find(node => source.ast.text(source.ast.name(node)) === "fail");
@@ -35,7 +39,8 @@ test("native throw planning requires its exact sealed operand, source carrier an
       changed.records, program.records, program.records.generator, program.records.nativeParticipation,
       program.records.compileTimeMetadata, program.records.valueRead);
     assert.equal(issues.length, 1, "one pre-seal owner rejects each original invalid throw classification");
-    assert.equal(issues[0].code, "CSHARP_UNSUPPORTED_AST", "the original source refusal code is retained");
+    // nextgen C-2542: split code for a throw without a sealed native error carrier classification.
+    assert.equal(issues[0].code, "CSHARP_THROW_CARRIER_NOT_CLASSIFIED", "the refusal code names its .NET reason");
     assert.equal(issues[0].sourceNode === classification.expression, true, "the exact original operand owns the refusal");
     assert.equal(issues[0].message, "Throw expression has no exact sealed C# native error carrier classification.");
   }

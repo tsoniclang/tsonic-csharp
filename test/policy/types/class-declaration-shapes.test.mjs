@@ -1,163 +1,86 @@
-import { csharpSourceValueResult } from "../../../dist/analysis/source-evidence/types/resolution/call-results.js";
+// Class declaration shapes (nextgen C-2542, I2, I6). A project class shape is the instance: the C# project-type
+// catalog names the generic .NET type with the declaration's own binders (captured outer binders first), and the
+// members are the Host object facts of the declaration's own reference (facts.objects.members), represented once.
+// A constructor value (the class's static side, or a variable holding a function) never becomes an instance shape,
+// and a missing Host member fact never falls back to another route.
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createCompilerSessionFromFiles, formatDiagnostics } from "@tsonic/tsts";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
-import { createSourceStorageQuery } from "@tsonic/target-api/analysis";
 import { createCsharpProjectTypeCatalog } from "../../../dist/analysis/project-types/catalog.js";
 import { createCsharpObjectShapePolicy } from "../../../dist/analysis/objects/shapes/api.js";
-import { createCsharpSourceTypeParameterEnvironment } from "../../../dist/analysis/source-evidence/types/resolution/type-parameter-environment.js";
-import { resolveCsharpTypeParameterConstraints } from "../../../dist/analysis/source-evidence/types/resolution/type-parameter-constraints.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
-import { resolveCsharpSourceTypeDescriptor } from "../../../dist/analysis/source-evidence/types/resolution/effective-types.js";
+import { hostProgram, representationServices } from "../../representation/host-fixture.mjs";
 
-function fixture() {
-  const checked = createCompilerSessionFromFiles({
-    currentDirectory: "/project",
-    compilerOptions: { strict: true, module: "esnext", moduleResolution: "bundler" },
-    files: {
-      "/project/factory.ts": "export function make<Outer>() { return class Box<Inner> { label: string = ''; }; }",
-      "/project/index.ts": "import { make as imported } from './factory.js'; export class Root<Own> { label: string = ''; }; export const alias = imported;",
-    },
-  }).checkSource();
-  assert.equal(checked.diagnostics.length, 0, formatDiagnostics(checked.diagnostics));
-  const source = createTargetSourceProgram(checked);
-  const semanticsFor = node => source.semantics.forNode(node);
-  const catalog = createCsharpProjectTypeCatalog({ ast: source.ast, navigation: source.navigation, effectiveTypes: source.effectiveTypes,
-    enumConstants: source.semantics.enumConstants, semanticsFor });
-  assert.equal(catalog.issues.length, 0, "closed checked project catalog");
-  assert.equal(catalog.definitions.length, 2, "both checked class declaration forms are exercised");
-  const types = new Map(catalog.definitions.map(definition => [
-    semanticsFor(definition.declaration).declarations.declaredType(definition.declaration),
-    catalog.targetTypeForDeclaration(definition.declaration, definition.typeParameterBindings),
-  ]));
-  const selections = [];
-  const host = {
-    ast: source.ast,
-    target: { id: "csharp" },
-    sourceFacts: source.sourceFacts,
-    effectiveTypes: source.effectiveTypes,
-    navigation: source.navigation,
-    sourceFiles: source.navigation.sourceFiles,
-    sourceStorage: createSourceStorageQuery(source, source.navigation.sourceFiles),
-    semantics: file => source.semantics.forFile(file),
-    hasSemantics: source.semantics.includes,
-    semanticsFor,
-    typeParameterConstraints: createCsharpSourceTypeParameterEnvironment(source.ast, (declaration, parameter) => {
-      const sourceFile = source.ast.getSourceFile(declaration);
-      return sourceFile === undefined ? undefined : resolveCsharpTypeParameterConstraints(declaration, parameter, sourceFile, {
-        ast: source.ast,
-        types: { resolveNode: (node, file) => {
-          const type = host.typeResolver.resolveNode(node, file, { depth: 0 });
-          return type === undefined ? undefined : { kind: "resolved", sourceResult: csharpSourceValueResult(type) };
-        } },
-      });
-    }),
-    projectTypeCatalog: catalog,
-    projectTypes: () => ({ directSupertypes: () => [] }),
-    representations: { genericProjections: () => [], requiresClosedStructuralContract: () => false,
-      scopedTargetType: () => undefined },
-    providers: { resolveSelectedTypeRelation: () => undefined },
-    objectShapes: { resolveCallableValue: () => undefined },
-    memoryBindings: { hasBoundField: () => false },
-    typeResolver: {
-      resolveNode: (node, file, state) => {
-        selections.push({ kind: "value", node, file, depth: state.depth });
-        return undefined;
-      },
-      resolveDescriptor: (descriptor, node, state) => {
-        selections.push({ kind: "descriptor", descriptor, node, depth: state.depth });
-        return resolveCsharpSourceTypeDescriptor({
-          host,
-          selectDirectSourceFacts: () => ({ kind: "not-applicable" }),
-          resolveProviderType: () => undefined,
-        }, descriptor, state, node);
-      },
-      resolveType: () => assert.fail("class shapes must not convert raw checker types"),
-      resolveSelectedType: (node, type, file) => source.semantics.forFile(file).types.isStringLike(type)
-        ? { kind: "source-primitive", name: "string" } : undefined,
-    },
-  };
-  return { source, catalog, types, selections, host };
+function fixture(overrides = {}) {
+  const program = hostProgram("import { make as imported } from './factory.js'; export class Root<Own> { label: string = ''; }; export const alias = imported;", {
+    files: { "factory.ts": "export function make<Outer>() { return class Box<Inner> { label: string = ''; }; }" },
+  });
+  const catalog = createCsharpProjectTypeCatalog({ ast: program.ast, facts: program.facts, sourceFiles: program.files,
+    sourceFacts: program.host.sourceFacts });
+  assert.equal(catalog.issues.length, 0, "closed project catalog");
+  assert.equal(catalog.definitions.length, 2, "both class declaration forms are exercised");
+  const projectTypeCatalog = overrides.catalog?.(catalog) ?? catalog;
+  let policy;
+  const services = representationServices(program, {
+    projectTypes: projectTypeCatalog,
+    shapes: Object.freeze({ retainShape: shape => policy.retainShape(shape), resolveCallableValue: (signature, binders) =>
+      policy.resolveCallableValue(signature, binders) }),
+    ...(overrides.facts === undefined ? {} : { facts: overrides.facts(program.facts) }),
+  });
+  const sourceStorage = new Proxy({}, { get: (_target, key) => () => assert.fail(`class field shapes do not read storage (${String(key)})`) });
+  policy = createCsharpObjectShapePolicy({ ast: program.ast, sourceStorage, projectTypeCatalog,
+    typeParameterConstraints: services.typeParameters, representation: () => services });
+  return { program, catalog, policy, services };
 }
 
-test("class declaration shapes select checked instances rather than constructor values", () => {
-  const { source, catalog, types, selections, host } = fixture();
-  const policy = createCsharpObjectShapePolicy(host);
+const binderNames = (program, definition) =>
+  [...definition.outerTypeParameters, ...definition.typeParameters].map(binder => program.ast.text(program.ast.name(binder)));
+
+test("class declaration shapes are instances over the declaration's own binders and Host members", () => {
+  const { program, catalog, policy } = fixture();
   for (const definition of catalog.definitions) {
-    const queries = source.semantics.forNode(definition.declaration);
-    const declaredType = queries.declarations.declaredType(definition.declaration);
-    const shape = policy.resolveNodeWithState(definition.declaration, definition.sourceFile, { depth: 3 });
-    const original = types.get(declaredType);
-    const completed = { ...original, typeArguments: original.typeArguments.map(argument => ({ ...argument,
-      csharpConstraints: host.typeParameterConstraints.resolve(argument).csharpConstraints })) };
-    assert.equal(shape !== undefined && targetTypeRefEquals(shape.targetType, completed), true,
-      `exact checked nominal instance carrier ${definition.sourceName}: ${shape?.targetType?.id ?? "absent"}, expected ${original.id}`);
-    for (const [index, argument] of shape.targetType.typeArguments.entries()) {
-      assert.equal(argument.csharpConstraints?.kind === "resolved", true, `${definition.sourceName}: resolved native binder ${index}`);
-      assert.equal(argument.csharpConstraints === completed.typeArguments[index].csharpConstraints, true,
-        `${definition.sourceName}: the canonical constraint environment completes binder ${index}`);
-    }
-    assert.equal(shape?.sourceType === declaredType, true, "matching checked instance source type");
+    const carrier = catalog.targetTypeForDeclaration(definition.declaration, definition.typeParameterBindings);
+    const shape = policy.resolveTarget(carrier);
+    assert.notEqual(shape, undefined, `${definition.sourceName}: a project class has an instance shape`);
+    assert.equal(targetTypeRefEquals(shape.targetType, carrier), true, `${definition.sourceName}: exact nominal instance carrier`);
+    assert.deepEqual(binderNames(program, definition), definition.local ? ["Outer", "Inner"] : ["Own"],
+      "captured and construction binders stay separate, outer first");
     assert.deepEqual(shape.targetType.typeArguments.map(argument => argument.identity),
       definition.typeParameterBindings.map(argument => argument.identity), "declaration-owned quantifier order");
-    assert.deepEqual(shape.targetType.typeArguments.map(argument => argument.name),
-      definition.local ? ["Outer", "Inner"] : ["Own"], "captured and construction binders stay separate");
-    assert.equal(selections.some(selection => selection.kind === "value" && selection.node === definition.declaration),
-      false, "constructor-value selection cannot manufacture a structural class copy");
-    assert.equal(selections.some(selection => selection.kind === "descriptor" &&
-      selection.descriptor.kind === "declared" && selection.descriptor.declaration === definition.declaration &&
-      selection.descriptor.typeArguments.length === definition.typeParameterBindings.length &&
-      selection.descriptor.typeArguments.every((argument, index) => argument.kind === "declared" &&
-        argument.declaration === [...definition.outerTypeParameters, ...definition.typeParameters][index]) &&
-      selection.node === definition.declaration && selection.depth === 4), true, "existing bounded resolution context");
-    assert.equal(policy.resolveNode(definition.declaration, definition.sourceFile)?.targetType === shape.targetType,
-      true, "one canonical nominal shape across repeated queries");
+    assert.deepEqual(shape.members.map(member => member.sourceName), ["label"], "members are the Host instance members");
+    assert.equal(shape.members[0].type.id, "System.String");
+    assert.equal(policy.resolveTarget(carrier).targetType === shape.targetType, true, "one canonical nominal shape across queries");
   }
 });
 
-test("ordinary constructor aliases keep expression selection and do not become instances", () => {
-  const { source, selections, host } = fixture();
-  const policy = createCsharpObjectShapePolicy(host);
-  const file = source.navigation.sourceFiles.find(candidate => source.ast.getFileName(candidate) === "/project/index.ts");
-  let alias;
-  const selectAlias = node => {
-    if (source.ast.is.IsVariableDeclaration(node) && source.ast.text(source.ast.name(node)) === "alias") alias = node;
-    source.ast.forEachChild(node, child => { if (child !== undefined) selectAlias(child); });
-  };
-  selectAlias(file);
-  assert.equal(alias !== undefined, true, "checked constructor alias source declaration");
-  policy.resolveNode(alias, file);
-  assert.equal(selections[0]?.kind, "descriptor", "ordinary value selections keep their own carrier");
-  assert.equal(selections[0]?.node === alias, true, "exact selected expression node");
-  assert.equal(selections[0]?.descriptor === source.effectiveTypes.get(alias)?.type &&
-    selections[0]?.descriptor.kind === "callable", true, "the exact published constructor callable is not an instance");
+test("a constructor alias keeps its Host callable type and never becomes an instance", () => {
+  const { program, policy } = fixture();
+  const alias = program.named("alias");
+  assert.equal(program.type(alias).kind, "callable", "the published value of the alias is the factory function");
+  assert.equal(policy.resolveNode(alias), undefined, "a callable value has no instance object shape");
+  for (const declaration of [program.named("Root")]) {
+    const shape = policy.resolveNode(declaration);
+    assert.equal(shape === undefined || shape.members.every(member => member.sourceName !== "label"), true,
+      "the class value is its static side, never the instance shape");
+  }
 });
 
-test("unavailable declared instance evidence never falls back to a constructor value", () => {
-  const { catalog, host } = fixture();
-  const declaration = catalog.definitions.find(definition => definition.local).declaration;
-  const policy = createCsharpObjectShapePolicy({ ...host,
-    typeResolver: { ...host.typeResolver,
-      resolveDescriptor: (descriptor, node) => {
-        assert.equal(descriptor.kind === "declared" && descriptor.declaration === declaration && node === declaration,
-          true, "no guessed instance evidence");
-        return undefined;
-      },
-      resolveType: () => assert.fail("unavailable declared descriptors must not retry raw checker types"),
-      resolveNode: () => { assert.fail("a constructor value is not replacement instance evidence"); },
-    },
-  });
-  assert.equal(policy.resolveNode(declaration) === undefined, true, "unresolved declaration shape fails closed");
+test("unavailable Host member facts never fall back to another shape route", () => {
+  const { catalog, policy, program } = fixture({ facts: facts => Object.freeze({ ...facts,
+    objects: Object.freeze({ ...facts.objects, members: () => Object.freeze({ kind: "refused", code: "TSONIC_FIXTURE",
+      message: "fixture refusal", site: program.named("Root") }) }),
+    values: Object.freeze({ ...facts.values, type: () => assert.fail("a declaration shape is not re-derived from a value type") }),
+  }) });
+  for (const definition of catalog.definitions) {
+    assert.equal(policy.resolveTarget(catalog.targetTypeForDeclaration(definition.declaration, definition.typeParameterBindings)),
+      undefined, `${definition.sourceName}: unresolved declaration shape fails closed`);
+  }
 });
 
 test("foreign declaration shapes are not admitted as project-owned nominal storage", () => {
-  const { catalog, host } = fixture();
-  const policy = createCsharpObjectShapePolicy({ ...host, navigation: { ...host.navigation,
-    isProjectDeclaration: () => false,
-  } });
+  const { catalog, policy } = fixture({ catalog: original => Object.freeze({ ...original,
+    definitionForTarget: () => undefined, definitionForDeclaration: () => undefined }) });
   for (const definition of catalog.definitions) {
-    assert.equal(policy.resolveNode(definition.declaration, definition.sourceFile) === undefined, true,
-      "exact project declaration ownership remains mandatory");
+    assert.equal(policy.resolveTarget(catalog.targetTypeForDeclaration(definition.declaration, definition.typeParameterBindings)),
+      undefined, "exact project declaration ownership remains mandatory");
   }
 });

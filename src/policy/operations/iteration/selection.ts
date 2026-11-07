@@ -1,6 +1,11 @@
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpResolvedIteration } from "../../../target-model/records/operations/selection.js";
 
-import type { ResolvedSourceIterationInfo } from "@tsonic/tsts";
+import type { SourceIterationSelection } from "@tsonic/target-api/source";
+
+// The Host iteration selection (facts.selections.iteration) with its statement form (request R-F3-B3: `form`, and the
+// "property-keys" protocol for for-in). Union and untyped-dynamic iteration are Host refusals before C# runs.
+type CsharpIterationSource = SourceIterationSelection;
 
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../types/index.js";
 import { csharpStringTargetType, getCsharpCollectionElementTargetType, isCsharpRecordDictionaryTargetType, isCsharpStringTargetType, targetTypeRefEquals } from "../../types/index.js";
@@ -25,30 +30,27 @@ export type CsharpForAwaitOfIteration = Extract<
 >;
 
 export function selectCsharpNativeIteration(
-  source: ResolvedSourceIterationInfo,
+  source: CsharpIterationSource,
   iterableType: TargetTypeRef,
   elementType: TargetTypeRef | undefined,
   objectShape: CsharpObjectShapeFact | undefined,
 ): CsharpOperationSelection<CsharpResolvedIteration> {
-  if (source.iterationKind === undefined) return rejectCsharpIteration("A checked spread iteration record is not a loop iteration.");
-  if (source.iterationKind === "for-await-of") return selectForAwaitOf(source, iterableType);
-  if (source.iterationKind === "for-of") return selectForOf(source, iterableType);
-  return elementType === undefined ? rejectCsharpIteration("The checked property-key type does not have a closed C# target representation.")
+  if (source.form === "for-await-of") return selectForAwaitOf(source, iterableType);
+  if (source.form === "for-of") return selectForOf(source, iterableType);
+  if (source.form !== "for-in") failTargetAnalysisInvariant("tsonic-csharp",
+    "A spread, destructuring or yield* iteration is not a loop iteration.", source.statement);
+  return elementType === undefined ? rejectCsharpIteration("The published property-key type does not have a closed C# target representation.")
     : selectForIn(source, iterableType, elementType, objectShape);
 }
 
 function selectForAwaitOf(
-  source: Extract<
-    ResolvedSourceIterationInfo,
-    { readonly iterationKind: "for-await-of" }
-  >,
+  source: CsharpIterationSource,
   iterableType: TargetTypeRef,
 ): CsharpOperationSelection<CsharpResolvedIteration> {
   if (
     isCsharpStringTargetType(iterableType) &&
     (
-      source.mechanism.kind === "string-code-unit-index-adapted-to-async" ||
-      source.mechanism.kind === "synchronous-iterator-adapted-to-async"
+      source.protocol === "string" || source.protocol === "iterator"
     )
   ) {
     const policy = (iterableType as CsharpTargetNamedTypeRef)
@@ -72,8 +74,8 @@ function selectForAwaitOf(
       "The selected C# async-iterable representation does not prove an enumerable target element.",
     );
   }
-  switch (source.mechanism.kind) {
-    case "asynchronous-iterator-protocol":
+  switch (source.protocol) {
+    case "async-iterator":
       return {
         kind: "resolved",
         iterationKind: "for-await-of",
@@ -82,8 +84,8 @@ function selectForAwaitOf(
         elementType,
         lowering: { kind: "await-foreach" },
       };
-    case "synchronous-iterator-adapted-to-async":
-    case "array-like-index-adapted-to-async":
+    case "iterator":
+    case "array":
       return {
         kind: "resolved",
         iterationKind: "for-await-of",
@@ -92,23 +94,17 @@ function selectForAwaitOf(
         elementType,
         lowering: { kind: "await-foreach-sync-adapter" },
       };
-    case "string-code-unit-index-adapted-to-async":
+    case "string":
       return rejectCsharpIteration(
         "The exact source string iteration mechanism requires a selected target string carrier.",
       );
-    case "union":
-      return rejectCsharpIteration(
-        "For-await union iteration requires every exact source alternative to select one target iteration policy.",
-      );
-    case "untyped-dynamic-iteration":
-      return rejectCsharpIteration(
-        "Untyped dynamic for-await iteration has no closed C# target protocol.",
-      );
+    case "property-keys":
+      return failTargetAnalysisInvariant("tsonic-csharp", "A for-await-of iteration has no property-key protocol.", source.statement);
   }
 }
 
 function selectForOf(
-  source: Extract<ResolvedSourceIterationInfo, { readonly iterationKind: "for-of" }>,
+  source: CsharpIterationSource,
   iterableType: TargetTypeRef,
 ): CsharpOperationSelection<CsharpResolvedIteration> {
   if (isCsharpStringTargetType(iterableType)) {
@@ -152,14 +148,14 @@ function selectForOf(
 }
 
 function selectForIn(
-  source: Extract<ResolvedSourceIterationInfo, { readonly iterationKind: "for-in" }>,
+  source: CsharpIterationSource,
   iterableType: TargetTypeRef,
   elementType: TargetTypeRef,
   objectShape: CsharpObjectShapeFact | undefined,
 ): CsharpOperationSelection<CsharpResolvedIteration> {
   if (!targetTypeRefEquals(elementType, csharpStringTargetType())) {
     return rejectCsharpIteration(
-      "C# property-key iteration requires the checked source key to map exactly to string.",
+      "C# property-key iteration requires the published source key to map exactly to string.",
     );
   }
   if (iterableType.kind === "array") {

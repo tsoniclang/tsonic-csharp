@@ -1,11 +1,11 @@
 import type { Node } from "@tsonic/tsts";
-import { sourceBindingScope } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import { isSourceOwnedProjectReference } from "../source-evidence/types/resolution/source-ownership.js";
+import { isSourceOwnedProjectReference } from "./source-ownership.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { getCsharpNullableElementTargetType, isCsharpNullableReferenceTargetType } from "../../target-model/types/carriers/nullable.js";
 import type { CsharpConversionIssue, CsharpDelegateAdapterIdentity, CsharpExpressionConversionClassification } from "../../target-model/records/operations/conversions.js";
 import type { CsharpValueReadClassifications } from "../../target-model/records/operations/conversions.js";
+import { sourceProjectTarget } from "../program/source-facts.js";
 
 export function sealCsharpDelegateAdapterIdentities(
   policy: CsharpPolicyContext,
@@ -19,7 +19,7 @@ export function sealCsharpDelegateAdapterIdentities(
     const selection = classification.selection;
     if (selection.kind !== "delegate-adapter" || selection.strategy !== "adaptation" || classification.operandStability !== "stable") continue;
     const declaration = stableSourceBinding(expression, policy, classification.source);
-    const scope = declaration === undefined ? undefined : sourceBindingScope(declaration, policy.ast);
+    const scope = declaration === undefined ? undefined : policy.facts.navigation.scopes.bindingScope(declaration);
     if (declaration === undefined || scope === undefined || !policy.ast.is.IsBlock(scope) ||
       !withinActivation(expression, scope, policy)) continue;
     const conversions = groups.get(declaration) ?? new Map();
@@ -55,20 +55,21 @@ export function sealCsharpDelegateAdapterIdentities(
 function stableSourceBinding(expression: Node, policy: CsharpPolicyContext,
   source: CsharpExpressionConversionClassification["source"]): Node | undefined {
   if (!policy.ast.is.IsIdentifier(expression)) return undefined;
-  let reference = policy.navigation.referenceFor(expression);
+  let reference = sourceProjectTarget(policy.facts, expression);
   const seen = new Set<Node>();
   while (reference !== undefined && isSourceOwnedProjectReference(reference, policy)) {
     const declaration = reference.declaration;
     if (seen.has(declaration) || policy.ast.getSourceFile(declaration) !== reference.sourceFile ||
-      seen.size !== 0 && policy.navigation.declarationUseSummary(declaration).bindingWritten ||
+      seen.size !== 0 && policy.facts.navigation.uses.summary(declaration).bindingWritten ||
       !policy.ast.is.IsVariableDeclaration(declaration) && !policy.ast.is.IsParameterDeclaration(declaration)) return undefined;
     seen.add(declaration);
     const initializer = policy.ast.is.IsVariableDeclaration(declaration)
       ? policy.ast.as.AsVariableDeclaration(declaration)?.Initializer : undefined;
     if (initializer === undefined || !policy.ast.is.IsIdentifier(initializer)) return declaration;
-    const type = policy.types.resolveNode(initializer, reference.sourceFile)?.sourceResult?.selectedType;
+    const represented = policy.types.value(initializer);
+    const type = represented.kind === "csharp-refused" ? undefined : represented;
     if (type === undefined || !targetTypeRefEquals(getCsharpNullableElementTargetType(type) ?? type, source)) return declaration;
-    const origin = policy.navigation.referenceFor(initializer);
+    const origin = sourceProjectTarget(policy.facts, initializer);
     if (origin === undefined || !isSourceOwnedProjectReference(origin, policy)) return declaration;
     reference = origin;
   }

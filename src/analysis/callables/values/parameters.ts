@@ -1,5 +1,5 @@
 import type { AstReader, Node } from "@tsonic/tsts";
-import type { SourceLiteralIndex } from "@tsonic/target-api/source";
+import type { SourceProgramFacts } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpDeclarationClassifications } from "../../../target-model/records/program/declarations.js";
 import type { CsharpValueReadClassifications, CsharpConversionClassifications } from "../../../target-model/records/operations/conversions.js";
@@ -23,7 +23,7 @@ export function analyzeCsharpCallableParameterEmission(input: {
   readonly values: CsharpValueReadClassifications;
   readonly storage: CsharpStorageClassifications;
   readonly conversions: CsharpConversionClassifications;
-  readonly literals: SourceLiteralIndex;
+  readonly facts: SourceProgramFacts;
   readonly exact: CsharpExactLiteralSelectionIndex;
   readonly admitted: (owner: Node) => boolean;
   readonly required: CsharpRequiredRecord[];
@@ -33,7 +33,7 @@ export function analyzeCsharpCallableParameterEmission(input: {
   const issues: TargetDiagnostic[] = [];
   const owners = new Set(input.nodes.filter(node => input.ast.is.IsParameterDeclaration(node)).map(node => input.ast.parent(node)));
   const refuse = (node: Node, message: string): void => {
-    issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: node, message });
+    issues.push({ code: "CSHARP_PARAMETER_EMISSION", category: "error", source: "tsonic-csharp", sourceNode: node, message });
   };
   for (const owner of owners) {
     if (owner === undefined || !input.admitted(owner)) continue;
@@ -98,7 +98,7 @@ export function analyzeCsharpCallableParameterEmission(input: {
           kind: getCsharpNullableElementTargetType(carrier) === undefined ? "default" : "null",
         });
         else if (initializer !== undefined) {
-          if (csharpParameterDefaultIsLiteral({ source: input.literals.literalValue.get(initializer), exact: input.exact.exactLiteral.get(initializer, carrier),
+          if (csharpParameterDefaultIsLiteral({ source: input.facts.values.literal(initializer), exact: input.exact.exactLiteral.get(initializer, carrier),
             carrier, nullLiteral: input.ast.kindName(initializer) === "KindNullKeyword" })) defaultValue = Object.freeze({ kind: "literal", expression: initializer });
           else refuse(initializer, "C# parameter defaults require compile-time literal values.");
         }

@@ -1,14 +1,17 @@
+// Struct markers (nextgen C-2542). Emission programs are unchanged. The marker representation comes from
+// representation/declared.ts: the struct fact of the declaration plus the project-type catalog's own struct definition.
+// Field-call generic arguments come from facts.instantiations (G4). A missing or foreign authority is refused or is an
+// invariant failure; C# never rebuilds it from shape equality or a raw Source replay (I4).
 import assert from "node:assert/strict";
 import test from "node:test";
 import { structFactKey } from "@tsonic/tsts";
-import { compileCsharpSource, compileCsharpAnalysisTarget, assertCsharpCompilationSucceeded, withCsharpSessionRequest } from "../../../helpers/direct-csharp-session.mjs";
+import { compileCsharpSource, compileCsharpAnalysisTarget, assertCsharpCompilationSucceeded } from "../../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../../helpers/native-construction.mjs";
-import { createCsharpProjectTypeCatalog } from "../../../../dist/analysis/project-types/catalog.js";
-import { resolveCsharpSourceEffectiveType } from "../../../../dist/analysis/source-evidence/types/resolution/effective-types.js";
-import { selectDirectSourceFacts } from "../../../../dist/analysis/source-evidence/types/resolution/semantic-types.js";
-import { emptyMemoryRecordProofFiles } from "../../../../../tsonic/test/fixtures/empty-memory-records.mjs";
+import { hostProgram, fixtureProjectTypes, representationServices, representations, represented } from "../../../representation/host-fixture.mjs";
 import { mixedWidthRecordSource } from "../../../../../tsonic/test/fixtures/mixed-width-records.mjs";
+import { emptyMemoryRecordProofFiles } from "../../../../../tsonic/test/fixtures/empty-memory-records.mjs";
 import { memoryAbiCapability } from "../../../helpers/memory-abi.mjs";
+import { targetTypeRefEquals } from "../../../../dist/target-model/types/equality.js";
 
 const sourceText = `
   import { struct, field } from "@tsonic/core/lang.js";
@@ -25,13 +28,20 @@ const sourceText = `
   }
 `;
 
+function sourceNodes(source) {
+  const nodes = [];
+  const visit = node => { nodes.push(node); source.syntax.forEachChild(node, child => { if (child !== undefined) visit(child); }); };
+  source.sourceFiles.filter(file => !source.syntax.isDeclarationFile(file)).forEach(visit);
+  return nodes;
+}
+
 for (const surface of ["native", "js"]) {
   test(`published struct marker keeps value storage distinct from an equal-shape reference in ${surface}`, () => {
     const compiled = compileCsharpSource({ surface, sourceText });
     assertCsharpCompilationSucceeded(compiled);
     const emitted = compiled.artifacts.get("src/Index.cs");
     assert.equal(emitted.includes("public struct Packet"), true, "the canonical marker creates the one declared value type");
-    assert.equal(/Packet original\s*=/u.test(emitted), true, "the exact typeof component selects its declared carrier");
+    assert.equal(/Packet original\s*=/u.test(emitted), true, "the typeof component selects its declared carrier");
     assert.equal(/Packet copy\s*=/u.test(emitted), true, "copy storage retains the same marker declaration");
     assert.equal(/Packet unrelated\s*=/u.test(emitted), false, "shape equality cannot manufacture marker identity");
     executeCsharpConstruction(compiled, `published-struct-marker-${surface}`);
@@ -47,110 +57,105 @@ for (const surface of ["native", "js"]) {
         return compileCsharpAnalysisTarget({ ...request, input: { ...request.input, source: { ...original, sourceFacts } } }, observer);
       },
     });
-    assert.equal(compiled.sourceDiagnosticsText, "", "the same original Source program remains checked");
+    assert.equal(compiled.sourceDiagnosticsText, "", "the same Source program remains checked");
     assert.equal([...compiled.artifacts.values()].some(text => text.includes("public struct Packet")), false,
-      "a missing exact marker is never replaced by a same-shape association");
+      "a missing marker is never replaced by a same-shape association");
   });
 
-  test(`an actual marked component refuses missing and foreign catalog authority in ${surface}`, () => {
-    const measured = withCsharpSessionRequest({ surface, sourceText: sourceText + `
+  test(`a marked component refuses missing and foreign catalog authority in ${surface}`, () => {
+    const program = hostProgram(sourceText + `
       const Foreign: { value: int32 } = struct({ value: field<int32>() });
-    ` }, request => {
-      const source = request.input.source;
-      const ast = source.ast;
-      const catalog = createCsharpProjectTypeCatalog({ ...source,
-        enumConstants: source.semantics.enumConstants, semanticsFor: source.semantics.forNode });
-      const packet = catalog.definitions.find(definition => definition.sourceName === "Packet");
-      const foreign = catalog.definitions.find(definition => definition.sourceName === "Foreign");
-      assert.equal(packet?.kind === "struct" && foreign?.kind === "struct", true,
-        "both authorities are real checked, marked project declarations");
-      const value = source.navigation.nodes.find(node => ast.is.IsVariableDeclaration(node) && ast.text(ast.name(node)) === "original");
-      const outcome = value === undefined ? undefined : source.effectiveTypes.get(value);
-      const query = outcome?.kind === "resolved" ? outcome.provenance.component?.authoredTypeNode : undefined;
-      assert.equal(query !== undefined && ast.is.IsTypeQueryNode(query) &&
-        source.navigation.sourceReferenceFor(ast.as.AsTypeQueryNode(query).ExprName)?.declaration === packet.declaration &&
-        source.sourceFacts.getFact(packet.declaration, structFactKey) !== undefined, true,
-        "the original query has a genuine canonical marker, not an unmarked foreign name");
-      const catalogs = [
-        { ...catalog, definitionForDeclaration: () => undefined },
-        { ...catalog, targetTypeForDeclaration: () => undefined },
-        { ...catalog, definitionForDeclaration: () => foreign },
-        { ...catalog, targetTypeForDeclaration: () => catalog.targetTypeForDeclaration(foreign.declaration, []) },
-      ];
-      return catalogs.map(projectTypeCatalog => {
-        const selection = resolveCsharpSourceEffectiveType({ host: { ...source, projectTypeCatalog },
-          selectDirectSourceFacts() { return { kind: "not-applicable" }; },
-        }, value, { depth: 0 });
-        return selection !== undefined && selection.outcome.provenance.occurrence === value &&
-          selection.outcome.provenance.component?.authoredTypeNode === query && selection.result === undefined;
-      });
-    });
-    assertCsharpCompilationSucceeded(measured.compiled);
-    assert.deepEqual(measured.value, [true, true, true, true],
-      "missing declaration, missing target, foreign declaration and foreign target remain required failures");
+    `, { surface });
+    const variable = name => program.named(name, node => program.ast.is.IsVariableDeclaration(node));
+    const packet = variable("Packet");
+    const foreign = variable("Foreign");
+    for (const declaration of [packet, foreign]) assert.notEqual(program.host.sourceFacts.getFact(declaration, structFactKey), undefined,
+      "both authorities are marked project declarations");
+    const original = variable("original");
+    const descriptor = program.slot(original);
+    assert.equal(descriptor.kind === "declared" && descriptor.declaration === packet, true,
+      "the Host publishes the typeof component as the marked declaration");
+    const base = fixtureProjectTypes(program);
+    const id = declaration => `global::Fixture.${program.ast.text(program.ast.name(declaration))}`;
+    const struct = declaration => Object.freeze({ id: id(declaration), declaration, kind: "struct",
+      sourceName: program.ast.text(program.ast.name(declaration)), outerTypeParameters: [], typeParameters: [],
+      outerTypeProjections: [], typeProjections: [] });
+    const target = declaration => base.targetTypeForDeclaration(foreign, []) && Object.freeze({ kind: "target-named", id: id(declaration),
+      csharpAllowsRefLikeTypeArguments: Object.freeze([]) });
+    const catalog = overrides => Object.freeze({ ...base,
+      definitionForDeclaration: declaration => declaration === packet || declaration === foreign ? struct(declaration) : undefined,
+      targetTypeForDeclaration: declaration => declaration === packet || declaration === foreign ? target(declaration) : undefined,
+      ...overrides });
+    const at = projectTypes => representations(representationServices(program, { profile: surface, projectTypes })).slot(original);
+    assert.equal(represented(at(catalog({}))).id, id(packet), "the marked declaration's own struct is the carrier");
+    for (const [label, overrides] of [
+      ["missing declaration", { definitionForDeclaration: () => undefined }],
+      ["missing target", { targetTypeForDeclaration: () => undefined }],
+      ["foreign declaration", { definitionForDeclaration: () => struct(foreign) }],
+      ["foreign target", { targetTypeForDeclaration: () => target(foreign) }],
+    ]) {
+      const selected = at(catalog(overrides));
+      assert.equal(selected.kind === "csharp-refused" && selected.code === "CSHARP_STRUCT_DECLARATION", true,
+        `${label}: a struct marker requires its own catalog authority`);
+    }
   });
 
   for (const mode of ["missing", "foreign", "incomplete", "foreign-record"]) {
-    test(`${mode} field-call publication cannot reconstruct a nested field ABI in ${surface}`, () => {
+    test(`${mode} field-call instantiation cannot reconstruct a nested field ABI in ${surface}`, () => {
       let overridden = 0;
-      const compiled = compileCsharpSource({ surface, sourceText: mixedWidthRecordSource,
-        compileTarget(request, observer) {
-          const original = request.input.source;
-          const ast = original.ast;
-          const calls = original.navigation.nodes.filter(node => ast.is.IsCallExpression(node) &&
-            original.effectiveTypes.callInstantiation(node)?.method.length === 1);
-          const selected = calls.find(node => ast.typeArguments(node).some(argument => argument !== undefined && ast.is.IsTypeLiteralNode(argument)));
-          const foreign = calls.find(node => node !== selected && ast.typeArguments(node).length === 1);
-          assert.equal(selected !== undefined && foreign !== undefined, true,
-            "both publications come from actual distinct original field calls");
-          const effectiveTypes = { ...original.effectiveTypes,
-            callInstantiation(node) {
-              if (node !== selected) return original.effectiveTypes.callInstantiation(node);
+      let failure;
+      let compiled;
+      try {
+        compiled = compileCsharpSource({ surface, sourceText: mixedWidthRecordSource,
+          compileTarget(request, observer) {
+            const original = request.input.source;
+            const { facts, syntax } = original;
+            const calls = sourceNodes(original).filter(node => syntax.is.IsCallExpression(node) &&
+              facts.instantiations.at(node)?.method?.length === 1);
+            const selected = calls.find(node => syntax.typeArguments(node).some(argument => argument !== undefined && syntax.is.IsTypeLiteralNode(argument)));
+            const other = calls.find(node => node !== selected && syntax.typeArguments(node).length === 1);
+            assert.equal(selected !== undefined && other !== undefined, true, "both instantiations come from distinct field calls");
+            const instantiations = Object.freeze({ at(node) {
+              if (node !== selected) return facts.instantiations.at(node);
               overridden += 1;
-              const publication = original.effectiveTypes.callInstantiation(selected);
-              const other = original.effectiveTypes.callInstantiation(foreign);
-              return mode === "missing" ? undefined : mode === "foreign" ? other
-                : mode === "incomplete" ? { ...publication, method: [] }
-                  : { ...other, call: { ...other.call, call: selected } };
-            },
-          };
-          return compileCsharpAnalysisTarget({ ...request, input: { ...request.input,
-            source: { ...original, effectiveTypes } } }, observer);
-        },
-      });
-      assert.equal(compiled.sourceDiagnosticsText, "", "the complete original source remains valid and unchanged");
-      assert.equal(overridden > 0, true, "the same exact field-call publication is actually demanded");
+              const publication = facts.instantiations.at(selected);
+              const foreign = facts.instantiations.at(other);
+              return mode === "missing" ? undefined : mode === "foreign" ? foreign
+                : mode === "incomplete" ? { ...publication, method: [] } : { ...foreign, use: selected };
+            } });
+            return compileCsharpAnalysisTarget({ ...request, input: { ...request.input,
+              source: { ...original, facts: Object.freeze({ ...facts, instantiations }) } } }, observer);
+          },
+        });
+      } catch (error) {
+        failure = error;
+      }
+      assert.equal(overridden > 0, true, "the field-call instantiation is demanded");
+      if (failure !== undefined) {
+        assert.equal(failure.diagnostic?.code, "TSONIC_INTERNAL_ANALYSIS_INVARIANT",
+          "a missing or foreign instantiation for a supported call is an invariant failure (I4)");
+        return;
+      }
+      assert.equal(compiled.sourceDiagnosticsText, "", "the original source remains valid");
       assert.equal(compiled.result.diagnostics.some(issue => issue.category === "error" && issue.source === "tsonic-csharp"), true,
-        "the absent or foreign ABI is a Native refusal, not unchecked structural reconstruction");
-      assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
-        "neither selectedMember.type nor a raw Source replay can replace the field ABI");
+        "the absent or foreign ABI is a .NET refusal, not structural reconstruction");
+      assert.equal(compiled.artifacts.size, 0, "no raw Source replay replaces the field ABI");
     });
   }
 
-  test(`direct Native facts distinguish absence from an unrepresentable required operation in ${surface}`, () => {
+  test(`an ordinary literal has no direct physical occurrence fact: its carrier is its Host descriptor in ${surface}`, () => {
     const files = emptyMemoryRecordProofFiles(surface === "js");
-    const measured = withCsharpSessionRequest({ surface, capabilities: [memoryAbiCapability("csharp")],
-      sourceText: 'import type { int32 } from "@tsonic/core/types.js";\n' + files["index.ts"].replace("let visits = 0;", "let visits: int32 = 0;"),
-      files: { "schema.ts": files["schema.ts"] },
-    }, request => {
-      const source = request.input.source;
-      const ast = source.ast;
-      const operation = source.navigation.nodes.find(node => ast.is.IsCallExpression(node) &&
-        ast.is.IsIdentifier(ast.as.AsCallExpression(node).Expression) &&
-        ast.text(ast.as.AsCallExpression(node).Expression) === "allocateptr");
-      const ordinary = source.navigation.nodes.find(node => ast.is.IsObjectLiteralExpression(node) && ast.properties(node).length === 0);
-      assert.equal(operation !== undefined && ordinary !== undefined, true, "actual operation and ordinary shape subjects");
-      const scope = { host: source,
-        resolveTypedLocationOperationPointeeWithState() { return undefined; },
-        resolveNodeWithState() { return undefined; },
-        resolveTypeWithState() { assert.fail("the authored pointee does not permit a raw Source replay"); },
-        resolveSelectedValueWithState() { return undefined; },
-      };
-      return [ordinary, operation].map(node => selectDirectSourceFacts(scope, [node], ast.getSourceFile(node), { depth: 0 }).kind);
-    });
-    assertCsharpCompilationSucceeded(measured.compiled);
-    assert.deepEqual(measured.value, ["not-applicable", "unavailable"],
-      "only genuinely absent physical facts permit the logical descriptor path");
+    const program = hostProgram('import type { int32 } from "@tsonic/core/types.js";\n' +
+      files["index.ts"].replace("let visits = 0;", "let visits: int32 = 0;"),
+    { surface, capabilities: [memoryAbiCapability("csharp")], files: { "schema.ts": files["schema.ts"] } });
+    const ordinary = program.nodes.find(node => program.ast.is.IsObjectLiteralExpression(node) && program.ast.properties(node).length === 0);
+    assert.notEqual(ordinary, undefined);
+    const represent = representations(representationServices(program, { profile: surface,
+      shapes: Object.freeze({ retainShape: shape => shape, resolveCallableValue: () => assert.fail("no callable value") }) }));
+    const value = represent.value(ordinary);
+    const logical = represent.type(program.type(ordinary), ordinary, "value");
+    assert.equal(value.kind === "csharp-refused" ? value.code === logical.code : targetTypeRefEquals(value, logical), true,
+      "only an occurrence fact (layout query, raw address, keep-alive, JS string) replaces the logical descriptor path");
   });
 
   test(`foreign and unmarked typeof components keep ordinary reference semantics in ${surface}`, () => {
@@ -167,7 +172,7 @@ for (const surface of ["native", "js"]) {
     const compiled = compileCsharpSource({ surface, sourceText: sourceText.replace("const original: typeof Packet = { value: 1 };",
       "const original: typeof Packet = { value: 1 }; const rejected = !1;") });
     const issues = compiled.result.diagnostics.filter(issue => issue.category === "error");
-    assert.equal(issues.length, 1, "the original Host refusal is not replaced by Native publication");
+    assert.equal(issues.length, 1, "the Host refusal is not replaced by a .NET publication");
     assert.equal(issues[0].code, "TSONIC_LOCAL_TYPE_UNSUPPORTED");
     assert.equal(issues[0].message, "Logical negation requires an exact bool operand.");
     const ast = compiled.source.ast;

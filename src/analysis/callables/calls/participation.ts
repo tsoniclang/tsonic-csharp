@@ -1,9 +1,9 @@
 import { createCsharpNativeParticipationProducer } from "../../program/records/native/native-participation.js";
 import type { AstReader, Node } from "@tsonic/tsts";
-import { sourceEnclosingCallable, sourceLexicalFunctionIsUnused, sourceNodesOutsideErasedSubtrees } from "@tsonic/target-api/source";
+import { sourceNodesOutsideErasedSubtrees } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant, rejectedTargetStage, resolvedTargetStage, type TargetStageResult } from "@tsonic/target-api/artifacts";
 import type { SourceStorageQueries } from "@tsonic/target-api/analysis";
-import type { SourceProgramNavigation } from "@tsonic/target-api/source";
+import type { SourceProgramFacts } from "@tsonic/target-api/source";
 import type { CsharpCaptureStorage } from "../../../target-model/records/callables/capture-storage.js";
 import type { CsharpCallableCreationIndex } from "../../../target-model/records/callables/callable-values.js";
 import type { CsharpNativeParticipation, CsharpNativeParticipationInput } from "../../../target-model/records/native/native-demand.js";
@@ -14,8 +14,7 @@ import { isCsharpSourceCallableArtifactDeclaration } from "../../../policy/types
 export interface CsharpNativeParticipationAnalysisInput {
   readonly ast: AstReader;
   readonly storage: Pick<SourceStorageQueries, "nodes" | "failureReason">;
-  readonly navigation: Pick<SourceProgramNavigation, "declarationUseSummary" | "declarationSymbol" |
-    "sourceReferenceFor" | "callableImplementation" | "referencesWithin">;
+  readonly facts: SourceProgramFacts;
   readonly captureClosure: CsharpCaptureStorage["captureClosure"];
   readonly callableCreation: CsharpCallableCreationIndex["callableCreation"];
   readonly compileTimeMetadata: CsharpSourceEvidenceIndex["compileTimeMetadata"];
@@ -52,8 +51,9 @@ export function analyzeCsharpNativeParticipation(input: CsharpNativeParticipatio
     }
     if (ast.is.IsFunctionDeclaration(node)) {
       if (ast.body(node) === undefined) return "erased";
-      if (sourceEnclosingCallable(ast.parent(node), ast) === undefined) return "body";
-      if (sourceLexicalFunctionIsUnused(node, ast, input.navigation)) return "erased";
+      const parent = ast.parent(node);
+      if (parent === undefined || input.facts.navigation.scopes.enclosing(parent, "callable-body") === undefined) return "body";
+      if (input.facts.navigation.scopes.unused(node)) return "erased";
       if (input.captureClosure.get(node) !== undefined) return "frame-body";
       return "body";
     }

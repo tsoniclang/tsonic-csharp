@@ -1,35 +1,45 @@
 import type { CsharpPointerReturnContract } from "../../../target-model/records/calls/pointer-return.js";
-import type { Node } from "@tsonic/tsts";
-import type { CsharpTypeResolutionScope } from "../../source-evidence/types/resolution/scope.js";
-import type { CsharpTypeResolutionState } from "../../source-evidence/types/resolution/model.js";
-import { nextState } from "../../source-evidence/types/resolution/state.js";
+import type { AstReader, Node } from "@tsonic/tsts";
+import type { TsonicPointerStorageRelation } from "@tsonic/source-core/facts";
+import type { SourceStorageProducer, SourceStorageQueries } from "@tsonic/target-api/analysis";
+import type { SourceProgramFacts } from "@tsonic/target-api/source";
+import type { CsharpPointerStoragePointeeSelection } from "../../../target-model/records/storage/pointer-storage.js";
 
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
-import { combineCsharpTargetUnionMembers, csharpRuntimeLocationTargetType, csharpAbsenceTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
-import { resolveCsharpPointerStoragePointee } from "../../source-evidence/types/resolution/pointer-storage.js";
+import { csharpRuntimeLocationTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
+import { csharpNullableTargetType } from "../../../target-model/types/carriers/nullable.js";
 
+export interface CsharpPointerReturnHost {
+  readonly ast: AstReader;
+  readonly facts: SourceProgramFacts;
+  readonly pointerStorage: TsonicPointerStorageRelation;
+  readonly sourceStorage: Pick<SourceStorageQueries, "typeFor">;
+  /** The native pointee of one returned storage producer (CsharpTypeQueries.resolvePointerStoragePointee). */
+  resolvePointee(producer: SourceStorageProducer): CsharpPointerStoragePointeeSelection;
+}
+
+/**
+ * The native pointer-return contract of a synchronous, non-generator callable whose every return produces one
+ * pointer storage of one exact pointee. Completion (fall-through) comes from the published completion selection.
+ */
 export function resolveCsharpPointerReturnContract(
-  scope: CsharpTypeResolutionScope,
+  host: CsharpPointerReturnHost,
   declaration: Node,
-  state: CsharpTypeResolutionState,
 ): CsharpPointerReturnContract | undefined {
-  const { host } = scope;
   if (host.ast.body(declaration) === undefined || host.ast.hasModifierKind(declaration, "async")) return undefined;
-  const queries = host.semanticsFor(declaration);
-  if (queries.operations.generator(declaration) !== undefined) return undefined;
-  const completion = queries.operations.callableCompletion(declaration);
+  if (host.facts.selections.generator(declaration) !== undefined) return undefined;
+  const completion = host.facts.selections.completion(declaration);
   if (completion === undefined) return undefined;
-  const evidence = host.pointerStorage.returned(declaration, state.sourceStorageBindings);
+  const evidence = host.pointerStorage.returned(declaration);
   if (evidence.kind === "unresolved") return undefined;
-  const selections = evidence.producers.map(producer =>
-    resolveCsharpPointerStoragePointee(scope, producer.storage, nextState(state)));
+  const selections = evidence.producers.map(producer => host.resolvePointee(producer.storage));
   if (evidence.kind === "open") {
     for (const boundary of evidence.boundaries) {
       const checked = host.sourceStorage.typeFor(boundary.subject);
       if (checked.kind === "unresolved") return undefined;
-      selections.push(resolveCsharpPointerStoragePointee(scope, {
+      selections.push(host.resolvePointee({
         subject: boundary.subject, type: checked.type, sourceFile: checked.sourceFile, bindings: boundary.bindings,
-      }, nextState(state)));
+      }));
     }
   }
   const pointees = selections.map(selected => selected.kind === "resolved" ? selected.type : undefined);
@@ -38,12 +48,9 @@ export function resolveCsharpPointerReturnContract(
     type === undefined || !targetTypeRefEquals(type, first))) {
     return undefined;
   }
-  const type = combineCsharpTargetUnionMembers([
-    csharpRuntimeLocationTargetType(first),
-    ...evidence.includesAbsence ? [csharpAbsenceTargetType()] : [],
-  ]);
-  return type === undefined ? undefined : Object.freeze({
-    type,
+  const location = csharpRuntimeLocationTargetType(first);
+  return Object.freeze({
+    type: evidence.includesAbsence ? csharpNullableTargetType(location) : location,
     undefinedReturn: evidence.includesAbsence,
     fallthroughUndefined: evidence.includesAbsence && completion.canFallThrough,
   });

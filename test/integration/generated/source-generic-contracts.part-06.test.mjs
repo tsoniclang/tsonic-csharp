@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { join } from "node:path";
 import { assertCsharpCompilationSucceeded, checkCsharpSource, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { optionalIndexedArgumentsSource } from "../../../../tsonic/test/fixtures/optional-indexed-arguments.mjs";
@@ -39,11 +38,13 @@ test("generic object methods retain native binders, independent bodies and share
 test("generic method captures preserve parameters, destructuring and loop activation identity", { timeout: 300_000 }, () => {
   const refused = compileCsharpSource({ surface: "js", sourceText: genericObjectCaptureSource });
   assert.deepEqual(refused.result.diagnostics.map(({ code, message }) => ({ code, message })), Array.from({ length: 2 }, () => ({
-    code: "CSHARP_UNSUPPORTED_AST",
+    // nextgen C-2542: CSHARP_UNSUPPORTED_AST split; native-control-flow.ts names this site (message unchanged).
+    code: "CSHARP_LOOP_HEADER_CAPTURES_ITERATION_BINDING",
     message: "The loop-header expression captures a per-iteration loop binding; move the callback into the loop body.",
   })));
   assert.equal(refused.artifacts.size, 0, "header capture refusal emits no artifacts");
-  const checked = createTargetSourceProgram(refused.source);
+  // nextgen C-2542: a syntax-only walk uses the checked program's reader; no facts program is built for it.
+  const checked = refused.source;
   const loops = [];
   const visit = node => {
     if (checked.ast.is.IsForStatement(node)) loops.push(node);

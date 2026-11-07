@@ -11,7 +11,7 @@ test("authored this is a sealed erased receiver, never a native void parameter",
   ` });
   assertCsharpCompilationSucceeded(compiled);
   const program = compiled.result.program;
-  const { ast } = program.source;
+  const ast = program.source.syntax;
   const nodes = [];
   const visit = node => { nodes.push(node); ast.forEachChild(node, visit); };
   for (const file of csharpProgramSourceFiles(program)) visit(file);
@@ -34,7 +34,7 @@ test("erasing the pseudo parameter retains an object method's admitted receiver"
   ` });
   assertCsharpCompilationSucceeded(compiled);
   const { program } = compiled.result;
-  const { ast } = program.source;
+  const ast = program.source.syntax;
   const receivers = [];
   const visit = node => {
     if (ast.kindName(node) === "KindThisKeyword" || ast.kindName(node) === "KindThisExpression") receivers.push(node);
@@ -49,7 +49,8 @@ test("an unsupported runtime-bound receiver is still refused before sealing", ()
   const compiled = compileCsharpSource({ sourceText: `
     export function read(this: { value: number }): number { return this.value; }
   ` });
-  assert.equal(compiled.result.diagnostics.some(diagnostic => diagnostic.code === "CSHARP_UNSUPPORTED_AST" &&
+  // nextgen C-2542: CSHARP_UNSUPPORTED_AST is split; the this-emission site names CSHARP_THIS_RECEIVER_NOT_CLASS_INSTANCE.
+  assert.equal(compiled.result.diagnostics.some(diagnostic => diagnostic.code === "CSHARP_THIS_RECEIVER_NOT_CLASS_INSTANCE" &&
     diagnostic.message.includes("runtime-bound function receiver")), true, "a pseudo parameter never manufactures native receiver evidence");
   assert.equal(compiled.artifacts.size, 0, "the unsupported receiver emits nothing");
 });
@@ -64,7 +65,7 @@ for (const annotation of ["", ": number"]) {
     ` });
     assertCsharpCompilationSucceeded(compiled);
     const program = compiled.result.program;
-    const { ast } = program.source;
+    const ast = program.source.syntax;
     const defaults = [];
     const visit = node => {
       if (ast.is.IsParameterDeclaration(node) && Node_Initializer(ast, node) !== undefined) defaults.push(node);
@@ -84,7 +85,8 @@ test("contextual omission defaults never manufacture a runtime-bound receiver", 
     const callback: (value?: number) => number = function(this: { value: number }, value = 1) { return this.value + value; };
     export function run(): number { return callback(); }
   ` });
-  assert.equal(compiled.result.diagnostics.some(diagnostic => diagnostic.code === "CSHARP_UNSUPPORTED_AST" &&
+  // nextgen C-2542: CSHARP_UNSUPPORTED_AST is split; the this-emission site names CSHARP_THIS_RECEIVER_NOT_CLASS_INSTANCE.
+  assert.equal(compiled.result.diagnostics.some(diagnostic => diagnostic.code === "CSHARP_THIS_RECEIVER_NOT_CLASS_INSTANCE" &&
     diagnostic.message.includes("runtime-bound function receiver")), true, "the actual native receiver restriction is unchanged");
   assert.equal(compiled.artifacts.size, 0, "a default never bypasses receiver admission");
 });

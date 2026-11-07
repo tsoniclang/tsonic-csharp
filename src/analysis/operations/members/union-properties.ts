@@ -1,5 +1,6 @@
 import type { CsharpUnionProperty } from "../../../target-model/records/objects/union-properties.js";
-import type { ResolvedSourcePropertyAccessInfo, SourceFile } from "@tsonic/tsts";
+import type { SourceMemberAccessSelection } from "@tsonic/target-api/source";
+import { sourceUnionRelation } from "../../program/source-facts.js";
 import type { CsharpProviderCallSelectionHost } from "../../../policy/model/provider-calls.js";
 import type { CsharpSourceProfilePropertyPolicyResult } from "../../../target-model/records/program/source-profile-invocations.js";
 
@@ -12,21 +13,25 @@ import { csharpSourceProfileDiagnostic } from "../../../policy/operations/source
 
 export function selectCsharpUnionProperty(
   host: CsharpProviderCallSelectionHost,
-  source: ResolvedSourcePropertyAccessInfo,
-  sourceFile: SourceFile,
+  source: SourceMemberAccessSelection,
 ): CsharpUnionProperty | Extract<CsharpSourceProfilePropertyPolicyResult, { readonly kind: "rejected" }> | undefined {
-  if (source.accessMode !== "read" || source.optionalChain || source.callCallee) return undefined;
-  const carrier = host.types.resolveStorage(source.receiver.expression, sourceFile);
+  if (source.access !== "read" || source.optionalChain) return undefined;
+  const carrier = host.types.readStorage(source.receiver);
+  if (carrier.kind === "csharp-refused") return undefined;
   const variants = getCsharpRuntimeUnionArms(carrier, host.typeDefinitions);
-  if (carrier === undefined || variants === undefined) return undefined;
-  const selectedCarrier = host.types.resolveSelectedValue(source.receiver.expression, source.receiver.type, sourceFile);
-  if (selectedCarrier !== undefined && getCsharpRuntimeUnionArms(selectedCarrier, host.typeDefinitions) === undefined) return undefined;
-  const guarded = host.types.nativeFlowMembers(source.receiver.expression, carrier);
+  if (variants === undefined) return undefined;
+  const selectedCarrier = host.types.value(source.receiver);
+  if (selectedCarrier.kind !== "csharp-refused" && getCsharpRuntimeUnionArms(selectedCarrier, host.typeDefinitions) === undefined) return undefined;
+  // The Host relation at the receiver read selects the arms still present after narrowing; runtime arms are
+  // positional in the Host arm order (R6).
+  const relation = sourceUnionRelation(host.facts, source.receiver);
+  if (relation?.kind === "extract-arm") return undefined;
+  const guarded = relation?.kind === "map" && relation.mode === "narrowed-read"
+    ? relation.mapping.flatMap((destination, arm) => destination >= 0 ? [arm] : []) : undefined;
   if (guarded?.length === 1) return undefined;
-  const indexes = variants.flatMap((variant, index) => guarded === undefined ||
-    guarded.some(member => targetTypeRefEquals(member, variant)) ? [index] : []);
+  const indexes = variants.flatMap((_variant, index) => guarded === undefined || guarded.includes(index) ? [index] : []);
   if (indexes.length === 0) return undefined;
-  const identities = sourceProfilePropertyIdentities(host, source, sourceFile);
+  const identities = sourceProfilePropertyIdentities(host, source.use);
   if (indexes.some(index => identities.some(identity =>
     selectCsharpErrorNativeProperty(host, identity, variants[index]!)?.kind === "resolved"))) return {
     kind: "rejected",
@@ -35,7 +40,7 @@ export function selectCsharpUnionProperty(
   };
   const operations = new Map<number, Extract<CsharpSourceProfilePropertyPolicyResult, { readonly kind: "resolved" }>>();
   for (const index of indexes) {
-    const selected = selectCsharpSourceProfilePropertyForCarrier(host, source, sourceFile, variants[index]!);
+    const selected = selectCsharpSourceProfilePropertyForCarrier(host, source.use, variants[index]!);
     if (selected?.kind !== "resolved" || selected.receiver.kind !== "instance" || selected.invocation.kind !== "member" ||
       selected.targetMember.static === true || !["field", "property"].includes(selected.targetMember.kind) ||
       selected.targetMember.declaringType === undefined ||

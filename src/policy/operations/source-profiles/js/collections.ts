@@ -205,6 +205,7 @@ function mapGetMember(
           name: "TValue", csharpAllowsRefLike: false,
           ...(valueType ? { constraints: [{ kind: "value-type" as const }] } : {}),
         },
+        { name: "TCollectionKey", csharpAllowsRefLike: false },
       ],
     },
   );
@@ -267,14 +268,14 @@ function mapConstructorPolicy(): CsharpSourceProfileCallPolicy {
       return selectedCollectionConstruction(
         context,
         Object.freeze({
-          id: context.source.sourceArguments.length === 0
+          id: context.source.arguments.length === 0
             ? "Tsonic.CSharp.Js.Map..ctor()"
             : "Tsonic.CSharp.Js.Map..ctor(IEnumerable)",
           sourceName: "constructor",
           targetName: "Map",
           kind: "constructor",
           declaringType: result,
-          parameters: context.source.sourceArguments.length === 0
+          parameters: context.source.arguments.length === 0
             ? []
             : [
                 targetParameter(
@@ -284,7 +285,7 @@ function mapConstructorPolicy(): CsharpSourceProfileCallPolicy {
               ],
           returnType: result,
         }),
-        context.source.sourceArguments.length === 0 ? [undefined] : [0],
+        context.source.arguments.length === 0 ? [undefined] : [0],
       );
     },
   };
@@ -307,14 +308,14 @@ function setConstructorPolicy(): CsharpSourceProfileCallPolicy {
       return selectedCollectionConstruction(
         context,
         Object.freeze({
-          id: context.source.sourceArguments.length === 0
+          id: context.source.arguments.length === 0
             ? "Tsonic.CSharp.Js.Set..ctor()"
             : "Tsonic.CSharp.Js.Set..ctor(IEnumerable)",
           sourceName: "constructor",
           targetName: "Set",
           kind: "constructor",
           declaringType: result,
-          parameters: context.source.sourceArguments.length === 0
+          parameters: context.source.arguments.length === 0
             ? []
             : [
                 targetParameter(
@@ -324,7 +325,7 @@ function setConstructorPolicy(): CsharpSourceProfileCallPolicy {
               ],
           returnType: result,
         }),
-        context.source.sourceArguments.length === 0 ? [undefined] : [0],
+        context.source.arguments.length === 0 ? [undefined] : [0],
       );
     },
   };
@@ -335,7 +336,7 @@ function selectedCollectionConstruction(
   targetMember: CsharpTargetMember,
   sourceParameterMapping: readonly (number | undefined)[],
 ): CsharpSourceProfileCallPolicyResult {
-  if (context.source.sourceArguments.length > 1) {
+  if (context.source.arguments.length > 1) {
     return rejectedCollectionConstruction(
       "The selected JS collection constructor has more than one effective argument.",
     );
@@ -360,10 +361,11 @@ function mapCallShape(
   readonly receiver: TargetTypeRef;
   readonly key: TargetTypeRef;
   readonly value: TargetTypeRef;
+  readonly keyContract: TargetTypeRef;
 } | undefined {
   const receiver = resolveCsharpSelectedSourceValue(
     context,
-    context.source.sourceReceiver,
+    context.source.receiver,
   );
   const typeArguments = getCsharpJsMapTargetTypes(receiver);
   return receiver === undefined || typeArguments === undefined
@@ -379,7 +381,7 @@ function setCallShape(
 } | undefined {
   const receiver = resolveCsharpSelectedSourceValue(
     context,
-    context.source.sourceReceiver,
+    context.source.receiver,
   );
   const element = getCsharpJsSetElementTargetType(receiver);
   return receiver === undefined || element === undefined
@@ -444,7 +446,7 @@ function mapTypeArguments(
   context: CsharpSourceProfileCallPolicyContext,
 ): readonly TargetTypeRef[] | undefined {
   const shape = mapCallShape(context);
-  return shape === undefined ? undefined : [shape.key, shape.value];
+  return shape === undefined ? undefined : [shape.key, shape.value, shape.keyContract];
 }
 
 function rejectedCollectionConstruction(

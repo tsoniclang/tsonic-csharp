@@ -21,12 +21,18 @@ export function selectCsharpAssignmentLocation(
   const property = input.ast.is.IsPropertyAccessExpression(location);
   const element = input.ast.is.IsElementAccessExpression(location);
   if (!property && !element) return "unsupported";
-  const declaration = property
-    ? input.semanticsFor(location).operations.propertyAccess(location)?.selectedDeclaration
-    : input.semanticsFor(location).operations.elementAccess(location)?.selectedDeclaration;
-  if (declaration !== undefined && input.ast.hasModifierKind(declaration, "static")) return "direct";
+  // The Host member or element selection names the declaration written; a static member is written directly.
+  const declarations = property ? memberDeclarations(input.facts.selections.memberAccess(location)?.selected)
+    : memberDeclarations(input.facts.values.elementAccess(location).selected);
+  if (declarations.some(declaration => input.ast.hasModifierKind(declaration, "static"))) return "direct";
   const receiver = Node_Expression(input.ast, location);
   const type = receiver === undefined ? undefined : targetTypeFor(receiver);
   return type !== undefined && csharpReferenceIdentityCarrier(type, input) !== undefined
     ? "reference-receiver" : "unsupported";
+}
+
+function memberDeclarations(selected: { readonly kind: string; readonly declarations?: readonly Node[]; readonly declaration?: Node } | undefined): readonly Node[] {
+  if (selected === undefined) return [];
+  if (selected.declarations !== undefined) return selected.declarations;
+  return selected.declaration === undefined ? [] : [selected.declaration];
 }

@@ -8,13 +8,15 @@ test("a refused source callee is not replaced by missing argument or generic emi
   const call = {};
   const expression = {};
   const reason = "The exact selected source callee is external to the project and has no C# target relation.";
-  const source = { sourceCallee: { expression } };
+  // nextgen C-2542: the selected call is a SourceCallSelection (callee, declaration, signature); no checker callee record.
+  const source = { use: call, callee: expression, arguments: [] };
   const classification = { form: { kind: "source" }, target: { kind: "source-owned", source },
     unionCall: { kind: "not-union" }, sourceCall: { kind: "rejected", reason },
     sourceArgumentGrouping: { kind: "unresolved", reason: "No finalized native parameter contracts." } };
   const none = { get: () => undefined };
   const result = analyzeCsharpSourceCallEmission({
-    source: { ast: { parent: () => undefined, as: { AsPropertyAccessExpression: () => undefined } } },
+    source: { syntax: { parent: () => undefined, as: { AsPropertyAccessExpression: () => undefined },
+      is: { IsPropertyAccessExpression: () => false, IsElementAccessExpression: () => false } } },
     nodes: [call], admitted: () => true,
     operations: { selectedCall: { get: node => node === call ? classification : undefined },
       selectedConstruction: none, nativeHandler: none },
@@ -22,7 +24,8 @@ test("a refused source callee is not replaced by missing argument or generic emi
     references: { identifierEmission: none }, captures: { captureClosure: none },
   });
   assert.equal(result.issues.length, 1, "the selected rejection has one publication path");
-  assert.equal(result.issues[0].code, "CSHARP_UNSUPPORTED_AST", "the existing source-callee diagnostic code is retained");
+  // nextgen C-2542: CSHARP_UNSUPPORTED_AST is split; source-call-emission.ts names CSHARP_SOURCE_CALLEE_NOT_REPRESENTABLE.
+  assert.equal(result.issues[0].code, "CSHARP_SOURCE_CALLEE_NOT_REPRESENTABLE", "the existing source-callee diagnostic code is retained");
   assert.equal(result.issues[0].message, reason, "the exact callee-owner reason survives unavailable later contracts");
   assert.equal(result.issues[0].sourceNode === call, true, "the refusal retains the original call identity");
   assert.equal(result.records.sourceCallEmission.get(call) === undefined, true, "the rejected call is not published");
@@ -40,15 +43,16 @@ test("source calls retain the completed physical capture invocation instead of t
   const constructorBody = {};
   const expression = {};
   const call = {};
-  const source = { selectedSignature: {}, sourceCallee: { expression, selectedDeclaration: declaration } };
+  const source = { use: call, callee: expression, declaration, signature: declaration, arguments: [] };
   const selected = { kind: "value", expression, type: signature };
   const classification = { form: { kind: "source" }, target: { kind: "source-owned", source }, unionCall: { kind: "not-union" },
     sourceCall: selected, sourceTypeArguments: [], sourceResult: { selectedType: scalar, nativeType: scalar },
     sourceArgumentGrouping: { kind: "grouped", arguments: [], groups: [] } };
   const classify = (reference, closure) => analyzeCsharpSourceCallEmission({
-    source: { ast: { parent: node => node === constructorBody ? constructor : node === constructor ? classOwner : undefined,
-      as: { AsPropertyAccessExpression: () => undefined } },
-      navigation: { isProjectDeclaration: node => node === declaration || node === classOwner } },
+    source: { syntax: { parent: node => node === constructorBody ? constructor : node === constructor ? classOwner : undefined,
+      as: { AsPropertyAccessExpression: () => undefined },
+      is: { IsPropertyAccessExpression: () => false, IsElementAccessExpression: () => false } },
+      facts: { navigation: { identity: { isProjectDeclaration: node => node === declaration || node === classOwner } } } },
     nodes: [call], admitted: () => true,
     operations: { selectedCall: { get: node => node === call ? classification : undefined },
       selectedConstruction: { get: () => undefined }, nativeHandler: { get: () => undefined } },

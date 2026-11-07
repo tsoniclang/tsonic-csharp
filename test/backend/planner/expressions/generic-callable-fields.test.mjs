@@ -177,7 +177,10 @@ test("nested generic callable owners retain outer payloads and distinct invocati
 for (const surface of ["native", "js"]) test(`quantified ownership retains the original unconstrained equality rejection in ${surface}`, () => {
   const compiled = compileCsharpSource({ surface, sourceText: receiverFieldUnconstrainedEqualitySource });
   assert.equal(compiled.result.diagnostics.some(diagnostic =>
-    diagnostic.code === "CSHARP_UNSUPPORTED_AST" && diagnostic.message.includes("over a type parameter")), true,
+    // nextgen C-2542: CSHARP_UNSUPPORTED_AST is split. The operator rejection (rejectCsharpOperator) carries no code
+    // yet (request R-T5-1), so the specific code is not pinned here.
+    diagnostic.code.startsWith("CSHARP_") && diagnostic.code !== "CSHARP_UNSUPPORTED_AST" &&
+      diagnostic.message.includes("over a type parameter")), true,
   "unconstrained generic operator rejection remains exact");
   assert.equal(compiled.result.diagnostics.some(diagnostic =>
     diagnostic.code === "CSHARP_GENERIC_CALLABLE_CONTRACT_NOT_CLOSED"), false,

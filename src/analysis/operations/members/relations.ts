@@ -1,5 +1,6 @@
 import type { CsharpProviderOperationHost } from "../../../policy/model/provider-calls.js";
-import type { ExtensionDiagnostic, Node, ProviderVirtualDeclarationFact, SourceFile } from "@tsonic/tsts";
+import type { ExtensionDiagnostic, Node, ProviderVirtualDeclarationFact } from "@tsonic/tsts";
+import { sourceCallSelection, sourceMemberAccess } from "../../program/source-facts.js";
 
 import type { CsharpProviderTargetRelation } from "../../../target-model/identities/provider-relations.js";
 import { resolveCsharpProviderDeclarationEvidence, resolveCsharpProviderDeclarationEvidenceKinds } from "../../../source/extension/provider-identities.js";
@@ -27,88 +28,38 @@ export type CsharpProviderOperationResolution =
 export function resolveCsharpProviderCallRelations(
   host: CsharpProviderOperationHost,
   call: Node,
-  sourceFile: SourceFile,
 ): CsharpProviderOperationResolution {
-  const semantics = host.semantics(sourceFile);
-  const source = semantics.operations.call(call);
-  if (source === undefined) {
-    return {
-      kind: "missing",
-      reason: "The checker did not resolve an exact source call.",
-    };
-  }
-  if (source.sourceSelectedSignatureKind !== "resolved") {
-    return {
-      kind: "missing",
-      reason: "The selected source call is untyped.",
-    };
-  }
-  const declaration = resolveCsharpProviderDeclarationEvidence(
-    host.sourceFacts,
-    [semantics.declarations.signatureDeclaration(source.selectedSignature)],
-    "signature",
-  );
+  const source = sourceCallSelection(host.facts, call);
+  const declaration = resolveCsharpProviderDeclarationEvidence(host.sourceFacts, [source.signature], "signature");
   return resolveProviderRelations(host, declaration, "signature");
 }
 
 export function resolveCsharpProviderPropertyRelations(
   host: CsharpProviderOperationHost,
   propertyAccess: Node,
-  sourceFile: SourceFile,
 ): CsharpProviderOperationResolution {
-  const source = host.semantics(sourceFile).operations.propertyAccess(
-    propertyAccess,
-  );
-  if (source === undefined) {
-    return {
-      kind: "missing",
-      reason: "The checker did not resolve an exact source property access.",
-    };
-  }
-  const declaration = resolveCsharpProviderDeclarationEvidenceKinds(
-    host.sourceFacts,
-    [source.selectedDeclaration, source.selectedSymbol],
-    ["export", "member"],
-  );
+  const source = sourceMemberAccess(host.facts, propertyAccess);
+  const declarations = source.selected.kind === "member" ? source.selected.declarations : [source.selected.declaration];
+  const declaration = resolveCsharpProviderDeclarationEvidenceKinds(host.sourceFacts, declarations, ["export", "member"]);
   if (declaration.kind !== "resolved") {
     return declaration;
   }
-  return resolveProviderRelations(
-    host,
-    declaration,
-    declaration.declarationKind === "export"
-      ? "value"
-      : "member",
-  );
+  return resolveProviderRelations(host, declaration, declaration.declarationKind === "export" ? "value" : "member");
 }
 
 export function resolveCsharpProviderElementRelations(
   host: CsharpProviderOperationHost,
   elementAccess: Node,
-  sourceFile: SourceFile,
 ): CsharpProviderOperationResolution {
-  const source = host.semantics(sourceFile).operations.elementAccess(
-    elementAccess,
-  );
-  if (source === undefined) {
-    return {
-      kind: "missing",
-      reason: "The checker did not resolve an exact source element access.",
-    };
+  const selected = host.facts.values.elementAccess(elementAccess).selected;
+  if (selected.kind !== "member" && selected.kind !== "index-signature") {
+    return { kind: "missing", reason: "The selected source element access has no provider member or index signature." };
   }
-  const signature = resolveCsharpProviderDeclarationEvidence(
-    host.sourceFacts,
-    [source.selectedDeclaration, source.selectedSymbol],
-    "signature",
-  );
+  const signature = resolveCsharpProviderDeclarationEvidence(host.sourceFacts, [selected.declaration], "signature");
   if (signature.kind === "resolved" || signature.kind === "conflict") {
     return resolveProviderRelations(host, signature, "signature");
   }
-  const member = resolveCsharpProviderDeclarationEvidence(
-    host.sourceFacts,
-    [source.selectedDeclaration, source.selectedSymbol],
-    "member",
-  );
+  const member = resolveCsharpProviderDeclarationEvidence(host.sourceFacts, [selected.declaration], "member");
   return resolveProviderRelations(host, member, "member");
 }
 

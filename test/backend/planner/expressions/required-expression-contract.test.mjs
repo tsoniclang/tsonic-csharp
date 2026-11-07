@@ -3,6 +3,7 @@ import test from "node:test";
 import { analyzeCsharpSource } from "../../../helpers/direct-csharp-session.mjs";
 import { createCsharpProviderRelationResolver } from "../../../../dist/providers/native/projection/relation-resolution.js";
 import { createCsharpPlanningContext } from "../../../../dist/backend/planner/context.js";
+import { sealCsharpAnalysisProgram } from "../../../../dist/analysis/program/index.js";
 import { planExpression, planCallArgument } from "../../../../dist/backend/planner/expressions/index.js";
 import * as expressionEntry from "../../../../dist/backend/planner/expressions/index.js";
 import { planCsharpOutput } from "../../../../dist/backend/planner/program/planning.js";
@@ -32,15 +33,16 @@ function fixture() {
   while (pending.length !== 0) {
     const node = pending.pop();
     nodes.push(node);
-    source.ast.forEachChild(node, child => { if (child !== undefined) pending.push(child); });
+    source.syntax.forEachChild(node, child => { if (child !== undefined) pending.push(child); });
   }
-  const call = nodes.find(node => source.ast.is.IsCallExpression(node)
-    && program.records.selectedCall.get(node)?.source.sourceArguments.length === 2);
+  // nextgen C-2542: the selected call's Source half is the published SourceCallSelection (`arguments[i].argument`).
+  const call = nodes.find(node => source.syntax.is.IsCallExpression(node)
+    && program.records.selectedCall.get(node)?.source.arguments.length === 2);
   assert.equal(call !== undefined, true, "exact original call with explicitly absent radix");
   const classification = program.records.selectedCall.get(call);
   assert.equal(classification?.target?.kind === "resolved", true, "native operation is finalized");
   const selected = classification.target.call;
-  const radix = classification.source.sourceArguments[1].expression;
+  const radix = classification.source.arguments[1].argument;
   const number = csharpSourcePrimitiveTargetType("float64");
   const absence = csharpAbsenceTargetType();
   const rejection = Object.freeze(selectCsharpConversion({
@@ -61,7 +63,8 @@ function fixture() {
   const wrongUse = Object.freeze({ ...actual.use, kind: "converted", carrier: absence,
     input: Object.freeze({ kind: "value", type: absence }), completion: Object.freeze({ kind: "value", type: number }),
     target: number, mode: "implicit", literal: undefined });
-  const changed = Object.freeze({ ...program,
+  // The planner reads the sealed program (records and syntax only), as in production (nextgen C-2542).
+  const changed = Object.freeze({ ...sealCsharpAnalysisProgram(program),
     records: Object.freeze({ ...program.records,
       nativeUse: Object.freeze({ get: site => site === actual.site ? wrongUse : program.records.nativeUse.get(site) }),
       nativeExpression: Object.freeze({ get: node => node === radix
@@ -78,7 +81,7 @@ function fixture() {
 
 test("required expression boundaries diagnose silent rejected conversions without accepting omitted source", () => {
   const current = fixture();
-  const file = current.source.ast.getSourceFile(current.radix);
+  const file = current.source.syntax.getSourceFile(current.radix);
   const context = createCsharpPlanningContext(current.changed);
   assert.equal(Object.hasOwn(expressionEntry, "planExpressionWithExpectedType"), false, "the superseded hint-based API is absent");
   const planners = [
@@ -143,19 +146,19 @@ test("the required-expression guard preserves undefined, specific and prior-erro
 
 test("required planning retains specific errors and valid value, void and never completions", () => {
   const current = fixture();
-  const baseline = planCsharpOutput(createCsharpPlanningContext(current.program));
+  const baseline = planCsharpOutput(createCsharpPlanningContext(sealCsharpAnalysisProgram(current.program)));
   assert.equal(baseline.kind === "resolved" && baseline.diagnostics.length === 0, true,
     "native absence, value, void and never plans remain valid");
   const output = baseline.value.sources.map(source => printCsharpCompilationUnit(source.unit)).join("\n");
   assert.equal(/public static bool run\(\)[\s\S]*?return/.test(output), true, "valid source keeps its return");
   assert.equal(/public static void effect\(\)/.test(output) && /public static[\s\S]*?fail\(/.test(output), true,
     "void and never functions remain explicitly represented");
-  const specific = Object.freeze({ ...current.program,
+  const specific = Object.freeze({ ...sealCsharpAnalysisProgram(current.program),
     records: Object.freeze({ ...current.program.records,
       argumentPassing: Object.freeze({ get: node => node === current.radix ? undefined : current.program.records.argumentPassing.get(node) }) }),
   });
   const diagnostics = [];
-  assert.throws(() => planExpression(current.call, current.source.ast.getSourceFile(current.call),
+  assert.throws(() => planExpression(current.call, current.source.syntax.getSourceFile(current.call),
     createCsharpPlanningContext(specific), diagnostics), error => error instanceof Error && error.phase === "planning" &&
       error.diagnostic?.code === "TSONIC_INTERNAL_PLANNER_INVARIANT" && error.diagnostic.sourceNode === current.radix &&
       error.message === "An admitted native argument requires its exact source passing and storage plan.",

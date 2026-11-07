@@ -1,43 +1,42 @@
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import test from "node:test";
-import { createCompilerSessionFromFiles, formatDiagnostics } from "@tsonic/tsts";
-import { createTargetSourceProgram, SourceFile_FileName } from "@tsonic/target-api/source";
+import { hostProgram } from "../../representation/host-fixture.mjs";
 import { analyzeCsharpModuleCallables } from "../../../dist/analysis/callables/module-callables.js";
 import { analyzeCsharpCallableDeclarationEmission } from "../../../dist/analysis/callables/emission/declaration-emission.js";
 import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/index.js";
 
 test("module callable identities are early, canonical, frozen and restricted to original const owners", () => {
-  const checked = createCompilerSessionFromFiles({ currentDirectory: "/project", files: {
-    "/project/index.ts": `export const arrow = (value: number): number => value;
+  // nextgen C-2542: a Host program (authored syntax); node lists come from a syntax walk (no navigation.nodesForFiles).
+  const program = hostProgram(`export const arrow = (value: number): number => value;
       export const wrapped = ((function(value: number): number { return value; }) as (value: number) => number);
       const alias = arrow;
       let mutable = (value: number): number => value;
       function local() { const nested = (value: number): number => value; return nested; }
       const [destructured] = [(value: number): number => value];`,
-    "/project/other.ts": "export const foreign = (value: number): number => value;",
-  }, compilerOptions: { strict: true, target: "es2022", module: "esnext" } }).checkSource();
-  assert.equal(checked.diagnostics.length, 0, formatDiagnostics(checked.diagnostics.slice(0, 4)).slice(0, 1024));
-  const source = createTargetSourceProgram(checked);
-  const file = source.navigation.sourceFiles.find(file => SourceFile_FileName(source.ast, file) === "/project/index.ts");
+    { files: { "other.ts": "export const foreign = (value: number): number => value;" } });
+  const source = Object.freeze({ syntax: program.ast });
+  const nodesOf = root => { const found = []; const walk = node => { found.push(node);
+    source.syntax.forEachChild(node, child => { if (child !== undefined) walk(child); }); }; walk(root); return found; };
+  const file = program.files.find(file => source.syntax.getFileName(file) === "/project/index.ts");
   assert.equal(file !== undefined, true);
-  const nodes = source.navigation.nodesForFiles([file]);
-  const identities = analyzeCsharpModuleCallables(source.ast, nodes);
+  const nodes = nodesOf(file);
+  const identities = analyzeCsharpModuleCallables(source.syntax, nodes);
   assert.equal(Object.isFrozen(identities), true);
-  const declarations = nodes.filter(node => source.ast.is.IsVariableDeclaration(node));
-  const declaration = name => declarations.find(node => source.ast.text(source.ast.name(node)) === name);
+  const declarations = nodes.filter(node => source.syntax.is.IsVariableDeclaration(node));
+  const declaration = name => declarations.find(node => source.syntax.text(source.syntax.name(node)) === name);
   for (const name of ["arrow", "wrapped"]) {
     const owner = declaration(name);
     const identity = identities.get(owner);
     assert.equal(identity !== undefined && identity.sourceOwner === owner, true, name);
     assert.equal(identities.get(identity.callable) === identity, true, "both checked identities share one frozen observation");
     assert.equal(Object.isFrozen(identity), true);
-    assert.equal(source.ast.is.IsArrowFunction(identity.callable) || source.ast.is.IsFunctionExpression(identity.callable), true);
+    assert.equal(source.syntax.is.IsArrowFunction(identity.callable) || source.syntax.is.IsFunctionExpression(identity.callable), true);
   }
   for (const name of ["alias", "mutable", "nested"]) assert.equal(identities.get(declaration(name)) === undefined, true, name);
-  const other = source.navigation.sourceFiles.find(file => SourceFile_FileName(source.ast, file) === "/project/other.ts");
+  const other = program.files.find(file => source.syntax.getFileName(file) === "/project/other.ts");
   assert.equal(other !== undefined, true);
-  for (const node of source.navigation.nodesForFiles([other])) assert.equal(identities.get(node) === undefined, true, "foreign inventory is not guessed");
+  for (const node of nodesOf(other)) assert.equal(identities.get(node) === undefined, true, "foreign inventory is not guessed");
   assert.equal(identities.get({}) === undefined, true, "an unrelated node has no source identity");
   assert.equal(existsSync(new URL("../../../src/target-model/syntax/module-callables.ts", import.meta.url)), false,
     "the target-model syntax layer has no parallel semantic classifier");

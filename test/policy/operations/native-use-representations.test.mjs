@@ -1,6 +1,6 @@
+import { csharpTestSourceProgram } from "../../helpers/target-source-program.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { targetUseSiteIdentity } from "@tsonic/target-api/analysis";
 import { checkCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { selectCsharpNativeUseRepresentation } from "../../../dist/policy/conversions/native-use-representation.js";
@@ -22,8 +22,8 @@ const checked = checkCsharpSource({ sourceText: `
   export const missing = undefined;
 ` });
 assert.equal(checked.sourceDiagnosticsText === "", true, checked.sourceDiagnosticsText);
-const source = createTargetSourceProgram(checked.source);
-const ast = source.ast;
+const source = csharpTestSourceProgram(checked.source);
+const ast = source.syntax;
 const nodes = [];
 const walk = node => { nodes.push(node); ast.forEachChild(node, child => { if (child !== undefined) walk(child); }); };
 for (const file of source.sourceFiles) walk(file);

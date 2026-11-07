@@ -10,7 +10,7 @@ export function compiledCsharpPlanContext(sourceText, surface) {
   const compiled = compileCsharpSource({ sourceText, surface });
   assertCsharpCompilationSucceeded(compiled);
   const program = compiled.result.program;
-  const { ast } = program.source;
+  const ast = program.source.syntax;
   const nodes = [];
   const visit = node => { nodes.push(node); ast.forEachChild(node, child => { if (child !== undefined) visit(child); }); };
   csharpProgramSourceFiles(program).forEach(visit);

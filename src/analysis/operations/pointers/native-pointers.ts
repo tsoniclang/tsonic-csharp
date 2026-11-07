@@ -1,5 +1,6 @@
 import type { CsharpNativePointerOperationKind, CsharpNativePointerOperationSelection, CsharpResolvedNativePointerOperationBase } from "../../../target-model/records/native/native-pointers.js";
-import type { Node, SourceFile } from "@tsonic/tsts";
+import type { Node } from "@tsonic/tsts";
+import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpPolicyContext } from "../../../policy/model/context.js";
 
 import { csharpSourcePrimitiveTargetType, targetTypeRefEquals } from "../../../policy/types/index.js";
@@ -16,16 +17,21 @@ import { selectTargetNativePointerOperation } from "@tsonic/target-api/analysis"
 export function selectCsharpNativePointerOperation(
   input: CsharpPolicyContext,
   node: Node,
-  sourceFile: SourceFile,
 ): CsharpNativePointerOperationSelection {
-  const rawLocation = selectCsharpRawLocation(input, node, sourceFile);
+  const rawLocation = selectCsharpRawLocation(input, node);
   const layout = selectCsharpLayoutObservation(input.sourceFacts, node);
-  const address = selectCsharpRawAddress(input, node, sourceFile);
+  const address = selectCsharpRawAddress(input, node);
   return selectTargetNativePointerOperation(rawLocation, layout, address,
-    selectRawIdentity(input, node, sourceFile), selectNativePointer(input, node, sourceFile)) ?? { kind: "not-native-pointer" };
+    selectRawIdentity(input, node), selectNativePointer(input, node)) ?? { kind: "not-native-pointer" };
 }
 
-function selectRawIdentity(input: CsharpPolicyContext, node: Node, sourceFile: SourceFile):
+/** The represented published value type of an operand (facts.values.type); a .NET refusal closes no carrier. */
+function operandCarrier(input: CsharpPolicyContext, expression: Node): TargetTypeRef | undefined {
+  const represented = input.types.value(expression);
+  return represented.kind === "csharp-refused" ? undefined : represented;
+}
+
+function selectRawIdentity(input: CsharpPolicyContext, node: Node):
   Exclude<CsharpNativePointerOperationSelection, { readonly kind: "not-native-pointer" }> | undefined {
   const identity = readCsharpSourceRawPointerIdentity(input.sourceFacts, node);
   if (identity !== undefined) {
@@ -36,7 +42,7 @@ function selectRawIdentity(input: CsharpPolicyContext, node: Node, sourceFile: S
       return rejected(identity.operation, "Raw pointer identity requires exact selected call arguments.");
     }
     for (const argument of identity.arguments) {
-      const selected = input.types.resolveSelectedValue(argument.expression, argument.type, sourceFile);
+      const selected = operandCarrier(input, argument.expression);
       const value = getCsharpNullableElementTargetType(selected) ?? selected;
       if (!isCsharpAbsenceTargetType(value) && (value === undefined || !targetTypeRefEquals(value, carrier))) {
         return rejected(identity.operation, "Raw pointer identity requires the closed address carrier, not an arbitrary object.");
@@ -49,7 +55,7 @@ function selectRawIdentity(input: CsharpPolicyContext, node: Node, sourceFile: S
   return undefined;
 }
 
-function selectNativePointer(input: CsharpPolicyContext, node: Node, sourceFile: SourceFile):
+function selectNativePointer(input: CsharpPolicyContext, node: Node):
   Exclude<CsharpNativePointerOperationSelection, { readonly kind: "not-native-pointer" }> | undefined {
   const source = readCsharpSourceNativePointerOperation(
     input.sourceFacts,
@@ -58,11 +64,7 @@ function selectNativePointer(input: CsharpPolicyContext, node: Node, sourceFile:
   if (source === undefined) {
     return undefined;
   }
-  const pointerType = input.types.resolveSelectedValue(
-    source.pointerExpression,
-    source.pointerType,
-    sourceFile,
-  );
+  const pointerType = operandCarrier(input, source.pointerExpression);
   if (pointerType?.kind !== "pointer") {
     return rejected(
       source.operation,
@@ -70,13 +72,10 @@ function selectNativePointer(input: CsharpPolicyContext, node: Node, sourceFile:
     );
   }
   if (source.explicitPointeeTypeNode !== undefined) {
-    const explicitPointee = input.types.resolveSelectedType(
-      source.explicitPointeeTypeNode,
-      source.pointeeType,
-      sourceFile,
-    );
+    // source-core publishes the selected pointee as a Host descriptor (request R-F1-6).
+    const explicitPointee = input.types.represent(source.pointeeType, source.explicitPointeeTypeNode, "type-argument");
     if (
-      explicitPointee === undefined ||
+      explicitPointee.kind === "csharp-refused" ||
       !targetTypeRefEquals(explicitPointee, pointerType.pointee)
     ) {
       return rejected(
@@ -95,11 +94,7 @@ function selectNativePointer(input: CsharpPolicyContext, node: Node, sourceFile:
     case "load":
       return { ...base, kind: source.operation };
     case "store": {
-      const valueType = input.types.resolveSelectedValue(
-        source.valueExpression,
-        source.valueType,
-        sourceFile,
-      );
+      const valueType = operandCarrier(input, source.valueExpression);
       return valueType === undefined
         ? rejected(
             source.operation,
@@ -112,11 +107,7 @@ function selectNativePointer(input: CsharpPolicyContext, node: Node, sourceFile:
           };
     }
     case "offset": {
-      const offsetType = input.types.resolveSelectedValue(
-        source.offsetExpression,
-        source.offsetType,
-        sourceFile,
-      );
+      const offsetType = operandCarrier(input, source.offsetExpression);
       return offsetType === undefined ||
           !targetTypeRefEquals(
             offsetType,

@@ -1,30 +1,28 @@
-import type { Node, SourceFile, Type } from "@tsonic/tsts";
+import type { Node } from "@tsonic/tsts";
 import type { CsharpProviderTypeParameterRelation } from "../../../../target-model/identities/provider-relations.js";
 import type { CsharpTargetBindingFact, CsharpTargetMember, TargetTypeRef } from "../../../../policy/types/index.js";
 import type { CsharpTypeQueries } from "../../../../policy/model/type-resolution.js";
 import { csharpTargetBindingSubstitutions, csharpTargetTypePatternFromBinding, resolveCsharpTargetTypePatternArguments, substituteCsharpTargetMember, targetTypeRefEquals } from "../../../../policy/types/index.js";
 
 import { isCompleteTypeParameterRelation } from "../../../../policy/operations/members/binding-instantiation.js";
+/** A source node whose published value type (facts.values.type) closes a provider binding. */
 export interface CsharpSourceTypeEvidence {
   readonly node: Node | undefined;
-  readonly type?: Type;
 }
 
 export function resolveCsharpTargetBindingArguments(
   types: CsharpTypeQueries,
   binding: CsharpTargetBindingFact,
   sourceEvidence: readonly CsharpSourceTypeEvidence[],
-  sourceFile: SourceFile,
 ): readonly TargetTypeRef[] | undefined {
   const targetArity = binding.typeParameters?.length ?? 0;
   if (targetArity === 0) {
     return [];
   }
-  const selections = sourceEvidence.map(evidence => types.resolveNode(evidence.node, sourceFile));
-  if (selections.some(selected => selected?.kind === "rejected")) return undefined;
-  const candidates = sourceEvidence
-    .map((_evidence, index) => selections[index]?.sourceResult?.selectedType)
-    .filter((type): type is TargetTypeRef => type !== undefined)
+  const selections = sourceEvidence.flatMap(evidence => evidence.node === undefined ? [] : [types.value(evidence.node)]);
+  if (selections.some(selected => selected.kind === "csharp-refused")) return undefined;
+  const candidates = selections
+    .filter((type): type is TargetTypeRef => type.kind !== "csharp-refused")
     .map((type) => resolveCsharpTargetTypePatternArguments(
       csharpTargetTypePatternFromBinding(binding),
       type,
@@ -51,7 +49,6 @@ export function instantiateCsharpProviderBindingMember(
   member: CsharpTargetMember,
   bindingTypeParameters: readonly CsharpProviderTypeParameterRelation[],
   sourceEvidence: readonly CsharpSourceTypeEvidence[],
-  sourceFile: SourceFile,
 ): CsharpTargetMember | undefined {
   if (!isCompleteTypeParameterRelation(
     bindingTypeParameters,
@@ -63,7 +60,6 @@ export function instantiateCsharpProviderBindingMember(
     types,
     binding,
     sourceEvidence,
-    sourceFile,
   );
   if (arguments_ === undefined) {
     return undefined;

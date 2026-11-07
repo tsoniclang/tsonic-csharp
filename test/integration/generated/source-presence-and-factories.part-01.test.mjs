@@ -30,9 +30,9 @@ test("JS surface absence keeps membership and native values", { timeout: 300_000
         targetTypeRefEquals(getCsharpNullableElementTargetType(parameter.type), csharpObjectTargetType())), true,
       "Object.is publishes its actual two object? native formals, not a broad conversion permission");
     }
-    program.source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    program.source.syntax.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
-  program.source.navigation.sourceFiles.forEach(visit);
+  program.source.sourceFiles.forEach(visit);
   assert.equal(selected, 1, "the actual selected native identity helper is checked exactly once");
 });
 

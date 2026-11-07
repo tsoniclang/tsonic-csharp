@@ -4,7 +4,7 @@ import { csharpJsObjectCallPolicies } from "../../../dist/policy/operations/sour
 import { csharpBigIntegerTargetType, csharpNullableTargetType, csharpObjectTargetType, csharpSourcePrimitiveTargetType,
   csharpStringTargetType, csharpTargetNamedType, getCsharpNullableElementTargetType, targetTypeRefEquals } from "../../../dist/target-model/types/index.js";
 import { assertCsharpCompilationSucceeded, checkCsharpSource, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
+import { csharpTestSourceProgram } from "../../helpers/target-source-program.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 
 const selectedIs = csharpJsObjectCallPolicies.find(policy =>
@@ -16,22 +16,22 @@ function fixture() {
   const checked = checkCsharpSource({ surface: "js", sourceText:
     "export function run(value: unknown, other: unknown): boolean { return Object.is(value, other); }" });
   assert.equal(checked.sourceDiagnosticsText, "", "the Native unit uses a valid checked call");
-  const program = createTargetSourceProgram(checked.source);
+  const program = csharpTestSourceProgram(checked.source);
   const calls = [];
   const visit = node => {
-    if (program.ast.is.IsCallExpression(node)) calls.push(node);
-    program.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    if (program.syntax.is.IsCallExpression(node)) calls.push(node);
+    program.syntax.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
-  program.sourceFiles.filter(file => !program.ast.isDeclarationFile(file)).forEach(visit);
+  program.sourceFiles.filter(file => !program.syntax.isDeclarationFile(file)).forEach(visit);
   assert.equal(calls.length, 1, "one original Object.is occurrence");
-  const source = program.semantics.forNode(calls[0]).operations.call(calls[0]);
-  assert.equal(source.call === calls[0] && source.sourceArguments.length === 2 &&
-    source.sourceArgumentBindings.every((binding, index) => binding.sourceArgumentIndex === index &&
-      binding.effectiveArgumentIndex === index && binding.sourceParameterIndex === index), true,
+  // The Host call selection (selections.call) carries the ordered argument correspondences.
+  const source = program.facts.selections.call(calls[0]);
+  assert.equal(source.use === calls[0] && source.arguments.length === 2 &&
+    source.arguments.every((binding, index) => binding.parameterIndex === index && binding.mode === "positional"), true,
     "the real publication retains both original ordered argument bindings");
   return (value, other) => selectedIs.select({ source,
-    inputs: { values: new Map(source.sourceArguments.map((argument, index) =>
-      [argument.expression, [value, other][index]])) } });
+    inputs: { values: new Map(source.arguments.map((argument, index) =>
+      [argument.argument, [value, other][index]])) } });
 }
 
 test("Object.is publishes exact completed native scalar slots without widening or boxing", () => {

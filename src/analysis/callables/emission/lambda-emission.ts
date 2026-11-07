@@ -1,5 +1,5 @@
 import type { Node } from "@tsonic/tsts";
-import type { TargetSourceProgram } from "@tsonic/target-api/source";
+import type { TargetSourceProgramFacts } from "@tsonic/target-api/source";
 import { HasSyntacticModifier, ModifierFlagsAsync, forEachSourceImmediateEvaluationChild } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpLambdaBodyEmission } from "../../../target-model/records/callables/lambda-emission.js";
@@ -17,7 +17,7 @@ import { csharpVoidReturnCompletion } from "../../../policy/conversions/callable
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../target-model/types/equality.js";
 import { createCsharpLambdaEmissionRecords } from "../../program/records/callables/lambda-emission.js";
 
-export function analyzeCsharpLambdaEmission(input: { readonly source: TargetSourceProgram; readonly nodes: readonly Node[];
+export function analyzeCsharpLambdaEmission(input: { readonly source: TargetSourceProgramFacts; readonly nodes: readonly Node[];
   readonly declarations: CsharpCallableDeclarationRecords;
   readonly parameters: CsharpCallableParameterRecords;
   readonly captures: CsharpCaptureStorage; readonly creations: CsharpCallableCreationIndex; readonly storage: CsharpStorageClassifications;
@@ -26,8 +26,8 @@ export function analyzeCsharpLambdaEmission(input: { readonly source: TargetSour
   readonly admitted: (node: Node) => boolean }) {
   const values = new Map<Node, CsharpLambdaBodyEmission>();
   const issues: TargetDiagnostic[] = [];
-  const ast = input.source.ast;
-  const refuse = (node: Node, message: string): void => { issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: node, message }); };
+  const ast = input.source.syntax;
+  const refuse = (node: Node, message: string): void => { issues.push({ code: "CSHARP_LAMBDA_EMISSION", category: "error", source: "tsonic-csharp", sourceNode: node, message }); };
   for (const node of input.nodes) {
     if (!input.admitted(node) || !ast.is.IsArrowFunction(node) && !ast.is.IsFunctionExpression(node)) continue;
     const creation = input.creations.callableCreation.get(node);

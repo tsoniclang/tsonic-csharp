@@ -23,7 +23,7 @@ export function selectCsharpTargetCallEmission(input: CsharpTargetCallEmissionIn
   if (member.kind !== "method" && member.kind !== "operator" && member.kind !== "constructor")
     return refuse(`Checked call selected C# ${member.kind} '${member.id}', not an invocable method.`);
   const instance = selection.receiver.kind === "instance";
-  if (instance && source.sourceReceiver === undefined) return refuse("Selected instance call requires its exact native receiver acquisition.");
+  if (instance && source.receiver === undefined) return refuse("Selected instance call requires its exact native receiver acquisition.");
   const physicalResult = member.kind === "constructor" ? member.declaringType : member.returnType;
   if (physicalResult === undefined) return refuse("Selected native call requires its exact physical completion carrier.");
   const result = selection.discardResult ? csharpVoidTargetType() : physicalResult;
@@ -107,7 +107,7 @@ export function selectCsharpTargetCallEmission(input: CsharpTargetCallEmissionIn
     invocation = { kind: "protocol", owner, name: member.targetName, method: selected.protocolMemberName,
       types: Object.freeze(types), forwarded: supplied, receiver, lifted: input.liftedResult };
   } else if (selected?.kind === "native-indexer-get" || selected?.kind === "native-indexer-set") {
-    if (member.static || source.sourceReceiver === undefined || input.optional)
+    if (member.static || source.receiver === undefined || input.optional)
       return refuse("A selected native C# indexer call requires one non-optional instance receiver and an explicit indexer invocation relation.");
     const indexes = new Set(selected.indexParameterIndexes);
     const value = selected.kind === "native-indexer-set" ? selected.valueParameterIndex : undefined;

@@ -38,7 +38,7 @@ export function analyzeCsharpJsValueBoxing(input: { readonly ast: AstReader; rea
     if (exact?.kind === "resolved") { producer.publish(node, carrier, { kind: "literal", recipe: exact.recipe }); continue; }
     if (carrier.kind === "source-primitive" && (input.ast.is.IsNumericLiteral(node) || input.ast.is.IsPrefixUnaryExpression(node))) {
       if (!selectCsharpTypeEmission({ carrier })) {
-        issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: node,
+        issues.push({ code: "CSHARP_JS_VALUE_PRIMITIVE_NOT_RENDERABLE", category: "error", source: "tsonic-csharp", sourceNode: node,
           message: "A source primitive entering the closed JS-value carrier requires its exact renderable C# representation." }); continue;
       }
       producer.publish(node, carrier, { kind: "cast", carrier });

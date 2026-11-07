@@ -3,6 +3,7 @@ import test from "node:test";
 import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { assertNativeErrorWriteRefusals } from "../../helpers/native-error-refusals.mjs";
+import { csharpSourceNodes } from "../../../dist/analysis/program/source-nodes.js";
 
 for (const jsEnabled of [false, true]) {
   test(`C# ${jsEnabled ? "JS" : "native"} Error storage keeps exact cross-file nested generic write origins`, () => {
@@ -76,7 +77,8 @@ if (!Generated.run() || !ReferenceEquals(Generated.observe(original), original))
     assert.equal(compiled.sourceDiagnosticsText, "", "the original distinct-interface program remains checked and preserved");
     assert.equal(compiled.result.diagnostics.length, 3, "the three measured open and nested forwarding relations remain explicit");
     for (const diagnostic of compiled.result.diagnostics) {
-      assert.equal(diagnostic.code, "CSHARP_UNSUPPORTED_AST");
+      // nextgen C-2542: CSHARP_UNSUPPORTED_AST is split; this site's .NET reason is the unproven forwarding conversion.
+      assert.equal(diagnostic.code, "CSHARP_INTERFACE_FORWARDING_CONVERSION_NOT_PROVEN");
       assert.equal(diagnostic.message, "An analyzed interface property has no exact native forwarding conversion.");
       assert.equal(diagnostic.sourceNode !== undefined, true, "the existing native forwarding owner retains its actual source");
     }
@@ -119,7 +121,8 @@ for (const surface of ["native", "js"]) {
     assert.match(emitted, /\.InnerException/u);
     assert.match(emitted, /\.GetType\(\)\.Name/u);
     assert.doesNotMatch(emitted, /Tsonic\.CSharp\.Runtime\.Error|ErrorObject|new ErrorOptions/u);
-    const selections = compiled.result.program.source.navigation.nodes.map(node =>
+    const { syntax, sourceFiles } = compiled.result.program.source;
+    const selections = csharpSourceNodes(syntax, sourceFiles).map(node =>
       compiled.result.program.records.selectedConstruction.get(node)?.target)
       .filter(selection => selection?.kind === "resolved" && selection.call.arguments.some(argument => argument.projection !== undefined));
     assert.equal(selections.length >= 2, true, "both source construction and native base invocation retain checked cause projections");

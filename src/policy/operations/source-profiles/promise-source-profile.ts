@@ -121,9 +121,8 @@ export const csharpPromiseSourceProfileCallPolicies:
       select(
         context: CsharpSourceProfileCallPolicyContext,
       ): CsharpSourceProfileCallPolicyResult {
-        const taskType = context.source.sourceSelectedSignatureKind !== "resolved" ||
-          context.source.sourceSelectedSignatureParameters.length !== 1 ||
-          context.source.sourceArgumentBindings.length !== 1 ? undefined :
+        const taskType = context.source.parameters.length !== 1 ||
+          context.source.bindings.length !== 1 ? undefined :
           resolveCsharpSourceProfileGenericResult(context, 1, arguments_ => csharpTaskTargetType(arguments_[0]!));
         const member = promiseConstructorMember(taskType);
         const call = member === undefined
@@ -150,11 +149,11 @@ export const csharpPromiseSourceProfileCallPolicies:
         declaringName: "PromiseConstructor", name: "resolve" }),
       finalizeArguments: true,
       select(context: CsharpSourceProfileCallPolicyContext): CsharpSourceProfileCallPolicyResult {
-        const argument = resolveCsharpSelectedSourceValue(context, context.source.sourceArguments[0]);
+        const argument = resolveCsharpSelectedSourceValue(context, context.source.arguments[0]);
         const taskPayload = getCsharpTaskResultTargetType(argument);
         const explicit = context.inputs.typeArguments[0];
-        const payload = explicit?.node === undefined ? taskPayload ?? argument : explicit.carrier;
-        const member = context.source.sourceArguments.length !== 1
+        const payload = explicit?.source.explicit !== true ? taskPayload ?? argument : explicit.carrier;
+        const member = context.source.arguments.length !== 1
           ? undefined : promiseResolutionMember(argument, payload);
         const call = member === undefined ? undefined : csharpSourceProfileCall(context.source, member, noReceiver);
         return call === undefined ? { kind: "rejected", diagnostic: csharpSourceProfileDiagnostic(

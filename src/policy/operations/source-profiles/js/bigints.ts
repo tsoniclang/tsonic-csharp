@@ -16,7 +16,7 @@ function isBigIntInput(type: TargetTypeRef): boolean {
 
 export const csharpJsBigIntCallPolicies: readonly CsharpSourceProfileCallPolicy[] = [
   jsCallPolicy(jsMemberIdentity("BigInt", "toString"), context => {
-    const receiver = resolveCsharpSelectedSourceValue(context, context.source.sourceReceiver);
+    const receiver = resolveCsharpSelectedSourceValue(context, context.source.receiver);
     if (receiver === undefined || !(targetTypeRefEquals(receiver, csharpBigIntegerTargetType()) ||
       receiver.kind === "source-primitive" && ["int8", "uint8", "int16", "uint16", "int32", "uint32",
         "int64", "uint64", "int128", "uint128", "native-int", "native-uint"].includes(receiver.name))) return undefined;
@@ -27,8 +27,8 @@ export const csharpJsBigIntCallPolicies: readonly CsharpSourceProfileCallPolicy[
       csharpStringTargetType());
   }, { kind: "target-parameter", targetParameterIndex: 0 }),
   ...["asIntN", "asUintN"].map(name => jsCallPolicy(jsMemberIdentity("BigIntConstructor", name), context => {
-    const argument = resolveCsharpSelectedSourceValue(context, context.source.sourceArguments[1]);
-    if (argument === undefined || context.source.sourceArguments.length !== 2 ||
+    const argument = resolveCsharpSelectedSourceValue(context, context.source.arguments[1]);
+    if (argument === undefined || context.source.arguments.length !== 2 ||
       !(targetTypeRefEquals(argument, csharpBigIntegerTargetType()) ||
         argument.kind === "source-primitive" && ["int8", "uint8", "int16", "uint16", "int32", "uint32",
           "int64", "uint64", "native-int", "native-uint", "int128", "uint128"].includes(argument.name))) return undefined;
@@ -37,8 +37,8 @@ export const csharpJsBigIntCallPolicies: readonly CsharpSourceProfileCallPolicy[
       csharpBigIntegerTargetType());
   }, { kind: "none" })),
   jsCallPolicy(jsCallIdentity("BigIntConstructor"), context => {
-    const argument = resolveCsharpSelectedSourceValue(context, context.source.sourceArguments[0]);
-    if (argument === undefined || context.source.sourceArguments.length !== 1) return undefined;
+    const argument = resolveCsharpSelectedSourceValue(context, context.source.arguments[0]);
+    if (argument === undefined || context.source.arguments.length !== 1) return undefined;
     const arms = argument.kind === "target-named"
       ? (argument as Partial<CsharpRuntimeUnionTargetTypeRef>).csharpRuntimeUnionArms
       : undefined;

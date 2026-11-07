@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createSourceStorageQuery } from "@tsonic/target-api/analysis";
 
 import {
   compileCsharpSource,
@@ -248,9 +247,10 @@ for (const surface of [undefined, "js"]) {
         .map(issue => `${issue.code}: ${issue.message}`).join(" | ").slice(0, 3000)}`);
       assert.equal(compiled.result.program !== undefined, true, "analysis program is published");
       const { source, sourceFiles } = compiled.result.program;
-      const storage = createSourceStorageQuery(source, sourceFiles);
-      const method = storage.nodes.find(node => source.navigation.isProjectDeclaration(node) &&
-        (external ? source.ast.is.IsMethodSignatureDeclaration(node) : source.ast.is.IsMethodDeclaration(node)));
+      // The Host storage analysis is a Source fact (facts.analyses.storage, nextgen C-2542).
+      const storage = source.facts.analyses.storage({ sourceFiles });
+      const method = storage.nodes.find(node => source.facts.navigation.identity.isProjectDeclaration(node) &&
+        (external ? source.syntax.is.IsMethodSignatureDeclaration(node) : source.syntax.is.IsMethodDeclaration(node)));
       assert.equal(method !== undefined, true, "the original checked method declaration exists");
       const subject = storage.memberSubjectFor(method);
       assert.equal(subject.kind, "resolved", "the canonical method subject is available");

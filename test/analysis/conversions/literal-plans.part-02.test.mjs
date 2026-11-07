@@ -11,14 +11,13 @@ import { csharpRuntimeUnionTargetType, csharpSourcePrimitiveTargetType, csharpSt
 import { csharpNativeUseSite } from "../../../dist/target-model/records/native/native-demand.js";
 import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 import { compileCsharpSource, checkCsharpSource, assertCsharpCheckingSucceeded, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
-import { createTargetSourceProgram, analyzeSourceLiteralValues } from "@tsonic/target-api/source";
+import { hostProgram } from "../../representation/host-fixture.mjs";
+import { compileEffectiveSource } from "../../helpers/source-effective-types.mjs";
 import { assertCsharpRequiredRecords } from "../../../dist/analysis/program/records/objects/required-records.js";
 import { checkedSourceLiteralValues } from "../../helpers/source-literal-values.mjs";
 import { planCsharpExactLiteralRecipe } from "../../../dist/backend/planner/expressions/literal-conversions.js";
 import { printCsharpExpression } from "../../../dist/print/source/printer.js";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
-import { callEvidence, directProviderHost, providerBinding, providerDeclaration, providerFact, providerMethod,
-  selectCsharpProviderCall, signatureRelation, targetParameter } from "../../fixtures/dotnet-provider/direct-provider-selection.helpers.mjs";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 import { primitive, primitives, literals, checkedPropertyKeys, providerAdapterCall, sealedProviderCallConversions } from "./literal-plans.fixtures.mjs";
 
@@ -44,8 +43,8 @@ for (const surface of ["native", "js"]) for (const destination of ["direct", "un
       const compiled = compileCsharpSource({ surface, sourceText: `${imported}
         export function run(): (${type})[] { return [${example.value}]; }` });
       assertCsharpCompilationSucceeded(compiled);
-      const source = createTargetSourceProgram(compiled.source);
-      const ast = source.ast;
+      const source = compiled.result.program.source;
+      const ast = source.syntax;
       const file = compiled.source.getSourceFile("/project/index.ts");
       let aggregate;
       const visit = node => {
@@ -56,7 +55,7 @@ for (const surface of ["native", "js"]) for (const destination of ["direct", "un
       const element = aggregate === undefined ? undefined : ast.elements(aggregate)[0];
       assert.equal(element !== undefined, true, "the exact authored value occurrence is retained");
       if (destination === "union") {
-        const published = source.effectiveTypes.get(aggregate);
+        const published = source.facts.values.type(aggregate);
         assert.equal(published?.kind !== "refused" && published?.type.kind === "array" &&
           published.type.element.kind === "union" && published.type.element.types.length === 2, true,
         "each union case retains two distinct declared Source arms");
@@ -99,17 +98,17 @@ for (const surface of ["native", "js"]) for (const storage of ["direct", "nullab
         type Inner = ${example.type} | boolean;
         export function run(): (${type})[] { return [${example.value}]; }` });
       assertCsharpCompilationSucceeded(compiled);
-      const source = createTargetSourceProgram(compiled.source);
+      const source = compiled.result.program.source;
       const file = compiled.source.getSourceFile("/project/index.ts");
       let aggregate;
       const visit = node => {
-        if (source.ast.is.IsArrayLiteralExpression(node)) aggregate = node;
-        source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+        if (source.syntax.is.IsArrayLiteralExpression(node)) aggregate = node;
+        source.syntax.forEachChild(node, child => { if (child !== undefined) visit(child); });
       };
       visit(file);
-      const expression = aggregate === undefined ? undefined : source.ast.elements(aggregate)[0];
+      const expression = aggregate === undefined ? undefined : source.syntax.elements(aggregate)[0];
       assert.equal(expression !== undefined, true, "the construction is the actual checked literal or constant expression");
-      const literal = analyzeSourceLiteralValues(source.ast, [file]).literalValue.get(expression);
+      const literal = source.facts.values.literal(expression);
       const records = compiled.result.program.records;
       const physicalSource = records.valueRead.get(expression)?.value;
       assert.equal(physicalSource?.kind === "source-primitive" && physicalSource.name === example.primitive, true,
@@ -137,21 +136,16 @@ for (const surface of ["native", "js"]) for (const storage of ["direct", "nullab
 }
 
 test("a literal wrapper cannot seal a missing physical value from its storage", () => {
-  const checked = checkCsharpSource({ sourceText: "export const result = (1 + 2);" });
-  assertCsharpCheckingSucceeded(checked);
-  const source = createTargetSourceProgram(checked.source);
-  const file = checked.source.getSourceFile("/project/index.ts");
-  let expression;
-  const visit = node => {
-    if (source.ast.is.IsParenthesizedExpression(node)) expression = node;
-    source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
-  };
-  visit(file);
+  const program = hostProgram("export const result = (1 + 2);");
+  const file = program.files[0];
+  const expression = program.nodes.find(node => program.ast.is.IsParenthesizedExpression(node));
   assert.equal(expression !== undefined, true, "the invariant uses the actual checked wrapper");
   const none = Object.freeze({ get: () => undefined });
-  const literalValues = analyzeSourceLiteralValues(source.ast, [file]);
-  const analysis = analyzeCsharpValueReadStages({ ast: source.ast, sourceFiles: [file], literalValues,
-    effectiveTypes: { get: () => undefined } }, {
+  // nextgen C-2542: the old double answered effectiveTypes.get with undefined (no publication). Value publication is
+  // total now (I4); the double answers the Host literal and a refused value type, so no physical construction exists.
+  const facts = Object.freeze({ values: Object.freeze({ literal: node => program.facts.values.literal(node),
+    type: node => Object.freeze({ kind: "refused", code: "TSONIC_TEST_UNPUBLISHED", message: "No physical publication.", site: node }) }) });
+  const analysis = analyzeCsharpValueReadStages({ ast: program.ast, sourceFiles: [file], facts }, {
     nodeTargetType: { get: node => node === expression ? primitive("int32") : undefined },
     storageTargetType: none, readStorageTargetType: none, valueRefinement: none, yield: none,
   }, { operationResultType: none, sourceMember: none });
@@ -175,7 +169,9 @@ for (const surface of ["native", "js"]) for (const storage of ["nullable", "unio
     assert.equal(compiled.sourceDiagnosticsText, "", "the real source is checked before Native admission");
     assert.equal(compiled.result.diagnostics.length, 1, "one Native range refusal, not an internal missing-physical invariant");
     const diagnostic = compiled.result.diagnostics[0];
-    assert.equal(diagnostic.code === "CSHARP_UNSUPPORTED_AST" && diagnostic.message === reason, true,
+    // nextgen C-2542: CSHARP_UNSUPPORTED_AST is split; the literal emission site (analysis/operations/literals.ts) names
+    // CSHARP_LITERAL_NOT_REPRESENTABLE. The message is unchanged.
+    assert.equal(diagnostic.code === "CSHARP_LITERAL_NOT_REPRESENTABLE" && diagnostic.message === reason, true,
       "the canonical exact-literal D2 reason is unchanged");
     assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true);
   });
@@ -192,11 +188,11 @@ for (const surface of ["native", "js"]) {
       export function nullableUnion(): (number | boolean) | undefined { return -0; }
     ` });
     assertCsharpCompilationSucceeded(compiled);
-    const source = createTargetSourceProgram(compiled.source);
+    const ast = compiled.result.program.source.syntax;
     const file = compiled.source.getSourceFile("/project/index.ts");
     const checks = ["direct", "nullable", "union", "nested", "nullableUnion"].map(name => {
-      const declaration = source.ast.statements(file).find(node => source.ast.is.IsFunctionDeclaration(node) &&
-        source.ast.text(source.ast.name(node)) === name);
+      const declaration = ast.statements(file).find(node => ast.is.IsFunctionDeclaration(node) &&
+        ast.text(ast.name(node)) === name);
       assert.equal(declaration !== undefined, true, `${name}: the real declared callable is retained`);
       const contract = compiled.result.program.records.returnContract.get(declaration);
       assert.equal(contract?.kind === "resolved", true, `${name}: the native ABI comes from the Host return`);
@@ -240,17 +236,17 @@ test(`${surface} decimal dictionary keys retain their authored scale in native e
 for (const surface of Array.from(["native", "js"]).slice(0, 2)) {
 for (const [type, value] of Array.from([["int8", "128"], ["int8", "(128)"], ["float16", "65520"]]).slice(0, 3)) {
 test(`${surface} rejected ${type} literal ${value} retains its precise native refusal before sealing`, () => {
-    const compiled = compileCsharpSource({ surface, sourceText: `
+    const compiled = compileEffectiveSource(surface, `
       import type { ${type} } from "@tsonic/core/types.js";
       export function run(): ${type} { return ${value}; }
-    ` });
+    `);
     assert.equal(compiled.sourceDiagnosticsText, "", "the native literal refusal is not a source checker substitution");
     const diagnostics = compiled.result.diagnostics;
     assert.equal(diagnostics.length, 1, "one exact native refusal, never an internal pending invariant");
-    const source = createTargetSourceProgram(compiled.source);
-    const literal = analyzeSourceLiteralValues(source.ast, source.sourceFiles).literalValue.get(diagnostics[0].sourceNode);
+    const literal = compiled.targetSource.facts.values.literal(diagnostics[0].sourceNode);
     const selected = selectCsharpExactLiteralConversion(literal, primitive(type), primitive(type));
-    assert.equal(selected.kind === "rejected" && diagnostics[0].code === "CSHARP_UNSUPPORTED_AST" &&
+    // nextgen C-2542: CSHARP_UNSUPPORTED_AST is split; the literal emission site names CSHARP_LITERAL_NOT_REPRESENTABLE.
+    assert.equal(selected.kind === "rejected" && diagnostics[0].code === "CSHARP_LITERAL_NOT_REPRESENTABLE" &&
       diagnostics[0].message === selected.reason, true, "the completed native literal owner supplies the exact retained reason");
     assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true, "refusal precedes publication and native planning");
   });
@@ -375,7 +371,7 @@ test("a compiled program publishes exact literal selections at its actual reques
   while (pending.length > 0) {
     const node = pending.pop();
     nodes.push(node);
-    program.source.ast.forEachChild(node, child => { if (child !== undefined) pending.push(child); });
+    program.source.syntax.forEachChild(node, child => { if (child !== undefined) pending.push(child); });
   }
   const find = predicate => {
     const found = nodes.filter(node => { const value = records.literalValue.get(node); return value !== undefined && predicate(value); });
@@ -422,7 +418,7 @@ test("a provider argument adapter's literal input step is requested by the selec
     assert.deepEqual(requests.map(request => request.target === undefined ? "intrinsic" : targetTypeRefKey(request.target)),
       [primitive(inputName), "intrinsic", primitive(readName), fixture.counter].map(type => type === "intrinsic" ? type : targetTypeRefKey(type)),
       `${inputName}: the selected call requests the adapter input; reads and the expected type request the rest`);
-    const exactLiteral = analyzeCsharpExactLiteralSelections(fixture.host.literalValues, requests, [fixture.literal]).exactLiteral;
+    const exactLiteral = analyzeCsharpExactLiteralSelections(fixture.host.facts, requests, [fixture.literal]).exactLiteral;
     assert.deepEqual(exactLiteral.get(fixture.literal, primitive(inputName)), record, `${inputName}: the record at the adapter input`);
     const diagnostics = [];
     const prelude = [];
@@ -469,24 +465,17 @@ test("the literal collector closes once and validates later exact endpoints with
 
 for (const { early, completed } of [{ early: false, completed: true }, { early: true, completed: true }, { early: true, completed: false }]) {
   test(`literal preparation ${early ? "retains an early classification" : "classifies after value reads"} and ${completed ? "requires its physical source" : "rejects missing physical reads"}`, () => {
-    const checked = checkCsharpSource({ surface: "native", sourceText: "export const value = 1.25;" });
-    assertCsharpCheckingSucceeded(checked);
-    const source = createTargetSourceProgram(checked.source);
-    const file = checked.source.getSourceFile("/project/index.ts");
-    let expression;
-    const visit = node => {
-      const initializer = source.ast.as.AsVariableDeclaration(node)?.Initializer;
-      if (initializer !== undefined) expression = initializer;
-      source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
-    };
-    visit(file);
+    const program = hostProgram("export const value = 1.25;", { surface: "native" });
+    const file = program.files[0];
+    const expression = program.ast.as.AsVariableDeclaration(program.named("value"))?.Initializer;
     assert.equal(expression !== undefined, true, "the original checked initializer is the classification subject");
     const logical = primitive("float64");
     const physical = primitive("float16");
     const target = primitive("float32");
     const none = Object.freeze({ get: () => undefined });
-    const policy = { sourceFiles: [file], target: {}, ast: source.ast, effectiveTypes: source.effectiveTypes,
-      literalValues: analyzeSourceLiteralValues(source.ast, [file]), navigation: { referenceFor: () => undefined },
+    // nextgen C-2542: the policy reads the Host facts (literal, values, navigation) in place of effectiveTypes,
+    // literalValues and a navigation double.
+    const policy = { sourceFiles: [file], target: {}, ast: program.ast, facts: program.facts,
       projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) } };
     const operations = { yield: none, nativeUnreachable: { get: () => false }, borrowedSequence: none,
       binaryOperation: none, selectedCall: none, selectedConstruction: none, selectedElement: none, unaryOperation: none };
@@ -517,29 +506,19 @@ for (const { early, completed } of [{ early: false, completed: true }, { early: 
 }
 
 test("actual literal uses prepare their selected union inner endpoint before the one literal snapshot", () => {
-  const checked = checkCsharpSource({ surface: "native", sourceText: "export const value = 1.25;" });
-  assertCsharpCheckingSucceeded(checked);
-  const syntax = createTargetSourceProgram(checked.source);
-  const sourceFile = checked.source.getSourceFile("/project/index.ts");
+  const program = hostProgram("export const value = 1.25;", { surface: "native" });
+  const sourceFile = program.files[0];
   assert.equal(sourceFile !== undefined, true, "the exact checked literal file is retained");
-  let declaration;
-  const visit = node => {
-    if (syntax.ast.is.IsVariableDeclaration(node) && syntax.ast.text(syntax.ast.name(node)) === "value") declaration = node;
-    syntax.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
-  };
-  visit(sourceFile);
-  const expression = syntax.ast.as.AsVariableDeclaration(declaration)?.Initializer;
-  assert.equal(expression !== undefined && syntax.ast.parent(expression) === declaration, true,
+  const declaration = program.named("value");
+  const expression = program.ast.as.AsVariableDeclaration(declaration)?.Initializer;
+  assert.equal(expression !== undefined && program.ast.parent(expression) === declaration, true,
     "literal conversion uses the real checked initializer and its exact parent");
   const source = primitive("float64");
   const target = csharpRuntimeUnionTargetType([primitive("float32"), csharpStringTargetType()]);
-  const literalValues = analyzeSourceLiteralValues(syntax.ast, [sourceFile]);
-  assert.equal(literalValues.literalValue.get(expression)?.number === 1.25, true,
+  assert.equal(program.facts.values.literal(expression)?.number === 1.25, true,
     "the original exact checked literal is not reconstructed for the Native request");
   const none = Object.freeze({ get: () => undefined });
-  const policy = { sourceFiles: [sourceFile], target: {}, literalValues,
-    ast: syntax.ast, effectiveTypes: syntax.effectiveTypes,
-    navigation: { referenceFor: () => undefined }, projectTypes: { directSupertypes: () => [] },
+  const policy = { sourceFiles: [sourceFile], target: {}, ast: program.ast, facts: program.facts, projectTypes: { directSupertypes: () => [] },
     providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) } };
   const operations = { yield: none, nativeUnreachable: { get: () => false }, borrowedSequence: none, binaryOperation: none, selectedCall: none,
       selectedConstruction: none, selectedElement: none, unaryOperation: none };
@@ -553,7 +532,7 @@ test("actual literal uses prepare their selected union inner endpoint before the
     valueReads: { valueRead: { get: node => node === expression ? { value: source, source } : undefined } },
   });
   const requests = prepared.exactLiteralRequests;
-  const exact = analyzeCsharpExactLiteralSelections(literalValues, requests, [expression]);
+  const exact = analyzeCsharpExactLiteralSelections(program.facts, requests, [expression]);
   const inner = exact.exactLiteral.get(expression, primitive("float32"));
   assert.equal(inner?.kind === "resolved" && inner.recipe.kind === "float" && inner.recipe.precision === "float32" &&
     inner.recipe.token.significand === "1.25", true, "the selected inner target exists before NativeDemand consumes exact literals");
@@ -584,7 +563,7 @@ test(`${surface} actual literal union return renders its prepared inner native e
   assert.equal(compiled.targetDiagnostics.length === 0 && compiled.result.program !== undefined, true,
     compiled.targetDiagnostics.map(({ code, message }) => `${code}: ${message}`).join("; "));
   const program = compiled.result.program;
-  const ast = program.source.ast;
+  const ast = program.source.syntax;
   let declaration;
   let expression;
   const visit = node => {

@@ -36,7 +36,7 @@ export function multiple(flag: boolean): number {
     assertCsharpCompilationSucceeded(compiled);
     const program = compiled.result.program;
     assert.equal(program !== undefined, true, "admitted nested extractions publish one physical contract");
-    const ast = program.source.ast;
+    const ast = program.source.syntax;
     let nested = 0;
     const visit = node => {
       if (ast.is.IsBindingElement(node)) {

@@ -30,22 +30,31 @@ export function csharpDelegateContractRecord(conversions) {
 // The source-profile input facts the analysis computes for a policy call (createCsharpSourceProfileInputs, as in
 // analysis/operations/source-profiles/policy-selection.ts). Fixture hosts supply only the type queries their policy reads;
 // every other query answers that the fixture has no such evidence.
-export function csharpSourceProfileInputs(host, sourceFile, { values = [], operation, selected = [], requirements, source } = {}) {
-  if (operation === undefined) throw new TypeError("Source-profile fixtures require the exact operation occurrence, not a checked result Type.");
+/** A .NET refusal standing for "no carrier" in fixtures whose host does not represent the queried node. */
+export function unrepresentedCsharpCarrier(site) {
+  return Object.freeze({ kind: "csharp-refused", code: "CSHARP_TEST_UNREPRESENTED", message: "The fixture does not represent this node.", site });
+}
+
+/**
+ * Source-profile inputs over published facts (createCsharpSourceProfileInputs). `values` are { expression, type }
+ * with published descriptors; `call` is a CsharpSourceProfileCallSource. A host without `types` represents nothing.
+ */
+export function csharpSourceProfileInputs(host, { values = [], operation, requirements, call } = {}) {
+  if (operation === undefined) throw new TypeError("Source-profile fixtures require the exact operation occurrence, not a published result descriptor.");
   const complete = {
     ...host,
-    semantics: host.semantics ?? (() => ({ sourceFile,
-      operations: { call: node => node === operation ? source : undefined, propertyAccess: () => undefined, elementAccess: () => undefined },
-      types: { isNumberLike: () => false, relationship: () => undefined } })),
-    ast: host.ast ?? { getSourceFile: node => node === operation ? sourceFile : undefined,
-      arguments: node => node === operation ? (source?.sourceArguments ?? []).map(argument => argument.expression) : [],
-      is: { IsSpreadElement: () => false } },
+    facts: host.facts ?? {
+      values: { literal: () => undefined },
+      objects: { member: () => undefined },
+      selections: { objectLiteralElement: () => undefined, call: () => undefined },
+      navigation: { identity: { target: () => undefined } },
+    },
+    ast: host.ast ?? { getSourceFile: () => undefined, is: { IsSpreadElement: () => false, IsObjectLiteralExpression: () => false,
+      IsParenthesizedExpression: () => false, IsIdentifier: () => false, IsNewExpression: () => false }, kindName: () => "" },
     projectTypes: host.projectTypes ?? { directSupertypes: () => [] },
     providers: host.providers ?? createCsharpProviderRelationResolver({ providers: [], providerPolicies: [] }),
-    types: { resolveType: () => undefined, resolveNode: () => undefined, resolveSelectedValue: () => undefined,
-      resolveSelectedType: () => undefined, resolveSourceCallTypeArguments: () => undefined,
-      resolveSourceCallResult: () => undefined, resolveSourceCallParameter: () => undefined,
-      resolveSelectedResult: () => undefined, ...host.types },
+    types: { value: unrepresentedCsharpCarrier, represent: (_type, site) => unrepresentedCsharpCarrier(site),
+      instantiation: () => undefined, ...host.types },
   };
-  return createCsharpSourceProfileInputs(complete, sourceFile, values, operation, selected, requirements, source);
+  return createCsharpSourceProfileInputs(complete, values, operation, requirements, call);
 }

@@ -4,7 +4,7 @@ import type { CsharpProviderRuntimeAcquisition, CsharpProviderRelationResolver }
 import type { CsharpTargetBinaryExecutionDriver } from "../../target-model/types/model.js";
 import type { CsharpProjectClassifications } from "../../target-model/project/plan.js";
 import type { SourceFile } from "@tsonic/tsts";
-import type { TargetSourceProgram } from "@tsonic/target-api/source";
+import type { TargetSourceProgramFacts } from "@tsonic/target-api/source";
 import type { CsharpTargetProgram } from "../../target-model/records/target-program.js";
 import type { CsharpTypeDefinitions } from "../../target-model/types/source-union-definitions.js";
 import type { CsharpProjectTypeClassifications } from "../../target-model/records/types/project-types.js";
@@ -28,9 +28,10 @@ export interface CsharpTargetAnalysisRequest {
  * backend plans only from the sealed program (analyzeCsharpTargetProgram); analysis tests read the catalogs.
  */
 export interface CsharpAnalysisProgram extends Omit<CsharpTargetProgram, "source"> {
-  readonly source: TargetSourceProgram;
+  readonly source: TargetSourceProgramFacts;
   readonly sourceFiles: readonly SourceFile[];
-  readonly sourceNavigation: TargetSourceProgram["navigation"];
+  /** The program view's representation services (the one mapping, I6), for analysis tests to represent descriptors. */
+  readonly representation: import("../../representation/index.js").CsharpRepresentationServices;
   readonly typeDefinitions: CsharpTypeDefinitions;
   readonly projectTypes: CsharpProjectTypeClassifications;
   readonly objectShapes: CsharpObjectShapeClassifications<CsharpFinalStructuralInterfaceImplementation> &

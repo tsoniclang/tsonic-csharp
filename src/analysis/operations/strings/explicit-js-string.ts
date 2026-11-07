@@ -1,13 +1,13 @@
 import type { CsharpJsStringConversionSelection } from "../../../target-model/records/operations/explicit-js-string.js";
 import { sourceMarkerFactKey } from "@tsonic/tsts";
-import type { Node, SourceFile } from "@tsonic/tsts";
+import type { Node } from "@tsonic/tsts";
+import { isCsharpRefusal } from "../../../representation/index.js";
 import type { CsharpPolicyContext } from "../../../policy/model/context.js";
 
 import { selectCsharpNativeJsStringConversion } from "../../../policy/operations/js-values/explicit-js-string.js";
 export function selectCsharpJsStringConversion(
   policy: CsharpPolicyContext,
   node: Node,
-  sourceFile: SourceFile,
 ): CsharpJsStringConversionSelection {
   const marker = policy.sourceFacts?.getFact(node, sourceMarkerFactKey);
   if (marker?.kind !== "call-marker" || marker.marker !== "js-string") {
@@ -33,7 +33,10 @@ export function selectCsharpJsStringConversion(
         "The exact JavaScript string conversion requires one non-spread native string value.",
     };
   }
-  const sourceType = policy.types.resolveNode(sourceValue, sourceFile)?.sourceResult?.selectedType;
-  const resultType = policy.types.resolveNode(node, sourceFile)?.sourceResult?.selectedType;
+  // A refused operand or result carrier is reported at its own value read; the conversion is then unresolved.
+  const sourceCarrier = policy.types.value(sourceValue);
+  const resultCarrier = policy.types.value(node);
+  const sourceType = isCsharpRefusal(sourceCarrier) ? undefined : sourceCarrier;
+  const resultType = isCsharpRefusal(resultCarrier) ? undefined : resultCarrier;
   return selectCsharpNativeJsStringConversion(sourceValue, sourceType, resultType);
 }

@@ -7,7 +7,11 @@ import { csharpNullableTargetType } from "../../../dist/target-model/types/carri
 const integer = { kind: "source-primitive", name: "int64" };
 const floating = { kind: "source-primitive", name: "float64" };
 const symbol = {};
-const sourceType = {};
+// Published descriptor of the selected source value (nextgen C-2542).
+const sourceType = { kind: "declared", declaration: {}, typeArguments: [] };
+const valueKey = { kind: "string", value: "value" };
+const objectMember = declaration => ({ key: valueKey, name: "value", kind: "property", declarations: [declaration],
+  type: { kind: "primitive", primitive: "int64" }, optional: false, readonly: false, static: false, owner: {}, inherited: false });
 const expression = {};
 const carrier = (id, argument = integer) => ({ kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id, typeArguments: [argument],
   csharpStructuralContract: true });
@@ -19,15 +23,13 @@ function classifications(source, destination) {
   const policy = {
     sourceFiles: [], objectShapes: { resolveTarget: type => shapes.get(targetTypeRefKey(type)) },
     projectTypes: { directSupertypes: () => [] },
-    semanticsFor: () => ({ types: { expressionType: () => sourceType, structuralMembers(_source, _destination, purpose) {
-      assert.equal(purpose, "read", "structural implementations require readable native members");
-      return {
-      kind: "available", destination: { calls: [], constructs: [], indexes: [] }, members: [{ kind: "present",
-        source: { property: { symbol, rootSymbols: [] }, declarations: [] },
-        destination: { property: { symbol, rootSymbols: [] }, declarations: [] },
-      }],
-      };
-    } } }),
+    // Member correspondence from Host object facts (nextgen C-2542). The old `purpose === "read"` assertion checked a
+    // checker structuralMembers argument; facts.objects has no purpose parameter, so it is removed.
+    facts: { objects: {
+      indexes: () => [],
+      members: () => [objectMember(symbol)],
+      member(type, key) { assert.equal(type, sourceType); assert.deepEqual(key, valueKey); return objectMember(symbol); },
+    } },
   };
   return analyzeCsharpObjectShapes(policy, { targetTypes: [] }, {  });
 }

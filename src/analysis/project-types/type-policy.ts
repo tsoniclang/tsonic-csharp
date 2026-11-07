@@ -5,37 +5,54 @@ import { csharpProviderBindingFromResolution } from "../../providers/model/relat
 import type { CsharpProjectTypeDefinition, CsharpProjectTypeHeritage, CsharpProjectTypeIssue } from "../../target-model/records/types/project-types.js";
 import type { AstReader, Node, ReadonlySourceFactResolver } from "@tsonic/tsts";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
-import { sourceNodeIdentity, sourceInterfaceRepresentationBase, type SourceEffectiveTypes } from "@tsonic/target-api/source";
 import { publishedCsharpCallableInterface } from "../source-evidence/types/published-callable-interface.js";
 import { csharpFreeTypeParameterIdentities, visitCsharpTargetTypeParameters } from "../../target-model/types/generic-references.js";
 import { csharpSourceTypeParameter } from "../../source/extension/type-parameters.js";
-import type { SourceEnumConstantIndex, SourceFileSemantics, SourceProgramNavigation } from "@tsonic/target-api/source";
+import type { SourceHeritageEdge, SourceProgramFacts } from "@tsonic/target-api/source";
 import type { CsharpProviderRelationResolver } from "../../providers/model/relation-resolver.js";
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
 import { csharpTargetBindingFact } from "../../target-model/types/model.js";
-import type { CsharpTypePolicy } from "../source-evidence/types/resolution/model.js";
+import type { CsharpTypeQueries } from "../../policy/model/type-resolution.js";
 import { substituteTargetTypeParameters } from "../../policy/types/resolution/substitution.js";
 import { readCsharpSourceStruct } from "../../source/extension/markers.js";
-import { resolveCsharpSourceProfileBaseType } from "../source-evidence/types/resolution/source-profiles.js";
 import { targetTypeRefKey } from "../../target-model/types/equality.js";
-import { publishedCsharpClassBindings } from "../source-evidence/types/resolution/published-class-bindings.js";
+import { publishedCsharpClassBindings } from "../declarations/published-class-bindings.js";
 
 import type { CsharpProjectConstructorPolicy } from "../../target-model/records/types/project-types.js";
 
+/** Project type catalog input: authored syntax and published Source facts only (R2). */
 export interface CsharpProjectTypeCatalogHost {
   readonly ast: AstReader;
-  readonly effectiveTypes: SourceEffectiveTypes;
-  readonly navigation: SourceProgramNavigation;
-  readonly enumConstants: SourceEnumConstantIndex;
+  readonly facts: SourceProgramFacts;
+  readonly sourceFiles: readonly import("@tsonic/tsts").SourceFile[];
   readonly sourceFacts?: ReadonlySourceFactResolver;
-  semanticsFor(node: Node): SourceFileSemantics;
 }
 
-export interface CsharpProjectTypePolicyHost
-  extends Omit<CsharpProjectTypeCatalogHost, "enumConstants"> {
+export interface CsharpProjectTypePolicyHost extends CsharpProjectTypeCatalogHost {
   readonly providers: CsharpProviderRelationResolver;
-  readonly sourceFacts?: ReadonlySourceFactResolver;
-  readonly types: CsharpTypePolicy;
+  readonly types: CsharpTypeQueries;
+}
+
+/** The published heritage edges of a declaration; a Host refusal is forwarded before C# analysis (I4). */
+export function csharpProjectHeritageEdges(facts: SourceProgramFacts, declaration: Node): readonly SourceHeritageEdge[] {
+  const heritage = facts.objects.heritage(declaration);
+  return "code" in heritage ? failTargetAnalysisInvariant("tsonic-csharp",
+    "Declared heritage is a Host refusal at a node C# analyzed; Host refusals are forwarded before C# analysis.", declaration) : heritage;
+}
+
+/**
+ * The .NET backing width of a project enum: Int32 when every published member constant (values.literal of the member,
+ * request R-F5-A3) fits Int32, otherwise Int64. Non-integer and out-of-range enums are Host refusals.
+ */
+function csharpEnumIntegerWidth(host: CsharpProjectTypeCatalogHost, declaration: Node): 32 | 64 {
+  let width: 32 | 64 = 32;
+  for (const member of host.ast.members(declaration)) {
+    if (member === undefined) continue;
+    const value = host.facts.values.literal(member)?.integer ?? failTargetAnalysisInvariant("tsonic-csharp",
+      "A project enum member requires its published integer constant.", member);
+    if (value < -2147483648n || value > 2147483647n) width = 64;
+  }
+  return width;
 }
 
 export function createCsharpProjectTypePolicy(
@@ -234,25 +251,25 @@ export function projectTypeDefinition(
   const kind = declarationKind(host, declaration);
   const sourceFile = host.ast.getSourceFile(declaration);
   const name = host.ast.name(declaration);
-  const identity = sourceNodeIdentity(host.ast, declaration);
+  const identity = host.facts.navigation.identity.identity(declaration);
   if (
     kind === undefined ||
     sourceFile === undefined ||
     name === undefined && kind !== "class" ||
     identity === undefined ||
-    !host.navigation.isProjectDeclaration(declaration)
+    !host.facts.navigation.identity.isProjectDeclaration(declaration)
   ) {
     return { kind: "not-project-type" };
   }
-  const enumWidth = kind === "enum" ? host.enumConstants.integerWidth(declaration) : undefined;
-  if (kind === "enum" && enumWidth === undefined) failTargetAnalysisInvariant("tsonic-csharp", "A checked source enum requires its completed common integer-width decision.", declaration);
-  if (enumWidth?.kind === "rejected") return { kind: "rejected", selection: enumWidth };
+  const enumWidth = kind === "enum" ? csharpEnumIntegerWidth(host, declaration) : undefined;
   const local = kind === "class" && !host.ast.is.IsSourceFile(host.ast.parent(declaration)!);
   if (kind === "interface") {
-    const semantics = host.semanticsFor(declaration);
     if (publishedCsharpCallableInterface(declaration, host) !== undefined) return { kind: "not-project-type" };
-    const representation = sourceInterfaceRepresentationBase(declaration, host.ast, host.navigation, semantics);
-    if (representation !== undefined && semantics.types.isArrayLike(representation.selectedType)) return { kind: "not-project-type" };
+    // An interface whose representation base is a JS array-like collection is that collection, not a project type
+    // (Host analysis facts.analyses.interfaceRepresentationBase, request R-F5-B3; collection kind from the JS profile facts).
+    const representation = host.facts.analyses.interfaceRepresentationBase(declaration);
+    const collection = representation === undefined ? undefined : host.facts.profile.collection(representation.type);
+    if (collection?.kind === "array" || collection?.kind === "readonly-array" || collection?.kind === "typed-array") return { kind: "not-project-type" };
   }
   const bindings = local ? publishedCsharpClassBindings(declaration, host) : undefined;
   if (local && bindings === undefined) return { kind: "not-project-type" };
@@ -279,7 +296,7 @@ export function projectTypeDefinition(
     sourceName: name === undefined ? "AnonymousClass" : host.ast.text(name),
     local,
     ...(enumWidth === undefined ? { kind: kind as "class" | "interface" | "struct" }
-      : { kind: "enum" as const, integerWidth: enumWidth.integerWidth }),
+      : { kind: "enum" as const, integerWidth: enumWidth }),
     sourceTypeParameterCount: typeParameters.length,
     typeProjections: Object.freeze([]),
     outerTypeProjections: Object.freeze([]),
@@ -304,13 +321,13 @@ export function projectTypeDefinition(
 }
 
 function projectClassHasParameterlessConstructor(
-  host: Pick<CsharpProjectTypeCatalogHost, "navigation">,
+  host: Pick<CsharpProjectTypeCatalogHost, "facts">,
   declaration: Node,
 ): boolean {
-  const constructors = host.navigation.classConstructors(declaration);
-  return constructors.kind === "resolved" &&
-    constructors.signatures.some((signature) =>
-      signature.parameters.length === 0);
+  const construction = host.facts.objects.construction(declaration);
+  if ("code" in construction) return failTargetAnalysisInvariant("tsonic-csharp",
+    "Class construction is a Host refusal at a node C# analyzed; Host refusals are forwarded before C# analysis.", declaration);
+  return construction.signatures.some(signature => signature.parameters.length === 0);
 }
 
 export function selectCsharpProjectTypeHeritage(
@@ -329,48 +346,17 @@ export function selectCsharpProjectTypeHeritage(
       }),
     };
   }
-  const source = host.navigation.declaredHeritage(definition.declaration);
-  if (source.kind === "unresolved") {
-    return {
-      kind: "unresolved",
-      issue: {
-        node: source.heritage,
-        code: "CSHARP_PROJECT_HERITAGE_SOURCE_UNRESOLVED",
-        message: source.reason,
-      },
-    };
-  }
   let baseType: TargetTypeRef | undefined;
   const interfaces: TargetTypeRef[] = [];
-  for (const edge of source.edges) {
-    if (edge.typeArguments.length > edge.selectedTypeArguments.length) {
+  for (const edge of csharpProjectHeritageEdges(host.facts, definition.declaration)) {
+    // The published heritage target applied to its published type arguments, represented once (I6); the source
+    // profile bases (Error → System.Exception) are part of that one mapping.
+    const target = host.types.represent({ kind: "declared", declaration: edge.target, typeArguments: edge.typeArguments },
+      edge.heritage, "type-argument");
+    if (target.kind === "csharp-refused") {
       return {
         kind: "unresolved",
-        issue: {
-          node: edge.heritage,
-          code: "CSHARP_PROJECT_HERITAGE_TYPE_ARGUMENTS_UNRESOLVED",
-          message:
-            `Declared ${edge.kind} heritage for '${definition.sourceName}' has more authored type arguments than the checked source selection.`,
-        },
-      };
-    }
-    const profileBase = definition.kind === "class" && edge.kind === "extends"
-      ? resolveCsharpSourceProfileBaseType(edge.selectedType, host.semanticsFor(edge.heritage), host.ast, host.providers)
-      : undefined;
-    const target = profileBase ?? host.types.resolveSelectedType(
-      edge.heritage,
-      edge.selectedType,
-      definition.sourceFile,
-    );
-    if (target === undefined) {
-      return {
-        kind: "unresolved",
-        issue: {
-          node: edge.heritage,
-          code: "CSHARP_PROJECT_HERITAGE_TARGET_UNRESOLVED",
-          message:
-            `Declared ${edge.kind} heritage for '${definition.sourceName}' has no closed C# target type.`,
-        },
+        issue: { node: target.site, code: target.code, message: target.message },
       };
     }
     const targetKind = targetDeclarationKind(host, catalog, target);

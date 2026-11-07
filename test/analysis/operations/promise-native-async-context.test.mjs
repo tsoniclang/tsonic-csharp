@@ -24,8 +24,8 @@ for (const [name, body, expected] of [
     const arrows = [];
     while (pending.length !== 0) {
       const node = pending.pop();
-      if (program.source.ast.is.IsArrowFunction(node)) arrows.push(node);
-      program.source.ast.forEachChild(node, child => { if (child !== undefined) pending.push(child); });
+      if (program.source.syntax.is.IsArrowFunction(node)) arrows.push(node);
+      program.source.syntax.forEachChild(node, child => { if (child !== undefined) pending.push(child); });
     }
     assert.equal(arrows.length, 1, "one actual async source body owns this result");
     const contract = program.records.returnContract.get(arrows[0]);

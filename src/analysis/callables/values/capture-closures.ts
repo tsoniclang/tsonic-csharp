@@ -1,5 +1,5 @@
 import type { Node } from "@tsonic/tsts";
-import { sourceBindingScope, sourceBindingIterationScope, sourceLexicalCaptures, type TargetSourceProgram } from "@tsonic/target-api/source";
+import type { TargetSourceProgramFacts } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpSourceEvidenceIndex } from "../../../target-model/records/program/source-evidence.js";
@@ -22,7 +22,7 @@ export function csharpCaptureSubtreeIsErased(
 }
 
 export function analyzeCsharpNativeCaptures(
-  source: TargetSourceProgram,
+  source: TargetSourceProgramFacts,
   evidence: CsharpSourceEvidenceIndex,
   physicalType: (declaration: Node, type: TargetTypeRef) => TargetTypeRef,
   issues: CsharpStorageIssue[],
@@ -36,15 +36,15 @@ export function analyzeCsharpNativeCaptures(
   const namedSelfBindings: CsharpNamedSelfBinding[] = [];
   const visit = (node: Node): void => {
     if (csharpCaptureSubtreeIsErased(node, evidence, erasedStatement)) return;
-    const literal = source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node);
+    const literal = source.syntax.is.IsArrowFunction(node) || source.syntax.is.IsFunctionExpression(node);
     if (literal) {
       const discarded = creationDemand.get(node);
       if (discarded === undefined) failTargetAnalysisInvariant("tsonic-csharp",
         "Native capture selection requires its original checked creation demand.", node);
       if (discarded) return;
     }
-    if (literal || source.ast.is.IsFunctionDeclaration(node) && source.ast.body(node) !== undefined) {
-      const lexical = sourceLexicalCaptures(node, [node], source.ast, source.navigation, "source");
+    if (literal || source.syntax.is.IsFunctionDeclaration(node) && source.syntax.body(node) !== undefined) {
+      const lexical = source.facts.analyses.lexicalCaptures(node);
       const namedSelf = selectCsharpNamedSelfBinding(source, node, lexical, evidence, issues);
       if (namedSelf !== undefined) namedSelfBindings.push(namedSelf);
       const contract = callables.get({ kind: "declaration", declaration: node });
@@ -57,22 +57,22 @@ export function analyzeCsharpNativeCaptures(
       }
       const values = lexical.captures.filter(capture => !evidence.compileTimeMetadata.get(capture.declaration)).map(capture => {
         const logical = evidence.storageTargetType.get(capture.declaration) ?? evidence.nodeTargetType.get(capture.declaration);
-        const scope = sourceBindingScope(capture.declaration, source.ast);
+        const scope = source.facts.navigation.scopes.bindingScope(capture.declaration);
         if (logical === undefined || scope === undefined) {
-          const iteration = sourceBindingIterationScope(capture.declaration, source.ast) === scope;
-          const owner = scope === undefined ? undefined : source.ast.parent(scope);
+          const iteration = source.facts.navigation.scopes.iterationScope(capture.declaration) === scope;
+          const owner = scope === undefined ? undefined : source.syntax.parent(scope);
           issues.push({ node: capture.declaration, code: iteration ? "CSHARP_ITERATION_CAPTURE_NOT_CLOSED"
-            : owner !== undefined && source.ast.is.IsConstructorDeclaration(owner) ? "CSHARP_CONSTRUCTOR_CAPTURE_NOT_CLOSED"
+            : owner !== undefined && source.syntax.is.IsConstructorDeclaration(owner) ? "CSHARP_CONSTRUCTOR_CAPTURE_NOT_CLOSED"
             : "CSHARP_CAPTURE_CALLABLE_NOT_CLOSED",
             message: "A native closure requires its original captured place and exact physical storage type." });
           return undefined;
         }
         return Object.freeze({ declaration: capture.declaration, scope, type: physicalType(capture.declaration, logical),
           references: Object.freeze([...capture.references]),
-          mutable: source.navigation.declarationUseSummary(capture.declaration).bindingWritten ||
-            source.navigation.declarationUseSummary(capture.declaration).uses.some(use =>
+          mutable: source.facts.navigation.uses.summary(capture.declaration).bindingWritten ||
+            source.facts.navigation.uses.summary(capture.declaration).uses.some(use =>
               readCsharpSelectedWritingReference(source, evidence, selectedCalls, use.reference) !== undefined),
-          initialization: csharpCapturedBindingInitialization(capture.declaration, source.ast, source.navigation) });
+          initialization: csharpCapturedBindingInitialization(capture.declaration, source.facts.analyses) });
       });
       const receivers = lexical.receivers.map(receiver => {
         const reference = receiver.references[0];
@@ -88,8 +88,8 @@ export function analyzeCsharpNativeCaptures(
         captures.push(Object.freeze({ owner: node, type, values: Object.freeze(values), receivers: Object.freeze(receivers) }));
       }
     }
-    source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    source.syntax.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
-  for (const file of source.navigation.sourceFiles) visit(file);
+  for (const file of source.sourceFiles) visit(file);
   return Object.freeze({ lexicalCaptures: Object.freeze(captures), namedSelfBindings: Object.freeze(namedSelfBindings) });
 }

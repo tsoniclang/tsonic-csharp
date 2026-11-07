@@ -5,7 +5,7 @@ import { csharpTargetStorageIdentityEquals } from "../../../dist/policy/types/st
 import { substituteTargetTypeParameters, inferCsharpTargetTypeParameterBindings } from "../../../dist/policy/types/resolution/substitution.js";
 import { generatedTypeParameterNames } from "@tsonic/target-api/source";
 import { csharpFreeTypeParameterIdentities } from "../../../dist/target-model/types/generic-references.js";
-import { csharpObjectShapeTypeParameters } from "../../../dist/analysis/source-evidence/types/resolution/owner-type-parameter-environment.js";
+import { csharpObjectShapeTypeParameters } from "../../../dist/policy/types/objects/owner-type-parameters.js";
 import { csharpTypeFromTargetTypeRef } from "../../../dist/backend/planner/types/render.js";
 import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
 import { csharpObjectShapeMemberTypeKey } from "../../../dist/target-model/types/object-shape-identity.js";

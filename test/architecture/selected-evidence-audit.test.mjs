@@ -123,11 +123,13 @@ test("C# consumes shared source semantics instead of raw compiler query containe
   assert.deepEqual(violations, []);
 });
 
+// Nextgen C-2542: the atomic shared decisions are the published Host selections (SourceProgramFacts.selections and
+// values.elementAccess), read through the I4 fact readers of analysis/program/source-facts.ts.
 test("operation selection consumes atomic shared semantic decisions", () => {
   const required = new Map([
-    ["src/analysis/operations/members/calls/selection.ts", ".operations.call("],
-    ["src/analysis/operations/members/property-selection.ts", ".operations.propertyAccess("],
-    ["src/analysis/operations/members/element-selection.ts", ".operations.elementAccess("],
+    ["src/analysis/operations/members/calls/selection.ts", "sourceCallSelection("],
+    ["src/analysis/operations/members/property-selection.ts", "sourceMemberAccess("],
+    ["src/analysis/operations/members/element-selection.ts", "values.elementAccess("],
   ]);
   const violations = [];
   for (const [file, method] of required) {
@@ -170,27 +172,14 @@ test("retired target observation and operation-fact architecture is absent", () 
 test("generic method type arguments come only from shared selected call evidence", () => {
   const forbidden = /\b(?:TypeArguments|getSourceCallTypeParameterSubstitutions|addInferredTargetTypeParameterSubstitutions|inferMethodTypeArguments|inferTypeArgumentsFromCallback)\b/gu;
   assert.deepEqual(productHits(forbidden), []);
-  const consumers = productHits(/\bsourceSelectedMethodTypeArguments\b/gu);
-  const consumerCounts = new Map();
-  for (const consumer of consumers) {
-    const file = consumer.slice(0, consumer.lastIndexOf(":"));
-    consumerCounts.set(file, (consumerCounts.get(file) ?? 0) + 1);
-  }
-  assert.deepEqual([...consumerCounts.entries()].sort(), [
-    ["src/analysis/conversions/requirements.ts", 1],
-    ["src/analysis/declarations/analyze.ts", 1],
-    ["src/analysis/operations/members/calls/instantiation.ts", 1],
-    ["src/analysis/operations/members/calls/type-arguments.ts", 3],
-    ["src/analysis/operations/source-profiles/js/regexp-protocol.ts", 1],
-    ["src/analysis/operations/source-profiles/policy-selection.ts", 1],
-    ["src/analysis/source-evidence/types/resolution/array-literals.ts", 1],
-    ["src/analysis/source-evidence/types/resolution/call-contracts.ts", 1],
-    ["src/analysis/source-evidence/types/resolution/calls.ts", 4],
-    ["src/analysis/source-evidence/types/resolution/expressions.ts", 1],
-    ["src/policy/operations/source-profiles/js/array-statics.ts", 3],
-    ["src/policy/operations/source-profiles/js/arrays.ts", 1],
-    ["src/policy/operations/source-profiles/js/promises.ts", 2],
-  ]);
+  // Nextgen C-2542 (G4): the checker-selected method type arguments are gone; every generic argument vector is the
+  // Host instantiation record (facts.instantiations.at) represented once (representInstantiation, I6).
+  assert.deepEqual(productHits(/\bsourceSelectedMethodTypeArguments\b/gu), []);
+  const readers = productHits(/\binstantiations\.at\(/gu).map(hit => hit.slice(0, hit.lastIndexOf(":")));
+  assert.equal(readers.includes("src/analysis/program/type-system.ts"), true,
+    "the C# type queries represent the Host instantiation record");
+  assert.equal(readers.every(file => !file.startsWith("src/representation/")), true,
+    "representation receives the record from its caller and never selects an instantiation itself");
 });
 
 test("provider relations never recover identity through optional fallback", () => {

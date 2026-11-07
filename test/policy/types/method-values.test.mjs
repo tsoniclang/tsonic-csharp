@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createCsharpTypeParameterEnvironment } from "../../../dist/analysis/source-evidence/types/resolution/type-parameter-environment.js";
+import { createCsharpTypeParameterEnvironment } from "../../../dist/representation/index.js";
 import {
   csharpMethodValueType, csharpMethodValueCoversContract, csharpMethodValueContractsEqual,
   csharpPresentObjectShapeMethod,
@@ -34,9 +34,16 @@ function contract(name) {
 }
 const methodValue = (name, method = "identity") => csharpMethodValueType(owner, method, method, contract(name), [name]);
 const unconstrained = createCsharpTypeParameterEnvironment(() => ({ kind: "resolved", constraints: [] }));
+// Method-value use inputs (CsharpMethodValueUseInputs: storage queries, published facts, authored syntax). A quantified
+// abstract contract reads none of them.
+const unread = subject => new Proxy({}, { get: (_target, key) => assert.fail(`a quantified abstract contract reads no ${subject}.${String(key)}`) });
 const abstractMethodStorage = Object.freeze({
-  memberSubjectFor: () => assert.fail("a quantified abstract contract has no ordinary authored method slot"),
-  memberWritesFor: () => assert.fail("a quantified abstract contract needs no ordinary-method exposure proof"),
+  storage: Object.freeze({
+    memberSubjectFor: () => assert.fail("a quantified abstract contract has no ordinary authored method slot"),
+    memberWritesFor: () => assert.fail("a quantified abstract contract needs no ordinary-method exposure proof"),
+  }),
+  facts: unread("facts"),
+  ast: unread("ast"),
 });
 
 test("native writable method contracts derive from the unchanged read-only identity", () => {

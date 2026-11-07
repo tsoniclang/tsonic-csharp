@@ -19,10 +19,10 @@ function fixture(surface) {
     while (pending.length > 0) {
       const node = pending.pop();
       nodes.push(node);
-      source.ast.forEachChild(node, child => { if (child !== undefined) pending.push(child); });
+      source.syntax.forEachChild(node, child => { if (child !== undefined) pending.push(child); });
     }
-    const call = nodes.find(node => source.ast.is.IsCallExpression(node));
-    const declaration = nodes.find(node => source.ast.is.IsFunctionDeclaration(node));
+    const call = nodes.find(node => source.syntax.is.IsCallExpression(node));
+    const declaration = nodes.find(node => source.syntax.is.IsFunctionDeclaration(node));
     assert.equal(call !== undefined && declaration !== undefined, true, `${surface}: exact source subjects`);
     return { program, call, declaration };
   }).value;
@@ -69,7 +69,9 @@ for (const surface of ["native", "js"]) {
     }
     assert.throws(() => program.records.valueRefinement(call), TypeError, "flat callable form is not supported");
     assert.equal(typeof program.names.resolve === "function", true, "name service stays separate");
-    assert.equal(typeof program.sourceNavigation.referenceFor === "function", true, "source navigation stays separate");
+    assert.equal(Object.hasOwn(program, "sourceNavigation"), false, "no raw navigation crosses into the C# program");
+    assert.equal(typeof program.source.facts.navigation.identity.target === "function", true,
+      "Source roles are read from the published facts (nextgen C-2542)");
     assert.equal(Object.hasOwn(program, "conversions"), false, "union relations are validated at admission; no computing service is published");
     assert.throws(() => program.conversions.matchesUnionMapping, TypeError, "the removed conversion service cannot be reached");
     assert.throws(() => { program.conversions = {}; }, TypeError, "the sealed program cannot gain a conversion service");

@@ -1,8 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createCompilerSessionFromFiles, formatDiagnostics } from "@tsonic/tsts";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
-import { createSourceStorageQuery } from "@tsonic/target-api/analysis";
+import { hostProgram } from "../../representation/host-fixture.mjs";
 import { analyzeCsharpCallableContracts } from "../../../dist/analysis/callables/analyze.js";
 import { analyzeCsharpCallableCreations } from "../../../dist/analysis/callables/values/creation.js";
 import { csharpCallableValueType } from "../../../dist/policy/types/callables/value-type.js";
@@ -20,8 +18,9 @@ const firstBinder = Object.freeze({ kind: "type-parameter", identity: "outer:fir
 const otherBinder = Object.freeze({ kind: "type-parameter", identity: "outer:other", name: "T" });
 
 function fixture(body, overrides = {}) {
-  const checked = createCompilerSessionFromFiles({ currentDirectory: "/project", files: {
-    "/project/index.ts": `
+  // nextgen C-2542: the program goes through the Host (facts + authored syntax); the callable owners read
+  // facts.navigation / facts.analyses / facts.values in place of semantics, navigation and the storage query.
+  const program = hostProgram(`
       ${overrides.generic ? `
         declare function invoke<T>(mapper: (value: T, index: number) => T): T;
         declare function other<T>(mapper: (value: T, index: number) => T): T;
@@ -31,19 +30,18 @@ function fixture(body, overrides = {}) {
         declare function other(mapper: (value: number, index: number) => number): number;
         export function run() { ${body} }
       `}
-    `,
-  }, compilerOptions: { strict: true, target: "es2022", module: "esnext" } }).checkSource();
-  assert.equal(checked.diagnostics.length, 0, formatDiagnostics(checked.diagnostics.slice(0, 4)).slice(0, 1024));
-  const source = createTargetSourceProgram(checked);
-  const file = checked.getSourceFile("/project/index.ts");
+    `);
+  const source = Object.freeze({ syntax: program.ast, facts: program.facts, sourceFiles: program.files,
+    sourceFacts: program.host.sourceFacts, documents: program.host.documents });
+  const file = program.files[0];
   const lambdas = [];
   const calls = [];
   const nodes = [];
   const visit = node => {
     nodes.push(node);
-    if (source.ast.is.IsArrowFunction(node)) lambdas.push(node);
-    if (source.ast.is.IsCallExpression(node)) calls.push(node);
-    source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    if (source.syntax.is.IsArrowFunction(node)) lambdas.push(node);
+    if (source.syntax.is.IsCallExpression(node)) calls.push(node);
+    source.syntax.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
   visit(file);
   assert.equal(lambdas.length, 1, "one exact callable declaration");
@@ -51,9 +49,9 @@ function fixture(body, overrides = {}) {
   let scopedBinder;
   let scopedType;
   if (overrides.scopedTrailing === true) {
-    const owner = source.ast.statements(file).find(node => source.ast.is.IsFunctionDeclaration(node) &&
-      source.ast.body(node) !== undefined && source.ast.typeParameters(node).length > 0);
-    scopedBinder = csharpSourceTypeParameter(source.ast.typeParameters(owner)[0], source.ast);
+    const owner = source.syntax.statements(file).find(node => source.syntax.is.IsFunctionDeclaration(node) &&
+      source.syntax.body(node) !== undefined && source.syntax.typeParameters(node).length > 0);
+    scopedBinder = csharpSourceTypeParameter(source.syntax.typeParameters(owner)[0], source.syntax);
     assert.equal(scopedBinder !== undefined, true, "exact source-owned enclosing binder");
     const trailing = overrides.foreignTrailing ? { ...scopedBinder, identity: "foreign:same-name" } : scopedBinder;
     scopedType = csharpDelegateTargetType("System.Func", [scopedBinder, scalar, csharpJsArrayTargetType(trailing)], scopedBinder);
@@ -61,7 +59,7 @@ function fixture(body, overrides = {}) {
   let destinationReads = 0;
   const operations = { selectedConstruction: { get: () => undefined }, selectedCall: { get(node) {
     destinationReads++;
-    const target = source.ast.text(source.ast.as.AsCallExpression(node).Expression);
+    const target = source.syntax.text(source.syntax.as.AsCallExpression(node).Expression);
     const type = target === "other" ? overrides.otherType ?? scopedType ?? selectedType : overrides.type ?? scopedType ?? selectedType;
     return { target: { kind: "resolved", call: {
       origin: overrides.origin ?? "source-profile",
@@ -73,8 +71,8 @@ function fixture(body, overrides = {}) {
   } } };
   const objectShapes = Object.freeze({
     resolveNativeParameter(declaration, parameter, type) {
-      assert.equal(source.ast.is.IsParameterDeclaration(parameter), true, "checked native value parameter");
-      assert.equal(source.ast.parent(parameter) === declaration, true, "original implementation owns its parameter");
+      assert.equal(source.syntax.is.IsParameterDeclaration(parameter), true, "checked native value parameter");
+      assert.equal(source.syntax.parent(parameter) === declaration, true, "original implementation owns its parameter");
       const present = getCsharpNullableElementTargetType(type) ?? type;
       assert.equal(present.kind !== "target-named" ||
         present.csharpStructuralContract !== true && present.csharpSourceDeclarationKind !== "interface", true,
@@ -84,20 +82,17 @@ function fixture(body, overrides = {}) {
     resolveNode: () => undefined,
     resolveTarget: () => undefined,
   });
-  const policy = { ast: source.ast, sourceFiles: [file], navigation: source.navigation, objectShapes,
-    sourceStorage: createSourceStorageQuery(source, [file]),
-    semantics: sourceFile => source.semantics.forFile(sourceFile),
-    semanticsFor: node => source.semantics.forNode(node),
+  const policy = { ast: source.syntax, sourceFiles: [file], facts: source.facts, sourceFacts: source.sourceFacts, objectShapes,
     projectTypes: { catalog: { definitions: [] } },
   };
   const evidence = { compileTimeMetadata: { get: () => false },
     generatorTargetType: { get: () => undefined },
     contextualType: { get: () => undefined },
-    nodeTargetType: { get: node => source.ast.is.IsArrayTypeNode(node)
+    nodeTargetType: { get: node => source.syntax.is.IsArrayTypeNode(node)
       ? csharpJsArrayTargetType(scalar) : overrides.sourceParameter ?? scopedBinder ?? scalar } };
   const declarations = { runtimeDefault: { get: () => undefined },
     returnContract: { get: node => ({ kind: "resolved", type: node === lambda ? overrides.sourceReturn ?? scopedBinder ?? scalar : scalar }) } };
-  const names = { resolve: node => ({ kind: "resolved", name: source.ast.text(node) }) };
+  const names = { resolve: node => ({ kind: "resolved", name: source.syntax.text(node) }) };
   const callableResult = analyzeCsharpCallableContracts(policy, evidence, declarations, names, { genericProjection: Object.freeze({ get: () => [] }) }, source,
     Object.freeze({ typeDefinitions: undefined, projectTypes: policy.projectTypes, providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) }, target: {},
       objectShapes, conversion: { get() { throw new Error("This fixture has no contextual native parameter adaptation."); } } }), operations);
@@ -110,18 +105,17 @@ function fixture(body, overrides = {}) {
     captures: { captureClosure: { get: () => undefined }, namedSelf: { get: () => undefined },
       lexicalCaptures: [{ owner: lambda, values: [], receivers: [] }] },
     storage: { lambdaParameterType: { get: parameter => contract.nativeParameters.find(entry => entry.sourceParameter === parameter)?.targetParameter.type },
-      storageType: { get: declaration => source.ast.is.IsVariableDeclaration(declaration)
+      storageType: { get: declaration => source.syntax.is.IsVariableDeclaration(declaration)
         ? analyzed.closedInputType(declaration) ?? nativeCarrier : undefined } },
     expectedTypes: { requiredExpectedType: { get: () => [] } },
-    evidence, conversions: { conversion: { get: (sourceType, targetType) => targetTypeRefEquals(sourceType, targetType) ? { kind: "identity" } : undefined } },
-    literals: { literalValue: { get: () => undefined } } });
+    evidence, conversions: { conversion: { get: (sourceType, targetType) => targetTypeRefEquals(sourceType, targetType) ? { kind: "identity" } : undefined } } });
   assert.equal(creationResult.kind, "resolved", "the original creation fixture has no quotation syntax refusal");
   const creations = creationResult.value;
   return { scopedType, creation: creations.callableCreation.get(lambda), nativeCarrier, contract, lambda, source,
     closedType: analyzed.closedInputType(lambda),
     destinationReads, sourceParameter: overrides.sourceParameter ?? scopedBinder ?? scalar,
     sourceReturn: overrides.sourceReturn ?? scopedBinder ?? scalar,
-    aliasTypes: source.navigation.expressionValueFlow(lambda).aliasDeclarations.map(alias => analyzed.closedInputType(alias)),
+    aliasTypes: source.facts.navigation.expressions.valueFlow(lambda).aliasDeclarations.map(alias => analyzed.closedInputType(alias)),
   };
 }
 
@@ -130,9 +124,9 @@ function nativeCreation(selected, closed) {
   assert.equal(targetTypeRefEquals(selected.creation.carrier, closed ?? selected.nativeCarrier), true,
     "the exact closed consumer ABI or the original intrinsic contract owns the native carrier");
   assert.equal(selected.contract.sourceDeclaration === selected.lambda, true, "the checked original declaration owns the native contract");
-  assert.equal(selected.contract.parameters.length, selected.source.ast.parameters(selected.lambda).length,
+  assert.equal(selected.contract.parameters.length, selected.source.syntax.parameters(selected.lambda).length,
     "no unused destination parameter is manufactured in the source contract");
-  const optional = selected.source.ast.questionToken(selected.contract.parameters[0]) !== undefined;
+  const optional = selected.source.syntax.questionToken(selected.contract.parameters[0]) !== undefined;
   const input = selected.contract.nativeParameters[0].targetParameter.type;
   assert.equal(targetTypeRefEquals(input, optional ? csharpNullableTargetType(selected.sourceParameter) : selected.sourceParameter), true,
   "the original native input, optional or rest contract stays exact");
@@ -202,8 +196,8 @@ for (const [name, body] of [
     const selected = fixture(body);
     nativeCreation(selected, undefined);
     const parameter = selected.contract.parameters[name === "source optional parameter" ? 0 : 1];
-    assert.equal(name === "source optional parameter" ? selected.source.ast.questionToken(parameter) !== undefined
-      : selected.source.ast.as.AsParameterDeclaration(parameter)?.DotDotDotToken !== undefined, true,
+    assert.equal(name === "source optional parameter" ? selected.source.syntax.questionToken(parameter) !== undefined
+      : selected.source.syntax.as.AsParameterDeclaration(parameter)?.DotDotDotToken !== undefined, true,
     name + ": the original authored parameter remains");
   });
 }

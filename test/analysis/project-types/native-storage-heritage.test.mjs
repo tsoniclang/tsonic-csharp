@@ -214,33 +214,6 @@ test("native storage heritage isolates mutable carrier metadata while retaining 
     true, "authored binder identity");
 });
 
-test("native storage heritage preserves AST-backed projection identities in validated carriers", () => {
-  const { classifications, definition } = fixture();
-  const projectionDeclaration = {};
-  projectionDeclaration.parent = projectionDeclaration;
-  Object.freeze(projectionDeclaration);
-  let sourceReads = 0;
-  const sourceArgument = Object.freeze({
-    get properties() { sourceReads += 1; throw new Error("opaque source type inspected"); },
-  });
-  const projected = {
-    kind: "type-parameter", identity: "projection:Exact", name: "Exact",
-    csharpProjection: {
-      kind: "conditional", identity: "owner:Conditional", sourceName: "Conditional",
-      declaration: projectionDeclaration, sourceArguments: [sourceArgument],
-      arguments: [{ kind: "source-primitive", name: "uint64" }],
-    },
-  };
-  const selection = classifications.heritageForTarget({
-    kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: definition.id, typeArguments: [projected],
-  });
-  assert.equal(selection === undefined, false, "accepted projected carrier");
-  const result = selection.baseType.typeArguments[0];
-  assert.equal(targetTypeRefEquals(result, projected), true, "exact binder identity");
-  assert.equal(result.csharpProjection.declaration === projectionDeclaration, true, "exact projection declaration");
-  assert.equal(result.csharpProjection.sourceArguments[0] === sourceArgument, true, "exact checked source type");
-  assert.equal(result.csharpProjection.arguments[0].name, "uint64", "exact native projection argument");
-  assert.equal(Object.isFrozen(result.csharpProjection), true, "immutable projection metadata");
-  assert.equal(Object.isFrozen(result.csharpProjection.sourceArguments), true, "immutable source identity rows");
-  assert.equal(sourceReads, 0, "opaque checked source type remains uninspected");
-});
+// nextgen C-2542: the test "native storage heritage preserves AST-backed projection identities in validated carriers"
+// is removed. Its subject, the conditional CsharpTypeProjection carrying checker source Types (sourceArguments), is
+// deleted (target-model/types/projections.ts keeps optional, collection-key and source-union projections only).

@@ -3,6 +3,10 @@ import { csharpRenderShapeForTargetNamedType, csharpSourcePrimitiveCsharpRender,
 import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
 import { tryCsharpIdentifier } from "../../../target-model/names/identifiers.js";
 import { csharpFunctionPointerCallingConvention } from "../../../target-model/syntax/function-pointer-conventions.js";
+import { csharpJsArrayCarrierId } from "../../../target-model/types/carriers/js.js";
+import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
+import type { CsharpTargetNamedTypeRef } from "../../../target-model/types/model.js";
 
 export type CsharpTargetTypeRenderingRejectionReason =
   | "opaque"
@@ -26,6 +30,14 @@ type TargetNamedTypeRef = Extract<TargetTypeRef, { readonly kind: "target-named"
 type NamedRenderShape = Extract<CsharpTargetTypeRenderShape, { readonly kind: "named" }>;
 
 export function csharpTargetTypeRenderingRejection(type: TargetTypeRef): CsharpTargetTypeRenderingRejection | undefined {
+  if (type.kind === "target-named" && type.id === csharpJsArrayCarrierId && type.typeArguments?.length === 1) {
+    const element = type.typeArguments[0]!;
+    const native = type as CsharpTargetNamedTypeRef;
+    const roles = [native.csharpArrayLiteralElementType, native.csharpArrayLikeElementType, native.csharpEnumerableElementType,
+      native.csharpReadOnlyIndexableElementType, native.csharpDenseMutableElementType, native.csharpImplicitArrayInputElementType];
+    if (roles.some(role => role !== undefined && !targetTypeRefEquals(role, element))) failTargetAnalysisInvariant(
+      "tsonic-csharp", "JSArray metadata roles must match its physical generic element.");
+  }
   if (isCsharpNeverTargetType(type)) {
     return undefined;
   }

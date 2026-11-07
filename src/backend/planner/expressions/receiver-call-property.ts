@@ -6,7 +6,7 @@ import type { ExpressionPlanner } from "./expression-planner-types.js";
 import type { CsharpExpression } from "../../target-ast/syntax/index.js";
 import type { CsharpPlannedValue } from "./planned-values.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
-import { translateCsharpSelectedReceiver } from "./receivers.js";
+import { csharpSelectionReceiver, translateCsharpSelectedReceiver } from "./receivers.js";
 import { planCsharpExpressionCompletion, planCsharpOptionalReceiverValue, projectCsharpPlannedValue } from "./planned-value-composition.js";
 import { readCsharpNativeExpressionCarrier } from "./native-uses.js";
 
@@ -22,7 +22,7 @@ export function planCsharpReceiverCallProperty(
     ?? failCsharpPlannerInvariant("An admitted computed property requires its exact native receiver-call relation.", node);
   const { selection } = selected;
   const member = selection.targetMember;
-  const receiver = translateCsharpSelectedReceiver(selection.source.receiver, sourceFile, input, diagnostics,
+  const receiver = translateCsharpSelectedReceiver(csharpSelectionReceiver(selection.source), sourceFile, input, diagnostics,
     planExpression, input.program.records.selectedProperty.get(node)?.receiverProjection);
   if (receiver === undefined) return undefined;
   if (receiver.kind !== "value") failCsharpPlannerInvariant("An admitted receiver-call property requires a native receiver value.", node);

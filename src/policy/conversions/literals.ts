@@ -1,4 +1,5 @@
-import { compareSourceNumericLiteralMagnitude, type SourceLiteralValue, type SourceNumericLiteralToken, type SourcePropertyNameSelection } from "@tsonic/target-api/source";
+import { compareSourceNumericLiteralMagnitude, type SourceLiteralValue, type SourceNumericLiteralToken, type SourcePropertyName } from "@tsonic/target-api/source";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpExactLiteralPrimitive, CsharpExactLiteralRecipe, CsharpExactLiteralSelection } from "../../target-model/conversions/exact-literals.js";
 import { createCsharpNumericLiteralToken, type CsharpNumericLiteralToken } from "../../target-model/syntax/numeric-literals.js";
 import { csharpBigIntFitsSourcePrimitive, csharpNumericLiteralFitsSourcePrimitive } from "./literal-range.js";
@@ -172,10 +173,12 @@ const float64OverflowThreshold = (1n << 1024n) - (1n << 970n);
 const decimalOverflowThresholdTwice = (((1n << 96n) - 1n) << 1n) + 1n;
 
 export function selectCsharpExactPropertyKeyConversion(
-  key: SourcePropertyNameSelection,
+  key: SourcePropertyName,
   target: TargetTypeRef | undefined,
 ): CsharpExactLiteralSelection {
-  if (key.kind === "rejected") return rejected(key.reason);
+  // A rejected property name is a Host refusal (analyses.propertyNameIssues), forwarded before C# analysis.
+  if (key.kind === "rejected") return failTargetAnalysisInvariant("tsonic-csharp",
+    `A Host-rejected property name reached a C# dictionary key conversion: ${key.reason}`);
   if (key.kind !== "resolved" || target === undefined) return rejected(
     "Record dictionary object literal keys require an exact string or numeric native constant.");
   const physical = getCsharpNullableElementTargetType(target) ?? target;
@@ -185,12 +188,12 @@ export function selectCsharpExactPropertyKeyConversion(
   const constant = key.constant;
   if (physical.name === "char") {
     const text = constant.kind === "string" ? constant.value
-      : constant.kind === "enum-member" && typeof constant.entry.value === "string" ? constant.entry.value : undefined;
+      : constant.kind === "enum-member" && typeof constant.value === "string" ? constant.value : undefined;
     return text !== undefined && text.length === 1 ? resolved({ kind: "char", value: text })
       : rejected("C# char property keys require exactly one UTF-16 code unit from a checked string constant.");
   }
   const token = constant.kind === "numeric" ? constant.token : undefined;
-  const enumInteger = constant.kind === "enum-member" && typeof constant.entry.value === "bigint" ? constant.entry.value : undefined;
+  const enumInteger = constant.kind === "enum-member" && typeof constant.value === "bigint" ? constant.value : undefined;
   if (token === undefined && enumInteger === undefined) return rejected(
     "A native numeric dictionary key requires a checked numeric constant, not a string-to-number conversion.");
   const magnitude = enumInteger === undefined ? undefined : enumInteger < 0n ? -enumInteger : enumInteger;

@@ -26,7 +26,7 @@ function compiled(sourceText, surface) {
   while (pending.length > 0) {
     const node = pending.pop();
     nodes.push(node);
-    program.source.ast.forEachChild(node, child => { if (child !== undefined) pending.push(child); });
+    program.source.syntax.forEachChild(node, child => { if (child !== undefined) pending.push(child); });
   }
   return { program, nodes, plan: result.result.plan };
 }
@@ -93,8 +93,8 @@ for (const surface of ["native", "js"]) {
     const { program, nodes, plan } = compiled(`
       export function widen(value: string | number): string | number | boolean { return value; }
     `, surface);
-    const returned = nodes.filter(node => program.source.ast.is.IsIdentifier(node) &&
-      program.source.ast.text(node) === "value" && program.source.ast.is.IsReturnStatement(program.source.ast.parent(node)));
+    const returned = nodes.filter(node => program.source.syntax.is.IsIdentifier(node) &&
+      program.source.syntax.text(node) === "value" && program.source.syntax.is.IsReturnStatement(program.source.syntax.parent(node)));
     assert.equal(returned.length, 1);
     const source = program.records.valueRead.get(returned[0]).value;
     const native = program.records.nativeExpression.get(returned[0])?.use;

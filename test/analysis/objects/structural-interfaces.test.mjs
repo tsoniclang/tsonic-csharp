@@ -11,8 +11,13 @@ const integer = { kind: "source-primitive", name: "int64" };
 const sourceSymbol = {};
 const destinationSymbol = {};
 const expression = {};
-const sourceType = {};
-const destinationType = {};
+// Published descriptors (nextgen C-2542): the selected source value type and the destination interface type.
+const sourceType = { kind: "declared", declaration: {}, typeArguments: [] };
+const destinationType = { kind: "declared", declaration: {}, typeArguments: [] };
+const valueKey = { kind: "string", value: "value" };
+const objectMember = declaration => ({ key: valueKey, name: "value", kind: "property", declarations: [declaration],
+  type: { kind: "optional", value: { kind: "primitive", primitive: "int64" } }, optional: true, readonly: false, static: false,
+  owner: {}, inherited: false });
 const optional = type => csharpNullableTargetType(type);
 const slot = type => ({ kind: "target-named", csharpAllowsRefLikeTypeArguments: [false, false, false], id: "test.Slot", csharpSourceDeclarationKind: "interface",
   typeArguments: [type, resolveCsharpOptionalStorage({ kind: "optional", part: "operations", arguments: [element] }, type), optional(type)] });
@@ -21,16 +26,22 @@ const field = (symbol, type) => ({ sourceName: "value", targetName: "value", sou
 const destinationTemplate = { targetType: slot(element), sourceType: destinationType, members: [field(destinationSymbol, optional(element))] };
 const destination = { targetType: slot(integer), sourceType: destinationType, members: [field(destinationSymbol, optional(integer))],
   declarationTemplate: destinationTemplate };
+// Member correspondence comes from Host object facts: objects.members(destination) and objects.member(source, key).
+// nextgen C-2542: the old `purpose === "read"` assertion checked a checker structuralMembers argument; facts.objects
+// has no purpose parameter (the member's read type is its `type`), so that assertion is removed.
 const policy = { projectTypes: { directSupertypes: () => [], catalog: { definitionForTarget: () => undefined } },
-  semanticsFor: () => ({ types: { expressionType: () => sourceType, structuralMembers(_source, _destination, purpose) {
-  assert.equal(purpose, "read", "native forwarding requires readable source members");
-  return {
-  kind: "available", destination: { calls: [], constructs: [], indexes: [] }, members: [{ kind: "present",
-    source: { property: { symbol: sourceSymbol, rootSymbols: [] }, declarations: [] },
-    destination: { property: { symbol: destinationSymbol, rootSymbols: [] }, declarations: [] },
-  }],
-  };
-} } }) };
+  facts: { objects: {
+    indexes: () => [],
+    members(type) {
+      assert.equal(type, destinationType, "destination members come from the destination's published descriptor");
+      return [objectMember(destinationSymbol)];
+    },
+    member(type, key) {
+      assert.equal(type, sourceType, "the source member comes from the selected source descriptor");
+      assert.deepEqual(key, valueKey);
+      return objectMember(sourceSymbol);
+    },
+  } } };
 
 test("structural optional interfaces bind their payload and every dependent native argument", () => {
   for (const generic of [false, true]) {

@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { compileCsharpAnalysisTarget, compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
-import { resolveNodeValueWithState } from "../../../dist/analysis/source-evidence/types/resolution/nodes.js";
+import { hostProgram, representationServices, representations } from "../../representation/host-fixture.mjs";
+import { isCsharpRefusal } from "../../../dist/representation/index.js";
 import { getCsharpCallableValueSignature } from "../../../dist/target-model/types/carriers/delegates.js";
 import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
 import { csharpStringTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
@@ -31,8 +32,8 @@ function fixture() {
   assertCsharpCompilationSucceeded(compiled);
   assert.equal(analysis !== undefined, true, "the real original compilation publishes its Native records");
   const source = analysis.source;
-  const ast = source.ast;
-  const file = source.navigation.sourceFiles.find(value => ast.getFileName(value) === "/project/index.ts");
+  const ast = source.syntax;
+  const file = source.sourceFiles.find(value => ast.getFileName(value) === "/project/index.ts");
   const nodes = [];
   const visit = node => {
     nodes.push(node);
@@ -40,7 +41,7 @@ function fixture() {
   };
   visit(file);
   const alias = nodes.find(node => ast.is.IsIdentifier(node) && ast.text(node) === "alias" && ast.is.IsCallExpression(ast.parent(node)));
-  const declaration = source.navigation.sourceReferenceFor(alias)?.declaration;
+  const declaration = source.facts.navigation.identity.target(alias)?.declaration;
   const mapper = nodes.find(node => ast.is.IsVariableDeclaration(node) && ast.text(ast.name(node)) === "mapper");
   const arrow = ast.as.AsVariableDeclaration(mapper)?.Initializer;
   const foreign = nodes.find(node => ast.is.IsFunctionDeclaration(node) && ast.text(ast.name(node)) === "foreign");
@@ -53,53 +54,18 @@ function fixture() {
   return original;
 }
 
-function selectedRead(value, changes = {}) {
-  const { source, alias, declaration, contract, storage, file } = value;
-  const node = changes.node ?? alias;
-  const outcome = Object.hasOwn(changes, "outcome") ? changes.outcome : source.effectiveTypes.get(node);
-  const principal = Object.hasOwn(changes, "principal") ? changes.principal : source.effectiveTypes.get(declaration);
-  const selected = Object.hasOwn(changes, "selected") ? changes.selected : storage;
-  const principalSelected = Object.hasOwn(changes, "principalSelected") ? changes.principalSelected : storage;
-  const selectedContract = Object.hasOwn(changes, "contract") ? changes.contract : contract;
-  const owner = Object.hasOwn(changes, "owner") ? changes.owner : selectedContract;
-  const forbidden = () => assert.fail("a published callable never retries checked Source inference or shape selection");
-  const rejections = [];
-  let physicalReads = 0;
-  const host = { ast: source.ast, target: value.compiled.target, navigation: source.navigation,
-    effectiveTypes: { get(subject) {
-      return subject === node ? outcome : subject === declaration ? principal : source.effectiveTypes.get(subject);
-    } }, typeParameterConstraints: {}, semantics: forbidden, semanticsFor: forbidden,
-    representations: {
-      scopedTargetType(subject) {
-        physicalReads += 1;
-        return subject === node ? selected : subject === declaration ? principalSelected : undefined;
-      },
-      closedInputContract(subject) {
-        return subject === node || subject === declaration ? selectedContract
-          : subject === selectedContract?.sourceDeclaration ? owner : undefined;
-      },
-    },
-  };
-  const result = resolveNodeValueWithState({ host }, node, file, { depth: 0,
-    rejectNativeResolution: rejection => rejections.push(rejection) });
-  return { result, outcome, rejections, physicalReads };
-}
-
+// The Host publishes the LOGICAL callable read (authored arity); the C# representation of that publication is the
+// logical delegate. The selected Native callback ABI (JS map callback: value, index, array) is a target-only storage
+// decision recorded by the analysis records below; it never rewrites the Host publication (I2, I4, R2).
 test("an unchanged real alias read retains its one selected Native callback ABI without a projection", () => {
   const value = fixture();
-  const outcome = value.source.effectiveTypes.get(value.alias);
-  const principal = value.source.effectiveTypes.get(value.declaration);
+  const outcome = value.source.facts.values.type(value.alias);
+  const principal = value.source.facts.values.type(value.declaration);
   assert.equal(outcome?.kind === "resolved" && principal?.kind === "resolved" &&
     outcome.type.kind === "callable" && principal.type.kind === "callable", true);
   assert.equal(outcome.type.calls[0].parameters.length, 1, "Source logical arity stays authored");
   assert.equal(principal.type.calls[0].parameters.length, 1, "the same declaration keeps its logical signature");
   assert.equal(getCsharpCallableValueSignature(value.storage)?.parameters.length, 3, "the selected native input is the existing callback ABI");
-  const { result } = selectedRead(value);
-  assert.equal(result.selectedType === value.storage && result.nativeType === value.storage, true,
-    "the earliest Native producer retains the existing selected carrier");
-  assert.equal(result.effectiveType === outcome, true, "the exact Host publication is retained unchanged");
-  const selectedPrincipal = selectedRead(value, { node: value.declaration });
-  assert.equal(selectedPrincipal.result.selectedType === value.storage, true, "the same principal supplies read storage");
   for (const carrier of [value.analysis.records.nodeTargetType.get(value.alias),
     value.analysis.records.readStorageTargetType.get(value.alias)]) {
     assert.equal(getCsharpCallableValueSignature(carrier)?.parameters.length, 3,
@@ -115,57 +81,47 @@ test("an unchanged real alias read retains its one selected Native callback ABI 
     "closed alias reads do not introduce outlined adapters or fresh delegates");
 });
 
-for (const [label, change] of [
-  ["missing selected ABI", value => ({ selected: undefined })],
-  ["missing principal ABI", value => ({ principalSelected: undefined })],
-  ["missing closed contract", value => ({ contract: undefined })],
-  ["foreign same-width declaration", value => ({ contract: value.foreignContract })],
-  ["copied contract record", value => ({ contract: { ...value.contract }, owner: value.contract })],
-  ["mismatched selected ABI", value => ({ selected: csharpDelegateTargetType("System.Func", [csharpStringTargetType()], csharpStringTargetType()) })],
-  ["mismatched ABI parameter contract", value => {
-    const selected = csharpDelegateTargetType("System.Func", [csharpStringTargetType()], csharpStringTargetType());
-    return { selected, principalSelected: selected };
-  }],
-  ["mismatched contract result", value => {
-    const contract = { ...value.contract, returnType: csharpStringTargetType() };
-    return { contract, owner: contract };
-  }],
-  ["missing principal publication", value => ({ principal: undefined })],
-  ["non-exact Source read", value => {
-    const principal = value.source.effectiveTypes.get(value.declaration);
-    return { principal: { ...principal, type: { kind: "optional", value: principal.type } } };
-  }],
-]) {
-  test(`${label} cannot replace a real logical callable read with its storage ABI`, () => {
-    const value = fixture();
-    const { result, outcome } = selectedRead(value, change(value));
-    assert.equal(result.effectiveType === outcome, true, "missing or foreign proof keeps the original Host publication");
-    assert.equal(getCsharpCallableValueSignature(result.selectedType)?.parameters.length, 1, "the original logical read is not retargeted");
-    assert.equal(targetTypeRefEquals(result.selectedType, value.storage), false, "a failed proof cannot promote arbitrary storage");
-  });
+// The same program through the Host fixture: the representation reads only the Host publication.
+function hostRead(override) {
+  const program = hostProgram(sourceText, { surface: "js" });
+  const alias = program.nodes.find(node => program.ast.is.IsIdentifier(node) && program.ast.text(node) === "alias" &&
+    program.ast.is.IsCallExpression(program.ast.parent(node)));
+  const facts = override === undefined ? program.facts : Object.freeze({ ...program.facts,
+    values: Object.freeze({ ...program.facts.values, type: node => node === alias ? override(program.facts.values.type(node), program) : program.facts.values.type(node) }) });
+  const services = representationServices(program, { facts, profile: "js",
+    shapes: Object.freeze({ retainShape: shape => shape, resolveCallableValue: signature => signature }) });
+  return { program, alias, represented: representations(services).value(alias) };
 }
 
-for (const state of ["missing", "refused", "unavailable", "foreign"]) {
+test("the representation of the Host alias read is the logical delegate, never the storage ABI", () => {
+  const { represented } = hostRead();
+  assert.equal(isCsharpRefusal(represented) || represented.kind === "refused", false);
+  assert.equal(getCsharpCallableValueSignature(represented)?.parameters.length, 1,
+    "missing Native proof keeps the original logical read; the representation never retargets to storage");
+});
+
+for (const state of ["refused", "unavailable", "foreign"]) {
   test(`a ${state} Host publication cannot be bypassed by a selected Native callable`, () => {
-    const value = fixture();
-    const actual = value.source.effectiveTypes.get(value.alias);
-    const outcome = state === "missing" ? undefined : state === "refused" ? {
-      kind: "refused", source: "tsonic", code: "TSONIC_LOCAL_TYPE_CONFLICT", site: value.alias,
-      reason: "The original Source group has conflicting declared fills.",
-    } : state === "unavailable" ? { ...actual, type: { ...actual.type, calls: [] } }
-      : { ...actual, provenance: { ...actual.provenance, occurrence: value.file } };
     if (state === "foreign") {
-      assert.throws(() => selectedRead(value, { outcome }), error =>
-        error.diagnostic?.code === "TSONIC_INTERNAL_ANALYSIS_INVARIANT" && error.diagnostic.sourceNode === value.alias);
+      assert.throws(() => hostRead((actual, program) => ({ ...actual,
+        provenance: { ...actual.provenance, occurrence: program.files[0] } })), error =>
+        error.diagnostic?.code === "TSONIC_INTERNAL_ANALYSIS_INVARIANT",
+      "a publication owned by another occurrence is an invariant failure (I4), not a retry");
       return;
     }
-    const selected = selectedRead(value, { outcome });
-    assert.equal(selected.result === undefined, true, "Source absence, refusal or unrepresentability remains authoritative");
-    assert.equal(selected.physicalReads, 0, "no Native storage retry precedes the actual Source outcome");
-    assert.equal(selected.rejections.length, state === "refused" ? 1 : 0);
-    if (state === "refused") assert.equal(selected.rejections[0].subject === value.alias &&
-      selected.rejections[0].code === outcome.code && selected.rejections[0].reason === outcome.reason, true,
-    "the original code, reason and node are preserved");
+    let refusal;
+    const { represented } = hostRead((actual, program) => {
+      if (state === "unavailable") return { ...actual, type: { ...actual.type, calls: [] } };
+      refusal = Object.freeze({ kind: "refused", code: "TSONIC_LOCAL_TYPE_CONFLICT", site: program.files[0],
+        message: "The original Source group has conflicting declared fills." });
+      return refusal;
+    });
+    if (state === "refused") {
+      assert.equal(represented === refusal, true, "the Host refusal is forwarded unchanged: code, message and site (R5)");
+      return;
+    }
+    assert.equal(isCsharpRefusal(represented) && represented.code === "CSHARP_CALLABLE_OVERLOADS", true,
+      "a callable publication without one call signature has no .NET delegate; no Native storage retry");
   });
 }
 
@@ -187,8 +143,8 @@ test("an actual narrowed optional callable keeps its present read and nullable s
   const source = analysis.source;
   const nodes = [];
   const visit = node => {
-    if (source.ast.is.IsIdentifier(node) && source.ast.text(node) === "mapper" && source.ast.is.IsCallExpression(source.ast.parent(node))) nodes.push(node);
-    source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    if (source.syntax.is.IsIdentifier(node) && source.syntax.text(node) === "mapper" && source.syntax.is.IsCallExpression(source.syntax.parent(node))) nodes.push(node);
+    source.syntax.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
   for (const file of analysis.sourceFiles) visit(file);
   assert.equal(nodes.length, 1, "one actual narrowed callback argument");
@@ -221,7 +177,7 @@ for (const [label, body, arity] of [
       } });
     } });
     assertCsharpCompilationSucceeded(compiled);
-    const ast = analysis.source.ast;
+    const ast = analysis.source.syntax;
     const reads = [];
     const visit = node => {
       if (ast.is.IsIdentifier(node) && ast.text(node) === "self" && analysis.records.valueRead.get(node) !== undefined &&
@@ -231,7 +187,7 @@ for (const [label, body, arity] of [
     for (const file of analysis.sourceFiles) visit(file);
     assert.equal(reads.length > 0, true, "the actual named callable is read");
     for (const node of reads) {
-      const published = analysis.source.effectiveTypes.get(node);
+      const published = analysis.source.facts.values.type(node);
       assert.equal(published?.kind === "resolved" && published.type.kind === "callable" &&
         published.type.calls[0].parameters.length === 1, true, "Source never acquires synthetic callback parameters");
       assert.equal(getCsharpCallableValueSignature(analysis.records.valueRead.get(node).value)?.parameters.length, arity,
@@ -258,7 +214,7 @@ test("a same-shaped foreign alias does not inherit another selected callback's N
     } });
   } });
   assertCsharpCompilationSucceeded(compiled);
-  const ast = analysis.source.ast;
+  const ast = analysis.source.syntax;
   const reads = [];
   const visit = node => {
     if (ast.is.IsIdentifier(node) && ast.text(node) === "alias" && ast.is.IsCallExpression(ast.parent(node))) reads.push(node);

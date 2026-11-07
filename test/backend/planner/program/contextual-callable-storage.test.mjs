@@ -3,6 +3,7 @@ import test from "node:test";
 import { contextualAsyncResultSource, ordinaryAsyncResultSource } from "../../../../../tsonic/test/fixtures/contextual-async-results.mjs";
 import { analyzeCsharpSource, assertCsharpCheckingSucceeded } from "../../../helpers/direct-csharp-session.mjs";
 import { createCsharpPlanningContext, createCsharpMemberPlanningContext } from "../../../../dist/backend/planner/context.js";
+import { sealCsharpAnalysisProgram } from "../../../../dist/analysis/program/index.js";
 import { createDestructuringPlannerState } from "../../../../dist/backend/planner/bindings/index.js";
 import { planLocalDeclaration } from "../../../../dist/backend/planner/bindings/locals.js";
 import { planTopLevelVariableStatement } from "../../../../dist/backend/planner/program/top-level-variables.js";
@@ -38,7 +39,7 @@ for (const surface of [undefined, "js"]) {
     const input = fixture(surface, contextualAsyncResultSource);
     const declaration = input.variables.get("storedCompletion");
     assert.equal(declaration !== undefined, true, "authored Handler storage declaration");
-    const initializer = input.source.ast.as.AsVariableDeclaration(declaration).Initializer;
+    const initializer = input.source.syntax.as.AsVariableDeclaration(declaration).Initializer;
     const body = input.program.records.returnContract.get(initializer);
     const emitted = input.program.records.callableDeclaration.get(initializer);
     assert.equal(body?.kind, "resolved", "closed async body contract");
@@ -47,10 +48,10 @@ for (const surface of [undefined, "js"]) {
     assert.equal(targetTypeRefEquals(emitted.returnCarrier, body.type), true, "method returns its intrinsic Task");
     assert.equal(input.program.records.moduleBindingInitialization.get(declaration), "declaration", "no module value initializer");
     const awaiting = input.awaiting.find(node => {
-      const operand = input.source.ast.as.AsAwaitExpression(node).Expression;
-      const callee = input.source.ast.as.AsCallExpression(operand)?.Expression;
-      return callee !== undefined && input.source.ast.is.IsIdentifier(callee) &&
-        input.source.ast.text(callee) === "storedCompletion";
+      const operand = input.source.syntax.as.AsAwaitExpression(node).Expression;
+      const callee = input.source.syntax.as.AsCallExpression(operand)?.Expression;
+      return callee !== undefined && input.source.syntax.is.IsIdentifier(callee) &&
+        input.source.syntax.text(callee) === "storedCompletion";
     });
     assert.equal(awaiting !== undefined, true, "direct native method await");
     const completion = input.program.records.awaitCompletion.get(awaiting);
@@ -66,7 +67,7 @@ for (const surface of [undefined, "js"]) {
     const input = fixture(surface, localSource);
     const context = createCsharpMemberPlanningContext(createCsharpPlanningContext(input.program));
     const diagnostics = [];
-    const state = createDestructuringPlannerState(input.file, input.source.ast);
+    const state = createDestructuringPlannerState(input.file, input.source.syntax);
     for (const name of ["empty", "absent", "optional", "named", "captured", "inferred"]) {
       const declaration = input.variables.get(name);
       assert.equal(declaration !== undefined, true, name);
@@ -86,17 +87,17 @@ for (const surface of [undefined, "js"]) {
     const input = fixture(surface, contextualAsyncResultSource);
     const context = createCsharpMemberPlanningContext(createCsharpPlanningContext(input.program));
     const diagnostics = [];
-    const state = createDestructuringPlannerState(input.file, input.source.ast);
+    const state = createDestructuringPlannerState(input.file, input.source.syntax);
     const members = [];
     const statements = [];
     for (const name of ["storedCompletion", "inferredStoredCompletion"]) {
       const declaration = input.variables.get(name);
       assert.equal(declaration !== undefined, true, name);
-      const initializer = input.source.ast.as.AsVariableDeclaration(declaration).Initializer;
+      const initializer = input.source.syntax.as.AsVariableDeclaration(declaration).Initializer;
       const emitted = input.program.records.callableDeclaration.get(initializer);
       assert.equal(emitted !== undefined, true, `${name}: canonical native method declaration`);
       assert.equal(Object.hasOwn(input.program.records, "callableVisibility"), false, "removed use-census selector stays absent");
-      const statement = input.source.ast.parent(input.source.ast.parent(declaration));
+      const statement = input.source.syntax.parent(input.source.syntax.parent(declaration));
       planTopLevelVariableStatement(statement, input.file, context, diagnostics, () => assert.fail("Unexpected type declaration"), members, statements, state);
       assert.equal(diagnostics.length, 0, name);
       const method = members.find(member => member.kind === "MethodDeclaration" && member.name === name);
@@ -127,13 +128,13 @@ for (const surface of [undefined, "js"]) {
     const diagnostics = [];
     const members = [];
     const statements = [];
-    const statement = input.source.ast.parent(input.source.ast.parent(declaration));
+    const statement = input.source.syntax.parent(input.source.syntax.parent(declaration));
     planTopLevelVariableStatement(statement, input.file, context, diagnostics, () => assert.fail("Unexpected type declaration"), members, statements,
-      createDestructuringPlannerState(input.file, input.source.ast));
+      createDestructuringPlannerState(input.file, input.source.syntax));
     assert.equal(diagnostics.length, 0);
-    const name = input.program.records.sourceName.get(input.source.ast.name(declaration));
+    const name = input.program.records.sourceName.get(input.source.syntax.name(declaration));
     assert.equal(name.kind, "resolved", "exact source identifier including native keyword escaping");
-    const initializer = input.source.ast.as.AsVariableDeclaration(declaration).Initializer;
+    const initializer = input.source.syntax.as.AsVariableDeclaration(declaration).Initializer;
     const emitted = input.program.records.callableDeclaration.get(initializer);
     assert.equal(emitted !== undefined, true, "one completed native method declaration");
     assert.equal(targetTypeRefEquals(getCsharpTaskResultTargetType(emitted.returnCarrier),
@@ -166,15 +167,17 @@ function fixture(surface, sourceText) {
   const { source, analysis } = analyzed;
   assert.equal(analysis.kind, "resolved", JSON.stringify(analysis.diagnostics.map(({ code, message }) => ({ code, message }))));
   assert.equal(analysis.diagnostics.length, 0);
-  const program = analysis.value;
-  const file = csharpProgramSourceFiles(program).find(selected => source.ast.getFileName(selected) === "/project/index.ts");
+  // The planner reads the sealed program (records and syntax only), as in production; `source` is the Source facts
+  // program the target received (nextgen C-2542).
+  const program = sealCsharpAnalysisProgram(analysis.value);
+  const file = csharpProgramSourceFiles(program).find(selected => source.syntax.getFileName(selected) === "/project/index.ts");
   assert.equal(file !== undefined, true, "authored project file");
   const variables = new Map();
   const awaiting = [];
   const visit = node => {
-    if (source.ast.is.IsVariableDeclaration(node)) variables.set(source.ast.text(source.ast.name(node)), node);
-    if (source.ast.is.IsAwaitExpression(node)) awaiting.push(node);
-    source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    if (source.syntax.is.IsVariableDeclaration(node)) variables.set(source.syntax.text(source.syntax.name(node)), node);
+    if (source.syntax.is.IsAwaitExpression(node)) awaiting.push(node);
+    source.syntax.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
   visit(file);
   return { program, source, file, variables, awaiting };

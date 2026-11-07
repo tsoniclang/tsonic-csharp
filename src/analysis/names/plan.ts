@@ -6,9 +6,10 @@ import type {
   Node,
   SourceFile,
 } from "@tsonic/tsts";
-import { AsBindingPattern, ObjectLiteralProperty_SourceName, sourceBindingScope, sourceBindingWriteAtReference,
-  sourceDeclarationIsModuleScoped, sourceNodesEqual } from "@tsonic/target-api/source";
-import type { SourceFileSemantics, SourceProgramNavigation } from "@tsonic/target-api/source";
+import { AsBindingPattern, ObjectLiteralProperty_SourceName, sourceBindingWriteAtReference,
+  sourceNodesEqual } from "@tsonic/target-api/source";
+import type { SourceProgramFacts } from "@tsonic/target-api/source";
+import { sourceProjectDeclaration } from "../program/source-facts.js";
 import { objectShapeMemberTargetName } from "../../policy/identities/source-member-names.js";
 import {
   tryCsharpIdentifier,
@@ -38,10 +39,9 @@ export interface CsharpSourceNameBuilder extends CsharpSourceNameResolver {
 
 export interface CsharpSourceNameResolverHost {
   readonly ast: AstReader;
-  readonly navigation: SourceProgramNavigation;
+  readonly facts: SourceProgramFacts;
   readonly sourceFiles: readonly SourceFile[];
   readonly sourceIdentities: CsharpSourceIdentityPolicy;
-  semanticsFor(node: Node): SourceFileSemantics;
 }
 
 export function createCsharpSourceNameBuilder(
@@ -76,7 +76,7 @@ export function createCsharpSourceNameBuilder(
   const visit = (node: Node): void => {
     if (host.ast.is.IsMethodDeclaration(node) || host.ast.is.IsMethodSignatureDeclaration(node) ||
       host.ast.is.IsFunctionDeclaration(node) || host.ast.is.IsFunctionExpression(node) || host.ast.is.IsArrowFunction(node)) {
-      const parameters = csharpSourceTypeParameters(node, host.ast).filter((declaration): declaration is Node => declaration !== undefined);
+      const parameters = csharpSourceTypeParameters(node, host.ast, host.facts.navigation.scopes).filter((declaration): declaration is Node => declaration !== undefined);
       if (parameters.length > 0) callableTypeParameters.set(node, parameters);
     }
     if (host.ast.is.IsPrivateIdentifier(node)) {
@@ -127,7 +127,7 @@ export function createCsharpSourceNameBuilder(
       const emittedBindings: typeof bindings = [];
       for (const binding of bindings) {
         const retained = required.has(binding.root) || binding.iteration !== undefined && required.has(binding.iteration) ||
-          host.navigation.referencesToDeclaration(binding.declaration).some(reference => {
+          host.facts.navigation.uses.references(binding.declaration).some(reference => {
             const write = sourceBindingWriteAtReference(host.ast, reference);
             return write !== undefined && required.has(write.operation);
           });
@@ -147,8 +147,8 @@ export function createCsharpSourceNameBuilder(
         emittedBindings.push(binding);
       }
       const nativeBindings = emittedBindings.flatMap(binding => {
-        const scope = sourceDeclarationIsModuleScoped(binding.root, host.ast) ? undefined
-          : sourceBindingScope(binding.declaration, host.ast);
+        const scope = host.facts.navigation.scopes.isModuleScoped(binding.root) ? undefined
+          : host.facts.navigation.scopes.bindingScope(binding.declaration);
         const selected = resolutions.get(binding.name);
         return scope === undefined || selected?.kind !== "resolved" ? [] : [{ binding, scope, name: selected.name }];
       });
@@ -207,7 +207,7 @@ export function createCsharpSourceNameBuilder(
           const selected = Object.freeze({ kind: "resolved" as const, name });
           const nameNode = host.ast.name(declaration);
           if (nameNode !== undefined) resolutions.set(nameNode, selected);
-          for (const reference of host.navigation.referencesToDeclaration(declaration)) {
+          for (const reference of host.facts.navigation.uses.references(declaration)) {
             if (host.ast.is.IsIdentifier(reference) && resolutions.has(reference)) resolutions.set(reference, selected);
           }
           typeParameterNames.push(Object.freeze({ identity: parameter.identity, name }));
@@ -310,18 +310,18 @@ export function createCsharpSourceNameBuilder(
             : Object.freeze({ kind: "resolved", name }),
       );
     } else if (host.ast.is.IsComputedPropertyName(node)) {
-      const selected = host.semanticsFor(node).propertyNames.get(node);
-      const name = selected?.kind === "resolved" ? objectShapeMemberTargetName(selected.name) : undefined;
+      const selected = host.facts.analyses.propertyName(node);
+      const name = selected?.kind === "name" ? objectShapeMemberTargetName(selected.name) : undefined;
       if (name !== undefined) sourceNames.add(name);
       resolutions.set(node, name === undefined
         ? rejected("The computed source name has no admitted static C# field identity.")
         : Object.freeze({ kind: "resolved", name }));
     } else if ((host.ast.is.IsStringLiteral(node) || host.ast.is.IsNumericLiteral(node)) &&
       host.ast.name(host.ast.parent(node)) === node) {
-      const sourceName = host.ast.is.IsNumericLiteral(node)
-        ? host.semanticsFor(node).propertyNames.get(node)
-        : ObjectLiteralProperty_SourceName(host.ast, host.ast.parent(node));
-      const name = sourceName?.kind === "resolved" ? objectShapeMemberTargetName(sourceName.name) : undefined;
+      const numeric = host.ast.is.IsNumericLiteral(node) ? host.facts.analyses.propertyName(node) : undefined;
+      const literal = host.ast.is.IsNumericLiteral(node) ? undefined : ObjectLiteralProperty_SourceName(host.ast, host.ast.parent(node));
+      const name = numeric?.kind === "name" ? objectShapeMemberTargetName(numeric.name)
+        : literal?.kind === "resolved" ? objectShapeMemberTargetName(literal.name) : undefined;
       if (name !== undefined) sourceNames.add(name);
       resolutions.set(node, name === undefined
         ? rejected("The literal source name has no exact C# field identity.")
@@ -347,12 +347,12 @@ function exactPrivateDeclaration(
 ): Node | undefined {
   const selectedCandidates = [
     selectedDeclaration,
-    host.navigation.referenceFor(nameNode)?.declaration,
+    sourceProjectDeclaration(host.facts, nameNode),
   ];
   const selected = selectedCandidates.find((candidate) => {
     if (
       candidate === undefined ||
-      !host.navigation.isProjectDeclaration(candidate)
+      !host.facts.navigation.identity.isProjectDeclaration(candidate)
     ) {
       return false;
     }
@@ -365,7 +365,7 @@ function exactPrivateDeclaration(
   const parent = host.ast.parent(nameNode);
   const parentName = host.ast.name(parent);
   return parent !== undefined &&
-      host.navigation.isProjectDeclaration(parent) &&
+      host.facts.navigation.identity.isProjectDeclaration(parent) &&
       parentName !== undefined &&
       host.ast.is.IsPrivateIdentifier(parentName) &&
       sourceNodesEqual(host.ast, parentName, nameNode)

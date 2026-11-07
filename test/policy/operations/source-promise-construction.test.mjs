@@ -13,28 +13,28 @@ import {
   getCsharpTaskResultTargetType,
   targetTypeRefEquals,
 } from "../../../dist/policy/types/index.js";
-import { csharpSourceProfileInputs } from "../../helpers/planning-records.mjs";
+import { csharpSourceProfileInputs, unrepresentedCsharpCarrier } from "../../helpers/planning-records.mjs";
 
-const binding = Object.freeze({ sourceArgumentIndex: 0, effectiveArgumentIndex: 0,
-  sourceParameterIndex: 0, sourceForm: "value" });
+const executorArgument = {};
+const binding = Object.freeze({ argument: executorArgument, argumentIndex: 0, effectiveIndex: 0,
+  parameterIndex: 0, mode: "positional", form: "value" });
+const executorType = Object.freeze({ kind: "callable", calls: [], constructs: [] });
 const constructorPolicies = csharpPromiseSourceProfileCallPolicies.filter(policy => policy.source.kind === "construct");
 
 function contextFor(task, changes = {}) {
-  const selectedType = {};
+  const result = Object.freeze({ kind: "declared", declaration: {}, typeArguments: [] });
   const call = {};
-  const canonical = { call, sourceResultType: selectedType, sourceSelectedSignatureKind: "resolved",
-    sourceArguments: [{ expression: {}, type: {} }],
-    sourceSelectedSignatureParameters: [{ parameterIndex: 0 }], sourceArgumentBindings: [binding] };
+  // The Host call selection (facts.selections.call) and the published argument value types.
+  const canonical = { call, selection: { use: call, result }, typeArguments: [],
+    arguments: [{ expression: executorArgument, type: executorType }],
+    parameters: [{ name: "executor", kind: "required", type: executorType }], bindings: [binding] };
   const source = { ...canonical, ...changes };
-  const host = { types: { resolveType: () => assert.fail("a constructed Task result cannot use a Type-only value query"),
-    resolveSourceCallResult(selected) {
-      assert.equal(selected === canonical && selected.call === call && selected.sourceResultType === selectedType, true, "exact selected Task operation query");
-      return task === undefined ? undefined : { selectedType: task, nativeType: task };
+  const host = { types: { represent(type, site, position) {
+    assert.equal(type === result && site === call && position === "value", true, "exact Host Task result of the call");
+    return task ?? unrepresentedCsharpCarrier(site);
   } } };
-  const sourceFile = {};
   // The policy reads the call's result carrier from the input facts the analysis resolves for it.
-  return { host, sourceFile, inputs: csharpSourceProfileInputs(host, sourceFile, { operation: call, source: canonical }), source,
-  };
+  return { host, inputs: csharpSourceProfileInputs(host, { operation: call, call: canonical }), source };
 }
 
 test("native and JS constructors select one exact immutable native Task completion relation", () => {
@@ -97,12 +97,11 @@ test("constructor selection fails closed on missing result and inconsistent call
   for (const policy of constructorPolicies) {
     const task = csharpTaskTargetType(csharpSourcePrimitiveTargetType("int32"));
     const cases = [contextFor(undefined), contextFor(csharpTsValueTargetType()),
-      contextFor(task, { sourceSelectedSignatureKind: "unresolved" }),
-      contextFor(task, { sourceSelectedSignatureParameters: [] }),
-      contextFor(task, { sourceSelectedSignatureParameters: [{}, {}] }),
-      contextFor(task, { sourceArgumentBindings: [] }),
-      contextFor(task, { sourceArgumentBindings: [binding, binding] }),
-      contextFor(task, { sourceArgumentBindings: [{ ...binding, sourceParameterIndex: 1 }] })];
+      contextFor(task, { parameters: [] }),
+      contextFor(task, { parameters: [{ name: "a", kind: "required", type: executorType }, { name: "b", kind: "required", type: executorType }] }),
+      contextFor(task, { bindings: [] }),
+      contextFor(task, { bindings: [binding, binding] }),
+      contextFor(task, { bindings: [{ ...binding, parameterIndex: 1 }] })];
     for (const [index, context] of cases.entries()) {
       const selected = policy.select(context);
       assert.equal(selected.kind, "rejected", `malformed relation ${index}`);

@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createCompilerSessionFromFiles, formatDiagnostics } from "@tsonic/tsts";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { assertCsharpCompilationSucceeded, checkCsharpSource, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { createCsharpSourceNameBuilder } from "../../../dist/analysis/names/plan.js";
@@ -9,6 +8,7 @@ import { analyzeCsharpAnalysisProgram } from "../../../dist/analysis/program/ind
 import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
 import { createCsharpTargetConfiguration } from "../../../dist/compilation/configuration.js";
 import { createCsharpPlanningContext } from "../../../dist/backend/planner/context.js";
+import { sealCsharpAnalysisProgram } from "../../../dist/analysis/program/index.js";
 import { createCsharpSyntheticNames } from "../../../dist/backend/planner/names/synthetic.js";
 import { csharpSourceTypeParameter } from "../../../dist/source/extension/type-parameters.js";
 import { createDotnetReflectionTypeDataProvider } from "../../helpers/dotnet-reflection-provider.mjs";
@@ -43,7 +43,7 @@ test(`${surface}: native member hiding and collisions use final physical contain
     ` });
     assertCsharpCompilationSucceeded(compiled);
     const program = compiled.result.program;
-    const ast = program.source.ast;
+    const ast = program.source.syntax;
     const observations = [];
     const visit = node => {
       if (ast.is.IsMethodDeclaration(node)) {
@@ -69,7 +69,7 @@ test(`${surface}: native member hiding and collisions use final physical contain
     assert.equal(program.records.nativeMemberHiding.get({ kind: "source", declaration: foreign, role: "member" }) === undefined && syntaxReads === 0, true,
       "the sealed hiding getter never computes or inspects a foreign syntax node");
     const hidden = observations.find(entry => entry.owner === "Hidden" && entry.name === "read").node;
-    const context = createCsharpPlanningContext({ ...program, records: { ...program.records,
+    const context = createCsharpPlanningContext({ ...sealCsharpAnalysisProgram(program), records: { ...program.records,
       nativeMemberHiding: { get: subject => subject.kind === "source" && subject.declaration === hidden
         ? undefined : program.records.nativeMemberHiding.get(subject) } } });
     assert.throws(() => planClassMemberModifiers(hidden, ast.name(hidden), context,
@@ -87,38 +87,39 @@ for (const surface of Array.from(["native", "js"]).slice(0, 2)) {
 test(`${surface}: capture-free pre-seal names preserve nested, local, named and structural native semantics`, () => {
     const compiled = compileCsharpSource({ sourceText: bindingSafeNativeSource, surface });
     assertCsharpCompilationSucceeded(compiled);
-    const source = createTargetSourceProgram(compiled.source);
+    // The Source facts program the target received (nextgen C-2542).
+    const source = compiled.result.program.source;
     const file = compiled.source.getSourceFile("/project/index.ts");
     const names = compiled.result.program.names;
     const methods = [];
     const visit = node => {
-      if (source.ast.is.IsFunctionDeclaration(node) || source.ast.is.IsMethodSignatureDeclaration(node)) methods.push(node);
-      source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+      if (source.syntax.is.IsFunctionDeclaration(node) || source.syntax.is.IsMethodSignatureDeclaration(node)) methods.push(node);
+      source.syntax.forEachChild(node, child => { if (child !== undefined) visit(child); });
     };
     visit(file);
     const unchanged = new Set(["stable", "rethrowOnly", "unusedCatch", "dormant"]);
     for (const ownerName of ["outer", "local", "destructured", "localSuffix", "uninitialized", "localFunction", "catchUse", ...unchanged]) {
-      const owner = methods.find(node => source.ast.text(source.ast.name(node)) === ownerName);
+      const owner = methods.find(node => source.syntax.text(source.syntax.name(node)) === ownerName);
       assert.equal(owner !== undefined, true, `${ownerName}: the real checked callable is present`);
-      const declaration = source.ast.typeParameters(owner)[0];
-      const parameter = csharpSourceTypeParameter(declaration, source.ast);
+      const declaration = source.syntax.typeParameters(owner)[0];
+      const parameter = csharpSourceTypeParameter(declaration, source.syntax);
       assert.equal(parameter !== undefined, true, `${ownerName}: the original checked binder identity is available`);
       const rename = names.typeParameterNames.find(selected => selected.identity === parameter.identity);
       const expected = unchanged.has(ownerName) ? parameter.name : rename?.name;
       assert.equal(unchanged.has(ownerName) ? rename === undefined : expected !== undefined && expected !== "T" && expected !== "T1", true,
         `${ownerName}: the approved conflict-only suffix cannot capture the authored nested or local T1`);
-      for (const node of [source.ast.name(declaration), ...source.navigation.referencesToDeclaration(declaration)]) {
+      for (const node of [source.syntax.name(declaration), ...source.facts.navigation.uses.references(declaration)]) {
         assert.equal(names.resolve(node).kind === "resolved" && names.resolve(node).name === expected, true,
           `${ownerName}: all checked bound uses consume the same capture-free decision`);
       }
     }
-    for (const method of methods.filter(node => source.ast.is.IsMethodSignatureDeclaration(node))) {
-      const owner = source.ast.parent(method);
-      const sourceName = source.ast.name(owner);
-      const declaration = source.ast.typeParameters(method)[0];
-      const selected = names.resolve(source.ast.name(declaration));
-      const named = sourceName !== undefined && source.ast.text(sourceName) === "NamedGeneric";
-      const parameter = csharpSourceTypeParameter(declaration, source.ast);
+    for (const method of methods.filter(node => source.syntax.is.IsMethodSignatureDeclaration(node))) {
+      const owner = source.syntax.parent(method);
+      const sourceName = source.syntax.name(owner);
+      const declaration = source.syntax.typeParameters(method)[0];
+      const selected = names.resolve(source.syntax.name(declaration));
+      const named = sourceName !== undefined && source.syntax.text(sourceName) === "NamedGeneric";
+      const parameter = csharpSourceTypeParameter(declaration, source.syntax);
       assert.equal(parameter !== undefined, true, "the original checked method binder identity is available");
       const rename = names.typeParameterNames.find(candidate => candidate.identity === parameter.identity);
       assert.equal(selected.kind === "resolved" && (named

@@ -1,7 +1,6 @@
-import { validateSourceBinaryEntry } from "@tsonic/target-api/analysis";
 import { relative, resolve } from "node:path";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { TargetSourceProgram } from "@tsonic/target-api/source";
+import type { TargetSourceProgramFacts } from "@tsonic/target-api/source";
 import {
   AsExpressionStatement,
   AsBindingElement,
@@ -30,7 +29,7 @@ import { createCsharpModuleInitializationProducer } from "../program/records/pro
 interface CsharpModuleInitializationAnalysisInput {
   readonly moduleCallables: import("../../target-model/records/callables/module-callables.js").CsharpModuleCallableIdentities;
   readonly sourceEvidence: import("../../target-model/records/program/source-evidence.js").CsharpSourceEvidenceIndex;
-  readonly source: TargetSourceProgram;
+  readonly source: TargetSourceProgramFacts;
   readonly sourceFiles: readonly SourceFile[];
   readonly projectRoot: string;
   readonly entryPoint: string;
@@ -50,12 +49,12 @@ export function analyzeCsharpModuleInitialization(
   const entries = new Map<string, ModuleInitializationEntry>();
   const producer = createCsharpModuleInitializationProducer();
   for (const sourceFile of input.sourceFiles) {
-    for (const statement of input.source.ast.statements(sourceFile)) {
-      const declarations = AsVariableStatement(input.source.ast, statement)?.DeclarationList;
+    for (const statement of input.source.syntax.statements(sourceFile)) {
+      const declarations = AsVariableStatement(input.source.syntax, statement)?.DeclarationList;
       if (declarations === undefined) continue;
-      for (const declaration of input.source.ast.children(declarations)) {
-        if (declaration === undefined || !input.source.ast.is.IsVariableDeclaration(declaration)) continue;
-        const variable = AsVariableDeclaration(input.source.ast, declaration);
+      for (const declaration of input.source.syntax.children(declarations)) {
+        if (declaration === undefined || !input.source.syntax.is.IsVariableDeclaration(declaration)) continue;
+        const variable = AsVariableDeclaration(input.source.syntax, declaration);
         const initializer = variable?.Initializer;
         const callable = input.moduleCallables.get(declaration)?.callable;
         producer.binding(declaration, initializer === undefined || callable !== undefined ? "declaration" : "value");
@@ -64,8 +63,8 @@ export function analyzeCsharpModuleInitialization(
     }
     entries.set(normalizedFileName(input, sourceFile), Object.freeze({
       sourceFile,
-      dependencies: Object.freeze(input.source.navigation
-        .moduleDependencies(sourceFile)
+      dependencies: Object.freeze(input.source.facts.navigation.modules
+        .dependencies(sourceFile)
         .map((dependency) => dependency.sourceFile)),
       directRuntimeEffects: sourceFileHasDirectRuntimeEffects(sourceFile, input),
     }));
@@ -88,9 +87,8 @@ export function analyzeCsharpModuleInitialization(
     input.entryPoint,
   ));
   const entrySourceFile = entries.get(entrypointFileName)?.sourceFile;
-  if (input.outputType === "Exe" && entrySourceFile !== undefined) {
-    issues.push(...validateSourceBinaryEntry(input.source, entrySourceFile));
-  }
+  // An executable entry module that exports `main` without calling it is a Host program refusal
+  // (TSONIC_UNCALLED_BINARY_ENTRY_MAIN, request R-F5-B6), forwarded before C# analysis.
   const index = producer.seal([...entries].map(([fileName, entry]) => ({
     sourceFile: entry.sourceFile,
     dependencies: dependenciesByFile.get(fileName) ?? emptySourceFiles,
@@ -103,7 +101,7 @@ export function analyzeCsharpModuleInitialization(
   });
 
   function recordPatternBindings(pattern: Node): void {
-    const { ast } = input.source;
+    const { syntax: ast } = input.source;
     if (!HasSourceKind(ast, pattern, KindArrayBindingPattern) &&
       !HasSourceKind(ast, pattern, KindObjectBindingPattern)) return;
     for (const element of ast.elements(pattern)) {
@@ -119,14 +117,14 @@ function sourceFileHasDirectRuntimeEffects(
   sourceFile: SourceFile,
   input: CsharpModuleInitializationAnalysisInput,
 ): boolean {
-  for (const statement of input.source.ast.statements(sourceFile)) {
+  for (const statement of input.source.syntax.statements(sourceFile)) {
     if (statement === undefined) {
       return true;
     }
     if (isErasedCompileTimeStatement(statement, input)) {
       continue;
     }
-    switch (input.source.ast.kindName(statement)) {
+    switch (input.source.syntax.kindName(statement)) {
       case KindImportDeclaration:
       case KindTypeAliasDeclaration:
       case KindExportDeclaration:
@@ -152,7 +150,7 @@ function isErasedCompileTimeStatement(
   statement: Node,
   input: CsharpModuleInitializationAnalysisInput,
 ): boolean {
-  const expression = AsExpressionStatement(input.source.ast, statement)?.Expression;
+  const expression = AsExpressionStatement(input.source.syntax, statement)?.Expression;
   if (expression === undefined) {
     return false;
   }
@@ -165,18 +163,18 @@ function variableStatementHasInitializer(
   input: CsharpModuleInitializationAnalysisInput,
 ): boolean {
   const declarationList = AsVariableStatement(
-    input.source.ast,
+    input.source.syntax,
     statement,
   )?.DeclarationList;
   if (declarationList === undefined) {
     return true;
   }
-  return input.source.ast.children(declarationList).some((node) =>
+  return input.source.syntax.children(declarationList).some((node) =>
     node !== undefined &&
-    input.source.ast.is.IsVariableDeclaration(node) &&
+    input.source.syntax.is.IsVariableDeclaration(node) &&
     !input.sourceEvidence.compileTimeMetadata.get(node) &&
     input.moduleCallables.get(node) === undefined &&
-    AsVariableDeclaration(input.source.ast, node)?.Initializer !== undefined);
+    AsVariableDeclaration(input.source.syntax, node)?.Initializer !== undefined);
 }
 
 function moduleRequiresInitialization(
@@ -225,7 +223,7 @@ function moduleRequiresAsyncInitialization(
     return false;
   }
   visiting.add(fileName);
-  const async = input.source.navigation.moduleHasTopLevelAwait(entry.sourceFile) ||
+  const async = input.source.facts.navigation.modules.hasTopLevelAwait(entry.sourceFile) ||
     entry.dependencies.some((dependency) => moduleRequiresAsyncInitialization(
       normalizedFileName(input, dependency),
       input,
@@ -343,7 +341,7 @@ function normalizedFileName(
   input: CsharpModuleInitializationAnalysisInput,
   sourceFile: SourceFile,
 ): string {
-  return normalizedPath(SourceFile_FileName(input.source.ast, sourceFile));
+  return normalizedPath(SourceFile_FileName(input.source.syntax, sourceFile));
 }
 
 function normalizedPath(path: string): string {

@@ -13,7 +13,8 @@ test("same-shaped unrelated project classes fail closed at the C# nominal bounda
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.deepEqual(compiled.extensionDiagnostics, []);
   assert.equal(compiled.result.diagnostics.length, 1);
-  assert.equal(compiled.result.diagnostics[0].code, "CSHARP_UNSUPPORTED_AST");
+  // nextgen C-2542: split code; a value use whose conversion core rejects is CSHARP_VALUE_USE_NOT_ADMITTED (use-admission.ts).
+  assert.equal(compiled.result.diagnostics[0].code, "CSHARP_VALUE_USE_NOT_ADMITTED");
   assert.match(
     compiled.result.diagnostics[0].message,
     /No exact C# implicit conversion relates/u,

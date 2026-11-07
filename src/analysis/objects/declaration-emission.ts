@@ -10,7 +10,7 @@ import type { CsharpNamePlan } from "../../target-model/names/model.js";
 import { tryCsharpIdentifier } from "../../target-model/names/identifiers.js";
 import type { CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
 import { csharpFreeTypeParameterIdentities } from "../../target-model/types/generic-references.js";
-import { csharpObjectShapeTypeParameters } from "../source-evidence/types/resolution/owner-type-parameter-environment.js";
+import { csharpObjectShapeTypeParameters } from "../../policy/types/objects/owner-type-parameters.js";
 import { csharpTargetTypeRenderingRejection } from "../../policy/types/model/renderability.js";
 import { createCsharpObjectShapeEmissionRecords } from "../program/records/objects/object-shape-emission.js";
 import { analyzeCsharpObjectShapeNames } from "./display-names.js";
@@ -36,12 +36,12 @@ export function analyzeCsharpObjectShapeEmission(input: {
   const nativeNames = new Map<string, string>();
   const enumerableTypes = new Set(input.demand.artifacts.filter(artifact => artifact.capabilities.includes("enumerable-keys"))
     .map(artifact => targetTypeRefKey(artifact.fact.targetType)));
-  const refuse = (message: string): void => { issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", message }); };
+  const refuse = (message: string, code: `CSHARP_${string}` = "CSHARP_GENERATED_SHAPE_GENERICS_NOT_DECLARABLE"): void => { issues.push({ code, category: "error", source: "tsonic-csharp", message }); };
   const constructions = new Set<Node>();
   const refuseConstruction = (node: Node): void => {
     if (constructions.has(node)) return;
     constructions.add(node);
-    issues.push({ source: "tsonic-csharp", category: "error", code: "CSHARP_UNSUPPORTED_AST", sourceNode: node,
+    issues.push({ source: "tsonic-csharp", category: "error", code: "CSHARP_CLASS_OBJECT_LITERAL_NOT_CONSTRUCTIBLE", sourceNode: node,
       message: "Class object literal emission requires an exact constructible source class with a parameterless constructor." });
   };
   for (const { use } of input.nativeDemand.entries) {
@@ -67,7 +67,7 @@ export function analyzeCsharpObjectShapeEmission(input: {
     if (artifact.capabilities.includes("enumerable-keys") &&
       (artifact.fact.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract !== true) {
       const order = input.shapes.propertyOrder(artifact.fact, undefined, "keys");
-      if (order.kind === "rejected") refuse(order.reason);
+      if (order.kind === "rejected") refuse(order.reason, "CSHARP_OBJECT_PROPERTY_ORDER_NOT_REPRESENTABLE");
       else keys.set(artifact.key, Object.freeze(order.propertyOrder));
     }
     if (artifact.materialization !== "synthetic") continue;

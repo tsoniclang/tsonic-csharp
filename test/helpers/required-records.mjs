@@ -15,7 +15,7 @@ export function compileCsharpRequiredRecordSource(sourceText, surface) {
   const nodes = [];
   const visit = node => {
     nodes.push(node);
-    source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    source.syntax.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
   csharpProgramSourceFiles(program).forEach(visit);
   return { compiled, request, source, program, nodes };

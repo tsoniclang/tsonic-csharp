@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { assertCsharpCompilationSucceeded, withCsharpSessionRequest } from "../../helpers/direct-csharp-session.mjs";
+import { csharpSourceNodes } from "../../../dist/analysis/program/source-nodes.js";
 
 for (const surface of ["native", "js"]) {
   test(`${surface}: native method literals retain the shorthand parameter's exact checked value binding`, () => {
@@ -13,18 +14,18 @@ export function extract(value: Payload): (input: int32) => int32 { return value.
 export function copy(value: Payload): Payload { return { ...value }; }
 ` }, request => {
       const source = request.input.source;
-      const nodes = source.navigation.nodes;
-      const parameters = nodes.filter(node => source.ast.is.IsParameterDeclaration(node) && source.ast.text(source.ast.name(node)) === "extra");
-      const shorthands = nodes.filter(node => source.ast.is.IsShorthandPropertyAssignment(node));
+      const nodes = csharpSourceNodes(source.syntax, source.sourceFiles);
+      const parameters = nodes.filter(node => source.syntax.is.IsParameterDeclaration(node) && source.syntax.text(source.syntax.name(node)) === "extra");
+      const shorthands = nodes.filter(node => source.syntax.is.IsShorthandPropertyAssignment(node));
       assert.equal(parameters.length, 1, "the original native int32 parameter is unique");
       assert.equal(shorthands.length, 1, "the original shorthand value read is unique");
-      const name = source.ast.name(shorthands[0]);
+      const name = source.syntax.name(shorthands[0]);
       assert.equal(name !== undefined, true, "the shorthand's own name is preserved");
-      const reference = source.navigation.sourceReferenceFor(name);
+      // The published reference target (facts.navigation.identity.target), nextgen C-2542.
+      const reference = source.facts.navigation.identity.target(name);
       assert.equal(reference !== undefined && reference.declaration === parameters[0], true,
         "the native value comes from its actual checked parameter, never the destination property");
-      assert.equal(source.navigation.referenceFor(name)?.declaration === parameters[0], true,
-        "the ordinary selected reference retains the same parameter identity");
+      assert.equal(reference.project, true, "the selected reference is a project declaration");
     });
     assertCsharpCompilationSucceeded(compiled);
     const emitted = [...compiled.artifacts.values()].join("\n");

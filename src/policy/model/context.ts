@@ -8,8 +8,7 @@ import type {
   TargetSelection,
 } from "@tsonic/target-api";
 import type {
-  SourceFileSemantics,
-  SourceProgramNavigation,
+  SourceProgramFacts,
 } from "@tsonic/target-api/source";
 import type {
   CsharpProviderRelationResolver,
@@ -22,24 +21,27 @@ import type {
   CsharpSourceIdentityPolicy,
 } from "../../source/extension/identities.js";
 
+/**
+ * The C# policy context. Source answers come only from `facts` (SourceProgramFacts, R2); `ast` is the authored-syntax
+ * reader for names, text and structure and never answers a Source type question.
+ */
 export interface CsharpPolicyContext extends CsharpProviderCallSelectionHost {
   readonly pointerStorage: import("@tsonic/source-core/facts").TsonicPointerStorageRelation;
   readonly moduleCallables: import("../../target-model/records/callables/module-callables.js").CsharpModuleCallableIdentities;
   readonly integerRanges: import("../../target-model/records/operations/integer-ranges.js").CsharpIntegerRangeIndex;
-  readonly literalValues: import("@tsonic/target-api/source").SourceLiteralIndex;
-  callOnlyAlias(declaration: Node): import("@tsonic/target-api/source").SourceCallOnlyAlias | undefined;
+  /** A JS source-profile call-only alias of a declaration (F3: analysis/operations/source-profiles/callable-aliases.ts). */
+  callOnlyAlias(declaration: Node): import("../../analysis/operations/source-profiles/callable-aliases.js").CsharpCallOnlyAlias | undefined;
   readonly typeDefinitions?: import("../../target-model/types/source-union-definitions.js").CsharpTypeDefinitions;
   readonly ast: AstReader;
   readonly sourceFiles: readonly SourceFile[];
   readonly sourceFacts?: ReadonlySourceFactResolver;
-  readonly navigation: SourceProgramNavigation;
+  readonly facts: SourceProgramFacts;
   readonly target: TargetSelection;
   readonly providers: CsharpProviderRelationResolver;
   readonly types: CsharpTypeQueries;
+  /** Generic binder constraints of the representation services (C1 representation/generics). */
+  readonly typeParameters: import("../../target-model/records/types/type-parameter-constraints.js").CsharpTypeParameterEnvironment;
   readonly objectShapes: CsharpObjectShapePolicy;
   readonly projectTypes: CsharpProjectTypePolicy;
   readonly sourceIdentities: CsharpSourceIdentityPolicy;
-  semantics(sourceFile: SourceFile): SourceFileSemantics;
-  semanticsFor(node: Node): SourceFileSemantics;
-  hasSemantics(sourceFile: SourceFile): boolean;
 }

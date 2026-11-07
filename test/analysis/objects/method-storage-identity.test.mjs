@@ -1,15 +1,32 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createCsharpTypeParameterEnvironment } from "../../../dist/analysis/source-evidence/types/resolution/type-parameter-environment.js";
-import { createCompilerSessionFromFiles } from "@tsonic/tsts";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
-import { createSourceStorageQuery } from "@tsonic/target-api/analysis";
+import { createCsharpTypeParameterEnvironment } from "../../../dist/representation/index.js";
+
 import { retainCsharpMethodValueContracts } from "../../../dist/analysis/objects/shapes/method-values.js";
 import { createStructuralObjectShapeTarget } from "../../../dist/analysis/objects/shapes/construction.js";
 import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
 import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
-import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
+import { analyzeCsharpSource, compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
+
+// The method-value inputs over the Source facts program the C# session built: its Host storage analysis
+// (facts.analyses.storage), facts and syntax (nextgen C-2542: createTargetSourceProgram needs the composition's profile;
+// createSourceStorageQuery is not public).
+function sessionMethodValues(sourceText, isDeclaration) {
+  const checked = analyzeCsharpSource({ sourceText });
+  assert.equal(checked.sourceDiagnosticsText, "", "the actual native method program is checked");
+  const { source } = checked;
+  const ast = source.syntax;
+  const file = source.sourceFiles.find(candidate => ast.getFileName(candidate) === "/project/index.ts");
+  const declarations = [];
+  const visit = node => {
+    if (isDeclaration(ast, node)) declarations.push(node);
+    ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+  };
+  visit(file);
+  const storage = source.facts.analyses.storage({ sourceFiles: source.sourceFiles });
+  return { ast, declarations, storage, inputs: { storage, facts: source.facts, ast } };
+}
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 
 test("selected structural method storage participates in the sole published carrier identity", () => {
@@ -21,17 +38,24 @@ test("selected structural method storage participates in the sole published carr
     sourceDeclarations: Object.freeze([declaration]) });
   const environment = createCsharpTypeParameterEnvironment(() => assert.fail("the monomorphic method has no generic constraint"));
   const targetType = createStructuralObjectShapeTarget([member], undefined, environment, true);
+  // Method-value inputs (CsharpMethodValueUseInputs): storage, facts (uses.summary) and syntax (nextgen C-2542).
   const storage = Object.freeze({
-    source: Object.freeze({ ast: Object.freeze({ is: Object.freeze({
+    storage: Object.freeze({
+      nodes: Object.freeze([declaration]),
+      memberSubjectFor: () => Object.freeze({ kind: "unresolved", reason: "external method value" }),
+    }),
+    facts: Object.freeze({
+      navigation: Object.freeze({ uses: Object.freeze({ summary: () => Object.freeze({
+        firstClassUseCount: 1, exported: false, memberWritten: false,
+      }) }) }),
+      values: Object.freeze({ has: () => false }),
+    }),
+    ast: Object.freeze({ is: Object.freeze({
       IsMethodDeclaration: () => false,
       IsMethodSignatureDeclaration: node => node === declaration,
       IsBindingElement: () => false,
       IsSpreadAssignment: () => false,
-    }) }), navigation: Object.freeze({ declarationUseSummary: () => Object.freeze({
-      firstClassUseCount: 1, exported: false, memberWritten: false,
-    }) }) }),
-    nodes: Object.freeze([declaration]),
-    memberSubjectFor: () => Object.freeze({ kind: "unresolved", reason: "external method value" }),
+    }) }),
   });
   const selected = retainCsharpMethodValueContracts({ targetType, members: [member] },
     shape => shape, environment, storage);
@@ -62,25 +86,13 @@ test("a closed readonly method signature retains the same native invocation cont
   const number = csharpSourcePrimitiveTargetType("float64");
   const environment = createCsharpTypeParameterEnvironment(() => assert.fail("the closed monomorphic view needs no invented generic constraints"));
   for (const replacement of [false, true]) {
-    const checked = createCompilerSessionFromFiles({ currentDirectory: "/src",
-      compilerOptions: { strict: true, target: "es2022", module: "esnext", moduleResolution: "bundler" },
-      files: { "/src/index.ts": `
+    const { ast, declarations, storage, inputs } = sessionMethodValues(`
         const holder = { removed: 1, run(value: number): number { return value + 1; } };
         ${replacement ? "holder.run = (value: number): number => value + 2;" : ""}
         export function invoke(value: number): number { return holder.run(value); }
-      ` },
-    }).checkSource();
-    assert.equal(checked.diagnostics.length, 0, "the actual native method and replacement are checked");
-    const source = createTargetSourceProgram(checked);
-    const declarations = [];
-    const visit = node => {
-      if (source.ast.is.IsMethodDeclaration(node)) declarations.push(node);
-      source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
-    };
-    visit(checked.getSourceFile("/src/index.ts"));
+      `, (syntax, node) => syntax.is.IsMethodDeclaration(node));
     assert.equal(declarations.length, 1, "the actual authored native method is selected once");
     const declaration = declarations[0];
-    const storage = createSourceStorageQuery(source, source.navigation.sourceFiles);
     const subject = storage.memberSubjectFor(declaration);
     assert.equal(subject.kind, "resolved", "exposure belongs to the exact checked physical method declaration");
     const writes = storage.memberWritesFor(subject.subject);
@@ -90,11 +102,11 @@ test("a closed readonly method signature retains the same native invocation cont
       memberKind: "method", type: csharpDelegateTargetType("System.Func", [number], number), sourceDeclarations: [declaration] };
     const removed = { sourceKey: { kind: "property", name: "removed" }, sourceName: "removed", targetName: "removed",
       memberKind: "property", type: number };
-    const implementation = { identity: "checked-native-method-owner", declaration: source.ast.parent(declaration),
+    const implementation = { identity: "checked-native-method-owner", declaration: ast.parent(declaration),
       methods: [declaration], captures: [] };
     const shape = { targetType: createStructuralObjectShapeTarget([removed, member], undefined, environment, false, implementation),
       members: [removed, member], methodImplementation: implementation };
-    const selected = retainCsharpMethodValueContracts(shape, value => value, environment, storage);
+    const selected = retainCsharpMethodValueContracts(shape, value => value, environment, inputs);
     const method = selected.members.find(value => value.sourceName === "run");
     assert.equal(method.methodValueStorage === undefined, !replacement,
       "first-class copying cannot manufacture a writable delegate slot for a proven readonly native method view");
@@ -107,24 +119,12 @@ test("a closed readonly method signature retains the same native invocation cont
 });
 
 test("a nonphysical checked method signature publishes neither physical writes nor a native body", () => {
-  const checked = createCompilerSessionFromFiles({ currentDirectory: "/src",
-    compilerOptions: { strict: true, target: "es2022", module: "esnext", moduleResolution: "bundler" },
-    files: { "/src/index.ts": `
+  const { declarations, storage, inputs } = sessionMethodValues(`
       type View = { removed: number; run(value: number): number };
       export function expose(value: View): (value: number) => number { return value.run; }
-    ` },
-  }).checkSource();
-  assert.equal(checked.diagnostics.length, 0, "the signature and its first-class use are genuinely checked");
-  const source = createTargetSourceProgram(checked);
-  const declarations = [];
-  const visit = node => {
-    if (source.ast.is.IsMethodSignatureDeclaration(node)) declarations.push(node);
-    source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
-  };
-  visit(checked.getSourceFile("/src/index.ts"));
+    `, (syntax, node) => syntax.is.IsMethodSignatureDeclaration(node));
   assert.equal(declarations.length, 1, "the exact source signature is selected");
   const declaration = declarations[0];
-  const storage = createSourceStorageQuery(source, source.navigation.sourceFiles);
   const subject = storage.memberSubjectFor(declaration);
   assert.equal(subject.kind, "resolved", "the checked signature has its exact logical member subject");
   const writes = storage.memberWritesFor(subject.subject);
@@ -139,7 +139,7 @@ test("a nonphysical checked method signature publishes neither physical writes n
   const environment = createCsharpTypeParameterEnvironment(() => assert.fail("the checked monomorphic signature has no generic constraints"));
   const selected = retainCsharpMethodValueContracts({
     targetType: createStructuralObjectShapeTarget([removed, member], undefined, environment, true), members: [removed, member],
-  }, () => assert.fail("an abstract signature cannot manufacture a native method protocol"), environment, storage);
+  }, () => assert.fail("an abstract signature cannot manufacture a native method protocol"), environment, inputs);
   const method = selected.members.find(value => value.sourceName === "run");
   assert.equal(selected.methodImplementation === undefined, true, "an abstract signature never fabricates a native body");
   assert.equal(method.methodValueContract === undefined, true, "no physical native protocol is inferred from the signature alone");

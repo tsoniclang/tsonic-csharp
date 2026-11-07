@@ -1,119 +1,132 @@
-import { selectCsharpFlowReadCarrier } from "../../policy/conversions/flow-read.js";
-import { csharpFlowReadPrincipalDeclaration, isCsharpFlowReadEvidenceNode, freezeSourceArgumentClassification } from "./source-values.js";
-import type { ExtensionFactSubject, Node, ResolvedSourceGeneratorInfo, ResolvedSourceWellKnownSymbolInfo, ResolvedSourceYieldInfo, SourceFile, Type, Signature } from "@tsonic/tsts";
+// The C# source evidence index (nextgen C-2542, I2, I4). One syntax walk over the program that records, per node,
+// the .NET representation of the Host's published answers (facts.values / selections / relations / navigation) and
+// the extension-marker records (fields, structs, default values, fixed arrays, memory metadata, pointer backing).
+// No checker Type, Signature or Symbol is read; no Source question is answered here. Host refusals are forwarded
+// before C# analysis (analysis/program/analyze.ts), so a refused Host outcome reached here is an invariant failure.
+// A CSHARP_ representation refusal is a .NET-capability issue and is reported at its site.
+import type { ExtensionFactSubject, Node, SourceFile } from "@tsonic/tsts";
 import { providerVirtualDeclarationFactKey } from "@tsonic/tsts";
-import type { SourceTypeComponentEvidence, TargetSourceProgram } from "@tsonic/target-api/source";
-import { sourceCallArgumentCorrespondences, sourceClassFieldIsTypeOnly, sourceTransparentExpressionOperand, sourceTypeDescriptorsEqual } from "@tsonic/target-api/source";
+import type { SourceTypeDescriptor, TargetSourceProgramFacts } from "@tsonic/target-api/source";
+import { sourceClassFieldIsTypeOnly, sourceTypeDescriptorsEqual } from "@tsonic/target-api/source";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
+import { tsonicCoreAnalysisKey, type TsonicPointerStorageRelation } from "@tsonic/source-core/facts";
+import { selectCsharpFlowReadCarrier } from "../../policy/conversions/flow-read.js";
+import { csharpFlowReadPrincipalDeclaration, isCsharpFlowReadEvidenceNode, freezeSourceArgumentClassification } from "./source-values.js";
 import { csharpNativePropertyNameIssue } from "../objects/computed-field-names.js";
-import type { CsharpTypePolicy } from "./types/resolution/model.js";
-import { combineCsharpTargetUnionMembers, isCsharpJsValueTargetType, targetTypeRefEquals, targetTypeRefKey } from "../../policy/types/index.js";
+import { isCsharpJsValueTargetType, targetTypeRefEquals, targetTypeRefKey } from "../../policy/types/index.js";
 import { isTypeParameterTargetRef } from "../../policy/ownership/type-categories.js";
 import { csharpTargetTypeComponents } from "../../target-model/types/components.js";
+import { csharpTsValueTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
+import type { CsharpTypeQueries } from "../../policy/model/type-resolution.js";
 import { csharpSourceTypeParameter } from "../../source/extension/type-parameters.js";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
-import type { CsharpContextualTupleClassification, CsharpContextualTypeEvidence, CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
-import type { CsharpSourceEvidenceResult } from "./model.js";
-import type { CsharpTypeParameterConstraintResolution } from "../../policy/constraints/index.js";
-import { selectCsharpSourceArgument } from "../../source/extension/arguments.js";
-import { csharpFixedArrayRepresentationRejection } from "../../policy/types/collections/fixed-arrays.js";
-import { readCsharpSourceDefaultValue, readCsharpSourceField, readCsharpSourceFixedArrayType, readCsharpSourceStruct } from "../../source/extension/markers.js";
-
-const missing = Symbol("csharp.source-evidence.missing");
-import { createTsonicMemoryMetadataIndex, createTsonicClosedArrayStorageQueries } from "@tsonic/source-core/facts";
-import type { TsonicPointerStorageRelation } from "@tsonic/source-core/facts";
-import { createCsharpPointerBackingDemands } from "./pointer-backing.js";
+import type { CsharpWellKnownSymbolKind, TargetTypeRef } from "../../target-model/types/model.js";
+import { csharpWellKnownSymbolKind } from "../../target-model/types/source-member-keys.js";
+import type { CsharpContextualTupleClassification, CsharpContextualTypeEvidence, CsharpSourceEvidenceIndex,
+  CsharpSourceArgumentClassification, CsharpValueRefinementClassification } from "../../target-model/records/program/source-evidence.js";
+import type { CsharpSourceDefaultValue, CsharpSourceField, CsharpSourceStruct } from "../../target-model/records/program/source-markers.js";
+import type { CsharpBindingProjection } from "../../target-model/records/storage/binding-projection-policy.js";
+import type { CsharpTypeParameterConstraintResolution } from "../../target-model/types/generic-constraints.js";
 import type { CsharpPointerReturnContract } from "../../target-model/records/calls/pointer-return.js";
+import type { CsharpSourceEvidenceResult } from "./model.js";
+import { selectCsharpSourceArgument } from "../../source/extension/arguments.js";
+import { readCsharpSourceDefaultValue, readCsharpSourceField, readCsharpSourceStruct } from "../../source/extension/markers.js";
+import { createCsharpPointerBackingDemands } from "./pointer-backing.js";
 import { analyzeCsharpTypeOnlyDeclarations } from "../declarations/type-only.js";
 import { selectCsharpClassFactoryType } from "../project-types/class-factory-types.js";
-type Cached<Value> = Value | typeof missing;
+import { isCsharpRefusal, type CsharpRefusal, type CsharpRepresentation } from "../../representation/index.js";
+import { csharpFixedArrayRefusalCode } from "../../policy/types/collections/fixed-arrays.js";
 
 export function analyzeCsharpSourceEvidence(
-  source: TargetSourceProgram,
+  source: TargetSourceProgramFacts,
   sourceFiles: readonly SourceFile[],
-  types: CsharpTypePolicy,
+  types: CsharpTypeQueries,
   policy: CsharpPolicyContext,
   pointerStorage: TsonicPointerStorageRelation,
 ): CsharpSourceEvidenceResult {
-  const memoryMetadata = createTsonicMemoryMetadataIndex(source);
+  const { syntax: ast, facts, sourceFacts } = source;
+  const core = facts.analyses.extension(tsonicCoreAnalysisKey);
   const pointerBacking = createCsharpPointerBackingDemands(source, pointerStorage, types);
-  const arrayStorage = createTsonicClosedArrayStorageQueries(source, 131_072);
   const typeOnlyDeclarations = analyzeCsharpTypeOnlyDeclarations(source, sourceFiles);
   const compileTimeMetadata = new WeakSet<Node>(typeOnlyDeclarations);
   let compileTimeDeclarationsOpen = true;
   const memoryMetadataIssues: { readonly node: Node; readonly code: string; readonly message: string }[] = [];
   const fixedArrayIssues: { readonly node: Node; readonly code: string; readonly message: string }[] = [];
-  const nativeExpressionIssues = new Map<Node, {
-    readonly diagnostic: TargetDiagnostic;
-    readonly requiredBy: Set<Node>;
-  }>();
-  const rejectedFixedArrayTypes = new Set<Type>();
-  const nodeTargetTypes = new WeakMap<Node, Cached<TargetTypeRef>>();
-  const bindingProjections = new WeakMap<Node, import("../../target-model/records/storage/binding-projection-policy.js").CsharpBindingProjection>();
-  const classConstructorTypes = new WeakMap<Node, Cached<TargetTypeRef>>();
-  const storageTargetTypes = new WeakMap<Node, Cached<TargetTypeRef>>();
-  const readStorageTargetTypes = new WeakMap<Node, Cached<TargetTypeRef>>();
-  const contextualTypes = new WeakMap<Node, Cached<CsharpContextualTypeEvidence>>();
+  const fixedArrayMessages = new Set<string>();
+  const nativeExpressionIssues = new Map<Node, { readonly diagnostic: TargetDiagnostic; readonly requiredBy: Set<Node> }>();
+  const nodeTargetTypes = new WeakMap<Node, TargetTypeRef>();
+  const bindingProjections = new WeakMap<Node, CsharpBindingProjection>();
+  const classConstructorTypes = new WeakMap<Node, TargetTypeRef>();
+  const storageTargetTypes = new WeakMap<Node, TargetTypeRef>();
+  const readStorageTargetTypes = new WeakMap<Node, TargetTypeRef>();
+  const contextualTypes = new WeakMap<Node, CsharpContextualTypeEvidence>();
   const constants = new WeakMap<Node, { readonly value: unknown }>();
-  const refinements = new WeakMap<Node, import("../../target-model/records/program/source-evidence.js").CsharpValueRefinementClassification>();
-  const generators = new WeakMap<Node, Cached<ResolvedSourceGeneratorInfo>>();
-  const generatorTargetTypes = new WeakMap<Node, Cached<TargetTypeRef>>();
-  const yields = new WeakMap<Node, Cached<ResolvedSourceYieldInfo>>();
-  const yieldTargetTypes = new WeakMap<Node, Cached<TargetTypeRef>>();
-  const wellKnownSymbols = new WeakMap<
-    Node,
-    Cached<ResolvedSourceWellKnownSymbolInfo>
-  >();
-  const inferredReturns = new WeakMap<Node, Cached<TargetTypeRef>>();
+  const refinements = new WeakMap<Node, CsharpValueRefinementClassification>();
+  const generators = new WeakMap<Node, NonNullable<ReturnType<typeof facts.selections.generator>>>();
+  const generatorTargetTypes = new WeakMap<Node, TargetTypeRef>();
+  const yields = new WeakMap<Node, NonNullable<ReturnType<typeof facts.selections.generator>>>();
+  const yieldTargetTypes = new WeakMap<Node, TargetTypeRef>();
+  const wellKnownSymbols = new WeakMap<Node, CsharpWellKnownSymbolKind>();
+  const inferredReturns = new WeakMap<Node, TargetTypeRef>();
   const pointerReturns = new WeakMap<Node, CsharpPointerReturnContract>();
-  const arguments_ = new WeakMap<
-    Node,
-    import("../../target-model/records/program/source-evidence.js").CsharpSourceArgumentClassification
-  >();
-  const defaultValues = new WeakMap<
-    Node,
-    import("../../target-model/records/program/source-markers.js").CsharpSourceDefaultValue
-  >();
-  const sourceFields = new WeakMap<
-    Node,
-    import("../../target-model/records/program/source-markers.js").CsharpSourceField
-  >();
-  const sourceStructs = new WeakMap<
-    Node,
-    import("../../target-model/records/program/source-markers.js").CsharpSourceStruct
-  >();
+  const arguments_ = new WeakMap<Node, CsharpSourceArgumentClassification>();
+  const defaultValues = new WeakMap<Node, CsharpSourceDefaultValue>();
+  const sourceFields = new WeakMap<Node, CsharpSourceField>();
+  const sourceStructs = new WeakMap<Node, CsharpSourceStruct>();
   const providerVirtualDeclarations = new WeakSet<Node>();
-  const signatureDeclarations = new WeakMap<Signature, Cached<Node>>();
   const contextualTuples = new WeakMap<Node, CsharpContextualTupleClassification>();
-  const typeParameterConstraints = new WeakMap<
-    Node,
-    CsharpTypeParameterConstraintResolution
-  >();
+  const typeParameterConstraints = new WeakMap<Node, CsharpTypeParameterConstraintResolution>();
   const sourceOwnedProjectShapes = new WeakMap<Node, boolean>();
   const targetTypes = new Map<string, TargetTypeRef>();
 
-  const recordTargetType = (
-    type: TargetTypeRef | undefined,
-  ): TargetTypeRef | undefined => {
-    if (type === undefined) {
-      return undefined;
-    }
+  const recordTargetType = (type: TargetTypeRef | undefined): TargetTypeRef | undefined => {
+    if (type === undefined) return undefined;
     const key = targetTypeRefKey(type);
-    if (targetTypes.has(key)) {
-      return type;
-    }
+    if (targetTypes.has(key)) return type;
     targetTypes.set(key, type);
-    for (const component of csharpTargetTypeComponents(type)) {
-      recordTargetType(component);
-    }
+    for (const component of csharpTargetTypeComponents(type)) recordTargetType(component);
     return type;
   };
 
-  for (const sourceFile of sourceFiles) {
-    visit(sourceFile, sourceFile);
-  }
+  /** A CSHARP_ representation refusal: fixed-array extents go to the fixed-array issues, the rest to native issues. */
+  const recordRefusal = (refusal: CsharpRefusal, requiredBy: Node): void => {
+    if (refusal.code === csharpFixedArrayRefusalCode) {
+      if (fixedArrayMessages.has(refusal.message)) return;
+      fixedArrayMessages.add(refusal.message);
+      fixedArrayIssues.push(Object.freeze({ node: refusal.site, code: refusal.code, message: refusal.message }));
+      return;
+    }
+    const previous = nativeExpressionIssues.get(refusal.site);
+    if (previous !== undefined) previous.requiredBy.add(requiredBy);
+    else nativeExpressionIssues.set(refusal.site, {
+      diagnostic: Object.freeze({ code: refusal.code, category: "error", source: "tsonic-csharp",
+        sourceNode: refusal.site, message: refusal.message }),
+      requiredBy: new Set([requiredBy]),
+    });
+  };
+
+  /**
+   * Records a represented type. A CSHARP_ refusal of a node's own value is reported at its site (outside type-only
+   * declarations); a refused derived carrier (storage, contextual, generator, return) is left unrecorded, and the
+   * reader that needs it reports its own .NET reason.
+   */
+  const represented = (selected: CsharpRepresentation, node: Node, typeOnly: boolean, report = false): TargetTypeRef | undefined => {
+    if (!isCsharpRefusal(selected)) return recordTargetType(selected);
+    if (report && !typeOnly) recordRefusal(selected, node);
+    return undefined;
+  };
+
+  /** The Host value type of a node with a published value (I4: `type` answers exactly where `has` is true). */
+  const hostValue = (node: Node): SourceTypeDescriptor | undefined => {
+    if (!facts.values.has(node)) return undefined;
+    const outcome = facts.values.type(node);
+    if (outcome.kind === "refused") return failTargetAnalysisInvariant("tsonic-csharp",
+      `A Host refusal (${outcome.code}) reached the C# source evidence; Host refusals are forwarded before C# analysis.`, node);
+    return outcome.type;
+  };
+
+  for (const sourceFile of sourceFiles) visit(sourceFile, sourceFile);
 
   function requirePropertyName(name: Node, requiredBy: Node): void {
     const previous = nativeExpressionIssues.get(name);
@@ -121,41 +134,68 @@ export function analyzeCsharpSourceEvidence(
       previous.requiredBy.add(requiredBy);
       return;
     }
-    const selected = source.semantics.forNode(name).propertyNames.get(name);
+    const selected = facts.analyses.propertyName(name);
     if (selected === undefined) {
-      if (source.ast.is.IsComputedPropertyName(name)) failTargetAnalysisInvariant("tsonic-csharp",
-        "A native computed field requires its completed checked property-name selection.", name);
+      if (ast.is.IsComputedPropertyName(name)) failTargetAnalysisInvariant("tsonic-csharp",
+        "A native computed field requires its Host property-name selection.", name);
       return;
     }
     const diagnostic = csharpNativePropertyNameIssue(name, selected);
     if (diagnostic !== undefined) nativeExpressionIssues.set(name, { diagnostic, requiredBy: new Set([requiredBy]) });
   }
 
-  function contextualTargetType(
-    node: Node,
-    contextual: SourceTypeComponentEvidence,
-    sourceFile: SourceFile,
-  ): TargetTypeRef | undefined {
-    const call = contextual.contextualCall;
-    if (call === undefined) {
-      return types.resolveSelectedType(contextual.authoredTypeNode, contextual.selectedType, sourceFile);
+  /** Project member names of an authored object type (Host object facts), each a native field name requirement. */
+  function requireAuthoredMemberNames(node: Node, authoredType: Node): void {
+    const type = hostValue(authoredType);
+    if (type === undefined || type.kind !== "shape" && (type.kind !== "declared" || ast.is.IsTypeParameterDeclaration(type.declaration))) return;
+    const members = facts.objects.members(type);
+    if (!Array.isArray(members)) return failTargetAnalysisInvariant("tsonic-csharp",
+      "Host object members of an authored type were refused after Host refusals were forwarded.", authoredType);
+    for (const member of members as Exclude<typeof members, { readonly kind: "refused" }>) {
+      for (const declaration of member.declarations) {
+        if (!facts.navigation.identity.isProjectDeclaration(declaration) || sourceClassFieldIsTypeOnly(ast, declaration)) continue;
+        let owner: Node | undefined = declaration;
+        while (owner !== undefined && !compileTimeMetadata.has(owner)) owner = ast.parent(owner);
+        if (owner !== undefined) continue;
+        const name = ast.name(declaration);
+        if (name !== undefined) requirePropertyName(name, node);
+      }
     }
-    const correspondence = sourceCallArgumentCorrespondences({ ast: source.ast,
-      semantics: source.semantics.forFile(sourceFile) }, call);
-    const bindings = correspondence?.filter(row => {
-      let argument = row.argument.expression;
-      for (let operand = sourceTransparentExpressionOperand(source.ast, argument); operand !== undefined;
-        operand = sourceTransparentExpressionOperand(source.ast, argument)) argument = operand;
-      return argument === node;
-    });
-    return bindings?.length === 1
-      ? types.resolveSourceCallArgumentParameter(call, bindings[0]!.binding, sourceFile)
-      : undefined;
+  }
+
+  /** Storage of a node: the slot it names (catch variables use the TS value carrier), else its own value. */
+  function storageOf(node: Node): CsharpRepresentation | undefined {
+    if (ast.is.IsParenthesizedExpression(node)) {
+      const inner = ast.as.AsParenthesizedExpression(node)?.Expression;
+      return inner === undefined || !facts.values.has(inner) ? undefined : types.readStorage(inner);
+    }
+    const declaration = isValueDeclaration(node) ? node : facts.navigation.identity.target(node)?.declaration;
+    if (declaration !== undefined && isValueDeclaration(declaration)) {
+      if (isCatchVariable(declaration)) return csharpTsValueTargetType();
+      return facts.values.has(declaration) ? types.storage(declaration) : undefined;
+    }
+    return facts.values.has(node) ? types.value(node) : undefined;
+  }
+
+  function isValueDeclaration(node: Node): boolean {
+    return ast.is.IsVariableDeclaration(node) || ast.is.IsParameterDeclaration(node) || ast.is.IsBindingElement(node) ||
+      ast.is.IsPropertyDeclaration(node) || ast.is.IsPropertySignatureDeclaration(node);
+  }
+
+  function isCatchVariable(declaration: Node): boolean {
+    if (!ast.is.IsVariableDeclaration(declaration)) return false;
+    const parent = ast.parent(declaration);
+    return parent !== undefined && ast.is.IsCatchClause(parent) && ast.as.AsCatchClause(parent)?.VariableDeclaration === declaration;
+  }
+
+  function isCallableBody(node: Node): boolean {
+    return (ast.is.IsFunctionDeclaration(node) || ast.is.IsFunctionExpression(node) || ast.is.IsArrowFunction(node) ||
+      ast.is.IsMethodDeclaration(node) || ast.is.IsGetAccessorDeclaration(node)) && ast.body(node) !== undefined;
   }
 
   function visit(node: Node, sourceFile: SourceFile, typeOnly = false): void {
-    if (!typeOnly && policy.types.nativeUnreachable(node)) return;
-    if (source.ast.is.IsVariableDeclaration(node)) {
+    if (!typeOnly && facts.navigation.scopes.unreachable(node)) return;
+    if (ast.is.IsVariableDeclaration(node)) {
       const alias = policy.callOnlyAlias(node);
       if (alias !== undefined) {
         for (const declaration of alias.declarations) compileTimeMetadata.add(declaration);
@@ -163,336 +203,194 @@ export function analyzeCsharpSourceEvidence(
       }
     }
     pointerBacking.record(node);
-    const declaration = memoryMetadata.declaration(node);
-    if (declaration !== undefined || memoryMetadata.isCompileTimeExpression(node)) {
+    const declaration = core.memoryMetadata.declaration(node);
+    if (declaration !== undefined || core.memoryMetadata.isCompileTimeExpression(node)) {
       compileTimeMetadata.add(node);
       for (const issue of declaration?.issues ?? []) memoryMetadataIssues.push(Object.freeze({
         node: issue.node, code: "CSHARP_MEMORY_METADATA_RUNTIME_ESCAPE", message: issue.reason,
       }));
       return;
     }
-    if (
-      node === sourceFile ||
-      source.ast.is.IsImportDeclaration(node) ||
-      source.ast.is.IsImportClause(node) ||
-      source.ast.kindName(node) === "KindEndOfFile"
-    ) {
-      source.ast.forEachChild(node, (child) => {
-        if (child !== undefined) {
-          visit(child, sourceFile, typeOnly || source.ast.is.IsImportDeclaration(node) || source.ast.is.IsImportClause(node));
-        }
+    if (node === sourceFile || ast.is.IsImportDeclaration(node) || ast.is.IsImportClause(node) || ast.kindName(node) === "KindEndOfFile") {
+      ast.forEachChild(node, child => {
+        if (child !== undefined) visit(child, sourceFile, typeOnly || ast.is.IsImportDeclaration(node) || ast.is.IsImportClause(node));
       });
       return;
     }
-    const semantics = source.semantics.forFile(sourceFile);
-    if (source.ast.is.IsBindingElement(node)) {
-      const projection = types.resolveBindingProjection(node, sourceFile);
+    if (ast.is.IsBindingElement(node)) {
+      const projection = types.resolveBindingProjection(node);
       if (projection !== undefined) {
         recordTargetType(projection.storageCarrier);
         bindingProjections.set(node, projection);
       }
     }
-    typeOnly ||= source.ast.is.IsTypeAliasDeclaration(node) || source.ast.is.IsInterfaceDeclaration(node) || source.ast.is.IsExportDeclaration(node);
+    typeOnly ||= ast.is.IsTypeAliasDeclaration(node) || ast.is.IsInterfaceDeclaration(node) || ast.is.IsExportDeclaration(node);
     if (!typeOnly) {
-      const members = source.ast.is.IsObjectLiteralExpression(node) ? source.ast.properties(node)
-        : source.ast.is.IsClassDeclaration(node) || source.ast.is.IsClassExpression(node) ? source.ast.members(node) : [];
+      const members = ast.is.IsObjectLiteralExpression(node) ? ast.properties(node)
+        : ast.is.IsClassDeclaration(node) || ast.is.IsClassExpression(node) ? ast.members(node) : [];
       for (const member of members) {
-        if (member === undefined || sourceClassFieldIsTypeOnly(source.ast, member)) continue;
-        const name = source.ast.name(member);
+        if (member === undefined || sourceClassFieldIsTypeOnly(ast, member)) continue;
+        const name = ast.name(member);
         if (name !== undefined) requirePropertyName(name, node);
       }
-      const argument = source.ast.is.IsElementAccessExpression(node) ? source.ast.as.AsElementAccessExpression(node)?.ArgumentExpression
-        : source.ast.is.IsBindingElement(node) ? source.ast.as.AsBindingElement(node)?.PropertyName : undefined;
+      const argument = ast.is.IsElementAccessExpression(node) ? ast.as.AsElementAccessExpression(node)?.ArgumentExpression
+        : ast.is.IsBindingElement(node) ? ast.as.AsBindingElement(node)?.PropertyName : undefined;
       if (argument !== undefined) requirePropertyName(argument, node);
-      const authoredType = source.ast.is.IsTypeReferenceNode(node) ? node : source.ast.typeNode(node);
-      recordFixedArrayIssues(node, [node, ...(authoredType === undefined ? [] : semantics.facts.authoredTypeSubjects(authoredType))]);
-      const requiredType = authoredType === undefined ? undefined : semantics.types.authoredType(authoredType);
-      if (requiredType !== undefined) {
-        recordSelectedFixedArrayIssues(node, requiredType, sourceFile);
-        for (const property of semantics.types.propertyInfos(requiredType)) {
-          for (const symbol of new Set([property.symbol, ...property.rootSymbols])) {
-            for (const member of semantics.declarations.symbolDeclarations(symbol)) {
-              if (!source.navigation.isProjectDeclaration(member) || sourceClassFieldIsTypeOnly(source.ast, member)) continue;
-              let owner: Node | undefined = member;
-              while (owner !== undefined && !compileTimeMetadata.has(owner)) owner = source.ast.parent(owner);
-              if (owner !== undefined) continue;
-              const name = source.ast.name(member);
-              if (name !== undefined) requirePropertyName(name, node);
-            }
-          }
-        }
-      }
+      const authoredType = ast.is.IsTypeReferenceNode(node) ? node : ast.typeNode(node);
+      if (authoredType !== undefined) requireAuthoredMemberNames(node, authoredType);
     }
-    arguments_.set(
-      node,
-      freezeSourceArgumentClassification(
-        selectCsharpSourceArgument(source.sourceFacts, node),
-      ),
-    );
-    const defaultValue = readCsharpSourceDefaultValue(source.sourceFacts, node);
+    arguments_.set(node, freezeSourceArgumentClassification(selectCsharpSourceArgument(sourceFacts, node)));
+    const defaultValue = readCsharpSourceDefaultValue(sourceFacts, node);
     if (defaultValue !== undefined) defaultValues.set(node, defaultValue);
-    const sourceField = readCsharpSourceField(source.sourceFacts, [node]);
+    const sourceField = readCsharpSourceField(sourceFacts, [node]);
     if (sourceField !== undefined) sourceFields.set(node, sourceField);
-    const sourceStruct = readCsharpSourceStruct(source.sourceFacts, node);
+    const sourceStruct = readCsharpSourceStruct(sourceFacts, node);
     if (sourceStruct !== undefined) sourceStructs.set(node, sourceStruct);
-    if (
-      source.sourceFacts?.getFact(node, providerVirtualDeclarationFactKey) !==
-        undefined
-    ) {
-      providerVirtualDeclarations.add(node);
+    if (sourceFacts.getFact(node as ExtensionFactSubject, providerVirtualDeclarationFactKey) !== undefined) providerVirtualDeclarations.add(node);
+
+    const value = hostValue(node);
+    const nodeTargetType = value === undefined ? undefined : represented(types.value(node), node, typeOnly, true);
+    if (nodeTargetType !== undefined) nodeTargetTypes.set(node, nodeTargetType);
+    if (ast.is.IsClassDeclaration(node) || ast.is.IsClassExpression(node)) {
+      const constructorType = recordTargetType(selectCsharpClassFactoryType(ast, policy.projectTypes.catalog, nodeTargetType));
+      if (constructorType !== undefined) classConstructorTypes.set(node, constructorType);
     }
-    const nodeSelection = types.resolveNode(node, sourceFile);
-    nodeTargetTypes.set(node, recordTargetType(nodeSelection?.kind === "resolved" ? nodeSelection.sourceResult.selectedType : undefined) ?? missing);
-    const nodeTargetType = cachedValue(nodeTargetTypes.get(node));
-    if (source.ast.is.IsClassDeclaration(node) || source.ast.is.IsClassExpression(node)) {
-      classConstructorTypes.set(node, recordTargetType(selectCsharpClassFactoryType(source.ast,
-        policy.projectTypes.catalog, nodeTargetType)) ?? missing);
-    }
-    if (!typeOnly && nodeSelection?.kind === "rejected") {
-      const previous = nativeExpressionIssues.get(nodeSelection.subject);
-      if (previous !== undefined) previous.requiredBy.add(node);
-      else nativeExpressionIssues.set(nodeSelection.subject, {
-        diagnostic: Object.freeze({ code: nodeSelection.code, category: "error", source: "tsonic-csharp",
-          sourceNode: nodeSelection.subject, message: nodeSelection.reason }), requiredBy: new Set([node]),
-      });
-    }
-    sourceOwnedProjectShapes.set(
-      node,
-      !isCsharpJsValueTargetType(nodeTargetType) &&
-        (
-          isTypeParameterTargetRef(nodeTargetType) ||
-          source.navigation.isProjectShape(node)
-        ),
-    );
-    storageTargetTypes.set(
-      node,
-      recordTargetType(types.resolveStorage(node, sourceFile)) ?? missing,
-    );
-    readStorageTargetTypes.set(
-      node,
-      recordTargetType(types.resolveReadStorage(node, sourceFile)) ?? missing,
-    );
-    const contextualType = semantics.types.contextualType(node);
-    if (!typeOnly && contextualType !== undefined) recordSelectedFixedArrayIssues(node, contextualType.selectedType, sourceFile);
-    contextualTypes.set(node, contextualType === undefined ? missing : Object.freeze({
-      ...contextualType,
-      targetType: recordTargetType(contextualTargetType(node, contextualType, sourceFile)),
-    }));
-    if (source.ast.is.IsEnumMember(node)) {
-      const constant = source.semantics.enumConstants.get(node);
-      if (constant === undefined) failTargetAnalysisInvariant("tsonic-csharp", "A checked enum member requires its exact completed source constant selection.", node);
+    sourceOwnedProjectShapes.set(node, !isCsharpJsValueTargetType(nodeTargetType) &&
+      (isTypeParameterTargetRef(nodeTargetType) || facts.navigation.identity.isProjectShape(node)));
+    const storage = storageOf(node);
+    const storageTargetType = storage === undefined ? undefined : represented(storage, node, typeOnly);
+    if (storageTargetType !== undefined) storageTargetTypes.set(node, storageTargetType);
+    const readStorageTargetType = value === undefined || isValueDeclaration(node) ? undefined
+      : represented(types.readStorage(node), node, typeOnly);
+    if (readStorageTargetType !== undefined) readStorageTargetTypes.set(node, readStorageTargetType);
+
+    // A refused destination is a Host refusal, forwarded with facts.refusals() before C# analysis; no C# carrier (R5).
+    const contextualOutcome = value === undefined ? undefined : facts.values.contextual(node);
+    const contextual = contextualOutcome === undefined || contextualOutcome.kind === "refused" ? undefined : contextualOutcome.type;
+    if (contextual !== undefined) contextualTypes.set(node, Object.freeze({ type: contextual,
+      targetType: represented(types.represent(contextual, node, "storage"), node, typeOnly) }));
+    if (ast.is.IsEnumMember(node)) {
+      const constant = facts.analyses.enumConstant(node);
+      if (constant === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An enum member requires its Host constant selection.", node);
       if (constant.kind === "resolved") {
         constants.set(node, Object.freeze({ value: constant.value }));
-        const initializer = source.ast.as.AsEnumMember(node)?.Initializer;
+        const initializer = ast.as.AsEnumMember(node)?.Initializer;
         if (initializer !== undefined) compileTimeMetadata.add(initializer);
       }
-    } else {
-      const constantValue = semantics.types.constantValue(node);
-      if (constantValue !== undefined) constants.set(node, Object.freeze({ value: constantValue }));
     }
-    const readStorageTargetType = cachedValue(readStorageTargetTypes.get(node));
-    const publication = source.effectiveTypes.get(node);
-    const principal = publication === undefined || publication.kind === "refused" ? undefined
-      : source.effectiveTypes.get(csharpFlowReadPrincipalDeclaration(source.ast, source.navigation, node) ??
-        publication.provenance.component?.declaration ?? publication.provenance.group);
-    const exact = publication !== undefined && publication.kind !== "refused" && principal !== undefined &&
-      principal.kind !== "refused" && sourceTypeDescriptorsEqual(publication.type, principal.type);
-    const nativeMembers = nodeTargetType === undefined || readStorageTargetType === undefined ||
-      !isCsharpFlowReadEvidenceNode(source.ast, node) ? undefined : types.nativeFlowMembers(node, readStorageTargetType);
-    const selectedTargetType = nativeMembers === undefined ? nodeTargetType
-      : recordTargetType(combineCsharpTargetUnionMembers(nativeMembers));
-    const flowReadTargetType = recordTargetType(selectCsharpFlowReadCarrier({
-      exactSourceRead: exact,
-      nativeSourceRead: nativeMembers !== undefined,
-      unrelatedSourceTypesShareTargetRepresentation: selectedTargetType !== undefined && readStorageTargetType !== undefined &&
-        targetTypeRefEquals(selectedTargetType, readStorageTargetType),
-      selectedTargetType, readStorageTargetType, memberTargetTypes: undefined,
-    }));
-    refinements.set(node, Object.freeze({
-      kind: publication === undefined || publication.kind === "refused" ? "unavailable" : "resolved",
-      exact,
-      ...(selectedTargetType === undefined ? {} : { selectedTargetType }),
-      ...(flowReadTargetType === undefined ? {} : { flowReadTargetType }),
-    }));
-    const generator = semantics.operations.generator(node);
-    generators.set(node, generator ?? missing);
-    generatorTargetTypes.set(
-      node,
-      generator === undefined
-        ? missing
-        : recordTargetType(types.resolveSelectedType(
-            source.ast.typeNode(generator.declaration),
-            generator.sourceReturnType,
-            sourceFile,
-          )) ?? missing,
-    );
-    const yieldEvidence = semantics.operations.yield(node);
-    yields.set(node, yieldEvidence ?? missing);
-    yieldTargetTypes.set(
-      node,
-      yieldEvidence === undefined
-        ? missing
-        : recordTargetType(types.resolveSelectedValue(
-            yieldEvidence.operand?.expression ?? node,
-            yieldEvidence.operand?.type ?? yieldEvidence.sourceYieldType,
-            sourceFile,
-          )) ?? missing,
-    );
-    const wellKnownSymbol = semantics.operations.wellKnownSymbol(node);
-    wellKnownSymbols.set(node, wellKnownSymbol ?? missing);
-    const call = semantics.operations.call(node);
-    if (call !== undefined) {
-      signatureDeclarations.set(
-        call.selectedSignature,
-        semantics.declarations.signatureDeclaration(call.selectedSignature) ?? missing,
-      );
+    if (value !== undefined && isCsharpFlowReadEvidenceNode(ast, node)) {
+      refinements.set(node, valueRefinement(node, value, nodeTargetType, readStorageTargetType));
     }
-    if (source.ast.is.IsArrayLiteralExpression(node)) {
-      const elementCount = source.ast.elements(node).length;
-      const contextual = semantics.types.contextualTupleSelection(
-        node,
-        elementCount,
-      );
-      contextualTuples.set(
-        node,
-        contextual.kind === "unavailable"
-          ? Object.freeze({ kind: "unavailable" })
-          : Object.freeze({
-              kind: "selected",
-              elementTypes: Object.freeze(contextual.elements.map((element) =>
-                recordTargetType(types.resolveSelectedType(
-                  element.declaration === undefined
-                    ? undefined
-                    : source.ast.typeNode(element.declaration),
-                  element.type,
-                  sourceFile,
-                )))),
-              optionalElementIndexes: Object.freeze(contextual.elements.flatMap(
-                (element, index) => element.elementKind === "optional" ? [index] : [],
-              )),
-              omittedOptionalElementIndexes: Object.freeze([
-                ...contextual.omittedOptionalElementIndexes,
-              ]),
-            }),
-      );
+
+    const generator = facts.selections.generator(node);
+    if (generator !== undefined) {
+      generators.set(node, generator);
+      const carrier = represented(types.callableReturn(node), node, typeOnly);
+      if (carrier !== undefined) generatorTargetTypes.set(node, carrier);
     }
-    const inferredReturn = types.resolveCallableReturn(node);
-    const pointerReturn = types.resolvePointerReturn(node);
-    if (pointerReturn !== undefined) pointerReturns.set(node, pointerReturn);
-    inferredReturns.set(node, recordTargetType(pointerReturn?.type ?? inferredReturn) ?? missing);
-    if (source.ast.is.IsTypeParameterDeclaration(node)) {
-      const parameter = csharpSourceTypeParameter(node, source.ast);
-      if (parameter !== undefined) {
-        const selection = types.resolveNode(node, sourceFile);
-        const selected = selection?.kind === "resolved" ? selection.sourceResult.selectedType : undefined;
-        const constraints = selected?.kind === "type-parameter" && selected.identity === parameter.identity
-          ? selected.csharpConstraints : undefined;
-        typeParameterConstraints.set(
-          node,
-          constraints ?? Object.freeze({ kind: "unsupported",
-            reason: `Generic binder '${parameter.name}' has no selected native constraint contract.` }),
-        );
-      }
+    if (ast.is.IsYieldExpression(node)) {
+      const callable = facts.navigation.scopes.enclosing(node, "callable-body");
+      const enclosing = callable === undefined ? undefined : facts.selections.generator(callable);
+      if (enclosing === undefined) failTargetAnalysisInvariant("tsonic-csharp", "A yield expression requires its enclosing Host generator selection.", node);
+      yields.set(node, enclosing);
+      const operand = ast.as.AsYieldExpression(node)?.Expression;
+      const carrier = represented(operand === undefined ? types.represent(enclosing.yieldType, node, "value") : types.value(operand), node, typeOnly);
+      if (carrier !== undefined) yieldTargetTypes.set(node, carrier);
     }
-    source.ast.forEachChild(node, (child) => {
-      if (child !== undefined) {
-        visit(child, sourceFile, typeOnly);
-      }
+    const wellKnownSymbol = facts.selections.wellKnownSymbol(node);
+    if (wellKnownSymbol !== undefined) wellKnownSymbols.set(node, csharpWellKnownSymbolKind(wellKnownSymbol));
+    if (ast.is.IsArrayLiteralExpression(node)) contextualTuples.set(node, contextualTuple(node, contextual, typeOnly));
+    if (isCallableBody(node)) {
+      const pointerReturn = types.resolvePointerReturn(node);
+      if (pointerReturn !== undefined) pointerReturns.set(node, pointerReturn);
+      const outcome = facts.values.callableReturn(node);
+      // A refused callable result is a Host refusal, forwarded before C# analysis; it has no C# return carrier.
+      const inferred = pointerReturn?.type ?? (outcome.kind === "refused" ? undefined
+        : represented(types.represent(outcome.type, node, "return"), node, typeOnly));
+      if (inferred !== undefined) inferredReturns.set(node, recordTargetType(inferred)!);
+    }
+    if (ast.is.IsTypeParameterDeclaration(node)) {
+      const parameter = csharpSourceTypeParameter(node, ast);
+      if (parameter !== undefined) typeParameterConstraints.set(node, types.typeParameterConstraints(node, parameter));
+    }
+    ast.forEachChild(node, child => {
+      if (child !== undefined) visit(child, sourceFile, typeOnly);
     });
   }
 
-  function recordFixedArrayIssues(node: Node, subjects: readonly ExtensionFactSubject[]): void {
-    for (const subject of subjects) {
-      const fact = readCsharpSourceFixedArrayType(source.sourceFacts, subject);
-      if (fact === undefined || rejectedFixedArrayTypes.has(fact.sourceType)) continue;
-      const message = csharpFixedArrayRepresentationRejection(fact);
-      if (message === undefined) continue;
-      rejectedFixedArrayTypes.add(fact.sourceType);
-      fixedArrayIssues.push(Object.freeze({ node, code: "CSHARP_FIXED_ARRAY_REPRESENTATION_UNSUPPORTED", message }));
-    }
+  /**
+   * A flow read: the Host publishes the narrowed read type at the occurrence (relations narrowed-read), so the
+   * selected carrier is the occurrence's own representation; `exact` when it equals the principal slot type.
+   */
+  function valueRefinement(node: Node, value: SourceTypeDescriptor, selectedTargetType: TargetTypeRef | undefined,
+    readStorageTargetType: TargetTypeRef | undefined): CsharpValueRefinementClassification {
+    const outcome = facts.values.type(node);
+    const principalNode = csharpFlowReadPrincipalDeclaration(ast, facts.navigation.identity, node) ??
+      (outcome.kind === "refused" ? undefined : outcome.provenance.component?.declaration ?? outcome.provenance.group);
+    const principal = principalNode === undefined || !facts.values.has(principalNode) ? undefined : facts.values.type(principalNode);
+    const exact = principal !== undefined && principal.kind !== "refused" && sourceTypeDescriptorsEqual(value, principal.type);
+    const relation = facts.relations.at(node);
+    const narrowed = relation !== undefined && (relation.kind === "extract-arm" ||
+      relation.kind === "map" && relation.mode === "narrowed-read");
+    const flowReadTargetType = recordTargetType(selectCsharpFlowReadCarrier({
+      exactSourceRead: exact,
+      nativeSourceRead: narrowed,
+      unrelatedSourceTypesShareTargetRepresentation: selectedTargetType !== undefined && readStorageTargetType !== undefined &&
+        targetTypeRefEquals(selectedTargetType, readStorageTargetType),
+      selectedTargetType,
+      readStorageTargetType,
+    }));
+    return Object.freeze({
+      kind: "resolved",
+      exact,
+      ...(selectedTargetType === undefined ? {} : { selectedTargetType }),
+      ...(flowReadTargetType === undefined ? {} : { flowReadTargetType }),
+    });
   }
 
-  function recordSelectedFixedArrayIssues(node: Node, type: Type, sourceFile: SourceFile): void {
-    let current: Type | undefined = type;
-    const visited = new Set<Type>();
-    while (current !== undefined && !visited.has(current)) {
-      visited.add(current);
-      const selected = types.selectFixedArray(current, sourceFile);
-      if (selected === undefined) return;
-      const message = selected.kind === "invalid"
-        ? `C# FixedArray has no exact closed value representation: ${selected.reason}`
-        : csharpFixedArrayRepresentationRejection(selected.fact);
-      if (message !== undefined && !rejectedFixedArrayTypes.has(current)) {
-        rejectedFixedArrayTypes.add(current);
-        fixedArrayIssues.push(Object.freeze({ node, code: "CSHARP_FIXED_ARRAY_REPRESENTATION_UNSUPPORTED", message }));
-      }
-      current = selected.kind === "selected" ? selected.fact.elementSourceType : undefined;
-    }
+  /** The Host contextual tuple of an array literal: element carriers, optional and omitted optional positions. */
+  function contextualTuple(node: Node, contextual: SourceTypeDescriptor | undefined, typeOnly: boolean): CsharpContextualTupleClassification {
+    const tuple = contextual?.kind === "optional" ? contextual.value : contextual;
+    if (tuple?.kind !== "tuple") return Object.freeze({ kind: "unavailable" });
+    const count = ast.elements(node).length;
+    return Object.freeze({
+      kind: "selected",
+      elementTypes: Object.freeze(tuple.elements.map(element =>
+        represented(types.represent(element.type, node, "storage"), node, typeOnly))),
+      optionalElementIndexes: Object.freeze(tuple.elements.flatMap((element, index) => element.kind === "optional" ? [index] : [])),
+      omittedOptionalElementIndexes: Object.freeze(tuple.elements.flatMap((element, index) =>
+        element.kind === "optional" && index >= count ? [index] : [])),
+    });
   }
 
   const pointerBackingRecords = pointerBacking.seal();
   const index: CsharpSourceEvidenceIndex = {
-    bindingProjection: Object.freeze({ get: node => bindingProjections.get(node) }),
+    bindingProjection: Object.freeze({ get: (node: Node) => bindingProjections.get(node) }),
     pointerBackingUses: pointerBackingRecords.uses,
     memoryMetadataIssues: Object.freeze([...memoryMetadataIssues, ...pointerBackingRecords.issues.map(issue => ({
       node: issue.node, code: "CSHARP_POINTER_BACKING_NOT_PROVEN", message: issue.reason,
     }))]),
     fixedArrayIssues: Object.freeze(fixedArrayIssues),
-    compileTimeMetadata: Object.freeze({ get: node => compileTimeMetadata.has(node) }),
-    classConstructorType: Object.freeze({ get: node => cachedValue(classConstructorTypes.get(node)) }),
+    compileTimeMetadata: Object.freeze({ get: (node: Node) => compileTimeMetadata.has(node) }),
+    classConstructorType: Object.freeze({ get: (node: Node) => classConstructorTypes.get(node) }),
     targetTypes: Object.freeze([...targetTypes.values()]),
-    nodeTargetType: Object.freeze({ get(node) {
-      return cachedValue(nodeTargetTypes.get(node));
-    } }),
-    storageTargetType: Object.freeze({ get(node) {
-      return cachedValue(storageTargetTypes.get(node));
-    } }),
-    readStorageTargetType: Object.freeze({ get(node) {
-      return cachedValue(readStorageTargetTypes.get(node));
-    } }),
-    contextualType: Object.freeze({ get(node) {
-      return cachedValue(contextualTypes.get(node));
-    } }),
-    signatureDeclaration: Object.freeze({ get(signature) {
-      return cachedValue(signatureDeclarations.get(signature));
-    } }),
-    contextualTuple: Object.freeze({ get(node) {
-      return contextualTuples.get(node);
-    } }),
-    constantValue: Object.freeze({ get(node) {
-      return constants.get(node);
-    } }),
-    valueRefinement: Object.freeze({ get(node) {
-      return refinements.get(node);
-    } }),
-    generator: Object.freeze({ get(node) {
-      return cachedValue(generators.get(node));
-    } }),
-    generatorTargetType: Object.freeze({ get(node) {
-      return cachedValue(generatorTargetTypes.get(node));
-    } }),
-    yield: Object.freeze({ get(node) {
-      return cachedValue(yields.get(node));
-    } }),
-    yieldTargetType: Object.freeze({ get(node) {
-      return cachedValue(yieldTargetTypes.get(node));
-    } }),
-    wellKnownSymbol: Object.freeze({ get(node) {
-      return cachedValue(wellKnownSymbols.get(node));
-    } }),
-    inferredCallableReturnType: Object.freeze({ get(node) {
-      return cachedValue(inferredReturns.get(node));
-    } }),
-    pointerReturn: Object.freeze({ get(node) {
-      return pointerReturns.get(node);
-    } }),
-    sourceArgument: Object.freeze({ get(node) {
-      return arguments_.get(node);
-    } }),
-    sourceDefaultValue: Object.freeze({ get(node) {
-      return defaultValues.get(node);
-    } }),
-    sourceField: Object.freeze({ get(subjects) {
+    nodeTargetType: Object.freeze({ get: (node: Node) => nodeTargetTypes.get(node) }),
+    storageTargetType: Object.freeze({ get: (node: Node) => storageTargetTypes.get(node) }),
+    readStorageTargetType: Object.freeze({ get: (node: Node) => readStorageTargetTypes.get(node) }),
+    contextualType: Object.freeze({ get: (node: Node) => contextualTypes.get(node) }),
+    contextualTuple: Object.freeze({ get: (node: Node) => contextualTuples.get(node) }),
+    constantValue: Object.freeze({ get: (node: Node) => constants.get(node) }),
+    valueRefinement: Object.freeze({ get: (node: Node) => refinements.get(node) }),
+    generator: Object.freeze({ get: (node: Node) => generators.get(node) }),
+    generatorTargetType: Object.freeze({ get: (node: Node) => generatorTargetTypes.get(node) }),
+    yield: Object.freeze({ get: (node: Node) => yields.get(node) }),
+    yieldTargetType: Object.freeze({ get: (node: Node) => yieldTargetTypes.get(node) }),
+    wellKnownSymbol: Object.freeze({ get: (node: Node) => wellKnownSymbols.get(node) }),
+    inferredCallableReturnType: Object.freeze({ get: (node: Node) => inferredReturns.get(node) }),
+    pointerReturn: Object.freeze({ get: (node: Node) => pointerReturns.get(node) }),
+    sourceArgument: Object.freeze({ get: (node: Node) => arguments_.get(node) }),
+    sourceDefaultValue: Object.freeze({ get: (node: Node) => defaultValues.get(node) }),
+    sourceField: Object.freeze({ get(subjects: readonly (Node | undefined)[]) {
       for (const subject of subjects) {
         if (subject === undefined) continue;
         const field = sourceFields.get(subject);
@@ -500,21 +398,16 @@ export function analyzeCsharpSourceEvidence(
       }
       return undefined;
     } }),
-    sourceStruct: Object.freeze({ get(node) {
-      return sourceStructs.get(node);
-    } }),
-    providerVirtualDeclaration: Object.freeze({ get(node) {
-      return providerVirtualDeclarations.has(node);
-    } }),
-    typeParameterConstraints: Object.freeze({ get(node) {
-      return typeParameterConstraints.get(node);
-    } }),
-    sourceOwnedProjectShape: Object.freeze({ get(node) {
-      return sourceOwnedProjectShapes.get(node);
-    } }),
+    sourceStruct: Object.freeze({ get: (node: Node) => sourceStructs.get(node) }),
+    providerVirtualDeclaration: Object.freeze({ get: (node: Node) => providerVirtualDeclarations.has(node) }),
+    typeParameterConstraints: Object.freeze({ get: (node: Node) => typeParameterConstraints.get(node) }),
+    sourceOwnedProjectShape: Object.freeze({ get: (node: Node) => sourceOwnedProjectShapes.get(node) }),
   };
-  return Object.freeze({ index: Object.freeze(index), nativeExpressionIssues: Object.freeze([...nativeExpressionIssues].map(([sourceNode, issue]) =>
-    Object.freeze({ ...issue.diagnostic, sourceNode, requiredBy: Object.freeze([...issue.requiredBy]) }))), inspectClosedArrayStorage: arrayStorage.resolve,
+  return Object.freeze({
+    index: Object.freeze(index),
+    nativeExpressionIssues: Object.freeze([...nativeExpressionIssues].map(([sourceNode, issue]) =>
+      Object.freeze({ ...issue.diagnostic, sourceNode, requiredBy: Object.freeze([...issue.requiredBy]) }))),
+    inspectClosedArrayStorage: core.closedArrayStorage,
     eraseCompileTimeDeclaration(declaration: Node): void {
       if (!compileTimeDeclarationsOpen) failTargetAnalysisInvariant("tsonic-csharp",
         "Compile-time declaration selection cannot change after native admission is sealed.", declaration);
@@ -526,8 +419,4 @@ export function analyzeCsharpSourceEvidence(
       compileTimeDeclarationsOpen = false;
     },
   });
-}
-
-function cachedValue<Value>(value: Cached<Value> | undefined): Value | undefined {
-  return value === undefined || value === missing ? undefined : value;
 }

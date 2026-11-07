@@ -4,56 +4,56 @@ import { createCsharpSourceProfileInputs } from "../../../../dist/analysis/progr
 import { csharpDelegateTargetType, csharpNullableTargetType, csharpRuntimeUnionTargetType,
   csharpSourcePrimitiveTargetType } from "../../../../dist/target-model/types/index.js";
 
+// Basis (nextgen C-2542, signed by Claude): the profile inputs read the Host call selection (`parameters` after
+// instantiation, `arguments` = argument → parameter correspondence) and published argument descriptors. The declared
+// parameter carrier is `types.represent(parameter.type, call, "storage")`; the callable-arm projection rule is unchanged.
 const scalar = csharpSourcePrimitiveTargetType("int32");
 const callable = csharpDelegateTargetType("System.Func", [scalar], scalar);
 const sequence = { kind: "array", element: scalar };
 const declared = csharpNullableTargetType(csharpRuntimeUnionTargetType([callable, sequence]));
+const callableDescriptor = Object.freeze({ kind: "callable", calls: [{ typeParameters: [], parameters: [],
+  result: { kind: "primitive", primitive: "int32" } }], constructs: [] });
+const plainDescriptor = Object.freeze({ kind: "array", readonly: false, element: { kind: "primitive", primitive: "int32" } });
 
 function inputs(options = {}) {
-  const file = {};
-  const argument = { expression: {}, type: {} };
-  const binding = { sourceArgumentIndex: 0, effectiveArgumentIndex: 0, sourceParameterIndex: 0,
-    sourceForm: "value" };
+  const argument = { expression: {}, type: options.callable === false ? plainDescriptor : callableDescriptor };
+  const parameterType = Object.freeze({ kind: "union", types: [callableDescriptor, plainDescriptor] });
+  const binding = { argument: argument.expression, parameterIndex: 0, form: "value" };
   const call = {};
-  const canonical = { call, sourceSelectedSignatureKind: "resolved", sourceArguments: [argument], sourceArgumentBindings: [binding],
-    sourceSelectedSignatureParameters: [{ parameterIndex: 0 }] };
-  const source = options.binding === undefined && options.bindings === undefined && options.parameterIndex === undefined
-    ? canonical : { ...canonical, sourceArgumentBindings: options.bindings ?? [{ ...binding, ...options.binding }],
-      sourceSelectedSignatureParameters: [{ parameterIndex: options.parameterIndex ?? 0 }] };
+  const selection = Object.freeze({ use: call, kind: "call", callee: {}, signature: {}, overloadIndex: 0,
+    arguments: [binding], parameters: [{ type: parameterType }], result: { kind: "primitive", primitive: "int32" }, optionalChain: false });
+  const source = Object.freeze({ call, selection, arguments: options.foreign ? [] : [argument],
+    parameters: selection.parameters,
+    bindings: options.bindings ?? [{ ...binding, ...options.binding, ...(options.parameterIndex === undefined ? {} : { parameterIndex: options.parameterIndex }) }],
+    typeArguments: [] });
   let reads = 0;
   const host = {
-    ast: { getSourceFile: node => node === call ? file : undefined,
-      is: { IsSpreadElement: () => false }, arguments: node => {
-      assert.equal(node === call, true, "only the original checked call owns these arguments");
-      return [argument.expression];
-    } },
-    semantics: () => ({ sourceFile: file, operations: { call: node => node === call ? canonical : undefined },
-      types: { isNumberLike: () => false,
-      callable: type => type === argument.type && options.callable !== false ? {} : undefined } }),
-    types: { resolveSelectedValue: () => undefined, resolveType: () => undefined, resolveNode: () => undefined,
-      resolveSourceCallTypeArguments: () => [], resolveSourceCallResult: () => undefined,
-      resolveSourceCallParameter: (selected, index, selectedFile, domain) => {
-        assert.equal(selected === source && selectedFile === file && index === 0, true, "same selected declared parameter");
-        assert.equal(domain, "declared", "the selected profile owns a declared read, not source-callee admission");
+    ast: { is: { IsSpreadElement: () => false } },
+    types: {
+      value: () => scalar,
+      instantiation: () => undefined,
+      represent(type, occurrence, position) {
+        if (position !== "storage") return scalar;
+        assert.equal(type === parameterType && occurrence === call, true, "the published instantiated parameter at the exact call");
         reads++;
         return options.declared ?? declared;
-      } },
+      },
+    },
   };
-  const value = createCsharpSourceProfileInputs(host, file, options.foreign ? [] : [argument], call, [], {}, source);
-  assert.equal(reads, 1, "one native parameter read, no raw reselection");
+  const value = createCsharpSourceProfileInputs(host, options.foreign ? [] : [argument], call, {}, source);
+  assert.equal(reads, 1, "one native parameter read, no reselection");
   return value.parameters[0];
 }
 
-test("checked callable input projects the unique declared native union arm without a finished body carrier", () => {
-  assert.equal(inputs() === callable, true, "the original declared native delegate, not a guessed body signature");
+test("callable input projects the unique declared native union arm without a finished body carrier", () => {
+  assert.equal(inputs() === callable, true, "the declared native delegate, not a guessed body signature");
 });
 
 test("declared callable union projection refuses foreign, ambiguous and spread binding correspondence", () => {
-  for (const options of [{ foreign: true }, { parameterIndex: 1 },
-    { binding: { sourceArgumentIndex: 1 } }, { binding: { effectiveArgumentIndex: -1 } },
-    { binding: { sourceForm: "spread-element" } }, { binding: { sourceForm: "spread-sequence" } },
-    { bindings: [{ sourceParameterIndex: 0 }, { sourceParameterIndex: 0 }] }]) {
-    assert.equal(inputs(options) === undefined, true, "unproven original checked correspondence refuses");
+  for (const options of [{ foreign: true }, { binding: { argument: {} } },
+    { binding: { form: "spread" } }, { binding: { form: "rest-element" } },
+    { bindings: [{ parameterIndex: 0, form: "value" }, { parameterIndex: 0, form: "value" }] }]) {
+    assert.equal(inputs(options) === undefined, true, "an unproven argument correspondence refuses");
   }
 });
 

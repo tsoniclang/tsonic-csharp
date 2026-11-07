@@ -2,8 +2,8 @@ import type { CsharpConversionSelection } from "../../conversions/selection.js";
 import type { CsharpTypeParameterConstraintResolution } from "../../types/generic-constraints.js";
 import type { TargetTypeRef } from "../../types/model.js";
 import type { CsharpSourceDefaultValue, CsharpSourceField, CsharpSourceStruct } from "./source-markers.js";
-import type { SourceTypeComponentEvidence } from "@tsonic/target-api/source";
-import type { Node, ResolvedSourceGeneratorInfo, ResolvedSourceWellKnownSymbolInfo, ResolvedSourceYieldInfo, Signature } from "@tsonic/tsts";
+import type { Node } from "@tsonic/tsts";
+import type { SourceGeneratorSelection, SourceTypeDescriptor } from "@tsonic/target-api/source";
 
 export type CsharpSourceArgumentClassification =
   | {
@@ -48,7 +48,10 @@ export interface CsharpFlowReadClassifications {
   readonly issues: readonly { readonly node: Node; readonly code: string; readonly message: string }[];
 }
 
-export interface CsharpContextualTypeEvidence extends SourceTypeComponentEvidence {
+/** The contextual (destination) type of an expression: the Host descriptor and its represented carrier. */
+/** The published contextual type of a node and its C# representation (C2 analyze.ts records this shape, R-C2-6). */
+export interface CsharpContextualTypeEvidence {
+  readonly type: SourceTypeDescriptor;
   readonly targetType: TargetTypeRef | undefined;
 }
 
@@ -64,15 +67,16 @@ export interface CsharpSourceEvidenceIndex {
   readonly storageTargetType: { readonly get: (node: Node) => TargetTypeRef | undefined };
   readonly readStorageTargetType: { readonly get: (node: Node) => TargetTypeRef | undefined };
   readonly contextualType: { readonly get: (node: Node) => CsharpContextualTypeEvidence | undefined };
-  readonly signatureDeclaration: { readonly get: (signature: Signature) => Node | undefined };
   readonly contextualTuple: { readonly get: (node: Node) => CsharpContextualTupleClassification | undefined };
   readonly constantValue: { readonly get: (node: Node) => { readonly value: unknown } | undefined };
   readonly valueRefinement: { readonly get: (node: Node) => CsharpValueRefinementClassification | undefined };
-  readonly generator: { readonly get: (node: Node) => ResolvedSourceGeneratorInfo | undefined };
+  readonly generator: { readonly get: (node: Node) => SourceGeneratorSelection | undefined };
   readonly generatorTargetType: { readonly get: (node: Node) => TargetTypeRef | undefined };
-  readonly yield: { readonly get: (node: Node) => ResolvedSourceYieldInfo | undefined };
+  /** The generator selection of the callable that encloses a yield expression. */
+  readonly yield: { readonly get: (node: Node) => SourceGeneratorSelection | undefined };
   readonly yieldTargetType: { readonly get: (node: Node) => TargetTypeRef | undefined };
-  readonly wellKnownSymbol: { readonly get: (node: Node) => ResolvedSourceWellKnownSymbolInfo | undefined };
+  /** The well-known symbol a computed key or element access names (selections.wellKnownSymbol), as the C# member-key kind. */
+  readonly wellKnownSymbol: { readonly get: (node: Node) => import("../../types/model.js").CsharpWellKnownSymbolKind | undefined };
   readonly inferredCallableReturnType: { readonly get: (node: Node) => TargetTypeRef | undefined };
   readonly pointerReturn: { readonly get: (node: Node) => import("../calls/pointer-return.js").CsharpPointerReturnContract | undefined };
   readonly sourceArgument: { readonly get: (node: Node) => CsharpSourceArgumentClassification | undefined };

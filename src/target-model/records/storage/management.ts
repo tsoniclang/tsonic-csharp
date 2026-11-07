@@ -1,9 +1,9 @@
 import type { TargetTypeRef } from "../../types/model.js";
-import type { ResolvedSourceResourceManagementInfo } from "@tsonic/tsts";
+import type { SourceResourceSelection } from "@tsonic/target-api/source";
 
 export interface CsharpResolvedResourceManagement {
   readonly kind: "resolved";
-  readonly source: ResolvedSourceResourceManagementInfo;
+  readonly source: SourceResourceSelection;
   readonly registration:
     | {
         readonly kind: "direct";

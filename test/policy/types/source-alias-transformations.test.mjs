@@ -1,43 +1,36 @@
+// Standard type transformations (NonNullable, Parameters, ReturnType, Pick ...) are evaluated by the Host: the alias
+// descriptor IS the transformed type, and C# represents it (nextgen C-2542 §2, I6, R2). The deleted C# reference
+// resolver (resolution/source-references.ts) re-ran the transformation over checker components; its protected
+// behaviour (no native carrier is required for a discarded input) is now a property of the published descriptor.
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createTsonicPlugin as nodejsCapability } from "../../../../csharp-nodejs/dist/index.js";
 import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
-import { resolveTypeReferenceNode } from "../../../dist/analysis/source-evidence/types/resolution/source-references.js";
+import { hostProgram, representationServices, representations, represented } from "../../representation/host-fixture.mjs";
+import { csharpSourcePrimitiveTargetType, csharpStringTargetType, targetTypeRefEquals } from "../../../dist/target-model/types/index.js";
 
-test("checked component transformations do not require native carriers for discarded inputs", () => {
-  const node = {};
-  const name = {};
-  const selectedType = {};
-  const sourceFile = {};
-  const component = { selectedType: {} };
-  const carrier = { kind: "source-primitive", name: "int64" };
-  for (const kind of ["component", "non-nullish", "parameter-list", "callable", "unresolved"]) {
-    const transformation = { kind, component };
-    const queries = {
-      sourceFile,
-      types: { authoredType: () => selectedType, standardTransformation: () => transformation },
-      facts: { typeSubjects: () => [] },
-    };
-    let selections = 0;
-    const result = resolveTypeReferenceNode({
-      host: {
-        ast: { as: { AsTypeReferenceNode: () => ({ TypeName: name }) },
-          typeArguments: () => assert.fail("a checked projection must not resolve its discarded input carrier") },
-        navigation: { sourceReferenceFor: () => undefined },
-      },
-      selectDirectSourceFacts: () => ({ kind: "not-applicable" }),
-      resolveStandardSourceTypeTransformation: (actual, actualQueries, state, root, selected) => {
-        selections += 1;
-        assert.equal(actual === transformation, true, kind);
-        assert.equal(actualQueries === queries, true, kind);
-        assert.equal(root === node && selected === selectedType, true, kind);
-        assert.equal(state.depth, 0, kind);
-        return kind === "unresolved" ? undefined : carrier;
-      },
-    }, node, queries, { depth: 0 });
-    assert.equal(result === (kind === "unresolved" ? undefined : carrier), true, kind);
-    assert.equal(selections, 1, kind);
-  }
+test("a transformed alias publishes only its result; discarded inputs need no native carrier", () => {
+  const program = hostProgram(`
+import type { int64 } from "@tsonic/core/types.js";
+declare function opaque(value: symbol, extra: never): int64;
+type Present = NonNullable<string | undefined>;
+type Inputs = Parameters<(value: int64, label: string) => void>;
+type Output = ReturnType<typeof opaque>;
+export function present(value: Present): Present { return value; }
+export function inputs(value: Inputs): Inputs { return value; }
+export function output(value: Output): Output { return value; }
+`);
+  const at = representations(representationServices(program));
+  const parameter = owner => program.ast.parameters(program.named(owner))[0];
+  const present = program.slot(parameter("present"));
+  assert.equal(present.kind === "string" || present.kind === "declared", true, "NonNullable keeps the string arm only");
+  assert.equal(targetTypeRefEquals(represented(at.slot(parameter("present"))), csharpStringTargetType()), true);
+  const tuple = represented(at.slot(parameter("inputs")));
+  assert.equal(tuple.kind === "tuple" && tuple.elements.length === 2 &&
+    targetTypeRefEquals(tuple.elements[0], csharpSourcePrimitiveTargetType("int64")) &&
+    targetTypeRefEquals(tuple.elements[1], csharpStringTargetType()), true, "Parameters keeps the native int64 width");
+  assert.equal(targetTypeRefEquals(represented(at.slot(parameter("output"))), csharpSourcePrimitiveTargetType("int64")), true,
+    "ReturnType needs no carrier for the symbol and never inputs it discards");
 });
 
 test("provider-derived error aliases retain exact native components through unions and delegates", () => {

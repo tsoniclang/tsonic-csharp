@@ -1,6 +1,6 @@
 import type { AstReader, Node, SourceFile } from "@tsonic/tsts";
-import { asSourceNode, ObjectLiteralProperty_SourceName, sourceCallableUsesLexicalThis } from "@tsonic/target-api/source";
-import type { SourcePropertyNameIndex } from "@tsonic/target-api/source";
+import { asSourceNode, ObjectLiteralProperty_SourceName } from "@tsonic/target-api/source";
+import type { SourceProgramFacts } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant, rejectedTargetStage, resolvedTargetStage } from "@tsonic/target-api/artifacts";
 import type { TargetDiagnostic, TargetStageResult } from "@tsonic/target-api/artifacts";
 import type { SourceStorageQueries, TargetUseSiteRef } from "@tsonic/target-api/analysis";
@@ -48,11 +48,12 @@ import type { CsharpObjectShapeClassifications } from "../../../target-model/rec
 import { createCsharpMetadataBudget } from "../../../target-model/metadata/immutable.js";
 import { projectCsharpNativeSourceStorageCarrier } from "../value-domain-carriers.js";
 import { selectCsharpCopiedMethodReceiver } from "../copied-methods.js";
+import { csharpSelectionIsCallee } from "../selected-members.js";
 
 interface CsharpNativeArtifactDemandInput extends CsharpObjectShapeDemandHost, CsharpNativeParticipationInput {
   readonly ast: AstReader;
   readonly sourceFiles: readonly SourceFile[];
-  readonly propertyNames: Pick<SourcePropertyNameIndex, "get">;
+  readonly facts: Pick<SourceProgramFacts, "analyses" | "navigation">;
   readonly nativeDemand: CsharpNativeDemandAnalysis;
   readonly sourceStorage: Pick<SourceStorageQueries, "subjectFor" | "storageProducersFor">;
   readonly valueReads: CsharpValueReadClassifications;
@@ -98,25 +99,25 @@ export function analyzeCsharpNativeArtifactDemand(
   });
   return resolvedTargetStage(result);
 
-  function refuse(node: Node, message: string): void {
-    issues.push(Object.freeze({ source: "tsonic-csharp", category: "error", code: "CSHARP_UNSUPPORTED_AST", sourceNode: node, message }));
+  function refuse(node: Node, message: string, code: `CSHARP_${string}`): void {
+    issues.push(Object.freeze({ source: "tsonic-csharp", category: "error", code, sourceNode: node, message }));
   }
 
   function accept(node: Node, result: CsharpArtifactRequestResult): boolean {
     if (result.kind === "accepted") return true;
-    refuse(node, result.reason);
+    refuse(node, result.reason, "CSHARP_OBJECT_SHAPE_ARTIFACT_NOT_ADMITTED");
     return false;
   }
 
   function demandShape(shape: CsharpObjectShapeFact, subject: Node): void {
     if (csharpTargetTypeRenderingRejection(shape.targetType) !== undefined) {
-      refuse(subject, "Object-shape fact must carry a renderable named target carrier type before C# emission.");
+      refuse(subject, "Object-shape fact must carry a renderable named target carrier type before C# emission.", "CSHARP_OBJECT_SHAPE_ARTIFACT_NOT_ADMITTED");
       return;
     }
     const materialization = objectShapeMaterialization(shape);
     if (materialization === "synthetic" && !isCsharpEmptyObjectTargetType(shape.targetType) &&
       !csharpTargetTypeRendersAsUnqualifiedIdentifier(shape.targetType)) {
-      refuse(subject, "Generated object-shape declarations require one exact unqualified compiler-owned target type name.");
+      refuse(subject, "Generated object-shape declarations require one exact unqualified compiler-owned target type name.", "CSHARP_OBJECT_SHAPE_ARTIFACT_NOT_ADMITTED");
       return;
     }
     if (!accept(subject, engine.registerObjectShape(shape, materialization))) return;
@@ -155,7 +156,7 @@ export function analyzeCsharpNativeArtifactDemand(
     rootKind: "value" | "object-shape" = "object-shape", sourceValue: Node | undefined = undefined): boolean {
     const file = input.ast.getSourceFile(subject);
     if (file === undefined) failTargetAnalysisInvariant("tsonic-csharp", "Native artifact demand requires its checked source file.", subject);
-    return accept(subject, engine.requireObjectShapeCapability(sourceValue, type, file, name, rootKind));
+    return accept(subject, engine.requireObjectShapeCapability(sourceValue, type, name, rootKind));
   }
 
   function demandFrame(frame: CsharpCaptureFrame | undefined, subject: Node): void {
@@ -264,7 +265,7 @@ export function analyzeCsharpNativeArtifactDemand(
     constructs.add(node);
     const { ast } = input;
     if (ast.is.IsClassDeclaration(node) || ast.is.IsClassExpression(node) || ast.is.IsInterfaceDeclaration(node)) {
-      const shape = input.objectShapes.resolveNode(node, ast.getSourceFile(node));
+      const shape = input.objectShapes.resolveNode(node);
       if (shape !== undefined) {
         demandShape(shape, node);
       }
@@ -339,8 +340,8 @@ export function analyzeCsharpNativeArtifactDemand(
             const shape = carrier === undefined ? undefined : input.objectShapes.resolveTarget(carrier);
             return shape === undefined ? [] : [shape];
           });
-        if (selectCsharpCopiedMethodReceiver(binding.element.restShape.members, sources, input.ast).kind === "rejected") {
-          refuse(node, "A copied method-value contract cannot silently acquire a different receiver ABI.");
+        if (selectCsharpCopiedMethodReceiver(binding.element.restShape.members, sources, input.ast, input.facts).kind === "rejected") {
+          refuse(node, "A copied method-value contract cannot silently acquire a different receiver ABI.", "CSHARP_METHOD_VALUE_RECEIVER_ABI_MISMATCH");
           return;
         }
         capability(node, source.shape.targetType, "method-values");
@@ -411,7 +412,7 @@ export function analyzeCsharpNativeArtifactDemand(
     const property = input.operations.selectedProperty.get(node);
     const owned = property?.sourceOwned;
     if (property?.selection.kind === "source-owned" && owned?.objectShape !== undefined && owned.shapeMember?.kind === "resolved" &&
-      owned.shapeMember.member.memberKind === "method" && (!property.selection.source.callCallee || owned.shapeMember.member.optional === true)) {
+      owned.shapeMember.member.memberKind === "method" && (!csharpSelectionIsCallee(input.ast, property.selection.source) || owned.shapeMember.member.optional === true)) {
       capability(node, owned.objectShape.targetType, "method-values");
     }
     if (input.ast.is.IsObjectLiteralExpression(node) && use.objectShape !== undefined) demandLiteral(node, use.objectShape, file);
@@ -445,9 +446,10 @@ export function analyzeCsharpNativeArtifactDemand(
     }
     const yielded = input.sourceEvidence.yield.get(node);
     if (yielded !== undefined && use.completion.kind === "value") {
-      const protocol = getCsharpGeneratorProtocol(yielded.yieldKind === "delegate" ? input.sourceEvidence.yieldTargetType.get(node)
-        : input.sourceEvidence.generatorTargetType.get(yielded.generator.declaration));
-      if (protocol !== undefined) demandPair(node, yielded.yieldKind === "delegate" ? protocol.returnType : protocol.nextType, use.completion.type);
+      const delegated = input.ast.as.AsYieldExpression(node)?.AsteriskToken !== undefined;
+      const protocol = getCsharpGeneratorProtocol(delegated ? input.sourceEvidence.yieldTargetType.get(node)
+        : input.sourceEvidence.generatorTargetType.get(yielded.callable));
+      if (protocol !== undefined) demandPair(node, delegated ? protocol.returnType : protocol.nextType, use.completion.type);
     }
   }
 
@@ -466,7 +468,7 @@ export function analyzeCsharpNativeArtifactDemand(
       if (property === undefined) continue;
       if (input.ast.is.IsSpreadAssignment(property)) {
         const expression = input.ast.as.AsSpreadAssignment(property)?.Expression;
-        const source = input.objectShapes.resolveNode(expression, file);
+        const source = input.objectShapes.resolveNode(expression);
         if (source === undefined) continue;
         const shared = source.methodImplementation !== undefined && source.methodImplementation.identity === shape.methodImplementation?.identity &&
           targetTypeRefEquals(source.targetType, shape.targetType);
@@ -474,17 +476,17 @@ export function analyzeCsharpNativeArtifactDemand(
           !(shared && csharpObjectShapeMethodDeclaration(source, member) !== undefined))) capability(property, source.targetType, "method-values");
         continue;
       }
-      if (!input.ast.is.IsMethodDeclaration(property) || !sourceCallableUsesLexicalThis(input.ast, property)) continue;
+      if (!input.ast.is.IsMethodDeclaration(property) || !input.facts.navigation.scopes.usesLexicalThis(property)) continue;
       const name = input.ast.name(property);
-      const selectedName = name === undefined ? undefined : input.propertyNames.get(name);
+      const selectedName = name === undefined ? undefined : input.facts.analyses.propertyName(name);
       const ordinary = ObjectLiteralProperty_SourceName(input.ast, property);
-      const key = selectedName?.kind === "resolved" ? csharpPropertySourceMemberKey(selectedName.name)
+      const key = selectedName?.kind === "name" ? csharpPropertySourceMemberKey(selectedName.name)
         : selectedName?.kind === "well-known-symbol" ? csharpWellKnownSymbolSourceMemberKey(selectedName.symbol)
           : ordinary.kind === "resolved" ? csharpPropertySourceMemberKey(ordinary.name) : undefined;
       const member = key === undefined ? undefined : resolveCsharpObjectShapeMemberBySourceKey(shape, key, "checked-object-literal-property");
       if (member?.kind === "resolved") {
         if (member.member.memberKind !== "method") {
-          refuse(property, `Object literal callable property '${member.member.sourceName}' cannot bind lexical 'this' without an exact receiver-bearing method contract.`);
+          refuse(property, `Object literal callable property '${member.member.sourceName}' cannot bind lexical 'this' without an exact receiver-bearing method contract.`, "CSHARP_LEXICAL_THIS_METHOD_CONTRACT_MISSING");
         } else {
           // The receiver requirement applies to the registered artifact (with the contracts the literal implements),
           // not the literal's bare use shape, so it meets the copy refusal instead of a spurious definition conflict.
@@ -506,7 +508,7 @@ export function analyzeCsharpNativeArtifactDemand(
       demandConversion(sequence.expression, element.type, sequence.targetElementType, element.conversion);
     }
     for (const argument of selection.call.arguments) if (argument.targetParameter.csharpValueProjection === "properties") {
-      const subject = selection.source.sourceArguments[argument.sourceArgumentIndex]?.expression;
+      const subject = selection.source.arguments[argument.sourceArgumentIndex]?.argument;
       const use = subject === undefined ? undefined : input.nativeDemand.nativeUse.expression(subject)?.use;
       if (subject !== undefined && use !== undefined && use.kind !== "erased" && use.completion.kind === "value") {
         demandProperties(subject, use.completion.type);
@@ -516,28 +518,28 @@ export function analyzeCsharpNativeArtifactDemand(
     const source = selection.source;
     let projectionCount = 0;
     for (const requirement of member.csharpArtifactRequirements ?? []) {
-      const subject = requirement.source.kind === "receiver" ? source.sourceReceiver?.expression : source.sourceArguments[requirement.source.index]?.expression;
+      const subject = requirement.source.kind === "receiver" ? source.receiver : source.arguments[requirement.source.index]?.argument;
       const name = requirement.kind === "object-shape-capability" ? requirement.capability : requirement.projection;
-      if (subject === undefined) { refuse(node, `Selected target call '${member.id}' requires exact '${name}' source-value evidence.`); continue; }
+      if (subject === undefined) { refuse(node, `Selected target call '${member.id}' requires exact '${name}' source-value evidence.`, "CSHARP_TARGET_CALL_PROJECTION_NOT_PROVEN"); continue; }
       const type = input.valueReads.valueRead.get(subject)?.value;
-      if (type === undefined) { refuse(node, `Selected target call '${member.id}' requires exact '${name}' source-value type evidence.`); continue; }
+      if (type === undefined) { refuse(node, `Selected target call '${member.id}' requires exact '${name}' source-value type evidence.`, "CSHARP_TARGET_CALL_PROJECTION_NOT_PROVEN"); continue; }
       if (requirement.kind === "object-shape-capability") {
         capability(subject, type, requirement.capability, requirement.rootKind, subject);
         continue;
       }
-      if (member.returnType === undefined) { refuse(subject, `Selected target call '${member.id}' has no result type for its exact '${requirement.projection}' object projection.`); continue; }
-      const assignmentSubject = requirement.projection === "assign" ? source.sourceArguments[requirement.assignmentSource.index]?.expression : undefined;
+      if (member.returnType === undefined) { refuse(subject, `Selected target call '${member.id}' has no result type for its exact '${requirement.projection}' object projection.`, "CSHARP_TARGET_CALL_PROJECTION_NOT_PROVEN"); continue; }
+      const assignmentSubject = requirement.projection === "assign" ? source.arguments[requirement.assignmentSource.index]?.argument : undefined;
       const assignmentType = assignmentSubject === undefined ? undefined : input.valueReads.valueRead.get(assignmentSubject)?.value;
       if (requirement.projection === "assign" && (assignmentSubject === undefined || assignmentType === undefined)) {
-        refuse(subject, `Selected target call '${member.id}' requires exact assignment-source value and type evidence.`); continue;
+        refuse(subject, `Selected target call '${member.id}' requires exact assignment-source value and type evidence.`, "CSHARP_TARGET_CALL_PROJECTION_NOT_PROVEN"); continue;
       }
       const projection = engine.requireObjectShapeProjection(subject, requirement.projection === "assign" ? member.returnType : type,
-        file, requirement.projection, member.returnType, requirement.rootKind,
+        requirement.projection, member.returnType, requirement.rootKind,
         assignmentSubject === undefined || assignmentType === undefined ? undefined : { node: assignmentSubject, type: assignmentType });
       if (!accept(subject, projection)) continue;
       projectionCount += 1;
       if (projection.kind === "accepted" && (projection.projection === undefined || projectionCount > 1)) {
-        refuse(subject, `Selected target call '${member.id}' does not have one exact object-shape projection artifact.`);
+        refuse(subject, `Selected target call '${member.id}' does not have one exact object-shape projection artifact.`, "CSHARP_TARGET_CALL_PROJECTION_NOT_PROVEN");
       }
       if (projection.kind === "accepted" && projection.projection !== undefined) {
         const selected = projection.projection;

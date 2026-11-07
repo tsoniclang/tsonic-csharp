@@ -5,11 +5,11 @@ import { resolveCsharpSelectedSourceValue } from "../source-profile-policy.js";
 import { targetParameter } from "./common.js";
 
 export function csharpJsNumericArgument(context: CsharpSourceProfileCallPolicyContext, index = 0): CsharpTargetParameter | undefined {
-  const argument = resolveCsharpSelectedSourceValue(context, context.source.sourceArguments[index]);
+  const argument = resolveCsharpSelectedSourceValue(context, context.source.arguments[index]);
   if (argument === undefined) return undefined;
   const numeric = getCsharpNullableElementTargetType(argument) ?? argument;
   if (numeric.kind === "type-parameter") {
-    const selected = context.source.sourceArguments[index];
+    const selected = context.source.arguments[index];
     return selected !== undefined && context.inputs.numericArguments.has(selected.expression)
       ? targetParameter("value", argument) : undefined;
   }
@@ -19,7 +19,7 @@ export function csharpJsNumericArgument(context: CsharpSourceProfileCallPolicyCo
 }
 
 export function csharpJsParsingParameters(context: CsharpSourceProfileCallPolicyContext): readonly CsharpTargetParameter[] | undefined {
-  const radix = context.source.sourceArguments[1];
+  const radix = context.source.arguments[1];
   const absent = radix === undefined || isCsharpAbsenceTargetType(resolveCsharpSelectedSourceValue(context, radix));
   const parameter = absent ? targetParameter("radix", csharpNullableValueTargetType(csharpSourcePrimitiveTargetType("float64")), { optional: true })
     : csharpJsNumericArgument(context, 1);

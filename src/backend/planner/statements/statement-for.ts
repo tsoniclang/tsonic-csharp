@@ -26,7 +26,7 @@ import type {
 import { planResourceScopeStatements } from "./resource-management.js";
 import { planCsharpCaptureFrame } from "../bindings/capture-storage.js";
 import { allocateExpressionTemp, csharpCaptureFrameName, declareCsharpLocalBindingName, getCsharpLocalBindingName } from "../bindings/binding-state.js";
-import { sourceBindingIterationScope, sourceExpressionSequence } from "@tsonic/target-api/source";
+import { sourceExpressionSequence } from "@tsonic/target-api/source";
 import { planCsharpPlannedDiscard, planDiscardedExpression } from "./statement-output.js";
 import { csharpLoopContinuationLabel, planCsharpLoopContinuation } from "./loop-regions.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
@@ -105,7 +105,7 @@ function planForStatementCore(
   const nativeBindings = initializer?.preludeScope === "enclosing" ? [] : (initializer?.bindings ?? []).filter(binding =>
     (input.program.records.capturedPlace.get(binding.declaration) !== undefined ||
       input.program.records.capturedBinding.get(binding.declaration)?.frame.scope === node) &&
-    sourceBindingIterationScope(binding.declaration, input.program.source.ast) === node);
+    input.program.records.bindingIterationScope.get(binding.declaration) === node);
   const iteration = planForIteration(node, nativeBindings, frame, input, diagnostics, state);
   const iterationPrelude = conditionPrelude.flatMap(expression => planCsharpPlannedDiscard(expression!));
   const expandedIncrement = incrementors.some(expression => expression!.prelude.length !== 0 || expression!.completion.kind !== "value");
@@ -181,7 +181,7 @@ function planForHeaderContext(
   if (frame === undefined) return input;
   const bindings = new Map(input.scope.capturedBindings);
   for (const binding of frame.bindings) {
-    if (sourceBindingIterationScope(binding.declaration, input.program.source.ast) !== loop) continue;
+    if (input.program.records.bindingIterationScope.get(binding.declaration) !== loop) continue;
     const sourceName = input.program.source.ast.name(binding.declaration);
     if (sourceName === undefined) failCsharpPlannerInvariant("A native for binding requires its original declaration name.", binding.declaration);
     const name = declareCsharpLocalBindingName(sourceName, input, state);

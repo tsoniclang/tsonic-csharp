@@ -1,7 +1,13 @@
 import type { CsharpNativeCellIdentity, CsharpNativeLocationReceiver, CsharpNativeLocationSelection, CsharpNativeManagedAddress } from "../../target-model/records/native/native-locations.js";
-import type { Node, SourceFile } from "@tsonic/tsts";
+import type { Node } from "@tsonic/tsts";
 import { readCsharpSourceField } from "../../source/extension/markers.js";
-import { sourceDeclarationIsModuleScoped, sourceParameterIsProperty } from "@tsonic/target-api/source";
+import { sourceParameterIsProperty, type SourceElementAccessRecord, type SourceMemberAccessSelection } from "@tsonic/target-api/source";
+
+/** The member declaration a property or element access selects (published selection), if it selects one member. */
+function csharpSelectedMemberDeclaration(source: SourceMemberAccessSelection | SourceElementAccessRecord): Node | undefined {
+  const selected = source.selected;
+  return selected.kind !== "member" ? undefined : "declarations" in selected ? selected.declarations[0] : selected.declaration;
+}
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
@@ -17,7 +23,6 @@ import type { CsharpStorageClassifications } from "../../target-model/records/st
 export function classifyCsharpNativeLocation(
   policy: CsharpPolicyContext,
   expression: Node,
-  sourceFile: SourceFile,
   classProperty: (declaration: Node) => CsharpClassPropertyStorage | undefined,
   physical: Pick<CsharpStorageClassifications, "nativeBacking" | "nativeField" | "nativeArray" | "nativeModuleField" | "storageType">,
   readStorage: (expression: Node) => TargetTypeRef | undefined,
@@ -29,19 +34,22 @@ export function classifyCsharpNativeLocation(
     if (policy.ast.is.IsParenthesizedExpression(expression)) {
       const nested = policy.ast.as.AsParenthesizedExpression(expression)?.Expression;
       return nested === undefined ? rejected("The parenthesized native storage has no operand.")
-        : classifyCsharpNativeLocation(policy, nested, sourceFile, classProperty, physical, readStorage, active);
+        : classifyCsharpNativeLocation(policy, nested, classProperty, physical, readStorage, active);
     }
-    const reference = selectCsharpNativeRefReturn(policy, expression, sourceFile);
+    const reference = selectCsharpNativeRefReturn(policy, expression);
     if (reference.kind === "rejected") return reference;
     if (reference.kind === "resolved") return reference.returnType === undefined
       ? rejected("The selected native ref return has no exact physical storage type.")
       : Object.freeze({ ...resolved(expression, reference.returnType, "direct", reference.returnPassing === "byref-readwrite", reference.returnPassing), opaque: true as const });
-    const storage = policy.semantics(sourceFile).operations.storage(expression);
+    const storage = policy.facts.selections.storage(expression);
     const storageType = physical.storageType.get(expression) ??
       (policy.ast.is.IsIdentifier(expression) && storage?.declaration !== undefined
         ? physical.storageType.get(storage.declaration) : undefined) ?? readStorage(expression);
     if (storage === undefined || storageType === undefined) return rejected("The expression has no exact native storage and carrier evidence.");
-    const assignment = selectCsharpAssignmentLocation(policy, expression, node => policy.types.resolveNode(node, sourceFile)?.sourceResult?.selectedType);
+    const assignment = selectCsharpAssignmentLocation(policy, expression, node => {
+      const represented = policy.types.value(node);
+      return represented.kind === "csharp-refused" ? undefined : represented;
+    });
     const localBacking = storage.declaration === undefined ? undefined : physical.nativeBacking.get(storage.declaration);
     if (localBacking !== undefined) return targetTypeRefEquals(localBacking.pointeeType, storageType)
       ? resolved(expression, storageType, assignment, storage.writable, undefined, undefined,
@@ -59,16 +67,16 @@ export function classifyCsharpNativeLocation(
       const local = declaration !== undefined &&
         (policy.ast.is.IsParameterDeclaration(declaration) ||
           (policy.ast.is.IsBindingElement(declaration) || policy.ast.is.IsVariableDeclaration(declaration)) &&
-          (!sourceDeclarationIsModuleScoped(declaration, policy.ast) || physical.nativeModuleField.get(declaration)));
+          (!policy.facts.navigation.scopes.isModuleScoped(declaration) || physical.nativeModuleField.get(declaration)));
       return resolved(expression, storageType, assignment, storage.writable,
         local ? "byref-readwrite" : undefined);
     }
     const property = policy.ast.is.IsPropertyAccessExpression(expression);
     const element = policy.ast.is.IsElementAccessExpression(expression);
-    const memberSelection = property ? selectCsharpTargetProperty(policy, expression, sourceFile)
-      : element ? selectCsharpTargetElement(policy, expression, sourceFile) : undefined;
+    const memberSelection = property ? selectCsharpTargetProperty(policy, expression)
+      : element ? selectCsharpTargetElement(policy, expression) : undefined;
     const memberDeclaration = memberSelection?.kind === "resolved" || memberSelection?.kind === "source-owned"
-      ? memberSelection.source.selectedDeclaration : undefined;
+      ? csharpSelectedMemberDeclaration(memberSelection.source) : undefined;
     const namedElement = element && memberDeclaration !== undefined && (
       policy.ast.is.IsPropertyDeclaration(memberDeclaration) || policy.ast.is.IsPropertySignatureDeclaration(memberDeclaration) ||
       policy.ast.is.IsGetAccessorDeclaration(memberDeclaration) || policy.ast.is.IsSetAccessorDeclaration(memberDeclaration) ||
@@ -76,8 +84,10 @@ export function classifyCsharpNativeLocation(
     if (property || namedElement) {
       const selection = memberSelection;
       if (selection?.kind !== "resolved" && selection?.kind !== "source-owned") return rejected("The property has no exact selected native member.");
-      if (selection.source.optionalChain) return rejected("An optional property access is not a native storage address.");
-      const declaration = selection.source.selectedDeclaration;
+      if ("optionalChain" in selection.source ? selection.source.optionalChain
+        : policy.ast.as.AsElementAccessExpression(expression)?.QuestionDotToken !== undefined)
+        return rejected("An optional property access is not a native storage address.");
+      const declaration = csharpSelectedMemberDeclaration(selection.source);
       const classStorage = declaration === undefined ? undefined : classProperty(declaration);
       const sourceField = declaration === undefined ? undefined : readCsharpSourceField(policy.sourceFacts, [declaration]);
       const moduleField = declaration !== undefined && physical.nativeModuleField.get(declaration);
@@ -85,9 +95,10 @@ export function classifyCsharpNativeLocation(
         : classStorage?.kind === "field" || sourceField !== undefined || moduleField;
       const nativeReadonly = selection.kind === "resolved" || sourceField !== undefined
         ? !storage.writable : !moduleField && classStorage?.readonly !== false;
-      const receiverExpression = selection.source.receiver.expression;
+      const receiverExpression = selection.source.receiver;
+      const representedReceiver = policy.types.value(receiverExpression);
       const receiverType = physical.storageType.get(receiverExpression) ??
-        policy.types.resolveSelectedValue(receiverExpression, selection.source.receiver.type, sourceFile);
+        (representedReceiver.kind === "csharp-refused" ? undefined : representedReceiver);
       const shape = receiverType === undefined ? undefined : policy.objectShapes.resolveTarget(receiverType);
       const member = shape?.members.find(candidate => candidate.sourceDeclarations?.includes(declaration!) === true ||
         candidate.sourceSubjects?.includes(declaration!) === true);
@@ -102,7 +113,7 @@ export function classifyCsharpNativeLocation(
         : moduleField || declaration !== undefined && policy.ast.hasModifierKind(declaration, "static");
       if (!isStatic && receiverType === undefined) return resolved(expression, storageType, assignment, storage.writable);
       if (!isStatic && receiverType !== undefined && isCsharpValueTypeTargetType(receiverType)) {
-        const receiver = classifyCsharpNativeLocation(policy, receiverExpression, sourceFile, classProperty, physical, readStorage, active);
+        const receiver = classifyCsharpNativeLocation(policy, receiverExpression, classProperty, physical, readStorage, active);
         if (receiver.kind !== "resolved" || receiver.address === undefined ||
           !targetTypeRefEquals(receiver.storageType, receiverType)) return resolved(expression, storageType, assignment, storage.writable);
         return resolved(expression, storageType, assignment, storage.writable,
@@ -115,8 +126,10 @@ export function classifyCsharpNativeLocation(
     if (element) {
       const selection = memberSelection;
       if (selection?.kind !== "resolved" && selection?.kind !== "source-owned" && selection?.kind !== "project-indexer") return rejected("The element has no exact selected native index relation.");
-      if (selection.source.optionalChain) return rejected("An optional element access is not a native storage address.");
-      const receiverType = policy.types.resolveSelectedValue(selection.source.receiver.expression, selection.source.receiver.type, sourceFile);
+      if (policy.ast.as.AsElementAccessExpression(selection.source.node)?.QuestionDotToken !== undefined)
+        return rejected("An optional element access is not a native storage address.");
+      const representedReceiver = policy.types.value(selection.source.receiver);
+      const receiverType = representedReceiver.kind === "csharp-refused" ? undefined : representedReceiver;
       return resolved(expression, storageType, assignment, storage.writable,
         receiverType?.kind === "array" && targetTypeRefEquals(receiverType.element, storageType)
           ? storage.writable ? "byref-readwrite" : "byref-readonly" : undefined);

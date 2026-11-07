@@ -3,6 +3,8 @@ import { registerHooks } from "node:module";
 import test from "node:test";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 
+// nextgen C-2542: the selector now also takes the Host awaited result (carrier, awaited, definitions, resultUse);
+// the injected wrapper forwards every argument unchanged.
 registerHooks({
   load(url, context, nextLoad) {
     const loaded = nextLoad(url, context);
@@ -11,14 +13,14 @@ registerHooks({
     const source = String(loaded.source);
     assert.equal(source.includes(marker), true, "the await completion selector is the injection point");
     return { ...loaded, shortCircuit: true, source: source.replace(marker, "function selectedCsharpAwaitCompletion(") +
-      "\nexport function selectCsharpAwaitCompletion(carrier, definitions, resultUse) {\n" +
-      "  const completion = selectedCsharpAwaitCompletion(carrier, definitions, resultUse);\n" +
+      "\nexport function selectCsharpAwaitCompletion(...selection) {\n" +
+      "  const completion = selectedCsharpAwaitCompletion(...selection);\n" +
       "  return completion === undefined || globalThis.staleAwaitResultMapping === undefined\n" +
       "    ? completion : globalThis.staleAwaitResultMapping(completion);\n}\n" };
   },
 });
 
-const { createTargetSourceProgram } = await import("@tsonic/target-api/source");
+const { csharpTestSourceProgram } = await import("../../helpers/target-source-program.mjs");
 const { compileCsharpSource } = await import("../../helpers/direct-csharp-session.mjs");
 
 const sourceText = `
@@ -49,7 +51,7 @@ for (const surface of ["native", "js"]) {
     assert.deepEqual(result.targetDiagnostics.map(({ code, message }) => ({ code, message })),
       [{ code: "CSHARP_AWAIT_RESULT_MAPPING_NOT_PROVEN", message: correspondence }]);
     const [diagnostic] = result.result.diagnostics;
-    const ast = createTargetSourceProgram(result.source).ast;
+    const ast = csharpTestSourceProgram(result.source).syntax;
     assert.equal(diagnostic.sourceNode !== undefined && ast.is.IsAwaitExpression(diagnostic.sourceNode), true,
       "the issue names the await expression");
     assert.equal(sourceText.slice(ast.pos(diagnostic.sourceNode), ast.end(diagnostic.sourceNode)).trim(), "await pending");
@@ -69,7 +71,7 @@ for (const surface of ["native", "js"]) {
       for (const alternative of program.records.awaitCompletion.get(node)?.alternatives ?? []) {
         if (alternative.resultMapping !== undefined) mappings.push(alternative.resultMapping);
       }
-      program.source.ast.forEachChild(node, child => { if (child !== undefined) pending.push(child); });
+      program.source.syntax.forEachChild(node, child => { if (child !== undefined) pending.push(child); });
     }
     assert.equal(mappings.length, 1);
     assert.deepEqual(Object.keys(mappings[0]).sort(), ["arms", "coverage", "kind"]);

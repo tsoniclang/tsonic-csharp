@@ -1,10 +1,9 @@
 import type { CsharpSourceDefaultValue, CsharpSourceField, CsharpSourceStruct } from "../../target-model/records/program/source-markers.js";
 import { defaultValueFactKey, fieldFactKey, functionPointerFactKey, pointerFactKey, rawPointerFactKey, sourceMarkerFactKey, structFactKey } from "@tsonic/tsts";
-import { tsonicFixedArrayFactKey } from "@tsonic/source-core/facts";
 
 import type { ExtensionFactSubject, Node, ReadonlySourceFactResolver } from "@tsonic/tsts";
 
-import type { CsharpSourcePointerType, CsharpSourceFunctionPointerType, CsharpSourceFixedArrayType } from "../../target-model/records/program/source-markers.js";
+import type { CsharpSourcePointerType, CsharpSourceFunctionPointerType } from "../../target-model/records/program/source-markers.js";
 export function readCsharpSourceJsStringMarker(
   sourceFacts: ReadonlySourceFactResolver | undefined,
   subject: ExtensionFactSubject | undefined,
@@ -96,19 +95,6 @@ export function readCsharpSourceFunctionPointerType(
         sourceParameters: Object.freeze([...fact.parameters]),
         sourceResult: fact.result,
         abi: Object.freeze([...fact.abi]),
-      });
-}
-
-export function readCsharpSourceFixedArrayType(
-  sourceFacts: ReadonlySourceFactResolver | undefined,
-  subject: ExtensionFactSubject | undefined,
-): CsharpSourceFixedArrayType | undefined {
-  const fact = sourceFacts?.getFact(subject, tsonicFixedArrayFactKey);
-  return fact === undefined
-    ? undefined
-    : Object.freeze({
-        kind: "csharp-fixed-array",
-        ...fact,
       });
 }
 

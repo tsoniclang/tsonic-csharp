@@ -14,7 +14,7 @@ export function read(): unknown { const value: any = make(); return value.child;
     assertCsharpCompilationSucceeded(compiled);
     const program = compiled.result.program;
     assert.equal(program !== undefined, true, "the checked constructions are published");
-    const ast = program.source.ast;
+    const ast = program.source.syntax;
     const literals = [];
     const visit = node => {
       if (ast.is.IsObjectLiteralExpression(node)) literals.push(node);

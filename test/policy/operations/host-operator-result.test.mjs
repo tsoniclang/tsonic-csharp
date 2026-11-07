@@ -1,7 +1,7 @@
+import { csharpTestSourceProgram } from "../../helpers/target-source-program.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createCompilerSessionFromFiles } from "@tsonic/tsts";
-import { analyzeSourceLiteralValues, sourceTransparentExpressionOperand } from "@tsonic/target-api/source";
 import { selectCsharpNativeBinaryOperation, selectCsharpNativeUnaryOperation, targetBinaryOperator } from "../../../dist/policy/operations/operators/rules.js";
 import { validateBinaryTargetSemantics, validateUnaryTargetSemantics } from "../../../dist/policy/operations/operators/operator-validation.js";
 import { csharpUnaryNumericPromotion, selectCsharpNumericCarrierPromotion } from "../../../dist/policy/operations/numeric/promotion.js";
@@ -27,6 +27,9 @@ import {
 import { destinationBodies } from "../../analysis/operations/inferred-numeric-array-elements.fixtures.mjs";
 
 const primitive = csharpSourcePrimitiveTargetType;
+// nextgen C-2542: the received TargetSourceProgramFacts publishes value outcomes through facts.values (effectiveTypes is
+// Host-internal). A node outside the value domain (facts.values.has) has no outcome, as effectiveTypes.get answered undefined.
+const publishedOutcome = (source, node) => source.facts.values.has(node) ? source.facts.values.type(node) : undefined;
 const narrowCounts = ["char", "int8", "uint8", "int16", "uint16", "int32", "int64"];
 const wideCounts = ["uint32", "uint64", "native-int", "native-uint", "int128", "uint128", "float16", "float32", "float64", "decimal", "bool"];
 const policy = {
@@ -192,7 +195,7 @@ for (const surface of ["native", "js"]) {
       const compiled = compileEffectiveSource(surface, `import type { ${name} } from "@tsonic/core/types.js";
         export function run(value: ${name}) { return -value; }`);
       assertPublishedRefusal(compiled, "TSONIC_LOCAL_TYPE_UNSUPPORTED", "-value");
-      assert.equal(compiled.targetSource.effectiveTypes.refusals().length, 1);
+      assert.equal(compiled.targetSource.facts.refusals().length, 1);
       assert.equal(compiled.result.diagnostics[0]?.message, `Unary minus has no native signed result for '${kind}'.`);
     }
   });
@@ -216,7 +219,8 @@ function checkedOperation(expression, operator, leftType, rightType, resultType,
   visit(file);
   const binary = node === undefined ? undefined : ast.as.AsBinaryExpression(node);
   assert.equal(binary?.Left !== undefined && binary.Right !== undefined, true, expression);
-  const input = { ...policy, ast, literalValues: analyzeSourceLiteralValues(ast, [file]) };
+  // Literal values are published facts of the checked program (facts.values.literal).
+  const input = { ...policy, ast, facts: csharpTestSourceProgram(checked).facts };
   const operands = {
     left: binary.Left, right: binary.Right, sourceOperator: operator, leftType, rightType, resultType,
     leftStorage: undefined, rightStorage: undefined, genericNumeric: undefined, resultUse: undefined,
@@ -323,20 +327,20 @@ test("C2349 dependent Set reads keep the original mixed-element owner in all fou
     const compiled = compileEffectiveSource("js", `import type { int32, uint32 } from "@tsonic/core/types.js";
 export function check(signed: int32, unsigned: uint32): boolean { const values = [${elements}]; const keys = new Set(values); return keys.has(values[1]) && keys.size === 1; }`);
     assertPublishedRefusal(compiled, "TSONIC_LOCAL_TYPE_MIXED_ELEMENTS", `[${elements}]`);
-    assert.equal(compiled.targetSource.effectiveTypes.refusals().length, 1, elements + ": the array owns the sole Source refusal");
+    assert.equal(compiled.targetSource.facts.refusals().length, 1, elements + ": the array owns the sole Source refusal");
     const arrays = projectNodes(compiled, (node, ast) => ast.is.IsArrayLiteralExpression(node));
     const comparisons = projectNodes(compiled, (node, ast) => ast.operatorKindName(node) === "KindEqualsEqualsEqualsToken");
     assert.equal(arrays.length === 1 && comparisons.length === 1, true, elements + ": the original construction and comparison remain");
-    const comparison = compiled.targetSource.effectiveTypes.get(comparisons[0]);
+    const comparison = publishedOutcome(compiled.targetSource, comparisons[0]);
     assert.equal(comparison?.kind === "resolved" && comparison.type.kind === "primitive" && comparison.type.primitive === "bool", true,
       elements + ": the independently known comparison publishes bool, not the array refusal");
     const reads = projectNodes(compiled, (node, ast) => ast.is.IsPropertyAccessExpression(node) && ast.text(ast.name(node)) === "size");
     assert.equal(reads.length, 1, elements);
-    const size = compiled.targetSource.effectiveTypes.get(reads[0]);
+    const size = publishedOutcome(compiled.targetSource, reads[0]);
     assert.equal(size !== undefined && size.kind !== "refused" && size.type.kind === "primitive" && size.type.primitive === "int32", true,
       elements + ": the genuine JS provider publishes the same exact member");
     const construction = projectNodes(compiled, (node, ast) => ast.is.IsNewExpression(node))[0];
-    const invocation = construction === undefined ? undefined : compiled.targetSource.effectiveTypes.callInstantiation(construction);
+    const invocation = construction === undefined ? undefined : compiled.targetSource.facts.instantiations.at(construction);
     const argument = invocation?.method[0]?.type;
     assert.equal(invocation?.method.length === 1 && argument?.kind === "primitive" && argument.primitive === "float64", true,
       elements + ": the existing constructor binder is retained without reconstruction");
@@ -357,7 +361,7 @@ for (const surface of ["native", "js"]) {
   test(`${surface} C2348 discarded selector wrappers forward completed effects without a value carrier`, () => {
     const compiled = compileEffectiveSource(surface, `export function run(flag: boolean, optional?: () => number): number {
       ((flag ? (() => 1) : (() => 2))! satisfies (() => number)); return 5; }`);
-    const ast = compiled.targetSource.ast;
+    const ast = compiled.targetSource.syntax;
     const errors = compiled.result.diagnostics.map(issue => {
       const node = issue.sourceNode;
       const range = node === undefined ? undefined : ast.authoredRange(node);
@@ -368,16 +372,20 @@ for (const surface of ["native", "js"]) {
     }).join("; ");
     assert.equal(compiled.targetDiagnostics.length, 0, errors);
     const output = acceptedEffectiveSource(compiled);
+    // The Host transparent-operand role (facts.navigation.expressions.transparentOperand; a non-wrapper is its own operand).
+    const transparent = node => {
+      const operand = compiled.targetSource.facts.navigation.expressions.transparentOperand(node);
+      return operand === node ? undefined : operand;
+    };
     const wrappers = projectNodes(compiled, node => {
-      let operand = sourceTransparentExpressionOperand(ast, node);
+      let operand = transparent(node);
       if (operand === undefined) return false;
-      for (let nested = sourceTransparentExpressionOperand(ast, operand); nested !== undefined;
-        nested = sourceTransparentExpressionOperand(ast, operand)) operand = nested;
+      for (let nested = transparent(operand); nested !== undefined; nested = transparent(operand)) operand = nested;
       return ast.is.IsConditionalExpression(operand);
     });
     assert.equal(wrappers.length, 4);
     for (const wrapper of wrappers) {
-      assert.equal(compiled.targetSource.effectiveTypes.get(wrapper) === undefined, true,
+      assert.equal(publishedOutcome(compiled.targetSource, wrapper) === undefined, true,
         "a discarded selector transport has no invented Source value");
       const physical = compiled.result.program.records.nativeExpression.get(wrapper)?.physical;
       assert.equal(physical?.completion.kind === "void" && physical.discardedPresence !== undefined, true,
@@ -388,8 +396,8 @@ for (const surface of ["native", "js"]) {
       return ((flag ? (() => 1) : (() => 2))! satisfies (() => number)); }`);
     acceptedEffectiveSource(consumed);
     const returned = projectNodes(consumed, (node, sourceAst) => sourceAst.is.IsReturnStatement(node))[0];
-    const expression = returned === undefined ? undefined : consumed.targetSource.ast.as.AsReturnStatement(returned)?.Expression;
-    const outcome = expression === undefined ? undefined : consumed.targetSource.effectiveTypes.get(expression);
+    const expression = returned === undefined ? undefined : consumed.targetSource.syntax.as.AsReturnStatement(returned)?.Expression;
+    const outcome = expression === undefined ? undefined : publishedOutcome(consumed.targetSource, expression);
     const physical = expression === undefined ? undefined : consumed.result.program.records.nativeExpression.get(expression)?.physical;
     assert.equal(outcome !== undefined && outcome.kind !== "refused" && physical?.completion.kind === "value", true,
       "a consumed selector transport still requires its exact value representation");
@@ -406,7 +414,7 @@ for (const surface of ["native", "js"]) {
       ast.operatorKindName(node) === "KindPlusToken");
     assert.equal(additions.length, 3);
     for (const node of additions) {
-      const outcome = compiled.targetSource.effectiveTypes.get(node);
+      const outcome = publishedOutcome(compiled.targetSource, node);
       assert.equal(outcome !== undefined && outcome.kind !== "refused" &&
         (outcome.type.kind === "union" || outcome.type.kind === "optional") &&
         outcome.construction?.kind === "primitive" && outcome.construction.primitive === "int32", true,
@@ -434,7 +442,7 @@ for (const surface of ["native", "js"]) {
       ast.is.IsTypeAssertion(node) || ast.is.IsNonNullExpression(node));
     assert.equal(transports.length, 3);
     for (const node of transports) {
-      const source = compiled.targetSource.effectiveTypes.get(node);
+      const source = publishedOutcome(compiled.targetSource, node);
       const native = compiled.result.program.records.nativeExpression.get(node)?.physical;
       assert.equal(source === undefined && native?.completion.kind === "void" && native.discardedPresence !== undefined, true,
         "a result-less assertion retains its admitted effects, not a pending explicit-value conversion");
@@ -444,7 +452,7 @@ for (const surface of ["native", "js"]) {
       return (flag ? (() => 1) : (() => 2)) as (() => number); }`);
     acceptedEffectiveSource(consumed);
     const assertion = projectNodes(consumed, (node, ast) => ast.is.IsAsExpression(node))[0];
-    const source = assertion === undefined ? undefined : consumed.targetSource.effectiveTypes.get(assertion);
+    const source = assertion === undefined ? undefined : publishedOutcome(consumed.targetSource, assertion);
     const native = assertion === undefined ? undefined : consumed.result.program.records.nativeExpression.get(assertion)?.physical;
     assert.equal(source !== undefined && source.kind !== "refused" && native?.completion.kind === "value", true,
       "a consumed assertion still proves and represents its exact result");
@@ -459,8 +467,8 @@ for (const surface of ["native", "js"]) {
     const source = compiled.targetSource;
     const declarations = projectNodes(compiled, (node, ast) => ast.is.IsVariableDeclaration(node));
     const publications = ["first", "second", "selected", "copy"].map(name => {
-      const declaration = declarations.find(node => source.ast.text(source.ast.name(node)) === name);
-      const outcome = declaration === undefined ? undefined : source.effectiveTypes.get(declaration);
+      const declaration = declarations.find(node => source.syntax.text(source.syntax.name(node)) === name);
+      const outcome = declaration === undefined ? undefined : publishedOutcome(source, declaration);
       assert.equal(outcome !== undefined && outcome.kind !== "refused" && outcome.type.kind === "array" &&
         outcome.type.element.kind === "primitive" && outcome.type.element.primitive === "int64", true,
         `${name}: the actual shared native array publication keeps its exact element width`);
@@ -468,7 +476,7 @@ for (const surface of ["native", "js"]) {
     });
     assert.equal(publications[2].type === publications[3].type, true,
       "reference coalescing keeps the selected producer's identical Source descriptor");
-    assert.equal(source.effectiveTypes.refusals().length, 0, "a nonnullable reference is not a primitive-only coalesce refusal");
+    assert.equal(source.facts.refusals().length, 0, "a nonnullable reference is not a primitive-only coalesce refusal");
     const coalescing = projectNodes(compiled, (node, ast) => ast.is.IsBinaryExpression(node) &&
       ast.operatorKindName(node) === "KindQuestionQuestionToken");
     assert.equal(coalescing.length, 1);
@@ -486,12 +494,12 @@ for (const surface of ["native", "js"]) {
     const compiled = compileEffectiveSource(surface, `import type { int8 } from "@tsonic/core/types.js";
       export function run(): int8 { const b: int8 = 1 + 2; return b; }`);
     const generated = acceptedEffectiveSource(compiled);
-    assert.equal(compiled.targetSource.effectiveTypes.refusals().length, 0);
+    assert.equal(compiled.targetSource.facts.refusals().length, 0);
     assertPrimitiveOccurrences(compiled, "b", "int8");
     const additions = projectNodes(compiled, (node, ast) => ast.is.IsBinaryExpression(node) &&
       ast.operatorKindName(node) === "KindPlusToken");
     assert.equal(additions.length, 1, "the original constant sum is retained");
-    const publication = compiled.targetSource.effectiveTypes.get(additions[0]);
+    const publication = publishedOutcome(compiled.targetSource, additions[0]);
     const value = compiled.result.program.records.valueRead.get(additions[0])?.value;
     const operation = compiled.result.program.records.binaryOperation.get(additions[0])?.target;
     assert.equal(publication !== undefined && publication.kind !== "refused" && publication.type.kind === "primitive" &&
@@ -509,13 +517,13 @@ for (const surface of ["native", "js"]) {
     const compiled = compileEffectiveSource(surface,
       "export function run() { const folded = 8 / 2 + 1; const wide = 2n; return folded; }");
     const generated = acceptedEffectiveSource(compiled);
-    assert.equal(compiled.targetSource.effectiveTypes.refusals().length, 0);
+    assert.equal(compiled.targetSource.facts.refusals().length, 0);
     assertPrimitiveOccurrences(compiled, "folded", "int64");
     const operations = projectNodes(compiled, (node, ast) => ast.is.IsBinaryExpression(node) &&
       ["KindSlashToken", "KindPlusToken"].includes(ast.operatorKindName(node)));
     assert.equal(operations.length, 2, "division and addition both remain actual admitted operations");
     for (const node of operations) {
-      const publication = compiled.targetSource.effectiveTypes.get(node);
+      const publication = publishedOutcome(compiled.targetSource, node);
       const value = compiled.result.program.records.valueRead.get(node)?.value;
       const operation = compiled.result.program.records.binaryOperation.get(node)?.target;
       assert.equal(publication !== undefined && publication.kind !== "refused" && publication.type.kind === "primitive" &&
@@ -524,12 +532,12 @@ for (const surface of ["native", "js"]) {
       assert.equal(operation?.kind === "resolved" && operation.resultType.kind === "source-primitive" &&
         operation.resultType.name === "int64", true, "folding never bypasses operation admission");
     }
-    const ast = compiled.targetSource.ast;
+    const ast = compiled.targetSource.syntax;
     const addition = operations.find(node => ast.operatorKindName(node) === "KindPlusToken");
     assert.equal(addition !== undefined, true, "the original addition owns the complete integer receipt");
     const file = ast.getSourceFile(addition);
     assert.equal(file !== undefined, true, "the receipt belongs to the actual checked source file");
-    const receipt = analyzeSourceLiteralValues(ast, [file]).literalValue.get(addition);
+    const receipt = compiled.targetSource.facts.values.literal(addition);
     assert.equal(receipt?.form === "binary" && receipt.integerConstant === 5n, true, "the canonical Source integer receipt is exactly 5n");
     assert.equal(generated.includes("long folded = 8L / 2L + 1L;"), true,
       "N-DEFAULT keeps the original constant expression with native long operands, never an int calculation widened afterwards");
@@ -568,7 +576,7 @@ for (const surface of ["native", "js"]) {
     ].includes(ast.operatorKindName(node)));
     assert.equal(nodes.length, kinds.length * 3);
     for (const node of nodes) {
-      const source = compiled.targetSource.effectiveTypes.get(node);
+      const source = publishedOutcome(compiled.targetSource, node);
       const selected = compiled.result.program.records.binaryOperation.get(node)?.target;
       assert.equal(source !== undefined && source.kind !== "refused" && source.type.kind === "primitive", true);
       assert.equal(selected?.kind === "resolved" && selected.resultType.kind === "source-primitive" && selected.resultType.name === source.type.primitive, true);
@@ -682,7 +690,7 @@ for (const surface of ["native", "js"]) {
       assert.equal(issue.code, "CSHARP_UNSUPPORTED_AST");
       assert.equal(issue.message, "No exact C# implicit conversion relates 'target:tsonic.shape:b13dc4521baaff73f5a23dabc9e8e7a9132b135c60d22ff42e17c9748a75956e<>' to 'target:tsonic.shape:189f39ca1970862712bea92adb0bd22482423ba78ad4a645aa9608d3b7eae517<>'. " +
         `Annotate \`const ${name}: { n: string | number } = { n: ${index === 0 ? "" : "-"}9007199254740993 }\`.`);
-      const range = rejected.targetSource.ast.authoredRange(issue.sourceNode);
+      const range = rejected.targetSource.syntax.authoredRange(issue.sourceNode);
       assert.equal(range.kind, "authored");
       assert.equal(original.slice(range.start, range.end), name, "the original module argument owns its precise refusal");
     }
@@ -694,7 +702,7 @@ for (const surface of ["native", "js"]) {
     const arrays = projectNodes(compiled, (node, ast) => ast.is.IsArrayLiteralExpression(node));
     assert.equal(arrays.length, cases.length, "each original array has one observed construction");
     const program = compiled.result.program;
-    const ast = compiled.targetSource.ast;
+    const ast = compiled.targetSource.syntax;
     for (const [index, expression] of arrays.entries()) {
       const row = cases[index];
       const use = program.records.nativeExpression.get(expression)?.use;
@@ -711,7 +719,7 @@ for (const surface of ["native", "js"]) {
           row.label + ": the native element retains the declared width and absence");
       }
       const literal = ast.elements(expression)[row.destination.index];
-      const outcome = compiled.targetSource.effectiveTypes.get(literal);
+      const outcome = publishedOutcome(compiled.targetSource, literal);
       assert.equal(outcome !== undefined && outcome.kind !== "refused", true, row.label + ": the original literal is published");
       const construction = outcome.construction ?? outcome.type;
       assert.equal(construction.kind === "primitive" && construction.primitive === "float64", true,

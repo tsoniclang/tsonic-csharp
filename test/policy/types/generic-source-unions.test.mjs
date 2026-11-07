@@ -1,82 +1,74 @@
+// Generic and literal source unions (nextgen C-2542). An object literal written into a union selects one Host arm
+// (facts.relations.at, "select-arm", literal discriminant, C-2479). Zero or several matching arms is a Source refusal
+// from the Host, never a C# carrier search. Narrowing (discriminant, nullish) is a Host test relation plus a published
+// narrowed type. A void arm is absence (A11). C# keeps only the CLR parts: generic binding inference over carriers,
+// shape substitution and the nullable conversion of a union struct.
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createCompilerSessionFromFiles } from "@tsonic/tsts";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
-import { csharpAbsenceTargetType, csharpRuntimeUnionTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
-import { csharpTargetNamedType } from "../../../dist/target-model/types/factories.js";
-import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
+import { hostProgram, representationServices, representations, represented } from "../../representation/host-fixture.mjs";
+import { csharpRuntimeUnionTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
+import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
 import { inferCsharpTargetTypeParameterBindings, substituteObjectShapeFactTargetTypeParameters } from "../../../dist/policy/types/resolution/substitution.js";
-import { selectCsharpAuthoredUnionRefinement, sourceRefinementOnlyRemovesNullish } from "../../../dist/analysis/source-evidence/types/resolution/source-union-refinement.js";
 import { selectCsharpConversion } from "../../../dist/policy/conversions/core.js";
-import { selectCsharpObjectLiteralUnionCarrier } from "../../../dist/analysis/objects/shapes/union-construction.js";
-import { csharpSourceUnionTargetType } from "../../../dist/target-model/types/source-union-definitions.js";
-import { csharpStringTargetType, csharpVoidTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
+import { getCsharpRuntimeUnionArms } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
+import { csharpStringTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 
 const byte = { kind: "source-primitive", name: "uint8" };
 const integer = { kind: "source-primitive", name: "int32" };
 const parameter = { kind: "type-parameter", identity: "Element", name: "Element" };
 const arm = (name, argument) => ({ kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: name, typeArguments: [argument] });
 
-test("union literal construction requires one total declaration-identity match", () => {
-  const firstDeclaration = {};
-  const secondDeclaration = {};
-  const optionalDeclaration = {};
-  const member = declaration => ({ sourceName: "sameSpelling", sourceDeclarations: [declaration], type: byte });
-  const shapes = [
-    { targetType: arm("First", byte), members: [member(firstDeclaration), { ...member(optionalDeclaration), optional: true }] },
-    { targetType: arm("Second", byte), members: [member(secondDeclaration)] },
-  ];
-  const union = csharpRuntimeUnionTargetType(shapes.map(shape => shape.targetType));
-  const select = (elements, target = union) => selectCsharpObjectLiteralUnionCarrier(target, elements,
-    type => shapes.find(shape => targetTypeRefEquals(shape.targetType, type)), element => element.sourceSelectedDeclarations);
-  const first = { sourceSelectedDeclarations: [firstDeclaration] };
-  const optional = { sourceSelectedDeclarations: [optionalDeclaration] };
-  assert.equal(select([first]) === shapes[0].targetType, true);
-  assert.equal(select([optional, first]) === shapes[0].targetType, true);
-  assert.equal(select([first], csharpNullableTargetType(union)) === shapes[0].targetType, true);
-  assert.equal(select([]), undefined);
-  assert.equal(select([optional]), undefined);
-  assert.equal(select([first, first]), undefined);
-  assert.equal(select([undefined]), undefined);
-  assert.equal(select([{ sourceSelectedDeclarations: [{}] }]), undefined);
-  assert.equal(select([{ sourceSelectedDeclarations: [firstDeclaration, secondDeclaration] }]), undefined);
+const program = hostProgram(`
+  import type { uint8, int64 } from "@tsonic/core/types.js";
+  interface First { kind: "first"; value: uint8; }
+  interface Second { kind: "second"; value: uint8; }
+  interface Left { value: string; }
+  interface Right { value: string; }
+  const selected: First | Second = { kind: "first", value: 1 };
+  const ambiguous: Left | Right = { value: "x" };
+  const record: Record<string, int64> | string = { entry: 1 };
+  declare function observe(value: unknown): void;
+  export function refine(value: First | Second, maybe: uint8 | undefined): void {
+    if (value.kind === "first") observe(value);
+    if (maybe !== undefined) observe(maybe);
+  }
+  class Later {}
+  type Outcome = void | string | Later;
+  declare const outcome: Outcome;
+`);
+const { ast, nodes, facts } = program;
+const variable = name => program.named(name, node => ast.is.IsVariableDeclaration(node));
+const initializer = name => nodes.find(node => ast.is.IsObjectLiteralExpression(node) && ast.parent(node) === variable(name));
+const represent = representations(representationServices(program));
+
+test("an object literal written into a union selects the one Host arm whose literal discriminant matches", () => {
+  const relation = facts.relations.at(initializer("selected"));
+  assert.equal(relation?.kind, "select-arm");
+  const sum = facts.sums.sum(relation.sum);
+  assert.equal(sum.arms[relation.arm].type.declaration, program.named("First", node => ast.is.IsInterfaceDeclaration(node)),
+    "the discriminant 'first' selects First by declaration, not by member spelling");
+  assert.deepEqual(relation.discriminant && { property: relation.discriminant.property, text: relation.discriminant.value.text },
+    { property: "kind", text: "first" });
 });
 
-test("indexed record union construction retains exact carriers and rejects ambiguous or unavailable arms", () => {
-  const string = csharpStringTargetType();
-  const integer = { kind: "source-primitive", name: "int64" };
-  const record = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [false, false], id: "System.Collections.Generic.Dictionary`2",
-    typeArguments: [string, integer], csharpCollectionSurface: "record" };
-  const alternate = { ...record, typeArguments: [string, byte] };
-  const root = csharpSourceUnionTargetType("record-root", "RecordRoot", []);
-  const definitions = { sourceUnionArms: carrier => carrier === root ? [string, integer, record] : undefined };
-  const select = (target, elements = [{}], source) => selectCsharpObjectLiteralUnionCarrier(target, elements,
-    () => undefined, () => undefined, definitions, source);
-  assert.equal(select(root) === record, true);
-  assert.equal(select(csharpNullableTargetType(root)) === record, true);
-  assert.equal(select(root, []) === record, true);
-  assert.equal(select(root, [undefined]) === undefined, true);
-  assert.equal(select(csharpRuntimeUnionTargetType([string, integer])) === undefined, true);
-  assert.equal(select(csharpRuntimeUnionTargetType([record, alternate])) === undefined, true);
-  assert.equal(select(csharpRuntimeUnionTargetType([record, alternate]), [{}], record) === record, true);
-  assert.equal(select(csharpRuntimeUnionTargetType([record, record]), [{}], record) === undefined, true);
-  assert.equal(select(root, [{}], { ...record, typeArguments: [string, parameter] }) === record, true);
-  assert.equal(select(csharpSourceUnionTargetType("missing", "Missing", [])) === undefined, true);
+test("several structurally matching arms are a Host refusal, never a C# arm choice", () => {
+  const relation = facts.relations.at(initializer("ambiguous"));
+  assert.equal(relation?.kind, "refused", "zero or several matches is a Source refusal (C-2479)");
+  assert.equal(relation.code.startsWith("TSONIC_"), true, "the refusal is Host-originated (I7)");
+  assert.equal(facts.refusals().some(refusal => refusal.code === relation.code && refusal.site === relation.site), true,
+    "the refusal is published once in the program refusals");
 });
 
-test("record and declaration-shaped literal matches cannot select an arbitrary union constructor", () => {
-  const declaration = {};
-  const record = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [false, false], id: "System.Collections.Generic.Dictionary`2",
-    typeArguments: [csharpStringTargetType(), byte], csharpCollectionSurface: "record" };
-  const shape = { targetType: arm("Declared", byte), members: [{ type: byte, sourceDeclarations: [declaration] }] };
-  const union = csharpRuntimeUnionTargetType([record, shape.targetType]);
-  const select = source => selectCsharpObjectLiteralUnionCarrier(union, [{ sourceSelectedDeclarations: [declaration] }],
-    carrier => targetTypeRefEquals(carrier, shape.targetType) ? shape : undefined,
-    element => element.sourceSelectedDeclarations, undefined, source);
-  assert.equal(select() === undefined, true);
-  assert.equal(select(shape.targetType) === shape.targetType, true);
-  assert.equal(select(record) === record, true);
+test("an indexed record arm is selected by the Host and keeps its exact .NET carrier", () => {
+  const literal = initializer("record");
+  const relation = facts.relations.at(literal);
+  assert.equal(relation?.kind, "select-arm");
+  const sum = facts.sums.sum(relation.sum);
+  const storage = represented(represent.slot(variable("record")));
+  const selectedArm = represented(represent.type(sum.arms[relation.arm].type, literal, "storage"));
+  assert.equal(targetTypeRefEquals(getCsharpRuntimeUnionArms(storage)[relation.arm], selectedArm), true,
+    "the selected arm's carrier is the positional runtime arm");
 });
 
 test("generic nullable union inference uses one exact arm and retains concrete widths", () => {
@@ -107,93 +99,44 @@ test("shape substitution keeps one symbolic declaration through multiple instant
   assert.deepEqual(original.members[0].type, parameter);
 });
 
-test("source-union refinement requires exact unique member declarations", () => {
-  const firstDeclaration = {};
-  const secondDeclaration = {};
-  const selectedType = {};
-  const declaredType = {};
-  const selectedSymbol = {};
-  const shapes = [firstDeclaration, secondDeclaration].map((declaration, index) => ({
-    targetType: arm(`Arm${index}`, byte), members: [{
-      sourceName: "value", targetName: "value", memberKind: "property", type: byte,
-      sourceDeclarations: [declaration],
-    }],
-  }));
-  let declarations = [firstDeclaration];
-  const queries = {
-    types: { refinement: () => ({ kind: "members", types: [selectedType] }), isNullish: () => false, isVoidLike: () => false,
-      unionOrIntersectionTypes: () => [selectedType, {}],
-      propertyInfos: () => [{ symbol: selectedSymbol, rootSymbols: [] }], },
-    declarations: { symbolDeclarations: () => declarations },
-  };
-  const union = csharpRuntimeUnionTargetType(shapes.map(shape => shape.targetType), shapes);
-  const select = value => selectCsharpAuthoredUnionRefinement(value, declaredType, selectedType, queries, () => undefined,
-    type => shapes.find(shape => targetTypeRefEquals(shape.targetType, type)));
-  const selected = select(csharpNullableTargetType(union));
-  assert.equal(selected.kind, "resolved");
-  assert(targetTypeRefEquals(selected.type, shapes[0].targetType));
-  declarations = [{}];
-  assert.equal(select(union).kind, "rejected");
-  declarations = [firstDeclaration, secondDeclaration];
-  assert.equal(select(union).kind, "rejected");
-  declarations = [];
-  assert.equal(select(union).kind, "rejected");
+test("discriminant narrowing is a Host test relation and the narrowed read is the one arm's declaration", () => {
+  const comparison = nodes.find(node => ast.is.IsBinaryExpression(node) && ast.text(node) === 'value.kind === "first"');
+  const relation = facts.relations.at(comparison);
+  assert.equal(relation?.kind, "test");
+  assert.deepEqual([...relation.whenTrue], [0], "exactly the First arm survives");
+  const reads = nodes.filter(node => ast.is.IsCallExpression(node) && ast.text(ast.as.AsCallExpression(node).Expression) === "observe")
+    .map(call => ast.arguments(call)[0]);
+  const narrowed = program.type(reads[0]);
+  assert.equal(narrowed.kind === "declared" && narrowed.declaration === program.named("First", node => ast.is.IsInterfaceDeclaration(node)), true);
+  assert.equal(represented(represent.value(reads[0])).id, "global::Fixture.First");
 });
 
-test("checked void union members select only an already-admitted native absence", () => {
-  const checked = createCompilerSessionFromFiles({ currentDirectory: "/src", files: {
-    "/src/index.ts": "class Later {} type Outcome = void | string | Later;",
-  }, compilerOptions: { strict: true, module: "esnext" } }).checkSource();
-  assert.equal(checked.diagnostics.length, 0);
-  const source = createTargetSourceProgram(checked);
-  const file = checked.getSourceFile("/src/index.ts");
-  let alias;
-  source.ast.forEachChild(file, node => {
-    if (source.ast.is.IsTypeAliasDeclaration(node)) alias = node;
-  });
-  assert.equal(alias !== undefined, true, "the real checked union has its authored declaration");
-  const queries = source.semantics.forNode(alias);
-  const declared = queries.types.authoredType(source.ast.typeNode(alias));
-  const selected = queries.types.unionOrIntersectionTypes(declared)
-    .find(member => member !== undefined && queries.types.isVoidLike(member));
-  assert.equal(selected !== undefined, true, "the original absence arm is genuinely checked void, not guessed undefined");
-  const later = csharpTargetNamedType("source.Later", undefined, { kind: "named", name: "Later" },
-    { allowsRefLikeTypeArguments: [], sourceDeclarationKind: "class" });
-  const union = csharpRuntimeUnionTargetType([csharpStringTargetType(), later]);
-  const resolve = carrier => selectCsharpAuthoredUnionRefinement(carrier, declared, selected, queries,
-    () => undefined, () => undefined);
-  const absent = resolve(csharpNullableTargetType(union));
-  assert.equal(absent.kind === "resolved" && targetTypeRefEquals(absent.type, csharpAbsenceTargetType()), true,
-    "the source void value uses the nullable union's one proven absence, never a present payload");
-  assert.equal(resolve(union).kind, "rejected", "a non-optional native union cannot manufacture an absent variant");
-  assert.equal(resolve(csharpVoidTargetType()).kind, "not-applicable", "ordinary native void remains a completion, not value storage");
+test("nullish narrowing keeps the native payload only for the complete non-nullish selection", () => {
+  const reads = nodes.filter(node => ast.is.IsCallExpression(node) && ast.text(ast.as.AsCallExpression(node).Expression) === "observe")
+    .map(call => ast.arguments(call)[0]);
+  const comparison = nodes.find(node => ast.is.IsBinaryExpression(node) && ast.text(node) === "maybe !== undefined");
+  const relation = facts.relations.at(comparison);
+  assert.equal(relation?.kind, "test");
+  const sum = facts.sums.sum(relation.sum);
+  assert.equal(relation.whenTrue.every(index => !(sum.arms[index].type.kind === "intrinsic" && sum.arms[index].type.intrinsic === "absence")),
+    true, "the absence arm is excluded when the test holds");
+  assert.equal(targetTypeRefEquals(represented(represent.value(reads[1])), byte), true, "the narrowed read is the exact uint8");
+  const declared = represented(represent.slot(ast.parameters(program.named("refine", node => ast.is.IsFunctionDeclaration(node)))[1]));
+  assert.equal(targetTypeRefEquals(getCsharpNullableElementTargetType(declared), byte), true, "the declared storage keeps its one absence");
 });
 
-test("nullish refinement retains a native carrier only for the complete non-nullish selection", () => {
-  const present = {};
-  const other = {};
-  const absent = {};
-  const declared = {};
-  let members = [present];
-  let declaredMembers = [present, absent];
-  const queries = { types: {
-    refinement: () => ({ kind: "members", types: members }),
-    unionOrIntersectionTypes: () => declaredMembers,
-    isNullish: type => type === absent,
-  } };
-  assert(sourceRefinementOnlyRemovesNullish(declared, present, queries));
-  assert.deepEqual(selectCsharpAuthoredUnionRefinement(csharpNullableTargetType(byte), declared, present,
-    queries, () => { throw new Error("native carrier must not be reconstructed"); }, () => undefined),
-  { kind: "resolved", type: byte });
-  for (const invalid of [[], [other], [present, absent], [present, present]]) {
-    members = invalid;
-    assert.equal(sourceRefinementOnlyRemovesNullish(declared, present, queries), false);
-  }
-  members = [present];
-  for (const invalid of [[present], [present, undefined], [present, other, absent]]) {
-    declaredMembers = invalid;
-    assert.equal(sourceRefinementOnlyRemovesNullish(declared, present, queries), false);
-  }
+test("a void union arm is the nullable union's one absence, never a present payload (A11)", () => {
+  const descriptor = program.slot(variable("outcome"));
+  const sum = program.sum(descriptor);
+  assert.equal(sum.arms.some(entry => entry.type.kind === "intrinsic" && entry.type.intrinsic === "void"), false,
+    "the Host publishes void as absence");
+  assert.equal(sum.arms.filter(entry => entry.type.kind === "intrinsic" && entry.type.intrinsic === "absence").length, 1);
+  const carrier = represented(represent.slot(variable("outcome")));
+  const present = getCsharpNullableElementTargetType(carrier);
+  assert.notEqual(present, undefined, "absence lifts the union to Nullable");
+  const arms = getCsharpRuntimeUnionArms(present);
+  assert.equal(arms.length === 2 && targetTypeRefEquals(arms[0], csharpStringTargetType()) && arms[1].id === "global::Fixture.Later", true,
+    "string and Later stay positional after the leading absence arm");
 });
 
 test("nullable union conversion never confuses nullability with selecting an arm", () => {

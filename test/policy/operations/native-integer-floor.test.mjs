@@ -10,28 +10,21 @@ test("floor policy retains every native integer carrier supplied by exact provid
     const binding = providerBinding();
     const member = providerMethod({ static: true, parameters: [targetParameter("value", carrier)], returnType: carrier });
     const call = callEvidence(providerCallSource({ receiver: false, sourceArgumentTargets: [carrier] }, binding, member));
+    // Basis (nextgen C-2542, signed by Claude): the profile reads the Host call selection; the declared parameter is
+    // the represented published parameter descriptor (selection.parameters[0].type, R-B-1 shape), the argument its
+    // node-keyed carrier. No checker parameter Type and no resolveSourceCallParameter remain.
     const fixture = directProviderHost({
-      sourceProgram: call.program, calls: [[call.evidence.call, call.evidence]],
-      nodeTypes: [[call.evidence.sourceArguments[0].expression, carrier]],
-      semanticTypes: [[call.evidence.sourceSelectedSignatureParameters[0].selectedType, carrier]],
-      signatureDeclarations: [[call.evidence.selectedSignature, call.signatureDeclaration]],
+      sourceProgram: call.program, calls: [[call.call, call.evidence]],
+      nodeTypes: [[call.evidence.arguments[0].argument, carrier]],
+      descriptorTypes: [[call.evidence.parameters[0].type, carrier]],
       facts: [providerFact(call.signatureDeclaration, providerDeclaration({
         providerId: jsSourceSemanticsIdentity.providerId,
         exportName: "Math",
         memberName: "floor",
         memberKey: { kind: "property-key", name: "floor" },
       }))],
-
     });
-    const host = { ...fixture.host, types: { ...fixture.host.types, resolveSourceCallTypeArguments: () => [],
-      resolveSourceCallParameter: (source, index, file, domain) => {
-        assert.equal(source === call.evidence && index === 0 && file === fixture.sourceFile, true,
-          "the exact selected signature owns its single checked parameter");
-        assert.equal(domain, "declared", "native provider evidence is read without source-callee admission");
-        return fixture.host.types.resolveType(source.sourceSelectedSignatureParameters[index].selectedType, file);
-      },
-    } };
-    const selected = selectCsharpComposedSourceProfileCall(host, call.evidence, fixture.sourceFile);
+    const selected = selectCsharpComposedSourceProfileCall(fixture.host, call.call);
     assert.equal(selected.kind, "resolved");
     const integral = !name.startsWith("float");
     assert.deepEqual(selected.call.targetMember.returnType, integral ? carrier : { kind: "source-primitive", name: "float64" });

@@ -1,5 +1,5 @@
 import type { CsharpTypeofRuntimeKind, TargetTypeRef } from "../../../target-model/types/model.js";
-import { csharpTypeofResultsEqual, getCsharpTypeofResult, type CsharpTypeofResult } from "../../../target-model/types/runtime-kind.js";
+import type { CsharpTypeofResult } from "../../../target-model/types/runtime-kind.js";
 import type { CsharpExpression, CsharpStatement, CsharpSwitchExpressionArm } from "../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../context.js";
 import { allocateExpressionTemp, type DestructuringPlannerState } from "../bindings/binding-state.js";
@@ -22,10 +22,7 @@ export function planCsharpRuntimeCategory(
   evaluation: "evaluate" | "omit",
   comparison?: CsharpRuntimeCategoryComparison,
 ): CsharpExpression | undefined {
-  // The sealed category must agree with its operand carrier; a forged or stale fact is refused. The sealed program has
-  // no type definitions, so only native class kinds (which need them) rest on the analysis record alone.
-  const expected = getCsharpTypeofResult(carrier);
-  if (expected !== undefined && !csharpTypeofResultsEqual(expected, category)) return undefined;
+  // The category is the sealed Host typeof category (N3'); the planner never re-derives it from the carrier.
   if (typeof category === "string") return evaluatedConstant(expression, carrier,
     comparison === undefined ? category : (category === comparison.runtimeKind) !== comparison.negated, prelude, evaluation);
   return planRuntimeCategory(expression, category, input, state, comparison);
@@ -50,7 +47,7 @@ function planRuntimeCategory(
       : planRuntimeCategory({ kind: "IdentifierName", name: designation }, category.value, input, state, comparison);
     if (type === undefined || nested === undefined) return undefined;
     arms.push({ pattern: { kind: "ConstantPattern", expression: { kind: "LiteralExpression", value: null } },
-      expression: literal("object") },
+      expression: literal(category.absent) },
     { pattern: { kind: "DeclarationPattern", type, designation }, expression: nested });
   } else {
     for (const [index, arm] of category.arms.entries()) {

@@ -590,19 +590,21 @@ function supportedAdoption(compiled, text, kind, declarationName) {
   const call = calls[0];
   const file = ast.getSourceFile(call);
   assert.equal(file !== undefined && compiled.source.sourceFiles.includes(file), true, "original checked source identity");
-  const checked = program.source.semantics.forNode(call).operations.call(call);
+  // nextgen C-2542: the selected call is the Host call selection (facts.selections.call): signature declaration,
+  // argument correspondences and, through facts.instantiations, the method binders. No checker Signature or
+  // ResolvedSourceCallInfo bindings are compared.
+  const checked = program.source.facts.selections.call(call);
   const selected = program.records.selectedCall.get(call)?.source;
-  assert.equal(selected?.sourceSelectedSignatureKind === "resolved" && selected.call === call &&
-    selected.selectedSignature === checked?.selectedSignature, true, "same exact checked and selected native signature");
-  const declaration = program.source.semantics.forNode(call).declarations.signatureDeclaration(selected.selectedSignature);
+  assert.equal(checked !== undefined && checked.kind !== "refused" && checked.use === call && selected === checked, true,
+    "same exact Host call selection in the native record");
+  const declaration = checked.signature;
   assert.equal(declaration !== undefined && ast.text(ast.name(declaration)) === declarationName &&
     ast.typeParameters(declaration).length > 0, true, "same selected declaration and original generic binder");
-  assert.equal(selected.sourceSelectedMethodTypeArguments?.length > 0 && selected.sourceArgumentBindings.length > 0 &&
-    selected.sourceArgumentBindings.every((binding, index) =>
-      binding === checked.sourceArgumentBindings[index] &&
-      selected.sourceSelectedSignatureParameters.some(parameter => parameter.parameterIndex === binding.sourceParameterIndex &&
-        parameter.parameterDeclaration !== undefined) &&
-      selected.sourceArguments[binding.sourceArgumentIndex]?.expression === checked.sourceArguments[binding.sourceArgumentIndex]?.expression), true,
+  const instantiation = program.source.facts.instantiations.at(call);
+  const authored = ast.arguments(call);
+  assert.equal(instantiation !== undefined && instantiation.kind !== "refused" && instantiation.method.length > 0 &&
+    checked.arguments.length > 0 && checked.arguments.every(entry => authored.includes(entry.argument) &&
+      entry.parameterIndex >= 0 && entry.parameterIndex < ast.parameters(declaration).length), true,
   "the original formal, argument and effective binding identities stay complete");
   const bytes = Buffer.from(ast.getSourceText(file));
   const leading = /^\s*/u.exec(bytes.subarray(ast.pos(call), ast.end(call)).toString("utf8"))[0];
@@ -619,7 +621,10 @@ function selectedPromiseCall(compiled, text) {
   assert.equal(program !== undefined && compiled.result.artifacts.length > 0, true,
     "the admitted native contract publishes its actual program and source");
   const { ast } = compiled.source;
-  const calls = program.source.navigation.nodesForFiles(program.sourceFiles).filter(node => {
+  const all = [];
+  const collect = node => { all.push(node); ast.forEachChild(node, child => { if (child !== undefined) collect(child); }); };
+  program.sourceFiles.forEach(collect);
+  const calls = all.filter(node => {
     if (!ast.is.IsCallExpression(node)) return false;
     const file = ast.getSourceFile(node);
     return file !== undefined && compiled.source.sourceFiles.includes(file) &&

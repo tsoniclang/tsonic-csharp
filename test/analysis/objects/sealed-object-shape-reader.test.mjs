@@ -27,6 +27,25 @@ const member = type => ({ sourceKey: { kind: "property", name: "value" }, source
 const template = { targetType: { kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: "Shape", typeArguments: [parameter] }, members: [member(parameter)] };
 const component = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: "Shape", typeArguments: [integer] };
 const holder = { targetType: { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "Holder" }, members: [member(component)] };
+// A published descriptor standing for a Source type in fixtures (nextgen C-2542: shapes carry descriptors, not Types).
+const fixtureDescriptor = () => ({ kind: "declared", declaration: {}, typeArguments: [] });
+// Host object facts for one readable `value` member: objects.members(destination) and objects.member(source, key).
+// nextgen C-2542: the old `purpose === "read"` assertion checked a checker structuralMembers argument; facts.objects
+// has no purpose parameter, so it is removed.
+function structuralMemberFacts(sourceType, sourceDeclaration, destinationDeclaration) {
+  const key = { kind: "string", value: "value" };
+  const objectMember = declaration => ({ key, name: "value", kind: "property", declarations: [declaration],
+    type: { kind: "primitive", primitive: "int64" }, optional: false, readonly: false, static: false, owner: {}, inherited: false });
+  return { objects: {
+    indexes: () => [],
+    members: () => [objectMember(destinationDeclaration)],
+    member(type, selected) {
+      assert.equal(type, sourceType, "the source member comes from the selected source descriptor");
+      assert.deepEqual(selected, key);
+      return objectMember(sourceDeclaration);
+    },
+  } };
+}
 
 const refusesMutation = (mutate) => {
   try {
@@ -159,7 +178,7 @@ test("sealed structural implementations, property orders and node shapes are loo
 
 test("structural implementations are materialized at seal and an unrecorded instantiation fails closed", () => {
   const symbol = {};
-  const sourceType = {};
+  const sourceType = fixtureDescriptor();
   const carrier = (id, argument) => ({ kind: "target-named", csharpAllowsRefLikeTypeArguments: argument === undefined ? [] : [false], id, csharpStructuralContract: true,
     ...(argument === undefined ? {} : { typeArguments: [argument] }) });
   const shape = targetType => ({ targetType, sourceType, members: [{ ...member(integer), sourceSubjects: [symbol] }] });
@@ -178,15 +197,7 @@ test("structural implementations are materialized at seal and an unrecorded inst
       resolveCopyShape: () => { assert.equal(closed, false, "copy selection precedes publication"); return undefined; },
     },
     projectTypes: { directSupertypes: () => [], catalog: { definitionForTarget: () => undefined } },
-    semanticsFor: () => ({ types: { expressionType: () => sourceType, structuralMembers(_source, _destination, purpose) {
-      assert.equal(purpose, "read", "native implementation admission requires readable members before the seal");
-      return {
-      kind: "available", destination: { calls: [], constructs: [], indexes: [] }, members: [{ kind: "present",
-        source: { property: { symbol, rootSymbols: [] }, declarations: [] },
-        destination: { property: { symbol, rootSymbols: [] }, declarations: [] },
-      }],
-      };
-    } } }),
+    facts: structuralMemberFacts(sourceType, symbol, symbol),
   };
   const builder = analyzeCsharpObjectShapes(policy, { targetTypes: [], compileTimeMetadata: { get: () => false } },
     { selectedCall: { get: () => undefined }, selectedConstruction: { get: () => undefined } });
@@ -248,8 +259,8 @@ test("a generic structural implementation is substituted once at seal into froze
   const captured = { kind: "type-parameter", identity: "class:Element", name: "Element" };
   const sourceSymbol = {};
   const destinationSymbol = {};
-  const sourceType = {};
-  const destinationType = {};
+  const sourceType = fixtureDescriptor();
+  const destinationType = fixtureDescriptor();
   const optional = type => csharpNullableTargetType(type);
   const slot = type => ({ kind: "target-named", csharpAllowsRefLikeTypeArguments: [false, false, false], id: "test.Slot", csharpSourceDeclarationKind: "interface",
     typeArguments: [type, resolveCsharpOptionalStorage({ kind: "optional", part: "operations", arguments: [element] }, type), optional(type)] });
@@ -275,15 +286,7 @@ test("a generic structural implementation is substituted once at seal into froze
       resolveCopyShape: () => { assert.equal(closed, false, "copy selection precedes publication"); return undefined; },
     },
     projectTypes: { directSupertypes: () => [], catalog: { definitionForTarget: () => undefined } },
-    semanticsFor: () => ({ types: { expressionType: () => sourceType, structuralMembers(_source, _destination, purpose) {
-      assert.equal(purpose, "read", "generic native implementation admission requires readable members before the seal");
-      return {
-      kind: "available", destination: { calls: [], constructs: [], indexes: [] }, members: [{ kind: "present",
-        source: { property: { symbol: sourceSymbol, rootSymbols: [] }, declarations: [] },
-        destination: { property: { symbol: destinationSymbol, rootSymbols: [] }, declarations: [] },
-      }],
-      };
-    } } }),
+    facts: structuralMemberFacts(sourceType, sourceSymbol, destinationSymbol),
   };
   const builder = analyzeCsharpObjectShapes(policy, { targetTypes: [], compileTimeMetadata: { get: () => false } },
     { selectedCall: { get: () => undefined }, selectedConstruction: { get: () => undefined } });

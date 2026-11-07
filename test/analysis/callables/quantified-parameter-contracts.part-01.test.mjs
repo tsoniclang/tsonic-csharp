@@ -17,8 +17,8 @@ test(`quantified native body keeps its own binder on ${surface}: ${name}`, () =>
     assert.equal(program !== undefined, true, "the complete source binder contract is admitted before publication");
     let checked = 0;
     const visit = node => {
-      if ((program.source.ast.is.IsArrowFunction(node) || program.source.ast.is.IsFunctionExpression(node)) &&
-          program.source.ast.typeParameters(node).length > 0) {
+      if ((program.source.syntax.is.IsArrowFunction(node) || program.source.syntax.is.IsFunctionExpression(node)) &&
+          program.source.syntax.typeParameters(node).length > 0) {
         const contract = program.records.callableDeclaration.get(node)?.contract;
         assert.equal(contract?.kind === "source", true, "the actual source generic declaration owns its contract");
         assert.equal(contract.nativeSignature.methodTypeParameterIdentities.length > 0, true,
@@ -43,9 +43,9 @@ test(`quantified native body keeps its own binder on ${surface}: ${name}`, () =>
           checked += 1;
         }
       }
-      program.source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+      program.source.syntax.forEachChild(node, child => { if (child !== undefined) visit(child); });
     };
-    program.source.navigation.sourceFiles.forEach(visit);
+    program.source.sourceFiles.forEach(visit);
     assert.equal(checked > 0, true, "the witness observes actual quantified native parameter records");
   });
 }
@@ -75,10 +75,10 @@ test(`authored async contextual completion retains ${name} on ${surface}`, { tim
   const program = compiled.result.program;
   const declarations = [];
   const visit = node => {
-    if (program.source.ast.is.IsArrowFunction(node)) declarations.push(node);
-    program.source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    if (program.source.syntax.is.IsArrowFunction(node)) declarations.push(node);
+    program.source.syntax.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
-  program.source.navigation.sourceFiles.forEach(visit);
+  program.source.sourceFiles.forEach(visit);
   assert.equal(declarations.length, 1, "one original contextual async callable is admitted");
   const contract = program.records.callableDeclaration.get(declarations[0])?.contract;
   assert.equal(contract?.kind, "source", "the native body uses its sealed source declaration contract");
@@ -97,7 +97,7 @@ test(`unannotated parameter keeps its contextual native input on ${surface}: ${n
     const compiled = compileCsharpSource({ surface, sourceText });
     assertCsharpCompilationSucceeded(compiled);
     const program = compiled.result.program;
-    const { ast } = program.source;
+    const ast = program.source.syntax;
     const parameters = new Set();
     const references = [];
     const visit = node => {
@@ -116,11 +116,11 @@ test(`unannotated parameter keeps its contextual native input on ${surface}: ${n
       if (ast.is.IsIdentifier(node)) references.push(node);
       ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
     };
-    program.source.navigation.sourceFiles.forEach(visit);
+    program.source.sourceFiles.forEach(visit);
     assert.equal(parameters.size > 0, true, "the witness observes an actual unannotated native parameter declaration");
     let reads = 0;
     for (const reference of references) {
-      const declaration = program.source.navigation.referenceFor(reference)?.declaration;
+      const declaration = program.source.facts.navigation.identity.target(reference)?.declaration;
       if (!parameters.has(declaration)) continue;
       const storage = program.records.valueRead.get(reference)?.storage;
       if (storage === undefined) continue;

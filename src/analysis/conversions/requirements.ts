@@ -26,6 +26,8 @@ import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { csharpSourceTypeParameter } from "../../source/extension/type-parameters.js";
 
 import { selectCsharpPropertyProjections } from "./property-projections.js";
+import { csharpSignatureParameters } from "../callables/calls/signature-parameters.js";
+import { sourceInstantiation } from "../program/source-facts.js";
 
 import { type CsharpCallConversionRequests } from "./use-admission.js";
 import type { CsharpNativeCompletion } from "../../target-model/records/native/native-demand.js";
@@ -81,7 +83,7 @@ export function collectCsharpConversionRequirements(input: CsharpConversionRequi
       literalRequests.requestReads(binary.right, valueReads.valueRead.get(binary.right)?.value, [],
         comparisons.map(operation => operation.rightInputType), operations);
     }
-    if (policy.literalValues.literalValue.get(node) !== undefined) {
+    if (policy.facts.values.literal(node) !== undefined) {
       const source = valueReads.valueRead.get(node)?.value;
       if (source !== undefined) for (const target of expectedTypes.expectedType.get(node)) {
         classifyExpression(node, source, target, "implicit", expectedTypes.exactIntegerConversion.get(node, target));
@@ -205,7 +207,7 @@ export function collectCsharpConversionRequirements(input: CsharpConversionRequi
     const targetProtocol = source === undefined
       ? undefined
       : getCsharpGeneratorProtocol(
-          evidence.generatorTargetType.get(source.generator.declaration),
+          evidence.generatorTargetType.get(source.generator),
         );
     classifyYieldResumePair(yieldExpression, targetProtocol?.returnType);
   }
@@ -221,15 +223,15 @@ export function collectCsharpConversionRequirements(input: CsharpConversionRequi
     if (source === undefined) {
       return;
     }
-    const sourceProtocol = source.yieldKind === "delegate"
+    const sourceProtocol = source.kind === "delegate"
       ? getCsharpGeneratorProtocol(
           evidence.yieldTargetType.get(yieldExpression),
         )
       : getCsharpGeneratorProtocol(
-          evidence.generatorTargetType.get(source.generator.declaration),
+          evidence.generatorTargetType.get(source.generator),
         );
     classifyPair(
-      source.yieldKind === "delegate"
+      source.kind === "delegate"
         ? sourceProtocol?.returnType
         : sourceProtocol?.nextType,
       targetType,
@@ -265,14 +267,10 @@ export function collectCsharpConversionRequirements(input: CsharpConversionRequi
       ? classification.target.source
       : undefined);
     if (source !== undefined) {
-      const queries = policy.semanticsFor(node);
-      const selectedArguments = source.sourceSelectedMethodTypeArguments ?? [];
-      const parameters = selectedArguments.map(argument => {
-        const symbol = queries.declarations.typeSymbol(argument.typeParameter);
-        const declarations = symbol === undefined ? [] : queries.declarations.symbolDeclarations(symbol)
-          .filter(declaration => policy.ast.is.IsTypeParameterDeclaration(declaration));
-        return declarations.length === 1 ? declarations[0] : undefined;
-      });
+      // Method binders in declaration order, from the Host per-use instantiation (G4).
+      const selectedArguments = sourceInstantiation(policy.facts, node)?.method ?? [];
+      const parameters = selectedArguments.map(argument =>
+        policy.ast.is.IsTypeParameterDeclaration(argument.declaration) ? argument.declaration : undefined);
       const substitutions = new Map(parameters.flatMap((parameter, index) => {
         const type = call?.sourceTypeArguments?.[index];
         const identity = parameter === undefined ? undefined : csharpSourceTypeParameter(parameter, policy.ast)?.identity;
@@ -285,29 +283,14 @@ export function collectCsharpConversionRequirements(input: CsharpConversionRequi
         if (type === undefined || requirements?.kind !== "resolved") continue;
         for (const constraint of requirements.constraints) {
           if (constraint.kind === "type") objectShapes.registerStructuralInterface(node, type,
-            substituteTargetTypeParameters(constraint.type, substitutions), argument.selectedType);
+            substituteTargetTypeParameters(constraint.type, substitutions), argument.type);
         }
       }
-      const boundParameterIndexes = new Set(
-        source.sourceArgumentBindings.map((binding) =>
-          binding.sourceParameterIndex),
-      );
-      for (
-        let parameterIndex = 0;
-        parameterIndex < source.sourceSelectedSignatureParameters.length;
-        parameterIndex += 1
-      ) {
-        const parameter = source.sourceSelectedSignatureParameters[
-          parameterIndex
-        ];
-        if (
-          boundParameterIndexes.has(parameterIndex) ||
-          parameter === undefined ||
-          parameter.rest ||
-          !parameter.acceptsOmission
-        ) {
-          continue;
-        }
+      const boundParameterIndexes = new Set(source.arguments.map(binding => binding.parameterIndex));
+      const signatureParameters = csharpSignatureParameters(policy.ast, source.signature) ?? [];
+      for (const parameter of signatureParameters) {
+        const parameterIndex = parameter.index;
+        if (boundParameterIndexes.has(parameterIndex) || parameter.form === "rest" || !parameter.acceptsOmission) continue;
         const absence = csharpAbsenceTargetType();
         const target = classification.sourceParameterTypes?.[parameterIndex];
         classifyPair(absence, target, "implicit", node);
@@ -340,7 +323,7 @@ export function collectCsharpConversionRequirements(input: CsharpConversionRequi
         if (mapping.kind !== "by-value") continue;
         const argument = argumentsByIndex.get(mapping.effectiveArgumentIndex);
         const expression = argument === undefined ? undefined
-          : selection.source.sourceArguments[argument.sourceArgumentIndex]?.expression;
+          : policy.ast.arguments(selection.source.use)[argument.sourceArgumentIndex];
         if (expression !== undefined) {
           literalRequests.requestConversion(expression, mapping.sourceType, mapping.targetType, mapping.conversion,
             valueReads.valueRead.get(expression)?.value);
@@ -350,17 +333,17 @@ export function collectCsharpConversionRequirements(input: CsharpConversionRequi
     const member = selection.call.targetMember;
     for (const argument of selection.call.arguments) {
       if (argument.targetParameter.csharpValueProjection !== "properties") continue;
-      const subject = selection.source.sourceArguments[argument.sourceArgumentIndex]?.expression;
+      const subject = policy.ast.arguments(selection.source.use)[argument.sourceArgumentIndex];
       if (subject === undefined) continue;
       const type = valueReads.valueRead.get(subject)?.storedValue;
       if (type !== undefined) {
         const roots = propertyProjectionRoots.get(subject) ?? new Map<string, TargetTypeRef>();
         roots.set(targetTypeRefKey(type), type); propertyProjectionRoots.set(subject, roots);
       }
-      const binding = selection.source.sourceArgumentBindings.find(binding =>
-        binding.effectiveArgumentIndex === argument.effectiveArgumentIndex);
-      const projected = binding === undefined ? undefined
-        : selectCsharpPropertyProjections(subject, type, binding.selectedParameterType, policy, objectShapes);
+      const binding = selection.source.arguments.find(binding => binding.argument === subject);
+      const parameterType = binding === undefined ? undefined : selection.source.parameters[binding.parameterIndex];
+      const projected = parameterType === undefined ? undefined
+        : selectCsharpPropertyProjections(subject, type, parameterType, policy, objectShapes);
       if (projected === undefined) {
         issues.push({ node: subject, code: "CSHARP_PROPERTY_PROJECTION_NOT_CLOSED",
           message: "Native property projection requires exact checked selected-parameter member correspondence." });
@@ -376,7 +359,7 @@ export function collectCsharpConversionRequirements(input: CsharpConversionRequi
             csharpTsValueTargetType(), "implicit", subject);
           if (conversion === undefined) continue;
           const selected = selectCsharpClosedShapeConversion(conversion, csharpTsValueTargetType());
-          if (selected.kind === "rejected") issues.push({ node: subject, code: "CSHARP_UNSUPPORTED_AST", message: selected.reason });
+          if (selected.kind === "rejected") issues.push({ node: subject, code: "CSHARP_PROPERTY_PROJECTION_CONVERSION", message: selected.reason });
           else members.push(Object.freeze(member.native === undefined ? { member, conversion: selected.value }
             : { native: member.native, sourceName: member.sourceName, conversion: selected.value }));
         }
@@ -392,10 +375,8 @@ export function collectCsharpConversionRequirements(input: CsharpConversionRequi
         continue;
       }
       const subject = requirement.source.kind === "receiver"
-        ? selection.source.sourceReceiver?.expression
-        : selection.source.sourceArguments[
-            requirement.source.index
-          ]?.expression;
+        ? selection.source.receiver
+        : policy.ast.arguments(selection.source.use)[requirement.source.index];
       if (subject === undefined) {
         continue;
       }
@@ -406,9 +387,7 @@ export function collectCsharpConversionRequirements(input: CsharpConversionRequi
         ? objectShapes.resolveTarget(subjectType) ?? objectShapes.resolveNode(subject)
         : objectShapes.resolveNode(subject) ?? objectShapes.resolveTarget(subjectType);
       if (requirement.projection === "assign") {
-        const assignmentSubject = selection.source.sourceArguments[
-          requirement.assignmentSource.index
-        ]?.expression;
+        const assignmentSubject = policy.ast.arguments(selection.source.use)[requirement.assignmentSource.index];
         const assignmentType = assignmentSubject === undefined
           ? undefined
           : valueReads.valueRead.get(assignmentSubject)?.storedValue;

@@ -7,25 +7,27 @@ import type { CsharpConversionClassifications, CsharpValueReadClassifications } 
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
 import { getCsharpTypeofRuntimeKind } from "../../target-model/types/runtime-kind.js";
 import { isCsharpAbsenceTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
-import { isAstNode, type TargetSourceProgram } from "@tsonic/target-api/source";
+import { isAstNode, type TargetSourceProgramFacts } from "@tsonic/target-api/source";
+import { sourceProjectDeclaration } from "../program/source-facts.js";
 import type { TsonicAttributeApplicationFactIndex } from "@tsonic/source-core/facts";
 
 export function diagnoseCsharpAttributeTypeValues(
-  source: TargetSourceProgram,
+  source: TargetSourceProgramFacts,
   applications: TsonicAttributeApplicationFactIndex,
 ): readonly TargetDiagnostic[] {
   const diagnostics: TargetDiagnostic[] = [];
   for (const application of applications.all) {
     const node = application.invocation;
-    const semantics = isAstNode(source.ast, node) ? source.semantics.forNode(node) : undefined;
-    if (isAstNode(source.ast, node) && source.ast.is.IsNewExpression(node) &&
-      semantics?.operations.call(node)?.outcome === "applicable") continue;
+    if (isAstNode(source.syntax, node) && source.syntax.is.IsNewExpression(node)) {
+      const selected = source.facts.selections.call(node);
+      if (selected !== undefined && !("code" in selected)) continue;
+    }
     diagnostics.push({
       code: "CSHARP_ATTRIBUTE_CONSTRUCTION_REQUIRED",
       category: "error",
       source: "tsonic-csharp",
       message: "A C# attribute requires an inline lambda containing an exact checked construction: () => new AttributeType(...).",
-      ...(isAstNode(source.ast, node) ? { sourceNode: node } : {}),
+      ...(isAstNode(source.syntax, node) ? { sourceNode: node } : {}),
     });
   }
   return diagnostics;
@@ -44,11 +46,11 @@ export interface CsharpAttributeArgumentEvidence {
 }
 
 export function admitCsharpAttributeArguments(
-  source: Pick<TargetSourceProgram, "ast" | "navigation">,
+  source: Pick<TargetSourceProgramFacts, "syntax" | "facts">,
   evidence: CsharpAttributeArgumentEvidence,
   invocation: Node,
 ): readonly CsharpAttributeArgumentRejection[] {
-  const { ast } = source;
+  const { syntax: ast } = source;
   const { operations, conversions, valueReads, sourceEvidence } = evidence;
   const construction = operations.selectedConstruction.get(invocation)?.target;
   if (construction?.kind === "resolved" && construction.call.targetMember.csharpInvocation !== undefined) {
@@ -143,11 +145,11 @@ export function admitCsharpAttributeArguments(
       case "KindIdentifier":
       case "KindPropertyAccessExpression":
       case "KindElementAccessExpression": {
-        if (ast.is.IsIdentifier(node) && source.navigation.sourceReferenceFor(node) === undefined &&
+        if (ast.is.IsIdentifier(node) && source.facts.navigation.identity.target(node) === undefined &&
           isCsharpAbsenceTargetType(valueReads.valueRead.get(node)?.value)) break;
         const selection = operations.selectedProperty.get(node)?.selection;
         if (selection?.kind === "resolved" && selection.targetMember.csharpLiteral === true) break;
-        const declaration = source.navigation.referenceFor(node)?.declaration;
+        const declaration = sourceProjectDeclaration(source.facts, node);
         const constant = declaration === undefined ? undefined : sourceEvidence.constantValue.get(declaration)?.value;
         if (declaration === undefined || ast.kindName(declaration) !== "KindEnumMember" ||
           typeof constant !== "bigint") return false;

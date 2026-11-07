@@ -1,6 +1,10 @@
+// The C# realization check of every Host type-flow obligation (facts.obligations(), nextgen C-2542). The Host
+// published each obligation (interface, read-only, constraint, literal admission, write fit); C# checks only that the
+// chosen .NET representation carries it (policy/types/source-type-flow/obligations.ts). Inputs are published facts
+// and the one representation; no checker Type is read (I2).
 import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import { sourceTypeDescriptorsEqual, type SourceTypeFlowAssociation } from "@tsonic/target-api/source";
+import { sourceTypeDescriptorsEqual, type SourceObligation, type SourceTypeDescriptor } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpNativeConstructionDemandQueries } from "../../target-model/records/native/native-construction.js";
 import type { CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
@@ -9,12 +13,15 @@ import type { TargetConstraint, TargetTypeRef } from "../../target-model/types/m
 import { checkCsharpSourceTypeFlowObligation } from "../../policy/types/source-type-flow/obligations.js";
 import { substituteTargetTypeParameters } from "../../policy/types/resolution/substitution.js";
 import { csharpSourceTypeParameter } from "../../source/extension/type-parameters.js";
-import { representCsharpSourceType } from "../../policy/types/source-type-flow/representation.js";
 import { selectCsharpConversion } from "../../policy/conversions/core.js";
 import { csharpConversionIsApplicable } from "../../policy/conversions/applicability.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { csharpObjectShapesEqual } from "../../target-model/types/object-shape-equality.js";
+import { isCsharpRefusal, type CsharpRepresentation } from "../../representation/index.js";
+
+const representedOrUndefined = (selected: CsharpRepresentation): TargetTypeRef | undefined =>
+  isCsharpRefusal(selected) ? undefined : selected;
 
 export function analyzeCsharpSourceTypeFlowObligations(
   policy: CsharpPolicyContext,
@@ -23,140 +30,131 @@ export function analyzeCsharpSourceTypeFlowObligations(
   dictionaryLiterals: CsharpDictionaryLiteralRecords,
   compileTimeMetadata: CsharpSourceEvidenceIndex["compileTimeMetadata"],
 ): readonly TargetDiagnostic[] {
+  const { facts, types } = policy;
   const issues: TargetDiagnostic[] = [];
-  for (const obligation of policy.effectiveTypes.obligations()) {
+  const represent = (descriptor: SourceTypeDescriptor, site: Node): TargetTypeRef | undefined =>
+    representedOrUndefined(types.represent(descriptor, site, "storage"));
+  const valueType = (node: Node): TargetTypeRef | undefined =>
+    facts.values.has(node) ? representedOrUndefined(types.value(node)) : undefined;
+  for (const obligation of facts.obligations()) {
     let subject: Node | undefined = obligation.site;
     while (subject !== undefined && compileTimeMetadata.get(subject) !== true) subject = policy.ast.parent(subject);
     if (subject !== undefined) continue;
-    const occurrence = obligation.value ?? obligation.site;
-    const published = policy.types.sourceTypeFlowRepresentation(occurrence);
-    const current = policy.effectiveTypes.get(occurrence);
-    const association = current === undefined || current.kind === "refused" ? undefined : current.provenance.principal;
-    const declaration = association?.declaration;
-    const principal = declaration === undefined ? undefined : policy.effectiveTypes.get(declaration);
-    const selected = obligation.kind !== "literal-admission" || obligation.authority !== "inferred" || obligation.type.kind !== "shape" ||
-      declaration === undefined || declaration === occurrence || association?.initializer !== occurrence ||
-      current === undefined || current.kind === "refused" ||
-      current.provenance.occurrence !== occurrence || principal === undefined || principal.kind === "refused" ||
-      principal.provenance.occurrence !== declaration ||
-      principal.provenance.sourceFile !== current.provenance.sourceFile || !sourceTypeDescriptorsEqual(current.type, obligation.type) ||
-      !sourceTypeDescriptorsEqual(principal.type, obligation.type) ? undefined : nativeConstruction.constructionFor(occurrence);
-    const selectedType = selected === undefined ? undefined : policy.types.resolveNode(occurrence, policy.ast.getSourceFile(occurrence));
-    const storageType = selected === undefined ? undefined : policy.types.resolveNode(declaration, policy.ast.getSourceFile(declaration));
-    const registered = selected === undefined || selectedType?.kind !== "resolved" || storageType?.kind !== "resolved" ||
-      !targetTypeRefEquals(selectedType.sourceResult.selectedType, selected.targetType) ||
-      !targetTypeRefEquals(storageType.sourceResult.selectedType, selected.targetType) ? undefined
-      : objectShapes.resolveTarget(selected.targetType);
-    const sourceFile = registered === undefined ? undefined : policy.ast.getSourceFile(occurrence);
-    const retained = registered === undefined || sourceFile === undefined || selected === undefined ||
-      !targetTypeRefEquals(registered.targetType, selected.targetType) || !csharpObjectShapesEqual(registered, selected.shape)
-      ? undefined : policy.objectShapes.retainConstructionSource(occurrence, registered, sourceFile);
-    const retainedPrincipal = retained === undefined || declaration === undefined || sourceFile === undefined || registered === undefined
-      ? undefined : policy.objectShapes.retainConstructionSource(declaration, registered, sourceFile);
-    const physical = registered === undefined || retained === undefined || retainedPrincipal === undefined ||
-      !csharpObjectShapesEqual(registered, retained) || !csharpObjectShapesEqual(registered, retainedPrincipal)
-      ? undefined : retained;
-    const logical = physical === undefined ? undefined : representCsharpSourceType(published, obligation.type);
-    const representation = physical === undefined || logical === undefined ? published : {
-      ...published,
-      retainShape(shape: Parameters<typeof published.retainShape>[0]) {
-        return targetTypeRefEquals(shape.targetType, logical) ? physical : published.retainShape(shape);
-      },
-    };
     const issue = checkCsharpSourceTypeFlowObligation({
-      ...representation,
       providers: policy.providers,
       projectTypes: policy.projectTypes,
+      target: policy.target,
       objectShapes,
-      literalValues: policy.literalValues,
       typeDefinitions: policy.typeDefinitions,
       constraintHost: policy,
-      valueType(node) {
-        const selected = policy.types.resolveNode(node, policy.ast.getSourceFile(node));
-        return selected?.kind === "resolved" ? selected.sourceResult.selectedType : undefined;
-      },
-      arrayLiteral(node) {
-        const sourceFile = policy.ast.getSourceFile(node);
-        return sourceFile === undefined ? { kind: "unavailable" } : policy.types.resolveArrayLiteral(node, sourceFile);
-      },
+      represent,
+      literal: node => facts.values.literal(node),
+      valueType,
+      arrayLiteral: node => types.resolveArrayLiteral(node),
       literalAdmission(node, chosen) {
         const dictionary = dictionaryLiterals.dictionaryLiteral.get(node, chosen);
         if (dictionary !== undefined) return { kind: "resolved", type: dictionary.carrier };
         const issue = nativeConstruction.issues.find(issue => issue.node === node);
         if (issue !== undefined) return { kind: "rejected", subject: issue.node, code: issue.code, reason: issue.message };
         const selected = nativeConstruction.constructionFor(node);
-        const outcome = policy.effectiveTypes.get(node);
+        const outcome = facts.values.has(node) ? facts.values.type(node) : undefined;
         const descriptor = outcome === undefined || outcome.kind === "refused" ? undefined : outcome.construction ??
           (outcome.type.kind === "primitive" || outcome.type.kind === "string" || outcome.type.kind === "intrinsic" &&
             (outcome.type.intrinsic === "bigint" || outcome.type.intrinsic === "absence") ? outcome.type : undefined);
-        const scalar = descriptor === undefined ? undefined : representCsharpSourceType(representation, descriptor);
-        const actual = selected?.targetType ?? scalar;
-        if (actual !== undefined) {
-          const conversion = selectCsharpConversion(policy, actual, chosen, "implicit");
-          return csharpConversionIsApplicable(conversion, "implicit") ? { kind: "resolved", type: chosen }
-            : conversion.kind === "rejected" ? { kind: "rejected", subject: node,
-              code: "CSHARP_UNSUPPORTED_AST", reason: conversion.reason } : undefined;
-        }
-        const result = policy.types.resolveNode(node, policy.ast.getSourceFile(node));
-        return result?.kind === "rejected" ? result : result?.sourceResult.literalAdmission;
+        const actual = selected?.targetType ?? (descriptor === undefined ? undefined : represent(descriptor, node));
+        if (actual === undefined) return undefined;
+        const conversion = selectCsharpConversion(policy, actual, chosen, "implicit");
+        return csharpConversionIsApplicable(conversion, "implicit") ? { kind: "resolved", type: chosen }
+          : conversion.kind === "rejected" ? { kind: "rejected", subject: node,
+            code: conversion.code ?? "CSHARP_TYPE_FLOW_UNREPRESENTABLE", reason: conversion.reason } : undefined;
       },
-      requiredType(node, association) {
-        if (association?.binding !== undefined || association?.parameter !== undefined) return associatedParameter(policy, node, association);
-        const result = policy.types.resolveNode(node, policy.ast.getSourceFile(node));
-        return result?.kind === "resolved" ? result.sourceResult.selectedType : undefined;
-      },
-      nativeConstraints(node, type, association) {
-        return loweredNativeConstraints(policy, node, type, association);
-      },
-    }, obligation);
+      requiredType: selected => associatedParameter(policy, selected),
+      nativeConstraints: (selected, chosen) => loweredNativeConstraints(policy, selected, chosen),
+    }, obligation, retainedLiteralShape(policy, objectShapes, nativeConstruction, obligation));
     if (issue !== undefined) issues.push(issue);
   }
   return Object.freeze(issues);
 }
 
-function associatedParameter(
+/**
+ * An inferred object-literal admission whose literal is the initializer of its principal declaration, both typed
+ * exactly as the obligation: the registered construction shape is retained for both and is the obligation's carrier.
+ */
+function retainedLiteralShape(
   policy: CsharpPolicyContext,
-  node: Node,
-  association: SourceTypeFlowAssociation | undefined,
+  objectShapes: CsharpObjectShapeClassifications,
+  nativeConstruction: CsharpNativeConstructionDemandQueries,
+  obligation: SourceObligation,
 ): TargetTypeRef | undefined {
-  if (association === undefined) return undefined;
-  const call = association.call;
-  const binding = association.binding;
-  if (call === undefined || binding === undefined || association.parameter === undefined ||
-    !call.sourceArgumentBindings.includes(binding) ||
-    call.sourceSelectedSignatureParameters[binding.sourceParameterIndex] !== association.parameter ||
-    node !== association.parameter.parameterDeclaration && node !== association.parameter.authoredTypeNode) return undefined;
-  return policy.types.resolveSourceCallArgumentParameter(call, binding, association.sourceFile);
+  const { facts, types } = policy;
+  if (obligation.kind !== "literal-admission" || obligation.authority !== "inferred" || obligation.type.kind !== "shape") return undefined;
+  const occurrence = obligation.value ?? obligation.site;
+  if (!facts.values.has(occurrence)) return undefined;
+  const current = facts.values.type(occurrence);
+  if (current.kind === "refused" || current.provenance.occurrence !== occurrence) return undefined;
+  const association = current.provenance.principal;
+  const declaration = association?.declaration;
+  if (declaration === undefined || declaration === occurrence || association?.initializer !== occurrence ||
+    !facts.values.has(declaration)) return undefined;
+  const principal = facts.values.type(declaration);
+  if (principal.kind === "refused" || principal.provenance.occurrence !== declaration ||
+    principal.provenance.sourceFile !== current.provenance.sourceFile ||
+    !sourceTypeDescriptorsEqual(current.type, obligation.type) || !sourceTypeDescriptorsEqual(principal.type, obligation.type)) return undefined;
+  const selected = nativeConstruction.constructionFor(occurrence);
+  if (selected === undefined) return undefined;
+  const selectedType = representedOrUndefined(types.value(occurrence));
+  const storageType = representedOrUndefined(types.value(declaration));
+  if (selectedType === undefined || storageType === undefined || !targetTypeRefEquals(selectedType, selected.targetType) ||
+    !targetTypeRefEquals(storageType, selected.targetType)) return undefined;
+  const registered = objectShapes.resolveTarget(selected.targetType);
+  if (registered === undefined || !targetTypeRefEquals(registered.targetType, selected.targetType) ||
+    !csharpObjectShapesEqual(registered, selected.shape)) return undefined;
+  const retained = policy.objectShapes.retainConstructionSource(occurrence, registered);
+  const retainedPrincipal = policy.objectShapes.retainConstructionSource(declaration, registered);
+  return retained !== undefined && retainedPrincipal !== undefined && csharpObjectShapesEqual(registered, retained) &&
+    csharpObjectShapesEqual(registered, retainedPrincipal) ? retained.targetType : undefined;
 }
 
+/** The instantiated call parameter an argument obligation names (selections.call parameters, after instantiation). */
+function associatedParameter(policy: CsharpPolicyContext, obligation: SourceObligation): TargetTypeRef | undefined {
+  const { facts, types, ast } = policy;
+  if (obligation.call === undefined || obligation.parameter === undefined || obligation.argument === undefined) {
+    return facts.values.has(obligation.required) ? representedOrUndefined(types.value(obligation.required)) : undefined;
+  }
+  if (obligation.required !== obligation.parameter && obligation.required !== ast.typeNode(obligation.parameter)) return undefined;
+  const selection = facts.selections.call(obligation.call);
+  if (selection === undefined || selection.kind === "refused") return undefined;
+  const correspondence = selection.arguments.find(entry => entry.argument === obligation.argument);
+  const parameter = correspondence === undefined ? undefined : selection.parameters[correspondence.parameterIndex];
+  return parameter === undefined ? undefined : representedOrUndefined(types.represent(parameter, obligation.argument, "storage"));
+}
+
+/** The .NET constraints of the binder an obligation names, with the call's receiver and method binders substituted. */
 function loweredNativeConstraints(
   policy: CsharpPolicyContext,
-  node: Node,
+  obligation: SourceObligation,
   chosen: TargetTypeRef,
-  association: SourceTypeFlowAssociation | undefined,
-): { readonly sourceFile: import("@tsonic/tsts").SourceFile; readonly constraints: readonly TargetConstraint[] } | undefined {
-  const declaration = policy.ast.is.IsTypeParameterDeclaration(node) ? node : policy.ast.parent(node);
-  if (declaration === undefined || !policy.ast.is.IsTypeParameterDeclaration(declaration)) return undefined;
-  const sourceFile = association?.sourceFile ?? policy.ast.getSourceFile(declaration);
-  if (sourceFile === undefined || !policy.hasSemantics(sourceFile)) return undefined;
-  const selected = policy.types.resolveNode(declaration, sourceFile);
-  const parameter = selected?.kind === "resolved" ? selected.sourceResult.selectedType : undefined;
-  if (parameter?.kind !== "type-parameter" || parameter.csharpDeclaration !== declaration ||
-    parameter.csharpConstraints?.kind !== "resolved") return undefined;
+): readonly TargetConstraint[] | undefined {
+  const { ast, facts, types } = policy;
+  const node = obligation.required;
+  const declaration = ast.is.IsTypeParameterDeclaration(node) ? node : ast.parent(node);
+  if (declaration === undefined || !ast.is.IsTypeParameterDeclaration(declaration)) return undefined;
+  const parameter = csharpSourceTypeParameter(declaration, ast);
+  if (parameter === undefined) return undefined;
+  const resolution = types.typeParameterConstraints(declaration, parameter);
+  if (resolution.kind !== "resolved") return undefined;
   const substitutions = new Map<string, TargetTypeRef>([[parameter.identity, chosen]]);
-  const call = association?.call;
-  const instantiation = call === undefined ? undefined : policy.effectiveTypes.callInstantiation(call.call);
-  if (instantiation !== undefined) {
-    if (association === undefined || instantiation.call !== call) return undefined;
-    for (const argument of [...instantiation.receiver, ...instantiation.method]) {
-      const binder = csharpSourceTypeParameter(argument.declaration, policy.ast);
-      const type = representCsharpSourceType(policy.types.sourceTypeFlowRepresentation(association.occurrence), argument.type);
-      if (binder === undefined || type === undefined) return undefined;
-      substitutions.set(binder.identity, type);
-    }
+  const call = obligation.call;
+  const instantiation = call === undefined ? undefined : facts.instantiations.at(call);
+  if (instantiation?.kind === "refused") return undefined;
+  for (const argument of instantiation === undefined || call === undefined ? [] : [...instantiation.receiver, ...instantiation.method]) {
+    const binder = csharpSourceTypeParameter(argument.declaration, ast);
+    const type = representedOrUndefined(types.represent(argument.type, call!, "type-argument"));
+    if (binder === undefined || type === undefined) return undefined;
+    substitutions.set(binder.identity, type);
   }
   const constraints: TargetConstraint[] = [];
-  for (const constraint of parameter.csharpConstraints.constraints) {
+  for (const constraint of resolution.constraints) {
     if (constraint.kind === "constructor") constraints.push(Object.freeze({ kind: "constructible" }));
     else if (constraint.kind === "type") {
       const contract = substituteTargetTypeParameters(constraint.type, substitutions);
@@ -167,5 +165,5 @@ function loweredNativeConstraints(
     else if (constraint.keyword === "unmanaged") constraints.push(Object.freeze({ kind: "unmanaged" }));
     else constraints.push(Object.freeze({ kind: "target-specific", target: "csharp", name: "notnull" }));
   }
-  return Object.freeze({ sourceFile, constraints: Object.freeze(constraints) });
+  return Object.freeze(constraints);
 }

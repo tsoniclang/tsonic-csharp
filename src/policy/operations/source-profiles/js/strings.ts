@@ -280,7 +280,7 @@ export const csharpJsStringCallPolicies: readonly CsharpSourceProfileCallPolicy[
     jsCallPolicy(
       jsCallIdentity("StringConstructor"),
       (context) => {
-        const argument = context.source.sourceArguments[0];
+        const argument = context.source.arguments[0];
         const argumentType = argument === undefined
           ? csharpObjectTargetType()
           : resolveCsharpSelectedSourceValue(context, argument);
@@ -300,7 +300,7 @@ export const csharpJsStringCallPolicies: readonly CsharpSourceProfileCallPolicy[
       },
       noReceiver,
       { targetMethodTypeArguments(context) {
-        const argument = context.source.sourceArguments[0];
+        const argument = context.source.arguments[0];
         const type = argument === undefined ? undefined : resolveCsharpSelectedSourceValue(context, argument);
         return isCsharpAbsenceTargetType(type) ? [type!] : [];
       } },

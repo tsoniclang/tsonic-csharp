@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
-import { createTargetSourceProgram, sourceDeclarationIsModuleScoped } from "@tsonic/target-api/source";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 
 const pureSource = `
@@ -71,12 +70,12 @@ export function run(): boolean {
 `;
 
 function namedVariable(program, name, moduleLevel = true) {
-  const { ast } = program.source;
+  const { syntax: ast, facts } = program.source;
   const pending = [...csharpProgramSourceFiles(program)];
   while (pending.length !== 0) {
     const node = pending.pop();
     if (ast.is.IsVariableDeclaration(node) && ast.is.IsIdentifier(ast.name(node)) && ast.text(ast.name(node)) === name &&
-      sourceDeclarationIsModuleScoped(node, ast) === moduleLevel) return node;
+      facts.navigation.scopes.isModuleScoped(node) === moduleLevel) return node;
     ast.forEachChild(node, child => { if (child !== undefined) pending.push(child); });
   }
   assert.fail(`missing actual checked variable ${name}`);
@@ -93,13 +92,13 @@ for (const surface of [undefined, "js"]) {
       "narrowMetadata", "wideMetadata", "fractionalMetadata", "negativeMetadata", "halfMetadata", "charMetadata", "shadowMetadata"]) {
       const declaration = namedVariable(program, name);
       assert.equal(program.records.compileTimeMetadata.get(declaration), true, `${name}: existing native erasure fact`);
-      assert.equal(createTargetSourceProgram(compiled.source).navigation.declarationUseSummary(declaration).uses.every(use => use.kind === "type-only"), true,
+      assert.equal(program.source.facts.navigation.uses.summary(declaration).uses.every(use => use.kind === "type-only"), true,
         `${name}: the actual checked declaration has only erased references`);
     }
-    const wideInitializer = program.source.ast.as.AsVariableDeclaration(namedVariable(program, "wideMetadata"))?.Initializer;
+    const wideInitializer = program.source.syntax.as.AsVariableDeclaration(namedVariable(program, "wideMetadata"))?.Initializer;
     assert.equal(wideInitializer !== undefined && program.records.literalValue.get(wideInitializer)?.integer === 9007199254740993n, true,
       "erasure preserves exact native integer metadata beyond the JS Number domain");
-    const floatInitializer = program.source.ast.as.AsVariableDeclaration(namedVariable(program, "fractionalMetadata"))?.Initializer;
+    const floatInitializer = program.source.syntax.as.AsVariableDeclaration(namedVariable(program, "fractionalMetadata"))?.Initializer;
     const numeric = floatInitializer === undefined ? undefined : program.records.literalValue.get(floatInitializer)?.numeric;
     assert.equal(numeric?.kind === "authored" && numeric.token.decimalText === "1.0000000596046448", true,
       "the canonical authored native float token remains unchanged");

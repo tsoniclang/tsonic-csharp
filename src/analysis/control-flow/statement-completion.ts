@@ -1,6 +1,6 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
-import { sourceControlTransferTarget, sourceLabeledStatementTarget, sourceEnclosingCallable, type SourceLabeledStatementTarget } from "@tsonic/target-api/source";
+import { sourceLabeledStatementTarget, type SourceLabeledStatementTarget, type SourceScopeRoles } from "@tsonic/target-api/source";
 import { analyzeSourceStatementExits, type SourceStatementExitFacts } from "@tsonic/target-api/analysis";
 import type { CsharpControlExitCompletion, CsharpStatementCompletionRecords } from "../../target-model/records/operations/statement-completion.js";
 import { createCsharpStatementCompletionRecords } from "../program/records/operations/statement-completion.js";
@@ -21,6 +21,8 @@ export function analyzeCsharpStatementCompletions(input: {
   readonly admitted: (node: Node) => boolean;
   readonly required: CsharpRequiredRecord[];
   readonly facts: SourceStatementExitFacts;
+  /** Enclosing callables and control-transfer targets (facts.navigation.scopes). */
+  readonly scopes: Pick<SourceScopeRoles, "enclosing" | "controlTransferTarget">;
   readonly returnContexts: CsharpExpectedTypeClassifications["returnContext"];
   readonly returnContracts: CsharpDeclarationClassifications["returnContract"];
   readonly values: CsharpValueReadClassifications["valueRead"];
@@ -36,7 +38,7 @@ export function analyzeCsharpStatementCompletions(input: {
     if (!input.admitted(node)) continue;
     if (input.ast.is.IsReturnStatement(node)) {
       const expression = input.ast.as.AsReturnStatement(node)?.Expression;
-      const owner = sourceEnclosingCallable(node, input.ast);
+      const owner = input.scopes.enclosing(node, "callable-body");
       const target = owner === undefined ? undefined : input.returnContexts.get(owner)?.target;
       const contract = owner === undefined ? undefined : input.returnContracts.get(owner);
       const completion = expression === undefined ? contract?.kind === "resolved" && contract.undefinedReturn ? "absence" : "value"
@@ -59,7 +61,7 @@ export function analyzeCsharpStatementCompletions(input: {
       requireCsharpRecord(input.required, { family: "catchBinding", subject: node,
         construct: input.ast.kindName(node), producer: "analyzeCsharpStatementCompletions" });
     } else if (input.ast.is.IsBreakStatement(node) || input.ast.is.IsContinueStatement(node)) {
-      const target = sourceControlTransferTarget(input.ast, node);
+      const target = input.scopes.controlTransferTarget(node);
       if (target === undefined) failTargetAnalysisInvariant("tsonic-csharp", "A checked control transfer requires its exact source target.", node);
       exits.set(node, Object.freeze({ target, completion: input.ast.is.IsBreakStatement(node) ? "break" : "continue" }));
       requireCsharpRecord(input.required, { family: "controlExit", subject: node,

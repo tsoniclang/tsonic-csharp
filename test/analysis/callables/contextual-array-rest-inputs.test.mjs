@@ -26,7 +26,7 @@ export function run(): boolean {
 }` });
     assertCsharpCompilationSucceeded(compiled);
     const program = compiled.result.program;
-    const ast = program.source.ast;
+    const ast = program.source.syntax;
     const pending = [...csharpProgramSourceFiles(program)];
     let layouts = 0;
     while (pending.length !== 0) {
@@ -73,7 +73,7 @@ export function run(): boolean {
 }` });
     assertCsharpCompilationSucceeded(compiled);
     const program = compiled.result.program;
-    const ast = program.source.ast;
+    const ast = program.source.syntax;
     const pending = [...csharpProgramSourceFiles(program)];
     let layouts = 0;
     while (pending.length !== 0) {

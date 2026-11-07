@@ -32,14 +32,14 @@ for (const surface of ["native", "js"]) {
     assert.equal(program !== undefined, true, "the complete native lambda program is admitted");
     let lambdas = 0;
     const visit = node => {
-      if (program.source.ast.is.IsArrowFunction(node)) {
+      if (program.source.syntax.is.IsArrowFunction(node)) {
         lambdas += 1;
         assert.equal(program.records.lambdaBody.get(node)?.completion, "absence",
           "the physical value-returning lambda produces absence before its contextual void adapter");
       }
-      program.source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+      program.source.syntax.forEachChild(node, child => { if (child !== undefined) visit(child); });
     };
-    program.source.navigation.sourceFiles.forEach(visit);
+    program.source.sourceFiles.forEach(visit);
     assert.equal(lambdas, 1, "the authored callback is inspected exactly once");
   });
 

@@ -3,7 +3,6 @@ import test from "node:test";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
-import { sourceEnclosingCallable } from "@tsonic/target-api/source";
 import { analyzeCsharpOptionalLocals } from "../../../dist/analysis/storage/optional-locals.js";
 import { csharpOptionalStorageProjection } from "../../../dist/target-model/types/projections.js";
 import { csharpRuntimeLocationTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
@@ -73,7 +72,9 @@ test("selected native address and reference storage cannot be split by a narrowe
     const plan = analyzeCsharpOptionalLocals({ ast: { is: {
       IsVariableDeclaration: node => node === declaration,
       IsParenthesizedExpression: () => false,
-    } }, navigation: { referenceFor: node => node === reference ? { declaration } : undefined } }, {
+    } }, facts: { navigation: { scopes: {}, identity: {
+      // nextgen C-2542: the reference denotes its project declaration through facts.navigation.identity.target.
+      target: node => node === reference ? { declaration, sourceFile: {}, project: true } : undefined } } } }, {
       compileTimeMetadata: { get: () => false },
       sourceArgument: { get: node => node !== call || nativeAddress ? undefined
         : { kind: "resolved", argument: { storageExpression: reference, passingMode: kind } } },
@@ -93,7 +94,7 @@ test("selected native address and reference storage cannot be split by a narrowe
 function localDeclarations(compiled) {
   const program = compiled.result.program;
   assert.equal(program !== undefined, true, "the complete body-local plan is admitted before publication");
-  const { ast } = program.source;
+  const ast = program.source.syntax;
   const declarations = new Map();
   const visit = node => {
     if (ast.is.IsVariableDeclaration(node) && ast.name(node) !== undefined)
@@ -116,7 +117,8 @@ for (const surface of ["native", "js"]) {
       const completion = program.records.localBinding.get(declaration);
       assert.equal(completion?.optionalLocal?.kind, "declaration", `${name}: one local placement owns the native pair`);
       assert.equal(Object.isFrozen(completion.optionalLocal.placement), true, `${name}: the physical placement is sealed data`);
-      const owner = sourceEnclosingCallable(declaration, program.source.ast);
+      // nextgen C-2542: the enclosing callable is the Host scope role (facts.navigation.scopes.enclosing(node, "callable-body"), E13).
+      const owner = program.source.facts.navigation.scopes.enclosing(declaration, "callable-body");
       assert.equal(owner !== undefined, true, `${name}: a private optional local has its actual callable owner`);
       assert.equal(program.records.genericProjection.get(owner).length, 0,
         `${name}: a private local does not enlarge its method's native generic ABI`);
@@ -129,7 +131,7 @@ for (const surface of ["native", "js"]) {
     assert.equal(privateResult !== undefined, true, "the private result of the generic call has its original local");
     assert.equal(program.records.localBinding.get(privateResult)?.optionalLocal?.kind, "declaration",
       "the result can use a local pair independently of its public native generic arguments");
-    const publicOwner = sourceEnclosingCallable(privateResult, program.source.ast);
+    const publicOwner = program.source.facts.navigation.scopes.enclosing(privateResult, "callable-body");
     assert.equal(publicOwner !== undefined, true, "the generic call retains its actual source owner");
     assert.equal(program.records.genericProjection.get(publicOwner).length, 2,
       "the explicit public optional type argument retains both storage and operations witnesses at the same assignment RHS");

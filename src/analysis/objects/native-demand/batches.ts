@@ -1,5 +1,5 @@
 import type { CsharpObjectShapeArtifactClosure, CsharpObjectShapeProjectionAdmission } from "../../../target-model/records/objects/object-shape-demand.js";
-import type { AstReader, Node, SourceFile } from "@tsonic/tsts";
+import type { AstReader, Node } from "@tsonic/tsts";
 import type { CsharpJsonObjectShapeContractResult } from "../../../target-model/records/objects/json-object-shapes.js";
 import type { CsharpCaptureStorage } from "../../../target-model/records/callables/capture-storage.js";
 import type { CsharpConversionClassifications } from "../../../target-model/records/operations/conversions.js";
@@ -80,9 +80,9 @@ export interface CsharpObjectShapeDemandScope {
   readonly records: Map<string, MutableObjectShapeArtifact>;
   readonly projections: Map<Node, { readonly receiver: CsharpObjectShapeFact; readonly selection: CsharpObjectShapeProjection }>;
   registerObjectShape(fact: CsharpObjectShapeFact, materialization: "source" | "synthetic"): CsharpArtifactRequestResult;
-  requireObjectShapeCapability(node: Node | undefined, type: TargetTypeRef, file: SourceFile,
+  requireObjectShapeCapability(node: Node | undefined, type: TargetTypeRef,
     capability: CsharpObjectShapeCapability, rootKind: "value" | "object-shape"): CsharpArtifactRequestResult;
-  requireObjectShapeProjection(node: Node | undefined, type: TargetTypeRef, file: SourceFile,
+  requireObjectShapeProjection(node: Node | undefined, type: TargetTypeRef,
     projection: CsharpObjectShapeProjectionKind, resultType: TargetTypeRef, rootKind: "value" | "object-shape",
     assignmentSource?: { readonly node: Node; readonly type: TargetTypeRef }): CsharpObjectShapeProjectionRequestResult;
   requireObjectShapeMethodReceiver(fact: CsharpObjectShapeFact,

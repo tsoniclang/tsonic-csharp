@@ -1,8 +1,8 @@
+import { csharpTestSourceProgram } from "../../helpers/target-source-program.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createCompilerSessionFromFiles, createSourceSemanticsExtension, sourcePrimitive, TstsSourceProviderContractVersion } from "@tsonic/tsts";
-import { createTargetSourceProgram, sourceTypeDescriptorMemberOriginsEqual, sourceTypeDescriptorStructure } from "@tsonic/target-api/source";
-import { createTsonicMemoryBindingFactsIndex } from "@tsonic/source-core/facts";
+import { sourceTypeDescriptorMemberOriginsEqual, sourceTypeDescriptorStructure } from "@tsonic/target-api/source";
 import { createCsharpNativeConstructionDemandQuery } from "../../../dist/analysis/objects/native-construction-demand.js";
 import { csharpObjectShapeMemberRetainsNativeReference } from "../../../dist/policy/types/objects/member-reads.js";
 import { createCsharpObjectShapeMemberResolver } from "../../../dist/analysis/objects/shapes/member-evidence.js";
@@ -166,7 +166,7 @@ function fixture() {
         sourcePrimitive("int64", "int64", "bigint", true, 64)] }] }), providerExtension] } }).checkSource();
     assert.equal(checked.diagnostics.length, 0, "positive constructions and independent-type negative boundaries both use valid checked Source");
     assert.equal(checked.extensionDiagnostics.length, 0);
-    const program = createTargetSourceProgram(checked);
+    const program = csharpTestSourceProgram(checked);
     const file = checked.getSourceFile("/src/index.ts");
     const syntax = [];
     const visit = selected => { syntax.push(selected); program.ast.forEachChild(selected, child => { if (child !== undefined) visit(child); }); };
@@ -279,14 +279,12 @@ function fixture() {
     for (const input of inputs) {
       current = input;
       host.sourceFiles = [input.file];
-      host.ast = input.program.ast;
-      host.effectiveTypes = input.program.effectiveTypes;
+      host.ast = input.program.syntax;
       host.sourceFacts = input.program.sourceFacts;
-      host.memoryBindings = createTsonicMemoryBindingFactsIndex(input.program);
-      host.navigation = { ...input.program.navigation,
-        isProjectDeclaration: selected => !foreign.has(selected) && input.program.navigation.isProjectDeclaration(selected) };
-      host.hasSemantics = input.program.semantics.includes;
-      host.semantics = input.program.semantics.forFile;
+      host.memoryBindings = input.program.facts.analyses.memoryBindings;
+      const navigation = input.program.facts.navigation;
+      host.facts = { ...input.program.facts, navigation: { ...navigation, identity: { ...navigation.identity,
+        isProjectDeclaration: selected => !foreign.has(selected) && navigation.identity.isProjectDeclaration(selected) } } };
       input.resolver = createCsharpObjectShapeMemberResolver(host);
       const record = createCsharpNativeConstructionDemandQuery(host);
       records.push(record);
@@ -725,12 +723,13 @@ test("native storage publication still requires exact source-member corresponden
   assert.equal(selected.constructionFor(literal) === undefined, true);
 });
 
-test("consumed any is refused without a dynamic object-construction path", () => {
+// Basis: nextgen plan R5/I7 (signed by Claude with the D1 test changes). `any` is a Host value refusal
+// (TSONIC_ANY_UNSUPPORTED, forwarded before C# analysis); the C# construction owner never originates it, and meeting
+// an `any` object literal is a producer invariant failure, not a C# refusal.
+test("consumed any reaching native construction is an invariant failure, never a C#-originated refusal", () => {
   const value = fixture();
-  const literal = value.node(value.row([{ identity: "user" }]), { any: true });
-  const selected = value.freeze();
-  assert.equal(selected.issues[0].code, "TSONIC_ANY_UNSUPPORTED");
-  assert.equal(selected.constructionFor(literal) === undefined, true);
+  value.node(value.row([{ identity: "user" }]), { any: true });
+  assert.throws(() => value.freeze(), /object literal of type any must be refused by the Host/u);
 });
 
 function memberProvenanceFixture() {
@@ -746,7 +745,7 @@ function memberProvenanceFixture() {
     export const read = omitted;
   ` });
   assert.equal(checked.sourceDiagnosticsText, "", "all owner evidence comes from valid checked declarations");
-  const source = createTargetSourceProgram(checked.source);
+  const source = csharpTestSourceProgram(checked.source);
   const ast = source.ast;
   const declarations = new Map();
   const visit = node => {

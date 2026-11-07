@@ -63,7 +63,7 @@ for (const [name, body, count] of acceptedForms) {
     const output = compiled.artifacts.get("src/Index.cs");
     assert.equal(output.split("global::System.GC.KeepAlive(value)").length - 1, count);
     const records = compiled.result.program.records;
-    const ast = compiled.result.program.source.ast;
+    const ast = compiled.result.program.source.syntax;
     const calls = [];
     const visit = (node) => {
       if (ast.is.IsCallExpression(node)) calls.push(records.selectedCall.get(node));
@@ -84,7 +84,7 @@ test("a local function named like a source-flow marker is an ordinary call with 
   assert.equal(compiled.sourceDiagnosticsText, "");
   assertNoTargetDiagnostics(compiled.result.diagnostics);
   const records = compiled.result.program.records;
-  const ast = compiled.result.program.source.ast;
+  const ast = compiled.result.program.source.syntax;
   const calls = [];
   const visit = (node) => {
     if (ast.is.IsCallExpression(node)) calls.push(records.selectedCall.get(node));

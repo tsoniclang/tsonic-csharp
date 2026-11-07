@@ -8,7 +8,7 @@ import type { CsharpProviderArgumentAdapter } from "../../target-model/conversio
 import type { Node } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../types/index.js";
 import type { CsharpConversionShapeQueries } from "./shape-queries.js";
-import { selectCsharpUnionArmMapping, selectCsharpUnionInjection } from "./union-relations.js";
+import { csharpHostUnionUse, selectCsharpUnionArmMapping } from "./union-relations.js";
 import { selectCsharpRuntimeUnionProjection, selectDelegateConversion } from "./carriers.js";
 import { selectCsharpGuardedIntegerConversion } from "./integer-refinement.js";
 import { isCsharpRefLikeTargetType } from "../../target-model/types/ref-like.js";
@@ -16,7 +16,7 @@ import { isCsharpRefLikeTargetType } from "../../target-model/types/ref-like.js"
 export function selectCsharpExpressionConversion(
   input: Pick<
     CsharpPolicyContext,
-    "integerRanges" | "ast" | "literalValues" | "typeDefinitions" | "projectTypes" | "providers" | "target" | "navigation" | "sourceFacts"
+    "integerRanges" | "ast" | "facts" | "typeDefinitions" | "projectTypes" | "providers" | "target" | "sourceFacts"
   > & CsharpConversionShapeQueries,
   expression: Node,
   source: TargetTypeRef | undefined,
@@ -26,7 +26,10 @@ export function selectCsharpExpressionConversion(
   if (isCsharpVoidTargetType(source) && target !== undefined && csharpCarrierAdmitsSourceAbsence(target)) {
     return { kind: "absence" };
   }
-  const selected = selectCsharpConversion(input, source, target, mode);
+  // The Host relation at this expression selects the union arm (select-arm, C-2479 discriminant selection included)
+  // or maps arms; the payload proof into a selected arm is this expression proof (literal admission included).
+  const hostUse = csharpHostUnionUse(input.facts, expression, arm => selectCsharpExpressionConversion(input, expression, source, arm, mode));
+  const selected = selectCsharpConversion(input, source, target, mode, hostUse);
   if (selected.kind !== "rejected" || target === undefined || isCsharpRefLikeTargetType(source)) {
     return selected;
   }
@@ -40,13 +43,7 @@ export function selectCsharpExpressionConversion(
   }
   const refined = selectCsharpGuardedIntegerConversion(input, expression, source, target);
   if (refined !== undefined) return refined;
-  const runtimeUnionArms = getCsharpRuntimeUnionArms(getCsharpNullableElementTargetType(target) ?? target, input.typeDefinitions);
-  if (runtimeUnionArms !== undefined) {
-    const injection = selectCsharpUnionInjection(source, getCsharpNullableElementTargetType(target) ?? target,
-      input.typeDefinitions, mode, arm => selectCsharpExpressionConversion(input, expression, source, arm, mode));
-    if (injection !== undefined) return injection;
-  }
-  const literal = input.literalValues.literalValue.get(expression);
+  const literal = input.facts.values.literal(expression);
   const targetPrimitive = getCsharpNullableElementTargetType(target) ?? target;
   if (source?.kind === "source-primitive" && source.name === "float64" &&
     targetPrimitive.kind === "source-primitive" &&
@@ -62,7 +59,7 @@ export function selectCsharpExpressionConversion(
 export function selectCsharpProviderArgumentConversion(
   input: Pick<
     CsharpPolicyContext,
-    "integerRanges" | "ast" | "literalValues" | "typeDefinitions" | "projectTypes" | "providers" | "target" | "navigation" | "sourceFacts"
+    "integerRanges" | "ast" | "facts" | "typeDefinitions" | "projectTypes" | "providers" | "target" | "sourceFacts"
   > & CsharpConversionShapeQueries,
   expression: Node,
   source: TargetTypeRef | undefined,

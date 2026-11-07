@@ -20,7 +20,7 @@ function owners(sourceText, surface = "native", targetOptions) {
   const program = compiled.result.program;
   assert.equal(program !== undefined, true, compiled.result.diagnostics.map(({ code, message }) => `${code}: ${message}`).join("; "));
   const privateOwner = createExpectedNativeUseOwner(compiled);
-  const ast = privateOwner.source.ast;
+  const ast = privateOwner.source.syntax;
   const records = program.records;
   const nodes = privateOwner.nodes;
   const input = {
@@ -217,14 +217,14 @@ for (const surface of ["native", "js"]) test(`${surface} generic setter absence 
   assert.equal(compiled.sourceDiagnosticsText === "", true, `${surface}: the original absence fixture remains checked`);
   const program = compiled.result.program;
   assert.equal(program !== undefined, true, `${surface}: the original absence program is admitted: ${JSON.stringify(compiled.result.diagnostics.map(({ code, message }) => ({ code, message })))}`);
-  const ast = program.source.ast;
+  const ast = program.source.syntax;
   const records = program.records;
   const nodes = [];
   const visit = node => {
     nodes.push(node);
     ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
-  program.source.navigation.sourceFiles.forEach(visit);
+  program.source.sourceFiles.forEach(visit);
   const originals = nodes.filter(node => ast.is.IsVariableDeclaration(node) && ast.text(ast.name(node)) === "original");
   assert.equal(originals.length, 1, `${surface}: the authored original Point binding is unique`);
   const point = records.storageType.get(originals[0]);

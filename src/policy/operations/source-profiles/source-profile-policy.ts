@@ -1,22 +1,19 @@
 import type { CsharpSourceProfileIdentitySelector, CsharpSourceProfileCallPolicyContext } from "../../model/source-profiles.js";
-import type { ExtensionDiagnostic, Node, Type } from "@tsonic/tsts";
+import type { ExtensionDiagnostic } from "@tsonic/tsts";
 
 import type { CsharpTargetReceiverRelation } from "../../../target-model/identities/provider-relations.js";
 import type { CsharpTargetMember, TargetTypeRef } from "../../types/index.js";
 
 import type { CsharpSourceProfileDeclarationIdentity } from "../../identities/selected-source.js";
 import type { CsharpSelectedCallArgument, CsharpSelectedTargetCall } from "../../../target-model/records/objects/members.js";
-import type { ResolvedSourceCallInfo } from "../../../target-model/records/calls/source-calls.js";
+import type { CsharpSourceProfileCallSource, CsharpSourceProfileValue } from "../../../target-model/records/program/source-profile-inputs.js";
 
 export function resolveCsharpSelectedSourceValue(
   context: Pick<
     CsharpSourceProfileCallPolicyContext,
     "inputs"
   >,
-  value: {
-    readonly expression: Node;
-    readonly type: Type;
-  } | undefined,
+  value: CsharpSourceProfileValue | undefined,
 ): TargetTypeRef | undefined {
   return value === undefined
     ? undefined
@@ -24,7 +21,7 @@ export function resolveCsharpSelectedSourceValue(
 }
 
 export function csharpSourceProfileCall(
-  source: ResolvedSourceCallInfo,
+  source: CsharpSourceProfileCallSource,
   targetMember: CsharpTargetMember,
   receiver: CsharpTargetReceiverRelation,
   targetMethodTypeArguments: readonly TargetTypeRef[] = [],
@@ -34,12 +31,7 @@ export function csharpSourceProfileCall(
     )[];
   } = {},
 ): CsharpSelectedTargetCall | undefined {
-  const sourceParameters = source.sourceSelectedSignatureParameters;
-  if (
-    source.sourceSelectedSignatureKind !== "resolved"
-  ) {
-    return undefined;
-  }
+  const sourceParameters = source.parameters;
   if (
     targetMethodTypeArguments.length !==
       (targetMember.typeParameters?.length ?? 0)
@@ -47,10 +39,10 @@ export function csharpSourceProfileCall(
     return undefined;
   }
   if (
-    receiver.kind === "instance" && source.sourceReceiver === undefined ||
+    receiver.kind === "instance" && source.receiver === undefined ||
     receiver.kind === "target-parameter" &&
       (
-        source.sourceReceiver === undefined ||
+        source.receiver === undefined ||
         receiver.targetParameterIndex < 0 ||
         receiver.targetParameterIndex >= targetMember.parameters.length
       )
@@ -96,9 +88,9 @@ export function csharpSourceProfileCall(
     return undefined;
   }
   const arguments_: CsharpSelectedCallArgument[] = [];
-  for (const binding of source.sourceArgumentBindings) {
+  for (const binding of source.bindings) {
     const relatedTargetIndex = targetParameterIndexBySource.get(
-      binding.sourceParameterIndex,
+      binding.parameterIndex,
     );
     const targetParameter = relatedTargetIndex === undefined
       ? undefined
@@ -110,12 +102,12 @@ export function csharpSourceProfileCall(
       return undefined;
     }
     arguments_.push({
-      sourceArgumentIndex: binding.sourceArgumentIndex,
-      effectiveArgumentIndex: binding.effectiveArgumentIndex,
-      sourceForm: binding.sourceForm,
-      ...(binding.spreadElementIndex === undefined
+      sourceArgumentIndex: binding.argumentIndex,
+      effectiveArgumentIndex: binding.effectiveIndex,
+      sourceForm: binding.form,
+      ...(binding.spreadElement === undefined
         ? {}
-        : { spreadElementIndex: binding.spreadElementIndex }),
+        : { spreadElementIndex: binding.spreadElement }),
       targetParameterIndex: relatedTargetIndex,
       targetParameter,
     });

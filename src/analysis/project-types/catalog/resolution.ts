@@ -1,5 +1,6 @@
-import type { Node, Signature } from "@tsonic/tsts";
-import type { ResolvedSourceCallInfo } from "../../../target-model/records/calls/source-calls.js";
+import type { Node } from "@tsonic/tsts";
+import type { SourceTypeDescriptor } from "@tsonic/target-api/source";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type {
   CsharpProjectForwardingConstructor,
   CsharpProjectTypeHeritage,
@@ -27,11 +28,10 @@ export function analyzeCsharpProjectTypePolicy(
   }
   const constructorHost: CsharpProjectConstructorPolicyHost = {
     ast: host.ast,
-    navigation: host.navigation,
+    facts: host.facts,
     providers: host.providers,
     sourceFacts: host.sourceFacts,
     types: host.types,
-    semanticsFor: host.semanticsFor,
     targetTypeForDefinition: projectDefinitionTargetType,
   };
   const constructorIssues: CsharpProjectTypeIssue[] = [];
@@ -44,7 +44,7 @@ export function analyzeCsharpProjectTypePolicy(
   >();
   const constructorsBySignature = new WeakMap<
     Node,
-    ReadonlyMap<Signature, CsharpProjectForwardingConstructor>
+    ReadonlyMap<Node, CsharpProjectForwardingConstructor>
   >();
   for (const definition of catalog.definitions) {
     if (definition.kind !== "class") continue;
@@ -54,15 +54,9 @@ export function analyzeCsharpProjectTypePolicy(
       constructorsBySignature.set(definition.declaration, new Map());
       continue;
     }
-    const source = host.navigation.classConstructors(definition.declaration);
-    if (source.kind === "unresolved") {
-      constructorIssues.push({
-        node: definition.declaration,
-        code: "CSHARP_PROJECT_CONSTRUCTORS_SOURCE_UNRESOLVED",
-        message: source.reason,
-      });
-      continue;
-    }
+    const source = host.facts.objects.construction(definition.declaration);
+    if ("code" in source) return failTargetAnalysisInvariant("tsonic-csharp",
+      "Class construction is a Host refusal at a node C# analyzed; Host refusals are forwarded before C# analysis.", definition.declaration);
     if (!source.implicit) {
       constructorsByDeclaration.set(definition.declaration, Object.freeze([]));
       constructorsBySignature.set(definition.declaration, new Map());
@@ -70,7 +64,9 @@ export function analyzeCsharpProjectTypePolicy(
     }
     const constructors: CsharpProjectForwardingConstructor[] = [];
     let excludedConstructor = false;
-    const signatures = new Map<Signature, CsharpProjectForwardingConstructor>();
+    // Keyed by the inherited construct signature declaration (selections.call(use).signature); a declaration-less
+    // implicit default constructor is keyed by the class declaration.
+    const signatures = new Map<Node, CsharpProjectForwardingConstructor>();
     const constructorsByTargetSignature = new Map<
       string,
       CsharpProjectForwardingConstructor
@@ -105,12 +101,12 @@ export function analyzeCsharpProjectTypePolicy(
           });
           continue;
         }
-        signatures.set(sourceSignature.signature, existing);
+        signatures.set(sourceSignature.declaration ?? definition.declaration, existing);
         continue;
       }
       constructors.push(selected.constructor);
       constructorsByTargetSignature.set(key, selected.constructor);
-      signatures.set(sourceSignature.signature, selected.constructor);
+      signatures.set(sourceSignature.declaration ?? definition.declaration, selected.constructor);
     }
     if (excludedConstructor && constructors.length === 0) {
       constructorIssues.push({ node: definition.declaration, code: "CSHARP_PROJECT_CONSTRUCTOR_TARGET_UNRESOLVED",
@@ -129,8 +125,8 @@ export function analyzeCsharpProjectTypePolicy(
     },
     implicitConstructorForSignature(
       declaration: Node,
-      signature: Signature,
-      parameters: ResolvedSourceCallInfo["sourceSelectedSignatureParameters"],
+      signature: Node,
+      parameters: readonly SourceTypeDescriptor[],
     ) {
       return selectCsharpProjectConstructorSignature(
         constructorHost,

@@ -1,4 +1,3 @@
-import { csharpSourceValueResult } from "../../../dist/analysis/source-evidence/types/resolution/call-results.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { classifyCsharpNativeLocation } from "../../../dist/analysis/storage/native-locations.js";
@@ -42,39 +41,61 @@ const ast = {
   forEachChild: (node, visit) => node.children?.forEach(visit),
 };
 
+// nextgen C-2542: the location owner reads Host facts through the policy context (facts.selections.storage /
+// memberAccess, facts.values.elementAccess, facts.navigation.identity / scopes) and C# carriers through CsharpTypeQueries;
+// the semantics / navigation doubles and the sourceFile argument are gone. The selection doubles are the published records.
+const descriptor = Object.freeze({ kind: "declared", declaration: {}, typeArguments: [] });
+const moduleScoped = declaration => {
+  let node = declaration?.parent;
+  while (node !== undefined && node !== sourceFile) node = node.parent;
+  return node === sourceFile;
+};
+
 function fixture(kind = "identifier", options = {}) {
   const declaration = options.declaration ?? { kind: "variable" };
   const receiver = options.receiver ?? { kind: "identifier" };
-  const expression = { kind, Expression: receiver };
-  const storage = { expression, storageExpression: expression, declaration,
+  const expression = { kind, Expression: receiver, ArgumentExpression: { kind: "index" } };
+  // SourceStorageSelection plus the writability the location owner reads (request R-T6-2).
+  const storage = { expression, storageExpression: expression, declaration, type: descriptor,
     writable: options.writable !== false };
-  const source = { expression, selectedDeclaration: declaration,
-    receiver: { expression: receiver, type: {} }, argument: { expression: { kind: "index" }, type: {} }, writable: storage.writable,
-    accessMode: "write", optionalChain: options.optional === true };
-  const semantics = { operations: {
-    storage: node => node === expression ? storage : options.receiverStorage,
-    propertyAccess: node => node === expression && kind === "property" ? source : undefined,
-    elementAccess: node => node === expression && kind === "element" ? source : undefined,
-  }, facts: { selectedSubjects: () => [declaration] },
-    types: { selectIndexedAccess: () => undefined } };
-  const policy = { ast,
-    navigation: { referenceFor: node => ({ declaration: node === expression ? declaration : options.receiverStorage?.declaration }),
-      isProjectDeclaration: () => false },
-    semantics: () => semantics, semanticsFor: () => semantics,
-    types: { resolveNode: node => ({ kind: "resolved", sourceResult: csharpSourceValueResult(node === receiver ? options.receiverType ?? owner : integer) }),
-      resolveReadStorage: node => node === receiver ? options.receiverType ?? owner : options.storageType ?? integer,
-      resolveStorage: () => options.receiverType ?? owner,
-      resolveSelectedValue: () => options.receiverType ?? owner, nativeFlowTypes: () => undefined },
+  const member = Object.freeze({ use: expression, receiver, receiverType: descriptor, name: "member",
+    selected: Object.freeze({ kind: "member", declarations: Object.freeze([declaration]) }), result: descriptor,
+    access: "write", optionalChain: options.optional === true });
+  const element = Object.freeze({ node: expression, receiver, receiverType: descriptor, index: descriptor,
+    selected: Object.freeze({ kind: "member", declaration, name: "member" }), result: descriptor,
+    readonly: !storage.writable, access: "write" });
+  const input = { expression, declaration, receiver, storage,
+    selectStorage: node => node === expression ? storage : options.receiverStorage,
+    readStorage: node => node === receiver ? options.receiverType ?? owner : options.storageType ?? integer };
+  const facts = {
+    selections: { storage: node => input.selectStorage(node),
+      memberAccess: node => node === expression && kind === "property" ? member : undefined,
+      wellKnownSymbol: () => undefined },
+    values: { elementAccess: node => {
+      assert.equal(node === expression && kind === "element", true, "element facts are read only at the selected element");
+      return element;
+    } },
+    objects: { indexes: () => [] },
+    navigation: {
+      identity: { target: node => node === expression ? { declaration, project: true } : undefined,
+        isProjectDeclaration: () => false },
+      scopes: { isModuleScoped: moduleScoped },
+    },
+  };
+  const carrier = () => options.receiverType ?? owner;
+  input.policy = { ast, facts, sourceFacts: { getFact: () => undefined },
+    // CsharpTypeQueries.value(node) answers the represented Host value directly (nextgen C-2542; replaces resolveNode).
+    types: { value: node => node === receiver ? carrier() : integer, readStorage: carrier, represent: carrier, storage: carrier },
     objectShapes: { resolveTarget: () => undefined },
     providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) },
   };
-  return { expression, declaration, receiver, policy, storage };
+  return input;
 }
 
 function select(input, classStorage = "field", storage = physical) {
-  return classifyCsharpNativeLocation(input.policy, input.expression, sourceFile, () => classStorage === null ? undefined
+  return classifyCsharpNativeLocation(input.policy, input.expression, () => classStorage === null ? undefined
     : { kind: classStorage, readonly: input.storage.writable === false }, storage,
-  node => input.policy.types.resolveReadStorage(node, sourceFile));
+  node => input.readStorage(node));
 }
 
 for (const kind of ["variable", "parameter", "binding"]) {
@@ -183,8 +204,8 @@ test("value receiver fields do not take an address of a copied temporary", () =>
   const value = { ...owner, csharpValueType: true };
   const input = fixture("property", { declaration: { kind: "field" }, receiverType: value });
   assert.equal(select(input).address, undefined);
-  input.policy.semantics().operations.storage = node => node === input.expression ? input.storage
-    : { storageExpression: input.receiver, declaration: { kind: "variable" }, writable: true };
+  input.selectStorage = node => node === input.expression ? input.storage
+    : { expression: input.receiver, storageExpression: input.receiver, declaration: { kind: "variable" }, type: descriptor, writable: true };
   const selected = select(input);
   assert.equal(selected.address.passing, "byref-readwrite");
   assert.equal(selected.receiver.expression, input.receiver);
@@ -194,8 +215,9 @@ test("value receiver fields do not take an address of a copied temporary", () =>
 test("value-type setters capture their receiver storage rather than a nonexistent property address", () => {
   const value = { ...owner, csharpValueType: true };
   const input = fixture("property", { declaration: { kind: "field" }, receiverType: value });
-  input.policy.semantics().operations.storage = node => node === input.expression ? input.storage
-    : { storageExpression: input.receiver, declaration: { kind: "variable", mode: "const" }, writable: false };
+  input.selectStorage = node => node === input.expression ? input.storage
+    : { expression: input.receiver, storageExpression: input.receiver, declaration: { kind: "variable", mode: "const" },
+      type: descriptor, writable: false };
   const selected = select(input, "property");
   assert.equal(selected.address, undefined);
   assert.equal(selected.receiver.expression, input.receiver);
@@ -217,10 +239,10 @@ test("readonly native fields stay readonly despite mutable reference receivers",
 
 test("missing exact carrier or storage fails closed rather than guessing a location", () => {
   const input = fixture();
-  input.policy.types.resolveReadStorage = () => undefined;
+  input.readStorage = () => undefined;
   assert.equal(select(input).kind, "rejected");
-  input.policy.types.resolveReadStorage = () => integer;
-  input.policy.semantics().operations.storage = () => undefined;
+  input.readStorage = () => integer;
+  input.selectStorage = () => undefined;
   assert.equal(select(input).kind, "rejected");
 });
 
@@ -236,14 +258,13 @@ test("class declaration emission and byref checking share one immutable represen
   const directInterface = { kind: "interface", members: [{ kind: "signature", name: named("contractual") }] };
   const declaration = { kind: "class", members: [field, contractual, inherited, overridden, structural, explicit] };
   const root = { kind: "file", children: [declaration] };
-  const heritage = node => ({ kind: "resolved", edges: node === declaration
-    ? [{ kind: "implements", target: { declaration: directInterface } }]
-    : node === directInterface ? [{ kind: "extends", target: { declaration: parentInterface } }]
-    : node === parentInterface ? [{ kind: "extends", target: { declaration: directInterface } }] : [] });
-  const policy = { ast, sourceFiles: [root], navigation: { declaredHeritage: heritage,
-    memberContracts: node => ({ kind: "resolved", contracts: node === contractual ? directInterface.members
-      : node === inherited ? parentInterface.members : [] }),
-    memberDispatch: node => node === overridden ? { overridesBase: true } : undefined },
+  // nextgen C-2542: the member's contracts (closed over interface heritage) and its dispatch are Host object facts
+  // (facts.objects.contracts / implementation). The cyclic declaredHeritage double is removed: heritage closure is a Host
+  // fact and is proven by Host tests (request R-T6-3).
+  const policy = { ast, sourceFiles: [root], facts: { objects: {
+    contracts: node => node === contractual ? directInterface.members : node === inherited ? parentInterface.members : [],
+    implementation: (owner, node) => node === overridden
+      ? { contract: node, implementation: node, overridesBase: true, hasDerivedOverride: false } : "unrelated" } },
     objectShapes: { resolveNode: () => ({ implements: [owner], members: [
       { memberKind: "property", sourceName: "structural", targetName: "structural", sourceSubjects: [structural] } ] }) } };
   const evidence = { compileTimeMetadata: { get: () => false },
@@ -272,8 +293,8 @@ test("readonly source value fields retain mutable native contents without a sett
     [generic, { kind: "type-parameter", identity: "T", name: "T" }],
     [optional, csharpNullableTargetType(integer)]]);
   const policy = { ast: { ...ast, text: node => { assert.notEqual(node, symbolName, "computed names are not text"); return node?.text ?? ""; } },
-    sourceFiles: [root], types: { resolveStorage: node => types.get(node) }, objectShapes: { resolveNode: () => undefined },
-    navigation: { memberDispatch: () => undefined, memberContracts: node => ({ kind: "resolved", contracts: node === computed ? [contract] : [] }) } };
+    sourceFiles: [root], types: { storage: node => types.get(node) }, objectShapes: { resolveNode: () => undefined },
+    facts: { objects: { implementation: () => "unrelated", contracts: node => node === computed ? [contract] : [] } } };
   const selected = classifyCsharpClassPropertyStorage(policy, { compileTimeMetadata: Object.freeze({ get: () => false }),
     sourceField: Object.freeze({ get: () => undefined }) });
   for (const node of [scalar, reference, optional]) assert.deepEqual(selected(node), { kind: "field", readonly: true });

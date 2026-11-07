@@ -6,10 +6,10 @@ import { type CsharpSourceProfileCallPolicyContext } from "../../../model/source
 
 export function csharpJsNumericRestCarrier(context: CsharpSourceProfileCallPolicyContext): TargetTypeRef | undefined {
   const elements: TargetTypeRef[] = [];
-  for (const argument of context.source.sourceArguments) {
+  for (const argument of context.source.arguments) {
     if (context.host.ast.is.IsSpreadElement(argument.expression)) {
       const operand = context.host.ast.as.AsSpreadElement(argument.expression)?.Expression;
-      const type = operand === undefined ? undefined : context.inputs.nodes.get(operand);
+      const type = operand === undefined ? undefined : context.inputs.values.get(operand);
       const element = type?.kind === "array" ? type.element : getCsharpJsArrayElementTargetType(type);
       const selected = type?.kind === "tuple" ? type.elements : element === undefined ? undefined : [element];
       if (selected === undefined) return undefined;

@@ -93,7 +93,7 @@ export function resolveStringOperationArgument(
   context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
   index: number,
 ): TargetTypeRef | undefined {
-  const argument = context.source.sourceArguments[index];
+  const argument = context.source.arguments[index];
   return argument === undefined
     ? undefined
     : context.inputs.values.get(argument.expression);

@@ -1,6 +1,8 @@
 import type { Node } from "@tsonic/tsts";
-import { IsTypeSyntaxNode, sourceCallableValueParameters, sourceTypeDescriptorsEqual } from "@tsonic/target-api/source";
+import { IsTypeSyntaxNode, sourceTypeDescriptorsEqual } from "@tsonic/target-api/source";
+import { csharpSignatureParameters } from "../callables/calls/signature-parameters.js";
 import { csharpArrayInputDomainsEqual } from "../../policy/types/collections/array-input-layout.js";
+import { sourceProjectDeclaration, sourceProjectTarget, sourceSlot } from "../program/source-facts.js";
 
 import { csharpConversionIsApplicable } from "../../policy/conversions/applicability.js";
 import { getCsharpCallableValueSignature, getCsharpNullableElementTargetType, csharpNullableReferenceTargetType, csharpNullableTargetType, csharpTargetStorageIdentityEquals, csharpDelegateSignaturesMatchNativeBinding, targetTypeRefEquals, targetTypeRefKey } from "../../policy/types/index.js";
@@ -93,7 +95,7 @@ export function analyzeCsharpStorage(
     if (sourceType === undefined) {
       continue;
     }
-    const declaration = policy.navigation.referenceFor(node)?.declaration;
+    const declaration = sourceProjectDeclaration(policy.facts, node);
     const required = declaration === undefined
       ? undefined
       : resolvedTypes.get(declaration);
@@ -145,7 +147,7 @@ export function analyzeCsharpStorage(
     if (evidence.compileTimeMetadata.get(node) || IsTypeSyntaxNode(policy.ast, node)) return;
     nodes.push(node);
     const declaration = policy.ast.is.IsVariableDeclaration(node) ? node
-      : policy.ast.is.IsIdentifier(node) ? policy.navigation.referenceFor(node)?.declaration : undefined;
+      : policy.ast.is.IsIdentifier(node) ? sourceProjectDeclaration(policy.facts, node) : undefined;
     const quotation = declaration === undefined ? undefined : expectedTypes.quotationBinding.get(declaration);
     if (quotation?.kind === "selected") {
       requireTargetType(node, quotation.declaration, quotation.targetType);
@@ -176,7 +178,7 @@ export function analyzeCsharpStorage(
     if (!contextual) {
       return;
     }
-    const parameters = sourceCallableValueParameters(policy.ast, node, policy.semanticsFor(node));
+    const parameters = csharpSignatureParameters(policy.ast, node)?.map(parameter => parameter.declaration);
     if (parameters === undefined) return;
     const declarationContract = callables.get({ kind: "declaration", declaration: node });
     const parameterTypes = declarationContract?.bodyInputs !== undefined
@@ -205,9 +207,8 @@ export function analyzeCsharpStorage(
         const targetType: TargetTypeRef = tupleRest === undefined ? parameterTypes[nativeIndex]!
           : Object.freeze({ kind: "tuple", elements: Object.freeze(parameterTypes.slice(nativeIndex, nativeIndex + width)) });
         nativeIndex += width;
-        const types = policy.semanticsFor(parameter).types;
-        const authoredType = declaration?.Type === undefined ? undefined : types.authoredType(declaration.Type);
-        const broad = authoredType !== undefined && (types.isUnknown(authoredType) || types.isAny(authoredType));
+        const declaredSlot = declaration?.Type === undefined ? undefined : sourceSlot(policy.facts, parameter).type;
+        const broad = declaredSlot?.kind === "intrinsic" && (declaredSlot.intrinsic === "unknown" || declaredSlot.intrinsic === "any");
         const effectiveAuthored = broad ? undefined : authored === undefined ||
             policy.ast.questionToken(parameter) === undefined
           ? authored
@@ -258,7 +259,7 @@ export function analyzeCsharpStorage(
     if (owner === undefined || !policy.ast.is.IsObjectLiteralExpression(owner)) {
       return;
     }
-    const parameter = sourceCallableValueParameters(policy.ast, node, policy.semanticsFor(node));
+    const parameter = csharpSignatureParameters(policy.ast, node)?.map(entry => entry.declaration);
     if (parameter === undefined) return;
     if (parameter.length !== 1) {
       return;
@@ -301,9 +302,9 @@ export function analyzeCsharpStorage(
     }
     const sourceType = evidence.nodeTargetType.get(expression);
     if (csharpArrayInputDomainsEqual(sourceType, expectedType)) {
-      const declaration = policy.navigation.sourceReferenceFor(expression)?.declaration;
-      const outcome = policy.effectiveTypes.get(expression);
-      const principal = declaration === undefined ? undefined : policy.effectiveTypes.get(declaration);
+      const declaration = policy.facts.navigation.identity.target(expression)?.declaration;
+      const outcome = policy.facts.values.type(expression);
+      const principal = declaration === undefined ? undefined : policy.facts.values.type(declaration);
       if (declaration !== undefined && policy.ast.is.IsVariableDeclaration(declaration) &&
         policy.ast.as.AsVariableDeclaration(declaration)?.Initializer !== undefined &&
         outcome?.kind === "resolved" && principal?.kind === "resolved" &&
@@ -332,7 +333,7 @@ export function analyzeCsharpStorage(
         priorRequirement !== undefined &&
         targetTypeRefEquals(priorRequirement, requiredStorageType)
       ) {
-        const declaration = policy.navigation.referenceFor(expression)
+        const declaration = sourceProjectTarget(policy.facts, expression)
           ?.declaration;
         if (
           declaration !== undefined &&
@@ -389,9 +390,7 @@ export function analyzeCsharpStorage(
       if (argument.targetParameter.csharpOutputMayBeNull !== true) {
         continue;
       }
-      const expression = call.source.sourceArguments[
-        argument.sourceArgumentIndex
-      ]?.expression;
+      const expression = policy.ast.arguments(call.source.use)[argument.sourceArgumentIndex];
       if (expression === undefined) {
         continue;
       }
@@ -408,7 +407,7 @@ export function analyzeCsharpStorage(
         continue;
       }
       const storageExpression = selected.argument.storageExpression;
-      const declaration = policy.navigation.referenceFor(storageExpression)
+      const declaration = sourceProjectTarget(policy.facts, storageExpression)
         ?.declaration;
       if (declaration === undefined) {
         issues.push(issue(

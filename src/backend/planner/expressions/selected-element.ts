@@ -31,8 +31,8 @@ export function translateCsharpElementAccess(node: Node, sourceFile: SourceFile,
       input.scope.presentOptionalValues?.has(selected.receiver) !== true,
       (target, key) => translateCsharpJsValueInvocation(input.scope.typeParameterNames, selected.operation, target, [key]), selected.result);
   }
-  const optional = selected.optional && input.scope.presentOptionalValues?.has(selected.receiver.expression) !== true;
-  const receiver = translateCsharpSelectedReceiver(selected.receiver, sourceFile, input, diagnostics, planExpression, selected.projection);
+  const optional = selected.optional && input.scope.presentOptionalValues?.has(selected.receiver) !== true;
+  const receiver = translateCsharpSelectedReceiver({ expression: selected.receiver }, sourceFile, input, diagnostics, planExpression, selected.projection);
   if (receiver === undefined) return undefined;
   if (selected.kind === "tuple") {
     if (receiver.kind !== "value") failCsharpPlannerInvariant("An admitted tuple element requires a native receiver value.", node);
@@ -49,7 +49,7 @@ export function translateCsharpElementAccess(node: Node, sourceFile: SourceFile,
       [target, planCsharpDiscardedOperand(argument)], values => translateCsharpSourceOwnedMember(node, sourceFile, input, diagnostics,
         { kind: "value", value: { ...csharpPlannedValue(target.completion.carrier, values[0]!), address:
           values[0] === (target.completion.kind === "value" ? target.completion.expression : undefined) ? target.address : { kind: "root" } } }, false),
-      (carrier, operand) => captureCsharpPlannedMemberReceiver(node, sourceFile, input, diagnostics, selected.receiver.expression,
+      (carrier, operand) => captureCsharpPlannedMemberReceiver(node, sourceFile, input, diagnostics, selected.receiver,
         carrier, operand, selected.suspends, selected.writable));
     return optional ? planCsharpOptionalReceiverValue(node, sourceFile, input, diagnostics, receiver.value,
       present => access(csharpPlannedValue(selected.present, present))) : access(receiver.value);

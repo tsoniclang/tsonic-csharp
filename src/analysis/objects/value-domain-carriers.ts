@@ -1,7 +1,8 @@
-import type { Node, SourceFile } from "@tsonic/tsts";
+import type { Node } from "@tsonic/tsts";
 import type { SourceStorageQueries, SourceStorageSubject } from "@tsonic/target-api/analysis";
-import { sourceTypeDescriptorStructure, type SourceFileSemantics } from "@tsonic/target-api/source";
-import type { CsharpTypePolicy } from "../source-evidence/types/resolution/model.js";
+import { sourceTypeDescriptorStructure, type SourceProgramFacts, type SourceTypeDescriptor } from "@tsonic/target-api/source";
+import type { CsharpTypeQueries } from "../../policy/model/type-resolution.js";
+import { sourceValueType } from "../program/source-facts.js";
 import type { CsharpObjectShapePolicy } from "../../target-model/records/objects/object-shapes.js";
 import type { CsharpValueDomainCarrierAnalysis, CsharpValueDomainCarrierIssue } from "../../target-model/records/types/value-domains.js";
 import { createCsharpValueDomainCarrierRecords } from "../program/records/types/value-domains.js";
@@ -14,8 +15,8 @@ import { CsharpMetadataResourceLimitFailure, createCsharpMetadataBudget } from "
 export interface CsharpValueDomainAnalysisHost {
   readonly sourceStorage: SourceStorageQueries;
   readonly objectShapes?: Pick<CsharpObjectShapePolicy, "resolveTarget">;
-  readonly types: Pick<CsharpTypePolicy, "resolveNode">;
-  semantics(sourceFile: SourceFile): SourceFileSemantics;
+  readonly types: Pick<CsharpTypeQueries, "value">;
+  readonly facts: SourceProgramFacts;
 }
 
 export function analyzeCsharpValueDomainCarriers(
@@ -55,23 +56,21 @@ export function analyzeCsharpValueDomainCarriers(
     if (selected.kind !== "resolved") return undefined;
     const origins = storage.closedOriginsFor(selected.subject);
     if (origins.kind !== "complete" || origins.origins.length === 0) return undefined;
-    const sourceFile = storage.source.ast.getSourceFile(node);
-    if (sourceFile === undefined || !storage.source.semantics.includes(sourceFile)) return undefined;
-    const outcome = storage.source.effectiveTypes.get(node);
-    if (outcome === undefined || outcome.kind === "refused") return undefined;
-    const selectedType = sourceTypeDescriptorStructure(outcome.type);
+    const selectedType = sourceTypeDescriptorStructure(sourceValueType(host.facts, node));
     const admitsAbsence = selectedType.kind === "optional" || selectedType.kind === "intrinsic" && selectedType.intrinsic === "absence";
     let carrier: TargetTypeRef | undefined;
     for (const origin of origins.origins) {
       budget.reserve(1);
-      if (host.semantics(origin.sourceFile).types.isNullish(origin.type)) {
+      // A storage origin publishes its Host descriptor (request R-F5-B2); an absence origin admits no carrier.
+      if (sourceDescriptorIsAbsence(origin.type)) {
         if (admitsAbsence) return undefined;
         continue;
       }
       if (origin.subject.kind !== "value") return undefined;
       let selectedCarrier = originCarriers.get(origin.subject);
       if (!originCarriers.has(origin.subject)) {
-        selectedCarrier = projectCsharpNativeSourceStorageCarrier(host.types.resolveNode(origin.subject.node, origin.sourceFile)?.sourceResult?.selectedType,
+        const represented = host.types.value(origin.subject.node);
+        selectedCarrier = projectCsharpNativeSourceStorageCarrier(represented.kind === "csharp-refused" ? undefined : represented,
           origin.subject, host.objectShapes, amount => budget.reserve(amount));
         originCarriers.set(origin.subject, selectedCarrier);
       }
@@ -100,4 +99,10 @@ export function projectCsharpNativeSourceStorageCarrier(carrier: TargetTypeRef |
     if (carrier === undefined) return undefined;
   }
   return carrier;
+}
+
+/** The published descriptor denotes only absence (null / undefined / void), not a value that may be absent. */
+function sourceDescriptorIsAbsence(type: SourceTypeDescriptor): boolean {
+  const structure = sourceTypeDescriptorStructure(type);
+  return structure.kind === "intrinsic" && (structure.intrinsic === "absence" || structure.intrinsic === "void");
 }

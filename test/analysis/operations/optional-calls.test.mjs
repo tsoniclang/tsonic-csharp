@@ -8,17 +8,17 @@ test("optional invocation classifies the evaluated receiver rather than its alre
   const access = {};
   const present = csharpSourcePrimitiveTargetType("int32");
   const storage = csharpNullableTargetType(present);
-  const source = { call: {}, optionalChain: true, sourceReceiver: { expression, type: {} },
-    sourceCalleeAccess: { expression: access } };
+  const source = { use: {}, callee: access, optionalChain: true, receiver: expression };
   const policy = { ast: { as: { AsCallExpression: () => ({}),
     AsPropertyAccessExpression: () => ({ QuestionDotToken: {} }), AsElementAccessExpression: () => undefined } },
-    types: { resolveReadStorage: subject => { assert.equal(subject === expression, true); return storage; },
-      resolveSelectedValue: () => assert.fail("Member-present type is not evaluated receiver storage") } };
-  const selected = classifyCsharpOptionalCallReceiver(policy, source, undefined, {});
+    types: { readStorage: subject => { assert.equal(subject === expression, true); return storage; },
+      value: () => assert.fail("Member-present type is not evaluated receiver storage") } };
+  const selected = classifyCsharpOptionalCallReceiver(policy, source, undefined);
   assert.equal(selected?.expression === expression, true);
   assert.equal(selected?.storage === storage, true);
   assert.equal(targetTypeRefEquals(selected?.type, present), true);
   assert.equal(selected?.guard, true);
-  const unresolved = { ...policy, types: { ...policy.types, resolveReadStorage: () => undefined } };
-  assert.equal(classifyCsharpOptionalCallReceiver(unresolved, source, undefined, {}) === undefined, true);
+  // A refused receiver storage is reported at the receiver read; the optional receiver is then not classified.
+  const refused = { ...policy, types: { ...policy.types, readStorage: () => ({ kind: "csharp-refused", code: "CSHARP_UNION_ARITY", message: "", site: expression }) } };
+  assert.equal(classifyCsharpOptionalCallReceiver(refused, source, undefined) === undefined, true);
 });

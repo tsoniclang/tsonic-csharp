@@ -5,19 +5,19 @@ import type { CsharpForwardingConstructorEmission } from "../../../target-model/
 
 export function selectCsharpForwardingConstructor(parameters: readonly CsharpTargetParameter[]):
   | { readonly kind: "selected"; readonly variants: readonly CsharpForwardingConstructorEmission["parameters"][] }
-  | { readonly kind: "unsupported"; readonly code: "CSHARP_UNSUPPORTED_AST" | "CSHARP_INVALID_IDENTIFIER"; readonly message: string } {
+  | { readonly kind: "unsupported"; readonly code: "CSHARP_FORWARDING_CONSTRUCTOR_PARAMETERS" | "CSHARP_INVALID_IDENTIFIER"; readonly message: string } {
   const paramsIndex = parameters.findIndex(parameter => parameter.paramsArray === true);
   let required = parameters.length;
   while (required > 0 && parameters[required - 1]?.csharpOmittableOptionalArgument === true) required -= 1;
   if (paramsIndex >= 0 ? paramsIndex !== parameters.length - 1 || parameters.slice(0, paramsIndex).some(parameter => parameter.csharpOmittableOptionalArgument === true)
     : parameters.slice(0, required).some(parameter => parameter.csharpOmittableOptionalArgument === true))
-    return { kind: "unsupported", code: "CSHARP_UNSUPPORTED_AST", message: "Implicit constructor parameters do not have one representable C# omission order." };
+    return { kind: "unsupported", code: "CSHARP_FORWARDING_CONSTRUCTOR_PARAMETERS", message: "Implicit constructor parameters do not have one representable C# omission order." };
   const selected: CsharpForwardingConstructorEmission["parameters"][number][] = [];
   for (const parameter of parameters) {
-    if (!selectCsharpTypeEmission({ carrier: parameter.type })) return { kind: "unsupported", code: "CSHARP_UNSUPPORTED_AST",
+    if (!selectCsharpTypeEmission({ carrier: parameter.type })) return { kind: "unsupported", code: "CSHARP_FORWARDING_CONSTRUCTOR_PARAMETERS",
       message: `Implicit constructor parameter '${parameter.name}' has no renderable C# type.` };
     const mode = parameter.passingMode;
-    if (mode === "borrow-shared" || mode === "borrow-mut" || mode === "move") return { kind: "unsupported", code: "CSHARP_UNSUPPORTED_AST",
+    if (mode === "borrow-shared" || mode === "borrow-mut" || mode === "move") return { kind: "unsupported", code: "CSHARP_FORWARDING_CONSTRUCTOR_PARAMETERS",
       message: `Implicit constructor parameter '${parameter.name}' uses unsupported passing mode '${mode}'.` };
     const name = tryCsharpIdentifier(parameter.name);
     if (name === undefined) return { kind: "unsupported", code: "CSHARP_INVALID_IDENTIFIER",

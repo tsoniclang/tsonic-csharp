@@ -4,7 +4,7 @@ import { checkCsharpSource, compileCsharpSource } from "../../helpers/direct-csh
 import { csharpProgramPromiseResults } from "../../helpers/program-source-files.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { analyzeCsharpGenericAdoption, analyzeCsharpPromiseResults } from "../../../dist/analysis/callables/async/promise-results.js";
-import { createTargetSourceProgram } from "../../../../tsonic/packages/target-api/dist/public/source.js";
+import { hostProgram } from "../../representation/host-fixture.mjs";
 import { createSourceDeclarationOwnershipBudget, defaultSourceDeclarationOwnershipLimits } from "../../../../tsonic/packages/target-api/dist/public/analysis.js";
 import { localFiniteAwaitBranches } from "../../../../tsonic/test/fixtures/local-finite-await-branches.mjs";
 import { nativeDefiniteCompletionSource } from "../../../../tsonic/test/fixtures/native-completion-regions.mjs";
@@ -89,12 +89,15 @@ function nativeReadFixture() {
   const program = compiled.result.program;
   assert.equal(program !== undefined, true, "the checked native read fixture completes");
   const { source, records } = program;
-  const nodes = source.navigation.nodesForFiles(source.sourceFiles);
-  const call = nodes.find(node => source.ast.is.IsCallExpression(node) &&
-    source.ast.text(source.ast.as.AsCallExpression(node).Expression) === "read");
+  // nextgen C-2542: the analysis program's source is TargetSourceProgramFacts; nodes come from a syntax walk.
+  const nodes = [];
+  const collect = node => { nodes.push(node); source.syntax.forEachChild(node, child => { if (child !== undefined) collect(child); }); };
+  source.sourceFiles.forEach(collect);
+  const call = nodes.find(node => source.syntax.is.IsCallExpression(node) &&
+    source.syntax.text(source.syntax.as.AsCallExpression(node).Expression) === "read");
   assert.equal(call !== undefined, true, "the original checked read call exists");
-  const reference = source.ast.arguments(call)[0];
-  assert.equal(reference !== undefined && source.ast.is.IsIdentifier(reference), true, "the actual runtime argument is retained");
+  const reference = source.syntax.arguments(call)[0];
+  assert.equal(reference !== undefined && source.syntax.is.IsIdentifier(reference), true, "the actual runtime argument is retained");
   const nativeUse = Object.freeze({ get: records.nativeUse.get, order: records.nativeOrder.get,
     expression(node) { const selected = records.nativeExpression.get(node); return selected === undefined ? undefined
       : { site: selected.site, use: selected.use }; } });
@@ -107,7 +110,7 @@ function nativeReadFixture() {
 test("C# continuation retention consumes completed native reads rather than incomplete syntax stages", () => {
   const current = nativeReadFixture();
   const { records } = current.input;
-  const callee = current.program.source.ast.as.AsCallExpression(current.call).Expression;
+  const callee = current.program.source.syntax.as.AsCallExpression(current.call).Expression;
   assert.equal(records.selectedCall.get(current.call).sourceCall.kind, "function", "exact selected static declaration");
   assert.equal(records.nativeUse.expression(callee) === undefined, true, "a static method group has no runtime callee storage");
   const native = records.nativeUse.expression(current.reference)?.use;
@@ -130,20 +133,21 @@ test("C# continuation retention never discharges a missing real native read as a
   assert.equal(result.diagnostics[0].code, "CSHARP_ASYNC_RESULT_USE_NOT_PROVEN");
   assert.equal(result.diagnostics[0].sourceNode === current.reference, true, "the original read is the rejected subject");
   assert.match(result.diagnostics[0].message, /completed native CLR placement and carrier/u);
-  const invocation = current.nodes.find(node => current.program.source.ast.is.IsCallExpression(node) &&
-    current.program.source.ast.text(current.program.source.ast.as.AsCallExpression(node).Expression) === "round");
+  const invocation = current.nodes.find(node => current.program.source.syntax.is.IsCallExpression(node) &&
+    current.program.source.syntax.text(current.program.source.syntax.as.AsCallExpression(node).Expression) === "round");
   assert.equal(invocation !== undefined, true, "the original async continuation is requested");
   assert.equal(result.results.has(invocation), false, "unresolved completion is never published as success");
 });
 
 test("C# transports the exact local generic await diagnostic and annotation hint", () => {
-  const checked = checkCsharpSource({ sourceText: `
+  // nextgen C-2542: the Host program supplies facts.analyses.genericAdoption (TargetSourceProgramFacts input).
+  const program = hostProgram(`
     export async function needs<T>(x: T): Promise<T> { return await x; }
-  ` });
-  assert.equal(checked.sourceDiagnosticsText, "", "the F4 program is checked source");
-  const source = createTargetSourceProgram(checked.source);
-  const nodes = source.navigation.nodesForFiles(source.sourceFiles);
-  const root = source.sourceFiles[0];
+  `);
+  const source = Object.freeze({ syntax: program.ast, facts: program.facts, sourceFiles: program.files,
+    sourceFacts: program.host.sourceFacts, documents: program.host.documents });
+  const nodes = program.nodes;
+  const root = program.files[0];
   const diagnostics = analyzeCsharpGenericAdoption({ source, projectRoot: "/project", nodes,
     budget: createSourceDeclarationOwnershipBudget(root, defaultSourceDeclarationOwnershipLimits),
     premises: { completionFor() { throw new Error("F4 has no call or missing native completion to invent"); } } });
@@ -152,7 +156,7 @@ test("C# transports the exact local generic await diagnostic and annotation hint
   assert.equal(diagnostic.code, "TSONIC_GENERIC_ASYNC_ADOPTION_UNSUPPORTED");
   assert.equal(diagnostic.message,
     "await of a value typed by the type parameter 'T' needs its Promise form declared. Declare it as 'x: T | Promise<T>'.");
-  assert.equal(source.ast.is.IsAwaitExpression(diagnostic.sourceNode), true, "the original await owns the diagnostic");
+  assert.equal(source.syntax.is.IsAwaitExpression(diagnostic.sourceNode), true, "the original await owns the diagnostic");
   assert.equal(diagnostic.sourceSpan.fileName, "index.ts");
   assert.equal(diagnostic.evidence.length, 2, "the actual declaration and await retain their evidence");
 });

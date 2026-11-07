@@ -7,17 +7,17 @@ export function assertUnfilledEmptyObject(surface, sourceText, expectedConstruct
   const compiled = compileEffectiveSource(surface, sourceText);
   const issues = compiled.result.diagnostics.filter(issue => issue.category === "error");
   assert.equal(issues.length, expectedConstructions, "one canonical Host refusal per original unfilled construction");
-  const refusals = compiled.targetSource.effectiveTypes.refusals();
+  const refusals = compiled.targetSource.facts.refusals();
   assert.equal(refusals.length, expectedConstructions, "the complete published refusal list has no extra or missing site");
   const sites = new Set();
-  const ast = compiled.targetSource.ast;
+  const ast = compiled.targetSource.syntax;
   for (const issue of issues) {
     assert.equal(issue.code, "TSONIC_UNTYPED_OBJECT_LITERAL", "the exact approved refusal class is preserved");
     assert.equal(issue.source, "tsonic", "language refusal belongs to the Host");
     assert.equal(issue.message, "This object literal has no target type. Declare one, e.g. 'function baseOptions(): MakeDirectoryOptions'.");
     const matching = refusals.filter(refusal => refusal.code === issue.code && refusal.site === issue.sourceNode);
     assert.equal(matching.length, 1, "each diagnostic retains its identical published Host refusal and original occurrence");
-    assert.equal(issue.message, matching[0].reason, "the target forwards the actual Host reason unchanged");
+    assert.equal(issue.message, matching[0].message, "the target forwards the actual Host reason unchanged");
     assert.equal(issue.sourceNode !== undefined && ast.is.IsObjectLiteralExpression(issue.sourceNode), true,
       "the refusal belongs to the actual object construction");
     const range = ast.authoredRange(issue.sourceNode);

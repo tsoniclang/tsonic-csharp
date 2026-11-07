@@ -11,7 +11,6 @@ import type { CsharpValueDomainCarrierIssue } from "../../target-model/records/t
 export interface CsharpAnalysisPolicyContextInput {
   readonly moduleCallables: CsharpPolicyContext["moduleCallables"];
   readonly integerRanges: CsharpPolicyContext["integerRanges"];
-  readonly literalValues: CsharpPolicyContext["literalValues"];
   readonly callOnlyAlias: CsharpPolicyContext["callOnlyAlias"];
   readonly input: TargetCompileInput;
   readonly sourceFiles: readonly SourceFile[];
@@ -33,21 +32,20 @@ export function createCsharpAnalysisPolicyContext(
   const { input, sourceFiles, providers, sourceIdentities, typeSystem } = context;
   const source = input.source;
   const valueDomainCarriers = analyzeCsharpValueDomainCarriers({ sourceStorage: context.sourceStorage,
-    types: typeSystem.analysisTypes, objectShapes: typeSystem.objectShapes, semantics: source.semantics.forFile },
-    context.sourceStorage.invocations.flatMap(node => source.ast.arguments(node).filter((argument): argument is NonNullable<typeof argument> => argument !== undefined)));
+    types: typeSystem.analysisTypes,
+    typeParameters: typeSystem.representation.typeParameters, objectShapes: typeSystem.objectShapes, facts: source.facts },
+    context.sourceStorage.invocations.flatMap(node => source.syntax.arguments(node).filter((argument): argument is NonNullable<typeof argument> => argument !== undefined)));
   const policy: CsharpPolicyContext = Object.freeze({
-    effectiveTypes: source.effectiveTypes,
+    facts: source.facts,
     moduleCallables: context.moduleCallables,
     integerRanges: context.integerRanges,
-    literalValues: context.literalValues,
     callOnlyAlias: context.callOnlyAlias,
-    ast: source.ast,
+    ast: source.syntax,
     sourceFiles,
     sourceStorage: context.sourceStorage,
     pointerStorage: context.pointerStorage,
     valueDomainCarriers,
     sourceFacts: source.sourceFacts,
-    navigation: source.navigation,
     target: input.target,
     providers,
     types: typeSystem.analysisTypes,
@@ -55,9 +53,6 @@ export function createCsharpAnalysisPolicyContext(
     objectShapes: typeSystem.objectShapes,
     projectTypes: typeSystem.projectTypes,
     sourceIdentities,
-    semantics: source.semantics.forFile,
-    semanticsFor: source.semantics.forNode,
-    hasSemantics: source.semantics.includes,
   });
   return Object.freeze({ policy, issues: valueDomainCarriers.issues });
 }

@@ -1,16 +1,25 @@
+// Generated owner binders and recursive union aliases (nextgen C-2542 §2, I6, R6). The deleted
+// objects/shapes/union-definitions.ts built recursive structural unions from checker alias applications. Now:
+//   - a recursive project union alias is represented once as a named `__TsonicUnion_<hash>` carrier whose type
+//     arguments keep the authored binder order and whose arms keep the Host order (representation/declared.ts);
+//   - a generated owner's binders are sealed through the per-view environment (createCsharpTypeParameterEnvironment)
+//     when the shape target is created (createStructuralObjectShapeTarget / closeCsharpOwnerTypeParameterEnvironment).
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createCsharpTypeParameterEnvironment } from "../../../dist/analysis/source-evidence/types/resolution/type-parameter-environment.js";
+import { createCsharpTypeParameterEnvironment, isCsharpRefusal } from "../../../dist/representation/index.js";
 import { CsharpMetadataResourceLimitFailure } from "../../../dist/target-model/metadata/immutable.js";
 import { TargetCompilerResourceLimitFailure } from "@tsonic/target-api/artifacts";
 import { csharpMetadataResourceFailure } from "../../../dist/backend/compile.js";
-import { createCsharpStructuralUnionDefinitions } from "../../../dist/analysis/objects/shapes/union-definitions.js";
+import { createStructuralObjectShapeTarget } from "../../../dist/analysis/objects/shapes/construction.js";
 import { getCsharpRuntimeUnionArms } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
+import { csharpSourceUnionIdentity } from "../../../dist/target-model/types/source-union-definitions.js";
+import { csharpSourceTypeParameter } from "../../../dist/source/extension/type-parameters.js";
 import { renderObjectShapeTypeParameters } from "../../../dist/backend/planner/objects/type-parameters.js";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { analyzeCsharpObjectShapeEmission } from "../../../dist/analysis/objects/declaration-emission.js";
 import { objectShapeArtifactKey } from "../../../dist/target-model/records/objects/object-shape-keys.js";
+import { hostProgram, representationServices, representations } from "../../representation/host-fixture.mjs";
 
 // The object-shape emission analysis selects a generated owner's native binders (refusing unclosed constraints);
 // the planner renders the selected binders.
@@ -27,44 +36,13 @@ function renderOwner(shape, diagnostics) {
 const parameter = (identity, name = identity) => ({ kind: "type-parameter", identity, name });
 const resolved = constraints => ({ kind: "resolved", constraints });
 const integer = { kind: "source-primitive", name: "uint8" };
+const member = (name, type) => ({ sourceKey: { kind: "property", name }, sourceName: name, targetName: name, memberKind: "property", type });
 
-function scenario(arguments_, environment) {
-  const file = { path: "/project/union.ts" };
-  const declaration = { position: 0 };
-  const root = { position: 1 };
-  const armDeclarations = [{ position: 2 }, { position: 3 }];
-  const armTypes = armDeclarations.map(declaration => ({ declaration }));
-  const union = {};
-  const bindings = arguments_.map((argument, index) => ({ argument, parameter: parameter(`alias-${index}`) }));
-  const host = {
-    ast: {
-      is: { IsUnionTypeNode: node => node === root, IsTypeLiteralNode: node => armDeclarations.includes(node) },
-      children: () => armDeclarations, getSourceFile: () => file, getPath: source => source.path,
-      kind: () => 1, pos: node => node.position, end: node => node.position + 1,
-    },
-    navigation: { isProjectDeclaration: node => node === declaration },
-    semantics: () => ({
-      types: {
-        isUnion: type => type === union,
-        aliasApplication: () => ({ kind: "direct", declaration, typeNode: root, bindings }),
-        unionOrIntersectionTypes: () => armTypes,
-      },
-      declarations: { typeSymbol: type => type, symbolDeclarations: symbol => [symbol.declaration] },
-    }),
-    typeResolver: { resolveType: type => type },
-  };
-  const shapes = [];
-  let recursion;
-  const policy = createCsharpStructuralUnionDefinitions(host, type => {
-    recursion = policy.resolve(union, file, { depth: 0 });
-    const targetType = policy.reference(type);
-    const shape = { targetType, members: [{ sourceKey: { kind: "property", name: "value" }, sourceName: "value",
-      targetName: "value", memberKind: "property", type: targetType.typeArguments?.[0] ?? integer }] };
-    shapes.push(shape);
-    return shape;
-  }, createCsharpTypeParameterEnvironment(environment));
-  return { policy, shapes, resolve: () => policy.resolve(union, file, { depth: 0 }),
-    reference: () => policy.reference(union), recursion: () => recursion };
+/** A generated shape over `types` (one property each), its owner binders sealed by `environment`. */
+function generatedShape(types, environment) {
+  const members = types.map((type, index) => member(`value${index}`, type));
+  const targetType = createStructuralObjectShapeTarget(members, undefined, createCsharpTypeParameterEnvironment(environment));
+  return { targetType, members };
 }
 
 function metadataResourceLimit(failure, dimension, limit) {
@@ -74,77 +52,77 @@ function metadataResourceLimit(failure, dimension, limit) {
     resource.diagnostic.evidence?.[0] === `${dimension}=${limit}`;
 }
 
-test("recursive arm producers seal exact generic binders before publishing references", () => {
+test("a recursive generic union alias is one named union carrier with authored binder order and Host arm order", () => {
+  const program = hostProgram(`
+type Tree<Later, Earlier> = { readonly left: Later; readonly next: Tree<Later, Earlier> | undefined } | { readonly right: Earlier };
+export function walk<Later, Earlier>(value: Tree<Later, Earlier>): Tree<Later, Earlier> { return value; }
+`);
+  const services = representationServices(program);
+  const walk = program.named("walk");
+  const carrier = representations(services).slot(program.ast.parameters(walk)[0]);
+  assert.equal(isCsharpRefusal(carrier) || carrier.kind === "refused", false, "the recursive alias is representable");
+  const union = carrier.kind === "target-named" ? carrier : undefined;
+  assert.notEqual(csharpSourceUnionIdentity(union), undefined, "a named __TsonicUnion_ carrier closes the cycle");
+  const binders = program.ast.typeParameters(walk).map(declaration => csharpSourceTypeParameter(declaration, program.ast).identity);
+  assert.deepEqual(union.typeArguments.map(argument => argument.identity), binders,
+    "carrier arguments keep the authored binder positions; they are not sorted");
+  const arms = getCsharpRuntimeUnionArms(union, services.typeDefinitions);
+  assert.equal(arms?.length, 2, "one union with the two Host arms, registered once");
+  const sum = program.sum(program.slot(program.ast.parameters(walk)[0]).definition ?? program.slot(program.ast.parameters(walk)[0]));
+  assert.equal(sum.arms.length, 2, "the Host sum has the same two arms");
+});
+
+test("generated owner binders are sealed with exact identity, declaration and frozen constraints", () => {
   const binder = parameter("value", "Value");
   const declaration = {};
   binder.csharpDeclaration = declaration;
   const constraints = [{ kind: "keyword", keyword: "struct" }];
-  const selected = scenario([binder], () => resolved(constraints));
-  const result = selected.resolve();
-  assert.equal(result.kind, "resolved", "complete recursive native contract");
-  assert.equal(selected.recursion().kind, "resolved", "finite recursive reference");
-  assert.equal(getCsharpRuntimeUnionArms(result.type).length, 2, "one union and two native arms");
-  for (const shape of selected.shapes) {
-    const argument = shape.targetType.typeArguments[0];
-    assert.equal(argument.identity, binder.identity, "exact source binder identity");
-    assert.equal(argument.csharpDeclaration === declaration, true, "opaque source declaration retained");
-    assert.equal(Object.isFrozen(argument.csharpConstraints), true, "sealed native evidence");
-    const diagnostics = [];
-    const emitted = renderOwner(shape, diagnostics);
-    assert.deepEqual(diagnostics, []);
-    assert.deepEqual(emitted, [{ name: "Value", constraints: [{ kind: "KeywordConstraint", keyword: "struct" }] }]);
-  }
+  const shape = generatedShape([binder], () => resolved(constraints));
+  const argument = shape.targetType.typeArguments[0];
+  assert.equal(argument.identity, binder.identity, "exact source binder identity");
+  assert.equal(argument.csharpDeclaration === declaration, true, "opaque source declaration retained");
+  assert.equal(Object.isFrozen(argument.csharpConstraints), true, "sealed native evidence");
+  const diagnostics = [];
+  assert.deepEqual(renderOwner(shape, diagnostics), [{ name: "Value", constraints: [{ kind: "KeywordConstraint", keyword: "struct" }] }]);
+  assert.deepEqual(diagnostics, []);
   constraints.length = 0;
-  assert.equal(selected.shapes[0].targetType.typeArguments[0].csharpConstraints.constraints.length, 1);
+  assert.equal(shape.targetType.typeArguments[0].csharpConstraints.constraints.length, 1, "later mutation cannot reach the seal");
   assert.equal(binder.csharpConstraints === undefined, true, "source input not mutated");
 });
 
-test("recursive arm argument sealing preserves authored order and exact nested physical types", () => {
-  const later = parameter("z", "Later");
-  const earlier = parameter("a", "Earlier");
-  const selected = scenario([later, earlier, { kind: "pointer", pointee: integer }], () => resolved([]));
-  assert.equal(selected.resolve().kind, "resolved");
-  const arguments_ = selected.shapes[0].targetType.typeArguments;
-  assert.deepEqual(arguments_.slice(0, 2).map(argument => argument.identity), ["z", "a"], "argument positions are not sorted");
-  assert.deepEqual(arguments_[2], { kind: "pointer", pointee: integer }, "no width or pointer rewrite");
-  const concrete = scenario([integer], () => { throw new Error("A concrete native carrier has no generic constraints."); });
-  assert.equal(concrete.resolve().kind, "resolved");
-  assert.equal(concrete.shapes[0].targetType.typeArguments[0] === integer, true, "exact concrete source carrier");
+test("a concrete member needs no binder resolution and keeps its exact carrier", () => {
+  const shape = generatedShape([integer], () => { throw new Error("A concrete native carrier has no generic constraints."); });
+  assert.equal((shape.targetType.typeArguments ?? []).length, 0);
+  assert.equal(shape.members[0].type === integer, true, "exact concrete source carrier");
 });
 
-test("unavailable or unsupported recursive owner constraints never become unconstrained emission", () => {
+test("unavailable or unsupported owner constraints never become unconstrained emission", () => {
   for (const resolution of [
     { kind: "unsupported", reason: "Exact source declaration evidence is absent." },
     { kind: "unsupported", reason: "Selected native constraint is unsupported." },
   ]) {
-    const selected = scenario([parameter("value", "Value")], () => resolution);
-    assert.equal(selected.resolve().kind, "resolved", "unsupported evidence remains explicit");
+    const shape = generatedShape([parameter("value", "Value")], () => resolution);
     const diagnostics = [];
-    assert.equal(renderOwner(selected.shapes[0], diagnostics) === undefined, true);
+    assert.equal(renderOwner(shape, diagnostics) === undefined, true);
     assert.equal(diagnostics.length, 1, "one bounded native owner diagnostic");
     assert.equal(diagnostics[0].message, resolution.reason, "no guessed unconstrained binder");
   }
 });
 
-test("recursive argument closure rejects contradictory and executable metadata before references", () => {
+test("owner closure rejects contradictory and executable metadata before a target is published", () => {
   const left = { ...parameter("same"), csharpConstraints: resolved([{ kind: "keyword", keyword: "class" }]) };
   const right = { ...left, csharpConstraints: resolved([{ kind: "keyword", keyword: "struct" }]) };
-  const contradiction = scenario([left, right], parameter => parameter.csharpConstraints);
-  assert.throws(() => contradiction.resolve(), /conflicting constraint evidence/u);
-  assert.equal(contradiction.reference() === undefined, true, "no incomplete definition published");
+  assert.throws(() => generatedShape([left, right], selected => selected.csharpConstraints), /conflicting constraint evidence/u);
   let reads = 0;
-  const executable = scenario([parameter("value")], () => ({ kind: "resolved", get constraints() { reads += 1; return []; } }));
-  assert.throws(() => executable.resolve(), TypeError);
+  assert.throws(() => generatedShape([parameter("value")], () => ({ kind: "resolved", get constraints() { reads += 1; return []; } })),
+    TypeError);
   assert.equal(reads, 0, "constraint getters never run");
-  assert.equal(executable.reference() === undefined, true, "malformed native contract is unpublished");
 });
 
-test("recursive generic argument traversal retains the existing finite depth bound", () => {
+test("owner binder traversal keeps the finite metadata depth bound", () => {
   let excessive = parameter("value");
   for (let depth = 0; depth < 130; depth += 1) excessive = { kind: "array", element: excessive };
-  const selected = scenario([excessive], () => resolved([]));
-  assert.throws(() => selected.resolve(), failure => metadataResourceLimit(failure, "depth", 128));
-  assert.equal(selected.reference() === undefined, true, "over-budget native contract is unpublished");
+  assert.throws(() => generatedShape([excessive], () => resolved([])), failure => metadataResourceLimit(failure, "depth", 128));
 });
 
 for (const surface of [undefined, "js"]) {

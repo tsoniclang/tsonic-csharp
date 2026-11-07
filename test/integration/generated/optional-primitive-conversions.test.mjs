@@ -24,19 +24,19 @@ test("optional Number inputs retain the actual nullable native overload contract
   assert.equal(program !== undefined, true, "the native overload controls are admitted");
   const found = new Map();
   const visit = node => {
-    if (program.source.ast.is.IsFunctionDeclaration(node)) {
-      const name = program.source.ast.text(program.source.ast.name(node));
-      const body = program.source.ast.body(node);
-      const returned = program.source.ast.statements(body)[0];
-      const expression = program.source.ast.as.AsReturnStatement(returned)?.Expression;
+    if (program.source.syntax.is.IsFunctionDeclaration(node)) {
+      const name = program.source.syntax.text(program.source.syntax.name(node));
+      const body = program.source.syntax.body(node);
+      const returned = program.source.syntax.statements(body)[0];
+      const expression = program.source.syntax.as.AsReturnStatement(returned)?.Expression;
       const selected = expression === undefined ? undefined : program.records.selectedCall.get(expression)?.target;
       assert.equal(selected?.kind, "resolved", `${name}: the actual runtime call is selected`);
       const native = getCsharpNullableElementTargetType(selected.call.targetMember.parameters[0]?.type);
       found.set(name, native);
     }
-    program.source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    program.source.syntax.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
-  program.source.navigation.sourceFiles.forEach(visit);
+  program.source.sourceFiles.forEach(visit);
   assert.equal(found.get("wide")?.kind === "source-primitive" && found.get("wide")?.name === "uint64", true,
     "the actual Nullable<ulong> native overload has no object boxing or floating input detour");
   assert.equal(found.get("boolean")?.kind === "source-primitive" && found.get("boolean")?.name === "bool", true,

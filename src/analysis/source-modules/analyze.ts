@@ -1,12 +1,12 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { TargetSourceProgram } from "@tsonic/target-api/source";
+import type { TargetSourceProgramFacts } from "@tsonic/target-api/source";
 import type { CsharpOutputType } from "../../target-model/configuration/model.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
 import type { CsharpSourceModuleAnalysis, CsharpSourceModuleAnalysisIssue, CsharpSourceModuleConstruction, CsharpSourceModuleConstructionIndex } from "../../target-model/records/program/source-modules.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 
 export function analyzeCsharpSourceModuleConstructions(input: {
-  readonly source: TargetSourceProgram;
+  readonly source: TargetSourceProgramFacts;
   readonly sourceFiles: readonly SourceFile[];
   readonly operations: CsharpTargetOperationClassifications;
   readonly outputType: CsharpOutputType;
@@ -16,7 +16,7 @@ export function analyzeCsharpSourceModuleConstructions(input: {
   for (const sourceFile of input.sourceFiles) {
     if (sourceFile.IsDeclarationFile) continue;
     visit(sourceFile, (node) => {
-      if (input.source.ast.kindName(node) !== "KindNewExpression") return;
+      if (input.source.syntax.kindName(node) !== "KindNewExpression") return;
       const classification = input.operations.selectedConstruction.get(node);
       const selection = classification?.target;
       if (selection?.kind !== "resolved") return;
@@ -30,13 +30,13 @@ export function analyzeCsharpSourceModuleConstructions(input: {
         ));
         return;
       }
-      const argumentSlots = input.source.ast.arguments(node);
+      const argumentSlots = input.source.syntax.arguments(node);
       const moduleArgument = argumentSlots[invocation.sourceArgumentIndex];
       if (
         moduleArgument === undefined ||
         (
-          input.source.ast.kindName(moduleArgument) !== "KindStringLiteral" &&
-          input.source.ast.kindName(moduleArgument) !==
+          input.source.syntax.kindName(moduleArgument) !== "KindStringLiteral" &&
+          input.source.syntax.kindName(moduleArgument) !==
             "KindNoSubstitutionTemplateLiteral"
         )
       ) {
@@ -47,7 +47,7 @@ export function analyzeCsharpSourceModuleConstructions(input: {
         ));
         return;
       }
-      const resolution = input.source.navigation.moduleSpecifierResolution(
+      const resolution = input.source.facts.navigation.modules.specifier(
         moduleArgument,
       );
       if (resolution.kind !== "project") {
@@ -93,7 +93,7 @@ export function analyzeCsharpSourceModuleConstructions(input: {
 
   function visit(node: Node, selected: (node: Node) => void): void {
     selected(node);
-    input.source.ast.forEachChild(node, (child) => {
+    input.source.syntax.forEachChild(node, (child) => {
       if (child !== undefined) visit(child, selected);
     });
   }

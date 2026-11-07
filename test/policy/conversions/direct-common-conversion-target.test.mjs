@@ -1,8 +1,7 @@
 import assert from "node:assert/strict";
 import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
 import test from "node:test";
-import { selectCsharpCommonImplicitTarget } from "../../../dist/analysis/conversions/common-target.js";
-import { reconcileInferredReturnTargetContract } from "../../../dist/analysis/declarations/analyze.js";
+import { getCsharpRuntimeUnionArms, targetTypeRefKey } from "../../../dist/target-model/types/index.js";
 
 import { publishedReturnContracts, unrepresentedReturnContract } from "../../helpers/published-return-contracts.mjs";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
@@ -49,15 +48,31 @@ test("a Host-published exact return retains its Native primitive without a commo
     "Native represents the already-published int32 rather than choosing between int32 and float64");
 });
 
-test("common implicit target widens only when every observed return converts", () => {
-  assert.deepEqual(
-    selectCsharpCommonImplicitTarget(
-      host,
-      [int32, float64],
-      [int32, float64],
-    ),
-    { kind: "resolved", target: float64 },
-  );
+// The common return type of several observed returns is a Host decision (facts.values.callableReturn). C# represents
+// it and proves each return converts; it never chooses a common target (common-target inference deleted, C-2542).
+test("an inferred return over int32 and number is the Host-published number; every observed return converts into it", () => {
+  const selected = publishedReturnContracts(`import type { int32 } from "@tsonic/core/types.js";
+    export function run(flag: boolean, value: int32) { if (flag) return value; return 1.5; }`).get("run");
+  assert.equal(selected.publication.type.kind, "primitive", "the Host publishes one widened numeric return");
+  assert.equal(targetTypeRefEquals(selected.contract.type, csharpSourcePrimitiveTargetType(selected.publication.type.primitive)), true,
+    "Native represents exactly the published primitive");
+  assert.equal(targetTypeRefEquals(selected.contract.type, float64), true, "number is float64 (native-first numerics)");
+  for (const observed of [int32, float64]) {
+    assert.notEqual(selectCsharpConversion(host, observed, selected.contract.type, "implicit").kind, "rejected",
+      "every observed return converts into the published return");
+  }
+});
+
+test("an inferred return over unrelated values is the Host sum in authored order, never a widened common target", () => {
+  const selected = publishedReturnContracts(`import type { int32 } from "@tsonic/core/types.js";
+    export function run(flag: boolean, value: int32) { if (flag) return value; return "none"; }`).get("run");
+  assert.equal(selected.publication.type.kind, "union", "int32 and string have no common target: the Host publishes a union");
+  const expected = selected.publication.type.types.map(type => type.kind === "string" ? csharpStringTargetType()
+    : csharpSourcePrimitiveTargetType(type.primitive));
+  assert.deepEqual(getCsharpRuntimeUnionArms(selected.contract.type).map(targetTypeRefKey), expected.map(targetTypeRefKey),
+    "the runtime union arms are positional in the published order (R6, C-2459)");
+  assert.equal(selectCsharpConversion(host, csharpStringTargetType(), int32, "implicit").kind, "rejected",
+    "no implicit conversion joins the two returns");
 });
 
 test("unrelated Native representations cannot satisfy an existing exact return destination", () => {
@@ -82,23 +97,29 @@ test("the Host-published optional return retains an unobserved absence alternati
   assert.equal(targetTypeRefEquals(selected.contract.type, csharpNullableTargetType(int32)), true);
 });
 
+// Inferred nullable numeric returns: the Host publishes the exact observed primitive with its absence; Native represents
+// it (int?, long?) and never substitutes an erased float64 / BigInteger baseline. An authored return annotation wins.
 test("inferred nullable numeric returns preserve exact observed storage and absence", () => {
-  for (const [baseline, observed] of [
-    [float64, int32],
-    [csharpBigIntegerTargetType(), csharpSourcePrimitiveTargetType("int64")],
-  ]) {
-    const nullable = csharpNullableTargetType(observed);
-    assert.deepEqual(reconcileInferredReturnTargetContract(host, csharpNullableTargetType(baseline),
-      [observed, csharpAbsenceTargetType()], false), { kind: "resolved", type: nullable });
-    assert.equal(reconcileInferredReturnTargetContract(host, csharpNullableTargetType(baseline),
-      [observed, csharpAbsenceTargetType()], true).kind, "rejected");
-    assert.deepEqual(reconcileInferredReturnTargetContract(host, csharpNullableTargetType(baseline), [nullable], false),
-      { kind: "resolved", type: nullable });
-    assert.equal(reconcileInferredReturnTargetContract(host, csharpNullableTargetType(baseline), [nullable], true).kind, "rejected");
+  const selected = publishedReturnContracts(`import type { int32, int64 } from "@tsonic/core/types.js";
+    export function narrow(flag: boolean, value: int32) { return flag ? value : undefined; }
+    export function wide(flag: boolean, value: int64) { return flag ? value : undefined; }
+    export function declared(flag: boolean, value: int32): number | undefined { return flag ? value : undefined; }
+    export function mixed(flag: boolean, left: int32, right: number) { if (flag) return left; return flag ? right : undefined; }`);
+  for (const [name, observed, baseline] of [["narrow", int32, float64],
+    ["wide", csharpSourcePrimitiveTargetType("int64"), csharpBigIntegerTargetType()]]) {
+    const actual = selected.get(name);
+    assert.equal(actual.publication.type.kind, "optional", `${name}: one Source absence`);
+    assert.equal(targetTypeRefEquals(actual.contract.type, csharpNullableTargetType(observed)), true,
+      `${name}: the exact observed primitive keeps its absence`);
+    assert.equal(targetTypeRefEquals(actual.contract.type, csharpNullableTargetType(baseline)), false,
+      `${name}: no erased numeric baseline`);
   }
-  const nullableFloat = csharpNullableTargetType(float64);
-  assert.deepEqual(reconcileInferredReturnTargetContract(host, nullableFloat,
-    [csharpNullableTargetType(int32), nullableFloat], false), { kind: "resolved", type: nullableFloat });
+  assert.equal(targetTypeRefEquals(selected.get("declared").contract.type, csharpNullableTargetType(float64)), true,
+    "an authored return is not narrowed to the observed int32");
+  assert.equal(targetTypeRefEquals(selected.get("mixed").contract.type, csharpNullableTargetType(float64)), true,
+    "int32 and number returns with absence publish number | undefined -> double?");
+  assert.equal(selectCsharpConversion(host, csharpAbsenceTargetType(), selected.get("narrow").contract.type, "implicit").kind,
+    "absence", "the absence alternative is retained by the Nullable carrier");
 });
 
 test("published integer results retain every Native primitive without allocating a checker bigint baseline", () => {
@@ -120,8 +141,10 @@ test("published integer results retain every Native primitive without allocating
     selected.get("actualBigint").publication.type.intrinsic === "bigint", true);
   assert.equal(targetTypeRefEquals(selected.get("actualBigint").contract.type, bigint), true);
   assert.equal(selectCsharpConversion(host, float64, bigint, "implicit").kind, "rejected");
-  assert.deepEqual(unrepresentedReturnContract(selected.get("read_int32")), { kind: "rejected",
-    reason: "The Host-published callable return has no closed C# representation." });
+  const unrepresented = unrepresentedReturnContract(selected.get("read_int32"));
+  assert.equal(unrepresented.kind === "rejected" &&
+    unrepresented.reason === "The published return has no C# representation in this test double.", true,
+  "a CSHARP_ representation refusal of the published return is reported as is (R5), never retried");
 });
 
 test("published compound returns retain exact Native elements without inferring a collection conversion", () => {

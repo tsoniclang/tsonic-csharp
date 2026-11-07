@@ -38,7 +38,7 @@ for (const [label, code] of [
   ["value through helper return", "function selected() { return source.argument.type; } types.resolveType(selected(), file);"],
 ]) {
   test(`effective-type architecture rejects ${label}`, () => {
-    const findings = effectiveTypeBoundaryFindings(new Map([["src/analysis/source-evidence/types/resolution/semantic-types.ts", `function example() { ${code} }`]]));
+    const findings = effectiveTypeBoundaryFindings(new Map([["src/representation/example.ts", `function example() { ${code} }`]]));
     assert.equal(findings.some(row => row.rule === "value-type-reaches-converter"), true, label);
   });
 }
@@ -52,7 +52,7 @@ test("a declaration-only allowance cannot authorize a value-bearing argument", (
 });
 
 test("converter data flow follows the checked Type argument rather than unrelated Native scope state", () => {
-  const path = "src/analysis/source-evidence/types/resolution/semantic-types.ts";
+  const path = "src/representation/example.ts";
   const prefix = "const scope = { current: queries.types.expressionType(node) };";
   const declared = effectiveTypeBoundaryFindings(new Map([[path,
     `function example() { ${prefix} bindCsharpSourceTypeArguments(scope, declared, queries, state, source); }`]]));
@@ -64,12 +64,16 @@ test("converter data flow follows the checked Type argument rather than unrelate
     "a raw checked value in the actual Type position is still rejected");
 });
 
+// Nextgen I4: a checker fallback is never allowed, gated or not. The gated form is no longer a value-type finding, but
+// the converter call itself is unclassified (zero allowances, I2).
 test("an outside-domain fallback needs an earlier returning gate for the identical occurrence", () => {
-  const path = "src/analysis/source-evidence/types/resolution/semantic-types.ts";
+  const path = "src/representation/example.ts";
   const selected = "types.resolveType(queries.types.expressionType(node), file);";
   const gate = "if (host.effectiveTypes.get(node) !== undefined) return resolveNode(node);";
   const accepted = effectiveTypeBoundaryFindings(new Map([[path, `function resolve(node) { ${gate} ${selected} }`]]));
   assert.equal(accepted.some(row => row.rule === "value-type-reaches-converter"), false, "the raw fallback cannot run for a published occurrence");
+  assert.equal(accepted.some(row => row.rule === "unclassified-type-only-converter"), true,
+    "the gated checker fallback is still a converter call with no allowance (I2, I4)");
   for (const [label, source] of [
     ["foreign occurrence", `function resolve(node, other) { if (host.effectiveTypes.get(other) !== undefined) return resolveNode(other); ${selected} }`],
     ["late gate", `function resolve(node) { ${selected} ${gate} }`],
@@ -81,7 +85,7 @@ test("an outside-domain fallback needs an earlier returning gate for the identic
 });
 
 test("conditional fallback branches require absence at the identical operation occurrence", () => {
-  const path = "src/analysis/source-evidence/types/resolution/semantic-types.ts";
+  const path = "src/representation/example.ts";
   for (const [label, condition, accepted] of [
     ["same absent occurrence", "effective === undefined", true],
     ["present occurrence", "effective !== undefined", false],
@@ -92,6 +96,7 @@ test("conditional fallback branches require absence at the identical operation o
       return ${condition} ? types.resolveType(queries.types.expressionType(node), file) : undefined;
     }`]]));
     assert.equal(findings.some(row => row.rule === "value-type-reaches-converter"), !accepted, label);
+    assert.equal(findings.some(row => row.rule === "unclassified-type-only-converter"), true, `${label}: no checker fallback is allowed (I4)`);
   }
 });
 
@@ -149,14 +154,17 @@ test("node-keyed carrier maps and provider identity relations are not value-type
   assert.equal(findings.length, 0);
 });
 
-test("the private declaration-only resolver cache remains valid but cannot consume value-origin keys", () => {
-  const path = "src/analysis/source-evidence/types/resolution/query-cache.ts";
-  const cache = "const semanticTypes = new WeakMap<Type, WeakMap<SourceFile, TargetTypeRef>>();";
-  assert.equal(effectiveTypeBoundaryFindings(new Map([[path, `${cache} semanticTypes.get(declared);`]])).length, 0,
-    "the existing private declared-Type cache is not a second value-result publication channel");
+// Nextgen I2/I5: the private declared-Type cache of the deleted resolution engine has no successor. A Type-keyed carrier
+// cache is a finding in every C# file, whether its key is declared or value-origin.
+test("no C# file may keep a private Type-keyed resolver cache", () => {
+  const path = "src/representation/query-cache.ts";
+  const cache = "const semanticTypes = new Map<Type, TargetTypeRef>();";
+  const declared = effectiveTypeBoundaryFindings(new Map([[path, `${cache} semanticTypes.get(declared);`]]));
+  assert.equal(declared.some(row => row.rule === "type-keyed-carrier-map"), true,
+    "a declared-Type cache is no longer a privileged resolver channel");
   const findings = effectiveTypeBoundaryFindings(new Map([[path, `${cache} semanticTypes.get(queries.types.expressionType(node));`]]));
-  assert.equal(findings.some(row => row.rule === "type-keyed-value-result"), true,
-    "private resolver ownership never authorizes a raw value type as a result key");
+  assert.equal(findings.some(row => row.rule === "type-keyed-value-result" || row.rule === "type-keyed-carrier-map"), true,
+    "a raw value type as a result key stays rejected");
 });
 
 test("C# has no remaining Source literal choosers local absence producers or counter induction query", () => {

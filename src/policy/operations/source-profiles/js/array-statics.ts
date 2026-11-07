@@ -55,7 +55,7 @@ export function arrayFromMember(
   if (shape === undefined) {
     return undefined;
   }
-  const argument = resolveCsharpSelectedSourceValue(context, context.source.sourceArguments[0]);
+  const argument = resolveCsharpSelectedSourceValue(context, context.source.arguments[0]);
   const isJsArray = getCsharpJsArrayElementTargetType(argument) !== undefined;
   const isArrayUnion = getCsharpRuntimeUnionArms(argument, context.host.typeDefinitions) !== undefined;
   if ((isJsArray || isArrayUnion) && copy === undefined) return undefined;
@@ -67,7 +67,7 @@ export function arrayFromMember(
         : csharpEnumerableTargetType(shape.sourceElement)),
     ),
   ];
-  if (context.source.sourceSelectedSignatureParameters.length === 2) {
+  if (context.source.parameters.length === 2) {
     parameters.push(targetParameter(
       "mapfn",
       csharpDelegateTargetType(
@@ -101,15 +101,15 @@ export function arrayOfTypeArguments(
 function arrayOfElementType(
   context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
 ): TargetTypeRef | undefined {
-  const selected = context.source.sourceSelectedMethodTypeArguments ?? [];
+  const selected = context.source.typeArguments ?? [];
   const explicit = selected.length === 1 &&
-      selected[0]?.explicitTypeNode !== undefined
+      selected[0]?.explicit === true
     ? context.inputs.typeArgument.get(selected[0])
     : undefined;
   if (explicit !== undefined) {
     return explicit;
   }
-  const argumentTypes = context.source.sourceArguments.map((argument) =>
+  const argumentTypes = context.source.arguments.map((argument) =>
     resolveCsharpSelectedSourceValue(context, argument)
   );
   if (
@@ -133,7 +133,7 @@ function arrayFromShape(
 } | undefined {
   const sourceArgument = resolveCsharpSelectedSourceValue(
     context,
-    context.source.sourceArguments[0],
+    context.source.arguments[0],
   );
   const sourceElement = sourceIsString(context)
     ? stringType
@@ -143,15 +143,15 @@ function arrayFromShape(
   }
   const mapper = resolveCsharpSelectedSourceValue(
     context,
-    context.source.sourceArguments[1],
+    context.source.arguments[1],
   );
   const mappedResult = getCsharpDelegateSignature(mapper)?.returnType;
   const selectedArguments = resolvedMethodTypeArguments(context);
-  const selectedResults = context.source.sourceSelectedMethodTypeArguments ?? [];
+  const selectedResults = context.source.typeArguments ?? [];
   const selectedResult = selectedResults[selectedResults.length - 1];
-  const resultElement = context.source.sourceArguments.length === 1
+  const resultElement = context.source.arguments.length === 1
     ? sourceElement
-    : selectedResult?.explicitTypeNode === undefined
+    : selectedResult?.explicit !== true
       ? mappedResult ?? selectedArguments[selectedArguments.length - 1]
       : context.inputs.typeArgument.get(selectedResult);
   return resultElement === undefined
@@ -170,16 +170,16 @@ export function arrayFromTypeArguments(
   if (copy?.kind === "union") return [];
   const shape = arrayFromShape(context);
   if (copy !== undefined && shape !== undefined) {
-    return context.source.sourceSelectedSignatureParameters.length === 1
+    return context.source.parameters.length === 1
       ? copy.typeArguments : [...copy.typeArguments, shape.resultElement];
   }
   return shape === undefined
     ? undefined
     : sourceIsString(context)
-      ? context.source.sourceSelectedSignatureParameters.length === 1
+      ? context.source.parameters.length === 1
         ? []
         : [shape.resultElement]
-      : context.source.sourceSelectedSignatureParameters.length === 1
+      : context.source.parameters.length === 1
         ? [shape.sourceElement]
         : [shape.sourceElement, shape.resultElement];
 }
@@ -191,14 +191,14 @@ function arrayFromTypeParameterNames(
   if (copy?.kind === "dense") {
     return [
       ...copy.typeArguments.map((_, index) => `TSource${index}`),
-      ...(context.source.sourceSelectedSignatureParameters.length === 1 ? [] : ["TResult"]),
+      ...(context.source.parameters.length === 1 ? [] : ["TResult"]),
     ];
   }
   return sourceIsString(context)
-    ? context.source.sourceSelectedSignatureParameters.length === 1
+    ? context.source.parameters.length === 1
       ? []
       : ["TResult"]
-    : context.source.sourceSelectedSignatureParameters.length === 1
+    : context.source.parameters.length === 1
       ? ["TSource"]
       : ["TSource", "TResult"];
 }
@@ -208,7 +208,7 @@ function sourceIsString(
 ): boolean {
   const source = resolveCsharpSelectedSourceValue(
     context,
-    context.source.sourceArguments[0],
+    context.source.arguments[0],
   );
   return source?.kind === "target-named" && source.id === "System.String";
 }
@@ -216,7 +216,7 @@ function sourceIsString(
 export function resolvedMethodTypeArguments(
   context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
 ): readonly TargetTypeRef[] {
-  return (context.source.sourceSelectedMethodTypeArguments ?? []).flatMap(
+  return (context.source.typeArguments ?? []).flatMap(
     (argument) => {
       const resolved = context.inputs.typeArgument.get(argument);
       return resolved === undefined ? [] : [resolved];

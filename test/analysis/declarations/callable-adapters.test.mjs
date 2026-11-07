@@ -10,6 +10,7 @@ import { csharpCallableParameterConversionRequests, selectCsharpCallableParamete
 import { csharpSourcePrimitiveTargetType, csharpNullableTargetType, csharpTargetNamedType, csharpDelegateTargetType, targetTypeRefEquals } from "../../../dist/target-model/types/index.js";
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { createCsharpPlanningContext } from "../../../dist/backend/planner/context.js";
+import { sealCsharpAnalysisProgram } from "../../../dist/analysis/program/index.js";
 import { planCsharpStructuralInterfaceMembers } from "../../../dist/backend/planner/declarations/interfaces/structural.js";
 import { printCsharpCompilationUnit } from "../../../dist/print/source/printer.js";
 import { admitCsharpNativeDeclarations } from "../../../dist/analysis/declarations/native-value-declarations.js";
@@ -138,7 +139,7 @@ function classForwarder(control) {
     nativeForwardingSources.set(control.names.length, compiled);
   }
   const program = compiled.result.program;
-  const ast = program.source.ast;
+  const ast = program.source.syntax;
   const nodes = [];
   const visit = node => { nodes.push(node); ast.forEachChild(node, child => { if (child !== undefined) visit(child); }); };
   for (const file of csharpProgramSourceFiles(program)) visit(file);
@@ -175,7 +176,7 @@ function classForwarder(control) {
   const selected = Object.freeze({ ...program, records: Object.freeze({ ...program.records,
     structuralInterface: Object.freeze({ get: type => type === sourceType ? Object.freeze([interfaceImplementation]) :
       program.records.structuralInterface.get(type) }) }) });
-  const context = createCsharpPlanningContext(selected);
+  const context = createCsharpPlanningContext(sealCsharpAnalysisProgram(selected));
   const passing = mode => mode === "by-value" ? undefined : mode === "byref-readonly" ? "in"
     : mode === "byref-readwrite" ? "ref" : "out";
   const diagnostics = [];
@@ -308,8 +309,8 @@ test("class native countercontrol observes omitted in selecting the wrong valid 
 function nativeMethodNodes(program) {
   const declarations = [];
   const visit = node => {
-    if (program.source.ast.is.IsMethodDeclaration(node)) declarations.push(node);
-    program.source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    if (program.source.syntax.is.IsMethodDeclaration(node)) declarations.push(node);
+    program.source.syntax.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
   csharpProgramSourceFiles(program).forEach(visit);
   return declarations;
@@ -319,8 +320,8 @@ function admitMethodRecords(program, nodes, records = program.records) {
   // The sealed records publish native-use classification (nativeUse) and order (nativeOrder) as separate families;
   // the admission reads the analysis classification that holds both.
   const nativeUse = { get: records.nativeUse.get, order: records.nativeOrder.get };
-  return admitCsharpNativeDeclarations(program.source.ast, nodes, nativeUse,
-    program.projectTypes, program.sourceNavigation, records, records, records.nativeParticipation, records.nativeUnreachable,
+  return admitCsharpNativeDeclarations(program.source.syntax, nodes, nativeUse,
+    program.projectTypes, program.source.facts, records, records, records.nativeParticipation, records.nativeUnreachable,
     records, records.callableDispatch, records.classFactory, records);
 }
 
@@ -348,7 +349,7 @@ for (const surface of ["native", "js"]) {
         "the existing dispatch family publishes the actual source method contract");
       assert.equal(Object.isFrozen(dispatch) && Object.isFrozen(dispatch.adapters), true,
         "the method contract is immutable before planning");
-      if (program.source.ast.hasModifierKind(method, "static")) {
+      if (program.source.syntax.hasModifierKind(method, "static")) {
         assert.equal(dispatch.overridesBase || dispatch.hasDerivedOverride || dispatch.adapters.length !== 0, false,
           "static methods never acquire instance dispatch or adapters");
       }
@@ -405,7 +406,8 @@ test("callable declaration refusals precede dependent parameter and native ABI r
     generators: { generator: { get: unreachable } }, callables: { get: unreachable },
   });
   assert.equal(selected.issues.length, 1, "the source owner publishes one precise refusal");
-  assert.equal(selected.issues[0].code, "CSHARP_UNSUPPORTED_AST", "a native source refusal is not an internal missing-record failure");
+  // nextgen C-2542: CSHARP_UNSUPPORTED_AST is split; the declaration emission owner names CSHARP_CALLABLE_DECLARATION_EMISSION.
+  assert.equal(selected.issues[0].code, "CSHARP_CALLABLE_DECLARATION_EMISSION", "a native source refusal is not an internal missing-record failure");
   assert.equal(selected.issues[0].message, returned.reason, "the original completed return reason is preserved");
   assert.equal(selected.issues[0].sourceNode === owner, true, "the refusal retains exact original declaration identity");
 });
@@ -420,16 +422,17 @@ test("method admission owns exact return, parameter, adapter and logical-return 
   const opaque = Object.freeze({ kind: "opaque", id: "missing" });
   for (const control of [
     { label: "physical return", dispatch: { ...dispatch, implementation: { ...dispatch.implementation, returnType: opaque } },
-      node: method, code: "CSHARP_UNSUPPORTED_AST", message: "A method's sealed native return contract is not renderable." },
+      // nextgen C-2542: CSHARP_UNSUPPORTED_AST is split per .NET reason (native-value-declarations.ts).
+      node: method, code: "CSHARP_METHOD_RETURN_NOT_RENDERABLE", message: "A method's sealed native return contract is not renderable." },
     { label: "physical parameter", dispatch: { ...dispatch, implementation: { ...dispatch.implementation,
       nativeParameters: [{ ...dispatch.implementation.nativeParameters[0], targetParameter: {
         ...dispatch.implementation.nativeParameters[0].targetParameter, type: opaque } }] } },
       node: dispatch.implementation.nativeParameters[0].sourceParameter, code: "CSHARP_OPAQUE_TARGET_TYPE_UNSUPPORTED",
       message: "Opaque target type 'missing' has no renderable C# source representation." },
     { label: "raw adapter", dispatch: { ...dispatch, adapters: [{ contract: { ...dispatch.implementation, returnType: opaque } }] },
-      node: method, code: "CSHARP_UNSUPPORTED_AST", message: "A sealed callable adapter has an unrenderable native signature." },
+      node: method, code: "CSHARP_CALLABLE_ADAPTER_NOT_RENDERABLE", message: "A sealed callable adapter has an unrenderable native signature." },
     { label: "logical return", dispatch, rejectedReturn: { kind: "rejected", reason: "exact completed return refusal" },
-      node: method, code: "CSHARP_UNSUPPORTED_AST", message: "exact completed return refusal" },
+      node: method, code: "CSHARP_METHOD_RETURN_CONTRACT", message: "exact completed return refusal" },
   ]) {
     const records = { ...program.records,
       callableDispatch: { get: node => node === method ? control.dispatch : program.records.callableDispatch.get(node) },
@@ -450,33 +453,33 @@ test("method and raw-adapter planners reject only corrupted admitted contracts",
   const program = compiled.result.program;
   const method = nativeMethodNodes(program)[0];
   const dispatch = program.records.callableDispatch.get(method);
-  const file = program.source.ast.getSourceFile(method);
+  const file = program.source.syntax.getSourceFile(method);
   for (const control of [
     { label: "missing contract", dispatch: undefined, message: "final native callable contract" },
     { label: "unrenderable return", dispatch: { ...dispatch, implementation: {
       ...dispatch.implementation, returnType: { kind: "opaque", id: "missing" } } }, message: "renderable native return type" },
   ]) {
-    const input = createCsharpPlanningContext({ ...program, records: { ...program.records,
-      callableDispatch: { get: node => node === method ? control.dispatch : program.records.callableDispatch.get(node) } } });
+    const input = createCsharpPlanningContext(sealCsharpAnalysisProgram({ ...program, records: { ...program.records,
+      callableDispatch: { get: node => node === method ? control.dispatch : program.records.callableDispatch.get(node) } } }));
     const diagnostics = [];
     assert.throws(() => planMethodDeclaration(method, file, input, diagnostics,
       { kind: "source", declaration: method, role: "member" }),
       error => error.message.includes(control.message), `${control.label}: the producer guarantee fails internally`);
     assert.equal(diagnostics.length, 0, `${control.label}: the planner does not issue a source refusal`);
   }
-  const input = createCsharpPlanningContext(program);
+  const input = createCsharpPlanningContext(sealCsharpAnalysisProgram(program));
   const diagnostics = [];
   const planned = planMethodDeclaration(method, file, input, diagnostics, { kind: "source", declaration: method, role: "member" });
-  const corrupted = createCsharpPlanningContext({ ...program, records: { ...program.records,
+  const corrupted = createCsharpPlanningContext(sealCsharpAnalysisProgram({ ...program, records: { ...program.records,
     callableDispatch: { get: node => node === method ? { ...dispatch, adapters: [{ contract: {
       ...dispatch.implementation, returnType: { kind: "opaque", id: "missing" } } }] }
-      : program.records.callableDispatch.get(node) } } });
+      : program.records.callableDispatch.get(node) } } }));
   assert.throws(() => planCsharpProjectCallableAdapters(method, planned, file, corrupted, diagnostics),
     error => error.message.includes("renderable physical signature"), "raw signatures were admitted before planner entry");
   assert.equal(diagnostics.length, 0, "corrupted raw adapters cannot fabricate another source diagnostic");
-  const invalidStream = createCsharpPlanningContext({ ...program, records: { ...program.records,
+  const invalidStream = createCsharpPlanningContext(sealCsharpAnalysisProgram({ ...program, records: { ...program.records,
     callableDispatch: { get: node => node === method ? { ...dispatch, adapters: [{ contract: dispatch.implementation,
-      parameters: [] }] } : program.records.callableDispatch.get(node) } } });
+      parameters: [] }] } : program.records.callableDispatch.get(node) } } }));
   assert.throws(() => planCsharpProjectCallableAdapters(method, planned, file, invalidStream, diagnostics),
     error => error.message.includes("complete native argument adaptation"),
     "one admitted parameter adapter per physical destination is a producer guarantee");
@@ -494,7 +497,11 @@ test("a rejected method default cannot become an adapter-stream invariant", () =
   assert.equal(compiled.sourceDiagnosticsText, "", "the checked optional override is valid source");
   assert.equal(compiled.result.diagnostics.some(issue => issue.category === "error"), true,
     "the unsupported initializer retains its source refusal instead of an internal error");
-  assert.equal(compiled.targetDiagnostics.some(issue => issue.code === "CSHARP_UNSUPPORTED_AST"), true,
+  // nextgen C-2542: CSHARP_UNSUPPORTED_AST is split; a non-literal default is refused by the parameter emission owner
+  // (CSHARP_PARAMETER_EMISSION, "C# parameter defaults require compile-time literal values.") or, for an expression form
+  // with no plan, by expression emission (CSHARP_EXPRESSION_FORM_NOT_PLANNED). Which one reaches first is unverified (T4 notes).
+  assert.equal(compiled.targetDiagnostics.some(issue => issue.code === "CSHARP_PARAMETER_EMISSION" ||
+    issue.code === "CSHARP_EXPRESSION_FORM_NOT_PLANNED"), true,
     "the checked JS initializer keeps its actual unsupported-expression refusal");
   assert.equal(compiled.targetDiagnostics.some(issue => issue.code.startsWith("TSONIC_INTERNAL_")), false,
     "a refused initializer cannot become an internal adapter-stream failure");

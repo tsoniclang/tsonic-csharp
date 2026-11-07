@@ -216,7 +216,9 @@ export type CsharpNativeUnadmittedReason =
 
 export type CsharpNativeUnadmitted =
   | { readonly kind: "pending-use"; readonly site: TargetUseSiteRef; readonly expression: Node;
-    readonly reason: CsharpNativeUnadmittedReason; readonly message?: string; readonly code?: string }
+    readonly reason: CsharpNativeUnadmittedReason; readonly message?: undefined; readonly code?: undefined }
+  | { readonly kind: "pending-use"; readonly site: TargetUseSiteRef; readonly expression: Node;
+    readonly reason: CsharpNativeUnadmittedReason; readonly message: string; readonly code: `CSHARP_${string}` }
   | { readonly kind: "source-refusal"; readonly requiredBy: Node; readonly diagnostic: TargetDiagnostic };
 
 export interface CsharpNativeDemandAnalysis extends CsharpNativeUseClassifications {

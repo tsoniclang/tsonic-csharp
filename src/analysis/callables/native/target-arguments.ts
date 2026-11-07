@@ -3,7 +3,7 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpTargetOperationClassifications } from "../../../target-model/records/operations/operations.js";
 import type { CsharpTargetParameter } from "../../../target-model/types/model.js";
 import type { CsharpProviderArgumentMapping, CsharpSelectedTargetCall } from "../../../target-model/records/objects/members.js";
-import type { ResolvedSourceCallInfo } from "../../../target-model/records/calls/source-calls.js";
+import type { SourceCallSelection } from "@tsonic/target-api/source";
 import type { CsharpCallArgumentForm, CsharpCallArgumentEmission, CsharpTargetArgumentOperand, CsharpTargetArgumentsEmission } from "../../../target-model/records/calls/target-arguments.js";
 import type { CsharpSourceCallEmissionRecords } from "../../../target-model/records/calls/source-call-emission.js";
 import type { CsharpNativeDemandAnalysis } from "../../../target-model/records/native/native-demand.js";
@@ -21,7 +21,7 @@ export function analyzeCsharpTargetArguments(input: { readonly ast: AstReader; r
   const producer = createCsharpTargetArgumentProducer();
   const issues: TargetDiagnostic[] = [];
   const requests: CsharpNativeArgumentRequest[] = [];
-  const refuse = (node: Node, message: string): void => { issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: node, message }); };
+  const refuse = (node: Node, message: string): void => { issues.push({ code: "CSHARP_TARGET_ARGUMENT_NOT_REPRESENTABLE", category: "error", source: "tsonic-csharp", sourceNode: node, message }); };
   const argument = (expression: Node, parameter: CsharpTargetParameter, form: CsharpCallArgumentForm, mapping: CsharpProviderArgumentMapping | undefined): void => {
     if (producer.records.callArgumentEmission.get(expression, parameter, form, mapping) !== undefined) return;
     if (form === "spread-element") { refuse(expression, "Tuple-expanded call arguments require an explicit target tuple expansion plan."); return; }
@@ -78,10 +78,11 @@ export function analyzeCsharpTargetArguments(input: { readonly ast: AstReader; r
     else if (value.kind === "argument-vector" || value.kind === "native-binding" || value.read === "argument") requests.push({ node: expression, target: value.source, passing: "by-value", parameter: undefined });
     producer.argument(expression, parameter, form, mapping, value);
   };
-  const call = (node: Node, source: ResolvedSourceCallInfo, selection: CsharpSelectedTargetCall): void => {
+  const call = (node: Node, source: SourceCallSelection, selection: CsharpSelectedTargetCall): void => {
+    const authored = input.ast.arguments(source.use);
     const operands: { readonly operand: CsharpTargetArgumentOperand; readonly parameter: number; readonly order: number; readonly sequence: boolean }[] = [];
     if (selection.receiver.kind === "target-parameter") {
-      const receiver = source.sourceReceiver?.expression;
+      const receiver = source.receiver;
       const parameter = selection.targetMember.parameters[selection.receiver.targetParameterIndex];
       if (receiver === undefined || parameter === undefined) { refuse(node, "Selected first-argument target receiver has no exact source receiver or target parameter."); return; }
       argument(receiver, parameter, "value", undefined);
@@ -91,8 +92,8 @@ export function analyzeCsharpTargetArguments(input: { readonly ast: AstReader; r
     const planned = new Set<number>();
     if (sequences.size !== (selection.sequenceArguments?.length ?? 0)) { refuse(node, "A selected native argument sequence requires one exact source binding."); return; }
     for (const entry of selection.arguments) {
-      const expression = source.sourceArguments[entry.sourceArgumentIndex]?.expression;
-      if (expression === undefined) { refuse(node, `Selected target argument ${entry.effectiveArgumentIndex} has no exact checker-owned source expression.`); return; }
+      const expression = authored[entry.sourceArgumentIndex];
+      if (expression === undefined) { refuse(node, `Selected target argument ${entry.effectiveArgumentIndex} has no exact authored source expression.`); return; }
       if (entry.projection !== undefined) {
         const projection = entry.projection;
         if (projection.source !== expression || entry.sourceForm !== "value" || entry.targetParameter.passingMode !== "by-value" ||

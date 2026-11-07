@@ -91,8 +91,8 @@ function arrayHasLengthArgument(
   context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
 ): boolean {
   const parameter = context.inputs.parameters[0];
-  return context.source.sourceArguments.length === 1 &&
-    context.source.sourceSelectedSignatureParameters.length === 1 &&
-    context.source.sourceSelectedSignatureParameters[0]?.rest === false &&
+  return context.source.arguments.length === 1 &&
+    context.source.parameters.length === 1 &&
+    context.source.parameters[0]?.kind !== "rest" &&
     parameter?.kind === "source-primitive" && parameter.name === "int32";
 }

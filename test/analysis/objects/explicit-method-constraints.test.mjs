@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createCsharpTypeParameterEnvironment } from "../../../dist/analysis/source-evidence/types/resolution/type-parameter-environment.js";
+import { createCsharpTypeParameterEnvironment } from "../../../dist/representation/index.js";
 import { analyzeCsharpAuthoredObjectMethods } from "../../../dist/analysis/objects/authored-methods.js";
 import { analyzeCsharpCaptureMethods } from "../../../dist/analysis/objects/capture-methods.js";
 import { selectCsharpObjectMemberEmission } from "../../../dist/policy/types/objects/object-members.js";

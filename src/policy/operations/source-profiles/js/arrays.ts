@@ -417,9 +417,9 @@ function mapArrayMember(
   context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
 ): CsharpTargetMember | undefined {
   const shape = arrayCallShape(context);
-  const mapper = resolveCsharpSelectedSourceValue(context, context.source.sourceArguments[0]);
-  const selected = context.source.sourceSelectedMethodTypeArguments?.[0];
-  const resultElement = selected?.explicitTypeNode === undefined
+  const mapper = resolveCsharpSelectedSourceValue(context, context.source.arguments[0]);
+  const selected = context.source.typeArguments?.[0];
+  const resultElement = selected?.explicit !== true
     ? getCsharpDelegateSignature(mapper)?.returnType ?? resolvedMethodTypeArguments(context)[0]
     : context.inputs.typeArgument.get(selected);
   const resultType = resultElement === undefined ? undefined : csharpJsArrayTargetType(resultElement);
@@ -481,7 +481,7 @@ function reduceArrayMember(
   const parameters: CsharpTargetParameter[] = [
     targetParameter("callbackfn", callback),
   ];
-  if (context.source.sourceSelectedSignatureParameters.length === 2) {
+  if (context.source.parameters.length === 2) {
     parameters.push(targetParameter("initialValue", resultType));
   }
   return instanceMethod(
@@ -563,7 +563,7 @@ function arrayCallShape(
 } | undefined {
   const receiver = resolveCsharpSelectedSourceValue(
     context,
-    context.source.sourceReceiver,
+    context.source.receiver,
   );
   const element = getCsharpJsArrayElementTargetType(receiver);
   return receiver === undefined || element === undefined
@@ -579,7 +579,7 @@ function readOnlyArrayCallShape(
 } | undefined {
   const receiver = resolveCsharpSelectedSourceValue(
     context,
-    context.source.sourceReceiver,
+    context.source.receiver,
   );
   const element = getCsharpReadOnlyIndexableCollectionElementTargetType(
     receiver,

@@ -1,4 +1,4 @@
-import type { ArgumentPassingMode, ExtensionFactSubject, Node, ResolvedSourceWellKnownSymbolInfo, SourcePrimitiveKind, Type } from "@tsonic/tsts";
+import type { ArgumentPassingMode, ExtensionFactSubject, Node, SourcePrimitiveKind } from "@tsonic/tsts";
 import type { SourceTypeDescriptorMember } from "@tsonic/target-api/source";
 import type { CsharpConversionSelection } from "../conversions/selection.js";
 
@@ -13,11 +13,16 @@ export type CsharpTypeofRuntimeKind = "string" | "number" | "boolean" | "bigint"
 
 export type CsharpCaptureInitialization = "initialized" | "deferred";
 
+/** A well-known symbol by the name the Host publishes (SourceSelectionFacts.wellKnownSymbol). */
+export type CsharpWellKnownSymbolKind =
+  | "async-dispose" | "async-iterator" | "dispose" | "has-instance" | "is-concat-spreadable" | "iterator" | "match"
+  | "match-all" | "replace" | "search" | "species" | "split" | "to-primitive" | "to-string-tag" | "unscopables";
+
 export type CsharpSourceMemberKey =
   | { readonly kind: "property"; readonly name: string }
   | {
       readonly kind: "well-known-symbol";
-      readonly symbol: ResolvedSourceWellKnownSymbolInfo["kind"];
+      readonly symbol: CsharpWellKnownSymbolKind;
     };
 
 export type CsharpObjectMethodValueStorage =
@@ -29,7 +34,6 @@ export interface CsharpObjectShapeMemberFact {
   readonly sourceName: string;
   readonly sourceSubjects?: readonly ExtensionFactSubject[];
   readonly sourceDeclarations?: readonly Node[];
-  readonly sourceTypes?: readonly Type[];
   // The Host-published member identities, present when the shape comes from Source descriptors.
   readonly origins?: readonly SourceTypeDescriptorMember["origin"][];
   readonly targetName: string;
@@ -54,7 +58,6 @@ export interface CsharpObjectShapeMemberFact {
 
 export interface CsharpObjectShapeFact {
   readonly targetType: TargetTypeRef;
-  readonly sourceType?: Type;
   readonly declarationTemplate?: CsharpObjectShapeFact;
   readonly covariantTypeParameterIdentities?: readonly string[];
   readonly members: readonly CsharpObjectShapeMemberFact[];

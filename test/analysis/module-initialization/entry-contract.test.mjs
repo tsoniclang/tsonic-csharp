@@ -1,15 +1,23 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { assertCsharpCompilationSucceeded, compileCsharpAnalysisTarget, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { binaryEntryNativePrograms } from "../../../../tsonic/test/fixtures/binary-entry-contract.mjs";
 
 for (const surface of [undefined, "js"]) {
   test(`binary entry rejects uncalled main on ${surface ?? "native"}`, () => {
+    let received;
     const compiled = compileCsharpSource({ surface, targetOptions: { outputType: "Exe" },
-      sourceText: "export function main(): void {}" });
+      sourceText: "export function main(): void {}",
+      compileTarget(request, observer) { received = request; return compileCsharpAnalysisTarget(request, observer); } });
     assert.equal(compiled.artifacts.size, 0);
     assert.deepEqual(compiled.result.diagnostics.map(diagnostic => diagnostic.code), ["TSONIC_UNCALLED_BINARY_ENTRY_MAIN"]);
+    // nextgen C-2542 (R-F5-B6): the refusal is Host-originated; C# forwards the facts.refusals() entry unchanged.
+    const [diagnostic] = compiled.result.diagnostics;
+    const published = received.input.source.facts.refusals().filter(refusal => refusal.code === diagnostic.code);
+    assert.equal(published.length, 1, "one published Host refusal");
+    assert.equal(diagnostic.message, published[0].message, "the Host message is forwarded unchanged");
+    assert.equal(diagnostic.sourceNode, published[0].site, "the Host site is forwarded unchanged");
   });
 
   for (const [name, source] of [

@@ -9,7 +9,7 @@ for (const surface of ["native", "js"]) {
     const compiled = compileCsharpSource({ surface, sourceText: nativeUnaryLocationsSource });
     assertCsharpCompilationSucceeded(compiled);
     const { program } = compiled.result;
-    const { ast } = program.source;
+    const ast = program.source.syntax;
     let updates = 0;
     let parentheses = 0;
     let narrowedReceivers = 0;

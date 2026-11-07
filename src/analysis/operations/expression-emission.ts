@@ -7,16 +7,15 @@ import type { CsharpSourceReferenceRecords } from "../../target-model/records/pr
 import type { CsharpPropertyAdmissionRecords } from "../../target-model/records/objects/property-admission.js";
 import type { CsharpTypeEmissionRecords } from "../../target-model/records/types/type-emission.js";
 import type { CsharpConversionSelection } from "../../target-model/conversions/selection.js";
-import { sourceTransparentExpressionOperand } from "@tsonic/target-api/source";
 import type { CsharpConversionClassifications } from "../../target-model/records/operations/conversions.js";
-import { KindEqualsToken, type TargetSourceProgram } from "@tsonic/target-api/source";
+import { KindEqualsToken, type TargetSourceProgramFacts } from "@tsonic/target-api/source";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
 import type { CsharpClassFactoryIndex } from "../../target-model/records/objects/class-factories.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
 import { createCsharpExpressionEmissionRecords } from "../program/records/operations/expression-emission.js";
 import { directCsharpSourceYieldExpression } from "../../target-model/syntax/yield-expression.js";
 
-export function analyzeCsharpExpressionEmission(input: { readonly source: TargetSourceProgram; readonly nodes: readonly Node[];
+export function analyzeCsharpExpressionEmission(input: { readonly source: TargetSourceProgramFacts; readonly nodes: readonly Node[];
   readonly demand: CsharpNativeDemandAnalysis; readonly conversions: CsharpConversionClassifications;
   readonly evidence: CsharpSourceEvidenceIndex; readonly factories: CsharpClassFactoryIndex; readonly operations: CsharpTargetOperationClassifications;
   readonly references: Pick<CsharpSourceReferenceRecords, "identifierEmission">;
@@ -28,7 +27,7 @@ export function analyzeCsharpExpressionEmission(input: { readonly source: Target
   const issues: TargetDiagnostic[] = [];
   for (const { site, use } of demand.entries) discards.set(site, use.kind === "erased" ? { kind: "sequence", steps: Object.freeze([]) }
     : use.kind === "location" ? { kind: "sequence", steps: Object.freeze([...use.children]) } : { kind: "effect", expression: use.expression });
-  const { owned: statementYields, resumedOperands } = statementOwnedYields(source.ast, nodes);
+  const { owned: statementYields, resumedOperands } = statementOwnedYields(source.syntax, nodes);
   for (const node of new Set([...nodes, ...demand.entries.map(({ use }) => use.expression)])) {
     if (statementYields.has(node)) continue;
     const selected = demand.nativeUse.expression(node);
@@ -53,9 +52,9 @@ export function analyzeCsharpExpressionEmission(input: { readonly source: Target
     const conversion = use.kind === "converted" && conversionRequired ? conversions.expressionConversion.get(node, use.carrier, use.target, use.mode)?.selection : undefined;
     if (conversionRequired && conversion === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted converted expression requires its exact native conversion selection.", node);
     if (conversion?.kind === "rejected") {
-      issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: node, message: conversion.reason }); continue;
+      issues.push({ code: "CSHARP_CONVERSION_NOT_PROVEN", category: "error", source: "tsonic-csharp", sourceNode: node, message: conversion.reason }); continue;
     }
-    const ast = source.ast;
+    const ast = source.syntax;
     const core = bottom === undefined && construction.literal === undefined && construction.binary === undefined && construction.discardedPresence === undefined &&
       !forwarded.has(ast.kindName(node));
     let storage: Node | undefined;
@@ -63,17 +62,17 @@ export function analyzeCsharpExpressionEmission(input: { readonly source: Target
       const handler = input.operations.nativeHandler.get(node);
       if (!sourceKinds.has(ast.kindName(node)) && !resumedOperands.has(node) && handler === undefined &&
         input.evidence.sourceDefaultValue.get(node) === undefined) {
-        issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: node, message: "Expression is outside the current C# planning surface." }); continue;
+        issues.push({ code: "CSHARP_EXPRESSION_FORM_NOT_PLANNED", category: "error", source: "tsonic-csharp", sourceNode: node, message: "Expression is outside the current C# planning surface." }); continue;
       }
       if (ast.is.IsClassExpression(node) && input.factories.classFactory.get(node) === undefined) {
-        issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: node, message: "A class expression requires its sealed native factory." }); continue;
+        issues.push({ code: "CSHARP_CLASS_EXPRESSION_FACTORY", category: "error", source: "tsonic-csharp", sourceNode: node, message: "A class expression requires its sealed native factory." }); continue;
       }
       if (ast.is.IsClassExpression(node) || input.evidence.sourceDefaultValue.get(node) !== undefined) storage = node;
       else {
         const argument = input.evidence.sourceArgument.get(node)
           ?? failTargetAnalysisInvariant("tsonic-csharp", "An admitted source expression requires its checked argument-passing evidence.", node);
         if (argument.kind === "rejected") {
-          issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: node, message: argument.reason }); continue;
+          issues.push({ code: "CSHARP_ARGUMENT_STORAGE_NOT_PROVEN", category: "error", source: "tsonic-csharp", sourceNode: node, message: argument.reason }); continue;
         }
         storage = argument.argument.storageExpression;
       }
@@ -82,7 +81,7 @@ export function analyzeCsharpExpressionEmission(input: { readonly source: Target
       ? Object.freeze({ target: use.target, signed: conversion.signed }) : undefined;
     if (integerTruncation !== undefined) {
       const target = input.operations.selectedCall.get(node)?.target;
-      if (target?.kind !== "resolved" || target.source.sourceArguments.length !== 2)
+      if (target?.kind !== "resolved" || target.source.arguments.length !== 2)
         failTargetAnalysisInvariant("tsonic-csharp", "An admitted native integer truncation requires its exact two-argument target call.", node);
     }
     expressions.set(node, { ...selected, discardEvaluation: discardEvaluation(node), physical: construction, conversion, bottom, storage, integerTruncation });
@@ -100,34 +99,35 @@ export function analyzeCsharpExpressionEmission(input: { readonly source: Target
         const selected = conversions.expressionConversion.get(current, native.input.type, native.target, native.mode)?.selection;
         if (selected === undefined || !effectFreeConversion(selected)) return "evaluate";
       }
-      const transparent = sourceTransparentExpressionOperand(source.ast, current);
-      if (transparent !== undefined) { current = transparent; continue; }
-      const effects = source.navigation.expressionEffects(current);
+      const transparent = source.facts.navigation.expressions.transparentOperand(current);
+      if (transparent !== current) { current = transparent; continue; }
+      const effects = source.facts.navigation.expressions.effects(current);
       if (!effects.invokes && !effects.mutates && !effects.suspends && !effects.mayThrow) {
         const reference = input.references.identifierEmission.get(current);
-        const kind = source.ast.kindName(current);
+        const kind = source.syntax.kindName(current);
         if (reference?.kind === "absence" || reference?.kind === "local" && !reference.backing ||
           native.literal !== undefined || kind === "KindThisKeyword" || kind === "KindNullKeyword" ||
           kind === "KindTrueKeyword" || kind === "KindFalseKeyword" || kind === "KindStringLiteral" ||
           kind === "KindNumericLiteral" || kind === "KindBigIntLiteral" || kind === "KindNoSubstitutionTemplateLiteral" ||
-          source.ast.is.IsArrowFunction(current) || source.ast.is.IsFunctionExpression(current)) return "omit";
+          source.syntax.is.IsArrowFunction(current) || source.syntax.is.IsFunctionExpression(current)) return "omit";
       }
       const property = input.properties.selectedProperty.get(current);
       const selection = property?.selection;
       let receiver: Node | undefined;
       if (selection?.kind === "resolved" && selection.targetMember.kind === "field" && selection.targetMember.readonly === true &&
-        selection.receiver.kind === "instance") receiver = selection.source.receiver.expression;
+        selection.receiver.kind === "instance") receiver = selection.source.receiver;
       if (selection?.kind === "source-owned") {
         const member = property?.sourceOwned?.shapeMember;
         const emission = input.properties.sourceMemberEmission.get(current);
-        const declaration = selection.source.selectedDeclaration;
+        const selected = selection.source.selected;
+        const declaration = selected.kind === "member" && selected.declarations.length === 1 ? selected.declarations[0] : undefined;
         if (member?.kind === "resolved" && member.member.memberKind === "property" && member.member.readonly === true &&
           member.member.accessor === undefined && emission?.kind === "member" && !emission.methodValue && !emission.static &&
-          declaration !== undefined && source.ast.is.IsPropertyDeclaration(declaration) && source.navigation.isProjectDeclaration(declaration))
-          receiver = selection.source.receiver.expression;
+          declaration !== undefined && source.syntax.is.IsPropertyDeclaration(declaration) && source.facts.navigation.identity.isProjectDeclaration(declaration))
+          receiver = selection.source.receiver;
       }
       if (receiver === undefined) return "evaluate";
-      if (source.ast.kindName(receiver) === "KindThisKeyword") return "omit";
+      if (source.syntax.kindName(receiver) === "KindThisKeyword") return "omit";
       const receiverUse = demand.nativeUse.expression(receiver)?.use;
       const receiverType = receiverUse === undefined || receiverUse.kind === "erased" || receiverUse.completion.kind !== "value"
         ? undefined : input.types.typeEmission.get(receiverUse.completion.type);
@@ -170,7 +170,7 @@ export function analyzeCsharpExpressionEmission(input: { readonly source: Target
 // yield as an expression. Those yields have no expression emission and are not refused as expression forms.
 /** Statement-lowered yields. A plain assignment or statement owns its yield outright (no record); the yield of a compound
  * assignment is lowered by its statement too, but the operator reads the resumed value, so it keeps a record. */
-function statementOwnedYields(ast: TargetSourceProgram["ast"], nodes: readonly Node[]):
+function statementOwnedYields(ast: TargetSourceProgramFacts["syntax"], nodes: readonly Node[]):
   { readonly owned: ReadonlySet<Node>; readonly resumedOperands: ReadonlySet<Node> } {
   const owned = new Set<Node>();
   const resumedOperands = new Set<Node>();

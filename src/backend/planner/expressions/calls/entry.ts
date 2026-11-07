@@ -29,9 +29,9 @@ function translateCsharpCallExpressionCore(node: Node, sourceFile: SourceFile, i
     ?? failCsharpPlannerInvariant("An admitted call requires its exact native classification.", node);
   const form = classification.form;
   if (form.kind === "type-test") {
-    const argument = classification.source?.sourceArguments[0];
+    const argument = classification.source?.arguments[0];
     if (argument === undefined) failCsharpPlannerInvariant("An admitted array predicate requires its exact native argument.", node);
-    const value = planCallArgument(argument.expression, sourceFile, input, diagnostics, form.typeTest.sourceCarrier);
+    const value = planCallArgument(argument.argument, sourceFile, input, diagnostics, form.typeTest.sourceCarrier);
     return projectCsharpPlannedValue(node, sourceFile, input, diagnostics, value,
       (selected, prelude) => planCsharpClosedTypeTest(selected, form.typeTest, input, createDestructuringPlannerState(sourceFile, input.program.source.ast), prelude,
         readCsharpNativeDiscardEvaluation(input, argument.expression)));

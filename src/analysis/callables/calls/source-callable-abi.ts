@@ -1,14 +1,15 @@
-import type { AstReader, Node, SourceFile } from "@tsonic/tsts";
+import type { AstReader, Node } from "@tsonic/tsts";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import { AsParameterDeclaration, HasSourceKind, KindIdentifier, sourceCallableValueParameters, sourceTransparentExpressionOperand,
-  sourceCallArgumentCorrespondences } from "@tsonic/target-api/source";
-import type { SourceFileSemantics, SourceProgramNavigation } from "@tsonic/target-api/source";
+import { AsParameterDeclaration, HasSourceKind, KindIdentifier } from "@tsonic/target-api/source";
+import type { SourceCallSelection, SourceProgramFacts } from "@tsonic/target-api/source";
+import { csharpSignatureParameters } from "./signature-parameters.js";
+import { sourceCallSelection, sourceValueType } from "../../program/source-facts.js";
 import type { CsharpPolicyContext } from "../../../policy/model/context.js";
 import { csharpNullableTargetType, getCsharpCallableValueSignature } from "../../../policy/types/index.js";
 import type { CsharpTargetParameter, TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpProjectForwardingConstructor } from "../../../target-model/records/types/project-types.js";
 import type { SourceCallableSourceContract, CsharpSourceCallableParameterContract, SourceCallableContract, CsharpSourceCallParameterContract, CsharpSourceCallableNativeSignature } from "../../../target-model/records/callables/source-callable-contract.js";
-import type { ResolvedSourceCallInfo } from "../../../target-model/records/calls/source-calls.js";
 import { csharpDelegateSignatureHasSupportedPassingModes, getCsharpLambdaSignature } from "../../../target-model/types/carriers/delegates.js";
 import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
 import type { CsharpDeclarationClassifications } from "../../../target-model/records/program/declarations.js";
@@ -25,7 +26,6 @@ import { getCsharpNullableElementTargetType } from "../../../target-model/types/
 import { csharpCallableValueType } from "../../../policy/types/callables/value-type.js";
 import { csharpConversionIsApplicable } from "../../../policy/conversions/applicability.js";
 import type { CsharpCallableReturnSelection } from "../../../target-model/records/callables/callable-values.js";
-import { representCsharpSourceType } from "../../../policy/types/source-type-flow/representation.js";
 import { sourceTypeDescriptorStructure } from "@tsonic/target-api/source";
 
 export function selectCsharpSourceCallableGenericAbi(
@@ -53,30 +53,24 @@ export function selectCsharpSourceCallableAbi(
   declarations: CsharpDeclarationClassifications,
   names: CsharpSourceNameResolver,
   declaration: Node,
-  sourceFile: SourceFile,
   projections: CsharpGenericProjectionIndex,
   operations: Pick<CsharpTargetOperationClassifications, "selectedCall" | "selectedConstruction">,
   conversions: Pick<CsharpConversionClassifications, "conversion">,
   issues: TargetDiagnostic[],
   recordReturn: (declaration: Node, selection: CsharpCallableReturnSelection) => void,
 ): SourceCallableSourceContract | undefined {
-  const checked = policy.semantics(sourceFile).types.declarationSignatureInfo(declaration);
-  const valueParameters = sourceCallableValueParameters(policy.ast, declaration, policy.semantics(sourceFile));
-  if (checked === undefined || valueParameters === undefined) return undefined;
+  const signatureParameters = csharpSignatureParameters(policy.ast, declaration);
+  if (signatureParameters === undefined) return undefined;
+  const valueParameters = signatureParameters.map(parameter => parameter.declaration);
   const contextual = evidence.contextualType.get(declaration);
   let inputType = contextual?.targetType;
-  const call = contextual?.contextualCall;
-  if (call !== undefined) {
-    const bindings = sourceCallArgumentCorrespondences({ ast: policy.ast, semantics: policy.semantics(sourceFile) }, call)?.filter(binding => {
-      let expression = binding.argument.expression;
-      for (let inner = sourceTransparentExpressionOperand(policy.ast, expression); inner !== undefined;
-        inner = sourceTransparentExpressionOperand(policy.ast, expression)) expression = inner;
-      return expression === declaration;
-    });
-    if (bindings?.length !== 1) return undefined;
-    const operation = policy.ast.is.IsNewExpression(call.call)
-      ? operations.selectedConstruction.get(call.call) : operations.selectedCall.get(call.call);
-    inputType = operation?.sourceArgumentParameterTypes?.[bindings[0]!.bindingIndex];
+  // A callable passed as a call argument takes the selected parameter carrier of its argument correspondence.
+  const argument = policy.facts.analyses.callArgument(declaration);
+  if (argument !== undefined) {
+    const bindingIndex = sourceCallSelection(policy.facts, argument.call).arguments.findIndex(entry => entry.argument === argument.argument);
+    const operation = policy.ast.is.IsNewExpression(argument.call)
+      ? operations.selectedConstruction.get(argument.call) : operations.selectedCall.get(argument.call);
+    inputType = operation?.sourceArgumentParameterTypes?.[bindingIndex];
     if (inputType === undefined) return undefined;
   }
   const presentInput = getCsharpNullableElementTargetType(inputType) ?? inputType;
@@ -88,9 +82,8 @@ export function selectCsharpSourceCallableAbi(
       if (signature === undefined) return false;
       return valueParameters.every((parameterNode, index) => {
         const parameter = AsParameterDeclaration(policy.ast, parameterNode);
-        const sourceParameter = checked.parameters.find(candidate => candidate.declaration === parameterNode);
-        return parameter !== undefined && sourceParameter !== undefined &&
-          (parameter.DotDotDotToken !== undefined || sourceParameter.acceptsOmission ||
+        return parameter !== undefined &&
+          (parameter.DotDotDotToken !== undefined || signatureParameters[index]!.acceptsOmission ||
             index < signature.parameters.length || signature.restParameterIndex !== undefined && index >= signature.restParameterIndex);
       });
     });
@@ -101,7 +94,10 @@ export function selectCsharpSourceCallableAbi(
   } else inputType = presentInput;
   const returnContract = declarations.returnContract.get(declaration);
   const generator = evidence.generatorTargetType.get(declaration);
-  const published = policy.types.resolveCallableReturn(declaration);
+  const representedReturn = policy.types.callableReturn(declaration);
+  if (representedReturn.kind === "csharp-refused") issues.push(Object.freeze({ code: representedReturn.code, category: "error" as const,
+    source: "tsonic-csharp", sourceNode: representedReturn.site, message: representedReturn.message }));
+  const published = representedReturn.kind === "csharp-refused" ? undefined : representedReturn;
   const declared = returnContract?.kind === "resolved" ? returnContract.type : undefined;
   recordReturn(declaration, Object.freeze({ generator, published, returnContract: declared,
     returnContractKind: returnContract === undefined ? "absent" : returnContract.kind,
@@ -118,7 +114,7 @@ export function selectCsharpSourceCallableAbi(
       names,
       parameterNode,
       index,
-      checked.parameters.find(parameter => parameter.declaration === parameterNode)?.acceptsOmission,
+      signatureParameters[index]!.acceptsOmission,
     );
     if (parameters === undefined) {
       return undefined;
@@ -172,10 +168,10 @@ function sourceParameterContracts(
   if (parameter.DotDotDotToken === undefined && acceptsOmission === undefined) return undefined;
   const declaration = policy.ast.parent(parameterNode);
   if (declaration === undefined) return undefined;
-  const published = policy.effectiveTypes.get(parameterNode);
-  if (published === undefined || published.kind === "refused" || published.provenance.occurrence !== parameterNode) return undefined;
-  const selectedType = representCsharpSourceType(policy.types.sourceTypeFlowRepresentation(parameterNode), published.type);
-  if (selectedType === undefined) return undefined;
+  const published = { type: sourceValueType(policy.facts, parameterNode) };
+  const represented = policy.types.represent(published.type, parameterNode, "storage");
+  if (represented.kind === "csharp-refused") return undefined;
+  const selectedType = represented;
   const questionToken = policy.ast.questionToken(parameterNode);
   const runtimeDefault = declarations.runtimeDefault.get(parameterNode);
   const incomingType: TargetTypeRef = runtimeDefault?.parameterType ??
@@ -246,7 +242,8 @@ export function selectCsharpProjectConstructorAbi(
     receiverTypeOwner: constructor.definition.declaration }),
     nativeParameters: Object.freeze(constructor.source.parameters.map(
       (parameter, index) => Object.freeze({
-        sourceParameter: parameter.parameterDeclaration,
+        sourceParameter: parameter.declaration ?? failTargetAnalysisInvariant("tsonic-csharp",
+          "A forwarded project constructor parameter requires its declaration.", constructor.definition.declaration),
         targetParameter: constructor.targetMember.parameters[index]!,
       }),
     )),
@@ -255,20 +252,20 @@ export function selectCsharpProjectConstructorAbi(
   return constructor.source.declaration === undefined
     ? Object.freeze({ ...common, kind: "native" })
     : Object.freeze({ ...common, kind: "source", sourceDeclaration: constructor.source.declaration,
-        parameters: Object.freeze(constructor.source.parameters.map(parameter => parameter.parameterDeclaration)) });
+        parameters: Object.freeze(constructor.source.parameters.map(parameter => parameter.declaration ?? failTargetAnalysisInvariant(
+          "tsonic-csharp", "A forwarded project constructor parameter requires its declaration.", constructor.definition.declaration))) });
 }
 
 export function selectCsharpSourceCallableValueAbi(input: {
   readonly ast: AstReader;
-  readonly navigation: Pick<SourceProgramNavigation, "isProjectDeclaration">;
-  readonly semantics: SourceFileSemantics;
-  readonly source: ResolvedSourceCallInfo;
+  readonly facts: SourceProgramFacts;
+  readonly source: SourceCallSelection;
   readonly carrier: TargetTypeRef;
 }): SourceCallableContract | undefined {
-  const { ast, navigation, semantics, source, carrier } = input;
+  const { ast, facts, source, carrier } = input;
   const signature = getCsharpCallableValueSignature(carrier);
-  const declaration = semantics.declarations.signatureDeclaration(source.selectedSignature);
-  const slots = semantics.operations.callParameterSlots(source);
+  const declaration = source.signature;
+  const slots = csharpSignatureParameters(ast, declaration);
   if (signature === undefined || slots === undefined ||
       !csharpDelegateSignatureHasSupportedPassingModes(signature) ||
       signature.parameters.length !== slots.length) return undefined;
@@ -276,14 +273,12 @@ export function selectCsharpSourceCallableValueAbi(input: {
   const optionalParameters = new Set(signature.optionalParameterIndexes ?? []);
   for (const [index, type] of signature.parameters.entries()) {
     const slot = slots[index];
-    const parameter = slot === undefined ? undefined : source.sourceSelectedSignatureParameters.find(parameter =>
-      parameter.parameterIndex === slot.sourceParameterIndex);
-    if (parameter === undefined || slot === undefined ||
+    if (slot === undefined ||
         optionalParameters.has(index) !== (slot.form === "optional") ||
         (signature.restParameterIndex === index) !== (slot.form === "rest")) return undefined;
     nativeParameters.push(Object.freeze({
-      ...(parameter.parameterDeclaration === undefined ? {} : { sourceParameter: parameter.parameterDeclaration }),
-      targetParameter: Object.freeze({ name: slot.sourceParameterName, type, passingMode: signature.parameterPassingModes[index]!,
+      sourceParameter: slot.declaration,
+      targetParameter: Object.freeze({ name: slot.name ?? `__tsonic_param${index}`, type, passingMode: signature.parameterPassingModes[index]!,
         optional: optionalParameters.has(index), paramsArray: signature.restParameterIndex === index }),
     }));
   }
@@ -292,13 +287,10 @@ export function selectCsharpSourceCallableValueAbi(input: {
       methodAllowsRefLikeTypeArguments: getCsharpMethodValue(carrier)?.allowsRefLikeTypeArguments ?? Object.freeze([]) }),
     returnType: signature.returnType,
   };
-  if (declaration === undefined || !navigation.isProjectDeclaration(declaration)) {
-    return Object.freeze({ ...common, kind: "native", nativeParameters: Object.freeze(nativeParameters),
-      ...(declaration === undefined ? {} : { sourceDeclaration: declaration }) });
+  if (!facts.navigation.identity.isProjectDeclaration(declaration)) {
+    return Object.freeze({ ...common, kind: "native", nativeParameters: Object.freeze(nativeParameters), sourceDeclaration: declaration });
   }
-  const parameters = sourceCallableValueParameters(ast, declaration, semantics,
-    { kind: "selected-invocation", signature: source.selectedSignature });
-  if (parameters === undefined) return undefined;
+  const parameters = slots.map(slot => slot.declaration);
   const sourceNativeParameters: CsharpSourceCallableParameterContract[] = [];
   for (const parameter of nativeParameters) {
     if (parameter.sourceParameter === undefined) return undefined;

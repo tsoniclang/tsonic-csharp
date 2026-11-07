@@ -1,4 +1,3 @@
-import { csharpSourceValueResult } from "../../../dist/analysis/source-evidence/types/resolution/call-results.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
@@ -64,20 +63,18 @@ function regexpNode(pattern, flags) {
 }
 
 function directInput(node, targetType) {
-  const sourceFile = {};
   const selection = selectCsharpRegularExpressionLiteral(
     {
       ast: {
         regularExpressionLiteral: (candidate) =>
           candidate === node ? node.syntax : undefined,
       },
+      // CsharpTypeQueries.value: the represented Host value type of the literal (nextgen C-2542, I6).
       types: {
-        resolveNode: (candidate) =>
-          candidate === node ? { kind: "resolved", sourceResult: csharpSourceValueResult(targetType) } : undefined,
+        value: (candidate) => candidate === node ? targetType : assert.fail("only the literal value is represented"),
       },
     },
     node,
-    sourceFile,
   );
   return {
     scope: {},

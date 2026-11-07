@@ -16,7 +16,7 @@ type SourcePrimitiveTargetType = Extract<
 >;
 
 export function selectCsharpNumericBinaryPromotion(
-  input: Pick<CsharpPolicyContext, "literalValues">,
+  input: Pick<CsharpPolicyContext, "facts">,
   leftNode: Node,
   leftType: TargetTypeRef,
   rightNode: Node,
@@ -28,10 +28,10 @@ export function selectCsharpNumericBinaryPromotion(
   );
   if (expectedPromotion !== undefined) return expectedPromotion;
   const selectedLeft = isNumericPrimitive(leftType) ? leftType
-    : isNumericPrimitive(rightType) && csharpLiteralIsRepresentableAs(input.literalValues.literalValue.get(leftNode), rightType)
+    : isNumericPrimitive(rightType) && csharpLiteralIsRepresentableAs(input.facts.values.literal(leftNode), rightType)
       ? rightType : undefined;
   const selectedRight = isNumericPrimitive(rightType) ? rightType
-    : isNumericPrimitive(leftType) && csharpLiteralIsRepresentableAs(input.literalValues.literalValue.get(rightNode), leftType)
+    : isNumericPrimitive(leftType) && csharpLiteralIsRepresentableAs(input.facts.values.literal(rightNode), leftType)
       ? leftType : undefined;
   if (selectedLeft === undefined || selectedRight === undefined) {
     return undefined;
@@ -71,7 +71,7 @@ export function selectCsharpNumericCarrierPromotion(
 }
 
 function expectedNumericPromotion(
-  input: Pick<CsharpPolicyContext, "literalValues">,
+  input: Pick<CsharpPolicyContext, "facts">,
   leftNode: Node,
   leftType: TargetTypeRef,
   rightNode: Node,
@@ -96,13 +96,13 @@ function expectedNumericPromotion(
 }
 
 function operandCanUseExpectedType(
-  input: Pick<CsharpPolicyContext, "literalValues">,
+  input: Pick<CsharpPolicyContext, "facts">,
   node: Node,
   source: TargetTypeRef,
   expected: SourcePrimitiveTargetType,
 ): boolean {
   return source.kind === "source-primitive" && source.name === expected.name ||
-    csharpLiteralIsRepresentableAs(input.literalValues.literalValue.get(node), expected);
+    csharpLiteralIsRepresentableAs(input.facts.values.literal(node), expected);
 }
 
 export function csharpUnaryNumericPromotion(
@@ -117,7 +117,7 @@ export function csharpUnaryNumericPromotion(
 }
 
 function literalAdaptation(
-  input: Pick<CsharpPolicyContext, "literalValues">,
+  input: Pick<CsharpPolicyContext, "facts">,
   node: Node,
   source: SourcePrimitiveTargetType,
   target: SourcePrimitiveTargetType,
@@ -125,7 +125,7 @@ function literalAdaptation(
   return !targetTypeIsLiteralAdaptationCandidate(target) ||
       source.kind !== "source-primitive" ||
       source.name === target.name ||
-      !csharpLiteralIsRepresentableAs(input.literalValues.literalValue.get(node), target)
+      !csharpLiteralIsRepresentableAs(input.facts.values.literal(node), target)
     ? undefined
     : target;
 }

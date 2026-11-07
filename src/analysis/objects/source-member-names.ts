@@ -5,6 +5,7 @@ import type { CsharpNamePlan } from "../../target-model/names/model.js";
 import type { CsharpSourceMemberName } from "../../target-model/records/program/source-member-names.js";
 import { objectShapeStorageMemberName } from "../../target-model/names/object-members.js";
 import { createCsharpSourceMemberNameRecords } from "../program/records/program/source-member-names.js";
+import { csharpSelectedSourceDeclaration } from "./selected-members.js";
 
 export function analyzeCsharpSourceMemberNames(input: { readonly ast: AstReader; readonly nodes: readonly Node[];
   readonly operations: CsharpTargetOperationClassifications; readonly names: CsharpNamePlan; readonly rendered: (node: Node) => boolean }) {
@@ -24,11 +25,11 @@ export function analyzeCsharpSourceMemberNames(input: { readonly ast: AstReader;
         : objectShapeStorageMemberName(classification.objectShape, member.member) });
       continue;
     }
-    const declaration = selection.source.selectedDeclaration;
+    const declaration = csharpSelectedSourceDeclaration(selection.source);
     const name = input.ast.name(declaration) ?? input.ast.as.AsPropertyAccessExpression(node)?.name;
     const selected = name === undefined ? undefined : input.names.resolve(name, declaration);
     if (selected?.kind === "resolved") { values.set(node, { read: selected.name, method: undefined }); continue; }
-    issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: node,
+    issues.push({ code: "CSHARP_MEMBER_NAME_NOT_REPRESENTABLE", category: "error", source: "tsonic-csharp", sourceNode: node,
       message: "The exact selected source property has no C#-representable declaration name." + (selected?.kind === "rejected" ? ` ${selected.reason}` : "") });
   }
   return Object.freeze({ records: createCsharpSourceMemberNameRecords(values), issues: Object.freeze(issues) });

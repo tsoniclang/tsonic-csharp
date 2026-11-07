@@ -6,24 +6,39 @@ import type { CsharpOperationSelection, CsharpResolvedBinaryOperation, CsharpRes
 import { selectCsharpAssignmentLocation } from "./assignment-location.js";
 
 import { selectCsharpGenericNumericOperation } from "./numeric/generic.js";
-import { resolveCsharpContextualLiteralCarrier } from "../source-evidence/types/resolution/contextual-literals.js";
-import { representCsharpSourceType } from "../../policy/types/source-type-flow/representation.js";
 
-import type { Node, SourceFile } from "@tsonic/tsts";
+import type { Node } from "@tsonic/tsts";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { TargetTypeRef } from "../../policy/types/index.js";
 import { getCsharpNullableElementTargetType, isCsharpAbsenceTargetType, targetTypeRefEquals } from "../../policy/types/index.js";
+import { isCsharpRefusal, type CsharpRefusal, type CsharpRepresentation } from "../../representation/index.js";
 
 import { csharpLiteralIsRepresentableAs } from "../../policy/conversions/literals.js";
 
 import type { CsharpSourceOperator } from "../../target-model/syntax/operators.js";
-import { isCsharpAssignmentOperator, sourceOperatorFromKindName } from "../../target-model/syntax/operators.js";
+import { sourceOperatorFromKindName } from "../../target-model/syntax/operators.js";
 import { csharpDestructuringAssignmentSyntax } from "../../target-model/syntax/operators.js";
 
 import { selectCsharpNativeBinaryOperation, selectCsharpNativeUnaryOperation, rejectCsharpOperator as rejected } from "../../policy/operations/operators/rules.js";
 export type CsharpOperationTargetTypeQuery = (
   node: Node,
 ) => TargetTypeRef | undefined;
+
+/** A represented operand or result: its carrier, the CSHARP_ refusal that stops the operation, or no carrier. */
+type CsharpOperandCarrier = TargetTypeRef | CsharpRefusal | undefined;
+
+/** A .NET representation refusal stops the operation and is reported as is (code, message). */
+function refusedRepresentation(refusal: CsharpRefusal): { readonly kind: "rejected"; readonly reason: string; readonly code: CsharpRefusal["code"] } {
+  return Object.freeze({ kind: "rejected", reason: refusal.message, code: refusal.code });
+}
+
+/** The published value outcome of an operation node; a Host refusal never reaches C# analysis. */
+function publishedOutcome(input: CsharpPolicyContext, node: Node) {
+  const outcome = input.facts.values.type(node);
+  return outcome.kind === "refused" ? failTargetAnalysisInvariant("tsonic-csharp",
+    "An operator value type is a Host refusal; Host refusals are forwarded before C# analysis.", node) : outcome;
+}
 
 export function selectCsharpBinaryOperation(
   input: CsharpPolicyContext,
@@ -32,7 +47,7 @@ export function selectCsharpBinaryOperation(
   expectedResultType?: TargetTypeRef,
 ): CsharpOperationSelection<CsharpResolvedBinaryOperation> {
   if (!input.ast.is.IsBinaryExpression(node)) {
-    return rejected("C# binary-operation policy requires a binary expression.");
+    return failTargetAnalysisInvariant("tsonic-csharp", "C# binary-operation policy requires a binary expression.", node);
   }
   const expression = input.ast.as.AsBinaryExpression(node);
   const left = expression?.Left;
@@ -41,16 +56,13 @@ export function selectCsharpBinaryOperation(
     input.ast.operatorKindName(node),
   );
   if (left === undefined || right === undefined || sourceOperator === undefined) {
-    return rejected(
-      "The checked binary expression has incomplete exact AST operator evidence.",
-    );
+    return failTargetAnalysisInvariant("tsonic-csharp",
+      "The checked binary expression has incomplete exact AST operator evidence.", node);
   }
-  const outcome = input.effectiveTypes.get(node);
-  const construction = outcome === undefined || outcome.kind === "refused" ? undefined : outcome.construction;
-  const discardedStorage = outcome === undefined && isCsharpAssignmentOperator(sourceOperator) &&
-    input.navigation.expressionResultUse(node) === "discarded" ? input.types.resolveReadStorage(left) : undefined;
-  const resultType = construction === undefined ? targetTypeFor(node) ?? discardedStorage
-    : representCsharpSourceType(input.types.sourceTypeFlowRepresentation(node), construction);
+  const construction = publishedOutcome(input, node).construction;
+  const resultType: CsharpRepresentation | undefined = construction === undefined ? targetTypeFor(node)
+    : input.types.represent(construction, node, "value");
+  if (resultType !== undefined && isCsharpRefusal(resultType)) return refusedRepresentation(resultType);
   return selectCsharpBinaryOperands(input, left, right, sourceOperator,
     resultType, targetTypeFor, expectedResultType);
 }
@@ -64,33 +76,42 @@ export function selectCsharpBinaryOperands(
   targetTypeFor: CsharpOperationTargetTypeQuery,
   expectedResultType?: TargetTypeRef,
 ): CsharpOperationSelection<CsharpResolvedBinaryOperation> {
-  const leftStorage = sourceOperator === "??" ? input.types.resolveReadStorage(left) : undefined;
-  let leftType = sourceOperator === "=" || sourceOperator === "??="
-    ? input.types.resolveReadStorage(left)
+  const leftStorage: CsharpOperandCarrier = sourceOperator === "??" ? input.types.readStorage(left) : undefined;
+  const leftCarrier: CsharpOperandCarrier = sourceOperator === "=" || sourceOperator === "??="
+    ? input.types.readStorage(left)
     : leftStorage ?? resolveBinaryOperandType(input, left, targetTypeFor);
+  if (leftCarrier !== undefined && isCsharpRefusal(leftCarrier)) return refusedRepresentation(leftCarrier);
+  const leftType = leftCarrier;
   const nullishRightExpectation = sourceOperator === "??"
     ? expectedResultType ?? nullishValueType(leftType, input.typeDefinitions)
     : sourceOperator === "??=" ? nullishValueType(leftType, input.typeDefinitions)
     : sourceOperator === "," || sourceOperator === "&&" || sourceOperator === "||"
       ? expectedResultType ?? selectedResultType : undefined;
-  let rightType = resolveBinaryOperandType(
+  const rightCarrier = resolveBinaryOperandType(
     input,
     right,
     targetTypeFor,
     nullishRightExpectation,
   );
+  if (rightCarrier !== undefined && isCsharpRefusal(rightCarrier)) return refusedRepresentation(rightCarrier);
+  const rightType = rightCarrier;
   const resultType = selectedResultType;
   if (leftType === undefined || rightType === undefined || resultType === undefined) {
     return rejected(
       "The checked binary expression has no closed C# representation for every operand and result.",
+      "CSHARP_OPERAND_NOT_REPRESENTABLE",
     );
   }
+  const leftEqualityStorage = isEquality(sourceOperator) && isCsharpAbsenceTargetType(rightType) ? input.types.readStorage(left) : undefined;
+  const rightEqualityStorage = isEquality(sourceOperator) && isCsharpAbsenceTargetType(leftType) ? input.types.readStorage(right) : undefined;
+  if (leftEqualityStorage !== undefined && isCsharpRefusal(leftEqualityStorage)) return refusedRepresentation(leftEqualityStorage);
+  if (rightEqualityStorage !== undefined && isCsharpRefusal(rightEqualityStorage)) return refusedRepresentation(rightEqualityStorage);
   const genericNumeric = selectCsharpGenericNumericOperation(input, sourceOperator, left, right, leftType, rightType);
   return selectCsharpNativeBinaryOperation(input, {
     left, right, sourceOperator, resultType, leftType, rightType, genericNumeric,
-    leftStorage: isEquality(sourceOperator) && isCsharpAbsenceTargetType(rightType) ? input.types.resolveReadStorage(left) : undefined,
-    rightStorage: isEquality(sourceOperator) && isCsharpAbsenceTargetType(leftType) ? input.types.resolveReadStorage(right) : undefined,
-    resultUse: sourceOperator === "," ? input.navigation.expressionResultUse(right) : undefined,
+    leftStorage: leftEqualityStorage,
+    rightStorage: rightEqualityStorage,
+    resultUse: sourceOperator === "," ? input.facts.navigation.expressions.resultUse(right) : undefined,
     assignmentLocation: csharpBinaryOperationRequiresLocation(sourceOperator, leftType, rightType)
       ? selectCsharpAssignmentLocation(input, left, targetTypeFor) : "unsupported",
   });
@@ -99,23 +120,22 @@ export function selectCsharpBinaryOperands(
 export function selectCsharpDestructuringAssignmentOperation(
   input: CsharpPolicyContext,
   node: Node,
-  sourceFile: SourceFile,
 ): CsharpOperationSelection<CsharpResolvedDestructuringAssignmentOperation> {
   const syntax = csharpDestructuringAssignmentSyntax(input.ast, node);
   if (syntax === undefined) {
     return rejected(
       "C# destructuring-assignment policy requires an array or object binding pattern.",
+      "CSHARP_DESTRUCTURING_ASSIGNMENT_PATTERN",
     );
   }
-  const sourceType = input.types.resolveNode(syntax.source, sourceFile)?.sourceResult?.selectedType;
-  const resultType = input.types.resolveNode(node, sourceFile)?.sourceResult?.selectedType;
-  if (
-    sourceType === undefined ||
-    resultType === undefined ||
-    !targetTypeRefEquals(sourceType, resultType)
-  ) {
+  const sourceType = input.types.value(syntax.source);
+  if (isCsharpRefusal(sourceType)) return refusedRepresentation(sourceType);
+  const resultType = input.types.value(node);
+  if (isCsharpRefusal(resultType)) return refusedRepresentation(resultType);
+  if (!targetTypeRefEquals(sourceType, resultType)) {
     return rejected(
       "The checked destructuring assignment requires one exact C# representation for its source and result value.",
+      "CSHARP_DESTRUCTURING_CARRIER_MISMATCH",
     );
   }
   return {
@@ -134,7 +154,7 @@ function resolveBinaryOperandType(
   node: Node,
   targetTypeFor: CsharpOperationTargetTypeQuery,
   expectedType?: TargetTypeRef,
-): TargetTypeRef | undefined {
+): CsharpOperandCarrier {
   if (input.ast.is.IsBinaryExpression(node)) {
     const nested = selectCsharpBinaryOperation(
       input,
@@ -148,11 +168,10 @@ function resolveBinaryOperandType(
   }
   const selected = targetTypeFor(node);
   if (isCsharpAbsenceTargetType(selected)) {
-    const storage = input.types.resolveReadStorage(node);
+    const storage = input.types.readStorage(node);
+    if (isCsharpRefusal(storage)) return storage;
     if (getCsharpNullableElementTargetType(storage) !== undefined) return storage;
   }
-  const contextual = resolveCsharpContextualLiteralCarrier(input, node, expectedType);
-  if (contextual !== undefined) return contextual;
   return adaptLiteralToExpectedType(input, node, selected, expectedType);
 }
 
@@ -164,7 +183,7 @@ function adaptLiteralToExpectedType(
 ): TargetTypeRef | undefined {
   return selected !== undefined &&
       expected !== undefined &&
-      csharpLiteralIsRepresentableAs(input.literalValues.literalValue.get(node), expected)
+      csharpLiteralIsRepresentableAs(input.facts.values.literal(node), expected)
     ? expected
     : selected;
 }
@@ -172,12 +191,11 @@ function adaptLiteralToExpectedType(
 export function selectCsharpUnaryOperation(
   input: CsharpPolicyContext,
   node: Node,
-  sourceFile: SourceFile,
 ): CsharpOperationSelection<CsharpResolvedUnaryOperation> {
   const prefix = input.ast.is.IsPrefixUnaryExpression(node);
   const postfix = input.ast.is.IsPostfixUnaryExpression(node);
   if (!prefix && !postfix) {
-    return rejected("C# unary-operation policy requires an update expression.");
+    return failTargetAnalysisInvariant("tsonic-csharp", "C# unary-operation policy requires a unary expression.", node);
   }
   const operand = prefix
     ? input.ast.as.AsPrefixUnaryExpression(node)?.Operand
@@ -196,26 +214,18 @@ export function selectCsharpUnaryOperation(
       sourceOperator !== "--"
     )
   ) {
-    return rejected(
-      "The checked update expression has incomplete exact AST operator evidence.",
-    );
+    return failTargetAnalysisInvariant("tsonic-csharp",
+      "The checked unary expression has incomplete exact AST operator evidence.", node);
   }
   const update = sourceOperator === "++" || sourceOperator === "--";
-  const sourceOperand = update
-    ? input.types.resolveReadStorage(operand, sourceFile)
-    : input.types.resolveNode(operand, sourceFile)?.sourceResult?.selectedType;
-  const sourceResult = update ? sourceOperand : input.types.resolveNode(node, sourceFile)?.sourceResult?.selectedType;
-  const outcome = input.effectiveTypes.get(node);
-  const physical = outcome === undefined || outcome.kind === "refused" ? undefined : outcome.construction ?? outcome.type;
-  const literalCarrier = prefix && (sourceOperator === "+" || sourceOperator === "-") &&
-    input.literalValues.literalValue.get(node) !== undefined && physical !== undefined
-    ? representCsharpSourceType(input.types.sourceTypeFlowRepresentation(node), physical) : undefined;
-  const operandType = literalCarrier ?? sourceOperand;
-  const resultType = literalCarrier ?? sourceResult;
-  if (operandType === undefined || resultType === undefined) {
-    return rejected(
-      "The checked update expression has no closed C# representation for its operand and result.",
-    );
-  }
+  // A signed numeric literal (`-1`) is typed by its published physical construction, not by its operand.
+  const outcome = publishedOutcome(input, node);
+  const literal = prefix && (sourceOperator === "+" || sourceOperator === "-") &&
+    input.facts.values.literal(node) !== undefined;
+  const literalCarrier = literal ? input.types.represent(outcome.construction ?? outcome.type, node, "value") : undefined;
+  const operandType = literalCarrier ?? (update ? input.types.readStorage(operand) : input.types.value(operand));
+  const resultType = literalCarrier ?? (update ? operandType : input.types.value(node));
+  if (isCsharpRefusal(operandType)) return refusedRepresentation(operandType);
+  if (isCsharpRefusal(resultType)) return refusedRepresentation(resultType);
   return selectCsharpNativeUnaryOperation(input, sourceOperator, operand, operandType, resultType);
 }

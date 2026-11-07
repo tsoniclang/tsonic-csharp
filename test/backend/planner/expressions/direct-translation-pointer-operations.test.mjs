@@ -419,11 +419,11 @@ test("unsupported loop activation identities fail closed before C# emission", ()
     compiled.targetDiagnostics.map(({ code, message }) => ({ code, message })),
     [
       {
-        code: "CSHARP_UNSUPPORTED_AST",
+        code: "CSHARP_TYPED_LOCATION_NOT_LOWERED",
         message: "C# 'location-address' lowering requires one exact finalized typed-location operation. Addressing a for-initializer binding requires one function-scoped 'var' location; per-iteration 'let' locations require a dedicated C# loop-binding representation.",
       },
       {
-        code: "CSHARP_UNSUPPORTED_AST",
+        code: "CSHARP_TYPED_LOCATION_NOT_LOWERED",
         message: "C# 'location-address' lowering requires one exact finalized typed-location operation. Addressing a destructured 'var' for-of binding requires a function-scoped destructuring-assignment representation; per-iteration declaration lowering cannot preserve that identity.",
       },
     ],
@@ -488,7 +488,8 @@ test("typed-location element identity fails closed for indexers without canonica
   assert.deepEqual(
     compiled.targetDiagnostics.map(({ code, message }) => ({ code, message })),
     [{
-      code: "CSHARP_UNSUPPORTED_AST",
+      // nextgen C-2542: split code; a rejected typed-location operation is CSHARP_TYPED_LOCATION_NOT_LOWERED (constructs.ts).
+      code: "CSHARP_TYPED_LOCATION_NOT_LOWERED",
       message: "C# 'location-address' lowering requires one exact finalized typed-location operation. C# typed-location element storage requires the exact built-in array representation; provider and project indexers require an explicit canonical location-identity policy.",
     }],
   );

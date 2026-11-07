@@ -1,7 +1,7 @@
 import type { CsharpPlanningContext } from "../context.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { TargetPlanningSourceNavigation } from "@tsonic/target-api/analysis";
+import type { SourceDeclarationTarget } from "@tsonic/target-api/source";
 import type { CsharpTypeNode } from "../../target-ast/syntax/index.js";
 import { planIdentifierName } from "../names/source-identifiers.js";
 import { sanitizeIdentifier } from "../../../target-model/names/identifiers.js";
@@ -15,7 +15,7 @@ export function getCsharpTypeFromProjectSourceReferenceNode(
 }
 
 export function getCsharpTypeFromProjectSourceReference(
-  reference: ReturnType<TargetPlanningSourceNavigation["referenceFor"]>, input: CsharpPlanningContext,
+  reference: SourceDeclarationTarget | undefined, input: CsharpPlanningContext,
   diagnostics?: TargetDiagnostic[],
 ): CsharpTypeNode | undefined {
   return reference === undefined ? undefined : renderProjectSourceType(reference.declaration, input, diagnostics);

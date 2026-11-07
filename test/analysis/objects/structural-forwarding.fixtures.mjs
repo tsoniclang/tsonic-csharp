@@ -28,7 +28,6 @@ import { createStructuralObjectShapeTarget, mergeCsharpObjectShapeSubjects } fro
 import { finalizeCsharpStructuralInterfaceForwarding } from "../../../dist/analysis/objects/structural-forwarding.js";
 import { retainCsharpMethodValueContracts } from "../../../dist/analysis/objects/shapes/method-values.js";
 import { csharpCopiedObjectShapeMembers } from "../../../dist/policy/types/objects/method-environments.js";
-import { selectCsharpObjectMethodImplementation } from "../../../dist/analysis/objects/shapes/method-implementations.js";
 import { selectCsharpObjectMemberEmission } from "../../../dist/policy/types/objects/object-members.js";
 
 const unexpectedNativeDispatchRead = () => assert.fail("this structural fixture has no authored native dispatch domain");
@@ -53,29 +52,37 @@ function defaultEvidenceFixture(kind) {
   const declaration = Object.freeze({ kind });
   const sourceSymbol = Object.freeze({});
   const destinationSymbol = Object.freeze({});
-  const sourceType = Object.freeze({});
-  const destinationType = Object.freeze({});
+  // Published descriptors standing for the selected source value and the destination interface (nextgen C-2542).
+  const sourceType = Object.freeze({ kind: "declared", declaration: Object.freeze({}), typeArguments: Object.freeze([]) });
+  const destinationType = Object.freeze({ kind: "declared", declaration: Object.freeze({}), typeArguments: Object.freeze([]) });
   const method = type => Object.freeze({ sourceName: "read", targetName: "read", memberKind: "method", type });
   const sourceMember = Object.freeze({ ...method(csharpDelegateTargetType("System.Func", [integer], integer)),
-    sourceSubjects: [sourceSymbol] });
+    sourceSubjects: [sourceSymbol, declaration] });
   const destinationMember = Object.freeze({ ...method(csharpDelegateTargetType("System.Func", [csharpNullableTargetType(integer)], integer,
     { optionalParameterIndexes: [0] })), sourceSubjects: [destinationSymbol] });
   const source = Object.freeze({ targetType: { kind: "target-named", id: "test.Source", csharpAllowsRefLikeTypeArguments: Object.freeze([]) }, members: [sourceMember] });
   const destination = Object.freeze({ targetType: { kind: "target-named", id: "test.View", csharpSourceDeclarationKind: "interface", csharpAllowsRefLikeTypeArguments: Object.freeze([]) },
     sourceType: destinationType, members: [destinationMember] });
+  const readKey = Object.freeze({ kind: "string", value: "read" });
+  const objectMember = subject => Object.freeze({ key: readKey, name: "read", kind: "method", declarations: [subject],
+    type: Object.freeze({ kind: "callable", calls: [], constructs: [] }), optional: false, readonly: false, static: false,
+    owner: Object.freeze({}), inherited: false });
   let parameterReads = 0;
   const parameter = Object.freeze({});
   const policy = {
     projectTypes: { directSupertypes: () => [], catalog: { definitionForTarget: () => undefined } },
-    semanticsFor: () => ({ types: { expressionType: () => sourceType, structuralMembers(_source, _destination, purpose) {
-      assert.equal(purpose, "read", "native method forwarding requires readable source members");
-      return { kind: "available",
-      destination: { calls: [], constructs: [], indexes: [] }, members: [{ kind: "present",
-        source: { property: { symbol: sourceSymbol, rootSymbols: [] }, declarations: [declaration] },
-        destination: { property: { symbol: destinationSymbol, rootSymbols: [] }, declarations: [] },
-      }],
-      };
-    } } }),
+    // Member correspondence from Host object facts: objects.members(destination), objects.member(source, key); the
+    // selected subjects are member declarations. nextgen C-2542: the old `purpose === "read"` assertion checked a checker
+    // structuralMembers argument and is removed.
+    facts: { objects: {
+      indexes: () => [],
+      members: () => [objectMember(destinationSymbol)],
+      member(type, key) {
+        assert.equal(type, sourceType, "the source member comes from the selected source descriptor");
+        assert.deepEqual(key, readKey);
+        return objectMember(declaration);
+      },
+    } },
     ast: {
       is: { IsMethodDeclaration: node => node.kind === "method-declaration",
         IsMethodSignatureDeclaration: node => node.kind === "method-signature" },

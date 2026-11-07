@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
+import { hostProgram } from "../../representation/host-fixture.mjs";
+import { compileEffectiveSource } from "../../helpers/source-effective-types.mjs";
+import { sealCsharpAnalysisProgram } from "../../../dist/analysis/program/index.js";
 import { compileCsharpSource, checkCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { analyzeCsharpBindingPatterns, isCsharpUnusedTupleDefault } from "../../../dist/analysis/control-flow/binding-patterns.js";
 import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
@@ -40,7 +42,7 @@ for (const surface of ["native", "js"]) {
       compiled.result.diagnostics.map(({ code, message }) => `${code}: ${message}`).join("; "));
     const program = compiled.result.program;
     assert.equal(program !== undefined, true, "the admitted bindings publish a native program");
-    const ast = program.source.ast;
+    const ast = program.source.syntax;
     const absent = [];
     const visit = node => {
       const fact = program.records.bindingPatternProjection.get(node);
@@ -82,7 +84,7 @@ if (result.Item1 != null || result.Item2 != 5 || result.Item3 != 0 || result.Ite
     const corrupted = { ...program, records };
     const diagnostics = [];
     assert.throws(() => planBindingPatternFromExpression(pattern, { kind: "IdentifierName", name: "source" },
-      ast.getSourceFile(pattern), createCsharpPlanningContext(corrupted), diagnostics,
+      ast.getSourceFile(pattern), createCsharpPlanningContext(sealCsharpAnalysisProgram(corrupted)), diagnostics,
       createDestructuringPlannerState(pattern, ast)),
     error => error.message.includes("An admitted absent object binding requires its native absence carrier."),
     "a corrupted absent carrier is an internal producer invariant, not another source decision");
@@ -94,26 +96,28 @@ function publishedProgram(sourceText, surface) {
   const compiled = compileCsharpSource({ sourceText, surface });
   assert.equal(compiled.sourceDiagnosticsText, "", "the source checks without diagnostics");
   assert.equal(compiled.result.program !== undefined, true, `the analysis publishes a program: ${compiled.result.diagnostics.map(({ code, message }) => `${code}: ${message}`).join("; ")}`);
-  return { program: compiled.result.program, source: createTargetSourceProgram(compiled.source), target: compiled.target };
+  // The analysis program carries the TargetSourceProgramFacts the target compiled (facts, syntax, sourceFiles).
+  return { program: compiled.result.program, source: compiled.result.program.source, target: compiled.target };
 }
 
 function factsInput(program, source, target) {
   return {
-    ast: program.source.ast,
-    effectiveTypes: source.effectiveTypes,
-    semanticsFor: source.semantics.forNode,
+    ast: program.source.syntax,
+    // nextgen C-2542: facts replace effectiveTypes and semanticsFor; typePolicy is CsharpTypeQueries.value.
+    facts: source.facts,
+    sourceFacts: source.sourceFacts,
     sourceFiles: program.sourceFiles,
     participation: program.records.nativeParticipation,
     evidence: program.records,
     operations: program.records,
     valueReads: program.records,
     initializerUses: { get: declaration => {
-      const expression = program.source.ast.as.AsVariableDeclaration(declaration)?.Initializer;
+      const expression = program.source.syntax.as.AsVariableDeclaration(declaration)?.Initializer;
       return expression === undefined ? undefined : program.records.nativeExpression.get(expression)?.physical;
     } },
     objectShapes: program.objectShapes,
     storage: program.records,
-    typePolicy: { resolveType: () => assert.fail("These array and object-shape fixtures require no source-owned member resolution.") },
+    typePolicy: { value: () => assert.fail("These array and object-shape fixtures require no source-owned member resolution.") },
     conversionPolicy: {
       target,
       typeDefinitions: program.typeDefinitions,
@@ -129,12 +133,12 @@ function factsInput(program, source, target) {
 }
 
 function sourceText(program, node) {
-  const ast = program.source.ast;
+  const ast = program.source.syntax;
   return String(ast.getSourceText(ast.getSourceFile(node))).slice(ast.pos(node), ast.end(node)).trim().replace(/\s+/g, " ");
 }
 
 function findNode(program, kindName, text) {
-  const ast = program.source.ast;
+  const ast = program.source.syntax;
   let found;
   const visit = (node) => {
     if (found === undefined && ast.kindName(node) === kindName && sourceText(program, node) === text) found = node;
@@ -159,7 +163,7 @@ test("binding initializers require one exact admitted physical expression withou
     }
   `, "native");
   const declaration = findNode(program, "KindVariableDeclaration", "{ value }: { value?: number } = input");
-  const pattern = source.ast.as.AsVariableDeclaration(declaration).name;
+  const pattern = source.syntax.as.AsVariableDeclaration(declaration).name;
   const input = factsInput(program, source, target);
   const selected = input.initializerUses.get(declaration);
   assert.equal(selected !== undefined, true, "the original real initializer has its exact published physical use");
@@ -180,7 +184,7 @@ test("binding initializers require one exact admitted physical expression withou
 });
 
 test("an inferred integer assignment target rejects the original number tuple extraction", () => {
-  const compiled = compileCsharpSource({ surface: "native", sourceText: `
+  const compiled = compileEffectiveSource("native", `
     export function run(pair: [number, number], optional: [number, number?], rows: [number, number][]): number {
       const [first = 1] = pair;
       const [, second = 3] = optional;
@@ -191,26 +195,27 @@ test("an inferred integer assignment target rejects the original number tuple ex
       return total;
     }
     export function parameter([head, tail]: [number, number]): number { return head + tail; }
-  ` });
+  `);
   assert.equal(compiled.sourceDiagnosticsText, "", "the complete original program remains Source-valid");
-  const source = createTargetSourceProgram(compiled.source);
-  const current = { source, sourceFiles: source.navigation.sourceFiles };
+  const source = compiled.targetSource;
+  const current = { source, sourceFiles: source.sourceFiles };
   const assignment = findNode(current, "KindBinaryExpression", "[third] = pair");
-  const left = source.ast.as.AsBinaryExpression(assignment)?.Left;
-  const target = left === undefined ? undefined : source.ast.elements(left)[0];
-  assert.equal(target !== undefined && source.ast.is.IsIdentifier(target) && source.ast.text(target) === "third", true,
+  const left = source.syntax.as.AsBinaryExpression(assignment)?.Left;
+  const target = left === undefined ? undefined : source.syntax.elements(left)[0];
+  assert.equal(target !== undefined && source.syntax.is.IsIdentifier(target) && source.syntax.text(target) === "third", true,
     "the original assignment target is retained");
   assert.deepEqual(compiled.result.diagnostics.map(({ code, message }) => [code, message]), [[
-    "CSHARP_UNSUPPORTED_AST", "No exact C# implicit conversion relates 'source:float64' to 'source:int64'.",
+    // nextgen C-2542: CSHARP_UNSUPPORTED_AST is split; the binding-pattern owner names CSHARP_DESTRUCTURING_NOT_REPRESENTABLE.
+    "CSHARP_DESTRUCTURING_NOT_REPRESENTABLE", "No exact C# implicit conversion relates 'source:float64' to 'source:int64'.",
   ]], "the original fixed integer target has one exact refusal");
   assert.equal(compiled.result.diagnostics[0]?.sourceNode === target, true, "the refusal retains the original pattern identifier");
   const declaration = findNode(current, "KindVariableDeclaration", "third = 0");
-  const declared = source.effectiveTypes.get(declaration);
-  const read = target === undefined ? undefined : source.effectiveTypes.get(target);
+  const declared = source.facts.values.type(declaration);
+  const read = target === undefined ? undefined : source.facts.values.type(target);
   assert.equal(declared !== undefined && declared.kind !== "refused" && declared.type.kind === "primitive" &&
     declared.type.primitive === "int64" && read !== undefined && read.kind !== "refused" && read.type === declared.type, true,
   "the original creation and assignment target retain the same int64 descriptor");
-  assert.equal(source.effectiveTypes.refusals().length, 0, "Native conversion owns the original refusal");
+  assert.equal(source.facts.refusals().length, 0, "Native conversion owns the original refusal");
   assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true, "the refused original emits no program or artifact");
 });
 
@@ -229,7 +234,7 @@ test("binding facts and tuple defaults are computed once for declaration, parame
   `, "native");
   const analysis = analyzeCsharpBindingPatterns(factsInput(program, source, target));
   const projection = analysis.bindingPatternProjection;
-  const ast = program.source.ast;
+  const ast = program.source.syntax;
   assert.equal(Object.isFrozen(analysis) && Object.isFrozen(analysis.candidates), true, "the analysis result is frozen");
   assert.equal(analysis.candidates.length === 0, true, "every pattern of the program has its facts and no candidate issue");
   assert.equal(Object.hasOwn(program.records, "bindingPatternProjection"), true, "the final admitted facts use the canonical record family");
@@ -272,15 +277,15 @@ test("an unsupported pattern stays a candidate issue with its pattern root and n
   const sourceText = `
     export function example(): number { const [value] = new Set([1]); return value; }
   `;
-  const checked = checkCsharpSource({ sourceText, surface: "js" });
-  assert.equal(checked.sourceDiagnosticsText, "", "the original unsupported pattern remains source-valid");
-  const source = createTargetSourceProgram(checked.source);
-  const program = { source, sourceFiles: source.navigation.sourceFiles };
+  const host = hostProgram(sourceText, { surface: "js" });
+  const checked = host.checked;
+  const source = Object.freeze({ syntax: host.ast, facts: host.facts, sourceFacts: host.host.sourceFacts, sourceFiles: host.files });
+  const program = { source, sourceFiles: source.sourceFiles };
   const declaration = findNode(program, "KindVariableDeclaration", "[value] = new Set([1])");
   const pattern = findNode(program, "KindArrayBindingPattern", "[value]");
-  const initializer = source.ast.as.AsVariableDeclaration(declaration).Initializer;
+  const initializer = source.syntax.as.AsVariableDeclaration(declaration).Initializer;
   const carrier = csharpJsSetTargetType(csharpSourcePrimitiveTargetType("float64"));
-  const analysis = analyzeCsharpBindingPatterns({ ast: source.ast, effectiveTypes: source.effectiveTypes, semanticsFor: source.semantics.forNode,
+  const analysis = analyzeCsharpBindingPatterns({ ast: source.syntax, facts: source.facts, sourceFacts: source.sourceFacts,
     sourceFiles: program.sourceFiles, participation: { get: () => "body" },
     evidence: { compileTimeMetadata: { get: () => false } },
     operations: { nativeUnreachable: { get: () => false } },
@@ -288,7 +293,7 @@ test("an unsupported pattern stays a candidate issue with its pattern root and n
     initializerUses: new Map([[declaration, { expression: initializer, carrier }]]),
     objectShapes: { resolveNode: () => undefined },
     storage: { storageType: { get: () => assert.fail("The unsupported source is refused before destination storage is queried.") } },
-    typePolicy: { resolveType: () => assert.fail("The unsupported array source has no source-owned member resolution.") },
+    typePolicy: { value: () => assert.fail("The unsupported array source has no source-owned member resolution.") },
     conversionPolicy: {
       target: checked.target,
       objectShapes: { resolveTarget: () => undefined },
@@ -298,7 +303,8 @@ test("an unsupported pattern stays a candidate issue with its pattern root and n
   assert.equal(analysis.candidates.length === 1, true, "one candidate issue");
   const [candidate] = analysis.candidates;
   assert.equal(candidate.node === pattern && candidate.root === declaration, true, "the candidate names its pattern and its declaration root");
-  assert.equal(candidate.code === "CSHARP_UNSUPPORTED_AST" && candidate.message === arrayMessage && candidate.evidence.length === 0, true,
+  // nextgen C-2542: CSHARP_UNSUPPORTED_AST is split; the binding-pattern owner names CSHARP_DESTRUCTURING_NOT_REPRESENTABLE.
+  assert.equal(candidate.code === "CSHARP_DESTRUCTURING_NOT_REPRESENTABLE" && candidate.message === arrayMessage && candidate.evidence.length === 0, true,
     "the candidate keeps the existing code and message");
   assert.equal(analysis.bindingPatternProjection.get(pattern) === undefined, true, "the unsupported pattern has no facts");
   const compiled = compileCsharpSource({ sourceText, surface: "js" });
@@ -382,7 +388,7 @@ test("array, tuple, default and rest renderers consume only their admitted immut
       return first + second + head + rest[0] + tail[0];
     }
   `, "native");
-  const ast = program.source.ast;
+  const ast = program.source.syntax;
   const array = findNode(program, "KindArrayBindingPattern", "[first = 1, ...rest]");
   const tuple = findNode(program, "KindArrayBindingPattern", "[, second = 3]");
   const pair = findNode(program, "KindArrayBindingPattern", "[head, ...tail]");
@@ -393,7 +399,7 @@ test("array, tuple, default and rest renderers consume only their admitted immut
   const secondFact = program.records.bindingPatternProjection.get(second);
   const tailFact = program.records.bindingPatternProjection.get(tail);
   const opaque = { kind: "opaque", id: "corrupted-binding-rendering" };
-  const context = createCsharpPlanningContext(program);
+  const context = createCsharpPlanningContext(sealCsharpAnalysisProgram(program));
   const planDefault = node => {
     const firstDefault = ast.as.AsBindingElement(first).Initializer;
     const secondDefault = ast.as.AsBindingElement(second).Initializer;
@@ -490,7 +496,7 @@ for (const surface of ["native", "js"]) {
     assert.equal(compiled.targetDiagnostics.length, 0,
       compiled.targetDiagnostics.map(({ code, message }) => `${code}: ${message}`).join("; "));
     const program = compiled.result.program;
-    const ast = program.source.ast;
+    const ast = program.source.syntax;
     let defaulted;
     const visit = node => {
       if (ast.is.IsBindingElement(node)) {

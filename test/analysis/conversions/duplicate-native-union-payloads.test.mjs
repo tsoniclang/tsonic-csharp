@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { selectCsharpUnionArmMapping } from "../../../dist/policy/conversions/union-relations.js";
 import { selectCsharpConversion } from "../../../dist/policy/conversions/index.js";
 import { admitCsharpConversionSelection } from "../../../dist/analysis/conversions/validation.js";
@@ -71,15 +70,17 @@ export function run(): boolean {
   const second: number = choose<number>(13, observed(17), false);
   return first === 7 && second === 17 && reads === 2;
 }` });
-    const source = createTargetSourceProgram(compiled.source);
+    const ast = compiled.source.ast;
     assert.equal(compiled.result.diagnostics.length === 0, true, JSON.stringify(compiled.result.diagnostics.map(issue => ({
       code: issue.code, message: issue.message,
-      node: issue.sourceNode === undefined ? undefined : { kind: source.ast.kindName(issue.sourceNode),
-        start: source.ast.pos(issue.sourceNode), end: source.ast.end(issue.sourceNode) },
+      node: issue.sourceNode === undefined ? undefined : { kind: ast.kindName(issue.sourceNode),
+        start: ast.pos(issue.sourceNode), end: ast.end(issue.sourceNode) },
       span: issue.sourceSpan,
     }))));
     assertCsharpCompilationSucceeded(compiled);
     const program = compiled.result.program;
+    // The Host publication the C# target compiled (TargetSourceProgramFacts: facts, syntax, sourceFiles).
+    const source = program.source;
     let physicalCalls = 0;
     const visit = node => {
       const call = program.records.sourceCallEmission.get(node);
@@ -90,7 +91,7 @@ export function run(): boolean {
         assert.equal(program.records.typeEmission.get(call.result.selectedType)?.completion, "value",
           "the distinct source-visible selected result also owns its completion");
       }
-      source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+      source.syntax.forEachChild(node, child => { if (child !== undefined) visit(child); });
     };
     for (const file of source.sourceFiles) visit(file);
     assert.equal(physicalCalls > 0, true, "the retained program really exercises a distinct native ABI result");

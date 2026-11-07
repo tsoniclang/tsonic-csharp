@@ -42,26 +42,30 @@ test("native project policy consumes completed catalog evidence and rejects the 
 function selectedHeritageFixture(relation, target, binding) {
   const declaration = Object.freeze({});
   const heritage = Object.freeze({});
-  const selectedType = Object.freeze({});
+  const targetDeclaration = Object.freeze({});
   const definition = Object.freeze({ id: "project:Derived", sourceName: "Derived", kind: "class", declaration,
     sourceFile: {}, typeParameterBindings: [] });
   const catalog = { issues: [], definitions: [definition],
     definitionForDeclaration: node => node === declaration ? definition : undefined,
     definitionForTarget: () => undefined };
   let providerReads = 0;
+  // The published heritage edge (facts.objects.heritage) and its one representation (types.represent of the declared
+  // target applied to its published type arguments), nextgen C-2542.
   const host = {
     ast: {},
-    semanticsFor: () => ({ declarations: { typeAliasSymbol: () => undefined, typeSymbol: () => undefined },
-      types: { isTypeReference: () => false } }),
-    navigation: { declaredHeritage: () => ({ kind: "resolved", edges: [{ kind: relation, heritage,
-      selectedType, typeArguments: [], selectedTypeArguments: [] }] }) },
+    facts: { objects: { heritage: node => {
+      assert.equal(node, declaration, "heritage is read for the exact project declaration");
+      return [Object.freeze({ kind: relation, declaration, heritage, target: targetDeclaration, typeArguments: [] })];
+    } } },
     providers: { findTargetBindingByTargetId(id) {
       providerReads += 1;
       assert.equal(id, target.id, "provider evidence is read by the exact selected target identity");
       return binding === undefined ? { kind: "missing" } : { kind: "resolved", binding };
     } },
-    types: { resolveSelectedType: (node, type) => {
-      assert.equal(node === heritage && type === selectedType, true, "the checked heritage selection is authoritative");
+    types: { represent: (type, occurrence, position) => {
+      assert.equal(occurrence === heritage && position === "type-argument" && type.kind === "declared" &&
+        type.declaration === targetDeclaration && type.typeArguments.length === 0, true,
+        "the published heritage edge is authoritative");
       return target;
     } },
   };

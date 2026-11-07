@@ -1,196 +1,123 @@
-import { csharpSourceValueResult } from "../../../dist/analysis/source-evidence/types/resolution/call-results.js";
+// Source callable authority over Host facts (nextgen C-2542 §2, R2, I2). The deleted resolution/source-ownership.ts
+// and generic-arguments.ts read checker signatures and checked binder references; their successors read the role
+// model (identity.target / isProjectDeclaration), the published callable descriptors and the Host instantiation.
 import assert from "node:assert/strict";
 import test from "node:test";
-import { isSourceOwnedCallableRuntimeCarrierSubject } from "../../../dist/analysis/source-evidence/types/resolution/source-ownership.js";
-import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
+import { hostProgram, representationServices, representations, represented } from "../../representation/host-fixture.mjs";
+import { isSourceOwnedCallableRuntimeCarrierSubject } from "../../../dist/analysis/conversions/source-ownership.js";
 import { publishedCsharpCallableInterface } from "../../../dist/analysis/source-evidence/types/published-callable-interface.js";
-import { withCsharpSessionRequest, assertCsharpCompilationSucceeded, assertCsharpCheckingSucceeded } from "../../helpers/direct-csharp-session.mjs";
-import { bindCsharpSourceTypeArguments } from "../../../dist/analysis/source-evidence/types/resolution/generic-arguments.js";
-import { projectSourceDeclarationTargetType } from "../../../dist/analysis/source-evidence/types/resolution/project-types.js";
-import { getCsharpDelegateSignature } from "../../../dist/target-model/types/carriers/delegates.js";
+import { representInstantiation, csharpRepresentationContext } from "../../../dist/representation/index.js";
+import { csharpSourcePrimitiveTargetType, targetTypeRefEquals } from "../../../dist/target-model/types/index.js";
 
-const integer = Object.freeze({ kind: "source-primitive", name: "int32" });
-const callable = csharpDelegateTargetType("System.Func", [integer], integer);
+const ownershipSource = `
+import type { int32 } from "@tsonic/core/types.js";
+import { foreign } from "./external.js";
+function twice(value: int32): int32 { return value; }
+const alias = twice;
+const arrow = (value: int32): int32 => value;
+const borrowed = foreign;
+const count: int32 = 1 as int32;
+export function run(): number { return alias(count) + arrow(count) + borrowed(count); }
+`;
 
-function fixture() {
-  const file = {};
-  const expression = {};
-  const initializer = { kind: "identifier" };
-  const declaration = { kind: "variable" };
-  const implementation = { kind: "function", file, project: true };
-  const signature = { declaration: implementation };
-  const signatures = [signature];
-  const input = {
-    sourceFiles: [file],
-    types: { resolveNode: () => ({ kind: "resolved", sourceResult: csharpSourceValueResult(callable) }) },
-    navigation: {
-      referenceFor: () => ({ declaration, sourceFile: file }),
-      isProjectDeclaration: selected => selected.project === true,
-      declarationUseSummary: () => { throw new Error("source authority must not invent a closed origin proof"); },
-    },
-    ast: {
-      is: {
-        IsDeclarationFile: selected => selected.declarationFile === true,
-        IsVariableDeclaration: selected => selected.kind === "variable",
-        IsBindingElement: () => false,
-        IsFunctionExpression: selected => selected.kind === "function",
-        IsFunctionTypeNode: selected => selected.kind === "function-type",
-        IsArrowFunction: () => false,
-        IsFunctionDeclaration: () => false,
-        IsMethodDeclaration: () => false,
-        IsConstructorDeclaration: () => false,
-        IsParameterDeclaration: () => false,
-        IsCallExpression: () => false,
-      },
-      as: { AsVariableDeclaration: () => ({ Initializer: initializer }) },
-      isDeclarationFile: selected => selected.declarationFile === true,
-      getSourceFile: selected => selected.file,
-    },
-    effectiveTypes: {
-      get: selected => selected === initializer ? {
-        kind: "resolved",
-        type: { kind: "callable", calls: signatures, constructs: [] },
-        provenance: { group: initializer, occurrence: initializer, sourceFile: file },
-      } : undefined,
-    },
+function ownershipFixture() {
+  const program = hostProgram(ownershipSource, { files: { "external.d.ts": "export declare function foreign(value: number): number;" } });
+  const at = representations(representationServices(program));
+  const input = { ast: program.ast, facts: program.facts, sourceFiles: program.host.sourceFiles,
+    sourceFacts: program.host.sourceFacts, types: { value: node => at.value(node) } };
+  const run = program.named("run");
+  const reference = name => {
+    const found = program.nodes.find(node => program.ast.is.IsIdentifier(node) && program.ast.text(node) === name &&
+      program.ast.is.IsCallExpression(program.ast.parent(node)) && isWithin(program, node, run));
+    assert.notEqual(found, undefined, name);
+    return found;
   };
-  return { input, file, expression, initializer, declaration, implementation, signatures };
+  return { program, input, reference, owns: node => isSourceOwnedCallableRuntimeCarrierSubject(node, input) };
 }
 
-test("inferred aliases retain exact checked source callable signature authority without claiming closed origins", () => {
-  const selected = fixture();
-  assert.equal(isSourceOwnedCallableRuntimeCarrierSubject(selected.expression, selected.file, selected.input), true);
-  selected.signatures.push({ declaration: { ...selected.implementation } });
-  assert.equal(isSourceOwnedCallableRuntimeCarrierSubject(selected.expression, selected.file, selected.input), true, "all selected overload declarations are source owned");
-  selected.implementation.kind = "function-type";
-  assert.equal(isSourceOwnedCallableRuntimeCarrierSubject(selected.expression, selected.file, selected.input), true, "authored source function signatures are authority, not closed origin evidence");
+function isWithin(program, node, owner) {
+  for (let current = node; current !== undefined; current = program.ast.parent(current)) if (current === owner) return true;
+  return false;
+}
+
+test("inferred aliases of project callables keep Source callable authority from the published signature", () => {
+  const { owns, reference } = ownershipFixture();
+  assert.equal(owns(reference("alias")), true, "an alias of a project function is source owned");
+  assert.equal(owns(reference("arrow")), true, "an authored arrow function value is source owned");
 });
 
-test("foreign, unresolved, mixed and declaration-only signatures do not manufacture source callable authority", () => {
-  for (const mutate of [
-    selected => selected.signatures.splice(0),
-    selected => { selected.signatures[0].declaration = undefined; },
-    selected => { selected.implementation.project = false; },
-    selected => { selected.implementation.file = {}; },
-    selected => { selected.implementation.file = { declarationFile: true }; selected.input.sourceFiles.push(selected.implementation.file); },
-    selected => { selected.implementation.kind = "noncallable"; },
-    selected => { selected.signatures.push({ declaration: { kind: "function", file: {}, project: false } }); },
-    selected => { selected.input.types.resolveNode = () => ({ kind: "resolved", sourceResult: csharpSourceValueResult(integer) }); },
-  ]) {
-    const selected = fixture();
-    mutate(selected);
-    assert.equal(isSourceOwnedCallableRuntimeCarrierSubject(selected.expression, selected.file, selected.input), false, "exact source signature ownership required");
+test("foreign, declaration-file and non-callable references do not manufacture Source callable authority", () => {
+  const { owns, reference, program } = ownershipFixture();
+  assert.equal(owns(reference("borrowed")), false, "a signature declared in a declaration file is not Source authority");
+  const count = program.nodes.find(node => program.ast.is.IsIdentifier(node) && program.ast.text(node) === "count" &&
+    program.ast.is.IsCallExpression(program.ast.parent(node)));
+  assert.equal(owns(count), false, "a scalar value has no callable carrier");
+  assert.equal(owns(undefined), false);
+});
+
+const interfaceSource = `
+import type { int32, int64 } from "@tsonic/core/types.js";
+export interface Unary<Value> { (value: Value): Value; }
+export interface Concrete extends Unary<int64> {}
+export interface Mixed { (value: int64): int64; readonly count: int32; }
+export interface Factory { new(): Unary<int64>; }
+`;
+
+test("callable interface classification consumes the complete published inventory", () => {
+  const program = hostProgram(interfaceSource);
+  const host = { ast: program.ast, facts: program.facts };
+  const selected = name => publishedCsharpCallableInterface(program.named(name), host);
+  assert.notEqual(selected("Unary"), undefined, "the open callable inventory remains callable");
+  const concrete = selected("Concrete");
+  const parameter = concrete?.type.calls[0]?.parameters[0]?.type;
+  assert.equal(parameter?.kind === "primitive" && parameter.primitive === "int64", true,
+    "the inherited application is substituted by the Host and keeps its exact native width");
+  assert.equal(selected("Mixed"), undefined, "a data member is not dropped to manufacture a pure callable");
+  assert.equal(selected("Factory"), undefined, "a construct signature is not a call signature");
+});
+
+test("published callable interface selection rejects refused, foreign and unexpressible publications", () => {
+  const program = hostProgram(`
+import type { int32, int64 } from "@tsonic/core/types.js";
+export interface Unary { (value: int32): int64; }
+export interface Foreign { (value: int32): int64; }
+`);
+  const declaration = program.named("Unary");
+  const foreign = program.named("Foreign");
+  const outcome = program.facts.values.type(declaration);
+  assert.equal(outcome.kind !== "refused" && outcome.type.kind === "declared", true, "the interface has its declared publication");
+  const withOutcome = selected => ({ ast: program.ast,
+    facts: { ...program.facts, values: { ...program.facts.values, type: node => node === declaration ? selected : program.facts.values.type(node) } } });
+  assert.notEqual(publishedCsharpCallableInterface(declaration, withOutcome(outcome)), undefined, "control: the real publication");
+  const cases = [
+    { kind: "refused", source: "tsonic", code: "TSONIC_LOCAL_TYPE_UNSUPPORTED", site: declaration },
+    { ...outcome, provenance: { ...outcome.provenance, occurrence: foreign } },
+    { ...outcome, type: { ...outcome.type, declaration: foreign } },
+    { ...outcome, type: { kind: "declared", declaration, typeArguments: [], cut: "unexpressible" } },
+  ];
+  for (const [index, selected] of cases.entries()) {
+    assert.equal(publishedCsharpCallableInterface(declaration, withOutcome(selected)), undefined,
+      `case ${index}: a refusal, another identity or a cut cannot manufacture callable structure`);
   }
 });
 
-test("callable interface classification consumes the complete published inventory without reopening a formal Type", () => {
-  const { compiled, value } = withCsharpSessionRequest({ sourceText: `
-    export interface Unary<Value> { (value: Value): Value; }
-    export interface Concrete extends Unary<int64> {}
-    export interface Mixed { (value: int64): int64; readonly count: int32; }
-    export interface Factory { new(): Unary<int64>; }
-  ` }, request => {
-    const source = request.input.source;
-    const declarations = source.navigation.nodes.filter(node => source.ast.is.IsInterfaceDeclaration(node) &&
-      source.navigation.isProjectDeclaration(node));
-    const host = {
-      ast: source.ast, navigation: source.navigation, effectiveTypes: source.effectiveTypes,
-      semanticsFor(node) {
-        const queries = source.semantics.forNode(node);
-        return { ...queries, declarations: { ...queries.declarations,
-          declaredType() { assert.fail("published callable interfaces never reopen a formal Type"); } } };
-      },
-    };
-    const concrete = declarations.find(declaration => source.ast.text(source.ast.name(declaration)) === "Concrete");
-    const heritage = source.navigation.declaredHeritage(concrete);
-    assert.equal(heritage.kind === "resolved" && heritage.edges.length === 1 && heritage.edges[0].typeArguments.length === 1, true,
-      "the actual inherited application has one published originating type argument");
-    const argumentNode = heritage.edges[0].typeArguments[0];
-    let inheritedReads = 0;
-    const scope = { host: { ...host, hasSemantics: source.semantics.includes, sourceFacts: source.sourceFacts,
-      target: request.input.target }, resolveNodeWithState(node) {
-        assert.equal(node === argumentNode, true, "the Native binder consumes only the actual published heritage argument");
-        inheritedReads += 1;
-        return { kind: "source-primitive", name: "int64" };
-      } };
-    const inherited = projectSourceDeclarationTargetType(scope, concrete, []);
-    const inheritedParameter = getCsharpDelegateSignature(inherited)?.parameters[0];
-    assert.equal(inheritedReads, 1, "the inherited application is lowered once");
-    return declarations.map(declaration => {
-      const selected = publishedCsharpCallableInterface(declaration, host);
-      return { name: source.ast.text(source.ast.name(declaration)), selected: selected !== undefined,
-        calls: selected?.type.calls.length ?? 0,
-        parameter: declaration === concrete && inheritedParameter?.kind === "source-primitive" ? inheritedParameter.name
-          : selected?.type.calls[0]?.parameters[0]?.type.kind === "primitive"
-          ? selected.type.calls[0].parameters[0].type.primitive : null };
-    });
-  });
-  assertCsharpCheckingSucceeded(compiled);
-  assert.deepEqual(compiled.targetDiagnostics.map(diagnostic => ({ code: diagnostic.code, message: diagnostic.message })),
-    [0, 1].map(() => ({ code: "CSHARP_UNSUPPORTED_AST", message: "Interface member is outside the current C# planning surface." })),
-    "mixed-callable and construct interfaces keep their existing Native refusals rather than becoming pure callable interfaces");
-  assert.equal(value.length, 4, "every authored interface is checked");
-  assert.equal(value.find(row => row.name === "Unary")?.selected, true, "the open callable inventory remains callable");
-  assert.equal(value.find(row => row.name === "Concrete")?.parameter, "int64", "the inherited published argument keeps its exact native width");
-  assert.equal(value.find(row => row.name === "Mixed")?.selected, false, "a data member is not dropped to manufacture a pure callable");
-  assert.equal(value.find(row => row.name === "Factory")?.selected, false, "a construct signature is not a call signature");
-});
-
-test("published callable interface selection rejects missing, foreign and unexpressible publications", () => {
-  const { compiled, value } = withCsharpSessionRequest({ sourceText: `
-    export interface Unary { (value: int32): int64; }
-    export interface Foreign { (value: int32): int64; }
-  ` }, request => {
-    const source = request.input.source;
-    const interfaces = source.navigation.nodes.filter(node => source.ast.is.IsInterfaceDeclaration(node) &&
-      source.navigation.isProjectDeclaration(node));
-    const declaration = interfaces.find(node => source.ast.text(source.ast.name(node)) === "Unary");
-    const foreign = interfaces.find(node => source.ast.text(source.ast.name(node)) === "Foreign");
-    assert.equal(declaration !== undefined && foreign !== undefined, true, "both original declarations exist");
-    const outcome = source.effectiveTypes.get(declaration);
-    assert.equal(outcome !== undefined && outcome.kind !== "refused" && outcome.type.kind === "declared", true,
-      "the actual interface has its declared publication");
-    const host = { ast: source.ast, navigation: source.navigation,
-      semanticsFor: source.semantics.forNode, effectiveTypes: source.effectiveTypes };
-    const cases = [undefined, { ...outcome, provenance: { ...outcome.provenance, occurrence: foreign } },
-      { ...outcome, type: { ...outcome.type, declaration: foreign } },
-      { ...outcome, type: { kind: "declared", declaration, typeArguments: [], cut: "unexpressible" } }];
-    return cases.map(selected => publishedCsharpCallableInterface(declaration,
-      { ...host, effectiveTypes: { ...source.effectiveTypes, get: () => selected } }) === undefined);
-  });
-  assertCsharpCompilationSucceeded(compiled);
-  assert.deepEqual(value, [true, true, true, true], "missing identity or a cut cannot manufacture callable structure");
-});
-
-test("published call bindings retain only the identical existing checked binder reference without declaredType replay", () => {
-  const { compiled, value } = withCsharpSessionRequest({ sourceText: `
-    function identity<Value>(value: Value): Value { return value; }
-    export function run(value: int32): int32 { return identity<int32>(value); }
-  ` }, request => {
-    const source = request.input.source;
-    const callNode = source.navigation.nodes.find(node => source.ast.is.IsCallExpression(node) &&
-      source.navigation.isProjectDeclaration(node));
-    assert.equal(callNode !== undefined, true, "the original explicit call exists");
-    const original = source.semantics.forNode(callNode);
-    const call = original.operations.call(callNode);
-    const publication = source.effectiveTypes.callInstantiation(callNode);
-    assert.equal(call !== undefined && publication?.call === call && publication.method.length === 1, true,
-      "one exact Source call and binder publication exist");
-    const queries = { ...original, declarations: { ...original.declarations,
-      declaredType() { assert.fail("published call bindings do not reopen a formal declared Type"); } } };
-    const scope = { host: { ast: source.ast, effectiveTypes: source.effectiveTypes,
-      navigation: source.navigation, target: request.input.target } };
-    const selected = bindCsharpSourceTypeArguments(scope, call.sourceCallee.type, queries, { depth: 0 }, call);
-    const binding = selected?.sourceBindings.get(publication.method[0].declaration);
-    const foreignCall = { ...call };
-    const foreign = bindCsharpSourceTypeArguments(scope, call.sourceCallee.type, queries, { depth: 0 }, foreignCall);
-    const missing = bindCsharpSourceTypeArguments(scope, call.sourceCallee.type,
-      { ...queries, declarations: { ...queries.declarations, symbolDeclarations: () => [] } }, { depth: 0 }, call);
-    return { width: binding?.targetType.kind === "source-primitive" ? binding.targetType.name : null,
-      exactReference: binding?.sourceType === call.sourceSelectedMethodTypeArguments[0].typeParameter,
-      foreign: foreign === undefined, missing: missing === undefined };
-  });
-  assertCsharpCompilationSucceeded(compiled);
-  assert.deepEqual(value, { width: "int32", exactReference: true, foreign: true, missing: true },
-    "only the published Native width and exact existing checked binder reference are retained");
+test("explicit call type arguments come only from the Host instantiation, with their native width", () => {
+  const program = hostProgram(`
+import type { int32 } from "@tsonic/core/types.js";
+function identity<Value>(value: Value): Value { return value; }
+function plain(value: int32): int32 { return value; }
+export function run(value: int32): int32 { return plain(identity<int32>(value)); }
+`);
+  const call = name => program.nodes.find(node => program.ast.is.IsCallExpression(node) &&
+    program.ast.text(program.ast.as.AsCallExpression(node).Expression) === name);
+  const instantiation = program.facts.instantiations.at(call("identity"));
+  assert.equal(instantiation !== undefined && instantiation.kind !== "refused" && instantiation.method.length === 1, true,
+    "one Host instantiation with one method binder");
+  const binder = program.ast.typeParameters(program.named("identity"))[0];
+  assert.equal(instantiation.method[0].declaration === binder, true, "the binding names the authored binder declaration");
+  const services = representationServices(program);
+  const represented_ = representInstantiation(instantiation, csharpRepresentationContext(services, call("identity"), "type-argument"));
+  assert.equal(targetTypeRefEquals(represented(represented_.method[0]), csharpSourcePrimitiveTargetType("int32")), true);
+  assert.equal(targetTypeRefEquals(represented(represented_.result), csharpSourcePrimitiveTargetType("int32")), true);
+  assert.equal(program.facts.instantiations.at(call("plain")), undefined, "a non-generic call has no instantiation");
 });

@@ -1,5 +1,6 @@
 import type { CsharpObjectShapeFact, CsharpPropertyKeyIterationPolicy, CsharpStringIterationPolicy, CsharpTargetMember, TargetTypeRef } from "../../types/model.js";
-import type { Node, ResolvedSourceIterationInfo } from "@tsonic/tsts";
+import type { Node } from "@tsonic/tsts";
+import type { SourceIterationSelection } from "@tsonic/target-api/source";
 import type { CsharpConversionSelection } from "../../conversions/selection.js";
 
 export type CsharpForInKeyBinding = {
@@ -38,10 +39,7 @@ export type CsharpResolvedIteration =
   | {
       readonly kind: "resolved";
       readonly iterationKind: "for-await-of";
-      readonly source: Extract<
-        ResolvedSourceIterationInfo,
-        { readonly iterationKind: "for-await-of" }
-      >;
+      readonly source: SourceIterationSelection;
       readonly iterableType: TargetTypeRef;
       readonly elementType: TargetTypeRef;
       readonly lowering: {
@@ -54,10 +52,7 @@ export type CsharpResolvedIteration =
   | {
       readonly kind: "resolved";
       readonly iterationKind: "for-of";
-      readonly source: Extract<
-        ResolvedSourceIterationInfo,
-        { readonly iterationKind: "for-of" }
-      >;
+      readonly source: SourceIterationSelection;
       readonly iterableType: TargetTypeRef;
       readonly elementType: TargetTypeRef;
       readonly lowering: { readonly kind: "foreach" } | {
@@ -69,10 +64,7 @@ export type CsharpResolvedIteration =
   | {
       readonly kind: "resolved";
       readonly iterationKind: "for-of";
-      readonly source: Extract<
-        ResolvedSourceIterationInfo,
-        { readonly iterationKind: "for-of" }
-      >;
+      readonly source: SourceIterationSelection;
       readonly iterableType: TargetTypeRef;
       readonly elementType: TargetTypeRef;
       readonly lowering: {
@@ -83,10 +75,7 @@ export type CsharpResolvedIteration =
   | {
       readonly kind: "resolved";
       readonly iterationKind: "for-in";
-      readonly source: Extract<
-        ResolvedSourceIterationInfo,
-        { readonly iterationKind: "for-in" }
-      >;
+      readonly source: SourceIterationSelection;
       readonly iterableType: TargetTypeRef;
       readonly elementType: TargetTypeRef;
       readonly lowering: {
@@ -97,10 +86,7 @@ export type CsharpResolvedIteration =
   | {
       readonly kind: "resolved";
       readonly iterationKind: "for-in";
-      readonly source: Extract<
-        ResolvedSourceIterationInfo,
-        { readonly iterationKind: "for-in" }
-      >;
+      readonly source: SourceIterationSelection;
       readonly iterableType: TargetTypeRef;
       readonly elementType: TargetTypeRef;
       readonly lowering: Extract<
@@ -111,10 +97,7 @@ export type CsharpResolvedIteration =
   | {
       readonly kind: "resolved";
       readonly iterationKind: "for-in";
-      readonly source: Extract<
-        ResolvedSourceIterationInfo,
-        { readonly iterationKind: "for-in" }
-      >;
+      readonly source: SourceIterationSelection;
       readonly iterableType: TargetTypeRef;
       readonly elementType: TargetTypeRef;
       readonly lowering: Extract<

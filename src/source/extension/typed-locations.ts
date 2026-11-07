@@ -1,83 +1,86 @@
 import { pointerOperationFactKey } from "@tsonic/tsts";
 import { tsonicPointerViewFactKey } from "@tsonic/source-core/facts";
-import type { ExtensionFactSubject, Node, ReadonlySourceFactResolver, Symbol, Type } from "@tsonic/tsts";
+import type { ExtensionFactSubject, Node, ReadonlySourceFactResolver } from "@tsonic/tsts";
+import type { SourceTypeDescriptor } from "@tsonic/target-api/source";
+
+// Typed-location (pointer) operations as published by the Host pointer facts. Every type is the Host descriptor
+// (pointer-operation and pointer-view facts carry SourceTypeDescriptor, request R-F5-A1); no checker Type (I1, I2).
 
 interface CsharpSourceTypedLocationOperationBase {
   readonly call: Node;
-  readonly pointeeType: Type;
+  readonly pointeeType: SourceTypeDescriptor;
   readonly explicitPointeeTypeNode?: Node;
-  readonly resultType: Type;
+  readonly resultType: SourceTypeDescriptor;
 }
 
 export type CsharpSourceTypedLocationOperation =
   | CsharpSourceTypedLocationOperationBase & {
       readonly kind: "location-address";
       readonly storageExpression: Node;
-      readonly storageType: Type;
-      readonly storageSymbol?: Symbol;
+      readonly storageType: SourceTypeDescriptor;
       readonly storageDeclaration?: Node;
       readonly locationIdentity: Node;
     }
   | CsharpSourceTypedLocationOperationBase & {
       readonly kind: "location-allocate";
       readonly initialExpression: Node;
-      readonly initialType: Type;
+      readonly initialType: SourceTypeDescriptor;
       readonly locationIdentity: Node;
     }
   | CsharpSourceTypedLocationOperationBase & {
       readonly kind: "location-load";
       readonly locationExpression: Node;
-      readonly locationType: Type;
+      readonly locationType: SourceTypeDescriptor;
     }
   | CsharpSourceTypedLocationOperationBase & {
       readonly kind: "location-store";
       readonly locationExpression: Node;
-      readonly locationType: Type;
+      readonly locationType: SourceTypeDescriptor;
       readonly valueExpression: Node;
-      readonly valueType: Type;
+      readonly valueType: SourceTypeDescriptor;
     }
   | CsharpSourceTypedLocationOperationBase & {
       readonly kind: "location-equal";
       readonly leftExpression: Node;
-      readonly leftType: Type;
+      readonly leftType: SourceTypeDescriptor;
       readonly rightExpression: Node;
-      readonly rightType: Type;
+      readonly rightType: SourceTypeDescriptor;
     }
   | CsharpSourceTypedLocationOperationBase & {
       readonly kind: "location-hash";
       readonly locationExpression: Node;
-      readonly locationType: Type;
+      readonly locationType: SourceTypeDescriptor;
     }
   | CsharpSourceTypedLocationOperationBase & {
       readonly kind: "location-bind";
       readonly identityExpression: Node;
-      readonly identityType: Type;
+      readonly identityType: SourceTypeDescriptor;
       readonly readExpression: Node;
-      readonly readType: Type;
+      readonly readType: SourceTypeDescriptor;
       readonly writeExpression: Node;
-      readonly writeType: Type;
+      readonly writeType: SourceTypeDescriptor;
     }
   | CsharpSourceTypedLocationOperationBase & {
       readonly kind: "location-view";
-      readonly sourcePointeeType: Type;
+      readonly sourcePointeeType: SourceTypeDescriptor;
       readonly locationExpression: Node;
-      readonly locationType: Type;
+      readonly locationType: SourceTypeDescriptor;
       readonly readExpression: Node;
-      readonly readType: Type;
+      readonly readType: SourceTypeDescriptor;
       readonly writeExpression: Node;
-      readonly writeType: Type;
+      readonly writeType: SourceTypeDescriptor;
       readonly optional: boolean;
     }
   | CsharpSourceTypedLocationOperationBase & {
       readonly kind: "location-project";
-      readonly sourcePointeeType: Type;
+      readonly sourcePointeeType: SourceTypeDescriptor;
       readonly explicitSourcePointeeTypeNode?: Node;
       readonly locationExpression: Node;
-      readonly locationType: Type;
+      readonly locationType: SourceTypeDescriptor;
       readonly fromSourceExpression: Node;
-      readonly fromSourceType: Type;
+      readonly fromSourceType: SourceTypeDescriptor;
       readonly toSourceExpression: Node;
-      readonly toSourceType: Type;
+      readonly toSourceType: SourceTypeDescriptor;
     };
 
 export function readCsharpSourceTypedLocationOperation(
@@ -86,8 +89,12 @@ export function readCsharpSourceTypedLocationOperation(
 ): CsharpSourceTypedLocationOperation | undefined {
   const view = sourceFacts?.getFact(subject, tsonicPointerViewFactKey);
   if (view !== undefined) return Object.freeze({
-    ...view, kind: "location-view", locationExpression: view.pointerExpression,
-    locationType: view.pointerType,
+    call: view.call, pointeeType: view.pointeeType,
+    ...(view.explicitPointeeTypeNode === undefined ? {} : { explicitPointeeTypeNode: view.explicitPointeeTypeNode }),
+    resultType: view.resultType, kind: "location-view", sourcePointeeType: view.sourcePointeeType,
+    locationExpression: view.pointerExpression, locationType: view.pointerType,
+    readExpression: view.readExpression, readType: view.readType,
+    writeExpression: view.writeExpression, writeType: view.writeType, optional: view.optional,
   });
   const operation = sourceFacts?.getFact(subject, pointerOperationFactKey);
   if (operation === undefined) {
@@ -108,9 +115,6 @@ export function readCsharpSourceTypedLocationOperation(
         kind: "location-address",
         storageExpression: operation.storageExpression,
         storageType: operation.storageType,
-        ...(operation.storageSymbol === undefined
-          ? {}
-          : { storageSymbol: operation.storageSymbol }),
         ...(operation.storageDeclaration === undefined
           ? {}
           : { storageDeclaration: operation.storageDeclaration }),

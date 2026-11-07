@@ -1,5 +1,5 @@
 import type { Node } from "@tsonic/tsts";
-import type { TargetSourceProgram } from "@tsonic/target-api/source";
+import type { TargetSourceProgramFacts } from "@tsonic/target-api/source";
 import { AsExpressionStatement } from "@tsonic/target-api/source";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpSafetyApplicationFactIndex } from "../../target-model/records/storage/safety.js";
@@ -17,7 +17,7 @@ import { sourceSafetyPositionIssue, createSourceExplicitUnsafeContextIndex } fro
 import type { CsharpObjectShapeFact } from "../../target-model/types/model.js";
 
 export function analyzeCsharpSafetyEmission(input: {
-  readonly source: TargetSourceProgram;
+  readonly source: Pick<TargetSourceProgramFacts, "sourceFiles" | "syntax">;
   readonly configuration: CsharpTargetConfiguration;
   readonly safety: CsharpSafetyApplicationFactIndex;
   readonly evidence: CsharpSourceEvidenceIndex;
@@ -32,7 +32,7 @@ export function analyzeCsharpSafetyEmission(input: {
   const declarations = new Map<Node, ReadonlyMap<CsharpSafetyPlacement, readonly "unsafe"[]>>();
   const shapes = new Map<CsharpObjectShapeFact, boolean>();
   const issues: TargetDiagnostic[] = [];
-  const { ast } = input.source;
+  const { syntax: ast } = input.source;
   const explicit = createSourceExplicitUnsafeContextIndex(ast, input.source.sourceFiles, node => input.safety.safetyOperation.get(node));
   const refuse = (code: string, message: string): void => {
     issues.push(Object.freeze({ code, category: "error", source: "tsonic-csharp", message }));

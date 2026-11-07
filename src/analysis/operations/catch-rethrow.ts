@@ -8,10 +8,9 @@ export function classifyExactUnmodifiedCatchRethrow(
   throwStatement: Node,
   expression: Node,
 ): boolean {
-  const reference = policy.navigation.referenceFor(expression);
-  const declaration = reference?.declaration;
+  const reference = policy.facts.navigation.identity.target(expression);
+  const declaration = reference?.project === true ? reference.declaration : undefined;
   if (
-    reference === undefined ||
     declaration === undefined ||
     !policy.ast.is.IsVariableDeclaration(declaration)
   ) {
@@ -29,7 +28,7 @@ export function classifyExactUnmodifiedCatchRethrow(
     !sourceNodesEqual(policy.ast, catchClause?.VariableDeclaration, declaration) ||
     catchClause?.Block === undefined ||
     !isLexicallyWithinExactCatch(policy, throwStatement, catchClauseNode) ||
-    policy.navigation.bindingWritesWithin(reference.symbol, catchClause.Block)
+    policy.facts.navigation.uses.writesWithin(declaration, catchClause.Block)
       .length > 0
   ) {
     return false;
@@ -44,7 +43,7 @@ export function classifyExactUnmodifiedCatchRethrow(
       passing.argument.passingMode !== "byref-readonly" &&
       passing.argument.passingMode !== "borrow-shared"
     ) {
-      const storageDeclaration = policy.navigation.referenceFor(
+      const storageDeclaration = policy.facts.navigation.identity.target(
         passing.argument.storageExpression,
       )?.declaration;
       if (sourceNodesEqual(policy.ast, storageDeclaration, declaration)) {

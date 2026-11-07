@@ -7,28 +7,31 @@ import { csharpSourcePrimitiveTargetType, csharpTaskTargetType, csharpVoidTarget
 const reject = csharpJsPromiseCallPolicies.find(policy =>
   policy.source.declaringName === "PromiseConstructor" && policy.source.name === "reject");
 
+// nextgen C-2542: the call source is the C# view of the Host selection (CsharpSourceProfileCallSource: authored
+// arguments with published descriptors, instantiated parameters, Host argument correspondences, method binders); the
+// checker records (sourceResultType, selectedType, sourceArguments, sourceArgumentBindings) are gone. The bindings carry
+// F3's requested correspondence fields (R-B-1: argumentIndex, effectiveIndex, form). Each type argument input pairs
+// its binder source with its C# carrier (CsharpSourceProfileTypeArgumentInput).
 function rejectionContext(resultType, typeArguments) {
   const expression = {};
-  const checkedReason = {};
-  const checkedResult = {};
   const call = {};
+  const reason = Object.freeze({ kind: "intrinsic", intrinsic: "unknown" });
+  const inputs = typeArguments.map(argument => Object.freeze({
+    source: Object.freeze({ binder: argument.node, type: argument.type, explicit: true }),
+    carrier: argument.carrier, parameter: undefined,
+  }));
   return {
     source: {
-      call, sourceResultType: checkedResult,
-      sourceSelectedSignatureKind: "resolved",
-      sourceSelectedSignatureParameters: [{}],
-      sourceSelectedMethodTypeArguments: typeArguments.map(argument => ({
-        explicitTypeNode: argument.node, selectedType: argument.type,
-      })),
-      sourceArguments: [{ expression, type: checkedReason }],
-      sourceArgumentBindings: [{
-        sourceArgumentIndex: 0, effectiveArgumentIndex: 0,
-        sourceParameterIndex: 0, sourceForm: "value",
-      }],
+      call, selection: Object.freeze({ use: call }),
+      arguments: [{ expression, type: reason }],
+      parameters: [Object.freeze({ kind: "optional", type: reason })],
+      bindings: [Object.freeze({ argument: expression, parameterIndex: 0, mode: "positional",
+        argumentIndex: 0, effectiveIndex: 0, form: "value" })],
+      typeArguments: inputs.map(input => input.source),
     },
     inputs: {
       results: new Map([[call, resultType]]),
-      resultType, typeArguments,
+      typeArguments: inputs,
     },
   };
 }

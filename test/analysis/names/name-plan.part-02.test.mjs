@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createCompilerSessionFromFiles, formatDiagnostics } from "@tsonic/tsts";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
-import { assertCsharpCompilationSucceeded, checkCsharpSource, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { assertCsharpCompilationSucceeded, checkCsharpSource, compileCsharpSource, withCsharpSessionRequest } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { createCsharpSourceNameBuilder } from "../../../dist/analysis/names/plan.js";
 import { analyzeCsharpAnalysisProgram } from "../../../dist/analysis/program/index.js";
 import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
 import { createCsharpTargetConfiguration } from "../../../dist/compilation/configuration.js";
 import { createCsharpPlanningContext } from "../../../dist/backend/planner/context.js";
+import { sealCsharpAnalysisProgram } from "../../../dist/analysis/program/index.js";
 import { createCsharpSyntheticNames } from "../../../dist/backend/planner/names/synthetic.js";
 import { csharpSourceTypeParameter } from "../../../dist/source/extension/type-parameters.js";
 import { createDotnetReflectionTypeDataProvider } from "../../helpers/dotnet-reflection-provider.mjs";
@@ -65,15 +65,16 @@ test(`${surface}: native member-name refusals precede publication with their exa
         `${control.description} cannot be represented as an exact C# target name. Source name '${control.name}' is not a valid C# identifier and has no explicit target-name policy.`,
         `${control.description}: original exact native refusal message`);
       if (control.field) {
-        const source = createTargetSourceProgram(compiled.source);
-        assert.equal(diagnostic.sourceNode !== undefined && source.ast.is.IsPropertyDeclaration(diagnostic.sourceNode) &&
-          source.ast.text(source.ast.name(diagnostic.sourceNode)) === control.name, true, "C429 selects the owning field node");
+        // The refused compilation publishes no analysis program; the checked program's syntax reads the site.
+        const checkedAst = compiled.source.ast;
+        assert.equal(diagnostic.sourceNode !== undefined && checkedAst.is.IsPropertyDeclaration(diagnostic.sourceNode) &&
+          checkedAst.text(checkedAst.name(diagnostic.sourceNode)) === control.name, true, "C429 selects the owning field node");
       } else assert.equal(diagnostic.sourceNode === undefined, true, `${control.description}: original node absence is preserved`);
     }
     const admitted = compileCsharpSource({ surface, sourceText: "export class View { value: number = 1; }" });
     assertCsharpCompilationSucceeded(admitted);
     const program = admitted.result.program;
-    const ast = program.source.ast;
+    const ast = program.source.syntax;
     const declaration = ast.statements(csharpProgramSourceFiles(program)[0]).find(node => ast.is.IsClassDeclaration(node));
     const field = ast.members(declaration).find(node => node !== undefined && ast.is.IsPropertyDeclaration(node));
     assert.equal(field !== undefined, true, "the separate corruption control starts with a real admitted field");
@@ -145,20 +146,18 @@ test("backend synthetic names start from the final reserved inventory and never 
 });
 
 test("a published C# program carries the sealed plan and planning composes its own allocator", () => {
-  const checked = checkCsharpSource({ sourceText: `
+  // The analysis runs on the Source facts program the session handed to the target (nextgen C-2542:
+  // createTargetSourceProgram needs the composition's profile).
+  const { value: analysis } = withCsharpSessionRequest({ sourceText: `
     export function make(value: number): number {
       class Local { read(): number { return value; } }
       return new Local().read();
     }
-  ` });
-  assert.equal(checked.sourceDiagnosticsText, "");
-  const source = createTargetSourceProgram(checked.source);
-  const analysis = analyzeCompletedCsharpProgram({
-    input: { source, sourcePackages: checked.sourcePackages, project: checked.project, target: checked.target,
-      runtimeActivatedCapabilityIds: [], runtimeReferences: [], paths: checked.paths },
-    configuration: createCsharpTargetConfiguration(checked.target, checked.paths.projectRoot, checked.paths.targetOutputRoot),
+  ` }, request => analyzeCompletedCsharpProgram({
+    input: { ...request.input, runtimeActivatedCapabilityIds: [], runtimeReferences: [] },
+    configuration: createCsharpTargetConfiguration(request.input.target, request.input.paths.projectRoot, request.input.paths.targetOutputRoot),
     providers: createCsharpProviderRelationResolver({ providers: [createDotnetReflectionTypeDataProvider()], providerPolicies: [] }),
-  });
+  }));
   assert.equal(analysis.kind, "resolved");
   const program = analysis.value;
   assert.ok(Object.isFrozen(program.names));
@@ -170,14 +169,14 @@ test("a published C# program carries the sealed plan and planning composes its o
     for (const capture of factory.captures) assert.ok(program.names.reservedNames.includes(capture.fieldName), capture.fieldName);
   }
   const reserved = [...program.names.reservedNames];
-  const context = createCsharpPlanningContext(program);
+  const context = createCsharpPlanningContext(sealCsharpAnalysisProgram(program));
   // The planner resolves authored names through the sealed sourceName record; its own names only allocate.
   assert.equal(program.records.sourceName.get, program.names.resolve);
   assert.equal("resolve" in context.names, false);
   const generated = context.names.temporaryName(program.classFactories[0].environmentName);
   assert.equal(reserved.includes(generated), false);
   assert.deepEqual([...program.names.reservedNames], reserved);
-  assert.equal(createCsharpPlanningContext(program).names.temporaryName(program.classFactories[0].environmentName), generated);
+  assert.equal(createCsharpPlanningContext(sealCsharpAnalysisProgram(program)).names.temporaryName(program.classFactories[0].environmentName), generated);
 });
 
 test("only a type parameter with an actual value-parameter collision is renamed before seal", () => {
@@ -196,11 +195,11 @@ test("only a type parameter with an actual value-parameter collision is renamed 
   let valueUses = 0;
   let collisionDeclaration;
   for (const identifier of identifiers) {
-    const parent = source.ast.parent(identifier);
-    const declaration = parent !== undefined && source.ast.is.IsTypeParameterDeclaration(parent) && source.ast.name(parent) === identifier
-      ? parent : source.navigation.sourceReferenceFor(identifier)?.declaration;
-    const parameter = declaration === undefined ? undefined : csharpSourceTypeParameter(declaration, source.ast);
-    const spelling = source.ast.text(identifier);
+    const parent = source.syntax.parent(identifier);
+    const declaration = parent !== undefined && source.syntax.is.IsTypeParameterDeclaration(parent) && source.syntax.name(parent) === identifier
+      ? parent : source.facts.navigation.identity.target(identifier)?.declaration;
+    const parameter = declaration === undefined ? undefined : csharpSourceTypeParameter(declaration, source.syntax);
+    const spelling = source.syntax.text(identifier);
     const selected = plan.resolve(identifier);
     if (parameter?.identity === plan.typeParameterNames[0].identity) {
       collisionDeclaration = declaration;
@@ -216,7 +215,7 @@ test("only a type parameter with an actual value-parameter collision is renamed 
   }
   assert.equal(typeUses >= 5 && valueUses === 2, true, "real bound type uses and the distinct value binding were all observed");
   const foreign = checkedNames("export const outsideName = 1;");
-  const outside = foreign.identifiers.find(identifier => foreign.source.ast.text(identifier) === "outsideName");
+  const outside = foreign.identifiers.find(identifier => foreign.source.syntax.text(identifier) === "outsideName");
   assert.equal(collisionDeclaration !== undefined && outside !== undefined && plan.resolve(outside, collisionDeclaration).kind === "rejected", true,
     "a selected binder cannot admit an unrelated checked source node outside the frozen name plan");
 });
@@ -230,7 +229,7 @@ test("type-parameter suffixes avoid existing native binders and leave conflict-f
   const names = stable.builder.seal(stable.bindingRoots, nativeMemberNames);
   assert.equal(names.typeParameterNames.length === 0, true, "no conflict means no native rename");
   for (const identifier of stable.identifiers) assert.equal(names.resolve(identifier).kind === "resolved" &&
-    names.resolve(identifier).name === stable.source.ast.text(identifier), true,
+    names.resolve(identifier).name === stable.source.syntax.text(identifier), true,
   "every original authored spelling is retained when C# has no value-name collision");
 });
 
@@ -246,15 +245,15 @@ test("native type-parameter suffixes reserve nested binders, retained locals and
   const plan = fixture.builder.seal(fixture.bindingRoots, nativeMemberNames);
   assert.equal(plan.typeParameterNames.length === 1 && plan.typeParameterNames[0].name === "T4", true,
     "the selected suffix cannot capture nested T1, retained local T2 or the already allocated T3 helper");
-  const outer = fixture.nodes.find(node => fixture.source.ast.is.IsFunctionDeclaration(node) &&
-    fixture.source.ast.text(fixture.source.ast.name(node)) === "outer");
-  const declaration = fixture.source.ast.typeParameters(outer)[0];
-  const uses = [fixture.source.ast.name(declaration), ...fixture.source.navigation.referencesToDeclaration(declaration)];
+  const outer = fixture.nodes.find(node => fixture.source.syntax.is.IsFunctionDeclaration(node) &&
+    fixture.source.syntax.text(fixture.source.syntax.name(node)) === "outer");
+  const declaration = fixture.source.syntax.typeParameters(outer)[0];
+  const uses = [fixture.source.syntax.name(declaration), ...fixture.source.facts.navigation.uses.references(declaration)];
   assert.equal(uses.length >= 5, true, "the outer binder occurs in its own and the nested signature");
   for (const use of uses) assert.equal(plan.resolve(use).kind === "resolved" && plan.resolve(use).name === "T4", true,
     "every outer bound use keeps its identity across the nested T1 scope");
-  for (const identifier of fixture.identifiers.filter(node => ["T1", "T2"].includes(fixture.source.ast.text(node)))) {
-    assert.equal(plan.resolve(identifier).kind === "resolved" && plan.resolve(identifier).name === fixture.source.ast.text(identifier), true,
+  for (const identifier of fixture.identifiers.filter(node => ["T1", "T2"].includes(fixture.source.syntax.text(node)))) {
+    assert.equal(plan.resolve(identifier).kind === "resolved" && plan.resolve(identifier).name === fixture.source.syntax.text(identifier), true,
       "unrelated authored nested and value names remain unchanged");
   }
 });
@@ -272,18 +271,18 @@ for (const [label, sourceText] of Array.from([
 test(`retained ${label} bindings select a real in-scope type/value collision`, () => {
     const fixture = checkedNames(sourceText);
     const roots = fixture.bindingRoots.filter(node => {
-      const parent = fixture.source.ast.parent(node);
-      const owner = parent === undefined ? undefined : fixture.source.ast.parent(parent);
-      return owner === undefined || !fixture.source.ast.is.IsForOfStatement(owner);
+      const parent = fixture.source.syntax.parent(node);
+      const owner = parent === undefined ? undefined : fixture.source.syntax.parent(parent);
+      return owner === undefined || !fixture.source.syntax.is.IsForOfStatement(owner);
     });
     const plan = fixture.builder.seal(roots, nativeMemberNames);
     assert.equal(plan.typeParameterNames.length === 1 && plan.typeParameterNames[0].name === "T1", true,
       `${label}: a retained binding, not merely formal parameter spelling, conflicts with the native method binder`);
-    for (const identifier of fixture.identifiers.filter(node => fixture.source.ast.text(node) === "T")) {
-      const parent = fixture.source.ast.parent(identifier);
-      const declaration = parent !== undefined && fixture.source.ast.is.IsTypeParameterDeclaration(parent) ? parent
-        : fixture.source.navigation.sourceReferenceFor(identifier)?.declaration;
-      const isType = declaration !== undefined && fixture.source.ast.is.IsTypeParameterDeclaration(declaration);
+    for (const identifier of fixture.identifiers.filter(node => fixture.source.syntax.text(node) === "T")) {
+      const parent = fixture.source.syntax.parent(identifier);
+      const declaration = parent !== undefined && fixture.source.syntax.is.IsTypeParameterDeclaration(parent) ? parent
+        : fixture.source.facts.navigation.identity.target(identifier)?.declaration;
+      const isType = declaration !== undefined && fixture.source.syntax.is.IsTypeParameterDeclaration(declaration);
       assert.equal(plan.resolve(identifier).kind === "resolved" && plan.resolve(identifier).name === (isType ? "T1" : "T"), true,
         `${label}: each checked type reference is renamed and each distinct value binding keeps T`);
     }
@@ -299,7 +298,7 @@ test("actual native binding roots exclude structural arg0 headers and erased opt
     const plan = fixture.builder.seal([], nativeMemberNames);
     assert.equal(plan.typeParameterNames.length, 0, "a source-only T spelling is not an emitted native value parameter");
     for (const identifier of fixture.identifiers) assert.equal(plan.resolve(identifier).kind === "resolved" &&
-      plan.resolve(identifier).name === fixture.source.ast.text(identifier), true,
+      plan.resolve(identifier).name === fixture.source.syntax.text(identifier), true,
     "unadmitted protocol and optional-header bindings cannot cause an authored type-parameter rename");
   }
   const named = checkedNames("interface NamedGeneric { read<T>(T: T): T; }");
@@ -318,9 +317,9 @@ test("unretained catch and local bindings cannot rename an otherwise nonconflict
     "export function f<T>(value: T): T { function hidden<U>(T: U): U { return T; } return value; }",
   ]) {
     const fixture = checkedNames(sourceText);
-    const retained = fixture.nodes.find(node => fixture.source.ast.is.IsFunctionDeclaration(node) &&
-      fixture.source.ast.text(fixture.source.ast.name(node)) === "f");
-    const roots = fixture.source.ast.parameters(retained).filter(node => node !== undefined);
+    const retained = fixture.nodes.find(node => fixture.source.syntax.is.IsFunctionDeclaration(node) &&
+      fixture.source.syntax.text(fixture.source.syntax.name(node)) === "f");
+    const roots = fixture.source.syntax.parameters(retained).filter(node => node !== undefined);
     assert.equal(fixture.builder.seal(roots, nativeMemberNames).typeParameterNames.length, 0,
       "only the actual admitted value binding roots may trigger the existing conflict-only policy");
   }
@@ -366,7 +365,7 @@ test(`${surface}: native member hiding and collisions use final physical contain
     ` });
     assertCsharpCompilationSucceeded(compiled);
     const program = compiled.result.program;
-    const ast = program.source.ast;
+    const ast = program.source.syntax;
     const observations = [];
     const visit = node => {
       if (ast.is.IsMethodDeclaration(node)) {
@@ -392,7 +391,7 @@ test(`${surface}: native member hiding and collisions use final physical contain
     assert.equal(program.records.nativeMemberHiding.get({ kind: "source", declaration: foreign, role: "member" }) === undefined && syntaxReads === 0, true,
       "the sealed hiding getter never computes or inspects a foreign syntax node");
     const hidden = observations.find(entry => entry.owner === "Hidden" && entry.name === "read").node;
-    const context = createCsharpPlanningContext({ ...program, records: { ...program.records,
+    const context = createCsharpPlanningContext({ ...sealCsharpAnalysisProgram(program), records: { ...program.records,
       nativeMemberHiding: { get: subject => subject.kind === "source" && subject.declaration === hidden
         ? undefined : program.records.nativeMemberHiding.get(subject) } } });
     assert.throws(() => planClassMemberModifiers(hidden, ast.name(hidden), context,

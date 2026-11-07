@@ -22,18 +22,19 @@ for (const declaringName of ["Promise", "PromiseLike"]) {
         const receiverExpression = {};
         const absentExpression = {};
         const rejectedExpression = {};
-        const checkedReceiver = {};
-        const checkedAbsence = {};
-        const checkedRejected = {};
+        const publishedReceiver = { kind: "declared", declaration: {}, typeArguments: [] };
+        const publishedAbsence = { kind: "intrinsic", intrinsic: "absence" };
+        const publishedRejected = { kind: "callable", calls: [], constructs: [] };
         const selected = csharpJsPromiseCallPolicies.find(policy => policy.source.declaringName === declaringName &&
           policy.source.name === "then").select({
           source: {
-            sourceReceiver: { expression: receiverExpression, type: checkedReceiver },
-            sourceSelectedSignatureKind: "resolved", sourceSelectedSignatureParameters: [{}, {}],
-            sourceArguments: [{ expression: absentExpression, type: checkedAbsence },
-              { expression: rejectedExpression, type: checkedRejected }],
-            sourceArgumentBindings: [0, 1].map(index => ({ sourceParameterIndex: index,
-              sourceArgumentIndex: index, effectiveArgumentIndex: index, sourceForm: "value" })),
+            call: {}, selection: {}, typeArguments: [],
+            receiver: { expression: receiverExpression, type: publishedReceiver },
+            parameters: [publishedAbsence, publishedRejected].map((type, index) => ({ name: `on${index}`, kind: "optional", type })),
+            arguments: [{ expression: absentExpression, type: publishedAbsence },
+              { expression: rejectedExpression, type: publishedRejected }],
+            bindings: [absentExpression, rejectedExpression].map((argument, index) => ({ argument, parameterIndex: index,
+              argumentIndex: index, effectiveIndex: index, mode: "positional", form: "value" })),
           },
           inputs: { values: new Map([
             [receiverExpression, csharpTaskTargetType(input)],
@@ -62,17 +63,19 @@ for (const declaringName of ["Promise", "PromiseLike"]) {
   for (const input of [csharpSourcePrimitiveTargetType("int64"), csharpSourcePrimitiveTargetType("float64"), csharpVoidTargetType()]) {
     test(`${declaringName} absent handlers retain exact ${input.kind === "source-primitive" ? input.name : input.id} completion without a speculative source result`, () => {
       const expression = Object.freeze({});
-      const checkedType = Object.freeze({});
-      const resultType = Object.freeze({});
+      const publishedType = Object.freeze({ kind: "declared", declaration: {}, typeArguments: [] });
+      const resultType = Object.freeze({ kind: "declared", declaration: {}, typeArguments: [] });
+      const optional = Object.freeze({ kind: "optional", value: Object.freeze({ kind: "callable", calls: [], constructs: [] }) });
       const receiver = csharpTaskTargetType(input);
       const policy = csharpJsPromiseCallPolicies.find(candidate => candidate.source.declaringName === declaringName &&
         candidate.source.name === "then");
-      assert.equal(policy !== undefined, true, "the existing checked Promise continuation owns the relation");
+      assert.equal(policy !== undefined, true, "the existing Promise continuation policy owns the relation");
       const selected = policy.select({
         source: {
-          sourceReceiver: { expression, type: checkedType }, sourceResultType: resultType,
-          sourceSelectedSignatureKind: "resolved", sourceSelectedSignatureParameters: [{}, {}],
-          sourceArguments: [], sourceArgumentBindings: [],
+          call: {}, selection: { result: resultType }, typeArguments: [],
+          receiver: { expression, type: publishedType },
+          parameters: [0, 1].map(index => ({ name: `on${index}`, kind: "optional", type: optional })),
+          arguments: [], bindings: [],
         },
         inputs: { values: new Map([[expression, receiver]]), results: new Map() },
       });

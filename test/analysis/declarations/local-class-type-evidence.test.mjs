@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createCompilerSessionFromFiles, formatDiagnostics } from "@tsonic/tsts";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
+import { hostProgram } from "../../representation/host-fixture.mjs";
+import { sealCsharpAnalysisProgram } from "../../../dist/analysis/program/index.js";
 import { projectTypeDefinition } from "../../../dist/analysis/project-types/type-policy.js";
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
@@ -11,9 +11,9 @@ import { createCsharpPlanningContext } from "../../../dist/backend/planner/conte
 import { planStatements } from "../../../dist/backend/planner/statements/planning.js";
 
 test("local class catalogs require exact outer type-parameter evidence", () => {
-  const checked = createCompilerSessionFromFiles({
-    currentDirectory: "/project",
-    files: { "/project/index.ts": `
+  // nextgen C-2542: the program goes through the Host; the catalog host is { ast, facts, sourceFiles, sourceFacts } and
+  // the class binder vector is the Host publication facts.values.type (no semantics, navigation or effectiveTypes).
+  const program = hostProgram(`
       function factory<Outer>(outer: Outer) {
         return class Box<Inner> {
           value: Inner;
@@ -21,23 +21,11 @@ test("local class catalogs require exact outer type-parameter evidence", () => {
           read(): Outer { return outer; }
         };
       }
-    ` },
-    compilerOptions: { strict: true, target: "es2022", module: "esnext" },
-  }).checkSource();
-  assert.equal(checked.diagnostics.length, 0, formatDiagnostics(checked.diagnostics));
-  const source = createTargetSourceProgram(checked);
-  let declaration;
-  const visit = node => {
-    if (source.ast.is.IsClassExpression(node)) declaration = node;
-    source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
-  };
-  const sourceFile = checked.getSourceFile("/project/index.ts");
-  assert.ok(sourceFile);
-  visit(sourceFile);
+    `);
+  const declaration = program.nodes.find(node => program.ast.is.IsClassExpression(node));
   assert.ok(declaration);
-  const semantics = source.semantics.forNode(declaration);
-  const host = { ast: source.ast, navigation: source.navigation, effectiveTypes: source.effectiveTypes,
-    enumConstants: source.semantics.enumConstants, semanticsFor: () => semantics };
+  const host = { ast: program.ast, facts: program.facts, sourceFiles: program.files, sourceFacts: program.host.sourceFacts };
+  const withType = type => ({ ...host, facts: { ...program.facts, values: { ...program.facts.values, type } } });
   const selected = projectTypeDefinition(host, declaration);
   assert.equal(selected.kind, "resolved");
   const definition = selected.definition;
@@ -45,19 +33,21 @@ test("local class catalogs require exact outer type-parameter evidence", () => {
   assert.equal(definition.sourceTypeParameterCount, 1);
   assert.deepEqual(definition.typeParameterBindings.map(parameter => parameter.name), ["Outer", "Inner"]);
   assert.equal(new Set(definition.typeParameterBindings.map(parameter => parameter.identity)).size, 2);
-  assert.equal(projectTypeDefinition({ ...host, effectiveTypes: { get: () => undefined } }, declaration).kind,
-    "not-project-type");
-  const publication = source.effectiveTypes.get(declaration);
+  // nextgen C-2542: the old "no publication" (effectiveTypes.get → undefined) is a refused publication now (I4).
+  assert.equal(projectTypeDefinition(withType(node => node === declaration
+    ? { kind: "refused", code: "TSONIC_LOCAL_TYPE_UNSUPPORTED", site: declaration, message: "fixture" }
+    : program.facts.values.type(node)), declaration).kind, "not-project-type");
+  const publication = program.facts.values.type(declaration);
   assert.equal(publication !== undefined && publication.kind !== "refused" &&
     (publication.type.kind === "callable" || publication.type.kind === "shape"), true,
   "the original class expression has its canonical constructor publication");
-  const own = source.ast.typeParameters(declaration);
+  const own = program.ast.typeParameters(declaration);
   const incomplete = { ...publication, type: { ...publication.type, constructs: publication.type.constructs.map(signature => ({
     ...signature, result: { ...signature.result, typeArguments: signature.result.typeArguments.filter(argument =>
       argument.kind !== "declared" || !own.includes(argument.declaration)) },
   })) } };
-  assert.equal(projectTypeDefinition({ ...host, effectiveTypes: { get: node => node === declaration ? incomplete
-    : source.effectiveTypes.get(node) } }, declaration).kind, "not-project-type");
+  assert.equal(projectTypeDefinition(withType(node => node === declaration ? incomplete
+    : program.facts.values.type(node)), declaration).kind, "not-project-type");
 });
 
 for (const surface of ["native", "js"]) {
@@ -91,7 +81,7 @@ for (const surface of ["native", "js"]) {
         "factory identity is independent of an invented capture environment");
       assert.equal(Object.hasOwn(factory, "requiresInstanceTest") || Object.hasOwn(factory, "retainsEnvironment"), false,
         "the removed whole-use selectors have no compatibility fields");
-      const generic = program.source.ast.typeParameters(factory.declaration).length !== 0;
+      const generic = program.source.syntax.typeParameters(factory.declaration).length !== 0;
       assert.equal((factory.identity !== undefined) === generic, true,
         "the existing generic identity contract comes from its own declared type parameters");
     }
@@ -122,8 +112,8 @@ if (Tsonic.Generated.Index.run() != 7) throw new System.Exception("native class 
     const original = program.records;
     const records = { ...original, physicalStorageType: { get: () => ({ kind: "opaque", id: "missing" }) } };
     const nativeUse = { get: records.nativeUse.get, order: records.nativeOrder.get };
-    const issues = admitCsharpNativeDeclarations(program.source.ast, [factory.declaration], nativeUse,
-      program.projectTypes, program.sourceNavigation, records, records, records.nativeParticipation, records.nativeUnreachable,
+    const issues = admitCsharpNativeDeclarations(program.source.syntax, [factory.declaration], nativeUse,
+      program.projectTypes, program.source.facts, records, records, records.nativeParticipation, records.nativeUnreachable,
       records, records.callableDispatch, records.classFactory, records);
     assert.equal(issues.length, 1, "an actual non-frame capture's unrenderable physical carrier is refused before sealing");
     assert.equal(issues[0].message, "A class capture has no renderable native storage.", "the original capture refusal is unchanged");
@@ -134,7 +124,7 @@ if (Tsonic.Generated.Index.run() != 7) throw new System.Exception("native class 
     assert.equal(captures.length > 0, true, "the renderer consumes the completed physical capture slots");
     const corrupted = { ...records, classCaptures: { get: node => node === factory.declaration
       ? captures.map(slot => ({ ...slot, carrier: { kind: "opaque", id: "missing" } })) : original.classCaptures.get(node) } };
-    const input = createCsharpPlanningContext({ ...program, records: corrupted });
+    const input = createCsharpPlanningContext(sealCsharpAnalysisProgram({ ...program, records: corrupted }));
     assert.throws(() => planClassFactoryExpression(factory, factory.sourceFile, input, diagnostics),
       error => error.message.includes("renderable physical storage"), "a separate corrupted-admission witness pins the renderer");
     assert.equal(diagnostics.length, 0, "the capture renderer cannot re-issue the source refusal");
@@ -152,11 +142,11 @@ if (Tsonic.Generated.Index.run() != 7) throw new System.Exception("native class 
     assert.equal(compiled.sourceDiagnosticsText, "", "the omitted constructor argument is valid checked source");
     const issues = compiled.result.diagnostics.filter(issue => issue.category === "error");
     assert.equal(issues.length, 1, "the existing unsupported entry list retains its one current refusal");
-    assert.equal(issues[0].code, "CSHARP_UNSUPPORTED_AST", "the original source code is preserved");
+    // nextgen C-2542: CSHARP_UNSUPPORTED_AST is split; the local class planning owner names CSHARP_LOCAL_CLASS_FACTORY_CONSTRUCTOR.
+    assert.equal(issues[0].code, "CSHARP_LOCAL_CLASS_FACTORY_CONSTRUCTOR", "the original source code is preserved");
     assert.equal(issues[0].message, "A local class factory requires one exact planned constructor and its environment parameter.",
       "the exact existing factory refusal does not silently choose one entry");
-    const source = createTargetSourceProgram(compiled.source);
-    assert.equal(source.ast.is.IsClassExpression(issues[0].sourceNode), true,
+    assert.equal(compiled.source.ast.is.IsClassExpression(issues[0].sourceNode), true,
       "the refusal remains on the exact local class declaration");
     // analysis/ owns all source admission (tsonic/docs/architecture/csharp-rust-structure.md, analysis/ row): the
     // factory refusal is an analysis refusal, so no program, plan or artifact is published (RULINGS 2026-10-22).
@@ -173,7 +163,7 @@ test("local class statements consume required admitted factory records", () => {
   const program = compiled.result.program;
   const factory = program.classFactories[0];
   assert.equal(factory !== undefined, true, "the actual local-class producer publishes its required record");
-  const context = createCsharpPlanningContext(program);
+  const context = createCsharpPlanningContext(sealCsharpAnalysisProgram(program));
   const diagnostics = [];
   const planned = planStatements(factory.declaration, factory.sourceFile, context, diagnostics);
   assert.equal(planned.length, 1, "a local class has one native environment declaration");

@@ -1,4 +1,6 @@
-import type { Node, Type } from "@tsonic/tsts";
+import type { Node } from "@tsonic/tsts";
+import { sourceTypeDescriptorStructure, type SourceObjectMember, type SourceTypeDescriptor } from "@tsonic/target-api/source";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpStructuralInterfaceImplementation, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpStructuralInterfaceMemberEvidence } from "../../target-model/records/objects/heritage.js";
@@ -34,20 +36,32 @@ export function collectCsharpInheritedInterfaces(
 export function selectCsharpStructuralInterface(
   policy: CsharpPolicyContext, expression: Node,
   source: CsharpObjectShapeFact | undefined, destination: CsharpObjectShapeFact | undefined,
-  selectedSourceType: Type | undefined,
+  selectedSourceType: SourceTypeDescriptor | undefined,
 ): CsharpStructuralInterfaceImplementation | undefined {
   if (source === undefined || destination?.sourceType === undefined || selectedSourceType === undefined) return undefined;
-  const semantics = policy.semanticsFor(expression);
-  const selected = semantics.types.structuralMembers(selectedSourceType, destination.sourceType, "read");
-  if (selected.kind !== "available" || selected.destination.calls.length > 0 || selected.destination.constructs.length > 0 ||
-    selected.destination.indexes.length > 0 || selected.members.length !== destination.members.length) return undefined;
+  // Member correspondence from Host object facts: each destination member (objects.members) and the source member
+  // under the same key (objects.member). A destination with call, construct or index signatures has no interface form.
+  const { facts } = policy;
+  const destinationStructure = sourceTypeDescriptorStructure(destination.sourceType);
+  if ((destinationStructure.kind === "shape" || destinationStructure.kind === "callable") &&
+    (destinationStructure.calls.length > 0 || destinationStructure.constructs.length > 0) ||
+    facts.objects.indexes(destination.sourceType).length > 0) return undefined;
+  const destinationMembers = facts.objects.members(destination.sourceType);
+  if ("code" in destinationMembers) return failTargetAnalysisInvariant("tsonic-csharp",
+    "Destination members are a Host refusal at a node C# analyzed; Host refusals are forwarded before C# analysis.", expression);
+  if (destinationMembers.length !== destination.members.length) return undefined;
+  const pairs: { readonly source: SourceObjectMember; readonly destination: SourceObjectMember }[] = [];
+  for (const member of destinationMembers) {
+    const sourceMember = facts.objects.member(selectedSourceType, member.key);
+    if (sourceMember === undefined) return undefined;
+    pairs.push({ source: sourceMember, destination: member });
+  }
   const template = source.declarationTemplate ?? source;
   const destinationTemplate = destination.declarationTemplate;
   const members: CsharpStructuralInterfaceMemberEvidence[] = [];
-  for (const pair of selected.members) {
-    if (pair.kind !== "present") return undefined;
-    const sourceSubjects = [pair.source.property.symbol, ...pair.source.property.rootSymbols, ...pair.source.declarations];
-    const destinationSubjects = [pair.destination.property.symbol, ...pair.destination.property.rootSymbols, ...pair.destination.declarations];
+  for (const pair of pairs) {
+    const sourceSubjects = pair.source.declarations;
+    const destinationSubjects = pair.destination.declarations;
     const read = resolveCsharpObjectShapeMemberBySelectedSubject(source, sourceSubjects);
     const write = resolveCsharpObjectShapeMemberBySelectedSubject(destination, destinationSubjects);
     const open = resolveCsharpObjectShapeMemberBySelectedSubject(template, sourceSubjects);
@@ -56,7 +70,7 @@ export function selectCsharpStructuralInterface(
     if (write.kind !== "resolved" || destinationMember.kind !== "resolved") return undefined;
     if (read.kind !== "resolved") {
       if (read.reason !== "not-in-finalized-shape") return undefined;
-      const native = resolveCsharpNativePropertyRead(pair.source.declarations, source.targetType, semantics, policy);
+      const native = resolveCsharpNativePropertyRead(pair.source.declarations, source.targetType, policy);
       if (native.kind !== "resolved") return undefined;
       members.push(Object.freeze({ native: native.property, destination: write.member, openDestination: destinationMember.member }));
       continue;
@@ -92,5 +106,5 @@ export function selectCsharpStructuralInterface(
 }
 
 export interface CsharpStructuralInterfaceRegistration {
-  registerStructuralInterface(expression: Node, source: TargetTypeRef, destination: TargetTypeRef, sourceType: Type | undefined): boolean;
+  registerStructuralInterface(expression: Node, source: TargetTypeRef, destination: TargetTypeRef, sourceType: SourceTypeDescriptor | undefined): boolean;
 }

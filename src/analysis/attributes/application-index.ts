@@ -1,5 +1,6 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
-import { isAstNode, sourceCallableValueParameters, type TargetSourceProgram } from "@tsonic/target-api/source";
+import { isAstNode, type TargetSourceProgramFacts } from "@tsonic/target-api/source";
+import { sourceProjectDeclaration } from "../program/source-facts.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { createTsonicAttributeApplicationFactIndex, type TsonicAttributeApplicationFactIndex } from "@tsonic/source-core/facts";
 import { admitCsharpAttributeArguments, diagnoseCsharpAttributeTypeValues, type CsharpAttributeArgumentEvidence } from "./type-validation.js";
@@ -8,14 +9,14 @@ import type { CsharpAttributeApplication, CsharpAttributeApplicationIndex } from
 const emptyApplications: readonly CsharpAttributeApplication[] = Object.freeze([]);
 
 export function createCsharpSourceAttributeApplicationIndex(
-  source: Pick<TargetSourceProgram, "ast" | "sourceFacts">,
+  source: Pick<TargetSourceProgramFacts, "syntax" | "sourceFacts">,
   sourceFiles: readonly SourceFile[],
 ): TsonicAttributeApplicationFactIndex {
-  return createTsonicAttributeApplicationFactIndex({ ast: source.ast, sourceFiles, sourceFacts: source.sourceFacts });
+  return createTsonicAttributeApplicationFactIndex({ ast: source.syntax, sourceFiles, sourceFacts: source.sourceFacts });
 }
 
 export function analyzeCsharpAttributeApplications(
-  source: TargetSourceProgram,
+  source: TargetSourceProgramFacts,
   applications: TsonicAttributeApplicationFactIndex,
   evidence: CsharpAttributeArgumentEvidence,
 ): { readonly index: CsharpAttributeApplicationIndex; readonly diagnostics: readonly TargetDiagnostic[] } {
@@ -26,33 +27,33 @@ export function analyzeCsharpAttributeApplications(
       message: `C# attribute application ${message}`, ...(subject === undefined ? {} : { sourceNode: subject }) });
   };
   for (const application of applications.all) {
-    const invocation = isAstNode(source.ast, application.invocation) ? application.invocation : undefined;
-    const target = isAstNode(source.ast, application.applicationTarget) ? application.applicationTarget : undefined;
+    const invocation = isAstNode(source.syntax, application.invocation) ? application.invocation : undefined;
+    const target = isAstNode(source.syntax, application.applicationTarget) ? application.applicationTarget : undefined;
     if (target === undefined) {
       reject("must carry an AST application target from finalized TSTS facts before C# emission.", invocation);
       continue;
     }
-    const selected = isAstNode(source.ast, application.selectedMember) ? application.selectedMember
-      : source.navigation.referenceFor(target)?.declaration ?? source.navigation.declarationFor(target);
+    const selected = isAstNode(source.syntax, application.selectedMember) ? application.selectedMember
+      : sourceProjectDeclaration(source.facts, target) ?? source.facts.navigation.identity.target(target)?.declaration;
     if (selected === undefined) {
       reject("target must resolve to a project source declaration from finalized TSTS facts before C# emission.", invocation);
       continue;
     }
-    const selectedKind = source.ast.kindName(selected);
+    const selectedKind = source.syntax.kindName(selected);
     const memberKind = application.applicationMemberKind;
     if (memberKind !== undefined && !memberKindMatches(memberKind, selectedKind)) {
       reject(`uses a ${memberKind} selector whose exact selected declaration is ${selectedKind}.`, invocation);
       continue;
     }
-    const declaration = application.applicationPlacement !== "constructor" || source.ast.is.IsConstructorDeclaration(selected)
-      ? selected : source.ast.members(selected).find(member => member !== undefined && source.ast.is.IsConstructorDeclaration(member));
+    const declaration = application.applicationPlacement !== "constructor" || source.syntax.is.IsConstructorDeclaration(selected)
+      ? selected : source.syntax.members(selected).find(member => member !== undefined && source.syntax.is.IsConstructorDeclaration(member));
     if (declaration === undefined) {
       reject("requires an explicit source constructor declaration; implicit default constructors have no finalized source declaration to attach attributes to.", invocation);
       continue;
     }
     const subject = application.applicationParameterName === undefined ? declaration
-      : sourceCallableValueParameters(source.ast, declaration, source.semantics.forNode(declaration))?.find(parameter =>
-        source.ast.text(source.ast.name(parameter)) === application.applicationParameterName);
+      : source.facts.analyses.callableValueParameters(declaration)?.find(parameter =>
+        source.syntax.text(source.syntax.name(parameter)) === application.applicationParameterName);
     if (subject === undefined) {
       reject(`could not find parameter '${application.applicationParameterName}' on the finalized source declaration target.`, invocation);
       continue;
@@ -62,8 +63,8 @@ export function analyzeCsharpAttributeApplications(
       reject(`uses unsupported explicit target specifier '${specifier}'. Supported C# attribute target specifiers are 'field', 'property', 'param', and 'return'.`, invocation);
       continue;
     }
-    if (specifier !== undefined && !targetSpecifierSupportsSubject(specifier, source.ast.kindName(subject))) {
-      reject(`uses explicit target specifier '${specifier}' on ${source.ast.kindName(subject)}, which is outside the finalized C# attribute placement surface.`, invocation);
+    if (specifier !== undefined && !targetSpecifierSupportsSubject(specifier, source.syntax.kindName(subject))) {
+      reject(`uses explicit target specifier '${specifier}' on ${source.syntax.kindName(subject)}, which is outside the finalized C# attribute placement surface.`, invocation);
       continue;
     }
     if (invocation === undefined) continue;

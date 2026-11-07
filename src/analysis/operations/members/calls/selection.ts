@@ -1,6 +1,6 @@
 import type { CsharpProviderCallSelectionHost } from "../../../../policy/model/provider-calls.js";
-import type { ExtensionDiagnostic, Node, SourceFile } from "@tsonic/tsts";
-import type { SourceFileSemantics } from "@tsonic/target-api/source";
+import type { ExtensionDiagnostic, Node } from "@tsonic/tsts";
+import type { SourceCallSelection } from "@tsonic/target-api/source";
 import type { CsharpProviderOperationResolution } from "../relations.js";
 
 import { resolveCsharpProviderCallRelations } from "../relations.js";
@@ -9,19 +9,17 @@ import type { CsharpInstantiatedProviderCall, CsharpProviderCallInstantiation } 
 import { compareInstantiatedProviderCalls, instantiateCsharpProviderCall } from "./instantiation.js";
 import { selectCsharpInheritedConstructorTarget } from "./implicit-super.js";
 
-type ResolvedSourceCallInfo = NonNullable<
-  ReturnType<SourceFileSemantics["operations"]["call"]>
->;
+import { sourceCallSelection } from "../../../program/source-facts.js";
 
 export type CsharpProviderCallSelection =
   | {
       readonly kind: "resolved";
-      readonly source: ResolvedSourceCallInfo;
+      readonly source: SourceCallSelection;
       readonly call: CsharpInstantiatedProviderCall;
     }
   | {
       readonly kind: "not-provider";
-      readonly source: ResolvedSourceCallInfo;
+      readonly source: SourceCallSelection;
       readonly reason: string;
     }
   | {
@@ -45,21 +43,11 @@ export type CsharpProviderCallSelection =
 export function selectCsharpProviderCall(
   host: CsharpProviderCallSelectionHost,
   call: Node,
-  sourceFile: SourceFile,
 ): CsharpProviderCallSelection {
-  const source = host.semantics(sourceFile).operations.call(
-    call,
-  );
-  if (source === undefined) {
-    return {
-      kind: "missing",
-      reason: "The checker did not resolve an exact source call.",
-    };
-  }
+  const source = sourceCallSelection(host.facts, call);
   const resolution = resolveCsharpProviderCallRelations(
     host,
     call,
-    sourceFile,
   );
   if (resolution.kind === "missing") {
     return {
@@ -77,14 +65,13 @@ export function selectCsharpProviderCall(
   const selected = selectResolvedProviderCall(
     host,
     source,
-    sourceFile,
     resolution,
   );
   if (selected.kind !== "resolved") {
     return selected;
   }
   const member = selected.call.targetMember;
-  const declaration = source.sourceCallee.selectedDeclaration;
+  const declaration = source.declaration;
   if (member.kind === "constructor" && member.csharpInvocation === undefined) {
     if (member.csharpConstructorAccessibility === undefined) {
       return { kind: "missing", reason: "The selected native constructor has no exact accessibility evidence." };
@@ -96,7 +83,7 @@ export function selectCsharpProviderCall(
       return { kind: "missing", reason: "The selected native constructor is obsolete and cannot be called from source." };
     }
     if (host.ast.is.IsNewExpression(call) &&
-      (declaration === undefined || !host.navigation.isProjectDeclaration(declaration)) &&
+      (declaration === undefined || !host.facts.navigation.identity.isProjectDeclaration(declaration)) &&
       (member.csharpConstructorAccessibility !== "public" || selected.call.relation.targetBinding.csharpAbstract === true)) {
       return { kind: "missing", reason: "The selected native constructor is not accessible for direct construction." };
     }
@@ -115,8 +102,7 @@ export function selectCsharpProviderCall(
 
 function selectResolvedProviderCall(
   host: CsharpProviderCallSelectionHost,
-  source: ResolvedSourceCallInfo,
-  sourceFile: SourceFile,
+  source: SourceCallSelection,
   resolution: Extract<
     CsharpProviderOperationResolution,
     { readonly kind: "resolved" }
@@ -128,7 +114,6 @@ function selectResolvedProviderCall(
       host,
       relation,
       source,
-      sourceFile,
     ));
   const accepted = candidates
     .filter((candidate): candidate is Extract<

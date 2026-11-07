@@ -30,8 +30,8 @@ export function analyzeCsharpThisEmission(input: {
   // Every object literal's receiver-bound method or accessor, including literals whose shape has no authored method
   // implementation (an accessor-only literal lowers through receiver-taking getter and setter delegates).
   for (const callable of input.literals.receiverBoundCallables) bound.set(callable.property, callable.receiver);
-  const refuse = (node: Node, message: string): void => {
-    issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: node, message });
+  const refuse = (node: Node, code: `CSHARP_${string}`, message: string): void => {
+    issues.push({ code, category: "error", source: "tsonic-csharp", sourceNode: node, message });
   };
   const { ast } = input;
   const classMember = (node: Node): boolean => { const owner = ast.parent(node); return ast.is.IsClassDeclaration(owner) || ast.is.IsClassExpression(owner); };
@@ -65,12 +65,12 @@ export function analyzeCsharpThisEmission(input: {
       if (ast.is.IsSourceFile(current)) { reason = "top-level module receiver"; break; }
     }
     if (reason !== undefined) {
-      refuse(node, `C# this emission requires a TSTS-selected instance class receiver; ${reason} uses JavaScript this-binding semantics that need explicit target facts before emission.`);
+      refuse(node, "CSHARP_THIS_RECEIVER_NOT_CLASS_INSTANCE", `C# this emission requires a TSTS-selected instance class receiver; ${reason} uses JavaScript this-binding semantics that need explicit target facts before emission.`);
       continue;
     }
     const carrier = explicit ?? input.values.valueRead.get(node)?.value;
     if (carrier === undefined) {
-      refuse(node, "C# this emission requires a finalized runtime carrier fact for the TSTS-selected instance receiver. Runtime carrier fact is missing for the TSTS-selected this receiver.");
+      refuse(node, "CSHARP_THIS_RECEIVER_CARRIER", "C# this emission requires a finalized runtime carrier fact for the TSTS-selected instance receiver. Runtime carrier fact is missing for the TSTS-selected this receiver.");
       continue;
     }
     producer.publish(node, { kind: explicit === undefined ? "instance" : "bound", carrier });

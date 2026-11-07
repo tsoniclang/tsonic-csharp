@@ -1,9 +1,9 @@
 import type { AstReader, Node, ReadonlySourceFactResolver } from "@tsonic/tsts";
-import { providerVirtualDeclarationFactKey } from "@tsonic/tsts";
-import { jsSourceSemanticsIdentity } from "@tsonic/js-source-profile";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
+import { jsSourceApiIdentity } from "@tsonic/js-source-profile";
 import { isTsonicSourceProfileDeclarationPath } from "@tsonic/target-api/provider";
 import { csharpTargetId } from "../../target-model/identities/target.js";
-import type { SourceFileSemantics } from "@tsonic/target-api/source";
+import type { SourceProgramFacts } from "@tsonic/target-api/source";
 
 export type CsharpSourceProfileOwner = typeof csharpTargetId | "js";
 
@@ -17,25 +17,22 @@ export interface CsharpSourceProfileDeclarationIdentity {
 
 export function csharpSourceProfileDeclarationIdentity(
   ast: AstReader,
-  semantics: SourceFileSemantics,
+  facts: SourceProgramFacts,
   sourceFacts: ReadonlySourceFactResolver | undefined,
   declaration: Node | undefined,
 ): CsharpSourceProfileDeclarationIdentity | undefined {
   if (declaration === undefined) {
     return undefined;
   }
-  const providerIdentity = jsProviderDeclarationIdentity(
-    ast,
-    sourceFacts,
-    declaration,
-  );
-  if (providerIdentity !== undefined) {
-    return providerIdentity;
-  }
+  if (sourceFacts === undefined) failTargetAnalysisInvariant("tsonic-csharp",
+    "Source-profile identity requires the program's source facts.", declaration);
+  // The JS identity is the JS source profile's (jsSourceApiIdentity, D18); C# keys its tables by it.
+  const js = jsSourceApiIdentity({ ast, sourceFacts, wellKnownSymbol: (node: Node) => facts.selections.wellKnownSymbol(node) }, declaration);
+  if (js !== undefined) return Object.freeze({ owner: "js", ...js });
+  // The C# target's own source profile (declarations under the csharp profile path) is identified here.
   const sourceFile = ast.getSourceFile(declaration);
-  const owner = sourceFile === undefined
-    ? undefined
-    : csharpSourceProfileOwner(ast.getFileName(sourceFile));
+  const owner = sourceFile !== undefined && isTsonicSourceProfileDeclarationPath(ast.getFileName(sourceFile), csharpTargetId)
+    ? csharpTargetId : undefined;
   if (owner === undefined) {
     return undefined;
   }
@@ -46,7 +43,7 @@ export function csharpSourceProfileDeclarationIdentity(
     kind === "KindFunctionDeclaration" &&
     parentKind === "KindSourceFile"
   ) {
-    const name = declarationName(ast, semantics, declaration);
+    const name = declarationName(ast, facts, declaration);
     return name === undefined
       ? undefined
       : {
@@ -58,7 +55,7 @@ export function csharpSourceProfileDeclarationIdentity(
         };
   }
   if (sourceProfileTypeDeclarationKind(kind) && parentKind === "KindSourceFile") {
-    const name = declarationName(ast, semantics, declaration);
+    const name = declarationName(ast, facts, declaration);
     return name === undefined
       ? undefined
       : { owner, kind: "type", name, declaration };
@@ -68,7 +65,7 @@ export function csharpSourceProfileDeclarationIdentity(
     parent !== undefined &&
     parentKind === "KindTypeAliasDeclaration"
   ) {
-    const declaringName = declarationName(ast, semantics, parent);
+    const declaringName = declarationName(ast, facts, parent);
     return declaringName === undefined
       ? undefined
       : { owner, kind: "indexer", declaringName, declaration };
@@ -76,7 +73,7 @@ export function csharpSourceProfileDeclarationIdentity(
   if (parent === undefined || !sourceProfileTypeDeclarationKind(parentKind)) {
     return undefined;
   }
-  const declaringName = declarationName(ast, semantics, parent);
+  const declaringName = declarationName(ast, facts, parent);
   if (declaringName === undefined) {
     return undefined;
   }
@@ -92,92 +89,15 @@ export function csharpSourceProfileDeclarationIdentity(
   if (!sourceProfileNamedMemberDeclarationKind(kind)) {
     return undefined;
   }
-  const name = declarationName(ast, semantics, declaration);
+  const name = declarationName(ast, facts, declaration);
   return name === undefined
     ? undefined
     : { owner, kind: "member", declaringName, name, declaration };
 }
 
-function jsProviderDeclarationIdentity(
-  ast: AstReader,
-  sourceFacts: ReadonlySourceFactResolver | undefined,
-  declaration: Node,
-): CsharpSourceProfileDeclarationIdentity | undefined {
-  const fact = sourceFacts?.getFact(
-    declaration,
-    providerVirtualDeclarationFactKey,
-  );
-  if (
-    fact?.providerId !== jsSourceSemanticsIdentity.providerId ||
-    fact.exportName === undefined
-  ) {
-    return undefined;
-  }
-  const kind = ast.kindName(declaration);
-  if (sourceProfileTypeDeclarationKind(kind)) {
-    return {
-      owner: "js",
-      kind: "type",
-      name: fact.exportName,
-      declaration,
-    };
-  }
-  if (kind === "KindIndexSignature") {
-    return {
-      owner: "js",
-      kind: "indexer",
-      declaringName: fact.exportName,
-      declaration,
-    };
-  }
-  const name = providerMemberName(fact.memberKey, fact.memberName);
-  if (name === undefined) {
-    return fact.signatureId === undefined
-      ? undefined
-      : {
-          owner: "js",
-          kind: "call",
-          declaringName: fact.exportName,
-          name: fact.exportName,
-          declaration,
-        };
-  }
-  return {
-    owner: "js",
-    kind: "member",
-    declaringName: fact.exportName,
-    name,
-    declaration,
-  };
-}
-
-function providerMemberName(
-  memberKey: import("@tsonic/tsts").ProviderMemberKey | undefined,
-  memberName: string | undefined,
-): string | undefined {
-  if (memberKey?.kind === "property-key") {
-    return memberKey.name;
-  }
-  if (memberKey?.kind === "well-known-symbol") {
-    return `@@${memberKey.name}`;
-  }
-  return memberName;
-}
-
-function csharpSourceProfileOwner(
-  fileName: string,
-): CsharpSourceProfileOwner | undefined {
-  if (isTsonicSourceProfileDeclarationPath(fileName, csharpTargetId)) {
-    return csharpTargetId;
-  }
-  return isTsonicSourceProfileDeclarationPath(fileName, "js")
-    ? "js"
-    : undefined;
-}
-
 function declarationName(
   ast: AstReader,
-  semantics: SourceFileSemantics,
+  facts: SourceProgramFacts,
   declaration: Node,
 ): string | undefined {
   const name = ast.name(declaration);
@@ -185,10 +105,8 @@ function declarationName(
     return undefined;
   }
   if (ast.is.IsComputedPropertyName(name)) {
-    const selected = semantics.operations.wellKnownSymbol(name);
-    return selected === undefined
-      ? undefined
-      : wellKnownMemberKey(selected.kind);
+    // Published as `Symbol.iterator` ... (the same names the JS profile identity uses).
+    return facts.selections.wellKnownSymbol(name);
   }
   const kind = ast.kindName(name);
   if (
@@ -201,30 +119,6 @@ function declarationName(
   }
   const text = ast.text(name);
   return text === "" ? undefined : text;
-}
-
-function wellKnownMemberKey(
-  kind: NonNullable<
-    ReturnType<SourceFileSemantics["operations"]["wellKnownSymbol"]>
-  >["kind"],
-): string {
-  switch (kind) {
-    case "async-dispose": return "@@asyncDispose";
-    case "async-iterator": return "@@asyncIterator";
-    case "dispose": return "@@dispose";
-    case "has-instance": return "@@hasInstance";
-    case "is-concat-spreadable": return "@@isConcatSpreadable";
-    case "iterator": return "@@iterator";
-    case "match": return "@@match";
-    case "match-all": return "@@matchAll";
-    case "replace": return "@@replace";
-    case "search": return "@@search";
-    case "species": return "@@species";
-    case "split": return "@@split";
-    case "to-primitive": return "@@toPrimitive";
-    case "to-string-tag": return "@@toStringTag";
-    case "unscopables": return "@@unscopables";
-  }
 }
 
 function sourceProfileTypeDeclarationKind(kind: string | undefined): boolean {

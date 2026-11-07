@@ -1,5 +1,5 @@
 import type { Node } from "@tsonic/tsts";
-import { HasSourceKind, KindExportAssignment, Node_Name, type SourceProjectReference } from "@tsonic/target-api/source";
+import { HasSourceKind, KindExportAssignment, Node_Name, type SourceDeclarationTarget } from "@tsonic/target-api/source";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpExpression } from "../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../context.js";
@@ -18,7 +18,7 @@ export function planCsharpSourceModuleMemberName(
 }
 
 export function planCsharpSourceModuleValueReference(
-  reference: SourceProjectReference,
+  reference: SourceDeclarationTarget,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression {

@@ -37,7 +37,8 @@ test("readonly native property admission publishes the single exact conversion a
 
 test("readonly admission failures remain expected source issues and publish no failed native property", () => {
   const value = propertyFixture(csharpStringTargetType());
-  const inherited = Object.freeze({ node: value.sourceNode, code: "CSHARP_UNSUPPORTED_AST",
+  // nextgen C-2542: CSHARP_UNSUPPORTED_AST is split; the inherited-implementation issue carries its own code.
+  const inherited = Object.freeze({ node: value.sourceNode, code: "CSHARP_INTERFACE_IMPLEMENTATION_NOT_INHERITED",
     message: "An analyzed interface has no exact inherited native implementation." });
   value.shapes.issues = Object.freeze([inherited]);
   const finalizedResult = analyzeCsharpProjectCallableAdapters(value.policy, value.callables, value.shapes, value.declarations, value.projections, emptyNativeDispatch);
@@ -45,7 +46,8 @@ test("readonly admission failures remain expected source issues and publish no f
   const finalized = finalizedResult.value;
   assert.equal(finalized.issues.length, 2, "all existing inherited and property admission failures are collected together");
   assert.equal(finalized.issues[0] === inherited, true, "the existing graph owner issue is not dropped or relabelled");
-  assert.equal(finalized.issues[1]?.node === value.sourceNode && finalized.issues[1]?.code === "CSHARP_UNSUPPORTED_AST" &&
+  // nextgen C-2542: split code for an unproven forwarding conversion.
+  assert.equal(finalized.issues[1]?.node === value.sourceNode && finalized.issues[1]?.code === "CSHARP_INTERFACE_FORWARDING_CONVERSION_NOT_PROVEN" &&
     finalized.issues[1]?.message === "An analyzed interface property has no exact native forwarding conversion.", true,
   "a reachable unsupported relation is rejected at its exact source before publication, not thrown as an internal invariant");
   assert.equal(finalized.objectShapes.structuralImplementations(value.sourceType)[0].properties.length, 0,
@@ -61,7 +63,8 @@ test("readonly property admission refuses unrenderable selected carriers without
     assert.equal(finalizedResult.kind, "resolved", "structural properties preserve their native dispatch boundary");
     const finalized = finalizedResult.value;
     assert.equal(finalized.issues.length === 1 && finalized.issues[0].node === value.sourceNode &&
-      finalized.issues[0].code === "CSHARP_UNSUPPORTED_AST" &&
+      // nextgen C-2542: split code for a forwarding type without C# syntax.
+      finalized.issues[0].code === "CSHARP_INTERFACE_FORWARDING_TYPE_NOT_RENDERABLE" &&
       finalized.issues[0].message === "An analyzed interface property has no exact native forwarding type.", true,
     `${target.kind}: exact selected native rendering is proved before conversion publication`);
     assert.equal(finalized.objectShapes.structuralImplementations(value.sourceType)[0].properties.length, 0,
@@ -277,7 +280,8 @@ interface WritableView { value: number; }
 class NarrowBody { value: int32 = 7; }
 export function run(): number { const view: WritableView = new NarrowBody(); view.value = 1.5; return view.value; }` });
     assert.equal(compiled.sourceDiagnosticsText, "", "the TypeScript-accepted writable relation requires a real native storage decision");
-    assert.equal(compiled.result.diagnostics.some(issue => issue.code === "CSHARP_UNSUPPORTED_AST" &&
+    // nextgen C-2542: split code; a value use whose conversion core rejects is CSHARP_VALUE_USE_NOT_ADMITTED (use-admission.ts).
+    assert.equal(compiled.result.diagnostics.some(issue => issue.code === "CSHARP_VALUE_USE_NOT_ADMITTED" &&
       /^No exact C# implicit conversion relates /u.test(issue.message)), true,
     "the existing canonical conversion owner precisely refuses an unsound writable native relation");
     assert.equal(compiled.result.diagnostics.some(issue => String(issue.code).includes("INTERNAL")), false,
@@ -293,7 +297,8 @@ interface WritableView<T> { value: T; }
 class NarrowBody { value: int32 = 7; }
 export function run(): number { const view: WritableView<number> = new NarrowBody(); view.value = 1.5; return view.value; }` });
     assert.equal(compiled.sourceDiagnosticsText, "", "the native inverse is a checked writable generic relation");
-    assert.equal(compiled.result.diagnostics.some(issue => issue.code === "CSHARP_UNSUPPORTED_AST" &&
+    // nextgen C-2542: split code; a value use whose conversion core rejects is CSHARP_VALUE_USE_NOT_ADMITTED (use-admission.ts).
+    assert.equal(compiled.result.diagnostics.some(issue => issue.code === "CSHARP_VALUE_USE_NOT_ADMITTED" &&
       /^No exact C# implicit conversion relates /u.test(issue.message)), true, "canonical writable storage remains exact");
     assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0, true,
       "no failed writable native contract can reach publication");

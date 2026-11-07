@@ -18,7 +18,7 @@ for (const [label, declaration, invocation] of [
     ` });
     assertCsharpCompilationSucceeded(compiled);
     const program = compiled.result.program;
-    const { ast } = program.source;
+    const ast = program.source.syntax;
     const nodes = [];
     const visit = node => { nodes.push(node); ast.forEachChild(node, visit); };
     csharpProgramSourceFiles(program).forEach(visit);
@@ -78,7 +78,8 @@ test("required expanded tuple-rest slots cannot follow an emitted native optiona
     export function run(): number { return sum(undefined, 3, 4); }
   ` });
   assert.equal(compiled.sourceDiagnosticsText, "", "the source argument order is checked before native ABI admission");
-  assert.equal(compiled.result.diagnostics.some(issue => issue.code === "CSHARP_UNSUPPORTED_AST" &&
+  // nextgen C-2542: CSHARP_UNSUPPORTED_AST is split; the parameter emission owner names CSHARP_PARAMETER_EMISSION.
+  assert.equal(compiled.result.diagnostics.some(issue => issue.code === "CSHARP_PARAMETER_EMISSION" &&
     issue.message === "Required parameters cannot follow C# optional parameters."), true,
     "the existing parameter owner checks required native slots rather than the source rest marker");
   assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0, true,

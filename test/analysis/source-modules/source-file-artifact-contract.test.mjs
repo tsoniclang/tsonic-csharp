@@ -3,9 +3,11 @@ import test from "node:test";
 import { analyzeCsharpSourceArtifacts } from "../../../dist/analysis/source-modules/artifacts.js";
 
 function select(files, references = new Map(), constructions = []) {
+  // The Source facts program (nextgen C-2542): `sourceFiles` in Host order; module references from facts.navigation.modules.
   return analyzeCsharpSourceArtifacts({
-    ast: { getPath: file => file.path },
-    navigation: { sourceFiles: files, moduleReferences: file => (references.get(file) ?? []).map(sourceFile => ({ sourceFile })) },
+    syntax: { getPath: file => file.path },
+    sourceFiles: files,
+    facts: { navigation: { modules: { references: file => (references.get(file) ?? []).map(sourceFile => ({ sourceFile })) } } },
   }, { entries: () => constructions });
 }
 

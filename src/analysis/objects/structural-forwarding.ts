@@ -19,13 +19,13 @@ export function finalizeCsharpStructuralInterfaceForwarding(
     if (csharpTargetTypeRenderingRejection(selected.interfaceType) !== undefined ||
       csharpTargetTypeRenderingRejection(property.sourceType) !== undefined ||
       csharpTargetTypeRenderingRejection(property.member.type) !== undefined) {
-      issues.push(Object.freeze({ node: selected.sourceNode, code: "CSHARP_UNSUPPORTED_AST",
+      issues.push(Object.freeze({ node: selected.sourceNode, code: "CSHARP_INTERFACE_FORWARDING_TYPE_NOT_RENDERABLE",
         message: "An analyzed interface property has no exact native forwarding type." }));
       continue;
     }
     const read = admitCsharpCallableValueAdapter(policy, property.sourceType, property.member.type);
     if (read === undefined) {
-      issues.push(Object.freeze({ node: selected.sourceNode, code: "CSHARP_UNSUPPORTED_AST",
+      issues.push(Object.freeze({ node: selected.sourceNode, code: "CSHARP_INTERFACE_FORWARDING_CONVERSION_NOT_PROVEN",
         message: "An analyzed interface property has no exact native forwarding conversion." }));
       continue;
     }
@@ -43,7 +43,7 @@ export function finalizeCsharpStructuralInterfaceForwarding(
           [segment.adapter.source, segment.adapter.target])]
           : [adapter.adapter.source, adapter.adapter.target])];
     if (types.some(type => csharpTargetTypeRenderingRejection(type) !== undefined)) {
-      issues.push(Object.freeze({ node: method.declaration, code: "CSHARP_UNSUPPORTED_AST",
+      issues.push(Object.freeze({ node: method.declaration, code: "CSHARP_INTERFACE_FORWARDING_SIGNATURE_NOT_REPRESENTABLE",
         message: "An analyzed interface method has no exact native forwarding signature." }));
       continue;
     }

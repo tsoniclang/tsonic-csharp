@@ -1,6 +1,6 @@
-import type { AstReader, Type } from "@tsonic/tsts";
+import type { AstReader } from "@tsonic/tsts";
 import type { TargetSelection } from "@tsonic/target-api";
-import type { SourceFileSemantics } from "@tsonic/target-api/source";
+import type { SourceTypeDescriptor } from "@tsonic/target-api/source";
 import { isTsonicSourceProfileDeclarationPath } from "@tsonic/target-api/provider";
 import { csharpTargetId } from "../../target-model/identities/target.js";
 import { jsRegExpSourceProfileIdentity } from "@tsonic/js-source-profile";
@@ -208,33 +208,17 @@ const sourceProfileTypePolicies = Object.freeze([
   sourceProfileTypePolicy("js", "IterableIterator", "iterable"),
 ]);
 
+/**
+ * The source-profile type a published descriptor names: the declared reference itself, then the reference its alias
+ * definition names (an alias of a profile type). Reads the Host descriptor only; never a checker Type (I2).
+ */
 export function classifyCsharpSourceProfileType(
-  type: Type,
-  semantics: SourceFileSemantics,
+  type: SourceTypeDescriptor,
   ast: AstReader,
 ): CsharpSourceProfileTypeIdentity | undefined {
-  const symbols = [
-    semantics.declarations.typeAliasSymbol(type),
-    semantics.declarations.typeSymbol(type),
-    ...(semantics.types.isTypeReference(type)
-      ? (() => {
-          const target = semantics.types.typeReferenceTarget(type);
-          return target === undefined
-            ? []
-            : [semantics.declarations.typeSymbol(target)];
-        })()
-      : []),
-  ];
-  for (const symbol of symbols) {
-    if (symbol === undefined) {
-      continue;
-    }
-    for (const declaration of semantics.declarations.symbolDeclarations(symbol)) {
-      const identity = classifyCsharpSourceProfileDeclaration(declaration, ast);
-      if (identity !== undefined) {
-        return identity;
-      }
-    }
+  for (let current: SourceTypeDescriptor | undefined = type; current?.kind === "declared"; current = current.definition) {
+    const identity = classifyCsharpSourceProfileDeclaration(current.declaration, ast);
+    if (identity !== undefined) return identity;
   }
   return undefined;
 }

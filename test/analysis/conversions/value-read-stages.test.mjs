@@ -13,7 +13,7 @@ const [source, declaredStorage, readStorage, narrowed, operation, memberRead, me
 function stagedNode(stages) {
   const node = { stages };
   const sourceFile = { children: [node] };
-  const policy = { sourceFiles: [sourceFile], literalValues: { literalValue: { get: () => undefined } },
+  const policy = { sourceFiles: [sourceFile], facts: { values: { literal: () => undefined } },
     ast: { forEachChild: (parent, visit) => { for (const child of parent.children ?? []) visit(child); } } };
   const read = (name) => Object.freeze({ get: subject => subject.stages?.[name] });
   const evidence = {
@@ -97,9 +97,9 @@ function analyzed(sourceText, surface) {
     while (pending.length > 0) {
       const node = pending.pop();
       nodes.push(node);
-      program.ast.forEachChild(node, child => { if (child !== undefined) pending.push(child); });
+      program.syntax.forEachChild(node, child => { if (child !== undefined) pending.push(child); });
     }
-    return { program: result.value, nodes, ast: program.ast };
+    return { program: result.value, nodes, ast: program.syntax };
   }).value;
 }
 

@@ -19,7 +19,7 @@ export function analyzeCsharpConditions(input: { readonly ast: AstReader; readon
       : selected.kind !== "resolved" && (carrier === undefined || !targetTypeRefEquals(carrier, csharpSourcePrimitiveTargetType("bool")))
         ? `${context} requires a finalized C# bool runtime carrier; TypeScript truthiness must be resolved by TSTS/provider facts before C# emission.`
         : undefined;
-    if (message !== undefined) issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: node, message });
+    if (message !== undefined) issues.push({ code: "CSHARP_CONDITION_NOT_BOOL", category: "error", source: "tsonic-csharp", sourceNode: node, message });
   };
   for (const { use } of input.demand.entries) {
     if (use.kind === "erased" || use.evaluation.kind !== "conditional") continue;

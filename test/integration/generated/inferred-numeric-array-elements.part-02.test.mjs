@@ -10,7 +10,6 @@ import { getCsharpRuntimeUnionArms } from "../../../dist/target-model/types/carr
 import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { csharpJsArrayTargetType } from "../../../dist/target-model/types/carriers/js.js";
 import { csharpEnumerableTargetType } from "../../../dist/target-model/types/carriers/collections.js";
-import { combineCsharpTargetUnionMembers } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
 import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 import { isCsharpStringTargetType, isCsharpJsStringTargetType } from "../../../dist/target-model/types/identity.js";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
@@ -38,7 +37,7 @@ test(`C130 ${surface}: ${formName} ${operation} uses native number semantics or 
       const root = new URL(`../../../.temp/C01-inferred-numeric-array-elements/operations/${surface}/${formName}/${operation.replace(/[^a-z]/giu, "-")}/`, import.meta.url);
       mkdirSync(root, { recursive: true });
       const diagnostic = issue => {
-        const ast = compiled.nativeStage.source.ast;
+        const ast = compiled.nativeStage.source.syntax;
         const range = issue.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
         const text = range?.kind !== "authored" ? undefined
           : ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end).trim();
@@ -50,7 +49,7 @@ test(`C130 ${surface}: ${formName} ${operation} uses native number semantics or 
         assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
           "an unsupported cross-arm operation is refused before the seal and emits no artifact");
         const observed = errors.map(diagnostic).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
-        const expected = expectedOperationRefusals(operation, size).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
+        const expected = expectedOperationRefusals(operation, size, compiled).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
         assert.equal(observed.length === expected.length && observed.every((issue, index) =>
           issue.code === expected[index].code && issue.message === expected[index].message && issue.text === expected[index].text), true,
         `${formName}/${operation}: the complete exact code, native reason and authored source node match its declared operation contract`);
@@ -89,7 +88,7 @@ test(`C130 ${surface}: ${formName} ${operation} uses native number semantics or 
       const root = new URL(`../../../.temp/C01-inferred-numeric-array-elements/operations/${surface}/${formName}/${operation.replace(/[^a-z]/giu, "-")}/`, import.meta.url);
       mkdirSync(root, { recursive: true });
       const diagnostic = issue => {
-        const ast = compiled.nativeStage.source.ast;
+        const ast = compiled.nativeStage.source.syntax;
         const range = issue.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
         const text = range?.kind !== "authored" ? undefined
           : ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end).trim();
@@ -101,7 +100,7 @@ test(`C130 ${surface}: ${formName} ${operation} uses native number semantics or 
         assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
           "an unsupported cross-arm operation is refused before the seal and emits no artifact");
         const observed = errors.map(diagnostic).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
-        const expected = expectedOperationRefusals(operation, size).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
+        const expected = expectedOperationRefusals(operation, size, compiled).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
         assert.equal(observed.length === expected.length && observed.every((issue, index) =>
           issue.code === expected[index].code && issue.message === expected[index].message && issue.text === expected[index].text), true,
         `${formName}/${operation}: the complete exact code, native reason and authored source node match its declared operation contract`);
@@ -142,7 +141,7 @@ test(`C130 ${surface}: ${formName} ${operation} uses native number semantics or 
       const root = new URL(`../../../.temp/C01-inferred-numeric-array-elements/operations/${surface}/${formName}/${operation.replace(/[^a-z]/giu, "-")}/`, import.meta.url);
       mkdirSync(root, { recursive: true });
       const diagnostic = issue => {
-        const ast = compiled.nativeStage.source.ast;
+        const ast = compiled.nativeStage.source.syntax;
         const range = issue.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
         const text = range?.kind !== "authored" ? undefined
           : ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end).trim();
@@ -154,7 +153,7 @@ test(`C130 ${surface}: ${formName} ${operation} uses native number semantics or 
         assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
           "an unsupported cross-arm operation is refused before the seal and emits no artifact");
         const observed = errors.map(diagnostic).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
-        const expected = expectedOperationRefusals(operation, size).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
+        const expected = expectedOperationRefusals(operation, size, compiled).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
         assert.equal(observed.length === expected.length && observed.every((issue, index) =>
           issue.code === expected[index].code && issue.message === expected[index].message && issue.text === expected[index].text), true,
         `${formName}/${operation}: the complete exact code, native reason and authored source node match its declared operation contract`);
@@ -193,7 +192,7 @@ test(`C130 ${surface}: ${formName} ${operation} uses native number semantics or 
       const root = new URL(`../../../.temp/C01-inferred-numeric-array-elements/operations/${surface}/${formName}/${operation.replace(/[^a-z]/giu, "-")}/`, import.meta.url);
       mkdirSync(root, { recursive: true });
       const diagnostic = issue => {
-        const ast = compiled.nativeStage.source.ast;
+        const ast = compiled.nativeStage.source.syntax;
         const range = issue.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
         const text = range?.kind !== "authored" ? undefined
           : ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end).trim();
@@ -205,7 +204,7 @@ test(`C130 ${surface}: ${formName} ${operation} uses native number semantics or 
         assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
           "an unsupported cross-arm operation is refused before the seal and emits no artifact");
         const observed = errors.map(diagnostic).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
-        const expected = expectedOperationRefusals(operation, size).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
+        const expected = expectedOperationRefusals(operation, size, compiled).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
         assert.equal(observed.length === expected.length && observed.every((issue, index) =>
           issue.code === expected[index].code && issue.message === expected[index].message && issue.text === expected[index].text), true,
         `${formName}/${operation}: the complete exact code, native reason and authored source node match its declared operation contract`);
@@ -248,7 +247,7 @@ test(`C130 ${surface}: ${formName} ${operation} uses native number semantics or 
       const root = new URL(`../../../.temp/C01-inferred-numeric-array-elements/operations/${surface}/${formName}/${operation.replace(/[^a-z]/giu, "-")}/`, import.meta.url);
       mkdirSync(root, { recursive: true });
       const diagnostic = issue => {
-        const ast = compiled.nativeStage.source.ast;
+        const ast = compiled.nativeStage.source.syntax;
         const range = issue.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
         const text = range?.kind !== "authored" ? undefined
           : ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end).trim();
@@ -260,7 +259,7 @@ test(`C130 ${surface}: ${formName} ${operation} uses native number semantics or 
         assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
           "an unsupported cross-arm operation is refused before the seal and emits no artifact");
         const observed = errors.map(diagnostic).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
-        const expected = expectedOperationRefusals(operation, size).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
+        const expected = expectedOperationRefusals(operation, size, compiled).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
         assert.equal(observed.length === expected.length && observed.every((issue, index) =>
           issue.code === expected[index].code && issue.message === expected[index].message && issue.text === expected[index].text), true,
         `${formName}/${operation}: the complete exact code, native reason and authored source node match its declared operation contract`);

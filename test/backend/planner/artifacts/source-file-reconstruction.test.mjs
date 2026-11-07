@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../../helpers/direct-csharp-session.mjs";
 import { createCsharpPlanningContext } from "../../../../dist/backend/planner/context.js";
+import { sealCsharpAnalysisProgram } from "../../../../dist/analysis/program/index.js";
 import { planCsharpSourceFiles } from "../../../../dist/backend/planner/artifacts/source-files.js";
 import { printCsharpCompilationUnit } from "../../../../dist/print/source/printer.js";
 
@@ -61,7 +62,8 @@ for (const surface of ["native", "js"]) {
 function createSourceFixture(surface) {
   const compiled = compileCsharpSource({ ...mutualTypeImportSource, surface });
   assertCsharpCompilationSucceeded(compiled);
-  const program = compiled.result.program;
+  // The planner reads the sealed program (records and syntax only), as in production (nextgen C-2542).
+  const program = compiled.result.program === undefined ? undefined : sealCsharpAnalysisProgram(compiled.result.program);
   const ast = program.source.ast;
   const failures = program.records.sourceArtifacts.get().flatMap(({ sourceFile }) => ast.statements(sourceFile))
     .filter(node => ast.name(node) !== undefined && ["fail", "failPeer"].includes(ast.text(ast.name(node))))

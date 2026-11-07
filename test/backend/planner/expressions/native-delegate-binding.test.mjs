@@ -62,11 +62,13 @@ test("nominal native binding admission owns the physical object slot and rejects
     [carrier, carrier, false], [integer, carrier, false], [csharpObjectTargetType(), integer, false]]) {
     const parameter = { name: "callback", type: physical, passingMode: "by-value",
       csharpSourceArgumentAdapter: { kind: "native-binding", sourceCallableType: selected } };
-    const source = { sourceArguments: [{ expression }], sourceArgumentBindings: [], sourceSelectedSignatureParameters: [] };
+    // The published SourceCallSelection of the call (nextgen C-2542): argument correspondence by authored expression.
+    const source = { use: node, arguments: [{ argument: expression, parameterIndex: 0, mode: "positional" }], parameters: [] };
     const call = { origin: "source-profile", receiver: { kind: "none" }, targetMember: { parameters: [parameter] },
       arguments: [{ sourceArgumentIndex: 0, effectiveArgumentIndex: 0, sourceForm: "value",
         targetParameterIndex: 0, targetParameter: parameter }] };
-    const analysis = analyzeCsharpTargetArguments({ ast: {}, nodes: [node], admitted: () => true, demand: {},
+    const analysis = analyzeCsharpTargetArguments({ ast: { arguments: subject => subject === node ? [expression] : [] },
+      nodes: [node], admitted: () => true, demand: {},
       operations: { selectedCall: { get: () => ({ target: { kind: "resolved", source, call } }) },
         selectedConstruction: { get: () => undefined } }, sources: { sourceArgumentsEmission: { get: () => undefined } } });
     assert.equal(analysis.issues.length === 0, admitted, "only the proven nominal delegate/object boundary admits");

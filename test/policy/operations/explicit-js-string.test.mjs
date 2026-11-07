@@ -1,4 +1,3 @@
-import { csharpSourceValueResult } from "../../../dist/analysis/source-evidence/types/resolution/call-results.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { sourceMarkerFactKey } from "@tsonic/tsts";
@@ -27,13 +26,15 @@ function fixture(options = {}) {
       },
       arguments: () => options.arguments ?? [sourceValue],
     },
-    types: { resolveNode: subject => {
+    // CsharpTypeQueries.value: the represented Host value type of a node (nextgen C-2542, I6).
+    types: { value: subject => {
       const type = subject === sourceValue ? options.sourceType ?? nativeString
         : subject === node ? options.resultType ?? exactString : undefined;
-      return type === undefined ? undefined : { kind: "resolved", sourceResult: csharpSourceValueResult(type) };
+      return type ?? Object.freeze({ kind: "csharp-refused", code: "CSHARP_FIXTURE_UNREPRESENTED",
+        message: "This fixture represents only the conversion operand and result.", site: subject });
     } },
   };
-  return { node, sourceValue, sourceFile, selection: selectCsharpJsStringConversion(policy, node, sourceFile) };
+  return { node, sourceValue, sourceFile, selection: selectCsharpJsStringConversion(policy, node) };
 }
 
 test("explicit C# JsString selection seals its exact semantic output carrier", () => {

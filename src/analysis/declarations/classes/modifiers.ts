@@ -1,5 +1,5 @@
 import type { AstReader, Node } from "@tsonic/tsts";
-import type { TargetSourceProgram } from "@tsonic/target-api/source";
+import type { TargetSourceProgramFacts } from "@tsonic/target-api/source";
 import { HasSourceKind, HasSyntacticModifier, KindPrivateIdentifier, ModifierFlagsStatic, ModifierFlagsAsync, sourceParameterIsProperty, sourceClassFieldIsTypeOnly } from "@tsonic/target-api/source";
 import type { CsharpProjectCallableAdapters, CsharpProjectCallableDispatch } from "../../../target-model/records/callables/callable-adapters.js";
 import type { CsharpCaptureStorage } from "../../../target-model/records/callables/capture-storage.js";
@@ -12,7 +12,7 @@ import type { CsharpModuleInitializationIndex } from "../../../target-model/reco
 
 export function analyzeCsharpDeclarationModifiers(input: {
   readonly ast: AstReader;
-  readonly navigation: Pick<TargetSourceProgram["navigation"], "moduleExports">;
+  readonly facts: TargetSourceProgramFacts["facts"];
   readonly nodes: readonly Node[];
   readonly moduleBindings: CsharpModuleInitializationIndex["moduleBindingInitialization"];
   readonly dispatch: CsharpProjectCallableAdapters["callableDispatch"];
@@ -25,7 +25,7 @@ export function analyzeCsharpDeclarationModifiers(input: {
   for (const node of input.nodes) {
     if (input.moduleBindings.get(node) !== undefined) {
       const file = input.ast.getSourceFile(node);
-      const exported = file !== undefined && input.navigation.moduleExports(file).some(selected => selected.declaration === node);
+      const exported = file !== undefined && input.facts.navigation.modules.exports(file).some(selected => selected.declaration === node);
       const member: readonly CsharpMemberModifier[] = Object.freeze([exported ? "public" : "internal", "static"]);
       values.set(node, Object.freeze({ member, implementation: member, abstract: false, erased: false,
         method: Object.freeze([]), property: undefined }));

@@ -1,11 +1,11 @@
-import { sourceIntegerIsNonnegative, type TargetSourceProgram } from "@tsonic/target-api/source";
+import type { TargetSourceProgramFacts } from "@tsonic/target-api/source";
 import type { Node } from "@tsonic/tsts";
 import type { CsharpIntegerRangeIndex } from "../../../../target-model/records/operations/integer-ranges.js";
 
-export function createCsharpIntegerRangeIndex(source: TargetSourceProgram, nodes: readonly Node[]): CsharpIntegerRangeIndex {
+export function createCsharpIntegerRangeIndex(source: TargetSourceProgramFacts, nodes: readonly Node[]): CsharpIntegerRangeIndex {
   const nonnegative = new WeakSet<Node>();
   for (const node of nodes) {
-    if (sourceIntegerIsNonnegative({ ast: source.ast, navigation: source.navigation, sourceFacts: source.sourceFacts }, node)) {
+    if (source.facts.analyses.integerIsNonnegative(node)) {
       nonnegative.add(node);
     }
   }

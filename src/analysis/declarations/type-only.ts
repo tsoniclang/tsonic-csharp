@@ -1,10 +1,20 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
-import { sourceInterfaceRepresentationBase, type TargetSourceProgram } from "@tsonic/target-api/source";
+import type { SourceTypeDescriptor, TargetSourceProgramFacts } from "@tsonic/target-api/source";
 import { publishedCsharpCallableInterface } from "../source-evidence/types/published-callable-interface.js";
 
-export function analyzeCsharpTypeOnlyDeclarations(source: TargetSourceProgram, sourceFiles: readonly SourceFile[]): ReadonlySet<Node> {
+export function analyzeCsharpTypeOnlyDeclarations(source: TargetSourceProgramFacts, sourceFiles: readonly SourceFile[]): ReadonlySet<Node> {
   const declarations = new Set<Node>();
-  const { ast, navigation } = source;
+  const { syntax: ast, facts } = source;
+  /** The interface extends exactly one base, and that base is a JS array or readonly array (js-source-profile facts). */
+  const arrayRepresentation = (statement: Node): boolean => {
+    const heritage = facts.objects.heritage(statement);
+    if (!Array.isArray(heritage)) return false;
+    const bases = heritage.filter(edge => edge.kind === "extends");
+    if (bases.length !== 1) return false;
+    const base: SourceTypeDescriptor = { kind: "declared", declaration: bases[0]!.target, typeArguments: bases[0]!.typeArguments };
+    const collection = facts.profile.collection(base)?.kind;
+    return collection === "array" || collection === "readonly-array";
+  };
   const conditionalPredicate = (reference: Node): boolean => {
     for (let child = reference, owner = ast.parent(child); owner !== undefined; child = owner, owner = ast.parent(owner)) {
       if (ast.is.IsConditionalTypeNode(owner)) return ast.as.AsConditionalTypeNode(owner)?.ExtendsType === child;
@@ -25,14 +35,11 @@ export function analyzeCsharpTypeOnlyDeclarations(source: TargetSourceProgram, s
       continue;
     }
     if (!ast.is.IsInterfaceDeclaration(statement)) continue;
-    const semantics = source.semantics.forNode(statement);
-    if (publishedCsharpCallableInterface(statement, { ast, navigation, effectiveTypes: source.effectiveTypes,
-      semanticsFor: source.semantics.forNode }) !== undefined) {
+    if (publishedCsharpCallableInterface(statement, { ast, facts }) !== undefined) {
       declarations.add(statement);
       continue;
     }
-    const base = sourceInterfaceRepresentationBase(statement, ast, navigation, semantics);
-    if (base !== undefined && semantics.types.isArrayLike(base.selectedType)) {
+    if (arrayRepresentation(statement)) {
       declarations.add(statement);
       continue;
     }
@@ -40,7 +47,7 @@ export function analyzeCsharpTypeOnlyDeclarations(source: TargetSourceProgram, s
     const members = ast.members(statement);
     if (members.length === 0 || members.some(member => member === undefined || ast.kindName(member) !== "KindPropertySignature" ||
       !ast.is.IsComputedPropertyName(ast.name(member)))) continue;
-    const uses = navigation.declarationUses(statement);
+    const uses = facts.navigation.uses.uses(statement);
     if (uses.some(use => conditionalPredicate(use.reference)) &&
       uses.every(use => use.kind === "source-linkage" || conditionalPredicate(use.reference))) declarations.add(statement);
   }

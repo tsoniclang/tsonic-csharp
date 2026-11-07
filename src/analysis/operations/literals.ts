@@ -1,6 +1,6 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { SourceLiteralIndex } from "@tsonic/target-api/source";
+import type { SourceProgramFacts } from "@tsonic/target-api/source";
 import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native/native-demand.js";
 import type { CsharpExactLiteralSelectionIndex } from "../../target-model/conversions/exact-literals.js";
 import type { CsharpValueReadClassifications } from "../../target-model/records/operations/conversions.js";
@@ -10,15 +10,15 @@ import { createCsharpLiteralEmissionProducer } from "../program/records/operatio
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 
 export function analyzeCsharpLiteralAdmission(input: { readonly ast: AstReader; readonly demand: CsharpNativeDemandAnalysis;
-  readonly literals: SourceLiteralIndex; readonly exact: CsharpExactLiteralSelectionIndex; readonly values: CsharpValueReadClassifications }) {
+  readonly facts: Pick<SourceProgramFacts, "values">; readonly exact: CsharpExactLiteralSelectionIndex; readonly values: CsharpValueReadClassifications }) {
   const issues: TargetDiagnostic[] = [];
   const rejected = new Set<Node>();
   const published = new Set<Node>();
   const producer = createCsharpLiteralEmissionProducer();
-  const refuse = (node: Node, message: string): void => {
+  const refuse = (node: Node, code: `CSHARP_${string}`, message: string): void => {
     if (rejected.has(node)) return;
     rejected.add(node);
-    issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: node, message });
+    issues.push({ code, category: "error", source: "tsonic-csharp", sourceNode: node, message });
   };
   for (const { use } of input.demand.entries) {
     if (use.kind === "erased") continue;
@@ -27,7 +27,7 @@ export function analyzeCsharpLiteralAdmission(input: { readonly ast: AstReader; 
     const exact = input.exact.exactLiteral.get(node, target);
     // An explicit conversion (`1e40 as float32`) keeps the literal at its source type and casts it, as C# does; only an
     // implicit use must be exactly representable in its target.
-    if (exact?.kind === "rejected" && !(use.kind === "converted" && use.mode === "explicit")) { refuse(node, exact.reason); continue; }
+    if (exact?.kind === "rejected" && !(use.kind === "converted" && use.mode === "explicit")) { refuse(node, "CSHARP_LITERAL_NOT_REPRESENTABLE", exact.reason); continue; }
     if (use.literal !== undefined) {
       if (!published.has(node) && input.ast.is.IsNumericLiteral(node) && use.literal.kind === "float" &&
         use.literal.precision === "float64" && csharpTargetTypedIntegralToken(input.ast, node, emittedDestination(input.demand, node))) {
@@ -42,7 +42,7 @@ export function analyzeCsharpLiteralAdmission(input: { readonly ast: AstReader; 
       failTargetAnalysisInvariant("tsonic-csharp", "Literal emission requires its completed physical value.", node);
     if (!published.has(node) && input.ast.is.IsNumericLiteral(node)) {
       const selected = input.exact.exactLiteral.get(node, carrier);
-      const number = input.literals.literalValue.get(node)?.number;
+      const number = input.facts.values.literal(node)?.number;
       const castFloat64 = use.kind === "converted" && use.mode === "explicit" && use.input.kind === "value" &&
         use.input.type.kind === "source-primitive" && use.input.type.name === "float64";
       if ((carrier?.kind === "source-primitive" && carrier.name === "float64" || castFloat64) && number !== undefined) {
@@ -55,22 +55,23 @@ export function analyzeCsharpLiteralAdmission(input: { readonly ast: AstReader; 
         const integralToken = csharpTargetTypedIntegralToken(input.ast, node, emittedDestination(input.demand, node));
         producer.publish(node, { kind: "exact", recipe: selected.recipe, ...(integralToken ? { integralToken: true as const } : {}) });
         published.add(node);
-      } else refuse(node, selected?.kind === "rejected" ? selected.reason : "Numeric literal emission requires parseable finite source literal text from TSTS.");
+      } else if (selected?.kind === "rejected") refuse(node, "CSHARP_LITERAL_NOT_REPRESENTABLE", selected.reason);
+      else failTargetAnalysisInvariant("tsonic-csharp", "Numeric literal emission requires the published finite literal value.", node);
     }
     if (!published.has(node) && input.ast.is.IsBigIntLiteral(node)) {
       const selected = input.exact.exactLiteral.get(node, carrier);
       if (selected?.kind === "resolved") {
         producer.publish(node, { kind: "exact", recipe: selected.recipe }); published.add(node); continue;
       }
-      const value = input.literals.literalValue.get(node)?.integer;
+      const value = input.facts.values.literal(node)?.integer;
       if (value === undefined)
-        refuse(node, "BigInt literal emission requires parseable source literal text from TSTS.");
+        failTargetAnalysisInvariant("tsonic-csharp", "BigInt literal emission requires the published literal value.", node);
       else if (carrier === undefined || !targetTypeRefEquals(carrier, csharpBigIntegerTargetType()))
-        refuse(node, "BigInt literal emission requires a finalized System.Numerics.BigInteger runtime carrier fact.");
+        refuse(node, "CSHARP_BIGINT_LITERAL_CARRIER", "BigInt literal emission requires a finalized System.Numerics.BigInteger runtime carrier fact.");
       else { producer.publish(node, { kind: "bigint", carrier, decimal: value.toString(10) }); published.add(node); }
     }
     if ((input.ast.is.IsTemplateExpression(node) || input.ast.is.IsNoSubstitutionTemplateLiteral(node)) &&
-      (carrier === undefined || !targetTypeRefEquals(carrier, csharpStringTargetType()))) refuse(node,
+      (carrier === undefined || !targetTypeRefEquals(carrier, csharpStringTargetType()))) refuse(node, "CSHARP_TEMPLATE_STRING_CARRIER",
         `${input.ast.is.IsTemplateExpression(node) ? "Template string emission" : "No-substitution template literal emission"} requires a finalized System.String runtime carrier fact before C# emission.`);
   }
   return Object.freeze({ records: producer.seal(), issues: Object.freeze(issues) });

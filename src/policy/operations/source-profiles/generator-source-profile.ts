@@ -1,6 +1,6 @@
 import type { CsharpTargetMember, CsharpTargetParameter, TargetTypeRef } from "../../types/index.js";
-import { jsSourceCallableRefusal } from "@tsonic/js-source-profile";
-import { combineCsharpTargetUnionMembers, csharpIteratorResultTargetType, csharpSourcePrimitiveTargetType, csharpTaskTargetType, getCsharpGeneratorProtocol, getCsharpIteratorResultProtocol } from "../../../target-model/types/index.js";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
+import { csharpIteratorResultTargetType, csharpSourcePrimitiveTargetType, csharpTaskTargetType, getCsharpGeneratorProtocol, getCsharpIteratorResultProtocol } from "../../../target-model/types/index.js";
 
 import type { CsharpSourceProfileCallPolicy, CsharpSourceProfileCallPolicyContext, CsharpSourceProfileCallPolicyResult, CsharpSourceProfileIdentitySelector, CsharpSourceProfilePropertyPolicy, CsharpSourceProfilePropertyPolicyContext } from "../../model/source-profiles.js";
 import type { CsharpSourceProfilePropertyPolicyResult } from "../../../target-model/records/program/source-profile-invocations.js";
@@ -143,10 +143,10 @@ export const csharpGeneratorSourceProfileCallPolicies:
         })),
         {
           source: { owner, kind: "member" as const, declaringName: declaration.sourceName, name: "throw" },
-          select(): CsharpSourceProfileCallPolicyResult {
-            const refusal = jsSourceCallableRefusal({ ownerName: declaration.sourceName, memberName: "throw" });
-            if (refusal === undefined) throw new Error("The checked generator profile requires its shared throw-in refusal.");
-            return { kind: "rejected", diagnostic: generatorDiagnostic(refusal.code, 9100923, refusal.message) };
+          // Generator `throw(...)` is refused by the JS source profile in the Host (R5); C# never reaches it.
+          select(context: CsharpSourceProfileCallPolicyContext): CsharpSourceProfileCallPolicyResult {
+            return failTargetAnalysisInvariant("tsonic-csharp",
+              `${declaration.sourceName}.throw is a Host source-profile refusal forwarded before C# analysis.`, context.source.call);
           },
         },
       ]),
@@ -174,7 +174,7 @@ function selectGeneratorCall(
 ): CsharpSourceProfileCallPolicyResult {
   const receiverType = resolveCsharpSelectedSourceValue(
     context,
-    context.source.sourceReceiver,
+    context.source.receiver,
   );
   const protocol = getCsharpGeneratorProtocol(receiverType);
   if (receiverType === undefined || protocol?.kind !== declaration.generatorKind) {
@@ -186,7 +186,7 @@ function selectGeneratorCall(
   const targetResult = protocol.kind === "sync"
     ? resultType
     : csharpTaskTargetType(resultType);
-  const parameterCount = context.source.sourceSelectedSignatureParameters.length;
+  const parameterCount = context.source.parameters.length;
   const parameters = generatorTargetParameters(
     policy,
     parameterCount,
@@ -229,7 +229,8 @@ function selectIteratorResultProperty(
       `The exact iterator-result ${policy.sourceName} receiver does not resolve to a closed C# iterator-result protocol.`,
     );
   }
-  const returnType = iteratorResultPropertyType(policy.valuePolicy, protocol);
+  const returnType = iteratorResultPropertyType(policy.valuePolicy, protocol,
+    context.inputs.results.get(context.source.expression));
   if (returnType === undefined) {
     return rejectedGeneratorProperty(
       "The exact iterator-result value cannot be represented by the closed C# runtime-union contract.",
@@ -286,15 +287,15 @@ function generatorParameterType(
 function iteratorResultPropertyType(
   policy: IteratorResultValuePolicy,
   protocol: NonNullable<ReturnType<typeof getCsharpIteratorResultProtocol>>,
+  publishedRead: TargetTypeRef | undefined,
 ): TargetTypeRef | undefined {
   switch (policy) {
     case "done":
       return csharpSourcePrimitiveTargetType("bool");
     case "combined-value":
-      return combineCsharpTargetUnionMembers([
-        protocol.yieldType,
-        protocol.returnType,
-      ]);
+      // `yield | return` is the Host sum of the published member read (facts.selections.memberAccess result), never
+      // a union C# combines (R6).
+      return publishedRead;
     case "yield-value":
       return protocol.yieldType;
     case "return-value":

@@ -56,7 +56,7 @@ const mathCallPolicies = [
   jsCallPolicy(
     jsMemberIdentity("Math", "floor"),
     (context) => {
-      const argument = resolveCsharpSelectedSourceValue(context, context.source.sourceArguments[0]);
+      const argument = resolveCsharpSelectedSourceValue(context, context.source.arguments[0]);
       const integer = argument?.kind === "source-primitive" &&
         ["int8", "uint8", "int16", "uint16", "int32", "uint32", "int64", "uint64", "int128", "uint128", "native-int", "native-uint"].includes(argument.name);
       const carrier = integer ? argument : doubleType;
@@ -333,7 +333,7 @@ function timerSchedulingMember(
 ): CsharpTargetMember | undefined {
   const callbackType = resolveCsharpSelectedSourceValue(
     context,
-    context.source.sourceArguments[0],
+    context.source.arguments[0],
   );
   if (callbackType === undefined) {
     return undefined;

@@ -8,7 +8,7 @@ import { createCsharpProviderRelationResolver } from "../../dist/providers/nativ
 import { csharpReferenceIdentityCarrier } from "../../dist/policy/operations/operators/reference-equality.js";
 import { validateBinaryTargetSemantics } from "../../dist/policy/operations/operators/operator-validation.js";
 import { isCsharpThrowableType } from "../../dist/analysis/project-types/throwable-types.js";
-import { resolveSourceProfileType } from "../../dist/analysis/source-evidence/types/resolution/source-profiles.js";
+import { hostProgram, representationServices, representations } from "../representation/host-fixture.mjs";
 import { validateCsharpProviderConstraints } from "../../dist/analysis/operations/members/calls/constraint-satisfaction.js";
 import { selectCsharpNativeMemoryLayout } from "../../dist/analysis/operations/pointers/native-memory.js";
 import { createCsharpTypeDefinitionRegistry } from "../../dist/analysis/project-types/type-definitions.js";
@@ -80,36 +80,49 @@ function rejectingProviders() {
   }), reads: () => reads };
 }
 
+let recordProfile;
+function recordProfileProgram() {
+  if (recordProfile !== undefined) return recordProfile;
+  const program = hostProgram(`import type { int32 } from "@tsonic/core/types.js";
+export function read(values: Record<string, int32>): int32 { return values["answer"] ?? 0; }`);
+  recordProfile = { program, parameter: program.named("values") };
+  return recordProfile;
+}
+
 const policyFamilies = [
   ["reference identity", host => csharpReferenceIdentityCarrier(carrier, host)],
   ["operator admission", host => validateBinaryTargetSemantics("+", carrier, carrier, host)],
   ["throwable hierarchy", host => isCsharpThrowableType(host, carrier)],
-  ["source-profile carrier", host => resolveSourceProfileType({ host }, { kind: "record" },
-    [{ kind: "string" }, { kind: "source-primitive", name: "int32" }], undefined)],
+  // Nextgen C-2542: the Record profile carrier is chosen by the one representation (representation/declared.ts) from the
+  // Host slot descriptor of a real Record<string, int32> parameter; the Dictionary lookup goes to the rejecting provider.
+  ["source-profile carrier", host => {
+    const { program, parameter } = recordProfileProgram();
+    representations(representationServices(program, { providers: host.providers })).slot(parameter);
+  }],
   ["native generic constraints", host => validateCsharpProviderConstraints(host, {
     targetBinding: { id: "Fixture.Container", typeParameters: [] }, bindingArguments: [],
     targetMember: { id: "Fixture.Container.Member", typeParameters: [] }, methodArguments: [],
-    invocationArguments: [{ targetType: carrier }], sourceFile: {},
+    invocationArguments: [{ targetType: carrier }],
   })],
   ["native memory layout", host => selectCsharpNativeMemoryLayout({ ...host,
-    ast: { getSourceFile: () => undefined }, types: { resolveSelectedType: () => carrier },
-    semantics: () => ({ types: { propertyInfos: () => [] } }),
+    ast: { getSourceFile: () => undefined }, types: { represent: () => carrier },
     projectTypes: { catalog: { definitionForTarget: () => undefined } },
   }, { kind: "value", call: {}, sourceType: {}, fields: [], byteSize: 4n, byteAlignment: 4n, stride: 4n,
     dataLayout: { addressWidth: 64, byteOrder: "little" } }, {})],
   ["project heritage kind", host => {
     const declaration = Object.freeze({});
     const heritage = Object.freeze({});
-    const selectedType = Object.freeze({});
+    const target = Object.freeze({});
     const definition = { id: "project:Derived", sourceName: "Derived", kind: "class", declaration,
       sourceFile: {}, typeParameterBindings: [] };
+    // The facts-based policy host (nextgen C-2542, R-C3-3): heritage edges from facts.objects.heritage, construction
+    // from facts.objects.construction, and the edge target represented once through types.represent.
     return analyzeCsharpProjectTypePolicy({ ...host, ast: {},
-      semanticsFor: () => ({ declarations: { typeAliasSymbol: () => undefined, typeSymbol: () => undefined },
-        types: { isTypeReference: () => false } }),
-      navigation: { declaredHeritage: () => ({ kind: "resolved", edges: [{ kind: "extends", heritage,
-        selectedType, typeArguments: [], selectedTypeArguments: [] }] }),
-        classConstructors: () => ({ kind: "resolved", implicit: false }) },
-      types: { resolveSelectedType: () => carrier },
+      facts: { objects: {
+        heritage: () => [Object.freeze({ kind: "extends", declaration, heritage, target, typeArguments: [] })],
+        construction: () => Object.freeze({ declaration, implicit: false, signatures: [], initialization: [] }),
+      } },
+      types: { represent: () => carrier },
     }, { issues: [], definitions: [definition], definitionForDeclaration: () => definition,
       definitionForTarget: () => undefined });
   }],

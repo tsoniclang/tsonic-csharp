@@ -84,8 +84,8 @@ export const csharpJsNumberCallPolicies:
       jsCallPolicy(
         jsMemberIdentity("Number", row.sourceName),
         (context) => {
-          const receiver = resolveCsharpSelectedSourceValue(context, context.source.sourceReceiver);
-          if (row.sourceName === "toString" && context.source.sourceArguments.length > 0 &&
+          const receiver = resolveCsharpSelectedSourceValue(context, context.source.receiver);
+          if (row.sourceName === "toString" && context.source.arguments.length > 0 &&
               receiver !== undefined && !isCsharpIntegralTargetType(receiver) &&
               !targetTypeRefEquals(receiver, csharpBigIntegerTargetType())) {
             return { kind: "rejected", diagnostic: csharpSourceProfileDiagnostic(
@@ -128,8 +128,8 @@ export const csharpJsNumberCallPolicies:
     jsCallPolicy(
       jsCallIdentity("NumberConstructor"),
       (context) => {
-        const argument = resolveCsharpSelectedSourceValue(context, context.source.sourceArguments[0]);
-        if (argument === undefined && context.source.sourceArguments.length !== 0) return undefined;
+        const argument = resolveCsharpSelectedSourceValue(context, context.source.arguments[0]);
+        if (argument === undefined && context.source.arguments.length !== 0) return undefined;
         const present = getCsharpNullableElementTargetType(argument) ?? argument;
         const numeric = present !== undefined && (present.kind === "source-primitive" &&
           present.name !== "bool" && present.name !== "char" || targetTypeRefEquals(present, csharpBigIntegerTargetType()));
@@ -172,7 +172,7 @@ export const csharpJsNumberCallPolicies:
         booleanReceiverMember(
           resolveCsharpSelectedSourceValue(
             context,
-            context.source.sourceReceiver,
+            context.source.receiver,
           ),
           "toString",
           stringType,
@@ -185,7 +185,7 @@ export const csharpJsNumberCallPolicies:
         booleanReceiverMember(
           resolveCsharpSelectedSourceValue(
             context,
-            context.source.sourceReceiver,
+            context.source.receiver,
           ),
           "valueOf",
           boolType,
@@ -277,7 +277,7 @@ function numberLocaleStringPolicy(): CsharpSourceProfileCallPolicy {
       numberReceiverMember(
         resolveCsharpSelectedSourceValue(
           context,
-          context.source.sourceReceiver,
+          context.source.receiver,
         ),
         {
           sourceName: "toLocaleString",
@@ -300,7 +300,7 @@ function numberLocaleStringPolicy(): CsharpSourceProfileCallPolicy {
     select: (
       context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
     ) =>
-      (context.source.sourceArguments.length === 0
+      (context.source.arguments.length === 0
         ? supported
         : unsupported).select(context),
   });

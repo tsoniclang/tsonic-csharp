@@ -1,7 +1,6 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import type { SourceStorageDomainBoundary, SourceStorageQueries } from "@tsonic/target-api/analysis";
-import type { TargetSourceProgram } from "@tsonic/target-api/source";
-import { sourceTypeDescriptorStructure } from "@tsonic/target-api/source";
+import { sourceTypeDescriptorStructure, type SourceProgramFacts } from "@tsonic/target-api/source";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetNamedTypeRef } from "../../../target-model/types/model.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../target-model/types/equality.js";
 import { createStructuralObjectShapeTarget } from "./construction.js";
@@ -17,24 +16,34 @@ import { objectShapeMethodInvocationName } from "../../../target-model/names/obj
 import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../../target-model/types/object-shape-members.js";
 import { selectCsharpWritableMethodMembers } from "../../../policy/types/objects/writable-methods.js";
 
+/**
+ * Inputs of method-value use selection: storage queries (.NET receiver and protocol coverage), published facts (the
+ * Host method-value uses, values, exports) and authored syntax (declaration kinds only).
+ */
+export interface CsharpMethodValueUseInputs {
+  readonly storage: SourceStorageQueries;
+  readonly facts: SourceProgramFacts;
+  readonly ast: AstReader;
+}
+
+/** Per storage-query object (one program view): retained and first-class-extracted method declarations. */
 const methodValueUses = new WeakMap<SourceStorageQueries, {
   readonly retained: ReadonlySet<Node>;
   readonly extracted: ReadonlySet<Node>;
 }>();
 
-function structuralBoundariesAreExportOnly(source: TargetSourceProgram,
+function structuralBoundariesAreExportOnly(inputs: CsharpMethodValueUseInputs,
   boundaries: readonly Pick<SourceStorageDomainBoundary, "kind" | "exposure">[] | undefined): boolean {
-  const { ast } = source;
+  const { ast, facts } = inputs;
   return boundaries !== undefined && boundaries.length !== 0 && boundaries.every(boundary => boundary.kind === "external-write" &&
     (ast.is.IsVariableDeclaration(boundary.exposure) || ast.is.IsFunctionDeclaration(boundary.exposure) ||
-      ast.is.IsClassDeclaration(boundary.exposure)) && source.navigation.declarationUseSummary(boundary.exposure).exported);
+      ast.is.IsClassDeclaration(boundary.exposure)) && facts.navigation.uses.summary(boundary.exposure).exported);
 }
 
-function selectMethodValueUses(storage: SourceStorageQueries) {
+function selectMethodValueUses(inputs: CsharpMethodValueUseInputs) {
+  const { storage, ast, facts } = inputs;
   const cached = methodValueUses.get(storage);
   if (cached !== undefined) return cached;
-  const { source } = storage;
-  const { ast } = source;
   const values = new Set<Node>();
   const extracted = new Set<Node>();
   const pending: { readonly declaration: Node; readonly extracted: boolean }[] = [];
@@ -46,13 +55,17 @@ function selectMethodValueUses(storage: SourceStorageQueries) {
     pending.push({ declaration, extracted: firstClass });
   };
   for (const node of storage.nodes) {
+    // A first-class method value read is the canonical Host fact (facts.values.methodValueUse, K-2659); C# never
+    // classifies one from annotation, write, alias or call syntax.
+    const methodValue = facts.values.methodValueUse(node);
+    if (methodValue !== undefined) add(methodValue.declaration, true);
     if (ast.is.IsMethodDeclaration(node) || ast.is.IsMethodSignatureDeclaration(node)) {
-      const uses = source.navigation.declarationUseSummary(node);
-      if (uses.firstClassUseCount > 0 || uses.exported || uses.memberWritten) add(node, true);
+      // .NET exposure coverage: a method reachable from outside the closed program keeps its method-value protocol.
+      if (facts.navigation.uses.summary(node).exported) add(node, true);
       else {
         const subject = storage.memberSubjectFor(node);
         const domain = subject.kind === "resolved" ? storage.closedOriginsFor(subject.subject) : undefined;
-        if (domain?.kind === "open" && !structuralBoundariesAreExportOnly(source, domain.boundaries) &&
+        if (domain?.kind === "open" && !structuralBoundariesAreExportOnly(inputs, domain.boundaries) &&
           domain.boundaries.some(boundary => boundary.kind === "external-input" || boundary.kind === "external-write" ||
             boundary.kind === "unclassified-exposure")) add(node, true);
       }
@@ -64,7 +77,7 @@ function selectMethodValueUses(storage: SourceStorageQueries) {
       : owner === undefined ? undefined : ast.is.IsVariableDeclaration(owner) ? ast.as.AsVariableDeclaration(owner)?.Initializer
       : ast.is.IsParameterDeclaration(owner) ? owner : undefined;
     if (expression === undefined) continue;
-    const outcome = source.effectiveTypes.get(expression);
+    const outcome = facts.values.has(expression) ? facts.values.type(expression) : undefined;
     const descriptor = outcome === undefined || outcome.kind === "refused" ? undefined : sourceTypeDescriptorStructure(outcome.type);
     if (descriptor?.kind !== "shape") continue;
     for (const member of descriptor.members) if (member.origin.kind === "declared") add(member.origin.declaration, false);
@@ -85,8 +98,8 @@ function selectMethodValueUses(storage: SourceStorageQueries) {
   return selected;
 }
 
-export function csharpObjectMethodValueIsExtracted(storage: SourceStorageQueries, declaration: Node): boolean {
-  return selectMethodValueUses(storage).extracted.has(declaration);
+export function csharpObjectMethodValueIsExtracted(inputs: CsharpMethodValueUseInputs, declaration: Node): boolean {
+  return selectMethodValueUses(inputs).extracted.has(declaration);
 }
 
 export function resolveCsharpWritableMethodContract(
@@ -102,7 +115,6 @@ export function resolveCsharpWritableMethodContract(
     targetType: createStructuralObjectShapeTarget(members, implemented, environment, true),
     members,
     implements: implemented,
-    ...(shape.sourceType === undefined ? {} : { sourceType: shape.sourceType }),
   });
 }
 
@@ -112,7 +124,7 @@ export function resolveCsharpCopiedObjectShape(
   environment: CsharpTypeParameterEnvironment,
   resolveNode: (node: Node) => CsharpObjectShapeFact | undefined,
   rememberTargetShape: (shape: CsharpObjectShapeFact) => CsharpObjectShapeFact,
-  sourceStorage: SourceStorageQueries,
+  methodValues: CsharpMethodValueUseInputs,
   source?: CsharpObjectShapeFact,
 ): CsharpObjectShapeFact | undefined {
   if (source !== undefined) {
@@ -139,9 +151,9 @@ export function resolveCsharpCopiedObjectShape(
     (shape.targetType as CsharpTargetNamedTypeRef).csharpValueType !== true &&
     shape.members.some(member => member.memberKind === "method");
   if (!contract && shape.methodImplementation === undefined && !nativeLayout) return shape;
-  shape = retainCsharpMethodValueContracts(shape, rememberTargetShape, environment, sourceStorage);
+  shape = retainCsharpMethodValueContracts(shape, rememberTargetShape, environment, methodValues);
   const original = shape.methodImplementation === undefined ? undefined : resolveNode(shape.methodImplementation.declaration);
-  const receiver = selectCsharpCopiedMethodReceiver(shape.members, original === undefined ? [shape] : [original], ast);
+  const receiver = selectCsharpCopiedMethodReceiver(shape.members, original === undefined ? [shape] : [original], ast, methodValues.facts);
   if (receiver.kind === "rejected") return undefined;
   if (receiver.kind === "selected") return receiver.shape;
   const members = csharpCopiedObjectShapeMembers(shape);
@@ -150,15 +162,15 @@ export function resolveCsharpCopiedObjectShape(
     targetType: createStructuralObjectShapeTarget(members, implemented, environment),
     members,
     ...(implemented === undefined ? {} : { implements: implemented }),
-    ...(shape.sourceType === undefined ? {} : { sourceType: shape.sourceType }),
   });
 }
 
 export function retainCsharpMethodValueContracts(
   shape: CsharpObjectShapeFact, remember: (shape: CsharpObjectShapeFact) => CsharpObjectShapeFact,
   environment: CsharpTypeParameterEnvironment,
-  sourceStorage: SourceStorageQueries,
+  methodValues: CsharpMethodValueUseInputs,
 ): CsharpObjectShapeFact {
+  const sourceStorage = methodValues.storage;
   if (csharpStructuralObjectShapeIdentity(shape.targetType) === undefined &&
     (shape.targetType as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind !== "interface") return shape;
   const nativeInterface = shape.targetType.kind === "target-named" &&
@@ -177,7 +189,7 @@ export function retainCsharpMethodValueContracts(
     const requiresProtocol = quantified || member.methodValueContract !== undefined;
     const nativeMethod = csharpObjectMethodHasFixedNativeExposure(writes);
     const valueUses = !nativeInterface && !requiresProtocol && !nativeMethod && (member.sourceDeclarations?.length ?? 0) > 0
-      ? selectMethodValueUses(sourceStorage).retained : undefined;
+      ? selectMethodValueUses(methodValues).retained : undefined;
     const needsValue = member.methodValueStorage?.kind === "delegate" ||
       member.sourceDeclarations?.some(source => valueUses?.has(source) === true) === true;
     if (!requiresProtocol && !nativeMethod && (member.optional === true || needsValue || declaration !== undefined)) {

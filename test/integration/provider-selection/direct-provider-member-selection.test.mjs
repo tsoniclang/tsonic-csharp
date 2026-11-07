@@ -20,15 +20,17 @@ import {
   test,
   valueRelation,
 } from "../../fixtures/dotnet-provider/direct-provider-selection.helpers.mjs";
-import { checkCsharpSource } from "../../helpers/direct-csharp-session.mjs";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
+import { analyzeCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+
+// nextgen C-2542: the selectors take (host, node); Source evidence is the published SourceMemberAccessSelection /
+// SourceElementAccessRecord, and Native carriers are keyed by node or published descriptor (F6 fixture options).
+const fixtureDescriptor = () => Object.freeze({ kind: "declared", declaration: Object.freeze({}), typeArguments: Object.freeze([]) });
 
 test("property selection uses the exact provider member identity, not its spelling", () => {
   const fixture = createPropertyFixture();
   const selected = selectCsharpProviderProperty(
     fixture.host,
     fixture.expression,
-    fixture.sourceFile,
   );
   assert.equal(selected.kind, "resolved");
   assert.equal(selected.property.targetMember.id, fixture.member.id);
@@ -40,18 +42,18 @@ test("same-spelling properties without provider evidence remain source-owned", (
   const selected = selectCsharpTargetProperty(
     fixture.host,
     fixture.expression,
-    fixture.sourceFile,
   );
   assert.equal(selected.kind, "source-owned");
   assert.match(selected.reason, /no provider declaration evidence/u);
 });
 
+// nextgen C-2542: a Host member selection carries declarations, never a Symbol, so the old `selectedSymbol: null`
+// option is gone; this case is the declaration-only selection.
 test("property selection accepts exact declaration evidence without a selected symbol", () => {
-  const fixture = createPropertyFixture({ selectedSymbol: null });
+  const fixture = createPropertyFixture();
   const selected = selectCsharpProviderProperty(
     fixture.host,
     fixture.expression,
-    fixture.sourceFile,
   );
   assert.equal(selected.kind, "resolved");
 });
@@ -80,7 +82,6 @@ test("namespace property selection consumes an exact provider export value", () 
   const selected = selectCsharpProviderProperty(
     fixture.host,
     fixture.expression,
-    fixture.sourceFile,
   );
   assert.equal(selected.kind, "resolved");
   assert.equal(selected.property.relation.kind, "value");
@@ -89,7 +90,8 @@ test("namespace property selection consumes an exact provider export value", () 
 });
 
 test("contradictory selected property subjects fail closed", () => {
-  const selectedSymbol = {};
+  // The two contradictory subjects are two selected declarations (the old Symbol subject is a second declaration).
+  const otherDeclaration = {};
   const selectedDeclaration = {};
   const first = providerDeclaration({
     signatureId: null,
@@ -101,14 +103,13 @@ test("contradictory selected property subjects fail closed", () => {
   });
   const fixture = createPropertyFixture({
     declaration: first,
-    selectedSymbol,
     selectedDeclaration,
-    additionalFacts: [providerFact(selectedSymbol, second)],
+    additionalDeclarations: [otherDeclaration],
+    additionalFacts: [providerFact(otherDeclaration, second)],
   });
   const selected = selectCsharpProviderProperty(
     fixture.host,
     fixture.expression,
-    fixture.sourceFile,
   );
   assert.equal(selected.kind, "conflict");
   assert.match(selected.reason, /contradictory provider identities/u);
@@ -142,7 +143,6 @@ test("generic property members close from exact receiver representation", () => 
   const selected = selectCsharpProviderProperty(
     fixture.host,
     fixture.expression,
-    fixture.sourceFile,
   );
   assert.equal(selected.kind, "resolved");
   assert.deepEqual(selected.property.targetMember.returnType, stringType);
@@ -170,7 +170,6 @@ test("structural property bindings close from exact receiver representation", ()
   const selected = selectCsharpProviderProperty(
     fixture.host,
     fixture.expression,
-    fixture.sourceFile,
   );
   assert.equal(selected.kind, "resolved");
   assert.deepEqual(selected.property.targetMember.declaringType, {
@@ -187,7 +186,6 @@ test("readonly target properties reject exact source writes", () => {
   const selected = selectCsharpProviderProperty(
     fixture.host,
     fixture.expression,
-    fixture.sourceFile,
   );
   assert.equal(selected.kind, "missing");
   assert.equal(
@@ -204,18 +202,16 @@ test("writable target fields accept exact source writes", () => {
   const selected = selectCsharpProviderProperty(
     fixture.host,
     fixture.expression,
-    fixture.sourceFile,
   );
   assert.equal(selected.kind, "resolved");
   assert.equal(selected.property.targetMember.kind, "field");
 });
 
 test("element selection uses declaration-only index-signature evidence", () => {
-  const fixture = createElementFixture({ selectedSymbol: null });
+  const fixture = createElementFixture();
   const selected = selectCsharpProviderElement(
     fixture.host,
     fixture.expression,
-    fixture.sourceFile,
   );
   assert.equal(selected.kind, "resolved");
   assert.equal(selected.element.targetMember.kind, "indexer");
@@ -227,7 +223,6 @@ test("element selection requires exact provider signature evidence", () => {
   const selected = selectCsharpTargetElement(
     fixture.host,
     fixture.expression,
-    fixture.sourceFile,
   );
   assert.equal(selected.kind, "source-owned");
   assert.match(selected.reason, /no provider declaration evidence/u);
@@ -242,7 +237,6 @@ test("provider member evidence alone cannot select an indexer signature", () => 
   const selected = selectCsharpProviderElement(
     fixture.host,
     fixture.expression,
-    fixture.sourceFile,
   );
   assert.equal(selected.kind, "missing");
   assert.equal(
@@ -259,7 +253,6 @@ test("index arguments require an exact implicit target conversion", () => {
   const selected = selectCsharpProviderElement(
     fixture.host,
     fixture.expression,
-    fixture.sourceFile,
   );
   assert.equal(selected.kind, "missing");
   assert.equal(
@@ -277,7 +270,6 @@ test("index arguments preserve exact syntax-owned source primitive evidence", ()
   const selected = selectCsharpProviderElement(
     fixture.host,
     fixture.expression,
-    fixture.sourceFile,
   );
   assert.equal(selected.kind, "resolved");
 });
@@ -299,7 +291,6 @@ test("exact checked index arguments are accepted only on their selected relation
   const selected = selectCsharpProviderElement(
     fixture.host,
     fixture.expression,
-    fixture.sourceFile,
   );
   assert.equal(selected.kind, "resolved");
 });
@@ -331,7 +322,6 @@ test("generic indexer results close from exact receiver representation", () => {
   const selected = selectCsharpProviderElement(
     fixture.host,
     fixture.expression,
-    fixture.sourceFile,
   );
   assert.equal(selected.kind, "resolved");
   assert.deepEqual(selected.element.targetMember.returnType, stringType);
@@ -358,7 +348,6 @@ test("structural indexer bindings close from exact receiver representation", () 
   const selected = selectCsharpProviderElement(
     fixture.host,
     fixture.expression,
-    fixture.sourceFile,
   );
   assert.equal(selected.kind, "resolved");
   assert.deepEqual(selected.element.targetMember.returnType, int32);
@@ -372,36 +361,13 @@ test("readonly indexers reject exact source writes", () => {
   const selected = selectCsharpProviderElement(
     fixture.host,
     fixture.expression,
-    fixture.sourceFile,
   );
   assert.equal(selected.kind, "missing");
 });
 
-test("element selection rejects absent TSTS selected evidence", () => {
-  const fixture = createElementFixture();
-  const host = {
-    ...fixture.host,
-    semantics(sourceFile) {
-      const semantics = fixture.host.semantics(sourceFile);
-      return {
-        ...semantics,
-        operations: {
-          ...semantics.operations,
-          elementAccess() {
-            return undefined;
-          },
-        },
-      };
-    },
-  };
-  const selected = selectCsharpProviderElement(
-    host,
-    fixture.expression,
-    fixture.sourceFile,
-  );
-  assert.equal(selected.kind, "missing");
-  assert.match(selected.reason, /did not resolve an exact source element access/u);
-});
+// nextgen C-2542: the test "element selection rejects absent TSTS selected evidence" is removed. facts.values.elementAccess
+// is total for an element access (I4), so absent Source evidence is not a selectable state; the selector's
+// "did not resolve an exact source element access" branch is deleted.
 
 function createPropertyFixture(options = {}) {
   const declaration = options.declaration ?? providerDeclaration({
@@ -413,15 +379,20 @@ function createPropertyFixture(options = {}) {
     targetName: "TargetValue",
     declaringTypeId: binding.id,
   });
-  const source = propertyEvidence({
-    ...(options.selectedSymbol === undefined
-      ? {}
-      : { selectedSymbol: options.selectedSymbol }),
+  const receiverType = fixtureDescriptor();
+  const resultType = fixtureDescriptor();
+  const published = propertyEvidence({
     ...(options.selectedDeclaration === undefined
       ? {}
       : { selectedDeclaration: options.selectedDeclaration }),
     accessMode: options.accessMode ?? "read",
+    receiverType,
+    readType: resultType,
+    writeType: resultType,
   });
+  const source = options.additionalDeclarations === undefined ? published : { ...published,
+    evidence: Object.freeze({ ...published.evidence, selected: Object.freeze({ kind: "member",
+      declarations: Object.freeze([...published.evidence.selected.declarations, ...options.additionalDeclarations]) }) }) };
   const relation = options.relation ?? memberRelation({
     declaration,
     binding,
@@ -434,11 +405,7 @@ function createPropertyFixture(options = {}) {
     ...(options.includeProviderFact === false
       ? []
       : [
-          providerFact(
-            source.evidence.selectedDeclaration ??
-              source.evidence.selectedSymbol,
-            declaration,
-          ),
+          providerFact(source.evidence.selected.declarations[0], declaration),
         ]),
     ...(options.additionalFacts ?? []),
   ];
@@ -450,14 +417,8 @@ function createPropertyFixture(options = {}) {
     relations: options.relations ?? [relation],
     facts,
     properties: [[source.expression, source.evidence]],
-    nodeTypes: [[source.evidence.receiver.expression, receiverTarget], [source.expression, member.returnType]],
-    semanticTypes: [
-      [source.evidence.receiver.type, receiverTarget],
-      [
-        source.evidence.sourceReadType ?? source.evidence.sourceWriteType,
-        member.returnType,
-      ],
-    ],
+    nodeTypes: [[source.evidence.receiver, receiverTarget], [source.expression, member.returnType]],
+    descriptorTypes: [[receiverType, receiverTarget], [resultType, member.returnType]],
   });
   return {
     ...direct,
@@ -481,7 +442,7 @@ function createElementFixture(options = {}) {
   });
   const argumentCarrier = options.argumentNodeTarget ?? options.argumentTarget ?? targetParameterType;
   const argumentType = argumentCarrier.name === "int32" ? "int32" : argumentCarrier.name === "float64" ? "number" : "string";
-  const checked = checkCsharpSource({ sourceText: `import type { int32 } from "@tsonic/core/types.js";
+  const checked = analyzeCsharpSource({ sourceText: `import type { int32 } from "@tsonic/core/types.js";
     ${options.includeProviderFact === false ? 'import type { FixtureReceiver } from "./fixture-receiver.js";'
       : 'interface FixtureReceiver { [index: string]: unknown; [index: number]: unknown; }'}
     export function read(receiver: FixtureReceiver, index: ${argumentType}): void {
@@ -490,23 +451,28 @@ function createElementFixture(options = {}) {
       "fixture-receiver.d.ts": "export interface FixtureReceiver { [index: string]: unknown; [index: number]: unknown; }",
     } } : {}) });
   assert.equal(checked.sourceDiagnosticsText, "", "the Native index relation has its own checked Source occurrence");
-  const program = createTargetSourceProgram(checked.source);
+  // The Source facts program the C# session built (createTargetSourceProgram needs the composition's profile).
+  const program = checked.source;
+  const ast = program.syntax;
   const accesses = [];
   const visit = node => {
-    if (program.ast.is.IsElementAccessExpression(node)) accesses.push(node);
-    program.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    if (ast.is.IsElementAccessExpression(node)) accesses.push(node);
+    ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
-  program.sourceFiles.forEach(file => { if (!program.ast.isDeclarationFile(file)) visit(file); });
+  program.sourceFiles.forEach(file => { if (!ast.isDeclarationFile(file)) visit(file); });
   assert.equal(accesses.length, 1);
-  const source = { expression: accesses[0], evidence: program.semantics.forNode(accesses[0]).operations.elementAccess(accesses[0]) };
-  assert.equal(source.evidence?.expression === source.expression, true,
+  const source = { expression: accesses[0], evidence: program.facts.values.elementAccess(accesses[0]) };
+  assert.equal(source.evidence?.node === source.expression, true,
     "the exact access, index and declaration are retained with the actual Host publication");
-  if (options.includeProviderFact === false) assert.equal(source.evidence.selectedDeclaration !== undefined &&
-    !program.navigation.isProjectDeclaration(source.evidence.selectedDeclaration) &&
-    program.ast.isDeclarationFile(program.ast.getSourceFile(source.evidence.selectedDeclaration)), true,
-  "the no-provider boundary uses a real external declaration, never a project indexer with missing Native inputs");
-  if (options.selectedSymbol === null) assert.equal(source.evidence.selectedDeclaration !== undefined, true,
+  const selectedDeclaration = source.evidence.selected.kind === "member" || source.evidence.selected.kind === "index-signature"
+    ? source.evidence.selected.declaration : undefined;
+  assert.equal(selectedDeclaration !== undefined, true,
     "the selected index-signature declaration supplies the original declaration-only evidence");
+  if (options.includeProviderFact === false) assert.equal(
+    !program.facts.navigation.identity.isProjectDeclaration(selectedDeclaration) &&
+    ast.isDeclarationFile(ast.getSourceFile(selectedDeclaration)), true,
+  "the no-provider boundary uses a real external declaration, never a project indexer with missing Native inputs");
+  const argumentExpression = ast.as.AsElementAccessExpression(source.expression)?.ArgumentExpression;
   const relation = declaration.signatureId === undefined
     ? memberRelation({ declaration, binding, member })
     : signatureRelation({
@@ -532,28 +498,21 @@ function createElementFixture(options = {}) {
   const argumentNodeTarget = options.argumentNodeTarget ?? argumentTarget;
   const facts = options.includeProviderFact === false
     ? []
-    : [providerFact(
-        source.evidence.selectedDeclaration ??
-          source.evidence.selectedSymbol,
-        declaration,
-      )];
+    : [providerFact(selectedDeclaration, declaration)];
   const direct = directProviderHost({
     sourceProgram: program,
     relations: options.relations ?? [relation],
     facts,
     elements: [[source.expression, source.evidence]],
     nodeTypes: [
-      [source.evidence.receiver.expression, receiverTarget],
-      [source.evidence.argument.expression, argumentNodeTarget],
+      [source.evidence.receiver, receiverTarget],
+      [argumentExpression, argumentNodeTarget],
       [source.expression, member.returnType],
     ],
-    semanticTypes: [
-      [source.evidence.receiver.type, receiverTarget],
-      [source.evidence.argument.type, argumentTarget],
-      [
-        source.evidence.sourceReadType ?? source.evidence.sourceWriteType,
-        member.returnType,
-      ],
+    descriptorTypes: [
+      [source.evidence.receiverType, receiverTarget],
+      [source.evidence.index, argumentTarget],
+      [source.evidence.result, member.returnType],
     ],
   });
   return {

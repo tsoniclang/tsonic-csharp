@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createCsharpTypeParameterEnvironment } from "../../../dist/analysis/source-evidence/types/resolution/type-parameter-environment.js";
+import { createCsharpTypeParameterEnvironment } from "../../../dist/representation/index.js";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
@@ -29,7 +29,7 @@ import { createStructuralObjectShapeTarget, mergeCsharpObjectShapeSubjects } fro
 import { finalizeCsharpStructuralInterfaceForwarding } from "../../../dist/analysis/objects/structural-forwarding.js";
 import { retainCsharpMethodValueContracts } from "../../../dist/analysis/objects/shapes/method-values.js";
 import { csharpCopiedObjectShapeMembers } from "../../../dist/policy/types/objects/method-environments.js";
-import { selectCsharpObjectMethodImplementation } from "../../../dist/analysis/objects/shapes/method-implementations.js";
+import { hostProgram, representationServices, representations, represented } from "../../representation/host-fixture.mjs";
 import { selectCsharpObjectMemberEmission } from "../../../dist/policy/types/objects/object-members.js";
 import { unexpectedNativeDispatchRead, emptyNativeDispatch, integer, noAuthoredNativeMethod, defaultEvidenceFixture, structuralInterfaceRecords, sourceContract, fixture, nativeBoundBase, nativeBoundDerived, genericBoundFixture, programs, nativeModes, adaptedNativeForwarder, nativeProofSource, buildNativeProof, buildNativeProject, genericCases, genericSource } from "./structural-forwarding.fixtures.mjs";
 
@@ -51,16 +51,44 @@ test("a single native method contract and its extracted protocol publish the sam
     "canonical self identity never manufactures native self inheritance");
 });
 
-test("an authored method supplying a selected native delegate field does not invent a native method carrier", () => {
-  const declaration = Object.freeze({});
-  const member = Object.freeze({ sourceKey: { kind: "property", name: "run" }, sourceName: "run",
-    targetName: "run", memberKind: "property", sourceDeclarations: Object.freeze([declaration]),
-    type: csharpDelegateTargetType("System.Func", [integer], integer) });
-  const selected = selectCsharpObjectMethodImplementation(Object.freeze([member]), {
-    ast: { is: { IsMethodDeclaration: () => assert.fail("the selected native field is not reclassified by source spelling") } },
-    objectMethodSources: { get: () => assert.fail("a native delegate field must not demand a second method environment") },
-  }, { depth: 0 });
-  assert.equal(selected === undefined, true, "the actual native field keeps its canonical delegate initializer contract");
+// Object-literal method implementations are selected by the one representation (representation/objects.ts) from the
+// Host object members of the literal (nextgen C-2542, I6); the deleted shapes/method-implementations module is gone.
+function literalShapeFixture(sourceText) {
+  const program = hostProgram(sourceText);
+  const literal = program.nodes.find(node => program.ast.is.IsObjectLiteralExpression(node));
+  const retained = [];
+  const sources = [];
+  const services = representationServices(program, {
+    shapes: Object.freeze({ retainShape: shape => { retained.push(shape); return shape; },
+      resolveCallableValue: () => assert.fail("a monomorphic literal method needs no generic callable value") }),
+    objectMethodSources: Object.freeze({ get: node => {
+      sources.push(node);
+      return Object.freeze({ identity: "fixture-literal", captures: () => Object.freeze([]) });
+    } }),
+  });
+  const outcome = program.facts.values.type(literal);
+  assert.notEqual(outcome.kind, "refused", "the Host publishes the literal construction");
+  const carrier = represented(representations(services).type(outcome.construction ?? outcome.type, literal, "storage"));
+  return { program, literal, carrier, retained, sources };
+}
+
+test("an authored function-valued property does not invent a native method implementation", () => {
+  const { carrier, retained, sources } = literalShapeFixture(
+    "export const holder = { run: (value: number): number => value + 1 };");
+  assert.equal(sources.length, 0, "a delegate-valued property never demands an object-literal method environment");
+  const shape = retained.find(candidate => targetTypeRefEquals(candidate.targetType, carrier));
+  assert.equal(shape !== undefined && shape.methodImplementation === undefined, true,
+    "the actual delegate field keeps its canonical delegate initializer contract");
+  assert.equal(shape.members[0].memberKind, "property", "the Host member kind is kept, not reclassified by spelling");
+});
+
+test("opposite: an authored literal method selects one implementation over its own literal", () => {
+  const { literal, carrier, retained, sources } = literalShapeFixture(
+    "export const holder = { run(value: number): number { return value + 1; } };");
+  assert.equal(sources.length === 1 && sources[0] === literal, true, "the literal's own method sources are read once");
+  const shape = retained.find(candidate => targetTypeRefEquals(candidate.targetType, carrier));
+  assert.equal(shape?.methodImplementation?.declaration === literal && shape.methodImplementation.methods.length === 1 &&
+    shape.methodImplementation.captures.length === 0, true, "one generated implementation owns the authored method body");
 });
 
 for (const surface of Array.from(["native", "js"]).slice(0, 2)) {
@@ -153,18 +181,20 @@ sealed class NativeMethod {
 test("a physical method protocol retains checked source and generic declaration provenance when completed", () => {
   const targetType = Object.freeze({ kind: "target-named", id: "tsonic.shape:checked-method-protocol",
     csharpAllowsRefLikeTypeArguments: Object.freeze([]) });
-  const sourceType = Object.freeze({});
   const declaration = Object.freeze({});
+  const origin = Object.freeze({ kind: "declared", declaration });
   const member = Object.freeze({ sourceKey: Object.freeze({ kind: "property", name: "read" }),
     sourceName: "read", targetName: "read", memberKind: "method",
     type: csharpDelegateTargetType("System.Func", [integer], integer) });
-  const template = Object.freeze({ targetType, sourceType, members: Object.freeze([member]) });
+  const template = Object.freeze({ targetType, members: Object.freeze([member]) });
   const protocol = Object.freeze({ targetType, members: Object.freeze([member]) });
-  const checked = Object.freeze({ targetType, sourceType, declarationTemplate: template,
-    members: Object.freeze([{ ...member, sourceDeclarations: Object.freeze([declaration]) }]) });
+  const checked = Object.freeze({ targetType, declarationTemplate: template,
+    members: Object.freeze([{ ...member, origins: Object.freeze([origin]), sourceDeclarations: Object.freeze([declaration]) }]) });
   for (const [label, left, right] of [["protocol first", protocol, checked], ["checked first", checked, protocol]]) {
     const merged = mergeCsharpObjectShapeSubjects(left, right);
-    assert.equal(merged.sourceType === sourceType, true, `${label}: checked correspondence cannot disappear behind physical interning`);
+    assert.equal(merged.members[0].origins?.length === 1 && merged.members[0].origins[0] === origin, true,
+      `${label}: the Host member origin cannot disappear behind physical interning`);
+    assert.equal("sourceType" in merged, false, `${label}: no checker source type travels with a shape (I2)`);
     assert.equal(merged.declarationTemplate === template, true, `${label}: the genuine generic declaration remains authoritative`);
     assert.equal(merged.members[0].sourceDeclarations.length === 1 &&
       merged.members[0].sourceDeclarations[0] === declaration, true, `${label}: the exact selected declaration is retained`);

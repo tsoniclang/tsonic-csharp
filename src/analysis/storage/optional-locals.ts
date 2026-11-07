@@ -1,5 +1,4 @@
 import type { Node } from "@tsonic/tsts";
-import { sourceEnclosingCallable, sourceDeclarationIsModuleScoped } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { csharpTypeParameterConstraintsImply } from "../../policy/constraints/type-parameter-constraints.js";
 import { csharpCarrierAdmitsSourceAbsence } from "../../target-model/types/carriers/runtime-carriers.js";
@@ -12,6 +11,7 @@ import type { CsharpTargetOperationClassifications } from "../../target-model/re
 import type { CsharpOptionalLocalOperation, CsharpOptionalLocalPlacement, CsharpOptionalLocalValue } from "../../target-model/records/storage/local-bindings.js";
 import { csharpSourceTypeParameter, csharpSourceTypeParameters } from "../../source/extension/type-parameters.js";
 import type { CsharpSourceNameResolver } from "../names/index.js";
+import { sourceProjectDeclaration } from "../program/source-facts.js";
 
 export interface CsharpOptionalLocalPlan {
   readonly entries: readonly { readonly node: Node; readonly operation: CsharpOptionalLocalOperation }[];
@@ -22,7 +22,8 @@ export interface CsharpOptionalLocalPlan {
 export function analyzeCsharpOptionalLocals(policy: CsharpPolicyContext, evidence: CsharpSourceEvidenceIndex,
   nodes: readonly Node[], names: CsharpSourceNameResolver,
   selectedOperations: Pick<CsharpTargetOperationClassifications, "typedLocation">): CsharpOptionalLocalPlan {
-  const { ast, navigation } = policy;
+  const { ast, facts } = policy;
+  const { scopes } = facts.navigation;
   const candidates = new Map<Node, CsharpOptionalLocalPlacement>();
   const operations = new Map<Node, CsharpOptionalLocalOperation>();
   const removed = new Map<Node, Set<string>>();
@@ -41,7 +42,7 @@ export function analyzeCsharpOptionalLocals(policy: CsharpPolicyContext, evidenc
   for (const node of nodes) {
     const passing = evidence.sourceArgument.get(node);
     if (passing?.kind === "resolved" && passing.argument.passingMode !== "by-value") {
-      const declaration = navigation.referenceFor(unwrap(passing.argument.storageExpression))?.declaration;
+      const declaration = sourceProjectDeclaration(facts, unwrap(passing.argument.storageExpression));
       if (declaration !== undefined) addressed.add(declaration);
     }
     const operation = selectedOperations.typedLocation.get(node);
@@ -55,7 +56,7 @@ export function analyzeCsharpOptionalLocals(policy: CsharpPolicyContext, evidenc
     if (existing !== undefined) return existing;
     const parameters = new Map<string, readonly CsharpTypeParameterConstraint[]>();
     for (let owner: Node | undefined = node; owner !== undefined; owner = ast.parent(owner)) {
-      for (const parameter of csharpSourceTypeParameters(owner, ast)) {
+      for (const parameter of csharpSourceTypeParameters(owner, ast, scopes)) {
         const identity = parameter === undefined ? undefined : csharpSourceTypeParameter(parameter, ast)?.identity;
         const constraints = parameter === undefined ? undefined : evidence.typeParameterConstraints.get(parameter);
         if (identity !== undefined && constraints?.kind === "resolved") parameters.set(identity, constraints.constraints);
@@ -69,7 +70,7 @@ export function analyzeCsharpOptionalLocals(policy: CsharpPolicyContext, evidenc
     if (known !== undefined) return known;
     let suspends = false;
     const visit = (node: Node): void => {
-      if (node !== owner && sourceEnclosingCallable(node, ast) !== owner) return;
+      if (node !== owner && scopes.enclosing(node, "callable-body") !== owner) return;
       if (ast.is.IsAwaitExpression(node) || ast.is.IsYieldExpression(node)) { suspends = true; return; }
       ast.forEachChild(node, child => { if (child !== undefined && !suspends) visit(child); });
     };
@@ -79,8 +80,8 @@ export function analyzeCsharpOptionalLocals(policy: CsharpPolicyContext, evidenc
   };
   for (const node of nodes) {
     if (addressed.has(node) || evidence.compileTimeMetadata.get(node) || !ast.is.IsVariableDeclaration(node) || !ast.is.IsIdentifier(ast.name(node)) ||
-      sourceDeclarationIsModuleScoped(node, ast)) continue;
-    const owner = sourceEnclosingCallable(node, ast);
+      scopes.isModuleScoped(node)) continue;
+    const owner = scopes.enclosing(node, "callable-body");
     const parent = ast.parent(node);
     const statement = parent === undefined ? undefined : ast.parent(parent);
     if (owner === undefined || parent === undefined || !ast.is.IsVariableDeclarationList(parent) ||
@@ -94,9 +95,9 @@ export function analyzeCsharpOptionalLocals(policy: CsharpPolicyContext, evidenc
       ? parts.element.csharpConstraints.constraints : undefined);
     if (constraints === undefined || !csharpTypeParameterConstraintsImply(policy, constraints,
       [{ kind: "keyword", keyword: "notnull" }], parameters)) continue;
-    const summary = navigation.declarationUseSummary(node);
+    const summary = facts.navigation.uses.summary(node);
     if (summary.captured || summary.exported || summary.memberWritten || summary.hasUnclassifiedValueUse ||
-      summary.uses.some(use => use.captured || use.throughMember || sourceEnclosingCallable(use.reference, ast) !== owner)) continue;
+      summary.uses.some(use => use.captured || use.throughMember || scopes.enclosing(use.reference, "callable-body") !== owner)) continue;
     const name = names.resolve(ast.name(node), node);
     if (name.kind !== "resolved") continue;
     candidates.set(node, Object.freeze({ declaration: node, storage, payload: parts.element,
@@ -109,7 +110,7 @@ export function analyzeCsharpOptionalLocals(policy: CsharpPolicyContext, evidenc
     if (source === undefined) return undefined;
     if (isCsharpAbsenceTargetType(source)) return Object.freeze({ kind: "absence", expression });
     if (ast.is.IsIdentifier(current)) {
-      const declaration = navigation.referenceFor(current)?.declaration;
+      const declaration = sourceProjectDeclaration(facts, current);
       const copied = declaration === undefined ? undefined : candidates.get(declaration);
       if (copied !== undefined && targetTypeRefEquals(copied.storage, placement.storage))
         return Object.freeze({ kind: "copy", expression, placement: copied });
@@ -135,7 +136,7 @@ export function analyzeCsharpOptionalLocals(policy: CsharpPolicyContext, evidenc
       selected.set(declaration, Object.freeze({ kind: "declaration", placement, value: initial }));
       retainValue(initial);
     }
-    for (const use of navigation.declarationUseSummary(declaration).uses) {
+    for (const use of facts.navigation.uses.summary(declaration).uses) {
       if (!valid || use.kind === "type-only" || ast.name(declaration) === use.reference) continue;
       let reference = use.reference;
       while (ast.is.IsParenthesizedExpression(ast.parent(reference))) reference = ast.parent(reference)!;
@@ -147,7 +148,7 @@ export function analyzeCsharpOptionalLocals(policy: CsharpPolicyContext, evidenc
       if (binary?.Left === reference && binary.Right !== undefined &&
         (operator === "KindEqualsToken" || operator === "KindQuestionQuestionEqualsToken")) {
         const value = sourceValue(binary.Right, placement);
-        if (value === undefined || navigation.expressionResultUse(parent!) !== "discarded") { valid = false; break; }
+        if (value === undefined || facts.navigation.expressions.resultUse(parent!) !== "discarded") { valid = false; break; }
         if (operator === "KindQuestionQuestionEqualsToken" && value.kind !== "present") { valid = false; break; }
         selected.set(parent!, operator === "KindEqualsToken"
           ? Object.freeze({ kind: "write", placement, value })
@@ -183,7 +184,7 @@ export function analyzeCsharpOptionalLocals(policy: CsharpPolicyContext, evidenc
         continue;
       }
       if (binary?.Right === reference && binary.Left !== undefined && operator === "KindEqualsToken") {
-        const target = navigation.referenceFor(unwrap(binary.Left))?.declaration;
+        const target = sourceProjectDeclaration(facts, unwrap(binary.Left));
         if (target === undefined || !candidates.has(target)) { valid = false; break; }
         depends.add(target);
         continue;

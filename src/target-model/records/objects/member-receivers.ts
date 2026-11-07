@@ -1,9 +1,10 @@
-import type { Node, Type } from "@tsonic/tsts";
+import type { Node } from "@tsonic/tsts";
+import type { SourceTypeDescriptor } from "@tsonic/target-api/source";
 import type { CsharpMemberReceiverProjection } from "../operations/operations.js";
 
 export interface CsharpSelectedReceiverEvidence {
   readonly expression: Node;
-  readonly type: Type;
+  readonly type: SourceTypeDescriptor;
   readonly valueDeclaration?: Node;
 }
 

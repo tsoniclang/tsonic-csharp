@@ -48,7 +48,7 @@ export function admitCsharpDelegateOperand(ast: AstReader, captures: CsharpCaptu
   if (selection.kind !== "delegate-adapter") return [];
   const contract = producer.records.delegateContract.get(source, target)
     ?? failTargetAnalysisInvariant("tsonic-csharp", "An admitted delegate operand requires its exact native conversion contract.", node);
-  const refuse = (message: string): readonly CsharpConversionIssue[] => [{ node, code: "CSHARP_UNSUPPORTED_AST", message }];
+  const refuse = (message: string): readonly CsharpConversionIssue[] => [{ node, code: "CSHARP_DELEGATE_EMISSION", message }];
   if (!selectCsharpTypeEmission({ carrier: source }) || !selectCsharpTypeEmission({ carrier: contract.targetCarrier }))
     return refuse("C# delegate adaptation requires exact renderable source and target signatures.");
   if (contract.targetSignature.parameters.some(carrier => !selectCsharpTypeEmission({ carrier })))

@@ -1,8 +1,8 @@
 import { createCsharpCallableCreationProducer } from "../../../dist/analysis/program/records/callables/callable-creations.js";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createCompilerSessionFromFiles, formatDiagnostics } from "@tsonic/tsts";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
+import { hostProgram } from "../../representation/host-fixture.mjs";
+import { createCsharpTypeParameterEnvironment } from "../../../dist/representation/index.js";
 import { analyzeCsharpCaptureStorage } from "../../../dist/analysis/callables/storage/capture-storage.js";
 import { analyzeCsharpCallableCreations } from "../../../dist/analysis/callables/values/creation.js";
 import { analyzeCsharpNativeParticipation } from "../../../dist/analysis/callables/calls/participation.js";
@@ -13,15 +13,16 @@ const scalar = Object.freeze({ kind: "source-primitive", name: "float64" });
 const callable = csharpDelegateTargetType("System.Func", [scalar], scalar);
 
 function fixture(body, quotation = false) {
-  const checked = createCompilerSessionFromFiles({ currentDirectory: "/project",
-    files: { "/project/index.ts": `
+  // nextgen C-2542: a Host program; calls are Host call selections (facts.selections.call), callee identity is
+  // facts.navigation.identity, contextual source types are facts.values.type descriptors.
+  const program = hostProgram(`
       declare function invoke(mapper: (value: number) => number): number;
       declare function unknown(mapper: (value: number) => number): number;
       export function run(value: number) { ${body} }
-    ` }, compilerOptions: { strict: true, target: "es2022", module: "esnext" } }).checkSource();
-  assert.equal(checked.diagnostics.length, 0, formatDiagnostics(checked.diagnostics.slice(0, 4)).slice(0, 1024));
-  const source = createTargetSourceProgram(checked);
-  const file = checked.getSourceFile("/project/index.ts");
+    `);
+  const source = Object.freeze({ syntax: program.ast, facts: program.facts, sourceFiles: program.files,
+    sourceFacts: program.host.sourceFacts, documents: program.host.documents });
+  const file = program.files[0];
   assert.equal(file !== undefined, true, "checked source file");
   const lambdas = [];
   const calls = [];
@@ -29,21 +30,24 @@ function fixture(body, quotation = false) {
   const nodes = [];
   const visit = node => {
     nodes.push(node);
-    if (source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node)) lambdas.push(node);
-    if (source.ast.is.IsCallExpression(node)) calls.push(node);
-    if (source.ast.is.IsFunctionDeclaration(node)) declarations.set(source.ast.text(source.ast.name(node)), node);
-    source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    if (source.syntax.is.IsArrowFunction(node) || source.syntax.is.IsFunctionExpression(node)) lambdas.push(node);
+    if (source.syntax.is.IsCallExpression(node)) calls.push(node);
+    if (source.syntax.is.IsFunctionDeclaration(node)) declarations.set(source.syntax.text(source.syntax.name(node)), node);
+    source.syntax.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
   visit(file);
   const target = quotation ? { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "Fixture::Quotation", csharpExpressionTreeDelegateType: callable } : undefined;
   const operations = new Map(calls.map(call => {
-    const checkedCall = source.semantics.forNode(call).operations.call(call);
-    const callee = source.ast.as.AsCallExpression(call)?.Expression;
-    const declaration = callee === undefined ? undefined : source.navigation.sourceReferenceFor(callee)?.declaration;
+    const checkedCall = source.facts.selections.call(call);
+    const callee = source.syntax.as.AsCallExpression(call)?.Expression;
+    const declaration = callee === undefined ? undefined : source.facts.navigation.identity.target(callee)?.declaration;
     const parameter = { type: target ?? callable, passingMode: "by-value" };
-    const arguments_ = checkedCall.sourceArgumentBindings.map(binding => ({
-      sourceArgumentIndex: binding.sourceArgumentIndex, effectiveArgumentIndex: binding.effectiveArgumentIndex,
-      sourceForm: binding.sourceForm, spreadElementIndex: binding.spreadElementIndex, targetParameter: parameter,
+    const authored = source.syntax.arguments(call);
+    // One native argument per Host argument correspondence, at its correspondence position (F4 decision 2).
+    const arguments_ = checkedCall.arguments.map((entry, index) => ({
+      sourceArgumentIndex: authored.indexOf(entry.argument), effectiveArgumentIndex: index,
+      sourceForm: entry.mode === "positional" ? "value" : entry.mode === "rest-element" ? "value" : "spread-sequence",
+      targetParameter: parameter,
     }));
     const selected = declaration === declarations.get("invoke") ? { origin: "source-profile",
       invocationOnlyCallableArgumentIndexes: Object.freeze([0]),
@@ -51,11 +55,10 @@ function fixture(body, quotation = false) {
     } : { origin: "provider", invocationOnlyCallableArgumentIndexes: Object.freeze([0]),
       arguments: arguments_,
     };
-    const sourceArgumentParameterTypes = checkedCall.sourceArgumentBindings.map(binding => {
-      const arguments_ = selected.arguments.filter(argument => argument.sourceArgumentIndex === binding.sourceArgumentIndex &&
-        argument.effectiveArgumentIndex === binding.effectiveArgumentIndex && argument.sourceForm === binding.sourceForm &&
-        argument.spreadElementIndex === binding.spreadElementIndex);
-      assert.equal(arguments_.length, 1, "one same selected native parameter per original checked binding");
+    const sourceArgumentParameterTypes = checkedCall.arguments.map((entry, index) => {
+      const arguments_ = selected.arguments.filter(argument => argument.effectiveArgumentIndex === index &&
+        argument.sourceArgumentIndex === authored.indexOf(entry.argument));
+      assert.equal(arguments_.length, 1, "one same selected native parameter per Host argument correspondence");
       return arguments_[0].targetParameter.type;
     });
     return [call, { source: checkedCall, target: { kind: "resolved", source: checkedCall, call: Object.freeze(selected) },
@@ -64,10 +67,10 @@ function fixture(body, quotation = false) {
   const evidence = { compileTimeMetadata: { get: () => false },
     typeParameterConstraints: { get: () => [] },
     contextualType: { get: node => {
-      const selectedType = source.semantics.forNode(node).types.expressionType(node);
-      return selectedType === undefined ? undefined : { selectedType, targetType: target };
+      const outcome = source.facts.values.type(node);
+      return outcome.kind === "refused" ? undefined : { selectedType: outcome.type, targetType: target };
     } },
-    nodeTargetType: { get: node => source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node) ? callable : scalar },
+    nodeTargetType: { get: node => source.syntax.is.IsArrowFunction(node) || source.syntax.is.IsFunctionExpression(node) ? callable : scalar },
     storageTargetType: { get: () => undefined } };
   const storage = { nativeBacking: { get: () => undefined },
     nativeArray: { get: () => undefined },
@@ -75,25 +78,25 @@ function fixture(body, quotation = false) {
     typedLocationIdentity: { get: () => false } };
   assert.equal(lambdas.length, 1, "one exact authored callable");
   const lambda = lambdas[0];
-  const parameters = source.ast.parameters(lambda);
+  const parameters = source.syntax.parameters(lambda);
   const contract = Object.freeze({ kind: "source", sourceDeclaration: lambda,
     nativeSignature: Object.freeze({ methodTypeParameterIdentities: [], methodAllowsRefLikeTypeArguments: [] }),
     parameters, nativeParameters: parameters.map(parameter => ({ sourceParameter: parameter,
-      targetParameter: { name: source.ast.text(source.ast.name(parameter)), type: scalar, passingMode: "by-value" } })),
+      targetParameter: { name: source.syntax.text(source.syntax.name(parameter)), type: scalar, passingMode: "by-value" } })),
     returnType: scalar });
   const contracts = { get: identity => identity.declaration === lambda ? contract : undefined, closedInputType: () => undefined };
   const selectedOperations = { selectedCall: { get: node => operations.get(node) }, selectedConstruction: { get: () => undefined } };
   const selected = analyzeCsharpCaptureStorage(source, { knownShapes: () => [] }, storage, evidence,
-    [], contracts, { get: () => false }, selectedOperations);
+    [], contracts, { get: () => false }, selectedOperations,
+    createCsharpTypeParameterEnvironment(() => ({ kind: "resolved", constraints: [] })));
   assert.equal(selected.issues.length === 0, true, "closed capture storage");
   const creationResult = analyzeCsharpCallableCreations({ source, nodes, captures: selected,
     contracts,
     operations: selectedOperations,
     storage: { lambdaParameterType: { get: parameter => parameters.includes(parameter) ? scalar : undefined },
-      storageType: { get: declaration => source.ast.is.IsVariableDeclaration(declaration) ? callable : undefined } },
+      storageType: { get: declaration => source.syntax.is.IsVariableDeclaration(declaration) ? callable : undefined } },
     expectedTypes: { requiredExpectedType: { get: () => [] } },
-    evidence, conversions: { conversion: { get: (input, output) => targetTypeRefEquals(input, output) ? { kind: "identity" } : undefined } },
-    literals: { literalValue: { get: () => undefined } } });
+    evidence, conversions: { conversion: { get: (input, output) => targetTypeRefEquals(input, output) ? { kind: "identity" } : undefined } } });
   assert.equal(creationResult.kind, "resolved", "the original creation fixture has no quotation syntax refusal");
   const creations = creationResult.value;
   return { selected: creations, captures: selected, lambda, operations, source, nodes, evidence };
@@ -156,8 +159,8 @@ test("missing callable creation evidence is an invariant, not a default allocati
     error.message === "Callable creation reads require their admitted source-node domain.");
   assert.equal(input.selected.callableCreation.get(input.nodes[0]) === undefined, true,
     "a known non-callable source node has no fabricated creation");
-  assert.throws(() => analyzeCsharpNativeParticipation({ ast: input.source.ast,
-    storage: { nodes: input.nodes, failureReason: () => undefined }, navigation: input.source.navigation,
+  assert.throws(() => analyzeCsharpNativeParticipation({ ast: input.source.syntax,
+    storage: { nodes: input.nodes, failureReason: () => undefined }, facts: input.source.facts,
     captureClosure: input.captures.captureClosure, callableCreation: { get: () => undefined },
     objectShapes: { resolveNode: () => undefined }, compileTimeMetadata: input.evidence.compileTimeMetadata,
     requiredRecords: [] }), error => error instanceof Error &&

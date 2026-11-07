@@ -9,14 +9,14 @@ import { selectCsharpCallForm } from "../../../dist/policy/operations/members/ca
 import { planCsharpOptionalReceiverChain } from "../../../dist/backend/planner/expressions/calls/optional-chain.js";
 import { analyzeCsharpOptionalCallChains } from "../../../dist/analysis/callables/calls/optional-call-chains.js";
 import { compileCsharpNativeUseSource, createExpectedNativeUseOwner } from "../../helpers/expected-native-uses.mjs";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
+import { csharpTestSourceProgram } from "../../helpers/target-source-program.mjs";
 import { selectCsharpSourceFlowCall } from "../../../dist/policy/operations/flow/source-flow.js";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 
 function recordedCalls(compiled) {
   const program = compiled.result.program;
   assert.equal(program !== undefined, true, "analyzed program is present");
-  const ast = program.source.ast;
+  const ast = program.source.syntax;
   const calls = [];
   for (const sourceFile of csharpProgramSourceFiles(program)) {
     if (!String(ast.getPath(sourceFile)).endsWith("/index.ts")) continue;
@@ -33,7 +33,7 @@ function recordedCalls(compiled) {
 
 function recordedForms(compiled) {
   const program = compiled.result.program;
-  const ast = program.source.ast;
+  const ast = program.source.syntax;
   const forms = [];
   for (const sourceFile of csharpProgramSourceFiles(program)) {
     if (!String(ast.getPath(sourceFile)).endsWith("/index.ts")) continue;
@@ -79,9 +79,9 @@ test("binary and unary forms are recorded once in the planner's order", () => {
   assert.equal(refused.sourceDiagnosticsText, "");
   const issues = refused.nativeStage.diagnostics.filter(issue => issue.category === "error");
   assert.deepEqual(issues.map(({ code, message }) => [code, message]),
-    [["CSHARP_UNSUPPORTED_AST", "No exact C# implicit conversion relates 'source:float64' to 'source:int32'. Annotate the value with an integral type."]],
+    [["CSHARP_VALUE_USE_NOT_ADMITTED", "No exact C# implicit conversion relates 'source:float64' to 'source:int32'. Annotate the value with an integral type."]],
     "B10 checks the extracted element, never a whole JSArray conversion or a B9 fill");
-  const ast = refused.nativeStage.source.ast;
+  const ast = refused.nativeStage.source.syntax;
   const first = issues[0]?.sourceNode;
   assert.equal(first !== undefined && ast.is.IsIdentifier(first) && ast.text(first) === "first" &&
     ast.is.IsArrayLiteralExpression(ast.parent(first)), true, "the precise refusal belongs to the actual destructuring element");
@@ -106,7 +106,7 @@ test("operator form readers are frozen, repeatable and absent for foreign and no
     export function f(o: any, n: number, m: number): unknown { const sum = o + 1; const less = n < m; return [sum, less, -n]; }
   ` });
   const program = compiled.result.program;
-  const ast = program.source.ast;
+  const ast = program.source.syntax;
   const records = program.records;
   assert.equal(Object.isFrozen(records.operatorForm), true, "the operator form family is frozen");
   let operators = 0;
@@ -202,7 +202,7 @@ test("binary expected-result eligibility is stored once from the checked operato
   ]) {
     const compiled = compiledWithoutDiagnostics({ surface, sourceText });
     const program = compiled.result.program;
-    const ast = program.source.ast;
+    const ast = program.source.syntax;
     const records = program.records;
     const expected = createExpectedNativeUseOwner(compiled).analysis;
     let eligibleContextual = 0;
@@ -263,9 +263,10 @@ test("call forms are published from checked evidence for every real native and J
       assert.equal(compiled.result.program.records.selectedCall.get(call.node).form === form, true, `${name} ${call.text}: lookup identity`);
       assert.equal("typeTest" in call.classification || "sourceFlow" in call.classification || "jsValue" in call.classification, false,
         `${name} ${call.text}: superseded decision fields absent`);
-      assert.equal(call.classification.source?.call === call.node, true, `${name} ${call.text}: original source call`);
+      // nextgen C-2542: the classification carries the Host SourceCallSelection (use, arguments[i].argument), not ResolvedSourceCallInfo.
+      assert.equal(call.classification.source?.use === call.node, true, `${name} ${call.text}: original source call`);
       if (form.kind === "keep-alive") {
-        assert.equal(form.sourceFlow.valueExpression === call.classification.source.sourceArguments[0].expression, true,
+        assert.equal(form.sourceFlow.valueExpression === call.classification.source.arguments[0].argument, true,
           `${name} ${call.text}: original source argument`);
       }
     }
@@ -286,15 +287,15 @@ test("source-flow rejection keeps its exact descriptor and source call through t
   assert.equal(diagnostic.message, "C# target does not implement source flow marker 'move'; this intrinsic requires an explicit target contract and cannot be erased or lowered as an identity call.");
   assert.equal(compiled.source.ast.kindName(diagnostic.sourceNode), "KindCallExpression");
   assert.equal(compiled.artifacts.size, 0);
-  const source = createTargetSourceProgram(compiled.source);
+  const source = csharpTestSourceProgram(compiled.source);
   const calls = [];
   const visit = node => {
-    if (source.ast.is.IsCallExpression(node)) calls.push(node);
-    source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    if (source.syntax.is.IsCallExpression(node)) calls.push(node);
+    source.syntax.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
   for (const file of source.sourceFiles) visit(file);
   assert.equal(calls.length, 1);
-  const selected = selectCsharpSourceFlowCall({ ast: source.ast, sourceFacts: source.sourceFacts }, calls[0]);
+  const selected = selectCsharpSourceFlowCall({ ast: source.syntax, sourceFacts: source.sourceFacts }, calls[0]);
   const form = selectCsharpCallForm(undefined, selected, { kind: "not-js-value" });
   assert.equal(form?.kind === "source-flow-rejected", true, "source rejection is a selected form");
   assert.equal(Object.isFrozen(form.sourceFlow), true, "source rejection descriptor is frozen");

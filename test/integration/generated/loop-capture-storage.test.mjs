@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { assertNativeLoopRefusals } from "../../helpers/native-loop-refusals.mjs";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { loopCaptureStorageSource } from "../../../../tsonic/test/fixtures/loop-capture-storage.mjs";
 import { observableCallableCreationSource } from "../../../../tsonic/test/fixtures/observable-callable-creation.mjs";
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
@@ -233,12 +232,14 @@ for (const surface of ["native", "js"]) {
     const refused = compileCsharpSource({ surface, sourceText: headerSource });
     assert.equal(refused.sourceDiagnosticsText, "", "the original header program remains checked source");
     assert.deepEqual(refused.result.diagnostics.map(({ code, message }) => ({ code, message })), [
-      ...Array.from({ length: 2 }, () => ({ code: "CSHARP_UNSUPPORTED_AST", message: "The loop-header expression captures a per-iteration loop binding; move the callback into the loop body." })),
-      ...Array.from({ length: 3 }, () => ({ code: "CSHARP_UNSUPPORTED_AST", message: "the loop variable is captured by a closure and also written in the loop; use a separate variable." })),
-      { code: "CSHARP_UNSUPPORTED_AST", message: "The loop-header expression captures a per-iteration loop binding; move the callback into the loop body." },
-      { code: "CSHARP_UNSUPPORTED_AST", message: "the loop variable is captured by a closure and also written in the loop; use a separate variable." },
+      ...Array.from({ length: 2 }, () => ({ code: "CSHARP_LOOP_HEADER_CAPTURES_ITERATION_BINDING", message: "The loop-header expression captures a per-iteration loop binding; move the callback into the loop body." })),
+      ...Array.from({ length: 3 }, () => ({ code: "CSHARP_CAPTURED_LOOP_BINDING_WRITTEN", message: "the loop variable is captured by a closure and also written in the loop; use a separate variable." })),
+      { code: "CSHARP_LOOP_HEADER_CAPTURES_ITERATION_BINDING", message: "The loop-header expression captures a per-iteration loop binding; move the callback into the loop body." },
+      { code: "CSHARP_CAPTURED_LOOP_BINDING_WRITTEN", message: "the loop variable is captured by a closure and also written in the loop; use a separate variable." },
     ]);
-    const checked = createTargetSourceProgram(refused.source);
+    // nextgen C-2542: codes above follow the CSHARP_UNSUPPORTED_AST split (analysis/control-flow/native-control-flow.ts,
+    // messages unchanged). A syntax-only walk uses the checked program's reader; no facts program is built for it.
+    const checked = refused.source;
     const loops = [];
     const visit = node => {
       if (checked.ast.is.IsForStatement(node)) loops.push(checked.ast.as.AsForStatement(node));

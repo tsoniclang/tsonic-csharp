@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createSourceStorageQuery, targetUseSiteIdentity } from "@tsonic/target-api/analysis";
-import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { targetUseSiteIdentity } from "@tsonic/target-api/analysis";
+import { withCsharpSessionRequest } from "../../helpers/direct-csharp-session.mjs";
 import { createExpectedNativeUseOwner } from "../../helpers/expected-native-uses.mjs";
 import { analyzeCsharpBindingPatterns } from "../../../dist/analysis/control-flow/binding-patterns.js";
 import { admitCsharpExpectedNativeUses } from "../../../dist/analysis/expected-types/native-uses.js";
@@ -14,6 +14,7 @@ import { executeCsharpConstruction } from "../../helpers/native-construction.mjs
 import { memoryAbiCapability } from "../../helpers/memory-abi.mjs";
 import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
+import { createCsharpSourceProfileStorageEffects } from "../../../dist/analysis/operations/source-profiles/source-storage-effects.js";
 
 const emissionPrograms = [
   ["class and static initializers", `
@@ -72,12 +73,14 @@ const discardedPrograms = [
 ];
 
 function owners(sourceText, surface = "js") {
-  const compiled = compileCsharpSource({ sourceText, surface });
+  // nextgen C-2542: the storage query is facts.analyses.storage({ sourceFiles, effects }) with the C# source-profile effects
+  // over the live session providers, the same input analyze.ts gives it (createSourceStorageQuery is no longer public).
+  const { compiled, value: providers } = withCsharpSessionRequest({ sourceText, surface }, request => request.providers);
   assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
   const program = compiled.result.program;
   assert.equal(program !== undefined, true, compiled.result.diagnostics.map(item => `${item.code}: ${item.message}`).join("; "));
   const source = program.source;
-  const ast = source.ast;
+  const ast = source.syntax;
   const records = program.records;
   const expected = createExpectedNativeUseOwner(compiled).analysis;
   expected.completeReturns(records.callableCreation);
@@ -86,7 +89,7 @@ function owners(sourceText, surface = "js") {
   const nodes = [];
   const walk = node => { nodes.push(node); ast.forEachChild(node, child => { if (child !== undefined) walk(child); }); };
   for (const file of csharpProgramSourceFiles(program)) walk(file);
-  const bindingPatterns = analyzeCsharpBindingPatterns({ ast, effectiveTypes: source.effectiveTypes, semanticsFor: source.semantics.forNode, sourceFiles: csharpProgramSourceFiles(program), participation: records.nativeParticipation,
+  const bindingPatterns = analyzeCsharpBindingPatterns({ ast, facts: source.facts, sourceFacts: source.sourceFacts, sourceFiles: csharpProgramSourceFiles(program), participation: records.nativeParticipation,
     evidence: records, operations: records, valueReads: records, objectShapes: program.objectShapes, storage: records,
     initializerUses: { get: declaration => {
       const expression = ast.as.AsVariableDeclaration(declaration)?.Initializer;
@@ -100,8 +103,9 @@ function owners(sourceText, surface = "js") {
         return heritage === undefined ? undefined : heritage.baseType === undefined
           ? heritage.interfaces : [heritage.baseType, ...heritage.interfaces];
       } } } });
-  const input = { ast, sourceFiles: csharpProgramSourceFiles(program), navigation: program.sourceNavigation, evidence: records, operations: records,
-    nativeExpressionIssues: [], sourceStorage: createSourceStorageQuery(source, csharpProgramSourceFiles(program)),
+  const input = { ast, sourceFiles: csharpProgramSourceFiles(program), facts: source.facts, evidence: records, operations: records,
+    nativeExpressionIssues: [], sourceStorage: source.facts.analyses.storage({ sourceFiles: csharpProgramSourceFiles(program),
+      effects: createCsharpSourceProfileStorageEffects(source, providers) }),
     declarations: records, objectShapes: program.objectShapes,
     exactLiteral: records.exactLiteral, propertyKeyBindings: expression => {
       const use = records.nativeExpression.get(expression)?.use;

@@ -1,5 +1,5 @@
 import type { Node } from "@tsonic/tsts";
-import type { TargetSourceProgram } from "@tsonic/target-api/source";
+import type { TargetSourceProgramFacts } from "@tsonic/target-api/source";
 import { targetDiagnosticFromExtension, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpAdmittedConstruction } from "../../target-model/records/objects/construction.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
@@ -15,14 +15,14 @@ import { getCsharpDelegateSignature } from "../../target-model/types/carriers/de
 import { selectCsharpTypeEmission } from "../../policy/types/resolution/type-emission.js";
 import { createCsharpConstructionRecords } from "../program/records/objects/construction.js";
 
-export function analyzeCsharpConstructionEmission(input: { readonly source: TargetSourceProgram; readonly nodes: readonly Node[];
+export function analyzeCsharpConstructionEmission(input: { readonly source: TargetSourceProgramFacts; readonly nodes: readonly Node[];
   readonly admitted: (node: Node) => boolean; readonly operations: CsharpTargetOperationClassifications; readonly values: CsharpValueReadClassifications;
   readonly demand: CsharpNativeDemandAnalysis; readonly evidence: CsharpSourceEvidenceIndex; readonly modules: CsharpSourceModuleConstructionIndex["sourceModuleConstruction"];
   readonly files: CsharpSourceFileRecords; readonly arguments: CsharpTargetArgumentRecords }) {
   const values = new Map<Node, CsharpAdmittedConstruction>();
   const issues: TargetDiagnostic[] = [];
-  const { ast } = input.source;
-  const refuse = (node: Node, message: string, code = "CSHARP_UNSUPPORTED_AST", evidence: readonly string[] = []): void => {
+  const { syntax: ast, facts } = input.source;
+  const refuse = (node: Node, message: string, code: `CSHARP_${string}`, evidence: readonly string[] = []): void => {
     issues.push({ code, category: "error", source: "tsonic-csharp", sourceNode: node, message, ...(evidence.length === 0 ? {} : { evidence }) });
   };
   for (const node of input.nodes) {
@@ -30,12 +30,12 @@ export function analyzeCsharpConstructionEmission(input: { readonly source: Targ
     const classification = input.operations.selectedConstruction.get(node);
     if (classification === undefined) { refuse(node, "C# planning received a construction without a sealed target classification.", "CSHARP_TARGET_CONSTRUCTION_CLASSIFICATION_MISSING"); continue; }
     const js = classification.jsValue;
-    if (js.kind === "rejected") { refuse(node, js.reason); continue; }
+    if (js.kind === "rejected") { refuse(node, js.reason, js.code); continue; }
     if (js.kind === "resolved") {
       const callee = ast.as.AsNewExpression(node)?.Expression;
       const arguments_ = ast.arguments(node).filter((node): node is Node => node !== undefined);
       if (callee === undefined || arguments_.length !== ast.arguments(node).length || arguments_.some(node => ast.is.IsSpreadElement(node))) {
-        refuse(node, "JS-value construction requires exact non-spread source arguments."); continue;
+        refuse(node, "JS-value construction requires exact non-spread source arguments.", "CSHARP_JS_VALUE_CONSTRUCTION_SPREAD_ARGUMENT"); continue;
       }
       values.set(node, { kind: "js-value", callee, arguments: Object.freeze(arguments_), result: js.resultType, operation: js }); continue;
     }
@@ -48,14 +48,14 @@ export function analyzeCsharpConstructionEmission(input: { readonly source: Targ
       continue;
     }
     const use = input.demand.nativeUse.expression(node)?.use;
-    if (use === undefined || use.kind === "erased") { refuse(node, "Source-owned construction has no closed C# result type."); continue; }
+    if (use === undefined || use.kind === "erased") { refuse(node, "Source-owned construction has no closed C# result type.", "CSHARP_CONSTRUCTION_RESULT_NOT_REPRESENTED"); continue; }
     const result = use.carrier;
     if (selection.kind === "resolved") {
       const member = selection.call.targetMember;
       const invocation = member.csharpInvocation;
-      if (member.kind !== "constructor" || selection.call.receiver.kind !== "none") { refuse(node, `Checked construction selected non-constructor target member '${member.id}'.`); continue; }
+      if (member.kind !== "constructor" || selection.call.receiver.kind !== "none") { refuse(node, `Checked construction selected non-constructor target member '${member.id}'.`, "CSHARP_CONSTRUCTION_MEMBER_NOT_CONSTRUCTOR"); continue; }
       if (invocation?.kind === "static-factory-construction") {
-        if (!selectCsharpTypeEmission({ carrier: invocation.factoryType })) { refuse(node, `Selected static factory constructor '${member.id}' has no renderable factory type.`); continue; }
+        if (!selectCsharpTypeEmission({ carrier: invocation.factoryType })) { refuse(node, `Selected static factory constructor '${member.id}' has no renderable factory type.`, "CSHARP_CONSTRUCTION_OWNER_NOT_RENDERABLE"); continue; }
         values.set(node, { kind: "native", selection: selection.call, result, owner: invocation.factoryType, invocation: { kind: "factory" } }); continue;
       }
       if (invocation?.kind === "source-module-construction") {
@@ -63,36 +63,36 @@ export function analyzeCsharpConstructionEmission(input: { readonly source: Targ
         if (construction === undefined || construction.sourceArgumentIndex !== invocation.sourceArgumentIndex || construction.targetParameterIndex !== invocation.targetParameterIndex ||
           construction.bootstrap.id !== invocation.bootstrap.id || construction.bootstrap.methodName !== invocation.bootstrap.methodName ||
           !targetTypeRefEquals(construction.bootstrap.declaringType, invocation.bootstrap.declaringType)) {
-          refuse(node, `Selected source-module constructor '${member.id}' has no matching sealed source-module construction.`); continue;
+          refuse(node, `Selected source-module constructor '${member.id}' has no matching sealed source-module construction.`, "CSHARP_SOURCE_MODULE_CONSTRUCTION_NOT_SELECTED"); continue;
         }
         const arguments_ = input.arguments.targetArgumentsEmission.get(node);
-        if (arguments_ === undefined || construction.targetParameterIndex >= arguments_.groups.length) { refuse(node, `Selected source-module constructor '${member.id}' has no target argument at index ${construction.targetParameterIndex}.`); continue; }
+        if (arguments_ === undefined || construction.targetParameterIndex >= arguments_.groups.length) { refuse(node, `Selected source-module constructor '${member.id}' has no target argument at index ${construction.targetParameterIndex}.`, "CSHARP_SOURCE_MODULE_CONSTRUCTION_NOT_SELECTED"); continue; }
         const identity = input.files.sourceFile.get(ast.getFileName(construction.targetSourceFile));
-        if (identity === undefined) { refuse(node, "An admitted source construction requires its exact source module identity."); continue; }
-        if (member.declaringType === undefined || !selectCsharpTypeEmission({ carrier: member.declaringType })) { refuse(node, `Selected source-module constructor '${member.id}' has no renderable declaring type.`); continue; }
+        if (identity === undefined) { refuse(node, "An admitted source construction requires its exact source module identity.", "CSHARP_SOURCE_MODULE_CONSTRUCTION_NOT_SELECTED"); continue; }
+        if (member.declaringType === undefined || !selectCsharpTypeEmission({ carrier: member.declaringType })) { refuse(node, `Selected source-module constructor '${member.id}' has no renderable declaring type.`, "CSHARP_CONSTRUCTION_OWNER_NOT_RENDERABLE"); continue; }
         values.set(node, { kind: "native", selection: selection.call, result, owner: member.declaringType,
           invocation: { kind: "module", index: construction.targetParameterIndex, entry: identity.className } }); continue;
       }
-      if (invocation !== undefined) { refuse(node, `Selected constructor '${member.id}' carries non-construction invocation metadata.`); continue; }
-      if (member.declaringType === undefined || !selectCsharpTypeEmission({ carrier: member.declaringType })) { refuse(node, `Selected constructor '${member.id}' has no renderable declaring type.`); continue; }
+      if (invocation !== undefined) { refuse(node, `Selected constructor '${member.id}' carries non-construction invocation metadata.`, "CSHARP_CONSTRUCTION_INVOCATION_NOT_CONSTRUCTOR"); continue; }
+      if (member.declaringType === undefined || !selectCsharpTypeEmission({ carrier: member.declaringType })) { refuse(node, `Selected constructor '${member.id}' has no renderable declaring type.`, "CSHARP_CONSTRUCTION_OWNER_NOT_RENDERABLE"); continue; }
       values.set(node, { kind: "native", selection: selection.call, result, owner: member.declaringType, invocation: { kind: "constructor" } });
       continue;
     }
-    const declaration = input.evidence.signatureDeclaration.get(selection.source.selectedSignature);
-    const callee = selection.source.sourceCallee.expression;
-    if ((declaration === undefined || !input.source.navigation.isProjectDeclaration(declaration)) && !input.source.navigation.isProjectConstructibleObject(callee)) {
-      refuse(node, "The exact selected constructor is external to the project and has no C# target relation."); continue;
+    const declaration = selection.source.signature;
+    const callee = selection.source.callee;
+    if (!facts.navigation.identity.isProjectDeclaration(declaration) && !facts.navigation.identity.isProjectConstructibleObject(callee)) {
+      refuse(node, "The exact selected constructor is external to the project and has no C# target relation.", "CSHARP_EXTERNAL_CONSTRUCTOR_NOT_RELATED"); continue;
     }
     const target = input.values.valueRead.get(node)?.value;
-    if (target === undefined || !selectCsharpTypeEmission({ carrier: target })) { refuse(node, "Source-owned construction has no closed C# result type."); continue; }
+    if (target === undefined || !selectCsharpTypeEmission({ carrier: target })) { refuse(node, "Source-owned construction has no closed C# result type.", "CSHARP_CONSTRUCTION_RESULT_NOT_REPRESENTED"); continue; }
     const calleeCarrier = input.values.valueRead.get(callee)?.value;
     const factory = getCsharpClassFactory(calleeCarrier);
     if (factory !== undefined) {
       const arguments_ = target.kind === "target-named" ? (target.typeArguments ?? []).slice(factory.outerTypeParameterCount) : [];
-      if (arguments_.some(carrier => !selectCsharpTypeEmission({ carrier }))) { refuse(node, "A generic class construction requires its exact native type arguments."); continue; }
+      if (arguments_.some(carrier => !selectCsharpTypeEmission({ carrier }))) { refuse(node, "A generic class construction requires its exact native type arguments.", "CSHARP_CONSTRUCTION_TYPE_ARGUMENT_NOT_RENDERABLE"); continue; }
       values.set(node, { kind: "source", result, invocation: { kind: "factory", callee, method: factory.createMethodName, arguments: Object.freeze(arguments_) } }); continue;
     }
-    const reference = input.source.navigation.sourceReferenceFor(callee);
+    const reference = facts.navigation.identity.target(callee);
     values.set(node, { kind: "source", result, invocation: getCsharpDelegateSignature(calleeCarrier) !== undefined &&
       (reference === undefined || !ast.is.IsClassDeclaration(reference.declaration)) ? { kind: "delegate", callee } : { kind: "constructor", owner: target } });
   }

@@ -1,9 +1,8 @@
 import type { CsharpJsArrayMutationSelection } from "../../../target-model/records/storage/js-array-mutations.js";
-import type { Node, SourceFile } from "@tsonic/tsts";
+import type { Node } from "@tsonic/tsts";
 import { selectCsharpTypedArrayMutation } from "./typed-array-mutations.js";
 
 import type { CsharpPolicyContext } from "../../../policy/model/context.js";
-import { csharpSourceProfileDeclarationIdentity } from "../../../policy/identities/selected-source.js";
 
 import { sourceOperatorFromKindName } from "../../../target-model/syntax/operators.js";
 
@@ -11,13 +10,12 @@ import { selectCsharpNativeArrayLengthWrite } from "../../../policy/operations/c
 export function selectCsharpJsArrayMutation(
   input: CsharpPolicyContext,
   node: Node,
-  sourceFile: SourceFile,
 ): CsharpJsArrayMutationSelection {
   if (input.ast.is.IsBinaryExpression(node)) {
-    return selectCsharpTypedArrayMutation(input, node, sourceFile) ?? selectLengthAssignment(input, node, sourceFile);
+    return selectCsharpTypedArrayMutation(input, node) ?? selectLengthAssignment(input, node);
   }
   if (input.ast.is.IsPrefixUnaryExpression(node) || input.ast.is.IsPostfixUnaryExpression(node)) {
-    return selectCsharpTypedArrayMutation(input, node, sourceFile) ?? { kind: "not-js-array-mutation" };
+    return selectCsharpTypedArrayMutation(input, node) ?? { kind: "not-js-array-mutation" };
   }
   return { kind: "not-js-array-mutation" };
 }
@@ -25,7 +23,6 @@ export function selectCsharpJsArrayMutation(
 function selectLengthAssignment(
   input: CsharpPolicyContext,
   node: Node,
-  sourceFile: SourceFile,
 ): CsharpJsArrayMutationSelection {
   if (sourceOperatorFromKindName(input.ast.operatorKindName(node)) !== "=") {
     return { kind: "not-js-array-mutation" };
@@ -40,24 +37,13 @@ function selectLengthAssignment(
   ) {
     return { kind: "not-js-array-mutation" };
   }
-  const source = input.semantics(sourceFile)
-    .operations.propertyAccess(left);
-  const identity = csharpSourceProfileDeclarationIdentity(
-    input.ast,
-    input.semantics(sourceFile),
-    input.sourceFacts,
-    source?.selectedDeclaration,
-  );
-  if (
-    source === undefined ||
-    identity?.owner !== "js" ||
-    identity.kind !== "member" ||
-    identity.declaringName !== "Array" ||
-    identity.name !== "length"
-  ) {
+  // The JS meaning (facts.profile, D18): the selected member is the JS array's `length`.
+  const source = input.facts.selections.memberAccess(left);
+  const declarations = source?.selected.kind === "member" ? source.selected.declarations : [];
+  const member = declarations.length !== 1 ? undefined : input.facts.profile.member(declarations[0]!);
+  if (source === undefined || member === undefined || member.owner !== "array" || member.name !== "length") {
     return { kind: "not-js-array-mutation" };
   }
-  return selectCsharpNativeArrayLengthWrite(
-    input.types.resolveNode(source.receiver.expression, sourceFile)?.sourceResult?.selectedType,
-    source.receiver.expression, value);
+  const receiver = input.types.value(source.receiver);
+  return selectCsharpNativeArrayLengthWrite(receiver.kind === "csharp-refused" ? undefined : receiver, source.receiver, value);
 }

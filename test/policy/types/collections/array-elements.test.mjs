@@ -5,11 +5,12 @@ import { csharpLiteralIsRepresentableAs } from "../../../../dist/policy/conversi
 import { selectCsharpConversion } from "../../../../dist/policy/conversions/core.js";
 import { csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpBooleanTargetType } from "../../../../dist/target-model/types/carriers/scalar-types.js";
 import { csharpRuntimeUnionTargetType, csharpAbsenceTargetType, getCsharpRuntimeUnionArms } from "../../../../dist/target-model/types/carriers/runtime-carriers.js";
-import { createCsharpTypeResolutionQueryCache } from "../../../../dist/analysis/source-evidence/types/resolution/query-cache.js";
-import { csharpSourceValueResult } from "../../../../dist/analysis/source-evidence/types/resolution/call-results.js";
+import { createCsharpSourceEvidenceTypeQueries } from "../../../../dist/analysis/source-evidence/type-queries.js";
+import { createCsharpTypeDefinitionRegistry } from "../../../../dist/analysis/project-types/type-definitions.js";
 import { createCsharpProviderRelationResolver } from "../../../../dist/providers/native/projection/relation-resolution.js";
 import { getCsharpArrayLiteralElementTargetType } from "../../../../dist/target-model/types/carriers/collections.js";
 import { getCsharpNullableElementTargetType } from "../../../../dist/target-model/types/carriers/nullable.js";
+import { hostProgram, representationServices } from "../../../representation/host-fixture.mjs";
 import { acceptedEffectiveSource, assertPrimitiveOccurrences, assertPublishedRefusal, compileEffectiveSource, projectNodes } from "../../../helpers/source-effective-types.mjs";
 
 const primitive = csharpSourcePrimitiveTargetType;
@@ -273,38 +274,33 @@ test("nonnumeric rows and input objects remain unchanged and immutable", () => {
   assert.equal(Object.isFrozen(input) && input.carrier === carrier, true, "native admission cannot mutate the contribution or its identity");
 });
 
-test("array queries preserve complete resolved, rejected and unavailable selections by source context", () => {
-  const cache = createCsharpTypeResolutionQueryCache();
-  const expression = {};
-  const first = {};
-  const second = {};
-  const third = {};
-  const complete = Object.freeze({ kind: "resolved", carrier: primitive("float32"), elementCarriers: Object.freeze([primitive("float32")]) });
-  const rejected = Object.freeze({ kind: "rejected", reason: "exact inferred native carrier mismatch" });
-  const unavailable = Object.freeze({ kind: "unavailable" });
-  let computations = 0;
-  for (const [file, expected] of [[first, complete], [second, rejected], [third, unavailable]]) {
-    const initial = cache.resolveArrayLiteral(expression, file, true, () => { computations += 1; return expected; });
-    const repeated = cache.resolveArrayLiteral(expression, file, true, () => { computations += 1; return complete; });
-    assert.equal(initial === expected && repeated === expected, true, `${expected.kind}: one exact immutable query result`);
-  }
-  assert.equal(computations, 3, "a rejection is cached as a rejection, never a carrier miss or successful substitute");
-  const bound = cache.resolveArrayLiteral(expression, second, false, () => complete);
-  assert.equal(bound === complete && cache.resolveArrayLiteral(expression, second, true, () => complete) === rejected, true,
-    "a bound or recursive invocation neither consumes nor overwrites the root result");
+// The former C# array query cache (createCsharpTypeResolutionQueryCache) memoized checker-driven selections per source
+// context. The target-only query resolveArrayLiteral now reads the Host descriptors directly (type-queries.ts): the same
+// node gives the same frozen selection, a non-literal is unavailable, and a rejection stays a rejection.
+function arrayLiteralQueries(sourceText) {
+  const program = hostProgram(sourceText);
+  const conversions = Object.freeze({ typeDefinitions: createCsharpTypeDefinitionRegistry(), projectTypes: { directSupertypes: () => [] },
+    providers: createCsharpProviderRelationResolver({ providers: [], providerPolicies: [] }), target: { id: "csharp" } });
+  const unused = () => assert.fail("array literal storage reads no pointer or storage relation");
+  const queries = createCsharpSourceEvidenceTypeQueries(representationServices(program),
+    { pointerStorage: new Proxy({}, { get: unused }), sourceStorage: new Proxy({}, { get: unused }), conversions: () => conversions });
+  return { program, queries, literals: program.nodes.filter(node => program.ast.is.IsArrayLiteralExpression(node)) };
+}
+
+test("array literal selections are recomputed from Host facts, frozen and stable per node", () => {
+  const { queries, literals } = arrayLiteralQueries(`export const words: string[] = ["a", "b"];`);
+  assert.equal(literals.length, 1);
+  const first = queries.resolveArrayLiteral(literals[0]);
+  const second = queries.resolveArrayLiteral(literals[0]);
+  assert.equal(first.kind, "resolved");
+  assert.deepEqual(first, second, "one deterministic selection for one Host fact");
+  assert.equal(Object.isFrozen(first) && Object.isFrozen(first.elementCarriers), true);
+  assert.deepEqual(first.elementCarriers.map(carrier => carrier.id), ["System.String", "System.String"]);
 });
 
-test("array queries never publish an in-progress nested result", () => {
-  const cache = createCsharpTypeResolutionQueryCache();
-  const expression = {};
-  const file = {};
-  const nested = Object.freeze({ kind: "unavailable" });
-  const final = Object.freeze({ kind: "rejected", reason: "completed exact selection" });
-  cache.resolveNode({}, file, () => {
-    const selection = cache.resolveArrayLiteral(expression, file, true, () => nested);
-    assert.equal(selection === nested, true, "the nested invocation sees its own result without publishing it");
-    return { kind: "resolved", sourceResult: csharpSourceValueResult(primitive("int32")) };
-  });
-  assert.equal(cache.resolveArrayLiteral(expression, file, true, () => final) === final, true,
-    "a completed outer query recomputes the final selection instead of retaining a nested partial result");
+test("a non-literal node is unavailable and an elided literal is never a resolved carrier", () => {
+  const { program, queries, literals } = arrayLiteralQueries(`import type { int32 } from "@tsonic/core/types.js";
+export const holes: (int32 | undefined)[] = [1, , 2];`);
+  assert.equal(queries.resolveArrayLiteral(program.named("holes")).kind, "unavailable");
+  assert.notEqual(queries.resolveArrayLiteral(literals[0]).kind, "resolved", "an elision is not silently filled");
 });

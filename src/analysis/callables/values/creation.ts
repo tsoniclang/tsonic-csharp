@@ -1,8 +1,7 @@
 import type { Node } from "@tsonic/tsts";
 import { rejectedTargetStage, resolvedTargetStage, type TargetDiagnostic, type TargetStageResult } from "@tsonic/target-api/artifacts";
-import { HasSyntacticModifier, ModifierFlagsAsync, sourceCallableDefinitionIsDiscarded,
-  sourceExpressionCallArgument, sourceCallArgumentCorrespondences,
-  type SourceLiteralIndex, type TargetSourceProgram } from "@tsonic/target-api/source";
+import { HasSyntacticModifier, ModifierFlagsAsync, type TargetSourceProgramFacts } from "@tsonic/target-api/source";
+import { sourceCallSelection } from "../../program/source-facts.js";
 import { csharpLiteralReturnsFit } from "../calls/return-expressions.js";
 import type { CsharpCaptureStorage } from "../../../target-model/records/callables/capture-storage.js";
 
@@ -24,7 +23,7 @@ import type { CsharpNativeCallableAllocation } from "../../../target-model/recor
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 
 export interface CsharpCallableCreationInput {
-  readonly source: TargetSourceProgram;
+  readonly source: TargetSourceProgramFacts;
   readonly nodes: readonly Node[];
   readonly captures: Pick<CsharpCaptureStorage, "captureClosure" | "lexicalCaptures" | "namedSelf">;
   readonly contracts: CsharpCallableContractIndex;
@@ -33,38 +32,35 @@ export interface CsharpCallableCreationInput {
   readonly expectedTypes: Pick<CsharpExpectedTypeClassifications, "requiredExpectedType">;
   readonly evidence: Pick<CsharpSourceEvidenceIndex, "nodeTargetType" | "contextualType" | "compileTimeMetadata">;
   readonly conversions: Pick<CsharpConversionClassifications, "conversion">;
-  readonly literals: SourceLiteralIndex;
 }
 
 export function analyzeCsharpCallableCreations(input: CsharpCallableCreationInput): TargetStageResult<CsharpCallableCreationIndex> {
   const producer = createCsharpCallableCreationProducer(input.nodes);
   const issues: TargetDiagnostic[] = [];
-  const { ast } = input.source;
+  const { syntax: ast, facts } = input.source;
+  const closedArgument = (node: Node) => facts.analyses.callArgument(node);
   for (const node of input.nodes) {
     if (input.evidence.compileTimeMetadata.get(node) ||
       !ast.is.IsArrowFunction(node) && !ast.is.IsFunctionExpression(node)) continue;
-    if (sourceCallableDefinitionIsDiscarded(node, ast, input.source.navigation)) {
+    if (facts.analyses.callableDefinitionDiscarded(node)) {
       producer.publish(node, Object.freeze({ kind: "discarded" }));
       continue;
     }
     const closure = input.captures.captureClosure.get(node);
     const observedSelf = (input.captures.namedSelf.get(node)?.values.length ?? 0) !== 0;
     const sourceCarrier = input.evidence.nodeTargetType.get(node);
-    const argument = sourceExpressionCallArgument(node, input.source);
+    const argument = closedArgument(node);
     const operation = argument === undefined ? undefined : ast.is.IsNewExpression(argument.call)
       ? input.operations.selectedConstruction.get(argument.call) : input.operations.selectedCall.get(argument.call);
     const nativeArguments = operation?.sourceArgumentParameterTypes;
-    const checked = argument === undefined ? undefined : input.source.semantics.forNode(argument.call).operations.call(argument.call);
-    const nativeBindings = checked === undefined ? undefined : sourceCallArgumentCorrespondences({ ast,
-      semantics: input.source.semantics.forNode(checked.call) }, checked)?.filter(row =>
-      argument !== undefined && row.binding.sourceArgumentIndex === argument.argumentIndex && row.binding.sourceForm === "value" &&
-      row.argument.expression === argument.argument);
-    const immediate = nativeBindings?.length === 1 ? nativeArguments?.[nativeBindings[0]!.bindingIndex] : undefined;
+    // The argument correspondence position in the published call selection indexes the selected parameter carriers.
+    const bindingIndex = argument === undefined ? undefined : sourceCallSelection(facts, argument.call).arguments.findIndex(entry => entry.argument === argument.argument);
+    const immediate = bindingIndex === undefined || bindingIndex < 0 ? undefined : nativeArguments?.[bindingIndex];
     if (argument !== undefined && immediate === undefined) {
       producer.publish(node, Object.freeze({ kind: "pending" }));
       continue;
     }
-    const disposition = input.source.navigation.expressionResultDisposition(node);
+    const disposition = input.source.facts.navigation.expressions.resultDisposition(node);
     let container = disposition.kind === "stored" && ast.is.IsPropertyAssignment(disposition.use)
       ? ast.parent(disposition.use) : disposition.kind === "stored" && ast.is.IsArrayLiteralExpression(disposition.use)
         ? disposition.use : undefined;
@@ -72,8 +68,8 @@ export function analyzeCsharpCallableCreations(input: CsharpCallableCreationInpu
     let aggregate = false;
     while (argument === undefined && container !== undefined && !visited.has(container)) {
       visited.add(container);
-      if (sourceExpressionCallArgument(container, input.source) !== undefined) { aggregate = true; break; }
-      const owner = input.source.navigation.expressionResultDisposition(container);
+      if (closedArgument(container) !== undefined) { aggregate = true; break; }
+      const owner = input.source.facts.navigation.expressions.resultDisposition(container);
       container = owner.kind === "stored" && ast.is.IsPropertyAssignment(owner.use) ? ast.parent(owner.use)
         : owner.kind === "stored" && ast.is.IsArrayLiteralExpression(owner.use) ? owner.use : undefined;
     }
@@ -97,7 +93,7 @@ export function analyzeCsharpCallableCreations(input: CsharpCallableCreationInpu
           ? "A native expression-tree quotation requires a synchronous expression-bodied lambda without statement preparation."
           : undefined;
       if (message !== undefined) {
-        issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: node, message });
+        issues.push({ code: "CSHARP_EXPRESSION_TREE_LAMBDA_FORM", category: "error", source: "tsonic-csharp", sourceNode: node, message });
         continue;
       }
     }
@@ -169,7 +165,7 @@ export function analyzeCsharpCallableCreations(input: CsharpCallableCreationInpu
       return csharpArgumentVectorCallbackResultMatches(contract.returnType, signature.returnType) ||
         completion !== undefined && csharpConversionIsApplicable(completion, "implicit") ||
         awaited !== undefined && csharpConversionIsApplicable(awaited, "implicit") ||
-        csharpLiteralReturnsFit(ast, input.literals, node, signature.returnType, input.source.effectiveTypes);
+        csharpLiteralReturnsFit(ast, node, signature.returnType, facts);
     }
   }
   return issues.length === 0 ? resolvedTargetStage(producer.seal()) : rejectedTargetStage(issues);

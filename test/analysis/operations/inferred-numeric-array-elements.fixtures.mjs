@@ -8,7 +8,6 @@ import { isCsharpStringTargetType, isCsharpJsStringTargetType } from "../../../d
 import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 import { checkCsharpSource } from "../../helpers/direct-csharp-session.mjs";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { analyzeCsharpDeclarations } from "../../../dist/analysis/declarations/analyze.js";
 import { csharpRuntimeUnionTargetType, csharpTargetNamedType, csharpStringTargetType } from "../../../dist/target-model/types/index.js";
 import { csharpJsArrayTargetType } from "../../../dist/target-model/types/carriers/js.js";
@@ -34,7 +33,7 @@ const accepted = compiled => {
 
 function arrays(program) {
   const selected = new Map();
-  const ast = program.source.ast;
+  const ast = program.source.syntax;
   const visit = node => {
     if (ast.is.IsVariableDeclaration(node)) {
       const initializer = ast.as.AsVariableDeclaration(node)?.Initializer;
@@ -49,7 +48,7 @@ function arrays(program) {
 
 function constructedArrays(program) {
   const selected = new Map();
-  const ast = program.source.ast;
+  const ast = program.source.syntax;
   const visit = node => {
     if (ast.is.IsVariableDeclaration(node)) {
       const initializer = ast.as.AsVariableDeclaration(node)?.Initializer;
@@ -96,7 +95,7 @@ const destinationBodies = {
 
 function actualDestinationEvidence(program, expected, label) {
   const nodes = [];
-  const ast = program.source.ast;
+  const ast = program.source.syntax;
   const visit = node => {
     if (ast.is.IsArrayLiteralExpression(node)) nodes.push(node);
     ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
@@ -123,7 +122,7 @@ function actualDestinationEvidence(program, expected, label) {
 }
 
 function actualUnionDestinationEvidence(program, label) {
-  const ast = program.source.ast;
+  const ast = program.source.syntax;
   const nodes = [];
   const visit = node => {
     if (ast.is.IsArrayLiteralExpression(node)) nodes.push(node);

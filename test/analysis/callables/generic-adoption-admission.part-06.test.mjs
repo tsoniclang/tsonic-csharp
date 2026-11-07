@@ -26,14 +26,18 @@ function supportedOpaque(compiled) {
   assert.equal(file !== undefined && compiled.source.sourceFiles.includes(file), true,
     "the exact checked source owns the admitted node");
   assert.equal(ast.kindName(call), "KindCallExpression", "the original call is not replaced with a declaration or copied node");
+  // nextgen C-2542: the native record carries the Host call selection; signature, argument correspondences and method
+  // binders are published facts (selections.call, instantiations.at), not checker Signature bindings.
+  const facts = compiled.result.program.source.facts;
   const selected = compiled.result.program.records.selectedCall.get(call)?.source;
-  assert.equal(selected?.sourceSelectedSignatureKind, "resolved", "the original source call retains its completed selected native signature");
-  const semantics = compiled.result.program.source.semantics.forNode(call);
-  const declaration = semantics.declarations.signatureDeclaration(selected.selectedSignature);
+  assert.equal(selected !== undefined && selected === facts.selections.call(call), true,
+    "the original source call retains its completed Host call selection");
+  const declaration = selected.signature;
   assert.equal(declaration !== undefined && ast.text(ast.name(declaration)) === "wrap", true,
     "the same exact selected generic declaration remains the native owner");
-  assert.equal(selected.sourceArgumentBindings.length > 0 && selected.sourceSelectedMethodTypeArguments?.length > 0, true,
-    "the actual checked parameter, argument and generic correspondence is not erased");
+  const instantiation = facts.instantiations.at(call);
+  assert.equal(selected.arguments.length > 0 && instantiation !== undefined && instantiation.kind !== "refused" &&
+    instantiation.method.length > 0, true, "the actual checked parameter, argument and generic correspondence is not erased");
   const bytes = Buffer.from(ast.getSourceText(file));
   const start = bytes.indexOf("wrap(value)");
   const leading = /^[\t\n\v\f\r ]*/u.exec(bytes.subarray(ast.pos(call), ast.end(call)).toString("utf8"))[0];

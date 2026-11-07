@@ -64,7 +64,7 @@ export function analyzeCsharpClassEmission(input: {
     }
     const implicitCount = forwardingConstructors.length;
     if (factory !== undefined && authoredConstructor === undefined && implicitCount > 1) {
-      issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: node,
+      issues.push({ code: "CSHARP_LOCAL_CLASS_FACTORY_CONSTRUCTOR", category: "error", source: "tsonic-csharp", sourceNode: node,
         message: "A local class factory requires one exact planned constructor and its environment parameter." });
       continue;
     }

@@ -1,6 +1,6 @@
+import { csharpTestSourceProgram } from "../../helpers/target-source-program.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createTargetSourceProgram } from "../../../../tsonic/packages/target-api/dist/public/source.js";
 import { sourceTypeDescriptorStructure } from "../../../../tsonic/packages/target-api/dist/source-semantics/local-type-flow/terms.js";
 import { compileCsharpSource, checkCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
@@ -24,8 +24,8 @@ function projectNodes(program, predicate) {
   const nodes = [];
   while (pending.length > 0) {
     const node = pending.pop();
-    if (predicate(node, program.source.ast)) nodes.push(node);
-    program.source.ast.forEachChild(node, child => { if (child !== undefined) pending.push(child); });
+    if (predicate(node, program.source.syntax)) nodes.push(node);
+    program.source.syntax.forEachChild(node, child => { if (child !== undefined) pending.push(child); });
   }
   return nodes;
 }
@@ -48,9 +48,9 @@ for (const family of families) {
       const calls = projectNodes(program, (node, ast) => ast.is.IsCallExpression(node));
       assert.equal(calls.length, 1);
       const call = calls[0];
-      const selected = program.source.semantics.forNode(call).operations.call(call);
-      const publication = program.source.effectiveTypes.callInstantiation(call);
-      assert.equal(selected !== undefined && publication?.call === selected, true, "same selected Source invocation");
+      const selected = program.source.facts.selections.call(call);
+      const publication = program.source.facts.instantiations.at(call);
+      assert.equal(selected !== undefined && publication?.use === call && selected.use === call, true, "same selected Source invocation");
       const parameter = publication?.parameters[0];
       assert.equal(parameter?.kind === "optional", true, "the callback retains one optional parameter");
       const callable = parameter?.kind === "optional" ? sourceTypeDescriptorStructure(parameter.value) : undefined;
@@ -63,10 +63,10 @@ for (const family of families) {
           ? ["left", "right"].includes(ast.text(ast.name(node)))
           : ast.is.IsIdentifier(node) && ["left", "right"].includes(ast.text(node)) &&
             !ast.is.IsParameterDeclaration(ast.parent(node)));
-        const values = operands.filter(node => program.source.effectiveTypes.get(node) !== undefined);
+        const values = operands.filter(node => program.source.facts.values.type(node) !== undefined);
         assert.equal(values.length, 4, "two actual callback declarations and two body reads publish");
         for (const node of values) {
-          const outcome = program.source.effectiveTypes.get(node);
+          const outcome = program.source.facts.values.type(node);
           assert.equal(outcome.kind !== "refused" && primitive(outcome.type, family.element), true,
             "the actual parameter and body read use the same inherited native element");
         }
@@ -74,10 +74,10 @@ for (const family of families) {
       const calculation = supplied ? family.calculation : "float64";
       assert.equal(primitive(signature?.result, calculation), true, "present contribution or declared generic default");
       assert.equal(signature?.result === publication?.method[0]?.type, true, "one solved method-binder descriptor");
-      const receiver = selected?.sourceReceiver?.expression;
-      const receiverType = receiver === undefined ? undefined : program.source.effectiveTypes.get(receiver);
+      const receiver = selected?.receiver;
+      const receiverType = receiver === undefined ? undefined : program.source.facts.values.type(receiver);
       assert.equal(receiverType !== undefined && receiverType.kind !== "refused" && receiverType.type.kind === "declared" &&
-        program.source.ast.text(program.source.ast.name(receiverType.type.declaration)) === family.name, true,
+        program.source.syntax.text(program.source.syntax.name(receiverType.type.declaration)) === family.name, true,
       "the actual receiver read is the concrete authored family");
       const result = program.records.nodeTargetType.get(call);
       const element = csharpJsTypedArrayElementTargetType(result);
@@ -133,25 +133,26 @@ for (const [name, declaration, invocation, expected] of [
     });
     assert.equal(checked.sourceDiagnosticsText, "");
     assert.equal(checked.extensionDiagnostics.length, 0);
-    const source = createTargetSourceProgram(checked.source);
+    const source = csharpTestSourceProgram(checked.source);
     const file = checked.source.getSourceFile("/project/index.ts");
     assert.equal(file !== undefined, true);
     const pending = [file];
     const calls = [];
     while (pending.length > 0) {
       const node = pending.pop();
-      if (source.ast.is.IsCallExpression(node)) calls.push(node);
-      source.ast.forEachChild(node, child => { if (child !== undefined) pending.push(child); });
+      if (source.syntax.is.IsCallExpression(node)) calls.push(node);
+      source.syntax.forEachChild(node, child => { if (child !== undefined) pending.push(child); });
     }
     assert.equal(calls.length, 1);
-    const selected = source.semantics.forNode(calls[0]).operations.call(calls[0]);
-    const publication = source.effectiveTypes.callInstantiation(calls[0]);
-    assert.equal(selected !== undefined && publication?.call === selected, true, "the same original call publishes its binding");
+    const selected = source.facts.selections.call(calls[0]);
+    const publication = source.facts.instantiations.at(calls[0]);
+    assert.equal(selected !== undefined && publication?.use === calls[0], true, "the same original call publishes its binding");
     const binding = publication?.method[0]?.type;
     assert.equal(expected === "absence"
       ? binding?.kind === "intrinsic" && binding.intrinsic === "absence"
       : primitive(binding, expected), true, "a required absence contributes; a nullable absence does not replace the present binder");
-    assert.equal(expected === "absence" ? publication?.result === undefined : publication?.result === binding, true,
-      "absence-only calls need no result descriptor; present results retain the selected generic descriptor");
+    // The Host instantiation always publishes its result (SourceInstantiation.result); a present binder is the result.
+    assert.equal(expected === "absence" ? publication?.result !== undefined : publication?.result === binding, true,
+      "absence-only calls publish a result descriptor; present results retain the selected generic descriptor");
   });
 }

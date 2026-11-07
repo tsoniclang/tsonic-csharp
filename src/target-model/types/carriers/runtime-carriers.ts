@@ -1,10 +1,9 @@
 import type { CsharpObjectShapeFact, CsharpTargetNamedTypeRef, TargetTypeRef, CsharpRuntimeUnionTargetTypeRef } from "../model.js";
 import { csharpQualifiedTypeRenderShape } from "../render-shapes.js";
 import { csharpTargetNamedType } from "../factories.js";
-import { targetTypeRefKey } from "../equality.js";
-import { csharpNullableTargetType, csharpNullableReferenceTargetType, getCsharpNullableElementTargetType } from "./nullable.js";
-import { getCsharpGenericOptionalParts } from "../projections.js";
-import { isCsharpVoidTargetType } from "../identity.js";
+import { targetTypeRefEquals, targetTypeRefKey } from "../equality.js";
+import { csharpNullableReferenceTargetType, getCsharpNullableElementTargetType } from "./nullable.js";
+import { getCsharpGenericOptionalParts, getCsharpGenericSourceUnionParts } from "../projections.js";
 import { emptyCsharpTypeDefinitions, type CsharpTypeDefinitions } from "../source-union-definitions.js";
 
 export function csharpAnyTargetType(): CsharpTargetNamedTypeRef {
@@ -96,50 +95,48 @@ export function csharpRuntimeUnionTargetType(
   } satisfies CsharpRuntimeUnionTargetTypeRef;
 }
 
-export function combineCsharpTargetUnionMembers(
-  members: readonly TargetTypeRef[],
-): TargetTypeRef | undefined {
-  const valueUnion = members.some(member => !isCsharpVoidTargetType(member));
+/**
+ * The CLR union for one Host closed sum whose present arms are concrete: `Union<A1..An>`, arms positional in the
+ * Host arm order (R6). No sort, no dedupe, no flattening: the caller (representation/sums.ts) passes the
+ * represented present arms of exactly one sum. Absence is lifted by the caller as Nullable / reference `?`.
+ */
+export function csharpSourceSumTargetType(arms: readonly TargetTypeRef[]): CsharpRuntimeUnionTargetTypeRef | undefined {
+  const union = csharpRuntimeUnionTargetType(arms);
+  return union === undefined ? undefined : { ...union, csharpRuntimeUnionSemantics: "source-sum" as const };
+}
+
+/** Carrier comparison only: the same multiset of present CLR arms (absence counted once), independent of nesting. */
+export function csharpSourceUnionMembersMatch(carrier: TargetTypeRef, members: readonly TargetTypeRef[]): boolean {
+  const actual = normalizedCsharpSourceUnionMembers([carrier]);
+  const remaining = [...normalizedCsharpSourceUnionMembers(members)];
+  if (actual.length !== remaining.length) return false;
+  for (const member of actual) {
+    const index = remaining.findIndex(candidate => targetTypeRefEquals(member, candidate));
+    if (index < 0) return false;
+    remaining.splice(index, 1);
+  }
+  return remaining.length === 0;
+}
+
+function normalizedCsharpSourceUnionMembers(members: readonly TargetTypeRef[]): readonly TargetTypeRef[] {
   const byIdentity = new Map<string, TargetTypeRef>();
   const pending = [...members];
   while (pending.length > 0) {
-    const member = pending.pop()!;
-    if (isCsharpAbsenceTargetType(member)) {
-      byIdentity.set(targetTypeRefKey(member), member);
-      continue;
-    }
+    const member = pending.shift()!;
     const optional = getCsharpNullableElementTargetType(member);
     if (optional !== undefined) {
-      pending.push(optional, csharpAbsenceTargetType());
+      pending.unshift(optional, csharpAbsenceTargetType());
       continue;
     }
     const arms = isCsharpRuntimeUnionTargetType(member) && member.csharpRuntimeUnionSemantics === "source-sum"
-      ? member.csharpRuntimeUnionArms : undefined;
+      ? member.csharpRuntimeUnionArms : getCsharpGenericSourceUnionParts(member)?.members;
     if (arms !== undefined) {
-      pending.push(...arms);
+      pending.unshift(...arms);
       continue;
     }
-    const value = valueUnion && isCsharpVoidTargetType(member) ? csharpAbsenceTargetType() : member;
-    byIdentity.set(targetTypeRefKey(value), value);
+    byIdentity.set(targetTypeRefKey(member), member);
   }
-  const canonicalMembers = [...byIdentity.values()].sort((left, right) =>
-    targetTypeRefKey(left).localeCompare(targetTypeRefKey(right)));
-  const nonNullishMembers = canonicalMembers.filter(
-    (member) =>
-      !isCsharpAbsenceTargetType(member),
-  );
-  const nullishMembers = canonicalMembers.filter(
-    (member) =>
-      isCsharpAbsenceTargetType(member),
-  );
-  if (nonNullishMembers.length === 0) {
-    return nullishMembers[0];
-  }
-  const union = nonNullishMembers.length > 1 ? csharpRuntimeUnionTargetType(nonNullishMembers) : undefined;
-  const value = nonNullishMembers.length === 1 ? nonNullishMembers[0]
-    : union === undefined ? undefined : { ...union, csharpRuntimeUnionSemantics: "source-sum" as const };
-  return nullishMembers.length === 0 ? value
-    : value === undefined ? undefined : csharpNullableTargetType(value);
+  return [...byIdentity.values()];
 }
 
 export function isCsharpJsValueTargetType(
@@ -191,6 +188,8 @@ export function getCsharpRuntimeUnionArms(
 ): readonly TargetTypeRef[] | undefined {
   const optional = getCsharpGenericOptionalParts(type);
   if (optional !== undefined) return [csharpAbsenceTargetType(), optional.element];
+  const sourceUnion = getCsharpGenericSourceUnionParts(type);
+  if (sourceUnion !== undefined) return sourceUnion.members;
   return isCsharpRuntimeUnionTargetType(type)
     ? type.csharpRuntimeUnionArms
     : type === undefined ? undefined : definitions.sourceUnionArms(type);

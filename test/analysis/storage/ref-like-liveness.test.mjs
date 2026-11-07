@@ -3,7 +3,7 @@ import test from "node:test";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { createCompilerSessionFromFiles } from "@tsonic/tsts";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
+import { hostProgram } from "../../representation/host-fixture.mjs";
 
 const header = `import type { int32 } from "@tsonic/core/types.js";
 import { Span } from "@tsonic/dotnet/System.js";
@@ -27,16 +27,12 @@ export function read(): number { return foreign<number>(1); }`,
 
 test("missing owned binding evidence refuses instead of silently skipping liveness", async () => {
   const { analyzeCsharpRefLikeLiveness } = await import("../../../dist/analysis/storage/ref-like-liveness.js");
-  const checked = createCompilerSessionFromFiles({ currentDirectory: "/src", files: {
-    "/src/index.ts": "function run() { function nested() { const retained = 1; return retained; } return 1; }",
-  }, compilerOptions: { strict: true, target: "esnext", module: "esnext" } }).checkSource();
-  assert.equal(checked.diagnostics.length, 0, "the liveness boundary uses actual checked nodes");
-  const source = createTargetSourceProgram(checked);
-  const nodes = [];
-  const collect = node => { nodes.push(node); source.ast.forEachChild(node, child => { if (child !== undefined) collect(child); }); };
-  collect(checked.getSourceFile("/src/index.ts"));
-  const declaration = nodes.find(node => source.ast.is.IsFunctionDeclaration(node) && source.ast.text(source.ast.name(node)) === "run");
-  const binding = nodes.find(node => source.ast.is.IsVariableDeclaration(node) && source.ast.text(source.ast.name(node)) === "retained");
+  // nextgen C-2542: a Host program; the liveness owner reads facts.analyses.controlFlow on TargetSourceProgramFacts.
+  const program = hostProgram("function run() { function nested() { const retained = 1; return retained; } return 1; }");
+  const source = Object.freeze({ syntax: program.ast, facts: program.facts, sourceFiles: program.files });
+  const nodes = program.nodes;
+  const declaration = nodes.find(node => source.syntax.is.IsFunctionDeclaration(node) && source.syntax.text(source.syntax.name(node)) === "run");
+  const binding = nodes.find(node => source.syntax.is.IsVariableDeclaration(node) && source.syntax.text(source.syntax.name(node)) === "retained");
   assert.equal(declaration !== undefined && binding !== undefined, true, "both exact source owners exist");
   const issues = [];
   analyzeCsharpRefLikeLiveness(source, declaration, new Set([binding]), (node, code) => issues.push({ node, code }));
@@ -111,12 +107,9 @@ export async function run(values: int32[], pending: Promise<int32>): Promise<int
 
 test("finite ref-like flow exhaustion is a named compiler resource error, not unsupported source", async () => {
   const { analyzeCsharpRefLikeLiveness } = await import("../../../dist/analysis/storage/ref-like-liveness.js");
-  const checked = createCompilerSessionFromFiles({ currentDirectory: "/project", files: { "/project/index.ts":
-    `export function finite(): void { ${"{".repeat(270)} let local = 1; ${"}".repeat(270)} }` },
-    compilerOptions: { strict: true, target: "es2022", module: "esnext" } }).checkSource();
-  assert.equal(checked.diagnostics.length, 0, "a finite supported checked function");
-  const source = createTargetSourceProgram(checked);
-  const declaration = source.navigation.nodes.find(node => source.ast.is.IsFunctionDeclaration(node));
+  const program = hostProgram(`export function finite(): void { ${"{".repeat(270)} let local = 1; ${"}".repeat(270)} }`);
+  const source = Object.freeze({ syntax: program.ast, facts: program.facts, sourceFiles: program.files });
+  const declaration = program.nodes.find(node => source.syntax.is.IsFunctionDeclaration(node));
   assert.equal(declaration !== undefined, true, "the exact checked declaration");
   const issues = [];
   analyzeCsharpRefLikeLiveness(source, declaration, new Set(), (node, code, message) => issues.push({ node, code, message }));

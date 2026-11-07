@@ -1,9 +1,13 @@
-import type { TypeTupleElementInfo } from "@tsonic/tsts";
 import type { CsharpTargetParameter } from "../../../target-model/types/model.js";
+
+/** Element kind of a rest tuple, as published by the Host descriptor (SourceTypeDescriptorTupleElement.kind). */
+export interface CsharpRestTupleElement {
+  readonly elementKind: "required" | "optional" | "rest" | "variadic";
+}
 
 export function selectCsharpSourceParameterVector(
   parameter: CsharpTargetParameter,
-  elements: readonly Pick<TypeTupleElementInfo, "elementKind">[] | undefined,
+  elements: readonly CsharpRestTupleElement[] | undefined,
 ): readonly CsharpTargetParameter[] | undefined {
   if (parameter.paramsArray !== true || parameter.type.kind !== "tuple") return Object.freeze([parameter]);
   if (parameter.passingMode !== "by-value" || elements === undefined ||

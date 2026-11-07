@@ -1,7 +1,7 @@
 import type { Node } from "@tsonic/tsts";
 import { targetTypeRefKey } from "../../target-model/types/equality.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import { sourceDeclarationIsModuleScoped, sourceEnclosingCallable, sourceParameterIsProperty, type TargetSourceProgram } from "@tsonic/target-api/source";
+import { sourceParameterIsProperty, type TargetSourceProgramFacts } from "@tsonic/target-api/source";
 import type { CsharpCallableContractIndex } from "../../target-model/records/callables/callable-values.js";
 import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native/native-demand.js";
 import type { CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
@@ -19,7 +19,7 @@ import { analyzeCsharpRefLikeLiveness, analyzeCsharpRefLikeEvaluation } from "./
 import { selectCsharpSourceCallableGenericAbi } from "../callables/calls/source-callable-abi.js";
 
 export interface CsharpNativePlacementInput {
-  readonly source: TargetSourceProgram;
+  readonly source: TargetSourceProgramFacts;
   readonly nodes: readonly Node[];
   readonly callables: CsharpCallableContractIndex;
   readonly captureStorage: CsharpCaptureStorage;
@@ -39,7 +39,7 @@ export function analyzeCsharpRefLikePlacements(input: CsharpNativePlacementInput
   const diagnostics: TargetDiagnostic[] = [];
   const rejected = new Map<Node, Set<string>>();
   const scopedBindings = new Map<Node, Set<Node>>();
-  const { ast } = input.source;
+  const { syntax: ast } = input.source;
   const participating = new Map<Node, boolean>();
   const participates = (node: Node): boolean => {
     const cached = participating.get(node);
@@ -164,10 +164,10 @@ export function analyzeCsharpRefLikePlacements(input: CsharpNativePlacementInput
       if (!isCsharpRefLikeTargetType(type)) continue;
       if (ast.is.IsPropertyDeclaration(node)) {
         if (fieldHasStorage(node)) reject(node, "CSHARP_REFLIKE_FIELD", "A native ref-like value cannot be stored in an ordinary source field or backing property.");
-      } else if (sourceDeclarationIsModuleScoped(node, ast)) {
+      } else if (input.source.facts.navigation.scopes.isModuleScoped(node)) {
         reject(node, "CSHARP_REFLIKE_MODULE_FIELD", "A native ref-like value cannot be stored in a static module field or backing property.");
       } else {
-        const owner = sourceEnclosingCallable(node, ast);
+        const owner = input.source.facts.navigation.scopes.enclosing(node, "execution-barrier");
         if (owner === undefined) reject(node, "CSHARP_REFLIKE_LIVENESS_NOT_PROVEN", "The exact native ref-like binding's lexical lifetime is not proven.");
         else {
           const bindings = scopedBindings.get(owner) ?? new Set<Node>();
@@ -200,7 +200,7 @@ export function analyzeCsharpRefLikePlacements(input: CsharpNativePlacementInput
         const callee = sourceCall?.sourceCall;
         if (callee !== undefined && callee.kind !== "rejected" && sourceCall?.sourceTypeArguments !== undefined) {
           if ((callee.kind === "function" || callee.kind === "method") &&
-            !input.source.navigation.isProjectDeclaration(callee.declaration)) continue;
+            !input.source.facts.navigation.identity.isProjectDeclaration(callee.declaration)) continue;
           const allowed = callee.kind === "function" || callee.kind === "method"
             ? [(ast.is.IsFunctionDeclaration(callee.declaration) && ast.body(callee.declaration) === undefined
                 ? selectCsharpSourceCallableGenericAbi(ast, callee.declaration)

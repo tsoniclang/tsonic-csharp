@@ -1,4 +1,3 @@
-import { csharpSourceValueResult } from "../../../dist/analysis/source-evidence/types/resolution/call-results.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { classifySourceOwnedMember } from "../../../dist/analysis/operations/member-access.js";
@@ -6,13 +5,13 @@ import { classifySourceOwnedMember } from "../../../dist/analysis/operations/mem
 const receiver = {};
 const expression = {};
 const declaration = {};
-const sourceType = {};
-const sourceFile = {};
+const receiverType = { kind: "declared", declaration: {}, typeArguments: [] };
+const readType = { kind: "primitive", primitive: "int32" };
 const integer = { kind: "source-primitive", name: "int32" };
 const carrier = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "Project.Owner" };
 const member = {
   sourceKey: { kind: "property", name: "value" }, sourceName: "value", targetName: "value",
-  sourceSubjects: [declaration], sourceTypes: [sourceType], memberKind: "property", type: integer,
+  sourceSubjects: [declaration], sourceDeclarations: [declaration], memberKind: "property", type: integer,
 };
 
 for (const kind of ["class", "interface"]) {
@@ -22,33 +21,28 @@ for (const kind of ["class", "interface"]) {
       const shape = { targetType: carrier, members: [member] };
       const policy = {
         ast: { is: { IsElementAccessExpression: () => false } },
-        semantics: () => ({
-          facts: { selectedSubjects: () => [declaration] },
-          types: { relationship: () => "identical" },
-          operations: { propertyAccess: () => undefined },
-        }),
+        facts: { selections: { memberAccess: () => undefined } },
         types: {
-          resolveNode: node => ({ kind: "resolved", sourceResult: csharpSourceValueResult(node === receiver ? carrier : integer) }),
-          resolveSelectedValue: node => node === receiver ? carrier : integer,
-          resolveReadStorage: () => integer,
+          value: node => node === receiver ? carrier : integer,
+          represent: descriptor => descriptor === receiverType ? carrier : integer,
+          readStorage: () => integer,
         },
         projectTypes: { catalog: { definitionForTarget: type => type === carrier ? { kind } : undefined } },
         objectShapes: {
-          resolveNode(node, file) {
+          resolveNode(node) {
             assert.notEqual(kind, "class", "Nominal dispatch must not derive unused structural contracts");
             assert.strictEqual(node, receiver);
-            assert.strictEqual(file, sourceFile);
             derivations += 1;
             return shape;
           },
         },
       };
+      // The Host member selection (SourceMemberAccessSelection) carries the receiver, its selected type and the read result.
       const selection = { kind: "source-owned", source: {
-        receiver: { expression: receiver, type: {} }, expression,
-        selectedDeclaration: declaration, selectedSymbol: {}, sourceReadType: sourceType,
-        optionalChain,
+        use: expression, receiver, receiverType, name: "value", selected: { kind: "member", declarations: [declaration] },
+        result: readType, access: "read", optionalChain,
       } };
-      const result = classifySourceOwnedMember(policy, selection, sourceFile);
+      const result = classifySourceOwnedMember(policy, selection);
       assert.equal(derivations, kind === "class" ? 0 : 1);
       assert.strictEqual(result.selectedReceiverType, carrier);
       assert.deepEqual(result.selectedSubjects, [declaration]);

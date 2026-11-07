@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
-import { createSourceStorageQuery, targetUseSiteIdentity } from "@tsonic/target-api/analysis";
+import { targetUseSiteIdentity } from "@tsonic/target-api/analysis";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { compileCsharpNativeUseSource } from "../../helpers/expected-native-uses.mjs";
 import { assertPrimitiveOccurrences, assertPublishedRefusal, projectNodes } from "../../helpers/source-effective-types.mjs";
@@ -28,7 +27,7 @@ for (const surface of ["native", "js"]) {
       compiled.result.diagnostics.map(diagnostic => `${diagnostic.code}: ${diagnostic.message}`).join("; "));
     const program = compiled.result.program;
     assert.equal(program !== undefined, true, "the declared nominal class reaches native emission");
-    const ast = program.source.ast;
+    const ast = program.source.syntax;
     const reads = [];
     const visit = node => {
       if (ast.is.IsPropertyAccessExpression(node) && ast.text(ast.name(node)) === "shared") reads.push(node);
@@ -54,7 +53,7 @@ test(
   if (label === "accessor bodies") {
     assert.equal(compiled.sourceDiagnosticsText, "", compiled.sourceDiagnosticsText);
     assert.deepEqual(compiled.targetDiagnostics.map(({ code, message }) => [code, message]),
-      [["CSHARP_UNSUPPORTED_AST", "No exact C# implicit conversion relates 'source:float64' to 'source:int64'. Annotate the value with an integral type."]],
+      [["CSHARP_VALUE_USE_NOT_ADMITTED", "No exact C# implicit conversion relates 'source:float64' to 'source:int64'. Annotate the value with an integral type."]],
       `${label}: C2360 Q1 makes the original field or binding int64, which cannot receive a number write/default`);
     assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
       "the original native write-fit refusal publishes nothing");
@@ -62,7 +61,7 @@ test(
   }
   if (label === "compound and logical assignments and increments") {
     const inspected = { ...compiled, targetSource: compiled.nativeStage.source };
-    const ast = inspected.targetSource.ast;
+    const ast = inspected.targetSource.syntax;
     const destinations = projectNodes(inspected, (node, reader) => reader.is.IsVariableDeclaration(node) && reader.text(reader.name(node)) === "optional");
     assert.equal(destinations.length, 1, "the original concrete union destination is unique");
     assert.equal(compiled.result.diagnostics.find(issue => issue.code === "TSONIC_LOCAL_TYPE_UNION")?.sourceNode === destinations[0], true,
@@ -152,7 +151,7 @@ test(`${surface} discarded callable branches retain every condition and operand 
   `, surface });
   assert.equal(compiled.sourceDiagnosticsText, "", compiled.sourceDiagnosticsText);
   assert.deepEqual(compiled.targetDiagnostics.map(({ code, message }) => [code, message]),
-    [["CSHARP_UNSUPPORTED_AST", "No exact C# implicit conversion relates 'source:float64' to 'source:int64'. Annotate the value with an integral type."]],
+    [["CSHARP_VALUE_USE_NOT_ADMITTED", "No exact C# implicit conversion relates 'source:float64' to 'source:int64'. Annotate the value with an integral type."]],
     "C2360 Q1 makes the module-level unannotated trace Host-fixed int64, which cannot receive a number write");
   assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
     "the original incompatible module write publishes no native output");

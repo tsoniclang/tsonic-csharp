@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createCompilerSessionFromFiles } from "@tsonic/tsts";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { analyzeCsharpSafetyEmission } from "../../../dist/analysis/safety/emission.js";
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
@@ -13,12 +12,14 @@ for (const pointer of [false, true]) {
       files: { "/project/index.ts": "declare function load(value: number): number; export function read(value: number): number { return value > 0 ? load(value) : 0; }" },
       compilerOptions: { noLib: true, strict: true, target: "esnext" },
     }).checkSource();
-    const source = createTargetSourceProgram(checked);
     const file = checked.getSourceFile("/project/index.ts");
+    // Safety emission reads authored syntax and the project files only (Pick<TargetSourceProgramFacts, "sourceFiles" |
+    // "syntax">); nextgen C-2542: createTargetSourceProgram needs the composition's profile and is not built here.
+    const source = { syntax: checked.ast, sourceFiles: [file] };
     const nodes = [];
-    const visit = node => { nodes.push(node); source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); }); };
+    const visit = node => { nodes.push(node); source.syntax.forEachChild(node, child => { if (child !== undefined) visit(child); }); };
     visit(file);
-    const call = nodes.find(node => source.ast.is.IsCallExpression(node));
+    const call = nodes.find(node => source.syntax.is.IsCallExpression(node));
     assert.equal(call !== undefined, true, "the checked conditional arm has its original source call");
     const absent = Object.freeze({ get: () => undefined });
     const result = analyzeCsharpSafetyEmission({
@@ -63,7 +64,7 @@ for (const surface of ["native", "js"]) {
     let comparisons = 0;
     while (pending.length > 0) {
       const node = pending.pop();
-      program.source.ast.forEachChild(node, child => { if (child !== undefined) pending.push(child); });
+      program.source.syntax.forEachChild(node, child => { if (child !== undefined) pending.push(child); });
       const selected = program.records.switchStatement.get(node);
       if (selected?.kind !== "ordered") continue;
       for (const clause of selected.clauses) {

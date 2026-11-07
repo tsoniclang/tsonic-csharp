@@ -9,7 +9,7 @@ import type { CsharpObjectShapeDemandScope } from "./batches.js";
 import { selectCsharpJsonObjectShapeContract } from "../../../policy/types/objects/json-object-shapes.js";
 import type { CsharpArtifactRequestResult, CsharpObjectShapeProjectionRequestResult } from "./batches.js";
 import type { CsharpObjectShapeArtifactClosure, CsharpObjectShapeDeclarationNaming, CsharpObjectShapeDemandClosure, CsharpPreparedObjectShapeProjection } from "../../../target-model/records/objects/object-shape-demand.js";
-import type { Node, SourceFile } from "@tsonic/tsts";
+import type { Node } from "@tsonic/tsts";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { accepted, rejected } from "./batches.js";
 import {
@@ -33,7 +33,7 @@ import { objectShapeProjectionConversions,
 import { prepareCsharpObjectShapeDeclarationNames } from "../../names/object-shapes.js";
 import { csharpJsonValueProjectionMethodName, csharpJsonValueWriterMethodName } from "../../../target-model/names/object-members.js";
 import { isCsharpRefLikeTargetType } from "../../../target-model/types/ref-like.js";
-import { createCsharpTypeParameterEnvironment } from "../../source-evidence/types/resolution/type-parameter-environment.js";
+import { createCsharpTypeParameterEnvironment } from "../../../representation/index.js";
 import {
   collectShapeDependencies,
   prepareObjectShapeBatch,
@@ -120,13 +120,12 @@ export function requireObjectShapeCapability(
   { addObjectShapesToBatch, addShapeCapabilities, collectCapabilityClosure, commitObjectShapeBatch, host, prepareObjectShapeBatch, validateObjectShapeBatch }: CsharpObjectShapeDemandScope,
   node: Node | undefined,
   type: TargetTypeRef,
-  sourceFile: SourceFile,
   capability: CsharpObjectShapeCapability,
   rootKind: "value" | "object-shape",
 ): CsharpArtifactRequestResult {
   const preferredShape = node === undefined
     ? host.objectShapes.resolveTarget(type)
-    : host.objectShapes.resolveNode(node, sourceFile) ??
+    : host.objectShapes.resolveNode(node) ??
       host.objectShapes.resolveTarget(type);
   if (rootKind === "object-shape" && preferredShape === undefined) {
     return rejected(
@@ -202,7 +201,6 @@ export function requireObjectShapeProjection(
     projections: publishedProjections }: CsharpObjectShapeDemandScope,
   node: Node | undefined,
   type: TargetTypeRef,
-  sourceFile: SourceFile,
   projectionKind: CsharpObjectShapeProjectionKind,
   resultType: TargetTypeRef,
   rootKind: "value" | "object-shape",
@@ -216,10 +214,10 @@ export function requireObjectShapeProjection(
   }
   const preferredShape = projectionKind === "assign"
     ? host.objectShapes.resolveTarget(type) ??
-      (node === undefined ? undefined : host.objectShapes.resolveNode(node, sourceFile))
+      (node === undefined ? undefined : host.objectShapes.resolveNode(node))
     : node === undefined
       ? host.objectShapes.resolveTarget(type)
-      : host.objectShapes.resolveNode(node, sourceFile) ??
+      : host.objectShapes.resolveNode(node) ??
         host.objectShapes.resolveTarget(type);
   if (preferredShape === undefined) {
     return rootKind === "object-shape"
@@ -234,7 +232,7 @@ export function requireObjectShapeProjection(
     );
   }
   const assignmentShape = projectionKind === "assign" && assignmentSource !== undefined
-    ? host.objectShapes.resolveNode(assignmentSource.node, sourceFile) ??
+    ? host.objectShapes.resolveNode(assignmentSource.node) ??
       host.objectShapes.resolveTarget(assignmentSource.type)
     : undefined;
   if (projectionKind === "assign" && assignmentShape === undefined) {
@@ -585,13 +583,13 @@ export function createCsharpObjectShapeDemandEngine(host: CsharpObjectShapeDeman
       requireOpen();
       return registerObjectShape(scope, fact, materialization);
     },
-    requireObjectShapeCapability(node, type, file, capability, rootKind) {
+    requireObjectShapeCapability(node, type, capability, rootKind) {
       requireOpen();
-      return requireObjectShapeCapability(scope, node, type, file, capability, rootKind);
+      return requireObjectShapeCapability(scope, node, type, capability, rootKind);
     },
-    requireObjectShapeProjection(node, type, file, projection, resultType, rootKind, assignmentSource) {
+    requireObjectShapeProjection(node, type, projection, resultType, rootKind, assignmentSource) {
       requireOpen();
-      return requireObjectShapeProjection(scope, node, type, file, projection, resultType, rootKind, assignmentSource);
+      return requireObjectShapeProjection(scope, node, type, projection, resultType, rootKind, assignmentSource);
     },
     requireObjectShapeMethodReceiver(fact, member) {
       requireOpen();

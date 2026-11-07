@@ -1,4 +1,5 @@
-import type { SourceFile } from "@tsonic/tsts";
+import type { SourceCallSelection } from "@tsonic/target-api/source";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 
 import type { CsharpProviderTargetRelation } from "../../../../target-model/identities/provider-relations.js";
 import type { CsharpTargetMember } from "../../../../policy/types/index.js";
@@ -11,7 +12,6 @@ import { csharpIntegralConversionAnnotationHint } from "../../../conversions/int
 
 import { selectCsharpSourceArgument } from "../../../../source/extension/arguments.js";
 import type { CsharpSelectedCallArgument, CsharpProviderArgumentMapping } from "../../../../target-model/records/objects/members.js";
-import type { ResolvedSourceCallInfo } from "../../../../target-model/records/calls/source-calls.js";
 
 type CsharpProviderSignatureRelation = Extract<
   CsharpProviderTargetRelation,
@@ -31,31 +31,15 @@ export function validateArgumentsTargetSelectedParameters(
   host: CsharpProviderCallInstantiationHost,
   relation: CsharpProviderSignatureRelation,
   targetMember: CsharpTargetMember,
-  source: ResolvedSourceCallInfo,
+  source: SourceCallSelection,
   arguments_: readonly CsharpSelectedCallArgument[],
-  sourceFile: SourceFile,
 ): CsharpProviderArgumentValidation {
   const argumentMappings: CsharpProviderArgumentMapping[] = [];
   for (const argument of arguments_) {
-    const binding = source.sourceArgumentBindings.find((candidate) =>
-      candidate.effectiveArgumentIndex === argument.effectiveArgumentIndex);
-    if (binding === undefined) {
-      return {
-        kind: "rejected",
-        reason:
-          `Effective source argument ${argument.effectiveArgumentIndex} has no exact checker-selected parameter binding.`,
-      };
-    }
-    const sourceExpression = source.sourceArguments[
-      binding.sourceArgumentIndex
-    ]?.expression;
-    if (sourceExpression === undefined) {
-      return {
-        kind: "rejected",
-        reason:
-          `Source argument ${binding.sourceArgumentIndex} has no exact checker-owned expression.`,
-      };
-    }
+    // The effective argument index is the position in the Host argument correspondence (selections.call).
+    const sourceExpression = source.arguments[argument.effectiveArgumentIndex]?.argument ?? failTargetAnalysisInvariant(
+      "tsonic-csharp", `Effective source argument ${argument.effectiveArgumentIndex} has no Host argument correspondence.`, source.use);
+    const binding = { sourceArgumentIndex: argument.sourceArgumentIndex };
     const sourceArgument = selectCsharpSourceArgument(
       host.sourceFacts,
       sourceExpression,
@@ -77,11 +61,8 @@ export function validateArgumentsTargetSelectedParameters(
           `Source argument ${binding.sourceArgumentIndex} uses '${sourceArgument.argument.passingMode}', but exact target parameter '${argument.targetParameter.name}' requires '${argument.targetParameter.passingMode}'.`,
       };
     }
-    const sourceSelection = host.types.resolveNode(
-      sourceArgument.argument.storageExpression,
-      sourceFile,
-    );
-    const sourceType = sourceSelection?.kind === "resolved" ? sourceSelection.sourceResult.selectedType : undefined;
+    const sourceSelection = host.types.value(sourceArgument.argument.storageExpression);
+    const sourceType = sourceSelection.kind === "csharp-refused" ? undefined : sourceSelection;
     const targetType = csharpTargetParameterValueType(
       argument.targetParameter,
       argument.sourceForm,
@@ -125,7 +106,7 @@ export function validateArgumentsTargetSelectedParameters(
       });
       continue;
     }
-    const conversion = selectCsharpSourceTypeFlowIndexConversion(host.effectiveTypes.get(sourceArgument.argument.storageExpression),
+    const conversion = selectCsharpSourceTypeFlowIndexConversion(host.facts.values.type(sourceArgument.argument.storageExpression),
       { kind: "parameter", expression: sourceArgument.argument.storageExpression, parameter: argument.targetParameter }, sourceType, targetType)
       ?? selectCsharpProviderArgumentConversion(
       host,
@@ -151,7 +132,7 @@ export function validateArgumentsTargetSelectedParameters(
         ? ` ${conversion.reason}`
         : "";
       const hint = csharpIntegralConversionAnnotationHint(sourceArgument.argument.storageExpression, sourceType, targetType,
-        { ast: host.ast, navigation: host.navigation, call: node => node === source.call ? source : undefined });
+        { ast: host.ast, facts: host.facts });
       return {
         kind: "rejected",
         reason:

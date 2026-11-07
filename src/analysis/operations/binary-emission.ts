@@ -1,5 +1,5 @@
 import type { Node } from "@tsonic/tsts";
-import type { TargetSourceProgram } from "@tsonic/target-api/source";
+import type { TargetSourceProgramFacts } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpResolvedBinaryOperation } from "../../target-model/records/operations/operator-selection.js";
 import type { CsharpBinaryEmission, CsharpNativeBinaryEmission } from "../../target-model/records/operations/binary-emission.js";
@@ -14,7 +14,7 @@ import { sourceOperatorFromKindName } from "../../target-model/syntax/operators.
 import { csharpNativeAssignmentTokens, csharpNativeBinaryTokens } from "../../target-model/syntax/native-binary.js";
 import { createCsharpBinaryEmissionRecords } from "../program/records/operations/binary-emission.js";
 
-export function analyzeCsharpBinaryEmission(input: { readonly source: TargetSourceProgram; readonly nodes: readonly Node[];
+export function analyzeCsharpBinaryEmission(input: { readonly source: TargetSourceProgramFacts; readonly nodes: readonly Node[];
   readonly operations: CsharpTargetOperationClassifications; readonly demand: CsharpNativeDemandAnalysis;
   readonly optionalLocals: Pick<CsharpOptionalLocalPlan, "get">;
   readonly storage: CsharpStorageClassifications; readonly constants: CsharpNativeConstantRecords; readonly admitted: (node: Node) => boolean }) {
@@ -22,24 +22,24 @@ export function analyzeCsharpBinaryEmission(input: { readonly source: TargetSour
   const native = new Map<Node, Map<CsharpResolvedBinaryOperation, CsharpNativeBinaryEmission>>();
   const issues: TargetDiagnostic[] = [];
   const reported = new Map<Node, Set<string>>();
-  const refuse = (node: Node, message: string): void => {
+  const refuse = (node: Node, code: `CSHARP_${string}`, message: string): void => {
     const messages = reported.get(node) ?? new Set<string>();
     if (messages.has(message)) return;
     messages.add(message); reported.set(node, messages);
-    issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: node, message });
+    issues.push({ code, category: "error", source: "tsonic-csharp", sourceNode: node, message });
   };
-  const { ast } = input.source;
+  const ast = input.source.syntax;
   const addNative = (node: Node, selection: CsharpResolvedBinaryOperation): void => {
     const entries = native.get(node) ?? new Map<CsharpResolvedBinaryOperation, CsharpNativeBinaryEmission>();
     if (entries.has(selection)) return;
     const operation = selection.targetOperation;
     if ((operation.kind === "bigint-call" || operation.kind === "closed-value-coalesce") && operation.assignment && operation.location === "unsupported") {
-      refuse(node, "Read-modify-write requires a binding or an exact native reference-receiver location and hygienic evaluation scope."); return;
+      refuse(node, "CSHARP_READ_MODIFY_WRITE_LOCATION", "Read-modify-write requires a binding or an exact native reference-receiver location and hygienic evaluation scope."); return;
     }
     const operator = operation.kind === "operator" || operation.kind === "generic-numeric" ? operation.operator : undefined;
     const syntax = operator === undefined ? undefined : Object.prototype.hasOwnProperty.call(csharpNativeAssignmentTokens, operator) ? "assignment"
       : Object.prototype.hasOwnProperty.call(csharpNativeBinaryTokens, operator) ? "binary" : undefined;
-    if (operator !== undefined && syntax === undefined) { refuse(node, `Selected C# operator '${operator}' has no target AST token.`); return; }
+    if (operator !== undefined && syntax === undefined) { refuse(node, "CSHARP_BINARY_OPERATOR_NOT_MAPPED", `Selected C# operator '${operator}' has no target AST token.`); return; }
     let storage = selection.left;
     while (ast.is.IsParenthesizedExpression(storage)) storage = ast.as.AsParenthesizedExpression(storage)?.Expression
       ?? failTargetAnalysisInvariant("tsonic-csharp", "A checked assignment location requires its parenthesized source operand.", storage);
@@ -51,12 +51,12 @@ export function analyzeCsharpBinaryEmission(input: { readonly source: TargetSour
     const boolean = csharpSourcePrimitiveTargetType("bool");
     const other = operation.kind === "nullish-test" && operation.operand === "left" ? selection.right : selection.left;
     const otherCarrier = operation.kind === "nullish-test" && operation.operand === "left" ? selection.rightType : selection.leftType;
-    const rightSuspends = input.source.navigation.expressionEffects(selection.right).suspends;
+    const rightSuspends = input.source.facts.navigation.expressions.effects(selection.right).suspends;
     if (syntax === "assignment" && (location?.kind !== "resolved" || !location.writable)) {
-      refuse(node, location?.kind === "rejected" ? location.reason : "A sequenced native assignment requires its sealed writable physical location."); return;
+      refuse(node, "CSHARP_ASSIGNMENT_LOCATION_NOT_WRITABLE", location?.kind === "rejected" ? location.reason : "A sequenced native assignment requires its sealed writable physical location."); return;
     }
     if (syntax === "assignment" && rightSuspends && location?.kind === "resolved" && location.opaque === true) {
-      refuse(node, "An opaque native ref-return address cannot be held across asynchronous suspension."); return;
+      refuse(node, "CSHARP_REF_RETURN_ACROSS_SUSPENSION", "An opaque native ref-return address cannot be held across asynchronous suspension."); return;
     }
     entries.set(selection, { selection, syntax, storage, location: location?.kind === "resolved" ? location : undefined, rightSuspends,
       narrowedCoalescing: operator === "??=" && left !== undefined && left.kind !== "erased" && !targetTypeRefEquals(selection.resultType, left.carrier),
@@ -90,10 +90,10 @@ export function analyzeCsharpBinaryEmission(input: { readonly source: TargetSour
     const left = syntax?.Left;
     const right = syntax?.Right;
     const selected = input.operations.binaryOperation.get(node);
-    if (selected === undefined || left === undefined || right === undefined) { refuse(node, "C# planning received a binary expression without a sealed target classification."); continue; }
+    if (selected === undefined || left === undefined || right === undefined) failTargetAnalysisInvariant("tsonic-csharp", "C# planning received a binary expression without a sealed target classification.", node);
     const operator = sourceOperatorFromKindName(ast.operatorKindName(node));
     if (form === "js-value-operation" && operator !== "=") {
-      if (selected.jsValue.kind === "rejected") { refuse(node, selected.jsValue.reason); continue; }
+      if (selected.jsValue.kind === "rejected") { refuse(node, selected.jsValue.code, selected.jsValue.reason); continue; }
       if (selected.jsValue.kind === "resolved") { forms.set(node, { kind: "js-value", left, right, invocation: selected.jsValue }); continue; }
     }
     if (form === "js-value-write") {
@@ -101,16 +101,17 @@ export function analyzeCsharpBinaryEmission(input: { readonly source: TargetSour
       const property = ast.is.IsPropertyAccessExpression(left) ? ast.as.AsPropertyAccessExpression(left) : undefined;
       if (property?.Expression !== undefined) {
         const write = selected.propertyWrite;
-        if (write?.kind !== "resolved") { refuse(left, write?.kind === "rejected" ? write.reason : "The exact JS-value object-shape property has no closed write operation."); continue; }
+        if (write?.kind === "rejected") { refuse(left, write.code, write.reason); continue; }
+        if (write?.kind !== "resolved") failTargetAnalysisInvariant("tsonic-csharp", "A JS-value property write requires its selected write operation.", left);
         const name = property.name === undefined ? undefined : ast.text(property.name);
-        if (name === undefined) { refuse(node, "A JS-value property write requires an exact receiver, property name, and value."); continue; }
+        if (name === undefined) failTargetAnalysisInvariant("tsonic-csharp", "A JS-value property write requires an exact receiver, property name, and value.", node);
         forms.set(node, { kind: "property-write", receiver: property.Expression, name, value: right, invocation: write }); continue;
       }
       const element = ast.as.AsElementAccessExpression(left);
       const write = selected.elementWrite;
-      if (element?.Expression === undefined || element.ArgumentExpression === undefined || write?.kind !== "resolved") {
-        refuse(node, write?.kind === "rejected" ? write.reason : "A JS-value element write requires an exact receiver, key, and value."); continue;
-      }
+      if (write?.kind === "rejected") { refuse(node, write.code, write.reason); continue; }
+      if (element?.Expression === undefined || element.ArgumentExpression === undefined || write?.kind !== "resolved") failTargetAnalysisInvariant("tsonic-csharp",
+        "A JS-value element write requires an exact receiver, key, and value.", node);
       forms.set(node, { kind: "element-write", receiver: element.Expression, key: element.ArgumentExpression, value: right, invocation: write }); continue;
     }
     // A discarded expression whose presence alone is observed is planned from its native discarded-presence plan, and an
@@ -118,7 +119,7 @@ export function analyzeCsharpBinaryEmission(input: { readonly source: TargetSour
     // completes; neither renders the selected binary operation.
     const use = input.demand.nativeUse.expression(node)?.use;
     if (use !== undefined && use.kind !== "erased" && (use.discardedPresence !== undefined || use.completion.kind === "never")) continue;
-    if (selected.target.kind === "rejected") { refuse(node, selected.target.reason); continue; }
+    if (selected.target.kind === "rejected") { refuse(node, selected.target.code, selected.target.reason); continue; }
     addNative(node, selected.target);
     forms.set(node, { kind: "native", selection: selected.target });
   }

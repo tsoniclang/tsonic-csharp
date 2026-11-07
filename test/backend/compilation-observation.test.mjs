@@ -34,8 +34,8 @@ test("C# session and helper observe the real wrapper's exact program and native 
   } });
   assert.deepEqual(events, ["compile", "analysis", "plan", "return"]);
   assertNoTargetDiagnostics(compiled.result.diagnostics);
-  assert.equal(request.input.source.ast === compiled.source.ast, true);
-  assert.equal(program.source.ast === compiled.source.ast, true);
+  assert.equal(request.input.source.syntax === compiled.source.ast, true);
+  assert.equal(program.source === request.input.source, true, "the analysis program keeps the received Source facts program");
   assert.equal(compiled.result.program === program, true);
   assert.equal(compiled.result.plan === plan, true);
   assert.equal(compiled.result.artifacts === productionResult.value.artifacts, true);
@@ -71,10 +71,12 @@ test("C# source rejection never enters the production wrapper or observes stages
 
 test("C# entry rejection observes neither a program nor a native plan", () => {
   const events = [];
+  let received;
   const compiled = compileCsharpSource({
     sourceText: "export function main(): void {}",
     targetOptions: { outputType: "Exe" },
     compileTarget(request, observer) {
+      received = request;
       events.push("compile");
       return compileCsharpTarget(request, {
         analyzed(value) { events.push("analysis"); observer.analyzed(value); },
@@ -85,6 +87,12 @@ test("C# entry rejection observes neither a program nor a native plan", () => {
   assert.deepEqual(events, ["compile"]);
   assert.deepEqual(compiled.result.diagnostics.map(diagnostic => diagnostic.code),
     ["TSONIC_UNCALLED_BINARY_ENTRY_MAIN"]);
+  // nextgen C-2542 (R-F5-B6): the uncalled-main refusal is Host-originated; C# forwards it with code, message and site.
+  const [diagnostic] = compiled.result.diagnostics;
+  const published = received.input.source.facts.refusals().filter(refusal => refusal.code === diagnostic.code);
+  assert.equal(published.length, 1, "one published Host refusal");
+  assert.equal(diagnostic.message, published[0].message, "the Host message is forwarded unchanged");
+  assert.equal(diagnostic.sourceNode, published[0].site, "the Host site is forwarded unchanged");
   assert.equal(compiled.result.artifacts.length, 0);
   assert.equal(compiled.result.program === undefined, true);
   assert.equal(compiled.result.plan === undefined, true);

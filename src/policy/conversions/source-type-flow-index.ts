@@ -1,4 +1,4 @@
-import type { SourceEffectiveTypeOutcome } from "@tsonic/target-api/source";
+import { sourceTypeDescriptorsEqual, type SourceEffectiveTypeOutcome } from "@tsonic/target-api/source";
 import type { CsharpConversionSelection } from "../../target-model/conversions/selection.js";
 import type { CsharpTargetElementSelection } from "../../target-model/records/operations/member-selections.js";
 import type { CsharpTargetParameter, TargetTypeRef } from "../../target-model/types/model.js";
@@ -33,7 +33,9 @@ export function selectCsharpSourceTypeFlowIndexConversion(
   const parameter = use?.kind === "parameter" ? use.parameter : selection?.kind === "resolved"
     ? selection.targetMember.parameters[selection.targetParameterIndex] : undefined;
   const expression = use?.kind === "parameter" ? use.expression : use?.kind === "shift-count" ? use.operation.right
-    : selection?.kind === "resolved" || selection?.kind === "project-indexer" ? selection.source.argument.expression : undefined;
+    // An element index: the Host outcome is the index argument's own type (the element-access record's index).
+    : (selection?.kind === "resolved" || selection?.kind === "project-indexer") &&
+      sourceTypeDescriptorsEqual(selection.source.index, outcome.type) ? outcome.provenance.occurrence : undefined;
   const indexType = use?.kind === "shift-count" && shifts.has(use.operation.sourceOperator)
     ? csharpSourceTypeFlowShiftCountType(use.operation) : selection?.kind === "project-indexer" ? selection.keyType : parameter?.type;
   if (expression === undefined || outcome.provenance.occurrence !== expression ||

@@ -21,7 +21,7 @@ function compiled(surface) {
   while (pending.length > 0) {
     const node = pending.pop();
     nodes.push(node);
-    program.source.ast.forEachChild(node, child => { if (child !== undefined) pending.push(child); });
+    program.source.syntax.forEachChild(node, child => { if (child !== undefined) pending.push(child); });
   }
   return { program, nodes, expected: createExpectedNativeUseOwner(result).analysis,
     artifacts: result.artifacts, diagnostics: result.targetDiagnostics };
@@ -51,7 +51,7 @@ for (const surface of ["native", "js"]) {
 
   test(`expected binary selections are materialized per contextual target in ${surface}`, () => {
     const { expected: records, nodes, program } = compiled(surface);
-    const binaries = nodes.filter(node => program.source.ast.is.IsBinaryExpression(node));
+    const binaries = nodes.filter(node => program.source.syntax.is.IsBinaryExpression(node));
     let selected = 0;
     for (const node of binaries) {
       for (const target of records.expectedType.get(node)) {

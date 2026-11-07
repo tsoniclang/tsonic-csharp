@@ -28,7 +28,7 @@ export function analyzeCsharpCallableDeclarationEmission(input: {
     const returned = input.declarations.returnContract.get(node);
     if (returned === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted callable requires its finalized return contract.", node);
     if (returned.kind === "rejected") {
-      issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: node, message: returned.reason });
+      issues.push({ code: "CSHARP_CALLABLE_DECLARATION_EMISSION", category: "error", source: "tsonic-csharp", sourceNode: node, message: returned.reason });
       continue;
     }
     const generator = input.generators.generator.get(node) !== undefined;

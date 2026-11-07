@@ -1,105 +1,84 @@
+// Union arm selection for a written value (nextgen C-2542). The retired C# source-union index chose an arm from checked
+// numeric categories and carrier matches. The Host now selects the arm (facts.relations.at(use), kind "select-arm",
+// C-2479). C# proves only the CLR payload path into that arm (csharpHostArmSelection + selectCsharpUnionInjection).
+// Without a Host arm it proves exact carrier identity only (AGENT-C1-NOTES D6). Two arms with one .NET carrier
+// are refused rather than chosen between (CSHARP_UNION_ARMS_INDISTINGUISHABLE, R6).
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createCsharpSourceUnionIndex } from "../../../../dist/analysis/source-evidence/types/resolution/source-unions.js";
-import { csharpRuntimeUnionTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../../../../dist/target-model/types/index.js";
+import { hostProgram, representationServices, representations, represented } from "../../../representation/host-fixture.mjs";
+import { csharpHostArmSelection, selectCsharpUnionInjection } from "../../../../dist/policy/conversions/union-relations.js";
+import { csharpBigIntegerTargetType, csharpRuntimeUnionTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType,
+  getCsharpRuntimeUnionArms } from "../../../../dist/target-model/types/index.js";
+import { targetTypeRefEquals } from "../../../../dist/target-model/types/equality.js";
 
-test("source union evidence preserves generic bindings and rejects ambiguous native members", () => {
-  const parameter = { declaration: {} };
-  const wide = {};
-  const text = {};
-  const foreign = {};
-  const queries = {
-    declarations: { typeSymbol: type => type.declaration === undefined ? undefined : type,
-      primarySymbolDeclaration: symbol => symbol.declaration },
-    types: { isUnion: () => false, isNullish: () => false, isTypeReference: () => false,
-      isNumberLike: type => type.domain === "number", isBigIntLike: type => type.domain === "bigint",
-      aliasApplication: () => undefined, couldContainTypeVariables: type => type.declaration !== undefined,
-      stringLiteralValue: () => undefined,
-      booleanLiteralValue: () => undefined, numericLiteralValue: () => undefined,
-      isIdentical: (left, right) => left === right },
+const sourceText = `
+  import type { int32, uint64 } from "@tsonic/core/types.js";
+  export function write(n: number, b: bigint, s: string, u: uint64, i: int32): void {
+    const fromNumber: number | bigint = n;
+    const fromBigint: number | bigint = b;
+    const fromText: uint64 | string = s;
+    const fromWide: uint64 | string = u;
+    const fromNarrow: number | bigint = i;
+  }
+`;
+
+function fixture() {
+  const program = hostProgram(sourceText);
+  const represent = representations(representationServices(program));
+  const write = name => {
+    const declaration = program.named(name, node => program.ast.is.IsVariableDeclaration(node));
+    const value = program.nodes.find(node => program.ast.is.IsIdentifier(node) && program.ast.parent(node) === declaration &&
+      node !== program.ast.name(declaration));
+    const relation = program.facts.relations.at(value);
+    assert.equal(relation?.kind, "select-arm", `${name}: the Host selects one arm for the written value`);
+    const sum = program.facts.sums.sum(relation.sum);
+    const target = represented(represent.slot(declaration));
+    const source = represented(represent.value(value));
+    return { declaration, value, relation, sum, target, source, arm: csharpHostArmSelection(relation, sum) };
   };
-  const integer = csharpSourcePrimitiveTargetType("uint64");
-  const string = csharpStringTargetType();
-  const carrier = csharpRuntimeUnionTargetType([integer, string]);
-  const index = createCsharpSourceUnionIndex();
-  assert.equal(index.select(carrier, wide, queries).kind, "unavailable");
-  const sourceBindings = new Map([[parameter.declaration, { sourceType: wide, targetType: integer }]]);
-  assert.equal(index.retain(carrier, [{ source: parameter, carrier: integer }, { source: text, carrier: string }],
-    queries, { depth: 0, sourceBindings }), carrier);
-  sourceBindings.clear();
-  assert.deepEqual(index.select(carrier, wide, queries), { kind: "resolved", carrier: integer });
-  assert.deepEqual(index.select(carrier, text, queries), { kind: "resolved", carrier: string });
-  assert.equal(index.select(carrier, foreign, queries).kind, "rejected");
-  const signed = csharpSourcePrimitiveTargetType("int64");
-  const ambiguous = csharpRuntimeUnionTargetType([integer, signed]);
-  index.retain(ambiguous, [{ source: wide, carrier: integer }, { source: wide, carrier: signed }], queries, { depth: 0 });
-  assert.equal(index.select(ambiguous, wide, queries).kind, "rejected");
-  const outer = csharpRuntimeUnionTargetType([carrier, signed]);
-  index.retain(outer, [{ source: {}, carrier }, { source: foreign, carrier: signed }], queries, { depth: 0 });
-  assert.deepEqual(index.select(outer, wide, queries), { kind: "resolved", carrier: integer });
-  assert.deepEqual(index.select(outer, foreign, queries), { kind: "resolved", carrier: signed });
+  return { program, represent, write };
+}
+
+test("the Host-selected arm, not a checked numeric category, places each written value", () => {
+  const input = fixture();
+  for (const [name, armType] of [["fromNumber", "primitive"], ["fromBigint", "intrinsic"], ["fromText", "string"], ["fromWide", "primitive"],
+    ["fromNarrow", "primitive"]]) {
+    const selected = input.write(name);
+    assert.equal(selected.sum.arms[selected.relation.arm].type.kind, armType, `${name}: the selected Host arm`);
+    const leaves = getCsharpRuntimeUnionArms(selected.target);
+    const conversion = selectCsharpUnionInjection(selected.source, selected.target, undefined, "implicit",
+      target => targetTypeRefEquals(target, selected.source) ? { kind: "identity" } : { kind: "implicit", proof: "numeric" }, selected.arm);
+    assert.equal(conversion?.kind === "implicit" && conversion.proof === "runtime-union-arm" &&
+      conversion.armIndex === selected.arm.index && targetTypeRefEquals(conversion.armType, leaves[selected.arm.index]), true,
+    `${name}: the payload goes to exactly the Host arm's .NET slot`);
+  }
+  const wide = input.write("fromWide");
+  assert.equal(targetTypeRefEquals(getCsharpRuntimeUnionArms(wide.target)[wide.arm.index], csharpSourcePrimitiveTargetType("uint64")), true,
+    "the uint64 arm keeps its native width");
 });
 
-test("checked numeric source domains disambiguate native widths without using implicit conversions", () => {
-  const number = { domain: "number" };
-  const bigint = { domain: "bigint" };
-  const floating = csharpSourcePrimitiveTargetType("float64");
-  const wide = { kind: "target-named", id: "System.Numerics.BigInteger", csharpAllowsRefLikeTypeArguments: [] };
-  const queries = { declarations: { typeSymbol: () => undefined }, types: {
-    isUnion: () => false, isNullish: () => false, isTypeReference: () => false,
-    aliasApplication: () => undefined, couldContainTypeVariables: () => false,
-    stringLiteralValue: () => undefined, booleanLiteralValue: () => undefined,
-    isIdentical: (left, right) => left === right,
-    isNumberLike: type => type.domain === "number", isBigIntLike: type => type.domain === "bigint",
-  } };
-  const index = createCsharpSourceUnionIndex();
-  const carrier = csharpRuntimeUnionTargetType([floating, wide]);
-  index.retain(carrier, [{ source: number, carrier: floating }, { source: bigint, carrier: wide }], queries, { depth: 0 });
-  assert.equal(index.select(carrier, { domain: "number" }, queries).carrier === floating, true,
-    "a distinct checked native numeric type retains its number source branch");
-  assert.equal(index.select(carrier, { domain: "bigint" }, queries).carrier === wide, true,
-    "a checked native wide integer retains its bigint source branch without a floating round trip");
-  assert.equal(index.select(carrier, {}, queries).kind, "rejected", "unknown source correspondence stays rejected");
-  const narrow = csharpSourcePrimitiveTargetType("int32");
-  const ambiguous = csharpRuntimeUnionTargetType([floating, narrow]);
-  const exactNumber = { domain: "number" };
-  index.retain(ambiguous, [{ source: exactNumber, carrier: floating }, { source: { domain: "number" }, carrier: narrow }],
-    queries, { depth: 0 });
-  assert.equal(index.select(ambiguous, { domain: "number" }, queries).kind, "rejected",
-    "a checked category cannot choose between different native payloads within that category");
-  assert.equal(index.select(ambiguous, exactNumber, queries).carrier === floating, true,
-    "exact checked identity remains more specific than a numeric category");
+test("without a Host arm only exact carrier identity is proven; no applicable-arm search", () => {
+  const source = csharpSourcePrimitiveTargetType("int32");
+  const target = csharpRuntimeUnionTargetType([csharpSourcePrimitiveTargetType("float64"), csharpBigIntegerTargetType()]);
+  assert.equal(selectCsharpUnionInjection(source, target, undefined, "implicit", () => ({ kind: "implicit", proof: "numeric" })), undefined,
+    "a numeric conversion that applies to an arm does not choose that arm");
+  const exact = selectCsharpUnionInjection(csharpBigIntegerTargetType(), target, undefined, "implicit",
+    () => assert.fail("exact identity needs no conversion query"));
+  assert.equal(exact?.kind === "implicit" && exact.armIndex === 1, true, "an exact carrier still has its one identity path");
+  assert.equal(selectCsharpUnionInjection(source, target, undefined, "implicit", () => ({ kind: "implicit", proof: "numeric" }),
+    { kind: "absence" }), undefined, "an absence arm takes no payload");
 });
 
-test("array contributions cannot replace a checked union arm with their preconversion physical carrier", () => {
-  const numberType = { domain: "number" };
-  const narrowType = { domain: "number" };
-  const bigintType = { domain: "bigint" };
-  const wideType = { domain: "bigint" };
-  const floating = csharpSourcePrimitiveTargetType("float64");
-  const narrow = csharpSourcePrimitiveTargetType("int32");
-  const wide = { kind: "target-named", id: "System.Numerics.BigInteger", csharpAllowsRefLikeTypeArguments: [] };
-  const nativeWide = csharpSourcePrimitiveTargetType("int64");
-  const queries = { declarations: { typeSymbol: () => undefined }, types: {
-    isUnion: () => false, isNullish: () => false, isTypeReference: () => false,
-    aliasApplication: () => undefined, couldContainTypeVariables: () => false,
-    stringLiteralValue: () => undefined, booleanLiteralValue: () => undefined,
-    isIdentical: (left, right) => left === right,
-    isNumberLike: type => type.domain === "number", isBigIntLike: type => type.domain === "bigint",
-  } };
-  const index = createCsharpSourceUnionIndex();
-  const carrier = csharpRuntimeUnionTargetType([floating, wide]);
-  index.retain(carrier, [{ source: numberType, carrier: floating }, { source: bigintType, carrier: wide }], queries, { depth: 0 });
-  index.retain(carrier, [{ source: narrowType, carrier: narrow }, { source: wideType, carrier: nativeWide }], queries, { depth: 0 });
-  assert.equal(index.select(carrier, narrowType, queries).carrier === floating, true,
-    "an int32 array contribution retains the authored number arm instead of inventing an int32 payload");
-  assert.equal(index.select(carrier, wideType, queries).carrier === wide, true,
-    "an int64 contribution retains the authored bigint arm without inventing an int64 payload");
-  assert.equal(index.select(carrier, {}, queries).kind, "rejected", "a missing checked source domain never chooses a payload");
-  const ambiguous = csharpRuntimeUnionTargetType([floating, narrow]);
-  index.retain(ambiguous, [{ source: numberType, carrier: floating }, { source: narrowType, carrier: narrow }], queries, { depth: 0 });
-  assert.equal(index.select(ambiguous, { domain: "number" }, queries).kind, "rejected",
-    "distinct real payloads in the same checked numeric domain remain ambiguous");
-  assert.equal(index.select(ambiguous, narrowType, queries).carrier === narrow, true,
-    "an exact checked identity still selects a real native payload");
+test("two Host arms with one .NET carrier are refused, never chosen between", () => {
+  const input = fixture();
+  const selected = input.write("fromWide");
+  const wide = selected.sum.arms[selected.relation.arm].type;
+  const text = selected.sum.arms.find(arm => arm.type.kind === "string").type;
+  const sum = Object.freeze({ identity: selected.sum.identity,
+    arms: Object.freeze([wide, wide, text].map((type, role) => Object.freeze({ role, type }))),
+    roles: Object.freeze([0, 1, 2].map(role => Object.freeze({ role, arms: Object.freeze([role]) }))) });
+  assert.equal(input.represent.sum(sum, selected.value, "storage").code, "CSHARP_UNION_ARMS_INDISTINGUISHABLE",
+    "distinct Host arms with one .NET carrier have no CLR union that keeps them apart (R6: no dedupe in C#)");
+  assert.equal(targetTypeRefEquals(getCsharpRuntimeUnionArms(selected.target)[1 - selected.arm.index], csharpStringTargetType()), true,
+    "the published two-arm sum keeps both arms positionally");
 });

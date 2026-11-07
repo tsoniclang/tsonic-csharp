@@ -594,7 +594,8 @@ test("direct JS translation rejects open nominal own-property projections", () =
   assert.deepEqual(
     compiled.targetDiagnostics.map(({ code, message }) => ({ code, message })),
     [{
-      code: "CSHARP_UNSUPPORTED_AST",
+      // nextgen C-2542: split code; native demand refuses the projection artifact (native-demand/analyze.ts accept()).
+      code: "CSHARP_OBJECT_SHAPE_ARTIFACT_NOT_ADMITTED",
       message:
         "Selected 'keys' operation requires one exact generated structural object carrier; an open nominal source type cannot prove its runtime own-property set.",
     }],

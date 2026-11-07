@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createTargetSourceProgram, analyzeSourceLiteralValues } from "@tsonic/target-api/source";
-import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { withCsharpSessionRequest } from "../../helpers/direct-csharp-session.mjs";
 import { analyzeCsharpBindingPatterns } from "../../../dist/analysis/control-flow/binding-patterns.js";
 import { analyzeCsharpNativeDemand } from "../../../dist/analysis/operations/native-demand.js";
 import { analyzeCsharpExpectedTypes } from "../../../dist/analysis/expected-types/analyze.js";
@@ -10,21 +9,24 @@ import { analyzeCsharpExactLiteralSelections } from "../../../dist/analysis/conv
 import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 import { publishedGenericProjections } from "../../helpers/expected-native-uses.mjs";
-import { createSourceStorageQuery } from "@tsonic/target-api/analysis";
+import { createCsharpSourceProfileStorageEffects } from "../../../dist/analysis/operations/source-profiles/source-storage-effects.js";
 
 function owners(sourceText, surface = "native") {
-  const compiled = compileCsharpSource({ sourceText, surface });
+  // nextgen C-2542: the live session providers feed the storage effects, as in analyze.ts (facts.analyses.storage).
+  const { compiled, value: providers } = withCsharpSessionRequest({ sourceText, surface }, request => request.providers);
   assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
   const program = compiled.result.program;
   assert.equal(program !== undefined, true, compiled.result.diagnostics.map(item => `${item.code}: ${item.message}`).join("; "));
-  const source = createTargetSourceProgram(compiled.source);
-  const ast = source.ast;
+  // nextgen C-2542: the analysis program's own Host view (the facts its records were built from), not a second
+  // createTargetSourceProgram, which now takes the composition-root options.
+  const source = program.source;
+  const ast = source.syntax;
   const records = program.records;
   const nodes = [];
   const walk = node => { nodes.push(node); ast.forEachChild(node, child => { if (child !== undefined) walk(child); }); };
   for (const file of csharpProgramSourceFiles(program)) walk(file);
   const participation = records.nativeParticipation;
-  const bindingPatterns = analyzeCsharpBindingPatterns({ ast, effectiveTypes: source.effectiveTypes, semanticsFor: source.semantics.forNode, sourceFiles: csharpProgramSourceFiles(program), participation, evidence: records,
+  const bindingPatterns = analyzeCsharpBindingPatterns({ ast, facts: source.facts, sourceFacts: source.sourceFacts, sourceFiles: csharpProgramSourceFiles(program), participation, evidence: records,
     operations: records, valueReads: records, objectShapes: program.objectShapes, storage: records,
     initializerUses: { get: declaration => {
       const expression = ast.as.AsVariableDeclaration(declaration)?.Initializer;
@@ -38,8 +40,9 @@ function owners(sourceText, surface = "native") {
         return heritage === undefined ? undefined : heritage.baseType === undefined
           ? heritage.interfaces : [heritage.baseType, ...heritage.interfaces];
       } } } });
-  const input = { ast, sourceFiles: csharpProgramSourceFiles(program), navigation: program.sourceNavigation, evidence: records, operations: records,
-    nativeExpressionIssues: [], sourceStorage: createSourceStorageQuery(source, csharpProgramSourceFiles(program)),
+  const input = { ast, sourceFiles: csharpProgramSourceFiles(program), facts: source.facts, evidence: records, operations: records,
+    nativeExpressionIssues: [], sourceStorage: source.facts.analyses.storage({ sourceFiles: csharpProgramSourceFiles(program),
+      effects: createCsharpSourceProfileStorageEffects(source, providers) }),
     declarations: records, objectShapes: program.objectShapes,
     exactLiteral: records.exactLiteral, propertyKeyBindings: expression => {
       const use = records.nativeExpression.get(expression)?.use;
@@ -56,14 +59,13 @@ function owners(sourceText, surface = "native") {
     const declared = records.returnContract.get(node);
     return declared?.kind === "resolved" ? [{ sourceDeclaration: node, returnType: declared.type }] : [];
   });
-  const literalValues = analyzeSourceLiteralValues(ast, csharpProgramSourceFiles(program));
-  const expected = analyzeCsharpExpectedTypes({ ast, sourceFiles: csharpProgramSourceFiles(program), literalValues,
-    semantics: source.semantics.forFile, semanticsFor: source.semantics.forNode, typeDefinitions: program.typeDefinitions }, records, records, program.objectShapes,
+  const expected = analyzeCsharpExpectedTypes({ ast, sourceFiles: csharpProgramSourceFiles(program), facts: source.facts,
+    typeDefinitions: program.typeDefinitions }, records, records, program.objectShapes,
     { declarationContracts: contracts, closedInputType: () => undefined, get: () => undefined },
     { get: node => { const read = records.valueRead.get(node); return read === undefined ? undefined
       : { literalTarget: read.selectedOperation ?? read.source, operationValue: read.selectedOperation ?? read.source }; } }, records,
     publishedGenericProjections(records, nodes));
-  const exact = analyzeCsharpExactLiteralSelections(literalValues, [
+  const exact = analyzeCsharpExactLiteralSelections(source.facts, [
     ...expected.constructions.propertyKeyRequests,
     ...expected.nativeUseSites.requests.flatMap(request =>
       request.expression === undefined ? [] : [{ expression: request.expression, source: records.valueRead.get(request.expression)?.source, target: request.targetType }]),

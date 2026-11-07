@@ -97,7 +97,8 @@ interface WritableView { value: number; }
 class NarrowBody { value: int32 = 7; }
 export function run(): number { const view: WritableView = new NarrowBody(); view.value = 1.5; return view.value; }` });
     assert.equal(compiled.sourceDiagnosticsText, "", "the TypeScript-accepted writable relation requires a real native storage decision");
-    assert.equal(compiled.result.diagnostics.some(issue => issue.code === "CSHARP_UNSUPPORTED_AST" &&
+    // nextgen C-2542: split code; a value use whose conversion core rejects is CSHARP_VALUE_USE_NOT_ADMITTED (use-admission.ts).
+    assert.equal(compiled.result.diagnostics.some(issue => issue.code === "CSHARP_VALUE_USE_NOT_ADMITTED" &&
       /^No exact C# implicit conversion relates /u.test(issue.message)), true,
     "the existing canonical conversion owner precisely refuses an unsound writable native relation");
     assert.equal(compiled.result.diagnostics.some(issue => String(issue.code).includes("INTERNAL")), false,
@@ -113,7 +114,8 @@ interface WritableView<T> { value: T; }
 class NarrowBody { value: int32 = 7; }
 export function run(): number { const view: WritableView<number> = new NarrowBody(); view.value = 1.5; return view.value; }` });
     assert.equal(compiled.sourceDiagnosticsText, "", "the native inverse is a checked writable generic relation");
-    assert.equal(compiled.result.diagnostics.some(issue => issue.code === "CSHARP_UNSUPPORTED_AST" &&
+    // nextgen C-2542: split code; a value use whose conversion core rejects is CSHARP_VALUE_USE_NOT_ADMITTED (use-admission.ts).
+    assert.equal(compiled.result.diagnostics.some(issue => issue.code === "CSHARP_VALUE_USE_NOT_ADMITTED" &&
       /^No exact C# implicit conversion relates /u.test(issue.message)), true, "canonical writable storage remains exact");
     assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0, true,
       "no failed writable native contract can reach publication");

@@ -12,7 +12,9 @@ function admitted(compiled, text, kind, declarationName) {
   assert.equal(program !== undefined && compiled.result.artifacts.length > 0, true,
     "the same complete native contract publishes its program and artifacts");
   const { ast } = compiled.source;
-  const nodes = program.source.navigation.nodesForFiles(program.sourceFiles);
+  const nodes = [];
+  const collect = node => { nodes.push(node); ast.forEachChild(node, child => { if (child !== undefined) collect(child); }); };
+  program.sourceFiles.forEach(collect);
   const matches = nodes.filter(node => {
     if (ast.kindName(node) !== kind) return false;
     const file = ast.getSourceFile(node);
@@ -24,10 +26,10 @@ function admitted(compiled, text, kind, declarationName) {
   const native = ast.is.IsNewExpression(sourceNode)
     ? program.records.selectedConstruction.get(sourceNode) : program.records.selectedCall.get(sourceNode);
   assert.equal(native !== undefined, true, "the same checked operation owns the completed native ABI");
-  const semantics = program.source.semantics.forNode(sourceNode);
-  const selected = semantics.operations.call(sourceNode);
-  assert.equal(selected?.sourceSelectedSignatureKind, "resolved", "the original selected signature is complete");
-  const declaration = semantics.declarations.signatureDeclaration(selected.selectedSignature);
+  // nextgen C-2542: the selected signature is the Host call selection's signature declaration (facts.selections.call).
+  const selected = program.source.facts.selections.call(sourceNode);
+  assert.equal(selected !== undefined && selected.kind !== "refused", true, "the original selected signature is complete");
+  const declaration = selected.signature;
   assert.equal(declaration !== undefined, true, "the actual selected declaration is retained, including native providers");
   if (declarationName !== undefined) {
     const owner = ast.name(declaration) === undefined ? ast.parent(declaration) : declaration;

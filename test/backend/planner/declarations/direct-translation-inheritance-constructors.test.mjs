@@ -8,6 +8,10 @@ import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../../
 import { executeCsharpConstruction } from "../../../helpers/native-construction.mjs";
 import { csharpConstructorBaseCall, csharpConstructorRequiresPreparation } from "../../../../dist/analysis/callables/emission/constructor-entry.js";
 import { createCsharpPlanningContext } from "../../../../dist/backend/planner/context.js";
+import { sealCsharpAnalysisProgram } from "../../../../dist/analysis/program/index.js";
+
+// The planner reads the sealed program (records and syntax only), as in production (nextgen C-2542).
+const sealedProgram = program => program === undefined ? undefined : sealCsharpAnalysisProgram(program);
 import { planConstructorDeclarations } from "../../../../dist/backend/planner/declarations/classes/constructors.js";
 import { csharpProgramSourceFiles } from "../../../helpers/program-source-files.mjs";
 
@@ -69,7 +73,8 @@ test("inherited required constructors prevent invalid C# object initializers", (
   assert.deepEqual(
     compiled.result.diagnostics.map(({ code, message }) => ({ code, message })),
     [{
-      code: "CSHARP_UNSUPPORTED_AST",
+      // nextgen C-2542: split code for a class object literal without a parameterless constructor.
+      code: "CSHARP_CLASS_OBJECT_LITERAL_NOT_CONSTRUCTIBLE",
       message:
         "Class object literal emission requires an exact constructible source class with a parameterless constructor.",
     }],
@@ -108,7 +113,7 @@ for (const surface of ["native", "js"]) {
       export function run(): int { return new RefDerived(5).Value + new InDerived(7).Value + new OutDerived(0).Value; }
     `, targetOptions: { references: { assemblies: [{ include: "NativeConstructorModes", hintPath: fixture.assembly }] } } });
     assertCsharpCompilationSucceeded(compiled);
-    const program = compiled.result.program;
+    const program = sealedProgram(compiled.result.program);
     const ast = program.source.ast;
     const constructors = [];
     const visit = node => {

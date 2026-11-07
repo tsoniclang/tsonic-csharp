@@ -2,22 +2,23 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { csharpJsArrayElementPolicies, csharpJsArrayPropertyPolicies } from "../../../dist/policy/operations/source-profiles/js/arrays.js";
 import { csharpJsArrayTargetType } from "../../../dist/target-model/types/carriers/js.js";
-import { csharpSourceProfileInputs } from "../../helpers/planning-records.mjs";
+import { csharpSourceProfileInputs, unrepresentedCsharpCarrier } from "../../helpers/planning-records.mjs";
 
 const element = { kind: "source-primitive", name: "int64" };
 const receiver = csharpJsArrayTargetType(element);
 
 function context(carrier, readonly, indexType = { kind: "source-primitive", name: "int32" }) {
-  const source = { expression: {}, receiver: { expression: {}, type: {} }, argument: { expression: {}, type: {} }, writable: !readonly };
-  const host = { types: { resolveSelectedValue: node => node === source.receiver.expression ? carrier
-    : node === source.argument.expression ? indexType : undefined } };
-  const sourceFile = {};
+  const source = { expression: {}, selection: { access: readonly ? "read" : "read-write" }, access: { access: readonly ? "read" : "read-write", readonly },
+    receiver: { expression: {}, type: { kind: "array", readonly, element: { kind: "primitive", primitive: "int64" } } },
+    argument: { expression: {}, type: { kind: "primitive", primitive: "int32" } } };
+  const host = { types: { value: node => (node === source.receiver.expression ? carrier
+    : node === source.argument.expression ? indexType : undefined) ?? unrepresentedCsharpCarrier(node) } };
   // The member policies read the receiver carrier from the input facts the analysis resolves for the access.
-  return { host, source, sourceFile, receiverType: carrier, readonly,
-    inputs: csharpSourceProfileInputs(host, sourceFile, { operation: source.expression, values: [source.receiver, source.argument] }) };
+  return { host, source, receiverType: carrier, readonly,
+    inputs: csharpSourceProfileInputs(host, { operation: source.expression, values: [source.receiver, source.argument] }) };
 }
 
-test("synthesized array contributors retain one native member policy and checker-selected writability", () => {
+test("synthesized array contributors retain one native member policy and Host-selected writability", () => {
   assert.equal(csharpJsArrayPropertyPolicies.length, 1);
   assert.equal(csharpJsArrayElementPolicies.length, 1);
   for (const readonly of [true, false]) {
@@ -63,7 +64,7 @@ test("array indices consume the published integral or genuine numeric-property c
   }
   for (const index of [undefined, { kind: "source-primitive", name: "decimal" }, { kind: "source-primitive", name: "bool" }]) {
     const input = context(receiver, false, index);
-    if (index === undefined) input.inputs = { ...input.inputs, values: new Map([[input.source.receiver.expression, receiver]]) };
+    if (index === undefined) input.inputs = { ...input.inputs, values: { get: node => node === input.source.receiver.expression ? receiver : undefined } };
     assert.equal(csharpJsArrayElementPolicies[0].select(input).kind, "rejected", index?.name ?? "missing publication");
   }
 });

@@ -29,7 +29,7 @@ export function run(): boolean {
 }` });
     assertCsharpCompilationSucceeded(compiled);
     const program = compiled.result.program;
-    const ast = program.source.ast;
+    const ast = program.source.syntax;
     const pending = [...csharpProgramSourceFiles(program)];
     let present = 0;
     let optional = 0;

@@ -11,7 +11,8 @@ import type { CsharpTargetBindingFact, CsharpTargetNamedTypeRef, TargetConstrain
 import type { CsharpConversionMode, CsharpConversionSelection } from "../../target-model/conversions/selection.js";
 import type { CsharpPolicyContext } from "../model/context.js";
 import { csharpUnionLeaves } from "../../target-model/types/union-relations.js";
-import { csharpUnionProjectionPath, selectCsharpUnionArmMapping, selectCsharpUnionInjection } from "./union-relations.js";
+import { csharpSumArmSelection, csharpUnionProjectionPath, selectCsharpHostArmMapping, selectCsharpUnionArmMapping,
+  selectCsharpUnionInjection, type CsharpHostUnionUse } from "./union-relations.js";
 import type { CsharpConversionShapeQueries } from "./shape-queries.js";
 import { csharpNativeRepresentationMatches } from "./native-representation.js";
 import { getCsharpCallableValueSignature, getCsharpTaskResultTargetType } from "../../target-model/types/carriers/delegates.js";
@@ -51,15 +52,28 @@ export function selectRuntimeUnionConversion(
   source: TargetTypeRef,
   target: TargetTypeRef,
   mode: CsharpConversionMode,
+  hostUse?: CsharpHostUnionUse,
 ): CsharpConversionSelection | undefined {
   const sourceElement = getCsharpNullableElementTargetType(source);
+  const relation = hostUse?.relation;
+  // A Host map (narrowed read, widening write, cast) is realized arm-to-arm; the Host decided every arm's destination.
+  if (relation?.kind === "map") {
+    const arms = selectCsharpHostArmMapping(relation, hostUse!.sums.sum(relation.source), hostUse!.sums.sum(relation.destination),
+      source, target, input.typeDefinitions);
+    if (arms !== undefined) return { kind: "union-map", coverage: relation.mode === "write" ? "source" : "target", arms };
+  }
+  const injectionTarget = getCsharpRuntimeUnionArms(target, input.typeDefinitions) !== undefined;
+  const hostArm = relation?.kind === "select-arm" && injectionTarget
+    ? csharpSumArmSelection(hostUse!.sums.sum(relation.sum), relation.arm) : undefined;
+  const convertArm = hostUse?.convertArm ?? ((arm: TargetTypeRef) => selectCsharpConversion(input, source, arm, mode));
   if (mode === "explicit" && sourceElement !== undefined && getCsharpRuntimeUnionArms(sourceElement, input.typeDefinitions) !== undefined &&
     getCsharpRuntimeUnionArms(getCsharpNullableElementTargetType(target) ?? target, input.typeDefinitions) === undefined) {
     return selectCsharpRuntimeUnionProjection(input, source, target);
   }
   const sourceArms = getCsharpRuntimeUnionArms(source, input.typeDefinitions);
   const targetArms = getCsharpRuntimeUnionArms(target, input.typeDefinitions);
-  const completeInjection = selectCsharpUnionInjection(source, target, input.typeDefinitions, mode, () => undefined);
+  const completeInjection = selectCsharpUnionInjection(source, target, input.typeDefinitions, mode,
+    hostArm === undefined ? () => undefined : convertArm, hostArm);
   if (completeInjection !== undefined) return completeInjection;
   const widening = selectCsharpUnionArmMapping(source, target, "source", input.typeDefinitions,
     (sourceArm, targetArm) => csharpUnionReferenceImplicitlyAccepts(input, sourceArm, targetArm));
@@ -85,8 +99,7 @@ export function selectRuntimeUnionConversion(
   if (targetArms === undefined) {
     return undefined;
   }
-  return selectCsharpUnionInjection(source, target, input.typeDefinitions, mode,
-    arm => selectCsharpConversion(input, source, arm, mode)) ?? {
+  return selectCsharpUnionInjection(source, target, input.typeDefinitions, mode, convertArm, hostArm) ?? {
       kind: "rejected", reason: "C# runtime-union conversion requires the source representation to match one exact union arm.",
     };
 }
@@ -132,6 +145,7 @@ export function selectNullableConversion(
   source: TargetTypeRef,
   target: TargetTypeRef,
   mode: CsharpConversionMode,
+  hostUse?: CsharpHostUnionUse,
 ): CsharpConversionSelection | undefined {
   const sourceElement = getCsharpNullableElementTargetType(source);
   const targetElement = getCsharpNullableElementTargetType(target);
@@ -141,6 +155,7 @@ export function selectNullableConversion(
       sourceElement ?? source,
       targetElement,
       mode,
+      hostUse,
     );
     if (sourceElement === undefined && isCsharpNullableReferenceTargetType(target) &&
       elementConversion.kind === "runtime-union-reference") {

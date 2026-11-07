@@ -23,11 +23,11 @@ function fixture(body) {
   const variables = new Map();
   let lambda;
   const visit = node => {
-    if (source.ast.is.IsArrowFunction(node)) lambda = node;
-    if (source.ast.is.IsVariableDeclaration(node)) variables.set(source.ast.text(source.ast.name(node)), node);
-    source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    if (source.syntax.is.IsArrowFunction(node)) lambda = node;
+    if (source.syntax.is.IsVariableDeclaration(node)) variables.set(source.syntax.text(source.syntax.name(node)), node);
+    source.syntax.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
-  for (const file of source.navigation.sourceFiles) visit(file);
+  for (const file of source.sourceFiles) visit(file);
   assert.equal(lambda !== undefined, true, "one exact mapper declaration");
   return { program: analysis.value, variables, lambda };
 }

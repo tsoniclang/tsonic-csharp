@@ -1,14 +1,18 @@
+// Binding projections and array binding carriers (nextgen C-2542, I2, I6).
+// The binding owner's carrier is the represented Host value of the owner (types.value -> facts.values.type); an
+// iteration binding needs the Host iteration selection (facts.selections.iteration); object rest bindings read the
+// object-shape registry. The former reconciliation of an authored carrier with a checker-selected one
+// (reconcileCsharpSelectedTargetType / retainCsharpBroadValueCarrier, policy/types/resolution/selected-type-evidence)
+// was a dual path and is deleted: every read has exactly one carrier, the representation of its Host descriptor.
 import assert from "node:assert/strict";
 import test from "node:test";
 import { csharpArrayBindingProjectionTarget, resolveCsharpArrayBindingCarrier } from "../../../dist/policy/types/collections/binding-array-carrier.js";
-import { csharpJsArrayTargetType, csharpReadOnlyListTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType, reconcileCsharpSelectedTargetType } from "../../../dist/policy/types/index.js";
-import { csharpEmptyObjectTargetType, csharpTsValueTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
-import { retainCsharpBroadValueCarrier } from "../../../dist/policy/types/resolution/selected-type-evidence.js";
-import { csharpNullableReferenceTargetType, csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
+import { csharpJsArrayTargetType, csharpReadOnlyListTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../../../dist/policy/types/index.js";
+import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { conversionIsImplicitlyApplicable } from "../../../dist/policy/conversions/core.js";
-import { createCompilerSessionFromFiles } from "@tsonic/tsts";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { createCsharpBindingProjectionPolicy } from "../../../dist/analysis/control-flow/binding-projections.js";
+import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
+import { hostProgram, representationServices, representations } from "../../representation/host-fixture.mjs";
 
 const int32 = csharpSourcePrimitiveTargetType("int32");
 const string = csharpStringTargetType();
@@ -32,75 +36,61 @@ test("tuple rest projections freeze their owned slices without freezing borrowed
 });
 
 function checkedBinding(sourceText) {
-  const checked = createCompilerSessionFromFiles({ currentDirectory: "/project",
-    files: { "/project/index.ts": sourceText },
-    compilerOptions: { strict: true, target: "es2022", module: "esnext" },
-  }).checkSource();
-  assert.equal(checked.diagnostics.length, 0, "valid source binding");
-  const source = createTargetSourceProgram(checked);
-  const file = checked.getSourceFile("/project/index.ts");
-  const bindings = [];
-  let iteration;
-  const visit = node => {
-    if (source.ast.is.IsBindingElement(node)) bindings.push(node);
-    if (source.ast.is.IsForOfStatement(node)) iteration = node;
-    source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
-  };
-  visit(file);
-  return { source, file, bindings, iteration };
+  const program = hostProgram(sourceText);
+  const bindings = program.nodes.filter(node => program.ast.is.IsBindingElement(node));
+  const iteration = program.nodes.find(node => program.ast.is.IsForOfStatement(node));
+  return { program, ast: program.ast, bindings, iteration };
 }
 
-test("object rest projection consumes exact checked binding identity and retains recursion state", () => {
-  const { source, file, bindings } = checkedBinding(`
+test("object rest projection reads the shape registry for the exact binding and retains its reentrancy guard", () => {
+  const { program, ast, bindings } = checkedBinding(`
     export function read({ omitted, ...rest }: { omitted: number; label: string }): string { return rest.label; }
   `);
-  const rest = bindings.find(binding => source.ast.as.AsBindingElement(binding).DotDotDotToken !== undefined);
+  const rest = bindings.find(binding => ast.as.AsBindingElement(binding).DotDotDotToken !== undefined);
   assert.equal(rest !== undefined, true, "one authored rest binding");
-  const type = source.semantics.forFile(file).declarations.declaredValueType(rest);
-  assert.equal(type !== undefined, true, "exact checked rest type");
+  assert.notEqual(program.facts.values.type(rest).kind, "refused", "the Host publishes the rest binding's type");
   const targetType = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "Rest" };
-  const subject = {};
-  const state = { depth: 2, sourceStorageSubject: subject };
+  const owner = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "Owner" };
   let calls = 0;
   let policy;
-  const host = { ast: source.ast, navigation: {}, typeResolver: { resolveNode: () => undefined },
-    scopedTargetType: () => undefined,
-    semantics: selected => source.semantics.forFile(selected),
-    objectShapes: { resolveNodeWithState(selected, selectedFile, selectedState) {
+  const host = { ast, facts: program.facts, providers: {}, scopedTargetType: () => undefined,
+    types: { value: node => {
+      assert.equal(ast.is.IsParameterDeclaration(node), true, "the owner carrier is the represented parameter");
+      return owner;
+    } },
+    projectTypes: () => assert.fail("an object rest binding reads no project heritage"),
+    objectShapes: { resolveNode(selected) {
       calls += 1;
-      assert.equal(selected === rest, true, "the same original checked binding is the selection authority");
-      assert.equal(selectedFile === file, true, "owning checker/file");
-      assert.equal(arguments.length === 3, true, "no invented authored type syntax");
-      assert.equal(selectedState.depth, 3, "existing recursive budget advances");
-      assert.equal(selectedState.sourceStorageSubject === subject, true, "retained selection context");
-      assert.equal(policy.resolveProjection(rest, file, state) === undefined, true, "reentrant binding fails closed");
+      assert.equal(selected === rest, true, "the same original binding is the selection authority");
+      assert.equal(arguments.length === 1, true, "no source file or recursion state travels with the query");
+      assert.equal(policy.resolveProjection(rest) === undefined, true, "reentrant binding fails closed");
       return { targetType };
     },
     // A selected physical rest carrier resolves to its own shape; the rest binding stores the object-shape copy of the
     // shape, and this fixture's shapes are their own copies.
-    resolveTarget: selected => ({ targetType: selected }),
+    resolveTarget: selected => selected === undefined ? undefined : ({ targetType: selected }),
     resolveCopyShape: shape => shape },
   };
   policy = createCsharpBindingProjectionPolicy(host);
-  const selected = policy.resolveProjection(rest, file, state);
+  const selected = policy.resolveProjection(rest);
   assert.equal(selected.storageCarrier === targetType && selected.bindingCarrier === targetType, true);
   assert.equal(calls, 1);
   assert.equal(Object.isFrozen(selected), true);
-  host.objectShapes.resolveNodeWithState = () => undefined;
-  assert.equal(policy.resolveProjection(rest, file, state) === undefined, true, "missing exact shape has no selected-type fallback");
+  host.objectShapes.resolveNode = () => undefined;
+  assert.equal(policy.resolveProjection(rest) === undefined, true, "missing exact shape has no selected-type fallback");
   const physical = Object.freeze({ ...targetType, id: "PhysicalRest", csharpValueType: true });
   host.scopedTargetType = selected => {
-    assert.equal(selected === rest, true, "only the actual checked rest binding owns its scoped physical storage");
+    assert.equal(selected === rest, true, "only the actual rest binding owns its scoped physical storage");
     return physical;
   };
-  host.objectShapes.resolveNodeWithState = () => assert.fail("selected physical storage is never recomputed from the raw source shape");
-  const selectedPhysical = policy.resolveProjection(rest, file, state);
+  host.objectShapes.resolveNode = () => assert.fail("selected physical storage is never recomputed from the raw source shape");
+  const selectedPhysical = policy.resolveProjection(rest);
   assert.equal(selectedPhysical.storageCarrier === physical && selectedPhysical.bindingCarrier === physical, true,
     "all rest storage and binding consumers retain the exact once-selected native carrier");
 });
 
-test("iteration destructuring requires checked iteration evidence and its native element carrier", () => {
-  const { source, file, bindings, iteration } = checkedBinding(`
+test("iteration destructuring requires the Host iteration selection and its native element carrier", () => {
+  const { program, ast, bindings, iteration } = checkedBinding(`
     export function read(rows: [string, number][]): string {
       for (const [label, value] of rows) { return label + value; }
       return "";
@@ -108,36 +98,30 @@ test("iteration destructuring requires checked iteration evidence and its native
   `);
   const tuple = { kind: "tuple", elements: [string, int32] };
   const iterable = { kind: "array", element: tuple };
-  const expression = source.ast.as.AsForInOrOfStatement(iteration).Expression;
-  const semantics = source.semantics.forFile(file);
-  const selectedIteration = semantics.operations.iteration(iteration);
-  assert.equal(selectedIteration?.iterationKind, "for-of");
+  const expression = ast.as.AsForInOrOfStatement(iteration).Expression;
+  const published = program.facts.selections.iteration(iteration);
+  assert.equal(published !== undefined && !("code" in published), true, "the Host publishes the for-of iteration selection");
   let native = iterable;
-  let evidence = selectedIteration;
-  const state = { depth: 2 };
-  const policy = createCsharpBindingProjectionPolicy({ ast: source.ast, navigation: {}, objectShapes: {},
-    scopedTargetType: () => undefined,
-    semantics: selected => {
-      assert.equal(selected === file, true, "owning source file");
-      return { ...semantics, operations: { ...semantics.operations, iteration: selected => {
-        assert.equal(selected === iteration, true, "exact iteration subject");
-        return evidence;
-      } } };
-    },
-    typeResolver: { resolveNode(selected, selectedFile, selectedState) {
-      assert.equal(selected === expression && selectedFile === file, true, "existing native iterable owner");
-      assert.equal(selectedState.depth, 3);
+  let selection = published;
+  const facts = Object.freeze({ ...program.facts, selections: Object.freeze({ ...program.facts.selections, iteration: selected => {
+    assert.equal(selected === iteration, true, "exact iteration subject");
+    return selection;
+  } }) });
+  const policy = createCsharpBindingProjectionPolicy({ ast, facts, providers: {}, objectShapes: {},
+    scopedTargetType: () => undefined, projectTypes: () => assert.fail("tuple bindings read no project heritage"),
+    types: { value(selected) {
+      assert.equal(selected === expression, true, "the represented iterable expression owns the element carrier");
       return native;
     } },
   });
-  assert.equal(policy.resolveNode(bindings[0], file, state) === string, true);
-  assert.equal(policy.resolveNode(bindings[1], file, state) === int32, true, "native integer is not widened by checker number");
-  native = undefined;
-  assert.equal(policy.resolveNode(bindings[0], file, state) === undefined, true, "missing native element fails closed");
+  assert.equal(policy.resolveNode(bindings[0]) === string, true);
+  assert.equal(policy.resolveNode(bindings[1]) === int32, true, "native integer is not widened by Source number");
+  native = { kind: "csharp-refused", code: "CSHARP_FIXTURE", message: "fixture", site: expression };
+  assert.equal(policy.resolveNode(bindings[0]) === undefined, true, "a refused iterable has no element carrier");
   native = iterable;
-  for (const invalid of [undefined, { ...selectedIteration, iterationKind: "for-in" }]) {
-    evidence = invalid;
-    assert.equal(policy.resolveNode(bindings[0], file, state) === undefined, true, "no unchecked iteration fallback");
+  for (const invalid of [undefined, Object.freeze({ kind: "refused", code: "TSONIC_SOURCE_ITERATION_UNTYPED", message: "fixture", site: iteration })]) {
+    selection = invalid;
+    assert.equal(policy.resolveNode(bindings[0]) === undefined, true, "no iteration without the Host selection");
   }
 });
 
@@ -151,46 +135,34 @@ test("native construction proof does not inherit source payload extraction throu
   }
 });
 
-test("flow-unreachable reads retain their declared carrier without changing genuine never expressions", () => {
-  const never = { kind: "opaque", id: "never" };
-  for (const stored of [int32, string, csharpTsValueTargetType()]) {
-    assert.equal(reconcileCsharpSelectedTargetType(stored, never, "unrelated", false), stored);
+test("every read has one carrier: the representation of its Host descriptor (no authored/selected reconciliation)", () => {
+  const program = hostProgram(`import type { int32 } from "@tsonic/core/types.js";
+export interface Box<T> { value: T }
+export type IntBox = Box<int32>;
+export function alias(box: IntBox): IntBox { return box; }
+export function broad(value: unknown): unknown { if (value !== undefined && value !== null) { return value; } return undefined; }
+export function listed(value: unknown): unknown { if (Array.isArray(value)) { return value; } return undefined; }
+export function gone(value: int32): int32 { if (typeof value === "string") { return value; } return value; }
+`);
+  const represent = representations(representationServices(program));
+  const { ast } = program;
+  const returned = program.nodes.filter(node => ast.is.IsReturnStatement(node)).map(node => ast.as.AsReturnStatement(node).Expression)
+    .filter(node => node !== undefined && ast.is.IsIdentifier(node));
+  assert.equal(returned.length >= 5, true, "every returned binding read is exercised");
+  for (const read of returned) {
+    const outcome = program.facts.values.type(read);
+    assert.notEqual(outcome.kind, "refused", `the Host publishes the read ${ast.text(read)}`);
+    const viaNode = represent.value(read);
+    const viaDescriptor = represent.type(outcome.type, read, "value");
+    assert.equal(viaNode.kind === viaDescriptor.kind &&
+      (viaNode.kind === "csharp-refused" ? viaNode.code === viaDescriptor.code : targetTypeRefEquals(viaNode, viaDescriptor)), true,
+      `${ast.text(read)}: the node-keyed carrier is the represented Host descriptor, nothing else`);
   }
-  assert.equal(reconcileCsharpSelectedTargetType(undefined, never, "unrelated", false), never);
-  assert.equal(reconcileCsharpSelectedTargetType(never, never, "identical", false), never);
-});
-
-test("non-nullish broad values do not become empty object identities", () => {
-  const broad = csharpTsValueTargetType();
-  const empty = csharpEmptyObjectTargetType();
-  assert.equal(retainCsharpBroadValueCarrier(broad, empty, false), broad);
-  assert.equal(reconcileCsharpSelectedTargetType(broad, empty, "unrelated", false), broad);
-  const optionalEmpty = csharpNullableReferenceTargetType(empty);
-  assert.equal(retainCsharpBroadValueCarrier(broad, optionalEmpty, false), broad);
-  assert.equal(reconcileCsharpSelectedTargetType(broad, optionalEmpty, "unrelated", false), broad);
-  for (const selected of [int32, string, { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "source.Record", csharpSourceDeclarationKind: "class" }]) {
-    assert.equal(retainCsharpBroadValueCarrier(broad, selected, false), undefined);
-    assert.equal(reconcileCsharpSelectedTargetType(broad, selected, "unrelated", false), selected);
-  }
-  assert.equal(retainCsharpBroadValueCarrier(empty, broad, false), undefined);
-  assert.equal(retainCsharpBroadValueCarrier(empty, empty, false), undefined);
-  assert.equal(retainCsharpBroadValueCarrier(undefined, empty, false), undefined);
-  assert.equal(retainCsharpBroadValueCarrier(broad, undefined, false), undefined);
-});
-
-test("array category narrowing does not invent the erased backing's native element layout", () => {
-  const broad = csharpTsValueTargetType();
-  for (const selected of [{ kind: "array", element: broad }, { kind: "array", element: string },
-    { kind: "tuple", elements: [string, int32] }, csharpJsArrayTargetType(broad), csharpJsArrayTargetType(string)]) {
-    assert.equal(retainCsharpBroadValueCarrier(broad, selected, false), broad);
-    assert.equal(reconcileCsharpSelectedTargetType(broad, selected, "unrelated", false), broad);
-    const optional = csharpNullableReferenceTargetType(selected);
-    assert.equal(retainCsharpBroadValueCarrier(broad, optional, false), broad);
-    assert.equal(retainCsharpBroadValueCarrier(string, selected, false), undefined);
-  }
-  const typed = csharpJsArrayTargetType(string);
-  assert.equal(retainCsharpBroadValueCarrier(typed, csharpJsArrayTargetType(broad), false), undefined);
-  assert.equal(retainCsharpBroadValueCarrier(broad, csharpReadOnlyListTargetType(string), false), undefined);
+  const box = returned.find(read => ast.text(ast.parent(ast.parent(ast.parent(read)))).includes("function alias("));
+  const carrier = represent.value(box);
+  assert.equal(carrier.kind === "target-named" && carrier.id === "global::Fixture.Box", true);
+  assert.equal(carrier.typeArguments[0].kind === "source-primitive" && carrier.typeArguments[0].name === "int32", true,
+    "a closed authored alias keeps its authored int32 argument; nothing re-selects a float64 instance");
 });
 
 test("array binding policy preserves raw and JS array rest carriers", () => {
@@ -290,35 +262,4 @@ test("array binding policy publishes the dense native list rest frozen around th
       .every(type => type === element), true, `${label}: every element slot is the canonical source element`);
     assert.equal(Object.isFrozen(element), elementWasFrozen, `${label}: the source element is not copied or frozen`);
   }
-});
-
-test("selected type reconciliation preserves closed authored aliases only for the same source declaration", () => {
-  const authored = {
-    kind: "target-named", csharpAllowsRefLikeTypeArguments: [false],
-    id: "Example.Box`1",
-    typeArguments: [int32],
-  };
-  const erased = {
-    kind: "target-named", csharpAllowsRefLikeTypeArguments: [false],
-    id: "Example.Box`1",
-    typeArguments: [csharpSourcePrimitiveTargetType("float64")],
-  };
-  const open = {
-    kind: "target-named", csharpAllowsRefLikeTypeArguments: [false],
-    id: "Example.Box`1",
-    typeArguments: [{ kind: "type-parameter", identity: "T", name: "T" }],
-  };
-
-  assert.strictEqual(
-    reconcileCsharpSelectedTargetType(authored, erased, "same-declaration", false),
-    authored,
-  );
-  assert.strictEqual(
-    reconcileCsharpSelectedTargetType(open, erased, "same-declaration", false),
-    erased,
-  );
-  assert.strictEqual(
-    reconcileCsharpSelectedTargetType(authored, erased, "unrelated", false),
-    erased,
-  );
 });

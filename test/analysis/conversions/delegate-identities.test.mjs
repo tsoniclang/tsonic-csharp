@@ -1,8 +1,6 @@
-import { csharpSourceValueResult } from "../../../dist/analysis/source-evidence/types/resolution/call-results.js";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createCompilerSessionFromFiles, formatDiagnostics } from "@tsonic/tsts";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
+import { hostProgram } from "../../representation/host-fixture.mjs";
 import { sealCsharpDelegateAdapterIdentities } from "../../../dist/analysis/conversions/delegate-identities.js";
 import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
 import { selectCsharpConversion } from "../../../dist/policy/conversions/index.js";
@@ -12,15 +10,13 @@ const sourceType = csharpDelegateTargetType("System.Action", [{ kind: "source-pr
 const targetType = csharpDelegateTargetType("System.Action", [{ kind: "source-primitive", name: "int32" }]);
 
 function fixture(text) {
-  const session = createCompilerSessionFromFiles({ currentDirectory: "/project", files: { "/project/index.ts": text },
-    compilerOptions: { strict: true, target: "es2022", module: "esnext" } });
-  const checked = session.checkSource();
-  assert.equal(checked.diagnostics.length, 0, formatDiagnostics(checked.diagnostics.slice(0, 3)).slice(0, 1024));
-  const source = createTargetSourceProgram(checked);
-  const sourceFile = checked.getSourceFile("/project/index.ts");
+  // A real program through the Host; the conversion owner reads facts (navigation roles) and the represented value only.
+  const program = hostProgram(text);
+  const source = { ast: program.ast };
+  const sourceFile = program.files[0];
   const expressions = new Map();
-  const policy = { ast: source.ast, navigation: source.navigation, sourceFiles: [sourceFile],
-    types: { resolveNode: () => ({ kind: "resolved", sourceResult: csharpSourceValueResult(sourceType) }) }, projectTypes: { directSupertypes: () => [] },
+  const policy = { ast: program.ast, facts: program.facts, sourceFiles: [sourceFile],
+    types: { value: () => sourceType }, projectTypes: { directSupertypes: () => [] },
     providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) }, target: {} };
   const conversion = selectCsharpConversion(policy, sourceType, targetType, "implicit");
   assert.equal(conversion.kind, "delegate-adapter");
@@ -38,7 +34,7 @@ function fixture(text) {
     source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
   visit(sourceFile);
-  return { session, policy, sourceFile, expressions, seal() {
+  return { program, policy, sourceFile, expressions, seal() {
     const issues = [];
     // The bindings are non-nullable delegate parameters and locals: their value reads publish no nullable storage.
     const scopes = sealCsharpDelegateAdapterIdentities(policy, { valueRead: { get: () => undefined } }, expressions, issues);
@@ -95,11 +91,12 @@ test("stale source ownership, actual-node mismatch and mismatched conversion car
   for (const mutation of ["reference", "declaration-file", "target"]) {
     const input = fixture("function consume(callback: (value: number) => void): void {} export function use(callback: (value: number) => void): void { consume(callback); consume(callback); }");
     if (mutation === "reference") {
-      const referenceFor = input.policy.navigation.referenceFor.bind(input.policy.navigation);
-      input.policy.navigation = { ...input.policy.navigation, referenceFor: node => {
-        const selected = referenceFor(node);
+      const facts = input.policy.facts;
+      const identity = facts.navigation.identity;
+      input.policy.facts = { ...facts, navigation: { ...facts.navigation, identity: { ...identity, target: node => {
+        const selected = identity.target(node);
         return selected === undefined ? undefined : { ...selected, sourceFile: {} };
-      } };
+      } } } };
     } else if (mutation === "declaration-file") {
       const getSourceFile = input.policy.ast.getSourceFile.bind(input.policy.ast);
       input.policy.ast = { ...input.policy.ast, getSourceFile: node => {

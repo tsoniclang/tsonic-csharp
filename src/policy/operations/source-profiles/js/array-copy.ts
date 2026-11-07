@@ -25,12 +25,12 @@ export type CsharpArrayCopySelection =
 export function selectCsharpArrayCopy(
   context: CsharpSourceProfileCallPolicyContext,
 ): CsharpArrayCopySelection | undefined {
-  const argument = context.source.sourceArguments[0];
+  const argument = context.source.arguments[0];
   const sourceType = resolveCsharpSelectedSourceValue(context, argument);
   const sourceArms = getCsharpRuntimeUnionArms(sourceType, context.host.typeDefinitions);
   if (sourceArms !== undefined) {
-    if (sourceType === undefined || context.source.sourceArguments.length !== 1 ||
-      context.source.sourceSelectedSignatureParameters.length !== 1) return undefined;
+    if (sourceType === undefined || context.source.arguments.length !== 1 ||
+      context.source.parameters.length !== 1) return undefined;
     const resultType = context.inputs.results.get(context.source.call);
     const targetElementType = getCsharpJsArrayElementTargetType(resultType);
     if (resultType === undefined || targetElementType === undefined) return undefined;

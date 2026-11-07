@@ -1,5 +1,5 @@
 import type { AstReader, Node } from "@tsonic/tsts";
-import type { SourceProgramNavigation } from "@tsonic/target-api/source";
+import type { SourceProgramFacts } from "@tsonic/target-api/source";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpCaptureStorage } from "../../../target-model/records/callables/capture-storage.js";
 import type { CsharpValueReadClassifications } from "../../../target-model/records/operations/conversions.js";
@@ -11,7 +11,7 @@ import { createCsharpLexicalValueRecords } from "../../program/records/storage/l
 export function analyzeCsharpLexicalValues(input: {
   readonly ast: AstReader;
   readonly nodes: readonly Node[];
-  readonly navigation: SourceProgramNavigation;
+  readonly facts: SourceProgramFacts;
   readonly captures: CsharpCaptureStorage;
   readonly values: CsharpValueReadClassifications;
   readonly metadata: CsharpSourceEvidenceIndex;
@@ -19,11 +19,11 @@ export function analyzeCsharpLexicalValues(input: {
   const issues: TargetDiagnostic[] = [];
   const rows = new Map<Node, readonly CsharpLexicalValueDeclaration[]>();
   const reject = (node: Node, message: string): void => {
-    issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: node, message });
+    issues.push({ code: "CSHARP_LEXICAL_VALUE_NOT_REPRESENTABLE", category: "error", source: "tsonic-csharp", sourceNode: node, message });
   };
   for (const statement of input.nodes) {
     for (const declaration of input.captures.lexicalValueDeclarations.get(statement)) {
-      const uses = input.navigation.declarationUseSummary(declaration).uses.filter(use => use.kind === "first-class" &&
+      const uses = input.facts.navigation.uses.summary(declaration).uses.filter(use => use.kind === "first-class" &&
         input.metadata.compileTimeMetadata.get(use.reference) !== true);
       const references = uses.map(use => use.reference);
       if (references.length === 0) continue;
@@ -83,7 +83,7 @@ export function analyzeCsharpLexicalValues(input: {
       if (input.ast.is.IsFunctionDeclaration(current)) {
         if (seen.has(current)) return [];
         const next = new Set([...seen, current]);
-        return input.navigation.declarationUseSummary(current).uses.filter(use => use.kind !== "type-only" &&
+        return input.facts.navigation.uses.summary(current).uses.filter(use => use.kind !== "type-only" &&
           !within(use.reference, current)).flatMap(use => lift(use.reference, scope, next));
       }
       if (input.ast.is.IsArrowFunction(current) || input.ast.is.IsFunctionExpression(current) || loop(current)) anchor = current;

@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createCompilerSessionFromFiles, formatDiagnostics } from "@tsonic/tsts";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
+import { hostProgram } from "../../representation/host-fixture.mjs";
 import { csharpCapturedMemberAccess } from "../../../dist/analysis/callables/values/captured-member-access.js";
 
 test("hoisted native callbacks request access only to exact selected restricted members", () => {
@@ -16,7 +15,9 @@ test("hoisted native callbacks request access only to exact selected restricted 
   const nested = { kind: "class", children: [access(nestedMember)] };
   const body = { children: [access(privateMember), access(protectedMember), access(hashMember),
     access(publicMember), access(privateMember), { kind: "index", declaration: indexedMember }, nested] };
-  const source = { ast: {
+  // nextgen C-2542: TargetSourceProgramFacts double; the selected member is the Host member-access selection
+  // (selections.memberAccess) or element-access record (values.elementAccess), not a checker selectedDeclaration.
+  const source = { syntax: {
     is: { IsPropertyAccessExpression: node => node?.kind === "access", IsClassDeclaration: node => node?.kind === "class",
       IsElementAccessExpression: node => node?.kind === "index",
       IsClassExpression: () => false, IsPrivateIdentifier: node => {
@@ -25,10 +26,10 @@ test("hoisted native callbacks request access only to exact selected restricted 
       } },
     hasModifierKind: (node, modifier) => node.access === modifier, name: node => node.name,
     forEachChild: (node, visit) => (node.children ?? []).forEach(visit),
-  }, semantics: { forNode: () => ({ operations: {
-    propertyAccess: node => ({ selectedDeclaration: node.declaration }),
-    elementAccess: node => ({ selectedDeclaration: node.declaration }),
-  } }) } };
+  }, facts: {
+    selections: { memberAccess: node => ({ selected: { kind: "member", declarations: [node.declaration] } }) },
+    values: { elementAccess: node => ({ selected: { kind: "member", declaration: node.declaration, name: "indexed" } }) },
+  } };
   const members = csharpCapturedMemberAccess(source, [{ methods: [{ declaration: body }, { declaration: body }] }]);
   assert.equal(members.size, 4);
   for (const declaration of [privateMember, protectedMember, hashMember, indexedMember])
@@ -38,9 +39,7 @@ test("hoisted native callbacks request access only to exact selected restricted 
 });
 
 test("checked captured index signatures have no private name and retain exact restricted field selection", () => {
-  const checked = createCompilerSessionFromFiles({
-    currentDirectory: "/project",
-    files: { "/project/index.ts": `
+  const program = hostProgram(`
       interface Counts { [key: string]: number; }
       class Base { protected inherited = 1; }
       export class Counter extends Base {
@@ -52,28 +51,26 @@ test("checked captured index signatures have no private name and retain exact re
           return () => values["total"]! + this.value + this.inherited + this.#token + this.visible + ++adjustment;
         }
       }
-    ` },
-    compilerOptions: { strict: true, target: "es2022", module: "esnext" },
-  }).checkSource();
-  assert.equal(checked.diagnostics.length, 0, formatDiagnostics(checked.diagnostics.slice(0, 4)).slice(0, 1024));
-  const source = createTargetSourceProgram(checked);
-  const file = checked.getSourceFile("/project/index.ts");
+    `);
+  const source = Object.freeze({ syntax: program.ast, facts: program.facts, sourceFiles: program.files });
+  const file = program.files[0];
   assert.equal(file !== undefined, true);
   const fields = new Map();
   let closure;
   let index;
   const visit = node => {
-    if (source.ast.is.IsPropertyDeclaration(node)) fields.set(source.ast.text(source.ast.name(node)), node);
-    if (source.ast.is.IsArrowFunction(node)) closure = node;
-    if (source.ast.is.IsElementAccessExpression(node)) index = node;
-    source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    if (source.syntax.is.IsPropertyDeclaration(node)) fields.set(source.syntax.text(source.syntax.name(node)), node);
+    if (source.syntax.is.IsArrowFunction(node)) closure = node;
+    if (source.syntax.is.IsElementAccessExpression(node)) index = node;
+    source.syntax.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
   visit(file);
   assert.equal(closure !== undefined && index !== undefined, true);
-  const selected = source.semantics.forNode(index).operations.elementAccess(index)?.selectedDeclaration;
-  assert.equal(selected !== undefined && source.ast.is.IsIndexSignatureDeclaration(selected), true,
+  const record = source.facts.values.elementAccess(index).selected;
+  const selected = record.kind === "index-signature" ? record.declaration : undefined;
+  assert.equal(selected !== undefined && source.syntax.is.IsIndexSignatureDeclaration(selected), true,
     "the checker selects the real unnamed index signature");
-  assert.equal(source.ast.name(selected) === undefined, true);
+  assert.equal(source.syntax.name(selected) === undefined, true);
   const members = csharpCapturedMemberAccess(source, [{ methods: [{ declaration: closure }] }]);
   assert.equal(members.size, 3);
   for (const name of ["value", "inherited", "#token"]) {

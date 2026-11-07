@@ -1,22 +1,22 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
-import { createSourceStorageQuery } from "@tsonic/target-api/analysis";
-import { createTsonicPointerStorageRelation } from "@tsonic/source-core/facts";
-import { checkCsharpSource, assertCsharpCheckingSucceeded } from "../../helpers/direct-csharp-session.mjs";
+import { tsonicCoreAnalysisKey } from "@tsonic/source-core/facts";
+import { withCsharpSessionRequest } from "../../helpers/direct-csharp-session.mjs";
 import { analyzeCsharpSourceEvidence } from "../../../dist/analysis/source-evidence/analyze.js";
 import { createCsharpSourceProfileCallableAliasQuery } from "../../../dist/analysis/operations/source-profiles/callable-aliases.js";
 
 const unknownTypes = new Proxy({}, { get: () => () => undefined });
 
 function evidenceFor(sourceText) {
-  const checked = checkCsharpSource({ sourceText, surface: "native" });
-  assertCsharpCheckingSucceeded(checked);
-  const source = createTargetSourceProgram(checked.source);
-  const sourceFiles = Object.freeze([...source.navigation.sourceFiles]);
+  // nextgen C-2542: the program is the TargetSourceProgramFacts the session hands the target; Host storage and the
+  // source-core pointer relation are facts.analyses members (storage, extension(tsonicCoreAnalysisKey)).
+  const source = withCsharpSessionRequest({ sourceText, surface: "native" }, request => request.input.source).value;
+  const sourceFiles = Object.freeze([...source.sourceFiles]);
+  const pointerStorage = source.facts.analyses.extension(tsonicCoreAnalysisKey)
+    .pointerStorage(source.facts.analyses.storage({ sourceFiles }));
   return { source, sourceFiles, result: analyzeCsharpSourceEvidence(source, sourceFiles, unknownTypes,
-    { types: unknownTypes, callOnlyAlias: createCsharpSourceProfileCallableAliasQuery(source) },
-    createTsonicPointerStorageRelation(source, createSourceStorageQuery(source, sourceFiles))) };
+    { types: unknownTypes, ast: source.syntax, facts: source.facts, sourceFacts: source.sourceFacts,
+      callOnlyAlias: createCsharpSourceProfileCallableAliasQuery(source) }, pointerStorage) };
 }
 
 test("storage evidence publishes an index without the closed-array inspector", () => {
@@ -50,8 +50,8 @@ test("compile-time declaration writes and the private close boundary are exact",
   const pending = [...sourceFiles];
   while (pending.length > 0) {
     const node = pending.pop();
-    if (source.ast.is.IsVariableDeclaration(node)) declaration = node;
-    source.ast.forEachChild(node, child => { if (child !== undefined) pending.push(child); });
+    if (source.syntax.is.IsVariableDeclaration(node)) declaration = node;
+    source.syntax.forEachChild(node, child => { if (child !== undefined) pending.push(child); });
   }
   assert.equal(declaration !== undefined, true, "the writer consumes an actual checked declaration");
   assert.equal(result.index.compileTimeMetadata.get(declaration), false, "the primitive constant starts as normal native input");

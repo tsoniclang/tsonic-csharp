@@ -1,9 +1,12 @@
-import type { ReadonlySourceFactResolver, SourceFile } from "@tsonic/tsts";
+import type { ReadonlySourceFactResolver } from "@tsonic/tsts";
+import type { SourceCallSelection } from "@tsonic/target-api/source";
 
 import type { CsharpProviderTargetRelation } from "../../../../target-model/identities/provider-relations.js";
 
 import { substituteCsharpTargetMember, targetTypeRefEquals } from "../../../../policy/types/index.js";
-import { compareCsharpImplicitConversionTargets } from "../../../../policy/conversions/index.js";
+import { selectCsharpConversion } from "../../../../policy/conversions/index.js";
+import { csharpConversionIsApplicable } from "../../../../policy/conversions/applicability.js";
+import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 
 import { csharpSourceArgumentPassingMode } from "../../../../source/extension/arguments.js";
 import { selectCsharpProviderPointerResult } from "../../pointers/provider-result.js";
@@ -13,7 +16,6 @@ import { csharpRuntimeLocationTargetType } from "../../../../target-model/types/
 import { validateCsharpProviderConstraints } from "./constraint-satisfaction.js";
 
 import type { CsharpProviderArgumentMapping, CsharpSelectedTargetCall } from "../../../../target-model/records/objects/members.js";
-import type { ResolvedSourceCallInfo } from "../../../../target-model/records/calls/source-calls.js";
 
 type CsharpProviderSignatureRelation = Extract<
   CsharpProviderTargetRelation,
@@ -36,15 +38,14 @@ export type CsharpProviderCallInstantiation =
       readonly reason: string;
     };
 
-import type { CsharpProviderCallInstantiationHost } from "../../../../policy/model/provider-calls.js";
-import { resolveProviderBindingTypeArguments, resolveMethodTypeArguments, resolveInvocationTypeArguments } from "./type-arguments.js";
+import type { CsharpProviderCallInstantiationHost, CsharpProviderCallSelectionHost } from "../../../../policy/model/provider-calls.js";
+import { resolveProviderBindingTypeArguments, resolveMethodTypeArguments, resolveInvocationTypeArguments, sourceMethodTypeArguments } from "./type-arguments.js";
 import { targetTypeParameterSubstitutions, relateCallArguments } from "../../../../policy/operations/members/instantiation-arguments.js";
 import { validateArgumentsTargetSelectedParameters } from "./arguments.js";
 export function instantiateCsharpProviderCall(
   host: CsharpProviderCallInstantiationHost,
   relation: CsharpProviderSignatureRelation,
-  source: ResolvedSourceCallInfo,
-  sourceFile: SourceFile,
+  source: SourceCallSelection,
 ): CsharpProviderCallInstantiation {
   const relationError = validateProviderCallRelation(
     host.sourceFacts,
@@ -58,7 +59,6 @@ export function instantiateCsharpProviderCall(
     host,
     relation,
     source,
-    sourceFile,
   );
   if (bindingArguments === undefined) {
     return {
@@ -71,7 +71,6 @@ export function instantiateCsharpProviderCall(
     host,
     relation,
     source,
-    sourceFile,
   );
   if (methodArguments === undefined) {
     return {
@@ -84,7 +83,6 @@ export function instantiateCsharpProviderCall(
     host,
     relation,
     source,
-    sourceFile,
   );
   if (invocationArguments === undefined) {
     return {
@@ -115,7 +113,6 @@ export function instantiateCsharpProviderCall(
     targetMember,
     methodArguments,
     invocationArguments,
-    sourceFile,
   });
   if (constraintError !== undefined) {
     return { kind: "rejected", reason: constraintError };
@@ -125,7 +122,7 @@ export function instantiateCsharpProviderCall(
     return {
       kind: "rejected",
       reason:
-        "The checker-selected source argument slots do not match the provider parameter relation.",
+        "The Host-selected source argument slots do not match the provider parameter relation.",
     };
   }
   const argumentValidation = validateArgumentsTargetSelectedParameters(
@@ -134,7 +131,6 @@ export function instantiateCsharpProviderCall(
     targetMember,
     source,
     arguments_,
-    sourceFile,
   );
   if (argumentValidation.kind === "rejected") {
     return {
@@ -142,9 +138,11 @@ export function instantiateCsharpProviderCall(
       reason: argumentValidation.reason,
     };
   }
-  const pointerResult = selectCsharpProviderPointerResult(host, source, sourceFile, parameter => {
+  const methodBinders = sourceMethodTypeArguments(host, source);
+  const pointerResult = selectCsharpProviderPointerResult(host, source, parameter => {
     const method = parameter.scope === "signature";
-    if (method && source.sourceSelectedMethodTypeArguments?.[parameter.index]?.typeParameterName !== parameter.parameter.name) {
+    const binder = methodBinders[parameter.index]?.binder.declaration;
+    if (method && (binder === undefined || host.ast.text(host.ast.name(binder)) !== parameter.parameter.name)) {
       return undefined;
     }
     const mapping = (method ? relation.methodTypeParameters : relation.bindingTypeParameters)
@@ -178,8 +176,8 @@ export function instantiateCsharpProviderCall(
 
 export function compareInstantiatedProviderCalls(
   host: Pick<
-    CsharpProviderCallInstantiationHost,
-    "projectTypes" | "providers" | "target"
+    CsharpProviderCallSelectionHost,
+    "projectTypes" | "providers" | "target" | "typeDefinitions" | "objectShapes"
   >,
   left: Extract<CsharpProviderCallInstantiation, { readonly kind: "resolved" }>,
   right: Extract<CsharpProviderCallInstantiation, { readonly kind: "resolved" }>,
@@ -206,7 +204,7 @@ export function compareInstantiatedProviderCalls(
       const exactRight = targetTypeRefEquals(rightConversion.sourceType, rightConversion.targetType);
       if (exactLeft !== exactRight) preference = exactLeft ? "left" : "right";
     }
-    preference ??= compareCsharpImplicitConversionTargets(host, leftMapping.targetType, rightConversion.targetType);
+    preference ??= compareCsharpConversionTargets(host, leftMapping.targetType, rightConversion.targetType);
     leftBetter ||= preference === "left";
     rightBetter ||= preference === "right";
     if (preference === "incomparable" || leftBetter && rightBetter) {
@@ -222,12 +220,29 @@ export function compareInstantiatedProviderCalls(
   return leftBetter ? "left" : "right";
 }
 
+/**
+ * C# better conversion target (ECMA-334 12.6.4.7): T1 is better than T2 when an implicit conversion T1 → T2 exists
+ * and none T2 → T1. A .NET overload rule over target carriers only.
+ */
+function compareCsharpConversionTargets(
+  host: Pick<CsharpProviderCallSelectionHost, "projectTypes" | "providers" | "target" | "typeDefinitions" | "objectShapes">,
+  left: TargetTypeRef,
+  right: TargetTypeRef,
+): "left" | "right" | "equivalent" | "incomparable" {
+  if (targetTypeRefEquals(left, right)) return "equivalent";
+  const leftToRight = csharpConversionIsApplicable(selectCsharpConversion(host, left, right, "implicit"), "implicit");
+  const rightToLeft = csharpConversionIsApplicable(selectCsharpConversion(host, right, left, "implicit"), "implicit");
+  if (leftToRight === rightToLeft) return leftToRight ? "equivalent" : "incomparable";
+  return leftToRight ? "left" : "right";
+}
+
 function validateProviderCallRelation(
   sourceFacts: ReadonlySourceFactResolver | undefined,
   relation: CsharpProviderSignatureRelation,
-  source: ResolvedSourceCallInfo,
+  source: SourceCallSelection,
 ): string | undefined {
-  const sourceParameters = source.sourceSelectedSignatureParameters;
+  // The selected signature parameter list (declaration, required/optional/rest), aligned with source.parameters.
+  const sourceParameters = source.signatureParameters;
   if (
     relation.parameters.length !== sourceParameters.length ||
     relation.parameters.length !== relation.targetMember.parameters.length -
@@ -252,20 +267,17 @@ function validateProviderCallRelation(
     }
     seenSource.add(parameterRelation.sourceParameterIndex);
     seenTarget.add(parameterRelation.targetParameterIndex);
-    const sourcePassingMode = csharpSourceArgumentPassingMode(
-      sourceFacts,
-      sourceParameter.parameterDeclaration ?? sourceParameter.parameterSymbol,
-    );
+    const sourcePassingMode = csharpSourceArgumentPassingMode(sourceFacts, sourceParameter.declaration);
     if (
       sourcePassingMode !== parameterRelation.sourcePassingMode ||
       targetParameter.passingMode !== parameterRelation.targetPassingMode ||
-      sourceParameter.acceptsOmission !==
+      (sourceParameter.kind !== "required") !==
         parameterRelation.sourceAcceptsOmission ||
       (targetParameter.optional === true ||
         targetParameter.csharpOmittableOptionalArgument === true ||
         targetParameter.paramsArray === true) !==
         parameterRelation.targetAcceptsOmission ||
-      sourceParameter.rest !== parameterRelation.sourceRest ||
+      (sourceParameter.kind === "rest") !== parameterRelation.sourceRest ||
       (targetParameter.paramsArray === true) !==
         parameterRelation.targetParamsArray
     ) {
@@ -276,7 +288,7 @@ function validateProviderCallRelation(
     const receiverParameter =
       relation.targetMember.parameters[relation.receiver.targetParameterIndex];
     if (
-      source.sourceReceiver === undefined ||
+      source.receiver === undefined ||
       receiverParameter === undefined ||
       seenTarget.has(relation.receiver.targetParameterIndex)
     ) {
@@ -284,9 +296,9 @@ function validateProviderCallRelation(
     }
   } else if (
     relation.receiver.kind === "instance" &&
-    source.sourceReceiver === undefined
+    source.receiver === undefined
   ) {
-    return "Provider instance relation has no checker-selected source receiver.";
+    return "Provider instance relation has no Host-selected source receiver.";
   }
   return undefined;
 }

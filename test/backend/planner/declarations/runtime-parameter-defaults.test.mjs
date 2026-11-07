@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { compileCsharpSource } from "../../../helpers/direct-csharp-session.mjs";
 import { createCsharpPlanningContext } from "../../../../dist/backend/planner/context.js";
+import { sealCsharpAnalysisProgram } from "../../../../dist/analysis/program/index.js";
 import { createDestructuringPlannerState } from "../../../../dist/backend/planner/bindings/index.js";
 import { planCsharpRuntimeParameterDefault } from "../../../../dist/backend/planner/declarations/callables/defaults.js";
 import { planParametersWithPrelude } from "../../../../dist/backend/planner/declarations/callables/parameters.js";
@@ -22,7 +23,8 @@ export function withoutDefault(u: [int32, string]): int32 {
 
 function compiledParameters() {
   const compiled = compileCsharpSource({ sourceText });
-  const program = compiled.result.program;
+  // The planner reads the sealed program (records and syntax only), as in production (nextgen C-2542).
+  const program = compiled.result.program === undefined ? undefined : sealCsharpAnalysisProgram(compiled.result.program);
   assert.equal(program !== undefined && compiled.result.diagnostics.length === 0, true, "the authored defaults compile");
   const ast = program.source.ast;
   const declarations = csharpProgramSourceFiles(program).flatMap(file => ast.statements(file));

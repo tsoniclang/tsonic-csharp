@@ -10,6 +10,7 @@ import type { CsharpValueReadClassifications } from "../../target-model/records/
 import { prepareCsharpNativeBacking } from "./native-backing.js";
 import { classifyCsharpNativeLocation } from "./native-locations.js";
 import { classifyCsharpModuleFieldDemand } from "./module-fields.js";
+import { sourceProjectDeclaration } from "../program/source-facts.js";
 
 export type CsharpCaptureStorageQueries = Pick<CsharpStorageClassifications,
   "storageType" | "nativeBacking" | "nativeArray" | "typedLocationIdentity">;
@@ -72,16 +73,16 @@ export function sealCsharpStorage(
 
   function visit(node: Node): void {
     if (evidence.compileTimeMetadata.get(node) || IsTypeSyntaxNode(policy.ast, node)) return;
-    if (!policy.types.nativeUnreachable(node) && (policy.ast.is.IsIdentifier(node) ||
+    if (!policy.facts.navigation.scopes.unreachable(node) && (policy.ast.is.IsIdentifier(node) ||
       policy.ast.is.IsPropertyAccessExpression(node) || policy.ast.is.IsElementAccessExpression(node) ||
       policy.ast.is.IsCallExpression(node) || policy.ast.is.IsParenthesizedExpression(node))) {
-      nativeLocations.set(node, classifyCsharpNativeLocation(policy, node, policy.ast.getSourceFile(node)!,
+      nativeLocations.set(node, classifyCsharpNativeLocation(policy, node,
         operations.classPropertyStorage.get, classifications, evidence.readStorageTargetType.get));
     }
     const passing = selectCsharpSourceArgument(policy.sourceFacts, node);
     if (passing.kind === "resolved" && passing.argument.passingMode !== "by-value") {
       const expression = passing.argument.storageExpression;
-      const declaration = policy.navigation.referenceFor(expression)?.declaration;
+      const declaration = sourceProjectDeclaration(policy.facts, expression);
       const property = operations.selectedProperty.get(expression)?.sourceOwned;
       const shape = property?.objectShape;
       const member = property?.shapeMember?.kind === "resolved" ? property.shapeMember.member : undefined;

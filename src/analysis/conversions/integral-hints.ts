@@ -1,5 +1,5 @@
 import type { Node } from "@tsonic/tsts";
-import { sourceAnnotationHint, type SourceAnnotationHintBindings } from "@tsonic/target-api/source";
+import type { SourceProgramFacts } from "@tsonic/target-api/source";
 import { tsonicCoreSourceSemanticsModules } from "@tsonic/source-core";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
@@ -9,7 +9,7 @@ export function csharpIntegralConversionAnnotationHint(
   expression: Node,
   source: TargetTypeRef | undefined,
   target: TargetTypeRef | undefined,
-  bindings: SourceAnnotationHintBindings,
+  facts: SourceProgramFacts,
 ): string | undefined {
   const sourceValue = getCsharpNullableElementTargetType(source) ?? source;
   const targetValue = getCsharpNullableElementTargetType(target) ?? target;
@@ -18,5 +18,5 @@ export function csharpIntegralConversionAnnotationHint(
   const annotationType = targetValue.kind === "source-primitive"
     ? tsonicCoreSourceSemanticsModules().flatMap(module => module.exports).find(declaration =>
       declaration.kind === "source-primitive" && declaration.primitive === targetValue.name)?.exportName : undefined;
-  return sourceAnnotationHint(expression, { ...bindings, annotationType }) ?? "Annotate the value with an integral type.";
+  return facts.analyses.annotationHint(expression, annotationType) ?? "Annotate the value with an integral type.";
 }

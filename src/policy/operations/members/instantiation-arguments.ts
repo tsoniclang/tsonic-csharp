@@ -6,7 +6,7 @@ import { csharpTargetBindingSubstitutions } from "../../types/index.js";
 import { mergeCsharpTypeParameterSubstitutions } from "./binding-instantiation.js";
 
 import type { CsharpSelectedCallArgument, CsharpSelectedTargetMethodTypeArgument } from "../../../target-model/records/objects/members.js";
-import type { ResolvedSourceCallInfo } from "../../../target-model/records/calls/source-calls.js";
+import type { SourceCallSelection } from "@tsonic/target-api/source";
 
 type CsharpProviderSignatureRelation = Extract<
   CsharpProviderTargetRelation,
@@ -43,7 +43,7 @@ export function targetTypeParameterSubstitutions(
 export function relateCallArguments(
   relation: CsharpProviderSignatureRelation,
   targetMember: CsharpTargetMember,
-  source: ResolvedSourceCallInfo,
+  source: SourceCallSelection,
 ): readonly CsharpSelectedCallArgument[] | undefined {
   const parameterBySource = new Map(
     relation.parameters.map((parameter) => [
@@ -52,9 +52,9 @@ export function relateCallArguments(
     ]),
   );
   const related: CsharpSelectedCallArgument[] = [];
-  for (const binding of source.sourceArgumentBindings) {
+  for (const binding of source.arguments) {
     const parameterRelation = parameterBySource.get(
-      binding.sourceParameterIndex,
+      binding.parameterIndex,
     );
     const targetParameter = parameterRelation === undefined
       ? undefined
@@ -63,12 +63,12 @@ export function relateCallArguments(
       return undefined;
     }
     related.push({
-      sourceArgumentIndex: binding.sourceArgumentIndex,
-      effectiveArgumentIndex: binding.effectiveArgumentIndex,
-      sourceForm: binding.sourceForm,
-      ...(binding.spreadElementIndex === undefined
+      sourceArgumentIndex: binding.argumentIndex,
+      effectiveArgumentIndex: binding.effectiveIndex,
+      sourceForm: binding.form,
+      ...(binding.spreadElement === undefined
         ? {}
-        : { spreadElementIndex: binding.spreadElementIndex }),
+        : { spreadElementIndex: binding.spreadElement }),
       targetParameterIndex: parameterRelation.targetParameterIndex,
       targetParameter,
     });

@@ -1,12 +1,11 @@
-import type { Node, Type } from "@tsonic/tsts";
+import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import { analyzeSourceDeclarationGenericAdoption, sourceGenericAdoptionDiagnosticCode,
-  createSourceDeclarationOwnershipQuery,
+import { sourceGenericAdoptionDiagnosticCode,
   createSourceDeclarationOwnershipBudget, defaultSourceDeclarationOwnershipLimits,
   type SourceDeclarationOwnershipBudget, type SourceDeclarationOwnershipPremises,
   type SourceDeclarationOwnershipUnresolved } from "@tsonic/target-api/analysis";
-import type { TargetSourceProgram } from "@tsonic/target-api/source";
-import { classifyCsharpSourceProfileDeclaration, classifyCsharpSourceProfileType } from "../../../policy/identities/source-types.js";
+import type { SourceTypeDescriptor, TargetSourceProgramFacts } from "@tsonic/target-api/source";
+import { classifyCsharpSourceProfileDeclaration } from "../../../policy/identities/source-types.js";
 import type { CsharpValueReadClassifications } from "../../../target-model/records/operations/conversions.js";
 import type { CsharpTargetOperationClassifications } from "../../../target-model/records/operations/operations.js";
 import type { CsharpNativeUseClassifications } from "../../../target-model/records/native/native-demand.js";
@@ -28,13 +27,14 @@ function ownershipDiagnostic(selection: SourceDeclarationOwnershipUnresolved): T
 }
 
 export function analyzeCsharpGenericAdoption(input: {
-  readonly source: TargetSourceProgram;
+  readonly source: TargetSourceProgramFacts;
   readonly projectRoot: string;
   readonly nodes: readonly Node[];
   readonly premises: Pick<SourceDeclarationOwnershipPremises, "completionFor">;
   readonly budget: SourceDeclarationOwnershipBudget;
 }): readonly TargetDiagnostic[] {
-  const adoption = analyzeSourceDeclarationGenericAdoption(input);
+  const adoption = input.source.facts.analyses.genericAdoption({ projectRoot: input.projectRoot, nodes: input.nodes,
+    premises: input.premises, budget: input.budget });
   return Object.freeze(adoption.kind === "unresolved" ? [ownershipDiagnostic(adoption)]
     : adoption.issues.map(issue => Object.freeze({ code: sourceGenericAdoptionDiagnosticCode,
       category: "error" as const, source: "tsonic-csharp", sourceNode: issue.site, sourceSpan: issue.sourceSpan,
@@ -42,7 +42,7 @@ export function analyzeCsharpGenericAdoption(input: {
 }
 
 export function analyzeCsharpPromiseResults(input: {
-  readonly source: TargetSourceProgram;
+  readonly source: TargetSourceProgramFacts;
   readonly projectRoot: string;
   readonly nodes: readonly Node[];
   readonly records: CsharpValueReadClassifications & CsharpNativeUseClassifications &
@@ -54,7 +54,7 @@ export function analyzeCsharpPromiseResults(input: {
   const results = new Map<Node, CsharpPromiseResult>();
   const diagnostics: TargetDiagnostic[] = [];
   const { source } = input;
-  const { ast } = source;
+  const { syntax: ast, facts } = source;
   if (input.nativePlacement.length !== 0) return Object.freeze({ results, diagnostics: input.nativePlacement });
   const root = input.nodes[0] ?? source.sourceFiles[0];
   if (root === undefined) return Object.freeze({ results, diagnostics: Object.freeze([]) });
@@ -73,11 +73,11 @@ export function analyzeCsharpPromiseResults(input: {
     if (native === undefined || native.kind === "erased" || input.records.nativeUse.expression(node) !== undefined) return true;
     if (ast.is.IsCallExpression(call)) {
       const selected = input.records.selectedCall.get(call);
-      return selected?.sourceCall?.kind !== "function" || selected.source?.sourceCallee.expression !== node;
+      return selected?.sourceCall?.kind !== "function" || selected.source?.callee !== node;
     }
     const selected = input.records.selectedConstruction.get(call)?.target;
     return selected?.kind !== "resolved" && selected?.kind !== "source-owned" ||
-      selected.source.sourceCallee.expression !== node;
+      selected.source.callee !== node;
   };
   const nodes: Node[] = [];
   for (const node of input.nodes) {
@@ -99,28 +99,27 @@ export function analyzeCsharpPromiseResults(input: {
   };
   const premises: SourceDeclarationOwnershipPremises = {
     completionFor(node, selected) {
-      const semantics = source.semantics.forNode(node);
-      const declaration = semantics.declarations.signatureDeclaration(selected.selectedSignature);
-      if (declaration === undefined) return unresolved(node, "Async result-use requires its exact checked selected declaration.");
+      // The selected call's published result descriptor names the promise families it completes with.
+      const declaration = selected.signature;
       let native = false;
       let js = false;
-      const active = new Set<Type>();
+      const active = new Set<SourceTypeDescriptor>();
       let incomplete: SourceDeclarationOwnershipUnresolved | undefined;
-      const inspect = (type: Type): void => {
+      const inspect = (type: SourceTypeDescriptor): void => {
         if (!budget.step(node)) { incomplete ??= budget.failure(); return; }
-        if (active.has(type)) { incomplete ??= unresolved(node, "The selected async result has a cyclic checked completion topology."); return; }
+        if (active.has(type)) { incomplete ??= unresolved(node, "The selected async result has a cyclic completion topology."); return; }
         active.add(type);
-        if (semantics.types.isUnion(type) || semantics.types.isIntersection(type)) {
-          for (const part of semantics.types.unionOrIntersectionTypes(type)) inspect(part);
-        } else {
-          const profile = classifyCsharpSourceProfileType(type, semantics, ast);
+        if (type.kind === "union") for (const part of type.types) inspect(part);
+        else if (type.kind === "optional") inspect(type.value);
+        else if (type.kind === "declared") {
+          const profile = classifyCsharpSourceProfileDeclaration(type.declaration, ast);
           if (profile?.kind === "promise") {
             if (profile.ownerId === "js") js = true; else native = true;
           }
         }
         active.delete(type);
       };
-      inspect(selected.sourceResultType);
+      inspect(selected.result);
       if (incomplete !== undefined) return incomplete;
       const output = nativeCarrier(node);
       if (output === undefined) return native || js
@@ -132,7 +131,7 @@ export function analyzeCsharpPromiseResults(input: {
       if (!native && !js) return Object.freeze({ kind: "not-async" });
       return Object.freeze({ kind: "async", resultPolicy: js ? native ? "must-observe" : "observe-rejection" : "native-discard",
         contract: Object.freeze({ kind: "declaration", declaration,
-          component: Object.freeze({ selectedType: selected.sourceResultType, contextualCall: selected }) }) });
+          component: Object.freeze({ type: selected.result, call: selected.use }) }) });
     },
     retentionFor(request) {
       const { value } = request;
@@ -146,9 +145,9 @@ export function analyzeCsharpPromiseResults(input: {
     suspensionFor(value, use) {
       if (use === "resource-cleanup") {
         const resource = input.records.resource.get(value.node);
-        const checked = source.semantics.forNode(value.node).operations.resourceManagement(value.node);
-        if (resource?.kind !== "resolved" || resource.source !== checked || checked?.declaration !== value.node ||
-          checked.declarationKind !== "await using")
+        const selected = facts.selections.resource(value.node);
+        if (resource?.kind !== "resolved" || selected === undefined || resource.source.declaration !== selected.declaration ||
+          selected.declaration !== value.node || !selected.async)
           return unresolved(value.node, "Cleanup suspension requires this declaration's completed native disposal registration.");
         const disposals = resource.registration.kind === "direct" ? [resource.registration.disposal]
           : resource.registration.arms.map(arm => arm.disposal);
@@ -168,13 +167,13 @@ export function analyzeCsharpPromiseResults(input: {
   };
   diagnostics.push(...analyzeCsharpGenericAdoption({ source, projectRoot: input.projectRoot, nodes, premises, budget }));
   if (diagnostics.length !== 0) return Object.freeze({ results, diagnostics: Object.freeze(diagnostics) });
-  const ownership = createSourceDeclarationOwnershipQuery({ source, sourceNodes: input.nodes, nodes, budget, premises });
+  const ownership = facts.analyses.declarationOwnership({ sourceNodes: input.nodes, nodes, budget, premises });
   for (const node of nodes) {
     if (!ast.is.IsCallExpression(node) && !ast.is.IsNewExpression(node)) continue;
     const carrier = nativeCarrier(node);
     const selection = carrier === undefined ? undefined : select(carrier, node);
     if (selection === undefined) continue;
-    const disposition = source.navigation.expressionResultDisposition(node);
+    const disposition = source.facts.navigation.expressions.resultDisposition(node);
     let observeDiscard = false;
     if (ast.is.IsCallExpression(node)) {
       const selected = ownership.forCall(node);
@@ -186,8 +185,8 @@ export function analyzeCsharpPromiseResults(input: {
       }
       observeDiscard = selected.kind === "resolved" && selected.decision === "observe-discarded-rejection";
     } else {
-      const outcome = source.effectiveTypes.get(node);
-      let descriptor = outcome === undefined || outcome.kind === "refused" ? undefined : outcome.type;
+      const outcome = facts.values.type(node);
+      let descriptor = outcome.kind === "refused" ? undefined : outcome.type;
       while (descriptor?.kind === "optional") descriptor = descriptor.value;
       const profile = descriptor?.kind !== "declared" ? undefined : classifyCsharpSourceProfileDeclaration(descriptor.declaration, ast);
       observeDiscard = profile?.kind === "promise" && profile.ownerId === "js";

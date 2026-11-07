@@ -1,19 +1,19 @@
 import type { CsharpNamedSelfBinding } from "../../../target-model/records/callables/capture-storage.js";
 import type { Node } from "@tsonic/tsts";
-import type { SourceLexicalCaptureSelection, TargetSourceProgram } from "@tsonic/target-api/source";
+import type { SourceLexicalCaptureSelection, TargetSourceProgramFacts } from "@tsonic/target-api/source";
 import type { CsharpSourceEvidenceIndex } from "../../../target-model/records/program/source-evidence.js";
 import type { CsharpStorageIssue } from "../../../target-model/records/storage/storage.js";
 
 export function selectCsharpNamedSelfBinding(
-  source: TargetSourceProgram,
+  source: TargetSourceProgramFacts,
   declaration: Node,
   lexical: SourceLexicalCaptureSelection,
   evidence: Pick<CsharpSourceEvidenceIndex, "compileTimeMetadata">,
   issues: CsharpStorageIssue[],
 ): CsharpNamedSelfBinding | undefined {
-  if (!source.ast.is.IsFunctionExpression(declaration) || source.ast.name(declaration) === undefined ||
+  if (!source.syntax.is.IsFunctionExpression(declaration) || source.syntax.name(declaration) === undefined ||
     lexical.selfReferences.length === 0) return undefined;
-  const uses = new Map(source.navigation.declarationUses(declaration).map(use => [use.reference, use]));
+  const uses = new Map(source.facts.navigation.uses.uses(declaration).map(use => [use.reference, use]));
   const calls: Node[] = [];
   const values: Node[] = [];
   for (const reference of lexical.selfReferences) {

@@ -4,7 +4,7 @@ import type {
   ReadonlySourceFactResolver,
   SourceFile,
 } from "@tsonic/tsts";
-import type { SourceProgramNavigation } from "@tsonic/target-api/source";
+import type { SourceProgramFacts } from "@tsonic/target-api/source";
 import { createTargetSafetyApplicationIndex } from "@tsonic/target-api/analysis";
 import {
   readCsharpSourceSafetyBuilder,
@@ -15,7 +15,7 @@ export interface CsharpSafetyApplicationFactIndexInput {
   readonly ast: AstReader;
   readonly sourceFiles: readonly SourceFile[];
   readonly sourceFacts?: ReadonlySourceFactResolver;
-  readonly navigation: SourceProgramNavigation;
+  readonly facts: SourceProgramFacts;
 }
 
 export function createCsharpSafetyApplicationFactIndex(
@@ -28,7 +28,8 @@ export function createCsharpSafetyApplicationFactIndex(
   const index = createTargetSafetyApplicationIndex({
     ast: input.ast,
     sourceFiles: input.sourceFiles,
-    navigation: input.navigation,
+    // The safety application index walks declarations through the published role model (request R-F5-B5).
+    navigation: input.facts.navigation,
     readUnsafeContext: (subject) => readCsharpSourceUnsafeContext(sourceFacts, subject),
     readSafetyBuilder: (subject) => readCsharpSourceSafetyBuilder(sourceFacts, subject),
   });

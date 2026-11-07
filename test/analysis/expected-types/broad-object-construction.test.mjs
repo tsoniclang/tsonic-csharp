@@ -28,7 +28,7 @@ for (const surface of ["native", "js"]) {
     assertCsharpCompilationSucceeded(compiled);
     const program = compiled.result.program;
     assert.equal(program !== undefined, true, "the checked program publishes its admitted records");
-    const ast = program.source.ast;
+    const ast = program.source.syntax;
     const literals = [];
     const visit = node => {
       if (ast.is.IsObjectLiteralExpression(node)) literals.push(node);

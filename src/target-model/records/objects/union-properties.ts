@@ -1,10 +1,10 @@
 import type { TargetTypeRef } from "../../types/model.js";
 import type { CsharpSourceProfilePropertyPolicyResult } from "../program/source-profile-invocations.js";
-import type { ResolvedSourcePropertyAccessInfo } from "@tsonic/tsts";
+import type { SourceMemberAccessSelection } from "@tsonic/target-api/source";
 
 export interface CsharpUnionProperty {
   readonly kind: "union-property";
-  readonly source: ResolvedSourcePropertyAccessInfo;
+  readonly source: SourceMemberAccessSelection;
   readonly unionCarrier: TargetTypeRef;
   readonly selectedVariantIndexes: readonly number[];
   readonly variants: readonly { readonly carrier: TargetTypeRef;

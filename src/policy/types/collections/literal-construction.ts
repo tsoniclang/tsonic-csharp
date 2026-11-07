@@ -11,7 +11,7 @@ import type { CsharpNativeSourceCarrierSelection } from "../../../target-model/r
 export function csharpArrayLiteralElisionIssue(ast: AstReader, node: Node): Extract<CsharpNativeSourceCarrierSelection, { readonly kind: "rejected" }> | undefined {
   return !ast.is.IsArrayLiteralExpression(node) || !ast.elements(node).some(element =>
     element === undefined || ast.kindName(element) === "KindOmittedExpression") ? undefined : Object.freeze({
-    kind: "rejected", subject: node, code: "CSHARP_UNSUPPORTED_AST",
+    kind: "rejected", subject: node, code: "CSHARP_ARRAY_LITERAL_HOLE",
     reason: "Sparse array literal elisions require closed JSArray hole construction facts before C# emission; dense array carriers must not compact holes.",
   });
 }

@@ -10,7 +10,6 @@ import { getCsharpRuntimeUnionArms } from "../../../dist/target-model/types/carr
 import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { csharpJsArrayTargetType } from "../../../dist/target-model/types/carriers/js.js";
 import { csharpEnumerableTargetType } from "../../../dist/target-model/types/carriers/collections.js";
-import { combineCsharpTargetUnionMembers } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
 import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 import { isCsharpStringTargetType, isCsharpJsStringTargetType } from "../../../dist/target-model/types/identity.js";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
@@ -63,25 +62,29 @@ test(`${surface} inferred numeric arrays preserve values, physical arms, roundin
       return result;
     };
     const types = { int32: "int", uint32: "uint", float64: "double" };
+    const signedValue = ["int32", "signed", "-1"];
+    const unsignedValue = ["uint32", "unsigned", "4294967295U"];
+    const literalValue = ["int32", "1", "1"];
+    const hugeValue = ["float64", "System.Math.ScaleB(1D, 200)", "System.Math.ScaleB(1D, 200)"];
     const methods = [
-      ["bare", "bareValues", ["int32", "uint32"]],
-      ["reverse", "reverseValues", ["uint32", "int32"]],
-      ["left", "leftValues", ["int32", "uint32", "float64"]],
-      ["middle", "middleValues", ["int32", "float64", "uint32"]],
-      ["right", "rightValues", ["float64", "int32", "uint32"]],
-      ["wrapped", "wrappedValues", ["int32", "uint32", "float64"]],
-      ["exactHuge", "hugeValues", ["int32", "uint32", "float64"], "System.Math.ScaleB(1D, 200)"],
-    ].map(([method, name, values, literal = "1D"]) => {
+      ["bare", "bareValues", [signedValue, unsignedValue]],
+      ["reverse", "reverseValues", [unsignedValue, signedValue]],
+      ["left", "leftValues", [signedValue, unsignedValue, literalValue]],
+      ["middle", "middleValues", [signedValue, literalValue, unsignedValue]],
+      ["right", "rightValues", [literalValue, signedValue, unsignedValue]],
+      ["wrapped", "wrappedValues", [signedValue, unsignedValue, literalValue]],
+      ["exactHuge", "hugeValues", [signedValue, unsignedValue, hugeValue]],
+    ].map(([method, name, values]) => {
       const members = arms(name);
       assert.equal(members.length === values.length && new Set(members.map(arm => arm.name)).size === values.length, true,
         `${name}: the actual constructor uses the required complete physical union`);
       const union = `Tsonic.CSharp.Runtime.Union<${members.map(arm => types[arm.name]).join(", ")}>`;
-      const entries = values.map(kind => `${union}.From${members.findIndex(arm => arm.name === kind) + 1}(${kind === "int32" ? "signed" : kind === "uint32" ? "unsigned" : literal})`);
+      const entries = values.map(([kind, expression]) => `${union}.From${members.findIndex(arm => arm.name === kind) + 1}(${expression})`);
       const storage = surface === "native" ? `${union}[]` : `Tsonic.CSharp.Js.JSArray<${union}>`;
       const construction = surface === "native" ? `new ${union}[] { ${entries.join(", ")} }`
         : `Tsonic.CSharp.Js.JSArray<${union}>.of([${entries.join(", ")}])`;
-      const reads = values.map((kind, index) => `!${method}[${index}].Is${members.findIndex(arm => arm.name === kind) + 1}() ||
-        ${method}[${index}].As${members.findIndex(arm => arm.name === kind) + 1}() != ${kind === "int32" ? "-1" : kind === "uint32" ? "4294967295U" : literal}`).join(" || ");
+      const reads = values.map(([kind, , expected], index) => `!${method}[${index}].Is${members.findIndex(arm => arm.name === kind) + 1}() ||
+        ${method}[${index}].As${members.findIndex(arm => arm.name === kind) + 1}() != ${expected}`).join(" || ");
       return { method, baseline: `static ${storage} Baseline_${method}(int signed, uint unsigned) => ${construction};`,
         read: `var ${method} = Subject.${method}(-1, 4294967295U); if (${reads}) throw new System.Exception("${method}: exact physical contribution");` };
     });
@@ -296,7 +299,7 @@ test(`C130 js optional numeric-union ${operation} refuses the same unproven key 
     }` });
   assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
   const issue = compiled.nativeStage.diagnostics[0];
-  const ast = compiled.nativeStage.source.ast;
+  const ast = compiled.nativeStage.source.syntax;
   const range = issue?.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
   const text = range?.kind !== "authored" ? undefined : ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end).trim();
   assert.equal(compiled.targetDiagnostics.length === 1 && issue.code === "CSHARP_JS_SOURCE_PROFILE_CALL_NOT_CLOSED" &&
@@ -323,7 +326,7 @@ test("C130 js reports every winning numeric-union key refusal before program inc
     ["includes", "values.includes(signed)"], ["indexOf", "values.indexOf(unsigned)"],
     ["lastIndexOf", "values.lastIndexOf(signed)"],
   ];
-  const ast = compiled.nativeStage.source.ast;
+  const ast = compiled.nativeStage.source.syntax;
   assert.equal(compiled.targetDiagnostics.length === expected.length, true,
     "all three actual selected boundaries report, rather than returning only the first policy group");
   for (const [operation, expression] of expected) {
@@ -361,7 +364,7 @@ test(`C130 ${surface}: ${formName} ${operation} uses native number semantics or 
       const root = new URL(`../../../.temp/C01-inferred-numeric-array-elements/operations/${surface}/${formName}/${operation.replace(/[^a-z]/giu, "-")}/`, import.meta.url);
       mkdirSync(root, { recursive: true });
       const diagnostic = issue => {
-        const ast = compiled.nativeStage.source.ast;
+        const ast = compiled.nativeStage.source.syntax;
         const range = issue.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
         const text = range?.kind !== "authored" ? undefined
           : ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end).trim();
@@ -373,7 +376,7 @@ test(`C130 ${surface}: ${formName} ${operation} uses native number semantics or 
         assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
           "an unsupported cross-arm operation is refused before the seal and emits no artifact");
         const observed = errors.map(diagnostic).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
-        const expected = expectedOperationRefusals(operation, size).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
+        const expected = expectedOperationRefusals(operation, size, compiled).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
         assert.equal(observed.length === expected.length && observed.every((issue, index) =>
           issue.code === expected[index].code && issue.message === expected[index].message && issue.text === expected[index].text), true,
         `${formName}/${operation}: the complete exact code, native reason and authored source node match its declared operation contract`);
@@ -412,7 +415,7 @@ test(`C130 ${surface}: ${formName} ${operation} uses native number semantics or 
       const root = new URL(`../../../.temp/C01-inferred-numeric-array-elements/operations/${surface}/${formName}/${operation.replace(/[^a-z]/giu, "-")}/`, import.meta.url);
       mkdirSync(root, { recursive: true });
       const diagnostic = issue => {
-        const ast = compiled.nativeStage.source.ast;
+        const ast = compiled.nativeStage.source.syntax;
         const range = issue.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
         const text = range?.kind !== "authored" ? undefined
           : ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end).trim();
@@ -424,7 +427,7 @@ test(`C130 ${surface}: ${formName} ${operation} uses native number semantics or 
         assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
           "an unsupported cross-arm operation is refused before the seal and emits no artifact");
         const observed = errors.map(diagnostic).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
-        const expected = expectedOperationRefusals(operation, size).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
+        const expected = expectedOperationRefusals(operation, size, compiled).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
         assert.equal(observed.length === expected.length && observed.every((issue, index) =>
           issue.code === expected[index].code && issue.message === expected[index].message && issue.text === expected[index].text), true,
         `${formName}/${operation}: the complete exact code, native reason and authored source node match its declared operation contract`);
@@ -465,7 +468,7 @@ test(`C130 ${surface}: ${formName} ${operation} uses native number semantics or 
       const root = new URL(`../../../.temp/C01-inferred-numeric-array-elements/operations/${surface}/${formName}/${operation.replace(/[^a-z]/giu, "-")}/`, import.meta.url);
       mkdirSync(root, { recursive: true });
       const diagnostic = issue => {
-        const ast = compiled.nativeStage.source.ast;
+        const ast = compiled.nativeStage.source.syntax;
         const range = issue.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
         const text = range?.kind !== "authored" ? undefined
           : ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end).trim();
@@ -477,7 +480,7 @@ test(`C130 ${surface}: ${formName} ${operation} uses native number semantics or 
         assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
           "an unsupported cross-arm operation is refused before the seal and emits no artifact");
         const observed = errors.map(diagnostic).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
-        const expected = expectedOperationRefusals(operation, size).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
+        const expected = expectedOperationRefusals(operation, size, compiled).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
         assert.equal(observed.length === expected.length && observed.every((issue, index) =>
           issue.code === expected[index].code && issue.message === expected[index].message && issue.text === expected[index].text), true,
         `${formName}/${operation}: the complete exact code, native reason and authored source node match its declared operation contract`);

@@ -12,14 +12,14 @@ export function finalizeCsharpRestSequences(
   const arguments_ = [...call.arguments];
   const restParameters = call.targetMember.parameters.flatMap((parameter, index) =>
     parameter.paramsArray === true ? [{ parameter, index }] : []);
-  for (const [sourceArgumentIndex, argument] of context.source.sourceArguments.entries()) {
+  for (const [sourceArgumentIndex, argument] of context.source.arguments.entries()) {
     if (!context.host.ast.is.IsSpreadElement(argument.expression)) continue;
     const expression = context.host.ast.as.AsSpreadElement(argument.expression)?.Expression;
     const selections = call.arguments.filter(candidate => candidate.sourceArgumentIndex === sourceArgumentIndex);
-    const sourceType = context.inputs.nodes.get(expression);
+    const sourceType = context.inputs.values.get(expression);
     let first = selections[0];
     if (first === undefined && sourceType?.kind === "tuple" && sourceType.elements.length === 0 &&
-      context.source.sourceSelectedSignatureParameters.filter(parameter => parameter.rest).length === 1 &&
+      context.source.parameters.filter(parameter => parameter.kind === "rest").length === 1 &&
       restParameters.length === 1) {
       first = { sourceArgumentIndex, effectiveArgumentIndex: sourceArgumentIndex,
         sourceForm: "spread-sequence", targetParameterIndex: restParameters[0]!.index,

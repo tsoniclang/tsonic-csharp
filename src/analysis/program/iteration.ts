@@ -1,6 +1,6 @@
 import { rejectCsharpAnalysisIssues } from "./issues.js";
 import { csharpProviderBindingFromResolution } from "../../providers/model/relation-resolver.js";
-import type { SourceFile } from "@tsonic/tsts";
+import type { Node, SourceFile } from "@tsonic/tsts";
 import { analyzeCsharpCaptureStorage } from "../callables/storage/capture-storage.js";
 
 import { analyzeCsharpNativeParticipation } from "../callables/calls/participation.js";
@@ -9,7 +9,8 @@ import { analyzeCsharpClassFactories } from "../project-types/class-factories.js
 import { analyzeCsharpClassInitialization } from "../project-types/class-initialization.js";
 
 import type { CsharpRequiredRecord } from "./records/objects/required-records.js";
-import { sourceDeclarationHasOnlyTypeUses, sourceDeclarationIsModuleScoped, sourceCallableValueExpression } from "@tsonic/target-api/source";
+import { sourceCallableValueExpression } from "@tsonic/target-api/source";
+import { sourceCallSelection } from "./source-facts.js";
 import { analyzeCsharpExactLiteralSelections } from "../conversions/literal-plans.js";
 
 import { analyzeCsharpTypeProjections, csharpTypeProjectionIndexesEqual } from "../declarations/type-projections.js";
@@ -23,13 +24,12 @@ import type { CsharpExpectedNativeUse } from "../../target-model/records/native/
 import { createCsharpProjectTypeCatalog } from "../project-types/catalog.js";
 import { createCsharpTypeDefinitionRegistry } from "../project-types/type-definitions.js";
 
-import { rejectedTargetStage, resolvedTargetStage } from "@tsonic/target-api/artifacts";
+import { failTargetAnalysisInvariant, rejectedTargetStage, resolvedTargetStage } from "@tsonic/target-api/artifacts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 
 import { createCsharpTypeAnalysis } from "./type-system.js";
 import type { CsharpTypeAnalysis } from "./type-system.js";
-import type { CsharpPlanningRepresentationQueries } from "../source-evidence/types/resolution/model.js";
-import type { ResolvedSourceCallInfo } from "../../target-model/records/calls/source-calls.js";
+import type { CsharpPlanningRepresentationQueries } from "./type-system.js";
 import { analyzeCsharpAttributeApplications } from "../attributes/application-index.js";
 
 import type { CsharpTargetAnalysisRequest } from "./model.js";
@@ -72,8 +72,7 @@ export function analyzeCsharpRepresentationIteration(
   sourceFiles: readonly SourceFile[],
   sourceIdentities: ReturnType<typeof createCsharpSourceIdentityPolicy>,
   nameHost: Parameters<typeof createCsharpSourceNameBuilder>[0],
-  typeHost: Parameters<typeof createCsharpTypeAnalysis>[0] &
-    Pick<import("../project-types/type-policy.js").CsharpProjectTypeCatalogHost, "enumConstants">,
+  typeHost: Parameters<typeof createCsharpTypeAnalysis>[0],
   sourceStorage: SourceStorageQueries,
   statementErasure: Parameters<typeof analyzeCsharpTargetOperations>[2],
   previous: CsharpRepresentationContract | undefined,
@@ -92,35 +91,33 @@ export function analyzeCsharpRepresentationIteration(
       if (moduleSource !== undefined) {
         const moduleCallable = moduleSource.callable;
         const moduleOwner = moduleSource.sourceOwner;
-        const annotation = source.ast.typeNode(moduleOwner);
-        if (annotation !== undefined && typeSystem?.analysisTypes.resolveNode(annotation,
-          source.ast.getSourceFile(moduleOwner))?.kind !== "resolved") return undefined;
+        const annotation = source.syntax.typeNode(moduleOwner);
+        if (annotation !== undefined && typeSystem?.analysisTypes.storage(moduleOwner).kind === "csharp-refused") return undefined;
         const callable = previous?.callables.get({ kind: "declaration", declaration: moduleCallable });
         return callable === undefined ? undefined : csharpCallableValueType(callable);
       }
-      if (source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node)) {
+      if (source.syntax.is.IsArrowFunction(node) || source.syntax.is.IsFunctionExpression(node)) {
         const selected = previous?.callables.closedInputType(node);
         if (selected !== undefined) return selected;
       }
       const storage = previous?.storage.requiredStorageType.get(node);
       if (storage !== undefined) return storage;
-      if (!input.source.ast.is.IsArrowFunction(node) && !input.source.ast.is.IsFunctionExpression(node) &&
-        !input.source.ast.is.IsFunctionDeclaration(node)) return undefined;
+      if (!input.source.syntax.is.IsArrowFunction(node) && !input.source.syntax.is.IsFunctionExpression(node) &&
+        !input.source.syntax.is.IsFunctionDeclaration(node)) return undefined;
       const callable = previous?.callables.get({ kind: "declaration", declaration: node });
       return callable === undefined ? undefined : csharpCallableValueType(callable);
     },
     closedInputContract(node) {
-      const value = sourceCallableValueExpression(source.ast, node, { typeAssertions: "transparent" });
+      const value = sourceCallableValueExpression(source.syntax, node, { typeAssertions: "transparent" });
       if (value === undefined) return undefined;
-      const declaration = source.navigation.sourceReferenceFor(value)?.declaration ?? value;
+      const declaration = source.facts.navigation.identity.target(value)?.declaration ?? value;
       return previous?.callables.closedInputContract(declaration);
     },
-    sourceCallable(source, sourceFile, selection) {
+    sourceCallable(use, selection) {
       return sourceCallableContract(
         input,
         typeHost.moduleCallables,
-        source,
-        sourceFile,
+        use,
         typeSystem,
         previous?.callables,
         selection,
@@ -137,7 +134,6 @@ export function analyzeCsharpRepresentationIteration(
   const policyContext = createCsharpAnalysisPolicyContext({
     moduleCallables: typeHost.moduleCallables,
     integerRanges: typeHost.integerRanges,
-    literalValues: typeHost.literalValues,
     callOnlyAlias: typeHost.callOnlyAlias,
     input,
     sourceFiles,
@@ -223,51 +219,51 @@ export function analyzeCsharpRepresentationIteration(
   const classFactories = analyzeCsharpClassFactories(source, typeSystem.projectTypes.catalog, sourceEvidence,
     storagePreparation.captures, names, operations, requiredRecords);
   const captureStorage = analyzeCsharpCaptureStorage(source, objectShapes, storagePreparation.captures, sourceEvidence,
-    classFactories.factories.flatMap(factory => factory.captures), callables, operations.erasedStatement, operations);
+    classFactories.factories.flatMap(factory => factory.captures), callables, operations.erasedStatement, operations,
+    typeSystem.representation.typeParameters);
   const callableCreationResult = analyzeCsharpCallableCreations({
     source, nodes: sourceStorage.nodes, captures: captureStorage, contracts: callables,
     operations, storage: storageRepresentations, expectedTypes, evidence: sourceEvidence, conversions: preparedConversions,
-    literals: typeHost.literalValues,
   });
   if (callableCreationResult.kind === "rejected") return callableCreationResult;
   const callableCreations = callableCreationResult.value;
   expectedTypes.completeReturns(callableCreations.callableCreation);
   const participation = analyzeCsharpNativeParticipation({
-    ast: source.ast, storage: sourceStorage, navigation: source.navigation,
+    ast: source.syntax, storage: sourceStorage, facts: source.facts,
     captureClosure: captureStorage.captureClosure, callableCreation: callableCreations.callableCreation,
     compileTimeMetadata: sourceEvidence.compileTimeMetadata, requiredRecords,
   });
   if (participation.kind === "rejected") return participation;
   const nativeParticipation = participation.value;
   const classInitialization = analyzeCsharpClassInitialization(source, classFactories);
-  const exactLiterals = analyzeCsharpExactLiteralSelections(typeHost.literalValues, [
+  const exactLiterals = analyzeCsharpExactLiteralSelections(source.facts, [
     ...preparedConversions.exactLiteralRequests,
     ...expectedTypes.constructions.propertyKeyRequests,
     ...expectedTypes.nativeUseSites.requests.flatMap(request => request.kind === "requested"
       ? [{ expression: request.expression, source: valueReads.valueRead.get(request.expression)?.value, target: request.targetType }] : []),
   ], sourceStorage.nodes);
   const expectedUse = admitCsharpExpectedNativeUses(expectedTypes, {
-    ast: source.ast, exactLiteral: exactLiterals.exactLiteral, callableCreation: callableCreations.callableCreation,
+    ast: source.syntax, exactLiteral: exactLiterals.exactLiteral, callableCreation: callableCreations.callableCreation,
     valueRead: valueReads.valueRead, operations,
   });
   const initializerUses = new Map<object, CsharpExpectedNativeUse | null>();
   for (const entry of expectedUse.entries) if (entry.site.role === "initializer")
     initializerUses.set(entry.site.subject, initializerUses.has(entry.site.subject) ? null : entry.use);
   const bindingCandidates = analyzeCsharpBindingPatterns({
-    ast: source.ast, effectiveTypes: source.effectiveTypes, sourceFacts: policy.sourceFacts, semanticsFor: source.semantics.forNode, sourceFiles, participation: nativeParticipation.participation,
+    ast: source.syntax, facts: source.facts, sourceFacts: policy.sourceFacts, sourceFiles, participation: nativeParticipation.participation,
     evidence: sourceEvidence, operations, valueReads, objectShapes, initializerUses,
     typePolicy: policy.types, conversionPolicy: Object.freeze({ ...policy, objectShapes }), storage: storageRepresentations,
   });
   const pendingInitializers = new Set(expectedUse.pending.filter(entry => entry.site.role === "initializer")
     .map(entry => entry.site.subject));
   for (const declaration of sourceStorage.nodes) {
-    if (!source.ast.is.IsVariableDeclaration(declaration) || source.ast.variableDeclarationKind(declaration) !== "const" ||
-      !sourceDeclarationIsModuleScoped(declaration, source.ast) || pendingInitializers.has(declaration) ||
-      !sourceDeclarationHasOnlyTypeUses(source.navigation.declarationUseSummary(declaration))) continue;
-    const initializer = source.ast.as.AsVariableDeclaration(declaration)?.Initializer;
+    if (!source.syntax.is.IsVariableDeclaration(declaration) || source.syntax.variableDeclarationKind(declaration) !== "const" ||
+      !source.facts.navigation.scopes.isModuleScoped(declaration) || pendingInitializers.has(declaration) ||
+      !source.facts.navigation.uses.hasOnlyTypeUses(declaration)) continue;
+    const initializer = source.syntax.as.AsVariableDeclaration(declaration)?.Initializer;
     let use = initializerUses.get(declaration);
     if (initializer === undefined || use == null || use.expression !== initializer) continue;
-    const effects = source.navigation.expressionEffects(initializer);
+    const effects = source.facts.navigation.expressions.effects(initializer);
     if (effects.invokes || effects.mutates || effects.suspends || effects.mayThrow) continue;
     const target = use.target;
     const visited = new Set<CsharpExpectedNativeUse>();
@@ -279,7 +275,7 @@ export function analyzeCsharpRepresentationIteration(
     }
     if (use === undefined || visited.has(use) || use.binary !== undefined || use.construction !== undefined ||
       use.children.length !== 0 || !targetTypeRefEquals(use.carrier, target) || !targetTypeRefEquals(use.target, target)) continue;
-    const literal = typeHost.literalValues.literalValue.get(use.expression);
+    const literal = source.facts.values.literal(use.expression);
     if (literal === undefined) continue;
     const selected = exactLiterals.exactLiteral.get(use.expression, target);
     if (selected?.kind === "resolved" && use.representation === "construct" && use.literal === selected.recipe &&
@@ -296,7 +292,7 @@ export function analyzeCsharpRepresentationIteration(
   }
   evidence.sealCompileTimeDeclarations();
   const nativeDemand = analyzeCsharpNativeDemand({
-    ast: source.ast, sourceFiles, navigation: source.navigation, evidence: sourceEvidence,
+    ast: source.syntax, sourceFiles, facts: source.facts, evidence: sourceEvidence,
     operations, valueReads, optionalLocals, participation: nativeParticipation.participation, declarations, objectShapes,
     bindingPatterns: bindingCandidates, callableCreation: callableCreations.callableCreation, attributeApplications: attributes.index,
     propertyKeyBindings: expectedTypes.constructions.propertyKeys, exactLiteral: exactLiterals.exactLiteral,
@@ -352,54 +348,42 @@ export function analyzeCsharpRepresentationIteration(
   }));
 }
 
+/**
+ * The callable contract a source call reaches: the selected declaration from the Host call selection, or with
+ * "implementation" the implementation the Host publishes for a contract declaration (objects.callableImplementation).
+ */
 function sourceCallableContract(
   input: CsharpTargetAnalysisRequest["input"],
   moduleCallables: import("../../target-model/records/callables/module-callables.js").CsharpModuleCallableIdentities,
-  source: ResolvedSourceCallInfo,
-  sourceFile: SourceFile,
+  use: Node,
   typeSystem: CsharpTypeAnalysis | undefined,
   callables: CsharpCallableContractIndex | undefined,
   selection: "checked" | "implementation",
 ) {
-  if (callables === undefined) {
-    return undefined;
-  }
+  if (callables === undefined) return undefined;
+  const facts = input.source.facts;
+  const call = sourceCallSelection(facts, use);
   if (selection === "implementation") {
-    const reference = input.source.navigation.sourceReferenceFor(source.sourceCallee.expression);
-    const declaration = reference?.declaration ?? source.sourceCalleeAccess?.declaration ?? source.sourceCallee.declaration;
+    const declaration = facts.navigation.identity.target(call.callee)?.declaration ?? call.declaration;
     const initializer = declaration === undefined ? undefined : moduleCallables.get(declaration)?.callable;
     if (initializer !== undefined) {
-      const selected = source.sourceCalleeAccess?.selectedDeclaration ?? source.sourceCallee.selectedDeclaration;
+      const selected = call.declaration;
       if (selected === undefined || selected !== declaration && selected !== initializer ||
-        !input.source.navigation.isProjectDeclaration(selected)) return undefined;
+        !facts.navigation.identity.isProjectDeclaration(selected)) return undefined;
       return callables.get({ kind: "declaration", declaration: initializer });
     }
   }
-  const selectedCallee = source.sourceCallee.selectedDeclaration;
-  if (
-    selectedCallee !== undefined &&
-    input.source.ast.is.IsClassDeclaration(selectedCallee)
-  ) {
-    const constructor = typeSystem?.projectTypes.implicitConstructorForSignature(
-      selectedCallee,
-      source.selectedSignature,
-      source.sourceSelectedSignatureParameters,
-    );
+  if (call.declaration !== undefined && input.source.syntax.is.IsClassDeclaration(call.declaration)) {
+    const constructor = typeSystem?.projectTypes.implicitConstructorForSignature(call.declaration, call.signature, call.parameters);
     if (constructor !== undefined) {
-      return callables.get({
-        kind: "project-constructor",
-        targetMemberId: constructor.targetMember.id,
-      });
+      return callables.get({ kind: "project-constructor", targetMemberId: constructor.targetMember.id });
     }
   }
-  const selectedDeclaration = input.source.semantics.forFile(sourceFile)
-    .declarations.signatureDeclaration(source.selectedSignature);
-  const implementation = selection !== "implementation" || selectedDeclaration === undefined
-    ? undefined : input.source.navigation.callableImplementation(selectedDeclaration);
-  const declaration = implementation?.kind === "resolved"
-    ? implementation.implementation.declaration : selectedDeclaration;
-  return declaration !== undefined &&
-      input.source.navigation.isProjectDeclaration(declaration)
+  const implementation = selection === "implementation" ? facts.objects.callableImplementation(call.signature) : "unrelated";
+  if (typeof implementation === "object" && "code" in implementation) failTargetAnalysisInvariant("tsonic-csharp",
+    "A callable implementation is a Host refusal at a node C# analyzed; Host refusals are forwarded before C# analysis.", use);
+  const declaration = implementation === "unrelated" ? call.signature : implementation;
+  return declaration !== undefined && facts.navigation.identity.isProjectDeclaration(declaration)
     ? callables.get({ kind: "declaration", declaration })
     : undefined;
 }

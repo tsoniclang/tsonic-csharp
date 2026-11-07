@@ -1,19 +1,22 @@
+import { csharpTestSourceProgram } from "../../helpers/target-source-program.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createCompilerSessionFromFiles } from "@tsonic/tsts";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
-import { createSourceErrorStorageDemandQuery, createSourceStorageQuery, defaultSourceStorageLimits } from "@tsonic/target-api/analysis";
-import { requiredStorageSubject } from "../../../../tsonic/test/fixtures/source-navigation.mjs";
 import { collectTargetSourceProfileContributions } from "../../../../tsonic/packages/host/dist/target/source-profile.js";
-import { errorConstructorFootprintSource, errorOriginDomainSource } from "../../../../tsonic/test/fixtures/error-origin-domains.mjs";
-import { resolveSourceProfileType } from "../../../dist/analysis/source-evidence/types/resolution/source-profiles.js";
-import { createCsharpSourceProfileStorageEffects } from "../../../dist/analysis/operations/source-profiles/source-storage-effects.js";
+import { errorOriginDomainSource } from "../../../../tsonic/test/fixtures/error-origin-domains.mjs";
+import { representationServices, representations } from "../../representation/host-fixture.mjs";
 import { csharpSourceProfileContributions, csharpJsSurfaceSourceProfileContributions } from "../../../dist/source/profiles/declarations.js";
-import { createSourceErrorProviderFixture, sourceErrorProtocolFixture } from "../../fixtures/dotnet-provider/source-error-bindings.mjs";
+import { createSourceErrorProviderFixture } from "../../fixtures/dotnet-provider/source-error-bindings.mjs";
 
+// nextgen C-2542: the Error storage-demand facts (observed native roots, closed admission domains, external and ambient
+// constructor ownership, inherited-initialization invalidation per constructor footprint) are Host facts:
+// createSourceErrorStorageDemandQuery and createSourceStorageQuery are Host-internal and no longer exported. Those
+// assertions, and the whole "native Error allocation preserves exact <footprint> inherited initialization" family over
+// errorConstructorFootprintSource, move to Host tests (request R-T6-5). This file keeps the C# fact: the canonical
+// physical Error carrier of each formal's Host slot is System.Exception on both surfaces and both creation forms.
 for (const jsEnabled of [false, true]) {
   for (const called of [false, true]) {
-  test(`C# ${jsEnabled ? "JS" : "native"} ${called ? "call" : "new"} Error inference requires complete admitted origins`, () => {
+  test(`C# ${jsEnabled ? "JS" : "native"} ${called ? "call" : "new"} Error formals take the canonical native Error carrier`, () => {
     const profile = collectTargetSourceProfileContributions({ project: {}, projectRoot: "/src", projectDirectory: "/src",
       target: { id: "csharp", options: {} }, targetPackId: jsEnabled ? "js" : "csharp", selectedCapabilities: [], selectedSurfaces: [],
       targetContributions: jsEnabled ? csharpJsSurfaceSourceProfileContributions() : csharpSourceProfileContributions({ selectedSurfaceIds: [] }) });
@@ -22,75 +25,20 @@ for (const jsEnabled of [false, true]) {
       ["/src/index.ts", errorOriginDomainSource(called)], ...profile.files.map(file => [file.path, file.text]),
     ]), compilerOptions: { strict: true, noLib: true, skipLibCheck: true, module: "esnext", moduleResolution: "bundler" } }).checkSource();
     assert.equal(checked.diagnostics.length === 0, true);
-    const source = createTargetSourceProgram(checked);
-    const file = source.sourceFiles.find(file => source.ast.getFileName(file) === "/src/index.ts");
+    const source = csharpTestSourceProgram(checked);
+    const file = source.sourceFiles.find(file => source.syntax.getFileName(file) === "/src/index.ts");
     const providers = createSourceErrorProviderFixture();
-    const storage = createSourceStorageQuery(source, [file], defaultSourceStorageLimits,
-      createCsharpSourceProfileStorageEffects(source, providers));
-    const demand = createSourceErrorStorageDemandQuery(source, sourceErrorProtocolFixture(source), storage);
-    const declaration = name => source.ast.statements(file).find(node => source.ast.is.IsFunctionDeclaration(node) &&
-      source.ast.text(source.ast.name(node)) === name);
-    const host = { providers };
-    const identity = { kind: "error", sourceName: "Error", errorName: "Error", baseException: true };
-    for (const [name, expectedDomain, expectedCarrier] of [
-      ["inspect", "open", "System.Exception"], ["privateInspect", "complete", "System.Exception"],
-    ]) {
-      const formal = source.ast.parameters(declaration(name))[0];
-      const observed = demand.storageOriginsFor(requiredStorageSubject(storage, formal));
-      assert.equal(observed.kind === "resolved" && observed.origins.length > 0 &&
-        observed.origins.every(origin => demand.isNativeConstructor(origin.node)), true, `${name}: same observed native roots`);
-      const domain = demand.closedStorageOriginsFor(requiredStorageSubject(storage, formal));
-      assert.equal(domain.kind === expectedDomain, true, `${name}: exact admission proof`);
-      const carrier = resolveSourceProfileType({ host }, identity, []);
-      assert.equal(carrier?.id === expectedCarrier, true, `${name}: canonical physical Error carrier`);
+    const declaration = name => source.syntax.statements(file).find(node => source.syntax.is.IsFunctionDeclaration(node) &&
+      source.syntax.text(source.syntax.name(node)) === name);
+    // The Error carrier is the one representation of the Host slot type of each formal (nextgen C-2542, I6): the
+    // declared Error profile type is published through the program providers, not resolved from a checker Type.
+    const represent = representations(representationServices({ facts: source.facts, ast: source.syntax, nodes: [],
+      host: { sourceFacts: source.sourceFacts } }, { providers, profile: jsEnabled ? "js" : "native" }));
+    for (const [name, expectedCarrier] of [["inspect", "System.Exception"], ["privateInspect", "System.Exception"]]) {
+      const formal = source.syntax.parameters(declaration(name))[0];
+      const carrier = represent.slot(formal);
+      assert.equal(carrier?.id === expectedCarrier, true, `${name}: canonical physical Error carrier of the Host slot`);
     }
-    let aliased;
-    let unowned;
-    let external;
-    const visit = node => {
-      if (source.ast.is.IsVariableDeclaration(node) && source.ast.text(source.ast.name(node)) === "aliased") aliased = node;
-      if (source.ast.is.IsVariableDeclaration(node) && source.ast.text(source.ast.name(node)) === "unowned") unowned = node;
-      if (source.ast.is.IsReturnStatement(node) && source.ast.parent(source.ast.parent(node)) === declaration("construct"))
-        external = source.ast.as.AsReturnStatement(node).Expression;
-      source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
-    };
-    visit(file);
-    assert.equal(aliased !== undefined && external !== undefined && unowned !== undefined, true);
-    assert.equal(demand.closedStorageOriginsFor(requiredStorageSubject(storage, aliased)).kind === "complete", true, "immutable owned global constructor alias");
-    assert.equal(demand.closedStorageOriginsFor(requiredStorageSubject(storage, external)).kind === "open", true, "signature identity does not own an external constructor value");
-    assert.equal(demand.invalidationFor(source.ast.parameters(declaration("construct"))[1], external, new Set()).kind === "unproven", true,
-      "a valid external constructor is not evidence that a guarded Error read is preserved");
-    assert.equal(demand.closedStorageOriginsFor(requiredStorageSubject(storage, unowned)).kind === "open", true, "ambient external values are not owned global constructors");
   });
-  }
-  for (const [footprint, expected] of [["mutating", "invalidated"], ["readonly", "preserved"], ["deferred", "preserved"],
-    ["receiver", "preserved"], ["bound", "invalidated"]]) {
-    test(`C# ${jsEnabled ? "JS" : "native"} native Error allocation preserves exact ${footprint} inherited initialization`, () => {
-      const profile = collectTargetSourceProfileContributions({ project: {}, projectRoot: "/src", projectDirectory: "/src",
-        target: { id: "csharp", options: {} }, targetPackId: jsEnabled ? "js" : "csharp", selectedCapabilities: [], selectedSurfaces: [],
-        targetContributions: jsEnabled ? csharpJsSurfaceSourceProfileContributions() : csharpSourceProfileContributions({ selectedSurfaceIds: [] }) });
-      assert.equal(profile.diagnostics.length === 0, true);
-      const checked = createCompilerSessionFromFiles({ currentDirectory: "/src", files: new Map([
-        ["/src/index.ts", errorConstructorFootprintSource(footprint)], ...profile.files.map(file => [file.path, file.text]),
-      ]), compilerOptions: { strict: true, noLib: true, skipLibCheck: true, module: "esnext", moduleResolution: "bundler" } }).checkSource();
-      assert.equal(checked.diagnostics.length === 0, true);
-      const source = createTargetSourceProgram(checked);
-      const file = source.sourceFiles.find(file => source.ast.getFileName(file) === "/src/index.ts");
-      const storage = createSourceStorageQuery(source, [file], defaultSourceStorageLimits,
-        createCsharpSourceProfileStorageEffects(source, createSourceErrorProviderFixture()));
-      const demand = createSourceErrorStorageDemandQuery(source, sourceErrorProtocolFixture(source), storage);
-      const declarations = new Map();
-      const visit = node => {
-        if (source.ast.is.IsVariableDeclaration(node)) declarations.set(source.ast.text(source.ast.name(node)), node);
-        source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
-      };
-      visit(file);
-      const owner = declarations.get("original");
-      const expression = source.ast.as.AsVariableDeclaration(declarations.get("created"))?.Initializer;
-      assert.equal(owner !== undefined && expression !== undefined, true);
-      assert.equal(demand.isNativeConstructor(expression), true, "the inherited constructor selects the owned native Error protocol");
-      assert.equal(demand.closedStorageOriginsFor(requiredStorageSubject(storage, expression)).kind === "complete", true, "fresh result ownership is complete but is not a purity proof");
-      assert.equal(demand.invalidationFor(owner, expression, new Set()).kind, expected);
-    });
   }
 }

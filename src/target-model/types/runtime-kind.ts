@@ -1,13 +1,16 @@
 import type { CsharpTargetNamedTypeRef, CsharpTypeofRuntimeKind, TargetTypeRef } from "./model.js";
 import { getCsharpNullableElementTargetType } from "./carriers/nullable.js";
-import { getCsharpRuntimeUnionArms, isCsharpAbsenceTargetType } from "./carriers/runtime-carriers.js";
+import { isCsharpAbsenceTargetType } from "./carriers/runtime-carriers.js";
 import { getCsharpDelegateSignature } from "./carriers/delegates.js";
 import type { CsharpTypeDefinitions } from "./source-union-definitions.js";
 
 import { targetTypeRefEquals } from "./equality.js";
 
+// Typeof categories are Host facts (facts.values.typeofCategory, N3'); C# only carries them with the physical carrier.
 export type CsharpTypeofResult = CsharpTypeofRuntimeKind
-  | { readonly kind: "optional"; readonly sourceCarrier: TargetTypeRef; readonly element: TargetTypeRef; readonly value: CsharpTypeofResult }
+  /** A nullable carrier: `absent` is the Host category of its absent value (undefined-only → "undefined", null-only → "object"). */
+  | { readonly kind: "optional"; readonly sourceCarrier: TargetTypeRef; readonly element: TargetTypeRef; readonly value: CsharpTypeofResult;
+      readonly absent: "undefined" | "object" }
   | { readonly kind: "runtime-union"; readonly sourceCarrier: TargetTypeRef;
       readonly arms: readonly { readonly carrier: TargetTypeRef; readonly result: CsharpTypeofResult }[] };
 
@@ -15,33 +18,12 @@ export function csharpTypeofResultsEqual(left: CsharpTypeofResult, right: Csharp
   if (typeof left === "string" || typeof right === "string") return left === right;
   if (left.kind !== right.kind || !targetTypeRefEquals(left.sourceCarrier, right.sourceCarrier)) return false;
   if (left.kind === "optional" && right.kind === "optional") {
-    return targetTypeRefEquals(left.element, right.element) && csharpTypeofResultsEqual(left.value, right.value);
+    return targetTypeRefEquals(left.element, right.element) && left.absent === right.absent &&
+      csharpTypeofResultsEqual(left.value, right.value);
   }
   return left.kind === "runtime-union" && right.kind === "runtime-union" &&
     left.arms.length === right.arms.length && left.arms.every((arm, index) =>
       targetTypeRefEquals(arm.carrier, right.arms[index]!.carrier) && csharpTypeofResultsEqual(arm.result, right.arms[index]!.result));
-}
-
-export function getCsharpTypeofResult(
-  type: TargetTypeRef | undefined,
-  active: ReadonlySet<TargetTypeRef> = new Set(),
-  definitions?: CsharpTypeDefinitions,
-): CsharpTypeofResult | undefined {
-  if (type === undefined || active.has(type)) return undefined;
-  const literal = getCsharpTypeofRuntimeKind(type, definitions);
-  if (literal !== undefined) return literal;
-  const nested = new Set(active).add(type);
-  const optional = getCsharpNullableElementTargetType(type);
-  if (optional !== undefined) {
-    const value = getCsharpTypeofResult(optional, nested, definitions);
-    return value === undefined ? undefined : { kind: "optional", sourceCarrier: type, element: optional, value };
-  }
-  const arms = getCsharpRuntimeUnionArms(type, definitions)?.map(carrier => {
-    const result = getCsharpTypeofResult(carrier, nested, definitions);
-    return result === undefined ? undefined : { carrier, result };
-  });
-  return arms === undefined || arms.some(arm => arm === undefined) ? undefined
-    : { kind: "runtime-union", sourceCarrier: type, arms: arms.map(arm => arm!) };
 }
 
 export function getCsharpTypeofRuntimeKind(

@@ -1,128 +1,110 @@
+// Structural member collection over Host object facts (nextgen C-2542 §2, G8, I6). The deleted
+// objects/shapes/member-evidence.ts derived members from the published descriptor plus checker queries, and
+// resolution/callable-type-parameters.ts built method binders. Now members come from facts.objects.members (Host order,
+// optional/readonly/declarations), representObjectMembers maps them, and representSignatureTypeParameters lists a
+// method's authored binders followed by its generated projections.
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createCsharpObjectShapeMemberResolver } from "../../../dist/analysis/objects/shapes/member-evidence.js";
-import { createTargetSourceProgram, sourceTypeDescriptorStructure } from "@tsonic/target-api/source";
-import { checkCsharpSource } from "../../helpers/direct-csharp-session.mjs";
-import { resolveCsharpCallableTypeParameters } from "../../../dist/analysis/source-evidence/types/resolution/callable-type-parameters.js";
+import { hostProgram, representationServices } from "../../representation/host-fixture.mjs";
+import {
+  csharpRepresentationContext, csharpRefusal, isCsharpRefusal, representObjectMembers, representSignatureTypeParameters,
+} from "../../../dist/representation/index.js";
 import { csharpSourceTypeParameter } from "../../../dist/source/extension/type-parameters.js";
 import { csharpOptionalStorageProjection, getCsharpGenericOptionalParts } from "../../../dist/target-model/types/projections.js";
 
 function scenario(rejectedIndex, count = 3) {
-  const checked = checkCsharpSource({ sourceText: `import type { int64 } from "@tsonic/core/types.js";
+  const program = hostProgram(`import type { int64 } from "@tsonic/core/types.js";
     export interface Fields { ${Array.from({ length: count }, (_, index) =>
-      `${index === 2 ? "readonly " : ""}field${index}${index === 1 ? "?" : ""}: int64;`).join(" ")} }` });
-  assert.equal(checked.sourceDiagnosticsText, "", "the member inventory comes from valid checked Source");
-  const source = createTargetSourceProgram(checked.source);
-  const file = checked.source.getSourceFile("/project/index.ts");
-  let owner;
-  source.ast.forEachChild(file, node => { if (source.ast.is.IsInterfaceDeclaration(node)) owner = node; });
-  assert.equal(owner !== undefined, true, "the actual declared owner is present");
-  const outcome = source.effectiveTypes.get(owner);
-  assert.equal(outcome?.kind === "resolved", true, "the exact owner has a published descriptor");
-  const descriptor = outcome.type;
-  const structure = sourceTypeDescriptorStructure(descriptor);
-  assert.equal(structure.kind === "shape", true, "the published owner has a closed member inventory");
-  const properties = structure.members;
-  const carriers = Array.from({ length: count }, () => ({ kind: "source-primitive", name: "int64" }));
+      `${index === 2 ? "readonly " : ""}field${index}${index === 1 ? "?" : ""}: int64;`).join(" ")} }`);
+  const owner = program.named("Fields");
+  const descriptor = program.type(owner);
+  const members = program.facts.objects.members(descriptor);
+  assert.equal(Array.isArray(members) && members.length === count, true, "the Host publishes the complete member inventory");
+  const context = csharpRepresentationContext(representationServices(program), owner, "storage");
+  const carrier = Object.freeze({ kind: "source-primitive", name: "int64" });
   const selected = [];
-  const resolver = createCsharpObjectShapeMemberResolver({
-    representations: { genericProjections: () => [] },
-    ast: source.ast,
-    navigation: source.navigation,
-    hasSemantics: source.semantics.includes,
-    semantics: source.semantics.forFile,
-    semanticsFor: source.semantics.forNode,
-    sourceStorage: { memberSubjectFor: () => undefined },
-    typeResolver: { resolveDescriptor(type, occurrence) {
-      assert.equal(occurrence === owner, true, "member representation keeps the exact published owner");
-      const index = selected.length;
-      assert.equal(type === properties[index].type, true, "the next published Source member is represented in order");
-      selected.push(index);
-      return index === rejectedIndex ? undefined : carriers[index];
-    }, resolveType: () => assert.fail("published member collection must not reselect a raw checker Type") },
-    memoryBindings: { hasBoundField: () => false },
-  });
-  const queries = source.semantics.forNode(owner);
-  return { resolver, queries, selected, carriers, owner, descriptor, properties };
+  const represent = type => {
+    const index = selected.length;
+    assert.equal(type === members[index].type, true, "the next Host member is represented in Host order");
+    selected.push(index);
+    return index === rejectedIndex ? csharpRefusal("CSHARP_FIXTURE_REFUSED", `field${index} has no carrier`, owner) : carrier;
+  };
+  return { collect: () => representObjectMembers(members, context, represent), selected, members, carrier };
 }
 
-test("structural members stop at the first unavailable carrier without publishing a partial shape", () => {
+test("structural members stop at the first refused carrier without publishing a partial shape", () => {
   for (const rejectedIndex of [0, 1, 2]) {
-    const { resolver, queries, selected, owner, descriptor } = scenario(rejectedIndex);
-    assert.equal(resolver.deriveMembers(descriptor, owner, queries, { depth: 0 }) === undefined, true, `rejected field${rejectedIndex}`);
+    const { collect, selected } = scenario(rejectedIndex);
+    const result = collect();
+    assert.equal(isCsharpRefusal(result) && result.code === "CSHARP_FIXTURE_REFUSED", true, `refused field${rejectedIndex}`);
     assert.deepEqual(selected, Array.from({ length: rejectedIndex + 1 }, (_, index) => index));
   }
 });
 
-test("structural member rejection does no later resolver work even for a wide record", () => {
-  const { resolver, queries, selected, owner, descriptor } = scenario(0, 256);
-  assert.equal(resolver.deriveMembers(descriptor, owner, queries, { depth: 0 }) === undefined, true, "the exact unavailable record stays unavailable");
+test("structural member refusal does no later work even for a wide record", () => {
+  const { collect, selected } = scenario(0, 256);
+  assert.equal(isCsharpRefusal(collect()), true, "the refused record stays refused");
   assert.deepEqual(selected, [0]);
 });
 
-test("complete structural records preserve member order, native carriers and optional/readonly evidence", () => {
-  const { resolver, queries, selected, carriers, owner, descriptor, properties } = scenario(-1);
-  const members = resolver.deriveMembers(descriptor, owner, queries, { depth: 0 });
-  assert.equal(members?.length === 3, true, "complete closed member collection");
+test("complete structural records keep Host member order, carriers, optional/readonly and declarations", () => {
+  const { collect, selected, carrier, members } = scenario(-1);
+  const facts = collect();
+  assert.equal(Array.isArray(facts) && facts.length === 3, true, "complete member collection");
   assert.deepEqual(selected, [0, 1, 2]);
-  assert.deepEqual(members.map(member => member.sourceName), ["field0", "field1", "field2"]);
-  assert.equal(members[0].type === carriers[0] && members[2].type === carriers[2], true, "exact native carrier identities");
-  assert.equal(members[1].optional, true);
-  assert.equal(members[2].readonly, true);
-  assert.deepEqual(members.map(member => member.origins[0]), properties.map(property => property.origin));
-  assert.equal(members.every((member, index) => member.origins[0] === properties[index].origin &&
-    member.sourceDeclarations.includes(properties[index].origin.declaration)), true,
-    "each native member retains its identical published Source origin and actual declaration");
+  assert.deepEqual(facts.map(member => member.sourceName), ["field0", "field1", "field2"], "Host order, never sorted");
+  assert.equal(facts[0].type === carrier && facts[2].type === carrier, true, "exact native carrier identities");
+  assert.equal(facts[1].optional, true);
+  assert.equal(facts[2].readonly, true);
+  assert.equal(facts.every((member, index) => member.origins?.[0]?.kind === "declared" &&
+    member.origins[0].declaration === members[index].declarations[0] &&
+    member.sourceDeclarations.includes(members[index].declarations[0])), true,
+  "each native member keeps its Host declaration as origin");
+  assert.equal(Object.isFrozen(facts) && facts.every(Object.isFrozen), true);
 });
 
-function nativeBinderFixture() {
-  const checked = checkCsharpSource({ sourceText: "interface View { read<T>(value: T | undefined): T; }" });
-  assert.equal(checked.sourceDiagnosticsText, "", "the full native binder witness is checked source");
-  const source = createTargetSourceProgram(checked.source);
-  let declaration;
-  const visit = node => {
-    if (source.ast.is.IsMethodSignatureDeclaration(node)) declaration = node;
-    source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
-  };
-  const file = checked.source.getSourceFile("/project/index.ts");
-  assert.equal(file !== undefined, true, "the real checked source file is present");
-  visit(file);
-  assert.equal(declaration !== undefined, true, "the exact authored method signature is retained");
-  const parameterDeclaration = source.ast.typeParameters(declaration)[0];
-  const parameter = csharpSourceTypeParameter(parameterDeclaration, source.ast);
-  assert.equal(parameter !== undefined, true, "the real authored binder has checked identity");
+function nativeBinderFixture(projections) {
+  const program = hostProgram("export interface View { read<T>(value: T | undefined): T; }");
+  const declaration = program.nodes.find(node => program.ast.is.IsMethodSignatureDeclaration(node));
+  assert.notEqual(declaration, undefined, "the authored method signature exists");
+  const parameterDeclaration = program.ast.typeParameters(declaration)[0];
+  const parameter = csharpSourceTypeParameter(parameterDeclaration, program.ast);
+  assert.notEqual(parameter, undefined, "the authored binder has a C# identity");
   const storage = csharpOptionalStorageProjection(parameter);
   const operations = getCsharpGenericOptionalParts(storage).operations;
-  const projections = Object.freeze([operations, storage]);
-  const host = { ast: source.ast, types: { resolveNode: () => assert.fail("the unconstrained binder has no source constraint query") },
-    genericProjections(owner) { assert.equal(owner === declaration, true, "the canonical projection reader uses the selected method identity"); return projections; } };
-  return { declaration, parameterDeclaration, parameter, sourceFile: source.ast.getSourceFile(declaration), projections, host };
+  const canonical = Object.freeze([operations, storage]);
+  const reads = [];
+  const services = representationServices(program, { genericProjections(owner) {
+    reads.push(owner);
+    return projections?.(canonical) ?? canonical;
+  } });
+  const member = program.facts.objects.members(program.type(program.named("View")))[0];
+  assert.equal(member.kind === "method" && member.type.kind === "callable" && member.type.calls.length === 1, true);
+  const signature = member.type.calls[0];
+  return { signature, declaration, parameterDeclaration, parameter, canonical, reads,
+    select: () => representSignatureTypeParameters(signature, csharpRepresentationContext(services, declaration, "type-argument")) };
 }
 
-test("native method binders contain the authored and complete canonical projection vector exactly once", () => {
+test("method binders are the authored binder followed by the complete canonical projection vector, once", () => {
   const fixture = nativeBinderFixture();
-  const selected = resolveCsharpCallableTypeParameters(fixture.declaration, fixture.sourceFile, fixture.host);
-  assert.equal(selected?.length === 3 && selected[0].identity === fixture.parameter.identity &&
-    selected[1].identity === fixture.projections[0].identity && selected[2].identity === fixture.projections[1].identity, true,
-  "authored, operations and storage binders retain the exact canonical order");
-  assert.equal(selected[0].declaration === fixture.parameterDeclaration && selected[1].declaration === fixture.declaration &&
-    selected[2].declaration === fixture.declaration, true, "projected diagnostics retain the real method owner, never a fabricated type-parameter AST");
-  assert.equal(selected[1].constraints === fixture.projections[0].csharpProjectionConstraints &&
-    selected[2].constraints === fixture.projections[1].csharpProjectionConstraints, true,
-  "native projection constraints remain the producer's identical frozen evidence");
-  assert.equal(Object.isFrozen(selected) && selected.every(Object.isFrozen), true, "the complete binder vector is immutable");
+  const selected = fixture.select();
+  assert.equal(isCsharpRefusal(selected), false);
+  assert.equal(selected.length === 3 && selected[0].identity === fixture.parameter.identity &&
+    selected[1].identity === fixture.canonical[0].identity && selected[2].identity === fixture.canonical[1].identity, true,
+  "authored, operations and storage binders keep the canonical order");
+  assert.equal(selected[0].declaration === fixture.parameterDeclaration && selected[1].declaration === fixture.signature.declaration &&
+    selected[2].declaration === fixture.signature.declaration, true, "projected binders keep the real method owner");
+  assert.equal(selected[1].constraints === fixture.canonical[0].csharpProjectionConstraints &&
+    selected[2].constraints === fixture.canonical[1].csharpProjectionConstraints, true,
+  "projection constraints are the producer's identical frozen evidence");
+  assert.equal(Object.isFrozen(selected) && selected.every(Object.isFrozen), true, "the binder vector is immutable");
+  assert.equal(fixture.reads.length === 1 && fixture.reads[0] === fixture.signature.declaration, true,
+    "the projection reader is asked once, with the selected method identity");
 });
 
-test("native method binders reject a duplicated canonical projection identity", () => {
-  const fixture = nativeBinderFixture();
-  const selected = resolveCsharpCallableTypeParameters(fixture.declaration, fixture.sourceFile,
-    { ...fixture.host, genericProjections: () => [fixture.projections[0], fixture.projections[0]] });
-  assert.equal(selected === undefined, true, "a duplicated native slot never publishes a partial or silently deduplicated ABI");
-});
-
-test("the retired AST-only native binder input is not a compatibility path", () => {
-  const fixture = nativeBinderFixture();
-  assert.throws(() => resolveCsharpCallableTypeParameters(fixture.declaration, fixture.sourceFile,
-    { ast: fixture.host.ast, types: fixture.host.types }), TypeError,
-  "a real method requires its canonical projection reader even when source syntax has only one binder");
+test("a duplicated canonical projection identity is refused, never silently deduplicated", () => {
+  const fixture = nativeBinderFixture(canonical => [canonical[0], canonical[0]]);
+  const selected = fixture.select();
+  assert.equal(isCsharpRefusal(selected) && selected.code === "CSHARP_GENERIC_BINDER", true,
+    "a duplicated native slot never publishes a partial ABI");
 });

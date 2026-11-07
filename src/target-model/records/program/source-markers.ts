@@ -1,4 +1,3 @@
-import { type TsonicFixedArrayFact } from "@tsonic/source-core/facts";
 import { type Node } from "@tsonic/tsts";
 
 export interface CsharpSourcePointerType {
@@ -12,10 +11,6 @@ export interface CsharpSourceFunctionPointerType {
   readonly sourceParameters: readonly Node[];
   readonly sourceResult: Node;
   readonly abi: readonly string[];
-}
-
-export interface CsharpSourceFixedArrayType extends TsonicFixedArrayFact {
-  readonly kind: "csharp-fixed-array";
 }
 
 

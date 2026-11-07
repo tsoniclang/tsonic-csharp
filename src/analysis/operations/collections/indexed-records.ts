@@ -1,4 +1,5 @@
-import type { ResolvedSourceElementAccessInfo, ResolvedSourcePropertyAccessInfo, SourceFile } from "@tsonic/tsts";
+import type { Node } from "@tsonic/tsts";
+import { sourceMemberAccess } from "../../program/source-facts.js";
 import type { CsharpProviderCallSelectionHost } from "../../../policy/model/provider-calls.js";
 import type { CsharpSourceProfileElementPolicyResult } from "../../../policy/model/source-profiles.js";
 import type { CsharpSourceProfilePropertyPolicyResult } from "../../../target-model/records/program/source-profile-invocations.js";
@@ -7,52 +8,53 @@ import { csharpSourceProfileDiagnostic } from "../../../policy/operations/source
 import { isCsharpRecordDictionaryTargetType, targetTypeRefEquals } from "../../../target-model/types/index.js";
 
 import { indexedRecordMember } from "../../../policy/operations/collections/indexed-records.js";
+
+/** `record[key]` through the Host-selected index signature (values.elementAccess), on a native dictionary carrier. */
 export function selectCsharpIndexedRecordElement(
   host: CsharpProviderCallSelectionHost,
-  source: ResolvedSourceElementAccessInfo,
-  sourceFile: SourceFile,
+  access: Node,
 ): CsharpSourceProfileElementPolicyResult | undefined {
-  const receiver = host.types.resolveSelectedValue(source.receiver.expression, source.receiver.type, sourceFile);
-  if (!isCsharpRecordDictionaryTargetType(receiver)) return undefined;
+  const source = host.facts.values.elementAccess(access);
+  const receiver = host.types.represent(source.receiverType, source.receiver, "value");
+  if (receiver.kind === "csharp-refused" || !isCsharpRecordDictionaryTargetType(receiver)) return undefined;
   const [key, value] = receiver.typeArguments ?? [];
-  const index = host.types.resolveSelectedValue(source.argument.expression, source.argument.type, sourceFile);
-  const selected = host.semantics(sourceFile).types.selectIndexedAccess(source.receiver.type, source.argument.type);
-  const member = selected?.kind === "resolved" && selected.members.length === 1 ? selected.members[0] : undefined;
-  if (key === undefined || value === undefined || index === undefined || !targetTypeRefEquals(index, key) ||
-    member?.kind !== "index" || source.accessMode !== "read" && member.index.readonly) {
+  const index = host.types.represent(source.index, source.node, "value");
+  if (key === undefined || value === undefined || index.kind === "csharp-refused" || !targetTypeRefEquals(index, key) ||
+    source.selected.kind !== "index-signature" || source.access !== "read" && source.readonly) {
     return { kind: "rejected", diagnostic: csharpSourceProfileDiagnostic("CSHARP_RECORD_INDEX_NOT_CLOSED", 9100024,
-      "Indexed records require exact native key/value carriers and a writable checked index when mutated.") };
+      "Indexed records require exact native key/value carriers and a writable index signature when mutated.") };
   }
-  const contract = indexedRecordMember(receiver, key, value, member.index);
+  const contract = indexedRecordMember(receiver, key, value, { readonly: source.readonly });
   return {
     kind: "resolved",
     targetMember: contract.member,
     targetParameterIndex: 0,
     receiver: { kind: "instance" },
-    invocation: contract.optionalRead && source.accessMode === "read" ? { kind: "record-optional-read" } : { kind: "indexer" },
+    invocation: contract.optionalRead && source.access === "read" ? { kind: "record-optional-read" } : { kind: "indexer" },
   };
 }
 
+/** `record.name` through the Host-selected string index signature (selections.memberAccess), on a native dictionary carrier. */
 export function selectCsharpIndexedRecordProperty(
   host: CsharpProviderCallSelectionHost,
-  source: ResolvedSourcePropertyAccessInfo,
-  sourceFile: SourceFile,
+  access: Node,
 ): CsharpSourceProfilePropertyPolicyResult | undefined {
-  const index = source.selectedIndex;
-  if (index === undefined) return undefined;
-  const receiver = host.types.resolveSelectedValue(source.receiver.expression, source.receiver.type, sourceFile);
-  if (!isCsharpRecordDictionaryTargetType(receiver)) return undefined;
+  const source = sourceMemberAccess(host.facts, access);
+  if (source.selected.kind !== "index-signature") return undefined;
+  const declaration = source.selected.declaration;
+  const receiver = host.types.represent(source.receiverType, source.receiver, "value");
+  if (receiver.kind === "csharp-refused" || !isCsharpRecordDictionaryTargetType(receiver)) return undefined;
   const [key, value] = receiver.typeArguments ?? [];
-  const selectedKey = host.types.resolveType(index.keyType, sourceFile);
-  if (key === undefined || value === undefined || selectedKey === undefined || index.keyType === undefined || index.valueType === undefined ||
-    host.semantics(sourceFile).operations.propertyAccess(source.expression)?.selectedIndex !== index ||
-    !host.semantics(sourceFile).types.isStringLike(index.keyType) ||
+  const index = host.facts.objects.indexes(source.receiverType).find(entry => entry.declaration === declaration);
+  const selectedKey = index === undefined ? undefined : host.types.represent(index.key, source.use, "type-argument");
+  if (key === undefined || value === undefined || index === undefined || selectedKey === undefined ||
+    selectedKey.kind === "csharp-refused" || index.key.kind !== "string" ||
     !targetTypeRefEquals(key, selectedKey) ||
-    source.accessMode !== "read" && index.readonly) {
+    source.access !== "read" && index.readonly) {
     return { kind: "rejected", diagnostic: csharpSourceProfileDiagnostic("CSHARP_RECORD_INDEX_NOT_CLOSED", 9100024,
-      "Named records require their exact checked string index, native value carrier and writable storage when mutated.") };
+      "Named records require their exact string index signature, native value carrier and writable storage when mutated.") };
   }
-  const contract = indexedRecordMember(receiver, key, value, index);
+  const contract = indexedRecordMember(receiver, key, value, { readonly: index.readonly });
   return { kind: "resolved", targetMember: contract.member, receiver: { kind: "instance" },
-    invocation: { kind: "source-name-indexer", optionalRead: contract.optionalRead && source.accessMode === "read" } };
+    invocation: { kind: "source-name-indexer", optionalRead: contract.optionalRead && source.access === "read" } };
 }

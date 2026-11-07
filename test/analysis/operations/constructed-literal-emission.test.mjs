@@ -14,7 +14,7 @@ export function run(signed: int32, unsigned: uint32): (int32 | uint32 | number)[
 }` });
       assertCsharpCompilationSucceeded(compiled);
       const program = compiled.result.program;
-      const ast = program.source.ast;
+      const ast = program.source.syntax;
       const wrappers = [];
       const pending = [...csharpProgramSourceFiles(program)];
       while (pending.length > 0) {

@@ -29,7 +29,7 @@ export function analyzeCsharpGenerators(input: {
     }
     const carrier = input.evidence.generatorTargetType.get(node);
     const protocol = getCsharpGeneratorProtocol(carrier);
-    if (carrier === undefined || protocol === undefined || protocol.kind !== source.generatorKind) {
+    if (carrier === undefined || protocol === undefined || protocol.kind !== (source.kind === "async-generator" ? "async" : "sync")) {
       refuse(node, "CSHARP_GENERATOR_PROTOCOL_NOT_CLOSED", "The exact checked generator yield, return, and next types do not reconcile with one closed C# generator runtime carrier.");
       continue;
     }
@@ -46,7 +46,7 @@ export function analyzeCsharpGenerators(input: {
       const current = pending.pop()!;
       if (input.erased(current) || current !== body && isSourceCallableBodyBoundary(input.ast, current)) continue;
       if (input.ast.is.IsReturnStatement(current) && !returnInsideFinally(input.ast, current, node)) hasExplicitReturn = true;
-      if (!unsupportedYield && input.ast.is.IsYieldExpression(current) && input.evidence.yield.get(current)?.generator.declaration === node) {
+      if (!unsupportedYield && input.ast.is.IsYieldExpression(current) && input.evidence.yield.get(current)?.generator === node) {
         const reason = yieldRegionRejection(input.ast, current, node);
         if (reason !== undefined) {
           refuse(current, "CSHARP_UNSUPPORTED_GENERATOR_SUSPENSION_REGION", reason);
@@ -65,13 +65,13 @@ export function analyzeCsharpGenerators(input: {
   for (const node of input.nodes) {
     if (input.erased(node) || !input.ast.is.IsYieldExpression(node)) continue;
     const source = input.evidence.yield.get(node);
-    const declaration = source?.generator.declaration;
+    const declaration = source?.generator;
     const outer = declaration === undefined ? undefined : generators.get(declaration);
     if (source === undefined || declaration === undefined || outer === undefined) {
       if (input.admitted(node)) refuse(node, "CSHARP_YIELD_EVIDENCE_NOT_PROVEN", "Yield emission requires exact TSTS evidence owned by the active generator declaration.");
       continue;
     }
-    if (source.yieldKind !== "delegate") yields.set(node, Object.freeze({ kind: "value", generatorDeclaration: declaration, operand: source.operand?.expression }));
+    if (source.kind !== "delegate") yields.set(node, Object.freeze({ kind: "value", generatorDeclaration: declaration, operand: source.operand }));
     else {
       if (source.operand === undefined || source.delegation === undefined) {
         refuse(node, "CSHARP_YIELD_DELEGATION_EVIDENCE_NOT_PROVEN", "Delegated yield requires exact TSTS operand and iterator-selection evidence.");
@@ -84,8 +84,7 @@ export function analyzeCsharpGenerators(input: {
         refuse(node, "CSHARP_YIELD_DELEGATION_PROTOCOL_NOT_CLOSED", "The exact delegated iterator evidence does not reconcile with one closed native generator protocol.");
         continue;
       }
-      if (source.delegation.kind !== "synchronous-iterator-protocol" && source.delegation.kind !== "asynchronous-iterator-protocol" &&
-        source.delegation.kind !== "synchronous-iterator-adapted-to-async") {
+      if (source.delegation.protocol !== "iterator" && source.delegation.protocol !== "async-iterator") {
         refuse(node, "CSHARP_YIELD_DELEGATION_MECHANISM_UNSUPPORTED", "The exact delegated iteration mechanism is not a selected generator protocol.");
         continue;
       }
@@ -94,7 +93,7 @@ export function analyzeCsharpGenerators(input: {
         refuse(node, "CSHARP_YIELD_DELEGATION_PROTOCOL_NOT_RENDERABLE", "The exact delegated generator protocol has no closed C# source representation.");
         continue;
       }
-      yields.set(node, Object.freeze({ kind: "delegate", generatorDeclaration: declaration, operand: source.operand.expression,
+      yields.set(node, Object.freeze({ kind: "delegate", generatorDeclaration: declaration, operand: source.operand,
         delegatedCarrier: carrier, protocol, resultCarrier }));
     }
     requireCsharpRecord(input.required, { family: "yield", subject: node, construct: input.ast.kindName(node), producer: "analyzeCsharpGenerators" });

@@ -3,6 +3,9 @@ import test from "node:test";
 import { acceptedEffectiveSource, assertArrayOccurrences, assertNativeEffectiveRefusal, assertPrimitiveOccurrences, assertPublishedRefusal, compileEffectiveSource, projectNodes } from "../../helpers/source-effective-types.mjs";
 
 const header = 'import type { int8, int32, int64, uint32, float32 } from "@tsonic/core/types.js";';
+// nextgen C-2542: assertNativeEffectiveRefusal now takes the CSHARP_ code (D1 helper). Every native refusal below is a
+// conversion use without an admitted C# conversion: the F4 use-admission code CSHARP_VALUE_USE_NOT_ADMITTED (the
+// policy/conversions/core.ts rejection carries no code of its own).
 
 for (const surface of ["native", "js"]) {
   for (const [name, body, arrays, values, companionBody] of [
@@ -39,7 +42,7 @@ for (const surface of ["native", "js"]) {
     test(`${surface} effective types: ${name}`, () => {
       const compiled = compileEffectiveSource(surface, sourceText);
       if (companionBody !== undefined) {
-        assertNativeEffectiveRefusal(compiled, surface === "native"
+        assertNativeEffectiveRefusal(compiled, "CSHARP_VALUE_USE_NOT_ADMITTED", surface === "native"
           ? "No exact C# implicit conversion relates 'array:1:source:int32' to 'array:1:source:int64'. Annotate `let items: int32[] = [1, 2]`."
           : "No exact C# implicit conversion relates 'target:Tsonic.CSharp.Js.JSArray`1<source:int32>' to 'target:Tsonic.CSharp.Js.JSArray`1<source:int64>'. Annotate `let items: int32[] = [1, 2]`.", "replacement");
         return;
@@ -107,13 +110,13 @@ for (const surface of ["native", "js"]) {
     const compiled = compileEffectiveSource(surface, `${header}
       export function run(left: int8, right: int8): boolean { const combined = left + right; return combined === 0; }`);
     acceptedEffectiveSource(compiled);
-    assert.equal(compiled.targetSource.effectiveTypes.refusals().length, 0);
+    assert.equal(compiled.targetSource.facts.refusals().length, 0);
     assertPrimitiveOccurrences(compiled, "left", "int8");
     assertPrimitiveOccurrences(compiled, "right", "int8");
     assertPrimitiveOccurrences(compiled, "combined", "int32");
     const additions = projectNodes(compiled, (node, ast) => ast.is.IsBinaryExpression(node) && ast.operatorKindName(node) === "KindPlusToken");
     assert.equal(additions.length, 1, "the identical authored addition is retained");
-    const outcome = compiled.targetSource.effectiveTypes.get(additions[0]);
+    const outcome = compiled.targetSource.facts.values.type(additions[0]);
     const native = compiled.result.program.records.valueRead.get(additions[0])?.value;
     assert.equal(outcome !== undefined && outcome.kind !== "refused" && outcome.type.kind === "primitive" &&
       outcome.type.primitive === "int32", true, "the exact addition has one published Host int32");
@@ -157,7 +160,7 @@ for (const surface of ["native", "js"]) {
       const moduleValue = 1;
       export function run(): int32 { return moduleValue; }
     `);
-    assertNativeEffectiveRefusal(compiled, "No exact C# implicit conversion relates 'source:int64' to 'source:int32'. Annotate `const moduleValue: int32 = 1`.", "moduleValue");
+    assertNativeEffectiveRefusal(compiled, "CSHARP_VALUE_USE_NOT_ADMITTED", "No exact C# implicit conversion relates 'source:int64' to 'source:int32'. Annotate `const moduleValue: int32 = 1`.", "moduleValue");
   });
 
   test(`${surface} an annotated module binding retains the declared int32 emission`, () => {
@@ -198,7 +201,7 @@ for (const surface of ["native", "js"]) {
     `);
     acceptedEffectiveSource(compiled);
     const occurrences = projectNodes(compiled, (node, ast) => ast.is.IsIdentifier(node) && ast.text(node) === "selected");
-    const shapes = occurrences.map(node => compiled.targetSource.effectiveTypes.get(node)).filter(outcome => outcome !== undefined);
+    const shapes = occurrences.map(node => compiled.targetSource.facts.values.type(node)).filter(outcome => outcome !== undefined);
     assert.equal(shapes.length >= 2, true, "the declaration and its actual member-use receiver have published types");
     for (const shape of shapes) {
       assert.equal(shape.kind !== "refused" && shape.type.kind === "shape", true, "the unfilled outer value retains its own shape");
@@ -214,10 +217,11 @@ for (const surface of ["native", "js"]) {
       function observe(values: readonly int32[]): void { void values; }
       export function run(): boolean { const selected = [1, 2]; observe(selected); return selected[0] === 1; }
     `);
-    assertNativeEffectiveRefusal(compiled, surface === "native"
+    assertNativeEffectiveRefusal(compiled, "CSHARP_VALUE_USE_NOT_ADMITTED", surface === "native"
       ? "No exact C# implicit conversion relates 'array:1:source:int64' to 'array:1:source:int32'. Annotate `const selected: int32[] = [1, 2]`."
       : "No exact C# implicit conversion relates 'source:int64' to 'source:int32'. Annotate `const selected: int32[] = [1, 2]`.", "selected");
-    const checks = compiled.targetSource.effectiveTypes.obligations().filter(obligation => obligation.kind === "read-only");
+    // nextgen C-2542: obligations are the checker-free top-level facts.obligations() (B2 notes §1).
+    const checks = compiled.targetSource.facts.obligations().filter(obligation => obligation.kind === "read-only");
     assert.equal(checks.length, 1, "the actual readonly parameter produces an obligation rather than a fill");
   });
 
@@ -276,7 +280,7 @@ for (const surface of ["native", "js"]) {
     let published = 0;
     let owner;
     for (const node of nodes) {
-      const outcome = compiled.targetSource.effectiveTypes.get(node);
+      const outcome = compiled.targetSource.facts.values.type(node);
       if (outcome === undefined) continue;
       assert.equal(outcome.kind !== "refused" && outcome.type.kind === "primitive" && outcome.type.primitive === "int64", true,
         "every actual counter occurrence has the Host int64 rule");
@@ -311,24 +315,27 @@ for (const surface of ["native", "js"]) {
         }
       `);
       if (argumentWidth === "int32") acceptedEffectiveSource(compiled);
-      else assertNativeEffectiveRefusal(compiled, "No exact C# implicit conversion relates 'source:int64' to 'source:int32'.", "original");
-      const ast = compiled.targetSource.ast;
-      const writes = compiled.targetSource.effectiveTypes.obligations().filter(obligation => {
-        const call = obligation.association?.call?.call;
+      else assertNativeEffectiveRefusal(compiled, "CSHARP_VALUE_USE_NOT_ADMITTED", "No exact C# implicit conversion relates 'source:int64' to 'source:int32'.", "original");
+      const ast = compiled.targetSource.syntax;
+      // nextgen C-2542: facts.obligations() names the call, parameter declaration and argument expression directly (B2 notes §1).
+      const writes = compiled.targetSource.facts.obligations().filter(obligation => {
+        const call = obligation.call;
         const callee = call === undefined ? undefined : ast.as.AsCallExpression(call)?.Expression;
         return obligation.kind === "write-fit" && callee !== undefined && ast.is.IsPropertyAccessExpression(callee) && ast.text(ast.name(callee)) === "accept";
       });
       assert.equal(writes.length, 1, "the receiver-only binder parameter produces one actual write check, never a generic join");
       const write = writes[0];
-      assert.equal(write.valueVariable?.node === write.value && ast.is.IsIdentifier(write.value) && ast.text(write.value) === "original", true,
+      // nextgen C-2542: removed the checker-only valueVariable identity; SourceObligation publishes the value node itself.
+      assert.equal(write.value !== undefined && ast.is.IsIdentifier(write.value) && ast.text(write.value) === "original", true,
         "the full Box value remains the original RHS rather than being retyped as its projected numeric argument");
       assert.equal(write.valueType?.kind === "primitive" && write.valueType.primitive === argumentWidth, true,
         "the projected descriptor carries the actual selected Native width");
-      assert.equal(write.valueVariable.path.some(part => part.kind === "binder" && ast.is.IsTypeParameterDeclaration(part.declaration)), true,
-        "the Source metadata retains the actual Box binder declaration without a runtime property path or filtering");
-      assert.equal(write.association.binding === write.association.call.sourceArgumentBindings[0] &&
-        write.association.parameter === write.association.call.sourceSelectedSignatureParameters[0], true,
-        "the original checked binding and selected parameter associations are consumed unchanged");
+      // nextgen C-2542: removed the valueVariable binder-path assertion; the variable path is checker-internal flow metadata
+      // and SourceObligation (checker-free, I1) does not publish it. The projected width above is the published result.
+      const selection = compiled.targetSource.facts.selections.call(write.call);
+      assert.equal(write.argument === selection.arguments[0]?.argument &&
+        write.parameter === ast.parameters(selection.signature)[0], true,
+        "the original call argument and selected parameter associations are consumed unchanged");
     });
   }
 }
@@ -347,14 +354,14 @@ for (const [name, code, sourceText, site] of [
 test("js effective types: callback index and declared double retain the admitted float64 calculation", () => {
   const compiled = compileEffectiveSource("js", `${header}\nexport function run(offset: number): void { const values = [1, 2]; const result = values.map((value, index) => index + offset); void result; }`);
   acceptedEffectiveSource(compiled);
-  assert.equal(compiled.targetSource.effectiveTypes.refusals().length, 0);
+  assert.equal(compiled.targetSource.facts.refusals().length, 0);
   assertPrimitiveOccurrences(compiled, "index", "int32", 2);
   assertPrimitiveOccurrences(compiled, "offset", "float64", 2);
   assertArrayOccurrences(compiled, "result", "float64");
   const additions = projectNodes(compiled, (node, ast) => ast.is.IsBinaryExpression(node) && ast.operatorKindName(node) === "KindPlusToken");
   assert.equal(additions.length, 1);
   const addition = additions[0];
-  const outcome = compiled.targetSource.effectiveTypes.get(addition);
+  const outcome = compiled.targetSource.facts.values.type(addition);
   const native = compiled.result.program.records.valueRead.get(addition)?.value;
   assert.equal(outcome !== undefined && outcome.kind !== "refused" && outcome.type.kind === "primitive" &&
     outcome.type.primitive === "float64" && native?.kind === "source-primitive" && native.name === "float64", true,
@@ -428,10 +435,11 @@ test("js receiver-only argument places publish write checks without linking or f
   `);
   acceptedEffectiveSource(compiled);
   assertArrayOccurrences(compiled, "values", "int64");
-  const checks = compiled.targetSource.effectiveTypes.obligations().filter(row => row.kind === "write-fit");
+  // nextgen C-2542: facts.obligations() carries call, parameter and argument directly (B2 notes §1).
+  const checks = compiled.targetSource.facts.obligations().filter(row => row.kind === "write-fit");
   assert.equal(checks.length, 3, "insertion includes and indexOf are classified by their receiver binder, not member-name filling");
   for (const check of checks) {
-    assert.equal(check.association?.call !== undefined && check.association.binding !== undefined && check.association.parameter !== undefined, true,
+    assert.equal(check.call !== undefined && check.argument !== undefined && check.parameter !== undefined, true,
       "each chosen write keeps the original call binding and selected parameter association");
   }
 });
@@ -445,7 +453,7 @@ test("js Map tuple inference keeps distinct key and value declaration binders", 
   `);
   const text = acceptedEffectiveSource(compiled);
   const occurrences = projectNodes(compiled, (node, ast) => ast.is.IsIdentifier(node) && ast.text(node) === "selected");
-  const outcomes = occurrences.map(node => compiled.targetSource.effectiveTypes.get(node)).filter(outcome => outcome !== undefined);
+  const outcomes = occurrences.map(node => compiled.targetSource.facts.values.type(node)).filter(outcome => outcome !== undefined);
   assert.equal(outcomes.length >= 2, true, "the same constructed map and its real receiver read are published");
   for (const outcome of outcomes) {
     assert.equal(outcome.kind !== "refused" && outcome.type.kind === "declared", true);

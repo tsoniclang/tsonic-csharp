@@ -16,21 +16,21 @@ export function csharpPublishedNativeCallPolicy(binding: CsharpPublishedNativeCa
     source: binding.source,
     finalizeArguments: true,
     select(context: CsharpSourceProfileCallPolicyContext): CsharpSourceProfileCallPolicyResult {
-      const receiver = resolveCsharpSelectedSourceValue(context, context.source.sourceReceiver);
+      const receiver = resolveCsharpSelectedSourceValue(context, context.source.receiver);
       const receiverMatches = binding.receiver === "js-array"
         ? getCsharpJsArrayElementTargetType(receiver) !== undefined
         : csharpJsTypedArrayElementTargetType(receiver) !== undefined;
       const result = context.inputs.results.get(context.source.call);
       const arguments_ = context.inputs.callTypeArguments;
       const parameters: CsharpTargetParameter[] = [];
-      for (const [index, selected] of context.source.sourceSelectedSignatureParameters.entries()) {
+      for (const [index, selected] of context.source.parameters.entries()) {
         const type = context.inputs.parameters[index];
         if (type === undefined) break;
-        parameters.push(Object.freeze({ name: selected.parameterName, type, passingMode: "by-value",
-          optional: selected.acceptsOmission, paramsArray: selected.rest }));
+        parameters.push(Object.freeze({ name: selected.name, type, passingMode: "by-value",
+          optional: selected.kind !== "required", paramsArray: selected.kind === "rest" }));
       }
       if (receiver !== undefined && receiverMatches && result !== undefined && arguments_ !== undefined &&
-        parameters.length === context.source.sourceSelectedSignatureParameters.length) {
+        parameters.length === context.source.parameters.length) {
         const member: CsharpTargetMember = Object.freeze({
           id: binding.targetId, sourceName: context.identity.name ?? binding.targetName,
           targetName: binding.targetName, kind: "method", declaringType: receiver,

@@ -1,14 +1,14 @@
 import type { CsharpProjectForwardingConstructor } from "../../../target-model/records/types/project-types.js";
-import type { AstReader, Node, ReadonlySourceFactResolver, Signature } from "@tsonic/tsts";
-import type { SourceClassConstructorSignature, SourceFileSemantics, SourceProgramNavigation } from "@tsonic/target-api/source";
-import { sourceNodeIdentity, sourceConstructorParametersMatch } from "@tsonic/target-api/source";
+import type { AstReader, Node, ReadonlySourceFactResolver } from "@tsonic/tsts";
+import type { SourceProgramFacts, SourceTypeDescriptor, SourceTypeDescriptorSignature } from "@tsonic/target-api/source";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { tryCsharpIdentifier } from "../../../target-model/names/identifiers.js";
 import type { CsharpProviderRelationResolver } from "../../../providers/model/relation-resolver.js";
 import type { CsharpProviderTargetRelation } from "../../../target-model/identities/provider-relations.js";
 import { resolveCsharpProviderDeclarationEvidence } from "../../../source/extension/provider-identities.js";
 import type { CsharpProjectTypeDefinition, CsharpProjectTypeHeritage, CsharpProjectTypeIssue } from "../../../target-model/records/types/project-types.js";
 import type { CsharpTargetMember, CsharpTargetNamedTypeRef, CsharpTargetParameter, TargetTypeRef } from "../../../target-model/types/model.js";
-import type { CsharpTypePolicy } from "../../source-evidence/types/resolution/model.js";
+import type { CsharpTypeQueries } from "../../../policy/model/type-resolution.js";
 import { csharpTargetBindingSubstitutions, substituteCsharpTargetMember } from "../../../policy/types/callables/member-substitution.js";
 import { targetTypeRefKey, targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { selectCsharpSourceProfileConstructor } from "../../operations/source-profiles/selection.js";
@@ -20,11 +20,10 @@ type CsharpProviderSignatureRelation = Extract<
 
 export interface CsharpProjectConstructorPolicyHost {
   readonly ast: AstReader;
-  readonly navigation: SourceProgramNavigation;
+  readonly facts: SourceProgramFacts;
   readonly providers: CsharpProviderRelationResolver;
   readonly sourceFacts?: ReadonlySourceFactResolver;
-  readonly types: CsharpTypePolicy;
-  semanticsFor(node: Node): SourceFileSemantics;
+  readonly types: CsharpTypeQueries;
   targetTypeForDefinition(
     definition: CsharpProjectTypeDefinition,
     typeArguments: readonly TargetTypeRef[],
@@ -32,19 +31,19 @@ export interface CsharpProjectConstructorPolicyHost {
 }
 
 export function selectCsharpProjectConstructorSignature(
-  host: CsharpProjectConstructorPolicyHost,
-  declaration: Node,
-  signature: Signature,
-  parameters: import("@tsonic/target-api/source").ResolvedSourceCallInfo["sourceSelectedSignatureParameters"],
+  _host: CsharpProjectConstructorPolicyHost,
+  _declaration: Node,
+  signature: Node,
+  parameters: readonly SourceTypeDescriptor[],
   exact: CsharpProjectForwardingConstructor | undefined,
   constructors: readonly CsharpProjectForwardingConstructor[] | undefined,
 ): CsharpProjectForwardingConstructor | undefined {
   if (exact !== undefined) return exact;
   if (constructors === undefined) return undefined;
-  const selectedDeclaration = host.semanticsFor(declaration).declarations.signatureDeclaration(signature);
-  const candidates = constructors?.filter(candidate =>
-    candidate.source.declaration === selectedDeclaration &&
-    sourceConstructorParametersMatch(candidate.source.parameters, parameters));
+  // The selected construct signature declaration identifies the inherited constructor; its parameter list is the same
+  // declared list, so the arity check only guards against a mismatched selection.
+  const candidates = constructors.filter(candidate =>
+    candidate.source.declaration === signature && candidate.source.parameters.length === parameters.length);
   return candidates?.length === 1 ? candidates[0] : undefined;
 }
 
@@ -52,7 +51,7 @@ export function selectCsharpProjectForwardingConstructor(
   host: CsharpProjectConstructorPolicyHost,
   definition: CsharpProjectTypeDefinition,
   baseType: TargetTypeRef,
-  source: SourceClassConstructorSignature,
+  source: SourceTypeDescriptorSignature,
   definitionsById: ReadonlyMap<string, CsharpProjectTypeDefinition>,
   heritageById: ReadonlyMap<string, CsharpProjectTypeHeritage>,
 ):
@@ -94,7 +93,7 @@ export function selectCsharpProjectForwardingConstructor(
       providerEvidence.declaration,
     );
   }
-  if (host.navigation.isProjectDeclaration(source.declaration)) {
+  if (host.facts.navigation.identity.isProjectDeclaration(source.declaration)) {
     return createSourceForwardingConstructor(host, definition, source);
   }
   const constructors = selectCsharpSourceProfileConstructor(host, source.declaration);
@@ -119,7 +118,7 @@ export function selectCsharpProjectForwardingConstructor(
 function inheritedNativeBaseType(
   host: CsharpProjectConstructorPolicyHost,
   baseType: TargetTypeRef,
-  source: SourceClassConstructorSignature,
+  source: SourceTypeDescriptorSignature,
   definitionsById: ReadonlyMap<string, CsharpProjectTypeDefinition>,
   heritageById: ReadonlyMap<string, CsharpProjectTypeHeritage>,
 ): TargetTypeRef | undefined {
@@ -130,10 +129,11 @@ function inheritedNativeBaseType(
     visited.add(current.id);
     const definition = definitionsById.get(current.id);
     if (definition === undefined) return current;
-    const constructors = host.navigation.classConstructors(definition.declaration);
-    if (constructors.kind !== "resolved" || !constructors.implicit ||
-      constructors.signatures.filter(signature => signature.declaration === source.declaration &&
-        sourceConstructorParametersMatch(signature.parameters, source.parameters)).length !== 1) return undefined;
+    const constructors = host.facts.objects.construction(definition.declaration);
+    if ("code" in constructors) return failTargetAnalysisInvariant("tsonic-csharp",
+      "Class construction is a Host refusal at a node C# analyzed; Host refusals are forwarded before C# analysis.", definition.declaration);
+    if (!constructors.implicit || constructors.signatures.filter(signature => signature.declaration === source.declaration &&
+      signature.parameters.length === source.parameters.length).length !== 1) return undefined;
     current = heritageById.get(definition.id)?.baseType;
   }
   return undefined;
@@ -143,7 +143,7 @@ function createProviderForwardingConstructor(
   host: CsharpProjectConstructorPolicyHost,
   definition: CsharpProjectTypeDefinition,
   baseType: TargetTypeRef,
-  source: SourceClassConstructorSignature,
+  source: SourceTypeDescriptorSignature,
   declaration: Parameters<CsharpProviderRelationResolver["resolveSignature"]>[0],
 ):
   | {
@@ -218,7 +218,7 @@ function createProviderForwardingConstructor(
 function createNativeForwardingConstructor(
   host: CsharpProjectConstructorPolicyHost,
   definition: CsharpProjectTypeDefinition,
-  source: SourceClassConstructorSignature,
+  source: SourceTypeDescriptorSignature,
   baseMember: CsharpTargetMember,
 ):
   | { readonly kind: "resolved"; readonly constructor: CsharpProjectForwardingConstructor }
@@ -256,7 +256,7 @@ function createNativeForwardingConstructor(
 function createSourceForwardingConstructor(
   host: CsharpProjectConstructorPolicyHost,
   definition: CsharpProjectTypeDefinition,
-  source: SourceClassConstructorSignature,
+  source: SourceTypeDescriptorSignature,
 ):
   | {
       readonly kind: "resolved";
@@ -265,36 +265,37 @@ function createSourceForwardingConstructor(
   | { readonly kind: "unresolved"; readonly issue: CsharpProjectTypeIssue } {
   const parameters: CsharpTargetParameter[] = [];
   for (const sourceParameter of source.parameters) {
-    const name = tryCsharpIdentifier(sourceParameter.parameterName);
-    const type = host.types.resolveSelectedType(
-      sourceParameter.authoredTypeNode,
-      sourceParameter.selectedType,
-      definition.sourceFile,
-    );
-    if (name === undefined || type === undefined) {
+    const declarationName = sourceParameter.declaration === undefined ? undefined : host.ast.name(sourceParameter.declaration);
+    const parameterName = declarationName === undefined ? "" : host.ast.text(declarationName);
+    const name = tryCsharpIdentifier(parameterName);
+    const type = host.types.represent(sourceParameter.type, sourceParameter.declaration ?? definition.declaration, "storage");
+    if (type.kind === "csharp-refused") {
+      return { kind: "unresolved", issue: { node: type.site, code: type.code, message: type.message } };
+    }
+    if (name === undefined) {
       return constructorIssue(
         definition,
         "CSHARP_PROJECT_CONSTRUCTOR_PARAMETER_UNRESOLVED",
-        `Inherited source constructor parameter '${sourceParameter.parameterName}' has no exact C# name or type.`,
-        sourceParameter.parameterDeclaration,
+        `Inherited source constructor parameter '${parameterName}' has no exact C# name.`,
+        sourceParameter.declaration,
       );
     }
     parameters.push(Object.freeze({
       name,
       type,
       passingMode: "by-value",
-      ...(sourceParameter.acceptsOmission
+      ...(sourceParameter.kind === "optional"
         ? {
             optional: true,
             csharpOmittableOptionalArgument: true as const,
           }
         : {}),
-      ...(sourceParameter.rest ? { paramsArray: true } : {}),
+      ...(sourceParameter.kind === "rest" ? { paramsArray: true } : {}),
     }));
   }
   const baseIdentity = source.declaration === undefined
     ? "implicit-default"
-    : sourceNodeIdentity(host.ast, source.declaration);
+    : host.facts.navigation.identity.identity(source.declaration);
   if (baseIdentity === undefined) {
     return constructorIssue(
       definition,
@@ -342,7 +343,7 @@ function forwardingTargetMember(
 
 function validateForwardingParameters(
   definition: CsharpProjectTypeDefinition,
-  source: SourceClassConstructorSignature,
+  source: SourceTypeDescriptorSignature,
   parameters: readonly CsharpTargetParameter[],
 ): { readonly kind: "unresolved"; readonly issue: CsharpProjectTypeIssue } | undefined {
   const names = new Set<string>();

@@ -32,7 +32,7 @@ export function analyzeCsharpClosedTypeTests(nodes: readonly Node[], operations:
     seen.add(fact);
     const target = fact.predicate.kind === "array" ? undefined : fact.predicate.targetCarrier;
     if (!csharpClosedTypeTestMatches(fact, definitions) || target !== undefined && !selectCsharpTypeEmission({ carrier: target })) {
-      issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: node,
+      issues.push({ code: "CSHARP_NOMINAL_TYPE_TEST_NOT_PROVEN", category: "error", source: "tsonic-csharp", sourceNode: node,
         message: "Nominal type test requires its exact sealed source, constructor and native payload test." }); continue;
     }
     producer.publish(fact, select(fact.sourceCarrier, fact.test, target));

@@ -1,4 +1,3 @@
-import { jsSourceInvocationOnlyCallableParameters } from "@tsonic/js-source-profile";
 
 import { getCsharpDelegateSignature } from "../../../../target-model/types/index.js";
 import type { CsharpSourceProfileCallPolicyContext } from "../../../model/source-profiles.js";
@@ -6,28 +5,28 @@ import type { CsharpSourceProfileCallPolicyContext } from "../../../model/source
 import type { CsharpSelectedTargetCall, CsharpSelectedCallArgument } from "../../../../target-model/records/objects/members.js";
 
 export function sealInvocationOnlyCallableArguments(
-  context: Pick<CsharpSourceProfileCallPolicyContext, "source" | "identity">,
+  context: Pick<CsharpSourceProfileCallPolicyContext, "source" | "identity" | "host">,
   call: CsharpSelectedTargetCall,
 ): CsharpSelectedTargetCall | undefined {
   if (call.origin !== "source-profile") return undefined;
+  // JS meaning (facts.profile, D18): callback parameters of a member that invokes them without storing them.
   const identity = context.identity;
-  const parameterIndexes = jsSourceInvocationOnlyCallableParameters(
-    identity.owner !== "js" || identity.kind !== "member" ||
-      identity.declaringName === undefined || identity.name === undefined ? undefined
-      : { ownerName: identity.declaringName, memberName: identity.name },
-  );
+  const member = identity.owner !== "js" || identity.kind !== "member" ? undefined
+    : context.host.facts.profile.member(identity.declaration);
+  const parameterIndexes = member === undefined || !member.effects.invokesCallbacks || member.effects.storesArguments ? []
+    : member.parameters.flatMap((parameter, index) => parameter === "callback" ? [index] : []);
   const argumentIndexes = new Set<number>();
   for (const parameterIndex of parameterIndexes) {
-    const bindings = context.source.sourceArgumentBindings.filter(binding => binding.sourceParameterIndex === parameterIndex);
-    if (bindings.length === 0 && context.source.sourceSelectedSignatureParameters[parameterIndex] !== undefined &&
-      context.source.sourceSelectedSignatureParameters[parameterIndex]?.acceptsOmission !== true) return undefined;
+    const bindings = context.source.bindings.filter(binding => binding.parameterIndex === parameterIndex);
+    if (bindings.length === 0 && context.source.parameters[parameterIndex] !== undefined &&
+      context.source.parameters[parameterIndex]?.kind === "required") return undefined;
     for (const sourceBinding of bindings) {
-      const sourceIndex = sourceBinding.sourceArgumentIndex;
-      if (!Number.isInteger(sourceIndex) || sourceIndex < 0 || sourceIndex >= context.source.sourceArguments.length ||
-        context.source.sourceArguments[sourceIndex] === undefined) return undefined;
+      const sourceIndex = sourceBinding.argumentIndex;
+      if (!Number.isInteger(sourceIndex) || sourceIndex < 0 || sourceIndex >= context.source.arguments.length ||
+        context.source.arguments[sourceIndex] === undefined) return undefined;
       const selected: readonly CsharpSelectedCallArgument[] = call.arguments.filter(binding =>
-        binding.sourceArgumentIndex === sourceIndex && binding.effectiveArgumentIndex === sourceBinding.effectiveArgumentIndex &&
-        binding.sourceForm === sourceBinding.sourceForm && binding.spreadElementIndex === sourceBinding.spreadElementIndex);
+        binding.sourceArgumentIndex === sourceIndex && binding.effectiveArgumentIndex === sourceBinding.effectiveIndex &&
+        binding.sourceForm === sourceBinding.form && binding.spreadElementIndex === sourceBinding.spreadElement);
       const binding = selected.length === 1 ? selected[0] : undefined;
       const parameter = binding?.targetParameter;
       if (binding === undefined || parameter === undefined || parameter !== call.targetMember.parameters[binding.targetParameterIndex] ||

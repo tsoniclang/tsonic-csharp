@@ -1,124 +1,56 @@
+// Structural shape ownership over Host object facts (nextgen C-2542 §2, G8, R2). The deleted
+// objects/shapes/source-evidence.ts decided from checker symbols and root symbols whether a structural type's members
+// were declared by the project. The Host now publishes each member with its declarations and owner
+// (facts.objects.members) and each declaration's project role; C# never re-derives ownership, and a foreign declared
+// type without a .NET binding is refused, never rebuilt as a project structural object.
 import assert from "node:assert/strict";
 import test from "node:test";
-import { providerVirtualDeclarationFactKey } from "@tsonic/tsts";
-import { typeHasProjectOwnedShapeDeclaration } from "../../../dist/analysis/objects/shapes/source-evidence.js";
+import { hostProgram, representationServices, representations } from "../../representation/host-fixture.mjs";
 
 function fixture() {
-  const type = {};
-  const aliasSymbol = {};
-  const propertySymbol = {};
-  const rootSymbol = {};
-  const aliasDeclaration = {};
-  const projectField = {};
-  const foreignField = {};
-  const selectedNode = {};
-  const identity = {};
-  const declarations = new Map([
-    [aliasSymbol, [aliasDeclaration]],
-    [propertySymbol, [projectField]],
-    [rootSymbol, [foreignField]],
-  ]);
-  const projectDeclarations = new Set([aliasDeclaration, projectField, selectedNode]);
-  const facts = new Map();
-  const property = { symbol: propertySymbol, rootSymbols: [rootSymbol] };
-  const properties = [property];
-  const relation = { kind: "member" };
-  const selection = { kind: "resolved", relations: [relation] };
-  const queries = {
-    declarations: {
-      typeAliasSymbol: () => aliasSymbol,
-      typeSymbol: () => undefined,
-      symbolDeclarations: symbol => declarations.get(symbol) ?? [],
-    },
-    types: { propertyInfos: () => properties, standardTransformation: () => undefined },
-  };
-  const host = {
-    ast: { getSourceFile: () => undefined, parent: () => undefined,
-      is: { IsObjectLiteralExpression: node => node === selectedNode, IsTypeLiteralNode: () => false } },
-    navigation: {
-      isProjectDeclaration: node => projectDeclarations.has(node),
-      declarationFor: node => node === selectedNode ? aliasDeclaration : undefined,
-    },
-    sourceFacts: { getFact: (subject, key) => key === providerVirtualDeclarationFactKey ? facts.get(subject) : undefined },
-    providers: { resolveMember: selected => {
-      assert.equal(selected === identity, true, "the exact foreign declaration fact is queried");
-      return selection;
-    } },
-  };
-  return { type, selectedNode, aliasSymbol, propertySymbol, rootSymbol, aliasDeclaration,
-    projectField, foreignField, identity, declarations, projectDeclarations, facts, properties,
-    property, relation, selection, queries, host };
+  return hostProgram(`
+import type { int32 } from "@tsonic/core/types.js";
+import type { External, ExternalShape } from "@fixture/api";
+type Local = { readonly value: int32; label: string };
+type Picked = Pick<ExternalShape, "value">;
+export function local(value: Local): Local { return value; }
+export function picked(value: Picked): Picked { return value; }
+export function external(value: External): External { return value; }
+`, { files: {
+    "node_modules/@fixture/api/package.json": JSON.stringify({ name: "@fixture/api", version: "1.0.0", types: "index.d.ts" }),
+    "node_modules/@fixture/api/index.d.ts": "export interface ExternalShape { value: number; extra: string; } export declare class External { value: number; }",
+  } });
 }
 
-function owns(value, node) {
-  return typeHasProjectOwnedShapeDeclaration(value.type, node, value.queries, value.host);
-}
+const membersOf = (program, owner) => {
+  const parameter = program.ast.parameters(program.named(owner))[0];
+  const members = program.facts.objects.members(program.slot(parameter));
+  assert.equal(Array.isArray(members), true, `${owner}: the Host publishes the member inventory`);
+  return members;
+};
 
-test("project alias and literal syntax cannot grant ownership to foreign root declarations", () => {
-  const value = fixture();
-  assert.equal(owns(value), false, "project alias does not own inherited foreign fields");
-  assert.equal(owns(value, value.selectedNode), false, "project expression does not erase foreign member provenance");
-  value.property.rootSymbols = [];
-  value.declarations.set(value.propertySymbol, [value.foreignField]);
-  assert.equal(owns(value), false, "direct foreign declarations obey the same rule");
+test("project literal-type members are project owned, in authored order", () => {
+  const program = fixture();
+  const members = membersOf(program, "local");
+  assert.deepEqual(members.map(member => member.name), ["value", "label"]);
+  assert.equal(members.every(member => member.declarations.length > 0 &&
+    member.declarations.every(declaration => program.facts.navigation.identity.isProjectDeclaration(declaration))), true);
+  assert.equal(members[0].readonly && !members[1].readonly, true);
 });
 
-test("exact project roots and newly declared mapped keys remain project-owned", () => {
-  const value = fixture();
-  value.projectDeclarations.add(value.foreignField);
-  assert.equal(owns(value), true, "all exact member roots are project source");
-  value.declarations.set(value.propertySymbol, []);
-  value.property.rootSymbols = [];
-  assert.equal(owns(value), true, "a fresh finite mapped key retains its project alias owner");
-  value.projectDeclarations.delete(value.aliasDeclaration);
-  assert.equal(owns(value), false, "fresh keys cannot invent an absent project owner");
+test("a project alias over foreign members keeps the foreign declarations; ownership is not invented", () => {
+  const program = fixture();
+  const members = membersOf(program, "picked");
+  assert.deepEqual(members.map(member => member.name), ["value"], "Pick keeps exactly the selected key");
+  assert.equal(members[0].declarations.length > 0 && members[0].declarations.every(declaration =>
+    !program.facts.navigation.identity.isProjectDeclaration(declaration)), true,
+  "the project alias does not erase the foreign member's provenance");
 });
 
-test("project structural transformations own fresh keys but never inherited foreign members", () => {
-  const value = fixture();
-  value.queries.types.standardTransformation = () => ({ kind: "structural" });
-  assert.equal(owns(value, value.selectedNode), false, "structural utilities cannot bypass actual foreign roots");
-  value.property.rootSymbols = [];
-  value.declarations.set(value.propertySymbol, []);
-  value.projectDeclarations.delete(value.aliasDeclaration);
-  assert.equal(owns(value, value.selectedNode), true, "exact authored structural syntax owns fresh finite keys");
-  value.queries.types.standardTransformation = () => ({ kind: "unresolved" });
-  assert.equal(owns(value), false, "unresolved transformations cannot manufacture ownership");
-});
-
-test("foreign roots require actual represented native provider members", () => {
-  const value = fixture();
-  value.facts.set(value.foreignField, value.identity);
-  assert.equal(owns(value), true, "exact native provider relation owns a foreign member");
-  value.declarations.set(value.propertySymbol, []);
-  assert.equal(owns(value), true, "root symbols retain their exact declaration relation");
-  value.projectDeclarations.delete(value.aliasDeclaration);
-  assert.equal(owns(value), true, "represented native members do not require a fabricated local alias");
-});
-
-test("provider names or facts alone cannot authorize unrepresented or ambiguous foreign fields", () => {
-  const controls = [
-    { kind: "missing" },
-    { kind: "rejected" },
-    { kind: "resolved", relations: [] },
-    { kind: "resolved", relations: [{ kind: "type" }] },
-    { kind: "resolved", relations: [{ kind: "member" }, { kind: "member" }] },
-  ];
-  for (const [index, selection] of controls.entries()) {
-    const value = fixture();
-    value.facts.set(value.foreignField, value.identity);
-    value.host.providers.resolveMember = () => selection;
-    assert.equal(owns(value), false, `native relation control ${index}`);
-  }
-  const value = fixture();
-  value.facts.set(value.foreignField, value.identity);
-  value.declarations.set(value.rootSymbol, [value.foreignField, undefined]);
-  assert.equal(owns(value), false, "missing declaration evidence remains fail-closed");
-});
-
-test("direct provider types cannot be reconstructed as project structural objects", () => {
-  const value = fixture();
-  value.projectDeclarations.add(value.foreignField);
-  value.facts.set(value.type, value.identity);
-  assert.equal(owns(value), false, "native provider construction remains its existing exact owner");
+test("a foreign declared class without a .NET binding is refused, not rebuilt as a project structural object", () => {
+  const program = fixture();
+  const parameter = program.ast.parameters(program.named("external"))[0];
+  const refused = representations(representationServices(program)).slot(parameter);
+  assert.equal(refused.kind === "csharp-refused" && refused.code === "CSHARP_DECLARATION_BINDING", true,
+    "the provider owner remains the only construction route for a foreign class");
 });

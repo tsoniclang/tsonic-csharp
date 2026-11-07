@@ -47,29 +47,30 @@ test("an admitted empty sequence and the following value retain distinct source 
 
 function sourceInput() {
   const expressions = [{ label: "head" }, { label: "tail" }];
-  const bindings = [0, 1].map(index => ({ sourceArgumentIndex: index, effectiveArgumentIndex: index,
-    sourceParameterIndex: index, sourceParameterForm: "parameter", sourceForm: "value" }));
-  return { source: { sourceSelectedSignatureKind: "resolved", sourceArguments: expressions.map(expression => ({ expression })),
-    sourceSelectedSignatureParameters: [0, 1].map(parameterIndex => ({ parameterIndex, rest: false })), sourceArgumentBindings: bindings },
+  // The Host call selection (facts.selections.call): argument correspondence and selected parameters.
+  const bindings = [0, 1].map(index => ({ argument: expressions[index], argumentIndex: index, effectiveIndex: index,
+    parameterIndex: index, mode: "positional", form: "value" }));
+  return { source: { use: {}, arguments: bindings,
+    parameters: [0, 1].map(index => ({ name: `arg${index}`, kind: "required", type: { kind: "primitive", primitive: "float64" } })) },
   parameters: [0, 1].map(index => ({ name: `arg${index}`, type: scalar, passingMode: "by-value" })),
-  types: [scalar, scalar], slots: [0, 1].map(sourceParameterIndex => ({ sourceParameterIndex, form: "required" })) };
+  types: [scalar, scalar] };
 }
 
 test("source use projection consumes the actual U4 grouping with no second binding or positional fallback", () => {
   const input = sourceInput();
-  const grouping = selectCsharpSourceArgumentGrouping(input.source, input.parameters, input.types, input.slots);
+  const grouping = selectCsharpSourceArgumentGrouping(input.source, input.parameters, input.types);
   const selected = csharpSourceOwnedArgumentBindings(grouping);
   assert.equal(selected.kind, "bound", "native-use-arguments:62: selected.kind");
   assert.deepEqual(selected.bindings.map(entry => entry.slot), [0, 1].map(index => ({ kind: "argument", sourceIndex: index,
     effectiveIndex: index, parameterIndex: index, sourceParameterIndex: index })), "native-use-arguments:64: selected.bindings.map(entry => entry.slot)");
   for (const [name, parameters, types] of [["missing type", input.parameters, [scalar, undefined]],
     ["native arity refusal", input.parameters.slice(0, 1), input.types]]) {
-    const refused = selectCsharpSourceArgumentGrouping(input.source, parameters, types, input.slots);
+    const refused = selectCsharpSourceArgumentGrouping(input.source, parameters, types);
     const view = csharpSourceOwnedArgumentBindings(refused);
     assert.equal(view === refused && !Object.hasOwn(view, "bindings"), true, `${name}: original complete outcome retained`);
   }
-  const invalidSource = { ...input.source, sourceArgumentBindings: input.source.sourceArgumentBindings.slice(0, 1) };
-  const inconsistent = selectCsharpSourceArgumentGrouping(invalidSource, input.parameters, [scalar], input.slots);
+  const invalidSource = { ...input.source, arguments: [input.source.arguments[0], { ...input.source.arguments[1], effectiveIndex: 0 }] };
+  const inconsistent = selectCsharpSourceArgumentGrouping(invalidSource, input.parameters, input.types);
   assert.equal(csharpSourceOwnedArgumentBindings(inconsistent) === inconsistent && inconsistent.kind === "inconsistent", true, "native-use-arguments:73: csharpSourceOwnedArgumentBindings(inconsistent) === inconsistent && inconsistent.kind === ");
   assert.equal(csharpSourceOwnedArgumentBindings(undefined).kind, "unresolved", "native-use-arguments:74: csharpSourceOwnedArgumentBindings(undefined).kind");
 });

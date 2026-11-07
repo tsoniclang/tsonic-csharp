@@ -1,5 +1,5 @@
 import type { CsharpTargetCallSelection, CsharpTargetElementSelection, CsharpTargetPropertySelection } from "../../../target-model/records/operations/member-selections.js";
-import type { Node, SourceFile } from "@tsonic/tsts";
+import type { Node } from "@tsonic/tsts";
 
 import type { CsharpProviderCallSelectionHost } from "../../../policy/model/provider-calls.js";
 import { selectCsharpProviderCall } from "./calls/selection.js";
@@ -16,20 +16,15 @@ import { selectCsharpSourceCoreFixedArrayElement, selectCsharpSourceCoreFixedArr
 export function selectCsharpTargetCall(
   host: CsharpProviderCallSelectionHost,
   call: Node,
-  sourceFile: SourceFile,
 ): CsharpTargetCallSelection {
-  const provider = selectCsharpProviderCall(host, call, sourceFile);
+  const provider = selectCsharpProviderCall(host, call);
   if (provider.kind === "resolved") {
     return provider;
   }
   if (provider.kind !== "not-provider") {
     return provider;
   }
-  const profile = selectCsharpComposedSourceProfileCall(
-    host,
-    provider.source,
-    sourceFile,
-  );
+  const profile = selectCsharpComposedSourceProfileCall(host, provider.source.use);
   if (profile === undefined) {
     return {
       kind: "source-owned",
@@ -49,12 +44,10 @@ export function selectCsharpTargetCall(
 export function selectCsharpTargetProperty(
   host: CsharpProviderCallSelectionHost,
   propertyAccess: Node,
-  sourceFile: SourceFile,
 ): CsharpTargetPropertySelection {
   const provider = selectCsharpProviderProperty(
     host,
     propertyAccess,
-    sourceFile,
   );
   if (provider.kind === "resolved") {
     return {
@@ -69,13 +62,9 @@ export function selectCsharpTargetProperty(
   if (provider.kind !== "not-provider") {
     return provider;
   }
-  const union = selectCsharpUnionProperty(host, provider.source, sourceFile);
+  const union = selectCsharpUnionProperty(host, provider.source);
   if (union !== undefined) return union;
-  const fixedArray = selectCsharpSourceCoreFixedArrayProperty(
-    host,
-    provider.source,
-    sourceFile,
-  );
+  const fixedArray = selectCsharpSourceCoreFixedArrayProperty(host, provider.source.use);
   if (fixedArray !== undefined) {
     return fixedArray.kind === "rejected"
       ? fixedArray
@@ -88,11 +77,7 @@ export function selectCsharpTargetProperty(
           invocation: { kind: "member" },
         };
   }
-  const profile = selectCsharpComposedSourceProfileProperty(
-    host,
-    provider.source,
-    sourceFile,
-  );
+  const profile = selectCsharpComposedSourceProfileProperty(host, provider.source.use);
   if (profile === undefined) {
     return {
       kind: "source-owned",
@@ -115,12 +100,10 @@ export function selectCsharpTargetProperty(
 export function selectCsharpTargetElement(
   host: CsharpProviderCallSelectionHost,
   elementAccess: Node,
-  sourceFile: SourceFile,
 ): CsharpTargetElementSelection {
   const provider = selectCsharpProviderElement(
     host,
     elementAccess,
-    sourceFile,
   );
   if (provider.kind === "resolved") {
     return {
@@ -137,11 +120,7 @@ export function selectCsharpTargetElement(
   if (provider.kind !== "not-provider") {
     return provider;
   }
-  const fixedArray = selectCsharpSourceCoreFixedArrayElement(
-    host,
-    provider.source,
-    sourceFile,
-  );
+  const fixedArray = selectCsharpSourceCoreFixedArrayElement(host, provider.source.node);
   if (fixedArray !== undefined) {
     return fixedArray.kind === "rejected"
       ? fixedArray
@@ -158,7 +137,6 @@ export function selectCsharpTargetElement(
   const project = selectCsharpProjectElement(
     host,
     provider.source,
-    sourceFile,
   );
   if (project.kind === "resolved") {
     return {
@@ -174,11 +152,7 @@ export function selectCsharpTargetElement(
   if (project.kind === "rejected") {
     return { kind: "missing", reason: project.reason };
   }
-  const profile = selectCsharpComposedSourceProfileElement(
-    host,
-    provider.source,
-    sourceFile,
-  );
+  const profile = selectCsharpComposedSourceProfileElement(host, provider.source.node);
   if (profile === undefined) {
     return {
       kind: "source-owned",

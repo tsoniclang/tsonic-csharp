@@ -5,6 +5,7 @@ import { analyzeCsharpSource, compileCsharpSource, assertCsharpCompilationSuccee
 import { executeCsharpConstruction } from "../../../helpers/native-construction.mjs";
 import { freshArraySpreadCostSource } from "../../../../../tsonic/test/fixtures/fresh-array-spread.mjs";
 import { createCsharpPlanningContext, createCsharpMemberPlanningContext } from "../../../../dist/backend/planner/context.js";
+import { sealCsharpAnalysisProgram } from "../../../../dist/analysis/program/index.js";
 import { planExpression } from "../../../../dist/backend/planner/expressions/index.js";
 import { planNativeCollectionArrayLiteralExpression } from "../../../../dist/backend/planner/expressions/array-literals/native-collection.js";
 import { analyzeCsharpArrayLiterals } from "../../../../dist/analysis/operations/array-literals.js";
@@ -22,8 +23,8 @@ test("native collection construction fills only its declared native builder", { 
   assertNoTargetDiagnostics(analysis.diagnostics);
   const arrays = [];
   const visit = node => {
-    if (source.ast.is.IsArrayLiteralExpression(node)) arrays.push(node);
-    source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    if (source.syntax.is.IsArrayLiteralExpression(node)) arrays.push(node);
+    source.syntax.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
   for (const file of analysis.value.sourceFiles) visit(file);
   const node = arrays[0];
@@ -39,11 +40,12 @@ test("native collection construction fills only its declared native builder", { 
   assertNoTargetDiagnostics(admitted.issues);
   assert.equal(admitted.records.arrayLiteral.get(node, carrier)?.kind, "collection",
     "the existing admission owner seals the exact provider-backed native List construction");
-  const program = { ...analysis.value, records: { ...analysis.value.records, ...admitted.records } };
+  // The planner reads the sealed program (records and syntax only), as in production (nextgen C-2542).
+  const program = { ...sealCsharpAnalysisProgram(analysis.value), records: { ...analysis.value.records, ...admitted.records } };
   const context = createCsharpMemberPlanningContext(createCsharpPlanningContext(program));
   const diagnostics = [];
   const planner = { planExpression };
-  const planned = planNativeCollectionArrayLiteralExpression(node, source.ast.getSourceFile(node), context,
+  const planned = planNativeCollectionArrayLiteralExpression(node, source.syntax.getSourceFile(node), context,
     diagnostics, carrier, element, planner);
   assert.equal(planned?.completion.kind, "value");
   assertNoTargetDiagnostics(diagnostics);

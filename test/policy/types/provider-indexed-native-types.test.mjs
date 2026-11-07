@@ -1,57 +1,44 @@
+// Indexed access types over generic interfaces (nextgen C-2542, I2, I6). The Host resolves `Box<int64>[K]` to a
+// descriptor (member, optional member, index signature) and publishes it; C# represents the published descriptor
+// only. The former C# path (provider member relations + checker indexed-type evidence, closing native generics in C#)
+// is gone: there is no "provider-indexed-type-evidence-unavailable" carrier any more, because C# no longer answers
+// the Source question.
 import assert from "node:assert/strict";
 import test from "node:test";
-import { providerVirtualDeclarationFactKey } from "@tsonic/tsts";
-import { providerIndexedPolicyFixture } from "../../../../tsonic/test/fixtures/provider-indexed-policy.mjs";
-import { resolveCsharpProviderIndexedAccess } from "../../../dist/analysis/source-evidence/types/resolution/indexed-access.js";
 import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
-import { directProviderHost, memberRelation, signatureRelation, providerBinding, providerDeclaration, providerField } from "../../fixtures/dotnet-provider/direct-provider-selection.helpers.mjs";
+import { csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
+import { getCsharpRuntimeUnionArms } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
+import { targetTypeRefEquals, targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
+import { hostProgram, representationServices, representations, represented } from "../../representation/host-fixture.mjs";
 
-const integer = { kind: "source-primitive", name: "int64" };
+const integer = csharpSourcePrimitiveTargetType("int64");
 
-function fixture(options = {}) {
-  const selected = providerIndexedPolicyFixture(options.keys);
-  const binding = providerBinding({ id: "Native.Box", typeParameters: [{ csharpAllowsRefLike: false, identity: "T", name: "T" }] });
-  const facts = new Map();
-  const relations = selected.evidence.members.map((member, index) => {
-    const declaration = providerDeclaration({ signatureId: member.selection.kind === "index" ? `index-${index}` : null, memberId: `field-${index}` });
-    if (!options.missingFact || index === 0) for (const subject of member.subjects) facts.set(subject, options.wrongSignature
-      ? { ...declaration, signatureId: "wrong-signature" } : declaration);
-    const relation = member.selection.kind === "index" ? signatureRelation : memberRelation;
-    return relation({ declaration, binding, member: { ...providerField({
-      id: `Native.Box.Field${index}`, returnType: options.conflicting && index === 1
-        ? { kind: "source-primitive", name: "uint64" } : options.nativeOptional
-          ? csharpNullableTargetType({ kind: "type-parameter", identity: "T", name: "T" })
-          : { kind: "type-parameter", identity: "T", name: "T" },
-    }), ...(member.selection.kind === "index" ? { kind: options.wrongKind ? "method" : "indexer" } : {}) } });
-  });
-  const direct = directProviderHost({ relations: options.missingRelation ? [] :
-    options.duplicate ? [...relations, { ...relations[0], targetMember: { ...relations[0].targetMember, id: "other" } }] : relations });
-  const scope = {
-    host: { ...direct.host, ast: selected.source.ast, sourceFacts: {
-      getFact: (subject, key) => key === providerVirtualDeclarationFactKey && !options.unowned ? facts.get(subject) : undefined,
-    } },
-    resolveNodeWithState: () => ({ kind: "target-named", csharpAllowsRefLikeTypeArguments: options.missingGeneric ? [] : [false], id: options.wrongOwner ? "Native.Other" : binding.id,
-      typeArguments: options.missingGeneric ? [] : [integer] }),
-  };
-  return resolveCsharpProviderIndexedAccess(scope, selected.node, selected.semantics, { depth: 0 });
+function selected(keys, members = "value: T; other: T; optional?: T;") {
+  const program = hostProgram(`import type { int64 } from "@tsonic/core/types.js";
+export interface Box<T> { ${members} readonly [key: string]: T | string | undefined }
+export type Selected = Box<int64>[${keys}];
+export function read(box: Box<int64>, key: ${keys}): Selected { return box[key] as Selected; }
+`);
+  const read = program.named("read");
+  const descriptor = program.callableReturn(read);
+  return { program, descriptor, carrier: represented(representations(representationServices(program)).type(descriptor, read, "return")) };
 }
 
-test("provider indexed type policy closes native generics and optional properties", () => {
-  assert.deepEqual(fixture(), integer);
-  assert.deepEqual(fixture({ keys: '"value" | "other"' }), integer);
-  assert.deepEqual(fixture({ keys: '"optional"' }), csharpNullableTargetType(integer));
-  assert.deepEqual(fixture({ keys: '"optional"', nativeOptional: true }), csharpNullableTargetType(integer));
-  assert.deepEqual(fixture({ nativeOptional: true }), csharpNullableTargetType(integer));
-  assert.deepEqual(fixture({ keys: "string", nativeOptional: true }), csharpNullableTargetType(integer));
-  assert.equal(fixture({ unowned: true }), undefined);
+test("an indexed access over a generic interface represents the Host-resolved member type", () => {
+  assert.equal(targetTypeRefEquals(selected('"value"').carrier, integer), true);
+  assert.equal(targetTypeRefEquals(selected('"value" | "other"').carrier, integer), true, "equal member types are one type");
+  assert.equal(targetTypeRefEquals(selected('"optional"').carrier, csharpNullableTargetType(integer)), true,
+    "an optional member read includes absence (A11 lift to long?)");
 });
 
-test("provider indexed type policy rejects incomplete, ambiguous and mismatched evidence", () => {
-  for (const options of [
-    { missingRelation: true }, { duplicate: true }, { wrongOwner: true }, { missingGeneric: true },
-    { keys: '"value" | "other"', conflicting: true }, { keys: '"value" | "other"', missingFact: true },
-    { keys: "string", missingRelation: true }, { keys: "string", duplicate: true },
-    { keys: "string", wrongOwner: true }, { keys: "string", missingGeneric: true },
-    { keys: "string", wrongSignature: true }, { keys: "string", wrongKind: true },
-  ]) assert.deepEqual(fixture(options), { kind: "opaque", id: "provider-indexed-type-evidence-unavailable" }, JSON.stringify(options));
+test("different member types stay a Host sum; C# maps its arms positionally and does not reconcile or reject them", () => {
+  const { program, descriptor, carrier } = selected('"value" | "other"', "value: T; other: string; optional?: T;");
+  const union = descriptor.kind === "declared" ? descriptor.definition : descriptor;
+  const sum = program.sum(union);
+  const expected = sum.arms.map(arm => arm.type.kind === "string" ? csharpStringTargetType() : csharpSourcePrimitiveTargetType(arm.type.primitive));
+  assert.deepEqual(sum.arms.map(arm => arm.type.kind).sort(), ["primitive", "string"], "the Host sum is int64 | string");
+  const arms = getCsharpRuntimeUnionArms(carrier);
+  assert.notEqual(arms, undefined, "two member types are a closed sum, not a provider-evidence refusal");
+  assert.deepEqual(arms.map(targetTypeRefKey), expected.map(targetTypeRefKey), "arm i of the carrier is arm i of the Host sum (R6)");
+  assert.equal(carrier.kind === "opaque", false);
 });

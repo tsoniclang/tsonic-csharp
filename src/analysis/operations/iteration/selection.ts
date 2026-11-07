@@ -1,49 +1,49 @@
 import type { CsharpResolvedIteration } from "../../../target-model/records/operations/selection.js";
 
-import type { Node, SourceFile } from "@tsonic/tsts";
+import type { Node } from "@tsonic/tsts";
+import type { SourceIterationSelection } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../../policy/model/context.js";
 
 import type { CsharpOperationSelection } from "../../../target-model/records/operations/operator-selection.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import { sourceIteration } from "../../program/source-facts.js";
 
 import { selectCsharpNativeIteration, rejectCsharpIteration } from "../../../policy/operations/iteration/selection.js";
+
+/** A loop iteration: for-of / for-await-of read the Host iteration protocol; for-in reads its key binding type. */
+export type CsharpSourceIteration =
+  | { readonly kind: "for-of" | "for-await-of"; readonly statement: Node; readonly selection: SourceIterationSelection }
+  | { readonly kind: "for-in"; readonly statement: Node };
+
 export function selectCsharpIteration(
   input: CsharpPolicyContext,
   statement: Node,
   expression: Node | undefined,
-  sourceFile: SourceFile,
   iterableType: TargetTypeRef | undefined,
 ): CsharpOperationSelection<CsharpResolvedIteration> {
   if (expression === undefined) {
     return rejectCsharpIteration("Checked iteration has no iterable expression.");
-  }
-  const source = input.semantics(sourceFile).operations.iteration(
-    statement,
-  );
-  if (source === undefined) {
-    return rejectCsharpIteration(
-      "TSTS did not retain an exact checked iteration selection for this statement.",
-    );
   }
   if (iterableType === undefined) {
     return rejectCsharpIteration(
       "The checked iterable expression does not have a closed C# target representation.",
     );
   }
-  if (source.iterationKind === "for-await-of") {
-    return selectCsharpNativeIteration(source, iterableType, undefined, undefined);
+  if (input.ast.is.IsForOfStatement(statement)) {
+    const kind = input.ast.as.AsForInOrOfStatement(statement)?.AwaitModifier === undefined ? "for-of" : "for-await-of";
+    return selectCsharpNativeIteration({ kind, statement, selection: sourceIteration(input.facts, statement) },
+      iterableType, undefined, undefined);
   }
-  if (source.iterationKind === "for-of") {
-    return selectCsharpNativeIteration(source, iterableType, undefined, undefined);
-  }
-  const elementType = input.types.resolveType(
-    source.sourceElementType,
-    sourceFile,
-  );
-  if (elementType === undefined) {
+  const initializer = input.ast.as.AsForInOrOfStatement(statement)?.Initializer;
+  const declaration = initializer === undefined || !input.ast.is.IsVariableDeclarationList(initializer) ? undefined
+    : input.ast.children(initializer).find((child): child is NonNullable<typeof child> =>
+      child !== undefined && input.ast.is.IsVariableDeclaration(child));
+  const key = declaration !== undefined ? input.types.storage(declaration)
+    : initializer !== undefined && !input.ast.is.IsVariableDeclarationList(initializer) ? input.types.value(initializer) : undefined;
+  if (key === undefined || key.kind === "csharp-refused") {
     return rejectCsharpIteration(
       "The checked property-key type does not have a closed C# target representation.",
     );
   }
-  return selectCsharpNativeIteration(source, iterableType, elementType, input.objectShapes.resolveNode(expression, sourceFile));
+  return selectCsharpNativeIteration({ kind: "for-in", statement }, iterableType, key, input.objectShapes.resolveNode(expression));
 }

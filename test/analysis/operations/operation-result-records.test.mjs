@@ -22,7 +22,7 @@ function compiled(surface) {
   while (pending.length > 0) {
     const node = pending.pop();
     nodes.push(node);
-    program.source.ast.forEachChild(node, child => { if (child !== undefined) pending.push(child); });
+    program.source.syntax.forEachChild(node, child => { if (child !== undefined) pending.push(child); });
   }
   return { program, nodes, artifacts: result.artifacts, diagnostics: result.targetDiagnostics };
 }

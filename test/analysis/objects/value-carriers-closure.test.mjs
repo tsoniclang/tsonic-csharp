@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
-import { createCompilerSessionFromFiles, formatDiagnostics } from "@tsonic/tsts";
-import { createTargetSourceProgram, sourceTypeDescriptorMemberOriginsEqual, sourceTypeDescriptorStructure } from "@tsonic/target-api/source";
+import { analyzeCsharpSource, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { sourceTypeDescriptorMemberOriginsEqual, sourceTypeDescriptorStructure } from "@tsonic/target-api/source";
+import { sealCsharpAnalysisProgram } from "../../../dist/analysis/program/index.js";
 import { resolvedTargetStage, runTargetCompilationStages } from "@tsonic/target-api/artifacts";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 
 function fixture(changes = {}) {
   const type = Object.freeze({});
-  const fieldCall = { kind: "call" };
+  const fieldCall = { kind: "call", typeArguments: [type] };
   const property = { kind: "property", name: { text: "value" }, Initializer: fieldCall };
   const shape = { kind: "object", properties: [property] };
   const declaration = { kind: "variable", Initializer: { kind: "call", arguments: [shape] } };
@@ -16,32 +16,35 @@ function fixture(changes = {}) {
   const metadata = Object.freeze({ kind: "csharp-struct", valueType: true, fields: Object.freeze([field]) });
   const carrier = changes.carrier ?? Object.freeze({ kind: "source-primitive", name: "int64" });
   const descriptor = Object.freeze({ kind: "primitive", primitive: "int64" });
-  const publication = Object.freeze({ call: Object.freeze({ call: fieldCall,
-    sourceSelectedMethodTypeArguments: Object.freeze([{ explicitTypeNode: type }]) }),
-    method: Object.freeze([{ declaration: Object.freeze({}), type: descriptor }]), receiver: Object.freeze([]) });
+  // The published instantiation of the field marker call (facts.instantiations.at); the authored type argument
+  // (ast.typeArguments) names the method binder at the same position (nextgen C-2542).
+  const publication = Object.freeze({ kind: "call", use: fieldCall, signature: Object.freeze({}),
+    method: Object.freeze([{ declaration: Object.freeze({}), type: descriptor }]), receiver: Object.freeze([]),
+    parameters: Object.freeze([]), result: descriptor });
   const ast = { is: {
     IsVariableDeclaration: node => node?.kind === "variable", IsCallExpression: node => node?.kind === "call",
     IsObjectLiteralExpression: node => node?.kind === "object", IsPropertyAssignment: node => node?.kind === "property",
     IsComputedPropertyName: () => false,
   }, as: { AsVariableDeclaration: node => node, AsPropertyAssignment: node => node },
-  arguments: node => node.arguments, properties: node => node.properties,
+  arguments: node => node.arguments, properties: node => node.properties, typeArguments: node => node.typeArguments ?? [],
   name: node => node.name, text: node => node?.text ?? "",
   };
   const evidence = { sourceStruct: { get: node => node === declaration ? metadata : undefined },
     sourceField: { get: subjects => subjects.includes(property) ? field : undefined } };
-  const types = { effectiveTypes: { callInstantiation: node => node === fieldCall ? publication : undefined },
+  const selectedName = Object.freeze({ kind: "resolved", name: "value", constant: Object.freeze({ kind: "string", value: "value" }) });
+  // Property names come from facts.analyses.propertyName and the field carrier from facts.instantiations (nextgen C-2542).
+  const types = { facts: { analyses: { propertyName: name => name === property.name ? selectedName : undefined },
+    instantiations: { at: node => node === fieldCall ? publication : undefined } },
     resolve: (selected, occurrence) => selected === descriptor && occurrence === fieldCall ? carrier : undefined };
   const shapes = { resolveNode: () => undefined };
-  const selectedName = Object.freeze({ kind: "resolved", name: "value", constant: Object.freeze({ kind: "string", value: "value" }) });
-  const semanticsFor = () => ({ propertyNames: { get: name => name === property.name ? selectedName : undefined } });
-  return { ast, declaration, property, fieldCall, publication, descriptor, shape, type, field, metadata, carrier, evidence, types, shapes, semanticsFor, ...changes };
+  return { ast, declaration, property, fieldCall, publication, descriptor, shape, type, field, metadata, carrier, evidence, types, shapes, ...changes };
 }
 
 test("value carrier admission publishes complete immutable exact field selections", async () => {
   const { analyzeCsharpNativeValueCarriers } = await import("../../../dist/analysis/objects/value-carriers.js");
   const value = fixture();
   const requirements = [];
-  const selected = analyzeCsharpNativeValueCarriers(value.ast, [value.declaration], value.evidence, value.types, value.shapes, value.semanticsFor, requirements);
+  const selected = analyzeCsharpNativeValueCarriers(value.ast, [value.declaration], value.evidence, value.types, value.shapes, requirements);
   assert.equal(selected.issues.length, 0, "complete field evidence admitted");
   const declaration = selected.nativeValueDeclaration.get(value.declaration);
   assert.equal(declaration?.source === value.metadata, true, "exact source struct metadata");
@@ -65,31 +68,31 @@ test("value carrier admission preserves selected bound storage without guessing 
   const member = Object.freeze({ bound: true, sourceSubjects: Object.freeze([value.type]), type: value.carrier });
   const shape = Object.freeze({ members: Object.freeze([member]) });
   const selected = analyzeCsharpNativeValueCarriers(value.ast, [value.declaration], value.evidence, value.types,
-    { resolveNode: node => node === value.declaration ? shape : undefined }, value.semanticsFor, []);
+    { resolveNode: node => node === value.declaration ? shape : undefined }, []);
   const field = selected.nativeValueDeclaration.get(value.declaration)?.fields[0];
   assert.equal(field?.bound?.owner === shape && field.bound.member === member, true, "exact bound owner and native member");
   assert.equal(Object.isFrozen(field.bound), true, "immutable storage correspondence");
 });
 
-for (const missing of ["call", "explicit argument", "method argument", "foreign call"]) {
+// nextgen C-2542: the old "foreign call" case (a publication whose call is another node) is removed: the published
+// instantiation is keyed by its use (facts.instantiations.at(use)), so no other call's publication is reachable here.
+for (const missing of ["call", "explicit argument", "method argument"]) {
   test(`native value fields require their exact published ${missing} boundary`, async () => {
     const { analyzeCsharpNativeValueCarriers } = await import("../../../dist/analysis/objects/value-carriers.js");
     const value = fixture();
     const publication = missing === "call" ? undefined : {
       ...value.publication,
-      call: { ...value.publication.call,
-        ...(missing === "foreign call" ? { call: {} } : {}),
-        ...(missing === "explicit argument" ? { sourceSelectedMethodTypeArguments: [{ explicitTypeNode: {} }] } : {}),
-      },
       ...(missing === "method argument" ? { method: [] } : {}),
     };
-    value.types.effectiveTypes.callInstantiation = node => {
+    // The authored explicit type argument no longer names the field's type node.
+    if (missing === "explicit argument") value.fieldCall.typeArguments = [{}];
+    value.types.facts.instantiations.at = node => {
       assert.equal(node === value.fieldCall, true, "only the actual field marker call owns the type argument");
       return publication;
     };
     value.types.resolve = () => assert.fail("a missing or foreign publication cannot trigger another type resolver");
     const selected = analyzeCsharpNativeValueCarriers(value.ast, [value.declaration], value.evidence, value.types,
-      value.shapes, value.semanticsFor, []);
+      value.shapes, []);
     assert.equal(selected.nativeValueDeclaration.get(value.declaration) === undefined, true,
       "type syntax is not a runtime value and cannot borrow a value read");
     assert.equal(selected.issues.length === 1 && selected.issues[0].node === value.type, true,
@@ -102,7 +105,7 @@ test("the canonical seal requires each native value plan at its exact declaratio
   const { assertCsharpRequiredRecords } = await import("../../../dist/analysis/program/records/objects/required-records.js");
   const value = fixture();
   const requirements = [];
-  const selected = analyzeCsharpNativeValueCarriers(value.ast, [value.declaration], value.evidence, value.types, value.shapes, value.semanticsFor, requirements);
+  const selected = analyzeCsharpNativeValueCarriers(value.ast, [value.declaration], value.evidence, value.types, value.shapes, requirements);
   assert.doesNotThrow(() => assertCsharpRequiredRecords({ nativeValueDeclaration: selected.nativeValueDeclaration }, requirements),
     "the admitted exact declaration satisfies the canonical seal");
   const sibling = {};
@@ -113,6 +116,10 @@ test("the canonical seal requires each native value plan at its exact declaratio
   }
 });
 
+// nextgen C-2542: CSHARP_UNSUPPORTED_AST is split; each struct admission failure names its .NET reason.
+const structFailureCodes = Object.freeze({ "value marker": "CSHARP_STRUCT_DECLARATION_NOT_VALUE_TYPE",
+  shape: "CSHARP_STRUCT_SHAPE_NOT_OBJECT_LITERAL", property: "CSHARP_STRUCT_MEMBER_NOT_FIELD",
+  "field fact": "CSHARP_STRUCT_MEMBER_NOT_FIELD", carrier: "CSHARP_STRUCT_FIELD_CARRIER_NOT_SELECTED" });
 for (const failure of ["value marker", "shape", "property", "field fact", "carrier"]) {
   test(`value carrier admission rejects missing ${failure} before publication`, async () => {
     const { analyzeCsharpNativeValueCarriers } = await import("../../../dist/analysis/objects/value-carriers.js");
@@ -123,9 +130,9 @@ for (const failure of ["value marker", "shape", "property", "field fact", "carri
     if (failure === "field fact") value.evidence.sourceField.get = () => undefined;
     if (failure === "carrier") value.types.resolve = () => undefined;
     const requirements = [];
-    const selected = analyzeCsharpNativeValueCarriers(value.ast, [value.declaration], value.evidence, value.types, value.shapes, value.semanticsFor, requirements);
+    const selected = analyzeCsharpNativeValueCarriers(value.ast, [value.declaration], value.evidence, value.types, value.shapes, requirements);
     assert.equal(selected.issues.length, 1, "one precise owner rejection");
-    assert.equal(selected.issues[0]?.code, "CSHARP_UNSUPPORTED_AST", "existing source diagnostic family retained");
+    assert.equal(selected.issues[0]?.code, structFailureCodes[failure], "the split struct admission code");
     assert.equal(selected.nativeValueDeclaration.get(value.declaration) === undefined, true, "invalid declaration is never published");
     assert.equal(requirements.length === 1 && requirements[0]?.subject === value.declaration, true,
       "failed producer admission cannot silently erase its required source subject");
@@ -143,11 +150,11 @@ export function read(value: Point): int64 { return value.y; }
 ` });
     assert.equal(compiled.result.diagnostics.length, 0,
       `value struct admitted: ${compiled.result.diagnostics.map(issue => issue.message).join(" | ")}`);
-    const source = compiled.result.program.source;
+    const ast = compiled.result.program.source.syntax;
     let declaration;
     const visit = node => {
-      if (source.ast.is.IsVariableDeclaration(node) && source.ast.text(source.ast.name(node)) === "Point") declaration = node;
-      source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+      if (ast.is.IsVariableDeclaration(node) && ast.text(ast.name(node)) === "Point") declaration = node;
+      ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
     };
     visit(csharpProgramSourceFiles(compiled.result.program)[0]);
     assert.equal(declaration !== undefined, true, "authored struct declaration");
@@ -174,8 +181,8 @@ export function read(value: Packet): int64 { return value.range.to; }
     const { program } = compiled.result;
     let declaration;
     const visit = node => {
-      if (program.source.ast.is.IsVariableDeclaration(node) && program.source.ast.text(program.source.ast.name(node)) === "Packet") declaration = node;
-      program.source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+      if (program.source.syntax.is.IsVariableDeclaration(node) && program.source.syntax.text(program.source.syntax.name(node)) === "Packet") declaration = node;
+      program.source.syntax.forEachChild(node, child => { if (child !== undefined) visit(child); });
     };
     csharpProgramSourceFiles(program).forEach(visit);
     assert.equal(declaration !== undefined, true, "the exact authored native value declaration");
@@ -201,16 +208,16 @@ export function make(): typeof Point { return { value: 7 }; }
     assert.equal(compiled.result.diagnostics.length, 0,
       compiled.result.diagnostics.map(issue => `${issue.code}: ${issue.message}`).join("; "));
     assert.equal(compiled.result.program !== undefined, true, `${surface}: the physical record is admitted`);
-    const source = createTargetSourceProgram(compiled.source);
     const { program } = compiled.result;
+    const { source } = program;
     let declaration;
     const visit = node => {
-      if (source.ast.is.IsVariableDeclaration(node) && source.ast.text(source.ast.name(node)) === "Point") declaration = node;
-      source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+      if (source.syntax.is.IsVariableDeclaration(node) && source.syntax.text(source.syntax.name(node)) === "Point") declaration = node;
+      source.syntax.forEachChild(node, child => { if (child !== undefined) visit(child); });
     };
     csharpProgramSourceFiles(program).forEach(visit);
     assert.equal(declaration !== undefined, true, `${surface}: the actual native record declaration`);
-    const outcome = source.effectiveTypes.get(declaration);
+    const outcome = source.facts.values.type(declaration);
     const structure = outcome?.kind === "refused" || outcome === undefined ? undefined : sourceTypeDescriptorStructure(outcome.type);
     const selected = program.objectShapes.resolveNode(declaration);
     assert.equal(structure?.kind === "shape" && structure.members.length === 1 && selected?.members.length === 1, true,
@@ -231,7 +238,8 @@ export const Point = struct({ x: field<int32>(), y: field<int64>() });
 export type Point = typeof Point;
 ` });
   assert.equal(compiled.result.diagnostics.length, 0, "the unmodified native value declaration is valid");
-  const { program } = compiled.result;
+  // The planner reads the sealed program (records and syntax only), as in production (nextgen C-2542).
+  const program = sealCsharpAnalysisProgram(compiled.result.program);
   let declaration;
   const visit = node => {
     if (program.source.ast.is.IsVariableDeclaration(node) && program.source.ast.text(program.source.ast.name(node)) === "Point") declaration = node;
@@ -250,11 +258,12 @@ for (const carrier of [{ kind: "opaque", id: "unrenderable" }, { kind: "target-n
     const { planCsharpOutput } = await import("../../../dist/backend/planner/program/planning.js");
     const value = fixture({ carrier });
     const admitted = analyzeCsharpNativeValueCarriers(value.ast, [value.declaration], value.evidence, value.types,
-      value.shapes, value.semanticsFor, []);
+      value.shapes, []);
     assert.equal(admitted.nativeValueDeclaration.get(value.declaration) === undefined, true,
       "an unrenderable selected field cannot become a sealed value declaration");
     assert.equal(admitted.issues.length, 1, "one fail-closed native render diagnostic");
-    assert.equal(admitted.issues[0]?.code, "CSHARP_UNSUPPORTED_AST", "the source-reachable render path is not mislabeled as an invariant");
+    // nextgen C-2542: split code for a selected field carrier without C# syntax.
+    assert.equal(admitted.issues[0]?.code, "CSHARP_STRUCT_FIELD_CARRIER_NOT_RENDERABLE", "the source-reachable render path is not mislabeled as an invariant");
     assert.equal(admitted.issues[0]?.node === value.type, true, "the exact field carrier is diagnosed");
     assert.equal(admitted.issues[0]?.message.includes("no renderable selected native carrier"), true, "no second type choice or fallback");
     const { program, declaration, selected } = valueProgram();
@@ -296,11 +305,11 @@ test("bound value-field storage is renderable before its native declaration can 
     sourceSubjects: Object.freeze([value.type]), type: Object.freeze({ kind: "opaque", id: "unrenderable-bound-field" }) });
   const shape = Object.freeze({ targetType: { kind: "target-named", id: "test.BoundValue" }, members: Object.freeze([member]) });
   const admitted = analyzeCsharpNativeValueCarriers(value.ast, [value.declaration], value.evidence, value.types,
-    { resolveNode: () => shape }, value.semanticsFor, []);
+    { resolveNode: () => shape }, []);
   assert.equal(admitted.nativeValueDeclaration.get(value.declaration) === undefined, true,
     "valid scalar reads do not conceal an unrenderable physical bound-field contract");
   assert.equal(admitted.issues.length === 1 && admitted.issues[0].node === value.type &&
-    admitted.issues[0].code === "CSHARP_UNSUPPORTED_AST" &&
+    admitted.issues[0].code === "CSHARP_STRUCT_FIELD_CARRIER_NOT_RENDERABLE" &&
     admitted.issues[0].message === "The bound value-type member has no renderable storage contract.", true,
   "one expected rejection owns the exact physical storage before sealing");
 });
@@ -345,29 +354,29 @@ test("selected scalar and bound value fields retain their complete native render
 
 test("object method source evidence separates own this, method locals and outer captures once", async () => {
   const { analyzeCsharpObjectMethodSources } = await import("../../../dist/analysis/objects/value-carriers.js");
-  const checked = createCompilerSessionFromFiles({ currentDirectory: "/project",
-    compilerOptions: { strict: true, module: "esnext", moduleResolution: "bundler" },
-    files: { "/project/index.ts": `export function make(seed: number, initial: number) {
+  // The Source facts program the C# session built (nextgen C-2542: createTargetSourceProgram needs the composition's
+  // profile). Lexical captures are a Host analysis (facts.analyses.lexicalCaptures); `reads` counts those reads.
+  const checked = analyzeCsharpSource({ sourceText: `export function make(seed: number, initial: number) {
       return { value: initial,
         read<T>(input: T): T { const local = seed; const nested = () => this.value + local; nested(); return input; },
         sibling(): number { return seed; }
       };
-    }` },
-  }).checkSource();
-  assert.equal(checked.diagnostics.length, 0, formatDiagnostics(checked.diagnostics));
-  const source = createTargetSourceProgram(checked);
+    }` });
+  assert.equal(checked.sourceDiagnosticsText, "", "the object method program is checked source");
+  const { source } = checked;
+  const ast = source.syntax;
   const nodes = [];
-  const visit = node => { nodes.push(node); source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); }); };
-  source.navigation.sourceFiles.forEach(visit);
-  const literal = nodes.find(node => source.ast.is.IsObjectLiteralExpression(node));
-  const seed = nodes.find(node => source.ast.is.IsParameterDeclaration(node) && source.ast.text(source.ast.name(node)) === "seed");
-  const methods = nodes.filter(node => source.ast.is.IsMethodDeclaration(node));
+  const visit = node => { nodes.push(node); ast.forEachChild(node, child => { if (child !== undefined) visit(child); }); };
+  source.sourceFiles.filter(file => ast.getFileName(file) === "/project/index.ts").forEach(visit);
+  const literal = nodes.find(node => ast.is.IsObjectLiteralExpression(node));
+  const seed = nodes.find(node => ast.is.IsParameterDeclaration(node) && ast.text(ast.name(node)) === "seed");
+  const methods = nodes.filter(node => ast.is.IsMethodDeclaration(node));
   assert.equal(literal !== undefined && seed !== undefined && methods.length === 2, true, "exact checked owner domain");
   let reads = 0;
-  const navigation = { ...source.navigation,
-    sourceReferenceFor(node) { reads += 1; return source.navigation.sourceReferenceFor(node); },
-  };
-  const index = analyzeCsharpObjectMethodSources(source.ast, nodes, navigation, () => undefined);
+  const facts = { navigation: source.facts.navigation, analyses: {
+    lexicalCaptures(callable) { reads += 1; return source.facts.analyses.lexicalCaptures(callable); },
+  } };
+  const index = analyzeCsharpObjectMethodSources(ast, nodes, facts, () => undefined);
   const completedReads = reads;
   assert.equal(completedReads > 0, true, "canonical checked lexical evidence is consumed during analysis");
   const selected = index.get(literal);

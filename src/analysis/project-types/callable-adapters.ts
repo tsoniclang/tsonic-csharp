@@ -19,6 +19,7 @@ import { csharpCallableParametersEqual, instantiateCsharpInheritedCallable } fro
 import type { CsharpCallableContractIndex } from "../../target-model/records/callables/callable-values.js";
 import type { CsharpObjectShapeAnalysis, CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
 import { finalizeCsharpStructuralInterfaceForwarding } from "../objects/structural-forwarding.js";
+import { csharpMemberContracts, csharpMemberDispatch } from "./member-dispatch.js";
 import { csharpTypeParameterConstraintsEqual, csharpTypeParameterConstraintsImply, selectCsharpExplicitImplementationConstraints } from "../../policy/constraints/type-parameter-constraints.js";
 import type { CsharpTypeParameterConstraint } from "../../target-model/types/generic-constraints.js";
 import type { CsharpGenericProjectionIndex } from "../../target-model/records/types/type-projections.js";
@@ -46,7 +47,7 @@ type MethodRequest = {
 const noImplementations: readonly CsharpFinalStructuralInterfaceImplementation[] = Object.freeze([]);
 
 export function analyzeCsharpProjectCallableAdapters(
-  policy: Pick<CsharpPolicyContext, "ast" | "navigation"> & CsharpCallableConversionPolicy,
+  policy: Pick<CsharpPolicyContext, "ast" | "facts"> & CsharpCallableConversionPolicy,
   callables: CsharpCallableContractIndex,
   shapes: CsharpObjectShapeAnalysis,
   declarations: Pick<CsharpDeclarationClassifications, "runtimeDefault">,
@@ -102,11 +103,7 @@ export function analyzeCsharpProjectCallableAdapters(
     const owner = policy.projectTypes.catalog.definitionForDeclaration(parent);
     const objectMethod = parent !== undefined && policy.ast.is.IsObjectLiteralExpression(parent);
     if (owner === undefined && !objectMethod) continue;
-    const inherited = objectMethod ? { kind: "resolved" as const, contracts: [] } : policy.navigation.memberContracts(declaration);
-    if (inherited.kind !== "resolved") {
-      reject(declaration, inherited.reason);
-      continue;
-    }
+    const inherited = { contracts: objectMethod ? [] : csharpMemberContracts(policy.facts, declaration) };
     const receiver = owner === undefined ? undefined
       : policy.projectTypes.catalog.targetTypeForDeclaration(owner.declaration, owner.typeParameterBindings);
     const adapters: CsharpProjectCallableAdapter[] = [];
@@ -174,7 +171,7 @@ export function analyzeCsharpProjectCallableAdapters(
       }
       adapters.push(Object.freeze({ contract, parameters, result }));
     }
-    const dispatch = objectMethod ? undefined : policy.navigation.memberDispatch(declaration);
+    const dispatch = objectMethod || owner === undefined ? undefined : csharpMemberDispatch(policy.facts, owner.declaration, declaration);
     const nativeOverride = hasProjectBaseContract ? overridesBase : overridesNativeMethod(declaration, implementation, parent);
     byDeclaration.set(declaration, Object.freeze({ kind: "method", implementation,
       overridesBase: nativeOverride,
@@ -189,9 +186,9 @@ export function analyzeCsharpProjectCallableAdapters(
       const property = native.classPropertyStorage.get(member);
       const accessor = policy.ast.is.IsGetAccessorDeclaration(member) || policy.ast.is.IsSetAccessorDeclaration(member);
       if (!accessor && property?.kind !== "property") continue;
-      const dispatch = policy.navigation.memberDispatch(member);
-      const contracts = policy.navigation.memberContracts(member);
-      const projectBase = contracts.kind === "resolved" && contracts.contracts.some(contract =>
+      const dispatch = csharpMemberDispatch(policy.facts, definition.declaration, member);
+      const contracts = csharpMemberContracts(policy.facts, member);
+      const projectBase = contracts.some(contract =>
         policy.projectTypes.catalog.definitionForDeclaration(policy.ast.parent(contract))?.kind === "class");
       const overridesBase = policy.ast.hasModifierKind(member, "static") ? false
         : projectBase ? dispatch?.overridesBase === true : overridesNativeProperty(member, definition.declaration, property?.readonly === true);
@@ -359,7 +356,7 @@ export function analyzeCsharpProjectCallableAdapters(
       }
       base = selected.type;
     }
-    const shape = definition === undefined && owner !== undefined ? policy.objectShapes.resolveNode(owner, policy.ast.getSourceFile(owner)) : undefined;
+    const shape = definition === undefined && owner !== undefined ? policy.objectShapes.resolveNode(owner) : undefined;
     const valueType = definition?.kind === "struct" || shape?.targetType.kind === "target-named" &&
       "csharpValueType" in shape.targetType && shape.targetType.csharpValueType === true;
     const key = base === undefined ? `root:${valueType ? "struct" : "class"}` : targetTypeRefKey(base);
@@ -574,7 +571,7 @@ export function analyzeCsharpProjectCallableAdapters(
   }
 
   function refuse(node: Node): void {
-    issues.push(Object.freeze({ node, code: "CSHARP_UNSUPPORTED_AST",
+    issues.push(Object.freeze({ node, code: "CSHARP_INTERFACE_FORWARDING_SIGNATURE_NOT_REPRESENTABLE",
       message: "An analyzed interface method has no exact native forwarding signature." }));
   }
 

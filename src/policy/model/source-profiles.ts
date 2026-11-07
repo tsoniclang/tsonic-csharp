@@ -1,20 +1,20 @@
 import type { CsharpSourceProfilePropertyPolicyResult } from "../../target-model/records/program/source-profile-invocations.js";
-import type { ExtensionDiagnostic, SourceFile } from "@tsonic/tsts";
-import { type SourceFileSemantics } from "@tsonic/target-api/source";
+import type { ExtensionDiagnostic } from "@tsonic/tsts";
+import type {
+  CsharpSourceProfileCallSource,
+  CsharpSourceProfileElementSource,
+  CsharpSourceProfilePropertySource,
+} from "../../target-model/records/program/source-profile-inputs.js";
 import type { CsharpTargetReceiverRelation } from "../../target-model/identities/provider-relations.js";
 import type { CsharpTargetMember, TargetTypeRef } from "../types/index.js";
 import type { CsharpProviderCallSelectionHost } from "./provider-calls.js";
 
 import type { CsharpSourceProfileDeclarationIdentity, CsharpSourceProfileOwner } from "../identities/selected-source.js";
 import type { CsharpSelectedTargetCall, CsharpTargetElementInvocation } from "../../target-model/records/objects/members.js";
-import type { ResolvedSourceCallInfo } from "../../target-model/records/calls/source-calls.js";
 
-type ResolvedSourcePropertyAccessInfo = NonNullable<
-  ReturnType<SourceFileSemantics["operations"]["propertyAccess"]>
->;
-type ResolvedSourceElementAccessInfo = NonNullable<
-  ReturnType<SourceFileSemantics["operations"]["elementAccess"]>
->;
+// Source-profile policy contexts carry C# views of the Host selections (nextgen C-2542): each view holds the raw Host
+// record unchanged (`selection` / `access`) plus published reads only (built by F3 in
+// policy/operations/source-profiles/source-profile-sources.ts). The JS meaning of a declaration is `host.facts.profile`.
 
 export interface CsharpSourceProfileIdentitySelector {
   readonly owner: CsharpSourceProfileOwner;
@@ -26,28 +26,25 @@ export interface CsharpSourceProfileIdentitySelector {
 }
 
 export interface CsharpSourceProfileCallPolicyContext {
-  readonly host: Omit<CsharpProviderCallSelectionHost, "types" | "objectShapes" | "semantics" | "navigation">;
+  readonly host: Omit<CsharpProviderCallSelectionHost, "types" | "objectShapes">;
   readonly inputs: import("../../target-model/records/program/source-profile-inputs.js").CsharpSourceProfileInputFacts;
-  readonly source: ResolvedSourceCallInfo;
-  readonly sourceFile: SourceFile;
+  readonly source: CsharpSourceProfileCallSource;
   readonly identity: CsharpSourceProfileDeclarationIdentity;
 }
 
 export interface CsharpSourceProfilePropertyPolicyContext {
-  readonly host: Omit<CsharpProviderCallSelectionHost, "types" | "objectShapes" | "semantics" | "navigation">;
+  readonly host: Omit<CsharpProviderCallSelectionHost, "types" | "objectShapes">;
   readonly inputs: import("../../target-model/records/program/source-profile-inputs.js").CsharpSourceProfileInputFacts;
-  readonly source: ResolvedSourcePropertyAccessInfo;
-  readonly sourceFile: SourceFile;
+  readonly source: CsharpSourceProfilePropertySource;
   readonly identity: CsharpSourceProfileDeclarationIdentity;
   readonly receiverType: TargetTypeRef | undefined;
   readonly readonly: boolean;
 }
 
 export interface CsharpSourceProfileElementPolicyContext {
-  readonly host: Omit<CsharpProviderCallSelectionHost, "types" | "objectShapes" | "semantics" | "navigation">;
+  readonly host: Omit<CsharpProviderCallSelectionHost, "types" | "objectShapes">;
   readonly inputs: import("../../target-model/records/program/source-profile-inputs.js").CsharpSourceProfileInputFacts;
-  readonly source: ResolvedSourceElementAccessInfo;
-  readonly sourceFile: SourceFile;
+  readonly source: CsharpSourceProfileElementSource;
   readonly identity: CsharpSourceProfileDeclarationIdentity;
   readonly readonly: boolean;
 }

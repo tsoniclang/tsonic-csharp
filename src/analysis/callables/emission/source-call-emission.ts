@@ -1,12 +1,13 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import { csharpConstructorBaseCall } from "./constructor-entry.js";
-import type { TargetSourceProgram } from "@tsonic/target-api/source";
+import type { TargetSourceProgramFacts } from "@tsonic/target-api/source";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpTargetOperationClassifications, CsharpSourceCallArgumentClassification } from "../../../target-model/records/operations/operations.js";
 import type { CsharpConversionClassifications } from "../../../target-model/records/operations/conversions.js";
 import type { CsharpSourceEvidenceIndex } from "../../../target-model/records/program/source-evidence.js";
 import type { CsharpDeclarationClassifications } from "../../../target-model/records/program/declarations.js";
-import type { ResolvedSourceCallInfo } from "../../../target-model/records/calls/source-calls.js";
+import type { SourceCallSelection } from "@tsonic/target-api/source";
+import { csharpSignatureParameters } from "../calls/signature-parameters.js";
 import type { CsharpSourceCallEmission, CsharpSourceArgumentsEmission, CsharpSourceArgumentEmissionGroup } from "../../../target-model/records/calls/source-call-emission.js";
 import { csharpAbsenceTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { isCsharpVoidTargetType } from "../../../target-model/types/identity.js";
@@ -21,7 +22,7 @@ import type { CsharpSourceReferenceRecords } from "../../../target-model/records
 import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
 import { getCsharpDelegateSignature } from "../../../target-model/types/carriers/delegates.js";
 
-export function analyzeCsharpSourceCallEmission(input: { readonly source: TargetSourceProgram; readonly nodes: readonly Node[];
+export function analyzeCsharpSourceCallEmission(input: { readonly source: TargetSourceProgramFacts; readonly nodes: readonly Node[];
   readonly operations: CsharpTargetOperationClassifications; readonly evidence: CsharpSourceEvidenceIndex;
   readonly declarations: CsharpDeclarationClassifications; readonly conversions: CsharpConversionClassifications;
   readonly captures: Pick<CsharpCaptureStorage, "captureClosure">;
@@ -32,15 +33,15 @@ export function analyzeCsharpSourceCallEmission(input: { readonly source: Target
   const optional = new Map<Node, { readonly optional: boolean; readonly receiver: Node | undefined }>();
   const arrays = new Map<Node, TargetTypeRef>();
   const issues: TargetDiagnostic[] = [];
-  const { ast } = input.source;
-  const refuse = (node: Node, message: string): void => { issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: node, message }); };
-  const admitArguments = (node: Node, source: ResolvedSourceCallInfo, classification: CsharpSourceCallArgumentClassification): void => {
+  const { syntax: ast } = input.source;
+  const refuse = (node: Node, code: `CSHARP_${string}`, message: string): void => { issues.push({ code, category: "error", source: "tsonic-csharp", sourceNode: node, message }); };
+  const admitArguments = (node: Node, source: SourceCallSelection, classification: CsharpSourceCallArgumentClassification): void => {
     const grouping = classification.sourceArgumentGrouping;
-    if (grouping?.kind !== "grouped") { refuse(node, "Source-owned arguments have no exact native parameter grouping."); return; }
+    if (grouping?.kind !== "grouped") { refuse(node, "CSHARP_SOURCE_CALL_ARGUMENT_GROUPING", "Source-owned arguments have no exact native parameter grouping."); return; }
     const operands: CsharpSourceArgumentsEmission["arguments"][number][] = [];
     for (const entry of grouping.arguments) {
       const value = entry.sourceForm === "spread-sequence" ? ast.as.AsSpreadElement(entry.expression)?.Expression : entry.expression;
-      if (value === undefined) { refuse(entry.expression, "A selected sequence spread has no exact source operand."); return; }
+      if (value === undefined) { refuse(entry.expression, "CSHARP_SOURCE_CALL_SPREAD_OPERAND", "A selected sequence spread has no exact source operand."); return; }
       operands.push(Object.freeze({ node: value, parameter: entry.parameter, form: entry.sourceForm }));
     }
     const groups: CsharpSourceArgumentEmissionGroup[] = [];
@@ -48,14 +49,14 @@ export function analyzeCsharpSourceCallEmission(input: { readonly source: Target
       if (group.collect) { groups.push(Object.freeze({ kind: "collect", arguments: Object.freeze([...group.arguments]) })); continue; }
       const argument = group.arguments[0];
       if (argument !== undefined) { groups.push({ kind: "value", index: argument.index }); continue; }
-      const parameter = source.sourceSelectedSignatureParameters[group.parameterIndex];
-      const declaration = parameter === undefined ? undefined : ast.as.AsParameterDeclaration(parameter.parameterDeclaration);
-      if (declaration?.Initializer !== undefined && parameter?.parameterDeclaration !== undefined && input.declarations.runtimeDefault.get(parameter.parameterDeclaration) === undefined) {
-        refuse(node, `Omitted source-owned delegate parameter ${group.parameterIndex} has a default initializer that requires exact callee-side default evaluation before C# emission.`); return;
+      const parameter = csharpSignatureParameters(ast, source.signature)?.[group.parameterIndex]?.declaration;
+      const declaration = parameter === undefined ? undefined : ast.as.AsParameterDeclaration(parameter);
+      if (declaration?.Initializer !== undefined && parameter !== undefined && input.declarations.runtimeDefault.get(parameter) === undefined) {
+        refuse(node, "CSHARP_OMITTED_PARAMETER_DEFAULT_NOT_EVALUATED", `Omitted source-owned delegate parameter ${group.parameterIndex} has a default initializer that requires exact callee-side default evaluation before C# emission.`); return;
       }
       const conversion = input.conversions.conversion.get(csharpAbsenceTargetType(), group.type, "implicit");
       if (conversion === undefined || !csharpConversionIsApplicable(conversion, "implicit")) {
-        refuse(node, `Omitted source-owned selected parameter ${group.parameterIndex} has no exact C# representation for source undefined.`); return;
+        refuse(node, "CSHARP_OMITTED_PARAMETER_ABSENCE", `Omitted source-owned selected parameter ${group.parameterIndex} has no exact C# representation for source undefined.`); return;
       }
       groups.push({ kind: "absence", type: group.type, conversion, literal: getCsharpNullableElementTargetType(group.type) !== undefined });
     }
@@ -68,17 +69,17 @@ export function analyzeCsharpSourceCallEmission(input: { readonly source: Target
     const target = classification?.target ?? construction?.target;
     if (target?.kind === "resolved" || target?.kind === "source-owned") {
       const source = target.source;
-      const access = source.sourceCalleeAccess?.expression;
-      optional.set(node, { receiver: source.sourceReceiver?.expression,
+      const access = ast.is.IsPropertyAccessExpression(source.callee) || ast.is.IsElementAccessExpression(source.callee) ? source.callee : undefined;
+      optional.set(node, { receiver: source.receiver,
         optional: access !== undefined && ast.as.AsPropertyAccessExpression(access)?.QuestionDotToken !== undefined });
       if (target.kind === "resolved" && target.call.targetMember.csharpInvocation?.kind === "array-creation") {
         const member = target.call.targetMember;
         const relation = member.csharpInvocation;
         if (relation?.kind !== "array-creation" || member.returnType?.kind !== "array" || relation.lengthParameterIndex !== 0 ||
           target.call.arguments.length !== 1 || target.call.arguments[0]?.targetParameterIndex !== 0) {
-          refuse(node, "Selected array-creation relation does not contain one closed element type and one length argument."); continue;
+          refuse(node, "CSHARP_ARRAY_CREATION_RELATION", "Selected array-creation relation does not contain one closed element type and one length argument."); continue;
         }
-        if (!selectCsharpTypeEmission({ carrier: member.returnType.element })) { refuse(node, "Selected array-creation element type cannot be rendered in C#."); continue; }
+        if (!selectCsharpTypeEmission({ carrier: member.returnType.element })) { refuse(node, "CSHARP_ARRAY_CREATION_ELEMENT_NOT_RENDERABLE", "Selected array-creation element type cannot be rendered in C#."); continue; }
         arrays.set(node, member.returnType.element);
       }
     }
@@ -88,51 +89,50 @@ export function analyzeCsharpSourceCallEmission(input: { readonly source: Target
     // A constructor's leading super(...) is planned as its base initializer from the selected call and its argument
     // parameter types, never through a source callee; it has no callee to acquire.
     if (csharpCallIsConstructorBaseCall(ast, node)) continue;
-    if (classification.unionCall.kind === "rejected") { refuse(node, classification.unionCall.reason); continue; }
+    if (classification.unionCall.kind === "rejected") { refuse(node, "CSHARP_UNION_CALL_DISPATCH", classification.unionCall.reason); continue; }
     const selected = classification.unionCall.kind === "resolved" ? undefined : classification.sourceCall;
-    if (selected?.kind === "rejected") { refuse(node, selected.reason); continue; }
+    if (selected?.kind === "rejected") { refuse(node, "CSHARP_SOURCE_CALLEE_NOT_REPRESENTABLE", selected.reason); continue; }
     admitArguments(node, source, classification);
     const typeArguments = classification.sourceTypeArguments;
     if (typeArguments === undefined || typeArguments.some(carrier => !selectCsharpTypeEmission({ carrier }))) {
-      refuse(node, "Source-owned generic call has a selected method type argument with no closed C# representation."); continue;
+      refuse(node, "CSHARP_SOURCE_CALL_TYPE_ARGUMENT_NOT_RENDERABLE", "Source-owned generic call has a selected method type argument with no closed C# representation."); continue;
     }
     if (classification.unionCall.kind === "resolved") {
       const union = classification.unionCall;
       const grouping = classification.sourceArgumentGrouping;
       if (grouping?.kind !== "grouped" || union.methods.length === 0 || !selectCsharpTypeEmission({ carrier: union.receiverType }) || !selectCsharpTypeEmission({ carrier: union.resultType }) ||
         grouping.groups.some(group => !selectCsharpTypeEmission({ carrier: group.type }))) {
-        refuse(node, "A closed union dispatcher requires exact native receiver, argument, result and containing-type contracts."); continue;
+        refuse(node, "CSHARP_UNION_DISPATCHER_CONTRACT", "A closed union dispatcher requires exact native receiver, argument, result and containing-type contracts."); continue;
       }
       calls.set(node, { kind: "union", union, typeArguments, parameters: Object.freeze(grouping.groups.map(group => group.type)), void: isCsharpVoidTargetType(union.resultType) });
       continue;
     }
     if (selected === undefined || selected.kind === "union-method") {
-      refuse(node, "Source call has no exact sealed callee acquisition contract."); continue;
+      refuse(node, "CSHARP_SOURCE_CALLEE_NOT_REPRESENTABLE", "Source call has no exact sealed callee acquisition contract."); continue;
     }
-    const signature = input.evidence.signatureDeclaration.get(source.selectedSignature);
-    if ((source.sourceCallee.selectedDeclaration === undefined || !input.source.navigation.isProjectDeclaration(source.sourceCallee.selectedDeclaration)) &&
-      (signature === undefined || !input.source.navigation.isProjectDeclaration(signature))) {
-      refuse(node, "The exact selected source callee is external to the project and has no C# target relation."); continue;
+    if ((source.declaration === undefined || !input.source.facts.navigation.identity.isProjectDeclaration(source.declaration)) &&
+      !input.source.facts.navigation.identity.isProjectDeclaration(source.signature)) {
+      refuse(node, "CSHARP_EXTERNAL_SOURCE_CALLEE", "The exact selected source callee is external to the project and has no C# target relation."); continue;
     }
     const result = classification.sourceResult;
-    if (result === undefined) { refuse(node, "An admitted source call requires its exact native completion and selected result."); continue; }
+    if (result === undefined) { refuse(node, "CSHARP_SOURCE_CALL_RESULT_NOT_REPRESENTED", "An admitted source call requires its exact native completion and selected result."); continue; }
     let methodValue = classification.sourceMethodValue;
     if (selected.kind === "value") {
       const reference = input.references.identifierEmission.get(selected.expression);
       if (reference?.kind === "frame") {
         const closure = input.captures.captureClosure.get(reference.declaration);
         if (closure === undefined || closure.method.declaration !== reference.declaration || !closure.frame.methods.includes(closure.method)) {
-          refuse(node, "A captured source callee requires its completed native closure acquisition contract."); continue;
+          refuse(node, "CSHARP_CAPTURED_CALLEE_CLOSURE", "A captured source callee requires its completed native closure acquisition contract."); continue;
         }
         if (closure.frame.ownership === "activation") {
           const constructor = ast.parent(closure.frame.scope);
           const owner = constructor === undefined ? undefined : ast.parent(constructor);
-          const classProtocol = owner !== undefined && input.source.navigation.isProjectDeclaration(owner) &&
+          const classProtocol = owner !== undefined && input.source.facts.navigation.identity.isProjectDeclaration(owner) &&
             closure.frame.protocols.some(protocol => protocol.kind === "class" && protocol.declaration === owner);
           const addressProtocol = closure.frame.protocols.some(protocol => protocol.kind === "address" &&
             closure.frame.bindings.some(binding => binding.declaration === protocol.declaration));
           if ((!classProtocol && !addressProtocol) || getCsharpDelegateSignature(closure.method.type) === undefined) {
-            refuse(node, "A captured native method requires its exact class or address activation protocol and signature."); continue;
+            refuse(node, "CSHARP_CAPTURED_METHOD_ACTIVATION", "A captured native method requires its exact class or address activation protocol and signature."); continue;
           }
           methodValue = undefined;
         } else {
@@ -140,13 +140,13 @@ export function analyzeCsharpSourceCallEmission(input: { readonly source: Target
           if (closure.frame.ownership !== "value" ||
               !closure.frame.protocols.some(protocol => protocol.kind === "quantified" && protocol.declaration === reference.declaration) ||
               methodValue === undefined) {
-            refuse(node, "A captured invocation handle requires its completed native method-value contract."); continue;
+            refuse(node, "CSHARP_CAPTURED_INVOCATION_METHOD_VALUE", "A captured invocation handle requires its completed native method-value contract."); continue;
           }
         }
       }
     }
     if (selected.kind === "value" && typeArguments.length !== 0 && methodValue === undefined) {
-      refuse(node, "Selected generic source call requires a C# callee shape that can carry type arguments."); continue;
+      refuse(node, "CSHARP_GENERIC_CALLEE_SHAPE", "Selected generic source call requires a C# callee shape that can carry type arguments."); continue;
     }
     calls.set(node, { kind: "source", callee: selected, result, typeArguments,
       methodValue: methodValue?.method, optionalCallee: classification.optionalCallee });

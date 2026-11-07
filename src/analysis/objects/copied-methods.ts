@@ -1,17 +1,17 @@
 import type { AstReader } from "@tsonic/tsts";
-import { sourceCallableUsesLexicalThis } from "@tsonic/target-api/source";
+import type { SourceProgramFacts } from "@tsonic/target-api/source";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact } from "../../target-model/types/model.js";
 import { csharpObjectShapeMemberContractKey } from "../../target-model/types/object-shape-identity.js";
 import { csharpObjectShapeMethodDeclaration } from "../../target-model/types/method-values.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 
 export function selectCsharpCopiedMethodReceiver(
-  members: readonly CsharpObjectShapeMemberFact[], sources: readonly CsharpObjectShapeFact[], ast: AstReader,
+  members: readonly CsharpObjectShapeMemberFact[], sources: readonly CsharpObjectShapeFact[], ast: AstReader, facts: Pick<SourceProgramFacts, "navigation">,
 ): { readonly kind: "none" } | { readonly kind: "selected"; readonly shape: CsharpObjectShapeFact } |
   { readonly kind: "rejected" } {
   const candidates = sources.filter(source => source.members.some(member => {
     const declaration = csharpObjectShapeMethodDeclaration(source, member);
-    return declaration !== undefined && sourceCallableUsesLexicalThis(ast, declaration);
+    return declaration !== undefined && facts.navigation.scopes.usesLexicalThis(declaration);
   }));
   if (candidates.length === 0) return { kind: "none" };
   const identities = new Set(candidates.map(source => source.methodImplementation?.identity));

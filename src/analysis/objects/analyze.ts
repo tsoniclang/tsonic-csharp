@@ -1,5 +1,6 @@
 import { sealCsharpObjectShapeClassifications } from "../program/records/objects/object-shapes.js";
-import type { Node, SourceFile, Type } from "@tsonic/tsts";
+import type { Node, SourceFile } from "@tsonic/tsts";
+import type { SourceTypeDescriptor } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type {CsharpObjectShapeFact, TargetTypeRef} from "../../policy/types/index.js";
 import type { CsharpObjectLiteralTargetShapeResolution } from "../../target-model/records/objects/object-shapes.js";
@@ -63,7 +64,7 @@ export function analyzeCsharpObjectShapes(
     readonly selected: CsharpStructuralInterfaceImplementation;
     readonly source: TargetTypeRef;
     readonly destination: TargetTypeRef;
-    readonly sourceType: Type;
+    readonly sourceType: SourceTypeDescriptor | undefined;
   }>>();
   let structuralRevision = 0;
   let closedStructuralRevision = 0;
@@ -211,7 +212,7 @@ export function analyzeCsharpObjectShapes(
     }));
     const targetName = policy.projectTypes.catalog.definitionForTarget(target)?.sourceName ??
       (targetNames.size === 0 ? JSON.stringify(targetKey) : [...targetNames].join(" | "));
-    return Object.freeze({ node, code: "CSHARP_UNSUPPORTED_AST",
+    return Object.freeze({ node, code: "CSHARP_INTERFACE_IMPLEMENTATION_NOT_INHERITED",
       message: `An analyzed interface has no exact inherited native implementation. Implementing class: ${sourceName} (${JSON.stringify(targetTypeRefKey(source))}); interface: ${targetName} (${JSON.stringify(targetKey)}); required member obligations: [${members}].` });
   }
 
@@ -295,14 +296,14 @@ export function analyzeCsharpObjectShapes(
   const literalUnionCarriers = new WeakMap<Node, ReadonlyMap<string, TargetTypeRef>>();
   const unionTypes = evidence.targetTypes.filter(type =>
     getCsharpRuntimeUnionArms(getCsharpNullableElementTargetType(type) ?? type, policy.typeDefinitions) !== undefined);
-  for (const [literal, sourceFile] of objectLiterals) {
+  for (const [literal] of objectLiterals) {
     const unionCarriers = new Map<string, TargetTypeRef>();
     const elements = policy.ast.properties(literal).map(element => element === undefined
-      ? undefined : policy.semantics(sourceFile).operations.objectLiteralElement(element));
+      ? undefined : policy.facts.selections.objectLiteralElement(element));
     for (const type of unionTypes) {
       reserveClassification();
       const carrier = selectCsharpObjectLiteralUnionCarrier(type, elements, policy.objectShapes.resolveTarget,
-        (element, candidate) => csharpObjectLiteralDestinationDeclarations(element, candidate, policy.semantics(sourceFile)),
+        (element, candidate) => csharpObjectLiteralDestinationDeclarations(element, candidate),
         policy.typeDefinitions, evidence.nodeTargetType.get(literal));
       if (carrier !== undefined) {
         unionCarriers.set(targetTypeRefKey(type), carrier);
@@ -325,7 +326,7 @@ export function analyzeCsharpObjectShapes(
     }
     const selectedLiteral = classifyLiteral(contextualShape ?? byNode.get(literal), literal);
     if (selectedLiteral?.kind === "rejected") literalIssues.push(Object.freeze({
-      node: selectedLiteral.subject, code: "CSHARP_UNSUPPORTED_AST", message: selectedLiteral.reason,
+      node: selectedLiteral.subject, code: "CSHARP_OBJECT_LITERAL_SHAPE_NOT_REPRESENTABLE", message: selectedLiteral.reason,
     }));
   }
 
@@ -337,7 +338,7 @@ export function analyzeCsharpObjectShapes(
     const previous = results.get(key);
     if (previous !== undefined) return previous;
     reserveClassification();
-    const result = policy.objectShapes.resolveObjectLiteralTargetShape(expected, literal, sourceFile);
+    const result = policy.objectShapes.resolveObjectLiteralTargetShape(expected, literal);
     results.set(key, result);
     if (result.kind === "resolved") {
       admittedShapes.add(result.shape);
@@ -580,7 +581,7 @@ export function analyzeCsharpObjectShapes(
     for (const type of operation?.sourceArgumentParameterTypes ?? []) {
       if (type !== undefined) operationTypes.push(type);
     }
-    const shape = policy.objectShapes.resolveNode(node, sourceFile);
+    const shape = policy.objectShapes.resolveNode(node);
     if (shape !== undefined) {
       reserveClassification();
       byNode.set(node, shape);

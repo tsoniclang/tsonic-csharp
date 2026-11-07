@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createSourceStorageQuery, defaultSourceStorageLimits } from "@tsonic/target-api/analysis";
+import { defaultSourceStorageLimits } from "@tsonic/target-api/analysis";
 import { assertCsharpCheckingSucceeded, assertCsharpCompilationSucceeded, compileCsharpSource, compileCsharpAnalysisTarget } from "../../helpers/direct-csharp-session.mjs";
 import { compileCsharpNativeUseSource } from "../../helpers/expected-native-uses.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
@@ -18,16 +18,17 @@ function analyze(sourceText, surface = "native") {
   assert.equal(program !== undefined, true, "valid source analysis: " + JSON.stringify(compiled.result.diagnostics.slice(0, 8)
     .map(issue => {
       const node = issue.sourceNode;
-      const file = node === undefined ? undefined : source.ast.getSourceFile(node);
-      const start = node === undefined ? undefined : Math.max(0, source.ast.pos(node));
+      const file = node === undefined ? undefined : source.syntax.getSourceFile(node);
+      const start = node === undefined ? undefined : Math.max(0, source.syntax.pos(node));
       return { code: issue.code, message: issue.message.slice(0, 1200), sourceSpan: issue.sourceSpan,
-        node: node === undefined ? undefined : { kind: source.ast.kindName(node), start, end: source.ast.end(node),
-          text: file === undefined ? undefined : source.ast.getSourceText(file).slice(start, start + 120) } };
+        node: node === undefined ? undefined : { kind: source.syntax.kindName(node), start, end: source.syntax.end(node),
+          text: file === undefined ? undefined : source.syntax.getSourceText(file).slice(start, start + 120) } };
     })));
   assert.equal(Object.hasOwn(program.records, "nativeParticipation"), true, "one published participation reader");
-  const storage = createSourceStorageQuery(source, source.navigation.sourceFiles);
+  // nextgen C-2542: Host storage is facts.analyses.storage over the TargetSourceProgramFacts the target received.
+  const storage = source.facts.analyses.storage({ sourceFiles: source.sourceFiles });
   assert.equal(storage.failureReason(), undefined, "bounded owned source domain");
-  return { source, ast: source.ast, nodes: storage.nodes, program, compiled };
+  return { source, ast: source.syntax, nodes: storage.nodes, program, compiled };
 }
 
 function labels(value) {

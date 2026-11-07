@@ -1,19 +1,19 @@
 import type { Node } from "@tsonic/tsts";
-import { createSourceDeclarationControlFlow, solveSourceFlow } from "@tsonic/target-api/analysis";
-import type { TargetSourceProgram } from "@tsonic/target-api/source";
+import { solveSourceFlow } from "@tsonic/target-api/analysis";
+import type { TargetSourceProgramFacts } from "@tsonic/target-api/source";
 import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native/native-demand.js";
 import type { CsharpNativeUse } from "../../target-model/records/native/native-demand.js";
 import { isCsharpRefLikeTargetType } from "../../target-model/types/ref-like.js";
 
 type Rejection = (node: Node, code: string, message: string) => void;
 
-export function analyzeCsharpRefLikeLiveness(source: TargetSourceProgram, declaration: Node,
+export function analyzeCsharpRefLikeLiveness(source: TargetSourceProgramFacts, declaration: Node,
   ownedBindings: ReadonlySet<Node>, reject: Rejection): void {
-  const selected = createSourceDeclarationControlFlow(source, declaration, { domain: { kind: "source" } });
+  const selected = source.facts.analyses.controlFlow(declaration, { domain: { kind: "source" } });
   if (selected.kind === "unresolved") {
     reject(declaration, selected.resource === undefined ? "CSHARP_REFLIKE_LIVENESS_NOT_PROVEN" : "TSONIC_COMPILER_RESOURCE_LIMIT",
       selected.resource === undefined ? selected.reason :
-        `Control-flow analysis of ${source.ast.text(source.ast.name(declaration)) || "the selected declaration"} exceeded the compiler resource limit ${selected.resource.dimension}=${selected.resource.limit}.`);
+        `Control-flow analysis of ${source.syntax.text(source.syntax.name(declaration)) || "the selected declaration"} exceeded the compiler resource limit ${selected.resource.dimension}=${selected.resource.limit}.`);
     return;
   }
   for (const binding of ownedBindings) if (!selected.graph.bindings.has(binding)) reject(binding,
@@ -42,7 +42,7 @@ export function analyzeCsharpRefLikeLiveness(source: TargetSourceProgram, declar
   if (live.kind === "unresolved") {
     reject(declaration, live.resource === undefined ? "CSHARP_REFLIKE_LIVENESS_NOT_PROVEN" : "TSONIC_COMPILER_RESOURCE_LIMIT",
       live.resource === undefined ? live.reason :
-        `Control-flow analysis of ${source.ast.text(source.ast.name(declaration)) || "the selected declaration"} exceeded the compiler resource limit ${live.resource.dimension}=${live.resource.limit}.`);
+        `Control-flow analysis of ${source.syntax.text(source.syntax.name(declaration)) || "the selected declaration"} exceeded the compiler resource limit ${live.resource.dimension}=${live.resource.limit}.`);
     return;
   }
   for (const point of selected.graph.points) {
@@ -57,7 +57,7 @@ export function analyzeCsharpRefLikeLiveness(source: TargetSourceProgram, declar
   }
 }
 
-export function analyzeCsharpRefLikeEvaluation(source: TargetSourceProgram, demand: CsharpNativeDemandAnalysis,
+export function analyzeCsharpRefLikeEvaluation(source: TargetSourceProgramFacts, demand: CsharpNativeDemandAnalysis,
   reject: Rejection): void {
   const suspended = new Map<CsharpNativeUse, boolean>();
   const active = new Set<CsharpNativeUse>();
@@ -117,7 +117,7 @@ export function analyzeCsharpRefLikeEvaluation(source: TargetSourceProgram, dema
           if (child.kind !== "erased" && child.completion.kind === "value" && isCsharpRefLikeTargetType(child.completion.type)) retained.push(child.expression);
         }
       }
-      suspended.set(use, source.ast.is.IsAwaitExpression(use.expression) || source.ast.is.IsYieldExpression(use.expression) ||
+      suspended.set(use, source.syntax.is.IsAwaitExpression(use.expression) || source.syntax.is.IsYieldExpression(use.expression) ||
         selected.some(child => suspended.get(child) === true));
     }
   }

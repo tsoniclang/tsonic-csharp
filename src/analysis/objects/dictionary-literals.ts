@@ -10,7 +10,7 @@ import { createCsharpDictionaryLiteralRecords } from "../program/records/objects
 export function analyzeCsharpDictionaryLiterals(ast: AstReader, demand: CsharpNativeDemandAnalysis) {
   const values = new Map<Node, Map<string, CsharpDictionaryLiteral>>();
   const issues: TargetDiagnostic[] = [];
-  const refuse = (node: Node, message: string): void => { issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: node, message }); };
+  const refuse = (node: Node, message: string, code: `CSHARP_${string}`): void => { issues.push({ code, category: "error", source: "tsonic-csharp", sourceNode: node, message }); };
   for (const { use } of demand.entries) {
     if (use.kind === "erased" || !ast.is.IsObjectLiteralExpression(use.expression) || !isCsharpRecordDictionaryTargetType(use.carrier)) continue;
     const node = use.expression;
@@ -18,10 +18,10 @@ export function analyzeCsharpDictionaryLiterals(ast: AstReader, demand: CsharpNa
     const carriers = values.get(node) ?? new Map<string, CsharpDictionaryLiteral>();
     const key = targetTypeRefKey(carrier);
     if (carriers.has(key)) continue;
-    if (!selectCsharpTypeEmission({ carrier })) { refuse(node, "Record dictionary object literal emission requires a renderable provider-owned Dictionary target type."); continue; }
+    if (!selectCsharpTypeEmission({ carrier })) { refuse(node, "Record dictionary object literal emission requires a renderable provider-owned Dictionary target type.", "CSHARP_RECORD_DICTIONARY_NOT_RENDERABLE"); continue; }
     const [keyType, valueType] = carrier.kind === "target-named" ? carrier.typeArguments ?? [] : [];
-    if (keyType === undefined || valueType === undefined) { refuse(node, "Record dictionary object literal emission requires finalized key and value target type facts before C# emission."); continue; }
-    if (!selectCsharpTypeEmission({ carrier: valueType })) { refuse(node, "Record dictionary object literal values require a renderable finalized value target type before C# emission."); continue; }
+    if (keyType === undefined || valueType === undefined) { refuse(node, "Record dictionary object literal emission requires finalized key and value target type facts before C# emission.", "CSHARP_RECORD_DICTIONARY_NOT_RENDERABLE"); continue; }
+    if (!selectCsharpTypeEmission({ carrier: valueType })) { refuse(node, "Record dictionary object literal values require a renderable finalized value target type before C# emission.", "CSHARP_RECORD_DICTIONARY_NOT_RENDERABLE"); continue; }
     const properties = ast.as.AsObjectLiteralExpression(node)?.Properties?.Nodes ?? [];
     if (properties.length !== 0 && use.propertyKeys === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted dictionary construction requires its exact native key bindings.", node);
     const keys = new Map(use.propertyKeys?.map(key => [key.property, key]));
@@ -35,7 +35,7 @@ export function analyzeCsharpDictionaryLiterals(ast: AstReader, demand: CsharpNa
         const selected = expression === undefined ? undefined : demand.nativeUse.expression(expression)?.use;
         const source = selected === undefined || selected.kind === "erased" || selected.completion.kind !== "value" ? undefined : selected.completion.type;
         if (expression === undefined || source === undefined || !targetTypeRefEquals(source, carrier)) {
-          refuse(property, "Indexed-record spread requires the exact finalized source and destination dictionary carriers."); continue;
+          refuse(property, "Indexed-record spread requires the exact finalized source and destination dictionary carriers.", "CSHARP_RECORD_DICTIONARY_SPREAD_NOT_REPRESENTABLE"); continue;
         }
         parts.push(Object.freeze({ kind: "spread", property, expression, copy: parts.length === 0 })); continue;
       }
@@ -43,12 +43,13 @@ export function analyzeCsharpDictionaryLiterals(ast: AstReader, demand: CsharpNa
       const shorthand = ast.is.IsShorthandPropertyAssignment(property) ? ast.as.AsShorthandPropertyAssignment(property) : undefined;
       if (assignment === undefined && shorthand === undefined) {
         refuse(property, ast.is.IsMethodDeclaration(property) ? "Record dictionary object literal methods require finalized callable value carrier facts before C# emission."
-          : "Record dictionary object literal member is outside the current C# planning surface."); continue;
+          : "Record dictionary object literal member is outside the current C# planning surface.", "CSHARP_RECORD_DICTIONARY_MEMBER_NOT_REPRESENTABLE"); continue;
       }
-      if (shorthand?.ObjectAssignmentInitializer !== undefined) { refuse(property, "Record dictionary shorthand defaults require finalized default-value semantics before C# emission."); continue; }
+      // `{ a = 1 }` outside a destructuring target is a TypeScript syntax error the Host never admits.
+      if (shorthand?.ObjectAssignmentInitializer !== undefined) failTargetAnalysisInvariant("tsonic-csharp", "An object literal shorthand default is not a value form.", property);
       const value = assignment === undefined ? ast.name(property) : assignment.Initializer;
       if (value === undefined) { refuse(property, assignment === undefined ? "Record dictionary shorthand must carry a finalized source name and value carrier before C# emission."
-        : "Record dictionary property assignment must have an initializer."); continue; }
+        : "Record dictionary property assignment must have an initializer.", "CSHARP_RECORD_DICTIONARY_MEMBER_NOT_REPRESENTABLE"); continue; }
       const selectedKey = keys.get(property)
         ?? failTargetAnalysisInvariant("tsonic-csharp", "An admitted dictionary member requires its exact key literal recipe.", property);
       parts.push(Object.freeze({ kind: "value", property, key: selectedKey.literal, value }));

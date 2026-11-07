@@ -13,7 +13,7 @@ export const csharpJsSymbolCallPolicies:
     jsCallPolicy(
       jsCallIdentity("SymbolConstructor"),
       (context) => {
-        const argument = context.source.sourceArguments[0];
+        const argument = context.source.arguments[0];
         const argumentType = argument === undefined
           ? undefined
           : context.inputs.values.get(argument.expression);
@@ -24,7 +24,7 @@ export const csharpJsSymbolCallPolicies:
             : argumentType !== undefined && targetTypeRefEquals(argumentType, stringType)
               ? [targetParameter("description", stringType)]
               : undefined;
-        return parameters === undefined || context.source.sourceArguments.length > 1
+        return parameters === undefined || context.source.arguments.length > 1
           ? undefined
           : staticMethod(
               `Tsonic.CSharp.Js.Symbol.create:${parameters.length === 0 ? "empty" : parameters[0]!.type.kind}`,

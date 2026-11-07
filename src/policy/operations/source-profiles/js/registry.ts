@@ -35,8 +35,7 @@ export const csharpJsSourceProfileCallPolicies:
     ...csharpJsWeakCollectionCallPolicies,
     ...csharpJsSymbolCallPolicies,
     ...csharpJsBinaryCallPolicies,
-    ...csharpJsPromiseCallPolicies.map(policy => Object.freeze({ ...policy,
-      inputRequirements: Object.freeze({ ...policy.inputRequirements, sourceTypeRelations: true as const }) })),
+    ...csharpJsPromiseCallPolicies,
     ...csharpJsIntlCallPolicies,
     ...csharpJsBigIntCallPolicies,
   ]);

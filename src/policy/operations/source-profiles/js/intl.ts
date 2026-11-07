@@ -35,7 +35,7 @@ export const csharpJsIntlCallPolicies:
     jsCallPolicy(
       jsMemberIdentity("BigInt", "toLocaleString"),
       (context) => {
-        const receiver = resolveCsharpSelectedSourceValue(context, context.source.sourceReceiver);
+        const receiver = resolveCsharpSelectedSourceValue(context, context.source.receiver);
         return !isIntlIntegerCarrier(receiver) ? undefined : staticMethod(
           "Tsonic.CSharp.Js.Intl.formatInteger",
           "toLocaleString", "formatInteger", intlRuntimeType,
@@ -70,7 +70,7 @@ export const csharpJsIntlCallPolicies:
       jsCallPolicy(
         jsMemberIdentity("IntlNumberFormat", name),
         (context) => {
-          const argument = resolveCsharpSelectedSourceValue(context, context.source.sourceArguments[0]);
+          const argument = resolveCsharpSelectedSourceValue(context, context.source.arguments[0]);
           if (argument === undefined) return undefined;
           const integer = isIntlIntegerCarrier(argument);
           return directIntlMember(
@@ -215,7 +215,7 @@ function dateTimeFormatMember(
   context: CsharpSourceProfileCallPolicyContext,
   name: string,
 ): CsharpTargetMember | undefined {
-  const argument = context.source.sourceArguments[0];
+  const argument = context.source.arguments[0];
   const argumentType = resolveCsharpSelectedSourceValue(context, argument);
   const parameters = argument === undefined
     ? [targetParameter("value", csharpNullableTargetType(dateType), { optional: true })]
@@ -237,7 +237,7 @@ function directIntlMember(
 ): CsharpTargetMember | undefined {
   const receiver = resolveCsharpSelectedSourceValue(
     context,
-    context.source.sourceReceiver,
+    context.source.receiver,
   );
   const result = returnType ?? context.inputs.results.get(context.source.call);
   return receiver?.kind !== "target-named" || result === undefined

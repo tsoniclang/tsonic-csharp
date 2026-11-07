@@ -2,18 +2,19 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { csharpJsArrayElementPolicies } from "../../../dist/policy/operations/source-profiles/js/arrays.js";
 import { csharpJsArrayTargetType } from "../../../dist/target-model/types/carriers/js.js";
-import { csharpSourceProfileInputs } from "../../helpers/planning-records.mjs";
+import { csharpSourceProfileInputs, unrepresentedCsharpCarrier } from "../../helpers/planning-records.mjs";
 
 const element = { kind: "source-primitive", name: "int32" };
 
 function select(policy, carrier, readonly = false, index = { kind: "source-primitive", name: "int64" }) {
-  const source = { expression: {}, receiver: { expression: {}, type: {} }, argument: { expression: {}, type: {} } };
-  const host = { types: { resolveSelectedValue: node => node === source.receiver.expression ? carrier
-    : node === source.argument.expression ? index : undefined } };
-  const sourceFile = {};
+  const source = { expression: {}, access: { access: readonly ? "read" : "read-write", readonly },
+    receiver: { expression: {}, type: { kind: "array", readonly, element: { kind: "primitive", primitive: "int32" } } },
+    argument: { expression: {}, type: { kind: "primitive", primitive: "int64" } } };
+  const host = { types: { value: node => (node === source.receiver.expression ? carrier
+    : node === source.argument.expression ? index : undefined) ?? unrepresentedCsharpCarrier(node) } };
   // The element policy reads the receiver carrier from the input facts the analysis resolves for the access.
-  return policy.select({ host, source, sourceFile, readonly,
-    inputs: csharpSourceProfileInputs(host, sourceFile, { operation: source.expression, values: [source.receiver, source.argument] }) });
+  return policy.select({ host, source, readonly,
+    inputs: csharpSourceProfileInputs(host, { operation: source.expression, values: [source.receiver, source.argument] }) });
 }
 
 test("source array location selection retains its exact native method and index type", () => {

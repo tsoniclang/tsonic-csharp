@@ -78,7 +78,7 @@ test("the published return context is the target the planner writes return expre
   ` });
   const program = compiled.result.program;
   assert.equal(program !== undefined, true, "the program publishes");
-  const ast = program.source.ast;
+  const ast = program.source.syntax;
   const found = new Map();
   const visit = (node) => {
     const name = ast.kindName(node);

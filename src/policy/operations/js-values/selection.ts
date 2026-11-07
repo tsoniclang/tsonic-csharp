@@ -44,7 +44,7 @@ export function validateCsharpJsValueOperationSelection(
   if (!coherent(selection.presentOperation, presentMember) ||
       !coherent(selection.receiverReadOperation, receiverReadMember) ||
       presentMember !== undefined && selection.dispatch !== "instance") {
-    return { kind: "rejected", reason: "A closed JS operation requires its exact selected present invocation and receiver-read correspondence." };
+    return { kind: "rejected", code: "CSHARP_JS_VALUE_INVOCATION_NOT_PROVEN", reason: "A closed JS operation requires its exact selected present invocation and receiver-read correspondence." };
   }
   const shortCircuit = selection.shortCircuit;
   if (logicalRuntimeMembers.has(selection.runtimeMember) ?
@@ -54,7 +54,7 @@ export function validateCsharpJsValueOperationSelection(
       !(shortCircuit.condition.runtimeMember === "ToDynamicBoolean" && shortCircuit.condition.dispatch === "static" ||
         shortCircuit.condition.runtimeMember === "isUndefined" && shortCircuit.condition.dispatch === "instance" && shortCircuit.whenTrue === "right")
     : shortCircuit !== undefined) {
-    return { kind: "rejected", reason: "A closed logical operation requires its exact selected native condition and lazy branch relation." };
+    return { kind: "rejected", code: "CSHARP_JS_VALUE_LOGICAL_NOT_PROVEN", reason: "A closed logical operation requires its exact selected native condition and lazy branch relation." };
   }
   return Object.freeze({ ...selection,
     ...(selection.presentOperation === undefined ? {} : { presentOperation: Object.freeze({ ...selection.presentOperation }) }),
@@ -77,6 +77,7 @@ export function selectCsharpJsValueReceiverOperation(
   return runtimeMember === undefined
     ? {
         kind: "rejected",
+        code: "CSHARP_JS_VALUE_OPTIONAL_OPERATION_UNAVAILABLE",
         reason:
           `The closed C# JS-value runtime has no optional ${operationLabel(operation)} operation.`,
       }
@@ -108,6 +109,7 @@ export function selectCsharpNativeJsValueCallOperation(
   ) {
     return {
       kind: "rejected",
+      code: "CSHARP_JS_VALUE_RECEIVER_NOT_CLOSED",
       reason:
         "JS-value member calls require an exact closed receiver carrier.",
     };
@@ -183,6 +185,7 @@ export function selectCsharpNativeJsValueBinaryOperation(
       }
     : {
         kind: "rejected",
+        code: "CSHARP_JS_VALUE_OPERATOR_UNAVAILABLE",
         reason:
           `The closed C# JS-value runtime has no operation for operator '${operator}'.`,
       };
@@ -213,6 +216,7 @@ export function selectCsharpNativeJsValueUnaryOperation(
       }
     : {
         kind: "rejected",
+        code: "CSHARP_JS_VALUE_UNARY_OPERATOR_UNAVAILABLE",
         reason:
           `The closed C# JS-value runtime has no operation for unary operator '${operator}'.`,
       };

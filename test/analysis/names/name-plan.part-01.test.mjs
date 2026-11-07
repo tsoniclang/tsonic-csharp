@@ -1,8 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createCompilerSessionFromFiles, formatDiagnostics } from "@tsonic/tsts";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
-import { assertCsharpCompilationSucceeded, checkCsharpSource, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { assertCsharpCompilationSucceeded, checkCsharpSource, compileCsharpSource, withCsharpSessionRequest } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { createCsharpSourceNameBuilder } from "../../../dist/analysis/names/plan.js";
 import { analyzeCsharpAnalysisProgram } from "../../../dist/analysis/program/index.js";
@@ -43,9 +42,8 @@ test("native dispatch requires its completed narrow inputs instead of the retire
 });
 
 test("a rejected native inheritance acquisition keeps its complete diagnostic before program publication", () => {
-  const checked = checkCsharpSource({ sourceText: "export class View { read(): number { return 1; } }" });
-  assert.equal(checked.sourceDiagnosticsText, "", "the provider-rejection control is checked source");
-  const source = createTargetSourceProgram(checked.source);
+  // The analysis runs on the Source facts program the session handed to the target (nextgen C-2542:
+  // createTargetSourceProgram needs the composition's profile); withCsharpSessionRequest asserts the source checks.
   const original = Object.freeze({ numericCode: 91047, category: "error", extensionId: "native-fixture",
     message: "The selected native inheritance input is unavailable.",
     evidence: Object.freeze([Object.freeze({ message: "binding=System.Object" }),
@@ -54,18 +52,18 @@ test("a rejected native inheritance acquisition keeps its complete diagnostic be
     providers: [createDotnetReflectionTypeDataProvider()], providerPolicies: [],
   });
   let acquisitions = 0;
-  const result = analyzeCompletedCsharpProgram({
-    input: { source, sourcePackages: checked.sourcePackages, project: checked.project, target: checked.target,
-      runtimeActivatedCapabilityIds: [], runtimeReferences: [], paths: checked.paths },
-    configuration: createCsharpTargetConfiguration(checked.target, checked.paths.projectRoot, checked.paths.targetOutputRoot),
-    providers: { ...providers, findTargetBindingByMetadataName(metadataName, purpose) {
-      if (metadataName !== "System.Object" || purpose !== "inheritance") {
-        return providers.findTargetBindingByMetadataName(metadataName, purpose);
-      }
-      acquisitions += 1;
-      return { kind: "rejected", diagnostic: original };
-    } },
-  });
+  const { value: { source, result } } = withCsharpSessionRequest({ sourceText: "export class View { read(): number { return 1; } }" },
+    request => ({ source: request.input.source, result: analyzeCompletedCsharpProgram({
+      input: { ...request.input, runtimeActivatedCapabilityIds: [], runtimeReferences: [] },
+      configuration: createCsharpTargetConfiguration(request.input.target, request.input.paths.projectRoot, request.input.paths.targetOutputRoot),
+      providers: { ...providers, findTargetBindingByMetadataName(metadataName, purpose) {
+        if (metadataName !== "System.Object" || purpose !== "inheritance") {
+          return providers.findTargetBindingByMetadataName(metadataName, purpose);
+        }
+        acquisitions += 1;
+        return { kind: "rejected", diagnostic: original };
+      } },
+    }) }));
   assert.equal(acquisitions, 1, "the selected root is acquired once, with no alias retry");
   assert.equal(result.kind, "rejected", "required native rejection cannot become a false dispatch or hiding row");
   assert.equal(Object.hasOwn(result, "value"), false, "no program or sealed names are published on rejection");
@@ -76,7 +74,7 @@ test("a rejected native inheritance acquisition keeps its complete diagnostic be
   assert.equal(diagnostic.category, original.category, "original native category");
   assert.equal(diagnostic.message, original.message, "original native message");
   assert.deepEqual(diagnostic.evidence, original.evidence.map(entry => entry.message), "all original native evidence is retained");
-  assert.equal(diagnostic.sourceNode !== undefined && source.ast.is.IsMethodDeclaration(diagnostic.sourceNode), true,
+  assert.equal(diagnostic.sourceNode !== undefined && source.syntax.is.IsMethodDeclaration(diagnostic.sourceNode), true,
     "the native acquisition remains attached to the actual retained method");
 });
 
@@ -126,15 +124,16 @@ test(`${surface}: native member-name refusals precede publication with their exa
         `${control.description} cannot be represented as an exact C# target name. Source name '${control.name}' is not a valid C# identifier and has no explicit target-name policy.`,
         `${control.description}: original exact native refusal message`);
       if (control.field) {
-        const source = createTargetSourceProgram(compiled.source);
-        assert.equal(diagnostic.sourceNode !== undefined && source.ast.is.IsPropertyDeclaration(diagnostic.sourceNode) &&
-          source.ast.text(source.ast.name(diagnostic.sourceNode)) === control.name, true, "C429 selects the owning field node");
+        // The refused compilation publishes no analysis program; the checked program's syntax reads the site.
+        const ast = compiled.source.ast;
+        assert.equal(diagnostic.sourceNode !== undefined && ast.is.IsPropertyDeclaration(diagnostic.sourceNode) &&
+          ast.text(ast.name(diagnostic.sourceNode)) === control.name, true, "C429 selects the owning field node");
       } else assert.equal(diagnostic.sourceNode === undefined, true, `${control.description}: original node absence is preserved`);
     }
     const admitted = compileCsharpSource({ surface, sourceText: "export class View { value: number = 1; }" });
     assertCsharpCompilationSucceeded(admitted);
     const program = admitted.result.program;
-    const ast = program.source.ast;
+    const ast = program.source.syntax;
     const declaration = ast.statements(csharpProgramSourceFiles(program)[0]).find(node => ast.is.IsClassDeclaration(node));
     const field = ast.members(declaration).find(node => node !== undefined && ast.is.IsPropertyDeclaration(node));
     assert.equal(field !== undefined, true, "the separate corruption control starts with a real admitted field");

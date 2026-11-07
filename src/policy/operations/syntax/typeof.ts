@@ -1,23 +1,18 @@
 import type { CsharpTypeofComparisonSelection } from "../../../target-model/records/operations/typeof.js";
 import type { CsharpTypeofRuntimeKind, TargetTypeRef } from "../../types/index.js";
-import { getCsharpTypeofResult, type CsharpTypeofResult } from "../../../target-model/types/runtime-kind.js";
-import type { CsharpTypeDefinitions } from "../../../target-model/types/source-union-definitions.js";
+import type { CsharpTypeofResult } from "../../../target-model/types/runtime-kind.js";
 
+/**
+ * A `typeof x === "kind"` comparison over the Host typeof categories (selectCsharpTypeofResult, N3'): constant when
+ * every published category gives one answer, else a runtime category test over the physical carrier. C# never
+ * classifies a category from the carrier.
+ */
 export function selectCsharpTypeofComparison(
-  operandType: TargetTypeRef | undefined,
+  operandType: TargetTypeRef,
+  category: CsharpTypeofResult,
   runtimeKind: CsharpTypeofRuntimeKind,
   negated: boolean,
-  definitions?: CsharpTypeDefinitions,
 ): CsharpTypeofComparisonSelection {
-  if (operandType === undefined) {
-    return rejected(
-      "The selected typeof comparison has no exact target operand type.",
-    );
-  }
-  const category = getCsharpTypeofResult(operandType, undefined, definitions);
-  if (category === undefined) return rejected(
-    "The selected typeof comparison has no exact closed target runtime-category representation.",
-  );
   const results = comparisonResults(category, runtimeKind, negated);
   return results.size === 1
     ? { kind: "constant", value: results.values().next().value! }
@@ -31,12 +26,8 @@ function comparisonResults(
 ): ReadonlySet<boolean> {
   if (typeof category === "string") return new Set([(category === runtimeKind) !== negated]);
   if (category.kind === "optional") return new Set([
-    (runtimeKind === "object") !== negated,
+    (category.absent === runtimeKind) !== negated,
     ...comparisonResults(category.value, runtimeKind, negated),
   ]);
   return new Set(category.arms.flatMap(arm => [...comparisonResults(arm.result, runtimeKind, negated)]));
-}
-
-function rejected(reason: string): CsharpTypeofComparisonSelection {
-  return { kind: "rejected", reason };
 }

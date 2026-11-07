@@ -1,5 +1,5 @@
 import type { Node } from "@tsonic/tsts";
-import { sourceTypeDescriptorStructure, type SourceFileSemantics, type SourceTypeDescriptor } from "@tsonic/target-api/source";
+import { sourceTypeDescriptorStructure, type SourceTypeDescriptor } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { csharpSourceProfileDeclarationIdentity } from "../../policy/identities/selected-source.js";
 import { selectCsharpErrorNativeProperty } from "../../policy/operations/source-profiles/error-source-profile.js";
@@ -8,13 +8,12 @@ import type { CsharpNativePropertyRead } from "../../target-model/records/progra
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 
 type NativePropertyReadHost = Pick<CsharpPolicyContext,
-  "ast" | "sourceFacts" | "providers" | "projectTypes" | "typeDefinitions">;
+  "ast" | "facts" | "sourceFacts" | "providers" | "projectTypes" | "typeDefinitions">;
 
 export function resolveCsharpPublishedNativePropertyRead(
   descriptor: SourceTypeDescriptor | undefined,
   sourceName: string,
   receiverCarrier: TargetTypeRef | undefined,
-  semantics: SourceFileSemantics,
   host: NativePropertyReadHost,
 ): { readonly kind: "not-native"; readonly sourceType?: SourceTypeDescriptor } | { readonly kind: "unresolved" } |
   { readonly kind: "resolved"; readonly sourceType: SourceTypeDescriptor; readonly property: CsharpNativePropertyRead } {
@@ -26,20 +25,19 @@ export function resolveCsharpPublishedNativePropertyRead(
   const member = members[0]!;
   const sourceType = member.type;
   if (member.origin.kind !== "declared") return { kind: "not-native", sourceType };
-  const selected = resolveCsharpNativePropertyRead([member.origin.declaration], receiverCarrier, semantics, host);
+  const selected = resolveCsharpNativePropertyRead([member.origin.declaration], receiverCarrier, host);
   return selected.kind === "unresolved" ? selected : { ...selected, sourceType };
 }
 
 export function resolveCsharpNativePropertyRead(
   declarations: readonly (Node | undefined)[],
   receiverCarrier: TargetTypeRef | undefined,
-  semantics: SourceFileSemantics,
   host: NativePropertyReadHost,
 ): { readonly kind: "not-native" } | { readonly kind: "unresolved" } |
   { readonly kind: "resolved"; readonly property: CsharpNativePropertyRead } {
   if (receiverCarrier === undefined) return { kind: "unresolved" };
   const selections = [...new Set(declarations)].flatMap(declaration => {
-    const identity = csharpSourceProfileDeclarationIdentity(host.ast, semantics, host.sourceFacts, declaration);
+    const identity = csharpSourceProfileDeclarationIdentity(host.ast, host.facts, host.sourceFacts, declaration);
     if (identity?.kind !== "member") return [];
     const selected = selectCsharpErrorNativeProperty(host, identity, receiverCarrier);
     return selected === undefined ? [] : [{ identity, selected }];

@@ -19,7 +19,7 @@ export function analyzeCsharpUnionEquality(nodes: readonly Node[], operations: C
     const operation = selection.targetOperation;
     if (!targetTypeRefEquals(selection.resultType, csharpSourcePrimitiveTargetType("bool")) ||
       selection.sourceOperator !== (operation.negated ? "!==" : "===")) {
-      issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: node,
+      issues.push({ code: "CSHARP_UNION_EQUALITY_NOT_SEALED", category: "error", source: "tsonic-csharp", sourceNode: node,
         message: "Union equality requires sealed native operations and a hygienic evaluation scope." }); continue;
     }
     const operand = (expression: Node, arm: CsharpUnionEqualityOperand["arm"], storage: TargetTypeRef,

@@ -19,8 +19,8 @@ export function analyzeCsharpReceiverCallProperties(nodes: readonly Node[], oper
       member.declaringType === undefined || member.parameters.length !== 0 || selection.receiver.kind !== "instance" ||
       call.kind !== "method" || call.static === true || (call.typeParameters?.length ?? 0) !== 0 || call.returnType === undefined ||
       call.declaringType === undefined || call.parameters.length !== 0 || !targetTypeRefEquals(call.returnType, member.declaringType) ||
-      selection.source.accessMode !== "read") {
-      issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: node,
+      selection.source.access !== "read") {
+      issues.push({ code: "CSHARP_COMPUTED_PROPERTY_RELATION", category: "error", source: "tsonic-csharp", sourceNode: node,
         message: "A computed native property requires its exact instance call and read-only result-property relation." });
       continue;
     }

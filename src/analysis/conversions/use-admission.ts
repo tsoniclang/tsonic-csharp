@@ -1,4 +1,4 @@
-import type { Node } from "@tsonic/tsts";
+import type { AstReader, Node } from "@tsonic/tsts";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpConversionMode, CsharpConversionSelection } from "../../target-model/conversions/selection.js";
 import type { CsharpConversionIssue, CsharpExpressionConversionClassification } from "../../target-model/records/operations/conversions.js";
@@ -17,6 +17,7 @@ export interface CsharpCallConversionRequests {
 }
 
 export function sealCsharpConversionUses(
+  ast: AstReader,
   demand: CsharpNativeDemandAnalysis,
   operations: Pick<CsharpTargetOperationClassifications, "selectedCall" | "selectedConstruction">,
   classify: (expression: Node, source: TargetTypeRef, target: TargetTypeRef, mode: CsharpConversionMode,
@@ -73,7 +74,7 @@ export function sealCsharpConversionUses(
       return failTargetAnalysisInvariant("tsonic-csharp", "A consumed native default requires its completed conversion classification.", expression);
     }
     if (selected.kind === "rejected" || selected.kind === "ambiguous") {
-      issues.push(Object.freeze({ node: expression, code: selected.kind === "rejected" ? selected.code ?? "CSHARP_UNSUPPORTED_AST" : "CSHARP_UNSUPPORTED_AST",
+      issues.push(Object.freeze({ node: expression, code: selected.kind === "rejected" ? selected.code ?? "CSHARP_VALUE_USE_NOT_ADMITTED" : "CSHARP_VALUE_USE_NOT_ADMITTED",
         message: selected.reason, source, target }));
       return;
     }
@@ -93,7 +94,7 @@ export function sealCsharpConversionUses(
       if (mapping.kind !== "by-value") continue;
       const argument = argumentsByIndex.get(mapping.effectiveArgumentIndex);
       const binding = bindingsByIndex.get(mapping.effectiveArgumentIndex);
-      const expression = argument === undefined ? undefined : selection.source.sourceArguments[argument.sourceArgumentIndex]?.expression;
+      const expression = argument === undefined ? undefined : ast.arguments(selection.source.use)[argument.sourceArgumentIndex];
       if (expression === undefined || binding === undefined) continue;
       const actual = demand.nativeUse.expression(expression);
       if (actual === undefined || actual.site.subject !== owner || actual.site.role !== csharpNativeUseSite(owner, binding.slot).role ||
@@ -130,7 +131,7 @@ export function sealCsharpConversionUses(
     expressions.set(expression, selections);
     if (admitted.classification.selection.kind === "rejected" || admitted.classification.selection.kind === "ambiguous") {
       issues.push(Object.freeze({ node: expression, code: admitted.classification.selection.kind === "rejected"
-        ? admitted.classification.selection.code ?? "CSHARP_UNSUPPORTED_AST" : "CSHARP_UNSUPPORTED_AST",
+        ? admitted.classification.selection.code ?? "CSHARP_VALUE_USE_NOT_ADMITTED" : "CSHARP_VALUE_USE_NOT_ADMITTED",
         message: admitted.classification.selection.reason, source, target }));
       return;
     }

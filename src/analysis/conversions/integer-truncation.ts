@@ -24,8 +24,9 @@ export function selectCsharpIntegerTruncationConversion(
   const selection = selectCsharpTargetCall(policy, expression, sourceFile);
   if (selection.kind !== "resolved") return undefined;
   const signed = truncations.get(selection.call.targetMember.id);
-  const widthArgument = selection.source.sourceArguments[0]?.expression;
-  if (signed === undefined || widthArgument === undefined || selection.source.sourceArguments.length !== 2) return undefined;
-  const width = policy.literalValues.literalValue.get(widthArgument)?.number;
+  const authored = policy.ast.arguments(selection.source.use);
+  const widthArgument = authored[0];
+  if (signed === undefined || widthArgument === undefined || authored.length !== 2) return undefined;
+  const width = policy.facts.values.literal(widthArgument)?.number;
   return selectCsharpNativeIntegerTruncationConversion(width, signed, target);
 }

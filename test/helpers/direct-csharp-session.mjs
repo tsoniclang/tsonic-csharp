@@ -1,3 +1,4 @@
+import { csharpTestSourceProgram } from "./target-source-program.mjs";
 import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 import {
@@ -16,9 +17,6 @@ import {
   collectTargetSourcePackageGraph,
 } from "../../../tsonic/packages/host/dist/source-package-inputs.js";
 import { collectTstsDiagnostics } from "../../../tsonic/packages/host/dist/diagnostics.js";
-import {
-  createTargetSourceProgram,
-} from "../../../tsonic/packages/target-api/dist/public/source.js";
 import {
   createCsharpTargetPack,
 } from "../../dist/public/index.js";
@@ -209,7 +207,7 @@ export function analyzeCsharpSource(options) {
   try {
     const runtime = checked.runtimeContributions();
     checked.targetSession.compile({
-      source: createTargetSourceProgram(checked.source),
+      source: csharpTestSourceProgram(checked.source),
       sourcePackages: checked.sourcePackages,
       project: checked.project,
       target: checked.target,
@@ -256,7 +254,7 @@ export function compileCsharpSource(options) {
     } else {
       const runtime = checked.runtimeContributions();
       compiled = checked.targetSession.compile({
-        source: createTargetSourceProgram(checked.source),
+        source: csharpTestSourceProgram(checked.source),
         sourcePackages: checked.sourcePackages,
         project: checked.project,
         target: checked.target,

@@ -4,6 +4,8 @@ import test from "node:test";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 
 const forcedMessage = "Forced operation admission issue.";
+// nextgen C-2542: the target call selection carries the Host SourceCallSelection (its call node is `use`), and the await
+// selector now takes (carrier, awaited, definitions, resultUse); the injected wrappers forward every argument.
 registerHooks({
   load(url, context, nextLoad) {
     const loaded = nextLoad(url, context);
@@ -27,8 +29,8 @@ registerHooks({
         "export function csharpSelectedCallConversionIssue(policy, selection) {\n" +
         "  const forced = globalThis.forcedOperationIssue;\n" +
         "  if (forced !== undefined && forced.code === \"CSHARP_CALL_ARGUMENT_CONVERSION_NOT_PROVEN\" && selection?.kind === \"resolved\") {\n" +
-        "    forced.subjects.push(selection.source.call);\n" +
-        `    return Object.freeze({ node: selection.source.call, code: forced.code, message: ${JSON.stringify(forcedMessage)} });\n` +
+        "    forced.subjects.push(selection.source.use);\n" +
+        `    return Object.freeze({ node: selection.source.use, code: forced.code, message: ${JSON.stringify(forcedMessage)} });\n` +
         "  }\n" +
         "  return admittedSelectedCallConversionIssue(policy, selection);\n" +
         "}\n" };
@@ -37,8 +39,8 @@ registerHooks({
       const marker = "export function selectCsharpAwaitCompletion(";
       assert.equal(source.includes(marker), true, "the await completion selector is the injection point");
       return { ...loaded, shortCircuit: true, source: source.replace(marker, "function selectedCsharpAwaitCompletion(") +
-        "\nexport function selectCsharpAwaitCompletion(carrier, definitions) {\n" +
-        "  const completion = selectedCsharpAwaitCompletion(carrier, definitions);\n" +
+        "\nexport function selectCsharpAwaitCompletion(...selection) {\n" +
+        "  const completion = selectedCsharpAwaitCompletion(...selection);\n" +
         "  const forced = globalThis.forcedOperationIssue;\n" +
         "  if (completion === undefined || forced?.code !== \"CSHARP_AWAIT_RESULT_MAPPING_NOT_PROVEN\") return completion;\n" +
         "  forced.awaitCompletions += 1;\n" +
@@ -76,7 +78,7 @@ function erasureOutcomes(compiled) {
   const program = compiled.result.program;
   assert.equal(typeof program?.records.erasedStatement?.get === "function", true,
     "the published program carries the erasedStatement reader");
-  const ast = program.source.ast;
+  const ast = program.source.syntax;
   const outcomes = [];
   const visit = (node) => {
     if (ast.is.IsExpressionStatement(node)) {

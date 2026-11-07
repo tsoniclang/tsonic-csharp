@@ -37,6 +37,7 @@ export function csharpTargetTypeComponents(
       break;
     case "type-parameter":
       addAll(type.csharpProjection?.arguments);
+      if (type.csharpProjection?.kind === "source-union" && type.csharpProjection.part === "storage") addAll(type.csharpProjection.roleArguments);
       if (type.csharpConstraints?.kind === "resolved") {
         budget.reserve(type.csharpConstraints.constraints.length);
         for (const constraint of type.csharpConstraints.constraints) {

@@ -24,6 +24,9 @@ assert.equal(mapping.kind, "union-map");
 const incomplete = Object.freeze({ ...mapping, arms: mapping.arms.slice(1) });
 const mappingRejected = { kind: "rejected", reason: "Union conversion requires exact sealed arm coverage and native absence correspondence." };
 
+// sealCsharpConversionUses reads authored call arguments by index (nextgen C-2542); these uses select no call.
+const noArgumentsAst = Object.freeze({ arguments: () => assert.fail("no selected call argument is read") });
+
 function assertAdmitted(source, target, selection) {
   assert.equal(admitCsharpConversionSelection(policy, source, target, selection) === selection, true,
     "valid admission preserves the complete selected tree by identity");
@@ -186,18 +189,24 @@ test("conversion admission validates integer refinements, absence and provider s
 });
 
 test("optional project indexers admit present-value conversion before native absence is lifted", () => {
-  const source = { receiver: { expression: {} }, accessMode: "read", optionalChain: true };
+  // nextgen C-2542: the access is the Host element-access record (SourceElementAccessRecord); C# types come from
+  // CsharpTypeQueries.represent. The receiver representation is unavailable (as the old resolveSelectedValue double).
+  const unknown = Object.freeze({ kind: "intrinsic", intrinsic: "unknown" });
+  const source = { node: {}, receiver: {}, receiverType: unknown, index: unknown,
+    selected: { kind: "index-signature", declaration: {} }, result: unknown, readonly: false, access: "read", optionalChain: true };
   const selected = { kind: "project-indexer", source, valueType: wide, selectedReadType: narrow };
-  const noStorageQuery = () => { throw new Error("the selected indexer already supplies its exact native carriers"); };
-  const indexPolicy = { ...policy, types: { resolveSelectedValue: () => undefined,
-    resolveReadStorage: noStorageQuery, resolveSelectedResult: noStorageQuery } };
-  const classification = elementSelectedTypes(indexPolicy, source, {}, selected);
+  const noResultQuery = () => { throw new Error("the selected indexer already supplies its exact native carriers"); };
+  const indexPolicy = { ...policy, types: { value: noResultQuery, readStorage: noResultQuery,
+    represent: (descriptor, occurrence) => occurrence === source.receiver
+      ? Object.freeze({ kind: "csharp-refused", code: "CSHARP_TEST_UNREPRESENTED", message: "No receiver representation.", site: occurrence })
+      : noResultQuery() } };
+  const classification = elementSelectedTypes(indexPolicy, source, selected);
   assert.equal(targetTypeRefEquals(classification.selectedResultType, csharpNullableTargetType(narrow)), true,
     "the operation result includes its native absence state");
   assert.equal(classification.flowReadConversion.kind, "union-map");
   assert.equal(classification.flowReadConversion.coverage, "target");
   assertAdmitted(wide, narrow, classification.flowReadConversion);
-  assert.equal(elementSelectedTypes(indexPolicy, { ...source, accessMode: "write" }, {}, selected).flowReadConversion, undefined,
+  assert.equal(elementSelectedTypes(indexPolicy, { ...source, access: "write" }, selected).flowReadConversion, undefined,
     "a write does not publish an unused read conversion");
 });
 
@@ -210,7 +219,7 @@ test("optional native call completion admission retains the exact present-to-opt
     completion: Object.freeze({ kind: "value", type: target }), children: Object.freeze([]),
     evaluation: Object.freeze({ kind: "sequence", steps: Object.freeze([]) }) });
   const pairs = [];
-  const admitted = sealCsharpConversionUses({ entries: [{ use }] }, {
+  const admitted = sealCsharpConversionUses(noArgumentsAst, { entries: [{ use }] }, {
     selectedCall: { get: () => undefined }, selectedConstruction: { get: () => undefined },
   }, (node, source, target) => ({
     key: "same-carrier", classification: { operandStability: "snapshot", source, target, selection: selectCsharpConversion(policy, source, target, "implicit") },
@@ -236,14 +245,15 @@ test("authored absence into required native storage retains its exact refusal at
   const use = Object.freeze({ kind: "converted", expression, carrier: integerType, target: integerType, mode: "implicit",
     input: Object.freeze({ kind: "value", type: source }), completion: Object.freeze({ kind: "value", type: integerType }),
     children: Object.freeze([]), evaluation: Object.freeze({ kind: "sequence", steps: Object.freeze([]) }) });
-  const admitted = sealCsharpConversionUses({ entries: [{ use }] }, {
+  const admitted = sealCsharpConversionUses(noArgumentsAst, { entries: [{ use }] }, {
     selectedCall: { get: () => undefined }, selectedConstruction: { get: () => undefined },
   }, (node, from, target) => ({
     key: "authored-absence", classification: { operandStability: "snapshot", source: from, target, selection: selected },
   }), () => selected, requiredRecords, [], new Map(), { objectShapes: { resolveTarget: () => undefined } });
   assert.equal(selected.kind === "rejected" && admitted.issues.length === 1, true,
     "native declaration defaults never waive an authored incompatible absence conversion");
-  assert.equal(admitted.issues[0].node === expression && admitted.issues[0].code === "CSHARP_UNSUPPORTED_AST" &&
+  // nextgen C-2542: CSHARP_UNSUPPORTED_AST is split; use admission names CSHARP_VALUE_USE_NOT_ADMITTED (message unchanged).
+  assert.equal(admitted.issues[0].node === expression && admitted.issues[0].code === "CSHARP_VALUE_USE_NOT_ADMITTED" &&
     admitted.issues[0].message === selected.reason, true, "admission retains the exact reachable source refusal and subject");
 });
 
@@ -253,7 +263,7 @@ test("void and never native completions admit no present-value conversion", () =
     const use = Object.freeze({ kind: "effect", expression, carrier, completion: Object.freeze({ kind }),
       children: Object.freeze([]), evaluation: Object.freeze({ kind: "sequence", steps: Object.freeze([]) }) });
     const requiredRecords = [];
-    const admitted = sealCsharpConversionUses({ entries: [{ use }] }, {
+    const admitted = sealCsharpConversionUses(noArgumentsAst, { entries: [{ use }] }, {
       selectedCall: { get: () => undefined }, selectedConstruction: { get: () => undefined },
     }, () => assert.fail(`${kind} has no consumed value conversion`),
     () => assert.fail(`${kind} has no present-value conversion`), requiredRecords, [],
@@ -273,7 +283,7 @@ test("native call completion admission requires its exact pair only once across 
     evaluation: Object.freeze({ kind: "sequence", steps: Object.freeze([]) }) });
   const requiredRecords = [];
   let presentConversions = 0;
-  const admitted = sealCsharpConversionUses({ entries: [{ use }, { use }] }, {
+  const admitted = sealCsharpConversionUses(noArgumentsAst, { entries: [{ use }, { use }] }, {
     selectedCall: { get: () => undefined }, selectedConstruction: { get: () => undefined },
   }, (node, source, target) => ({ key: "same-carrier",
     classification: { operandStability: "snapshot", source, target, selection: selectCsharpConversion(policy, source, target, "implicit") },
@@ -323,7 +333,7 @@ test("consumed native void completions require expression evidence without fabri
     input: Object.freeze({ kind: "void" }), completion: Object.freeze({ kind: "value", type: target }),
     children: Object.freeze([]), evaluation: Object.freeze({ kind: "sequence", steps: Object.freeze([]) }) });
   const requiredRecords = [];
-  const admitted = sealCsharpConversionUses({ entries: [{ use }] }, {
+  const admitted = sealCsharpConversionUses(noArgumentsAst, { entries: [{ use }] }, {
     selectedCall: { get: () => undefined }, selectedConstruction: { get: () => undefined },
   }, (node, from, to, mode, exactInteger, boundary, completion) => ({ key: "void-completion",
     classification: { operandStability: "snapshot", source: from, target: to,
@@ -348,7 +358,7 @@ test("omitted source arguments admit their physical absence pairs once before di
     evaluation: Object.freeze({ kind: "sequence", steps: Object.freeze([]) }) });
   const requiredRecords = [];
   let physicalPairs = 0;
-  const admitted = sealCsharpConversionUses({ entries: [{ use }, { use }] }, {
+  const admitted = sealCsharpConversionUses(noArgumentsAst, { entries: [{ use }, { use }] }, {
     selectedCall: { get: () => undefined }, selectedConstruction: { get: () => undefined },
   }, () => assert.fail("an omitted slot is not an authored expression conversion"), (node, from, to) => {
     physicalPairs++;
@@ -370,14 +380,15 @@ test("an unresolved omitted formal is refused before publication without a guess
   const use = Object.freeze({ kind: "effect", expression, carrier: csharpVoidTargetType(), completion: { kind: "void" },
     children: Object.freeze([]), evaluation: Object.freeze({ kind: "sequence", steps: Object.freeze([]) }) });
   const requiredRecords = [];
-  const admitted = sealCsharpConversionUses({ entries: [{ use }] }, {
+  const admitted = sealCsharpConversionUses(noArgumentsAst, { entries: [{ use }] }, {
     selectedCall: { get: () => undefined }, selectedConstruction: { get: () => undefined },
   }, () => assert.fail("the missing formal never becomes an expression"),
   (node, from, target) => selectCsharpConversion(policy, from, target, "implicit"), requiredRecords, [],
   new Map([[expression, Object.freeze({ omitted: Object.freeze([{ source, target: undefined }]) })]]),
   { objectShapes: { resolveTarget: () => undefined } });
+  // nextgen C-2542: CSHARP_UNSUPPORTED_AST is split; use admission names CSHARP_VALUE_USE_NOT_ADMITTED (message unchanged).
   assert.equal(admitted.issues.length === 1 && admitted.issues[0].node === expression &&
-    admitted.issues[0].code === "CSHARP_UNSUPPORTED_AST" &&
+    admitted.issues[0].code === "CSHARP_VALUE_USE_NOT_ADMITTED" &&
     admitted.issues[0].message === "C# conversion requires closed source and target representations.", true,
   "the exact existing carrier refusal remains a pre-seal source diagnostic");
   assert.equal(requiredRecords.length, 0, "a refused omitted slot publishes no physical conversion contract");
@@ -395,14 +406,14 @@ test("post-seal corruption pairs are source refusals at their actual conversion 
       input: Object.freeze({ kind: "value", type: source }), completion: Object.freeze({ kind: "value", type: target }),
       children: Object.freeze([]), evaluation: Object.freeze({ kind: "sequence", steps: Object.freeze([]) }) });
     const requiredRecords = [];
-    const admitted = sealCsharpConversionUses({ entries: [{ use }] }, {
+    const admitted = sealCsharpConversionUses(noArgumentsAst, { entries: [{ use }] }, {
       selectedCall: { get: () => undefined }, selectedConstruction: { get: () => undefined },
     }, (node, from, to) => ({ key: "exact-refused-pair",
       classification: { operandStability: "snapshot", source: from, target: to, selection: selectCsharpConversion(policy, from, to, "implicit") },
     }), () => assert.fail("a refused expression pair cannot need a separate native value"), requiredRecords, [], new Map(),
     { objectShapes: { resolveTarget: () => undefined } });
     assert.equal(admitted.issues.length === 1 && admitted.issues[0].node === expression &&
-      admitted.issues[0].code === "CSHARP_UNSUPPORTED_AST" && admitted.issues[0].message === reason, true,
+      admitted.issues[0].code === "CSHARP_VALUE_USE_NOT_ADMITTED" && admitted.issues[0].message === reason, true,
     "the identical malformed pair is rejected with its exact owning message and node before publication");
     assert.equal(requiredRecords.length, 0, "no accepted record is required or published for the refused pair");
   }

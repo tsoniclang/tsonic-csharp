@@ -1,91 +1,70 @@
+// The deleted resolution/call-results.ts (selectCsharpSourceCallResult) chose between a native overload-union ABI and
+// a checker-selected overload result. The Host now publishes the selected overload and its result
+// (facts.selections.call), and C# only represents that descriptor (nextgen C-2542 §2, I6, R2). The CLR union-arm
+// mapping proofs below are unchanged: they are .NET conversion proofs (policy/conversions/union-relations.ts).
 import assert from "node:assert/strict";
 import test from "node:test";
-import { selectCsharpSourceCallResult } from "../../../dist/analysis/source-evidence/types/resolution/call-results.js";
+import { selectedFiniteResultSource } from "../../helpers/selected-finite-results.mjs";
+import { hostProgram, representationServices, representations, represented } from "../../representation/host-fixture.mjs";
 import { selectCsharpUnionArmMapping } from "../../../dist/policy/conversions/union-relations.js";
 import {
   csharpNullableTargetType, csharpRuntimeUnionTargetType,
-  csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpTaskTargetType,
+  csharpSourcePrimitiveTargetType, csharpStringTargetType, targetTypeRefEquals,
 } from "../../../dist/target-model/types/index.js";
 
 const integer = csharpSourcePrimitiveTargetType("uint64");
 const string = csharpStringTargetType();
-const boolean = csharpSourcePrimitiveTargetType("bool");
 const floating = csharpSourcePrimitiveTargetType("float64");
-const base = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "fixture.Base" };
-const child = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "fixture.Child" };
-const other = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "fixture.Other" };
-const host = {
-  projectTypeCatalog: {
-    definitionForTarget: type => [base.id, child.id, other.id].includes(type.id) ? { kind: "class" } : undefined,
-  },
-  projectTypes: () => ({ directSupertypes: type => type.id === child.id ? [base] : [] }),
-  providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) },
-  target: {},
-};
 
-function expectSelection(nativeType, selectedType, retained = selectedType, input = host) {
-  let queries = 0;
-  const result = selectCsharpSourceCallResult(input, nativeType, () => {
-    queries++;
-    return selectedType;
-  });
-  assert.deepEqual(result, { nativeType, selectedType: retained });
-  assert.ok(Object.isFrozen(result));
-  assert.equal(queries, 1);
+function selectedCalls() {
+  const program = hostProgram(selectedFiniteResultSource);
+  const at = representations(representationServices(program));
+  const run = program.named("run");
+  const calls = new Map();
+  for (const node of program.nodes) {
+    if (!program.ast.is.IsCallExpression(node) || program.ast.text(node).startsWith("receiver(reader).") === false) continue;
+    let owner = node;
+    while (owner !== undefined && owner !== run) owner = program.ast.parent(owner);
+    if (owner === run) calls.set(program.ast.text(node), node);
+  }
+  const result = text => {
+    const call = calls.get(text);
+    assert.notEqual(call, undefined, text);
+    const selection = program.facts.selections.call(call);
+    assert.equal(selection !== undefined && selection.kind !== "refused", true, `${text}: the Host selects the call`);
+    return { selection, carrier: represented(at.type(selection.result, call, "value")) };
+  };
+  return { program, result };
 }
 
-test("checked closed result projection retains exact overload payloads and native widths", () => {
-  const native = csharpRuntimeUnionTargetType([integer, string, boolean]);
-  for (const selected of [integer, string, boolean]) expectSelection(native, selected);
-  expectSelection(native, csharpRuntimeUnionTargetType([string, integer]));
-  expectSelection(native, floating, native);
-  expectSelection(native, other, native);
-  expectSelection(native, undefined, native);
+test("each overload call carries the Host-selected result, represented with its exact native width", () => {
+  const { result } = selectedCalls();
+  const text = result(`receiver(reader).read("text")`);
+  const wide = result(`receiver(reader).read("wide")`);
+  assert.equal(text.selection.overloadIndex === 0 && wide.selection.overloadIndex === 1, true,
+    "the literal argument selects the overload; C# does not re-select it");
+  assert.equal(targetTypeRefEquals(text.carrier, string), true);
+  assert.equal(targetTypeRefEquals(wide.carrier, integer), true, "uint64 is not widened to the implementation union");
+  assert.equal(targetTypeRefEquals(wide.carrier, floating), false);
 });
 
-test("checked optional results retain one absence and reject payload reinterpretation", () => {
-  for (const payload of [integer, string, csharpTaskTargetType(integer)]) {
-    const native = csharpNullableTargetType(payload);
-    expectSelection(native, payload);
-    expectSelection(native, native);
-  }
-  const native = csharpNullableTargetType(integer);
-  expectSelection(native, floating, native);
-  expectSelection(native, csharpNullableTargetType(floating), native);
-  expectSelection(csharpNullableTargetType(floating), csharpSourcePrimitiveTargetType("int32"), csharpNullableTargetType(floating));
+test("optional overload results keep one absence; a present overload is not optional", () => {
+  const { result } = selectedCalls();
+  assert.equal(targetTypeRefEquals(result("receiver(reader).optional(true)").carrier, string), true);
+  assert.equal(targetTypeRefEquals(result("receiver(reader).optional(false)").carrier, csharpNullableTargetType(string)), true,
+    "string | undefined is one nullable string, with no second absence layer");
 });
 
-test("checked optional closed results project exact leaves and subsets without changing Task results", () => {
-  const task = csharpTaskTargetType(integer);
-  const native = csharpNullableTargetType(csharpRuntimeUnionTargetType([task, string, integer]));
-  expectSelection(native, task);
-  expectSelection(native, csharpNullableTargetType(string));
-  expectSelection(native, csharpNullableTargetType(csharpRuntimeUnionTargetType([string, integer])));
-  expectSelection(native, csharpTaskTargetType(string), native);
+test("a fluent this result is the receiver's own class", () => {
+  const { program, result } = selectedCalls();
+  const fluent = result("receiver(reader).fluent()");
+  assert.equal(fluent.selection.result.kind === "declared" &&
+    fluent.selection.result.declaration === program.named("Derived"), true, "this is instantiated by the Host at the receiver");
+  assert.equal(fluent.carrier.kind === "target-named" && fluent.carrier.id === "global::Fixture.Derived", true);
 });
 
-test("selected nominal and optional this results require the existing exact inheritance proof", () => {
-  expectSelection(base, child);
-  expectSelection(csharpNullableTargetType(base), child);
-  expectSelection(csharpNullableTargetType(base), csharpNullableTargetType(child));
-  expectSelection(csharpNullableTargetType(base), other, csharpNullableTargetType(base));
-  expectSelection(csharpNullableTargetType(base), child, csharpNullableTargetType(base), {
-    ...host, projectTypes: () => ({ directSupertypes: () => [] }),
-  });
-});
-
-test("native scalar results remain authoritative without evaluating selected source-number evidence", () => {
-  for (const native of [integer, floating, string, csharpTaskTargetType(integer)]) {
-    assert.deepEqual(selectCsharpSourceCallResult(host, native, () => assert.fail("physical scalar authority must not change")),
-      { nativeType: native, selectedType: native });
-  }
-});
-
-test("complete equal native payload coverage preserves the physical call ABI", () => {
+test("complete equal native payload coverage preserves the physical union ABI (CLR mapping proof)", () => {
   const duplicate = csharpRuntimeUnionTargetType([integer, integer]);
-  const result = selectCsharpSourceCallResult(host, duplicate, () => integer);
-  assert.equal(result.nativeType === duplicate, true, "the original native union ABI is retained");
-  assert.equal(result.selectedType === integer, true, "complete coverage selects the exact native uint64");
   const mapping = selectCsharpUnionArmMapping(duplicate, integer, "source");
   assert.equal(mapping?.length, 2, "both physical source slots are covered");
   assert.equal(mapping.every(arm => arm.carrier === integer && arm.target.length === 0 &&
@@ -96,15 +75,4 @@ test("complete equal native payload coverage preserves the physical call ABI", (
     "complete source coverage cannot reinterpret the native integer width");
   assert.equal(selectCsharpUnionArmMapping(csharpRuntimeUnionTargetType([integer, string]), integer, "source") === undefined, true,
     "a heterogeneous source cannot be collapsed to one selected payload");
-  expectSelection(duplicate, integer);
-  expectSelection(duplicate, floating, duplicate);
-});
-
-test("ambiguous and cyclic closed results cannot invent an exact selected payload", () => {
-  const native = csharpRuntimeUnionTargetType([integer, string]);
-  const ambiguous = csharpRuntimeUnionTargetType([integer, integer]);
-  expectSelection(native, ambiguous, native);
-  const cycle = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "fixture.Cycle" };
-  const cyclic = { ...host, typeDefinitions: { sourceUnionArms: type => type.id === cycle.id ? [cycle] : undefined } };
-  expectSelection(cycle, integer, cycle, cyclic);
 });

@@ -1,4 +1,4 @@
-import type { Node } from "@tsonic/tsts";
+import type { AstReader, Node } from "@tsonic/tsts";
 import { failTargetAnalysisInvariant, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpTargetOperationClassifications } from "../../../target-model/records/operations/operations.js";
 import type { CsharpTargetArgumentRecords } from "../../../target-model/records/calls/target-arguments.js";
@@ -12,7 +12,7 @@ import { createCsharpTargetCallEmissionRecords } from "../../program/records/cal
 import type { CsharpNativeUseRecords } from "../../../target-model/records/native/native-demand.js";
 import type { CsharpTypeDefinitions } from "../../../target-model/types/source-union-definitions.js";
 
-export function analyzeCsharpTargetCallEmission(input: { readonly nodes: readonly Node[]; readonly admitted: (node: Node) => boolean;
+export function analyzeCsharpTargetCallEmission(input: { readonly ast: AstReader; readonly nodes: readonly Node[]; readonly admitted: (node: Node) => boolean;
   readonly typeDefinitions: CsharpTypeDefinitions;
   readonly operations: CsharpTargetOperationClassifications; readonly arguments: CsharpTargetArgumentRecords;
   readonly sources: CsharpSourceCallEmissionRecords; readonly optional: CsharpOptionalCallChainRecords;
@@ -20,7 +20,7 @@ export function analyzeCsharpTargetCallEmission(input: { readonly nodes: readonl
   readonly expressions: Pick<CsharpNativeUseRecords, "nativeExpression"> }) {
   const values = new Map<Node, CsharpTargetCallEmission>();
   const issues: TargetDiagnostic[] = [];
-  const refuse = (node: Node, message: string): void => { issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: node, message }); };
+  const refuse = (node: Node, message: string): void => { issues.push({ code: "CSHARP_TARGET_CALL_EMISSION", category: "error", source: "tsonic-csharp", sourceNode: node, message }); };
   for (const node of input.nodes) {
     if (!input.admitted(node)) continue;
     const selected = input.operations.selectedCall.get(node)?.target;
@@ -37,8 +37,8 @@ export function analyzeCsharpTargetCallEmission(input: { readonly nodes: readonl
       return emission?.kind === "plain" && operand.parameter.passingMode !== undefined && operand.parameter.passingMode !== "by-value";
     });
     const request = selected.call.targetMember.csharpArtifactRequirements?.find(requirement => requirement.kind === "object-shape-projection");
-    const subject = request?.source.kind === "receiver" ? selected.source.sourceReceiver?.expression :
-      request?.source.kind === "argument" ? selected.source.sourceArguments[request.source.index]?.expression : undefined;
+    const subject = request?.source.kind === "receiver" ? selected.source.receiver :
+      request?.source.kind === "argument" ? input.ast.arguments(selected.source.use)[request.source.index] : undefined;
     const projection = subject === undefined ? undefined : input.shapes.projection(subject);
     if (request !== undefined && projection === undefined) failTargetAnalysisInvariant("tsonic-csharp", "A participating selected call requires its admitted object-shape projection.", node);
     const use = input.demand.nativeUse.expression(node)?.use;

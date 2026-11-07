@@ -21,7 +21,7 @@ export function run(): boolean {
 }` });
     assertCsharpCompilationSucceeded(compiled);
     const program = compiled.result.program;
-    const ast = program.source.ast;
+    const ast = program.source.syntax;
     const pending = [...csharpProgramSourceFiles(program)];
     const widths = new Map();
     while (pending.length !== 0) {

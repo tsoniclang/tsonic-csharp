@@ -1,5 +1,6 @@
 import type { Node } from "@tsonic/tsts";
-import type { TargetSourceProgram } from "@tsonic/target-api/source";
+import type { TargetSourceProgramFacts } from "@tsonic/target-api/source";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native/native-demand.js";
 import type { CsharpConversionClassifications, CsharpValueReadClassifications } from "../../target-model/records/operations/conversions.js";
@@ -19,14 +20,14 @@ import { selectCsharpTypeEmission } from "../../policy/types/resolution/type-emi
 import { createCsharpArrayLiteralProducer } from "../program/records/operations/array-literals.js";
 import { csharpArrayLiteralElisionIssue } from "../../policy/types/collections/literal-construction.js";
 
-export function analyzeCsharpArrayLiterals(input: { readonly source: TargetSourceProgram; readonly demand: CsharpNativeDemandAnalysis;
+export function analyzeCsharpArrayLiterals(input: { readonly source: TargetSourceProgramFacts; readonly demand: CsharpNativeDemandAnalysis;
   readonly conversions: CsharpConversionClassifications; readonly values: CsharpValueReadClassifications;
   readonly expected: CsharpExpectedTypeClassifications; readonly evidence: CsharpSourceEvidenceIndex;
   readonly operations: CsharpTargetOperationClassifications<CsharpAdmittedIteration> }) {
   const producer = createCsharpArrayLiteralProducer();
   const issues: TargetDiagnostic[] = [];
-  const { ast } = input.source;
-  const refuse = (node: Node, message: string): void => { issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: node, message }); };
+  const ast = input.source.syntax;
+  const refuse = (node: Node, code: `CSHARP_${string}`, message: string): void => { issues.push({ code, category: "error", source: "tsonic-csharp", sourceNode: node, message }); };
   const spread = (expression: Node, carrier: TargetTypeRef, target: TargetTypeRef): CsharpArraySpreadEmission | undefined => {
     const previous = producer.records.arraySpread.get(expression, target);
     if (previous !== undefined) return previous;
@@ -34,7 +35,7 @@ export function analyzeCsharpArrayLiterals(input: { readonly source: TargetSourc
     const carriers = carrier.kind === "tuple" ? carrier.elements : element === undefined ? undefined : [element];
     const elements = carriers?.map(carrier => ({ carrier, conversion: input.conversions.conversion.get(carrier, target, "implicit") }));
     const selected = selectCsharpSequenceEmission(carrier, target, elements);
-    if (selected.kind === "rejected") { refuse(expression, selected.reason); return undefined; }
+    if (selected.kind === "rejected") { refuse(expression, "CSHARP_SEQUENCE_SPREAD_NOT_MAPPED", selected.reason); return undefined; }
     const value = selected.value;
     producer.spread(expression, target, value);
     return value;
@@ -49,7 +50,7 @@ export function analyzeCsharpArrayLiterals(input: { readonly source: TargetSourc
     const sources = ast.elements(node);
     const elision = csharpArrayLiteralElisionIssue(ast, node);
     if (elision !== undefined) {
-      refuse(elision.subject, elision.reason);
+      refuse(elision.subject, elision.code, elision.reason);
       continue;
     }
     const omitted: TargetTypeRef[] = [];
@@ -58,19 +59,19 @@ export function analyzeCsharpArrayLiterals(input: { readonly source: TargetSourc
     let construction: CsharpArrayLiteralEmission["construction"];
     if (carrier.kind === "tuple") {
       kind = "tuple";
-      if (sources.length > carrier.elements.length) { refuse(node, "Tuple literal element count exceeds its exact finalized C# tuple carrier."); continue; }
+      if (sources.length > carrier.elements.length) { refuse(node, "CSHARP_TUPLE_LITERAL_ARITY", "Tuple literal element count exceeds its exact finalized C# tuple carrier."); continue; }
       if (sources.length < carrier.elements.length) {
         const selected = input.evidence.contextualTuple.get(node);
         if (selected?.kind !== "selected" || selected.elementTypes.length !== carrier.elements.length) {
-          refuse(node, "Tuple literal omission requires exact contextual trailing-optional source evidence before C# emission."); continue;
+          refuse(node, "CSHARP_TUPLE_LITERAL_OMISSION", "Tuple literal omission requires exact contextual trailing-optional source evidence before C# emission."); continue;
         }
         if (selected.elementTypes.some((type, index) => type === undefined || !targetTypeRefEquals(selected.optionalElementIndexes.includes(index)
           ? csharpNullableTargetType(type) : type, carrier.elements[index]!))) {
-          refuse(node, "Contextual tuple element evidence conflicts with its exact finalized C# tuple carrier."); continue;
+          refuse(node, "CSHARP_TUPLE_LITERAL_OMISSION", "Contextual tuple element evidence conflicts with its exact finalized C# tuple carrier."); continue;
         }
         for (const index of selected.omittedOptionalElementIndexes) omitted.push(carrier.elements[index]!);
         if (sources.length + omitted.length !== carrier.elements.length) {
-          refuse(node, "Contextual tuple omission evidence does not complete the exact finalized C# tuple carrier."); continue;
+          refuse(node, "CSHARP_TUPLE_LITERAL_OMISSION", "Contextual tuple omission evidence does not complete the exact finalized C# tuple carrier."); continue;
         }
       }
     } else {
@@ -81,25 +82,25 @@ export function analyzeCsharpArrayLiterals(input: { readonly source: TargetSourc
         const native = getCsharpArrayLiteralConstructionTargetType(carrier);
         const builder = native === undefined ? undefined : getCsharpArrayLiteralBuilder(native);
         if (element === undefined || native === undefined || builder === undefined || !selectCsharpTypeEmission({ carrier: native })) {
-          refuse(node, "Array literal emission requires renderable provider collection element and construction metadata."); continue;
+          refuse(node, "CSHARP_ARRAY_LITERAL_CARRIER_NOT_RENDERABLE", "Array literal emission requires renderable provider collection element and construction metadata."); continue;
         }
         kind = "collection"; construction = Object.freeze({ carrier: native, builder });
       }
       if (element === undefined || !selectCsharpTypeEmission({ carrier: element })) {
-        refuse(node, "Array literal emission requires a renderable provider element carrier type before C# emission."); continue;
+        refuse(node, "CSHARP_ARRAY_LITERAL_CARRIER_NOT_RENDERABLE", "Array literal emission requires a renderable provider element carrier type before C# emission."); continue;
       }
     }
-    if (!selectCsharpTypeEmission({ carrier })) { refuse(node, "Array literal emission requires renderable provider collection and element carrier types before C# emission."); continue; }
+    if (!selectCsharpTypeEmission({ carrier })) { refuse(node, "CSHARP_ARRAY_LITERAL_CARRIER_NOT_RENDERABLE", "Array literal emission requires renderable provider collection and element carrier types before C# emission."); continue; }
     const contributions: CsharpArrayLiteralEmission["contributions"][number][] = [];
     let nativeSpread = kind === "array";
     for (const [index, source] of sources.entries()) {
       if (source === undefined) continue;
       const isSpread = ast.is.IsSpreadElement(source);
       const expression = isSpread ? ast.as.AsSpreadElement(source)?.Expression : source;
-      if (expression === undefined) { refuse(source, "Array spread requires a source expression."); continue; }
+      if (expression === undefined) failTargetAnalysisInvariant("tsonic-csharp", "Array spread requires a source expression.", source);
       const later = sources.slice(index + 1).filter((node): node is Node => node !== undefined);
       const snapshot = isSpread && later.some(node => {
-        const effects = input.source.navigation.expressionEffects(node);
+        const effects = input.source.facts.navigation.expressions.effects(node);
         return effects.invokes || effects.mutates || effects.suspends || effects.mayThrow;
       });
       contributions.push(Object.freeze({ node: source, expression, spread: isSpread, snapshot }));
@@ -125,7 +126,7 @@ export function analyzeCsharpArrayLiterals(input: { readonly source: TargetSourc
       } else {
         const sourceCarrier = input.values.valueRead.get(expression)?.value;
         const selected = sourceCarrier === undefined ? undefined : spread(expression, sourceCarrier, element);
-        if (selected === undefined) refuse(source, "Array spread requires its exact selected native value completion.");
+        if (selected === undefined) refuse(source, "CSHARP_SEQUENCE_SPREAD_NOT_MAPPED", "Array spread requires its exact selected native value completion.");
         nativeSpread &&= selected?.nativeSpread === true;
       }
     }
@@ -137,7 +138,7 @@ export function analyzeCsharpArrayLiterals(input: { readonly source: TargetSourc
           : producer.records.borrowedSequenceEmission.get(borrowed, element)?.inputs.flatMap(branch =>
             branch.kind === "empty" ? [] : [branch.spread]) ?? [];
         if (branches.some(branch => branch !== undefined && branch.carrier.kind !== "tuple" && branch.lengthMember === undefined))
-          refuse(contribution.node, "Native construction requires the finalized source length.");
+          refuse(contribution.node, "CSHARP_SPREAD_LENGTH_NOT_KNOWN", "Native construction requires the finalized source length.");
       }
     }
     producer.literal(node, use.carrier, { kind, carrier, element, construction, omitted: Object.freeze(omitted),

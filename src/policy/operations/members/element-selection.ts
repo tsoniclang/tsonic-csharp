@@ -1,10 +1,7 @@
-import type { SourceFileSemantics } from "@tsonic/target-api/source";
+import type { SourceElementAccessRecord } from "@tsonic/target-api/source";
 import type { CsharpProviderTargetRelation } from "../../../target-model/identities/provider-relations.js";
 import type { CsharpTargetMember } from "../../types/index.js";
 
-type ResolvedSourceElementAccessInfo = NonNullable<
-  ReturnType<SourceFileSemantics["operations"]["elementAccess"]>
->;
 type CsharpProviderSignatureRelation = Extract<
   CsharpProviderTargetRelation,
   { readonly kind: "signature" }
@@ -12,7 +9,7 @@ type CsharpProviderSignatureRelation = Extract<
 
 export function providerReceiverMatchesElement(
   relation: CsharpProviderSignatureRelation,
-  _source: ResolvedSourceElementAccessInfo,
+  _source: SourceElementAccessRecord,
 ): boolean {
   switch (relation.receiver.kind) {
     case "instance":
@@ -28,7 +25,7 @@ export function providerReceiverMatchesElement(
 
 export function csharpProviderElementSupportsAccess(
   member: CsharpTargetMember,
-  accessMode: ResolvedSourceElementAccessInfo["accessMode"],
+  accessMode: SourceElementAccessRecord["access"],
 ): boolean {
   if (member.returnType === undefined) {
     return false;

@@ -16,6 +16,7 @@ import type {
   CsharpPlanningContext,
 } from "../context.js";
 import {
+  csharpSelectionReceiver,
   translateCsharpSelectedReceiver,
 } from "./receivers.js";
 import { applyCsharpConversionSelection, readCsharpExpressionOperandStability } from "./conversions.js";
@@ -53,11 +54,11 @@ export function translateCsharpPropertyAccess(
         planExpression,
       );
     case "source-owned": {
-      const receiver = translateCsharpSelectedReceiver(selection.source.receiver, sourceFile, input,
+      const receiver = translateCsharpSelectedReceiver(csharpSelectionReceiver(selection.source), sourceFile, input,
         diagnostics, planExpression, classification.receiverProjection);
       return receiver === undefined ? undefined : translateCsharpSourceOwnedMember(node,
         sourceFile, input, diagnostics, receiver, selection.source.optionalChain &&
-          input.scope.presentOptionalValues?.has(selection.source.receiver.expression) !== true);
+          input.scope.presentOptionalValues?.has(selection.source.receiver) !== true);
     }
   }
 }
@@ -74,7 +75,7 @@ function translateSelectedProperty(
   planExpression: ExpressionPlanner,
 ): CsharpPlannedValue | undefined {
   const member = selection.targetMember;
-  const conditional = selection.source.optionalChain && input.scope.presentOptionalValues?.has(selection.source.receiver.expression) !== true;
+  const conditional = selection.source.optionalChain && input.scope.presentOptionalValues?.has(selection.source.receiver) !== true;
   if (selection.invocation.kind === "receiver-call") {
     return planCsharpReceiverCallProperty(node, selection, sourceFile, input, diagnostics, planExpression);
   }
@@ -82,7 +83,7 @@ function translateSelectedProperty(
     const sourceName = input.program.records.sourceNameIndexer.get(node);
     if (sourceName === undefined) failCsharpPlannerInvariant("An admitted source-name indexer requires its exact authored key.", node);
     const receiver = translateCsharpSelectedReceiver(
-      selection.source.receiver,
+      csharpSelectionReceiver(selection.source),
       sourceFile,
       input,
       diagnostics,
@@ -115,7 +116,7 @@ function translateSelectedProperty(
     return planned === undefined ? undefined : { ...planned, address: { kind: "root" } };
   }
   const receiver = translateCsharpSelectedReceiver(
-        selection.source.receiver,
+        csharpSelectionReceiver(selection.source),
         sourceFile,
         input,
         diagnostics,

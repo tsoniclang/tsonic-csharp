@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createSourceStorageQuery } from "@tsonic/target-api/analysis";
 import { analyzeCsharpNativeParticipation } from "../../../../dist/analysis/callables/calls/participation.js";
 import { assertCsharpRequiredRecords } from "../../../../dist/analysis/program/records/objects/required-records.js";
 import { createCsharpProjectTypeCatalog } from "../../../../dist/analysis/project-types/catalog.js";
@@ -45,9 +44,7 @@ function sameType(left, right) {
 function classFactoryInputs(source, program) {
   const records = program.records;
   const catalog = createCsharpProjectTypeCatalog({
-    effectiveTypes: source.effectiveTypes,
-    enumConstants: source.semantics.enumConstants,
-    ast: source.ast, navigation: source.navigation, sourceFacts: source.sourceFacts, semanticsFor: source.semantics.forNode,
+    facts: source.facts, ast: source.syntax, sourceFacts: source.sourceFacts,
   }, { genericProjection: records.genericProjection, outerGenericProjection: records.outerGenericProjection });
   const names = Object.freeze({ temporaryName: preferred => preferred, resolve: program.names.resolve });
   return { catalog, names, local: catalog.definitions.filter(definition => definition.local).map(definition => definition.declaration) };
@@ -55,7 +52,7 @@ function classFactoryInputs(source, program) {
 
 for (const surface of ["native", "js"]) {
   const { compiled, request, source, program, nodes } = compileCsharpRequiredRecordSource(sourceText, surface);
-  const { ast } = source;
+  const ast = source.syntax;
   const records = program.records;
 
   test(`${surface}: the class-factory owner registers every local class definition before its factory`, () => {
@@ -88,11 +85,11 @@ for (const surface of ["native", "js"]) {
   });
 
   test(`${surface}: the participation owner registers each native participation decision`, () => {
-    const storage = createSourceStorageQuery(source, csharpProgramSourceFiles(program), undefined, createCsharpSourceProfileStorageEffects(source, request.providers));
+    const storage = source.facts.analyses.storage({ sourceFiles: csharpProgramSourceFiles(program), effects: createCsharpSourceProfileStorageEffects(source, request.providers) });
     assert.equal(storage.failureReason() === undefined, true, "bounded owned source domain");
     const rows = [];
     const admitted = analyzeCsharpNativeParticipation({
-      ast, storage, navigation: source.navigation,
+      ast, storage, facts: source.facts,
       captureClosure: records.captureClosure, callableCreation: records.callableCreation,
       objectShapes: program.objectShapes, compileTimeMetadata: records.compileTimeMetadata, requiredRecords: rows,
     });
@@ -113,8 +110,8 @@ for (const surface of ["native", "js"]) {
   test(`${surface}: the storage owner registers required storage only for adapted lambda parameters`, () => {
     const rows = [];
     const policy = Object.freeze({
-      ast, sourceFiles: csharpProgramSourceFiles(program), sourceFacts: source.sourceFacts, navigation: source.navigation,
-      typeDefinitions: program.typeDefinitions, semanticsFor: source.semantics.forNode,
+      ast, sourceFiles: csharpProgramSourceFiles(program), sourceFacts: source.sourceFacts, facts: source.facts,
+      typeDefinitions: program.typeDefinitions,
     });
     const expected = createExpectedNativeUseOwner(compiled).analysis;
     assert.equal(typeof expected.quotationBinding?.get === "function", true,

@@ -1,21 +1,20 @@
 import type { CsharpTargetReceiverRelation } from "../../identities/provider-relations.js";
 import type { CsharpTargetMember, TargetTypeRef } from "../../types/model.js";
 import type { CsharpSelectedTargetCall, CsharpTargetElementInvocation } from "../objects/members.js";
-import type { ResolvedSourceCallInfo } from "../calls/source-calls.js";
 import type { CsharpTargetPropertyInvocation } from "../program/source-profile-invocations.js";
 import type { CsharpUnionProperty } from "../objects/union-properties.js";
-import type { SourceFileSemantics } from "@tsonic/target-api/source";
+import type { SourceCallSelection, SourceElementAccessRecord, SourceMemberAccessSelection } from "@tsonic/target-api/source";
 import type { ExtensionDiagnostic } from "@tsonic/tsts";
 
 export type CsharpTargetCallSelection =
   | {
       readonly kind: "resolved";
-      readonly source: ResolvedSourceCallInfo;
+      readonly source: SourceCallSelection;
       readonly call: CsharpSelectedTargetCall;
     }
   | {
       readonly kind: "source-owned";
-      readonly source: ResolvedSourceCallInfo;
+      readonly source: SourceCallSelection;
       readonly reason: string;
     }
   | {
@@ -39,7 +38,7 @@ export type CsharpTargetCallSelection =
 export type CsharpTargetElementSelection =
   | {
       readonly kind: "resolved";
-      readonly source: ResolvedSourceElementAccessInfo;
+      readonly source: SourceElementAccessRecord;
       readonly targetMember: CsharpTargetMember;
       readonly targetParameterIndex: number;
       readonly receiver: CsharpTargetReceiverRelation;
@@ -53,14 +52,14 @@ export type CsharpTargetElementSelection =
     }
   | {
       readonly kind: "project-indexer";
-      readonly source: ResolvedSourceElementAccessInfo;
+      readonly source: SourceElementAccessRecord;
       readonly keyType: TargetTypeRef;
       readonly valueType: TargetTypeRef;
       readonly selectedReadType?: TargetTypeRef;
     }
   | {
       readonly kind: "source-owned";
-      readonly source: ResolvedSourceElementAccessInfo;
+      readonly source: SourceElementAccessRecord;
       readonly reason: string;
     }
   | {
@@ -85,7 +84,7 @@ export type CsharpTargetPropertySelection =
   | CsharpUnionProperty
   | {
       readonly kind: "resolved";
-      readonly source: ResolvedSourcePropertyAccessInfo;
+      readonly source: SourceMemberAccessSelection;
       readonly targetMember: CsharpTargetMember;
       readonly receiver: CsharpTargetReceiverRelation;
       readonly origin: "provider" | "source-profile";
@@ -93,7 +92,7 @@ export type CsharpTargetPropertySelection =
     }
   | {
       readonly kind: "source-owned";
-      readonly source: ResolvedSourcePropertyAccessInfo;
+      readonly source: SourceMemberAccessSelection;
       readonly reason: string;
     }
   | {
@@ -114,10 +113,3 @@ export type CsharpTargetPropertySelection =
       readonly diagnostic: ExtensionDiagnostic;
     };
 
-export type ResolvedSourceElementAccessInfo = NonNullable<
-  ReturnType<SourceFileSemantics["operations"]["elementAccess"]>
->;
-
-export type ResolvedSourcePropertyAccessInfo = NonNullable<
-  ReturnType<SourceFileSemantics["operations"]["propertyAccess"]>
->;

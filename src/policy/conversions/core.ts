@@ -10,6 +10,7 @@ import type { CsharpConversionMode, CsharpConversionSelection } from "../../targ
 import type { CsharpPolicyContext } from "../model/context.js";
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../types/index.js";
 import type { CsharpConversionShapeQueries } from "./shape-queries.js";
+import type { CsharpHostUnionUse } from "./union-relations.js";
 import { getCsharpMethodValue, csharpMethodValueContractsEqual } from "../../target-model/types/method-values.js";
 import { isCsharpRefLikeTargetType } from "../../target-model/types/ref-like.js";
 import { isCsharpJsValueTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
@@ -23,6 +24,8 @@ export function selectCsharpConversion(
   source: TargetTypeRef | undefined,
   target: TargetTypeRef | undefined,
   mode: CsharpConversionMode,
+  /** The Host union relation at the converted use (csharpHostUnionUse); required to inject a non-exact payload. */
+  hostUse?: CsharpHostUnionUse,
 ): CsharpConversionSelection {
   if (source === undefined || target === undefined) {
     return {
@@ -76,7 +79,7 @@ export function selectCsharpConversion(
   if (csharpObjectShapeImplicitlyAccepts(input, source, target, new Set())) {
     return { kind: "implicit", proof: "object-shape-interface" };
   }
-  const nullable = selectNullableConversion(input, source, target, mode);
+  const nullable = selectNullableConversion(input, source, target, mode, hostUse);
   if (nullable !== undefined) {
     return nullable;
   }
@@ -91,7 +94,7 @@ export function selectCsharpConversion(
       kind: "rejected", reason: "Generic method values cannot copy, erase or replace their original native environment.",
     };
   }
-  const runtimeUnion = selectRuntimeUnionConversion(input, source, target, mode);
+  const runtimeUnion = selectRuntimeUnionConversion(input, source, target, mode, hostUse);
   if (runtimeUnion !== undefined) {
     return runtimeUnion;
   }

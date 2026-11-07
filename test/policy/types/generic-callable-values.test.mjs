@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createCsharpTypeParameterEnvironment } from "../../../dist/analysis/source-evidence/types/resolution/type-parameter-environment.js";
+import { createCsharpTypeParameterEnvironment } from "../../../dist/representation/index.js";
 import { retainCsharpGenericCallableValue } from "../../../dist/analysis/callables/generics/generic-values.js";
 import { csharpDelegateTargetType, getCsharpCallableValueSignature, getCsharpDelegateSignature } from "../../../dist/target-model/types/carriers/delegates.js";
 import { csharpMethodValueType, getCsharpMethodValue } from "../../../dist/target-model/types/method-values.js";

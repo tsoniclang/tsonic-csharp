@@ -1,55 +1,16 @@
 import { readArchitectureTypeScript } from "../../../tsonic/test/architecture/tooling/typescript-source.mjs";
 
-const resolverOwners = /^src\/analysis\/source-evidence\/types\/resolution\/(?:semantic-types|scope|engine|model|query-cache)\.ts$/u;
-const shapeOwners = /^src\/analysis\/objects\/shapes\//u;
+// Nextgen C-2542 (I2, I4): no C# file owns a private checker-Type resolver or checker-structure shape reader any more
+// (the resolution engine and the checker shape files are deleted), so no path is exempt from these rules.
 const converters = new Map([["resolveType", 0], ["resolveTypeWithState", 0], ["bindCsharpSourceTypeArguments", 1],
   ["resolveSemanticTypeArguments", 1], ["deriveMembers", 0]]);
 const valueQueries = new Set(["expressionType", "declaredValueType", "typeOfSymbol", "declaredSymbolType", "writeSymbolType", "selectValueTypeRefinement"]);
 const valueFields = new Set(["sourceReadType", "sourceWriteType", "sourceElementType", "sourceResultType", "selectedSignature", "sourceSelectedMethodTypeArguments", "sourceSelectedSignatureParameters"]);
 const transparentKinds = new Set(["KindParenthesizedExpression", "KindAsExpression", "KindTypeAssertionExpression", "KindNonNullExpression", "KindSatisfiesExpression"]);
 
+// I2: zero checker-Type converter calls are allowed in tsonic-csharp/src. Every former row named a site of the deleted
+// resolution engine or a consumer that now reads SourceProgramFacts and represents descriptors (representation/, I6).
 export const declarationConverterAllowances = Object.freeze([
-  ["src/analysis/control-flow/resource-management.ts", "selectCsharpResourceManagement", "input.types.resolveType", "alternative.sourceType", "pinned disposal signature alternative"],
-  ["src/analysis/operations/collections/indexed-records.ts", "selectCsharpIndexedRecordProperty", "host.types.resolveType", "index.keyType", "declared string-index signature key contract"],
-  ["src/analysis/operations/constructs.ts", "analyzeCsharpOperationConstruct", "policy.types.resolveType", "type", "selected constructor signature instance metadata"],
-  ["src/analysis/operations/iteration/selection.ts", "selectCsharpIteration", "input.types.resolveType", "source.sourceElementType", "for-in property-key contract after for-of and for-await exits", "source.sourceElementType"],
-  ["src/analysis/operations/memory-bindings.ts", "selectCsharpMemoryBinding", "input.objectShapes.resolveType", "operation.sourceType", "explicitly authored record layout schema"],
-  ["src/analysis/operations/typed-locations.ts", "selectCsharpTypedLocationOperation", "input.types.resolveType", "source.sourcePointeeType", "declared pointee ABI rather than the location value"],
-  ["src/analysis/operations/source-references.ts", "analyzeCsharpSourceReferences", "input.evidence.semanticType.get", "sourceType", "intrinsic absence classification only", "sourceType"],
-  ["src/analysis/program/type-system.ts", "resolveType", "objectShapes.resolveTypeWithState", "type", "declared structural and alias conversion capability"],
-  ["src/analysis/program/records/program/source-profile-inputs.ts", "createCsharpSourceProfileInputs", "host.types.resolveType", "argument.typeParameter", "selected declaration binder metadata only"],
-  ["src/analysis/source-evidence/analyze.ts", "classifyType", "types.resolveType", "type", "intrinsic declared and contextual metadata classification", "type"],
-  ["src/analysis/source-evidence/analyze.ts", "visit", "types.resolveType", "staticType", "class declaration's static constructor-side identity", "staticType"],
-  ["src/analysis/source-evidence/analyze.ts", "visit", "types.resolveType", "source.semantics.forNode(node).declarations.declaredType(node)", "actual TypeParameter declaration and constraints"],
-  ["src/analysis/source-evidence/types/resolution/pointer-storage.ts", "resolveCsharpPointerStoragePointee", "scope.resolveTypeWithState", "storage.type", "retained pointer storage pointee schema"],
-  ["src/analysis/source-evidence/types/resolution/selected-values.ts", "resolveAuthoredAndSelectedSourceType", "resolveTypeWithState", "selectedType", "authored declared component and native union refinement"],
-  ["src/analysis/source-evidence/types/resolution/selected-values.ts", "resolveAuthoredAndSelectedSourceType", "resolveTypeWithState", "type", "selected nullish member of an authored declaration"],
-  ["src/analysis/source-evidence/types/resolution/public-api.ts", "resolveType", "resolveTypeWithState", "type", "public Type-only declaration entry implementation"],
-  ["src/analysis/source-evidence/types/resolution/constructors.ts", "resolveCsharpConstructorValueType", "scope.resolveTypeWithState", "result", "selected constructor signature's instance return component"],
-  ["src/analysis/source-evidence/types/resolution/calls.ts", "resolveSourceCallSelectedType", "scope.resolveTypeWithState", "declared", "generic declaration identity"],
-  ["src/analysis/source-evidence/types/resolution/generic-arguments.ts", "bindCsharpSourceTypeArguments", "scope.resolveTypeWithState", "binding.argumentType", "checked declaration application outside a published call instantiation"],
-  ["src/analysis/source-evidence/types/resolution/union-definitions.ts", "resolve", "resolveType", "binding.argument", "declared union alias application argument"],
-  ["src/analysis/source-evidence/types/resolution/union-definitions.ts", "resolve", "resolveType", "binding.parameter", "declared union alias binder"],
-  ["src/analysis/source-evidence/types/resolution/union-definitions.ts", "resolve", "resolveType", "declared", "declared union template definition"],
-  ["src/analysis/source-evidence/types/resolution/source-evidence.ts", "resolveCsharpUnionMemberCarrier", "scope.resolveTypeWithState", "selectedType", "retained authored union arm"],
-  ["src/analysis/source-evidence/types/resolution/conditional-types.ts", "resolveCsharpConditionalApplication", "scope.resolveTypeWithState", "sourceType", "checked conditional type application component"],
-  ["src/analysis/source-evidence/types/resolution/conditional-types.ts", "resolveCsharpSemanticConditionalType", "scope.resolveTypeWithState", "binding.argument", "conditional declaration type argument"],
-  ["src/analysis/source-evidence/types/resolution/nodes.ts", "resolveNodeResultWithState", "resolveTypeWithState", "queries.types.authoredType(node)", "authored array type syntax"],
-  ["src/analysis/source-evidence/types/resolution/nodes.ts", "resolveNodeResultWithState", "resolveTypeWithState", "selected", "authored any or unknown union syntax"],
-  ["src/analysis/source-evidence/types/resolution/nodes.ts", "resolveFallbackNodeCarrier", "resolveTypeWithState", "queries.types.expressionType(node)", "only reached after the original node's Host outcome was absent"],
-  ["src/analysis/source-evidence/types/resolution/project-types.ts", "resolveProjectSourceSemanticType", "resolveTypeWithState", "apparent", "same-symbol apparent declared class or interface"],
-  ["src/analysis/source-evidence/types/resolution/project-types.ts", "projectSourceDeclarationTargetType", "scope.resolveTypeWithState", "base.selectedType", "selected declared base ABI"],
-  ["src/analysis/source-evidence/types/resolution/project-types.ts", "projectSourceDeclarationTargetType", "scope.resolveTypeWithState", "source", "selected authored project declaration"],
-  ["src/analysis/source-evidence/types/resolution/source-references.ts", "resolveTypeReferenceNode", "resolveTypeWithState", "semanticType", "authored type-reference syntax"],
-  ["src/analysis/source-evidence/types/resolution/source-references.ts", "resolveCheckerTransformedSourceType", "resolveTypeWithState", "element.type", "checked tuple transformation element component"],
-  ["src/analysis/source-evidence/types/resolution/source-references.ts", "resolveCheckerTransformedSourceType", "host.structuralTypes.resolveType", "selectedType", "authored checker-transformed alias construction"],
-  ["src/analysis/source-evidence/types/resolution/source-references.ts", "resolveStandardSourceTypeTransformation", "host.structuralTypes.resolveType", "selectedType", "authored structural type transformation"],
-  ["src/analysis/source-evidence/types/resolution/calls.ts", "resolveSourceCallSelectedType", "bindCsharpSourceTypeArguments", "receiver.type", "pinned receiver generic declarations consume the same Host call instantiation", "receiver.type"],
-  ["src/analysis/source-evidence/types/resolution/calls.ts", "resolveSourceCallReceiverTargetType", "resolveTypeWithState", "source.sourceResultType", "selected constructor instance declaration only outside the same call's Host publication domain"],
-  ["src/analysis/source-evidence/types/resolution/source-profiles.ts", "resolveUnionType", "resolveTypeWithState", "member", "actual declared union member"],
-  ["src/analysis/source-evidence/types/resolution/source-profiles.ts", "resolveSourceTypeComponentEvidence", "resolveTypeWithState", "component.selectedType", "retained declared Source component without authored syntax"],
-  ["src/analysis/source-evidence/types/resolution/source-union-refinement.ts", "selectCsharpAuthoredUnionRefinement", "resolveType", "member", "actual authored union refinement arm"],
-  ["src/policy/conversions/union-relations.ts", "select", "input.resolveType", "type", "authored union arm-layout comparison"],
 ].map(([file, owner, callee, argument, basis, metadataLeaf]) => Object.freeze({ file, owner, callee, argument, basis, metadataLeaf })));
 
 const checkedSourceInputs = new Map();
@@ -391,7 +352,7 @@ export function effectiveTypeBoundaryFindings(sourceFiles, allowances = declarat
     const path = ast.getFileName(file).slice("/architecture/".length);
     const text = sourceFiles.get(path);
     if (text === undefined) continue;
-    const privateResolver = resolverOwners.test(path) || shapeOwners.test(path);
+    const privateResolver = false;
     const add = (node, rule) => findings.push({ file: path, line: text.slice(0, ast.pos(node)).split("\n").length, rule });
     const ownerName = node => {
       for (let current = ast.parent(node); current !== undefined; current = ast.parent(current)) {
@@ -417,9 +378,7 @@ export function effectiveTypeBoundaryFindings(sourceFiles, allowances = declarat
             row.callee === raw(callee) && row.argument === raw(argument));
           if (allowed !== undefined) usedAllowances.add(allowed);
           if (argument !== undefined && isValue(argument, allowed?.metadataLeaf)) add(node, "value-type-reaches-converter");
-          if (!resolverOwners.test(path) && !shapeOwners.test(path)) {
-            if (allowed === undefined) add(node, "unclassified-type-only-converter");
-          }
+          if (allowed === undefined) add(node, "unclassified-type-only-converter");
         }
         if (selectedName === "get" && (isTypeKeyedCarrierMap(property?.Expression) &&
             (!privateResolver || args.some(argument => isValue(argument))) ||

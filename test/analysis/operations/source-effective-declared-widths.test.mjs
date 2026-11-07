@@ -47,7 +47,7 @@ for (const width of widths) {
     for (const name of ["input", "mapped", "filtered"]) assertArrayOccurrences(compiled, name, width.source);
     for (const name of ["value", "accumulator", "reduced", "observed"]) assertPrimitiveOccurrences(compiled, name, width.source);
     const calls = projectNodes(compiled, (node, ast) => ast.is.IsCallExpression(node));
-    const generic = calls.map(node => compiled.targetSource.effectiveTypes.callInstantiation(node)).filter(value => value !== undefined);
+    const generic = calls.map(node => compiled.targetSource.facts.instantiations.at(node)).filter(value => value !== undefined);
     assert.equal(generic.length >= 4, true, "the actual selected generic calls publish their instantiations");
     for (const call of generic) {
       const identities = [...call.receiver, ...call.method].map(row => row.declaration);
@@ -84,7 +84,7 @@ test("js declared find retains one absence and publishes its exact narrowed read
   const text = acceptedEffectiveSource(compiled);
   assert.match(text, /int\? found/u);
   const occurrences = projectNodes(compiled, (node, ast) => ast.is.IsIdentifier(node) && ast.text(node) === "found");
-  const outcomes = occurrences.map(node => compiled.targetSource.effectiveTypes.get(node)).filter(value => value !== undefined);
+  const outcomes = occurrences.map(node => compiled.targetSource.facts.values.type(node)).filter(value => value !== undefined);
   assert.equal(outcomes.some(value => value.kind !== "refused" && value.type.kind === "optional" &&
     value.type.value.kind === "primitive" && value.type.value.primitive === "int32"), true, "declared find result retains optional(int32)");
   assert.equal(outcomes.some(value => value.kind !== "refused" && value.type.kind === "primitive" && value.type.primitive === "int32"), true,

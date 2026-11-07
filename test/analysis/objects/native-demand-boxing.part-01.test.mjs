@@ -29,7 +29,7 @@ test("general native value declarations publish JSON writers without tracing lat
   `, "js");
   let demanded = 0;
   let untouched = 0;
-  for (const node of nodes.filter(node => source.ast.is.IsObjectLiteralExpression(node))) {
+  for (const node of nodes.filter(node => source.syntax.is.IsObjectLiteralExpression(node))) {
     const use = program.records.nativeExpression.get(node)?.physical;
     assert.equal(use?.objectShape !== undefined, true, "every authored literal retains its actual native shape before boxing");
     const shape = use.objectShape;
@@ -89,7 +89,7 @@ test(`${surface}: broad literal destinations retain native payload fields before
   const integer = csharpSourcePrimitiveTargetType("int32");
   let payloads = 0;
   let dictionaries = 0;
-  for (const node of nodes.filter(node => source.ast.is.IsObjectLiteralExpression(node))) {
+  for (const node of nodes.filter(node => source.syntax.is.IsObjectLiteralExpression(node))) {
     const selected = program.records.nativeExpression.get(node);
     const physical = selected?.physical;
     assert.equal(physical !== undefined, true, "each actual literal has its admitted physical construction");

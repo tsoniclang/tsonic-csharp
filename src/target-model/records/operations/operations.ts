@@ -10,7 +10,7 @@ import type { CsharpNativeHandler } from "../native/native-handlers.js";
 import type { CsharpJsArrayMutationSelection } from "../storage/js-array-mutations.js";
 import type { CsharpResolvedResourceManagement } from "../storage/management.js";
 import type { CsharpTargetCallSelection, CsharpTargetElementSelection, CsharpTargetPropertySelection } from "./member-selections.js";
-import type { ResolvedSourceCallInfo } from "../calls/source-calls.js";
+import type { SourceArgumentCorrespondence, SourceCallSelection } from "@tsonic/target-api/source";
 import type { CsharpNativePointerOperationSelection } from "../native/native-pointers.js";
 import type { CsharpProjectConstructibleTypeProjection } from "../objects/object-shapes.js";
 import type { CsharpOperationSelection, CsharpResolvedBinaryOperation, CsharpResolvedDestructuringAssignmentOperation, CsharpResolvedUnaryOperation } from "./operator-selection.js";
@@ -37,14 +37,17 @@ export interface CsharpSourceCallArgumentClassification {
   readonly sourceArgumentGrouping?: CsharpSourceArgumentGrouping;
 }
 
+export type CsharpSourceArgumentForm = "value" | "spread-element" | "spread-sequence";
+
 export interface CsharpSourceArgumentGroupingEntry {
-  readonly binding: ResolvedSourceCallInfo["sourceArgumentBindings"][number];
+  readonly binding: SourceArgumentCorrespondence;
   readonly expression: Node;
   readonly sourceArgumentIndex: number;
   readonly effectiveArgumentIndex: number;
   readonly sourceParameterIndex: number;
   readonly parameterIndex: number;
-  readonly sourceForm: ResolvedSourceCallInfo["sourceArgumentBindings"][number]["sourceForm"];
+  /** C# lowering form of the argument: a plain value, one element of a spread array literal, or a spread sequence. */
+  readonly sourceForm: CsharpSourceArgumentForm;
   readonly type: TargetTypeRef;
   readonly parameter: import("../../types/model.js").CsharpTargetParameter;
 }
@@ -90,7 +93,7 @@ export interface CsharpCallClassification
     readonly conversion?: CsharpConversionSelection;
   };
   readonly unionCall: import("../calls/union-calls.js").CsharpUnionCallClassification;
-  readonly source?: ResolvedSourceCallInfo;
+  readonly source?: SourceCallSelection;
   readonly target?: CsharpTargetCallSelection;
   readonly selectedResultType?: TargetTypeRef;
   readonly sourceTypeArguments?: readonly TargetTypeRef[];

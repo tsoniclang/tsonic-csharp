@@ -18,12 +18,12 @@ for (const surface of [undefined, "js"]) {
     const program = analysis.value;
     let sequences = 0;
     const visit = node => {
-      if (source.ast.is.IsBinaryExpression(node) && source.ast.operatorKindName(node) === "KindCommaToken") {
+      if (source.syntax.is.IsBinaryExpression(node) && source.syntax.operatorKindName(node) === "KindCommaToken") {
         const selected = program.records.binaryOperation.get(node)?.target;
         assert.equal(selected?.kind, "resolved");
         assert.equal(selected.sourceOperator, ",");
         assert.equal(selected.targetOperation.kind, "sequence");
-        const binary = source.ast.as.AsBinaryExpression(node);
+        const binary = source.syntax.as.AsBinaryExpression(node);
         assert.equal(selected.left === binary.Left, true);
         assert.equal(selected.right === binary.Right, true);
         assert.equal(targetTypeRefEquals(selected.leftType, selected.leftInputType), true);
@@ -42,9 +42,9 @@ for (const surface of [undefined, "js"]) {
         }
         sequences++;
       }
-      source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+      source.syntax.forEachChild(node, child => { if (child !== undefined) visit(child); });
     };
-    for (const file of source.navigation.sourceFiles) visit(file);
+    for (const file of source.sourceFiles) visit(file);
     assert.equal(sequences, 9);
   });
 }

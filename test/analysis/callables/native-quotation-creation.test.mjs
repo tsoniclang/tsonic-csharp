@@ -36,11 +36,11 @@ function originalArrow(compiled) {
   assert.equal(source !== undefined, true, "completed analysis retains its original checked source");
   const arrows = [];
   const visit = node => {
-    if (source.ast.is.IsArrowFunction(node)) arrows.push(node);
-    source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    if (source.syntax.is.IsArrowFunction(node)) arrows.push(node);
+    source.syntax.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
-  for (const sourceFile of source.navigation.sourceFiles) {
-    if (source.ast.getFileName(sourceFile) === "/project/index.ts") visit(sourceFile);
+  for (const sourceFile of source.sourceFiles) {
+    if (source.syntax.getFileName(sourceFile) === "/project/index.ts") visit(sourceFile);
   }
   assert.equal(arrows.length, 1, "one original authored arrow, not a replayed body");
   return arrows[0];
@@ -105,7 +105,8 @@ for (const [name, body, parameters = ""] of [
     const compiled = compile(body, undefined, parameters);
     assert.equal(compiled.sourceDiagnosticsText === "" && compiled.extensionDiagnostics.length === 0, true,
       "negative reaches the native representation boundary with valid checked source");
-    assert.equal(compiled.result.diagnostics.some(diagnostic => diagnostic.code === "CSHARP_UNSUPPORTED_AST" &&
+    // nextgen C-2542: CSHARP_UNSUPPORTED_AST is split; the use admission owner names CSHARP_VALUE_USE_NOT_ADMITTED.
+    assert.equal(compiled.result.diagnostics.some(diagnostic => diagnostic.code === "CSHARP_VALUE_USE_NOT_ADMITTED" &&
       diagnostic.message.includes("No exact C# implicit conversion")), true,
     "an actual runtime delegate is not reinterpreted as its authored body");
     assert.equal(compiled.artifacts.size, 0, "refused runtime conversion publishes no partial artifact");
@@ -138,7 +139,8 @@ test("asynchronous alias bodies never become synchronous native quotations", () 
   ` });
   assert.equal(compiled.sourceDiagnosticsText === "" && compiled.extensionDiagnostics.length === 0, true,
     "source-checkable asynchronous void input reaches native admission");
-  assert.equal(compiled.result.diagnostics.some(diagnostic => diagnostic.code === "CSHARP_UNSUPPORTED_AST" &&
+  // nextgen C-2542: CSHARP_UNSUPPORTED_AST is split; the use admission owner names CSHARP_VALUE_USE_NOT_ADMITTED.
+  assert.equal(compiled.result.diagnostics.some(diagnostic => diagnostic.code === "CSHARP_VALUE_USE_NOT_ADMITTED" &&
     diagnostic.message.includes("No exact C# implicit conversion")), true,
   "an asynchronous runtime callable cannot acquire quotation by an alias");
   assert.equal(compiled.artifacts.size, 0, "asynchronous runtime quotation publishes no partial output");
@@ -149,13 +151,13 @@ for (const surface of [undefined, "js"]) {
     const compiled = compile("return ExpressionHost.Add((value: int32): int32 => value + ((input: int32): int32 => input + 2)(1), 4);", surface);
     assertCsharpCompilationSucceeded(compiled);
     const program = compiled.result.program;
-    const ast = program.source.ast;
+    const ast = program.source.syntax;
     const arrows = [];
     const visit = node => {
       if (ast.is.IsArrowFunction(node)) arrows.push(node);
       ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
     };
-    for (const file of program.source.navigation.sourceFiles) {
+    for (const file of program.source.sourceFiles) {
       if (ast.getFileName(file) === "/project/index.ts") visit(file);
     }
     assert.equal(arrows.length, 2, "one original quotation and one nested native delegate");

@@ -38,8 +38,8 @@ export interface CsharpBinaryOperands {
   readonly leftStorage: TargetTypeRef | undefined;
   readonly rightStorage: TargetTypeRef | undefined;
   readonly genericNumeric: Extract<CsharpTargetBinaryOperation, { readonly kind: "generic-numeric" }> | undefined;
-  /** The checked use of the right operand; read only for the sequence operator, the one operation it selects. */
-  readonly resultUse: ReturnType<CsharpPolicyContext["navigation"]["expressionResultUse"]> | undefined;
+  /** The Host result use of the right operand (facts.navigation.expressions.resultUse); read only for the sequence operator. */
+  readonly resultUse: "consumed" | "discarded" | undefined;
   readonly assignmentLocation: import("../../../target-model/operations/assignment-locations.js").CsharpAssignmentLocation;
 }
 
@@ -54,10 +54,10 @@ export function selectCsharpNativeBinaryOperation(
     left, right, leftType, rightType, leftInputType: leftType, rightInputType: rightType, resultType,
   };
   if (sourceOperator === ",") {
-    if (facts.resultUse === undefined) return rejectCsharpOperator("A C# sequence operation requires the checked use of its right operand.");
+    if (facts.resultUse === undefined) return rejectCsharpOperator("A C# sequence operation requires the checked use of its right operand.", "CSHARP_SEQUENCE_OPERAND_USE_NOT_PROVEN");
     const completion = selectCsharpExpressionConversion(input, right, rightType, resultType, "implicit");
     if (!csharpConversionIsApplicable(completion, "implicit")) return rejectCsharpOperator(
-      "A C# sequence result requires an exact implicit native completion for its right operand.");
+      "A C# sequence result requires an exact implicit native completion for its right operand.", "CSHARP_SEQUENCE_COMPLETION_NOT_CONVERTIBLE");
     return {
       kind: "resolved", sourceOperator, targetOperation: {
         kind: "sequence", resultUse: facts.resultUse,
@@ -67,15 +67,15 @@ export function selectCsharpNativeBinaryOperation(
   }
   if (sourceOperator === "&&" || sourceOperator === "||") {
     const boolean = csharpSourcePrimitiveTargetType("bool");
-    if (!targetTypeRefEquals(leftType, boolean)) return rejectCsharpOperator("C# conditional-value operators require an exact bool condition.");
+    if (!targetTypeRefEquals(leftType, boolean)) return rejectCsharpOperator("C# conditional-value operators require an exact bool condition.", "CSHARP_CONDITIONAL_VALUE_NOT_ADMITTED");
     const branch = csharpBooleanShortCircuitBranch(input.ast, left, sourceOperator);
     if (branch !== "left" && !csharpConversionIsApplicable(
       selectCsharpExpressionConversion(input, right, rightType, resultType, "implicit"), "implicit")) {
-      return rejectCsharpOperator("C# conditional-value selection requires exact admission of the selected right-hand completion.");
+      return rejectCsharpOperator("C# conditional-value selection requires exact admission of the selected right-hand completion.", "CSHARP_CONDITIONAL_VALUE_NOT_ADMITTED");
     }
     if (branch !== "right" && !csharpConversionIsApplicable(
       selectCsharpExpressionConversion(input, left, leftType, resultType, "implicit"), "implicit")) {
-      return rejectCsharpOperator("C# conditional-value selection requires exact admission of its short-circuit bool result.");
+      return rejectCsharpOperator("C# conditional-value selection requires exact admission of its short-circuit bool result.", "CSHARP_CONDITIONAL_VALUE_NOT_ADMITTED");
     }
     return { kind: "resolved", sourceOperator,
       targetOperation: { kind: "conditional-value", operator: sourceOperator, branch },
@@ -83,7 +83,7 @@ export function selectCsharpNativeBinaryOperation(
   }
   if ((sourceOperator === "??" || sourceOperator === "??=") && isCsharpJsValueTargetType(leftType)) {
     if (!csharpConversionIsApplicable(selectCsharpExpressionConversion(input, right, rightType, leftType, "implicit"), "implicit")) {
-      return rejectCsharpOperator("Closed-value coalescing requires an exact native right-hand admission.");
+      return rejectCsharpOperator("Closed-value coalescing requires an exact native right-hand admission.", "CSHARP_COALESCE_COMPLETION_NOT_ADMITTED");
     }
     return {
       kind: "resolved", sourceOperator,
@@ -103,8 +103,8 @@ export function selectCsharpNativeBinaryOperation(
     const rightNullable = getCsharpNullableElementTargetType(rightType);
     const leftArms = getCsharpRuntimeUnionArms(leftNullable ?? leftType, input.typeDefinitions) ?? (leftNullable === undefined ? [] : [leftNullable]);
     const rightArms = getCsharpRuntimeUnionArms(rightNullable ?? rightType, input.typeDefinitions) ?? (rightNullable === undefined ? [] : [rightNullable]);
-    const rightCandidates = leftArms?.filter(arm => csharpLiteralIsRepresentableAs(input.literalValues.literalValue.get(right), arm));
-    const leftCandidates = rightArms?.filter(arm => csharpLiteralIsRepresentableAs(input.literalValues.literalValue.get(left), arm));
+    const rightCandidates = leftArms?.filter(arm => csharpLiteralIsRepresentableAs(input.facts.values.literal(right), arm));
+    const leftCandidates = rightArms?.filter(arm => csharpLiteralIsRepresentableAs(input.facts.values.literal(left), arm));
     if (rightCandidates?.length === 1) rightType = rightCandidates[0]!;
     if (leftCandidates?.length === 1) leftType = leftCandidates[0]!;
   }
@@ -140,7 +140,7 @@ export function selectCsharpNativeBinaryOperation(
     (getCsharpRuntimeUnionArms(getCsharpNullableElementTargetType(leftType) ?? leftType, input.typeDefinitions) !== undefined ||
       getCsharpRuntimeUnionArms(getCsharpNullableElementTargetType(rightType) ?? rightType, input.typeDefinitions) !== undefined)) {
     const arms = selectCsharpUnionEquality(leftType, rightType, input, { left, right });
-    if (arms === undefined) return rejectCsharpOperator("Union equality requires exact native comparison evidence for every leaf pair.");
+    if (arms === undefined) return rejectCsharpOperator("Union equality requires exact native comparison evidence for every leaf pair.", "CSHARP_UNION_EQUALITY_NOT_PROVEN");
     return Object.freeze({ kind: "resolved", sourceOperator,
       targetOperation: Object.freeze({ kind: "union-equality", negated: sourceOperator === "!==", arms }),
       left, right, leftType, rightType, leftInputType: leftType, rightInputType: rightType, resultType,
@@ -164,7 +164,7 @@ export function selectCsharpNativeBinaryOperation(
     targetOperator === undefined
   ) {
     return rejectCsharpOperator(
-      `Source operator '${sourceOperator}' requires a dedicated C# translation policy.`,
+      `Source operator '${sourceOperator}' requires a dedicated C# translation policy.`, "CSHARP_OPERATOR_TRANSLATION_MISSING",
     );
   }
   const numericOperandsRequired = operatorRequiresNumericInputs(
@@ -174,7 +174,7 @@ export function selectCsharpNativeBinaryOperation(
   );
   if (numericOperandsRequired && numericOperands === undefined) {
     return rejectCsharpOperator(
-      `Source operator '${sourceOperator}' has no exact predefined C# numeric promotion for the selected operand types.`,
+      `Source operator '${sourceOperator}' has no exact predefined C# numeric promotion for the selected operand types.`, "CSHARP_OPERATOR_NUMERIC_PROMOTION_MISSING",
     );
   }
   if (sourceOperator === "??" || sourceOperator === "??=") {
@@ -182,7 +182,7 @@ export function selectCsharpNativeBinaryOperation(
     if (present === undefined || !csharpConversionIsApplicable(
       selectCsharpExpressionConversion(input, left, present, resultType, "implicit"), "implicit") ||
       !csharpConversionIsApplicable(selectCsharpExpressionConversion(input, right, rightType, resultType, "implicit"), "implicit")) {
-      return rejectCsharpOperator("Source nullish coalescing requires exact native completion into its published Host result.");
+      return rejectCsharpOperator("Source nullish coalescing requires exact native completion into its published Host result.", "CSHARP_COALESCE_COMPLETION_NOT_ADMITTED");
     }
   }
   const coalesceArms = sourceOperator === "??" ? getCsharpRuntimeUnionArms(leftType, input.typeDefinitions) : undefined;
@@ -221,7 +221,7 @@ export function selectCsharpNativeBinaryOperation(
         rightType,
         ...operationTypes,
       }
-    : rejectCsharpOperator(incompatibility);
+    : rejectCsharpOperator(incompatibility, "CSHARP_OPERATOR_OPERANDS_INCOMPATIBLE");
 }
 
 function selectBinaryOperationTypes(
@@ -446,10 +446,12 @@ export function targetBinaryOperator(
   }
 }
 
+/** A C# operator refusal: one CSHARP_ code per .NET reason (R5, I7). */
 export function rejectCsharpOperator(
   reason: string,
-): { readonly kind: "rejected"; readonly reason: string } {
-  return { kind: "rejected", reason };
+  code: `CSHARP_${string}`,
+): { readonly kind: "rejected"; readonly reason: string; readonly code: `CSHARP_${string}` } {
+  return { kind: "rejected", reason, code };
 }
 export function selectCsharpNativeUnaryOperation(
   input: CsharpPolicyContext,
@@ -475,7 +477,7 @@ export function selectCsharpNativeUnaryOperation(
         operandConversionMode: signedNegation ? "explicit" : "implicit",
         resultType,
       }
-    : rejectCsharpOperator(incompatibility);
+    : rejectCsharpOperator(incompatibility, "CSHARP_OPERATOR_OPERANDS_INCOMPATIBLE");
 }
 
 export function csharpBinaryOperationRequiresLocation(

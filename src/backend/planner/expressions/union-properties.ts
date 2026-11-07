@@ -12,7 +12,7 @@ type CsharpUnionProperty = Extract<CsharpPropertyClassification["selection"], { 
 
 export function planCsharpUnionProperty(node: Node, fact: CsharpUnionProperty, sourceFile: SourceFile,
   input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], planExpression: ExpressionPlanner): CsharpPlannedValue | undefined {
-  const receiver = planExpression(fact.source.receiver.expression, sourceFile, input, diagnostics)
+  const receiver = planExpression(fact.source.receiver, sourceFile, input, diagnostics)
     ?? failCsharpPlannerInvariant("An admitted union property requires its native receiver.", node);
   const projection = input.program.records.unionPropertyProjection.get(node);
   if (projection === undefined) failCsharpPlannerInvariant("An admitted union property requires its exact indexed native payloads.", node);

@@ -1,5 +1,6 @@
 import type { CsharpRegularExpressionLiteralSelection } from "../../../target-model/records/operations/regexp-literal.js";
-import type { AstRegularExpressionLiteralSyntax, Node, SourceFile } from "@tsonic/tsts";
+import type { AstRegularExpressionLiteralSyntax, Node } from "@tsonic/tsts";
+import { isCsharpRefusal } from "../../../representation/index.js";
 import type { CsharpTypeQueries } from "../../../policy/model/type-resolution.js";
 
 import { selectCsharpNativeRegularExpressionLiteral } from "../../../policy/operations/syntax/regexp-literal.js";
@@ -9,13 +10,14 @@ export interface CsharpRegularExpressionLiteralPolicyHost {
       node: Node | undefined,
     ) => AstRegularExpressionLiteralSyntax | undefined;
   };
-  readonly types: Pick<CsharpTypeQueries, "resolveNode">;
+  readonly types: Pick<CsharpTypeQueries, "value">;
 }
 
 export function selectCsharpRegularExpressionLiteral(
   host: CsharpRegularExpressionLiteralPolicyHost,
   node: Node,
-  sourceFile: SourceFile,
 ): CsharpRegularExpressionLiteralSelection {
-  return selectCsharpNativeRegularExpressionLiteral(host.ast.regularExpressionLiteral(node), host.types.resolveNode(node, sourceFile)?.sourceResult?.selectedType);
+  const carrier = host.types.value(node);
+  if (isCsharpRefusal(carrier)) return { kind: "rejected", code: carrier.code, message: carrier.message };
+  return selectCsharpNativeRegularExpressionLiteral(host.ast.regularExpressionLiteral(node), carrier);
 }

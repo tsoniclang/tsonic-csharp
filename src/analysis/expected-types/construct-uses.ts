@@ -1,5 +1,5 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
-import { HasSyntacticModifier, isSourceCallableBodyBoundary, ModifierFlagsAsync, sourceEnclosingCallable } from "@tsonic/target-api/source";
+import { HasSyntacticModifier, isSourceCallableBodyBoundary, ModifierFlagsAsync } from "@tsonic/target-api/source";
 import { csharpCallableValueType } from "../../policy/types/callables/value-type.js";
 import { csharpSourceArgumentExpectedType, csharpTargetParameterValueType, getCsharpGeneratorProtocol } from "../../policy/types/index.js";
 import { csharpSelectedTargetArgumentBindings, csharpSourceOwnedArgumentBindings, csharpProviderArgumentSourceCarrier } from "../../policy/operations/members/native-use-arguments.js";
@@ -8,7 +8,7 @@ import type { CsharpNativeUseSlot } from "../../target-model/records/native/nati
 import { csharpNativeUseSite } from "../../target-model/records/native/native-demand.js";
 import { getCsharpExpressionTreeDelegateType } from "../../target-model/types/carriers/delegates.js";
 import type { CsharpTargetCallSelection } from "../../target-model/records/operations/member-selections.js";
-import type { ResolvedSourceCallInfo } from "../../target-model/records/calls/source-calls.js";
+import type { SourceCallSelection } from "@tsonic/target-api/source";
 import type { CsharpSourceArgumentGrouping } from "../../target-model/records/operations/operations.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpExpectedUseCollection } from "./collection.js";
@@ -58,8 +58,7 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
 
   function recordOperationUses(node: Node, _sourceFile: SourceFile): boolean {
     if (!policy.ast.isConstAssertion(node) && (policy.ast.is.IsAsExpression(node) || policy.ast.is.IsTypeAssertion(node) ||
-      policy.ast.is.IsNonNullExpression(node)) &&
-      (policy.navigation.expressionResultUse(node) !== "discarded" || policy.effectiveTypes.get(node) !== undefined)) {
+      policy.ast.is.IsNonNullExpression(node))) {
       const operand = policy.ast.is.IsNonNullExpression(node) ? policy.ast.as.AsNonNullExpression(node)?.Expression
         : policy.ast.is.IsAsExpression(node) ? policy.ast.as.AsAsExpression(node)?.Expression : policy.ast.as.AsTypeAssertion(node)?.Expression;
       record(operand, evidence.nodeTargetType.get(node), "required",
@@ -89,10 +88,10 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
     // An instance member selected on a receiver whose member storage is a JS value (`options.cert.length` with cert
     // stored as TsValue on a provider options object) reads the receiver at the member's declaring type.
     const property = policy.ast.is.IsPropertyAccessExpression(node) ? operations.selectedProperty.get(node)?.selection : undefined;
-    const receiverStorage = property?.kind === "resolved" ? operations.sourceMember.get(property.source.receiver.expression)?.rawReadType : undefined;
+    const receiverStorage = property?.kind === "resolved" ? operations.sourceMember.get(property.source.receiver)?.rawReadType : undefined;
     if (property?.kind === "resolved" && property.receiver.kind === "instance" && property.targetMember.declaringType !== undefined &&
       !isCsharpJsValueTargetType(property.targetMember.declaringType) && isCsharpJsValueTargetType(receiverStorage)) {
-      record(property.source.receiver.expression, property.targetMember.declaringType, "required", at(node, { kind: "receiver" }));
+      record(property.source.receiver, property.targetMember.declaringType, "required", at(node, { kind: "receiver" }));
     }
     if (handler === undefined) {
       const call = operations.selectedCall.get(node);
@@ -146,14 +145,14 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
     if (iteration?.kind === "resolved") record(policy.ast.as.AsForInOrOfStatement(node)?.Expression, iteration.iterableType,
       "required", at(node, { kind: "operand", position: "only" }));
     const yielded = evidence.yield.get(node);
-    if (yielded?.operand !== undefined) record(yielded.operand.expression,
-      yielded.yieldKind === "delegate" ? evidence.yieldTargetType.get(node)
-        : getCsharpGeneratorProtocol(evidence.generatorTargetType.get(yielded.generator.declaration))?.yieldType,
+    if (yielded?.operand !== undefined) record(yielded.operand,
+      yielded.kind === "delegate" ? evidence.yieldTargetType.get(node)
+        : getCsharpGeneratorProtocol(evidence.generatorTargetType.get(yielded.generator))?.yieldType,
       "required", at(node, { kind: "operand", position: "only" }));
     return true;
   }
 
-  function recordSourceArguments(owner: Node, source: ResolvedSourceCallInfo,
+  function recordSourceArguments(owner: Node, source: SourceCallSelection,
     parameterTypes: readonly (TargetTypeRef | undefined)[] | undefined, grouping: CsharpSourceArgumentGrouping | undefined): void {
     const projected = csharpSourceOwnedArgumentBindings(grouping);
     if (grouping?.kind === "grouped" && projected.kind === "bound") {
@@ -164,9 +163,11 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
     }
     const withheld: CsharpExpectedUseWithholding = projected.kind === "refused" ? "argument-refused"
       : projected.kind === "inconsistent" ? "argument-inconsistent" : "argument-unresolved";
-    for (const [index, binding] of source.sourceArgumentBindings.entries()) record(source.sourceArguments[binding.sourceArgumentIndex]?.expression,
-      parameterTypes?.[index], "required", { owner, slot: { kind: "argument", sourceIndex: binding.sourceArgumentIndex,
-        effectiveIndex: binding.effectiveArgumentIndex, sourceParameterIndex: binding.sourceParameterIndex }, withheld });
+    // Argument correspondences in published order; the correspondence position is the effective argument index.
+    const authored = policy.ast.arguments(source.use);
+    for (const [index, binding] of source.arguments.entries()) record(binding.argument,
+      parameterTypes?.[index], "required", { owner, slot: { kind: "argument", sourceIndex: authored.indexOf(binding.argument),
+        effectiveIndex: index, sourceParameterIndex: binding.parameterIndex }, withheld });
   }
 
   function recordSelectedCall(owner: Node, selection: Extract<CsharpTargetCallSelection, { readonly kind: "resolved" }>,
@@ -176,7 +177,7 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
       const parameter = call.targetMember.parameters[call.receiver.targetParameterIndex];
       // An optional-chain receiver is read at its nullable storage: the chain passes the presence-narrowed value, whose
       // conversion to the parameter is the optional receiver's own sealed conversion.
-      record(selection.source.sourceReceiver?.expression, chainReceiverStorage ??
+      record(selection.source.receiver, chainReceiverStorage ??
         (parameter === undefined ? undefined : csharpTargetParameterValueType(parameter, "value")),
         "required", at(owner, { kind: "receiver" }));
     }
@@ -201,7 +202,7 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
       const sequence = sequences.get(argument.sourceArgumentIndex);
       if (sequence !== undefined && recordedSequences.has(argument.sourceArgumentIndex)) continue;
       if (sequence !== undefined) recordedSequences.add(argument.sourceArgumentIndex);
-      const expression = sequence?.expression ?? selection.source.sourceArguments[argument.sourceArgumentIndex]?.expression;
+      const expression = sequence?.expression ?? policy.ast.arguments(selection.source.use)[argument.sourceArgumentIndex];
       const mapping = mappings?.get(argument.effectiveArgumentIndex);
       // A property-projected argument (Intl options) is read at its own value: the call projects its selected properties
       // into the TsValue parameter, so the argument itself is not boxed.
@@ -221,7 +222,7 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
   }
 
   function recordQuotationInitializer(expression: Node, target: TargetTypeRef, demand: CsharpExpectedUseSiteDemand): void {
-    const scope = sourceEnclosingCallable(demand.owner, policy.ast);
+    const scope = policy.facts.navigation.scopes.enclosing(demand.owner, "callable-body");
     if (scope === undefined) return;
     const first = quotationInitializer(expression, scope);
     if (first === undefined) return;
@@ -236,11 +237,11 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
   function quotationInitializer(expression: Node, scope: Node):
     { readonly declaration: Node; readonly initializer: Node; readonly value: Node } | undefined {
     if (!policy.ast.is.IsIdentifier(expression)) return undefined;
-    const reference = policy.navigation.sourceReferenceFor(expression);
+    const reference = policy.facts.navigation.identity.target(expression);
     const declaration = reference?.declaration;
     if (reference?.project !== true || declaration === undefined || !policy.ast.is.IsVariableDeclaration(declaration) ||
       policy.ast.variableDeclarationKind(declaration) !== "const" || policy.ast.typeNode(declaration) !== undefined ||
-      !policy.ast.is.IsIdentifier(policy.ast.name(declaration)) || sourceEnclosingCallable(declaration, policy.ast) !== scope ||
+      !policy.ast.is.IsIdentifier(policy.ast.name(declaration)) || policy.facts.navigation.scopes.enclosing(declaration, "callable-body") !== scope ||
       policy.ast.getSourceFile(declaration) !== policy.ast.getSourceFile(expression)) return undefined;
     const initializer = policy.ast.as.AsVariableDeclaration(declaration)?.Initializer;
     if (initializer === undefined) return undefined;

@@ -13,12 +13,13 @@ function fixture() {
     { reference: call, kind: "direct-call", role: "call-target" },
     { reference: value, kind: "first-class", role: "comparison" },
   ];
-  const source = { ast: { is: { IsFunctionExpression: node => node === declaration },
+  // nextgen C-2542: TargetSourceProgramFacts double: syntax reader plus facts.navigation.uses.uses (was declarationUses).
+  const source = { syntax: { is: { IsFunctionExpression: node => node === declaration },
     name: node => node === declaration ? name : undefined },
-    navigation: { declarationUses: node => {
+    facts: { navigation: { uses: { uses: node => {
       assert.equal(node === declaration, true, "exact named function declaration");
       return uses;
-    } } };
+    } } } } };
   const evidence = { compileTimeMetadata: { get: () => false } };
   return { declaration, call, value, otherDeclaration, lexical, uses, source, evidence };
 }
@@ -45,7 +46,7 @@ test("arrow, anonymous and unused named functions require no fixed-self owner", 
   const input = fixture();
   const issues = [];
   assert.equal(selectCsharpNamedSelfBinding(input.source, input.otherDeclaration, input.lexical, input.evidence, issues) === undefined, true);
-  const anonymous = { ...input.source, ast: { ...input.source.ast, name: () => undefined } };
+  const anonymous = { ...input.source, syntax: { ...input.source.syntax, name: () => undefined } };
   assert.equal(selectCsharpNamedSelfBinding(anonymous, input.declaration, input.lexical, input.evidence, issues) === undefined, true);
   assert.equal(selectCsharpNamedSelfBinding(input.source, input.declaration, { ...input.lexical, selfReferences: [] }, input.evidence, issues) === undefined, true);
   assert.equal(issues.length, 0);

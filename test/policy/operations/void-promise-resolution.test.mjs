@@ -17,27 +17,27 @@ const cases = [
 for (const [name, argument, payload, nativeForm] of cases) {
   test(`JS Promise.resolve retains ${name} and its exact source argument`, () => {
     const expression = {};
-    const checkedArgument = {};
-    const checkedResult = {};
-    const explicitTypeNode = {};
-    const selectedType = {};
+    const publishedArgument = { kind: "declared", declaration: {}, typeArguments: [] };
+    const publishedResult = { kind: "declared", declaration: {}, typeArguments: [] };
+    const binder = {};
+    const selectedType = { kind: "declared", declaration: {}, typeArguments: [] };
     const call = {};
-    const selectedArgument = { explicitTypeNode, selectedType };
+    const selectedArgument = { binder, type: selectedType, explicit: true };
     const result = csharpTaskTargetType(payload);
     const selected = csharpJsPromiseCallPolicies.find(policy => policy.source.declaringName === "PromiseConstructor" &&
       policy.source.name === "resolve").select({
       source: {
-        call, sourceResultType: checkedResult, sourceSelectedSignatureKind: "resolved",
-        sourceSelectedSignatureParameters: [{}],
-        sourceSelectedMethodTypeArguments: [selectedArgument],
-        sourceArguments: [{ expression, type: checkedArgument }],
-        sourceArgumentBindings: [{ sourceArgumentIndex: 0, effectiveArgumentIndex: 0,
-          sourceParameterIndex: 0, sourceForm: "value" }],
+        call, selection: { use: call, result: publishedResult },
+        parameters: [{ name: "value", kind: "required", type: publishedArgument }],
+        typeArguments: [selectedArgument],
+        arguments: [{ expression, type: publishedArgument }],
+        bindings: [{ argument: expression, argumentIndex: 0, effectiveIndex: 0,
+          parameterIndex: 0, mode: "positional", form: "value" }],
       },
       inputs: { values: new Map([[expression, argument]]),
         results: new Map([[call, result]]), typeArgument: { get: selected => {
-          assert.equal(selected === selectedArgument && selected.explicitTypeNode === explicitTypeNode && selected.selectedType === selectedType, true,
-            "only the actual selected explicit type's retained Source record is queried");
+          assert.equal(selected === selectedArgument && selected.binder === binder && selected.type === selectedType, true,
+            "only the Host instantiation's explicit binder record is queried");
           return payload;
         } } },
     });

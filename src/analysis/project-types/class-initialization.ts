@@ -1,8 +1,7 @@
 import { selectCsharpFieldInitialization } from "../../policy/types/project/field-initialization.js";
 import type { CsharpClassInitializationIndex, CsharpClassFieldInitialization } from "../../target-model/records/objects/class-initialization.js";
 import type { AstReader, Node } from "@tsonic/tsts";
-import type { TargetSourceProgram } from "@tsonic/target-api/source";
-import { sourceExpressionUsesLexicalThis } from "@tsonic/target-api/source";
+import type { TargetSourceProgramFacts } from "@tsonic/target-api/source";
 import type { CsharpClassFactoryIndex } from "../../target-model/records/objects/class-factories.js";
 import type { CsharpStorageClassifications } from "../../target-model/records/storage/storage.js";
 
@@ -24,13 +23,13 @@ export function analyzeCsharpClassFieldInitialization(input: {
 }
 
 export function analyzeCsharpClassInitialization(
-  source: TargetSourceProgram,
+  source: TargetSourceProgramFacts,
   factories: CsharpClassFactoryIndex,
 ): CsharpClassInitializationIndex {
   const constructors = new WeakSet<Node>();
   const fields = new WeakSet<Node>();
   const regions = new WeakMap<Node, { readonly instance: readonly Node[]; readonly static: readonly Node[] }>();
-  const ast = source.ast;
+  const ast = source.syntax;
   const visit = (node: Node): void => {
     if (ast.is.IsClassDeclaration(node) || ast.is.IsClassExpression(node)) {
       const properties = ast.members(node).filter((member): member is Node => member !== undefined && ast.is.IsPropertyDeclaration(member));
@@ -45,7 +44,7 @@ export function analyzeCsharpClassInitialization(
           parameter !== undefined && ast.as.AsParameterDeclaration(parameter)?.Initializer !== undefined));
       if (factory || initializesParameters || ast.extendsHeritageElements(node).length !== 0 || instance.some(member => {
         const initializer = ast.as.AsPropertyDeclaration(member)?.Initializer;
-        return initializer !== undefined && sourceExpressionUsesLexicalThis(ast, initializer);
+        return initializer !== undefined && source.facts.navigation.scopes.usesLexicalThis(initializer);
       })) {
         constructors.add(node);
         for (const member of instance) fields.add(member);
@@ -54,7 +53,7 @@ export function analyzeCsharpClassInitialization(
     }
     ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
-  source.navigation.sourceFiles.forEach(visit);
+  source.sourceFiles.forEach(sourceFile => visit(sourceFile as unknown as Node));
   return Object.freeze({ requiresClassConstructor: Object.freeze({ get: (declaration: Node) => constructors.has(declaration) }),
     relocatedClassField: Object.freeze({ get: (declaration: Node) => fields.has(declaration) }),
     classInitializationRegion: Object.freeze({ get: (declaration: Node, isStatic: boolean) => isStatic

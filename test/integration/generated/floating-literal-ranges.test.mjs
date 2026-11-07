@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 
@@ -217,7 +216,8 @@ System.Console.WriteLine("negative float16 values: correct");
     const outcomes = refused.map(([label, type, text]) => {
       const sourceText = `${header}export function f(): ${type} {\n  const y: ${type} = ${text};\n  return y;\n}\n`;
       const compiled = compileCsharpSource({ surface, sourceText });
-      const ast = createTargetSourceProgram(compiled.source).ast;
+      // nextgen C-2542: a syntax-only read uses the checked program's reader; no facts program is built for it.
+      const ast = compiled.source.ast;
       return {
         label,
         sourceDiagnostics: compiled.sourceDiagnosticsText,
@@ -238,7 +238,9 @@ System.Console.WriteLine("negative float16 values: correct");
         label,
         sourceDiagnostics: "",
         diagnostics: [{
-          code: "CSHARP_UNSUPPORTED_AST",
+          // nextgen C-2542: CSHARP_UNSUPPORTED_AST split (I7); analysis/operations/literals.ts names this site
+          // CSHARP_LITERAL_NOT_REPRESENTABLE; message, source and site unchanged.
+          code: "CSHARP_LITERAL_NOT_REPRESENTABLE",
           category: "error",
           message: `Source numeric literal is outside the '${type}' range.`,
           source: "tsonic-csharp",

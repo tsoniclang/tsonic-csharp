@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { compileCsharpSource } from "../../../helpers/direct-csharp-session.mjs";
 import { createCsharpPlanningContext } from "../../../../dist/backend/planner/context.js";
+import { sealCsharpAnalysisProgram } from "../../../../dist/analysis/program/index.js";
 import { planExpression } from "../../../../dist/backend/planner/expressions/index.js";
 import { planCsharpMemoryBinding } from "../../../../dist/backend/planner/expressions/memory-bindings.js";
 import { csharpProgramSourceFiles } from "../../../helpers/program-source-files.mjs";
@@ -16,7 +17,8 @@ test("the C# root reads its selected descriptor once and never queries a losing 
   `, targetOptions: { languageDialect: "csharp15-preview" } });
   assert.equal(compiled.result.diagnostics.length === 0, true,
     `checked native-handler source; codes: ${compiled.result.diagnostics.map(({ code }) => code).join(", ")}`);
-  const program = compiled.result.program;
+  // The planner reads the sealed program (records and syntax only), as in production (nextgen C-2542).
+  const program = compiled.result.program === undefined ? undefined : sealCsharpAnalysisProgram(compiled.result.program);
   const { ast } = program.source;
   let call;
   const visit = node => {

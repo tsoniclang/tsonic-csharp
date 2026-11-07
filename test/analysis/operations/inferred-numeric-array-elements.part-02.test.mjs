@@ -8,7 +8,6 @@ import { isCsharpStringTargetType, isCsharpJsStringTargetType } from "../../../d
 import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 import { checkCsharpSource } from "../../helpers/direct-csharp-session.mjs";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { analyzeCsharpDeclarations } from "../../../dist/analysis/declarations/analyze.js";
 import { csharpRuntimeUnionTargetType, csharpTargetNamedType, csharpStringTargetType } from "../../../dist/target-model/types/index.js";
 import { csharpJsArrayTargetType } from "../../../dist/target-model/types/carriers/js.js";
@@ -24,7 +23,7 @@ for (const surface of ["native", "js"]) {
   ]) {
     test(`${surface} declared ${name} union admits the entire authored unary literal`, () => {
       const program = accepted(compile(surface, `export function run(): (${element})[] { return [${token}]; }`));
-      const ast = program.source.ast;
+      const ast = program.source.syntax;
       const literals = [];
       const visit = node => {
         if (ast.is.IsPrefixUnaryExpression(node)) literals.push(node);
@@ -33,7 +32,7 @@ for (const surface of ["native", "js"]) {
       for (const file of csharpProgramSourceFiles(program)) visit(file);
       assert.equal(literals.length, 1, "one original authored signed token is retained");
       const node = literals[0];
-      const source = program.source.effectiveTypes.get(node);
+      const source = program.source.facts.values.type(node);
       assert.equal(source?.kind !== "refused" && source?.type.kind === "union" && source.type.types.length === 2, true,
         "the Host keeps the complete declared union, not a target-selected scalar arm");
       const selected = program.records.unaryOperation.get(node)?.target;
@@ -92,10 +91,10 @@ test(physicalKey, () => {
     if (c19PhysicalDestinationKeys.has(physicalKey)) {
       const compiled = compile(surface, source);
       assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
-      const ast = compiled.nativeStage.source.ast;
+      const ast = compiled.nativeStage.source.syntax;
       const issues = compiled.result.diagnostics;
       assert.equal(issues.length === 2 && issues.every(issue => {
-        const matching = compiled.nativeStage.source.effectiveTypes.refusals().filter(refusal =>
+        const matching = compiled.nativeStage.source.facts.refusals().filter(refusal =>
           refusal.code === "TSONIC_LOCAL_TYPE_MIXED_ELEMENTS" && refusal.site === issue.sourceNode);
         const range = issue.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
         const text = range?.kind !== "authored" ? undefined

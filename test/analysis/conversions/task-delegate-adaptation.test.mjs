@@ -22,8 +22,8 @@ function sourceArrow(compiled) {
   const { program } = compiled.result;
   const arrows = [];
   const visit = node => {
-    if (program.source.ast.is.IsArrowFunction(node)) arrows.push(node);
-    program.source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    if (program.source.syntax.is.IsArrowFunction(node)) arrows.push(node);
+    program.source.syntax.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
   visit(compiled.source.getSourceFile("/project/index.ts"));
   assert.equal(arrows.length, 1, "the actual Source program has one async implementation");
@@ -35,7 +35,7 @@ for (const surface of ["native", "js"]) {
     const compiled = compileCsharpSource({ surface, sourceText: originalProgram });
     assertCsharpCompilationSucceeded(compiled);
     const { program, arrow } = sourceArrow(compiled);
-    const published = program.source.effectiveTypes.callableReturn(arrow);
+    const published = program.source.facts.values.callableReturn(arrow);
     assert.equal(published?.kind === "resolved" && published.type.kind === "declared" &&
       published.type.typeArguments.length === 1 && published.type.typeArguments[0].kind === "primitive" &&
       published.type.typeArguments[0].primitive === "int64", true,

@@ -17,16 +17,10 @@ export function createCsharpProjectTypeCatalog(
   const byDeclaration = new WeakMap<Node, CsharpProjectTypeDefinition>();
   const byId = new Map<string, CsharpProjectTypeDefinition>();
 
-  for (const sourceFile of host.navigation.sourceFiles) {
+  for (const sourceFile of host.sourceFiles) {
     visitSourceTree(host.ast, sourceFile, (declaration) => {
       const selected = projectTypeDefinition(host, declaration);
       if (selected.kind === "not-project-type") return;
-      if (selected.kind === "rejected") {
-        issues.push(Object.freeze({ node: selected.selection.member,
-          code: selected.selection.failure === "resource" ? "CSHARP_ENUM_CONSTANT_RESOURCE_LIMIT" : "CSHARP_ENUM_CONSTANT_NOT_SUPPORTED",
-          message: selected.selection.reason }));
-        return;
-      }
       const sourceDefinition = selected.definition;
       const selectedProjections = projections?.genericProjection.get(declaration) ?? [];
       const outerProjections = projections?.outerGenericProjection.get(declaration) ?? [];

@@ -22,9 +22,9 @@ export function analyzeCsharpCallAdmission(ast: AstReader, nodes: readonly Node[
     const { target: _target, ...common } = classification;
     const form = classification.form;
     if (form.kind === "type-test") {
-      const argument = classification.source?.sourceArguments[0];
-      const carrier = argument === undefined ? undefined : reads.valueRead.get(argument.expression)?.value;
-      if (classification.source?.sourceArguments.length !== 1 || argument === undefined || carrier === undefined ||
+      const argument = classification.source?.arguments[0];
+      const carrier = argument === undefined ? undefined : reads.valueRead.get(argument.argument)?.value;
+      if (classification.source?.arguments.length !== 1 || argument === undefined || carrier === undefined ||
         !targetTypeRefEquals(carrier, form.typeTest.sourceCarrier) || !selectCsharpTypeEmission({ carrier: form.typeTest.sourceCarrier })) {
         refuse(node, "CSHARP_CLOSED_TYPE_TEST_INVALID", "Array predicate requires its exact sealed native argument and payload test.");
         continue;
@@ -35,7 +35,7 @@ export function analyzeCsharpCallAdmission(ast: AstReader, nodes: readonly Node[
     if (form.kind === "keep-alive") { values.set(node, { ...common, form }); continue; }
     if (form.kind === "source-flow-rejected") { refuse(node, form.sourceFlow.code, form.sourceFlow.reason); continue; }
     if (form.kind === "js-value") {
-      if (form.operation.kind === "rejected") { refuse(node, "CSHARP_UNSUPPORTED_AST", form.operation.reason); continue; }
+      if (form.operation.kind === "rejected") { refuse(node, "CSHARP_CALL_OPERATION_NOT_REPRESENTABLE", form.operation.reason); continue; }
       values.set(node, { ...common, form: Object.freeze({ ...form, operation: form.operation }) });
       continue;
     }

@@ -1,6 +1,6 @@
 import type { Node } from "@tsonic/tsts";
 import type { CsharpSelectedTargetCall } from "../objects/members.js";
-import type { ResolvedSourceCallInfo } from "./source-calls.js";
+import type { SourceCallSelection } from "@tsonic/target-api/source";
 import type { CsharpObjectShapeProjectionDeclaration } from "../objects/object-shape-demand.js";
 import type { CsharpTargetInvocation, TargetTypeRef } from "../../types/model.js";
 import type { CsharpSourceOperator } from "../../syntax/operators.js";
@@ -26,7 +26,7 @@ export type CsharpTargetInvocationEmission =
   | { readonly kind: "method"; readonly owner: TargetTypeRef | undefined; readonly name: string };
 
 export interface CsharpTargetCallEmission {
-  readonly source: ResolvedSourceCallInfo;
+  readonly source: SourceCallSelection;
   readonly selection: CsharpSelectedTargetCall;
   readonly result: TargetTypeRef;
   readonly instance: boolean;

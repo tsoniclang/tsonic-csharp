@@ -1,15 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createCompilerSessionFromFiles, formatDiagnostics } from "@tsonic/tsts";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
-import { publishedCsharpClassBindings } from "../../../dist/analysis/source-evidence/types/resolution/published-class-bindings.js";
+import { publishedCsharpClassBindings } from "../../../dist/analysis/declarations/published-class-bindings.js";
+import { hostProgram } from "../../representation/host-fixture.mjs";
 import { projectTypeDefinition } from "../../../dist/analysis/project-types/type-policy.js";
 import { analyzeCsharpTypeProjections } from "../../../dist/analysis/declarations/type-projections.js";
 import { csharpSourceTypeParameter } from "../../../dist/source/extension/type-parameters.js";
 import { csharpProjectedType } from "../../../dist/target-model/types/projections.js";
 
+// The class binder vector is the Host publication of the class (facts.values.type: own binders, then the enclosing
+// binders it closes over). C# reads it; it never asks a checker for type-argument bindings (I2, nextgen C-2542).
 function fixture() {
-  const checked = createCompilerSessionFromFiles({ currentDirectory: "/project", files: { "/project/index.ts": `
+  const program = hostProgram(`
     export function outer<First, Second>() {
       class Unused<Left, Right> {}
       function nested<Third>() {
@@ -26,44 +27,47 @@ function fixture() {
       }
       return inner;
     }
-  ` }, compilerOptions: { strict: true, target: "es2022", module: "esnext" } }).checkSource();
-  assert.equal(checked.diagnostics.length, 0, formatDiagnostics(checked.diagnostics));
-  const source = createTargetSourceProgram(checked);
-  const classes = source.navigation.nodes.filter(node => source.navigation.isProjectDeclaration(node) &&
-    (source.ast.is.IsClassDeclaration(node) || source.ast.is.IsClassExpression(node)));
+  `);
+  const source = { ast: program.ast, facts: program.facts, sourceFiles: program.files, syntax: program.ast,
+    sourceFacts: program.host.sourceFacts };
+  const classes = program.nodes.filter(node => program.ast.is.IsClassDeclaration(node) || program.ast.is.IsClassExpression(node));
   assert.equal(classes.length, 4);
-  return { checked, source, classes };
+  return { program, source, classes };
 }
 
-const unexpected = () => assert.fail("published class binders must not reopen checked Types");
+/** Type parameters of the lexically enclosing declarations, innermost first. */
+function enclosingBinders(ast, declaration) {
+  const binders = [];
+  for (let owner = ast.parent(declaration); owner !== undefined; owner = ast.parent(owner)) binders.push(...ast.typeParameters(owner));
+  return binders;
+}
 
 test("published class binder vectors preserve original outer, unused, anonymous and shadowed identities", () => {
-  const { source, classes } = fixture();
+  const { program, source, classes } = fixture();
   for (const declaration of classes) {
-    const queries = source.semantics.forNode(declaration);
-    const checked = queries.declarations.declaredType(declaration);
-    const expected = queries.types.typeArgumentBindings(checked);
-    assert.equal(expected !== undefined, true, "the original checked binder vector exists");
     const selected = publishedCsharpClassBindings(declaration, source);
-    assert.equal(selected !== undefined && selected.parameters.length === expected.length, true,
-      "the complete published vector is retained, not inferred from used fields");
-    assert.equal(selected.parameters.every((parameter, index) => parameter === expected[index].declaration), true,
-      "the original order and exact parameter Nodes are preserved");
-    const outer = expected.filter(binding => binding.scope === "outer");
-    const own = expected.filter(binding => binding.scope === "local");
-    assert.equal(selected.outer.length === outer.length && selected.outer.every((node, index) => node === outer[index].declaration), true,
-      "only published outer entries are retained");
-    assert.equal(selected.own.length === own.length && selected.own.every((node, index) => node === own[index].declaration), true,
-      "the exact own subset stays complete");
+    assert.equal(selected !== undefined, true, "every real class has its published binder vector");
+    const own = source.ast.typeParameters(declaration);
+    assert.equal(selected.own.length === own.length && selected.own.every((node, index) => node === own[index]), true,
+      "the exact own binders are retained in authored order, used or not");
+    const enclosing = enclosingBinders(source.ast, declaration);
+    assert.equal(selected.outer.every(node => enclosing.includes(node)), true,
+      "outer entries are binders of lexically enclosing declarations only");
+    assert.equal(selected.parameters.length === selected.outer.length + selected.own.length &&
+      selected.parameters.every((node, index) => node === [...selected.outer, ...selected.own][index]), true,
+    "the published vector is outer binders followed by own binders");
     assert.equal(Object.isFrozen(selected) && Object.isFrozen(selected.parameters) && Object.isFrozen(selected.outer) &&
       Object.isFrozen(selected.own), true, "only evidence shells are frozen");
   }
+  const shadowed = classes[3];
+  const outerValue = source.ast.typeParameters(program.named("shadow"))[0];
+  assert.equal(publishedCsharpClassBindings(shadowed, source).outer.includes(outerValue), false,
+    "a shadowed outer binder of the same name is not the binder the class closes over");
 });
 
 test("local class catalogs consume canonical binders while all raw query paths are trapped", () => {
   const { source, classes } = fixture();
-  const host = { ast: source.ast, navigation: source.navigation, effectiveTypes: source.effectiveTypes,
-    enumConstants: source.semantics.enumConstants, sourceFacts: source.sourceFacts, semanticsFor: unexpected };
+  const host = { ast: source.ast, facts: source.facts, sourceFiles: source.sourceFiles, sourceFacts: source.sourceFacts };
   for (const declaration of classes) {
     const binders = publishedCsharpClassBindings(declaration, source);
     const selected = projectTypeDefinition(host, declaration);
@@ -86,10 +90,9 @@ test("outer projection ownership consumes the same canonical class binding vecto
   const binders = publishedCsharpClassBindings(declaration, source);
   const selectedNode = source.ast.members(declaration)[0];
   const outer = csharpSourceTypeParameter(binders.outer[0], source.ast);
-  const projection = csharpProjectedType({ kind: "conditional", declaration, identity: "published.class.outer",
-    sourceName: "Outer", sourceArguments: [], arguments: [outer] });
+  const projection = csharpProjectedType({ kind: "optional", part: "storage", arguments: [outer] });
   const absent = { get: () => undefined };
-  const projections = analyzeCsharpTypeProjections({ ...source, semantics: new Proxy({}, { get: unexpected }) }, {
+  const projections = analyzeCsharpTypeProjections(source, {
     compileTimeMetadata: { get: () => false }, nodeTargetType: { get: node => node === selectedNode ? projection : undefined },
     storageTargetType: absent, bindingProjection: absent,
   }, { selectedCall: absent }, { removesProjection: () => false });
@@ -101,7 +104,7 @@ test("outer projection ownership consumes the same canonical class binding vecto
 test("missing, foreign, duplicate, reordered and concrete-use vectors cannot replace canonical class bindings", () => {
   const { source, classes } = fixture();
   const declaration = classes[0];
-  const outcome = source.effectiveTypes.get(declaration);
+  const outcome = source.facts.values.type(declaration);
   assert.equal(outcome !== undefined && outcome.kind !== "refused" && outcome.type.kind === "declared", true);
   const descriptor = outcome.type;
   const own = source.ast.typeParameters(declaration);
@@ -110,8 +113,7 @@ test("missing, foreign, duplicate, reordered and concrete-use vectors cannot rep
   const foreign = source.ast.typeParameters(classes[1])[0];
   const vector = typeArguments => ({ ...outcome, type: { ...descriptor, typeArguments } });
   for (const [label, publication] of [
-    ["missing publication", undefined],
-    ["refused publication", { kind: "refused", source: "tsonic", code: "TSONIC_LOCAL_TYPE_UNSUPPORTED", site: declaration, reason: "fixture" }],
+    ["refused publication", { kind: "refused", code: "TSONIC_LOCAL_TYPE_UNSUPPORTED", site: declaration, message: "fixture" }],
     ["foreign occurrence", { ...outcome, provenance: { ...outcome.provenance, occurrence: classes[1] } }],
     ["foreign source file", { ...outcome, provenance: { ...outcome.provenance, sourceFile: undefined } }],
     ["foreign nominal owner", { ...outcome, type: { ...descriptor, declaration: classes[1] } }],
@@ -123,10 +125,10 @@ test("missing, foreign, duplicate, reordered and concrete-use vectors cannot rep
     ["outer after own", vector([ownArguments[0], ...outer, ownArguments[1]])],
     ["cut parameter", vector([...outer, ownArguments[0], { ...ownArguments[1], cut: "recursion" }])],
   ]) {
-    const effectiveTypes = { get: node => node === declaration ? publication : source.effectiveTypes.get(node) };
-    assert.equal(publishedCsharpClassBindings(declaration, { ast: source.ast, effectiveTypes }) === undefined, true, label);
-    const host = { ast: source.ast, navigation: source.navigation, effectiveTypes,
-      enumConstants: source.semantics.enumConstants, sourceFacts: source.sourceFacts, semanticsFor: unexpected };
+    const facts = { ...source.facts, values: { ...source.facts.values,
+      type: node => node === declaration ? publication : source.facts.values.type(node) } };
+    assert.equal(publishedCsharpClassBindings(declaration, { ast: source.ast, facts }) === undefined, true, label);
+    const host = { ast: source.ast, facts, sourceFiles: source.sourceFiles, sourceFacts: source.sourceFacts };
     assert.equal(projectTypeDefinition(host, declaration).kind === "not-project-type", true, `${label}: no catalog repair`);
   }
 });
@@ -134,15 +136,15 @@ test("missing, foreign, duplicate, reordered and concrete-use vectors cannot rep
 test("constructor-valued class publications require one exact instance binder vector across all signatures", () => {
   const { source, classes } = fixture();
   const declaration = classes.find(node => source.ast.is.IsClassExpression(node));
-  const outcome = source.effectiveTypes.get(declaration);
+  const outcome = source.facts.values.type(declaration);
   assert.equal(outcome !== undefined && outcome.kind !== "refused" &&
     (outcome.type.kind === "callable" || outcome.type.kind === "shape"), true);
   const descriptor = outcome.type;
   const signature = descriptor.constructs[0];
   assert.equal(signature !== undefined, true, "the real class constructor result is published");
-  const selected = constructs => publishedCsharpClassBindings(declaration, { ast: source.ast, effectiveTypes: {
-    get: node => node === declaration ? { ...outcome, type: { ...descriptor, constructs } } : source.effectiveTypes.get(node),
-  } });
+  const selected = constructs => publishedCsharpClassBindings(declaration, { ast: source.ast, facts: { values: {
+    type: node => node === declaration ? { ...outcome, type: { ...descriptor, constructs } } : source.facts.values.type(node),
+  } } });
   assert.equal(selected([signature, signature]) !== undefined, true, "equal overload results retain the same instance");
   assert.equal(selected([]) === undefined, true, "missing constructor results are not repaired");
   assert.equal(selected([signature, { ...signature, result: { ...signature.result, declaration: classes[0] } }]) === undefined, true,

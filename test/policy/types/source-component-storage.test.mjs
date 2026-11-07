@@ -1,211 +1,77 @@
+// Component storage over Host facts (nextgen C-2542 §2, R2, I6). The deleted resolution/source-profiles.ts and
+// source-storage-projection.ts threaded checker type components and storage subjects through C# to decide callable
+// ABIs and storage owners. Now each slot (parameter, callable result, declaration) has its own Host fact
+// (values.slot / values.callableReturn / values.type), and the one representation maps it; profile types (Error) are
+// mapped by their published .NET identity only.
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createCompilerSessionFromFiles } from "@tsonic/tsts";
-import { createTargetSourceProgram, sourceCallableValueParameters } from "@tsonic/target-api/source";
-import { createSourceStorageQuery } from "@tsonic/target-api/analysis";
-import { resolveCallableEvidence, resolveSignatureParameterEvidence, resolveSourceProfileType, resolveSourceTypeComponentEvidence } from "../../../dist/analysis/source-evidence/types/resolution/source-profiles.js";
-import { csharpSourceStorageComponentContext } from "../../../dist/analysis/source-evidence/types/resolution/source-storage-projection.js";
+import { hostProgram, representationServices, representations, represented } from "../../representation/host-fixture.mjs";
 import { createSourceErrorProviderFixture } from "../../fixtures/dotnet-provider/source-error-bindings.mjs";
-import { getCsharpDelegateSignature, targetTypeRefEquals } from "../../../dist/target-model/types/index.js";
+import {
+  csharpBigIntegerTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType, getCsharpDelegateSignature, targetTypeRefEquals,
+} from "../../../dist/target-model/types/index.js";
 
-const typeOnlyPredicates = { IsTypeAliasDeclaration: () => false, IsInterfaceDeclaration: () => false,
-  IsTypeParameterDeclaration: () => false };
-const subject = (node, kind = "value", projection = []) => Object.freeze({ node, kind, projection: Object.freeze(projection) });
-
-test("implementation signature evidence uses the original contextual tuple parameter before erased semantic storage", () => {
-  const checked = createCompilerSessionFromFiles({ currentDirectory: "/project", files: {
-    "/project/index.ts": "const consume: (...values: [number, bigint, string]) => boolean = (...values) => values[0] > 0;",
-  }, compilerOptions: { strict: true, target: "es2022", module: "esnext" } }).checkSource();
-  assert.equal(checked.diagnostics.length, 0, "the source supplies one checked contextual tuple");
-  const source = createTargetSourceProgram(checked);
-  const file = checked.getSourceFile("/project/index.ts");
-  const storage = createSourceStorageQuery(source, [file]);
-  let implementation;
-  const visit = node => {
-    if (source.ast.is.IsArrowFunction(node)) implementation = node;
-    source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
-  };
-  visit(file);
-  assert.equal(implementation !== undefined, true, "one actual implementation owns the parameter");
-  const queries = source.semantics.forFile(file);
-  const incoming = sourceCallableValueParameters(source.ast, implementation, queries)[0];
-  const callable = queries.types.callable(queries.types.expressionType(implementation));
-  assert.equal(callable.parameters.length, 3, "the checked metadata expands the one original rest parameter into three effective slots");
-  const native = Object.freeze({ kind: "tuple", elements: Object.freeze([
-    Object.freeze({ kind: "source-primitive", name: "int32" }),
-    Object.freeze({ kind: "source-primitive", name: "int64" }),
-    Object.freeze({ kind: "source-primitive", name: "string" }),
-  ]) });
-  let formalSelections = 0;
-  let physicalSelections = 0;
-  const scope = {
-    host: { ast: source.ast, sourceStorage: storage, objectShapes: {
-      resolveNativeParameter(owner, parameter, type) {
-        assert.equal(owner === implementation && parameter === incoming && targetTypeRefEquals(type, native), true,
-          "physical input selection consumes the same complete contextual tuple");
-        physicalSelections += 1;
-        return { kind: "resolved", type };
-      },
-    } },
-    sourceValueDeclarationSyntax: node => ({ type: source.ast.typeNode(node),
-      initializer: source.ast.as.AsParameterDeclaration(node).Initializer }),
-    resolveSourceTypeComponentEvidence(component) {
-      if (component.declaration === implementation || component.authoredTypeNode !== undefined &&
-        source.ast.kindName(component.authoredTypeNode) === "KindBooleanKeyword") return { kind: "source-primitive", name: "bool" };
-      assert.equal(component.declaration !== incoming && component.authoredTypeNode !== undefined &&
-        source.ast.is.IsTupleTypeNode(component.authoredTypeNode), true,
-        "only the original contextual formal owns native tuple metadata, not the erased implementation tuple");
-      formalSelections += 1;
-      return native;
-    },
-  };
-  scope.host.representations = { genericProjections: () => [] };
-  scope.resolveSignatureParameterEvidence = (...arguments_) => resolveSignatureParameterEvidence(scope, ...arguments_);
-  scope.resolveCallableEvidence = (...arguments_) => resolveCallableEvidence(scope, ...arguments_);
-  const selected = resolveCallableEvidence(scope, callable, queries, { depth: 0 });
-  const signature = getCsharpDelegateSignature(selected);
-  assert.equal(signature?.parameters.length === 3 && signature.parameters.every((type, index) =>
-    targetTypeRefEquals(type, native.elements[index])) && formalSelections === 1 && physicalSelections === 1, true,
-    "callable ABI evidence retains the one contextual native tuple without semantic reselection");
+test("a contextual rest tuple gives the implementation its exact three native input slots", () => {
+  const program = hostProgram(`
+export const consume: (...values: [number, bigint, string]) => boolean = (...values) => values[0] > 0;
+`);
+  const at = representations(representationServices(program));
+  const implementation = program.nodes.find(node => program.ast.is.IsArrowFunction(node));
+  const published = program.type(implementation);
+  assert.equal(published.kind === "callable" && published.calls.length === 1, true, "one published call signature");
+  const [rest] = published.calls[0].parameters;
+  assert.equal(rest.kind === "rest" && rest.type.kind === "tuple" && rest.type.elements.length === 3, true,
+    "the Host keeps the original contextual tuple, not an erased array");
+  const signature = getCsharpDelegateSignature(represented(at.value(implementation)));
+  const expected = [csharpSourcePrimitiveTargetType("float64"), csharpBigIntegerTargetType(), csharpStringTargetType()];
+  assert.equal(signature?.parameters.length, 3, "the one rest tuple expands to three positional .NET parameters");
+  assert.equal(signature.parameters.every((type, index) => targetTypeRefEquals(type, expected[index])), true,
+    "each slot keeps its exact element carrier");
+  assert.equal(targetTypeRefEquals(signature.returnType, csharpSourcePrimitiveTargetType("bool")), true);
 });
 
-test("type transformations retain the selected value owner independently of metadata declarations", () => {
-  for (const mode of ["parameter", "result", "unavailable"]) {
-    const owner = { kind: mode };
-    const imported = subject({ kind: "import" }, "member", [{ kind: "array-element" }, { kind: "tuple-element", index: 0 }]);
-    const syntax = {};
-    const type = {};
-    const file = {};
-    const bindings = new Map([[{}, { sourceType: {}, targetType: { kind: "source-primitive", name: "int64" } }]]);
-    const state = { depth: 4, sourceStorageSubject: imported, sourceBindings: bindings };
-    const expected = mode === "unavailable" ? undefined : { kind: "source-primitive", name: "int64" };
-    let selections = 0;
-    const assertOwner = selected => {
-      assert.equal(selected.sourceStorageSubject === imported, true, mode);
-      assert.equal(selected.sourceStorageSubject.projection === imported.projection, true, mode);
-      assert.equal(selected.sourceBindings === bindings, true, mode);
-    };
-    const result = resolveSourceTypeComponentEvidence({
-      host: { ast: { getSourceFile: () => file, is: typeOnlyPredicates } },
-      resolvePointerReturn(declaration, selected) {
-        assert.equal(declaration === owner, true, mode);
-        assertOwner(selected);
-        assert.equal(selected.depth, 4, mode);
-        return undefined;
-      },
-      resolveAuthoredAndSelectedSourceType(authored, authoredFile, selectedType, selectedFile, selected) {
-        selections += 1;
-        assert.equal(authored === syntax && authoredFile === file, true, mode);
-        assert.equal(selectedType === type && selectedFile === file, true, mode);
-        assertOwner(selected);
-        assert.equal(selected.depth, 5, mode);
-        return expected;
-      },
-    }, { declaration: owner, authoredTypeNode: syntax, selectedType: type }, { sourceFile: file }, state);
-    assert.equal(result === expected, true, mode);
-    assert.equal(selections, 1, mode);
-    assert.equal(state.sourceStorageSubject === imported && imported.projection.length === 2, true, mode);
-  }
-});
-
-test("callable parameters establish their exact entry input while tuple transformations retain theirs", () => {
-  const owner = {};
-  const input = subject(owner, "input");
-  const imported = subject({}, "member", [{ kind: "tuple-element", index: 0 }]);
-  const type = {};
-  const file = {};
-  const syntax = {};
-  const carrier = { kind: "source-primitive", name: "int64" };
-  const state = { depth: 2, sourceStorageSubject: imported };
-  for (const use of ["callable", "parameter-list"]) {
-    const resolved = resolveSignatureParameterEvidence({
-      host: { ast: { typeNode: () => syntax, parent: () => undefined }, sourceStorage: { subject(node, kind) {
-        assert.equal(node === owner && kind === "input", true, "signature entry is not a mutable binding or physical member");
-        return { kind: "resolved", subject: input };
-      } } },
-      resolveSourceTypeComponentEvidence(component, queries, selected) {
-        assert.equal(component.declaration === owner && component.selectedType === type && component.authoredTypeNode === syntax, true);
-        assert.equal(queries.sourceFile === file, true);
-        assert.equal(selected.sourceStorageSubject === (use === "callable" ? input : imported), true, use);
-        return carrier;
-      },
-    }, { declaration: owner, type, parameterKind: "required", omissionKind: "none" }, { sourceFile: file }, state, use);
-    assert.equal(resolved === carrier, true, use);
-  }
-});
-
-test("recognized Error profiles retain exact native identity without a storage-history owner", () => {
-  const scope = { host: { providers: createSourceErrorProviderFixture() } };
-  const identity = { kind: "error", sourceName: "Error", errorName: "Error", baseException: true };
-  assert.equal(resolveSourceProfileType(scope, identity, [])?.id, "System.Exception");
+test("Error profile types keep their exact native identity, and an unpublished identity is a refusal", () => {
+  const program = hostProgram(`export function fail(error: Error): Error { return error; }`);
+  const parameter = program.ast.parameters(program.named("fail"))[0];
+  const published = representations(representationServices(program, { providers: createSourceErrorProviderFixture() })).slot(parameter);
+  assert.equal(represented(published).id, "System.Exception", "the recognized Error profile is System.Exception");
   for (const kind of ["missing", "rejected"]) {
-    scope.host.providers = { publishNativeIdentities: () => ({ kind }) };
-    assert.equal(resolveSourceProfileType(scope, identity, []) === undefined, true,
-      "missing or rejected native publication cannot manufacture an Error carrier");
+    const providers = { ...createSourceErrorProviderFixture(), publishNativeIdentities: () => ({ kind }) };
+    const refused = representations(representationServices(program, { providers })).slot(parameter);
+    assert.equal(refused.kind === "csharp-refused" && refused.code === "CSHARP_DECLARATION_BINDING", true,
+      `${kind}: no Error carrier is manufactured`);
   }
 });
 
-test("callable results establish their own storage owner rather than retaining the enclosing delegate owner", () => {
-  const owner = {};
-  const resultSubject = subject(owner, "return");
-  const file = {};
-  const bindings = new Map();
-  const enclosing = subject({}, "input", [{ kind: "array-element" }]);
-  const state = { depth: 2, sourceStorageSubject: enclosing,
-    sourceBindings: bindings };
-  const carrier = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "System.String" };
-  const callable = { parameters: [], result: { declaration: owner, selectedType: {} } };
-  const resolved = resolveCallableEvidence({
-    host: { ast: { typeParameters: node => { assert.equal(node === owner, true); return []; }, is: typeOnlyPredicates },
-      representations: { genericProjections: node => { assert.equal(node === owner, true); return []; } },
-      sourceStorage: { subject(node, kind) { assert.equal(node === owner && kind === "return", true);
-        return { kind: "resolved", subject: resultSubject }; } } },
-    resolveSignatureParameterEvidence() { assert.fail("the callable has no parameters"); },
-    resolveSourceTypeComponentEvidence(component, queries, selected) {
-      assert.equal(component === callable.result && queries.sourceFile === file, true);
-      assert.equal(selected.sourceStorageSubject === resultSubject, true);
-      assert.equal(selected.sourceBindings === bindings && selected.depth === state.depth, true);
-      return carrier;
-    },
-  }, callable, { sourceFile: file }, state);
-  assert.equal(resolved !== undefined, true);
-  assert.equal(enclosing.projection.length, 1, "the enclosing owner's state is never mutated");
+test("callable parameters, callable results and the enclosing value each have their own Host slot", () => {
+  const program = hostProgram(`
+import type { int64 } from "@tsonic/core/types.js";
+export const make = (seed: int64): ((label: string) => int64) => (label: string) => seed;
+`);
+  const at = representations(representationServices(program));
+  const [outer, inner] = program.nodes.filter(node => program.ast.is.IsArrowFunction(node));
+  const seed = program.ast.parameters(outer)[0];
+  const label = program.ast.parameters(inner)[0];
+  assert.equal(targetTypeRefEquals(represented(at.slot(seed)), csharpSourcePrimitiveTargetType("int64")), true,
+    "the outer parameter is its own entry input");
+  assert.equal(targetTypeRefEquals(represented(at.slot(label)), csharpStringTargetType()), true,
+    "the inner parameter is not the enclosing delegate's input");
+  const result = getCsharpDelegateSignature(represented(at.callableReturn(outer)));
+  assert.equal(result !== undefined && targetTypeRefEquals(result.returnType, csharpSourcePrimitiveTargetType("int64")), true,
+    "the outer result is its own delegate, closed over int64");
+  const enclosing = getCsharpDelegateSignature(represented(at.value(outer)));
+  assert.equal(enclosing?.parameters.length === 1 && targetTypeRefEquals(enclosing.parameters[0], csharpSourcePrimitiveTargetType("int64")), true,
+    "the enclosing value keeps its own input, unchanged by the result's");
 });
 
-test("declaration-free transformations retain the current exact storage component", () => {
-  const owner = subject({}, "member", [{ kind: "array-element" }, { kind: "tuple-element", index: 1 }]);
-  const type = {};
-  const file = {};
-  const state = { depth: 2, sourceStorageSubject: owner };
-  const carrier = { kind: "source-primitive", name: "uint64" };
-  const result = resolveSourceTypeComponentEvidence({
-    host: { ast: { is: typeOnlyPredicates } },
-    resolvePointerReturn() { assert.fail("a declaration-free transformation has no new pointer return owner"); },
-    resolveTypeWithState(selectedType, selectedFile, selected) {
-      assert.equal(selectedType === type && selectedFile === file, true);
-      assert.equal(selected.sourceStorageSubject === owner, true);
-      assert.equal(selected.depth, 3);
-      return carrier;
-    },
-  }, { selectedType: type }, { sourceFile: file }, state);
-  assert.equal(result === carrier, true);
-});
-
-test("component context preserves each exact source role through only the owning subject interner", () => {
-  for (const kind of ["input", "value", "member", "return", "receiver"]) {
-    const owner = subject({}, kind, [{ kind: "array-element" }]);
-    const component = { kind: "tuple-element", index: 1 };
-    const projected = subject(owner.node, kind, [...owner.projection, component]);
-    let calls = 0;
-    const host = { sourceStorage: { subject(node, selectedKind, projection) {
-      calls += 1;
-      assert.equal(node === owner.node && selectedKind === owner.kind, true, kind);
-      assert.deepEqual(projection, projected.projection);
-      return { kind: "resolved", subject: projected };
-    } } };
-    const state = { depth: 2, sourceStorageSubject: owner };
-    assert.equal(csharpSourceStorageComponentContext(host, state, component).sourceStorageSubject === projected, true, kind);
-    assert.equal(state.sourceStorageSubject === owner && owner.projection.length === 1, true, kind);
-    assert.equal(calls, 1, kind);
-  }
+test("a declaration-free transformation keeps the current component's carrier", () => {
+  const program = hostProgram(`
+import type { int64 } from "@tsonic/core/types.js";
+export function first(values: readonly [int64, string]): int64 { const [head] = values; return head; }
+`);
+  const at = representations(representationServices(program));
+  const head = program.nodes.find(node => program.ast.is.IsBindingElement(node) && program.ast.text(program.ast.name(node)) === "head");
+  assert.notEqual(head, undefined, "the binding element exists");
+  assert.equal(targetTypeRefEquals(represented(at.slot(head)), csharpSourcePrimitiveTargetType("int64")), true,
+    "the tuple element component keeps its exact native width");
 });

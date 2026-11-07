@@ -21,11 +21,14 @@ function sealedConversions(inputs, elementTarget = int64) {
       kindName: () => "KindUnknown",
       forEachChild: (node, visit) => { if (node === sourceFile) visit(expression); },
     },
-    types: { resolveNode: () => undefined },
-    navigation: { referenceFor: () => undefined },
+    // nextgen C-2542: the policy reads facts (no literal, no reference) in place of literalValues, navigation and
+    // checker type resolution; C# types come from CsharpTypeQueries, which this sequence never reaches.
+    types: { value: () => assert.fail("borrowed sequence sealing reads its sealed carriers, not a Source value") },
+    facts: Object.freeze({ values: Object.freeze({ literal: () => undefined }),
+      navigation: Object.freeze({ identity: Object.freeze({ target: () => undefined }),
+        expressions: Object.freeze({ transparentOperand: node => node }) }) }),
     projectTypes: { directSupertypes: () => [] },
     providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) },
-    literalValues: { literalValue: Object.freeze({ get: () => undefined }) },
     target: {},
   };
   const evidence = { compileTimeMetadata: { get: () => false },

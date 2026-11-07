@@ -1,4 +1,3 @@
-import { csharpSourceValueResult } from "../../../../dist/analysis/source-evidence/types/resolution/call-results.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { selectCsharpJsValueCallOperation, selectCsharpJsValueBinaryOperation } from "../../../../dist/analysis/operations/js-values.js";
@@ -6,7 +5,7 @@ import { selectCsharpJsValueReceiverOperation, validateCsharpJsValueOperationSel
 import { csharpTsValueTargetType } from "../../../../dist/policy/types/index.js";
 
 const carrier = csharpTsValueTargetType();
-const policy = { types: { resolveNode: () => ({ kind: "resolved", sourceResult: csharpSourceValueResult(carrier) }) } };
+const policy = { types: { value: () => carrier } };
 
 test("optional closed reads select exact immutable eager counterparts", () => {
   for (const [source, expected] of [["property-read", "ReadDynamicSlot"], ["element-read", "ReadDynamicElement"]]) {
@@ -22,7 +21,7 @@ test("optional closed reads select exact immutable eager counterparts", () => {
 test("closed calls select callee acquisition separately from argument evaluation", () => {
   for (const [kind, read] of [["direct", undefined], ["property", "ReadDynamicSlot"], ["element", "ReadDynamicElement"]]) {
     for (const optional of [false, true]) {
-      const selected = validateCsharpJsValueOperationSelection(selectCsharpJsValueCallOperation(policy, {}, {}, {}, kind, optional));
+      const selected = validateCsharpJsValueOperationSelection(selectCsharpJsValueCallOperation(policy, {}, {}, kind, optional));
       assert.equal(selected.kind, "resolved");
       assert.equal(selected.presentOperation.runtimeMember, kind === "direct" ? "InvokeDynamic" : "InvokeDynamicWithThis");
       assert.equal(selected.receiverReadOperation?.runtimeMember, read);
@@ -41,7 +40,7 @@ test("optional closed operation evidence fails closed on missing or mismatched c
     { dispatch: "static" },
   ];
   for (const mutation of mutations) assert.equal(validateCsharpJsValueOperationSelection({ ...selected, ...mutation }).kind, "rejected");
-  const call = selectCsharpJsValueCallOperation(policy, {}, {}, {}, "property", true);
+  const call = selectCsharpJsValueCallOperation(policy, {}, {}, "property", true);
   for (const mutation of [
     { receiverReadOperation: undefined },
     { receiverReadOperation: { ...call.receiverReadOperation, runtimeMember: "ReadDynamicElement" } },
@@ -59,13 +58,13 @@ test("ordinary reads retain their direct native invocation and no speculative op
 });
 
 test("logical JS selections contain exact native condition and branch relation", () => {
-  const policy = { types: { resolveNode: () => ({ kind: "resolved", sourceResult: csharpSourceValueResult(carrier) }), resolveReadStorage: () => undefined } };
+  const policy = { types: { value: () => carrier, readStorage: node => ({ kind: "csharp-refused", code: "CSHARP_FIXTURE_UNREPRESENTED", message: "This fixture has no storage read.", site: node }) } };
   for (const [operator, member, dispatch, whenTrue] of [
     ["&&", "ToDynamicBoolean", "static", "right"],
     ["||", "ToDynamicBoolean", "static", "left"],
     ["??", "isUndefined", "instance", "right"],
   ]) {
-    const selected = validateCsharpJsValueOperationSelection(selectCsharpJsValueBinaryOperation(policy, {}, {}, {}, operator));
+    const selected = validateCsharpJsValueOperationSelection(selectCsharpJsValueBinaryOperation(policy, {}, {}, operator));
     assert.equal(selected.kind, "resolved");
     assert.equal(selected.shortCircuit.condition.runtimeMember, member);
     assert.equal(selected.shortCircuit.condition.dispatch, dispatch);

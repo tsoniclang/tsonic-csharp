@@ -7,6 +7,20 @@ import { selectCsharpTargetElement } from "../operations/members/selected-member
 import { targetTypeRefEquals, type TargetTypeRef } from "../../policy/types/index.js";
 
 import { classifyCsharpStorageReceiver } from "../../policy/operations/typed-locations/storage.js";
+import type { SourceMemberAccessSelection } from "@tsonic/target-api/source";
+
+/** The selected member a write targets is writable: one published member that is not readonly (Host object facts). */
+function csharpSelectedMemberWritable(input: CsharpPolicyContext, source: SourceMemberAccessSelection): boolean {
+  if (source.access === "read" || source.access === "call" || source.selected.kind !== "member") return false;
+  const member = input.facts.objects.member(source.receiverType, { kind: "string", value: source.name });
+  return member !== undefined && !member.readonly;
+}
+
+/** A represented receiver value, or undefined when .NET refuses it (reported at its value read). */
+function csharpReceiverType(input: CsharpPolicyContext, receiver: Node): TargetTypeRef | undefined {
+  const represented = input.types.value(receiver);
+  return represented.kind === "csharp-refused" ? undefined : represented;
+}
 export function selectCsharpTypedLocationStorage(
   input: CsharpPolicyContext,
   expression: Node,
@@ -74,20 +88,21 @@ function selectCsharpPropertyStorage(
     );
   }
   const source = selection.source;
-  if (!source.writable || source.optionalChain) {
+  const selectedDeclaration = source.selected.kind === "member" ? source.selected.declarations[0] : undefined;
+  if (!csharpSelectedMemberWritable(input, source) || source.optionalChain) {
     return storageRejected(
       "The selected property is not an exact writable C# member location.",
     );
   }
   const isStatic = selection.kind === "resolved"
     ? selection.receiver.kind === "none"
-    : source.selectedDeclaration !== undefined &&
-      input.ast.hasModifierKind(source.selectedDeclaration, "static");
+    : selectedDeclaration !== undefined &&
+      input.ast.hasModifierKind(selectedDeclaration, "static");
   const memberIdentity = selection.kind === "resolved"
     ? `target-member:${selection.targetMember.id}`
     : selectedSourceStorageIdentity(
         input,
-        source.selectedDeclaration,
+        selectedDeclaration,
         "source-member",
       );
   if (memberIdentity === undefined) {
@@ -109,11 +124,7 @@ function selectCsharpPropertyStorage(
       },
     };
   }
-  const receiverType = input.types.resolveSelectedValue(
-    source.receiver.expression,
-    source.receiver.type,
-    sourceFile,
-  );
+  const receiverType = csharpReceiverType(input, source.receiver);
   const receiverKind = classifyCsharpStorageReceiver(receiverType);
   if (receiverType === undefined || receiverKind === "unknown") {
     return storageRejected(
@@ -133,7 +144,7 @@ function selectCsharpPropertyStorage(
   }
   const receiverStorage = selectWritableReceiverStorage(
     input,
-    source.receiver.expression,
+    source.receiver,
     receiverType,
     sourceFile,
     active,
@@ -172,16 +183,13 @@ function selectCsharpElementStorage(
     );
   }
   const source = selection.source;
-  if (!source.writable || source.optionalChain) {
+  const optionalElement = input.ast.as.AsElementAccessExpression(source.node)?.QuestionDotToken !== undefined;
+  if (source.readonly || source.access === "read" || optionalElement) {
     return storageRejected(
       "The selected element is not an exact writable C# index location.",
     );
   }
-  const receiverType = input.types.resolveSelectedValue(
-    source.receiver.expression,
-    source.receiver.type,
-    sourceFile,
-  );
+  const receiverType = csharpReceiverType(input, source.receiver);
   const receiverKind = classifyCsharpStorageReceiver(receiverType);
   if (receiverType === undefined || receiverKind === "unknown") {
     return storageRejected(
@@ -202,7 +210,7 @@ function selectCsharpElementStorage(
       targetTypeRefEquals(selection.targetMember.returnType, valueType) && indexExpression !== undefined) {
       return { kind: "resolved", storage: {
         kind: "reference-indexed-storage", expression, valueType, receiverType, indexType: index.type,
-        receiver: source.receiver.expression, index: indexExpression,
+        receiver: source.receiver, index: indexExpression,
         method: selection.invocation.indexedLocationMethod,
       } };
     }
@@ -227,7 +235,7 @@ function selectWritableReceiverStorage(
   sourceFile: SourceFile,
   active: WeakSet<Node>,
 ): CsharpTypedLocationStorageSelection {
-  const storage = input.semantics(sourceFile).operations.storage(receiver);
+  const storage = input.facts.selections.storage(receiver);
   const variable = storage?.declaration === undefined
     ? undefined
     : AsVariableDeclaration(input.ast, storage.declaration);
@@ -239,10 +247,8 @@ function selectWritableReceiverStorage(
       "A value-type storage receiver has no exact writable owner location.",
     );
   }
-  const selectedStorageType = input.types.resolveReadStorage(
-    storage.storageExpression,
-    sourceFile,
-  );
+  const readStorage = input.types.readStorage(storage.storageExpression);
+  const selectedStorageType = readStorage.kind === "csharp-refused" ? undefined : readStorage;
   if (
     selectedStorageType === undefined ||
     !targetTypeRefEquals(selectedStorageType, receiverType)
@@ -270,7 +276,7 @@ function selectCsharpDirectStorage(
   if (declaration !== undefined && (
     input.ast.is.IsImportSpecifier(declaration) || input.ast.is.IsImportClause(declaration)
   )) {
-    declaration = input.navigation.sourceReferenceFor(expression)?.declaration;
+    declaration = input.facts.navigation.identity.target(expression)?.declaration;
   }
   if (declaration === undefined) {
     return storageRejected(
@@ -461,7 +467,7 @@ function selectedSourceStorageIdentity(
   if (declaration === undefined) {
     return undefined;
   }
-  if (!input.navigation.isProjectDeclaration(declaration)) {
+  if (!input.facts.navigation.identity.isProjectDeclaration(declaration)) {
     return undefined;
   }
   const identity = input.sourceIdentities.node(declaration);

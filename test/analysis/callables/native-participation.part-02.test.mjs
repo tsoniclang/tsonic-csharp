@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createSourceStorageQuery, defaultSourceStorageLimits } from "@tsonic/target-api/analysis";
+import { defaultSourceStorageLimits } from "@tsonic/target-api/analysis";
 import { assertCsharpCheckingSucceeded, assertCsharpCompilationSucceeded, compileCsharpSource, compileCsharpAnalysisTarget } from "../../helpers/direct-csharp-session.mjs";
 import { compileCsharpNativeUseSource } from "../../helpers/expected-native-uses.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
@@ -27,7 +27,7 @@ test(`${surface} abstract accessors keep native signatures and concrete invocati
     const compiled = compileCsharpNativeUseSource({ sourceText: original, surface });
     assertCsharpCheckingSucceeded(compiled);
     assert.deepEqual(compiled.targetDiagnostics.map(({ code, message }) => [code, message]),
-      [["CSHARP_UNSUPPORTED_AST", "No exact C# implicit conversion relates 'source:float64' to 'source:int64'. Annotate the value with an integral type."]],
+      [["CSHARP_VALUE_USE_NOT_ADMITTED", "No exact C# implicit conversion relates 'source:float64' to 'source:int64'. Annotate the value with an integral type."]] /* nextgen C-2542: CSHARP_UNSUPPORTED_AST split (use-admission.ts) */,
       "C2360 Q1 fixes the unannotated field at int64; B10/D2 refuse the number setter write");
     assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
       "the original incompatible setter publishes no native program or artifacts");
@@ -110,7 +110,7 @@ test(`${surface} a top-level namespace is refused in analysis before any publica
     assertCsharpCheckingSucceeded(compiled);
     const issues = compiled.result.diagnostics.filter(issue => issue.category === "error");
     assert.deepEqual(issues.map(({ code, message }) => [code, message]),
-      [["CSHARP_UNSUPPORTED_AST", "Top-level statement is outside the current C# planning surface."]],
+      [["CSHARP_TOP_LEVEL_STATEMENT_NOT_PLANNED", "Top-level statement is outside the current C# planning surface."]] /* nextgen C-2542: CSHARP_UNSUPPORTED_AST split (source-modules/emission.ts) */,
       "the namespace keeps its one source refusal");
     assert.equal(compiled.source.ast.is.IsModuleDeclaration(issues[0].sourceNode), true, "the refusal is on the namespace");
     assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0, true,
@@ -152,7 +152,7 @@ test(`${surface} abstract accessors keep native signatures and concrete invocati
     const compiled = compileCsharpNativeUseSource({ sourceText: original, surface });
     assertCsharpCheckingSucceeded(compiled);
     assert.deepEqual(compiled.targetDiagnostics.map(({ code, message }) => [code, message]),
-      [["CSHARP_UNSUPPORTED_AST", "No exact C# implicit conversion relates 'source:float64' to 'source:int64'. Annotate the value with an integral type."]],
+      [["CSHARP_VALUE_USE_NOT_ADMITTED", "No exact C# implicit conversion relates 'source:float64' to 'source:int64'. Annotate the value with an integral type."]] /* nextgen C-2542: CSHARP_UNSUPPORTED_AST split (use-admission.ts) */,
       "C2360 Q1 fixes the unannotated field at int64; B10/D2 refuse the number setter write");
     assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
       "the original incompatible setter publishes no native program or artifacts");
@@ -205,7 +205,7 @@ for (const surface of ["native", "js"]) {
     const value = analyze(`export interface Contract { required(value: number): number; optional?(value: number): number; }
       export function run(): number { return 1; }`, surface);
     const selected = analyzeCsharpNativeParticipation({ ast: value.ast, storage: { nodes: value.nodes, failureReason: () => undefined },
-      navigation: value.source.navigation, captureClosure: { get: () => undefined }, callableCreation: { get: () => undefined },
+      facts: value.source.facts, captureClosure: { get: () => undefined }, callableCreation: { get: () => undefined },
       compileTimeMetadata: { get: () => false }, requiredRecords: [] });
     assert.equal(selected.kind, "resolved");
     const methods = value.nodes.filter(node => value.ast.is.IsMethodSignatureDeclaration(node));
@@ -254,7 +254,7 @@ test(`${surface} participation excludes an unused capturing function before its 
   const requiredRecords = [];
   const selected = analyzeCsharpNativeParticipation({ ast: value.ast,
     storage: { nodes: [...value.nodes].reverse(), failureReason: () => undefined },
-    navigation: value.source.navigation,
+    facts: value.source.facts,
     captureClosure: { get(node) {
       assert.equal(node === unused, false, "unusedness is decided before asking for a native frame");
       return records.captureClosure.get(node);
@@ -277,7 +277,7 @@ test("compile-time metadata excludes the whole subtree without a participation r
   const records = value.program.records;
   const requiredRecords = [];
   const input = { ast: value.ast, storage: { nodes: [...value.nodes].reverse(), failureReason: () => undefined },
-    navigation: value.source.navigation,
+    facts: value.source.facts,
     captureClosure: records.captureClosure, callableCreation: records.callableCreation, objectShapes: value.program.objectShapes,
     compileTimeMetadata: { get: node => node === root }, requiredRecords };
   const selected = analyzeCsharpNativeParticipation(input);
@@ -301,8 +301,8 @@ test(`${surface} malformed or budget-exhausted participation domains reject prec
   const root = value.nodes.find(node => value.ast.is.IsSourceFile(node));
   assert.equal(root !== undefined, true, "the actual checked finite domain has its original source-file root");
   const records = value.program.records;
-  const limited = createSourceStorageQuery(value.source, value.source.navigation.sourceFiles,
-    { ...defaultSourceStorageLimits, maximumNodes: 1 });
+  const limited = value.source.facts.analyses.storage({ sourceFiles: value.source.sourceFiles,
+    limits: { ...defaultSourceStorageLimits, maximumNodes: 1 } });
   assert.equal(limited.failureReason(), "Source storage transport exceeds its finite source-node budget.",
     "the budget control uses a real bounded source-storage failure, not an invented empty domain");
   assert.equal(limited.nodes.length < value.nodes.length, true, "the resource-exhausted checked domain is actually partial");
@@ -319,7 +319,7 @@ test(`${surface} malformed or budget-exhausted participation domains reject prec
   ]) {
     const requiredRecords = [];
     let classifications = 0;
-    const rejected = analyzeCsharpNativeParticipation({ ast, storage, navigation: value.source.navigation,
+    const rejected = analyzeCsharpNativeParticipation({ ast, storage, facts: value.source.facts,
       captureClosure: records.captureClosure, callableCreation: records.callableCreation,
       objectShapes: value.program.objectShapes,
       compileTimeMetadata: { get() { classifications++; return false; } }, requiredRecords });

@@ -16,7 +16,7 @@ function propertyFixture() {
   assert.equal(compiled.result.diagnostics.length, 0, "the property fixture is admitted");
   const program = compiled.result.program;
   assert.equal(program !== undefined, true, "the property fixture publishes its program");
-  const ast = program.source.ast;
+  const ast = program.source.syntax;
   let property;
   const visit = node => {
     if (ast.is.IsPropertyAccessExpression(node)) property = node;
@@ -25,7 +25,7 @@ function propertyFixture() {
   for (const file of csharpProgramSourceFiles(program)) visit(file);
   assert.equal(property !== undefined, true, "the fixture has one property access");
   const expression = ast.as.AsPropertyAccessExpression(property).Expression;
-  checked = { ast, property, expression, navigation: program.source.navigation };
+  checked = { ast, property, expression };
   return checked;
 }
 
@@ -49,12 +49,13 @@ for (const surface of ["native", "js"]) {
 }
 
 function operands(selection, access) {
-  const { ast, property, navigation } = propertyFixture();
+  const { ast, property } = propertyFixture();
   const absent = Object.freeze({ get: () => undefined });
   return selectCsharpNativeOperandUses({
     ast,
-    navigation: { referenceFor: () => undefined, sourceReferenceFor: () => undefined, isProjectDeclaration: () => false,
-      expressionResultUse: navigation.expressionResultUse },
+    // The Host role model: no project target for the receiver, and the property read is consumed.
+    facts: { navigation: { identity: { target: () => undefined, isProjectDeclaration: () => false },
+      scopes: { isModuleScoped: () => false }, expressions: { resultUse: () => "consumed" } } },
     evidence: { sourceDefaultValue: absent, sourceArgument: absent },
     operations: { selectedProperty: { get: () => selection === undefined ? undefined : { selection } }, nativeHandler: absent },
     valueReads: { valueRead: absent },

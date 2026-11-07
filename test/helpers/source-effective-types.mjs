@@ -11,7 +11,7 @@ export function compileEffectiveSource(surface, sourceText, options = {}) {
   });
   assertCsharpCheckingSucceeded(compiled);
   assert.equal(targetSource !== undefined, true, "the actual checked program reaches the target");
-  assert.equal(targetSource.effectiveTypes !== undefined, true, "Host effective types are published before target entry");
+  assert.equal(targetSource.facts !== undefined, true, "Host Source facts are published before target entry");
   return { ...compiled, targetSource };
 }
 
@@ -22,7 +22,7 @@ export function acceptedEffectiveSource(compiled) {
 }
 
 export function projectNodes(compiled, predicate) {
-  const ast = compiled.targetSource.ast;
+  const ast = compiled.targetSource.syntax;
   const file = compiled.source.getSourceFile("/project/index.ts");
   assert.equal(file !== undefined, true, "the original project source exists");
   const selected = [];
@@ -34,12 +34,19 @@ export function projectNodes(compiled, predicate) {
   return selected;
 }
 
+// A value reference to `name`: an identifier that is not the declared name of its parent. Total publication (I4)
+// gives every value node a descriptor or a refusal, so every such occurrence is asserted, none skipped.
+function isValueReference(ast, node, name) {
+  if (!ast.is.IsIdentifier(node) || ast.text(node) !== name) return false;
+  const parent = ast.parent(node);
+  return parent === undefined || ast.name(parent) !== node;
+}
+
 export function assertPrimitiveOccurrences(compiled, name, primitive, minimum = 1) {
-  const nodes = projectNodes(compiled, (node, ast) => ast.is.IsIdentifier(node) && ast.text(node) === name);
+  const nodes = projectNodes(compiled, (node, ast) => isValueReference(ast, node, name));
   let published = 0;
   for (const node of nodes) {
-    const outcome = compiled.targetSource.effectiveTypes.get(node);
-    if (outcome === undefined) continue;
+    const outcome = compiled.targetSource.facts.values.type(node);
     assert.equal(outcome.kind === "resolved" || outcome.kind === "default", true, `${name}: the chosen occurrence is available`);
     assert.equal(outcome.type.kind === "primitive" && outcome.type.primitive === primitive, true, `${name}: one exact ${primitive} descriptor`);
     const native = compiled.result.program.records.valueRead.get(node)?.value;
@@ -51,11 +58,10 @@ export function assertPrimitiveOccurrences(compiled, name, primitive, minimum = 
 }
 
 export function assertArrayOccurrences(compiled, name, primitive, minimum = 1) {
-  const nodes = projectNodes(compiled, (node, ast) => ast.is.IsIdentifier(node) && ast.text(node) === name);
+  const nodes = projectNodes(compiled, (node, ast) => isValueReference(ast, node, name));
   let published = 0;
   for (const node of nodes) {
-    const outcome = compiled.targetSource.effectiveTypes.get(node);
-    if (outcome === undefined) continue;
+    const outcome = compiled.targetSource.facts.values.type(node);
     assert.equal(outcome.kind === "resolved" || outcome.kind === "default", true, `${name}: the chosen array occurrence is available`);
     assert.equal(outcome.type.kind === "array" && outcome.type.element.kind === "primitive" &&
       outcome.type.element.primitive === primitive, true, `${name}: the exact ${primitive} element survives`);
@@ -66,7 +72,7 @@ export function assertArrayOccurrences(compiled, name, primitive, minimum = 1) {
 
 export function assertPublishedRefusal(compiled, code, siteText) {
   const issues = compiled.result.diagnostics.filter(issue => issue.category === "error");
-  const ast = compiled.targetSource.ast;
+  const ast = compiled.targetSource.syntax;
   const label = issues.map(issue => {
     const range = issue.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
     const text = range?.kind !== "authored" ? "<unavailable>"
@@ -77,9 +83,9 @@ export function assertPublishedRefusal(compiled, code, siteText) {
   const issue = issues[0];
   assert.equal(issue.code, code, "the exact approved refusal class is preserved");
   assert.equal(issue.source, "tsonic", "language refusal belongs to the Host");
-  const matching = compiled.targetSource.effectiveTypes.refusals().filter(refusal => refusal.code === code && refusal.site === issue.sourceNode);
+  const matching = compiled.targetSource.facts.refusals().filter(refusal => refusal.code === code && refusal.site === issue.sourceNode);
   assert.equal(matching.length, 1, "the diagnostic retains the identical published Host refusal and source occurrence");
-  assert.equal(issue.message, matching[0].reason, "the target forwards the actual Host reason without inventing another message");
+  assert.equal(issue.message, matching[0].message, "the target forwards the actual Host reason without inventing another message");
   const range = issue.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
   const actual = range?.kind === "authored" ? ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end) : undefined;
   assert.equal(actual, siteText, "the precise original failing use or literal is retained");
@@ -96,23 +102,25 @@ export function assertPublishedMixedConstructionRefusals(compiled) {
     assert.equal(issue.code, "TSONIC_LOCAL_TYPE_MIXED_ELEMENTS", "no other Source or Native failure is accepted as C19");
     assert.equal(issue.source, "tsonic", "the canonical mixed-element refusal is Host-owned");
     assert.equal(issue.message, "This array literal mixes different fixed source types. Annotate the array and convert its elements explicitly.");
-    assert.equal(source.ast.is.IsArrayLiteralExpression(issue.sourceNode), true, "the refusal retains the actual construction");
-    assert.equal(source.effectiveTypes.refusals().filter(refusal => refusal.code === issue.code &&
-      refusal.site === issue.sourceNode && refusal.reason === issue.message).length, 1, "one identical real publication per rejection");
+    assert.equal(source.syntax.is.IsArrayLiteralExpression(issue.sourceNode), true, "the refusal retains the actual construction");
+    assert.equal(source.facts.refusals().filter(refusal => refusal.code === issue.code &&
+      refusal.site === issue.sourceNode && refusal.message === issue.message).length, 1, "one identical real publication per rejection");
     sites.add(issue.sourceNode);
   }
   assert.equal(sites.size, issues.length, "each refused construction is a distinct checked occurrence");
   assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true, "no refused construction reaches publication");
 }
 
-export function assertNativeEffectiveRefusal(compiled, message, siteText) {
+export function assertNativeEffectiveRefusal(compiled, code, message, siteText) {
   const issues = compiled.result.diagnostics.filter(issue => issue.category === "error");
   assert.equal(issues.length, 1, "one exact native obligation refusal stops publication");
   const issue = issues[0];
-  assert.equal(issue.code, "CSHARP_UNSUPPORTED_AST");
+  // One CSHARP_ code per .NET reason (nextgen C-2542, R5); CSHARP_UNSUPPORTED_AST is split.
+  assert.equal(code.startsWith("CSHARP_") && code !== "CSHARP_UNSUPPORTED_AST", true, "a specific .NET-reason code");
+  assert.equal(issue.code, code);
   assert.equal(issue.source, "tsonic-csharp");
   assert.equal(issue.message, message);
-  const ast = compiled.targetSource.ast;
+  const ast = compiled.targetSource.syntax;
   const range = issue.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
   const actual = range?.kind === "authored" ? ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end) : undefined;
   assert.equal(actual, siteText, "native admission retains the exact chosen source occurrence");
