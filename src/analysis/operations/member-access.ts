@@ -154,9 +154,10 @@ export function classifySourceOwnedMember(
   const selectedMemberReadType = shapeMember?.kind === "resolved"
     ? resolveCsharpObjectShapeMemberReadTargetType(
         shapeMember.member,
-        selection.source.sourceReadType,
-        (left, right) =>
-          semantics.types.relationship(left, right) !== "unrelated",
+        { receiver: selection.source.receiver.expression,
+          publication: policy.effectiveTypes.get(selection.source.receiver.expression),
+          selectedDeclaration: selection.source.selectedDeclaration,
+          selectedSubjects },
         selectedSourceReadType,
       )
     : undefined;
