@@ -14,7 +14,7 @@ import { planObjectLiteralExpression } from "../objects/object-literals/planning
 import { tryPlanRecordDictionaryLiteralWithCarrier } from "./expression-dictionary-literals.js";
 import { planSelectedCsharpBinaryOperation } from "./selected-binary.js";
 import { planCsharpConditionExpression } from "./expression-bool-carriers.js";
-import { planCsharpExactLiteralRecipe } from "./literal-conversions.js";
+import { planCsharpLiteralUseRecipe } from "./literal-conversions.js";
 import { planVoidExpression } from "./expression-void.js";
 import { planCsharpAbsentValue, planCsharpStorageIsAbsent } from "./optional-storage.js";
 import { csharpPlannedEffect, csharpPlannedValue, mapCsharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
@@ -76,7 +76,7 @@ export function planCsharpNativeExpression(
         return value === undefined ? undefined : { prelude: [...prelude, ...value.prelude], completion: value.completion };
     }
     if (use.literal !== undefined) {
-      const literal = planCsharpExactLiteralRecipe(input.scope.typeParameterNames, use.literal);
+      const literal = planCsharpLiteralUseRecipe(input, node, use.literal);
       return literal.kind === "resolved" ? complete(literal.expression)
         : failCsharpPlannerInvariant("An admitted native literal requires its renderable exact recipe.", node);
     }

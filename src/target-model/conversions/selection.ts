@@ -96,7 +96,12 @@ export type CsharpConversionSelection =
         readonly typeArguments: readonly TargetTypeRef[];
       };
       readonly parameterConversions: readonly CsharpConversionSelection[];
-      readonly returnConversion: CsharpConversionSelection | { readonly kind: "void-return" };
+      readonly returnConversion: CsharpConversionSelection | { readonly kind: "void-return" } | {
+        readonly kind: "task-return";
+        readonly sourceResult: TargetTypeRef;
+        readonly targetResult: TargetTypeRef;
+        readonly conversion: CsharpConversionSelection;
+      };
     }
   | {
       readonly kind: "provider-argument-adapter";

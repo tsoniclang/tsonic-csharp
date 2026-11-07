@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { planCsharpExactLiteralConversion } from "../../../../dist/backend/planner/expressions/literal-conversions.js";
+import { planCsharpExactLiteralConversion, planCsharpLiteralUseRecipe } from "../../../../dist/backend/planner/expressions/literal-conversions.js";
 import { csharpSourcePrimitiveTargetType } from "../../../../dist/target-model/types/index.js";
 import { csharpPlannedValue, sequenceCsharpPlannedValues } from "../../../../dist/backend/planner/expressions/planned-values.js";
 import { evaluatedConstant } from "../../../../dist/backend/planner/expressions/builders.js";
@@ -8,6 +8,7 @@ import { selectCsharpExactLiteralConversion } from "../../../../dist/policy/conv
 import { analyzeCsharpNativeConstants } from "../../../../dist/analysis/operations/native-constants.js";
 import { analyzeCsharpLiteralAdmission } from "../../../../dist/analysis/operations/literals.js";
 import { planCsharpPlannedDiscard } from "../../../../dist/backend/planner/statements/statement-output.js";
+import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../../helpers/direct-csharp-session.mjs";
 
 
 const primitive = name => csharpSourcePrimitiveTargetType(name);
@@ -41,7 +42,8 @@ for (const [name, minimum, maximum] of [
       const admitted = analyzeCsharpLiteralAdmission({
         ast: { is: { IsNumericLiteral: () => true, IsBigIntLiteral: () => false,
           IsTemplateExpression: () => false, IsNoSubstitutionTemplateLiteral: () => false } },
-        demand: { entries: [{ use: { kind: "value", expression: node, carrier: target } }] },
+        demand: { entries: [{ use: { kind: "value", expression: node, carrier: target } }],
+          nativeUse: { expression: () => undefined } },
         exact: { exactLiteral: { get: () => selected } }, literals: { literalValue: { get: () => literal } },
         values: { valueRead: { get: () => ({ source: target, value: target }) } },
       });
@@ -73,11 +75,77 @@ function plan(selection, target = primitive("int64")) {
     program: { records: { exactLiteral: Object.freeze({ get: (expression, requested) => {
       reads.push([expression, requested]);
       return selection;
-    } }) } },
+    } }), literalEmission: Object.freeze({ get: () => undefined }) } },
     scope: { typeParameterNames: undefined },
   };
   return { result: planCsharpExactLiteralConversion(input, node, target), reads };
 }
+
+test("target-typed double spelling retains the actual int64 input recipe and wider exact integers", () => {
+  const compiled = compileCsharpSource({ sourceText: `
+    import type { int64 } from "@tsonic/core/types.js";
+    export function f(): number { let x = 2.5; x = 3; return x; }
+    export function wide(): int64 { return 9007199254740993n; }
+  ` });
+  assertCsharpCompilationSucceeded(compiled);
+  const program = compiled.result.program;
+  const { ast } = program.source;
+  const literals = [];
+  const visit = current => {
+    if (ast.is.IsNumericLiteral(current) && ast.text(current) === "3") literals.push(current);
+    ast.forEachChild(current, child => { if (child !== undefined) visit(child); });
+  };
+  program.source.navigation.sourceFiles.filter(file => ast.getFileName(file) === "/project/index.ts").forEach(visit);
+  assert.equal(literals.length, 1);
+  const selected = literals[0];
+  const source = program.source.effectiveTypes.get(selected);
+  const read = program.records.valueRead.get(selected)?.value;
+  const emission = program.records.literalEmission.get(selected);
+  assert.equal(source?.kind !== "refused" && source?.type.kind === "primitive" && source.type.primitive === "int64", true,
+    "the integer's own Source default is unchanged by its Native spelling");
+  assert.equal(read?.kind === "source-primitive" && read.name === "int64", true,
+    "the physical source read remains int64 before its already-admitted conversion");
+  assert.equal(emission?.kind === "exact" && emission.recipe.kind === "integer" && emission.recipe.width === "int64" &&
+    emission.integralToken === true, true, "one sealed target-typing flag coexists with the unchanged integer recipe");
+  const output = compiled.artifacts.get("src/Index.cs") ?? "";
+  assert.equal(output.includes("x = 3;"), true, "the actual converted double destination supplies C# target typing");
+  assert.equal(output.includes("9007199254740993L"), true, "an exact explicit int64 beyond 53 bits retains its full width and value");
+});
+
+test("target-typed spelling keeps wide floating values and argument positions explicitly double", () => {
+  const compiled = compileCsharpSource({ sourceText: `
+    function accept(value: number): number { return value; }
+    export function wideFloat(): number { return 9007199254740994; }
+    export function argument(): number { return accept(3); }
+  ` });
+  assertCsharpCompilationSucceeded(compiled);
+  const output = compiled.artifacts.get("src/Index.cs") ?? "";
+  assert.equal(output.includes("9007199254740994D"), true,
+    "an exact float64 above 2^53 retains its explicit double suffix even in a typed return");
+  assert.equal(output.includes("accept(3D)"), true,
+    "a declared float64 argument is not a C# target-typed literal-spelling position");
+});
+
+test("literal-use spelling requires its same-occurrence fact and preserves precision integer and signed-zero recipes", () => {
+  const foreign = Object.freeze({});
+  const integer = { kind: "integer", target: primitive("int64"), width: "int64", value: 3n };
+  const input = { scope: { typeParameterNames: undefined }, program: { records: { literalEmission: {
+    get: current => current === node ? { kind: "exact", recipe: integer, integralToken: true } : undefined,
+  } } } };
+  const recipe = { kind: "float", target: primitive("float64"), precision: "float64", token: { significand: "3" }, negative: false };
+  const selected = planCsharpLiteralUseRecipe(input, node, recipe);
+  const missing = planCsharpLiteralUseRecipe(input, foreign, recipe);
+  const single = planCsharpLiteralUseRecipe(input, node, { ...recipe, target: primitive("float32"), precision: "float32" });
+  const wide = planCsharpLiteralUseRecipe(input, node, integer);
+  const signed = planCsharpLiteralUseRecipe(input, node, { kind: "signed-zero", target: primitive("float64"), precision: "float64" });
+  assert.equal(selected.kind === "resolved" && selected.expression.suffix === undefined, true,
+    "only the published actual occurrence may omit D at its selected double use");
+  assert.equal(missing.kind === "resolved" && missing.expression.suffix === "D", true,
+    "missing and foreign occurrence evidence cannot acquire target typing");
+  assert.equal(single.kind === "resolved" && single.expression.suffix === "F", true, "the target precision is not rewritten");
+  assert.equal(wide.kind === "resolved" && wide.expression.suffix === "L", true, "an integer use still lowers its integer recipe");
+  assert.equal(signed.kind === "resolved" && signed.expression.operand.suffix === "D", true, "negative zero keeps its floating sign");
+});
 
 test("the literal planner fails its invariant when the selected record is missing and never substitutes the source literal", () => {
   const target = primitive("int32");

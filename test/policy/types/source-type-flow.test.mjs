@@ -329,7 +329,7 @@ test("runtime representation obligations exclude only proven compile-time metada
   for (const classification of [true, false, undefined]) {
     let representations = 0;
     const issues = analyzeCsharpSourceTypeFlowObligations({ ast: source.ast,
-      effectiveTypes: { obligations: () => obligations },
+      effectiveTypes: { get: source.effectiveTypes.get, obligations: () => obligations },
       types: { sourceTypeFlowRepresentation() {
         representations += 1;
         return { ...representationHost("native"),

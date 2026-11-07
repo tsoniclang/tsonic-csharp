@@ -28,7 +28,7 @@ export function planCsharpExactLiteralConversion(
       "C# literal planning requires the sealed exact-literal selection of its requested target.", node);
   }
   if (selection.kind === "rejected") failCsharpPlannerInvariant("A rejected exact literal cannot reach native planning.", node);
-  return selection.kind === "resolved" ? planCsharpExactLiteralRecipe(input.scope.typeParameterNames, selection.recipe) : selection;
+  return selection.kind === "resolved" ? planCsharpLiteralUseRecipe(input, node, selection.recipe) : selection;
 }
 
 export type CsharpExactLiteralConversionPlan =
@@ -36,6 +36,19 @@ export type CsharpExactLiteralConversionPlan =
   | { readonly kind: "source-representation" }
   | { readonly kind: "resolved"; readonly expression: CsharpExpression }
   | { readonly kind: "rejected"; readonly reason: string };
+
+export function planCsharpLiteralUseRecipe(
+  input: CsharpPlanningContext,
+  node: Node,
+  recipe: CsharpExactLiteralRecipe,
+): CsharpExactLiteralConversionPlan {
+  if (recipe.kind === "float" && recipe.precision === "float64") {
+    const emission = input.program.records.literalEmission.get(node);
+    if ((emission?.kind === "float64" || emission?.kind === "exact") && emission.integralToken === true)
+      return planCsharpFloatingLiteralRecipe(recipe, true);
+  }
+  return planCsharpExactLiteralRecipe(input.scope.typeParameterNames, recipe);
+}
 
 export function planCsharpExactLiteralRecipe(
   typeParameterNames: ReadonlyMap<string, string> | undefined,
@@ -61,14 +74,7 @@ export function planCsharpExactLiteralRecipe(
         },
       };
     case "float": {
-      const suffix = recipe.precision === "float32" ? "F" : recipe.precision === "decimal" ? "M" : "D";
-      const literal: CsharpExpression = { kind: "NumericLiteralExpression", token: recipe.token, suffix };
-      const expression: CsharpExpression = recipe.negative
-        ? { kind: "PrefixUnaryExpression", operatorToken: { kind: "MinusToken" }, operand: literal }
-        : literal;
-      return { kind: "resolved", expression: recipe.precision === "float16"
-        ? { kind: "CastExpression", type: csharpTypeFromSourcePrimitiveKind("float16"), expression }
-        : expression };
+      return planCsharpFloatingLiteralRecipe(recipe, false);
     }
     case "integer": {
       const expression = planIntegerLiteral(typeParameterNames, recipe.value, recipe.target);
@@ -76,6 +82,21 @@ export function planCsharpExactLiteralRecipe(
       return { kind: "resolved", expression };
     }
   }
+}
+
+function planCsharpFloatingLiteralRecipe(
+  recipe: Extract<CsharpExactLiteralRecipe, { readonly kind: "float" }>,
+  integralToken: boolean,
+): CsharpExactLiteralConversionPlan {
+  const suffix = recipe.precision === "float32" ? "F" : recipe.precision === "decimal" ? "M" : "D";
+  const literal: CsharpExpression = integralToken ? { kind: "NumericLiteralExpression", value: Number(recipe.token.significand) }
+    : { kind: "NumericLiteralExpression", token: recipe.token, suffix };
+  const expression: CsharpExpression = recipe.negative
+    ? { kind: "PrefixUnaryExpression", operatorToken: { kind: "MinusToken" }, operand: literal }
+    : literal;
+  return { kind: "resolved", expression: recipe.precision === "float16"
+    ? { kind: "CastExpression", type: csharpTypeFromSourcePrimitiveKind("float16"), expression }
+    : expression };
 }
 
 export function planIntegerLiteral(
