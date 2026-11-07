@@ -39,7 +39,6 @@ export function classifyExactUnmodifiedCatchRethrow(
     if (node === undefined || sourceFactWrite) return;
     const passing = selectCsharpSourceArgument(policy.sourceFacts, node);
     if (
-      passing.kind === "resolved" &&
       passing.argument.passingMode !== "by-value" &&
       passing.argument.passingMode !== "byref-readonly" &&
       passing.argument.passingMode !== "borrow-shared"

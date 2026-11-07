@@ -60,13 +60,6 @@ export function validateArgumentsTargetSelectedParameters(
       host.sourceFacts,
       sourceExpression,
     );
-    if (sourceArgument.kind === "rejected") {
-      return {
-        kind: "rejected",
-        reason:
-          `Source argument ${binding.sourceArgumentIndex} is invalid. ${sourceArgument.reason}`,
-      };
-    }
     if (
       sourceArgument.argument.passingMode !==
         argument.targetParameter.passingMode

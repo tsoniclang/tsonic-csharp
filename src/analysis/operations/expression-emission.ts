@@ -72,9 +72,6 @@ export function analyzeCsharpExpressionEmission(input: { readonly source: Target
       else {
         const argument = input.evidence.sourceArgument.get(node)
           ?? failTargetAnalysisInvariant("tsonic-csharp", "An admitted source expression requires its checked argument-passing evidence.", node);
-        if (argument.kind === "rejected") {
-          issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: node, message: argument.reason }); continue;
-        }
         storage = argument.argument.storageExpression;
       }
     }

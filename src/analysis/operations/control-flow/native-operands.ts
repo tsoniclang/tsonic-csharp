@@ -37,7 +37,7 @@ export interface CsharpNativeOperandInput {
 }
 
 export type CsharpNativeOperandRefusal = "argument-refused" | "argument-unresolved" | "argument-inconsistent"
-  | "argument-expression-unresolved" | "expression-form-unresolved" | "operation-unresolved" | "source-argument-rejected" | "construction-unresolved"
+  | "argument-expression-unresolved" | "expression-form-unresolved" | "operation-unresolved" | "construction-unresolved"
   | "callable-creation";
 
 export type CsharpNativeOperandStep =
@@ -156,7 +156,6 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
   }
   if (evidence.sourceDefaultValue.get(node) !== undefined) return chosen([]);
   const passing = evidence.sourceArgument.get(node);
-  if (passing?.kind === "rejected") return refused("source-argument-rejected", passing.reason);
   if (passing?.kind === "resolved" && !sourceNodesEqual(ast, passing.argument.storageExpression, node)) {
     return chosen(use(passing.argument.storageExpression, { kind: "operand", position: "only" }, undefined, "location"));
   }

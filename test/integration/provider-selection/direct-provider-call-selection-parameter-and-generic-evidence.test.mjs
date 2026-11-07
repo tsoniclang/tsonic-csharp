@@ -560,13 +560,13 @@ function int32ProviderAdapter() {
 
 function byrefNativeEvidence(source, mode, target, includeArgument = true) {
   const parameter = source.evidence.sourceSelectedSignatureParameters[0].parameterDeclaration;
-  const facts = [passingFact(parameter, mode)];
+  const facts = [passingFact(parameter, { kind: "declaration", mode })];
   if (!includeArgument) return { facts };
   const argument = source.evidence.sourceArguments[0].expression;
   const declaration = source.program.navigation.referenceFor(argument)?.declaration;
   const storage = declaration === undefined ? undefined : source.program.ast.name(declaration);
   assert.equal(storage !== undefined && storage !== argument, true,
     "the same checked input's storage declaration and call read retain distinct original occurrences");
-  facts.push(passingFact(argument, mode, storage));
+  facts.push(passingFact(argument, { kind: "argument", mode, storageExpression: storage }));
   return { facts, nodeTypes: [[storage, target]] };
 }

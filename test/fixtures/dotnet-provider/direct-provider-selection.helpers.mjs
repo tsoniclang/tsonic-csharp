@@ -584,14 +584,11 @@ export function providerFact(subject, declaration) {
   return { subject, key: providerVirtualDeclarationFactKey, value: declaration };
 }
 
-export function passingFact(subject, mode, storageExpression) {
+export function passingFact(subject, fact) {
   return {
     subject,
     key: argumentPassingFactKey,
-    value: {
-      mode,
-      ...(storageExpression === undefined ? {} : { storageExpression }),
-    },
+    value: fact,
   };
 }
 

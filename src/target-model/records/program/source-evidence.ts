@@ -5,18 +5,13 @@ import type { CsharpSourceDefaultValue, CsharpSourceField, CsharpSourceStruct } 
 import type { SourceTypeComponentEvidence } from "@tsonic/target-api/source";
 import type { Node, ResolvedSourceGeneratorInfo, ResolvedSourceWellKnownSymbolInfo, ResolvedSourceYieldInfo, Signature } from "@tsonic/tsts";
 
-export type CsharpSourceArgumentClassification =
-  | {
-      readonly kind: "resolved";
-      readonly argument: {
-        readonly passingMode: import("@tsonic/tsts").ArgumentPassingMode;
-        readonly storageExpression: Node;
-      };
-    }
-  | {
-      readonly kind: "rejected";
-      readonly reason: string;
-    };
+export interface CsharpSourceArgumentClassification {
+  readonly kind: "resolved";
+  readonly argument: {
+    readonly passingMode: import("@tsonic/tsts").ArgumentPassingMode;
+    readonly storageExpression: Node;
+  };
+}
 
 export type CsharpContextualTupleClassification =
   | {

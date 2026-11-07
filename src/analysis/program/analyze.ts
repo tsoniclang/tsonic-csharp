@@ -311,7 +311,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
         }];
       }
     }
-    if (use.message === undefined && use.reason !== "argument-refused" && use.reason !== "source-argument-rejected" &&
+    if (use.message === undefined && use.reason !== "argument-refused" &&
       use.reason !== "property-key-refused") return [];
     return [{ sourceNode: use.expression, source: "tsonic-csharp", category: "error",
       code: use.code ?? "CSHARP_UNSUPPORTED_AST", message: use.message ?? failTargetAnalysisInvariant(

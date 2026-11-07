@@ -399,14 +399,6 @@ export function analyzeCsharpStorage(
         policy.sourceFacts,
         expression,
       );
-      if (selected.kind === "rejected") {
-        issues.push(issue(
-          expression,
-          "CSHARP_STORAGE_ARGUMENT_FACT_INVALID",
-          selected.reason,
-        ));
-        continue;
-      }
       const storageExpression = selected.argument.storageExpression;
       const declaration = policy.navigation.referenceFor(storageExpression)
         ?.declaration;

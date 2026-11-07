@@ -1,26 +1,22 @@
 import { type ArgumentPassingMode, argumentPassingFactKey, type ExtensionFactSubject, type Node, type ReadonlySourceFactResolver } from "@tsonic/tsts";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 
 export interface CsharpSourceArgumentSelection {
   readonly passingMode: ArgumentPassingMode;
   readonly storageExpression: Node;
 }
 
-export type CsharpSourceArgumentSelectionResult =
-  | {
-      readonly kind: "resolved";
-      readonly argument: CsharpSourceArgumentSelection;
-    }
-  | {
-      readonly kind: "rejected";
-      readonly reason: string;
-    };
+export interface CsharpSourceArgumentSelectionResult {
+  readonly kind: "resolved";
+  readonly argument: CsharpSourceArgumentSelection;
+}
 
 export function selectCsharpSourceArgument(
   sourceFacts: ReadonlySourceFactResolver | undefined,
   expression: Node,
 ): CsharpSourceArgumentSelectionResult {
   const passing = sourceFacts?.getFact(expression, argumentPassingFactKey);
-  if (passing === undefined) {
+  if (passing === undefined || passing.kind === "declaration") {
     return {
       kind: "resolved",
       argument: {
@@ -29,13 +25,8 @@ export function selectCsharpSourceArgument(
       },
     };
   }
-  if (passing.storageExpression === undefined) {
-    return {
-      kind: "rejected",
-      reason:
-        "The exact source argument-passing fact has no storage expression.",
-    };
-  }
+  if (passing.kind !== "argument" || passing.storageExpression === undefined) failTargetAnalysisInvariant("tsonic-csharp",
+    "A complete Source argument-passing fact requires its exact storage expression.", expression);
   return {
     kind: "resolved",
     argument: {
