@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createCompilerSessionFromFiles, createSourceSemanticsExtension, sourcePrimitive, TstsSourceProviderContractVersion } from "@tsonic/tsts";
 import { createTargetSourceProgram, sourceTypeDescriptorMemberOriginsEqual, sourceTypeDescriptorStructure } from "@tsonic/target-api/source";
+import { createTsonicMemoryBindingFactsIndex } from "@tsonic/source-core/facts";
 import { createCsharpNativeConstructionDemandQuery } from "../../../dist/analysis/objects/native-construction-demand.js";
 import { csharpObjectShapeMemberRetainsNativeReference } from "../../../dist/policy/types/objects/member-reads.js";
 import { createCsharpObjectShapeMemberResolver } from "../../../dist/analysis/objects/shapes/member-evidence.js";
@@ -281,6 +282,7 @@ function fixture() {
       host.ast = input.program.ast;
       host.effectiveTypes = input.program.effectiveTypes;
       host.sourceFacts = input.program.sourceFacts;
+      host.memoryBindings = createTsonicMemoryBindingFactsIndex(input.program);
       host.navigation = { ...input.program.navigation,
         isProjectDeclaration: selected => !foreign.has(selected) && input.program.navigation.isProjectDeclaration(selected) };
       host.hasSemantics = input.program.semantics.includes;

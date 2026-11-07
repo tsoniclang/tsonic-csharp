@@ -8,4 +8,5 @@ export type CsharpSourceCalleeSelection =
   | { readonly kind: "union-method"; readonly expression: Node;
       readonly receiver: { readonly expression: Node; readonly type: TargetTypeRef } }
   | { readonly kind: "value"; readonly expression: Node; readonly type: TargetTypeRef }
-  | { readonly kind: "rejected"; readonly reason: string };
+  | { readonly kind: "rejected"; readonly reason: string;
+      readonly sourceContract: "required" | "not-applicable" };

@@ -20,6 +20,7 @@ import { resolveTypeParameter } from "./source-evidence.js";
 export type CsharpSourceCallContractSelection =
   | { readonly kind: "declaration"; readonly contract: SourceCallableContract | undefined; readonly closedInput?: true }
   | { readonly kind: "value"; readonly contract: SourceCallableContract }
+  | { readonly kind: "not-applicable" }
   | { readonly kind: "rejected" };
 
 export function resolveSourceCallContract(
@@ -42,7 +43,8 @@ export function resolveSourceCallContract(
   }, source, sourceFile);
   if (callee.kind === "function" || callee.kind === "method" || callee.kind === "union-method") return direct();
   const reject = (): CsharpSourceCallContractSelection => Object.freeze({ kind: "rejected" });
-  if (callee.kind === "rejected") return reject();
+  if (callee.kind === "rejected") return callee.sourceContract === "not-applicable"
+    ? Object.freeze({ kind: "not-applicable" }) : reject();
   const selectedArguments = source.sourceSelectedMethodTypeArguments ?? [];
   const type = checkedValueInvocationCarrier(scope, source, sourceFile,
     getCsharpNullableElementTargetType(callee.type) ?? callee.type, selectedArguments);

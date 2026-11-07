@@ -28,7 +28,7 @@ export function resolveSourceCallTypeArguments(
   sourceFile: SourceFile,
 ): readonly TargetTypeRef[] | undefined {
   const selected = resolveSourceCallContract(source, sourceFile, { depth: 0 }, "checked");
-  if (selected.kind === "rejected") return undefined;
+  if (selected.kind === "rejected" || selected.kind === "not-applicable") return undefined;
   const callable = selected.contract;
   return resolveSourceCallInstantiation(
     source,
@@ -66,7 +66,7 @@ function resolveSelectedSourceCallParameter(
   if (parameter === undefined) {
     return undefined;
   }
-  if (selected.kind === "rejected") return undefined;
+  if (selected.kind === "rejected" || selected.kind === "not-applicable") return undefined;
   const callable = selected.contract;
   const bodyParameter = callable?.kind === "source" ? callable.bodyInputs?.parameters.find(slot =>
     slot.sourceParameter === parameter.parameterDeclaration) : undefined;
@@ -128,7 +128,7 @@ export function resolveSourceCallParameters(
   sourceFile: SourceFile,
 ): readonly import("../../../../target-model/types/model.js").CsharpTargetParameter[] | undefined {
   const selected = scope.resolveSourceCallContract(source, sourceFile, { depth: 0 }, "implementation");
-  if (selected.kind === "rejected") return undefined;
+  if (selected.kind === "rejected" || selected.kind === "not-applicable") return undefined;
   const callable = selected.contract;
   if (callable !== undefined) {
     if (!scope.sourceCallableTypeParametersMatch(source, callable, selected.kind)) return undefined;
@@ -163,7 +163,7 @@ export function resolveSourceCallArgumentParameter(
     return undefined;
   }
   const selected = resolveSourceCallContract(source, sourceFile, { depth: 0 }, "implementation");
-  if (selected.kind === "rejected") return undefined;
+  if (selected.kind === "rejected" || selected.kind === "not-applicable") return undefined;
   const callable = selected.contract;
   const contractedParameter = callable === undefined ? undefined : csharpSourceCallArgumentParameter(callable, binding.effectiveArgumentIndex);
   if (callable !== undefined && contractedParameter !== undefined) {
@@ -234,6 +234,8 @@ export function resolveSourceCallResultWithState(
   if (effective !== undefined && effective.result === undefined) return undefined;
   const selection = resolveSourceCallContract(source, sourceFile, state, "implementation");
   if (selection.kind === "rejected") return undefined;
+  if (selection.kind === "not-applicable") return effective === undefined || nativeType === undefined ? effective?.result
+    : Object.freeze({ ...effective.result!, nativeType });
   const callable = selection.contract;
   if (effective !== undefined && callable === undefined) return nativeType === undefined ? effective.result
     : Object.freeze({ ...effective.result!, nativeType });

@@ -4,6 +4,7 @@ import test from "node:test";
 import { classifyCsharpUnionCall } from "../../../dist/analysis/operations/union-calls.js";
 import { selectCsharpUnionCallMethods } from "../../../dist/analysis/source-evidence/types/resolution/union-call-methods.js";
 import { resolveSourceCallResultWithState } from "../../../dist/analysis/source-evidence/types/resolution/call-api.js";
+import { resolveSourceCallContract } from "../../../dist/analysis/source-evidence/types/resolution/call-contracts.js";
 import { csharpTaskTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
 import { getCsharpRuntimeUnionArms } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
 import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
@@ -167,8 +168,12 @@ test("one early union method owner supplies the same checked members and results
   input.source.sourceSelectedSignatureKind = "resolved";
   const semantics = input.policy.semantics(input.sourceFile);
   semantics.operations.callResult = () => undefined;
-  const scope = { host: { ...input.policy, projectTypes: () => input.policy.projectTypes },
+  const scope = { host: { ...input.policy, projectTypes: () => input.policy.projectTypes,
+    ast: { ...input.policy.ast, is: { ...input.policy.ast.is, IsNewExpression: () => false } },
+    navigation: { ...input.policy.navigation, sourceReferenceFor: () => undefined },
+    representations: { sourceCallable: () => undefined } },
     sourceCallSelectedDeclaration: () => input.declarations[0],
+    resolveSourceCallContract: (...arguments_) => resolveSourceCallContract(scope, ...arguments_),
     resolveSelectedValueWithState: (...arguments_) => input.policy.types.resolveSelectedValue(...arguments_),
     resolveSourceCallInstantiation: () => ({ arguments: [] }),
     resolveNodeWithState: (declaration, file) => input.policy.types.resolveNode(declaration, file)?.sourceResult?.selectedType };

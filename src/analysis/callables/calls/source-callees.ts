@@ -34,7 +34,8 @@ export function classifyCsharpSourceCallee(
     (policy.ast.is.IsFunctionDeclaration(declaration) && policy.ast.is.IsFunctionDeclaration(selected) ||
       moduleCallable !== undefined && (selected === declaration || selected === moduleCallable))) {
     if (!policy.navigation.isProjectDeclaration(selected)) return Object.freeze({ kind: "rejected",
-      reason: "The exact selected source callee is external to the project and has no C# target relation." });
+      reason: "The exact selected source callee is external to the project and has no C# target relation.",
+      sourceContract: "not-applicable" });
     return Object.freeze({ kind: "function", expression, declaration: moduleCallable ?? selected });
   }
   if (declaration !== undefined && declaration === selected && policy.ast.kindName(declaration) === "KindFunctionExpression" &&
@@ -62,10 +63,11 @@ export function classifyCsharpSourceCallee(
   const type = access === undefined
     ? policy.types.resolveSelectedValue(expression, source.sourceCallee.type, sourceFile)
     : policy.types.resolveReadStorage(expression, sourceFile);
-  const reject = (reason: string): CsharpSourceCalleeSelection => Object.freeze({ kind: "rejected", reason });
+  const reject = (reason: string, sourceContract: "required" | "not-applicable"): CsharpSourceCalleeSelection =>
+    Object.freeze({ kind: "rejected", reason, sourceContract });
   if (selected === undefined || declaration === undefined) {
     if (type === undefined || getCsharpCallableValueSignature(getCsharpNullableElementTargetType(type) ?? type) === undefined) {
-      return reject("A source callee requires its exact selected declaration or native callable storage contract.");
+      return reject("A source callee requires its exact selected declaration or native callable storage contract.", "required");
     }
   } else {
     const nominalMethod = policy.ast.is.IsClassDeclaration(policy.ast.parent(declaration));
@@ -80,14 +82,16 @@ export function classifyCsharpSourceCallee(
       methodDeclaration && selectedMethod) {
       const access = source.sourceCalleeAccess;
       const receiver = policy.types.resolveSelectedValue(access.receiver.expression, access.receiver.type, sourceFile);
-      if (receiver === undefined) return reject("A direct source method requires its exact native receiver contract.");
+      if (receiver === undefined) return reject("A direct source method requires its exact native receiver contract.",
+        policy.navigation.isProjectDeclaration(declaration) || policy.navigation.isProjectDeclaration(selected)
+          ? "required" : "not-applicable");
       return Object.freeze({ kind: "method", expression: access.expression, declaration: selected,
         receiver: Object.freeze({ expression: access.receiver.expression, type: receiver }) });
     }
   }
   if (type === undefined || getCsharpMethodValue(getCsharpNullableElementTargetType(type) ?? type) === undefined &&
       getCsharpDelegateSignature(getCsharpNullableElementTargetType(type) ?? type) === undefined) {
-    return reject("A source callable value requires its exact native delegate or method-value storage contract.");
+    return reject("A source callable value requires its exact native delegate or method-value storage contract.", "required");
   }
   return Object.freeze({ kind: "value", expression, type });
 }
