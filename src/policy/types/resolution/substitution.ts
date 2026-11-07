@@ -3,7 +3,7 @@ import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpRuntimeU
 import { csharpNullableTargetType, isCsharpNullableReferenceTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { getCsharpRuntimeUnionArms, isCsharpAbsenceTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
-import { csharpTypeProjection, getCsharpGenericOptionalParts, type CsharpOptionalTypeProjection } from "../../../target-model/types/projections.js";
+import { csharpProjectedType, csharpTypeProjection, getCsharpGenericOptionalParts, type CsharpOptionalTypeProjection } from "../../../target-model/types/projections.js";
 import { resolveCsharpOptionalStorage } from "../storage/optional-storage.js";
 import { csharpFreeTypeParameterIdentities } from "../../../target-model/types/generic-references.js";
 import type { CsharpTypeParameterConstraint } from "../../../target-model/types/generic-constraints.js";
@@ -18,6 +18,9 @@ export function substituteTargetTypeParameters(
       const substitution = substitutions.get(type.identity);
       if (substitution === undefined) {
         const projection = csharpTypeProjection(type)?.csharpProjection;
+        if (projection?.kind === "source-union") return csharpProjectedType({ ...projection,
+          ...(projection.part === "storage" ? { roleArguments: projection.roleArguments.map(argument => substituteTargetTypeParameters(argument, substitutions)) } : {}),
+          arguments: projection.arguments.map(argument => substituteTargetTypeParameters(argument, substitutions)) });
         if (projection?.kind === "optional") {
           const element = substituteTargetTypeParameters(projection.arguments[0], substitutions);
           const selected = resolveCsharpOptionalStorage(projection, element);
@@ -179,6 +182,7 @@ export function inferCsharpTargetTypeParameterBindings(
       return targetTypeRefEquals(existing, right);
     }
     const projection = csharpTypeProjection(left)?.csharpProjection;
+    if (projection?.kind === "source-union") return targetTypeRefEquals(left, right);
     if (projection?.kind === "optional" && projection.part === "operations") {
       projections.push({ contract: projection, actual: right });
       return true;

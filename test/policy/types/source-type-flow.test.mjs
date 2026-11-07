@@ -23,6 +23,7 @@ import { analyzeCsharpSourceTypeFlowObligations } from "../../../dist/analysis/s
 const primitive = name => Object.freeze({ kind: "primitive", primitive: name });
 const unexpected = () => assert.fail("a primitive unit must not query declarations shapes or an unrelated native child");
 const representationHost = surface => ({ target: { id: "csharp", ...(surface === "js" ? { surfaces: ["js"] } : {}) },
+  sourceSum: () => undefined,
   typeParameterConstraints: {}, declaredType: unexpected, retainShape: unexpected, shapeKind: () => "storage",
   memberDeclaration: declaration => ({ declarations: [declaration], kind: "property", bound: false }) });
 
@@ -100,7 +101,13 @@ test("declarations and reads use only their actual Host outcome across every pub
       const forbidden = () => assert.fail(`${label}: a missing Host fact cannot trigger a second Source chooser`);
       const rejections = [];
       const host = { ast: source.ast, target: { id: "csharp" }, typeParameterConstraints: {},
-        effectiveTypes: { get(selected) { assert.equal(selected === node, true, label); return outcome; } },
+        effectiveTypes: {
+          get(selected) { assert.equal(selected === node, true, label); return outcome; },
+          methodValueUse(selected) {
+            assert.equal(selected === node, true, label);
+            return source.effectiveTypes.methodValueUse(selected);
+          },
+        },
         semantics: forbidden, semanticsFor: forbidden, navigation: { referenceFor: forbidden },
         representations: { scopedTargetType: forbidden },
         objectShapes: { resolveNativeParameter(owner, parameter, type) {

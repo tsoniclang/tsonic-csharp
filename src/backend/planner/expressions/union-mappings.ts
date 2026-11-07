@@ -7,6 +7,7 @@ import type { CsharpPlanningContext } from "../context.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { planCsharpUnionPattern } from "./union-patterns.js";
+import { runtimeUnionArmConstruction } from "./union-access.js";
 
 export function planCsharpUnionMapping(
   node: Node,
@@ -39,11 +40,7 @@ export function planCsharpUnionMapping(
     let value = projection.value;
     const when = projection.condition;
     for (const step of [...mapping.target].reverse()) {
-      const type = csharpTypeFromTargetTypeRef(step.union, input.scope.typeParameterNames);
-      if (type === undefined) failCsharpPlannerInvariant("An admitted union conversion requires its native target-arm type.", node);
-      value = { kind: "InvocationExpression",
-        callee: { kind: "SimpleMemberAccessExpression", receiver: type, name: `From${step.index + 1}` },
-        arguments: [{ kind: "Argument", expression: value }] };
+      value = runtimeUnionArmConstruction(value, step.index, step.union, input);
     }
     arms.push({ pattern: { kind: "VarPattern", designation }, when,
       expression: !targetOptional ? value : { kind: "CastExpression", type: resultType, expression: value } });

@@ -1,6 +1,6 @@
 import type { CsharpTargetMember, CsharpTargetParameter, TargetTypeRef } from "../../types/index.js";
 import { jsSourceCallableRefusal } from "@tsonic/js-source-profile";
-import { combineCsharpTargetUnionMembers, csharpIteratorResultTargetType, csharpSourcePrimitiveTargetType, csharpTaskTargetType, getCsharpGeneratorProtocol, getCsharpIteratorResultProtocol } from "../../../target-model/types/index.js";
+import { csharpRuntimeUnionTargetType, csharpIteratorResultTargetType, csharpSourcePrimitiveTargetType, csharpTaskTargetType, getCsharpGeneratorProtocol, getCsharpIteratorResultProtocol } from "../../../target-model/types/index.js";
 
 import type { CsharpSourceProfileCallPolicy, CsharpSourceProfileCallPolicyContext, CsharpSourceProfileCallPolicyResult, CsharpSourceProfileIdentitySelector, CsharpSourceProfilePropertyPolicy, CsharpSourceProfilePropertyPolicyContext } from "../../model/source-profiles.js";
 import type { CsharpSourceProfilePropertyPolicyResult } from "../../../target-model/records/program/source-profile-invocations.js";
@@ -291,7 +291,7 @@ function iteratorResultPropertyType(
     case "done":
       return csharpSourcePrimitiveTargetType("bool");
     case "combined-value":
-      return combineCsharpTargetUnionMembers([
+      return csharpRuntimeUnionTargetType([
         protocol.yieldType,
         protocol.returnType,
       ]);

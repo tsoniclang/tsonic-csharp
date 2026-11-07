@@ -1,6 +1,6 @@
 import type { CsharpPolicyContext } from "../model/context.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
-import { selectCsharpAwaitCompletion } from "../operations/control-flow/await-completions.js";
+import { selectCsharpAwaitAlternatives } from "../operations/control-flow/await-completions.js";
 import { csharpCarrierAdmitsSourceAbsence, csharpNullableTargetType, getCsharpTaskResultTargetType, isCsharpVoidTargetType, targetTypeRefEquals } from "../../target-model/types/index.js";
 import { selectCsharpConversion } from "./core.js";
 import { csharpConversionIsApplicable } from "./applicability.js";
@@ -13,7 +13,7 @@ export function selectCsharpContextualAsyncReturn(
 ): TargetTypeRef | undefined {
   const source = getCsharpTaskResultTargetType(inferred);
   if (source === undefined || contextual === undefined || authority !== "authored" && authority !== "inferred") return undefined;
-  const candidates = selectCsharpAwaitCompletion(contextual, policy.typeDefinitions)?.alternatives.filter(alternative =>
+  const candidates = selectCsharpAwaitAlternatives(contextual, policy.typeDefinitions)?.filter(alternative =>
     alternative.task && (isCsharpVoidTargetType(source)
       ? isCsharpVoidTargetType(alternative.result) || csharpCarrierAdmitsSourceAbsence(alternative.result)
       : (authority === "authored" || targetTypeRefEquals(source, alternative.result) ||

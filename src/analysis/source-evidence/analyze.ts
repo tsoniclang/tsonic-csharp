@@ -8,7 +8,8 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { csharpNativePropertyNameIssue } from "../objects/computed-field-names.js";
 import type { CsharpTypePolicy } from "./types/resolution/model.js";
-import { combineCsharpTargetUnionMembers, isCsharpJsValueTargetType, targetTypeRefEquals, targetTypeRefKey } from "../../policy/types/index.js";
+import { isCsharpJsValueTargetType, targetTypeRefEquals, targetTypeRefKey } from "../../policy/types/index.js";
+import { selectCsharpNativeFlowCarrier } from "./types/resolution/native-flow-refinement.js";
 import { isTypeParameterTargetRef } from "../../policy/ownership/type-categories.js";
 import { csharpTargetTypeComponents } from "../../target-model/types/components.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
@@ -300,13 +301,14 @@ export function analyzeCsharpSourceEvidence(
     const nativeMembers = nodeTargetType === undefined || readStorageTargetType === undefined ||
       !isCsharpFlowReadEvidenceNode(source.ast, node) ? undefined : types.nativeFlowMembers(node, readStorageTargetType);
     const selectedTargetType = nativeMembers === undefined ? nodeTargetType
-      : recordTargetType(combineCsharpTargetUnionMembers(nativeMembers));
+      : readStorageTargetType === undefined ? undefined : recordTargetType(selectCsharpNativeFlowCarrier(
+        readStorageTargetType, nodeTargetType, nativeMembers, policy.typeDefinitions));
     const flowReadTargetType = recordTargetType(selectCsharpFlowReadCarrier({
       exactSourceRead: exact,
       nativeSourceRead: nativeMembers !== undefined,
       unrelatedSourceTypesShareTargetRepresentation: selectedTargetType !== undefined && readStorageTargetType !== undefined &&
         targetTypeRefEquals(selectedTargetType, readStorageTargetType),
-      selectedTargetType, readStorageTargetType, memberTargetTypes: undefined,
+      selectedTargetType, readStorageTargetType,
     }));
     refinements.set(node, Object.freeze({
       kind: publication === undefined || publication.kind === "refused" ? "unavailable" : "resolved",

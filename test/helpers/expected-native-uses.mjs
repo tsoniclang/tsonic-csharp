@@ -5,6 +5,7 @@ import { createCsharpProviderRelationResolver } from "../../dist/providers/nativ
 import { compileCsharpSource, compileCsharpAnalysisTarget } from "./direct-csharp-session.mjs";
 import { csharpProgramSourceFiles } from "./program-source-files.mjs";
 import { csharpAsyncGeneratorTargetType, csharpGeneratorTargetType } from "../../dist/target-model/types/carriers/generators.js";
+import { resolveCsharpPublishedSourceSum } from "../../dist/analysis/source-evidence/types/resolution/projection-arguments.js";
 
 // The published generator fact of a declaration carries its protocol; its declared carrier is the protocol's generator type.
 export function publishedGeneratorCarrier(records, node) {
@@ -72,6 +73,7 @@ export function createExpectedNativeUseOwner(compiled) {
   const unrelatedRepresentation = () => assert.fail("These expected-use fixtures require only published primitive and array representations.");
   const representation = Object.freeze({
     target: compiled.target,
+    sourceSum: descriptor => resolveCsharpPublishedSourceSum({ host: { ast, effectiveTypes: source.effectiveTypes } }, descriptor),
     typeParameterConstraints: Object.freeze({ resolve: unrelatedRepresentation }),
     declaredType: unrelatedRepresentation,
     indexType: unrelatedRepresentation,

@@ -7,7 +7,7 @@ import type { CsharpSourceCallResult } from "../../../../target-model/operations
 import type { CsharpTargetNamedTypeRef, CsharpTargetParameter, TargetTypeRef } from "../../../../target-model/types/model.js";
 import { representCsharpSourceType, type CsharpSourceTypeRepresentationHost } from "../../../../policy/types/source-type-flow/representation.js";
 import { csharpSourceTypeParameter } from "../../../../source/extension/type-parameters.js";
-import { resolveCsharpProjectionArguments } from "./projection-arguments.js";
+import { resolveCsharpProjectionArguments, resolveCsharpPublishedSourceSum } from "./projection-arguments.js";
 import { nextState } from "./state.js";
 import type { ResolvedSourceCallInfo } from "../../../../target-model/records/calls/source-calls.js";
 import { csharpRuntimeLocationTargetType, csharpRuntimeRawPointerTargetType } from "../../../../target-model/types/carriers/runtime-carriers.js";
@@ -24,7 +24,7 @@ import { selectCsharpClassFactoryType } from "../../../project-types/class-facto
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
 import { getCsharpGenericOptionalParts } from "../../../../target-model/types/projections.js";
 import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
-import { csharpSourceTemplateState } from "./type-bindings.js";
+import { csharpSourceTemplateState, substituteCsharpPublishedSourceType } from "./type-bindings.js";
 import { selectCsharpObjectMethodImplementation } from "../../../objects/shapes/method-implementations.js";
 import { createStructuralObjectShapeTarget } from "../../../objects/shapes/construction.js";
 import { sourceFactSubjectsForNode } from "./source-evidence.js";
@@ -68,6 +68,7 @@ export function createCsharpSourceTypeRepresentationHost(
   return {
     target: host.target,
     typeParameterConstraints: host.typeParameterConstraints,
+    sourceSum: descriptor => resolveCsharpPublishedSourceSum(scope, descriptor),
     indexType(key, value) {
       const binding = csharpProviderBindingFromResolution(host.providers.findTargetBindingByMetadataName(
         "System.Collections.Generic.Dictionary`2", "ordinary"));
@@ -309,7 +310,9 @@ export function resolveCsharpSourceTypeDescriptor(
   state: CsharpTypeResolutionState,
   occurrence: Node | undefined,
 ): TargetTypeRef | undefined {
-  return representCsharpSourceType(createCsharpSourceTypeRepresentationHost(scope, state, occurrence), descriptor);
+  const selected = substituteCsharpPublishedSourceType(scope.host.ast, descriptor, state);
+  return selected === undefined ? undefined
+    : representCsharpSourceType(createCsharpSourceTypeRepresentationHost(scope, state, occurrence), selected);
 }
 
 export function resolveCsharpSourceEffectiveType(

@@ -2,7 +2,7 @@ import type { CsharpGenericProjectionIndex } from "../../target-model/records/ty
 import type { Node } from "@tsonic/tsts";
 import { IsTypeSyntaxNode, type TargetSourceProgram } from "@tsonic/target-api/source";
 import { csharpTargetTypeComponents } from "../../target-model/types/components.js";
-import { csharpTypeProjection, getCsharpGenericOptionalParts, type CsharpProjectedType } from "../../target-model/types/projections.js";
+import { csharpTypeProjection, getCsharpGenericOptionalParts, getCsharpGenericSourceUnionParts, type CsharpProjectedType } from "../../target-model/types/projections.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
 import { csharpSourceTypeParameter, csharpSourceTypeParameters } from "../../source/extension/type-parameters.js";
 import { targetTypeRefKey } from "../../target-model/types/equality.js";
@@ -48,8 +48,13 @@ export function analyzeCsharpTypeProjections(
       }
       if (local && optionalLocals.removesProjection(node, projection.identity)) continue;
       pending.push(...projection.csharpProjection.arguments.map(type => ({ type, local })));
+      if (projection.csharpProjection.kind === "source-union" && projection.csharpProjection.part === "storage") {
+        pending.push(...projection.csharpProjection.roleArguments.map(type => ({ type, local })));
+      }
       const optional = getCsharpGenericOptionalParts(projection);
       if (optional !== undefined) pending.push({ type: optional.operations, local });
+      const sourceUnion = getCsharpGenericSourceUnionParts(projection);
+      if (sourceUnion !== undefined) pending.push({ type: sourceUnion.operations, local });
       const free = csharpFreeTypeParameterIdentities(projection.csharpProjection.arguments);
       if (free.size === 0) continue;
       for (let owner: Node | undefined = node; owner !== undefined; owner = ast.parent(owner)) {

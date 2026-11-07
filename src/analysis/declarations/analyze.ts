@@ -12,7 +12,7 @@ import { csharpNumericReturnBaselineCovered, csharpSourceUnionLayoutsMatch } fro
 import { selectCsharpCommonImplicitTarget } from "../conversions/common-target.js";
 import {
   csharpAbsenceTargetType,
-  combineCsharpTargetUnionMembers,
+  csharpNullableTargetType,
   isCsharpAbsenceTargetType,
   csharpCarrierAdmitsSourceAbsence,
   getCsharpNullableElementTargetType,
@@ -170,8 +170,7 @@ export function reconcileInferredReturnTargetContract(
     requiredSources,
     [...observed, baseline, ...(requiredSources.some(isCsharpAbsenceTargetType)
       ? observed.flatMap(source => {
-          const optional = combineCsharpTargetUnionMembers([source, csharpAbsenceTargetType()]);
-          return optional === undefined ? [] : [optional];
+          return [isCsharpVoidTargetType(source) ? csharpAbsenceTargetType() : csharpNullableTargetType(source)];
         }) : [])],
   );
   if (selected.kind === "resolved") return { kind: "resolved", type: selected.target };

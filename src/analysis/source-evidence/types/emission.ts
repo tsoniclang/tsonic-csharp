@@ -12,7 +12,7 @@ import { createCsharpTypeEmissionProducer } from "../../program/records/types/ty
 import { csharpTypeEmissionKey } from "../../../target-model/records/types/type-emission.js";
 import { selectCsharpTypeEmission } from "../../../policy/types/resolution/type-emission.js";
 import { selectCsharpTypeUnsafeContext } from "../../../policy/operations/pointers/native-type-safety.js";
-import { getCsharpGenericOptionalParts } from "../../../target-model/types/projections.js";
+import { getCsharpGenericOptionalParts, getCsharpGenericSourceUnionParts } from "../../../target-model/types/projections.js";
 import { csharpCarrierAdmitsSourceAbsence, isCsharpJsValueTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { csharpCollectionElementRead } from "../../../policy/operations/collections/element-reads.js";
 import { getCsharpIndexableLengthMemberName } from "../../../target-model/types/carriers/collections.js";
@@ -93,6 +93,8 @@ export function analyzeCsharpTypeEmission(input: { readonly ast: AstReader; read
     visit(root);
     const optional = getCsharpGenericOptionalParts(root);
     if (optional !== undefined) pending.push(optional.element, optional.operations);
+    const sourceUnion = getCsharpGenericSourceUnionParts(root);
+    if (sourceUnion !== undefined) pending.push(...sourceUnion.members, sourceUnion.operations);
     const collectionRead = csharpCollectionElementRead(root);
     const lambda = getCsharpLambdaSignature(root);
     const taskResult = getCsharpTaskResultTargetType(root);
@@ -106,6 +108,7 @@ export function analyzeCsharpTypeEmission(input: { readonly ast: AstReader; read
       nullableReference: isCsharpNullableReferenceTargetType(root),
       valueType: isCsharpValueTypeTargetType(root),
       unionAccess: optional !== undefined ? Object.freeze({ kind: "generic", operations: optional.operations })
+        : sourceUnion !== undefined ? Object.freeze({ kind: "generic", operations: sourceUnion.operations })
         : Object.freeze({ kind: getCsharpNullableElementTargetType(root) === undefined ? "direct" : "nullable" }),
       collectionRead: collectionRead?.kind === "invalid" ? undefined : collectionRead,
       collectionLength: getCsharpIndexableLengthMemberName(root),

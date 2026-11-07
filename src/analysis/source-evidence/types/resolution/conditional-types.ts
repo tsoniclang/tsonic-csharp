@@ -18,7 +18,8 @@ export function resolveCsharpConditionalApplication(
 ): TargetTypeRef | undefined {
   if (application.kind !== "conditional" || application.bindings.length !== arguments_.length) return undefined;
   const bound = csharpSourceBindings(application.bindings.map(binding => binding.declaration),
-    application.bindings.map(binding => binding.argument), arguments_, state);
+    application.bindings.map(binding => binding.argument), arguments_,
+    application.bindings.map(binding => csharpBoundSourceType(binding.argument, queries, state)?.descriptor), state);
   if (bound === undefined) return undefined;
   let result: TargetTypeRef | undefined;
   for (const step of application.conditionalSteps) {
@@ -49,7 +50,8 @@ export function resolveCsharpConditionalApplication(
             : scope.resolveTypeWithState(sourceType, queries.sourceFile, nextState(bound)))
         : arguments_[index];
       if (targetType === undefined) return undefined;
-      for (const declaration of binding.declarations) bindings.set(declaration, { sourceType, targetType });
+      const descriptor = csharpBoundSourceType(sourceType, queries, bound)?.descriptor;
+      for (const declaration of binding.declarations) bindings.set(declaration, { sourceType, targetType, descriptor });
     }
     if (scope.host.ast.is.IsConditionalTypeNode(step.selectedNode)) continue;
     const selected = scope.resolveNodeWithState(step.selectedNode, scope.host.ast.getSourceFile(step.selectedNode) ?? queries.sourceFile,

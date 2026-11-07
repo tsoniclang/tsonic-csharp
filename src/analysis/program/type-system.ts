@@ -60,12 +60,15 @@ function createCsharpTypeSystem(
     if (sourceFile === undefined || !host.hasSemantics(sourceFile)) return undefined;
     const sourceType = source?.sourceType ?? host.semantics(sourceFile).declarations.declaredType(declaration);
     if (sourceType === undefined) return undefined;
+    const published = host.effectiveTypes.get(declaration);
+    const descriptor = published !== undefined && published.kind !== "refused" && published.type.kind === "declared" &&
+      published.type.declaration === declaration ? published.type : undefined;
     const resolution = resolveCsharpTypeParameterConstraints(declaration, parameter, sourceFile, {
       ast: host.ast,
       types: { resolveNode: (node, file) => {
         let rejected: Extract<import("../../policy/model/type-resolution.js").CsharpNodeTypeResolution, { readonly kind: "rejected" }> | undefined;
         const type = typeResolution.recursive.resolveNode(node, file, {
-          depth: 0, sourceBindings: new Map([[declaration, { sourceType, targetType: parameter }]]),
+          depth: 0, sourceBindings: new Map([[declaration, { sourceType, targetType: parameter, descriptor }]]),
           rejectNativeResolution: rejection => { rejected ??= rejection; },
         });
         return rejected ?? (type === undefined ? undefined : Object.freeze({ kind: "resolved" as const,

@@ -8,6 +8,7 @@ import { representCsharpSourceType } from "../../../../dist/policy/types/source-
 import { csharpSourceTypeParameter } from "../../../../dist/source/extension/type-parameters.js";
 import { getCsharpNullableElementTargetType } from "../../../../dist/target-model/types/carriers/nullable.js";
 import { targetTypeRefEquals } from "../../../../dist/target-model/types/equality.js";
+import { resolveCsharpPublishedSourceSum } from "../../../../dist/analysis/source-evidence/types/resolution/projection-arguments.js";
 
 function fixture(mode) {
   const checked = createCompilerSessionFromFiles({ currentDirectory: "/cold", files: {
@@ -37,6 +38,7 @@ function fixture(mode) {
   const definitions = createCsharpSourceUnionDefinitions({ ...source, effectiveTypes, typeDefinitions: registry },
     () => assert.fail("cold published aliases cannot reopen a checked Type"));
   const represent = descriptor => representCsharpSourceType({ target: { id: "csharp", options: {} },
+    sourceSum: selected => resolveCsharpPublishedSourceSum({ host: { ast: source.ast, effectiveTypes } }, selected),
     declaredType(declaration, arguments_, actual) {
       const parameter = csharpSourceTypeParameter(declaration, source.ast);
       return parameter ?? definitions.resolveDescriptor(declaration, arguments_, actual.definition, represent,

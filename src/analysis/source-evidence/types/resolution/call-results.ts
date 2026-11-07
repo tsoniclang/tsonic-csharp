@@ -97,8 +97,10 @@ function completeCsharpSourceCallAdoption(
   if (getCsharpTaskResultTargetType(payload) === undefined &&
     getCsharpRuntimeUnionArms(getCsharpNullableElementTargetType(payload) ?? payload, host.typeDefinitions) === undefined)
     return selected;
-  const native = selectCsharpAwaitCompletion(selected.nativeType, host.typeDefinitions);
-  const completion = native === undefined ? undefined : selectCsharpAwaitCompletion(native.result, host.typeDefinitions);
+  const publishedResult = getCsharpTaskResultTargetType(selected.selectedType);
+  const native = selectCsharpAwaitCompletion(selected.nativeType, host.typeDefinitions, "consumed", publishedResult);
+  const completion = native === undefined ? undefined : selectCsharpAwaitCompletion(native.result, host.typeDefinitions,
+    "consumed", publishedResult);
   if (completion === undefined) return undefined;
   if (!completion.alternatives.some(alternative => alternative.task)) return selected;
   if (getCsharpTaskResultTargetType(payload) !== undefined && completion.form === "direct")

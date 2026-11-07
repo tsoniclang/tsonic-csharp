@@ -10,6 +10,19 @@ function unionAccess(carrier: TargetTypeRef | undefined, input: CsharpPlanningCo
     ?? failCsharpPlannerInvariant("An admitted union access requires its sealed storage form.");
 }
 
+export function runtimeUnionArmConstruction(value: CsharpExpression, armIndex: number,
+  carrier: TargetTypeRef | undefined, input: CsharpPlanningContext): CsharpExpression {
+  if (carrier === undefined) failCsharpPlannerInvariant("An admitted union construction requires its native carrier.");
+  const emission = input.program.records.typeEmission.get(carrier)
+    ?? failCsharpPlannerInvariant("An admitted union construction requires its sealed storage form.");
+  const owner = emission.unionAccess.kind === "generic" ? emission.unionAccess.operations
+    : emission.optionalStorage.present;
+  const receiver = csharpTypeFromTargetTypeRef(owner, input.scope.typeParameterNames)
+    ?? failCsharpPlannerInvariant("An admitted union construction requires its native operation owner.");
+  return { kind: "InvocationExpression", callee: { kind: "SimpleMemberAccessExpression", receiver,
+    name: `From${armIndex + 1}` }, arguments: [{ kind: "Argument", expression: value }] };
+}
+
 export function runtimeUnionArmProjection(baseExpression: CsharpExpression, armIndex: number,
   carrier: TargetTypeRef | undefined, retainsAbsence: boolean, input: CsharpPlanningContext): CsharpExpression {
   if (retainsAbsence) return { kind: "InvocationExpression",

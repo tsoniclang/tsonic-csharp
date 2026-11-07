@@ -2,20 +2,17 @@ import { csharpProviderBindingFromResolution } from "../../../../providers/model
 import type { CsharpTargetParameter, TargetTypeRef } from "../../../../target-model/types/model.js";
 import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { CsharpTypeResolutionState } from "./model.js";
-import { retainCsharpUnionObjectShapes } from "./source-union-refinement.js";
 import { sourceTypeDescriptorStructure, type SourceCallableTypeEvidence, type SourceFileSemantics,
   type SourceTypeComponentEvidence, type SourceTypeDescriptor } from "@tsonic/target-api/source";
 import type { AstReader, Type } from "@tsonic/tsts";
 
 import { classifyCsharpSourceProfileType } from "../../../../policy/identities/source-types.js";
-import { combineCsharpTargetUnionMembers } from "../../../../target-model/types/carriers/runtime-carriers.js";
 import { csharpDelegateTargetType } from "../../../../target-model/types/carriers/delegates.js";
 
 import { csharpNullableTargetType } from "../../../../target-model/types/carriers/nullable.js";
 import { csharpSourceErrorTargetType } from "../../../../target-model/types/carriers/scalar-types.js";
 import { isCsharpVoidTargetType } from "../../../../target-model/types/identity.js";
 import { csharpTargetTypeFromBinding } from "../../../../policy/types/storage/bindings.js";
-import { definedValues } from "./source-evidence.js";
 import { nextState } from "./state.js";
 import { csharpRuntimeParameterDefault } from "../../../../policy/types/storage/parameter-defaults.js";
 import { resolveCsharpCallableTypeParameters } from "./callable-type-parameters.js";
@@ -25,7 +22,7 @@ import { resolveCsharpNativeParameterCarrier, selectCsharpPublishedParameterCarr
 import { selectCsharpSourceProfileCarrier } from "../../../../policy/operations/source-profiles/type-carriers.js";
 import type { CsharpProviderRelationResolver } from "../../../../providers/model/relation-resolver.js";
 import { selectCsharpSourceParameterVector } from "../../../../policy/types/callables/parameter-vector.js";
-import { resolveCsharpSourceTypeDescriptor } from "./effective-types.js";
+import { resolveCsharpSourceTypeDescriptor, resolveCsharpSourceEffectiveType, resolveCsharpPublishedCallableReturn } from "./effective-types.js";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 export function resolveCsharpSourceProfileBaseType(
   type: Type,
@@ -54,27 +51,14 @@ export function resolveSourceProfileType(
   return published.kind === "resolved" ? published.value : undefined;
 }
 export function resolveUnionType(
-  { host, resolveTypeWithState, sourceUnions, sourceUnionDefinitions }: CsharpTypeResolutionScope,
+  scope: CsharpTypeResolutionScope,
   type: Type,
-  queries: SourceFileSemantics,
+  _queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
-  const structural = host.structuralTypes.resolveUnion(type, queries.sourceFile, state);
-  if (structural.kind !== "not-applicable") return structural.kind === "resolved" ? structural.type : undefined;
-  const rawSourceMembers = queries.types.unionOrIntersectionTypes(type);
-  const sourceMembers = definedValues(rawSourceMembers);
-  if (sourceMembers.length !== rawSourceMembers.length) {
-    return undefined;
-  }
-  let resolved: readonly (TargetTypeRef | undefined)[] = [];
-  const carrier = sourceUnionDefinitions.resolve(type, queries, state, () => {
-    resolved = sourceMembers.map(member => resolveTypeWithState(member, queries.sourceFile, nextState(state)));
-    if (resolved.some(member => member === undefined)) return { carrier: undefined, arms: [] };
-    const arms = resolved as readonly TargetTypeRef[];
-    return { carrier: retainCsharpUnionObjectShapes(combineCsharpTargetUnionMembers(arms),
-      host.structuralTypes.resolveTarget), arms };
-  });
-  return sourceUnions.retain(carrier, resolved.map((arm, index) => ({ source: sourceMembers[index]!, carrier: arm! })), queries, state);
+  const component = state.sourceComponent;
+  return component?.selectedType !== type ? undefined
+    : resolveCsharpSourceTypeDescriptor(scope, component.descriptor, state, component.occurrence);
 }
 
 export function resolveCallableType(
@@ -247,17 +231,29 @@ export function resolveSignatureParameterEvidence(
 }
 
 export function resolveSourceTypeComponentEvidence(
-  { host, resolveAuthoredAndSelectedSourceType, resolveTypeWithState, resolvePointerReturn }: CsharpTypeResolutionScope,
+  scope: CsharpTypeResolutionScope,
   component: SourceTypeComponentEvidence,
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
+  const { host, resolveAuthoredAndSelectedSourceType, resolveTypeWithState, resolvePointerReturn } = scope;
   state = csharpSourceStorageContext(host, state, component.declaration);
   const pointer = component.declaration === undefined
     ? undefined
     : resolvePointerReturn(component.declaration, state);
   if (pointer !== undefined) {
     return pointer.type;
+  }
+  const occurrence = component.authoredTypeNode ?? component.declaration;
+  const returned = component.authoredTypeNode !== undefined || component.declaration === undefined ? undefined
+    : host.effectiveTypes.callableReturn(component.declaration);
+  const published = returned ?? (occurrence === undefined ? undefined : host.effectiveTypes.get(occurrence));
+  if (published !== undefined && occurrence !== undefined) {
+    const selected = published.kind === "refused" ? state : { ...state, sourceComponent: {
+      selectedType: component.selectedType, descriptor: published.type, occurrence,
+    } };
+    return returned === undefined ? resolveCsharpSourceEffectiveType(scope, occurrence, selected)?.result?.selectedType
+      : resolveCsharpPublishedCallableReturn(scope, occurrence, selected)?.result?.selectedType;
   }
   const authoredSourceFile = component.authoredTypeNode === undefined
     ? queries.sourceFile

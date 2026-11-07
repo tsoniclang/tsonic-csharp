@@ -1,6 +1,5 @@
 import type { Node } from "@tsonic/tsts";
-import { IsTypeSyntaxNode, sourceCallableValueParameters, sourceTypeDescriptorsEqual } from "@tsonic/target-api/source";
-import { csharpArrayInputDomainsEqual } from "../../policy/types/collections/array-input-layout.js";
+import { IsTypeSyntaxNode, sourceCallableValueParameters } from "@tsonic/target-api/source";
 
 import { csharpConversionIsApplicable } from "../../policy/conversions/applicability.js";
 import { getCsharpCallableValueSignature, getCsharpNullableElementTargetType, csharpNullableReferenceTargetType, csharpNullableTargetType, csharpTargetStorageIdentityEquals, csharpDelegateSignaturesMatchNativeBinding, targetTypeRefEquals, targetTypeRefKey } from "../../policy/types/index.js";
@@ -300,17 +299,6 @@ export function analyzeCsharpStorage(
       return;
     }
     const sourceType = evidence.nodeTargetType.get(expression);
-    if (csharpArrayInputDomainsEqual(sourceType, expectedType)) {
-      const declaration = policy.navigation.sourceReferenceFor(expression)?.declaration;
-      const outcome = policy.effectiveTypes.get(expression);
-      const principal = declaration === undefined ? undefined : policy.effectiveTypes.get(declaration);
-      if (declaration !== undefined && policy.ast.is.IsVariableDeclaration(declaration) &&
-        policy.ast.as.AsVariableDeclaration(declaration)?.Initializer !== undefined &&
-        outcome?.kind === "resolved" && principal?.kind === "resolved" &&
-        outcome.provenance.occurrence === expression && principal.provenance.occurrence === declaration &&
-        sourceTypeDescriptorsEqual(outcome.type, principal.type)) requireTargetType(expression, declaration, expectedType);
-      return;
-    }
     const sourceCallable = getCsharpCallableValueSignature(getCsharpNullableElementTargetType(sourceType) ?? sourceType);
     const expectedCallable = getCsharpCallableValueSignature(getCsharpNullableElementTargetType(expectedType) ?? expectedType);
     if (sourceCallable === undefined || expectedCallable === undefined) return;

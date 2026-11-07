@@ -4,7 +4,6 @@ import type { CsharpTypeResolutionState } from "./model.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import { IsTypeSyntaxNode, sourceTypeDescriptorsEqual, type SourceFileSemantics } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
-import { combineCsharpTargetUnionMembers } from "../../../../target-model/types/carriers/runtime-carriers.js";
 import { csharpJsArrayTargetType } from "../../../../target-model/types/carriers/js.js";
 import { csharpSourceTypeParameter } from "../../../../source/extension/type-parameters.js";
 
@@ -16,7 +15,6 @@ import { resolveKeywordType } from "../../../../policy/types/resolution/source-p
 import { selectedCsharpSourceProfileOwner } from "../../../../policy/identities/source-types.js";
 import { sourceFactSubjectsForNode } from "./source-evidence.js";
 
-import { retainCsharpUnionObjectShapes } from "./source-union-refinement.js";
 import { resolveCsharpProviderIndexedAccess } from "./indexed-access.js";
 import { csharpSourceStorageContext, csharpSourceStorageComponentContext } from "./source-storage-projection.js";
 
@@ -27,9 +25,7 @@ import { csharpSourceValueResult, refineCsharpSourceValueResult } from "./call-r
 import { resolveCsharpSourceEffectiveType, type CsharpEffectiveSourceTypeSelection } from "./effective-types.js";
 import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
 import { csharpObjectShapesEqual } from "../../../../target-model/types/object-shape-equality.js";
-import { createCsharpObjectShapeValueStorage } from "../../../../policy/types/objects/shape-carriers.js";
 import { csharpCallableValueType, csharpClosedInvocationMatches } from "../../../../policy/types/callables/value-type.js";
-import { csharpArrayInputDomainsEqual } from "../../../../policy/types/collections/array-input-layout.js";
 export function resolveNodeValueWithState(
   scope: CsharpTypeResolutionScope,
   node: Node | undefined,
@@ -131,24 +127,7 @@ function resolveNodeResultWithState(
     return csharpSourceValueResult(resolveTupleTypeNode(node, queries, state));
   }
   if (host.ast.is.IsUnionTypeNode(node)) {
-    const selected = queries.types.authoredType(node);
-    if (selected !== undefined && (queries.types.isAny(selected) || queries.types.isUnknown(selected))) {
-      return csharpSourceValueResult(resolveTypeWithState(selected, queries.sourceFile, nextState(state)));
-    }
-    const structural = selected === undefined ? { kind: "not-applicable" as const }
-      : host.structuralTypes.resolveUnion(selected, queries.sourceFile, state);
-    if (structural.kind !== "not-applicable") return structural.kind === "resolved" ? csharpSourceValueResult(structural.type) : undefined;
-    const sourceMembers = host.ast.children(node).map(member => member === undefined ? undefined : queries.types.authoredType(member));
-    if (selected === undefined || sourceMembers.some(member => member === undefined)) return undefined;
-    let members: readonly (TargetTypeRef | undefined)[] = [];
-    const carrier = scope.sourceUnionDefinitions.resolve(selected, queries, state, () => {
-      members = host.ast.children(node).map(member => resolveNodeWithState(member, queries.sourceFile, nextState(state)));
-      if (members.some(member => member === undefined)) return { carrier: undefined, arms: [] };
-      const arms = members as readonly TargetTypeRef[];
-      return { carrier: retainCsharpUnionObjectShapes(combineCsharpTargetUnionMembers(arms), host.structuralTypes.resolveTarget), arms };
-    });
-    return csharpSourceValueResult(scope.sourceUnions.retain(carrier,
-      members.map((member, index) => ({ source: sourceMembers[index]!, carrier: member! })), queries, state));
+    return undefined;
   }
   if (host.ast.is.IsNamedTupleMember(node)) {
     return scope.resolveNodeValueWithState(
@@ -239,7 +218,7 @@ function selectedPhysicalRead(
   effective: CsharpEffectiveSourceTypeSelection,
 ): TargetTypeRef | undefined {
   if (effective.result === undefined || effective.outcome.kind === "refused" ||
-    effective.outcome.type.kind !== "array" && effective.outcome.type.kind !== "callable" &&
+    effective.outcome.type.kind !== "callable" &&
     effective.outcome.type.kind !== "shape") return undefined;
   const declaration = host.ast.is.IsIdentifier(node) ? host.navigation.sourceReferenceFor(node)?.declaration
     : host.ast.is.IsVariableDeclaration(node) || host.ast.is.IsArrowFunction(node) ||
@@ -253,9 +232,6 @@ function selectedPhysicalRead(
   const storage = host.representations.scopedTargetType(declaration);
   if (selected === undefined || storage === undefined || !targetTypeRefEquals(selected, storage)) return undefined;
   if (effective.outcome.type.kind === "shape") {
-    const represented = host.objectShapes.resolveTarget(effective.result.selectedType);
-    const physical = represented === undefined ? undefined : createCsharpObjectShapeValueStorage(represented);
-    if (physical === undefined || !targetTypeRefEquals(physical.targetType, selected)) return undefined;
     const shape = host.objectShapes.resolveTarget(selected);
     const sourceFile = host.ast.getSourceFile(node);
     if (shape === undefined || sourceFile === undefined || !targetTypeRefEquals(shape.targetType, selected)) return undefined;
@@ -265,8 +241,6 @@ function selectedPhysicalRead(
     return retained !== undefined && retainedPrincipal !== undefined && csharpObjectShapesEqual(shape, retained) &&
       csharpObjectShapesEqual(shape, retainedPrincipal) ? selected : undefined;
   }
-  if (effective.outcome.type.kind === "array") return host.ast.is.IsVariableDeclaration(declaration) &&
-    csharpArrayInputDomainsEqual(effective.result.selectedType, selected) ? selected : undefined;
   if (effective.outcome.type.kind !== "callable" || host.ast.is.IsVariableDeclaration(declaration) &&
     host.ast.typeNode(declaration) !== undefined) return undefined;
   const contract = host.representations.closedInputContract(node);

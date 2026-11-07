@@ -78,7 +78,8 @@ export function analyzeCsharpOperationConstruct(
     const completion = selectCsharpSourceCallAwaitCompletion(
       expression === undefined ? undefined : policy.types.resolveNode(expression, sourceFile)?.sourceResult,
       policy.typeDefinitions,
-      policy.navigation.expressionResultUse(node));
+      policy.navigation.expressionResultUse(node),
+      policy.types.resolveNode(node, sourceFile)?.sourceResult?.selectedType);
     const rejection = awaitResultMappingRejection(policy, completion);
     if (rejection !== undefined) {
       issues?.push(Object.freeze({ node, code: "CSHARP_AWAIT_RESULT_MAPPING_NOT_PROVEN", message: rejection }));

@@ -5,7 +5,8 @@ import type { CsharpTypeResolutionState } from "../../source-evidence/types/reso
 import { nextState } from "../../source-evidence/types/resolution/state.js";
 
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
-import { combineCsharpTargetUnionMembers, csharpRuntimeLocationTargetType, csharpAbsenceTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
+import { csharpRuntimeLocationTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
+import { csharpNullableTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { resolveCsharpPointerStoragePointee } from "../../source-evidence/types/resolution/pointer-storage.js";
 
 export function resolveCsharpPointerReturnContract(
@@ -38,10 +39,8 @@ export function resolveCsharpPointerReturnContract(
     type === undefined || !targetTypeRefEquals(type, first))) {
     return undefined;
   }
-  const type = combineCsharpTargetUnionMembers([
-    csharpRuntimeLocationTargetType(first),
-    ...evidence.includesAbsence ? [csharpAbsenceTargetType()] : [],
-  ]);
+  const present = csharpRuntimeLocationTargetType(first);
+  const type = evidence.includesAbsence ? csharpNullableTargetType(present) : present;
   return type === undefined ? undefined : Object.freeze({
     type,
     undefinedReturn: evidence.includesAbsence,

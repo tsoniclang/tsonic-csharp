@@ -6,6 +6,7 @@ import { analyzeCsharpValueReadStages } from "../../../dist/analysis/conversions
 import { representCsharpSourceType } from "../../../dist/policy/types/source-type-flow/representation.js";
 import { csharpTsValueTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
+import { resolveCsharpPublishedSourceSum } from "../../../dist/analysis/source-evidence/types/resolution/projection-arguments.js";
 
 for (const surface of ["native", "js"]) {
   test(`${surface} array literal stages consume their exact published construction before unknown storage`, () => {
@@ -27,7 +28,9 @@ for (const surface of ["native", "js"]) {
       assert.equal(outcome?.kind !== "refused" && outcome?.construction?.kind === "array" &&
         outcome.construction.element.kind === "primitive" && outcome.construction.element.primitive === "int64", true,
       "the same occurrence publishes the complete int64 array construction");
-      const representation = { target: request.input.target };
+      const representation = { target: request.input.target,
+        sourceSum: descriptor => resolveCsharpPublishedSourceSum({ host: { ast: source.ast,
+          effectiveTypes: source.effectiveTypes } }, descriptor) };
       const expected = representCsharpSourceType(representation, outcome.construction);
       assert.equal(expected !== undefined, true, "the existing representation owns the surface-specific array carrier");
       const none = Object.freeze({ get: () => undefined });

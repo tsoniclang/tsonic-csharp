@@ -1,6 +1,6 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetSelection } from "@tsonic/target-api";
-import { sourceTypeDescriptorMemberOriginsEqual, type SourceTypeDescriptor, type SourceTypeDescriptorSignature } from "@tsonic/target-api/source";
+import { sourceTypeDescriptorMemberOriginsEqual, sourceTypeDescriptorsEqual, type SourceTypeDescriptor, type SourceTypeDescriptorSignature } from "@tsonic/target-api/source";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpTypeParameterEnvironment } from "../../../target-model/records/types/type-parameter-constraints.js";
 import { csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpObjectTargetType, csharpVoidTargetType, csharpNeverTargetType, csharpBigIntegerTargetType } from "../../../target-model/types/carriers/scalar-types.js";
@@ -14,6 +14,8 @@ import { objectShapeMemberTargetName } from "../../identities/source-member-name
 import { selectedCsharpSourceProfileOwner } from "../../identities/source-types.js";
 import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
 import { selectCsharpParameterListCarrier } from "../callables/parameter-list.js";
+import type { CsharpSourceSumSelection } from "../../../target-model/types/projections.js";
+import { csharpFreeTypeParameterIdentities } from "../../../target-model/types/generic-references.js";
 
 export interface CsharpSourceMemberDeclaration {
   readonly declarations: readonly Node[];
@@ -25,6 +27,7 @@ export interface CsharpSourceMemberDeclaration {
 export interface CsharpSourceTypeRepresentationHost {
   readonly target: TargetSelection;
   readonly typeParameterConstraints: CsharpTypeParameterEnvironment;
+  sourceSum(descriptor: SourceTypeDescriptor): CsharpSourceSumSelection | undefined;
   declaredType(
     declaration: Node,
     typeArguments: readonly TargetTypeRef[],
@@ -91,13 +94,7 @@ function representDescriptor(
           case "symbol": return csharpJsSymbolTargetType();
         }
       case "union": {
-        const members: TargetTypeRef[] = [];
-        for (const member of descriptor.types) {
-          const selected = representDescriptor(host, member, active);
-          if (selected === undefined) return undefined;
-          members.push(selected);
-        }
-        return members.length === 0 ? undefined : combineCsharpTargetUnionMembers(members);
+        return representSourceUnion(host, descriptor, host.sourceSum(descriptor), active);
       }
       case "callable": {
         if (descriptor.calls.length === 0 && descriptor.constructs.length !== 0) return representConstructor(descriptor.constructs);
@@ -131,7 +128,11 @@ function representDescriptor(
           selectedCsharpSourceProfileOwner(host.target) === "js");
       }
       case "optional": {
-        const element = representDescriptor(host, descriptor.value, active);
+        const sum = host.sourceSum(descriptor);
+        const element = descriptor.value.kind === "union"
+          ? representSourceUnion(host, descriptor.value, sum === undefined ? undefined : Object.freeze({ ...sum,
+            roles: Object.freeze(sum.roles.filter(role => role.type.kind !== "intrinsic" || role.type.intrinsic !== "absence")) }), active)
+          : representDescriptor(host, descriptor.value, active);
         return element === undefined ? undefined : csharpNullableTargetType(element);
       }
       case "declared": {
@@ -227,4 +228,32 @@ function representDescriptor(
   } finally {
     active.delete(descriptor);
   }
+}
+
+function representSourceUnion(
+  host: CsharpSourceTypeRepresentationHost,
+  descriptor: Extract<SourceTypeDescriptor, { readonly kind: "union" }>,
+  sum: CsharpSourceSumSelection | undefined,
+  active: Set<SourceTypeDescriptor>,
+): TargetTypeRef | undefined {
+  const members: TargetTypeRef[] = [];
+  for (const member of descriptor.types) {
+    const selected = representDescriptor(host, member, active);
+    if (selected === undefined) return undefined;
+    members.push(selected);
+  }
+  if (csharpFreeTypeParameterIdentities(members).size === 0) return combineCsharpTargetUnionMembers(members, descriptor, undefined);
+  if (sum === undefined) return undefined;
+  const roles: TargetTypeRef[] = [];
+  for (const role of sum.roles) {
+    const relation = sum.record.roles[role.role];
+    const arm = relation?.role === role.role && relation.arms.length === 1
+      ? sum.record.arms[relation.arms[0]!] : undefined;
+    const memberIndex = arm !== undefined && sourceTypeDescriptorsEqual(arm.type, role.type)
+      ? descriptor.types.findIndex(member => sourceTypeDescriptorsEqual(member, arm.type)) : -1;
+    const represented = memberIndex < 0 ? representDescriptor(host, role.type, active) : members[memberIndex];
+    if (represented === undefined) return undefined;
+    roles.push(represented);
+  }
+  return combineCsharpTargetUnionMembers(members, descriptor, { sum, roles });
 }

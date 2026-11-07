@@ -4,7 +4,7 @@ import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import { csharpBoundSourceType, csharpSourceBindings } from "./type-bindings.js";
 import { nextState } from "./state.js";
-import type { SourceFileSemantics } from "@tsonic/target-api/source";
+import type { SourceFileSemantics, SourceTypeDescriptor } from "@tsonic/target-api/source";
 import type { ResolvedSourceCallInfo } from "../../../../target-model/records/calls/source-calls.js";
 import { resolveCsharpSourceTypeDescriptor } from "./effective-types.js";
 import { csharpSourceTypeParameters } from "../../../../source/extension/type-parameters.js";
@@ -23,6 +23,7 @@ export function bindCsharpSourceTypeArguments(
     const declarations: Node[] = [];
     const sources: Type[] = [];
     const targets: TargetTypeRef[] = [];
+    const descriptors: SourceTypeDescriptor[] = [];
     for (const argument of [...published.receiver, ...published.method]) {
       const methodParameters = (source.sourceSelectedMethodTypeArguments ?? []).flatMap(selected => {
         const symbol = queries.declarations.typeSymbol(selected.typeParameter);
@@ -37,8 +38,9 @@ export function bindCsharpSourceTypeArguments(
       const target = resolveCsharpSourceTypeDescriptor(scope, argument.type, nextState(state), source.call);
       if (checked === undefined || target === undefined || declarations.includes(argument.declaration)) return undefined;
       declarations.push(argument.declaration); sources.push(checked); targets.push(target);
+      descriptors.push(argument.type);
     }
-    return csharpSourceBindings(declarations, sources, targets, state);
+    return csharpSourceBindings(declarations, sources, targets, descriptors, state);
   }
   if (source !== undefined) return bindings === undefined || bindings.length === 0 ? state : undefined;
   if (bindings === undefined || bindings.length === 0) return state;
@@ -48,7 +50,8 @@ export function bindCsharpSourceTypeArguments(
   });
   if (targets.some(target => target === undefined)) return undefined;
   return csharpSourceBindings(bindings.map(binding => binding.declaration),
-    bindings.map(binding => binding.argumentType), targets as readonly TargetTypeRef[], state);
+    bindings.map(binding => binding.argumentType), targets as readonly TargetTypeRef[],
+    bindings.map(binding => csharpBoundSourceType(binding.argumentType, queries, state)?.descriptor), state);
 }
 
 export function bindCsharpSourceDeclarationArguments(
@@ -72,7 +75,8 @@ export function bindCsharpSourceDeclarationArguments(
       : csharpBoundSourceType(suppliedSource, queries, state)?.sourceType ?? suppliedSource) ?? (typeArguments[index] === undefined && defaultSource !== undefined
       ? csharpBoundSourceType(defaultSource, queries, state)?.sourceType ?? defaultSource : undefined);
     if (target === undefined || source === undefined) return undefined;
-    const bound = csharpSourceBindings([parameter], [source], [target], state);
+    const descriptor = suppliedSource === undefined ? undefined : csharpBoundSourceType(suppliedSource, queries, state)?.descriptor;
+    const bound = csharpSourceBindings([parameter], [source], [target], [descriptor], state);
     if (bound === undefined) return undefined;
     state = bound;
   }

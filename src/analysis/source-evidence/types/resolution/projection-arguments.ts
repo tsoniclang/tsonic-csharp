@@ -1,7 +1,7 @@
 import type { Node } from "@tsonic/tsts";
-import type { SourceEffectiveTypeArgument, SourceTypeDescriptor } from "@tsonic/target-api/source";
+import { sourceNodeIdentity, sourceTypeDescriptorSum, sourceTypeDescriptorsEqual, type SourceEffectiveTypeArgument, type SourceTypeDescriptor } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
-import type { CsharpProjectedType } from "../../../../target-model/types/projections.js";
+import type { CsharpProjectedType, CsharpSourceSumSelection } from "../../../../target-model/types/projections.js";
 import { csharpSourceTypeParameter } from "../../../../source/extension/type-parameters.js";
 import { substituteTargetTypeParameters } from "../../../../policy/types/resolution/substitution.js";
 import type { CsharpTypeResolutionScope } from "./scope.js";
@@ -12,10 +12,56 @@ import { resolveCsharpOptionalStorage } from "../../../../policy/types/storage/o
 import { csharpTargetTypeComponents } from "../../../../target-model/types/components.js";
 import { csharpTypeProjection } from "../../../../target-model/types/projections.js";
 import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
+import { substituteSourceTypeDescriptor } from "@tsonic/target-api/source";
+import { csharpProjectedType } from "../../../../target-model/types/projections.js";
+import { csharpFreeTypeParameterIdentities } from "../../../../target-model/types/generic-references.js";
+import { resolveCsharpSourceUnionOperations } from "../../../../policy/types/storage/source-union-storage.js";
+import { csharpPublishedSourceReferences } from "./type-bindings.js";
 
 export interface CsharpPublishedProjectionInput {
   readonly bindings: readonly SourceEffectiveTypeArgument[];
   readonly definitions: readonly SourceTypeDescriptor[];
+}
+
+const sourceSumOwners = new WeakMap<object, object>();
+
+export function resolveCsharpPublishedSourceSum(
+  scope: CsharpTypeResolutionScope,
+  descriptor: SourceTypeDescriptor,
+): CsharpSourceSumSelection | undefined {
+  const { host } = scope;
+  let owner = sourceSumOwners.get(host.effectiveTypes);
+  if (owner === undefined) {
+    owner = Object.freeze({});
+    sourceSumOwners.set(host.effectiveTypes, owner);
+  }
+  const record = sourceTypeDescriptorSum(host.ast, descriptor);
+  if (record === undefined || host.effectiveTypes.sum(record.identity) !== record) return undefined;
+  const original = host.effectiveTypes.get(record.identity.family);
+  if (original === undefined || original.kind === "refused") return undefined;
+  const open = sourceTypeDescriptorSum(host.ast, original.type);
+  if (open === undefined || open.identity.family !== record.identity.family ||
+    host.effectiveTypes.sum(open.identity) !== open || open.identity.application.length !== record.identity.application.length ||
+    open.arms.length !== open.roles.length) return undefined;
+  const bindings = new Map<Node, SourceTypeDescriptor>();
+  for (let index = 0; index < open.identity.application.length; index++) {
+    const parameter = open.identity.application[index]!;
+    if (parameter.kind !== "declared" || parameter.typeArguments.length !== 0 ||
+      !host.ast.is.IsTypeParameterDeclaration(parameter.declaration) || bindings.has(parameter.declaration)) return undefined;
+    bindings.set(parameter.declaration, record.identity.application[index]!);
+  }
+  const roles: CsharpSourceSumSelection["roles"][number][] = [];
+  for (let index = 0; index < open.roles.length; index++) {
+    const role = open.roles[index];
+    const arm = role?.arms.length === 1 ? open.arms[role.arms[0]!] : undefined;
+    if (arm === undefined || role?.role !== index || arm.role !== role.role ||
+      record.roles[index]?.role !== index) return undefined;
+    const type = record === open ? arm.type : substituteSourceTypeDescriptor(host.ast, arm.type, bindings);
+    if (type === undefined) return undefined;
+    roles.push(Object.freeze({ role: index, type }));
+  }
+  const namingIdentity = sourceNodeIdentity(host.ast, record.identity.family);
+  return namingIdentity === undefined ? undefined : Object.freeze({ owner, record, namingIdentity, roles: Object.freeze(roles) });
 }
 
 export function resolveCsharpProjectionArguments(
@@ -39,7 +85,15 @@ export function resolveCsharpProjectionArguments(
     if (parameter !== undefined) nativeBindings.set(parameter.identity, binding.targetType);
   }
   nativeParameters.forEach((parameter, index) => nativeBindings.set(parameter!.identity, arguments_[index]!));
-  const definitions = publishedReferences([...publication.definitions, ...publication.bindings.map(binding => binding.type)]);
+  const sourceBindings = new Map<Node, SourceTypeDescriptor>();
+  for (const [parameter, binding] of state.sourceBindings ?? []) if (binding.descriptor !== undefined)
+    sourceBindings.set(parameter, binding.descriptor);
+  for (const binding of publication.bindings) {
+    const previous = sourceBindings.get(binding.declaration);
+    if (previous !== undefined && !sourceTypeDescriptorsEqual(previous, binding.type)) return undefined;
+    sourceBindings.set(binding.declaration, binding.type);
+  }
+  const definitions = csharpPublishedSourceReferences([...publication.definitions, ...publication.bindings.map(binding => binding.type)]);
   const projectionIdentities = new Set(projections.map(projection => projection.identity));
   const selected = new Map<string, TargetTypeRef>();
   const pending = new Set(projections);
@@ -66,6 +120,36 @@ export function resolveCsharpProjectionArguments(
       let result: TargetTypeRef | undefined;
       if (contract.kind === "optional") {
         result = resolveCsharpOptionalStorage(contract, targetArguments[0]!);
+      } else if (contract.kind === "source-union") {
+        if (scope.host.effectiveTypes.sum(contract.sum.record.identity) !== contract.sum.record) return undefined;
+        const retained = csharpPublishedSourceReferences([contract.source, ...contract.sum.roles.map(role => role.type),
+          ...contract.sum.record.identity.application]);
+        if (retained.some(reference => reference.typeArguments.length === 0 &&
+          scope.host.ast.is.IsTypeParameterDeclaration(reference.declaration) &&
+          nativeBindings.has(csharpSourceTypeParameter(reference.declaration, scope.host.ast)?.identity ?? "") &&
+          !sourceBindings.has(reference.declaration))) return undefined;
+        const source = substituteSourceTypeDescriptor(scope.host.ast, contract.source, sourceBindings);
+        const roles = contract.sum.roles.map(role => substituteSourceTypeDescriptor(scope.host.ast, role.type, sourceBindings));
+        const application = contract.sum.record.identity.application.map(argument =>
+          substituteSourceTypeDescriptor(scope.host.ast, argument, sourceBindings));
+        if (source === undefined || roles.some(role => role === undefined) || application.some(argument => argument === undefined)) return undefined;
+        const record = scope.host.effectiveTypes.sum({ family: contract.sum.record.identity.family,
+          application: application as readonly SourceTypeDescriptor[] });
+        if (record === undefined || contract.sum.roles.some(role => record.roles[role.role]?.role !== role.role)) return undefined;
+        const sum: CsharpSourceSumSelection = Object.freeze({ owner: contract.sum.owner, record, namingIdentity: contract.sum.namingIdentity,
+          roles: Object.freeze(contract.sum.roles.map((role, index) => Object.freeze({ role: role.role, type: roles[index]! }))) });
+        const storage = resolveCsharpSourceTypeDescriptor(scope, source, nextState(state), declaration);
+        const nativeRoles = roles.map(role => resolveCsharpSourceTypeDescriptor(scope, role!, nextState(state), declaration));
+        if (storage === undefined || nativeRoles.some(role => role === undefined)) return undefined;
+        result = contract.part === "storage" ? storage
+          : csharpFreeTypeParameterIdentities([storage, ...nativeRoles as readonly TargetTypeRef[]]).size !== 0
+            ? csharpProjectedType({ ...contract, source, sum,
+              arguments: [storage, ...nativeRoles as readonly TargetTypeRef[]] })
+            : (() => {
+              const arms = record.arms.map(arm => resolveCsharpSourceTypeDescriptor(scope, arm.type, nextState(state), declaration));
+              return arms.some(arm => arm === undefined) ? undefined : resolveCsharpSourceUnionOperations(storage,
+                nativeRoles as readonly TargetTypeRef[], { record, arms: arms as readonly TargetTypeRef[] }, sum.roles.map(role => role.role));
+            })();
       } else {
         const matches: TargetTypeRef[] = [];
         for (const reference of definitions) {
@@ -93,35 +177,3 @@ export function resolveCsharpProjectionArguments(
   return projections.map(projection => selected.get(projection.identity)!);
 }
 
-function publishedReferences(roots: readonly SourceTypeDescriptor[]): readonly Extract<SourceTypeDescriptor, { readonly kind: "declared" }>[] {
-  const pending = [...roots];
-  const visited = new Set<SourceTypeDescriptor>();
-  const references: Extract<SourceTypeDescriptor, { readonly kind: "declared" }>[] = [];
-  for (let index = 0; index < pending.length; index += 1) {
-    const descriptor = pending[index]!;
-    if (visited.has(descriptor)) continue;
-    visited.add(descriptor);
-    switch (descriptor.kind) {
-      case "declared":
-        references.push(descriptor);
-        pending.push(...descriptor.typeArguments);
-        if (descriptor.definition !== undefined) pending.push(descriptor.definition);
-        break;
-      case "union": pending.push(...descriptor.types); break;
-      case "array": pending.push(descriptor.element); break;
-      case "optional": pending.push(descriptor.value); break;
-      case "tuple": pending.push(...descriptor.elements.map(element => element.type)); break;
-      case "shape":
-        pending.push(...descriptor.members.map(member => member.type),
-          ...descriptor.indexes.flatMap(selected => [selected.key, selected.value]));
-        pending.push(...[...descriptor.calls, ...descriptor.constructs].flatMap(signature =>
-          [...signature.parameters.map(parameter => parameter.type), signature.result]));
-        break;
-      case "callable":
-        pending.push(...[...descriptor.calls, ...descriptor.constructs].flatMap(signature =>
-          [...signature.parameters.map(parameter => parameter.type), signature.result]));
-        break;
-    }
-  }
-  return references;
-}

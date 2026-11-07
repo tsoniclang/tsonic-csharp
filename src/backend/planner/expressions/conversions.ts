@@ -38,6 +38,7 @@ import {
 import { planCsharpEmptyRecordConversion } from "./empty-record-conversion.js";
 import { planCsharpRuntimeUnionProjection } from "./runtime-union-projections.js";
 import { planCsharpUnionMapping } from "./union-mappings.js";
+import { runtimeUnionArmConstruction } from "./union-access.js";
 import { planCsharpDelegateAdapter } from "./callable-conversions.js";
 import type { CsharpPlannedCallable } from "./planned-values.js";
 import { planCsharpAbsentValue } from "./optional-storage.js";
@@ -459,15 +460,6 @@ function applyRuntimeUnionArmConversion(
   prelude: CsharpStatement[],
   operandStability: "stable" | "snapshot",
 ): CsharpExpression | undefined {
-  const optional = targetType === undefined ? undefined : requiredTypeEmission(input, targetType, node).optionalStorage;
-  const declaringType = optional === undefined
-    ? undefined
-    : csharpTypeFromTargetTypeRef(optional.kind === "generic" ? optional.operations : optional.present, input.scope.typeParameterNames);
-  if (declaringType === undefined) {
-    return failCsharpPlannerInvariant(
-      "C# runtime-union construction requires one exact source arm and a renderable closed union carrier.",
-      node);
-  }
   const convertedExpression = applyCsharpConversionSelection(
     node,
     sourceFile,
@@ -482,15 +474,7 @@ function applyRuntimeUnionArmConversion(
   if (convertedExpression === undefined) {
     return undefined;
   }
-  return {
-    kind: "InvocationExpression",
-    callee: {
-      kind: "SimpleMemberAccessExpression",
-      receiver: declaringType,
-      name: `From${selection.armIndex + 1}`,
-    },
-    arguments: [{ kind: "Argument", expression: convertedExpression }],
-  };
+  return runtimeUnionArmConstruction(convertedExpression, selection.armIndex, targetType, input);
 }
 
 function invokeStaticGeneric(

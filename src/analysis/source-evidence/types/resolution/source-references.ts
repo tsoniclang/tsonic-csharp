@@ -353,7 +353,8 @@ export function resolveCompositionalSourceTypeAlias(
   }
   const boundState = sourceArguments === undefined ? state
     : sourceArguments.some(argument => argument === undefined) ? undefined
-    : csharpSourceBindings(parameters as readonly Node[], sourceArguments as readonly Type[], typeArguments, state);
+    : csharpSourceBindings(parameters as readonly Node[], sourceArguments as readonly Type[], typeArguments,
+      sourceArguments.map(argument => argument === undefined ? undefined : csharpBoundSourceType(argument, queries, state)?.descriptor), state);
   if (boundState === undefined) return { kind: "rejected" };
   const application = sourceArguments === undefined ? undefined
     : queries.types.instantiateAlias(reference.declaration, sourceArguments as readonly Type[]);

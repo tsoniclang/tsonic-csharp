@@ -3,7 +3,8 @@ import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import type { CsharpTypeResolutionState } from "./model.js";
 
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
-import { combineCsharpTargetUnionMembers } from "../../../../target-model/types/carriers/runtime-carriers.js";
+import { csharpSourceUnionMembersMatch } from "../../../../target-model/types/carriers/runtime-carriers.js";
+import { resolveCsharpSourceTypeDescriptor } from "./effective-types.js";
 
 import { nextState } from "./state.js";
 import { reconcileCsharpSelectedTargetType } from "../../../../policy/types/resolution/selected-type-evidence.js";
@@ -97,11 +98,13 @@ export function resolveAuthoredAndSelectedSourceType(
       ...selectedMembers,
       ...selectedNullishMembers,
     ];
-    return selectedTargets.some((member) => member === undefined)
-      ? undefined
-      : combineCsharpTargetUnionMembers(
-          selectedTargets as readonly TargetTypeRef[],
-        );
+    if (selectedTargets.some(member => member === undefined)) return undefined;
+    if (selectedTargets.length === 1) return selectedTargets[0];
+    const component = state.sourceComponent;
+    const selected = component?.selectedType !== selectedType ? undefined
+      : resolveCsharpSourceTypeDescriptor(scope, component.descriptor, state, component.occurrence);
+    return selected !== undefined && csharpSourceUnionMembersMatch(selected, selectedTargets as readonly TargetTypeRef[])
+      ? selected : undefined;
   }
   if (authoredSelection.kind === "ambiguous") {
     return undefined;

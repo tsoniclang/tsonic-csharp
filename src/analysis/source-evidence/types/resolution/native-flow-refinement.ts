@@ -4,10 +4,37 @@ import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import { csharpUnionLeaves } from "../../../../target-model/types/union-relations.js";
 
 import type { CsharpTypePolicyHost } from "./model.js";
-import { getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
-import { csharpAbsenceTargetType, isCsharpJsValueTargetType } from "../../../../target-model/types/carriers/runtime-carriers.js";
+import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
+import { csharpAbsenceTargetType, isCsharpJsValueTargetType, csharpSourceUnionMembersMatch, csharpRuntimeUnionTargetType,
+  isCsharpRuntimeUnionTargetType, isCsharpAbsenceTargetType } from "../../../../target-model/types/carriers/runtime-carriers.js";
+import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
+import type { CsharpTypeDefinitions } from "../../../../target-model/types/source-union-definitions.js";
 
 import { selectCsharpNativeCarrierPredicate, type CsharpNativeFlowPredicate } from "../../../../policy/operations/flow/native-predicates.js";
+export function selectCsharpNativeFlowCarrier(
+  storage: TargetTypeRef, selected: TargetTypeRef | undefined,
+  members: readonly TargetTypeRef[], definitions: CsharpTypeDefinitions | undefined,
+): TargetTypeRef | undefined {
+  if (members.length === 0) return undefined;
+  const present = getCsharpNullableElementTargetType(storage) ?? storage;
+  const leaves = csharpUnionLeaves(present, definitions)?.map(leaf => leaf.carrier) ?? [present];
+  const available = present === storage ? leaves : [...leaves, csharpAbsenceTargetType()];
+  let next = 0;
+  for (const member of members) {
+    const index = available.findIndex((candidate, position) => position >= next && targetTypeRefEquals(candidate, member));
+    if (index < 0) return undefined;
+    next = index + 1;
+  }
+  if (members.length === 1) return members[0];
+  if (selected !== undefined && csharpSourceUnionMembersMatch(selected, members)) return selected;
+  const selectedPresent = getCsharpNullableElementTargetType(selected);
+  if (selectedPresent !== undefined && csharpSourceUnionMembersMatch(selectedPresent, members)) return selectedPresent;
+  if (!isCsharpRuntimeUnionTargetType(present) || present.csharpRuntimeUnionSemantics !== "native-ordered") return undefined;
+  const payloads = members.filter(member => !isCsharpAbsenceTargetType(member));
+  const carrier = payloads.length === 1 ? payloads[0] : csharpRuntimeUnionTargetType(payloads);
+  return carrier === undefined ? undefined : payloads.length === members.length ? carrier : csharpNullableTargetType(carrier);
+}
+
 export function selectCsharpNativeFlowMembers(
   host: CsharpTypePolicyHost,
   reference: Node,

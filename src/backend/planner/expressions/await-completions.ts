@@ -9,6 +9,7 @@ import type { CsharpPlanningContext } from "../context.js";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { planCsharpUnionPattern } from "./union-patterns.js";
 import { planCsharpUnionMapping } from "./union-mappings.js";
+import { runtimeUnionArmConstruction } from "./union-access.js";
 import { csharpPlannedEffect, csharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
 import { captureCsharpPlannedValue, planCsharpExpressionCompletion } from "./planned-value-composition.js";
 import { planCsharpAbsentValue } from "./optional-storage.js";
@@ -57,11 +58,7 @@ export function planCsharpAwaitCompletion(
       result = mapped;
     }
     for (const step of [...alternative.resultPath].reverse()) {
-      const type = csharpTypeFromTargetTypeRef(step.union, input.scope.typeParameterNames);
-      if (type === undefined) return undefined;
-      result = { kind: "InvocationExpression",
-        callee: { kind: "SimpleMemberAccessExpression", receiver: type, name: `From${step.index + 1}` },
-        arguments: [{ kind: "Argument", expression: result }] };
+      result = runtimeUnionArmConstruction(result, step.index, step.union, input);
     }
     return { kind: "CastExpression", type: resultType!, expression: result };
   };
