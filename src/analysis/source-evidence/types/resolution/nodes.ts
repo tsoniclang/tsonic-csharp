@@ -236,7 +236,8 @@ function selectedPhysicalRead(
   node: Node,
   effective: CsharpEffectiveSourceTypeSelection,
 ): TargetTypeRef | undefined {
-  if (effective.result === undefined || effective.outcome.kind === "refused") return undefined;
+  if (effective.result === undefined || effective.outcome.kind === "refused" ||
+    effective.outcome.type.kind !== "array" && effective.outcome.type.kind !== "callable") return undefined;
   const declaration = host.ast.is.IsIdentifier(node) ? host.navigation.sourceReferenceFor(node)?.declaration
     : host.ast.is.IsVariableDeclaration(node) || host.ast.is.IsArrowFunction(node) ||
       host.ast.is.IsFunctionExpression(node) ? node : undefined;

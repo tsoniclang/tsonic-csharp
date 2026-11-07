@@ -158,10 +158,17 @@ function resolveProjectCallableInterface(
     if (heritage.kind !== "resolved") return undefined;
     for (const edge of heritage.edges) {
       if (edge.kind !== "extends") return undefined;
+      const authoredArguments = host.ast.typeArguments(edge.heritage);
+      if (edge.sourceDeclaration !== candidate || !host.ast.extendsHeritageElements(candidate).includes(edge.heritage) ||
+        authoredArguments.length !== edge.typeArguments.length ||
+        authoredArguments.some((argument, index) => argument !== edge.typeArguments[index]) ||
+        edge.selectedTypeArguments === undefined ||
+        edge.selectedTypeArguments.length !== host.ast.typeParameters(edge.target.declaration).length ||
+        edge.typeArguments.length > edge.selectedTypeArguments.length) return undefined;
       const nativeArguments = edge.typeArguments.map(argument => scope.resolveNodeWithState(
         argument, host.semanticsFor(argument).sourceFile, nextState(state)));
       if (nativeArguments.some(argument => argument === undefined)) return undefined;
-      const sourceArguments = edge.typeArguments.map(argument => host.semanticsFor(argument).types.authoredType(argument));
+      const sourceArguments = edge.selectedTypeArguments.slice(0, edge.typeArguments.length);
       const base = projectSourceDeclarationTargetType(scope, edge.target.declaration,
         nativeArguments as readonly TargetTypeRef[], sourceArguments, nextState(state), edge.selectedType);
       if (base === undefined) return undefined;

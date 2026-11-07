@@ -231,11 +231,15 @@ export function resolveSourceCallResultWithState(
   const { host, resolveSourceCallContract, resolveSourceCallableContractType, resolveSourceCallSelectedType, sourceCallableTypeParametersMatch,
     sourceCallSelectedDeclaration, resolveSelectedValueWithState, resolveSourceCallInstantiation, resolveNodeWithState } = scope;
   const effective = resolveCsharpSourceEffectiveType(scope, source.call, state);
-  if (effective !== undefined) return effective.result === undefined || nativeType === undefined ? effective.result
-    : Object.freeze({ ...effective.result, nativeType });
+  if (effective !== undefined && effective.result === undefined) return undefined;
+  const selection = resolveSourceCallContract(source, sourceFile, state, "implementation");
+  if (selection.kind === "rejected") return undefined;
+  const callable = selection.contract;
+  if (effective !== undefined && callable === undefined) return nativeType === undefined ? effective.result
+    : Object.freeze({ ...effective.result!, nativeType });
   const declaration = sourceCallSelectedDeclaration(source);
   const queries = host.semantics(sourceFile);
-  const result = queries.operations.callResult(source);
+  const result = effective === undefined ? queries.operations.callResult(source) : undefined;
   const access = source.sourceCalleeAccess;
   if (nativeType === undefined && access?.kind === "property") {
     const receiver = resolveSelectedValueWithState(access.receiver.expression, access.receiver.type, sourceFile, nextState(state));
@@ -265,17 +269,16 @@ export function resolveSourceCallResultWithState(
     ? queries.declarations.signatureDeclaration(source.selectedSignature) : undefined;
   const retain = (nativeType: TargetTypeRef | undefined): CsharpSourceCallResult | undefined => {
     const selected = selectCsharpSourceCallResult(host, nativeType, () => {
+      if (effective !== undefined) return effective.result!.selectedType;
       const checked = result === undefined ? undefined : resolveSourceCallSelectedType(source, declaration,
         result.authoredTypeNode, result.selectedReturnType, sourceFile, nextState(state));
       return result?.authoredTypeNode === undefined && getCsharpNullableElementTargetType(nativeType) !== undefined && checked !== undefined
         ? combineCsharpTargetUnionMembers([checked, csharpAbsenceTargetType()]) : checked;
     });
-    return selected;
+    return selected === undefined || effective === undefined ? selected
+      : Object.freeze({ ...selected, effectiveType: effective.result!.effectiveType });
   };
   if (nativeType !== undefined) return completeCsharpSourceDeclarationCallAdoption(host, completionDeclaration, retain(nativeType));
-  const selection = resolveSourceCallContract(source, sourceFile, state, "implementation");
-  if (selection.kind === "rejected") return undefined;
-  const callable = selection.contract;
   if (callable !== undefined) {
     if (!sourceCallableTypeParametersMatch(source, callable, selection.kind)) {
       return undefined;

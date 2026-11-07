@@ -185,6 +185,7 @@ function fixture() {
     csharpSourceDeclarationKind: declaration === box ? "interface" : "class", typeArguments,
     csharpAllowsRefLikeTypeArguments: typeArguments.map(() => false) });
   const host = { ast: source.ast, hasSemantics: () => true,
+    effectiveTypes: { get: () => undefined },
     semanticsFor: () => ({ sourceFile: file, declarations: { declaredType: unexpected }, types: new Proxy({}, { get: unexpected }) }),
     navigation: { isProjectDeclaration: () => true },
     representations: { scopedTargetType: () => undefined, genericProjections: () => [] },

@@ -257,6 +257,36 @@ test("missing or inconsistent stored evidence rejects without a declaration fall
   }
 });
 
+test("stored call results retain the Host occurrence without re-querying a checked result", () => {
+  const current = fixture();
+  const outcome = current.program.effectiveTypes.get(current.source.call);
+  assert.equal(outcome?.kind === "resolved", true, "the original call has an actual Host outcome");
+  current.scope.host.semantics = selected => {
+    assert.equal(selected === current.file, true, "one original checked file");
+    return { ...current.queries, operations: { ...current.queries.operations,
+      callResult: () => assert.fail("published calls cannot re-query their checked result") } };
+  };
+  const result = resolveSourceCallResultWithState(current.scope, current.source, current.file, { depth: 0 }, undefined);
+  assert.equal(result?.effectiveType === outcome, true, "the exact Host occurrence is retained");
+  assert.equal(targetTypeRefEquals(result?.nativeType, integer), true, "the actual closed stored return owns the native carrier");
+  assert.equal(targetTypeRefEquals(result?.selectedType, integer), true, "the native scalar result is not an erased creation template");
+  current.scope.resolveSelectedValueWithState = () => undefined;
+  assert.equal(resolveSourceCallResultWithState(current.scope, current.source, current.file, { depth: 0 }, integer) === undefined, true,
+    "an explicit native result cannot bypass a rejected stored invocation");
+});
+
+test("a refused Host call stops before native stored-contract selection", () => {
+  const current = fixture();
+  current.scope.host.effectiveTypes = { ...current.program.effectiveTypes,
+    get: node => node === current.source.call ? { kind: "refused", site: node,
+      code: "TSONIC_LOCAL_TYPE_UNSUPPORTED", reason: "original Host refusal" } : current.program.effectiveTypes.get(node) };
+  current.scope.resolveSourceCallContract = () => assert.fail("a Host refusal cannot admit a Native callable");
+  for (const nativeType of [undefined, integer]) {
+    assert.equal(resolveSourceCallResultWithState(current.scope, current.source, current.file, { depth: 0 }, nativeType) === undefined, true,
+      "the exact original Host refusal remains authoritative");
+  }
+});
+
 test("direct declarations retain their native ABI and stored optional/rest metadata remains exact", () => {
   const { scope, source, openContract, file } = fixture(undefined, true);
   const selected = scope.resolveSourceCallContract(source, file, { depth: 0 }, "checked");

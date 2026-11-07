@@ -38,7 +38,7 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
   function retainLiteralMemberEvidence(
     members: readonly CsharpObjectShapeMemberFact[],
     objectLiteral: Node,
-  ): readonly CsharpObjectShapeMemberFact[] {
+  ): readonly CsharpObjectShapeMemberFact[] | undefined {
     const outcome = host.effectiveTypes.get(objectLiteral);
     if (outcome === undefined || outcome.kind === "refused" || outcome.provenance.occurrence !== objectLiteral) return members;
     const properties = host.ast.properties(objectLiteral);
@@ -46,24 +46,27 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
     const descriptor = publishedShapeDescriptor(objectLiteral);
     const structure = descriptor === undefined ? undefined : sourceTypeDescriptorStructure(descriptor);
     const published = structure?.kind === "shape" ? structure.members : [];
-    return members.map(member => {
+    const retained: CsharpObjectShapeMemberFact[] = [];
+    for (const member of members) {
       const matches = published.filter(property => member.origins?.some(origin =>
         sourceTypeDescriptorMemberOriginsEqual(origin, property.origin)) === true);
       const origin = matches.length === 1 ? matches[0]!.origin : undefined;
       const elements = origin === undefined ? [] : selected.filter(evidence => properties.includes(evidence.property) &&
         sourceTypeDescriptorMemberOriginsEqual(origin, evidence.origin));
-      if (elements.length === 0) return member;
-      return { ...member,
+      if (elements.length === 0) { retained.push(member); continue; }
+      const declarations = elements.map(evidence => selectCsharpMemberDeclaration(host, evidence.property));
+      if (declarations.some(selected => selected === undefined)) return undefined;
+      retained.push({ ...member,
         sourceSubjects: Object.freeze([...new Set([
           ...(member.sourceSubjects ?? []),
           ...elements.map(evidence => evidence.property),
         ])]),
         sourceDeclarations: Object.freeze([...new Set([
-          ...(member.sourceDeclarations ?? []),
-          ...elements.map(evidence => evidence.property),
+          ...declarations.flatMap(selected => selected!.declarations),
         ])]),
-      };
-    });
+      });
+    }
+    return Object.freeze(retained);
   }
 
   function deriveMembers(
