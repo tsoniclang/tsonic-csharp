@@ -66,7 +66,16 @@ export function analyzeCsharpElementAdmission(input: { readonly ast: AstReader; 
     const common = { receiver: selection.source.receiver, key: selection.source.argument.expression, result,
       optional: selection.source.optionalChain, projection: classification.receiverProjection };
     let emission: CsharpElementEmission;
-    if (selection.kind === "project-indexer") {
+    if (selection.kind === "array-union-read") {
+      const plan = selection.plan;
+      if (selection.source.accessMode !== "read" || common.optional ||
+        classification.receiverType === undefined || !targetTypeRefEquals(classification.receiverType, plan.source) ||
+        !targetTypeRefEquals(result, plan.result) || !selectCsharpTypeEmission({ carrier: plan.source }) ||
+        !selectCsharpTypeEmission({ carrier: plan.indexType }) || !selectCsharpTypeEmission({ carrier: plan.result })) {
+        refuse(node, "A native array union read requires its exact sealed receiver, key and result representations."); continue;
+      }
+      emission = { ...common, kind: "access", indexType: plan.indexType, read: { kind: "array-union", plan }, conversion: undefined };
+    } else if (selection.kind === "project-indexer") {
       if (!selectCsharpTypeEmission({ carrier: selection.keyType })) { refuse(node, "The exact selected project index key has no renderable C# target type."); continue; }
       if (classification.selectedResultType === undefined || selection.source.accessMode === "read" && selection.selectedReadType !== undefined && classification.flowReadConversion === undefined) {
         refuse(node, "The exact selected project index read has no closed native result conversion."); continue;

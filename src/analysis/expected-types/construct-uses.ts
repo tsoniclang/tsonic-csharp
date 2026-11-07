@@ -138,6 +138,8 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
     const element = operations.selectedElement.get(node)?.target;
     if (element?.kind === "resolved") record(policy.ast.as.AsElementAccessExpression(node)?.ArgumentExpression,
       element.targetMember.parameters[element.targetParameterIndex]?.type, "required", at(node, { kind: "key" }));
+    else if (element?.kind === "array-union-read") record(element.source.argument.expression,
+      element.plan.indexType, "required", at(node, { kind: "key" }));
     else if (element?.kind === "project-indexer") record(policy.ast.as.AsElementAccessExpression(node)?.ArgumentExpression,
       element.keyType, "required", at(node, { kind: "key" }));
     if (pointer?.kind === "store") record(pointer.valueExpression, pointer.pointeeType, "required", intrinsic("value"));

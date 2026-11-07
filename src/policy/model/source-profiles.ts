@@ -64,6 +64,10 @@ export type CsharpSourceProfileCallPolicyResult =
 
 export type CsharpSourceProfileElementPolicyResult =
   | {
+      readonly kind: "array-union-read";
+      readonly plan: import("../../target-model/records/objects/members.js").CsharpArrayUnionRead;
+    }
+  | {
       readonly kind: "resolved";
       readonly targetMember: CsharpTargetMember;
       readonly targetParameterIndex: number;

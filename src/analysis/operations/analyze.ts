@@ -85,6 +85,7 @@ function operationResultType(
       element.target.source.optionalChain,
     );
   }
+  if (element?.target?.kind === "array-union-read") return element.target.plan.result;
   if (element?.selectedResultType !== undefined) {
     return element.selectedResultType;
   }

@@ -32,6 +32,18 @@ export type CsharpTargetElementInvocation =
       readonly appendInt32Literal?: number;
     };
 
+export interface CsharpArrayUnionRead {
+  readonly source: TargetTypeRef;
+  readonly result: TargetTypeRef;
+  readonly indexType: TargetTypeRef;
+  readonly variants: readonly {
+    readonly carrier: TargetTypeRef;
+    readonly targetMember: CsharpTargetMember;
+    readonly receiverConversion: CsharpConversionSelection;
+    readonly resultConversion: CsharpConversionSelection;
+  }[];
+}
+
 export interface CsharpSelectedTargetCallBase {
   readonly discardResult?: true;
   readonly condition?: {

@@ -13,6 +13,7 @@ export interface CsharpElementOperands {
   readonly projection: CsharpMemberReceiverProjection | undefined;
 }
 export type CsharpElementRead =
+  | { readonly kind: "array-union"; readonly plan: import("./members.js").CsharpArrayUnionRead }
   | { readonly kind: "index" | "record-optional" }
   | { readonly kind: "collection"; readonly carrier: TargetTypeRef }
   | { readonly kind: "method"; readonly name: string; readonly append: number | undefined }
@@ -26,7 +27,7 @@ export type CsharpElementEmission =
   | (CsharpElementOperands & { readonly kind: "source-member"; readonly static: boolean; readonly present: TargetTypeRef; readonly suspends: boolean; readonly writable: boolean });
 
 export type CsharpAdmittedElementClassification = Omit<CsharpElementClassification, "target" | "jsValue"> & {
-  readonly target?: Extract<CsharpTargetElementSelection, { readonly kind: "resolved" | "source-owned" | "project-indexer" }>;
+  readonly target?: Extract<CsharpTargetElementSelection, { readonly kind: "resolved" | "source-owned" | "project-indexer" | "array-union-read" }>;
   readonly jsValue: Exclude<CsharpJsValueOperationSelection, { readonly kind: "rejected" }>;
   readonly emission: CsharpElementEmission;
 };

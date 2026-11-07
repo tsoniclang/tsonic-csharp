@@ -38,6 +38,11 @@ export type CsharpTargetCallSelection =
 
 export type CsharpTargetElementSelection =
   | {
+      readonly kind: "array-union-read";
+      readonly source: ResolvedSourceElementAccessInfo;
+      readonly plan: import("../objects/members.js").CsharpArrayUnionRead;
+    }
+  | {
       readonly kind: "resolved";
       readonly source: ResolvedSourceElementAccessInfo;
       readonly targetMember: CsharpTargetMember;

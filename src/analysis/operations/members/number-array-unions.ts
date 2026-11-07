@@ -49,11 +49,13 @@ export function selectCsharpArrayUnionElement(
   sourceFile: SourceFile,
 ): CsharpSourceProfileElementPolicyResult | undefined {
   if (source.optionalChain || source.accessMode !== "read") return undefined;
-  const projection = project(host, source.receiver, sourceFile);
-  if (projection === undefined) return undefined;
   const semantics = host.semantics(sourceFile);
+  if (!semantics.types.isUnion(source.receiver.type)) return undefined;
+  const carrier = host.types.resolveSelectedValue(source.receiver.expression, source.receiver.type, sourceFile);
+  const arms = getCsharpRuntimeUnionArms(carrier, host.typeDefinitions);
+  const result = host.types.resolveSelectedResult(source.expression, source.selectedDeclaration, source.sourceReadType, sourceFile);
   const indexType = host.types.resolveSelectedValue(source.argument.expression, source.argument.type, sourceFile);
-  if (indexType === undefined) return undefined;
+  if (carrier === undefined || arms === undefined || result === undefined || indexType === undefined) return undefined;
   const indexes = semantics.types.indexInfos(source.receiver.type).filter(info => info.keyType !== undefined);
   if (indexes.length !== 1) return undefined;
   const selected = indexes[0]!;
@@ -62,5 +64,5 @@ export function selectCsharpArrayUnionElement(
     const identity = csharpSourceProfileDeclarationIdentity(host.ast, semantics, host.sourceFacts, declaration);
     return !owned(identity) || identity?.kind !== "indexer";
   })) return undefined;
-  return selectCsharpArrayUnionElementPlan(projection, indexType);
+  return selectCsharpArrayUnionElementPlan(host, carrier, arms, indexType, result);
 }

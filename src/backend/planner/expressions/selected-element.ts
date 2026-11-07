@@ -1,7 +1,7 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpElementRead } from "../../../target-model/records/objects/element-admission.js";
-import type { CsharpArgument, CsharpExpression, CsharpStatement } from "../../target-ast/syntax/index.js";
+import type { CsharpArgument, CsharpExpression, CsharpStatement, CsharpSwitchExpressionArm } from "../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../context.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import type { CallArgumentPlanner, ExpressionPlanner } from "./expression-planner-types.js";
@@ -19,6 +19,7 @@ import { translateCsharpSourceOwnedMember } from "./source-owned-members.js";
 import { planCsharpCollectionElementRead } from "./collection-reads.js";
 import { captureCsharpPlannedMemberReceiver } from "./planned-locations.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import { runtimeUnionArmProjection, runtimeUnionArmTest } from "./union-access.js";
 
 export function translateCsharpElementAccess(node: Node, sourceFile: SourceFile, input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[], planExpression: ExpressionPlanner, planCallArgument: CallArgumentPlanner): CsharpPlannedValue | undefined {
@@ -66,6 +67,36 @@ export function translateCsharpElementAccess(node: Node, sourceFile: SourceFile,
 function planElementRead(node: Node, selected: CsharpElementRead, receiver: CsharpExpression, key: CsharpExpression,
   sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], prelude: CsharpStatement[]): CsharpExpression | undefined {
   switch (selected.kind) {
+    case "array-union": {
+      const plan = selected.plan;
+      const arms: CsharpSwitchExpressionArm[] = [];
+      for (const [index, variant] of plan.variants.entries()) {
+        const designation = input.names.temporaryName(`__tsonic_array_${input.program.source.ast.pos(node)}_${index}`);
+        const value: CsharpExpression = { kind: "IdentifierName", name: designation };
+        const projected = runtimeUnionArmProjection(value, index, plan.source, false, input);
+        const member = variant.targetMember;
+        const owner = member.declaringType === undefined ? undefined : csharpTypeFromTargetTypeRef(member.declaringType, input.scope.typeParameterNames);
+        const receiverType = member.parameters[0]?.type;
+        if (owner === undefined || receiverType === undefined) failCsharpPlannerInvariant("An admitted array union role requires its exact native read ABI.", node);
+        const rolePrelude: CsharpStatement[] = [];
+        const converted = applyCsharpConversionSelection(node, sourceFile, input, diagnostics,
+          variant.carrier, receiverType, variant.receiverConversion, projected, rolePrelude, "stable");
+        if (converted === undefined) return undefined;
+        const read: CsharpExpression = { kind: "InvocationExpression", callee: {
+          kind: "SimpleMemberAccessExpression", receiver: owner, name: member.targetName },
+          arguments: [{ kind: "Argument", expression: converted }, { kind: "Argument", expression: key }] };
+        const result = applyCsharpConversionSelection(node, sourceFile, input, diagnostics,
+          member.returnType, plan.result, variant.resultConversion, read, rolePrelude, "snapshot");
+        if (result === undefined) return undefined;
+        if (rolePrelude.length !== 0) failCsharpPlannerInvariant("An admitted primitive array union read cannot require an eager branch prelude.", node);
+        arms.push({ pattern: { kind: "VarPattern", designation }, when: runtimeUnionArmTest(value, index, plan.source, input), expression: result });
+      }
+      arms.push({ pattern: { kind: "DiscardPattern" }, expression: { kind: "ThrowExpression", expression: {
+        kind: "ObjectCreationExpression", type: { kind: "QualifiedName", left: { kind: "IdentifierName", name: "System" }, name: "InvalidOperationException" },
+        arguments: [{ kind: "Argument", expression: { kind: "LiteralExpression", value: "Excluded native array union role" } }],
+      } } });
+      return { kind: "SwitchExpression", expression: receiver, arms };
+    }
     case "index": return { kind: "ElementAccessExpression", receiver, arguments: [key] };
     case "record-optional": return csharpRecordOptionalRead(node, receiver, key,
       `__tsonic_record_${input.program.source.ast.pos(node)}_${input.program.source.ast.end(node)}`, input);
