@@ -1,7 +1,7 @@
 import type { CsharpTypeResolutionScope } from "./scope.js";
 import { resolveCsharpConstructorValueType } from "./constructors.js";
 import type { CsharpTypeResolutionState } from "./model.js";
-import type { Node, SourceFile } from "@tsonic/tsts";
+import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import { IsTypeSyntaxNode, sourceTypeDescriptorsEqual, type SourceFileSemantics } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import { combineCsharpTargetUnionMembers } from "../../../../target-model/types/carriers/runtime-carriers.js";
@@ -209,11 +209,13 @@ function resolveFallbackNodeCarrier(
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
   const { host, resolveProjectSourceType, resolveTypeWithState } = scope;
+  let selectedType: Type | undefined;
   if (!host.ast.is.IsClassDeclaration(node) && !host.ast.is.IsInterfaceDeclaration(node)) {
-    const constructor = resolveCsharpConstructorValueType(scope, queries.types.authoredType(node), queries, state);
+    selectedType = queries.types.authoredType(node);
+    const constructor = resolveCsharpConstructorValueType(scope, selectedType, queries, state);
     if (constructor !== undefined) return constructor;
   }
-  const projectType = resolveProjectSourceType(node, queries.sourceFile, state);
+  const projectType = resolveProjectSourceType(node, queries.sourceFile, state, selectedType);
   if (projectType !== undefined) {
     return projectType;
   }

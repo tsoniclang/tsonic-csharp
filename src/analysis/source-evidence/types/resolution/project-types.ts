@@ -58,6 +58,7 @@ export function resolveProjectSourceType(
   node: Node,
   sourceFile: SourceFile,
   state: CsharpTypeResolutionState,
+  selectedType: Type | undefined,
   typeArguments?: readonly TargetTypeRef[],
   sourceArguments?: readonly (Type | undefined)[],
 ): TargetTypeRef | undefined {
@@ -77,7 +78,7 @@ export function resolveProjectSourceType(
     resolvedArguments as readonly TargetTypeRef[],
     sourceArguments ?? csharpSourceTypeArgumentNodes(host.ast, node).map(argument => host.semantics(sourceFile).types.authoredType(argument)),
     state,
-    host.semantics(sourceFile).types.authoredType(node),
+    selectedType,
   );
 }
 

@@ -72,6 +72,7 @@ export function resolveTypeReferenceNode(
     typeName,
     queries.sourceFile,
     state,
+    semanticType,
     typeArguments as readonly TargetTypeRef[],
     csharpSourceTypeArgumentNodes(host.ast, node).map(argument => {
       const selected = queries.types.authoredType(argument);
