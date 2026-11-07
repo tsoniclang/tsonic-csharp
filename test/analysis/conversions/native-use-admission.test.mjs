@@ -9,7 +9,7 @@ import { analyzeCsharpExactLiteralSelections } from "../../../dist/analysis/conv
 import { csharpNativeUseSite } from "../../../dist/target-model/records/native/native-demand.js";
 import { analyzeCsharpCallableCreations } from "../../../dist/analysis/callables/values/creation.js";
 import { analyzeCsharpCaptureStorage } from "../../../dist/analysis/callables/storage/capture-storage.js";
-import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
+import { csharpDelegateTargetType, getCsharpLambdaSignature, getCsharpTaskResultTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
 import { csharpObjectTargetType, csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { csharpProviderArgumentSourceCarrier } from "../../../dist/policy/operations/members/native-use-arguments.js";
 import { analyzeCsharpConversions } from "../../../dist/analysis/conversions/analyze.js";
@@ -25,6 +25,7 @@ import { isCsharpSourceCallableArtifactDeclaration } from "../../../dist/policy/
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 import { publishedGenericProjections } from "../../helpers/expected-native-uses.mjs";
 import { csharpRuntimeUnionTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
+import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 
 let nativeConversionSyntax;
 
@@ -560,6 +561,76 @@ test("discarded callable definitions do not manufacture a carrier or a runtime v
   const actual = nativeCreations(value);
   assert.equal(actual.callableCreation.get(expression)?.kind, "discarded", "completed allocation decision is retained");
   assert.equal(actual.callableTarget.get(expression) === undefined, true, "no delegate carrier for an erased definition");
+});
+
+for (const surface of ["native", "js"]) {
+  for (const [label, body, captured] of [
+    ["mutable capture", "for (let value = 0; value < 2; value++) { const read = () => value; return read; } return () => 0;", true],
+    ["capture-free body", "const read = () => 1; return read;", false],
+  ]) test(`${surface} ${label} keeps its implementation before an explicit native delegate adaptation`, () => {
+    const value = owners(`export function create(): () => number { ${body} }`, surface);
+    const expression = value.initializer("read");
+    const inputs = nativeCreationInputs(value);
+    const implementation = inputs.captures.lexicalCaptures.find(entry => entry.owner === expression);
+    const selected = nativeCreations(value).callableCreation.get(expression);
+    const integer = csharpSourcePrimitiveTargetType("int64");
+    const floating = csharpSourcePrimitiveTargetType("float64");
+    const produced = csharpDelegateTargetType("System.Func", [], integer);
+    const destination = csharpDelegateTargetType("System.Func", [], floating);
+    assert.equal(implementation !== undefined && implementation.values.length === (captured ? 1 : 0) &&
+      implementation.receivers.length === 0 && targetTypeRefEquals(implementation.type, produced), true,
+    `${surface}/${label}: capture storage owns the original int64 implementation`);
+    assert.equal(selected?.kind === "selected" && targetTypeRefEquals(selected.carrier, implementation.type) &&
+      targetTypeRefEquals(selected.carrier, produced) && !targetTypeRefEquals(selected.carrier, destination), true,
+    `${surface}/${label}: a float64 return destination cannot replace creation`);
+    const adaptation = value.program.records.conversion.get(produced, destination, "implicit");
+    assert.equal(adaptation?.kind === "delegate-adapter" && adaptation.strategy === "adaptation" &&
+      adaptation.parameterConversions.length === 0 && adaptation.returnConversion.kind === "implicit", true,
+    `${surface}/${label}: the existing closed native adapter owns the separate int64-to-float64 return conversion`);
+    const missing = nativeCreations(value, { contracts: { get: () => undefined, closedInputType: () => undefined } });
+    assert.equal(missing.callableCreation.get(expression)?.kind === "pending" &&
+      missing.callableTarget.get(expression) === undefined, true,
+    `${surface}/${label}: destination evidence cannot manufacture a missing implementation contract`);
+  });
+}
+
+for (const surface of ["native", "js"]) test(`${surface} the original captured loop implementation adapts only at its native return use`, () => {
+  const compiled = compileCsharpSource({ surface, sourceText: `export function create(): () => number {
+    for (let index = 0; index < 3; index++) { const read = () => index; return read; }
+    return () => 0;
+  }` });
+  assert.equal(compiled.sourceDiagnosticsText === "" && compiled.result.diagnostics.length === 0 && compiled.artifacts.size > 0, true,
+    compiled.result.diagnostics.map(({ code, message }) => `${code}: ${message}`).join("; "));
+  executeCsharpConstruction(compiled, `implementation-return-adaptation-${surface}`, false, false, [], `
+var selected = Tsonic.Generated.Index.create();
+if (selected() != 0D || selected() != 0D) throw new System.Exception("captured implementation return adaptation");
+`);
+});
+
+for (const surface of ["native", "js"]) test(`${surface} contextual async creation keeps the actual published Promise result at execution`, () => {
+  const compiled = compileCsharpSource({ surface,
+    sourceText: "export function create(): () => Promise<number> { return async () => 1; }" });
+  assert.equal(compiled.sourceDiagnosticsText === "" && compiled.result.diagnostics.length === 0 && compiled.artifacts.size > 0, true,
+    "the original async program reaches Native creation with no Source or target refusal");
+  const program = compiled.result.program;
+  const arrows = [];
+  const visit = node => { if (program.source.ast.is.IsArrowFunction(node)) arrows.push(node);
+    program.source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); }); };
+  visit(compiled.source.getSourceFile("/project/index.ts"));
+  assert.equal(arrows.length, 1, "the original program has one exact async implementation");
+  const returned = program.source.effectiveTypes.callableReturn(arrows[0]);
+  const creation = program.records.callableCreation.get(arrows[0]);
+  const payload = getCsharpTaskResultTargetType(getCsharpLambdaSignature(creation?.carrier)?.returnType);
+  assert.equal(returned?.kind === "resolved" && returned.type.kind === "declared" &&
+    returned.type.typeArguments.length === 1 && returned.type.typeArguments[0].kind === "primitive" &&
+    returned.type.typeArguments[0].primitive === "float64", true,
+    "the authored Promise<number> demand already reaches the Host async implementation result");
+  assert.equal(creation?.kind === "selected" && targetTypeRefEquals(payload, csharpSourcePrimitiveTargetType("float64")), true,
+    "Native represents the actual published Promise<float64>, never a presumed Task<int64> implementation");
+  executeCsharpConstruction(compiled, `async-implementation-result-${surface}`, true, false, [], `
+var selected = Tsonic.Generated.Index.create();
+if (await selected() != 1D || await selected() != 1D) throw new System.Exception("async implementation result");
+`);
 });
 
 test("creation checks native passing modes and params shape before accepting a contextual signature", () => {

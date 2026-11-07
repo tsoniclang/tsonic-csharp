@@ -74,7 +74,7 @@ export function analyzeCsharpDeclarations(
     if (policy.ast.is.IsParameterDeclaration(node)) {
       const parameter = policy.ast.as.AsParameterDeclaration(node);
       const selected = parameter === undefined ? undefined
-        : evidence.nodeTargetType.get(parameter.Type ?? parameter.name!);
+        : evidence.nodeTargetType.get(node);
       if (parameter?.Initializer !== undefined && selected !== undefined) {
         const owner = policy.ast.parent(node);
         const signature = owner === undefined ? undefined : selectCsharpParameterDefaultContext(policy, evidence, owner);

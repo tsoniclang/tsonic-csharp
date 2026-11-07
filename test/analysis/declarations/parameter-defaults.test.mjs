@@ -39,7 +39,7 @@ function fixture(acceptsOmission, foreign = false) {
     } } };
   const valueType = { kind: "source-primitive", name: "int32" };
   const evidence = { compileTimeMetadata: new Map(), pointerReturn: new Map(), inferredCallableReturnType: new Map(),
-    nodeTargetType: { get: node => node === source.ast.typeNode(parameter) || node === source.ast.name(parameter)
+    nodeTargetType: { get: node => node === parameter
       ? valueType : source.ast.kindName(node) === "KindVoidKeyword" ? { kind: "void" } : undefined },
     contextualType: new Map(), expressionType: { get: node => queries.types.expressionType(node) } };
   return { parameter, selected: () => analyzeCsharpDeclarations(policy, evidence,

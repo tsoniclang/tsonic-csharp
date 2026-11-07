@@ -155,7 +155,13 @@ test("missing native input evidence never fabricates a literal element conversio
       },
       resolveNodeWithState: () => undefined };
     const selected = resolveCsharpArrayLiteralSelection(scope, expression, queries, { depth: 0 });
-    assert.equal(selected.kind, "unavailable", `${label}: every native construction input must be proved`);
+    if (label === "missing dense entry") {
+      assert.equal(selected.kind === "rejected" && selected.subject === expression && selected.code === "CSHARP_UNSUPPORTED_AST" &&
+        selected.reason === "Sparse array literal elisions require closed JSArray hole construction facts before C# emission; dense array carriers must not compact holes.",
+      true, "the actual sparse syntax has its precise Native capability refusal before unavailable carrier evidence");
+    } else {
+      assert.equal(selected.kind, "unavailable", `${label}: every native construction input must be proved`);
+    }
   }
 });
 

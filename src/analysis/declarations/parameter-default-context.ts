@@ -21,7 +21,7 @@ export function selectCsharpParameterDefaultContext(
   if (literal === undefined || !policy.ast.is.IsObjectLiteralExpression(literal)) return undefined;
   const element = policy.semanticsFor(owner).operations.objectLiteralElement(owner);
   if (element === undefined || element.objectLiteral !== literal || element.element !== owner) return undefined;
-  const target = evidence.contextualType.get(literal)?.targetType;
+  const target = evidence.nodeTargetType.get(literal);
   const present = getCsharpNullableElementTargetType(target) ?? target;
   const shape = present === undefined ? undefined : policy.objectShapes.resolveTarget(present);
   if (shape === undefined) return undefined;

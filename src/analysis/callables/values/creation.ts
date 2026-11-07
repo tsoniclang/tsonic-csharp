@@ -113,8 +113,7 @@ export function analyzeCsharpCallableCreations(input: CsharpCallableCreationInpu
     const carrier = closure !== undefined ? closure.method.type
       : closed !== undefined ? closed
       : observedSelf || getCsharpMethodValue(sourceCarrier) !== undefined ? sourceCarrier
-      : contextualCarrier !== undefined && (!asynchronous ||
-        getCsharpTaskResultTargetType(getCsharpLambdaSignature(contextualCarrier)?.returnType) !== undefined) &&
+      : contextualCarrier !== undefined && getCsharpExpressionTreeDelegateType(contextualCarrier) !== undefined &&
         matches(contextualCarrier) ? contextualCarrier : native;
     if (carrier === undefined || contract === undefined) {
       producer.publish(node, Object.freeze({ kind: "pending" }));
