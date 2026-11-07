@@ -6,14 +6,12 @@ import type { CsharpSourceCallResult } from "../../../../target-model/operations
 import { completeCsharpSourceDeclarationCallAdoption, selectCsharpSourceCallResult } from "./call-results.js";
 
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
-import { combineCsharpTargetUnionMembers, csharpAbsenceTargetType } from "../../../../target-model/types/carriers/runtime-carriers.js";
+import { combineCsharpTargetUnionMembers } from "../../../../target-model/types/carriers/runtime-carriers.js";
 import { csharpTargetParameterValueType } from "../../../../target-model/types/member-facts.js";
 
 import { nextState } from "./state.js";
 import { resolveCsharpSourceEffectiveType, resolveCsharpSourceTypeDescriptor } from "./effective-types.js";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
-
-import { getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
 
 import type { CsharpSourceCallContractSelection } from "./call-contracts.js";
 import { csharpSourceCallArgumentParameter } from "../../../../policy/types/callables/source-callable-contract.js";
@@ -228,20 +226,20 @@ export function resolveSourceCallResultWithState(
   state: CsharpTypeResolutionState,
   nativeType: TargetTypeRef | undefined,
 ): CsharpSourceCallResult | undefined {
-  const { host, resolveSourceCallContract, resolveSourceCallableContractType, resolveSourceCallSelectedType, sourceCallableTypeParametersMatch,
-    sourceCallSelectedDeclaration, resolveSelectedValueWithState, resolveSourceCallInstantiation, resolveNodeWithState } = scope;
+  const { host, resolveSourceCallContract, resolveSourceCallableContractType, sourceCallableTypeParametersMatch,
+    resolveSelectedValueWithState, resolveSourceCallInstantiation, resolveNodeWithState } = scope;
   const effective = resolveCsharpSourceEffectiveType(scope, source.call, state);
-  if (effective !== undefined && effective.result === undefined) return undefined;
+  if (effective === undefined) failTargetAnalysisInvariant("tsonic-csharp",
+    "A value-demanded Source call requires its exact Host effective type publication.", source.call);
+  if (effective.result === undefined) return undefined;
   const selection = resolveSourceCallContract(source, sourceFile, state, "implementation");
   if (selection.kind === "rejected") return undefined;
-  if (selection.kind === "not-applicable") return effective === undefined || nativeType === undefined ? effective?.result
-    : Object.freeze({ ...effective.result!, nativeType });
+  if (selection.kind === "not-applicable") return nativeType === undefined ? effective.result
+    : Object.freeze({ ...effective.result, nativeType });
   const callable = selection.contract;
-  if (effective !== undefined && callable === undefined) return nativeType === undefined ? effective.result
-    : Object.freeze({ ...effective.result!, nativeType });
-  const declaration = sourceCallSelectedDeclaration(source);
+  if (callable === undefined) return nativeType === undefined ? effective.result
+    : Object.freeze({ ...effective.result, nativeType });
   const queries = host.semantics(sourceFile);
-  const result = effective === undefined ? queries.operations.callResult(source) : undefined;
   const access = source.sourceCalleeAccess;
   if (nativeType === undefined && access?.kind === "property") {
     const receiver = resolveSelectedValueWithState(access.receiver.expression, access.receiver.type, sourceFile, nextState(state));
@@ -270,44 +268,24 @@ export function resolveSourceCallResultWithState(
   const completionDeclaration = source.sourceSelectedSignatureKind === "resolved"
     ? queries.declarations.signatureDeclaration(source.selectedSignature) : undefined;
   const retain = (nativeType: TargetTypeRef | undefined): CsharpSourceCallResult | undefined => {
-    const selected = selectCsharpSourceCallResult(host, nativeType, () => {
-      if (effective !== undefined) return effective.result!.selectedType;
-      const checked = result === undefined ? undefined : resolveSourceCallSelectedType(source, declaration,
-        result.authoredTypeNode, result.selectedReturnType, sourceFile, nextState(state));
-      return result?.authoredTypeNode === undefined && getCsharpNullableElementTargetType(nativeType) !== undefined && checked !== undefined
-        ? combineCsharpTargetUnionMembers([checked, csharpAbsenceTargetType()]) : checked;
-    });
-    return selected === undefined || effective === undefined ? selected
+    const selected = selectCsharpSourceCallResult(host, nativeType, () => effective.result!.selectedType);
+    return selected === undefined ? selected
       : Object.freeze({ ...selected, effectiveType: effective.result!.effectiveType });
   };
   if (nativeType !== undefined) return completeCsharpSourceDeclarationCallAdoption(host, completionDeclaration, retain(nativeType));
-  if (callable !== undefined) {
-    if (!sourceCallableTypeParametersMatch(source, callable, selection.kind)) {
-      return undefined;
-    }
-    if (callable.nativeSignature.sourceReturnType !== undefined) {
-      const nativeType = resolveSourceCallableContractType(source, callable, callable.returnType, sourceFile, state);
-      const selected = retain(resolveSourceCallableContractType(source, callable, callable.nativeSignature.sourceReturnType, sourceFile, state));
-      return nativeType === undefined || selected === undefined ? undefined
-        : completeCsharpSourceDeclarationCallAdoption(host, completionDeclaration, Object.freeze({ nativeType, selectedType: selected.selectedType }));
-    }
-    return completeCsharpSourceDeclarationCallAdoption(host, completionDeclaration, retain(resolveSourceCallableContractType(
-      source,
-      callable,
-      callable.returnType,
-      sourceFile,
-      state,
-    )));
-  }
-  if (selection.kind === "value") return undefined;
-  if (result === undefined) {
+  if (!sourceCallableTypeParametersMatch(source, callable, selection.kind)) {
     return undefined;
   }
-  return completeCsharpSourceDeclarationCallAdoption(host, completionDeclaration, retain(resolveSourceCallSelectedType(
+  if (callable.nativeSignature.sourceReturnType !== undefined) {
+    const nativeType = resolveSourceCallableContractType(source, callable, callable.returnType, sourceFile, state);
+    const selected = retain(resolveSourceCallableContractType(source, callable, callable.nativeSignature.sourceReturnType, sourceFile, state));
+    return nativeType === undefined || selected === undefined ? undefined
+      : completeCsharpSourceDeclarationCallAdoption(host, completionDeclaration, Object.freeze({ nativeType, selectedType: selected.selectedType }));
+  }
+  return completeCsharpSourceDeclarationCallAdoption(host, completionDeclaration, retain(resolveSourceCallableContractType(
     source,
-    declaration,
-    result.authoredTypeNode,
-    result.selectedReturnType,
+    callable,
+    callable.returnType,
     sourceFile,
     state,
   )));
