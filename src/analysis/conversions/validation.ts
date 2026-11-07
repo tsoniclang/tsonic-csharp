@@ -6,7 +6,8 @@ import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { csharpUnionPathsEqual } from "../../target-model/types/union-relations.js";
 import { csharpUnionArmMappingsMatch } from "../../policy/conversions/union-relations.js";
 import { csharpMetadataDescriptors } from "../../target-model/metadata/immutable.js";
-import { csharpDelegateSignatureHasSupportedPassingModes, csharpDelegateSignaturesMatchNativeBinding, getCsharpCallableValueSignature } from "../../target-model/types/carriers/delegates.js";
+import { csharpDelegateSignatureHasSupportedPassingModes, csharpDelegateSignaturesMatchNativeBinding, getCsharpCallableValueSignature, getCsharpTaskResultTargetType } from "../../target-model/types/carriers/delegates.js";
+import { csharpConversionIsApplicable } from "../../policy/conversions/applicability.js";
 import { getCsharpMethodValue } from "../../target-model/types/method-values.js";
 import { csharpCarrierAdmitsSourceAbsence, getCsharpDelegateSignature, getCsharpGenericOptionalParts,
   getCsharpNullableElementTargetType, getCsharpRuntimeUnionArms, isCsharpAbsenceTargetType,
@@ -163,7 +164,20 @@ export function admitCsharpConversionSelection(
         const children: CsharpConversionAdmissionInput[] = selected.parameterConversions.map((conversion, index) => ({
           kind: "enter", source: targetSignature.parameters[index], target: sourceSignature.parameters[index], selection: conversion,
         }));
-        if (selected.returnConversion.kind !== "void-return") children.push({ kind: "enter", source: sourceSignature.returnType,
+        if (selected.returnConversion.kind === "task-return") {
+          const sourceResult = getCsharpTaskResultTargetType(sourceSignature.returnType);
+          const targetResult = getCsharpTaskResultTargetType(targetSignature.returnType);
+          if (sourceResult === undefined || targetResult === undefined ||
+            selected.returnConversion.sourceResult === undefined || selected.returnConversion.targetResult === undefined ||
+            selected.returnConversion.conversion === undefined ||
+            isCsharpVoidTargetType(sourceResult) || isCsharpVoidTargetType(targetResult) ||
+            !targetTypeRefEquals(sourceResult, selected.returnConversion.sourceResult) ||
+            !targetTypeRefEquals(targetResult, selected.returnConversion.targetResult) ||
+            !csharpConversionIsApplicable(selected.returnConversion.conversion, "implicit")) return {
+            kind: "rejected", reason: "A delegate Task-result adaptation requires its exact native Task payloads and an implicit result conversion.",
+          };
+          children.push({ kind: "enter", source: sourceResult, target: targetResult, selection: selected.returnConversion.conversion });
+        } else if (selected.returnConversion.kind !== "void-return") children.push({ kind: "enter", source: sourceSignature.returnType,
           target: targetSignature.returnType, selection: selected.returnConversion });
         descend(selected, children.reverse());
         break;

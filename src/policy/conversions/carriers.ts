@@ -14,7 +14,7 @@ import { csharpUnionLeaves } from "../../target-model/types/union-relations.js";
 import { csharpUnionProjectionPath, selectCsharpUnionArmMapping, selectCsharpUnionInjection } from "./union-relations.js";
 import type { CsharpConversionShapeQueries } from "./shape-queries.js";
 import { csharpNativeRepresentationMatches } from "./native-representation.js";
-import { getCsharpCallableValueSignature } from "../../target-model/types/carriers/delegates.js";
+import { getCsharpCallableValueSignature, getCsharpTaskResultTargetType } from "../../target-model/types/carriers/delegates.js";
 import { getCsharpMethodValue } from "../../target-model/types/method-values.js";
 import { csharpNativeInheritanceLookup } from "../../target-model/types/native-inheritance.js";
 import { csharpSourcePrimitiveDotnetMetadataName } from "../../target-model/types/carriers/scalar-types.js";
@@ -228,10 +228,18 @@ export function selectDelegateConversion(
       "implicit",
     ),
   );
+  const sourceResult = getCsharpTaskResultTargetType(sourceSignature.returnType);
+  const targetResult = getCsharpTaskResultTargetType(targetSignature.returnType);
   const returnConversion = isCsharpVoidTargetType(targetSignature.returnType) ||
     isCsharpVoidTargetType(sourceSignature.returnType) &&
       csharpVoidReturnCompletion(sourceSignature.returnType, targetSignature.returnType) === "absence"
-    ? { kind: "void-return" as const } : selectCsharpConversion(
+    ? { kind: "void-return" as const }
+    : sourceResult !== undefined && targetResult !== undefined &&
+      !isCsharpVoidTargetType(sourceResult) && !isCsharpVoidTargetType(targetResult) &&
+      !targetTypeRefEquals(sourceSignature.returnType, targetSignature.returnType)
+    ? { kind: "task-return" as const, sourceResult, targetResult,
+      conversion: selectCsharpConversion(input, sourceResult, targetResult, "implicit") }
+    : selectCsharpConversion(
     input,
     sourceSignature.returnType,
     targetSignature.returnType,
@@ -241,7 +249,8 @@ export function selectDelegateConversion(
     parameterConversions.some((conversion) =>
       !csharpConversionIsApplicable(conversion, "implicit")
     ) ||
-    returnConversion.kind !== "void-return" && !csharpConversionIsApplicable(returnConversion, "implicit")
+    returnConversion.kind !== "void-return" && !csharpConversionIsApplicable(
+      returnConversion.kind === "task-return" ? returnConversion.conversion : returnConversion, "implicit")
   ) {
     return rejectedDelegateConversion(source, target);
   }

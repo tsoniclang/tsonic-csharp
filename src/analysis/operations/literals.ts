@@ -28,7 +28,14 @@ export function analyzeCsharpLiteralAdmission(input: { readonly ast: AstReader; 
     // An explicit conversion (`1e40 as float32`) keeps the literal at its source type and casts it, as C# does; only an
     // implicit use must be exactly representable in its target.
     if (exact?.kind === "rejected" && !(use.kind === "converted" && use.mode === "explicit")) { refuse(node, exact.reason); continue; }
-    if (use.literal !== undefined) continue;
+    if (use.literal !== undefined) {
+      if (!published.has(node) && input.ast.is.IsNumericLiteral(node) && use.literal.kind === "float" &&
+        use.literal.precision === "float64" && csharpTargetTypedIntegralToken(input.ast, node, emittedDestination(input.demand, node))) {
+        producer.publish(node, { kind: "exact", recipe: use.literal, integralToken: true });
+        published.add(node);
+      }
+      continue;
+    }
     const read = input.values.valueRead.get(node);
     const carrier = read?.value;
     if ((input.ast.is.IsNumericLiteral(node) || input.ast.is.IsBigIntLiteral(node)) && carrier === undefined)
@@ -45,7 +52,9 @@ export function analyzeCsharpLiteralAdmission(input: { readonly ast: AstReader; 
         producer.publish(node, { kind: "float64", value: number, ...(integralToken ? { integralToken: true as const } : {}) });
         published.add(node);
       } else if (selected?.kind === "resolved") {
-        producer.publish(node, { kind: "exact", recipe: selected.recipe }); published.add(node);
+        const integralToken = csharpTargetTypedIntegralToken(input.ast, node, emittedDestination(input.demand, node));
+        producer.publish(node, { kind: "exact", recipe: selected.recipe, ...(integralToken ? { integralToken: true as const } : {}) });
+        published.add(node);
       } else refuse(node, selected?.kind === "rejected" ? selected.reason : "Numeric literal emission requires parseable finite source literal text from TSTS.");
     }
     if (!published.has(node) && input.ast.is.IsBigIntLiteral(node)) {
@@ -86,6 +95,7 @@ function csharpTargetTypedIntegralToken(ast: AstReader, node: Node, destination:
   if (parent === undefined) return false;
   if (ast.is.IsVariableDeclaration(parent)) return ast.as.AsVariableDeclaration(parent)?.Initializer === node;
   if (ast.is.IsPropertyDeclaration(parent)) return ast.as.AsPropertyDeclaration(parent)?.Initializer === node;
+  if (ast.is.IsPropertyAssignment(parent)) return ast.as.AsPropertyAssignment(parent)?.Initializer === node;
   if (ast.is.IsReturnStatement(parent)) return true;
   return ast.is.IsBinaryExpression(parent) && ast.operatorKindName(parent) === "KindEqualsToken" &&
     ast.as.AsBinaryExpression(parent)?.Right === node;

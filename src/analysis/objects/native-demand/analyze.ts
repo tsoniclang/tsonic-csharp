@@ -189,7 +189,9 @@ export function analyzeCsharpNativeArtifactDemand(
           failTargetAnalysisInvariant("tsonic-csharp", "An admitted native conversion requires its exact parameter demand vector.", node);
         demandConversion(node, from, to, conversion);
       }
-      if (selection.returnConversion.kind !== "void-return") demandConversion(node,
+      if (selection.returnConversion.kind === "task-return") demandConversion(node,
+        selection.returnConversion.sourceResult, selection.returnConversion.targetResult, selection.returnConversion.conversion);
+      else if (selection.returnConversion.kind !== "void-return") demandConversion(node,
         contract.sourceSignature.returnType, contract.targetSignature.returnType, selection.returnConversion);
     } else if (selection.kind === "provider-argument-adapter") {
       demandConversion(node, source, selection.adapter.inputType, selection.sourceToInput);

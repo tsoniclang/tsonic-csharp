@@ -1,6 +1,6 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { SourceTypeFlowAssociation } from "@tsonic/target-api/source";
+import { sourceTypeDescriptorsEqual, type SourceTypeFlowAssociation } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpNativeConstructionDemandQueries } from "../../target-model/records/native/native-construction.js";
 import type { CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
@@ -13,6 +13,8 @@ import { representCsharpSourceType } from "../../policy/types/source-type-flow/r
 import { selectCsharpConversion } from "../../policy/conversions/core.js";
 import { csharpConversionIsApplicable } from "../../policy/conversions/applicability.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
+import { targetTypeRefEquals } from "../../target-model/types/equality.js";
+import { csharpObjectShapesEqual } from "../../target-model/types/object-shape-equality.js";
 
 export function analyzeCsharpSourceTypeFlowObligations(
   policy: CsharpPolicyContext,
@@ -26,7 +28,41 @@ export function analyzeCsharpSourceTypeFlowObligations(
     let subject: Node | undefined = obligation.site;
     while (subject !== undefined && compileTimeMetadata.get(subject) !== true) subject = policy.ast.parent(subject);
     if (subject !== undefined) continue;
-    const representation = policy.types.sourceTypeFlowRepresentation(obligation.value ?? obligation.site);
+    const occurrence = obligation.value ?? obligation.site;
+    const published = policy.types.sourceTypeFlowRepresentation(occurrence);
+    const current = policy.effectiveTypes.get(occurrence);
+    const association = current === undefined || current.kind === "refused" ? undefined : current.provenance.principal;
+    const declaration = association?.declaration;
+    const principal = declaration === undefined ? undefined : policy.effectiveTypes.get(declaration);
+    const selected = obligation.kind !== "literal-admission" || obligation.authority !== "inferred" || obligation.type.kind !== "shape" ||
+      declaration === undefined || declaration === occurrence || association?.initializer !== occurrence ||
+      current === undefined || current.kind === "refused" ||
+      current.provenance.occurrence !== occurrence || principal === undefined || principal.kind === "refused" ||
+      principal.provenance.occurrence !== declaration ||
+      principal.provenance.sourceFile !== current.provenance.sourceFile || !sourceTypeDescriptorsEqual(current.type, obligation.type) ||
+      !sourceTypeDescriptorsEqual(principal.type, obligation.type) ? undefined : nativeConstruction.constructionFor(occurrence);
+    const selectedType = selected === undefined ? undefined : policy.types.resolveNode(occurrence, policy.ast.getSourceFile(occurrence));
+    const storageType = selected === undefined ? undefined : policy.types.resolveNode(declaration, policy.ast.getSourceFile(declaration));
+    const registered = selected === undefined || selectedType?.kind !== "resolved" || storageType?.kind !== "resolved" ||
+      !targetTypeRefEquals(selectedType.sourceResult.selectedType, selected.targetType) ||
+      !targetTypeRefEquals(storageType.sourceResult.selectedType, selected.targetType) ? undefined
+      : objectShapes.resolveTarget(selected.targetType);
+    const sourceFile = registered === undefined ? undefined : policy.ast.getSourceFile(occurrence);
+    const retained = registered === undefined || sourceFile === undefined || selected === undefined ||
+      !targetTypeRefEquals(registered.targetType, selected.targetType) || !csharpObjectShapesEqual(registered, selected.shape)
+      ? undefined : policy.objectShapes.retainConstructionSource(occurrence, registered, sourceFile);
+    const retainedPrincipal = retained === undefined || declaration === undefined || sourceFile === undefined || registered === undefined
+      ? undefined : policy.objectShapes.retainConstructionSource(declaration, registered, sourceFile);
+    const physical = registered === undefined || retained === undefined || retainedPrincipal === undefined ||
+      !csharpObjectShapesEqual(registered, retained) || !csharpObjectShapesEqual(registered, retainedPrincipal)
+      ? undefined : retained;
+    const logical = physical === undefined ? undefined : representCsharpSourceType(published, obligation.type);
+    const representation = physical === undefined || logical === undefined ? published : {
+      ...published,
+      retainShape(shape: Parameters<typeof published.retainShape>[0]) {
+        return targetTypeRefEquals(shape.targetType, logical) ? physical : published.retainShape(shape);
+      },
+    };
     const issue = checkCsharpSourceTypeFlowObligation({
       ...representation,
       providers: policy.providers,

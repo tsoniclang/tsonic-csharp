@@ -8,7 +8,7 @@ import { AsAwaitExpression, AsNoSubstitutionTemplateLiteral, AsStringLiteral,
   Node_Text, SourceKind } from "@tsonic/target-api/source";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import type { ExpressionPlanner } from "./expression-planner-types.js";
-import { planCsharpExactLiteralRecipe, planIntegerLiteral } from "./literal-conversions.js";
+import { planCsharpLiteralUseRecipe, planIntegerLiteral } from "./literal-conversions.js";
 import { requireCsharpStringRuntimeCarrier } from "./expression-literal-carriers.js";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { planThisExpression } from "./expression-this.js";
@@ -34,7 +34,9 @@ export function tryPlanSourceSyntaxExpression(node: Node, sourceFile: SourceFile
       if (selection.kind === "float64") return value({ kind: "NumericLiteralExpression", value: selection.value,
         ...(selection.integralToken === true ? {} : { suffix: "D" }) });
       if (selection.kind === "exact") {
-        const planned = planCsharpExactLiteralRecipe(input.scope.typeParameterNames, selection.recipe);
+        if (selection.integralToken === true && selection.recipe.kind === "integer")
+          return value({ kind: "NumericLiteralExpression", value: Number(selection.recipe.value) });
+        const planned = planCsharpLiteralUseRecipe(input, node, selection.recipe);
         if (planned.kind !== "resolved") failCsharpPlannerInvariant("An admitted source literal requires its native scalar syntax.", node);
         return value(planned.expression);
       }

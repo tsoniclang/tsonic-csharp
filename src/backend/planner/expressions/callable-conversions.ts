@@ -102,6 +102,20 @@ function buildAdaptation(node: Node, sourceFile: SourceFile, input: CsharpPlanni
     statements.push(...(contract.targetVoid
       ? consumeCsharpPlannedValue(completion, expression => [{ kind: "ExpressionStatement", expression }])
       : planCsharpVoidReturn(completion, "absence", targetSignature.returnType, input)));
+  } else if (selection.returnConversion.kind === "task-return") {
+    const mapper = input.names.temporaryName("__tsonic_task_result");
+    const parameter = input.names.temporaryName("__tsonic_task");
+    const body: CsharpStatement[] = [];
+    const value = convert(node, sourceFile, input, diagnostics, selection.returnConversion.sourceResult,
+      selection.returnConversion.targetResult, selection.returnConversion.conversion,
+      { kind: "AwaitExpression", expression: { kind: "IdentifierName", name: parameter } }, body, "snapshot");
+    if (value === undefined) return undefined;
+    body.push({ kind: "ReturnStatement", expression: value });
+    statements.push({ kind: "LocalFunctionStatement", name: mapper, returnType: type(targetSignature.returnType),
+      modifiers: ["static", "async"], parameters: [{ name: parameter, type: type(sourceSignature.returnType) }],
+      body: { kind: "Block", statements: body } });
+    statements.push({ kind: "ReturnStatement", expression: { kind: "InvocationExpression",
+      callee: { kind: "IdentifierName", name: mapper }, arguments: [{ kind: "Argument", expression: invocation }] } });
   } else {
     const value = convert(node, sourceFile, input, diagnostics, sourceSignature.returnType, targetSignature.returnType, selection.returnConversion,
       invocation, statements, "snapshot");

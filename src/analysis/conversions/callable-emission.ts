@@ -35,7 +35,10 @@ export function admitCsharpDelegateEmission(producer: CsharpDelegateContractProd
     const output = sourceSignature.parameters[index];
     if (input !== undefined && output !== undefined) admitCsharpDelegateEmission(producer, input, output, conversion);
   }
-  if (selected.returnConversion.kind !== "void-return")
+  if (selected.returnConversion.kind === "task-return")
+    admitCsharpDelegateEmission(producer, selected.returnConversion.sourceResult, selected.returnConversion.targetResult,
+      selected.returnConversion.conversion);
+  else if (selected.returnConversion.kind !== "void-return")
     admitCsharpDelegateEmission(producer, sourceSignature.returnType, targetSignature.returnType, selected.returnConversion);
 }
 

@@ -26,6 +26,7 @@ import type { CsharpSourceCallResult } from "../../../../target-model/operations
 import { csharpSourceValueResult, refineCsharpSourceValueResult } from "./call-results.js";
 import { resolveCsharpSourceEffectiveType, type CsharpEffectiveSourceTypeSelection } from "./effective-types.js";
 import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
+import { csharpObjectShapesEqual } from "../../../../target-model/types/object-shape-equality.js";
 import { csharpCallableValueType, csharpClosedInvocationMatches } from "../../../../policy/types/callables/value-type.js";
 import { csharpArrayInputDomainsEqual } from "../../../../policy/types/collections/array-input-layout.js";
 export function resolveNodeValueWithState(
@@ -237,10 +238,12 @@ function selectedPhysicalRead(
   effective: CsharpEffectiveSourceTypeSelection,
 ): TargetTypeRef | undefined {
   if (effective.result === undefined || effective.outcome.kind === "refused" ||
-    effective.outcome.type.kind !== "array" && effective.outcome.type.kind !== "callable") return undefined;
+    effective.outcome.type.kind !== "array" && effective.outcome.type.kind !== "callable" &&
+    effective.outcome.type.kind !== "shape") return undefined;
   const declaration = host.ast.is.IsIdentifier(node) ? host.navigation.sourceReferenceFor(node)?.declaration
     : host.ast.is.IsVariableDeclaration(node) || host.ast.is.IsArrowFunction(node) ||
-      host.ast.is.IsFunctionExpression(node) ? node : undefined;
+      host.ast.is.IsFunctionExpression(node) || effective.outcome.type.kind === "shape" &&
+      host.ast.is.IsObjectLiteralExpression(node) ? node : undefined;
   if (declaration === undefined) return undefined;
   const principal = host.effectiveTypes.get(declaration);
   if (principal === undefined || principal.kind === "refused" || principal.provenance.occurrence !== declaration ||
@@ -248,6 +251,16 @@ function selectedPhysicalRead(
   const selected = host.representations.scopedTargetType(node);
   const storage = host.representations.scopedTargetType(declaration);
   if (selected === undefined || storage === undefined || !targetTypeRefEquals(selected, storage)) return undefined;
+  if (effective.outcome.type.kind === "shape") {
+    const shape = host.objectShapes.resolveTarget(selected);
+    const sourceFile = host.ast.getSourceFile(node);
+    if (shape === undefined || sourceFile === undefined || !targetTypeRefEquals(shape.targetType, selected)) return undefined;
+    const retained = host.objectShapes.retainConstructionSource(node, shape, sourceFile);
+    const retainedPrincipal = declaration === node ? retained
+      : host.objectShapes.retainConstructionSource(declaration, shape, sourceFile);
+    return retained !== undefined && retainedPrincipal !== undefined && csharpObjectShapesEqual(shape, retained) &&
+      csharpObjectShapesEqual(shape, retainedPrincipal) ? selected : undefined;
+  }
   if (effective.outcome.type.kind === "array") return host.ast.is.IsVariableDeclaration(declaration) &&
     csharpArrayInputDomainsEqual(effective.result.selectedType, selected) ? selected : undefined;
   if (effective.outcome.type.kind !== "callable" || host.ast.is.IsVariableDeclaration(declaration) &&
