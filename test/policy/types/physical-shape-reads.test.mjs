@@ -8,6 +8,8 @@ import { createCsharpSourceTypeRepresentationHost, resolveCsharpSourceTypeDescri
 import { analyzeCsharpSourceTypeFlowObligations } from "../../../dist/analysis/source-evidence/type-flow-obligations.js";
 import { createCsharpObjectShapeValueStorage } from "../../../dist/policy/types/objects/shape-carriers.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
+import { csharpTargetNamedType } from "../../../dist/target-model/types/factories.js";
+import { csharpObjectShapeMemberContractKey } from "../../../dist/target-model/types/object-shape-identity.js";
 
 function fixture() {
   const checked = createCompilerSessionFromFiles({ currentDirectory: "/src", files: {
@@ -70,6 +72,42 @@ for (const site of ["declaration", "literal", "reference"]) test(`physical shape
     "the same canonical Native value carrier is retained without copying or reference allocation");
   assert.equal(selected?.effectiveType === input.source.effectiveTypes.get(input[site]), true,
     "the actual logical Source publication remains unchanged");
+});
+
+for (const declarationKind of ["class", "interface", "struct"]) {
+  test(`physical shape cannot replace the selected Native ${declarationKind} identity`, () => {
+    const input = fixture();
+    const native = csharpTargetNamedType(`fixture.${declarationKind}`, [], { kind: "named", name: "Selected" },
+      { sourceDeclarationKind: declarationKind, allowsRefLikeTypeArguments: [] });
+    const registered = input.shapes.retainShape({ ...input.physical, targetType: native }, undefined);
+    assert.equal(registered?.members.length === input.physical.members.length && registered.members.every((member, index) =>
+      csharpObjectShapeMemberContractKey(member) === csharpObjectShapeMemberContractKey(input.physical.members[index]) &&
+      member.origins?.length === input.physical.members[index].origins?.length &&
+      member.origins.every((origin, originIndex) => origin === input.physical.members[index].origins[originIndex])), true,
+      "the opposite has the same complete physical members and genuine Source origins");
+    input.scope.selectDirectSourceFacts = () => ({ kind: "resolved", type: native });
+    const selected = resolveNodeValueWithState(input.scope, input.reference, input.file, { depth: 0 });
+    assert.equal(targetTypeRefEquals(selected?.selectedType, native), true,
+      "equal Source publication and an anonymous scoped carrier cannot replace the selected Native declaration");
+    assert.equal(selected?.effectiveType === input.source.effectiveTypes.get(input.reference), true,
+      "the selected Native identity does not change the original Source publication");
+  });
+}
+
+test("physical shape read requires the canonical value-storage projection, not an unrelated registered identity", () => {
+  const input = fixture();
+  const targetType = { ...input.physical.targetType, id: "fixture.other-physical",
+    csharpRender: { kind: "named", name: "OtherPhysical" } };
+  const other = input.shapes.retainShape({ ...input.physical, targetType }, undefined);
+  assert.equal(other?.members === input.physical.members, true,
+    "the other registered Native carrier has exactly the same members, widths and origins");
+  input.scoped.set(input.reference, targetType);
+  input.scoped.set(input.declaration, targetType);
+  const selected = resolveNodeValueWithState(input.scope, input.reference, input.file, { depth: 0 });
+  assert.equal(targetTypeRefEquals(selected?.selectedType, input.logical), true,
+    "Source equality is not authority for a different physical Native identity");
+  assert.equal(selected?.effectiveType === input.source.effectiveTypes.get(input.reference), true,
+    "the original Source publication remains the sole logical result");
 });
 
 for (const kind of ["missing-occurrence", "missing-principal", "different-storage", "unregistered", "foreign-principal",

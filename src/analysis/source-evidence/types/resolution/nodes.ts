@@ -27,6 +27,7 @@ import { csharpSourceValueResult, refineCsharpSourceValueResult } from "./call-r
 import { resolveCsharpSourceEffectiveType, type CsharpEffectiveSourceTypeSelection } from "./effective-types.js";
 import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
 import { csharpObjectShapesEqual } from "../../../../target-model/types/object-shape-equality.js";
+import { createCsharpObjectShapeValueStorage } from "../../../../policy/types/objects/shape-carriers.js";
 import { csharpCallableValueType, csharpClosedInvocationMatches } from "../../../../policy/types/callables/value-type.js";
 import { csharpArrayInputDomainsEqual } from "../../../../policy/types/collections/array-input-layout.js";
 export function resolveNodeValueWithState(
@@ -252,6 +253,9 @@ function selectedPhysicalRead(
   const storage = host.representations.scopedTargetType(declaration);
   if (selected === undefined || storage === undefined || !targetTypeRefEquals(selected, storage)) return undefined;
   if (effective.outcome.type.kind === "shape") {
+    const represented = host.objectShapes.resolveTarget(effective.result.selectedType);
+    const physical = represented === undefined ? undefined : createCsharpObjectShapeValueStorage(represented);
+    if (physical === undefined || !targetTypeRefEquals(physical.targetType, selected)) return undefined;
     const shape = host.objectShapes.resolveTarget(selected);
     const sourceFile = host.ast.getSourceFile(node);
     if (shape === undefined || sourceFile === undefined || !targetTypeRefEquals(shape.targetType, selected)) return undefined;
