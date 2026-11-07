@@ -1,0 +1,104 @@
+--- a/test/analysis/operations/inferred-numeric-array-elements.part-01.test.mjs
++++ b/test/analysis/operations/inferred-numeric-array-elements.part-01.test.mjs
+@@ -10,16 +10,17 @@
+ import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
+ import { checkCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+ import { createTargetSourceProgram } from "@tsonic/target-api/source";
+-import { analyzeCsharpDeclarations, reconcileInferredReturnTargetContract } from "../../../dist/analysis/declarations/analyze.js";
++import { analyzeCsharpDeclarations } from "../../../dist/analysis/declarations/analyze.js";
+ import { csharpRuntimeUnionTargetType, csharpTargetNamedType, csharpStringTargetType } from "../../../dist/target-model/types/index.js";
+ import { csharpJsArrayTargetType } from "../../../dist/target-model/types/carriers/js.js";
+ import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
+-import { csharpNumericReturnBaselineCovered } from "../../../dist/policy/conversions/union-relations.js";
++import { csharpTargetTypeRenderingRejection } from "../../../dist/policy/types/model/renderability.js";
++import { publishedReturnContracts } from "../../helpers/published-return-contracts.mjs";
+ import { selectCsharpConversion } from "../../../dist/policy/conversions/core.js";
+ import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
+ import { header, emptyProviders, compile, diagnosticLabel, accepted, arrays, constructedArrays, destinationBodies, actualDestinationEvidence, actualUnionDestinationEvidence } from "./inferred-numeric-array-elements.fixtures.mjs";
+ 
+-test("inferred numeric return coverage preserves complete native union layouts without converting their arrays", () => {
++test("published numeric returns preserve complete Native union layouts without converting their arrays", () => {
+   const integer = csharpSourcePrimitiveTargetType("int32");
+   const unsigned = csharpSourcePrimitiveTargetType("uint32");
+   const floating = csharpSourcePrimitiveTargetType("float64");
+@@ -29,6 +30,17 @@
+   const tuple = elements => Object.freeze({ kind: "tuple", elements: Object.freeze(elements) });
+   const policy = { projectTypes: { directSupertypes: () => [] },
+     providers: emptyProviders, target: {} };
++  const actual = publishedReturnContracts(`import type { int32, uint32 } from "@tsonic/core/types.js";
++    export function run(value: (int32 | uint32 | number)[]) { return value; }`).get("run");
++  assert.equal(actual.publication.type.kind === "array" && actual.publication.type.element.kind === "union" &&
++    actual.publication.type.element.types.every(type => type.kind === "primitive"), true,
++  "the actual return's complete Source arms are published before Native representation");
++  const publishedUnion = csharpRuntimeUnionTargetType(actual.publication.type.element.types
++    .map(type => csharpSourcePrimitiveTargetType(type.primitive)));
++  assert.equal(targetTypeRefKey(actual.contract.type) === targetTypeRefKey(native(publishedUnion)), true,
++    "the represented return retains every Host arm in its published order");
++  assert.equal(getCsharpRuntimeUnionArms(duplicate).length, 2,
++    "a fixed Native ABI with duplicate physical slots is not Source union normalization");
+   const controls = [
+     ["native array", native(union), native(floating)],
+     ["JS array", csharpJsArrayTargetType(union), csharpJsArrayTargetType(floating)],
+@@ -38,12 +50,8 @@
+     ["duplicate native ABI slots", native(duplicate), native(floating)],
+   ];
+   for (const [label, observed, baseline] of controls) {
+-    assert.equal(csharpNumericReturnBaselineCovered({ source: observed, baseline, definitions: undefined,
+-      convert: (source, target) => selectCsharpConversion(policy, source, target, "implicit") }), true,
+-    `${label}: every actual native arm and checked coarse alternative corresponds`);
+-    const selected = reconcileInferredReturnTargetContract(policy, baseline, [observed], false);
+-    assert.equal(selected.kind === "resolved" && selected.type === observed, true,
+-      `${label}: inferred return publication retains the one actual native ABI by identity`);
++    assert.equal(selectCsharpConversion(policy, observed, observed, "implicit").kind, "identity",
++      `${label}: an existing complete Native ABI remains an identity without a baseline chooser`);
+   }
+   for (const [label, observed, baseline] of controls.slice(0, 2)) for (const mode of ["implicit", "explicit"]) {
+     assert.equal(selectCsharpConversion(policy, observed, baseline, mode).kind, "rejected",
+@@ -53,7 +61,7 @@
+   }
+ });
+ 
+-test("numeric return coverage refuses missing arms, unrelated carriers and contradictory native collection metadata", () => {
++test("Native return storage rejects missing arms, unrelated carriers and contradictory collection metadata", () => {
+   const integer = csharpSourcePrimitiveTargetType("int32");
+   const floating = csharpSourcePrimitiveTargetType("float64");
+   const text = csharpStringTargetType();
+@@ -68,12 +76,20 @@
+     ["missing native absence", native(integer), native(csharpNullableTargetType(floating))],
+     ["contradictory collection payload", { ...csharpJsArrayTargetType(integer), csharpReadOnlyIndexableElementType: text }, csharpJsArrayTargetType(floating)],
+   ];
+-  for (const [label, observed, baseline] of controls) assert.equal(csharpNumericReturnBaselineCovered({ source: observed,
+-    baseline, definitions: undefined, convert: (source, target) => selectCsharpConversion(policy, source, target, "implicit") }), false,
+-  `${label}: a complete independent baseline proof is still required`);
++  for (const [label, observed, baseline] of controls) {
++    if (label === "contradictory collection payload") {
++      assert.equal(csharpTargetTypeRenderingRejection(observed) !== undefined, true,
++        `${label}: malformed Native slot metadata is rejected independently of any return inference`);
++      continue;
++    }
++    for (const [source, target] of [[observed, baseline], [baseline, observed]]) {
++      assert.equal(selectCsharpConversion(policy, source, target, "implicit").kind, "rejected",
++        `${label}: the fixed Native destination never acquires missing ABI roles`);
++    }
++  }
+ });
+ 
+-test("numeric baseline identity cannot hide contradictory native collection slots at any nesting", () => {
++test("Native representation identity cannot hide contradictory collection slots at any nesting", () => {
+   const integer = csharpSourcePrimitiveTargetType("int32");
+   const text = csharpStringTargetType();
+   const actual = csharpJsArrayTargetType(integer);
+@@ -93,9 +109,10 @@
+       const target = wrap(contradictory);
+       assert.equal(targetTypeRefKey(source) === targetTypeRefKey(target), true,
+         `${field}/${label}: the physical native carrier identity is intentionally unchanged`);
+-      for (const [observed, baseline] of [[source, target], [target, source]]) assert.equal(csharpNumericReturnBaselineCovered({
+-        source: observed, baseline, definitions: undefined, convert: () => assert.fail("contradictory metadata is not a conversion"),
+-      }), false, `${field}/${label}: neither baseline direction accepts contradictory slot metadata`);
++      assert.equal(csharpTargetTypeRenderingRejection(source) === undefined, true,
++        `${field}/${label}: the canonical Native metadata remains representable`);
++      assert.equal(csharpTargetTypeRenderingRejection(target) !== undefined, true,
++        `${field}/${label}: contradictory slot metadata is rejected before any identity conversion`);
+     }
+   }
+ });

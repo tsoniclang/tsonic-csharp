@@ -1,0 +1,107 @@
+--- a/test/policy/conversions/direct-common-conversion-target.test.mjs
++++ b/test/policy/conversions/direct-common-conversion-target.test.mjs
+@@ -55,6 +55,24 @@
+     "rejected", "each observed Native value must convert to the existing published destination");
+ });
+ 
++test("C2530 unannotated numeric returns retain the Host join and the F8 literal partner rule", () => {
++  const selected = publishedReturnContracts(`import type { int32 } from "@tsonic/core/types.js";
++    export function joined(flag: boolean, value: int32) { if (flag) return value; return 1.5; }
++    export function literal(flag: boolean) { return flag ? 1 : 2.5; }`);
++  const joined = selected.get("joined");
++  assert.equal(joined.publication.type.kind === "union", true,
++    "the Host callable-return owner joins the two fixed Source kinds; Native does not choose a common numeric target");
++  assert.deepEqual(joined.publication.type.types.map(type => type.kind === "primitive" ? type.primitive : type.kind).sort(),
++    ["float64", "int32"], "the unannotated fixed-width join retains exactly both Source alternatives");
++  assert.equal(targetTypeRefEquals(joined.contract.type, csharpRuntimeUnionTargetType(joined.publication.type.types.map(type =>
++    csharpSourcePrimitiveTargetType(type.primitive)))), true, "Native represents the exact published alternatives in their order");
++  const literal = selected.get("literal");
++  assert.equal(literal.publication.type.kind === "primitive" && literal.publication.type.primitive === "float64", true,
++    "C2479 F8: an unbound whole literal takes its written fractional partner, before the integer default");
++  assert.equal(targetTypeRefEquals(literal.contract.type, float64), true,
++    "the sealed Native return is the representation of the published inferred literal result");
++});
++
+ test("unrelated Native representations cannot satisfy an existing exact return destination", () => {
+   for (const [actual, target] of [[int32, string], [string, int32], [string, float64]]) {
+     assert.equal(selectCsharpConversion(host, actual, target, "implicit").kind, "rejected",
+@@ -96,6 +114,23 @@
+   }
+ });
+ 
++test("C2530 unannotated optional numeric returns retain the exact published join and one absence", () => {
++  const selected = publishedReturnContracts(`import type { int32 } from "@tsonic/core/types.js";
++    export function floatingInferred(flag: boolean, value: int32 | undefined, other: number | undefined) {
++      if (flag) return value; return other;
++    }`).get("floatingInferred");
++  assert.equal(selected.publication.type.kind === "optional" && selected.publication.type.value.kind === "union", true,
++    "the Host callable-return union builder preserves both fixed primitive alternatives and one optional boundary");
++  const present = selected.publication.type.value;
++  assert.deepEqual(present.types.map(type => type.kind === "primitive" ? type.primitive : type.kind).sort(), ["float64", "int32"],
++    "an inferred optional join is not replaced by an authored number annotation");
++  assert.equal(targetTypeRefEquals(selected.contract.type, csharpNullableTargetType(csharpRuntimeUnionTargetType(present.types.map(type =>
++    csharpSourcePrimitiveTargetType(type.primitive))))), true, "the sealed Native return represents that exact published join");
++  assert.deepEqual(unrepresentedReturnContract(selected), { kind: "rejected",
++    reason: "The Host-published callable return has no closed C# representation." },
++  "the inferred twin also retains the real missing-Native-projection refusal");
++});
++
+ test("published integer results retain every Native primitive without allocating a checker bigint baseline", () => {
+   const kinds = ["int8", "uint8", "int16", "uint16", "int32", "uint32", "int64", "uint64",
+     "int128", "uint128", "native-int", "native-uint"];
+--- a/test/policy/types/method-value-return-contracts.test.mjs
++++ b/test/policy/types/method-value-return-contracts.test.mjs
+@@ -3,6 +3,7 @@
+ import { csharpMethodValueType, csharpMethodValueCoversContract, getCsharpMethodValue } from "../../../dist/target-model/types/method-values.js";
+ import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
+ import { publishedReturnContracts, unrepresentedReturnContract } from "../../helpers/published-return-contracts.mjs";
++import { compileCsharpAnalysisTarget, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+ import { selectCsharpConversion } from "../../../dist/policy/conversions/core.js";
+ 
+ const owner = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "tsonic.shape:environment", csharpRender: { kind: "named", name: "Environment" } };
+@@ -20,6 +21,45 @@
+   assert.deepEqual(getCsharpMethodValue(method).typeParameters, [parameter.identity], "the original ordered quantifiers are retained");
+ });
+ 
++test("C2530 a returned generic method retains its Source identity and the current precise Native refusal", () => {
++  let source;
++  const compiled = compileCsharpSource({ sourceText: `class Box {
++      identity<Value>(value: Value): Value { return value; }
++    }
++    export function returnedMethod() { const box = new Box(); return box.identity; }`,
++  compileTarget(request, observer) {
++    source = request.input.source;
++    return compileCsharpAnalysisTarget(request, observer);
++  } });
++  assert.equal(compiled.sourceDiagnosticsText, "", "the original generic method-return program is valid Source");
++  assert.equal(source !== undefined, true, "the actual Host publication reaches Native before its representation refusal");
++  const methods = [];
++  const functions = [];
++  const visit = node => {
++    if (source.ast.is.IsMethodDeclaration(node)) methods.push(node);
++    if (source.ast.is.IsFunctionDeclaration(node)) functions.push(node);
++    source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
++  };
++  for (const file of source.sourceFiles) if (!source.ast.isDeclarationFile(file)) visit(file);
++  assert.equal(methods.length === 1 && functions.length === 1, true, "one exact original method and returned callable owner");
++  const publication = source.effectiveTypes.callableReturn(functions[0]);
++  assert.equal(publication !== undefined && publication.kind !== "refused" && publication.type.kind === "callable", true,
++    "the Host publishes the original quantified callable, not a fabricated Native result");
++  assert.equal(publication.type.calls.length, 1);
++  const signature = publication.type.calls[0];
++  const binders = source.ast.typeParameters(methods[0]);
++  assert.equal(signature.declaration === methods[0] && signature.typeParameters.length === 1 && binders.length === 1 &&
++    signature.typeParameters[0] === binders[0], true, "the actual published return retains the original method and ordered binder identity");
++  const issues = compiled.result.diagnostics.filter(issue => issue.category === "error");
++  assert.equal(issues.length, 1);
++  assert.equal(issues[0].code, "CSHARP_UNSUPPORTED_AST");
++  assert.equal(issues[0].source, "tsonic-csharp");
++  assert.equal(issues[0].message, "An extracted quantified nominal method has no supported native callable-value owner.",
++    "C2530 permits the measured current Native refusal instead of claiming an unrepresented sealed carrier");
++  assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
++    "the unsupported Native method-value representation publishes no invalid output");
++});
++
+ test("inferred callable coverage rejects changed binders, quantified arity and native carriers", () => {
+   const otherParameter = { ...parameter, identity: "unrelated-source-binder" };
+   const number = { kind: "source-primitive", name: "float64" };

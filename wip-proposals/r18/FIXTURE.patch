@@ -1,0 +1,14 @@
+--- a/test/policy/types/source-call-applicability.test.mjs
++++ b/test/policy/types/source-call-applicability.test.mjs
+@@ -56,7 +56,10 @@
+   assert.equal(targetTypeRefEquals(result?.nativeType, { kind: "source-primitive", name: "float64" }), true,
+     "a Native callee classification never replaces the Host-selected width");
+   current.scope.host.effectiveTypes = { ...current.program.effectiveTypes, get: () => undefined };
+-  assert.equal(resolveSourceCallResultWithState(current.scope, current.source, current.file, { depth: 0 }, undefined) === undefined, true,
++  assert.throws(() => resolveSourceCallResultWithState(current.scope, current.source, current.file, { depth: 0 }, undefined),
++    error => error.diagnostic?.code === "TSONIC_INTERNAL_ANALYSIS_INVARIANT" &&
++      error.diagnostic.sourceNode === current.source.call &&
++      error.diagnostic.message === "A value-demanded Source call requires its exact Host effective type publication.",
+     "nonapplicable contract authority cannot fabricate a missing Host publication");
+ });
+ 

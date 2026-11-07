@@ -1,0 +1,70 @@
+--- a/test/policy/types/method-value-return-contracts.test.mjs
++++ b/test/policy/types/method-value-return-contracts.test.mjs
+@@ -2,7 +2,7 @@
+ import test from "node:test";
+ import { csharpMethodValueType, csharpMethodValueCoversContract, getCsharpMethodValue } from "../../../dist/target-model/types/method-values.js";
+ import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
+-import { reconcileInferredReturnTargetContract } from "../../../dist/analysis/declarations/analyze.js";
++import { publishedReturnContracts, unrepresentedReturnContract } from "../../helpers/published-return-contracts.mjs";
+ import { selectCsharpConversion } from "../../../dist/policy/conversions/core.js";
+ 
+ const owner = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "tsonic.shape:environment", csharpRender: { kind: "named", name: "Environment" } };
+@@ -13,12 +13,11 @@
+ const inferred = csharpMethodValueType(protocol, "Invoke", "checked-callable", signature, [parameter.identity]);
+ const policy = { projectTypes: { directSupertypes() { return []; } }, providers: { findTargetBindingByTargetId() { return { kind: "missing" }; } }, target: {} };
+ 
+-test("inferred generic callable coverage selects the original method and native environment", () => {
++test("Native generic callable coverage retains the original method and native environment", () => {
+   assert.equal(csharpMethodValueCoversContract(method, inferred), true, "exact quantified baseline is covered");
+-  const selected = reconcileInferredReturnTargetContract(policy, inferred, [method], false);
+-  assert.equal(selected.kind === "resolved" && selected.type === method, true, "the original carrier is retained by identity");
+-  assert.equal(getCsharpMethodValue(selected.type).owner === owner, true, "the captured environment is not replaced");
+-  assert.equal(getCsharpMethodValue(selected.type).contract === signature, true, "the original signature is retained");
++  assert.equal(getCsharpMethodValue(method).owner === owner, true, "the captured environment is not replaced");
++  assert.equal(getCsharpMethodValue(method).contract === signature, true, "the original signature is retained");
++  assert.deepEqual(getCsharpMethodValue(method).typeParameters, [parameter.identity], "the original ordered quantifiers are retained");
+ });
+ 
+ test("inferred callable coverage rejects changed binders, quantified arity and native carriers", () => {
+@@ -33,9 +32,12 @@
+   for (const changed of changedContracts) {
+     assert.equal(changed !== undefined, true, "the negative control itself has a valid contract");
+     assert.equal(csharpMethodValueCoversContract(method, changed), false, "different exact contract is not covered");
+-    assert.equal(reconcileInferredReturnTargetContract(policy, changed, [method], false).kind, "rejected", "incompatible inferred contracts reject");
++    assert.equal(selectCsharpConversion(policy, method, changed, "implicit").kind, "rejected", "incompatible Native storage contracts reject");
+   }
+-  assert.equal(reconcileInferredReturnTargetContract(policy, inferred, [method], true).kind, "rejected", "incomplete return evidence still rejects");
++  const actual = publishedReturnContracts("export function run(value: number) { return value; }").get("run");
++  assert.deepEqual(unrepresentedReturnContract(actual), { kind: "rejected",
++    reason: "The Host-published callable return has no closed C# representation." },
++  "incomplete Native return representation still rejects without a separate inference path");
+ });
+ 
+ test("quantified coverage requires exact ordered identities even for unused binders", () => {
+@@ -44,8 +46,8 @@
+   const selectedBaseline = csharpMethodValueType(protocol, "Invoke", "checked-callable", signature, parameters);
+   assert.equal(selectedMethod !== undefined && selectedBaseline !== undefined, true, "the ordered positive control has valid carriers");
+   assert.equal(csharpMethodValueCoversContract(selectedMethod, selectedBaseline), true, "an exact unused source binder is preserved");
+-  const selected = reconcileInferredReturnTargetContract(policy, selectedBaseline, [selectedMethod], false);
+-  assert.equal(selected.kind === "resolved" && selected.type === selectedMethod, true, "ordered source quantifiers retain the original carrier");
++  assert.deepEqual(getCsharpMethodValue(selectedMethod).typeParameters, parameters,
++    "ordered original quantifiers, including unused binders, belong to the Native carrier");
+   for (const [label, changedParameters] of [
+     ["swapped binder order", [...parameters].reverse()],
+     ["unrelated unused binder", [parameter.identity, "unrelated-unused-binder"]],
+@@ -53,7 +55,7 @@
+     const changed = csharpMethodValueType(protocol, "Invoke", "checked-callable", signature, changedParameters);
+     assert.equal(changed !== undefined, true, `${label}: the negative control itself is valid`);
+     assert.equal(csharpMethodValueCoversContract(selectedMethod, changed), false, `${label}: identical inner signatures cannot conceal different quantifiers`);
+-    assert.equal(reconcileInferredReturnTargetContract(policy, changed, [selectedMethod], false).kind, "rejected", `${label}: inferred return selection rejects mismatched ordered identities`);
++    assert.equal(selectCsharpConversion(policy, selectedMethod, changed, "implicit").kind, "rejected", `${label}: Native storage rejects mismatched ordered identities`);
+   }
+ });
+ 
+@@ -65,5 +67,5 @@
+     assert.equal(selectCsharpConversion(policy, method, changed, "implicit").kind, "rejected", "concrete storage still requires its original method and environment");
+     assert.equal(selectCsharpConversion(policy, method, changed, "explicit").kind, "rejected", "explicit casts cannot replace method identity or environment");
+   }
+-  assert.equal(reconcileInferredReturnTargetContract(policy, inferred, [method, otherMethod], false).kind, "rejected", "distinct observed method identities cannot be merged");
++  assert.equal(selectCsharpConversion(policy, method, otherMethod, "implicit").kind, "rejected", "distinct Native method identities cannot be merged");
+ });

@@ -1,0 +1,15 @@
+--- a/test/analysis/operations/inferred-numeric-array-elements.part-02.test.mjs
++++ b/test/analysis/operations/inferred-numeric-array-elements.part-02.test.mjs
+@@ -9,11 +9,10 @@
+ import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
+ import { checkCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+ import { createTargetSourceProgram } from "@tsonic/target-api/source";
+-import { analyzeCsharpDeclarations, reconcileInferredReturnTargetContract } from "../../../dist/analysis/declarations/analyze.js";
++import { analyzeCsharpDeclarations } from "../../../dist/analysis/declarations/analyze.js";
+ import { csharpRuntimeUnionTargetType, csharpTargetNamedType, csharpStringTargetType } from "../../../dist/target-model/types/index.js";
+ import { csharpJsArrayTargetType } from "../../../dist/target-model/types/carriers/js.js";
+ import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
+-import { csharpNumericReturnBaselineCovered } from "../../../dist/policy/conversions/union-relations.js";
+ import { selectCsharpConversion } from "../../../dist/policy/conversions/core.js";
+ import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
+ import { header, emptyProviders, compile, diagnosticLabel, accepted, arrays, constructedArrays, destinationBodies, actualDestinationEvidence, actualUnionDestinationEvidence } from "./inferred-numeric-array-elements.fixtures.mjs";

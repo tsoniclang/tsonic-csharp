@@ -1,0 +1,172 @@
+--- a/test/policy/types/direct-source-representation-provenance.test.mjs
++++ b/test/policy/types/direct-source-representation-provenance.test.mjs
+@@ -1,13 +1,41 @@
+ import assert from "node:assert/strict";
+ import test from "node:test";
++import { createTargetSourceProgram, sourceTypeDescriptorStructure } from "@tsonic/target-api/source";
+ 
+ import { resolveCsharpObjectShapeMemberReadTargetType } from "../../../dist/analysis/operations/members/object-shape-members.js";
+ import {
+   compileCsharpSource,
++  checkCsharpSource,
++  assertCsharpCheckingSucceeded,
+ } from "../../helpers/direct-csharp-session.mjs";
+ import { csharpStringTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
+ import { csharpTsValueTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
+ 
++function canonicalReadFixtures() {
++  const checked = checkCsharpSource({ sourceText: `
++    import type { int32 } from "@tsonic/core/types.js";
++    interface Current { value: int32; }
++    interface Foreign { value: int32; }
++    interface Reference { checked: unknown; }
++    function current(value: Current): int32 { return value.value; }
++    function foreign(value: Foreign): int32 { return value.value; }
++    function reference(value: Reference): unknown { return value.checked; }
++  ` });
++  assertCsharpCheckingSucceeded(checked);
++  const source = createTargetSourceProgram(checked.source);
++  return source.navigation.nodes.filter(node => source.ast.is.IsPropertyAccessExpression(node)).map(node => {
++    const queries = source.semantics.forNode(node);
++    const access = queries.operations.propertyAccess(node);
++    const publication = source.effectiveTypes.get(access.receiver.expression);
++    const structure = sourceTypeDescriptorStructure(publication.type);
++    const members = structure.members.filter(member => member.origin.kind === "declared" && member.origin.declaration === access.selectedDeclaration);
++    assert.equal(members.length === 1, true, "the actual selected property has one canonical declaration origin");
++    return { selection: { receiver: access.receiver.expression, publication,
++      selectedDeclaration: access.selectedDeclaration,
++      selectedSubjects: queries.facts.selectedSubjects(access.selectedSymbol, access.selectedDeclaration) }, origin: members[0].origin };
++  });
++}
++
+ test("object-shape reads retain exact authored member carriers through utility projections", () => {
+   const compiled = compileCsharpSource({
+     sourceText: `
+@@ -47,42 +75,40 @@
+ });
+ 
+ test("object-shape read provenance fails closed for a different selected source type", () => {
+-  const exactSourceType = {};
+-  const unrelatedSourceType = {};
++  const [exactSource, unrelatedSource] = canonicalReadFixtures();
+   const targetType = { kind: "source-primitive", name: "int32" };
+   const member = {
+     sourceName: "value",
+-    sourceTypes: [exactSourceType],
++    origins: [exactSource.origin],
+     targetName: "value",
+     memberKind: "property",
+     type: targetType,
+   };
+ 
+   assert.strictEqual(
+-    resolveCsharpObjectShapeMemberReadTargetType(member, exactSourceType),
++    resolveCsharpObjectShapeMemberReadTargetType(member, exactSource.selection),
+     targetType,
+   );
+   assert.equal(
+-    resolveCsharpObjectShapeMemberReadTargetType(member, unrelatedSourceType),
++    resolveCsharpObjectShapeMemberReadTargetType(member, unrelatedSource.selection),
+     undefined,
+   );
+ });
+ 
+ test("a checked native string read projects its original reference out of an opaque provider slot", () => {
+-  const source = {};
+-  const other = {};
++  const [, other, source] = canonicalReadFixtures();
+   const string = csharpStringTargetType();
+   const storage = csharpTsValueTargetType();
+-  const member = { sourceName: "checked", sourceTypes: [source], targetName: "native",
++  const member = { sourceName: "checked", origins: [source.origin], targetName: "native",
+     memberKind: "property", type: storage };
+-  assert.equal(resolveCsharpObjectShapeMemberReadTargetType(member, source, undefined, string) === string,
++  assert.equal(resolveCsharpObjectShapeMemberReadTargetType(member, source.selection, string) === string,
+     true, "a checked reference read remains native string, not a dynamic operation");
+-  assert.equal(resolveCsharpObjectShapeMemberReadTargetType(member, other, undefined, string) === undefined,
++  assert.equal(resolveCsharpObjectShapeMemberReadTargetType(member, other.selection, string) === undefined,
+     true, "target expectation alone cannot manufacture source correspondence");
+-  assert.equal(resolveCsharpObjectShapeMemberReadTargetType(member, source) === storage,
++  assert.equal(resolveCsharpObjectShapeMemberReadTargetType(member, source.selection) === storage,
+     true, "unrefined unknown provider reads retain their exact opaque storage");
+   const integer = { kind: "source-primitive", name: "int64" };
+-  assert.equal(resolveCsharpObjectShapeMemberReadTargetType(member, source, undefined, integer) === storage,
++  assert.equal(resolveCsharpObjectShapeMemberReadTargetType(member, source.selection, integer) === storage,
+     true, "opaque numeric fields cannot acquire speculative native storage");
+ });
+ 
+@@ -107,6 +133,6 @@
+   );
+   assert.match(
+     compiled.artifacts.get("src/Index.cs"),
+-    /return \$"\{first\}:\{returned\[1\]\}";/u,
++    /return \$"\{first\}:\{returned\[1L\]\}";/u,
+   );
+ });
+--- a/test/analysis/operations/source-owned-property.test.mjs
++++ b/test/analysis/operations/source-owned-property.test.mjs
+@@ -2,29 +2,54 @@
+ import assert from "node:assert/strict";
+ import test from "node:test";
+ import { classifySourceOwnedMember } from "../../../dist/analysis/operations/member-access.js";
++import { createTargetSourceProgram, sourceTypeDescriptorStructure } from "@tsonic/target-api/source";
++import { checkCsharpSource, assertCsharpCheckingSucceeded } from "../../helpers/direct-csharp-session.mjs";
+ 
+-const receiver = {};
+-const expression = {};
+-const declaration = {};
+-const sourceType = {};
+-const sourceFile = {};
++const checked = checkCsharpSource({ sourceText: `
++  import type { int32 } from "@tsonic/core/types.js";
++  class ClassOwner { value: int32 = 1; }
++  interface InterfaceOwner { value: int32; }
++  function classDirect(value: ClassOwner): int32 { return value.value; }
++  function classOptional(value: ClassOwner | undefined): int32 | undefined { return value?.value; }
++  function interfaceDirect(value: InterfaceOwner): int32 { return value.value; }
++  function interfaceOptional(value: InterfaceOwner | undefined): int32 | undefined { return value?.value; }
++` });
++assertCsharpCheckingSucceeded(checked);
++const actual = createTargetSourceProgram(checked.source);
+ const integer = { kind: "source-primitive", name: "int32" };
+ const carrier = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "Project.Owner" };
+-const member = {
+-  sourceKey: { kind: "property", name: "value" }, sourceName: "value", targetName: "value",
+-  sourceSubjects: [declaration], sourceTypes: [sourceType], memberKind: "property", type: integer,
+-};
+ 
+ for (const kind of ["class", "interface"]) {
+   for (const optionalChain of [false, true]) {
+     test(`${kind} member access selects only the required shape, optional=${optionalChain}`, () => {
++      const ownerName = `${kind}${optionalChain ? "Optional" : "Direct"}`;
++      const expression = actual.navigation.nodes.find(node => {
++        if (!actual.ast.is.IsPropertyAccessExpression(node)) return false;
++        let owner = actual.ast.parent(node);
++        while (owner !== undefined && !actual.ast.is.IsFunctionDeclaration(owner)) owner = actual.ast.parent(owner);
++        return owner !== undefined && actual.ast.text(actual.ast.name(owner)) === ownerName;
++      });
++      const semantics = actual.semantics.forNode(expression);
++      const access = semantics.operations.propertyAccess(expression);
++      const receiver = access.receiver.expression;
++      const declaration = access.selectedDeclaration;
++      const sourceType = access.sourceReadType;
++      const sourceFile = semantics.sourceFile;
++      let descriptor = actual.effectiveTypes.get(receiver).type;
++      while (descriptor.kind === "optional") descriptor = descriptor.value;
++      const publication = sourceTypeDescriptorStructure(descriptor);
++      const origin = publication.members.find(member => member.origin.kind === "declared" && member.origin.declaration === declaration).origin;
++      const member = {
++        sourceKey: { kind: "property", name: "value" }, sourceName: "value", targetName: "value",
++        sourceSubjects: [declaration], sourceTypes: [sourceType], origins: [origin], memberKind: "property", type: integer,
++      };
+       let derivations = 0;
+       const shape = { targetType: carrier, members: [member] };
+       const policy = {
+         ast: { is: { IsElementAccessExpression: () => false } },
++        effectiveTypes: actual.effectiveTypes,
+         semantics: () => ({
+           facts: { selectedSubjects: () => [declaration] },
+-          types: { relationship: () => "identical" },
+           operations: { propertyAccess: () => undefined },
+         }),
+         types: {
