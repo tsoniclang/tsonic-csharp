@@ -112,12 +112,19 @@ test("operation selection consumes atomic shared semantic decisions", () => {
     ["src/analysis/operations/members/element-selection.ts", "selectCsharpProviderElement", "host.facts.objects.use"],
   ]) {
     const owner = sourceFunction(path, name);
-    const occurrence = owner.ast.name(owner.ast.parameters(owner.declaration)[1]);
+    const parameter = owner.ast.parameters(owner.declaration)[1];
+    assert.equal(parameter !== undefined, true, `${name} declares its original occurrence parameter`);
+    const occurrence = owner.ast.name(parameter);
     assert.equal(occurrence !== undefined, true, `${name} declares its original occurrence parameter`);
     const queries = owner.nodes.filter(node => owner.ast.is.IsCallExpression(node) &&
       owner.text(owner.ast.as.AsCallExpression(node).Expression) === query);
     assert.equal(queries.length, 1, `${name} reads one canonical Source operation publication`);
-    assert.equal(owner.text(owner.ast.arguments(queries[0])[0]), owner.text(occurrence), `${name} queries its original occurrence`);
+    const queryArguments = owner.ast.arguments(queries[0]);
+    assert.equal(queryArguments.length, 1, `${name} queries exactly one original occurrence`);
+    const original = owner.checker.getSymbolAtLocation(occurrence);
+    assert.equal(original !== undefined, true, `${name} occurrence has its original lexical identity`);
+    assert.equal(owner.ast.is.IsIdentifier(queryArguments[0]) &&
+      owner.checker.getLexicallyResolvedSymbol(queryArguments[0]) === original, true, `${name} queries its original occurrence`);
   }
 });
 
@@ -186,7 +193,7 @@ function sourceFunction(path, name) {
     const range = ast.authoredRange(node);
     return range.kind === "authored" ? ast.getSourceText(file).slice(range.start, range.end) : undefined;
   };
-  return { ast, declaration: declarations[0], nodes, text };
+  return { ast, checker: checked.getSourceFileQueries(file).checker, declaration: declarations[0], nodes, text };
 }
 
 function productHits(pattern) {
