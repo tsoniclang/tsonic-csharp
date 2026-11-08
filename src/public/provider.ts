@@ -6,8 +6,8 @@ export type {
   CsharpTargetTypeRenderShape,
   TargetMember,
   TargetParameter,
-  TargetTypeRef,
 } from "../target-model/types/model.js";
+export type { TargetTypeRef } from "../target-model/types/native-type-data.js";
 export { csharpTargetNamedType } from "../target-model/types/factories.js";
 export { csharpReadOnlyListTargetType } from "../target-model/types/carriers/collections.js";
 export {
