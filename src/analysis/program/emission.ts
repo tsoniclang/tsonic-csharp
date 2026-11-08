@@ -388,9 +388,13 @@ export function finalizeCsharpNativeEmission(
     extraTypes: [...typedLocationEmission.carriers, ...nativeLayouts.carriers, ...restSequences.carriers, ...operationCarriers,
       ...nativeDemand.entries.flatMap(({ use }) => use.kind === "erased" ? []
       : [use.carrier, ...use.kind === "converted" ? [use.target] : [], ...use.binary === undefined ? [] : binaryCarriers(use.binary)]),
-      ...sourceRoles.sourceRoles.get().flatMap(union => [union.carrier, union.storage, union.value, ...union.storageSlots, ...union.valueSlots]),
-      ...nativeDelegates.nativeDelegates.get().flatMap(delegate => [delegate.carrier, delegate.signature.returnType,
-        ...delegate.parameters.map(parameter => parameter.type), ...delegate.receiver === undefined ? [] : [delegate.receiver.type]])],
+      ...sourceRoles.sourceRoles.get().flatMap(role => [role.carrier, role.storage, role.value, ...role.interfaces,
+        ...role.storageSlots, ...role.valueSlots, ...role.parameters,
+        ...role.storageOptional === undefined ? [] : [role.storageOptional.payload, role.storageOptional.carrier, role.storageOptional.operations],
+        ...role.valueOptional === undefined ? [] : [role.valueOptional.payload, role.valueOptional.carrier, role.valueOptional.operations]]),
+      ...nativeDelegates.nativeDelegates.get().flatMap(callable => [callable.carrier, ...callable.typeParameters,
+        ...callable.members.flatMap(member => [member.signature.returnType, ...member.typeParameters,
+          ...member.parameters.map(parameter => parameter.type), ...member.receiver === undefined ? [] : [member.receiver.type]])])],
     values: analysis.valueReads, storage: analysis.storage, shapes: objectShapeDemand, admitted: admittedControlNode });
   if (typeEmission.issues.length !== 0) return rejectedTargetStage(typeEmission.issues);
   const nativeConstantAnalysis = analyzeCsharpNativeConstants({ ast: source.ast, facts: source.facts, demand: nativeDemand, literals,

@@ -7,7 +7,7 @@ import type { CsharpValueReadClassifications } from "../../../target-model/recor
 import type { CsharpStorageClassifications } from "../../../target-model/records/storage/storage.js";
 import { targetTypeRefKey } from "../../../target-model/types/equality.js";
 import { getCsharpNullableElementTargetType, isCsharpRuntimeUnionTargetType, isCsharpEmptyObjectTargetType } from "../../../target-model/types/index.js";
-import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
+import { csharpTargetTypeComponents } from "../../../target-model/types/components.js";
 import { createCsharpTypeEmissionProducer } from "../../program/records/types/type-emission.js";
 import { csharpTypeEmissionKey } from "../../../target-model/records/types/type-emission.js";
 import { selectCsharpTypeEmission } from "../../../policy/types/resolution/type-emission.js";
@@ -23,8 +23,10 @@ import { getCsharpLambdaSignature, getCsharpTaskResultTargetType } from "../../.
 export function analyzeCsharpTypeEmission(input: { readonly ast: AstReader; readonly nodes: readonly Node[];
   readonly languageDialect: import("../../../target-model/configuration/model.js").CsharpLanguageDialect;
   readonly extraTypes: readonly TargetTypeRef[];
-  readonly evidence: CsharpSourceEvidenceIndex; readonly values: CsharpValueReadClassifications;
-  readonly storage: CsharpStorageClassifications; readonly shapes: CsharpObjectShapeDemand; readonly admitted: (node: Node) => boolean }) {
+  readonly evidence: Pick<CsharpSourceEvidenceIndex, "targetTypes" | "typeParameterConstraints">;
+  readonly values: Pick<CsharpValueReadClassifications, "valueRead">;
+  readonly storage: Pick<CsharpStorageClassifications, "storageType">;
+  readonly shapes: Pick<CsharpObjectShapeDemand, "targetShapes">; readonly admitted: (node: Node) => boolean }) {
   const producer = createCsharpTypeEmissionProducer();
   const issues: TargetDiagnostic[] = [];
   const pending = [...input.evidence.targetTypes, ...input.extraTypes];
@@ -48,20 +50,8 @@ export function analyzeCsharpTypeEmission(input: { readonly ast: AstReader; read
     if (parent !== undefined && input.admitted(parent) && constraints?.kind === "resolved")
       for (const constraint of constraints.constraints) if (constraint.kind === "type") { pending.push(constraint.type); validate(constraint.type, node); }
   }
-  const children = (carrier: TargetTypeRef): readonly TargetTypeRef[] => {
-    const method = getCsharpMethodValue(carrier);
-    if (method !== undefined) return [method.owner];
-    switch (carrier.kind) {
-      case "target-named": return carrier.typeArguments ?? [];
-      case "array": return [carrier.element];
-      case "tuple": return carrier.elements;
-      case "pointer": return [carrier.pointee];
-      case "function-pointer": return [...carrier.args, carrier.result];
-      case "source-primitive": case "type-parameter": case "opaque": return [];
-    }
-  };
   for (const fact of Object.values(input.shapes.targetShapes)) pending.push(fact.targetType,
-    ...fact.members.map(member => member.methodValueStorage?.type ?? member.type), ...fact.implements ?? []);
+    ...csharpTargetTypeComponents(fact.targetType, fact));
   const seen = new Set<string>();
   for (let index = 0; index < pending.length; index++) {
     const root = pending[index]!;
@@ -76,19 +66,16 @@ export function analyzeCsharpTypeEmission(input: { readonly ast: AstReader; read
       shapes.add(fact);
       if (!payload || payloads.has(fact)) return;
       payloads.add(fact);
-      for (const member of fact.members) visit(member.methodValueStorage?.type ?? member.type);
-      for (const inherited of fact.implements ?? []) visit(inherited);
+      for (const component of csharpTargetTypeComponents(fact.targetType, fact)) visit(component);
     };
     const visit = (carrier: TargetTypeRef): void => {
       if (visited.has(carrier)) return;
       visited.add(carrier);
-      const method = getCsharpMethodValue(carrier);
-      if (method !== undefined) { visit(method.owner); return; }
       const fact = input.shapes.targetShapes[targetTypeRefKey(getCsharpNullableElementTargetType(carrier) ?? carrier)];
       if (fact !== undefined) shape(fact, false);
       if (isCsharpRuntimeUnionTargetType(carrier)) for (const payload of carrier.csharpRuntimeUnionObjectShapes ?? [])
         if (payload !== undefined) { shape(payload, true); visit(payload.targetType); }
-      for (const child of children(carrier)) visit(child);
+      for (const child of csharpTargetTypeComponents(carrier)) visit(child);
     };
     visit(root);
     const optional = getCsharpGenericOptionalParts(root);
