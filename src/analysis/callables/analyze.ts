@@ -99,9 +99,9 @@ export function analyzeCsharpCallableContracts(
     const selected = immediate === undefined ? undefined : nativeInput(immediate, false);
     const signature = getCsharpLambdaSignature(selected);
     const selfFlows = policy.ast.is.IsFunctionExpression(declaration) && policy.ast.name(declaration) !== undefined
-      ? source.navigation.declarationUses(declaration).filter(use => use.kind !== "type-only" &&
+      ? source.facts.navigation.declarationUses(declaration).filter(use => use.kind !== "type-only" &&
         !evidence.compileTimeMetadata.get(use.reference) && !(use.kind === "direct-call" && use.role === "call-target"))
-        .map(use => source.navigation.expressionValueFlow(use.reference)) : [];
+        .map(use => source.facts.navigation.expressionValueFlow(use.reference)) : [];
     const selfEscapes = selfFlows.some(flow => flow.escapes || flow.memberWritten || flow.receiverUsed || flow.hasUnclassifiedUse ||
       flow.aliasDeclarations.some(alias => policy.ast.typeNode(alias) !== undefined));
     if (!selfEscapes && selected !== undefined && signature !== undefined && getCsharpExpressionTreeDelegateType(selected) === undefined &&
@@ -122,7 +122,7 @@ export function analyzeCsharpCallableContracts(
       continue;
     }
     if (immediate === undefined && (policy.ast.is.IsArrowFunction(declaration) || policy.ast.is.IsFunctionExpression(declaration))) {
-      const flow = source.navigation.expressionValueFlow(declaration);
+      const flow = source.facts.navigation.expressionValueFlow(declaration);
       if (flow.aliasDeclarations.length > 0 && flow.aliasDeclarations.length <= 1024 && flow.uses.length <= 131072 &&
         !flow.memberWritten && !flow.receiverUsed && !flow.identityCompared && !flow.captured && !flow.returned &&
         !flow.yielded && !flow.storedOutsideBinding && !flow.exported && !flow.hasUnclassifiedUse &&
@@ -180,7 +180,7 @@ export function analyzeCsharpCallableContracts(
 
   function isClosedCallableAlias(alias: Node): boolean {
     return policy.ast.is.IsVariableDeclaration(alias) && policy.ast.variableDeclarationKind(alias) === "const" &&
-      policy.ast.typeNode(alias) === undefined && !source.navigation.declarationUseSummary(alias).bindingWritten;
+      policy.ast.typeNode(alias) === undefined && !source.facts.navigation.declarationUseSummary(alias).bindingWritten;
   }
 
   function nativeConsumerContract(contract: SourceCallableSourceContract, nativeType: TargetTypeRef,
@@ -211,7 +211,7 @@ export function analyzeCsharpCallableContracts(
   }
 
   function nativeParameterBodyUnchanged(parameter: Node, type: TargetTypeRef): boolean {
-    const summary = source.navigation.declarationUseSummary(parameter);
+    const summary = source.facts.navigation.declarationUseSummary(parameter);
     if (summary.bindingWritten || summary.memberWritten || summary.hasUnclassifiedValueUse ||
       type.kind !== "source-primitive") return false;
     return summary.uses.every(use => {
@@ -288,10 +288,10 @@ export function analyzeCsharpCallableContracts(
         declarationContracts.push(contract);
       }
     } else if ((policy.ast.is.IsFunctionDeclaration(node) || policy.ast.is.IsMethodDeclaration(node) ||
-        policy.ast.is.IsConstructorDeclaration(node)) && source.navigation.isProjectDeclaration(node)) {
-      const implementation = source.navigation.callableImplementation(node);
+        policy.ast.is.IsConstructorDeclaration(node)) && source.facts.navigation.isProjectDeclaration(node)) {
+      const implementation = source.facts.navigation.callableImplementation(node);
       if (implementation.kind === "resolved" &&
-        source.navigation.isProjectDeclaration(implementation.implementation.declaration) &&
+        source.facts.navigation.isProjectDeclaration(implementation.implementation.declaration) &&
         csharpNativeCallableArtifact(policy.ast, policy.facts.navigation, implementation.implementation.declaration)) {
         checkedDeclarations.push({ declaration: node, sourceFile });
       }

@@ -77,7 +77,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
     code: refusal.code, category: "error" as const, source: refusal.source,
     sourceNode: refusal.site, message: refusal.reason,
   })));
-  const aliasIssues = analyzeCsharpSourceAliasReexports(source.ast, source.navigation.sourceFiles);
+  const aliasIssues = analyzeCsharpSourceAliasReexports(source.ast, source.facts.navigation.sourceFiles);
   if (aliasIssues.length !== 0) return rejectedTargetStage(aliasIssues.map(diagnostic => ({
     ...targetDiagnosticFromExtension(diagnostic.nodeOrSpan, diagnostic), code: diagnostic.publicCode,
   })));
@@ -85,17 +85,17 @@ function analyzeCsharpTargetProgramBeforeSeal(
   const nativeErrors = analyzeCsharpNativeErrorAdmission(source);
   if (nativeErrors.issues.length !== 0) return rejectedTargetStage(nativeErrors.issues);
   const memoryBindings = createTsonicMemoryBindingFactsIndex(source);
-  const sourceAttributeApplications = createCsharpSourceAttributeApplicationIndex(source, source.navigation.sourceFiles);
+  const sourceAttributeApplications = createCsharpSourceAttributeApplicationIndex(source, source.facts.navigation.sourceFiles);
   const safetyApplications = createCsharpSafetyApplicationFactIndex({
     ast: source.ast,
-    sourceFiles: source.navigation.sourceFiles,
+    sourceFiles: source.facts.navigation.sourceFiles,
     sourceFacts: source.sourceFacts,
-    navigation: source.navigation,
+    navigation: source.facts.navigation,
   });
   const statementErasure = Object.freeze({ attributeApplications: sourceAttributeApplications, safetyApplications,
     errorNameInitializations: nativeErrors.nameInitializations });
-  const sourceFiles = Object.freeze([...source.navigation.sourceFiles]);
-  const sourceNodes = source.navigation.nodesForFiles(sourceFiles);
+  const sourceFiles = Object.freeze([...source.facts.navigation.sourceFiles]);
+  const sourceNodes = source.facts.navigation.nodesForFiles(sourceFiles);
   const moduleCallables = analyzeCsharpModuleCallables(source.ast, sourceNodes);
   const literals = createCsharpNativeLiteralQueries(source);
   const sourceStorage = createSourceStorageQuery(source, sourceFiles, undefined, createCsharpSourceProfileStorageEffects(source, providers));
@@ -110,7 +110,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
   );
   const nameHost = Object.freeze({
     ast: source.ast,
-    navigation: source.navigation,
+    navigation: source.facts.navigation,
     sourceFiles,
     sourceIdentities,
     semanticsFor: source.semantics.forNode,
@@ -124,11 +124,11 @@ function analyzeCsharpTargetProgramBeforeSeal(
     literals,
     sourceStorage,
     callOnlyAlias,
-    objectMethodSources: analyzeCsharpObjectMethodSources(source.ast, sourceNodes, source.navigation, callOnlyAlias),
+    objectMethodSources: analyzeCsharpObjectMethodSources(source.ast, sourceNodes, source.facts.navigation, callOnlyAlias),
     ast: source.ast,
     sourceFiles,
     sourceFacts: source.sourceFacts,
-    navigation: source.navigation,
+    navigation: source.facts.navigation,
     providers,
     pointerStorage: createTsonicPointerStorageRelation(source, sourceStorage),
     memoryBindings,

@@ -44,8 +44,8 @@ export function createCsharpSourceProfileStorageEffects(
   return Object.freeze({ ...global,
     nativeConstructorsFor(binding, semantics) {
       if (!source.ast.is.IsClassDeclaration(binding)) return global.nativeConstructorsFor?.(binding, semantics);
-      if (!source.semantics.includes(semantics.sourceFile) || source.navigation.isProjectDeclaration(binding) ||
-        source.navigation.declarationUseSummary(binding).bindingWritten) return undefined;
+      if (!source.semantics.includes(semantics.sourceFile) || source.facts.navigation.isProjectDeclaration(binding) ||
+        source.facts.navigation.declarationUseSummary(binding).bindingWritten) return undefined;
       const selectedBinding = resolveCsharpProviderDeclarationEvidence(source.sourceFacts, [binding], "export");
       if (selectedBinding.kind !== "resolved" || selectedBinding.declaration.exportId === undefined ||
         selectedBinding.declaration.exportName === undefined) return undefined;

@@ -155,7 +155,7 @@ export function analyzeCsharpNativeControlFlow(
     const finalBlock = ast.is.IsTryStatement(node) ? TryStatement_FinallyBlock(ast, node) : undefined;
     ast.forEachChild(node, child => { if (child !== undefined) visit(child, child === finalBlock ? child : cleanup); });
   };
-  source.navigation.sourceFiles.forEach(file => visit(file, undefined));
+  source.facts.navigation.sourceFiles.forEach(file => visit(file, undefined));
   return Object.freeze(issues);
 
   function capturedValueReceiver(receiver: Node, declarations: ReadonlySet<Node>): boolean {
@@ -168,7 +168,7 @@ export function analyzeCsharpNativeControlFlow(
         continue;
       }
       if (ast.is.IsIdentifier(current)) {
-        const declaration = source.navigation.referenceFor(current)?.declaration;
+        const declaration = source.facts.navigation.referenceFor(current)?.declaration;
         return declaration !== undefined && declarations.has(declaration);
       }
       const field = facts.operations.selectedProperty.get(current)?.selection ?? facts.operations.selectedElement.get(current)?.target;
@@ -190,7 +190,7 @@ export function analyzeCsharpNativeControlFlow(
     };
     const inspect = (node: Node): void => {
       if (ast.is.IsIdentifier(node)) {
-        const declaration = source.navigation.referenceFor(node)?.declaration;
+        const declaration = source.facts.navigation.referenceFor(node)?.declaration;
         if (declaration !== undefined && declarations.has(declaration)) {
           const write = sourceBindingWriteAtReference(ast, node);
           if (write !== undefined && write.kind !== "initialization" && within(write.operation, body) && admitted(write.operation))
@@ -203,7 +203,7 @@ export function analyzeCsharpNativeControlFlow(
           let storage = passing.storageExpression;
           while (ast.is.IsParenthesizedExpression(storage)) storage = ast.as.AsParenthesizedExpression(storage)!.Expression!;
           if (ast.is.IsIdentifier(storage)) {
-            const declaration = source.navigation.referenceFor(storage)?.declaration;
+            const declaration = source.facts.navigation.referenceFor(storage)?.declaration;
             if (declaration !== undefined && declarations.has(declaration)) refuse(passing.storageExpression);
           }
         }

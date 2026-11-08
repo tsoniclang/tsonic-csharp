@@ -37,8 +37,8 @@ export function analyzeCsharpProjectEmission(input: {
       producer.names(node, [...selected].map(entry => Object.freeze(entry)));
     } else producer.names(node, []);
     if (referenceQueryNode(input.source.ast, node) === undefined) continue;
-    const reference = input.source.navigation.referenceFor(node);
-    if (reference === undefined || !input.source.navigation.isProjectDeclaration(reference.declaration) ||
+    const reference = input.source.facts.navigation.referenceFor(node);
+    if (reference === undefined || !input.source.facts.navigation.isProjectDeclaration(reference.declaration) ||
       reference.sourceFile.IsDeclarationFile || input.evidence.providerVirtualDeclaration.get(reference.declaration)) continue;
     const declaration = reference.declaration;
     if (!input.source.ast.is.IsClassDeclaration(declaration) && !input.source.ast.is.IsClassExpression(declaration) &&

@@ -99,7 +99,7 @@ export function analyzeCsharpExpressionEmission(input: { readonly source: Target
       }
       const transparent = sourceTransparentExpressionOperand(source.ast, current);
       if (transparent !== undefined) { current = transparent; continue; }
-      const effects = source.navigation.expressionEffects(current);
+      const effects = source.facts.navigation.expressionEffects(current);
       if (!effects.invokes && !effects.mutates && !effects.suspends && !effects.mayThrow) {
         const reference = input.references.identifierEmission.get(current);
         const kind = source.ast.kindName(current);
@@ -120,7 +120,7 @@ export function analyzeCsharpExpressionEmission(input: { readonly source: Target
         const declaration = selection.source.selectedDeclaration;
         if (member?.kind === "resolved" && member.member.memberKind === "property" && member.member.readonly === true &&
           member.member.accessor === undefined && emission?.kind === "member" && !emission.methodValue && !emission.static &&
-          declaration !== undefined && source.ast.is.IsPropertyDeclaration(declaration) && source.navigation.isProjectDeclaration(declaration))
+          declaration !== undefined && source.ast.is.IsPropertyDeclaration(declaration) && source.facts.navigation.isProjectDeclaration(declaration))
           receiver = selection.source.receiver.expression;
       }
       if (receiver === undefined) return "evaluate";

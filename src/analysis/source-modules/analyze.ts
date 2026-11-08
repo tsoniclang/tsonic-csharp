@@ -47,7 +47,7 @@ export function analyzeCsharpSourceModuleConstructions(input: {
         ));
         return;
       }
-      const resolution = input.source.navigation.moduleSpecifierResolution(
+      const resolution = input.source.facts.navigation.moduleSpecifierResolution(
         moduleArgument,
       );
       if (resolution.kind !== "project") {

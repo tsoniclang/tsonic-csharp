@@ -44,7 +44,7 @@ export interface CsharpAttributeArgumentEvidence {
 }
 
 export function admitCsharpAttributeArguments(
-  source: Pick<TargetSourceProgram, "ast" | "navigation">,
+  source: Pick<TargetSourceProgram, "ast" | "facts">,
   evidence: CsharpAttributeArgumentEvidence,
   invocation: Node,
 ): readonly CsharpAttributeArgumentRejection[] {
@@ -144,11 +144,11 @@ export function admitCsharpAttributeArguments(
       case "KindIdentifier":
       case "KindPropertyAccessExpression":
       case "KindElementAccessExpression": {
-        if (ast.is.IsIdentifier(node) && source.navigation.sourceReferenceFor(node) === undefined &&
+        if (ast.is.IsIdentifier(node) && source.facts.navigation.sourceReferenceFor(node) === undefined &&
           isCsharpAbsenceTargetType(valueReads.valueRead.get(node)?.value)) break;
         const selection = operations.selectedProperty.get(node)?.selection;
         if (selection?.kind === "resolved" && selection.targetMember.csharpLiteral === true) break;
-        const declaration = source.navigation.referenceFor(node)?.declaration;
+        const declaration = source.facts.navigation.referenceFor(node)?.declaration;
         const constant = declaration === undefined ? undefined : sourceEvidence.constantValue.get(declaration)?.value;
         if (declaration === undefined || ast.kindName(declaration) !== "KindEnumMember" ||
           typeof constant !== "bigint") return false;

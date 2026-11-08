@@ -174,7 +174,7 @@ export function analyzeCsharpPromiseResults(input: {
     const carrier = nativeCarrier(node);
     const selection = carrier === undefined ? undefined : select(carrier, node);
     if (selection === undefined) continue;
-    const disposition = source.navigation.expressionResultDisposition(node);
+    const disposition = source.facts.navigation.expressionResultDisposition(node);
     let observeDiscard = false;
     if (ast.is.IsCallExpression(node)) {
       const selected = ownership.forCall(node);

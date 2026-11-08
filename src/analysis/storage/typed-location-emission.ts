@@ -79,7 +79,7 @@ export function analyzeCsharpTypedLocationEmission(input: { readonly source: Tar
     carriers.push(...types);
     if (types.some(carrier => !selectCsharpTypeEmission({ carrier }))) { locationIssue(node, selection.kind, "The selected C# typed-location operation is not renderable."); continue; }
     if (selection.kind === "location-address") admitStorage(selection.storage);
-    const suspends = selection.kind === "location-store" && input.source.navigation.expressionEffects(selection.valueExpression).suspends;
+    const suspends = selection.kind === "location-store" && input.source.facts.navigation.expressionEffects(selection.valueExpression).suspends;
     const address = selection.kind === "location-store" && selection.location.kind === "native-ref-return"
       ? input.storage.nativeLocation.get(selection.location.expression) : undefined;
     if (selection.kind === "location-store" && selection.location.kind === "native-ref-return") {

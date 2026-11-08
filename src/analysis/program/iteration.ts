@@ -114,7 +114,7 @@ export function analyzeCsharpRepresentationIteration(
     closedInputContract(node) {
       const value = sourceCallableValueExpression(source.ast, node, { typeAssertions: "transparent" });
       if (value === undefined) return undefined;
-      const declaration = source.navigation.sourceReferenceFor(value)?.declaration ?? value;
+      const declaration = source.facts.navigation.sourceReferenceFor(value)?.declaration ?? value;
       return previous?.callables.closedInputContract(declaration);
     },
     sourceCallable(source, sourceFile, selection) {
@@ -232,7 +232,7 @@ export function analyzeCsharpRepresentationIteration(
   const callableCreations = callableCreationResult.value;
   expectedTypes.completeReturns(callableCreations.callableCreation);
   const participation = analyzeCsharpNativeParticipation({
-    ast: source.ast, storage: sourceStorage, navigation: source.navigation,
+    ast: source.ast, storage: sourceStorage, navigation: source.facts.navigation,
     captureClosure: captureStorage.captureClosure, callableCreation: callableCreations.callableCreation,
     compileTimeMetadata: sourceEvidence.compileTimeMetadata, requiredRecords,
   });
@@ -264,11 +264,11 @@ export function analyzeCsharpRepresentationIteration(
   for (const declaration of sourceStorage.nodes) {
     if (!source.ast.is.IsVariableDeclaration(declaration) || source.ast.variableDeclarationKind(declaration) !== "const" ||
       !sourceDeclarationIsModuleScoped(declaration, source.ast) || pendingInitializers.has(declaration) ||
-      !sourceDeclarationHasOnlyTypeUses(source.navigation.declarationUseSummary(declaration))) continue;
+      !sourceDeclarationHasOnlyTypeUses(source.facts.navigation.declarationUseSummary(declaration))) continue;
     const initializer = source.ast.as.AsVariableDeclaration(declaration)?.Initializer;
     let use = initializerUses.get(declaration);
     if (initializer === undefined || use == null || use.expression !== initializer) continue;
-    const effects = source.navigation.expressionEffects(initializer);
+    const effects = source.facts.navigation.expressionEffects(initializer);
     if (effects.invokes || effects.mutates || effects.suspends || effects.mayThrow) continue;
     const target = use.target;
     const visited = new Set<CsharpExpectedNativeUse>();
@@ -297,7 +297,7 @@ export function analyzeCsharpRepresentationIteration(
   }
   evidence.sealCompileTimeDeclarations();
   const nativeDemand = analyzeCsharpNativeDemand({
-    facts: source.facts, ast: source.ast, sourceFiles, navigation: source.navigation, evidence: sourceEvidence,
+    facts: source.facts, ast: source.ast, sourceFiles, navigation: source.facts.navigation, evidence: sourceEvidence,
     operations, valueReads, optionalLocals, participation: nativeParticipation.participation, declarations, objectShapes,
     bindingPatterns: bindingCandidates, callableCreation: callableCreations.callableCreation, attributeApplications: attributes.index,
     propertyKeyBindings: expectedTypes.constructions.propertyKeys, exactLiteral: exactLiterals.exactLiteral,
@@ -368,13 +368,13 @@ function sourceCallableContract(
     return undefined;
   }
   if (selection === "implementation") {
-    const reference = input.source.navigation.sourceReferenceFor(source.sourceCallee.expression);
+    const reference = input.source.facts.navigation.sourceReferenceFor(source.sourceCallee.expression);
     const declaration = reference?.declaration ?? source.sourceCalleeAccess?.declaration ?? source.sourceCallee.declaration;
     const initializer = declaration === undefined ? undefined : moduleCallables.get(declaration)?.callable;
     if (initializer !== undefined) {
       const selected = source.sourceCalleeAccess?.selectedDeclaration ?? source.sourceCallee.selectedDeclaration;
       if (selected === undefined || selected !== declaration && selected !== initializer ||
-        !input.source.navigation.isProjectDeclaration(selected)) return undefined;
+        !input.source.facts.navigation.isProjectDeclaration(selected)) return undefined;
       return callables.get({ kind: "declaration", declaration: initializer });
     }
   }
@@ -398,11 +398,11 @@ function sourceCallableContract(
   const selectedDeclaration = input.source.semantics.forFile(sourceFile)
     .declarations.signatureDeclaration(source.selectedSignature);
   const implementation = selection !== "implementation" || selectedDeclaration === undefined
-    ? undefined : input.source.navigation.callableImplementation(selectedDeclaration);
+    ? undefined : input.source.facts.navigation.callableImplementation(selectedDeclaration);
   const declaration = implementation?.kind === "resolved"
     ? implementation.implementation.declaration : selectedDeclaration;
   return declaration !== undefined &&
-      input.source.navigation.isProjectDeclaration(declaration)
+      input.source.facts.navigation.isProjectDeclaration(declaration)
     ? callables.get({ kind: "declaration", declaration })
     : undefined;
 }

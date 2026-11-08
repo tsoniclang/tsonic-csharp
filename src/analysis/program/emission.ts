@@ -178,14 +178,14 @@ export function finalizeCsharpNativeEmission(
     ...optionalCallChains.issues,
     ...analyzeCsharpConditions({ ast: source.ast, nodes: sourceStorage.nodes, demand: nativeDemand, operations: admittedOperations, values: analysis.valueReads }),
     ...analyzeCsharpVoidAdmission({ ast: source.ast, demand: nativeDemand, values: analysis.valueReads, operations: admittedOperations }),
-    ...analyzeCsharpAwaitAdmission({ ast: source.ast, navigation: source.navigation, demand: nativeDemand, values: analysis.valueReads, operations: admittedOperations }),
+    ...analyzeCsharpAwaitAdmission({ ast: source.ast, navigation: source.facts.navigation, demand: nativeDemand, values: analysis.valueReads, operations: admittedOperations }),
     ...admittedIterations.issues,
     ...admitCsharpStatementBindings(source.ast, sourceStorage.nodes, nativeDemand.nativeUse,
       admittedOperations, analysis.storage, analysis.sourceEvidence.generator,
       nativeParticipation.participation, analysis.sourceEvidence.compileTimeMetadata,
       analysis.valueReads.valueRead),
     ...admitCsharpNativeDeclarations(source.ast, sourceStorage.nodes, nativeDemand.nativeUse,
-      projectTypes, source.navigation, analysis.sourceEvidence, analysis.storage,
+      projectTypes, source.facts.navigation, analysis.sourceEvidence, analysis.storage,
       nativeParticipation.participation, admittedOperations.nativeUnreachable,
       analysis.declarations, callableAdapters.callableDispatch, classFactories.classFactory, captureStorage),
     ...admitCsharpNativeStorageBindings(source.ast, sourceStorage.nodes, nativeDemand.nativeUse,
@@ -270,7 +270,7 @@ export function finalizeCsharpNativeEmission(
     operations: admittedOperations, metadata: analysis.sourceEvidence.compileTimeMetadata,
     participation: nativeParticipation.participation, values: analysis.valueReads.valueRead,
     switchCoversDiscriminant, required: analysis.requiredRecords });
-  const lexicalValues = analyzeCsharpLexicalValues({ ast: source.ast, nodes: sourceStorage.nodes, navigation: source.navigation,
+  const lexicalValues = analyzeCsharpLexicalValues({ ast: source.ast, nodes: sourceStorage.nodes, navigation: source.facts.navigation,
     captures: captureStorage, values: analysis.valueReads, metadata: analysis.sourceEvidence });
   if (lexicalValues.issues.length !== 0) return rejectedTargetStage(lexicalValues.issues);
   const sourceOutputIdentities = analyzeCsharpSourceOutputIdentities({ ast: source.ast, sourceFiles, paths: input.paths,
@@ -318,11 +318,11 @@ export function finalizeCsharpNativeEmission(
     references: sourceReferences.records, receivers: receiverTypes, admitted: admittedControlNode });
   if (memberReceivers.issues.length !== 0) return rejectedTargetStage(memberReceivers.issues);
   const elementAdmission = analyzeCsharpElementAdmission({ ast: source.ast, nodes: sourceStorage.nodes, operations: admittedOperations,
-    demand: nativeDemand, admitted: admittedControlNode, receivers: memberReceivers.records, navigation: source.navigation,
+    demand: nativeDemand, admitted: admittedControlNode, receivers: memberReceivers.records, navigation: source.facts.navigation,
     policy: analysis.policy });
   if (elementAdmission.issues.length !== 0) return rejectedTargetStage(elementAdmission.issues);
   const propertyAdmission = analyzeCsharpPropertyAdmission({ ast: source.ast, nodes: sourceStorage.nodes,
-    operations: admittedOperations, admitted: admittedControlNode, projectDeclaration: node => source.navigation.isProjectDeclaration(node), receivers: memberReceivers.records, jsCalls: jsCalls.records,
+    operations: admittedOperations, admitted: admittedControlNode, projectDeclaration: node => source.facts.navigation.isProjectDeclaration(node), receivers: memberReceivers.records, jsCalls: jsCalls.records,
     modules: sourceReferences.records.sourceModuleReference, evidence: analysis.sourceEvidence });
   if (propertyAdmission.issues.length !== 0) return rejectedTargetStage(propertyAdmission.issues);
   // Native member names are selected only where the planner renders one: an admitted source member read and the
@@ -495,11 +495,11 @@ export function finalizeCsharpNativeEmission(
     structuralInterfaces: analyzeCsharpStructuralInterfaceEmission({ ast: source.ast,
       shapes: callableAdapters.objectShapes, names, projectTypes, projections: analysis.typeProjections, declarations: analysis.declarations }),
     nativeDeclarations: analyzeCsharpNativeDeclarationForms({ ast: source.ast, nodes: sourceStorage.nodes, projectTypes, required: analysis.requiredRecords }),
-    declarationModifiers: analyzeCsharpDeclarationModifiers({ ast: source.ast, navigation: source.navigation, nodes: sourceStorage.nodes,
+    declarationModifiers: analyzeCsharpDeclarationModifiers({ ast: source.ast, navigation: source.facts.navigation, nodes: sourceStorage.nodes,
       moduleBindings: moduleInitialization.index.moduleBindingInitialization,
       dispatch: callableAdapters.callableDispatch, helperAccess: captureStorage.helperAccess, required: analysis.requiredRecords, generators: generators.records, factories: classFactories.classFactory }),
     generators: generators.records,
-    localBindings: analyzeCsharpLocalBindings({ ast: source.ast, navigation: source.navigation, nodes: sourceStorage.nodes,
+    localBindings: analyzeCsharpLocalBindings({ ast: source.ast, navigation: source.facts.navigation, nodes: sourceStorage.nodes,
       admitted: admittedControlNode, nativeRefs: admittedOperations.nativeRefReturn, storage: analysis.storage.storageType,
       moduleInitialization: moduleInitialization.index.moduleBindingInitialization, required: analysis.requiredRecords,
       optionalLocals: analysis.optionalLocals }),

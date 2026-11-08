@@ -44,7 +44,7 @@ export function analyzeCsharpNativeCaptures(
       if (discarded) return;
     }
     if (literal || source.ast.is.IsFunctionDeclaration(node) && source.ast.body(node) !== undefined) {
-      const lexical = sourceLexicalCaptures(node, [node], source.ast, source.navigation, "source");
+      const lexical = sourceLexicalCaptures(node, [node], source.ast, source.facts.navigation, "source");
       const namedSelf = selectCsharpNamedSelfBinding(source, node, lexical, evidence, issues);
       if (namedSelf !== undefined) namedSelfBindings.push(namedSelf);
       const contract = callables.get({ kind: "declaration", declaration: node });
@@ -69,10 +69,10 @@ export function analyzeCsharpNativeCaptures(
         }
         return Object.freeze({ declaration: capture.declaration, scope, type: physicalType(capture.declaration, logical),
           references: Object.freeze([...capture.references]),
-          mutable: source.navigation.declarationUseSummary(capture.declaration).bindingWritten ||
-            source.navigation.declarationUseSummary(capture.declaration).uses.some(use =>
+          mutable: source.facts.navigation.declarationUseSummary(capture.declaration).bindingWritten ||
+            source.facts.navigation.declarationUseSummary(capture.declaration).uses.some(use =>
               readCsharpSelectedWritingReference(source, evidence, selectedCalls, use.reference) !== undefined),
-          initialization: csharpCapturedBindingInitialization(capture.declaration, source.ast, source.navigation) });
+          initialization: csharpCapturedBindingInitialization(capture.declaration, source.ast, source.facts.navigation) });
       });
       const receivers = lexical.receivers.map(receiver => {
         const reference = receiver.references[0];
@@ -90,6 +90,6 @@ export function analyzeCsharpNativeCaptures(
     }
     source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
-  for (const file of source.navigation.sourceFiles) visit(file);
+  for (const file of source.facts.navigation.sourceFiles) visit(file);
   return Object.freeze({ lexicalCaptures: Object.freeze(captures), namedSelfBindings: Object.freeze(namedSelfBindings) });
 }

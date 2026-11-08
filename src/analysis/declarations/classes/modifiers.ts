@@ -12,7 +12,7 @@ import type { CsharpModuleInitializationIndex } from "../../../target-model/reco
 
 export function analyzeCsharpDeclarationModifiers(input: {
   readonly ast: AstReader;
-  readonly navigation: Pick<TargetSourceProgram["navigation"], "moduleExports">;
+  readonly navigation: Pick<TargetSourceProgram["facts"]["navigation"], "moduleExports">;
   readonly nodes: readonly Node[];
   readonly moduleBindings: CsharpModuleInitializationIndex["moduleBindingInitialization"];
   readonly dispatch: CsharpProjectCallableAdapters["callableDispatch"];

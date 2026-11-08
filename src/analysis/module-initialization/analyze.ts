@@ -64,7 +64,7 @@ export function analyzeCsharpModuleInitialization(
     }
     entries.set(normalizedFileName(input, sourceFile), Object.freeze({
       sourceFile,
-      dependencies: Object.freeze(input.source.navigation
+      dependencies: Object.freeze(input.source.facts.navigation
         .moduleDependencies(sourceFile)
         .map((dependency) => dependency.sourceFile)),
       directRuntimeEffects: sourceFileHasDirectRuntimeEffects(sourceFile, input),
@@ -225,7 +225,7 @@ function moduleRequiresAsyncInitialization(
     return false;
   }
   visiting.add(fileName);
-  const async = input.source.navigation.moduleHasTopLevelAwait(entry.sourceFile) ||
+  const async = input.source.facts.navigation.moduleHasTopLevelAwait(entry.sourceFile) ||
     entry.dependencies.some((dependency) => moduleRequiresAsyncInitialization(
       normalizedFileName(input, dependency),
       input,

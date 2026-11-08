@@ -30,7 +30,7 @@ export function admitCsharpLocationRetention(input: { readonly source: TargetSou
       const passing = input.arguments.argumentPassing.get(expression);
       if (suspends && passing?.passing !== undefined && passing.location?.opaque === true) refuse(node,
         "An opaque native ref-return address cannot be held across asynchronous suspension.");
-      suspends ||= input.source.navigation.expressionEffects(expression).suspends;
+      suspends ||= input.source.facts.navigation.expressionEffects(expression).suspends;
     }
   }
   return Object.freeze(issues);

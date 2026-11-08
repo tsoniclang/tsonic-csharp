@@ -62,7 +62,7 @@ export function analyzeCsharpCaptureStorage(
   for (const shape of shapes.knownShapes()) {
     for (const capture of (shape.declarationTemplate ?? shape).methodImplementation?.captures ?? []) {
       physicalType(capture.declaration, capture.type);
-      const writtenArgument = source.navigation.declarationUseSummary(capture.declaration).uses.some(use =>
+      const writtenArgument = source.facts.navigation.declarationUseSummary(capture.declaration).uses.some(use =>
         readCsharpSelectedWritingReference(source, evidence, selectedCalls, use.reference) !== undefined);
       if (!capture.mutable && !writtenArgument && capture.initialization !== "deferred" || storage.nativeBacking.get(capture.declaration) !== undefined) continue;
       const scope = sourceBindingScope(capture.declaration, source.ast);
@@ -120,13 +120,13 @@ export function analyzeCsharpCaptureStorage(
     if (csharpCaptureSubtreeIsErased(node, evidence, erasedStatement)) return;
     if (source.ast.is.IsConstructorDeclaration(node)) constructors.push(node);
     if (source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node)) {
-      const discarded = sourceCallableDefinitionIsDiscarded(node, source.ast, source.navigation);
+      const discarded = sourceCallableDefinitionIsDiscarded(node, source.ast, source.facts.navigation);
       creationDemandValues.set(node, discarded);
       if (discarded) return;
     }
     source.ast.forEachChild(node, child => { if (child !== undefined) collectCreationDemand(child); });
   };
-  source.navigation.sourceFiles.forEach(collectCreationDemand);
+  source.facts.navigation.sourceFiles.forEach(collectCreationDemand);
   const creationDemand = Object.freeze({ get: (declaration: Node) => creationDemandValues.get(declaration) });
   const nativeCaptures = analyzeCsharpNativeCaptures(source, evidence, physicalType, issues, creationDemand, callables, erasedStatement, selectedCalls);
   const constructorPlaces = new Map<Node, Omit<CsharpConstructorCaptureProtocol, "frame">>();

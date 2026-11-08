@@ -99,7 +99,7 @@ export function analyzeCsharpArrayLiterals(input: { readonly source: TargetSourc
       if (expression === undefined) { refuse(source, "Array spread requires a source expression."); continue; }
       const later = sources.slice(index + 1).filter((node): node is Node => node !== undefined);
       const snapshot = isSpread && later.some(node => {
-        const effects = input.source.navigation.expressionEffects(node);
+        const effects = input.source.facts.navigation.expressionEffects(node);
         return effects.invokes || effects.mutates || effects.suspends || effects.mayThrow;
       });
       contributions.push(Object.freeze({ node: source, expression, spread: isSpread, snapshot }));

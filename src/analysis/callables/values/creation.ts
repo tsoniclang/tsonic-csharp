@@ -45,7 +45,7 @@ export function analyzeCsharpCallableCreations(input: CsharpCallableCreationInpu
   for (const node of input.nodes) {
     if (input.evidence.compileTimeMetadata.get(node) ||
       !ast.is.IsArrowFunction(node) && !ast.is.IsFunctionExpression(node)) continue;
-    if (sourceCallableDefinitionIsDiscarded(node, ast, input.source.navigation)) {
+    if (sourceCallableDefinitionIsDiscarded(node, ast, input.source.facts.navigation)) {
       producer.publish(node, Object.freeze({ kind: "discarded" }));
       continue;
     }
@@ -66,7 +66,7 @@ export function analyzeCsharpCallableCreations(input: CsharpCallableCreationInpu
       producer.publish(node, Object.freeze({ kind: "pending" }));
       continue;
     }
-    const disposition = input.source.navigation.expressionResultDisposition(node);
+    const disposition = input.source.facts.navigation.expressionResultDisposition(node);
     let container = disposition.kind === "stored" && ast.is.IsPropertyAssignment(disposition.use)
       ? ast.parent(disposition.use) : disposition.kind === "stored" && ast.is.IsArrayLiteralExpression(disposition.use)
         ? disposition.use : undefined;
@@ -75,7 +75,7 @@ export function analyzeCsharpCallableCreations(input: CsharpCallableCreationInpu
     while (argument === undefined && container !== undefined && !visited.has(container)) {
       visited.add(container);
       if (sourceExpressionCallArgument(container, input.source) !== undefined) { aggregate = true; break; }
-      const owner = input.source.navigation.expressionResultDisposition(container);
+      const owner = input.source.facts.navigation.expressionResultDisposition(container);
       container = owner.kind === "stored" && ast.is.IsPropertyAssignment(owner.use) ? ast.parent(owner.use)
         : owner.kind === "stored" && ast.is.IsArrayLiteralExpression(owner.use) ? owner.use : undefined;
     }

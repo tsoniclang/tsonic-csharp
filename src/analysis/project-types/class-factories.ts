@@ -31,17 +31,17 @@ export function analyzeCsharpClassFactories(
       construct: "local class definition", producer: "analyzeCsharpClassFactories" });
     const type = evidence.classConstructorType.get(declaration);
     const contract = getCsharpClassFactory(type);
-    const selected = sourceLexicalCaptures(declaration, [declaration], source.ast, source.navigation, "source");
+    const selected = sourceLexicalCaptures(declaration, [declaration], source.ast, source.facts.navigation, "source");
     const captures = selected.captures.map((capture, index): CsharpClassCapture | undefined => {
       const reference = capture.references[0];
       const type = storage.storageType.get(capture.declaration) ?? evidence.storageTargetType.get(capture.declaration) ??
         (reference === undefined ? undefined : evidence.nodeTargetType.get(reference));
       return reference === undefined || type === undefined ? undefined : Object.freeze({
         declaration: capture.declaration, reference, type, fieldName: names.temporaryName(`capture${index}`),
-        mutable: source.navigation.declarationUseSummary(capture.declaration).bindingWritten ||
-          source.navigation.declarationUseSummary(capture.declaration).uses.some(use =>
+        mutable: source.facts.navigation.declarationUseSummary(capture.declaration).bindingWritten ||
+          source.facts.navigation.declarationUseSummary(capture.declaration).uses.some(use =>
             readCsharpSelectedWritingReference(source, evidence, selectedCalls, use.reference) !== undefined),
-        initialization: csharpCapturedBindingInitialization(capture.declaration, source.ast, source.navigation),
+        initialization: csharpCapturedBindingInitialization(capture.declaration, source.ast, source.facts.navigation),
       });
     });
     if (contract === undefined || type?.kind !== "target-named" || definition.scopeName === undefined ||

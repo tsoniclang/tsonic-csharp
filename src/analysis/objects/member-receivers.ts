@@ -80,7 +80,7 @@ export function analyzeCsharpMemberReceivers(input: { readonly source: TargetSou
     if (receiver.kind === "type" && projection?.conversion.kind === "rejected") { refuse(projection.conversion.reason); continue; }
     const key = element?.target?.kind === "source-owned" ? element.target.source.argument.expression : undefined;
     methods.set(selected.expression, { receiver: selection.source.receiver, projection, key,
-      suspends: key !== undefined && input.source.navigation.expressionEffects(key).suspends });
+      suspends: key !== undefined && input.source.facts.navigation.expressionEffects(key).suspends });
   }
   return Object.freeze({ records: createCsharpMemberReceiverRecords({ receivers: input.receivers, functions, methods }), issues: Object.freeze(issues) });
 }

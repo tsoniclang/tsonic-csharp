@@ -200,7 +200,7 @@ export function analyzeCsharpRefLikePlacements(input: CsharpNativePlacementInput
         const callee = sourceCall?.sourceCall;
         if (callee !== undefined && callee.kind !== "rejected" && sourceCall?.sourceTypeArguments !== undefined) {
           if ((callee.kind === "function" || callee.kind === "method") &&
-            !input.source.navigation.isProjectDeclaration(callee.declaration)) continue;
+            !input.source.facts.navigation.isProjectDeclaration(callee.declaration)) continue;
           const allowed = callee.kind === "function" || callee.kind === "method"
             ? [(ast.is.IsFunctionDeclaration(callee.declaration) && ast.body(callee.declaration) === undefined
                 ? selectCsharpSourceCallableGenericAbi(ast, callee.declaration)

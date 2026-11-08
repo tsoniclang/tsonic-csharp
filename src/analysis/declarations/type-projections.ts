@@ -72,7 +72,7 @@ export function analyzeCsharpTypeProjections(
     if (IsTypeSyntaxNode(ast, node)) return;
     ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
-  source.navigation.sourceFiles.forEach(visit);
+  source.facts.navigation.sourceFiles.forEach(visit);
   const sorted = (parameters: Map<string, CsharpProjectedType> | undefined): readonly CsharpProjectedType[] =>
     Object.freeze([...(parameters?.values() ?? [])].sort((left, right) => left.name.localeCompare(right.name)));
   const entries = [...new Set([...byDeclaration.keys(), ...outerByDeclaration.keys()])].map(declaration => Object.freeze({

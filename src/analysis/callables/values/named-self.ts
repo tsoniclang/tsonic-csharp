@@ -13,7 +13,7 @@ export function selectCsharpNamedSelfBinding(
 ): CsharpNamedSelfBinding | undefined {
   if (!source.ast.is.IsFunctionExpression(declaration) || source.ast.name(declaration) === undefined ||
     lexical.selfReferences.length === 0) return undefined;
-  const uses = new Map(source.navigation.declarationUses(declaration).map(use => [use.reference, use]));
+  const uses = new Map(source.facts.navigation.declarationUses(declaration).map(use => [use.reference, use]));
   const calls: Node[] = [];
   const values: Node[] = [];
   for (const reference of lexical.selfReferences) {

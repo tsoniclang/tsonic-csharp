@@ -128,7 +128,7 @@ export function analyzeCsharpArgumentPassing(input: { readonly source: TargetSou
     }
     if (!passing.has(request.node)) passing.set(request.node, { expression: argument.storageExpression, mode,
       passing: nativePassing, location: location?.kind === "resolved" ? location : undefined,
-      suspends: input.source.navigation.expressionEffects(argument.storageExpression).suspends });
+      suspends: input.source.facts.navigation.expressionEffects(argument.storageExpression).suspends });
     if (parameter !== undefined) {
       const entries = projections.get(request.node) ?? new Map<CsharpTargetParameter, boolean>();
       entries.set(parameter, parameter.csharpValueProjection === "properties");

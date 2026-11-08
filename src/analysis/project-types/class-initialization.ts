@@ -54,7 +54,7 @@ export function analyzeCsharpClassInitialization(
     }
     ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
-  source.navigation.sourceFiles.forEach(visit);
+  source.facts.navigation.sourceFiles.forEach(visit);
   return Object.freeze({ requiresClassConstructor: Object.freeze({ get: (declaration: Node) => constructors.has(declaration) }),
     relocatedClassField: Object.freeze({ get: (declaration: Node) => fields.has(declaration) }),
     classInitializationRegion: Object.freeze({ get: (declaration: Node, isStatic: boolean) => isStatic

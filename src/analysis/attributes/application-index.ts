@@ -33,7 +33,7 @@ export function analyzeCsharpAttributeApplications(
       continue;
     }
     const selected = isAstNode(source.ast, application.selectedMember) ? application.selectedMember
-      : source.navigation.referenceFor(target)?.declaration ?? source.navigation.declarationFor(target);
+      : source.facts.navigation.referenceFor(target)?.declaration ?? source.facts.navigation.declarationFor(target);
     if (selected === undefined) {
       reject("target must resolve to a project source declaration from finalized TSTS facts before C# emission.", invocation);
       continue;

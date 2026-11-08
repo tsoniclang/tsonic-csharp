@@ -5,8 +5,8 @@ import type { CsharpSourceModuleConstructionIndex } from "../../target-model/rec
 import { createCsharpSourceArtifactRecords } from "../program/records/program/artifacts.js";
 
 export function analyzeCsharpSourceArtifacts(source: TargetSourceProgram, constructions: CsharpSourceModuleConstructionIndex) {
-  const selected = analyzeSourceArtifactFiles({ ast: source.ast, sourceFiles: source.navigation.sourceFiles,
-    navigation: source.navigation, constructions: constructions.entries() });
+  const selected = analyzeSourceArtifactFiles({ ast: source.ast, sourceFiles: source.facts.navigation.sourceFiles,
+    navigation: source.facts.navigation, constructions: constructions.entries() });
   const issues: readonly TargetDiagnostic[] = Object.freeze(selected.issues.map(issue => ({
     category: "error" as const, source: "tsonic-csharp", sourceNode: issue.sourceFile,
     code: issue.kind === "source-identity" ? "CSHARP_SOURCE_FILE_ARTIFACT_IDENTITY_MISSING"

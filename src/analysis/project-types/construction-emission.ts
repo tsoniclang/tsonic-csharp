@@ -80,7 +80,7 @@ export function analyzeCsharpConstructionEmission(input: { readonly source: Targ
     }
     const declaration = input.evidence.signatureDeclaration.get(selection.source.selectedSignature);
     const callee = selection.source.sourceCallee.expression;
-    if ((declaration === undefined || !input.source.navigation.isProjectDeclaration(declaration)) && !input.source.navigation.isProjectConstructibleObject(callee)) {
+    if ((declaration === undefined || !input.source.facts.navigation.isProjectDeclaration(declaration)) && !input.source.facts.navigation.isProjectConstructibleObject(callee)) {
       refuse(node, "The exact selected constructor is external to the project and has no C# target relation."); continue;
     }
     const target = input.values.valueRead.get(node)?.value;
@@ -92,7 +92,7 @@ export function analyzeCsharpConstructionEmission(input: { readonly source: Targ
       if (arguments_.some(carrier => !selectCsharpTypeEmission({ carrier }))) { refuse(node, "A generic class construction requires its exact native type arguments."); continue; }
       values.set(node, { kind: "source", result, invocation: { kind: "factory", callee, method: factory.createMethodName, arguments: Object.freeze(arguments_) } }); continue;
     }
-    const reference = input.source.navigation.sourceReferenceFor(callee);
+    const reference = input.source.facts.navigation.sourceReferenceFor(callee);
     values.set(node, { kind: "source", result, invocation: getCsharpDelegateSignature(calleeCarrier) !== undefined &&
       (reference === undefined || !ast.is.IsClassDeclaration(reference.declaration)) ? { kind: "delegate", callee } : { kind: "constructor", owner: target } });
   }

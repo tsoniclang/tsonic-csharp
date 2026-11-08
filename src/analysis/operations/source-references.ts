@@ -32,13 +32,13 @@ export function analyzeCsharpSourceReferences(input: { readonly source: TargetSo
   const moduleStatic = (node: Node): boolean => (ast.is.IsFunctionDeclaration(node) || ast.is.IsExportAssignment(node) ||
     ast.is.IsVariableDeclaration(node) || ast.is.IsBindingElement(node)) && sourceDeclarationIsModuleScoped(node, ast);
   for (const node of input.nodes) {
-    const value = input.source.navigation.referenceFor(node);
-    const declarationReference = input.source.navigation.sourceReferenceFor(node);
+    const value = input.source.facts.navigation.referenceFor(node);
+    const declarationReference = input.source.facts.navigation.sourceReferenceFor(node);
     references.set(node, { value, declaration: declarationReference });
     const sourceFile = ast.getSourceFile(node);
     if (sourceFile === undefined) failTargetAnalysisInvariant("tsonic-csharp", "Checked source reference requires its original source module.", node);
     const name = AsPropertyAccessExpression(ast, node)?.name;
-    const memberReference = value ?? (name === undefined ? undefined : input.source.navigation.referenceFor(name));
+    const memberReference = value ?? (name === undefined ? undefined : input.source.facts.navigation.referenceFor(name));
     const external = (reference: SourceProjectReference | SourceDeclarationReference | undefined): boolean => reference !== undefined && reference.sourceFile !== sourceFile &&
       (reference.sourceFile.IsDeclarationFile || input.files.providerSourceFile.get(reference.sourceFile) === true);
     if (memberReference !== undefined && !external(memberReference) && moduleStatic(memberReference.declaration)) modules.set(node, memberReference);
@@ -70,7 +70,7 @@ export function analyzeCsharpSourceReferences(input: { readonly source: TargetSo
     if (declaration !== undefined && input.captures.captureClosure.get(declaration) !== undefined) {
       identifiers.set(node, { kind: "frame", declaration }); continue;
     }
-    if (declaration !== undefined && input.source.navigation.isProjectDeclaration(declaration) &&
+    if (declaration !== undefined && input.source.facts.navigation.isProjectDeclaration(declaration) &&
       (input.factories.classFactory.get(declaration) !== undefined || ast.is.IsClassDeclaration(declaration))) {
       const use = input.demand.nativeUse.expression(node)?.use;
       const signature = use === undefined || use.kind === "erased" ? undefined : getCsharpDelegateSignature(use.carrier);
@@ -98,7 +98,7 @@ export function analyzeCsharpSourceReferences(input: { readonly source: TargetSo
     }
     const sourceName = ast.text(node);
     if (external(declarationReference)) { refuse(`Declaration/provider identifier '${sourceName}' requires a selected target operation or type-position usage before C# emission.`); continue; }
-    const providerDeclaration = value?.declaration ?? input.source.navigation.declarationFor(node);
+    const providerDeclaration = value?.declaration ?? input.source.facts.navigation.declarationFor(node);
     const providerFile = providerDeclaration === undefined ? undefined : ast.getSourceFile(providerDeclaration);
     if (providerDeclaration !== undefined && (input.evidence.providerVirtualDeclaration.get(providerDeclaration) ||
       providerFile !== undefined && input.files.providerSourceFile.get(providerFile) === true)) {
