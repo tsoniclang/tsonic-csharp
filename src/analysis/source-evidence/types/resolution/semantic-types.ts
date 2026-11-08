@@ -54,7 +54,7 @@ export function resolveTypeWithState(
   if (direct.kind !== "not-applicable") return direct.kind === "resolved" ? direct.type : undefined;
   const fixedArray = policy.selectFixedArray(type, sourceFile);
   if (fixedArray !== undefined) {
-    if (fixedArray.kind === "invalid" || csharpFixedArrayRepresentationRejection(fixedArray.fact) !== undefined) return undefined;
+    if (fixedArray.kind === "invalid" || csharpFixedArrayRepresentationRejection(fixedArray.fact.length) !== undefined) return undefined;
     const element = fixedArray.fact.elementType === undefined
       ? resolveTypeWithState(fixedArray.fact.elementSourceType, sourceFile, nextState(state))
       : resolveNodeWithState(fixedArray.fact.elementType, host.ast.getSourceFile(fixedArray.fact.elementType) ?? sourceFile, nextState(state));
@@ -257,7 +257,7 @@ export function selectDirectSourceFacts(
       subject,
     );
     if (fixedArray !== undefined) {
-      if (csharpFixedArrayRepresentationRejection(fixedArray) !== undefined) return { kind: "unavailable" };
+      if (csharpFixedArrayRepresentationRejection(fixedArray.length) !== undefined) return { kind: "unavailable" };
       const element = fixedArray.elementType === undefined
         ? resolveTypeWithState(fixedArray.elementSourceType, sourceFile, nextState(state))
         : resolveNodeWithState(fixedArray.elementType, host.ast.getSourceFile(fixedArray.elementType) ?? sourceFile, nextState(state));

@@ -32,7 +32,7 @@ export function selectCsharpNativeMemoryLayout(
     : input.types.resolveSelectedType(layout.explicitTypeNode, layout.sourceType, sourceFile);
   if (pointeeType === undefined) return undefined;
   if (layout.kind === "array") {
-    if (csharpFixedArrayRepresentationRejection(layout.fixedArray) !== undefined ||
+    if (csharpFixedArrayRepresentationRejection(layout.fixedArray.length) !== undefined ||
       pointeeType.kind !== "array" || (pointeeType.rank ?? 1) !== 1) return undefined;
     const element = selectCsharpNativeMemoryLayout(input, layout.elementLayout,
       input.ast.getSourceFile(layout.elementLayout.call) ?? sourceFile, selected);
@@ -181,7 +181,7 @@ export function selectCsharpDeclaredNativeMemoryLayout(
     if (work.carrier.kind === "array" && (work.carrier.rank ?? 1) === 1) {
       const selected = input.types.selectFixedArray(work.sourceType, work.sourceFile);
       if (selected?.kind !== "selected") return reject("Native array backing requires its own exact declared fixed-array extent.");
-      const reason = csharpFixedArrayRepresentationRejection(selected.fact);
+      const reason = csharpFixedArrayRepresentationRejection(selected.fact.length);
       if (reason !== undefined) return reject(reason);
       pending.push({ kind: "array", carrier: work.carrier, sourceType: work.sourceType, length: selected.fact.length });
       pending.push({ kind: "select", carrier: work.carrier.element, sourceType: selected.fact.elementSourceType, sourceFile: work.sourceFile });
@@ -231,7 +231,7 @@ export function csharpNativeArrayMemoryLayoutRejection(root: TsonicMemoryLayoutF
     if (visited.has(layout)) continue;
     visited.add(layout);
     if (layout.kind === "array") {
-      const reason = csharpFixedArrayRepresentationRejection(layout.fixedArray);
+      const reason = csharpFixedArrayRepresentationRejection(layout.fixedArray.length);
       if (reason !== undefined) return reason;
       pending.push(layout.elementLayout);
       continue;

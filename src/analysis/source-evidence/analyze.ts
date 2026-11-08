@@ -407,7 +407,7 @@ export function analyzeCsharpSourceEvidence(
     for (const subject of subjects) {
       const fact = readCsharpSourceFixedArrayType(source.sourceFacts, subject);
       if (fact === undefined || rejectedFixedArrayTypes.has(fact.sourceType)) continue;
-      const message = csharpFixedArrayRepresentationRejection(fact);
+      const message = csharpFixedArrayRepresentationRejection(fact.length);
       if (message === undefined) continue;
       rejectedFixedArrayTypes.add(fact.sourceType);
       fixedArrayIssues.push(Object.freeze({ node, code: "CSHARP_FIXED_ARRAY_REPRESENTATION_UNSUPPORTED", message }));
@@ -423,7 +423,7 @@ export function analyzeCsharpSourceEvidence(
       if (selected === undefined) return;
       const message = selected.kind === "invalid"
         ? `C# FixedArray has no exact closed value representation: ${selected.reason}`
-        : csharpFixedArrayRepresentationRejection(selected.fact);
+        : csharpFixedArrayRepresentationRejection(selected.fact.length);
       if (message !== undefined && !rejectedFixedArrayTypes.has(current)) {
         rejectedFixedArrayTypes.add(current);
         fixedArrayIssues.push(Object.freeze({ node, code: "CSHARP_FIXED_ARRAY_REPRESENTATION_UNSUPPORTED", message }));

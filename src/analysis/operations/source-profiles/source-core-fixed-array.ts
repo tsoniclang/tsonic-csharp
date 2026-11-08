@@ -102,7 +102,7 @@ function fixedArrayReceiverRejection(
 ): string | undefined {
   const selected = host.types.selectFixedArray(receiver.type, sourceFile);
   if (selected === undefined) return undefined;
-  return selected.kind === "invalid" ? selected.reason : csharpFixedArrayRepresentationRejection(selected.fact);
+  return selected.kind === "invalid" ? selected.reason : csharpFixedArrayRepresentationRejection(selected.fact.length);
 }
 
 function resolveFixedArrayReceiver(
