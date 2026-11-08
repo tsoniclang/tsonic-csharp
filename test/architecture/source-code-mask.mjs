@@ -1,27 +1,39 @@
 import { readArchitectureTypeScript } from "../../../tsonic/test/architecture/tooling/typescript-source.mjs";
 
-export function createSourceCodeMask(sourceFiles) {
+export function createSourceSyntaxIndex(sourceFiles) {
   const files = new Map(sourceFiles);
   const source = readArchitectureTypeScript(files);
   const expressions = new Map([...files.keys()].map(file => [file, []]));
+  const typeReferences = new Map([...files.keys()].map(file => [file, []]));
   for (const file of source.sourceFiles) {
     const path = source.ast.getFileName(file).slice("/architecture/".length);
     const ranges = expressions.get(path);
-    if (ranges === undefined) throw new Error(`Foreign source-code mask file: ${path}`);
+    const references = typeReferences.get(path);
+    if (ranges === undefined || references === undefined) throw new Error(`Foreign source syntax file: ${path}`);
     const visit = node => {
       if (source.ast.is.IsRegularExpressionLiteral(node)) {
         ranges.push({ start: source.ast.pos(node), end: source.ast.end(node) });
       } else {
+        if (source.ast.is.IsTypeReferenceNode(node)) {
+          const name = source.ast.as.AsTypeReferenceNode(node).TypeName;
+          const range = source.ast.authoredRange(name);
+          if (source.ast.is.IsIdentifier(name) && range.kind === "authored") {
+            references.push(Object.freeze({ name: source.ast.text(name), start: range.start, end: range.end }));
+          }
+        }
         source.ast.forEachChild(node, visit);
       }
     };
     visit(file);
   }
+  const indexed = new Map([...files].map(([file, text]) => [file, Object.freeze({
+    code: maskNonCode(text, expressions.get(file)),
+    typeReferences: Object.freeze(typeReferences.get(file)),
+  })]));
   return file => {
-    const text = files.get(file);
-    const ranges = expressions.get(file);
-    if (text === undefined || ranges === undefined) throw new Error(`Source-code mask requires its exact input file: ${file}`);
-    return maskNonCode(text, ranges);
+    const syntax = indexed.get(file);
+    if (syntax === undefined) throw new Error(`Source syntax requires its exact input file: ${file}`);
+    return syntax;
   };
 }
 

@@ -1,19 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  analysisAbstractionDebtCatalog,
-  analysisAbstractionDebtClassifications,
-  analysisAbstractionDebtOwners,
-  analysisAbstractionFileRules,
-  analysisAbstractionRules,
   collectAnalysisAbstractionFindingsForSource,
-  collectAnalysisAbstractionFindings,
-  summarizeAnalysisAbstractionFindings,
 } from "./analysis-abstraction-policy.mjs";
 
-const repoRoot = new URL("../..", import.meta.url).pathname;
-const classificationSet = new Set(analysisAbstractionDebtClassifications);
-const ownerSet = new Set(analysisAbstractionDebtOwners);
 
 
 
@@ -42,12 +32,6 @@ const ownerSet = new Set(analysisAbstractionDebtOwners);
 
 
 
-
-function ruleMatches(rule, text) {
-  if (rule.matches !== undefined) return rule.matches(text).length > 0;
-  rule.pattern.lastIndex = 0;
-  return rule.pattern.test(text);
-}
 
 function assertFindings(file, text, expectedRuleIds) {
   assert.deepEqual(findingIds(file, text), expectedRuleIds);
@@ -55,16 +39,6 @@ function assertFindings(file, text, expectedRuleIds) {
 
 function findingIds(file, text) {
   return collectAnalysisAbstractionFindingsForSource(file, text).map((finding) => finding.ruleId);
-}
-
-function catalogedCounts() {
-  const counts = new Map();
-  for (const entry of analysisAbstractionDebtCatalog) {
-    for (const [ruleId, count] of Object.entries(entry.counts)) {
-      counts.set(`${entry.file}\u0000${ruleId}`, count);
-    }
-  }
-  return counts;
 }
 
 test("architecture validator rejects raw source members in executable JS target providers", () => {

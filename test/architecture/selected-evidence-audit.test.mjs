@@ -2,13 +2,11 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
-import { createSourceCodeMask } from "./source-code-mask.mjs";
+import { createSourceSyntaxIndex } from "./source-code-mask.mjs";
+import { readArchitectureTypeScript } from "../../../tsonic/test/architecture/tooling/typescript-source.mjs";
 import {
-  buildSelectedEvidenceAuditRows,
   collectSelectedEvidenceFindings,
   collectSelectedEvidenceFindingsForSource,
-  expectedSharedSourceQuerySites,
-  findingCounts,
   selectedEvidenceForbiddenRules,
 } from "./selected-evidence-audit.mjs";
 
@@ -29,37 +27,9 @@ test("selected-evidence scanner distinguishes compiler fields from non-code text
   ]);
 });
 
-test("every low-level source query site is explicitly inventoried", () => {
-  const counts = findingCounts(
-    collectSelectedEvidenceFindings(repoRoot).filter((finding) =>
-      finding.ruleId.startsWith("source-query.")),
-  );
-  const actual = [...counts.entries()].sort(([left], [right]) =>
-    left.localeCompare(right));
-  const expected = [...expectedSharedSourceQuerySites.entries()]
-    .map(([key, value]) => [key, value.count])
-    .sort(([left], [right]) => left.localeCompare(right));
-  assert.deepEqual(actual, expected);
-});
-
-test("every inventoried source query has an architecture classification", () => {
-  const rows = buildSelectedEvidenceAuditRows(repoRoot)
-    .filter((row) => row.ruleId.startsWith("source-query."));
-  assert.equal(
-    rows.length,
-    [...expectedSharedSourceQuerySites.values()].reduce(
-      (count, site) => count + site.count,
-      0,
-    ),
-  );
-  assert.deepEqual(
-    rows.filter((row) =>
-      row.classification !== "shared-source-semantics-query" ||
-      row.purpose.length === 0 ||
-      row.action.length === 0 ||
-      row.coverage.length === 0),
-    [],
-  );
+test("Native has no low-level Source checker query or classified exception", () => {
+  assert.deepEqual(collectSelectedEvidenceFindings(repoRoot)
+    .filter(finding => finding.ruleId.startsWith("source-query.")), []);
 });
 
 test("semantic product code contains no forbidden reconstruction mechanism", () => {
@@ -79,8 +49,8 @@ test("semantic product code contains no forbidden reconstruction mechanism", () 
 
 test("metadata validation stays independent of compiler subjects and semantic reconstruction", () => {
   const metadata = readFileSync(join(repoRoot, "src/target-model/metadata/immutable.ts"), "utf8");
-  const mask = createSourceCodeMask(new Map([["metadata.ts", metadata]]));
-  assert.doesNotMatch(mask("metadata.ts"), /\bimport\b|\b(?:node|subject|symbol|signature|checker|semantics|sourceType)\b/u);
+  const syntax = createSourceSyntaxIndex(new Map([["metadata.ts", metadata]]));
+  assert.doesNotMatch(syntax("metadata.ts").code, /\bimport\b|\b(?:node|subject|symbol|signature|checker|semantics|sourceType)\b/u);
   const probe = 'const result = Reflect.ownKeys(node);';
   for (const file of ["src/analysis/project-types/type-definitions.ts", "src/target-model/types/snapshot.ts", "src/policy/example.ts"]) {
     assert.deepEqual(collectSelectedEvidenceFindingsForSource(file, probe).map(finding => finding.ruleId), ["raw-ownKeys"]);
@@ -123,23 +93,16 @@ test("C# consumes shared source semantics instead of raw compiler query containe
   assert.deepEqual(violations, []);
 });
 
-test("operation selection consumes atomic shared semantic decisions", () => {
-  const required = new Map([
-    ["src/analysis/operations/members/calls/selection.ts", ".operations.call("],
-    ["src/analysis/operations/members/property-selection.ts", ".operations.propertyAccess("],
-    ["src/analysis/operations/members/element-selection.ts", ".operations.elementAccess("],
-  ]);
-  const violations = [];
-  for (const [file, method] of required) {
-    const source = readFileSync(join(repoRoot, file), "utf8");
-    if (!source.includes(method)) {
-      violations.push(`${file}: missing ${method}`);
-    }
-    if (/\b(?:getTypeAtLocation|getSymbolAtLocation|getResolvedSignature|getPropertyOfType)\s*\(/u.test(source)) {
-      violations.push(`${file}: reconstructs selected operation identity`);
-    }
+test("the central application adapter reads the original complete Source publication once", () => {
+  const owner = applicationAdapter();
+  const queries = owner.nodes.filter(node => owner.ast.is.IsCallExpression(node) &&
+    owner.text(owner.ast.as.AsCallExpression(node).Expression) === "host.facts.applications.application");
+  assert.equal(queries.length, 1, "one canonical Source application read in its adapter");
+  assert.equal(owner.text(owner.ast.arguments(queries[0])[0]), "occurrence", "the query uses the original occurrence");
+  const properties = new Set(owner.nodes.filter(node => owner.ast.is.IsPropertyAccessExpression(node)).map(owner.text));
+  for (const field of ["source.identity.invocation", "source.identity.signature", "source.receiver", "source.sourceArguments", "source.arguments", "source.result"]) {
+    assert.equal(properties.has(field), true, `the adapter explicitly reads ${field}, not only a result type`);
   }
-  assert.deepEqual(violations, []);
 });
 
 test("RegExp literals consume structured TSTS syntax without target parsing", () => {
@@ -168,29 +131,12 @@ test("retired target observation and operation-fact architecture is absent", () 
 });
 
 test("generic method type arguments come only from shared selected call evidence", () => {
-  const forbidden = /\b(?:TypeArguments|getSourceCallTypeParameterSubstitutions|addInferredTargetTypeParameterSubstitutions|inferMethodTypeArguments|inferTypeArgumentsFromCallback)\b/gu;
+  const forbidden = /\b(?:TypeArguments|sourceSelectedMethodTypeArguments|getSourceCallTypeParameterSubstitutions|addInferredTargetTypeParameterSubstitutions|inferMethodTypeArguments|inferTypeArgumentsFromCallback)\b/gu;
   assert.deepEqual(productHits(forbidden), []);
-  const consumers = productHits(/\bsourceSelectedMethodTypeArguments\b/gu);
-  const consumerCounts = new Map();
-  for (const consumer of consumers) {
-    const file = consumer.slice(0, consumer.lastIndexOf(":"));
-    consumerCounts.set(file, (consumerCounts.get(file) ?? 0) + 1);
-  }
-  assert.deepEqual([...consumerCounts.entries()].sort(), [
-    ["src/analysis/conversions/requirements.ts", 1],
-    ["src/analysis/declarations/analyze.ts", 1],
-    ["src/analysis/operations/members/calls/instantiation.ts", 1],
-    ["src/analysis/operations/members/calls/type-arguments.ts", 3],
-    ["src/analysis/operations/source-profiles/js/regexp-protocol.ts", 1],
-    ["src/analysis/operations/source-profiles/policy-selection.ts", 1],
-    ["src/analysis/source-evidence/types/resolution/array-literals.ts", 1],
-    ["src/analysis/source-evidence/types/resolution/call-contracts.ts", 1],
-    ["src/analysis/source-evidence/types/resolution/calls.ts", 4],
-    ["src/analysis/source-evidence/types/resolution/expressions.ts", 1],
-    ["src/policy/operations/source-profiles/js/array-statics.ts", 3],
-    ["src/policy/operations/source-profiles/js/arrays.ts", 1],
-    ["src/policy/operations/source-profiles/js/promises.ts", 2],
-  ]);
+  const owner = applicationAdapter();
+  const properties = new Set(owner.nodes.filter(node => owner.ast.is.IsPropertyAccessExpression(node)).map(owner.text));
+  assert.equal(properties.has("source.identity.classBindings"), true, "original class bindings are an independent Source vector");
+  assert.equal(properties.has("source.identity.signatureBindings"), true, "original method bindings are an independent Source vector");
 });
 
 test("provider relations never recover identity through optional fallback", () => {
@@ -207,6 +153,26 @@ test("selected-evidence fixtures do not fabricate non-contract request fields", 
     .map((file) => relative(repoRoot, file).split(sep).join("/"));
   assert.deepEqual(hits, []);
 });
+
+function applicationAdapter() {
+  const path = "src/analysis/source-evidence/representations.ts";
+  const checked = readArchitectureTypeScript(new Map([[path, readFileSync(join(repoRoot, path), "utf8")]]));
+  const ast = checked.ast;
+  const file = checked.getSourceFile(`/architecture/${path}`);
+  const declarations = ast.statements(file).filter(node => ast.is.IsFunctionDeclaration(node) && ast.text(ast.name(node)) === "representCsharpApplication");
+  assert.equal(declarations.length, 1, "one concrete current application adapter, not a synthetic consumer");
+  const nodes = [];
+  const visit = node => {
+    nodes.push(node);
+    ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+  };
+  visit(declarations[0]);
+  const text = node => {
+    const range = ast.authoredRange(node);
+    return range.kind === "authored" ? ast.getSourceText(file).slice(range.start, range.end) : undefined;
+  };
+  return { ast, nodes, text };
+}
 
 function productHits(pattern) {
   return sourceFiles(join(repoRoot, "src")).flatMap((file) => {

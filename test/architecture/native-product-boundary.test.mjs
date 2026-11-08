@@ -149,6 +149,32 @@ test("native product boundary scanner rejects runtime reflection and dynamic sem
   );
 });
 
+test("native product boundary distinguishes dynamic type references from value and property names", () => {
+  const allowed = collectNativeProductBoundaryFindingsFromSources([{ file: "src/values.ts", text: [
+    "const dynamic = {};",
+    "const left = reversed ? constant : dynamic;",
+    "const record = { dynamic: left };",
+    "const right = ready ? dynamic : record.dynamic;",
+  ].join("\n") }]);
+  assert.deepEqual(allowed.map(formatNativeProductBoundaryFinding), []);
+  const rejected = collectNativeProductBoundaryFindingsFromSources([{ file: "src/types.ts", text: [
+    'const label = "😀";',
+    "let value: dynamic;",
+    "type Nested = ReadonlyArray<dynamic>;",
+    "function read(): dynamic { return value; }",
+  ].join("\n") }]);
+  assert.deepEqual(rejected.map(finding => `${finding.ruleId}:${finding.line}`), [
+    "csharp-dynamic-semantics:2",
+    "csharp-dynamic-semantics:3",
+    "csharp-dynamic-semantics:4",
+  ]);
+  const sameLine = collectNativeProductBoundaryFindingsFromSources([{ file: "src/unicode.ts",
+    text: 'const label = "😀αααααααααααααααααααααααααααααααααααααααα"; let value: dynamic;' }]);
+  assert.equal(sameLine.length, 1, "one actual type reference after non-ASCII text");
+  assert.equal(sameLine[0].ruleId, "csharp-dynamic-semantics");
+  assert.equal(sameLine[0].snippet.includes("dynamic"), true);
+});
+
 test("native product boundary masks checked regex literals without hiding division or template code", () => {
   const ignored = collectNativeProductBoundaryFindingsFromSources([{ file: "src/literals.ts", text: [
     'const label = "😀"; const pattern = /:\\s*dynamic\\b|\\bdynamic\\s+[A-Za-z_$][\\w$]*\\s*(?:=|;|,)/g;',

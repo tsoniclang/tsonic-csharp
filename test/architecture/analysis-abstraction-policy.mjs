@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
-import { createSourceCodeMask } from "./source-code-mask.mjs";
+import { createSourceSyntaxIndex } from "./source-code-mask.mjs";
 import { executablePolicyHookMatches, executablePolicyHookPattern } from "./executable-policy-hooks.mjs";
 
 export const analysisAbstractionRules = Object.freeze([
@@ -539,40 +539,18 @@ export const analysisAbstractionFileRules = Object.freeze([
   },
 ]);
 
-export const analysisAbstractionDebtClassifications = Object.freeze([
-  "source-identity-policy-candidate",
-  "provider-metadata-candidate",
-  "surface-policy-candidate",
-  "type-classification-candidate",
-  "object-shape-classification-candidate",
-  "backend-fact-boundary-candidate",
-  "explicit-exception-candidate",
-  "delete-bug-candidate",
-]);
-
-export const analysisAbstractionDebtOwners = Object.freeze([
-  "source-core-provider",
-  "target-provider",
-  "surface-provider",
-  "csharp-backend",
-  "csharp-runtime",
-  "tests",
-]);
-
-export const analysisAbstractionDebtCatalog = Object.freeze([]);
-
 export function collectAnalysisAbstractionFindings(repoRoot) {
   const sources = new Map(sourceFiles(join(repoRoot, "src")).map(filePath => {
     const file = relative(repoRoot, filePath).split(sep).join("/");
     return [file, readFileSync(filePath, "utf8")];
   }));
-  const mask = createSourceCodeMask(sources);
-  return [...sources].flatMap(([file, text]) => collectMaskedAnalysisAbstractionFindings(file, text, mask(file)));
+  const syntax = createSourceSyntaxIndex(sources);
+  return [...sources].flatMap(([file, text]) => collectMaskedAnalysisAbstractionFindings(file, text, syntax(file).code));
 }
 
 export function collectAnalysisAbstractionFindingsForSource(file, text) {
-  const mask = createSourceCodeMask(new Map([[file, text]]));
-  return collectMaskedAnalysisAbstractionFindings(file, text, mask(file));
+  const syntax = createSourceSyntaxIndex(new Map([[file, text]]));
+  return collectMaskedAnalysisAbstractionFindings(file, text, syntax(file).code);
 }
 
 function collectMaskedAnalysisAbstractionFindings(file, text, code) {
@@ -580,15 +558,6 @@ function collectMaskedAnalysisAbstractionFindings(file, text, code) {
     ...analysisAbstractionFileRules.flatMap((rule) => collectFileRuleFindings(file, text, rule)),
     ...analysisAbstractionRules.flatMap((rule) => collectRuleFindings(file, text, code, rule)),
   ];
-}
-
-export function summarizeAnalysisAbstractionFindings(findings) {
-  const counts = new Map();
-  for (const finding of findings) {
-    const key = `${finding.file}\u0000${finding.ruleId}`;
-    counts.set(key, (counts.get(key) ?? 0) + 1);
-  }
-  return counts;
 }
 
 function collectRuleFindings(file, text, code, rule) {
@@ -675,15 +644,4 @@ function sourceFiles(directory) {
 
 function sourceIdentityMetadataFilePattern() {
   return /(?:^|\/)(?:source-identities\/[^/]+|source-library|source-identit(?:y|ies)|identities|identity-policies)\.ts$/;
-}
-
-function entry(file, counts, classification, owner, replacement) {
-  return Object.freeze({
-    file,
-    counts: Object.freeze(counts),
-    classification,
-    owner,
-    replacement,
-    status: "migration-required",
-  });
 }
