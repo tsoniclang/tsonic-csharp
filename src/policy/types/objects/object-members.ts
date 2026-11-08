@@ -5,7 +5,7 @@ import { csharpNullableTargetType } from "../../../target-model/types/carriers/n
 import { csharpRuntimeLocationTargetType, csharpRuntimeRecordFieldTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { csharpTargetTypeRenderingRejection } from "../model/renderability.js";
 import type { CsharpDelegateSignatureShape, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../target-model/types/model.js";
-import type { SourceStorageMemberWritesSelection } from "@tsonic/target-api/analysis";
+import type { SourceStorageDomainBoundary, SourceStorageMemberWritesSelection } from "@tsonic/target-api/analysis";
 import { objectShapeMethodBodyName, objectShapeMethodValueStorageNames } from "../../../target-model/names/object-members.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { selectCsharpMethodValueEnvironment } from "./method-environments.js";
@@ -35,7 +35,8 @@ export function csharpObjectMethodHasFixedNativeExposure(
 ): CsharpRepresentationOutcome<boolean> {
   if (writes?.kind === "refused") return Object.freeze({ kind: "source-refused", refusal: writes });
   return represented(writes !== undefined && writes.kind !== "unresolved" && writes.writes.length === 0 &&
-    (writes.kind === "complete" || writes.boundaries.length > 0 && writes.boundaries.every(boundary => boundary.kind === "external-write")));
+    (writes.kind === "complete" || writes.boundaries.length > 0 && writes.boundaries.every(
+      (boundary: Omit<SourceStorageDomainBoundary, "bindings">) => boundary.kind === "external-write")));
 }
 
 function selectMethods(member: Extract<CsharpObjectShapeMemberFact, { readonly memberKind: "method" }>):

@@ -53,7 +53,7 @@ export function createCsharpObjectMethodUseIndex(storage: SourceStorageQueries, 
         const domain = subject.kind === "resolved" ? storage.closedOriginsFor(subject.subject) : undefined;
         if (domain?.kind === "refused") return Object.freeze({ kind: "source-refused", refusal: domain });
         if (domain?.kind === "open" && !structuralBoundariesAreExportOnly(source, domain.boundaries) &&
-          domain.boundaries.some(boundary => boundary.kind === "external-input" || boundary.kind === "external-write" ||
+          domain.boundaries.some((boundary: SourceStorageDomainBoundary) => boundary.kind === "external-input" || boundary.kind === "external-write" ||
             boundary.kind === "unclassified-exposure")) add(node, true);
       }
     }

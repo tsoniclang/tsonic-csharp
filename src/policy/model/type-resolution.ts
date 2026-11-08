@@ -1,11 +1,14 @@
 import type { Node } from "@tsonic/tsts";
-import type { SourceOperation, SourcePresence, SourceSignatureIdentity, SourceStoragePlace, SourceTypeParameter } from "@tsonic/target-api/source";
+import type { SourceOperation, SourcePresence, SourceProgramFacts, SourceSignatureIdentity, SourceTypeParameter } from "@tsonic/target-api/source";
 import type { CsharpRepresentationOutcome, CsharpRepresentedType, CsharpRepresentedTypeParameter } from "../../target-model/types/representation.js";
 import type { CsharpRepresentedApplication, CsharpSourceRepresentationQueries } from "../../analysis/source-evidence/representations.js";
 import type { CsharpRepresentedMemberUse } from "../../analysis/source-evidence/member-use.js";
 
 export interface CsharpRepresentedStorage {
-  readonly source: SourceStoragePlace;
+  readonly source: Extract<
+    Extract<ReturnType<SourceProgramFacts["protocols"]["storage"]>, { readonly kind: "resolved" }>["value"],
+    { readonly kind: "present" }
+  >["value"];
   readonly value: CsharpRepresentedType;
 }
 
