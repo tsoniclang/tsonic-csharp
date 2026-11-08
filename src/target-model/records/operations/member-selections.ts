@@ -38,6 +38,7 @@ export type CsharpTargetCallSelection =
     };
 
 export type CsharpTargetElementSelection =
+  | Exclude<import("../../types/representation.js").CsharpRepresentationOutcome<never>, { readonly kind: "represented" }>
   | {
       readonly kind: "array-union-read";
       readonly source: ResolvedSourceElementAccessInfo;
@@ -88,6 +89,7 @@ export type CsharpTargetElementSelection =
     };
 
 export type CsharpTargetPropertySelection =
+  | Exclude<import("../../types/representation.js").CsharpRepresentationOutcome<never>, { readonly kind: "represented" }>
   | CsharpUnionProperty
   | {
       readonly kind: "resolved";

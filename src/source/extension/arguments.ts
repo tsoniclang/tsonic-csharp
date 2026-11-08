@@ -1,5 +1,5 @@
 import type { ArgumentPassingMode, Node } from "@tsonic/tsts";
-import type { SourceAnalysisFacts, SourceResult } from "@tsonic/target-api/source";
+import type { SourceProgramFacts, SourceResult } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 
 export interface CsharpSourceArgumentSelection {
@@ -13,7 +13,7 @@ export interface CsharpSourceArgumentSelectionResult {
 }
 
 export function selectCsharpSourceArgument(
-  protocols: SourceAnalysisFacts,
+  protocols: SourceProgramFacts["protocols"],
   expression: Node,
 ): CsharpSourceArgumentSelectionResult | Extract<SourceResult<never>, { readonly kind: "refused" }> {
   const publication = protocols.argumentPassing(expression);
@@ -41,7 +41,7 @@ export function selectCsharpSourceArgument(
 }
 
 export function csharpSourceParameterPassingMode(
-  protocols: SourceAnalysisFacts,
+  protocols: SourceProgramFacts["protocols"],
   subject: Node,
 ): SourceResult<ArgumentPassingMode> {
   const publication = protocols.argumentPassing(subject);

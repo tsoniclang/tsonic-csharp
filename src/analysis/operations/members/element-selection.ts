@@ -1,25 +1,21 @@
 import type { ExtensionDiagnostic, Node, SourceFile } from "@tsonic/tsts";
-import type { SourceFileSemantics } from "@tsonic/target-api/source";
+import type { SourceMemberUse } from "@tsonic/target-api/source";
 import type { CsharpProviderTargetRelation } from "../../../target-model/identities/provider-relations.js";
-import type { CsharpTargetMember } from "../../../policy/types/index.js";
-import { targetTypeRefEquals } from "../../../policy/types/index.js";
+import type { CsharpTargetMember, TargetTypeRef } from "../../../target-model/types/model.js";
+import type { CsharpRepresentationOutcome } from "../../../target-model/types/representation.js";
+import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { instantiateCsharpProviderBindingMember } from "./calls/binding-instantiation.js";
 import type { CsharpProviderCallSelectionHost } from "../../../policy/model/provider-calls.js";
-import { resolveCsharpProviderElementRelations } from "./relations.js";
-import { selectCsharpSourceTypeFlowIndexConversion } from "../../../policy/conversions/source-type-flow-index.js";
+import { resolveCsharpProviderMemberRelations } from "./relations.js";
+import { selectCsharpNativeIndexConversion } from "../../../policy/conversions/native-index.js";
 import type { CsharpTargetElementSelection } from "../../../target-model/records/operations/member-selections.js";
-
-type ResolvedSourceElementAccessInfo = NonNullable<
-  ReturnType<SourceFileSemantics["operations"]["elementAccess"]>
->;
-type CsharpProviderSignatureRelation = Extract<
-  CsharpProviderTargetRelation,
-  { readonly kind: "signature" }
->;
-
 import { providerReceiverMatchesElement, csharpProviderElementSupportsAccess } from "../../../policy/operations/members/element-selection.js";
+import { represented } from "../../../policy/types/source-type-flow/representation-results.js";
+
+type CsharpProviderSignatureRelation = Extract<CsharpProviderTargetRelation, { readonly kind: "signature" }>;
+
 export interface CsharpSelectedProviderElement {
-  readonly source: ResolvedSourceElementAccessInfo;
+  readonly source: SourceMemberUse;
   readonly relation: CsharpProviderSignatureRelation;
   readonly targetMember: CsharpTargetMember;
   readonly targetParameterIndex: number;
@@ -27,160 +23,68 @@ export interface CsharpSelectedProviderElement {
 }
 
 export type CsharpProviderElementSelection =
-  | {
-      readonly kind: "resolved";
-      readonly element: CsharpSelectedProviderElement;
-    }
-  | {
-      readonly kind: "not-provider";
-      readonly source: ResolvedSourceElementAccessInfo;
-      readonly reason: string;
-    }
-  | {
-      readonly kind: "missing" | "conflict";
-      readonly reason: string;
-    }
-  | {
-      readonly kind: "ambiguous";
-      readonly reason: string;
-      readonly candidates: readonly string[];
-    }
-  | {
-      readonly kind: "rejected";
-      readonly diagnostic: ExtensionDiagnostic;
-    };
+  | { readonly kind: "resolved"; readonly element: CsharpSelectedProviderElement }
+  | { readonly kind: "not-provider"; readonly source: SourceMemberUse; readonly reason: string }
+  | { readonly kind: "missing" | "conflict"; readonly reason: string }
+  | { readonly kind: "ambiguous"; readonly reason: string; readonly candidates: readonly string[] }
+  | { readonly kind: "rejected"; readonly diagnostic: ExtensionDiagnostic }
+  | Exclude<CsharpRepresentationOutcome<never>, { readonly kind: "represented" }>;
 
 export function selectCsharpProviderElement(
-  host: CsharpProviderCallSelectionHost,
-  elementAccess: Node,
-  sourceFile: SourceFile,
+  host: CsharpProviderCallSelectionHost, elementAccess: Node, _sourceFile: SourceFile,
 ): CsharpProviderElementSelection {
-  const source = host.semantics(sourceFile)
-    .operations.elementAccess(elementAccess);
-  if (source === undefined) {
-    return {
-      kind: "missing",
-      reason: "The checker did not resolve an exact source element access.",
-    };
+  const publication = host.facts.objects.use(elementAccess);
+  if (publication.kind === "refused") return Object.freeze({ kind: "source-refused", refusal: publication });
+  const source = publication.value;
+  const resolution = resolveCsharpProviderMemberRelations(host, source);
+  if (resolution.kind === "missing") return { kind: "not-provider", source, reason: resolution.reason };
+  if (resolution.kind !== "resolved") return resolution;
+  const candidates: CsharpSelectedProviderElement[] = [];
+  for (const relation of resolution.relations) {
+    if (relation.kind !== "signature") continue;
+    const candidate = instantiateProviderElement(host, relation, source);
+    if (candidate.kind !== "represented") return candidate;
+    if (candidate.value !== undefined) candidates.push(candidate.value);
   }
-  const resolution = resolveCsharpProviderElementRelations(
-    host,
-    elementAccess,
-    sourceFile,
-  );
-  if (resolution.kind === "missing") {
-    return {
-      kind: "not-provider",
-      source,
-      reason: resolution.reason,
-    };
-  }
-  if (resolution.kind === "conflict") {
-    return { kind: "conflict", reason: resolution.reason };
-  }
-  if (resolution.kind === "rejected") {
-    return resolution;
-  }
-  const candidates = resolution.relations
-    .filter((relation) => relation.kind === "signature")
-    .map((relation) =>
-      instantiateProviderElement(host, relation, source, sourceFile))
-    .filter(
-      (candidate): candidate is CsharpSelectedProviderElement =>
-        candidate !== undefined,
-    );
-  if (candidates.length === 1) {
-    return { kind: "resolved", element: candidates[0]! };
-  }
-  if (candidates.length === 0) {
-    return {
-      kind: "missing",
-      reason:
-        "No related C# provider indexer satisfies the exact selected element access.",
-    };
-  }
-  return {
-    kind: "ambiguous",
-    reason:
-      "More than one C# target indexer satisfies the same exact selected provider element access.",
-    candidates: candidates.map((candidate) =>
-      `${candidate.relation.targetBinding.id}::${candidate.targetMember.id}`),
-  };
+  if (candidates.length === 1) return Object.freeze({ kind: "resolved", element: candidates[0]! });
+  return candidates.length === 0 ? { kind: "missing",
+    reason: "No related C# provider indexer satisfies the exact selected element access." }
+    : { kind: "ambiguous",
+      reason: "More than one C# target indexer satisfies the same exact selected provider element access.",
+      candidates: candidates.map(candidate => `${candidate.relation.targetBinding.id}::${candidate.targetMember.id}`) };
 }
 
 function instantiateProviderElement(
-  host: CsharpProviderCallSelectionHost,
-  relation: CsharpProviderSignatureRelation,
-  source: ResolvedSourceElementAccessInfo,
-  sourceFile: SourceFile,
-): CsharpSelectedProviderElement | undefined {
-  if (
-    relation.targetMember.kind !== "indexer" ||
-    relation.methodTypeParameters.length !== 0 ||
-    relation.parameters.length !== 1
-  ) {
-    return undefined;
-  }
+  host: CsharpProviderCallSelectionHost, relation: CsharpProviderSignatureRelation, source: SourceMemberUse,
+): CsharpRepresentationOutcome<CsharpSelectedProviderElement | undefined> {
+  if (relation.targetMember.kind !== "indexer" || relation.methodTypeParameters.length !== 0 ||
+    relation.parameters.length !== 1 || source.key.kind !== "present") return represented(undefined);
   const parameterRelation = relation.parameters[0]!;
-  if (
-    parameterRelation.sourceParameterIndex !== 0 ||
-    parameterRelation.sourcePassingMode !== "by-value" ||
-    parameterRelation.sourceAcceptsOmission ||
-    parameterRelation.sourceRest
-  ) {
-    return undefined;
+  if (parameterRelation.sourceParameterIndex !== 0 || parameterRelation.sourcePassingMode !== "by-value" ||
+    parameterRelation.sourceAcceptsOmission || parameterRelation.sourceRest) return represented(undefined);
+  const carriers: TargetTypeRef[] = [];
+  if ((relation.targetBinding.typeParameters?.length ?? 0) !== 0) {
+    const receiver = host.nativeValue(source.receiver.occurrence);
+    if (receiver.kind !== "represented") return receiver;
+    carriers.push(receiver.value);
   }
-  const targetMember = instantiateCsharpProviderBindingMember(
-    host.types,
-    relation.targetBinding,
-    relation.targetMember,
-    relation.bindingTypeParameters,
-    relation.bindingTypeArgumentSource === "receiver" ||
-        relation.bindingTypeArgumentSource === "callee"
-      ? [{
-          node: source.receiver.expression,
-          type: source.receiver.type,
-        }]
-      : [{
-          node: source.expression,
-          type: source.sourceReadType ?? source.sourceWriteType,
-        }],
-    sourceFile,
-  );
-  const targetParameter = targetMember?.parameters[
-    parameterRelation.targetParameterIndex
-  ];
-  if (
-    targetMember === undefined ||
-    targetParameter === undefined ||
-    targetParameter.passingMode !== parameterRelation.targetPassingMode ||
+  const targetMember = instantiateCsharpProviderBindingMember(relation.targetBinding, relation.targetMember,
+    relation.bindingTypeParameters, carriers);
+  if (targetMember === undefined) return represented(undefined);
+  const targetParameter = targetMember.parameters[parameterRelation.targetParameterIndex];
+  if (targetParameter === undefined || targetParameter.passingMode !== parameterRelation.targetPassingMode ||
     !providerReceiverMatchesElement(relation, source) ||
-    !csharpProviderElementSupportsAccess(targetMember, source.accessMode)
-  ) {
-    return undefined;
-  }
-  if (targetParameter.csharpAcceptsCheckedSourceArgument !== true) {
-    const sourceArgumentType = host.types.resolveValue(
-      source.argument.expression,
-      sourceFile,
-    );
-    if (sourceArgumentType === undefined) return undefined;
-    if (!targetTypeRefEquals(sourceArgumentType, targetParameter.type)) {
-      const selection: CsharpTargetElementSelection = { kind: "resolved", source, targetMember,
-        targetParameterIndex: parameterRelation.targetParameterIndex, receiver: relation.receiver,
-        invocation: { kind: "indexer" }, origin: "provider" };
-      const conversion = selectCsharpSourceTypeFlowIndexConversion(host.effectiveTypes.get(source.argument.expression),
-        { kind: "element", selection }, sourceArgumentType, targetParameter.type);
-      if (conversion !== undefined) return { source, relation, targetMember,
-        targetParameterIndex: parameterRelation.targetParameterIndex,
-        indexConversion: Object.freeze({ source: sourceArgumentType, target: targetParameter.type, selection: conversion }) };
-      return undefined;
-    }
-  }
-  return {
-    source,
-    relation,
-    targetMember,
-    targetParameterIndex: parameterRelation.targetParameterIndex,
-  };
+    !csharpProviderElementSupportsAccess(targetMember, source.access)) return represented(undefined);
+  const operand = source.key.value;
+  const key = host.nativeValue(operand.occurrence);
+  if (key.kind !== "represented") return key;
+  if (targetTypeRefEquals(key.value, targetParameter.type)) return represented(Object.freeze({
+    source, relation, targetMember, targetParameterIndex: parameterRelation.targetParameterIndex }));
+  const conversion = selectCsharpNativeIndexConversion(host.facts.descriptors, operand,
+    { kind: "index", occurrence: operand.occurrence, type: targetParameter.type, passingMode: targetParameter.passingMode },
+    key.value, targetParameter.type);
+  return conversion === undefined ? represented(undefined) : represented(Object.freeze({
+    source, relation, targetMember, targetParameterIndex: parameterRelation.targetParameterIndex,
+    indexConversion: Object.freeze({ source: key.value, target: targetParameter.type, selection: conversion }),
+  }));
 }
