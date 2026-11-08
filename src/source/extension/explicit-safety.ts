@@ -1,6 +1,6 @@
-import { tsonicSafetyBuilderFactKey, tsonicUnsafeContextFactKey, type TsonicSafetyBuilderFact, type TsonicUnsafeContextFact, type SourceSafetyProviderNames } from "@tsonic/source-core/facts";
+import { tsonicSafetyBuilderFactKey, tsonicUnsafeContextFactKey, type TsonicSafetyBuilderFact, type TsonicUnsafeContextFact } from "@tsonic/source-core/facts";
 import { type ExtensionFactSubject, type ReadonlySourceFactResolver, defineExtensionFactKey, type Node } from "@tsonic/tsts";
-import { csharpLangModule, csharpSourceSemanticsExtensionId } from "../../target-model/identities/source.js";
+import { csharpSourceSemanticsExtensionId } from "../../target-model/identities/source.js";
 
 export function readCsharpSourceUnsafeContext(
   sourceFacts: ReadonlySourceFactResolver | undefined,
@@ -22,17 +22,6 @@ export function readCsharpSourceSafetyBuilder(
 
 
 
-
-export const csharpSafetyProviderNames: SourceSafetyProviderNames =
-  Object.freeze({
-    moduleSpecifier: csharpLangModule,
-    unsafeContextExport: "unsafe",
-    safetyExport: "safety",
-    safetyBuilderExport: "__TsonicCsharpSafetyBuilder",
-    safetyMemberBuilderExport: "__TsonicCsharpSafetyMemberBuilder",
-  });
-
-export const csharpNativePointerExport = "ptr";
 
 export const csharpUnsafeContextFactKey =
   defineExtensionFactKey<TsonicUnsafeContextFact>({

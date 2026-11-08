@@ -28,7 +28,22 @@ test("the C# compilation session enforces one ordered lifecycle and idempotent c
     () => second.runtimeContributions(),
     /expected 'compiler-contributed'/u,
   );
-  second.sourceCompilerContributions();
+  const contributions = second.sourceCompilerContributions();
+  assert.equal("extensions" in contributions, false);
+  assert.equal(contributions.declarationProviders.some(provider => provider.identity.id === "tsonic.csharp.source-virtual-modules"), true);
+  assert.equal(contributions.safetyProviders.length, 1);
+  assert.deepEqual(contributions.safetyProviders[0], {
+    providerId: "tsonic.csharp.source-virtual-modules",
+    providerVersion: "0.0.1",
+    providerModuleId: "@tsonic/csharp/lang.js",
+    names: {
+      moduleSpecifier: "@tsonic/csharp/lang.js",
+      unsafeContextExport: "unsafe",
+      safetyExport: "safety",
+      safetyBuilderExport: "__TsonicCsharpSafetyBuilder",
+      safetyMemberBuilderExport: "__TsonicCsharpSafetyMemberBuilder",
+    },
+  });
   assert.throws(
     () => second.sourceCompilerContributions(),
     /expected 'profile-contributed'/u,

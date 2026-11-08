@@ -9,7 +9,8 @@ import { collectCsharpCapabilityContributions, createCapabilityDotnetProviders }
 import { createCsharpProviderRelationResolver } from "../providers/native/projection/relation-resolution.js";
 import { compileCsharpTarget } from "../backend/compile.js";
 import { createCsharpTargetConfiguration } from "./configuration.js";
-import { createCsharpSourceSemanticsExtension } from "../source/extension/source-extension.js";
+import { createCsharpSourceVirtualModulesProvider } from "../source/profiles/source-virtual-modules.js";
+import { csharpSourceSafetyProvider } from "../source/profiles/safety.js";
 import { csharpSourceSemanticsModules } from "../source/profiles/source-modules.js";
 import { csharpSourceProfileContributions } from "../source/profiles/declarations.js";
 import { csharpCoreRuntimeSource, csharpRuntimeSourceContributions } from "../providers/runtime/source-projects.js";
@@ -93,9 +94,8 @@ export function createCsharpCompilationSession(
       state = "compiler-contributed";
       return Object.freeze({
         semanticsModules: csharpSourceSemanticsModules(),
-        extensions: Object.freeze([
-          createCsharpSourceSemanticsExtension(sourceDeclarationProviders),
-        ]),
+        declarationProviders: Object.freeze([createCsharpSourceVirtualModulesProvider(), ...sourceDeclarationProviders]),
+        safetyProviders: Object.freeze([csharpSourceSafetyProvider]),
       });
     },
     runtimeContributions(): TargetRuntimeContributions {

@@ -3,7 +3,7 @@ import { createSourceSemanticsVirtualModuleProvider, nativePointerProviderDeclar
 import { tsonicCoreLangModule } from "@tsonic/source-core/facts";
 import { csharpLangModule, csharpProviderVersion, csharpSourceVirtualModulesProviderId } from "../../target-model/identities/source.js";
 import { csharpSourceSemanticsModules } from "./source-modules.js";
-import { csharpNativePointerExport, csharpSafetyProviderNames } from "../extension/explicit-safety.js";
+import { csharpNativePointerExport, csharpSourceSafetyProvider } from "./safety.js";
 import { csharpRankedArrayDescriptors } from "./ranked-arrays.js";
 
 export function createCsharpSourceVirtualModulesProvider(): SourceDeclarationProvider {
@@ -46,8 +46,8 @@ export function csharpProviderExportsForModule(
           csharpNativePointerExport,
         ),
         ...csharpRankedArrayProviderDeclarations(),
-        unsafeContextProviderDeclaration(csharpSafetyProviderNames),
-        ...safetyProviderDeclarations(csharpSafetyProviderNames),
+        unsafeContextProviderDeclaration(csharpSourceSafetyProvider.names),
+        ...safetyProviderDeclarations(csharpSourceSafetyProvider.names),
       ];
 }
 
