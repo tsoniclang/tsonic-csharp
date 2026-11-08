@@ -9,7 +9,6 @@ import { analyzeCsharpClassFactories } from "../project-types/class-factories.js
 import { analyzeCsharpClassInitialization } from "../project-types/class-initialization.js";
 
 import type { CsharpRequiredRecord } from "./records/objects/required-records.js";
-import { sourceDeclarationHasOnlyTypeUses, sourceDeclarationIsModuleScoped } from "@tsonic/target-api/source";
 import { analyzeCsharpExactLiteralSelections } from "../conversions/literal-plans.js";
 import { csharpRepresentationDiagnostic } from "../source-evidence/representations.js";
 
@@ -24,6 +23,7 @@ import { createCsharpProjectTypeCatalog } from "../project-types/catalog.js";
 import { createCsharpTypeDefinitionRegistry } from "../project-types/type-definitions.js";
 
 import { failTargetAnalysisInvariant, rejectedTargetStage, resolvedTargetStage } from "@tsonic/target-api/artifacts";
+import type { TargetStageResult } from "@tsonic/target-api/artifacts";
 
 import { createCsharpTypeAnalysis } from "./type-system.js";
 import type { CsharpTypeSystemHost } from "./type-system.js";
@@ -72,6 +72,36 @@ export interface CsharpRepresentationIterationHost extends Omit<CsharpTypeSystem
   readonly callOnlyAlias: CsharpPolicyContext["callOnlyAlias"];
 }
 
+export interface CsharpRepresentationAnalysis extends CsharpRepresentationContract {
+  readonly policy: CsharpPolicyContext;
+  readonly typeDefinitions: ReturnType<typeof createCsharpTypeDefinitionRegistry>;
+  readonly typeSystem: ReturnType<typeof createCsharpTypeAnalysis>;
+  readonly sourceEvidence: ReturnType<typeof analyzeCsharpSourceEvidence>["index"];
+  readonly nativeExpressionIssues: ReturnType<typeof analyzeCsharpSourceEvidence>["nativeExpressionIssues"];
+  readonly operations: ReturnType<typeof analyzeCsharpTargetOperations>;
+  readonly declarations: ReturnType<typeof analyzeCsharpDeclarations>;
+  readonly objectShapes: ReturnType<ReturnType<typeof analyzeCsharpObjectShapes>["seal"]>;
+  readonly expectedTypes: ReturnType<typeof analyzeCsharpExpectedTypes>;
+  readonly conversions: ReturnType<ReturnType<typeof analyzeCsharpConversions>["seal"]>;
+  readonly storage: ReturnType<typeof sealCsharpStorage>;
+  readonly optionalLocals: ReturnType<typeof analyzeCsharpOptionalLocals>;
+  readonly valueReads: ReturnType<ReturnType<typeof analyzeCsharpValueReadStages>["seal"]>;
+  readonly valueReadStages: ReturnType<typeof analyzeCsharpValueReadStages>["valueReadStages"];
+  readonly flowReads: ReturnType<typeof analyzeCsharpFlowReadProjections>;
+  readonly requiredRecords: CsharpRequiredRecord[];
+  readonly names: ReturnType<typeof createCsharpSourceNameBuilder>;
+  readonly attributes: ReturnType<typeof analyzeCsharpAttributeApplications>;
+  readonly classFactories: ReturnType<typeof analyzeCsharpClassFactories>;
+  readonly captureStorage: ReturnType<typeof analyzeCsharpCaptureStorage>;
+  readonly callableCreations: Extract<ReturnType<typeof analyzeCsharpCallableCreations>, { readonly kind: "resolved" }>["value"];
+  readonly nativeParticipation: Extract<ReturnType<typeof analyzeCsharpNativeParticipation>, { readonly kind: "resolved" }>["value"];
+  readonly classInitialization: ReturnType<typeof analyzeCsharpClassInitialization>;
+  readonly exactLiterals: Extract<ReturnType<typeof analyzeCsharpExactLiteralSelections>, { readonly kind: "represented" }>["value"];
+  readonly nativeDemand: ReturnType<typeof analyzeCsharpNativeDemand>;
+  readonly bindingPatterns: ReturnType<typeof admitCsharpBindingPatterns>;
+  readonly refLikeDiagnostics: ReturnType<typeof analyzeCsharpRefLikePlacements>;
+}
+
 export function analyzeCsharpRepresentationIteration(
   input: CsharpTargetAnalysisRequest["input"],
   providers: CsharpTargetAnalysisRequest["providers"],
@@ -82,7 +112,7 @@ export function analyzeCsharpRepresentationIteration(
   sourceStorage: SourceStorageQueries,
   statementErasure: Parameters<typeof analyzeCsharpTargetOperations>[2],
   previous: CsharpRepresentationContract | undefined,
-) {
+): TargetStageResult<CsharpRepresentationAnalysis> {
   const requiredRecords: CsharpRequiredRecord[] = [];
   const source = input.source;
   const names = createCsharpSourceNameBuilder(nameHost);
@@ -220,9 +250,18 @@ export function analyzeCsharpRepresentationIteration(
   const pendingInitializers = new Set(expectedUse.pending.filter(entry => entry.site.role === "initializer")
     .map(entry => entry.site.subject));
   for (const declaration of sourceStorage.nodes) {
-    if (!source.ast.is.IsVariableDeclaration(declaration) || source.ast.variableDeclarationKind(declaration) !== "const" ||
-      !sourceDeclarationIsModuleScoped(declaration, source.ast) || pendingInitializers.has(declaration) ||
-      !sourceDeclarationHasOnlyTypeUses(source.facts.navigation.declarationUseSummary(declaration))) continue;
+    if (!source.ast.is.IsVariableDeclaration(declaration) || source.ast.variableDeclarationKind(declaration) !== "const") continue;
+    const list = source.ast.parent(declaration);
+    const statement = list === undefined ? undefined : source.ast.parent(list);
+    const parent = statement === undefined ? undefined : source.ast.parent(statement);
+    if (list === undefined || !source.ast.is.IsVariableDeclarationList(list) || statement === undefined ||
+      !source.ast.is.IsVariableStatement(statement) || parent === undefined || !source.ast.is.IsSourceFile(parent) ||
+      pendingInitializers.has(declaration)) continue;
+    const summary = source.facts.navigation.declarationUseSummary(declaration);
+    const typeOnly = !summary.exported && !summary.bindingWritten && !summary.memberWritten &&
+      !summary.captured && summary.escapeKinds.length === 0 && summary.uses.length !== 0 &&
+      summary.uses.every(use => use.kind === "type-only" && use.role === "type-only" && !use.captured && !use.throughMember);
+    if (!typeOnly) continue;
     const initializer = source.ast.as.AsVariableDeclaration(declaration)?.Initializer;
     let use = initializerUses.get(declaration);
     if (initializer === undefined || use == null || use.expression !== initializer) continue;
@@ -321,5 +360,3 @@ export function representationContractsEqual(
     csharpStorageClassificationsEqual(left.storage, right.storage) &&
     csharpTypeProjectionIndexesEqual(left.typeProjections, right.typeProjections);
 }
-
-export type CsharpRepresentationAnalysis = Extract<ReturnType<typeof analyzeCsharpRepresentationIteration>, { readonly kind: "resolved" }>["value"];

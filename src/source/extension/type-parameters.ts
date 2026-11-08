@@ -1,5 +1,5 @@
 import type { AstReader, Node } from "@tsonic/tsts";
-import { sourceNodeIdentity } from "@tsonic/target-api/source";
+import { csharpSourceNodeIdentity } from "./identities.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 
 const typeParameterOwnerKinds = new Set([
@@ -15,7 +15,7 @@ export function csharpSourceTypeParameters(node: Node, ast: AstReader): readonly
 export function csharpSourceTypeParameter(declaration: Node, ast: AstReader): Extract<TargetTypeRef, { readonly kind: "type-parameter" }> | undefined {
   if (!ast.is.IsTypeParameterDeclaration(declaration)) return undefined;
   const nameNode = ast.name(declaration);
-  const identity = sourceNodeIdentity(ast, declaration);
+  const identity = csharpSourceNodeIdentity(ast, declaration);
   if (nameNode === undefined || identity === undefined) return undefined;
   const name = ast.text(nameNode);
   return name.length === 0 ? undefined : Object.freeze({ kind: "type-parameter", identity, name, csharpDeclaration: declaration });

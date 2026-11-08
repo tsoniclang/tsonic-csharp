@@ -1,7 +1,7 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetSelection } from "@tsonic/target-api";
 import type { SourceMemberOrigin, TargetSourceProgram } from "@tsonic/target-api/source";
-import { sourceNodeIdentity } from "@tsonic/target-api/source";
+import { csharpSourceNodeIdentity } from "../../source/extension/identities.js";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpProviderRelationResolver } from "../../providers/model/relation-resolver.js";
 import type { CsharpProjectTypeCatalog } from "../../target-model/records/types/project-types.js";
@@ -11,7 +11,6 @@ import type {
   CsharpRepresentationOutcome,
   CsharpRepresentationView,
   CsharpRepresentedType,
-  CsharpRepresentedTypeParameter,
   CsharpSourceRoleImplementation,
 } from "../../target-model/types/representation.js";
 import type { CsharpRepresentationHost, CsharpSourceMemberDeclaration } from "../../policy/types/source-type-flow/representation-host.js";
@@ -47,9 +46,10 @@ export function createCsharpNativeRepresentationHost(ports: CsharpNativeRepresen
   const host: CsharpRepresentationHost = {
     source: sourceView,
     applications: source.facts.applications,
+    providers,
     target: ports.target,
     identity(declaration) {
-      const identity = sourceNodeIdentity(ast, declaration);
+      const identity = csharpSourceNodeIdentity(ast, declaration);
       const name = ast.name(declaration);
       if (identity === undefined) failTargetAnalysisInvariant("tsonic-csharp",
         "An authenticated original Native representation root requires its canonical source identity.", declaration);
@@ -94,6 +94,7 @@ export function createCsharpNativeRepresentationHost(ports: CsharpNativeRepresen
             : Object.freeze({ kind: "pointer", pointee: pointee.value.carrier,
               mutability: selected.mutability === "readonly" ? "const" : "mut" }), pointee.value.requirements);
         }
+        if (selected.kind !== "function-pointer") throw new TypeError("A Native function pointer requires its exact published pointer kind.");
         const parameters: CsharpRepresentedType[] = [];
         for (const parameter of selected.parameters) {
           const value = ports.representation().represent(parameter, "storage", site);
@@ -227,8 +228,9 @@ export function createCsharpNativeRepresentationHost(ports: CsharpNativeRepresen
     if (binding.kind !== "resolved") return nativeRepresentationFailure(site, "CSHARP_INDEX_SIGNATURE_BINDING_MISSING",
       binding.kind === "missing" ? "The Native Dictionary binding is absent." : binding.diagnostic.message);
     const carrier = csharpTargetTypeFromBinding(binding.binding, arguments_);
-    return carrier?.kind !== "target-named" ? nativeRepresentationFailure(site, "CSHARP_INDEX_SIGNATURE_CARRIER_MISSING",
-      "The Native Dictionary binding has no physical indexed carrier.") : represented(csharpRecordDictionaryCarrier(carrier));
+    const dictionaryCarrier = carrier?.kind === "target-named" ? csharpRecordDictionaryCarrier(carrier) : undefined;
+    return dictionaryCarrier === undefined ? nativeRepresentationFailure(site, "CSHARP_INDEX_SIGNATURE_CARRIER_MISSING",
+      "The Native Dictionary binding has no physical indexed carrier.") : represented(dictionaryCarrier);
   }
 
   function memberDeclaration(origin: SourceMemberOrigin, site: Node): CsharpRepresentationOutcome<CsharpSourceMemberDeclaration> {

@@ -1,7 +1,7 @@
 import type { CsharpProjectTypeCatalog, CsharpProjectTypePolicy, CsharpProjectMemberTypeInstantiation, CsharpProjectTypeDefinitionSelection, CsharpProjectTypeDefinition, CsharpProjectTypeHeritage, CsharpProjectTypeIssue, CsharpProjectConstructorPolicy } from "../../target-model/records/types/project-types.js";
-import type { Node } from "@tsonic/tsts";
+import type { AstReader, Node } from "@tsonic/tsts";
 import type { TargetSourceProgram, SourceRefusal } from "@tsonic/target-api/source";
-import { sourceNodeIdentity } from "@tsonic/target-api/source";
+import { csharpSourceNodeIdentity } from "../../source/extension/identities.js";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { csharpProjectHeritageKindIssue } from "../../policy/types/project/relationships.js";
 import { csharpFreeTypeParameterIdentities, visitCsharpTargetTypeParameters } from "../../target-model/types/generic-references.js";
@@ -217,7 +217,7 @@ export function projectTypeDefinition(host: CsharpProjectTypeCatalogHost, declar
   if (!facts.navigation.isProjectDeclaration(declaration)) return { kind: "not-project-type" };
   const sourceFile = ast.getSourceFile(declaration);
   const name = ast.name(declaration);
-  const identity = sourceNodeIdentity(ast, declaration);
+  const identity = csharpSourceNodeIdentity(ast, declaration);
   const syntaxKind = ast.is.IsClassDeclaration(declaration) || ast.is.IsClassExpression(declaration) ? "class" as const
     : ast.is.IsInterfaceDeclaration(declaration) ? "interface" as const
     : ast.is.IsEnumDeclaration(declaration) ? "enum" as const : undefined;
@@ -256,7 +256,7 @@ export function projectTypeDefinition(host: CsharpProjectTypeCatalogHost, declar
   const own = published.filter(parameter => parameter.owner === declaration);
   const outer = published.filter(parameter => parameter.owner !== declaration);
   const typeParameterBindings = Object.freeze(published.map(parameter => {
-    const originalIdentity = sourceNodeIdentity(ast, parameter.declaration);
+    const originalIdentity = csharpSourceNodeIdentity(ast, parameter.declaration);
     const originalName = ast.name(parameter.declaration);
     if (originalIdentity === undefined || originalName === undefined) failTargetAnalysisInvariant("tsonic-csharp",
       "An original Source binder requires its canonical identity and authored Native name.", parameter.declaration);

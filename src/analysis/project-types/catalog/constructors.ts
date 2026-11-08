@@ -1,6 +1,6 @@
 import type { Node } from "@tsonic/tsts";
 import type { SourceNodeConstructorSignature, SourceProgramFacts } from "@tsonic/target-api/source";
-import { sourceNodeIdentity } from "@tsonic/target-api/source";
+import { csharpSourceNodeIdentity } from "../../../source/extension/identities.js";
 import type { CsharpProjectForwardingConstructor, CsharpProjectTypeDefinition, CsharpProjectTypeIssue } from "../../../target-model/records/types/project-types.js";
 import type { CsharpProviderRelationResolver } from "../../../providers/model/relation-resolver.js";
 import type { CsharpTargetMember, CsharpTargetNamedTypeRef, CsharpTargetParameter, TargetTypeRef } from "../../../target-model/types/model.js";
@@ -99,7 +99,7 @@ export function selectCsharpProjectForwardingConstructor(
     else if (omissionStarted) return issue("CSHARP_PROJECT_CONSTRUCTOR_OMISSION_UNSUPPORTED",
       "Forwarding constructor omission must form a complete trailing suffix.");
   }
-  const identity = sourceNodeIdentity(host.ast, declaration ?? source.identity.owner);
+  const identity = csharpSourceNodeIdentity(host.ast, declaration ?? source.identity.owner);
   if (identity === undefined) return issue("CSHARP_PROJECT_CONSTRUCTOR_IDENTITY_UNRESOLVED",
     "An inherited constructor requires its actual original Source identity, including implicit constructor ownership.");
   const targetMember: CsharpTargetMember = Object.freeze({

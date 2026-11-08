@@ -2,7 +2,8 @@ import { csharpCapturedPlaceContractsEqual } from "./captured-place-contract.js"
 import type { CsharpCaptureFrame, CsharpCaptureStorage, CsharpCapturedBinding, CsharpCaptureProtocol, CsharpConstructorCaptureProtocol, CsharpCapturedPlaceContract, CsharpNativeClosureCapture } from "../../../target-model/records/callables/capture-storage.js";
 import type { Node } from "@tsonic/tsts";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
-import { sourceCallableDefinitionIsDiscarded, sourceBindingScope, sourceNodeIdentity } from "@tsonic/target-api/source";
+import { sourceCallableDefinitionIsDiscarded, sourceBindingScope } from "@tsonic/target-api/source";
+import { csharpSourceNodeIdentity } from "../../../source/extension/identities.js";
 import { createHash } from "node:crypto";
 import type { CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpObjectShapeClassifications } from "../../../target-model/records/objects/object-shapes.js";
@@ -258,7 +259,7 @@ export function analyzeCsharpCaptureStorage(
     })));
     const implementations = Object.freeze([]);
     const selectedType = createStructuralObjectShapeTarget(members, implementations, environment);
-    const identity = sourceNodeIdentity(source.ast, scope);
+    const identity = csharpSourceNodeIdentity(source.ast, scope);
     if (identity === undefined || selectedType.kind !== "target-named") failTargetAnalysisInvariant("tsonic-csharp", "A native capture frame requires an exact named source identity.", scope);
     const digest = createHash("sha256").update(identity).digest("hex");
     const type = csharpTargetNamedType(`tsonic.shape:capture_${digest}`, selectedType.typeArguments, { kind: "named", name: `__TsonicCapture_${digest}` }, { allowsRefLikeTypeArguments: (selectedType.typeArguments ?? []).map(() => false),});
@@ -287,7 +288,7 @@ export function analyzeCsharpCaptureStorage(
     const captured = lexical.values.map(place => ({ declaration: place.declaration, type: place.type,
       initialization: place.initialization, shared: byBinding.get(place.declaration) }));
     const contract = getCsharpMethodValue(method.type)?.owner;
-    const identity = sourceNodeIdentity(source.ast, method.declaration);
+    const identity = csharpSourceNodeIdentity(source.ast, method.declaration);
     if (contract === undefined || identity === undefined || captured.some(binding => binding === undefined)) {
       issues.push({ node: method.declaration, code: "CSHARP_GENERIC_CALLABLE_OWNER_NOT_CLOSED",
         message: "A generic callable value requires its exact invocation protocol and captured owner fields." });
