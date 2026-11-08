@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import type { Node } from "@tsonic/tsts";
 import type { SourceSignatureIdentity } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
-import type { CsharpDelegateSignatureShape, CsharpNativeCallableMember, CsharpTargetNamedTypeRef, CsharpTargetParameter, TargetTypeRef } from "../../../target-model/types/model.js";
+import type { CsharpDelegateSignatureShape, CsharpTargetNamedTypeRef, CsharpTargetParameter, TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpRepresentationOutcome, CsharpRepresentedTypeParameter } from "../../../target-model/types/representation.js";
 import type { CsharpNativeCallableEmissionMember, CsharpNativeDelegateEmission, CsharpNativeDelegateRecords } from "../../../target-model/records/callables/native-delegates.js";
 import { targetTypeRefKey } from "../../../target-model/types/equality.js";
@@ -14,6 +14,7 @@ import { isCsharpVoidTargetType } from "../../../target-model/types/identity.js"
 import { createCsharpMetadataBudget } from "../../../target-model/metadata/immutable.js";
 import { represented } from "../../../policy/types/source-type-flow/representation-results.js";
 import type { CsharpTypeDefinitionRegistry } from "../../project-types/type-definitions.js";
+import type { CsharpNativeCallableQueries } from "../../../policy/model/type-resolution.js";
 
 export interface CsharpNativeCallableRequest {
   readonly source: SourceSignatureIdentity;
@@ -25,14 +26,9 @@ export interface CsharpNativeCallableRequest {
   readonly requirements: readonly CsharpRepresentedTypeParameter[];
 }
 
-export interface CsharpSelectedCallableMember extends CsharpNativeCallableMember {
-  readonly owner: TargetTypeRef;
-}
-
-export interface CsharpNativeDelegateRegistry {
+export interface CsharpNativeDelegateRegistry extends CsharpNativeCallableQueries {
   retain(requests: readonly CsharpNativeCallableRequest[], site: Node, storage: "value" | "contract"): CsharpRepresentationOutcome<TargetTypeRef>;
   inherit(carrier: TargetTypeRef, contracts: readonly TargetTypeRef[]): void;
-  member(carrier: TargetTypeRef, source: SourceSignatureIdentity): CsharpSelectedCallableMember | undefined;
   seal(): CsharpNativeDelegateRecords;
 }
 

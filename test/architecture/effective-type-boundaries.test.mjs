@@ -33,6 +33,16 @@ test("Native representation policy inputs own their data below analysis implemen
     assert.match(producer, /from ["']\.\.\/\.\.\/policy\/model\/type-resolution\.js["']/u, path);
     assert.doesNotMatch(producer, /export\s+(?:interface\s+Csharp(?:SourceRepresentationQueries|Represented)|type\s*\{)/u, path);
   }
+  const provider = readFileSync(join(root, "src/policy/model/provider-calls.ts"), "utf8");
+  assert.doesNotMatch(provider, /(?:from\s*["']|import\s*\(["'])[^"']*analysis\//u);
+  for (const name of ["CsharpObjectShapeRegistry", "CsharpSelectedCallableMember", "CsharpNativeCallableQueries"]) {
+    assert.match(model, new RegExp(`export interface ${name}\\b`, "u"), name);
+  }
+  const shapes = readFileSync(join(root, "src/analysis/objects/shapes/model.ts"), "utf8");
+  assert.doesNotMatch(shapes, /export interface CsharpObjectShapeRegistry\b/u);
+  const callables = readFileSync(join(root, "src/analysis/callables/native/native-delegates.ts"), "utf8");
+  assert.match(callables, /CsharpNativeDelegateRegistry extends CsharpNativeCallableQueries\b/u);
+  assert.doesNotMatch(callables, /export interface CsharpSelectedCallableMember\b/u);
 });
 
 for (const [label, text] of [

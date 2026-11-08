@@ -1,5 +1,5 @@
 import { csharpProviderBindingFromResolution } from "../../../../providers/model/relation-resolver.js";
-import type { CsharpObjectShapeRegistry } from "../../../objects/shapes/model.js";
+import type { CsharpObjectShapeRegistry } from "../../../../policy/model/type-resolution.js";
 import type { CsharpProviderRelationResolver } from "../../../../providers/model/relation-resolver.js";
 import type { CsharpTargetBindingFact, CsharpTargetMember, CsharpTargetTypeParameter, TargetConstraint, TargetTypeRef } from "../../../../target-model/types/model.js";
 import { csharpTargetBindingFact } from "../../../../target-model/types/model.js";

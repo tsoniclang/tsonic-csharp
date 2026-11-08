@@ -3,7 +3,7 @@ import type { TargetSelection } from "@tsonic/target-api";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
 import type { SourceStorageQueries } from "@tsonic/target-api/analysis";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
-import type { CsharpTypeQueries } from "../../policy/model/type-resolution.js";
+import type { CsharpObjectShapeRegistry, CsharpTypeQueries } from "../../policy/model/type-resolution.js";
 import type { CsharpTypeDefinitions } from "../../target-model/types/native-definitions.js";
 import type { CsharpTypeDefinitionRegistry } from "../project-types/type-definitions.js";
 import type { CsharpProviderRelationResolver } from "../../providers/model/relation-resolver.js";
@@ -13,7 +13,6 @@ import type { CsharpObjectMethodSources } from "../../target-model/records/nativ
 import type { CsharpProjectTypeCatalogBuilder } from "../project-types/catalog.js";
 import type { CsharpProjectTypeCatalog, CsharpProjectTypePolicy } from "../../target-model/records/types/project-types.js";
 import type { CsharpNativeConstructionDemandQueries } from "../../target-model/records/native/native-construction.js";
-import type { CsharpObjectShapeRegistry } from "../objects/shapes/model.js";
 import type { CsharpNativeDelegateRegistry } from "../callables/native/native-delegates.js";
 import type { CsharpSourceRoleRegistry } from "../project-types/source-roles.js";
 import { createCsharpRepresentationView } from "../../policy/types/source-type-flow/representation.js";
