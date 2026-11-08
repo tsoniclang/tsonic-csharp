@@ -4,13 +4,13 @@ import type { TargetTypeRef } from "../../../target-model/types/native-type-data
 import type { CsharpConversionSelection } from "../../../target-model/conversions/selection.js";
 import type { CsharpDelegateContract } from "../../../target-model/records/callables/callable-conversions.js";
 import type { CsharpArgument, CsharpExpression, CsharpStatement, CsharpTypeNode } from "../../target-ast/syntax/index.js";
-import type { CsharpPlanningContext } from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 import type { CsharpPlannedCallable } from "./planned-values.js";
-import type { applyCsharpConversionSelection } from "./conversions.js";
+import type { CsharpConversionApplier } from "../planning-data.js";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { consumeCsharpPlannedValue, planCsharpVoidReturn } from "../statements/statement-output.js";
-import { planCsharpExpressionCompletion } from "./planned-value-composition.js";
+import { planCsharpExpressionCompletion } from "./expression-completions.js";
 
 interface RenderedDelegateContract extends CsharpDelegateContract {
   readonly sourceType: TargetTypeRef;
@@ -23,7 +23,7 @@ type DelegateLambda = Extract<CsharpExpression, { readonly kind: "LambdaExpressi
 
 export function planCsharpDelegateAdapter(node: Node, sourceFile: SourceFile, input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[], sourceType: TargetTypeRef | undefined, targetType: TargetTypeRef | undefined,
-  selection: DelegateSelection, expression: CsharpExpression, convert: typeof applyCsharpConversionSelection,
+  selection: DelegateSelection, expression: CsharpExpression, convert: CsharpConversionApplier,
   prelude: CsharpStatement[], operandStability: "stable" | "snapshot", operand?: CsharpPlannedCallable): CsharpExpression | undefined {
   if (operandStability !== "stable" && operandStability !== "snapshot")
     failCsharpPlannerInvariant("A native delegate conversion requires its exact operand stability.", node);
@@ -58,7 +58,7 @@ export function planCsharpDelegateAdapter(node: Node, sourceFile: SourceFile, in
 
 export function planCsharpDelegateAdaptationBody(node: Node, sourceFile: SourceFile, input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[], sourceType: TargetTypeRef, targetType: TargetTypeRef, selection: DelegateSelection,
-  callee: CsharpExpression, convert: typeof applyCsharpConversionSelection): DelegateLambda | undefined {
+  callee: CsharpExpression, convert: CsharpConversionApplier): DelegateLambda | undefined {
   if (selection.strategy !== "adaptation") failCsharpPlannerInvariant("An admitted retained delegate method requires its selected adaptation strategy.", node);
   const contract = requiredContract(node, input, sourceType, targetType, selection);
   const method = contract.members.source.name;
@@ -69,7 +69,7 @@ export function planCsharpDelegateAdaptationBody(node: Node, sourceFile: SourceF
 
 function buildAdaptation(node: Node, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
   selection: DelegateSelection, contract: RenderedDelegateContract, callee: CsharpExpression,
-  convert: typeof applyCsharpConversionSelection, local?: { readonly name: string; readonly expression: DelegateLambda }): DelegateLambda | undefined {
+  convert: CsharpConversionApplier, local?: { readonly name: string; readonly expression: DelegateLambda }): DelegateLambda | undefined {
   const sourceSignature = contract.members.source.signature;
   const targetSignature = contract.members.target.signature;
   const type = (carrier: TargetTypeRef): CsharpTypeNode => csharpTypeFromTargetTypeRef(carrier, input.scope.typeParameterNames)

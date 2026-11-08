@@ -1,5 +1,5 @@
 import { isCsharpThrowableType } from "../../project-types/throwable-types.js";
-import type { CsharpCallableParameterAdapter, CsharpCallableValueAdapter } from "../../../target-model/records/callables/callable-adapters.js";
+import type { CsharpCallableParameterAdapter, CsharpCallableValueAdapter } from "../../../target-model/records/callables/callable-inputs.js";
 import type { CsharpPolicyContext } from "../../../policy/model/context.js";
 import { selectCsharpConversion } from "../../../policy/conversions/core.js";
 import { csharpConversionIsApplicable } from "../../../policy/conversions/applicability.js";

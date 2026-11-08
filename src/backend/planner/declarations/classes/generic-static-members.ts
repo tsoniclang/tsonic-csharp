@@ -1,8 +1,8 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpClassDeclaration } from "../../../target-ast/syntax/index.js";
-import type { CsharpPlanningContext } from "../../context.js";
-import { createCsharpMemberPlanningContext } from "../../context.js";
+import type { CsharpPlanningContext } from "../../planning-data.js";
+import { createCsharpMemberPlanningContext } from "../../scopes.js";
 import { planClassMembers } from "./members.js";
 import { planClassInitializationRegion } from "./initializers.js";
 import { failCsharpPlannerInvariant } from "../../diagnostics.js";

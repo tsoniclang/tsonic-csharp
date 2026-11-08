@@ -1,7 +1,7 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpExpression, CsharpMethodDeclaration, CsharpParameter, CsharpStatement } from "../../../target-ast/syntax/index.js";
-import type { CsharpPlanningContext } from "../../context.js";
+import type { CsharpPlanningContext } from "../../planning-data.js";
 import { isCsharpVoidTargetType } from "../../../../target-model/types/index.js";
 import { planCsharpCallableArguments } from "../callables/parameter-adapters.js";
 import { applyCsharpConversionSelection } from "../../expressions/conversions.js";

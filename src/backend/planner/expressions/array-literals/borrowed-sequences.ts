@@ -3,13 +3,13 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpBorrowedSequenceInput } from "../../../../target-model/records/storage/borrowed-sequences.js";
 import type { TargetTypeRef } from "../../../../target-model/types/native-type-data.js";
 import type { CsharpExpression, CsharpStatement } from "../../../target-ast/syntax/index.js";
-import type { CsharpPlanningContext } from "../../context.js";
+import type { CsharpPlanningContext } from "../../planning-data.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/render.js";
 import { csharpVoidTargetType } from "../../../../target-model/types/carriers/scalar-types.js";
 import { planCsharpPresentValueGuard } from "../optional-storage.js";
 import type { CsharpPlannedValue } from "../planned-values.js";
 import { csharpPlannedEffect } from "../planned-values.js";
-import type { CsharpArraySpreadInput } from "./spread-source.js";
+import type { CsharpArraySpreadInput } from "./types.js";
 import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 
 export function planCsharpBorrowedSequenceConsumption(node: Node, fact: CsharpBorrowedSequenceInput,

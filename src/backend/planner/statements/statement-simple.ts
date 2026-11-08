@@ -1,4 +1,4 @@
-import type { CsharpPlanningContext } from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 import {
   AsBreakStatement,
   AsBinaryExpression,
@@ -17,15 +17,13 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpStatement,
 } from "../../target-ast/syntax/index.js";
-import type {
-  DestructuringPlannerState,
-} from "../bindings/index.js";
+import type { DestructuringPlannerState } from "../planning-data.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import {
   isDestructuringAssignmentExpression,
   planDestructuringAssignmentStatement,
 } from "../bindings/destructuring-assignment.js";
-import { planExpression } from "../expressions/index.js";
+
 import {
   csharpThrownValueFromExpression,
   isExactUnmodifiedCatchRethrow,
@@ -44,7 +42,7 @@ import {
   consumeCsharpPlannedValue,
   planCsharpPlannedDiscard,
 } from "./statement-output.js";
-import { planCsharpExpressionCompletion } from "../expressions/planned-value-composition.js";
+import { planCsharpExpressionCompletion } from "../expressions/expression-completions.js";
 import {
   convertCsharpYieldResumeExpression,
   planCsharpYieldValue,
@@ -98,7 +96,7 @@ export function planReturnStatement(
           type: returnType,
           nullForgiving: true,
         }, state.generator.protocol.returnType)
-      : planExpression(statement.Expression, sourceFile, input, diagnostics, state
+      : input.dispatch.planExpression(statement.Expression, sourceFile, input, diagnostics, state
         );
     if (expression === undefined) {
       return failCsharpPlannerInvariant("An admitted generator return requires its native completion value.", node);
@@ -122,7 +120,7 @@ export function planReturnStatement(
   if (completion === undefined) failCsharpPlannerInvariant("An admitted return requires its sealed native completion.", node);
   const expectedReturnExpressionTargetType = completion.target;
   if (completion.kind !== "value" && statement.Expression !== undefined) {
-    const value = planExpression(statement.Expression, sourceFile, input, diagnostics, state);
+    const value = input.dispatch.planExpression(statement.Expression, sourceFile, input, diagnostics, state);
     if (value === undefined) failCsharpPlannerInvariant("An admitted void return requires its native operand plan.", statement.Expression);
     return planCsharpVoidReturn(value, completion.kind, expectedReturnExpressionTargetType, input);
   }
@@ -131,7 +129,7 @@ export function planReturnStatement(
   }
   const expression = statement.Expression === undefined
     ? undefined
-    : planExpression(statement.Expression, sourceFile, input, diagnostics, state);
+    : input.dispatch.planExpression(statement.Expression, sourceFile, input, diagnostics, state);
   if (statement.Expression !== undefined && expression === undefined) {
     return failCsharpPlannerInvariant("An admitted return requires its native operand plan.", statement.Expression);
   }
@@ -215,7 +213,7 @@ export function planThrowStatement(
   if (type === undefined) {
     return failCsharpPlannerInvariant("An admitted throw lost its selected native error type rendering.", statement.Expression);
   }
-  const expression = planExpression(statement.Expression, sourceFile, input, diagnostics, state);
+  const expression = input.dispatch.planExpression(statement.Expression, sourceFile, input, diagnostics, state);
   if (expression === undefined) {
     return failCsharpPlannerInvariant("An admitted throw requires its native operand plan.", statement.Expression);
   }
@@ -299,7 +297,7 @@ export function planExpressionStatement(
       }
       state.expressionOverrides.set(rightYield, yieldPlan.resumeExpression);
       try {
-        const planned = planExpression(expression, sourceFile, input, diagnostics, state);
+        const planned = input.dispatch.planExpression(expression, sourceFile, input, diagnostics, state);
         if (planned === undefined) failCsharpPlannerInvariant("An admitted yield assignment requires its native value plan.", expression);
         return [...yieldPlan.statements, ...planCsharpPlannedDiscard(planned)];
       } finally {
@@ -309,12 +307,12 @@ export function planExpressionStatement(
   }
   const assignmentExpression = destructuringAssignmentExpressionStatementExpression(expression, input.program.source.ast);
   if (isDestructuringAssignmentExpression(assignmentExpression, input)) {
-    const planned = planDestructuringAssignmentStatement(assignmentExpression, sourceFile, input, diagnostics, state ?? createDestructuringPlannerState(assignmentExpression, input.program.source.ast), planExpression);
+    const planned = planDestructuringAssignmentStatement(assignmentExpression, sourceFile, input, diagnostics, state ?? createDestructuringPlannerState(assignmentExpression, input.program.source.ast), input.dispatch.planExpression);
     if (planned === undefined) failCsharpPlannerInvariant("An admitted destructuring assignment requires its native value plan.", assignmentExpression);
     return planned;
   }
   if (expression === undefined) failCsharpPlannerInvariant("An admitted expression statement requires its checked operand.", node);
-  const planned = planExpression(expression!, sourceFile, input, diagnostics, state);
+  const planned = input.dispatch.planExpression(expression!, sourceFile, input, diagnostics, state);
   if (planned === undefined) failCsharpPlannerInvariant("An admitted expression statement requires its native value plan.", expression);
   return planCsharpPlannedDiscard(planned);
 }

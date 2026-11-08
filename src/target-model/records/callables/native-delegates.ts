@@ -1,5 +1,6 @@
 import type { Node } from "@tsonic/tsts";
-import type { CsharpDelegateSignatureShape, CsharpTargetNamedTypeRef, CsharpTargetParameter } from "../../types/model.js";
+import type { CsharpTargetNamedTypeRef, CsharpTargetParameter } from "../../types/model.js";
+import type { CsharpDelegateSignatureShape } from "../../types/native-type-data.js";
 import type { CsharpRepresentedTypeParameter } from "../../types/native-type-data.js";
 
 export interface CsharpNativeCallableEmissionMember {

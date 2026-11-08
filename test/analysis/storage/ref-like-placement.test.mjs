@@ -5,7 +5,7 @@ import { executeCsharpConstruction } from "../../helpers/native-construction.mjs
 import { nativeRefLikeFixture } from "../../helpers/native-ref-like-fixture.mjs";
 import { csharpTargetNamedType } from "../../../dist/target-model/types/factories.js";
 import { isCsharpTargetTypeRef, snapshotCsharpTargetTypes } from "../../../dist/target-model/types/snapshot.js";
-import { validateDotnetTypeParameters } from "../../../dist/providers/native/model/normalization/dotnet-signatures.js";
+import { validateDotnetTypeParameters } from "../../../dist/providers/native/model/normalization/dotnet-signature-types.js";
 
 const imports = `import type { int32 } from "@tsonic/core/types.js";
 import { Span } from "@tsonic/dotnet/System.js";`;
@@ -117,7 +117,7 @@ test("native method and type parameter boundaries require an actual allows-ref-s
 });
 
 test("constraint carriers use their single exact source or native producer without missing-proof fallthrough", async () => {
-  const { implementedConstraintType } = await import("../../../dist/policy/conversions/carriers.js");
+  const { implementedConstraintType } = await import("../../../dist/policy/constraints/native-relations.js");
   const integer = { kind: "source-primitive", name: "int32" };
   const parameter = { kind: "type-parameter", identity: "Proof.Contract:0", name: "Value" };
   const declaration = {};
@@ -173,7 +173,6 @@ export function fail(): boolean { return ${expression} === 7; }` });
 test("native ref-like fields are refused on an inferred reflected object without numeric carrier inference", () => {
   const { capability } = nativeRefLikeFixture();
   const compiled = compileCsharpSource({ capabilities: [capability], sourceText: `
-import { Lease } from "@fixture/ref-like/RefLikeProof.js";
 export function fail(): boolean { const holder = { value: new Lease(7) }; return holder.value.Value === 7; }
 ` });
   assert.equal(compiled.sourceDiagnosticsText, "", "the reflected inferred object is checked source");
@@ -186,7 +185,6 @@ export function fail(): boolean { const holder = { value: new Lease(7) }; return
 test("native method allows-ref-struct anti-constraints preserve actual Span-style borrowing", { timeout: 240_000 }, () => {
   const { capability, project } = nativeRefLikeFixture();
   const compiled = compileCsharpSource({ capabilities: [capability], sourceText: `
-import { Lease, Methods } from "@fixture/ref-like/RefLikeProof.js";
 function identity<Value>(value: Value): Value { return value; }
 export function run(): boolean { return Methods.Allowed<Lease>(new Lease(7)) === 7 && Methods.Allowed(new Lease(9)) === 7 && identity(11) === 11; }` });
   assert.equal(compiled.sourceDiagnosticsText, "", "the actual allowed native method is source-checked");

@@ -1,7 +1,7 @@
-import type { CsharpPlanningContext } from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { ExpressionPlanner } from "./expression-planner-types.js";
+import type { ExpressionPlanner } from "../planning-data.js";
 import { translateCsharpJsValueInvocation } from "./js-value-operations.js";
 import { mapCsharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
 import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/carriers/scalar-types.js";

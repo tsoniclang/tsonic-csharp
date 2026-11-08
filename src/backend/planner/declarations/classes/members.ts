@@ -1,4 +1,4 @@
-import type { CsharpPlanningContext } from "../../context.js";
+import type { CsharpPlanningContext } from "../../planning-data.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
@@ -26,10 +26,10 @@ import {
   planPropertyDeclaration,
 } from "./properties.js";
 import { planCsharpMutableMethod } from "./mutable-methods.js";
-import { classFactoryContext } from "./factories.js";
+import { classFactoryContext } from "./factory-environments.js";
 import { planCsharpProjectCallableAdapters } from "./callable-adapters.js";
 import type { CsharpClassInitializationRegion } from "./initializers.js";
-import { completeLocalClassConstructor } from "./factories.js";
+import { completeLocalClassConstructor } from "./factory-environments.js";
 
 export interface CsharpPlannedClassMembers {
   readonly members: readonly CsharpTypeMember[];

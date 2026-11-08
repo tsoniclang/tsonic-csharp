@@ -2,8 +2,8 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpOptionalLocalOperation, CsharpOptionalLocalPlacement, CsharpOptionalLocalValue } from "../../../target-model/records/storage/local-bindings.js";
 import type { CsharpExpression, CsharpStatement, CsharpTypeNode } from "../../target-ast/syntax/index.js";
-import type { CsharpPlanningContext } from "../context.js";
-import type { DestructuringPlannerState } from "../bindings/index.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
+import type { DestructuringPlannerState } from "../planning-data.js";
 import { allocateExpressionTemp } from "../bindings/binding-state.js";
 import { csharpSourcePrimitiveTargetType, csharpVoidTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";
@@ -11,7 +11,7 @@ import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { planCsharpPlannedDiscard } from "../statements/statement-output.js";
 import { csharpPlannedEffect, csharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
 import { planCsharpValueBranch } from "./planned-value-composition.js";
-import type { ExpressionPlanner } from "./expression-planner-types.js";
+import type { ExpressionPlanner } from "../planning-data.js";
 
 const identifier = (name: string): CsharpExpression => ({ kind: "IdentifierName", name });
 const assignment = (name: string, expression: CsharpExpression): CsharpStatement => ({ kind: "ExpressionStatement",

@@ -10,7 +10,7 @@ import type { Node } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../types/index.js";
 import type { CsharpConversionShapeQueries } from "./shape-queries.js";
 import { selectCsharpUnionArmMapping, selectCsharpUnionInjection } from "./union-relations.js";
-import { selectCsharpRuntimeUnionProjection, selectDelegateConversion } from "./carriers.js";
+import { selectCsharpRuntimeUnionProjection, selectDelegateConversion } from "./core.js";
 import { selectCsharpGuardedIntegerConversion } from "./integer-refinement.js";
 import { isCsharpRefLikeTargetType } from "../../target-model/types/ref-like.js";
 

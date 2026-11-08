@@ -1,107 +1,15 @@
-import type {
-  CsharpPlanningContext } from "../context.js";
+import type { DestructuringPlannerState, ResourceScopeSyntheticNames, GeneratorSyntheticNames, GeneratorDelegationSyntheticNames, ForInSyntheticNames, StringIterationSyntheticNames } from "../planning-data.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 import { csharpIdentifierFragment, tryCsharpIdentifier } from "../../../target-model/names/identifiers.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
-import type { CsharpExpression, CsharpStatement, CsharpTypeNode } from "../../target-ast/syntax/index.js";
+import type { CsharpExpression } from "../../target-ast/syntax/index.js";
 import type { AstReader,
   Node,
 } from "@tsonic/tsts";
-import type { TargetTypeRef } from "../../../target-model/types/index.js";
-import type { CsharpGeneratorProtocol } from "../../../target-model/types/index.js";
 import {
   KindIdentifier,
   Node_Text,
 } from "@tsonic/target-api/source";
-
-export interface DestructuringPlannerState {
-  readonly captureFrameNames: Map<Node, string>;
-  readonly parent?: DestructuringPlannerState;
-  nextTempIndex: number;
-  nextParameterIndex: number;
-  nextForOfIndex: number;
-  nextForInIndex: number;
-  nextCatchIndex: number;
-  nextControlLabelIndex: number;
-  nextTypedLocationIdentityIndex: number;
-  nextGeneratorIndex: number;
-  nextGeneratorDelegationIndex: number;
-  nextResourceScopeIndex: number;
-  explicitUnsafeContextDepth: number;
-  usedNames: Set<string>;
-  localBindingNames: WeakMap<object, string>;
-  typedLocationIdentityNames: WeakMap<object, string>;
-  expressionOverrides: WeakMap<object, CsharpExpression>;
-  readonly predeclaredNativeBindings: Set<Node>;
-  controlLabels: ControlLabelTarget[];
-  readonly loopContinuations: CsharpLoopContinuation[];
-  currentReturnType?: CsharpTypeNode;
-  currentReturnTypeSubject?: Node;
-  currentReturnExpressionType?: CsharpTypeNode;
-  currentReturnExpressionTypeSubject?: Node;
-  currentReturnExpressionTargetType?: TargetTypeRef;
-  currentUndefinedReturn?: boolean;
-  generator?: CsharpGeneratorPlannerContext;
-  resourceScope?: CsharpResourceScopePlannerContext;
-}
-
-export interface CsharpGeneratorPlannerContext {
-  readonly declaration: Node;
-  readonly controllerName: string;
-  readonly returnValueName: string;
-  readonly exitLabel: string;
-  readonly protocol: CsharpGeneratorProtocol;
-}
-
-export interface CsharpResourceScopePlannerContext {
-  readonly kind: "sync" | "async";
-  readonly continuations: Map<CsharpStatement, CsharpStatement[]>;
-}
-
-export interface ResourceScopeSyntheticNames {
-  readonly errorName: string;
-  readonly caughtErrorName: string;
-  readonly disposalErrorName: string;
-}
-
-export interface GeneratorSyntheticNames {
-  readonly controllerName: string;
-  readonly iteratorName: string;
-  readonly returnValueName: string;
-  readonly exitLabel: string;
-}
-
-export interface GeneratorDelegationSyntheticNames {
-  readonly generatorName: string;
-  readonly resultName: string;
-}
-
-export interface ControlLabelTarget {
-  readonly source: Node;
-  readonly breakLabel: string;
-  readonly continueLabel?: string;
-  readonly loop?: Node;
-  readonly loopBody?: Node;
-  breakUsed?: boolean;
-  continueUsed?: boolean;
-  continueOwned?: boolean;
-}
-
-export interface CsharpLoopContinuation {
-  readonly loop: Node;
-  label?: string;
-  used: boolean;
-}
-
-export interface ForInSyntheticNames {
-  readonly indexName: string;
-  readonly collectionName: string;
-  readonly keysName: string;
-}
-
-export interface StringIterationSyntheticNames {
-  readonly collectionName: string;
-  readonly indexName: string;
-}
 
 export function createDestructuringPlannerState(root?: Node, ast?: AstReader): DestructuringPlannerState {
   const usedNames = new Set<string>();

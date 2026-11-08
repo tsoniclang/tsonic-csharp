@@ -6,10 +6,10 @@ import { executeCsharpConstruction } from "../../helpers/native-construction.mjs
 import { analyzeCsharpProjectCallableAdapters } from "../../../dist/analysis/project-types/callable-adapters.js";
 import { selectCsharpStructuralInterfaceImplementation } from "../../../dist/policy/types/objects/structural-implementation.js";
 import { csharpTargetNamedType } from "../../../dist/target-model/types/factories.js";
-import { csharpVariantArgumentImplicitlyAccepts, namedTargetTypeImplicitlyAccepts } from "../../../dist/policy/conversions/carriers.js";
+import { csharpVariantArgumentImplicitlyAccepts, namedTargetTypeImplicitlyAccepts } from "../../../dist/policy/constraints/native-relations.js";
 import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { csharpStringTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
-import { unexpectedNativeDispatchRead, emptyNativeDispatch, integer, number, nativePolicy, propertyFixture, nativeVarianceFixture, covariantSource, covariantObserver, readonlySource, nativeObserver } from "./structural-property-forwarding.fixtures.mjs";
+import { emptyNativeDispatch, integer, number, nativePolicy, propertyFixture, nativeVarianceFixture, covariantSource, covariantObserver, readonlySource, nativeObserver } from "./structural-property-forwarding.fixtures.mjs";
 
 test("readonly native property admission publishes the single exact conversion and lookup-only evidence", () => {
   const value = propertyFixture();

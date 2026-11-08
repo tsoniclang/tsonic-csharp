@@ -2,7 +2,7 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpObjectShapeFact, CsharpTargetParameter } from "../../../../target-model/types/model.js";
 import { isCsharpVoidTargetType } from "../../../../target-model/types/identity.js";
 import type { CsharpExpression, CsharpParameter, CsharpStatement, CsharpTypeMember } from "../../../target-ast/syntax/index.js";
-import type { CsharpPlanningContext } from "../../context.js";
+import type { CsharpPlanningContext } from "../../planning-data.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/render.js";
 import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import { planCsharpCallableArguments } from "../callables/parameter-adapters.js";

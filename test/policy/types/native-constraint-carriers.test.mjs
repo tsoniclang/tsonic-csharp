@@ -1,10 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {
-  csharpTargetTypeSatisfiesNativeConstraint,
-  implementedConstraintType,
-  namedTargetTypeImplicitlyAccepts,
-} from "../../../dist/policy/conversions/carriers.js";
+import { csharpTargetTypeSatisfiesNativeConstraint, implementedConstraintType, namedTargetTypeImplicitlyAccepts } from "../../../dist/policy/constraints/native-relations.js";
 import { csharpTargetNamedType } from "../../../dist/target-model/types/factories.js";
 import { csharpSourcePrimitiveDotnetMetadataName } from "../../../dist/target-model/types/carriers/scalar-types.js";
 

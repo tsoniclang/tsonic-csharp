@@ -1,14 +1,14 @@
-import type { CsharpPlanningContext } from "../../context.js";
+import type { CsharpPlanningContext } from "../../planning-data.js";
 import { AsParameterDeclaration } from "@tsonic/target-api/source";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpExpression, CsharpParameter, CsharpStatement, CsharpTypeNode } from "../../../target-ast/syntax/index.js";
 import { allocateSyntheticParameter, createDestructuringPlannerState, declareCsharpLocalBindingName, planParameterBindingPrelude } from "../../bindings/index.js";
 import { planAttributesForSubject } from "../attributes.js";
-import type { DestructuringPlannerState } from "../../bindings/index.js";
+import type { DestructuringPlannerState } from "../../planning-data.js";
 import { csharpTypeFromTargetTypeRefWithObjectShapeDeclarations } from "../../types/target-type-object-shapes.js";
 import { failCsharpPlannerInvariant } from "../../diagnostics.js";
-import { planExpression } from "../../expressions/index.js";
+
 import { planCsharpRuntimeParameterDefault } from "./defaults.js";
 import { consumeCsharpPlannedValue } from "../../statements/statement-output.js";
 import { planCsharpParameterStorageDeclaration } from "../../bindings/typed-location-identities.js";
@@ -100,7 +100,7 @@ function planParameterDefaultValue(selected: CsharpParameterDefaultEmission, typ
     case "null": return { kind: "LiteralExpression", value: null };
     case "default": return { kind: "DefaultExpression", type, nullForgiving: true };
     case "literal": {
-      const value = planExpression(selected.expression, sourceFile, input, diagnostics, state);
+      const value = input.dispatch.planExpression(selected.expression, sourceFile, input, diagnostics, state);
       if (value === undefined || value.completion.kind !== "value" || value.prelude.length !== 0)
         failCsharpPlannerInvariant("An admitted constant parameter default requires its exact native literal expression.", selected.expression);
       return value.completion.expression;

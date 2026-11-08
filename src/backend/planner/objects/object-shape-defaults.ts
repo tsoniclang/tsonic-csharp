@@ -1,12 +1,12 @@
-import type { CsharpPlanningContext } from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpExpression,
   CsharpTypeNode,
 } from "../../target-ast/syntax/index.js";
-import type { DestructuringPlannerState } from "../bindings/binding-state.js";
-import type { ExpressionPlanner } from "../expressions/expression-planner-types.js";
+import type { DestructuringPlannerState } from "../planning-data.js";
+import type { ExpressionPlanner } from "../planning-data.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { planCsharpBindingDefaultValue } from "../bindings/optional-values.js";

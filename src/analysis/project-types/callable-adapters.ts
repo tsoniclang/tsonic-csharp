@@ -2,7 +2,7 @@ import { failTargetAnalysisInvariant, rejectedTargetStage, resolvedTargetStage, 
 import type { Node } from "@tsonic/tsts";
 import { sourceObjectMemberDeclarations, sourceParameterIsProperty } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import { namedTargetTypeImplicitlyAccepts } from "../../policy/conversions/carriers.js";
+import { namedTargetTypeImplicitlyAccepts } from "../../policy/constraints/native-relations.js";
 import { csharpNativeCallableArtifact } from "../callables/native/artifacts.js";
 import type { CsharpProjectCallableAdapter, CsharpProjectCallableAdapters, CsharpProjectCallableDispatch } from "../../target-model/records/callables/callable-adapters.js";
 import type { CsharpDeclarationClassifications } from "../../target-model/records/program/declarations.js";
@@ -12,7 +12,8 @@ import type { SourceCallableSourceContract } from "../../target-model/records/ca
 import { csharpDelegateSignatureHasSupportedPassingModes, getCsharpDelegateSignature } from "../../target-model/types/carriers/delegates.js";
 import { scopedTargetTypeRefKey, targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/equality.js";
 import type { TargetTypeRef, CsharpTypeParameterConstraint } from "../../target-model/types/native-type-data.js";
-import type { CsharpStructuralInterfaceImplementation, CsharpTargetNamedTypeRef, CsharpTargetParameter } from "../../target-model/types/model.js";
+import type { CsharpTargetNamedTypeRef, CsharpTargetParameter } from "../../target-model/types/model.js";
+import type { CsharpStructuralInterfaceImplementation } from "../../target-model/records/objects/structural-interfaces.js";
 import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../target-model/types/object-shape-members.js";
 import { substituteTargetTypeParameters } from "../../target-model/types/substitution.js";
 import { admitCsharpCallableParameterAdapters, admitCsharpCallableResultAdapter, admitCsharpCallableValueAdapter, type CsharpCallableConversionPolicy } from "../callables/native/adapters.js";

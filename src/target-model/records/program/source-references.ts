@@ -1,7 +1,7 @@
 import type { Node } from "@tsonic/tsts";
 import type { SourceNodeReference } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../types/native-type-data.js";
-import type { CsharpDelegateSignatureShape } from "../../types/model.js";
+import type { CsharpDelegateSignatureShape } from "../../types/native-type-data.js";
 
 export type CsharpIdentifierEmission =
   | { readonly kind: "frame"; readonly declaration: Node }

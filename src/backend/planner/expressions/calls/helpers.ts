@@ -1,7 +1,7 @@
 import { csharpTypeFromTargetTypeRef } from "../../types/render.js";
 import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import type { CsharpArgument, CsharpExpression, CsharpTypeNode } from "../../../target-ast/syntax/index.js";
-import type { CsharpPlanningContext } from "../../context.js";
+import type { CsharpPlanningContext } from "../../planning-data.js";
 import type { TargetTypeRef } from "../../../../target-model/types/native-type-data.js";
 import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";

@@ -1,8 +1,9 @@
+import type { CsharpBindingPatternAnalysisInput } from "./binding-pattern-model.js";
 import { createCsharpDestructuringAssignmentAnalysis } from "./destructuring-assignments.js";
 import { createCsharpBindingPatternProducer } from "../program/records/storage/binding-patterns.js";
 import type { AstReader, Node, SourceFile } from "@tsonic/tsts";
 import { csharpNativePropertyNameIssue } from "../objects/computed-field-names.js";
-import { sourceTypeDescriptorStructure, type SourceFileSemantics, type SourceEffectiveTypes, type SourceTypeDescriptor } from "@tsonic/target-api/source";
+import { sourceTypeDescriptorStructure, type SourceTypeDescriptor } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { tryCsharpIdentifier } from "../../target-model/names/identifiers.js";
 import { getCsharpNullableElementTargetType, isCsharpValueTypeTargetType, targetTypeRefEquals } from "../../target-model/types/index.js";
@@ -22,12 +23,6 @@ import {
   KindVariableDeclarationList,
   Node_Text,
 } from "@tsonic/target-api/source";
-import type { CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
-import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
-import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
-import type { CsharpValueReadClassifications } from "../../target-model/records/operations/conversions.js";
-import type { CsharpNativeParticipationInput } from "../../target-model/records/native/native-demand.js";
-import type { CsharpExpectedNativeUse } from "../../target-model/records/native/native-demand.js";
 import type {
   CsharpBindingElementProjection,
   CsharpBindingPatternClassifications,
@@ -45,28 +40,9 @@ import {
 } from "../../target-model/types/index.js";
 import type { CsharpObjectShapeFact, TargetTypeRef } from "../../target-model/types/index.js";
 import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/objects/required-records.js";
-import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import type { CsharpStorageClassifications } from "../../target-model/records/storage/storage.js";
 import { selectCsharpConversion } from "../../policy/conversions/core.js";
 import { admitCsharpConversionSelection } from "../conversions/validation.js";
 import { resolveCsharpBindingSourceType } from "./binding-source-types.js";
-
-export interface CsharpBindingPatternAnalysisInput {
-  readonly ast: AstReader;
-  readonly effectiveTypes: SourceEffectiveTypes;
-  readonly sourceFacts?: CsharpPolicyContext["sourceFacts"];
-  readonly semanticsFor: (node: Node) => SourceFileSemantics;
-  readonly sourceFiles: readonly SourceFile[];
-  readonly participation: CsharpNativeParticipationInput["participation"];
-  readonly evidence: CsharpSourceEvidenceIndex;
-  readonly operations: CsharpTargetOperationClassifications;
-  readonly valueReads: CsharpValueReadClassifications;
-  readonly initializerUses: Pick<ReadonlyMap<object, Pick<CsharpExpectedNativeUse, "expression" | "carrier"> | null>, "get">;
-  readonly objectShapes: CsharpObjectShapeClassifications;
-  readonly typePolicy: Pick<CsharpPolicyContext["types"], "resolveNode">;
-  readonly conversionPolicy: Parameters<typeof selectCsharpConversion>[0];
-  readonly storage: Pick<CsharpStorageClassifications, "storageType">;
-}
 
 export interface CsharpBindingPatternCandidate extends CsharpBindingPatternIssue {
   readonly root: Node;

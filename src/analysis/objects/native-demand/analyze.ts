@@ -19,7 +19,8 @@ import type { CsharpNativeValueCarriers } from "../../../target-model/records/na
 import type { CsharpSourceEvidenceIndex } from "../../../target-model/records/program/source-evidence.js";
 import type { CsharpFlowReadClassifications } from "../../../target-model/records/program/source-evidence.js";
 import type { CsharpNativeDiscardedPresence, CsharpNativeParticipationInput, CsharpNativeUse } from "../../../target-model/records/native/native-demand.js";
-import type { CsharpCallableParameterAdapter, CsharpCallableValueAdapter, CsharpProjectCallableAdapters } from "../../../target-model/records/callables/callable-adapters.js";
+import type { CsharpProjectCallableAdapters } from "../../../target-model/records/callables/callable-adapters.js";
+import type { CsharpCallableParameterAdapter, CsharpCallableValueAdapter } from "../../../target-model/records/callables/callable-inputs.js";
 import type { CsharpFinalStructuralInterfaceImplementation } from "../../../target-model/records/objects/heritage.js";
 import type { CsharpDefaultValueContract } from "../../../target-model/records/objects/value-projections.js";
 import type { CsharpTargetCallSelection } from "../../../target-model/records/operations/member-selections.js";

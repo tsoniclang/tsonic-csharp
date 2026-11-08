@@ -10,7 +10,7 @@ import { getCsharpNullableElementTargetType } from "../../../target-model/types/
 import { csharpSourcePrimitiveDotnetMetadataName } from "../../../target-model/types/carriers/scalar-types.js";
 import { csharpBaseTargetTypeFromBinding } from "../storage/bindings.js";
 import { targetBindingSubstitutions } from "../../conversions/provider-operators.js";
-import { implementedConstraintType } from "../../conversions/carriers.js";
+import { implementedConstraintType } from "../../constraints/native-relations.js";
 
 export type CsharpNativeTypeRelationHost = Pick<CsharpPolicyContext, "typeDefinitions" | "projectTypes" | "providers"> & CsharpConversionShapeQueries;
 

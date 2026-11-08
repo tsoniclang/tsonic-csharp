@@ -1,25 +1,12 @@
-import type { CsharpNativeMemoryLayout } from "../../operations/native-memory.js";
+import type { CsharpNativeArrayStorage, CsharpNativeObjectField } from "../native/storage-data.js";
 import type { TargetTypeRef } from "../../types/native-type-data.js";
 import type { Node } from "@tsonic/tsts";
-
-export interface CsharpNativeObjectField {
-  readonly owner: TargetTypeRef;
-  readonly memberName: string;
-  readonly storageName: string;
-  readonly layout: CsharpNativeMemoryLayout;
-}
 
 export interface CsharpStorageIssue {
   readonly node: Node;
   readonly code: string;
   readonly message: string;
   readonly source?: string;
-}
-
-export interface CsharpNativeArrayStorage {
-  readonly kind: "binding" | "reference" | "literal" | "element";
-  readonly layout: CsharpNativeMemoryLayout;
-  readonly stride: bigint;
 }
 
 export interface CsharpStorageClassifications extends CsharpStorageRepresentationClassifications {

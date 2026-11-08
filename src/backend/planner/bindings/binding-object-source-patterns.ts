@@ -1,11 +1,11 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpExpression, CsharpStatement } from "../../target-ast/syntax/index.js";
-import type { CsharpPlanningContext } from "../context.js";
-import type { DestructuringPlannerState } from "./binding-state.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
+import type { DestructuringPlannerState } from "../planning-data.js";
 import type { BindingProjectionPlanner } from "./binding-pattern-contracts.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
-import type { ExpressionPlanner } from "../expressions/expression-planner-types.js";
+import type { ExpressionPlanner } from "../planning-data.js";
 import { planCsharpBindingDefaultValue } from "./optional-values.js";
 import { consumeCsharpPlannedValue } from "../statements/statement-output.js";
 import { planNativePropertyRead } from "../expressions/native-property-reads.js";

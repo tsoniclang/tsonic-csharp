@@ -8,13 +8,9 @@ import type {
   CsharpExpression,
 } from "../../target-ast/syntax/index.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
-import type {
-  ExpressionPlanner,
-} from "./expression-planner-types.js";
+import type { ExpressionPlanner } from "../planning-data.js";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";
-import type {
-  CsharpPlanningContext,
-} from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 import {
   translateCsharpSelectedReceiver,
 } from "./receivers.js";
@@ -22,7 +18,8 @@ import { applyCsharpConversionSelection, readCsharpExpressionOperandStability } 
 import { csharpRecordOptionalRead } from "../objects/indexed-records.js";
 import { planCsharpUnionProperty } from "./union-properties.js";
 import { mapCsharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
-import { planCsharpExpressionCompletion, projectCsharpPlannedValue, projectCsharpPlannedMember } from "./planned-value-composition.js";
+import { projectCsharpPlannedValue, projectCsharpPlannedMember } from "./planned-value-composition.js";
+import { planCsharpExpressionCompletion } from "./expression-completions.js";
 import { csharpPlannedAddressOperand } from "./planned-locations.js";
 import { readCsharpNativeExpressionCarrier } from "./native-uses.js";
 import { translateCsharpSourceOwnedMember } from "./source-owned-members.js";

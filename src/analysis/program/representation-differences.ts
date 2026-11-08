@@ -1,5 +1,5 @@
 import type { AstReader, Node } from "@tsonic/tsts";
-import type { CsharpRepresentationContract } from "./iteration.js";
+import type { CsharpRepresentationContract } from "./model.js";
 import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
 import { targetTypeRefKey } from "../../target-model/types/equality.js";
 import { csharpCallableValueType } from "../../policy/types/callables/value-type.js";

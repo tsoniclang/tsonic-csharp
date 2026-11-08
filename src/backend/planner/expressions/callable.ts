@@ -1,4 +1,4 @@
-import type { CsharpPlanningContext } from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 import {
   AsArrowFunction,
   AsFunctionExpression,
@@ -26,14 +26,12 @@ import {
   declareCsharpLocalBindingName,
   allocateSyntheticParameter,
 } from "../bindings/index.js";
-import type {
-  DestructuringPlannerState,
-} from "../bindings/index.js";
+import type { DestructuringPlannerState } from "../planning-data.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
-import { planBlockStatements } from "../statements/index.js";
+
 import { planCsharpCaptureFrame, planCsharpCaptureEntryBindings } from "../bindings/capture-storage.js";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";
-import type { ExpressionPlanner } from "./expression-planner-types.js";
+import type { ExpressionPlanner } from "../planning-data.js";
 import {
   csharpVoidTargetType,
 } from "../../../target-model/types/index.js";
@@ -50,7 +48,7 @@ import { consumeCsharpPlannedValue, planCsharpVoidReturn, planCsharpAbsenceRetur
 import { readCsharpNativeDiscardEvaluation } from "./native-uses.js";
 import type { CsharpPlannedValue } from "./planned-values.js";
 import { csharpPlannedEffect } from "./planned-values.js";
-import { planCsharpExpressionCompletion } from "./planned-value-composition.js";
+import { planCsharpExpressionCompletion } from "./expression-completions.js";
 import { planCsharpLocalLambdaCreation } from "./lambda-creation.js";
 import { allocateUnusedParameter, getCsharpLocalBindingName, redirectCsharpParameterStorage } from "../bindings/binding-state.js";
 
@@ -278,7 +276,7 @@ function planCsharpFunctionLambdaBody(
   entryPrelude: readonly CsharpStatement[], generator: boolean,
 ): CsharpBlock | undefined {
   if (generator) {
-    const planned = planCsharpGeneratorFunction(node, bodyNode, sourceFile, input, diagnostics, state, entryPrelude, planBlockStatements);
+    const planned = planCsharpGeneratorFunction(node, bodyNode, sourceFile, input, diagnostics, state, entryPrelude, input.dispatch.planBlockStatements);
     return planned?.body;
   }
   return planLambdaBlockBody(node, bodyNode, sourceFile, input, diagnostics, state, targetContext, returnContext, entryPrelude);
@@ -341,7 +339,7 @@ export function planLambdaBlockBody(
     lambdaState.currentReturnExpressionTargetType = returnContext.returnExpressionTargetType;
   }
   try {
-    const statements = planBlockStatements(bodyNode, sourceFile, input, diagnostics, lambdaState, entryPrelude);
+    const statements = input.dispatch.planBlockStatements(bodyNode, sourceFile, input, diagnostics, lambdaState, entryPrelude);
     return { kind: "Block", statements: [...statements,
       ...(returnContract?.kind === "resolved" && returnContract.fallthroughUndefined
         ? [planCsharpAbsenceReturn(lambdaState.currentReturnExpressionTargetType, input)] : [])] };

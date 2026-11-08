@@ -14,7 +14,7 @@ import { csharpPlannedEffect } from "../expressions/planned-values.js";
 import { csharpVoidTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";
-import type { CsharpPlanningContext } from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 
 export function consumeCsharpPlannedValue(
   planned: CsharpPlannedValue,

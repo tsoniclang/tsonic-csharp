@@ -1,9 +1,10 @@
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import { csharpUnionReferenceImplicitlyAccepts, selectCsharpRuntimeUnionProjection } from "../../policy/conversions/carriers.js";
+import { csharpUnionReferenceImplicitlyAccepts } from "../../policy/constraints/native-relations.js";
+import { selectCsharpRuntimeUnionProjection } from "../../policy/conversions/core.js";
 import type { CsharpConversionSelection, CsharpNativeCallableApplication } from "../../target-model/conversions/selection.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
-import type { CsharpNativeCallableMember } from "../../target-model/types/model.js";
+import type { CsharpNativeCallableMember } from "../../target-model/types/native-type-data.js";
 import { csharpUnionPathsEqual } from "../../target-model/types/union-relations.js";
 import { csharpUnionArmMappingsMatch } from "../../policy/conversions/union-relations.js";
 import { csharpMetadataDescriptors } from "../../target-model/metadata/immutable.js";

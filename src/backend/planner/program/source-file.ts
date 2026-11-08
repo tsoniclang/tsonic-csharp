@@ -1,7 +1,7 @@
-import type { CsharpPlanningContext } from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 import { planCsharpNativeMemberHiding } from "../declarations/modifiers.js";
 import { planGenericClassStaticMembers } from "../declarations/classes/generic-static-members.js";
-import { createCsharpMemberPlanningContext } from "../context.js";
+import { createCsharpMemberPlanningContext } from "../scopes.js";
 import {
   AsExportAssignment,
   KindClassDeclaration,
@@ -49,13 +49,13 @@ import {
 } from "./module-initialization-names.js";
 import { planClassDeclaration, planEnumDeclaration, planFunctionDeclaration, planInterfaceDeclaration } from "../declarations/index.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
-import { planExpression } from "../expressions/index.js";
+
 import { planClassFactoryDeclaration, planClassFactoryIdentity } from "../declarations/classes/factories.js";
 import { sanitizeIdentifier } from "../../../target-model/names/identifiers.js";
 import { readNamespace } from "../project/project-options.js";
 import { isProviderVirtualSourceFile } from "./provider-virtual-source-files.js";
 import { sourceFileClassName } from "../artifacts/source-paths.js";
-import { planStatements } from "../statements/index.js";
+
 import { createDestructuringPlannerState } from "../bindings/index.js";
 import {
   finalizeCsharpCompilationUnit,
@@ -417,7 +417,7 @@ function planExportAssignment(
   }
   const name = sanitizeIdentifier("default");
   const type = getCsharpTypeForNode(assignment.Expression, sourceFile, input, diagnostics);
-  const planned = planExpression(assignment.Expression, sourceFile, input, diagnostics);
+  const planned = input.dispatch.planExpression(assignment.Expression, sourceFile, input, diagnostics);
   if (planned === undefined) return undefined;
   statements.push(...consumeCsharpPlannedValue(planned, value => [topLevelFieldAssignment(name, value)]));
   return topLevelBindingMember(name, type, "public",

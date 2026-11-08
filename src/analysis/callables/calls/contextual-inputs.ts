@@ -1,7 +1,7 @@
 import type { CsharpPolicyContext } from "../../../policy/model/context.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { SourceCallableSourceContract } from "../../../target-model/records/callables/source-callable-contract.js";
-import type { CsharpCallableParameterAdapter } from "../../../target-model/records/callables/callable-adapters.js";
+import type { CsharpCallableParameterAdapter } from "../../../target-model/records/callables/callable-inputs.js";
 import { getCsharpLambdaSignature } from "../../../target-model/types/carriers/delegates.js";
 import { getCsharpJsArrayElementTargetType } from "../../../target-model/types/carriers/collections.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";

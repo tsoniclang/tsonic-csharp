@@ -1,4 +1,4 @@
-import type { CsharpPlanningContext } from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 import { AsForInOrOfStatement } from "@tsonic/target-api/source";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
@@ -14,15 +14,9 @@ import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import {
   allocateStringIterationNames,
 } from "../bindings/index.js";
-import type {
-  DestructuringPlannerState,
-} from "../bindings/index.js";
-import {
-  planExpression,
-} from "../expressions/index.js";
-import type {
-  NestedStatementPlanner,
-} from "./model.js";
+import type { DestructuringPlannerState } from "../planning-data.js";
+
+import type { NestedStatementPlanner } from "../planning-data.js";
 import {
   add,
   and,
@@ -66,7 +60,7 @@ export function planStringCodePointForOfStatement(
   const bindingIdentifier = { kind: "IdentifierName", name: binding.name } satisfies CsharpExpression;
   const collectionIdentifier = { kind: "IdentifierName", name: collectionName } satisfies CsharpExpression;
   const indexIdentifier = { kind: "IdentifierName", name: indexName } satisfies CsharpExpression;
-  const collectionExpression = planExpression(statement.Expression, sourceFile, input, diagnostics);
+  const collectionExpression = input.dispatch.planExpression(statement.Expression, sourceFile, input, diagnostics);
   const surrogatePairTest = stringHasSurrogatePairAt(input.scope.typeParameterNames, collectionIdentifier, indexIdentifier, selectedIteration, statementNode);
   if (collectionExpression === undefined) {
     return failCsharpPlannerInvariant("Admitted string iteration requires its collection value plan.", statement.Expression);

@@ -1,5 +1,4 @@
-import type {
-  CsharpPlanningContext } from "../../context.js";
+import type { CsharpPlanningContext } from "../../planning-data.js";
 import { planCsharpNativeArray } from "../native-memory.js";
 import {
   AsArrayLiteralExpression,

@@ -11,7 +11,7 @@ import type { CsharpTargetCallSelection } from "../../target-model/records/opera
 import type { ResolvedSourceCallInfo } from "../../target-model/records/calls/source-calls.js";
 import type { CsharpSourceArgumentGrouping } from "../../target-model/records/operations/operations.js";
 import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
-import type { CsharpExpectedUseCollection } from "./collection.js";
+import type { CsharpExpectedUseCollection } from "./model.js";
 import type { CsharpExpectedTypeAnalysisInput, CsharpExpectedUseSiteDemand, CsharpExpectedUseWithholding } from "./model.js";
 import { csharpNativeShiftCountType } from "../../policy/conversions/native-index.js";
 

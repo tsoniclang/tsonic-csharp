@@ -1,8 +1,9 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpLambdaParameter, CsharpStatement, CsharpTypeNode } from "../../target-ast/syntax/index.js";
-import type { CsharpPlanningContext } from "../context.js";
-import { allocateSyntheticParameter, planParameterBindingPrelude, type DestructuringPlannerState } from "../bindings/index.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
+import { allocateSyntheticParameter, planParameterBindingPrelude } from "../bindings/index.js";
+import { type DestructuringPlannerState } from "../planning-data.js";
 import { csharpTypeFromTargetTypeRefWithObjectShapeDeclarations } from "../types/target-type-object-shapes.js";
 import { applyCsharpConversionSelection } from "./conversions.js";
 import { planCsharpRuntimeParameterDefault } from "../declarations/callables/defaults.js";

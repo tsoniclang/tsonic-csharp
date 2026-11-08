@@ -1,7 +1,8 @@
 import type { CsharpStatement } from "../../target-ast/syntax/index.js";
 import type { Node } from "@tsonic/tsts";
-import type { CsharpPlanningContext } from "../context.js";
-import { declareCsharpLocalBindingName, type DestructuringPlannerState } from "../bindings/binding-state.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
+import { declareCsharpLocalBindingName } from "../bindings/binding-state.js";
+import { type DestructuringPlannerState } from "../planning-data.js";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 

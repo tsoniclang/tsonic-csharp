@@ -1,4 +1,4 @@
-import type { CsharpPlanningContext } from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { planSourceFile, type PlannedCsharpSourceFile } from "../program/source-file.js";
 import { planCsharpObjectShapeSourceFile } from "../objects/planning.js";

@@ -14,7 +14,7 @@ import type { CsharpTypeDefinitionRegistry } from "./type-definitions.js";
 import { csharpTargetTypeFromBinding } from "../../policy/types/storage/bindings.js";
 import { csharpNativeCallableTargetMember } from "../../target-model/types/native-declaration-operations.js";
 import { csharpSourcePrimitiveTargetType } from "../../target-model/types/carriers/scalar-types.js";
-import type { CsharpNativeCallableMember } from "../../target-model/types/model.js";
+import type { CsharpNativeCallableMember } from "../../target-model/types/native-type-data.js";
 import type { CsharpNativeDeclaration } from "../../target-model/types/native-declarations.js";
 
 export interface CsharpSourceRoleRegistry {

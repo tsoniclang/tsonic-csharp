@@ -2,12 +2,12 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpNativeLocationSelection } from "../../../target-model/records/native/native-locations.js";
 import type { CsharpExpression, CsharpStatement } from "../../target-ast/syntax/index.js";
-import type { CsharpPlanningContext } from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 import type { CsharpPlannedValue, CsharpPlannedAddressOperand, CsharpPlannedCapture, CsharpPlannedLocationCapture } from "./planned-values.js";
 import { csharpPlannedValue } from "./planned-values.js";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
-import { captureCsharpPlannedValue } from "./planned-value-composition.js";
+import { captureCsharpPlannedValue } from "./value-captures.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
 type NativeLocation = Extract<CsharpNativeLocationSelection, { readonly kind: "resolved" }>;

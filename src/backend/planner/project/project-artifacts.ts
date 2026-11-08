@@ -1,4 +1,4 @@
-import type { CsharpPlanningContext } from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 import type { CsharpProjectFile, CsharpProjectPlan } from "../../../target-model/project/emission.js";
 import {
   readAssemblyName,

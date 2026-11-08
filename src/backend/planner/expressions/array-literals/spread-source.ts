@@ -1,27 +1,11 @@
+import type { CsharpPlannedArraySpreadInput } from "./types.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { TargetTypeRef } from "../../../../target-model/types/native-type-data.js";
-import type { CsharpConversionSelection } from "../../../../target-model/conversions/selection.js";
-import type { CsharpPlanningContext } from "../../context.js";
-import type { CsharpExpression, CsharpTypeNode } from "../../../target-ast/syntax/index.js";
-import type { ExpressionPlanner } from "../expression-planner-types.js";
+import type { CsharpPlanningContext } from "../../planning-data.js";
+import type { ExpressionPlanner } from "../../planning-data.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/render.js";
-import type { CsharpPlannedValue } from "../planned-values.js";
 import { failCsharpPlannerInvariant } from "../../diagnostics.js";
-import type { CsharpSequenceEmission } from "../../../../target-model/records/operations/array-literals.js";
-
-export interface CsharpArraySpreadInput {
-  readonly carrier: TargetTypeRef;
-  readonly type: CsharpTypeNode;
-  readonly expression: CsharpExpression;
-  readonly elements: readonly { readonly carrier: TargetTypeRef; readonly type: CsharpTypeNode; readonly conversion: CsharpConversionSelection }[];
-  readonly lengthMember: string | undefined;
-  readonly sequence: CsharpSequenceEmission;
-}
-
-export interface CsharpPlannedArraySpreadInput extends CsharpPlannedValue {
-  readonly source: Omit<CsharpArraySpreadInput, "expression">;
-}
 
 export function planCsharpArraySpreadInput(node: Node, expression: Node, sourceFile: SourceFile,
   input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], elementTarget: TargetTypeRef,

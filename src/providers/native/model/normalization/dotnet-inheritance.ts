@@ -1,5 +1,5 @@
 import type { DotnetInheritedMemberDeclaration, DotnetTypeDeclaration, DotnetTypeRef } from "../types.js";
-import { validateDotnetTypeRef } from "./dotnet-types.js";
+import { validateDotnetTypeRef } from "./dotnet-signature-types.js";
 import { requireNonEmptyString, requireSupportedDiscriminant, requireUnique, supportedPassingModes, type ContractCollector } from "./support.js";
 
 const memberKinds = new Set(["method", "property", "field", "event", "type"]);

@@ -3,22 +3,19 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type {
-  CsharpPlanningContext,
-} from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 import type {
   CsharpExpression,
 } from "../../target-ast/syntax/index.js";
-import type {
-  DestructuringPlannerState,
-} from "../bindings/index.js";
-import type { ExpressionPlanner } from "./expression-planner-types.js";
+import type { DestructuringPlannerState } from "../planning-data.js";
+import type { ExpressionPlanner } from "../planning-data.js";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { csharpRuntimeRawPointerTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { csharpNativeSizeLiteral, planCsharpNativeMemoryCall } from "./native-memory.js";
 import { mapCsharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
-import { buildCsharpPlannedValue, planCsharpExpressionCompletion, projectCsharpPlannedValue } from "./planned-value-composition.js";
+import { buildCsharpPlannedValue, projectCsharpPlannedValue } from "./planned-value-composition.js";
+import { planCsharpExpressionCompletion } from "./expression-completions.js";
 import { readCsharpNativeExpressionCarrier } from "./native-uses.js";
 import type { CsharpNativeHandler } from "../../../target-model/records/native/native-handlers.js";
 

@@ -1,3 +1,4 @@
+import type { CsharpRepresentationAnalysis, CsharpRepresentationContract } from "./model.js";
 import { rejectCsharpAnalysisIssues } from "./issues.js";
 import { csharpProviderBindingFromResolution } from "../../providers/model/relation-resolver.js";
 import type { SourceFile } from "@tsonic/tsts";
@@ -13,7 +14,6 @@ import { analyzeCsharpExactLiteralSelections } from "../conversions/literal-plan
 import { csharpRepresentationDiagnostic } from "../source-evidence/representations.js";
 
 import { analyzeCsharpTypeProjections, csharpTypeProjectionIndexesEqual } from "../declarations/type-projections.js";
-import { type CsharpGenericProjectionIndex } from "../../target-model/records/types/type-projections.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { isCsharpStringTargetType } from "../../target-model/types/identity.js";
 
@@ -39,14 +39,12 @@ import { analyzeCsharpSourceEvidence } from "../source-evidence/index.js";
 import { analyzeCsharpDeclarations } from "../declarations/index.js";
 import { createCsharpSourceNameBuilder } from "../names/index.js";
 import { analyzeCsharpCallableContracts, csharpCallableContractIndexesEqual } from "../callables/index.js";
-import type { CsharpCallableContractIndex } from "../../target-model/records/callables/callable-values.js";
 import { analyzeCsharpObjectShapes } from "../objects/index.js";
 import { analyzeCsharpConversions } from "../conversions/index.js";
 
 import { analyzeCsharpExpectedTypes } from "../expected-types/index.js";
 import { analyzeCsharpStorage, prepareCsharpStorage, sealCsharpStorage } from "../storage/index.js";
 import { csharpStorageClassificationsEqual } from "../storage/contracts.js";
-import type { CsharpStorageClassifications } from "../../target-model/records/storage/storage.js";
 
 import { type SourceStorageQueries } from "@tsonic/target-api/analysis";
 
@@ -60,46 +58,10 @@ import { analyzeCsharpValueReadStages } from "../conversions/value-read-stages.j
 import { analyzeCsharpFlowReadProjections } from "../conversions/flow-read-projections.js";
 import { analyzeCsharpOptionalLocals } from "../storage/optional-locals.js";
 
-export interface CsharpRepresentationContract {
-  readonly typeProjections: CsharpGenericProjectionIndex;
-  readonly callables: CsharpCallableContractIndex;
-  readonly storage: CsharpStorageClassifications;
-}
-
 export interface CsharpRepresentationIterationHost extends Omit<CsharpTypeSystemHost, "typeDefinitions" | "nativeValue"> {
   readonly moduleCallables: CsharpPolicyContext["moduleCallables"];
   readonly literals: CsharpPolicyContext["literals"];
   readonly callOnlyAlias: CsharpPolicyContext["callOnlyAlias"];
-}
-
-export interface CsharpRepresentationAnalysis extends CsharpRepresentationContract {
-  readonly policy: CsharpPolicyContext;
-  readonly typeDefinitions: ReturnType<typeof createCsharpTypeDefinitionRegistry>;
-  readonly typeSystem: ReturnType<typeof createCsharpTypeAnalysis>;
-  readonly sourceEvidence: ReturnType<typeof analyzeCsharpSourceEvidence>["index"];
-  readonly nativeExpressionIssues: ReturnType<typeof analyzeCsharpSourceEvidence>["nativeExpressionIssues"];
-  readonly operations: ReturnType<typeof analyzeCsharpTargetOperations>;
-  readonly declarations: ReturnType<typeof analyzeCsharpDeclarations>;
-  readonly objectShapes: ReturnType<ReturnType<typeof analyzeCsharpObjectShapes>["seal"]>;
-  readonly expectedTypes: ReturnType<typeof analyzeCsharpExpectedTypes>;
-  readonly conversions: ReturnType<ReturnType<typeof analyzeCsharpConversions>["seal"]>;
-  readonly storage: ReturnType<typeof sealCsharpStorage>;
-  readonly optionalLocals: ReturnType<typeof analyzeCsharpOptionalLocals>;
-  readonly valueReads: ReturnType<ReturnType<typeof analyzeCsharpValueReadStages>["seal"]>;
-  readonly valueReadStages: ReturnType<typeof analyzeCsharpValueReadStages>["valueReadStages"];
-  readonly flowReads: ReturnType<typeof analyzeCsharpFlowReadProjections>;
-  readonly requiredRecords: CsharpRequiredRecord[];
-  readonly names: ReturnType<typeof createCsharpSourceNameBuilder>;
-  readonly attributes: ReturnType<typeof analyzeCsharpAttributeApplications>;
-  readonly classFactories: ReturnType<typeof analyzeCsharpClassFactories>;
-  readonly captureStorage: ReturnType<typeof analyzeCsharpCaptureStorage>;
-  readonly callableCreations: Extract<ReturnType<typeof analyzeCsharpCallableCreations>, { readonly kind: "resolved" }>["value"];
-  readonly nativeParticipation: Extract<ReturnType<typeof analyzeCsharpNativeParticipation>, { readonly kind: "resolved" }>["value"];
-  readonly classInitialization: ReturnType<typeof analyzeCsharpClassInitialization>;
-  readonly exactLiterals: Extract<ReturnType<typeof analyzeCsharpExactLiteralSelections>, { readonly kind: "represented" }>["value"];
-  readonly nativeDemand: ReturnType<typeof analyzeCsharpNativeDemand>;
-  readonly bindingPatterns: ReturnType<typeof admitCsharpBindingPatterns>;
-  readonly refLikeDiagnostics: ReturnType<typeof analyzeCsharpRefLikePlacements>;
 }
 
 export function analyzeCsharpRepresentationIteration(

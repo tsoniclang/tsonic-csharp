@@ -10,17 +10,13 @@ import type {
   CsharpStatement,
   CsharpTypeNode,
 } from "../../target-ast/syntax/index.js";
-import type {
-  CsharpPlanningContext,
-} from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 import type {
   CsharpGeneratorProtocol,
   TargetTypeRef,
 } from "../../../target-model/types/index.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
-import type {
-  DestructuringPlannerState,
-} from "../bindings/index.js";
+import type { DestructuringPlannerState } from "../planning-data.js";
 import {
   allocateGeneratorNames,
 } from "../bindings/index.js";

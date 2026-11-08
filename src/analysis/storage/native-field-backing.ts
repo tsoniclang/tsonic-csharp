@@ -3,7 +3,7 @@ import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetNa
 import { csharpObjectShapeMemberContractKey, csharpStructuralObjectShapeIdentity } from "../../target-model/types/object-shape-identity.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/equality.js";
 import { csharpNativeMemoryLayoutsEqual, type CsharpNativeMemoryLayout } from "../../target-model/operations/native-memory.js";
-import type { CsharpNativeObjectField } from "../../target-model/records/storage/storage.js";
+import type { CsharpNativeObjectField } from "../../target-model/records/native/storage-data.js";
 import { createStructuralObjectShapeTarget } from "../objects/shapes/construction.js";
 import type { CsharpTypeParameterEnvironment } from "../../target-model/records/types/type-parameter-constraints.js";
 

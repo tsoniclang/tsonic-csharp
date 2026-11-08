@@ -1,4 +1,4 @@
-import type { CsharpPlanningContext } from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 import { planCsharpCaptureFrame, planCsharpCapturedInitialization } from "../bindings/capture-storage.js";
 import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
@@ -20,9 +20,7 @@ import type {
   CsharpPropertyKeyIterationPolicy,
   TargetTypeRef,
 } from "../../../target-model/types/index.js";
-import type {
-  DestructuringPlannerState,
-} from "../bindings/index.js";
+import type { DestructuringPlannerState } from "../planning-data.js";
 import {
   planCsharpTypedLocationIdentityDeclaration,
 } from "../bindings/typed-location-identities.js";

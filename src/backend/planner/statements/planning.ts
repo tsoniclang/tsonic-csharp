@@ -1,4 +1,4 @@
-import type { CsharpPlanningContext } from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 import {
   AsBlock,
   AsForInOrOfStatement,
@@ -36,8 +36,8 @@ import {
   createDestructuringPlannerState,
   declareCsharpLocalBindingName,
 } from "../bindings/index.js";
-import type { DestructuringPlannerState } from "../bindings/index.js";
-import { planExpression } from "../expressions/index.js";
+import type { DestructuringPlannerState } from "../planning-data.js";
+
 import { planClassFactoryExpression } from "../declarations/classes/factories.js";
 import { planLocalFunctionDeclaration } from "../declarations/callables/functions.js";
 import { planCsharpLexicalFunctionValues } from "../declarations/callables/lexical-values.js";
@@ -177,7 +177,7 @@ export function planStatements(
     }
     case KindSwitchStatement: {
       const statement = planSwitchStatement(node, sourceFile, input, diagnostics, state, {
-        planExpression,
+        input.dispatch.planExpression,
         planStatements,
       });
       if (statement === undefined) failCsharpPlannerInvariant("An admitted switch requires its native plan.", node);

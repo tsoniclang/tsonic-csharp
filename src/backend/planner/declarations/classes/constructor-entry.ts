@@ -3,17 +3,17 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpArgument, CsharpConstructorDeclaration, CsharpExpression, CsharpParameter, CsharpStatement, CsharpTypeNode,
 } from "../../../target-ast/syntax/index.js";
-import type { CsharpPlanningContext } from "../../context.js";
-import type { DestructuringPlannerState } from "../../bindings/binding-state.js";
+import type { CsharpPlanningContext } from "../../planning-data.js";
+import type { DestructuringPlannerState } from "../../planning-data.js";
 import type { CsharpEntryBinding } from "../../bindings/binding-patterns.js";
 import type { PlannedParameterList } from "../callables/parameters.js";
 import type { CsharpPlannedArgument } from "../../expressions/planned-values.js";
 import { allocateDestructuringTemp, csharpCaptureFrameName } from "../../bindings/binding-state.js";
 import { planCsharpCaptureFrame } from "../../bindings/capture-storage.js";
-import { csharpTypeFromObjectShapeFact } from "../../objects/planning.js";
+import { csharpTypeFromObjectShapeFact } from "../../objects/type-references.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/render.js";
 import { csharpTypeFromTargetTypeRefWithObjectShapeDeclarations } from "../../types/target-type-object-shapes.js";
-import { planBlockStatements } from "../../statements/planning.js";
+
 import { planCsharpGeneratedMethodCall } from "../generated-methods.js";
 import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import { planCapturedReceiverOwnerValue } from "../../expressions/expression-this.js";
@@ -121,7 +121,7 @@ export function planCsharpPreparedConstructor(
     modifiers: ["private", ...declaration.modifiers.filter(modifier => modifier !== "public" && modifier !== "protected" && modifier !== "private")],
     parameters: [{ name: packetName, type: packetType }],
     ...(hasBaseCall ? { initializer: { kind: "base" as const, arguments: baseArguments } } : {}),
-    body: { kind: "Block", statements: planBlockStatements(bodyNode, sourceFile,
+    body: { kind: "Block", statements: input.dispatch.planBlockStatements(bodyNode, sourceFile,
       { ...input, scope: { ...input.scope, captureFrames: frames } }, diagnostics, state, restored, hasBaseCall ? 1 : 0) },
   };
   return [{ ...declaration, initializer: { kind: "this", arguments: [{ kind: "Argument", expression: prepare }] },

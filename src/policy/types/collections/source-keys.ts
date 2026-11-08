@@ -8,7 +8,7 @@ import { getCsharpNullableElementTargetType } from "../../../target-model/types/
 import { getCsharpGenericOptionalParts } from "../../../target-model/types/projections.js";
 import { isCsharpJsValueTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { representCsharpOptionalStorage } from "../source-type-flow/representation-optional.js";
-import { sourceCategoryWitnessType } from "../source-type-flow/representation-category.js";
+import { sourceCategoryWitnessType } from "../source-type-flow/category-witness.js";
 import { sourceNativeType, sourceRepresentationParameter, sourceRepresentationParameterReference } from "../source-type-flow/representation-runtime.js";
 import type { CsharpRepresentationHost } from "../source-type-flow/representation-host.js";
 import { represented, sourceOutcome, nativeRepresentationFailure, representationRequirements } from "../source-type-flow/representation-results.js";

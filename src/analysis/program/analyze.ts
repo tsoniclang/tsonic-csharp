@@ -1,6 +1,7 @@
 import { analyzeCsharpSourceAliasReexports } from "../source-modules/alias-reexports.js";
 import type { CsharpTargetProgram } from "../../target-model/records/target-program.js";
-import { analyzeCsharpRepresentationIteration, representationContractsEqual, type CsharpRepresentationContract } from "./iteration.js";
+import { analyzeCsharpRepresentationIteration, representationContractsEqual } from "./iteration.js";
+import type { CsharpRepresentationContract } from "./model.js";
 import { rejectCsharpAnalysisIssues } from "./issues.js";
 import { finalizeCsharpNativeEmission } from "./emission.js";
 

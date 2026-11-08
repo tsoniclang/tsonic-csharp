@@ -1,7 +1,7 @@
 import type { CsharpObjectShapeFact } from "../../../target-model/types/model.js";
 import { objectShapeArtifactKey } from "../../../target-model/records/objects/object-shape-keys.js";
 import type { CsharpObjectShapeArtifact } from "../../../target-model/records/objects/object-shape-demand.js";
-import type { CsharpPlanningContext } from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
 export function csharpObjectShapeArtifact(input: CsharpPlanningContext, fact: CsharpObjectShapeFact): CsharpObjectShapeArtifact {

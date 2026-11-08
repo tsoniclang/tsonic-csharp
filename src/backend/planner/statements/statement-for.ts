@@ -1,4 +1,4 @@
-import type { CsharpPlanningContext } from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 import {
   AsForStatement,
   HasSourceKind,
@@ -10,19 +10,13 @@ import type {
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpExpression, CsharpStatement, CsharpTypeNode } from "../../target-ast/syntax/index.js";
-import type {
-  DestructuringPlannerState,
-} from "../bindings/index.js";
-import {
-  planExpression,
-} from "../expressions/index.js";
+import type { DestructuringPlannerState } from "../planning-data.js";
+
 import {
   planConditionExpression,
 } from "./statement-conditionals.js";
 import { planLocalDeclarationStatements } from "../bindings/locals.js";
-import type {
-  NestedStatementPlanner,
-} from "./model.js";
+import type { NestedStatementPlanner } from "../planning-data.js";
 import { planResourceScopeStatements } from "./resource-management.js";
 import { planCsharpCaptureFrame } from "../bindings/capture-storage.js";
 import { allocateExpressionTemp, csharpCaptureFrameName, declareCsharpLocalBindingName, getCsharpLocalBindingName } from "../bindings/binding-state.js";
@@ -92,13 +86,13 @@ function planForStatementCore(
   const condition = conditionNode === undefined
     ? undefined
     : planConditionExpression(conditionNode, "For statement", sourceFile, headerInput, diagnostics, state);
-  const conditionPrelude = conditionNodes.slice(0, -1).map(expression => planExpression(expression, sourceFile, headerInput, diagnostics, state));
+  const conditionPrelude = conditionNodes.slice(0, -1).map(expression => input.dispatch.planExpression(expression, sourceFile, headerInput, diagnostics, state));
   if (statement.Condition !== undefined && condition === undefined) {
     failCsharpPlannerInvariant("An admitted for condition requires its native value plan.", node);
   }
   const incrementorNodes = statement.Incrementor === undefined ? [] : sourceExpressionSequence(input.program.source.ast, statement.Incrementor);
   const incrementors = incrementorNodes
-    .map(expression => planExpression(expression, sourceFile, headerInput, diagnostics, state));
+    .map(expression => input.dispatch.planExpression(expression, sourceFile, headerInput, diagnostics, state));
   if (incrementors.some(expression => expression === undefined) || conditionPrelude.some(expression => expression === undefined)) {
     failCsharpPlannerInvariant("An admitted for continuation requires its native expression plans.", node);
   }
@@ -250,7 +244,7 @@ function planForInitializer(
       ...(declarationKind === "var" ? { preludeScope: "enclosing" as const } : {}),
     };
   }
-  const expression = planExpression(node, sourceFile, input, diagnostics, state);
+  const expression = input.dispatch.planExpression(node, sourceFile, input, diagnostics, state);
   if (expression === undefined) failCsharpPlannerInvariant("An admitted for initializer requires its native value plan.", node);
   return {
     prelude: planCsharpPlannedDiscard(expression),

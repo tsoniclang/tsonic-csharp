@@ -1,8 +1,8 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
-import type { CsharpPlanningContext } from "../context.js";
-import type { ExpressionPlanner } from "./expression-planner-types.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
+import type { ExpressionPlanner } from "../planning-data.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { planCsharpAbsentValue } from "./optional-storage.js";
 import { csharpPlannedEffect, csharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";

@@ -1,5 +1,6 @@
 import type { TargetTypeRef } from "../../types/native-type-data.js";
-import type { CsharpObjectShapeFact, CsharpDelegateSignatureShape } from "../../types/model.js";
+import type { CsharpObjectShapeFact } from "../../types/model.js";
+import type { CsharpDelegateSignatureShape } from "../../types/native-type-data.js";
 import type { CsharpCollectionElementRead } from "../../types/carriers/collection-reads.js";
 
 export type CsharpOptionalStorageEmission =

@@ -2,7 +2,7 @@ import type { Node } from "@tsonic/tsts";
 import { HasSourceKind, KindExportAssignment, Node_Name, type SourceNodeReference } from "@tsonic/target-api/source";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpExpression } from "../../target-ast/syntax/index.js";
-import type { CsharpPlanningContext } from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 import { qualifiedCsharpType } from "../types/primitives.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 

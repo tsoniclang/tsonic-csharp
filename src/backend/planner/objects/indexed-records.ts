@@ -1,7 +1,7 @@
 import type { CsharpExpression } from "../../target-ast/syntax/index.js";
 import type { Node } from "@tsonic/tsts";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";
-import type { CsharpPlanningContext } from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
 export function csharpRecordOperation(name: "GetOrDefault" | "Set" | "Extend", arguments_: readonly CsharpExpression[]): CsharpExpression {

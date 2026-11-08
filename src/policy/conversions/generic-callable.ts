@@ -1,7 +1,7 @@
 import type { CsharpPolicyContext } from "../model/context.js";
 import type { CsharpConversionShapeQueries } from "./shape-queries.js";
 import type { TargetTypeRef, CsharpTypeParameterConstraint } from "../../target-model/types/native-type-data.js";
-import type { CsharpNativeCallableMember } from "../../target-model/types/model.js";
+import type { CsharpNativeCallableMember } from "../../target-model/types/native-type-data.js";
 import type { CsharpNativeCallableApplication } from "../../target-model/conversions/selection.js";
 import { csharpNativeCallableMemberKey } from "../../target-model/types/carriers/delegates.js";
 import { getCsharpNullableElementTargetType, isCsharpNullableReferenceTargetType } from "../../target-model/types/carriers/nullable.js";
@@ -9,7 +9,7 @@ import { isCsharpReferenceCarrier, isCsharpValueTypeTargetType, isCsharpVoidTarg
 import { isCsharpRefLikeTargetType } from "../../target-model/types/ref-like.js";
 import { substituteTargetTypeParameters } from "../../target-model/types/substitution.js";
 import { csharpTypeParameterConstraintsImply } from "../constraints/type-parameter-constraints.js";
-import { csharpTargetTypeSatisfiesNativeConstraint } from "./carriers.js";
+import { csharpTargetTypeSatisfiesNativeConstraint } from "../constraints/native-relations.js";
 
 type Policy = Pick<CsharpPolicyContext, "typeDefinitions" | "projectTypes" | "providers"> & CsharpConversionShapeQueries;
 

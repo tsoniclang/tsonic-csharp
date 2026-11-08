@@ -1,4 +1,4 @@
-import type { CsharpPlanningContext } from "../../context.js";
+import type { CsharpPlanningContext } from "../../planning-data.js";
 import { AsArrayLiteralExpression, AsSpreadElement, HasSourceKind, KindSpreadElement } from "@tsonic/target-api/source";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../../../../target-model/types/index.js";

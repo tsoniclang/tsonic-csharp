@@ -3,16 +3,11 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type {
-  CsharpPlanningContext,
-} from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 import {
   translateCsharpElementAccess,
 } from "./selected-element.js";
-import type {
-  CallArgumentPlanner,
-  ExpressionPlanner,
-} from "./expression-planner-types.js";
+import type { CallArgumentPlanner, ExpressionPlanner } from "../planning-data.js";
 import type { CsharpPlannedValue } from "./planned-values.js";
 
 export function planElementAccessExpression(

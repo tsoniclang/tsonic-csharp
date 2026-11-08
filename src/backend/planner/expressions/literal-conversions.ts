@@ -13,9 +13,7 @@ import type {
   CsharpExactLiteralPrimitive,
   CsharpExactLiteralRecipe,
 } from "../../../target-model/conversions/exact-literals.js";
-import type {
-  CsharpPlanningContext,
-} from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 
 export function planCsharpExactLiteralConversion(
   input: CsharpPlanningContext,

@@ -1,4 +1,5 @@
-import type { CsharpObjectShapeFact, CsharpNativeCallableMember } from "../../../target-model/types/model.js";
+import type { CsharpObjectShapeFact } from "../../../target-model/types/model.js";
+import type { CsharpNativeCallableMember } from "../../../target-model/types/native-type-data.js";
 import type {
   CsharpStructuralObjectEmissionRecords, CsharpStructuralMethodEmission, CsharpStructuralPropertyEmission,
 } from "../../../target-model/records/objects/structural-object-emission.js";

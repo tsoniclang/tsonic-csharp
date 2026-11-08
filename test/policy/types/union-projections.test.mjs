@@ -5,7 +5,7 @@ import { csharpTargetNamedType } from "../../../dist/target-model/types/factorie
 import { createNativeConversionHost } from "../../helpers/native-conversion-host.mjs";
 import { checkCsharpSource, assertCsharpCheckingSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { csharpUnionProjectionPath } from "../../../dist/policy/conversions/union-relations.js";
-import { selectCsharpRuntimeUnionProjection } from "../../../dist/policy/conversions/carriers.js";
+import { selectCsharpRuntimeUnionProjection } from "../../../dist/policy/conversions/core.js";
 import { csharpRuntimeUnionProjectionMatches } from "../../../dist/analysis/conversions/validation.js";
 import { snapshotCsharpTargetTypes } from "../../../dist/target-model/types/snapshot.js";
 

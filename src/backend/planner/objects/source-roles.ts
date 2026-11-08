@@ -1,4 +1,4 @@
-import type { CsharpPlanningContext } from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 import type { CsharpOutputSourceFile } from "../../artifact-model/output.js";
 import type { CsharpExpression, CsharpMethodDeclaration, CsharpStatement, CsharpStructDeclaration, CsharpTypeNode } from "../../target-ast/syntax/index.js";
 import type { TargetTypeRef, CsharpOptionalStorageLayout } from "../../../target-model/types/native-type-data.js";

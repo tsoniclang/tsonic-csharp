@@ -1,10 +1,10 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpExpression, CsharpObjectInitializerAssignment, CsharpStatement } from "../../target-ast/syntax/index.js";
-import type { CsharpPlanningContext } from "../context.js";
-import type { DestructuringPlannerState } from "./binding-state.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
+import type { DestructuringPlannerState } from "../planning-data.js";
 import { csharpCaptureFrameName, getCsharpLocalBindingName } from "./binding-state.js";
-import { csharpTypeFromObjectShapeFact } from "../objects/planning.js";
+import { csharpTypeFromObjectShapeFact } from "../objects/type-references.js";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { planCapturedReceiverOwnerValue } from "../expressions/expression-this.js";

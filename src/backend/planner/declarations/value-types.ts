@@ -1,4 +1,4 @@
-import type { CsharpPlanningContext } from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 import {
   AsVariableDeclaration,
 } from "@tsonic/target-api/source";

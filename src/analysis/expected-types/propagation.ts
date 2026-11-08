@@ -1,3 +1,4 @@
+import type { CsharpExpectedTypePropagation } from "./model.js";
 import type { Node } from "@tsonic/tsts";
 import type { TargetUseSiteRef } from "@tsonic/target-api/analysis";
 import { ObjectLiteralProperty_SourceName } from "@tsonic/target-api/source";
@@ -9,11 +10,10 @@ import type { CsharpObjectShapeFact } from "../../target-model/types/model.js";
 import type { CsharpNativeUseSlot } from "../../target-model/records/native/native-demand.js";
 import type { CsharpConversionMode } from "../../target-model/conversions/selection.js";
 import { csharpSourceTypeFlowShiftCountType } from "../../policy/conversions/source-type-flow-index.js";
-import type { CsharpExpectedTypeIssue } from "../../target-model/records/types/expected-types.js";
 import type { CsharpExactLiteralRequest, CsharpNativePropertyKeyBinding } from "../../target-model/conversions/exact-literals.js";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { representCsharpSourceType } from "../../policy/types/source-type-flow/representation.js";
-import type { CsharpExpectedUseCollection } from "./collection.js";
+import type { CsharpExpectedUseCollection } from "./model.js";
 import type {
   CsharpExpectedTypeAnalysisInput,
   CsharpExpectedTypePending,
@@ -22,23 +22,6 @@ import type {
 } from "./model.js";
 
 export type CsharpExpectedBinarySelection = ReturnType<typeof selectCsharpBinaryOperation> | undefined;
-
-export interface CsharpExpectedTypePropagation {
-  readonly propagate: (pending: CsharpExpectedTypePending) => void;
-  readonly recordIntrinsicArrayLiteralElements: (node: Node) => void;
-  readonly recordIntrinsicObjectLiteralMembers: (node: Node) => void;
-  readonly seal: () => {
-    readonly issues: readonly CsharpExpectedTypeIssue[];
-    readonly arrayLiteralCarrier: (expression: Node, targetType: TargetTypeRef) => TargetTypeRef | undefined;
-    readonly constructionCarrier: (expression: Node, targetType: TargetTypeRef) => TargetTypeRef | undefined;
-    readonly objectShape: (expression: Node, targetType: TargetTypeRef) => CsharpObjectShapeFact | undefined;
-    /** The reason an object literal has no construction at this expected type (its shape construction was rejected). */
-    readonly constructionRejection: (expression: Node, targetType: TargetTypeRef) => string | undefined;
-    readonly intrinsicTarget: (expression: Node, targetType: TargetTypeRef) => boolean;
-    readonly propertyKeyRequests: readonly CsharpExactLiteralRequest[];
-    readonly propertyKeys: (expression: Node, carrier: TargetTypeRef) => readonly CsharpNativePropertyKeyBinding[] | undefined;
-  };
-}
 
 export function createCsharpExpectedTypePropagation(
   input: CsharpExpectedTypeAnalysisInput,

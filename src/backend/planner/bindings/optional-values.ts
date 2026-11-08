@@ -1,6 +1,7 @@
 import type { CsharpDefaultValueContract } from "../../../target-model/records/objects/value-projections.js";
 import type { CsharpExpression } from "../../target-ast/syntax/index.js";
-import { allocateExpressionTemp, type DestructuringPlannerState } from "./binding-state.js";
+import { allocateExpressionTemp } from "./binding-state.js";
+import { type DestructuringPlannerState } from "../planning-data.js";
 import { planCsharpPresentValueGuard } from "../expressions/optional-storage.js";
 import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import { csharpPlannedValue, type CsharpPlannedValue } from "../expressions/planned-values.js";
@@ -9,7 +10,7 @@ import { convertCsharpPlannedValue } from "../expressions/planned-value-conversi
 import { planCsharpDiscardedStatement } from "../statements/statement-output.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpPlanningContext } from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
 export function planCsharpArrayBindingPresence(source: CsharpExpression, index: number, lengthMember: string): CsharpExpression {

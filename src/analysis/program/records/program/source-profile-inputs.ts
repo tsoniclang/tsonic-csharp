@@ -16,7 +16,7 @@ import { csharpSourceProfileDeclarationIdentity } from "../../../../policy/ident
 import { csharpExceptionTargetType } from "../../../../target-model/types/carriers/scalar-types.js";
 import { csharpNullableTargetType } from "../../../../target-model/types/carriers/nullable.js";
 import { isCsharpAbsenceTargetType } from "../../../../target-model/types/carriers/runtime-carriers.js";
-import { namedTargetTypeImplicitlyAccepts } from "../../../../policy/conversions/carriers.js";
+import { namedTargetTypeImplicitlyAccepts } from "../../../../policy/constraints/native-relations.js";
 import type { CsharpCallArgumentProjection } from "../../../../target-model/records/objects/members.js";
 export function createCsharpSourceProfileInputs(
   host: CsharpProviderCallSelectionHost, file: SourceFile,

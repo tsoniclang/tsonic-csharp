@@ -1,8 +1,9 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetTypeRef, CsharpExplicitImplementationConstraint } from "../../types/native-type-data.js";
-import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpStructuralInterfaceImplementation } from "../../types/model.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact } from "../../types/model.js";
+import type { CsharpStructuralInterfaceImplementation } from "./structural-interfaces.js";
 import type { SourceCallableContract, SourceCallableSourceContract } from "../callables/source-callable-contract.js";
-import type { CsharpCallableParameterAdapter, CsharpCallableValueAdapter } from "../callables/callable-adapters.js";
+import type { CsharpCallableParameterAdapter, CsharpCallableValueAdapter } from "../callables/callable-inputs.js";
 import type { CsharpDefaultParameterContract } from "../program/declarations.js";
 import type { CsharpNativePropertyRead } from "../program/source-profile-invocations.js";
 

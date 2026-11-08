@@ -1,6 +1,7 @@
 import type { Node } from "@tsonic/tsts";
 import type { CsharpStatement } from "../../target-ast/syntax/index.js";
-import { allocateControlLabel, type DestructuringPlannerState } from "../bindings/binding-state.js";
+import { allocateControlLabel } from "../bindings/binding-state.js";
+import { type DestructuringPlannerState } from "../planning-data.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
 export function withCsharpLoopContinuation(

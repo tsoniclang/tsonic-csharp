@@ -6,7 +6,7 @@ import type {
   TargetDiagnostic,
   TargetStageResult,
 } from "@tsonic/target-api/artifacts";
-import type { CsharpPlanningContext } from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 import type { CsharpOutputPlan } from "../../artifact-model/output.js";
 import { planCsharpStartupSourceFile } from "./startup.js";
 import { planCsharpSourceRoleFile } from "../objects/source-roles.js";

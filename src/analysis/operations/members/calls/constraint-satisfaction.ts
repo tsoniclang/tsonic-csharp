@@ -7,7 +7,7 @@ import { csharpTargetBindingFact } from "../../../../target-model/types/model.js
 import { getCsharpNullableElementTargetType, isCsharpNullableReferenceTargetType, isCsharpValueTypeTargetType, targetTypeRefKey } from "../../../../target-model/types/index.js";
 import { csharpTypeParameterConstraintsImply } from "../../../../policy/constraints/type-parameter-constraints.js";
 import type { CsharpSelectedTargetMethodTypeArgument } from "../../../../target-model/records/objects/members.js";
-import { csharpTargetTypeSatisfiesNativeConstraint, implementedConstraintType } from "../../../../policy/conversions/carriers.js";
+import { csharpTargetTypeSatisfiesNativeConstraint, implementedConstraintType } from "../../../../policy/constraints/native-relations.js";
 import type { CsharpProjectTypePolicy } from "../../../../target-model/records/types/project-types.js";
 import { substituteTargetConstraint } from "../../../../policy/types/index.js";
 

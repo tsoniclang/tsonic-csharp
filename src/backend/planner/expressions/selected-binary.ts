@@ -4,9 +4,7 @@ import type {
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpResolvedBinaryOperation } from "../../../target-model/records/operations/operator-selection.js";
-import type {
-  CsharpPlanningContext,
-} from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 import type {
   CsharpExpression,
 } from "../../target-ast/syntax/index.js";
@@ -15,7 +13,7 @@ import {
   csharpBinaryOperatorTokenFromText,
 } from "../../target-ast/syntax/operator-tokens.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
-import type { ExpressionPlanner } from "./expression-planner-types.js";
+import type { ExpressionPlanner } from "../planning-data.js";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import {
   callStatic,
@@ -23,12 +21,13 @@ import {
 } from "./builders.js";
 import { planCsharpBigIntCall } from "./bigint-call.js";
 import { planCsharpClosedValueCoalescing } from "./closed-value-coalescing.js";
-import type { DestructuringPlannerState } from "../bindings/binding-state.js";
+import type { DestructuringPlannerState } from "../planning-data.js";
 import { allocateExpressionTemp } from "../bindings/binding-state.js";
 import { runtimeUnionArmProjection, runtimeUnionArmTest } from "./union-access.js";
 import { planCsharpUnionEquality } from "./union-equality.js";
 import { csharpPlannedValue, mapCsharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
-import { buildCsharpPlannedValue, planCsharpCoalescingValue, planCsharpValueBranch, captureCsharpPlannedValue } from "./planned-value-composition.js";
+import { buildCsharpPlannedValue, planCsharpCoalescingValue, planCsharpValueBranch } from "./planned-value-composition.js";
+import { captureCsharpPlannedValue } from "./value-captures.js";
 import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import { captureCsharpPlannedLocation } from "./planned-locations.js";
 import { planCsharpPlannedDiscard } from "../statements/statement-output.js";

@@ -3,7 +3,7 @@ import type { SourceOperation, SourceTypeEvidence, TargetSourceProgram } from "@
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpRepresentationOutcome } from "../../target-model/types/representation.js";
 import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
-import type { CsharpRepresentationContract } from "./iteration.js";
+import type { CsharpRepresentationContract } from "./model.js";
 import { represented, nativeRepresentationFailure } from "../../policy/types/source-type-flow/representation-results.js";
 import { csharpSelectedCallResultType } from "../../target-model/types/member-facts.js";
 import { getCsharpTaskResultTargetType } from "../../target-model/types/carriers/delegates.js";

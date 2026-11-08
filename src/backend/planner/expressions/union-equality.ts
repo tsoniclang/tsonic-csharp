@@ -4,16 +4,18 @@ import type { CsharpResolvedBinaryOperation } from "../../../target-model/record
 import type { CsharpUnionEqualityOperand } from "../../../target-model/records/operations/union-equality.js";
 import type { CsharpExpression, CsharpSwitchExpressionArm } from "../../target-ast/syntax/index.js";
 import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
-import type { CsharpPlanningContext } from "../context.js";
-import type { ExpressionPlanner } from "./expression-planner-types.js";
-import { allocateExpressionTemp, type DestructuringPlannerState } from "../bindings/binding-state.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
+import type { ExpressionPlanner } from "../planning-data.js";
+import { allocateExpressionTemp } from "../bindings/binding-state.js";
+import { type DestructuringPlannerState } from "../planning-data.js";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { planCsharpUnionPattern } from "./union-patterns.js";
 import { callStatic } from "./builders.js";
 import { planCsharpPresentValueGuard, planCsharpStorageIsAbsent } from "./optional-storage.js";
 import type { CsharpPlannedValue } from "./planned-values.js";
-import { composeCsharpPlannedValues, planCsharpExpressionCompletion } from "./planned-value-composition.js";
+import { composeCsharpPlannedValues } from "./planned-value-composition.js";
+import { planCsharpExpressionCompletion } from "./expression-completions.js";
 import { planCsharpExactLiteralRecipe } from "./literal-conversions.js";
 
 export function planCsharpUnionEquality(node: Node, _selection: CsharpResolvedBinaryOperation, sourceFile: SourceFile,

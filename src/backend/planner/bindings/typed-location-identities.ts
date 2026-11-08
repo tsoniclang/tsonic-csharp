@@ -1,18 +1,14 @@
 import type {
   Node,
 } from "@tsonic/tsts";
-import type {
-  CsharpPlanningContext,
-} from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 import type {
   CsharpStatement,
 } from "../../target-ast/syntax/index.js";
 import {
   declareCsharpTypedLocationIdentityName,
 } from "./binding-state.js";
-import type {
-  DestructuringPlannerState,
-} from "./binding-state.js";
+import type { DestructuringPlannerState } from "../planning-data.js";
 import { redirectCsharpParameterStorage } from "./binding-state.js";
 import { planCsharpNativeMemoryCall } from "../expressions/native-memory.js";
 import { csharpRuntimeLocationTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";

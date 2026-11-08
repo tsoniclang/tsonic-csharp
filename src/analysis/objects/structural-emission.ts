@@ -1,6 +1,7 @@
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
-import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpNativeCallableMember, CsharpTargetNamedTypeRef } from "../../target-model/types/model.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetNamedTypeRef } from "../../target-model/types/model.js";
+import type { CsharpNativeCallableMember } from "../../target-model/types/native-type-data.js";
 import type { CsharpObjectMemberRecords } from "../../target-model/records/objects/object-members.js";
 import type { CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
 import type { CsharpObjectShapeDemand } from "../../target-model/records/objects/object-shape-demand.js";
@@ -12,7 +13,7 @@ import { csharpObjectShapeMemberContractKey, targetTypeRefKey, targetTypeRefEqua
 import { csharpNullableTargetType } from "../../target-model/types/carriers/nullable.js";
 import { csharpRuntimeLocationTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 import { csharpObjectShapeMethodDeclaration, csharpPresentObjectShapeMethod } from "../../target-model/types/method-values.js";
-import { objectShapeMethodInvocationName, objectShapeStorageMemberName } from "../../target-model/names/object-members.js";
+import { objectShapeStorageMemberName } from "../../target-model/names/object-members.js";
 import { csharpTargetTypeRenderingRejection } from "../../policy/types/model/renderability.js";
 import { createCsharpStructuralObjectEmissionRecords } from "../program/records/objects/structural-object-emission.js";
 

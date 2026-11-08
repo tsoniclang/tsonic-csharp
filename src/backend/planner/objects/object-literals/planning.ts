@@ -1,4 +1,4 @@
-import type { CsharpPlanningContext } from "../../context.js";
+import type { CsharpPlanningContext } from "../../planning-data.js";
 import type {
   Node,
   SourceFile,
@@ -6,10 +6,10 @@ import type {
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpObjectShapeFact } from "../../../../target-model/types/index.js";
 import { failCsharpPlannerInvariant } from "../../diagnostics.js";
-import type { DestructuringPlannerState } from "../../bindings/binding-state.js";
+import type { DestructuringPlannerState } from "../../planning-data.js";
 import { planCsharpObjectCaptureAssignments } from "../authored-methods.js";
 import { csharpConstructibleTypeFromObjectShapeFact } from "../index.js";
-import type { ExpressionPlanner } from "../../expressions/expression-planner-types.js";
+import type { ExpressionPlanner } from "../../planning-data.js";
 import {
   planObjectShapeLiteralAssignment,
 } from "./assignments.js";

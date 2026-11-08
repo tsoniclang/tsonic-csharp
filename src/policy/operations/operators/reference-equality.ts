@@ -3,7 +3,8 @@ import type { CsharpPolicyContext } from "../../model/context.js";
 import type { CsharpSourceOperator } from "../../../target-model/syntax/operators.js";
 import type { CsharpReferenceEquality } from "../../../target-model/operations/binary.js";
 import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
-import { namedTargetTypesAreRelated, selectDelegateConversion } from "../../conversions/carriers.js";
+import { namedTargetTypesAreRelated } from "../../constraints/native-relations.js";
+import { selectDelegateConversion } from "../../conversions/core.js";
 import { isCsharpSourceDelegateTargetType } from "../../../target-model/types/carriers/delegates.js";
 import { getCsharpNullableElementTargetType, isCsharpStringTargetType, isCsharpValueTypeTargetType, targetTypeRefEquals, type TargetTypeRef } from "../../../target-model/types/index.js";
 

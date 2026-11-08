@@ -1,5 +1,6 @@
 import type { TargetTypeRef, CsharpOptionalTypeProjection, CsharpTypeParameterConstraint } from "./native-type-data.js";
-import type { CsharpNativeCallableMember, CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpRuntimeUnionTargetTypeRef, CsharpTargetNamedTypeRef, CsharpTaskTargetTypeRef } from "./model.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpRuntimeUnionTargetTypeRef, CsharpTargetNamedTypeRef, CsharpTaskTargetTypeRef } from "./model.js";
+import type { CsharpNativeCallableMember } from "./native-type-data.js";
 import { csharpNullableReferenceTargetType, isCsharpNullableReferenceTargetType, getCsharpNullableElementTargetType } from "./carriers/nullable.js";
 import { getCsharpRuntimeUnionArms, isCsharpAbsenceTargetType } from "./carriers/runtime-carriers.js";
 import { targetTypeRefEquals } from "./equality.js";

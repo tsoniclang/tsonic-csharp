@@ -1,4 +1,4 @@
-import type { CsharpPlanningContext } from "../../context.js";
+import type { CsharpPlanningContext } from "../../planning-data.js";
 import {
   type Node,
   type SourceFile,
@@ -31,9 +31,7 @@ import {
   getCsharpTypeForNode,
 } from "../../types/index.js";
 import { failCsharpPlannerInvariant } from "../../diagnostics.js";
-import {
-  planBlockStatements,
-} from "../../statements/index.js";
+
 import {
   planClassMemberModifiers,
   planPropertyModifiers,
@@ -195,7 +193,7 @@ function mergeGetterAccessor(
     type,
     ...(input.program.records.nativeParticipation.get(node) === "signature" ? { autoGetter: true } : { getter: {
       kind: "Block",
-      statements: planBlockStatements(declaration.Body, sourceFile, input, diagnostics, state),
+      statements: input.dispatch.planBlockStatements(declaration.Body, sourceFile, input, diagnostics, state),
     } as const }),
     getterModifiers: mergeAccessorModifiers(
       existing?.getterModifiers,
@@ -301,7 +299,7 @@ function planSetAccessorStatements(
   diagnostics: TargetDiagnostic[],
   state: ReturnType<typeof createDestructuringPlannerState>,
 ): readonly CsharpStatement[] {
-  return planBlockStatements(body, sourceFile, input, diagnostics, state, [
+  return input.dispatch.planBlockStatements(body, sourceFile, input, diagnostics, state, [
     ...(parameter === undefined || parameter.name === "value"
       ? []
       : [{

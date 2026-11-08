@@ -1,4 +1,4 @@
-import type { CsharpPlanningContext } from "../../context.js";
+import type { CsharpPlanningContext } from "../../planning-data.js";
 import { csharpObjectShapeArtifact } from "../../artifacts/object-shapes.js";
 import { AsClassDeclaration } from "@tsonic/target-api/source";
 import type { Node, SourceFile } from "@tsonic/tsts";
@@ -18,8 +18,8 @@ import { getCsharpObjectShapeFactForNode } from "../../objects/fact-queries.js";
 import { planImplicitForwardingConstructors } from "../../project/type-constructors.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/render.js";
 import { csharpSafetyModifiersForDeclaration, withCsharpSafetyModifiers } from "../../safety/explicit-safety.js";
-import { createCsharpMemberPlanningContext } from "../../context.js";
-import { classFactoryContext, completeLocalClassConstructor } from "./factories.js";
+import { createCsharpMemberPlanningContext } from "../../scopes.js";
+import { classFactoryContext, completeLocalClassConstructor } from "./factory-environments.js";
 import { planClassInitializationRegion } from "./initializers.js";
 import { renderObjectShapeProjectionMethods } from "../../objects/closed-object-shapes.js";
 import { planCsharpNativeMemberHiding } from "../modifiers.js";

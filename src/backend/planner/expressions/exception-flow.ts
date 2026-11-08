@@ -1,7 +1,7 @@
 import {
   type Node,
 } from "@tsonic/tsts";
-import type { CsharpPlanningContext } from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 import type { CsharpExpression, CsharpTypeNode } from "../../target-ast/syntax/index.js";
 import {
   csharpExceptionTargetType,

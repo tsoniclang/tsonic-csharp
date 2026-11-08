@@ -2,7 +2,7 @@ import { assertNoTargetDiagnostics } from "../../../../../tsonic/test/scripts/di
 import assert from "node:assert/strict";
 import test from "node:test";
 import { captureCsharpPlannedLocation } from "../../../../dist/backend/planner/expressions/planned-locations.js";
-import { planCsharpExpressionCompletion } from "../../../../dist/backend/planner/expressions/planned-value-composition.js";
+import { planCsharpExpressionCompletion } from "../../../../dist/backend/planner/expressions/expression-completions.js";
 import { csharpPlannedValue, sequenceCsharpPlannedValues } from "../../../../dist/backend/planner/expressions/planned-values.js";
 import { composeCsharpPlannedCall } from "../../../../dist/backend/planner/expressions/calls/planned-arguments.js";
 import { planSelectedCsharpBinaryOperation } from "../../../../dist/backend/planner/expressions/selected-binary.js";

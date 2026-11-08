@@ -27,9 +27,7 @@ import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import {
   qualifiedCsharpType,
 } from "../types/index.js";
-import type {
-  CsharpPlanningContext,
-} from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 import { planCsharpNeverValue } from "./never-values.js";
 import {
   planCsharpJsValueBox,

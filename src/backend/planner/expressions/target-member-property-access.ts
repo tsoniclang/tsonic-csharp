@@ -3,20 +3,16 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type {
-  CsharpPlanningContext,
-} from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 import {
   translateCsharpPropertyAccess,
 } from "./selected-property.js";
 import {
   tryPlanProjectSourceModuleStaticMemberReference,
 } from "./expression-source-references.js";
-import type {
-  ExpressionPlanner,
-} from "./expression-planner-types.js";
+import type { ExpressionPlanner } from "../planning-data.js";
 import type { CsharpPlannedValue } from "./planned-values.js";
-import { planCsharpExpressionCompletion } from "./planned-value-composition.js";
+import { planCsharpExpressionCompletion } from "./expression-completions.js";
 import { readCsharpNativeExpressionCarrier } from "./native-uses.js";
 
 export function planPropertyAccessExpression(

@@ -1,8 +1,9 @@
 import type { CsharpClosedTypeTest } from "../../../target-model/operations/type-tests.js";
 import type { CsharpClosedTypeTestEmission } from "../../../target-model/records/types/type-tests.js";
 import type { CsharpExpression, CsharpStatement, CsharpSwitchExpressionArm } from "../../target-ast/syntax/index.js";
-import type { CsharpPlanningContext } from "../context.js";
-import { allocateExpressionTemp, type DestructuringPlannerState } from "../bindings/binding-state.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
+import { allocateExpressionTemp } from "../bindings/binding-state.js";
+import { type DestructuringPlannerState } from "../planning-data.js";
 import { csharpTsValueTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { qualifiedCsharpType } from "../types/index.js";

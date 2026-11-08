@@ -1,5 +1,6 @@
 import type { TargetTypeRef, CsharpExplicitImplementationConstraint } from "../../types/native-type-data.js";
-import type { CsharpDelegateSignatureShape, CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpObjectShapeMethod } from "../../types/model.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpObjectShapeMethod } from "../../types/model.js";
+import type { CsharpDelegateSignatureShape } from "../../types/native-type-data.js";
 import type { CsharpNativeMemoryLayout } from "../../operations/native-memory.js";
 
 export interface CsharpObjectMethodSignature {

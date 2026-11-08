@@ -1,13 +1,15 @@
 import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
-import type { CsharpNativeCallableMember, CsharpTargetNamedTypeRef } from "../../../target-model/types/model.js";
+import type { CsharpTargetNamedTypeRef } from "../../../target-model/types/model.js";
+import type { CsharpNativeCallableMember } from "../../../target-model/types/native-type-data.js";
 
-import type { CsharpObjectShapeMemberFact, CsharpStructuralInterfaceImplementation } from "../../../target-model/types/model.js";
+import type { CsharpObjectShapeMemberFact } from "../../../target-model/types/model.js";
+import type { CsharpStructuralInterfaceImplementation } from "../../../target-model/records/objects/structural-interfaces.js";
 import type { CsharpStructuralInterfaceEvidence } from "../../../target-model/records/objects/heritage.js";
 import { isCsharpValueTypeTargetType } from "../../../target-model/types/identity.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { inferCsharpTargetTypeParameterBindings, substituteObjectShapeMemberTargetTypeParameters, substituteTargetTypeParameters } from "../../../target-model/types/substitution.js";
 import { csharpFreeTypeParameterIdentities } from "../../../target-model/types/generic-references.js";
-import { csharpVariantArgumentImplicitlyAccepts } from "../../conversions/carriers.js";
+import { csharpVariantArgumentImplicitlyAccepts } from "../../constraints/native-relations.js";
 
 export function selectCsharpStructuralInterfaceImplementation(
   policy: Parameters<typeof csharpVariantArgumentImplicitlyAccepts>[0],

@@ -1,4 +1,4 @@
-import type { CsharpPlanningContext } from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 import {
   AsForInOrOfStatement,
 } from "@tsonic/target-api/source";
@@ -16,9 +16,9 @@ import {
   declareCsharpLocalBindingName,
   planBindingPatternFromExpression,
 } from "../bindings/index.js";
-import type { DestructuringPlannerState } from "../bindings/index.js";
+import type { DestructuringPlannerState } from "../planning-data.js";
 import { planCsharpCaptureFrame, planCsharpCapturedInitialization } from "../bindings/capture-storage.js";
-import { planExpression } from "../expressions/index.js";
+
 import { planIdentifierExpression } from "../expressions/expression-source-references.js";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { planStringCodePointForOfStatement } from "./statement-string-iteration.js";
@@ -34,7 +34,7 @@ import {
 import type { CsharpPlannedValue } from "../expressions/planned-values.js";
 import { consumeCsharpPlannedValue } from "./statement-output.js";
 import { allocateExpressionTemp } from "../bindings/binding-state.js";
-import type { NestedStatementPlanner } from "./model.js";
+import type { NestedStatementPlanner } from "../planning-data.js";
 
 
 export function planForOfStatement(
@@ -172,7 +172,7 @@ function planForOfCollectionExpression(
   if (expression === undefined) {
     return failCsharpPlannerInvariant("A checked for-of statement requires its collection expression.", sourceFile);
   }
-  return planExpression(expression, sourceFile, input, diagnostics);
+  return input.dispatch.planExpression(expression, sourceFile, input, diagnostics);
 }
 
 interface PlannedForOfBinding extends CsharpLocalDeclaration {
@@ -248,7 +248,7 @@ function planForOfBindingCore(
     const prelude: CsharpStatement[] = [];
     const converted = convert({ kind: "IdentifierName", name: itemName }, prelude);
     return { ...local, local, outerPrelude: [], prelude: [...prelude, ...planBindingPatternFromExpression(selected.pattern,
-      converted, sourceFile, input, diagnostics, state, planExpression)] };
+      converted, sourceFile, input, diagnostics, state, input.dispatch.planExpression)] };
   }
   const local: CsharpLocalDeclaration = {
     kind: "VariableDeclarator",

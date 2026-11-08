@@ -1,4 +1,4 @@
-import type { CsharpPlanningContext } from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 import type { CsharpObjectShapeFact } from "../../../target-model/types/model.js";
 import type { CsharpTypeMember } from "../../target-ast/syntax/index.js";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";

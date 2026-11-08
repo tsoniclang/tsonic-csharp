@@ -1,7 +1,7 @@
 import type { TargetTypeRef } from "../../types/native-type-data.js";
 import type { CsharpTargetParameter } from "../../types/model.js";
 import type { Node } from "@tsonic/tsts";
-import type { CsharpCallableParameterAdapter } from "./callable-adapters.js";
+import type { CsharpCallableParameterAdapter } from "./callable-inputs.js";
 
 export interface SourceCallableSourceContract extends CsharpCallContract {
   readonly kind: "source";

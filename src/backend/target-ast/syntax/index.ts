@@ -29,7 +29,7 @@ export type {
   CsharpStaticConstructorDeclaration,
   CsharpTypeMember,
   CsharpTypeParameter,
-} from "./members.js";
+} from "./code.js";
 export type { CsharpTypeNode } from "./types.js";
 export type {
   CsharpBlock,
@@ -40,7 +40,7 @@ export type {
   CsharpStatement,
   CsharpSwitchLabel,
   CsharpSwitchSection,
-} from "./statements.js";
+} from "./code.js";
 export type {
   CsharpArgument,
   CsharpAssignmentOperatorToken,
@@ -55,4 +55,4 @@ export type {
   CsharpSwitchExpressionArm,
   CsharpPostfixUnaryOperatorToken,
   CsharpPrefixUnaryOperatorToken,
-} from "./expressions.js";
+} from "./code.js";

@@ -3,11 +3,11 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpArrayBindingCarrier, TargetTypeRef } from "../../../target-model/types/index.js";
 import type { CsharpDefaultValueContract } from "../../../target-model/records/objects/value-projections.js";
 import type { CsharpExpression, CsharpTypeNode } from "../../target-ast/syntax/index.js";
-import type { CsharpPlanningContext } from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";
-import type { ExpressionPlanner } from "../expressions/expression-planner-types.js";
-import type { DestructuringPlannerState } from "./binding-state.js";
+import type { ExpressionPlanner } from "../planning-data.js";
+import type { DestructuringPlannerState } from "../planning-data.js";
 import { planCsharpArrayBindingPresence, planCsharpBindingDefaultValue } from "./optional-values.js";
 import type { CsharpPlannedValue } from "../expressions/planned-values.js";
 

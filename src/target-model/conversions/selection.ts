@@ -11,7 +11,7 @@ export type CsharpProviderArgumentAdapter =
 import type { CsharpUnionArmMapping, CsharpUnionPathStep, TargetTypeRef } from "../types/native-type-data.js";
 import type { CsharpIntegerRefinementConversion } from "./integer-refinement.js";
 import type { CsharpSourceCategoryWitness } from "../types/representation.js";
-import type { CsharpNativeCallableMember } from "../types/model.js";
+import type { CsharpNativeCallableMember } from "../types/native-type-data.js";
 
 export interface CsharpNativeCallableApplication {
   readonly original: CsharpNativeCallableMember;

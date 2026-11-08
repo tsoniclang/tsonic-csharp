@@ -8,7 +8,7 @@ import {
 } from "../../../dist/target-model/types/index.js";
 import { selectCsharpAwaitCompletion } from "../../../dist/policy/operations/control-flow/await-completions.js";
 import { selectCsharpConversion } from "../../../dist/policy/conversions/index.js";
-import { selectCsharpRuntimeUnionProjection } from "../../../dist/policy/conversions/carriers.js";
+import { selectCsharpRuntimeUnionProjection } from "../../../dist/policy/conversions/core.js";
 
 const policy = {
   projectTypes: { directSupertypes: () => [] },

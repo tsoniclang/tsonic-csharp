@@ -6,7 +6,8 @@ import type { CsharpSourceProfileCallPolicy } from "../../../model/source-profil
 import { jsRuntimeTargetType, receiverHelperMethod, targetParameter } from "./common.js";
 
 import type { Node } from "@tsonic/tsts";
-import type { CsharpObjectShapeMemberFact, CsharpDelegateSignatureShape } from "../../../../target-model/types/model.js";
+import type { CsharpObjectShapeMemberFact } from "../../../../target-model/types/model.js";
+import type { CsharpDelegateSignatureShape } from "../../../../target-model/types/native-type-data.js";
 import type { CsharpCustomRegExpProtocol, CustomRegExpProtocolKind } from "../../../../target-model/records/program/source-profile-inputs.js";
 const stringType = csharpStringTargetType();
 const intType = csharpSourcePrimitiveTargetType("int32");

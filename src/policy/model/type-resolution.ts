@@ -3,7 +3,8 @@ import type { SourceApplication, SourceArgumentPlace, SourceDeclaredSlot, Source
   SourceOperation, SourcePresence, SourceProgramFacts, SourceSignatureIdentity, SourceTypeEvidence, SourceTypeParameter } from "@tsonic/target-api/source";
 import type { CsharpRepresentationOutcome, CsharpRepresentationView, CsharpRepresentedType } from "../../target-model/types/representation.js";
 import type { CsharpRepresentedTypeParameter, TargetTypeRef } from "../../target-model/types/native-type-data.js";
-import type { CsharpNativeCallableMember, CsharpObjectShapeFact, CsharpObjectShapeMemberFact } from "../../target-model/types/model.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact } from "../../target-model/types/model.js";
+import type { CsharpNativeCallableMember } from "../../target-model/types/native-type-data.js";
 
 export interface CsharpSourceRepresentationQueries {
   readonly facts: SourceProgramFacts;

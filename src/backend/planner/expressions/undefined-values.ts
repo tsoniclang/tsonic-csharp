@@ -3,7 +3,7 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpCallArgumentEmissionGroup } from "../../../target-model/records/calls/target-arguments.js";
 import { csharpAbsenceTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import type { CsharpExpression, CsharpStatement } from "../../target-ast/syntax/index.js";
-import type { CsharpPlanningContext } from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { applyCsharpConversionSelection } from "./conversions.js";
 

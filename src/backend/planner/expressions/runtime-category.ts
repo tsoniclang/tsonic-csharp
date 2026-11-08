@@ -2,8 +2,9 @@ import type { TargetTypeRef } from "../../../target-model/types/native-type-data
 import type { CsharpTypeofRuntimeKind } from "../../../target-model/types/model.js";
 import { csharpTypeofResultsEqual, getCsharpTypeofResult, type CsharpTypeofResult } from "../../../target-model/types/runtime-kind.js";
 import type { CsharpExpression, CsharpStatement, CsharpSwitchExpressionArm } from "../../target-ast/syntax/index.js";
-import type { CsharpPlanningContext } from "../context.js";
-import { allocateExpressionTemp, type DestructuringPlannerState } from "../bindings/binding-state.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
+import { allocateExpressionTemp } from "../bindings/binding-state.js";
+import { type DestructuringPlannerState } from "../planning-data.js";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { runtimeUnionArmProjection, runtimeUnionArmTest } from "./union-access.js";
 import { evaluatedConstant } from "./builders.js";

@@ -1,6 +1,6 @@
 import type { ArgumentPassingMode } from "@tsonic/tsts";
-import type { CsharpNativeCallableMember, CsharpTargetMember, CsharpTargetNamedTypeRef,
-  TargetBindingFact } from "./model.js";
+import type { CsharpTargetMember, CsharpTargetNamedTypeRef, TargetBindingFact } from "./model.js";
+import type { CsharpNativeCallableMember } from "./native-type-data.js";
 import type { CsharpRepresentedTypeParameter, TargetTypeRef } from "./native-type-data.js";
 
 export interface CsharpNativeSlotAccess {

@@ -1,9 +1,9 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { CsharpResourceDisposalArm, CsharpResourceDisposalOperation } from "../../../target-model/records/storage/management.js";
-import type { CsharpPlanningContext } from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 import type { CsharpExpression, CsharpLocalDeclaration, CsharpStatement } from "../../target-ast/syntax/index.js";
 import { allocateResourceScopeNames, allocateSyntheticParameter } from "../bindings/binding-state.js";
-import type { DestructuringPlannerState } from "../bindings/binding-state.js";
+import type { DestructuringPlannerState } from "../planning-data.js";
 import { qualifiedCsharpType } from "../types/index.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";

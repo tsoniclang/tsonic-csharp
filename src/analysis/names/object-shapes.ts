@@ -1,5 +1,5 @@
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
-import { type CsharpObjectShapeNameCandidate } from "../objects/display-names.js";
+import type { CsharpObjectShapeNameCandidate } from "../../target-model/records/objects/object-shape-names.js";
 import { type CsharpObjectShapeDemandHost } from "../objects/native-demand/batches.js";
 import {
   type CsharpObjectShapeDeclarationNaming, type CsharpObjectShapeDemandClosure,

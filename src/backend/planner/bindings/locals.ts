@@ -1,4 +1,4 @@
-import type { CsharpPlanningContext } from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 import { AsVariableDeclaration } from "@tsonic/target-api/source";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
@@ -7,12 +7,12 @@ import type {
   CsharpLocalDeclaration,
   CsharpStatement,
 } from "../../target-ast/syntax/index.js";
-import { planExpression } from "../expressions/index.js";
+
 import { planCsharpNativeMemoryCall } from "../expressions/native-memory.js";
 import { csharpRuntimeLocationTargetType, csharpRuntimeNativeArrayTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { planVariableBindingStatements } from "./planning.js";
 import { declareCsharpLocalBindingName } from "./binding-state.js";
-import type { DestructuringPlannerState } from "./binding-state.js";
+import type { DestructuringPlannerState } from "../planning-data.js";
 import type { CsharpEntryBinding } from "./binding-patterns.js";
 import { planCsharpCapturedInitialization } from "./capture-storage.js";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";
@@ -64,7 +64,7 @@ export function planLocalDeclaration(
   if (initializerOverride !== undefined) {
     initializer = csharpPlannedValue(initializerCarrier, initializerOverride);
   } else if (variable.Initializer !== undefined) {
-    initializer = planExpression(variable.Initializer, sourceFile, input, diagnostics, state
+    initializer = input.dispatch.planExpression(variable.Initializer, sourceFile, input, diagnostics, state
     );
     if (initializer === undefined) failCsharpPlannerInvariant("An admitted local requires its native initializer value plan.", variable.Initializer);
   } else if (completion.initialization === "absence") {
@@ -114,7 +114,7 @@ export function planLocalDeclarationStatements(
     const name = declareCsharpLocalBindingName(variable.name!, input, state);
     if (name !== optionalLocal.placement.payloadName)
       failCsharpPlannerInvariant("A private optional local must retain its sealed authored binding name.", declarationNode);
-    return planCsharpOptionalLocalDeclaration(optionalLocal, sourceFile, input, diagnostics, planExpression, state);
+    return planCsharpOptionalLocalDeclaration(optionalLocal, sourceFile, input, diagnostics, input.dispatch.planExpression, state);
   }
   if (declarationKind === "using" || declarationKind === "await using") {
     if (!input.program.source.ast.is.IsIdentifier(variable.name)) {

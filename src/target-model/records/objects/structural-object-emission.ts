@@ -1,5 +1,6 @@
 import type { TargetTypeRef } from "../../types/native-type-data.js";
-import type { CsharpObjectShapeFact, CsharpNativeCallableMember, CsharpNativeMethodTypeParameter } from "../../types/model.js";
+import type { CsharpObjectShapeFact } from "../../types/model.js";
+import type { CsharpNativeCallableMember, CsharpNativeMethodTypeParameter } from "../../types/native-type-data.js";
 import type { CsharpObjectMethodSignature } from "./object-members.js";
 
 export interface CsharpStructuralMethodEmission extends Omit<CsharpObjectMethodSignature, "returnsVoid"> {

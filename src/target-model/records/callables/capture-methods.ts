@@ -1,6 +1,7 @@
 import type { CsharpFrameClosure } from "./capture-storage.js";
 import type { TargetTypeRef, CsharpExplicitImplementationConstraint } from "../../types/native-type-data.js";
-import type { CsharpDelegateSignatureShape, CsharpObjectShapeFact } from "../../types/model.js";
+import type { CsharpObjectShapeFact } from "../../types/model.js";
+import type { CsharpDelegateSignatureShape } from "../../types/native-type-data.js";
 
 export interface CsharpCaptureMethodEmission {
   readonly method: CsharpFrameClosure;

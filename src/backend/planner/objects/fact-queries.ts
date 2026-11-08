@@ -5,9 +5,7 @@ import type {
 import type {
   CsharpObjectShapeFact,
 } from "../../../target-model/types/index.js";
-import type {
-  CsharpPlanningContext,
-} from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 
 export function getCsharpObjectShapeFactForNode(
   node: Node | undefined,

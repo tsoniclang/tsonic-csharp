@@ -7,10 +7,11 @@ import { translateSourceOwnedCall } from "./source.js";
 import { planCsharpOptionalReceiverChain } from "./optional-chain.js";
 import { planCsharpClosedTypeTest } from "../type-tests.js";
 import { readCsharpNativeDiscardEvaluation } from "../native-uses.js";
-import { createDestructuringPlannerState, type DestructuringPlannerState } from "../../bindings/binding-state.js";
+import { createDestructuringPlannerState } from "../../bindings/binding-state.js";
+import { type DestructuringPlannerState } from "../../planning-data.js";
 import { convertCsharpPlannedValue } from "../planned-value-conversions.js";
-import type { CallArgumentPlanner, ExpressionPlanner } from "../expression-planner-types.js";
-import type { CsharpPlanningContext } from "../../context.js";
+import type { CallArgumentPlanner, ExpressionPlanner } from "../../planning-data.js";
+import type { CsharpPlanningContext } from "../../planning-data.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 

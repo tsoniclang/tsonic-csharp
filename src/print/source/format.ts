@@ -1,4 +1,4 @@
-import type { CsharpExpression } from "../../backend/target-ast/syntax/expressions.js";
+import type { CsharpExpression } from "../../backend/target-ast/syntax/code.js";
 import { failCsharpSyntaxInvariant } from "./invariants.js";
 
 export function indentLines(lines: readonly string[]): string[] {

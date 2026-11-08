@@ -1,7 +1,7 @@
 import type { ArgumentPassingMode, Node } from "@tsonic/tsts";
 import type { SourceMemberOrigin, SourcePropertyName } from "@tsonic/target-api/source";
 import type { CsharpConversionSelection } from "../conversions/selection.js";
-import type { CsharpTypeParameterConstraint, TargetTypeRef } from "./native-type-data.js";
+import type { CsharpDelegateSignatureShape, CsharpNativeCallableMember, TargetTypeRef } from "./native-type-data.js";
 
 export interface CsharpTargetBinaryExecutionDriver {
   readonly id: string;
@@ -21,15 +21,16 @@ export type CsharpSourceMemberKey =
       readonly symbol: Extract<SourcePropertyName, { readonly kind: "well-known-symbol" }>["name"];
     };
 
-export interface CsharpObjectMethodValueStorage {
-  readonly type: TargetTypeRef;
+export interface CsharpClassFactoryType {
+  readonly declaration: Node;
+  readonly instance: CsharpTargetNamedTypeRef;
+  readonly outerTypeParameterCount: number;
+  readonly createMethodName: string;
+  readonly instanceTestMethodName: string;
 }
 
-export interface CsharpNativeMethodTypeParameter {
-  readonly declaration?: Node;
-  readonly identity: string;
-  readonly name: string;
-  readonly constraints: readonly CsharpTypeParameterConstraint[];
+export interface CsharpObjectMethodValueStorage {
+  readonly type: TargetTypeRef;
 }
 
 interface CsharpObjectShapeMemberBase {
@@ -86,22 +87,6 @@ export interface CsharpObjectShapeFact {
 export interface CsharpSourceTargetTypeBinding {
   readonly declaration: Node;
   readonly targetType: TargetTypeRef;
-}
-
-export interface CsharpStructuralInterfaceImplementation {
-  readonly sourceNode: Node;
-  readonly sourceType: TargetTypeRef;
-  readonly interfaceType: TargetTypeRef;
-  readonly properties: readonly ({
-    readonly sourceType: TargetTypeRef;
-    readonly member: CsharpObjectShapeMemberFact;
-  } & ({ readonly native: import("../records/program/source-profile-invocations.js").CsharpNativePropertyRead; readonly sourceName?: never } |
-    { readonly native?: never; readonly sourceName: string }))[];
-  readonly methods: readonly {
-    readonly sourceName: string;
-    readonly declaration: Node;
-    readonly member: CsharpObjectShapeMemberFact;
-  }[];
 }
 
 export type TargetConstraint =
@@ -233,7 +218,7 @@ export type CsharpTargetNamedTypeRef = Extract<TargetTypeRef, { readonly kind: "
   readonly csharpDelegateSignature?: CsharpDelegateSignatureShape;
   readonly csharpCallableMembers?: readonly CsharpNativeCallableMember[];
   readonly csharpExpressionTreeDelegateType?: TargetTypeRef;
-  readonly csharpClassFactory?: import("./carriers/class-factories.js").CsharpClassFactoryType;
+  readonly csharpClassFactory?: CsharpClassFactoryType;
   readonly csharpMethodValue?: {
     readonly owner: TargetTypeRef;
     readonly method: string;
@@ -549,23 +534,6 @@ export interface CsharpTargetBindingFact extends Omit<TargetBindingFact, "member
 
 export function csharpTargetBindingFact(binding: TargetBindingFact | undefined): CsharpTargetBindingFact | undefined {
   return binding as CsharpTargetBindingFact | undefined;
-}
-
-export interface CsharpDelegateSignatureShape {
-  readonly kind: "call" | "construct";
-  readonly receiver?: { readonly type: TargetTypeRef; readonly passingMode: ArgumentPassingMode };
-  readonly parameters: readonly TargetTypeRef[];
-  readonly parameterPassingModes: readonly ArgumentPassingMode[];
-  readonly returnType: TargetTypeRef;
-  readonly returnPassing?: "byref-readwrite" | "byref-readonly";
-  readonly optionalParameterIndexes?: readonly number[];
-  readonly restParameterIndex?: number;
-}
-
-export interface CsharpNativeCallableMember {
-  readonly name: string;
-  readonly typeParameters: readonly CsharpNativeMethodTypeParameter[];
-  readonly signature: CsharpDelegateSignatureShape;
 }
 
 export type CsharpDelegateTargetTypeRef = CsharpTargetNamedTypeRef & {

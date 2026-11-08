@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { admitCsharpConversionSelection, csharpRuntimeUnionMappingMatches } from "../../../dist/analysis/conversions/validation.js";
 import { selectCsharpConversion } from "../../../dist/policy/conversions/index.js";
-import { csharpUnionReferenceImplicitlyAccepts } from "../../../dist/policy/conversions/carriers.js";
+import { csharpUnionReferenceImplicitlyAccepts } from "../../../dist/policy/constraints/native-relations.js";
 import { csharpAbsenceTargetType, csharpNullableTargetType, csharpRuntimeUnionTargetType,
   csharpSourcePrimitiveTargetType, csharpStringTargetType,
   csharpTargetNamedType } from "../../../dist/target-model/types/index.js";

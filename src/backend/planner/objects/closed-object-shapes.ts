@@ -1,5 +1,5 @@
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpPlanningContext } from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 import type { CsharpClosedShapeConversion } from "../../../target-model/records/objects/closed-object-shapes.js";
 import type { CsharpObjectShapeProjectionDeclaration } from "../../../target-model/records/objects/object-shape-demand.js";
 import type { CsharpNativeMemberHidingReader } from "../../../target-model/records/native/native-member-names.js";

@@ -1,5 +1,5 @@
 import type { Node } from "@tsonic/tsts";
-import type { CsharpPlanningContext } from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
 export function createCsharpTypeParameterPlanningContext(

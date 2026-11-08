@@ -1,7 +1,7 @@
 import { dotnetConversionOperatorNameMatchesKind, validateDotnetTargetIdentity, validateOptionalDotnetAssemblyReference, validateOptionalDotnetRenderShape } from "./dotnet-identities.js";
 import { requireNonEmptyString, requireSupportedDiscriminant, requireUnique, supportedDotnetConversionKinds, supportedDotnetConversionOperatorNames, supportedDotnetExportKinds, supportedDotnetMemberKinds, supportedDotnetTypeKinds, supportedReturnPassingModes } from "./support.js";
-import { validateDotnetConstraints, validateDotnetSignatureList, validateDotnetTypeParameters, validateUnsupportedConstraints, validateUnsupportedMembers } from "./dotnet-signatures.js";
-import { validateDotnetTypeRef, validateOptionalDotnetTypeRef } from "./dotnet-types.js";
+import { validateDotnetConstraints, validateDotnetSignatureList, validateDotnetTypeParameters, validateUnsupportedConstraints, validateUnsupportedMembers } from "./dotnet-signature-types.js";
+import { validateDotnetTypeRef, validateOptionalDotnetTypeRef } from "./dotnet-signature-types.js";
 import type { DotnetExportDeclaration, DotnetMemberDeclaration, DotnetTypeDeclaration } from "../index.js";
 import type { ContractCollector } from "./support.js";
 import { supportedDotnetAccessibilities, validateDotnetInheritance } from "./dotnet-inheritance.js";

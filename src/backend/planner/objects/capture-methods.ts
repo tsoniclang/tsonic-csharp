@@ -4,10 +4,10 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpCaptureFrame } from "../../../target-model/records/callables/capture-storage.js";
 import type { CsharpObjectShapeFact } from "../../../target-model/types/model.js";
 import type { CsharpExpression, CsharpMethodDeclaration, CsharpTypeMember } from "../../target-ast/syntax/index.js";
-import type { CsharpPlanningContext } from "../context.js";
-import { createCsharpMemberPlanningContext } from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
+import { createCsharpMemberPlanningContext } from "../scopes.js";
 import { planCsharpArrowLambdaSyntax, planCsharpCapturedFunctionLambdaSyntax } from "../expressions/callable.js";
-import { planExpression } from "../expressions/index.js";
+
 import { planTypeParameters, renderCsharpExplicitImplementationTypeParameters } from "../types/type-parameters.js";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
@@ -82,7 +82,7 @@ export function renderCsharpCaptureFrameMethods(
       continue;
     }
     const lambda = selected.form === "arrow"
-      ? planCsharpArrowLambdaSyntax(method.declaration, file, context, diagnostics, planExpression)
+      ? planCsharpArrowLambdaSyntax(method.declaration, file, context, diagnostics, input.dispatch.planExpression)
       : planCsharpCapturedFunctionLambdaSyntax(method.declaration, file, context, diagnostics);
     if (lambda === undefined) failCsharpPlannerInvariant("An admitted captured callable requires its native body fragments.", method.declaration);
     if (quotation) {

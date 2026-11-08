@@ -1,9 +1,9 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpExpression, CsharpTypeNode } from "../../../target-ast/syntax/index.js";
-import type { DestructuringPlannerState } from "../../bindings/index.js";
-import type { CsharpPlanningContext } from "../../context.js";
-import { planExpression } from "../../expressions/index.js";
+import type { DestructuringPlannerState } from "../../planning-data.js";
+import type { CsharpPlanningContext } from "../../planning-data.js";
+
 import { csharpTypeFromTargetTypeRefWithObjectShapeDeclarations } from "../../types/target-type-object-shapes.js";
 import type { CsharpPlannedValue } from "../../expressions/planned-values.js";
 import { planCsharpBindingDefaultValue } from "../../bindings/optional-values.js";
@@ -63,7 +63,7 @@ function planRuntimeParameterDefault(
     if (value === undefined) failCsharpPlannerInvariant("An admitted present parameter requires its exact native body conversion.", node);
     return { valueType, parameterType, passthrough: contract.passthrough, value };
   }
-  const initializer = planExpression(declaration.Initializer, sourceFile, input, diagnostics, state);
+  const initializer = input.dispatch.planExpression(declaration.Initializer, sourceFile, input, diagnostics, state);
   if (initializer === undefined) failCsharpPlannerInvariant("An admitted runtime parameter default requires its native initializer plan.", declaration.Initializer);
   const value = planCsharpBindingDefaultValue(node, sourceFile, input, diagnostics,
     incoming, contract.native, initializer, state);

@@ -2,7 +2,7 @@ import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpDeclarationClassifications } from "../../../../target-model/records/program/declarations.js";
 import type { CsharpMethodDeclaration, CsharpTypeMember } from "../../../target-ast/syntax/index.js";
-import type { CsharpPlanningContext } from "../../context.js";
+import type { CsharpPlanningContext } from "../../planning-data.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/render.js";
 import { nullableCsharpType } from "../../types/index.js";
 import { failCsharpPlannerInvariant } from "../../diagnostics.js";

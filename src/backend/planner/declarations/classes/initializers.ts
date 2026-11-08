@@ -2,9 +2,9 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import { sourceClassFieldIsTypeOnly } from "@tsonic/target-api/source";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpExpression, CsharpStatement } from "../../../target-ast/syntax/index.js";
-import type { CsharpPlanningContext } from "../../context.js";
+import type { CsharpPlanningContext } from "../../planning-data.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/render.js";
-import { planExpression } from "../../expressions/index.js";
+
 import { planCsharpAdmittedMemberName } from "../modifiers.js";
 import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import { createDestructuringPlannerState } from "../../bindings/binding-state.js";
@@ -53,7 +53,7 @@ export function planClassInitializationRegion(
     const target = input.program.records.storageType.get(node);
     const type = target === undefined ? undefined : csharpTypeFromTargetTypeRef(target, input.scope.typeParameterNames);
     if (type === undefined) failCsharpPlannerInvariant("An admitted class initializer lost its exact native storage type.", node);
-    const value = planExpression(property.Initializer, sourceFile, input, diagnostics, state);
+    const value = input.dispatch.planExpression(property.Initializer, sourceFile, input, diagnostics, state);
     if (value === undefined) failCsharpPlannerInvariant("An admitted class field requires its native initializer plan.", node);
     fields.set(node, value);
     if (value.completion.kind === "value") {

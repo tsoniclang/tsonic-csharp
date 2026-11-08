@@ -1,4 +1,4 @@
-import type { CsharpPlanningContext } from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 import { AsForInOrOfStatement } from "@tsonic/target-api/source";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
@@ -11,12 +11,10 @@ import type { CsharpAdmittedIteration } from "../../../target-model/records/oper
 import {
   allocateForInNames,
 } from "../bindings/index.js";
-import type { DestructuringPlannerState } from "../bindings/index.js";
-import { planExpression } from "../expressions/index.js";
+import type { DestructuringPlannerState } from "../planning-data.js";
+
 import { consumeCsharpPlannedValue } from "./statement-output.js";
-import type {
-  NestedStatementPlanner,
-} from "./model.js";
+import type { NestedStatementPlanner } from "../planning-data.js";
 import {
   getCsharpTypeForForInCollection,
   planForInBinding,
@@ -110,7 +108,7 @@ export function planForInStatement(
       ],
     },
   };
-  const collection = planExpression(statement.Expression, sourceFile, input, diagnostics, state);
+  const collection = input.dispatch.planExpression(statement.Expression, sourceFile, input, diagnostics, state);
   if (collection === undefined) failCsharpPlannerInvariant("Admitted property-key iteration requires its collection value plan.", statement.Expression);
   return consumeCsharpPlannedValue(collection, value => [...bindingActivation.outerPrelude, {
     kind: "Block",

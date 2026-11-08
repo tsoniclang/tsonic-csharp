@@ -1,7 +1,4 @@
-export interface CsharpSyntheticNames {
-  temporaryName(preferred: string): string;
-}
-
+import type { CsharpSyntheticNames } from "../planning-data.js";
 export function createCsharpSyntheticNames(reservedNames: readonly string[]): CsharpSyntheticNames {
   const used = new Set(reservedNames);
   return Object.freeze({

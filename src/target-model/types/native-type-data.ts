@@ -1,4 +1,4 @@
-import type { Node, SourcePrimitiveKind } from "@tsonic/tsts";
+import type { ArgumentPassingMode, Node, SourcePrimitiveKind } from "@tsonic/tsts";
 
 export type TargetTypeRef =
   | { readonly kind: "source-primitive"; readonly name: SourcePrimitiveKind }
@@ -84,4 +84,28 @@ export interface CsharpUnionArmMapping {
   readonly carrier: TargetTypeRef;
   readonly source: readonly CsharpUnionPathStep[];
   readonly target: readonly CsharpUnionPathStep[];
+}
+
+export interface CsharpNativeMethodTypeParameter {
+  readonly declaration?: Node;
+  readonly identity: string;
+  readonly name: string;
+  readonly constraints: readonly CsharpTypeParameterConstraint[];
+}
+
+export interface CsharpDelegateSignatureShape {
+  readonly kind: "call" | "construct";
+  readonly receiver?: { readonly type: TargetTypeRef; readonly passingMode: ArgumentPassingMode };
+  readonly parameters: readonly TargetTypeRef[];
+  readonly parameterPassingModes: readonly ArgumentPassingMode[];
+  readonly returnType: TargetTypeRef;
+  readonly returnPassing?: "byref-readwrite" | "byref-readonly";
+  readonly optionalParameterIndexes?: readonly number[];
+  readonly restParameterIndex?: number;
+}
+
+export interface CsharpNativeCallableMember {
+  readonly name: string;
+  readonly typeParameters: readonly CsharpNativeMethodTypeParameter[];
+  readonly signature: CsharpDelegateSignatureShape;
 }

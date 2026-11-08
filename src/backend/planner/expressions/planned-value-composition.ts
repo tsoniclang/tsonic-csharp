@@ -1,12 +1,10 @@
+import { captureCsharpPlannedValue } from "./value-captures.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpPlanningContext } from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 import type { CsharpExpression, CsharpStatement } from "../../target-ast/syntax/index.js";
 import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
-import { csharpTypeFromTargetTypeRef } from "../types/render.js";
-import { qualifiedCsharpType } from "../types/index.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
-import { planCsharpNeverValue } from "./never-values.js";
 import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { planCsharpAbsentValue, planCsharpPresentValueGuard } from "./optional-storage.js";
@@ -17,44 +15,6 @@ import {
   csharpPlannedValue, csharpPlannedEffect, sequenceCsharpPlannedValues,
   planCsharpPlannedBranch, type CsharpPlannedValue, type CsharpPlannedOperand, type CsharpPlannedCapture, type CsharpPlannedLocationCapture,
 } from "./planned-values.js";
-
-export function planCsharpExpressionCompletion(
-  node: Node,
-  _sourceFile: SourceFile,
-  input: CsharpPlanningContext,
-  _diagnostics: TargetDiagnostic[],
-  expression: CsharpExpression | undefined,
-  carrier: TargetTypeRef | undefined,
-  prelude: readonly CsharpStatement[] = [],
-): CsharpPlannedValue | undefined {
-  if (expression === undefined) return undefined;
-  if (carrier === undefined) failCsharpPlannerInvariant("An admitted expression requires its finalized completion carrier.", node);
-  const completion = input.program.records.typeEmission.get(carrier)?.completion
-    ?? failCsharpPlannerInvariant("An admitted expression requires its selected native completion.", node);
-  if (completion === "never") return csharpPlannedEffect(carrier, [...prelude, {
-    kind: "ThrowStatement", expression: planCsharpNeverValue(expression, qualifiedCsharpType("System", "Exception")),
-  }], "never");
-  if (completion === "void") {
-    let statement = expression;
-    while (statement.kind === "ParenthesizedExpression") statement = statement.expression;
-    return { ...csharpPlannedEffect(carrier, [...prelude, { kind: "ExpressionStatement", expression: statement }]),
-      ...(prelude.length === 0 ? { effect: statement } : {}) };
-  }
-  return csharpPlannedValue(carrier, expression, prelude, input.program.records.nativeConstant.get(node, carrier) === true,
-    input.program.records.nativeAbsence.get(node, carrier) === true);
-}
-
-export function captureCsharpPlannedValue(
-  node: Node,
-  input: CsharpPlanningContext,
-  carrier: TargetTypeRef,
-): CsharpPlannedCapture | undefined {
-  const type = csharpTypeFromTargetTypeRef(carrier, input.scope.typeParameterNames);
-  if (type === undefined) {
-    failCsharpPlannerInvariant("An admitted ordered evaluation requires its exact native temporary carrier.", node);
-  }
-  return { type, name: input.names.temporaryName(`__tsonic_value_${input.program.source.ast.pos(node)}`) };
-}
 
 export function composeCsharpPlannedValues(
   node: Node,

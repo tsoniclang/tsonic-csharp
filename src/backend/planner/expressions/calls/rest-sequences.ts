@@ -1,8 +1,8 @@
 import { csharpTypeFromTargetTypeRef } from "../../types/render.js";
 import type { CsharpPlannedValue } from "../planned-values.js";
 import { projectCsharpPlannedValue } from "../planned-value-composition.js";
-import type { CsharpPlanningContext } from "../../context.js";
-import type { ExpressionPlanner } from "../expression-planner-types.js";
+import type { CsharpPlanningContext } from "../../planning-data.js";
+import type { ExpressionPlanner } from "../../planning-data.js";
 import type { CsharpRestSequence } from "../../../../target-model/records/objects/rest-sequences.js";
 import type { SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";

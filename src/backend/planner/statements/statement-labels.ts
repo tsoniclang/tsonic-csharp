@@ -1,13 +1,13 @@
-import type { CsharpPlanningContext } from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpStatement } from "../../target-ast/syntax/index.js";
 import {
   allocateControlLabel,
 } from "../bindings/index.js";
-import type { DestructuringPlannerState } from "../bindings/index.js";
-import type { ControlLabelTarget } from "../bindings/binding-state.js";
-import type { NestedStatementPlanner } from "./model.js";
+import type { DestructuringPlannerState } from "../planning-data.js";
+import type { ControlLabelTarget } from "../planning-data.js";
+import type { NestedStatementPlanner } from "../planning-data.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
 export function planLabeledStatement(

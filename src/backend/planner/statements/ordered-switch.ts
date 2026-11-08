@@ -2,9 +2,10 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpSwitchSelection } from "../../../target-model/records/operations/switch.js";
 import type { CsharpExpression, CsharpStatement, CsharpSwitchSection } from "../../target-ast/syntax/index.js";
-import type { CsharpPlanningContext } from "../context.js";
-import { allocateExpressionTemp, type DestructuringPlannerState } from "../bindings/binding-state.js";
-import { planExpression } from "../expressions/index.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
+import { allocateExpressionTemp } from "../bindings/binding-state.js";
+import { type DestructuringPlannerState } from "../planning-data.js";
+
 import { planSelectedCsharpBinaryOperation } from "../expressions/selected-binary.js";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import type { CsharpPlannedValue } from "../expressions/planned-values.js";
@@ -24,7 +25,7 @@ export function planOrderedSwitch(
   state: DestructuringPlannerState,
   planBody: (node: Node) => readonly CsharpStatement[],
 ): CsharpStatement | undefined {
-  const expression = planExpression(selection.expression, sourceFile, input, diagnostics, state);
+  const expression = input.dispatch.planExpression(selection.expression, sourceFile, input, diagnostics, state);
   const type = csharpTypeFromTargetTypeRef(selection.type, input.scope.typeParameterNames);
   if (type === undefined) failCsharpPlannerInvariant("An admitted ordered switch lost its native value type.", selection.expression);
   if (expression === undefined) return undefined;
@@ -38,7 +39,7 @@ export function planOrderedSwitch(
   try {
     for (const [index, clause] of selection.clauses.entries()) {
       if (clause.comparison === undefined) continue;
-      const condition = planSelectedCsharpBinaryOperation(clause.node, clause.comparison, sourceFile, input, diagnostics, (node, file, context, reports) => planExpression(node, file, context, reports, state), state);
+      const condition = planSelectedCsharpBinaryOperation(clause.node, clause.comparison, sourceFile, input, diagnostics, (node, file, context, reports) => input.dispatch.planExpression(node, file, context, reports, state), state);
       if (condition === undefined) return undefined;
       tests.push({ index, condition });
     }

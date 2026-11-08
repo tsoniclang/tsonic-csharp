@@ -5,7 +5,8 @@ import { csharpNullableTargetType } from "../../../target-model/types/carriers/n
 import { csharpRuntimeLocationTargetType, csharpRuntimeRecordFieldTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { csharpTargetTypeRenderingRejection } from "../model/renderability.js";
 import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
-import type { CsharpDelegateSignatureShape, CsharpObjectShapeMemberFact } from "../../../target-model/types/model.js";
+import type { CsharpObjectShapeMemberFact } from "../../../target-model/types/model.js";
+import type { CsharpDelegateSignatureShape } from "../../../target-model/types/native-type-data.js";
 import type { SourceStorageDomainBoundary, SourceStorageMemberWritesSelection } from "@tsonic/target-api/analysis";
 import { objectShapeMethodBodyName, objectShapeMethodValueStorageNames } from "../../../target-model/names/object-members.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";

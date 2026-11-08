@@ -1,5 +1,6 @@
 import type { CsharpTypeParameterConstraint, TargetTypeRef } from "./native-type-data.js";
-import type { CsharpDelegateSignatureShape, CsharpNativeCallableMember, CsharpTargetNamedTypeRef } from "./model.js";
+import type { CsharpTargetNamedTypeRef } from "./model.js";
+import type { CsharpDelegateSignatureShape, CsharpNativeCallableMember } from "./native-type-data.js";
 import { csharpTargetTypeComponents } from "./components.js";
 import { csharpOptionalStorageDefinitionNames } from "./native-generics.js";
 

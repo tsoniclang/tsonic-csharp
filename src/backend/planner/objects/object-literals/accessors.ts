@@ -1,7 +1,7 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpObjectShapeFact } from "../../../../target-model/types/model.js";
-import type { CsharpPlanningContext } from "../../context.js";
+import type { CsharpPlanningContext } from "../../planning-data.js";
 import { csharpPlannedValue } from "../../expressions/planned-values.js";
 import type { CsharpPlannedObjectInitializer } from "../../expressions/planned-initializers.js";
 import { renderCsharpObjectLiteralCallable } from "./methods.js";

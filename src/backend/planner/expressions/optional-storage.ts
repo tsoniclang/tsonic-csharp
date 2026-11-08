@@ -1,6 +1,6 @@
 import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
 import type { CsharpExpression } from "../../target-ast/syntax/index.js";
-import type { CsharpPlanningContext } from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { getCsharpNullableElementTargetType, isCsharpAbsenceTargetType } from "../../../target-model/types/index.js";

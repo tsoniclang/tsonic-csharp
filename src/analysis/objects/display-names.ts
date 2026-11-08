@@ -11,12 +11,6 @@ import {
 } from "../../target-model/types/index.js";
 import { selectCsharpObjectShapeDisplayNames } from "../names/object-shapes.js";
 
-export interface CsharpObjectShapeNameCandidate {
-  readonly canonicalName: string;
-  readonly identity: string;
-  readonly preferredStem: string;
-}
-
 export function analyzeCsharpObjectShapeNames(
   artifacts: readonly CsharpObjectShapeArtifact[],
   reservedNames: ReadonlySet<string>,

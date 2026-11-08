@@ -5,12 +5,13 @@ import type { TargetTypeRef } from "../../../target-model/types/native-type-data
 import { csharpTaskTargetType } from "../../../target-model/types/carriers/delegates.js";
 import { csharpVoidTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import type { CsharpExpression, CsharpSwitchExpressionArm, CsharpStatement } from "../../target-ast/syntax/index.js";
-import type { CsharpPlanningContext } from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { planCsharpUnionPattern } from "./union-patterns.js";
 import { planCsharpUnionMapping } from "./union-mappings.js";
 import { csharpPlannedEffect, csharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
-import { captureCsharpPlannedValue, planCsharpExpressionCompletion } from "./planned-value-composition.js";
+import { captureCsharpPlannedValue } from "./value-captures.js";
+import { planCsharpExpressionCompletion } from "./expression-completions.js";
 import { planCsharpAbsentValue } from "./optional-storage.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 

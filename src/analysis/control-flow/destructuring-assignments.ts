@@ -9,7 +9,7 @@ import type { CsharpObjectShapeFact, TargetTypeRef } from "../../target-model/ty
 import type { CsharpBindingElementProjection, CsharpBindingPatternSource, CsharpBindingProjectionFact,
   CsharpDestructuringAssignmentArrayElement, CsharpDestructuringAssignmentObjectElement,
   CsharpDestructuringAssignmentPattern, CsharpDestructuringAssignmentTarget } from "../../target-model/records/objects/value-projections.js";
-import type { CsharpBindingPatternAnalysisInput } from "./binding-patterns.js";
+import type { CsharpBindingPatternAnalysisInput } from "./binding-pattern-model.js";
 import { resolveCsharpPublishedNativePropertyRead } from "../objects/native-property-reads.js";
 
 interface PublishedAssignmentSource {

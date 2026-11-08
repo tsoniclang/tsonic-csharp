@@ -1,9 +1,10 @@
-import type { CsharpPlanningContext } from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpExpression, CsharpStatement } from "../../target-ast/syntax/index.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
-import { getCsharpLocalBindingName, type DestructuringPlannerState } from "../bindings/index.js";
+import { getCsharpLocalBindingName } from "../bindings/index.js";
+import { type DestructuringPlannerState } from "../planning-data.js";
 import { getCsharpExpressionOverride } from "../bindings/binding-state.js";
 import { planFlowReadUseSiteProjection } from "./flow-read-projections.js";
 import { planCsharpSourceModuleValueReference } from "../bindings/module-values.js";
@@ -12,7 +13,7 @@ import { csharpCapturedBindingExpression, csharpCaptureFrameExpression } from ".
 import { planCsharpFrameClosureReference } from "../bindings/capture-closures.js";
 import { getCsharpTypeFromProjectSourceReference } from "../types/project-source-types.js";
 import type { CsharpPlannedValue, CsharpPlannedAddressOperand } from "./planned-values.js";
-import { planCsharpExpressionCompletion } from "./planned-value-composition.js";
+import { planCsharpExpressionCompletion } from "./expression-completions.js";
 import { readCsharpNativeExpressionCarrier } from "./native-uses.js";
 import { planCsharpAbsenceLiteral } from "./optional-storage.js";
 

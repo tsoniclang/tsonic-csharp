@@ -3,18 +3,17 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
 import type { CsharpTypedLocationStorage } from "../../../target-model/records/storage/typed-location-storage.js";
 import type { CsharpArgument, CsharpExpression, CsharpLambdaParameter, CsharpTypeNode } from "../../target-ast/syntax/index.js";
-import type { CsharpPlanningContext } from "../context.js";
-import type { ExpressionPlanner } from "./expression-planner-types.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
+import type { ExpressionPlanner } from "../planning-data.js";
 import type { CsharpPlannedAddress, CsharpPlannedValue } from "./planned-values.js";
-import {
-  allocateSyntheticParameter, createDestructuringPlannerState, getCsharpTypedLocationIdentityName,
-  type DestructuringPlannerState,
-} from "../bindings/index.js";
+import { allocateSyntheticParameter, createDestructuringPlannerState, getCsharpTypedLocationIdentityName } from "../bindings/index.js";
+import { type DestructuringPlannerState } from "../planning-data.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { planCsharpNativeMemoryCall } from "./native-memory.js";
 import { planCsharpIndexedLocation } from "./indexed-locations.js";
-import { buildCsharpPlannedValue, projectCsharpPlannedValue, projectCsharpPlannedMember, planCsharpExpressionCompletion } from "./planned-value-composition.js";
+import { buildCsharpPlannedValue, projectCsharpPlannedValue, projectCsharpPlannedMember } from "./planned-value-composition.js";
+import { planCsharpExpressionCompletion } from "./expression-completions.js";
 import { readCsharpNativeExpressionCarrier } from "./native-uses.js";
 import { captureCsharpPlannedLocation } from "./planned-locations.js";
 

@@ -1,5 +1,4 @@
-import type {
-  CsharpPlanningContext } from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 import {
   AsBindingElement,
   AsBindingPattern,
@@ -14,7 +13,7 @@ import type {
   CsharpStatement,
 } from "../../target-ast/syntax/index.js";
 import { runtimeArrayHelperCall } from "../expressions/array-helpers.js";
-import type { DestructuringPlannerState } from "./binding-state.js";
+import type { DestructuringPlannerState } from "../planning-data.js";
 import type { BindingProjectionPlanner } from "./binding-pattern-contracts.js";
 import { csharpTupleExpression } from "../types/tuples.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
@@ -23,7 +22,7 @@ import { planArrayDefaultProjection } from "./array-defaults.js";
 import type {
   CsharpArrayBindingCarrier,
 } from "../../../target-model/types/index.js";
-import type { ExpressionPlanner } from "../expressions/expression-planner-types.js";
+import type { ExpressionPlanner } from "../planning-data.js";
 import { consumeCsharpPlannedValue } from "../statements/statement-output.js";
 import { planCsharpBindingDefaultValue } from "./optional-values.js";
 

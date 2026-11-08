@@ -1,9 +1,9 @@
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
-import type { CsharpPlanningContext } from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpAttribute } from "../../target-ast/syntax/index.js";
-import { planExpression } from "../expressions/index.js";
+
 
 export function planAttributesForSubject(
   subject: Node | undefined,
@@ -14,7 +14,7 @@ export function planAttributesForSubject(
   const attributes = subject === undefined ? [] : input.program.records.attributeApplication.get(subject);
   if (attributes.length === 0) return undefined;
   return attributes.flatMap(attribute => {
-    const planned = planExpression(attribute.invocation, sourceFile, input, diagnostics);
+    const planned = input.dispatch.planExpression(attribute.invocation, sourceFile, input, diagnostics);
     if (planned === undefined) failCsharpPlannerInvariant("An admitted attribute application requires its native construction plan.", attribute.invocation);
     const construction = planned.completion.kind === "value" ? planned.completion.expression : undefined;
     if (planned.prelude.length !== 0 || construction?.kind !== "ObjectCreationExpression" ||

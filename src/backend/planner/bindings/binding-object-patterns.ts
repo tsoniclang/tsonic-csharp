@@ -1,4 +1,4 @@
-import type { CsharpPlanningContext } from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 import { AsBindingPattern } from "@tsonic/target-api/source";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
@@ -6,9 +6,9 @@ import type {
   CsharpExpression,
   CsharpStatement,
 } from "../../target-ast/syntax/index.js";
-import type { DestructuringPlannerState } from "./binding-state.js";
+import type { DestructuringPlannerState } from "../planning-data.js";
 import type { BindingProjectionPlanner } from "./binding-pattern-contracts.js";
-import type { ExpressionPlanner } from "../expressions/expression-planner-types.js";
+import type { ExpressionPlanner } from "../planning-data.js";
 import { csharpTypeFromObjectShapeFact } from "../objects/index.js";
 import { planObjectBindingElement } from "./binding-object-source-patterns.js";
 import {

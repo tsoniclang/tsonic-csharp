@@ -1,8 +1,8 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpPlanningContext } from "../../context.js";
+import type { CsharpPlanningContext } from "../../planning-data.js";
 import type { CsharpExpression, CsharpStatement } from "../../../target-ast/syntax/index.js";
-import type { DestructuringPlannerState } from "../../bindings/binding-state.js";
+import type { DestructuringPlannerState } from "../../planning-data.js";
 import { planIdentifierExpression } from "../../expressions/expression-source-references.js";
 import { planCsharpDelegateAdaptationBody } from "../../expressions/callable-conversions.js";
 import { applyCsharpConversionSelection } from "../../expressions/conversions.js";

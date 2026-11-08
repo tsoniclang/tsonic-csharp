@@ -1,5 +1,6 @@
 import type { TargetTypeRef } from "../native-type-data.js";
-import type { CsharpDelegateSignatureShape, CsharpDelegateTargetTypeRef, CsharpNativeCallableMember, CsharpTaskTargetTypeRef, CsharpTargetNamedTypeRef } from "../model.js";
+import type { CsharpDelegateTargetTypeRef, CsharpTaskTargetTypeRef, CsharpTargetNamedTypeRef } from "../model.js";
+import type { CsharpDelegateSignatureShape, CsharpNativeCallableMember } from "../native-type-data.js";
 import { isCsharpVoidTargetType } from "../identity.js";
 
 import { scopedTargetTypeRefKey, targetTypeRefEquals } from "../equality.js";

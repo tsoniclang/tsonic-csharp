@@ -1,9 +1,9 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpPlanningContext } from "../context.js";
-import type { DestructuringPlannerState } from "../bindings/binding-state.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
+import type { DestructuringPlannerState } from "../planning-data.js";
 import type { CsharpPlannedValue } from "./planned-values.js";
-import type { CallArgumentPlanner, ExpressionPlanner } from "./expression-planner-types.js";
+import type { CallArgumentPlanner, ExpressionPlanner } from "../planning-data.js";
 import { buildCsharpPlannedValue } from "./planned-value-composition.js";
 import { planCsharpJsValueLogical } from "./js-value-logical.js";
 import { tryPlanJsArrayMutationExpression } from "./expression-js-array-mutations.js";

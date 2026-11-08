@@ -1,3 +1,4 @@
+import { sourceCategoryWitnessType } from "./category-witness.js";
 import type { Node } from "@tsonic/tsts";
 import type { SourceCategory, SourceTypeEvidence, SourceTypeParameter } from "@tsonic/target-api/source";
 import type { TargetTypeRef, CsharpRepresentedTypeParameter } from "../../../target-model/types/native-type-data.js";
@@ -14,16 +15,6 @@ import { sourceRuntimeType, sourceRepresentationDependencies, sourceRepresentati
 import { represented, nativeRepresentationFailure, representationRequirements, sourceOutcome } from "./representation-results.js";
 import { representCsharpOptionalStorage } from "./representation-optional.js";
 import type { CsharpRepresentationRequirements } from "./representation-requirements.js";
-
-const categoryNames: Readonly<Record<SourceCategory, string>> = Object.freeze({
-  absence: "Absent", boolean: "Boolean", number: "Number", bigint: "BigInt", string: "String", symbol: "Symbol", object: "Object", function: "Function",
-});
-
-export function sourceCategoryWitnessType(host: Pick<CsharpRepresentationHost, "providers">,
-  category: CsharpSourceCategoryWitness, site: Node): CsharpRepresentationOutcome<TargetTypeRef> {
-  return category.kind === "witness" ? represented(category.witnessType)
-    : sourceRuntimeType(host, `Source${categoryNames[category.category]}Category`, [category.valueType], "struct", site);
-}
 
 function nativeCarrierSupportsCategory(category: SourceCategory, carrier: TargetTypeRef): boolean {
   if (isCsharpJsValueTargetType(carrier)) return true;

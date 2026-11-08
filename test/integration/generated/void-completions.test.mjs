@@ -7,7 +7,7 @@ import { csharpVoidReturnCompletion } from "../../../dist/policy/conversions/cal
 import { csharpAbsenceTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
 import { csharpSourcePrimitiveTargetType, csharpVoidTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
-import { selectDelegateConversion } from "../../../dist/policy/conversions/carriers.js";
+import { selectDelegateConversion } from "../../../dist/policy/conversions/core.js";
 import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
 
 test("native absence return completion stays distinct from delegate result erasure", () => {

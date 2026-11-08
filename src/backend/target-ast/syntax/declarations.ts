@@ -1,4 +1,4 @@
-import type { CsharpExpression } from "./expressions.js";
+import type { CsharpExpression } from "./code.js";
 import type {
   CsharpAttribute,
   CsharpInterfaceMember,
@@ -6,7 +6,7 @@ import type {
   CsharpParameter,
   CsharpTypeMember,
   CsharpTypeParameter,
-} from "./members.js";
+} from "./code.js";
 import type { CsharpTypeNode } from "./types.js";
 
 export interface CsharpCompilationUnit {

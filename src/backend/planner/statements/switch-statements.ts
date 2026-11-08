@@ -3,8 +3,8 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpStatement, CsharpSwitchSection } from "../../target-ast/syntax/index.js";
 import type { CsharpPlannedValue } from "../expressions/planned-values.js";
 import { consumeCsharpPlannedValue } from "./statement-output.js";
-import type { CsharpPlanningContext } from "../context.js";
-import type { DestructuringPlannerState } from "../bindings/index.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
+import type { DestructuringPlannerState } from "../planning-data.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { finishSwitchSections, planOrderedSwitch, type CsharpPlannedSwitchSection } from "./ordered-switch.js";
 

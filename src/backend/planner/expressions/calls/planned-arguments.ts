@@ -1,10 +1,10 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpArgument, CsharpExpression } from "../../../target-ast/syntax/index.js";
-import type { CsharpPlanningContext } from "../../context.js";
+import type { CsharpPlanningContext } from "../../planning-data.js";
 import type { CsharpPlannedArgument, CsharpPlannedValue, CsharpPlannedEffectOperand } from "../planned-values.js";
 import { composeCsharpPlannedValues } from "../planned-value-composition.js";
-import { captureCsharpPlannedValue } from "../planned-value-composition.js";
+import { captureCsharpPlannedValue } from "../value-captures.js";
 import { csharpPlannedValue } from "../planned-values.js";
 import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import { captureCsharpPlannedLocation } from "../planned-locations.js";

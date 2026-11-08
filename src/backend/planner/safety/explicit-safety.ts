@@ -1,13 +1,13 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpSafetyApplication, CsharpSafetyOperation } from "../../../target-model/records/storage/safety.js";
-import type { CsharpPlanningContext } from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 import type { CsharpAccessorModifier, CsharpModifier } from "../../target-ast/syntax/index.js";
-import type { DestructuringPlannerState } from "../bindings/binding-state.js";
+import type { DestructuringPlannerState } from "../planning-data.js";
 import { createDestructuringPlannerState } from "../bindings/binding-state.js";
 import { AsExpressionStatement } from "@tsonic/target-api/source";
 import { csharpPlannedValue, type CsharpPlannedValue } from "../expressions/planned-values.js";
-import { captureCsharpPlannedValue } from "../expressions/planned-value-composition.js";
+import { captureCsharpPlannedValue } from "../expressions/value-captures.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
 import type { CsharpObjectShapeFact } from "../../../target-model/types/model.js";

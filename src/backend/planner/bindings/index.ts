@@ -17,7 +17,4 @@ export {
   getCsharpTypedLocationIdentityName,
 } from "./binding-state.js";
 export { planBindingPatternFromExpression } from "./binding-patterns.js";
-export type {
-  ControlLabelTarget,
-  DestructuringPlannerState,
-} from "./binding-state.js";
+export type { ControlLabelTarget, DestructuringPlannerState } from "../planning-data.js";

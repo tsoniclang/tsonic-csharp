@@ -1,6 +1,6 @@
 import type { SourceFile } from "@tsonic/tsts";
 import type { CsharpSourceModuleBootstrap } from "../../../target-model/records/program/source-modules.js";
-import type { CsharpPlanningContext } from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 import type { CsharpOutputSourceFile } from "../../artifact-model/output.js";
 import type { PlannedCsharpSourceFile } from "./source-file.js";
 import { csharpModuleInitMethodName } from "./module-initialization-names.js";

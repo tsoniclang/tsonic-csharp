@@ -1,6 +1,5 @@
 import { planCsharpCapturedInitialization } from "./capture-storage.js";
-import type {
-  CsharpPlanningContext } from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 import {
   HasSourceKind,
   KindArrayBindingPattern,
@@ -17,9 +16,9 @@ import type {
   CsharpTypeNode,
 } from "../../target-ast/syntax/index.js";
 import { planArrayBindingPattern } from "./binding-array-patterns.js";
-import type { ExpressionPlanner } from "../expressions/expression-planner-types.js";
+import type { ExpressionPlanner } from "../planning-data.js";
 import { allocateDestructuringTemp } from "./binding-state.js";
-import type { DestructuringPlannerState } from "./binding-state.js";
+import type { DestructuringPlannerState } from "../planning-data.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { planObjectBindingPattern } from "./binding-object-patterns.js";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";

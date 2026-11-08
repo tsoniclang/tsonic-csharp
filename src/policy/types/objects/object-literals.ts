@@ -1,4 +1,4 @@
-import type { CsharpDelegateSignatureShape } from "../../../target-model/types/model.js";
+import type { CsharpDelegateSignatureShape } from "../../../target-model/types/native-type-data.js";
 import { getCsharpLambdaSignature } from "../../../target-model/types/index.js";
 import type { CsharpObjectLiteralCallablePolicyInput } from "../../model/object-literals.js";
 import { csharpTargetTypeRenderingRejection } from "../model/renderability.js";

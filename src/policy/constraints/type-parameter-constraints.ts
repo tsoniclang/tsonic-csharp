@@ -4,7 +4,7 @@ import { csharpQualifiedTypeRenderShape, csharpTargetNamedType, isCsharpStringTa
 import type { CsharpExplicitImplementationConstraint, CsharpTypeParameterConstraint, CsharpTypeParameterConstraintResolution } from "../../target-model/types/native-type-data.js";
 import type { CsharpPolicyContext } from "../model/context.js";
 import type { CsharpConversionShapeQueries } from "../conversions/shape-queries.js";
-import { namedTargetTypeImplicitlyAccepts } from "../conversions/carriers.js";
+import { namedTargetTypeImplicitlyAccepts } from "./native-relations.js";
 import { getCsharpNullableElementTargetType, isCsharpNullableReferenceTargetType } from "../../target-model/types/index.js";
 import { csharpConstraintsRequireReference } from "../../target-model/types/generic-constraints.js";
 import { visitCsharpTargetTypeParameters } from "../../target-model/types/generic-references.js";

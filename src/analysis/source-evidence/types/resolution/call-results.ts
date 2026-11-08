@@ -3,7 +3,7 @@ import type { Node } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../../../policy/model/context.js";
 import type { CsharpSourceCallResult } from "../../../../target-model/operations/source-call-results.js";
 import type { TargetTypeRef } from "../../../../target-model/types/native-type-data.js";
-import { namedTargetTypeImplicitlyAccepts } from "../../../../policy/conversions/carriers.js";
+import { namedTargetTypeImplicitlyAccepts } from "../../../../policy/constraints/native-relations.js";
 import { selectCsharpConversion } from "../../../../policy/conversions/core.js";
 import { csharpConversionIsApplicable } from "../../../../policy/conversions/applicability.js";
 import { getCsharpRuntimeUnionArms, isCsharpJsValueTargetType } from "../../../../target-model/types/carriers/runtime-carriers.js";

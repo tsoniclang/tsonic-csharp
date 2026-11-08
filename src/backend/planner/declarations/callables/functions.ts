@@ -1,13 +1,13 @@
-import type { CsharpPlanningContext } from "../../context.js";
+import type { CsharpPlanningContext } from "../../planning-data.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpMethodDeclaration, CsharpStatement } from "../../../target-ast/syntax/index.js";
 import { planAttributesForSubject } from "../attributes.js";
-import { createDestructuringPlannerState, createNestedPlannerState, getCsharpLocalBindingName,
-  type DestructuringPlannerState } from "../../bindings/index.js";
+import { createDestructuringPlannerState, createNestedPlannerState, getCsharpLocalBindingName } from "../../bindings/index.js";
+import { type DestructuringPlannerState } from "../../planning-data.js";
 import { planCsharpAdmittedMemberName, planCsharpNativeMemberHiding } from "../modifiers.js";
 import { planParametersWithPrelude } from "./parameters.js";
-import { planBlockStatements } from "../../statements/index.js";
+
 import { planTypeParameters } from "../../types/type-parameters.js";
 import { getAsyncReturnExpressionExpectedType, getExplicitReturnType } from "./return-types.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/render.js";
@@ -15,7 +15,7 @@ import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import { planCsharpGeneratorFunction } from "../../statements/generators.js";
 import { withCsharpSafetyModifiers } from "../../safety/explicit-safety.js";
 import { consumeCsharpPlannedValue, planCsharpAbsenceReturn, planCsharpVoidReturn } from "../../statements/statement-output.js";
-import { planExpression } from "../../expressions/index.js";
+
 
 export function planModuleCallableDeclaration(
   declaration: Node, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
@@ -91,7 +91,7 @@ export function planSourceFunctionDeclaration(
       diagnostics,
       state,
       parameters.prelude,
-      planBlockStatements,
+      input.dispatch.planBlockStatements,
     );
     if (generator === undefined) failCsharpPlannerInvariant("An admitted generator requires its native body and return type.", node);
     return { async: false, declaration: {
@@ -118,9 +118,9 @@ export function planSourceFunctionDeclaration(
   if (body === undefined) failCsharpPlannerInvariant("An admitted source method requires its checked body.", node);
   let bodyStatements: readonly CsharpStatement[];
   if (ast.is.IsBlock(body)) {
-    bodyStatements = planBlockStatements(body, sourceFile, input, diagnostics, state, parameters.prelude);
+    bodyStatements = input.dispatch.planBlockStatements(body, sourceFile, input, diagnostics, state, parameters.prelude);
   } else {
-    const value = planExpression(body, sourceFile, input, diagnostics, state);
+    const value = input.dispatch.planExpression(body, sourceFile, input, diagnostics, state);
     if (value === undefined) failCsharpPlannerInvariant("An admitted expression-bodied method requires its native return plan.", body);
     const lambda = input.program.records.lambdaBody.get(node) ??
       failCsharpPlannerInvariant("An admitted expression-bodied method requires its native preparation record.", node);

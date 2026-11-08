@@ -1,3 +1,4 @@
+import type { CsharpExpectedUseProjection, CsharpExpectedUseCollection } from "./model.js";
 import type { Node } from "@tsonic/tsts";
 import { isSourceCallableBodyBoundary } from "@tsonic/target-api/source";
 import { targetUseSiteIdentity, type TargetUseSiteRef } from "@tsonic/target-api/analysis";
@@ -11,30 +12,6 @@ import type { CsharpExpectedTypePending, CsharpExpectedTypeRecord, CsharpExpecte
 
 const maximumExpectedTargetUses = 1_048_576;
 const noExpectedTypes: readonly TargetTypeRef[] = Object.freeze([]);
-
-export interface CsharpExpectedUseProjection {
-  readonly targetTypes: readonly TargetTypeRef[];
-  readonly expectedType: (expression: Node) => readonly TargetTypeRef[];
-  readonly requiredExpectedType: (expression: Node) => readonly TargetTypeRef[];
-  readonly storageExpectedType: (expression: Node) => readonly TargetTypeRef[];
-  readonly quotationBinding: (declaration: Node) => CsharpQuotationBindingSelection | undefined;
-  readonly exactIntegerConversion: (expression: Node, targetType: TargetTypeRef) => boolean;
-  readonly requests: readonly CsharpExpectedUseRequest[];
-}
-
-export interface CsharpExpectedUseCollection {
-  readonly record: CsharpExpectedTypeRecord;
-  readonly addTargetType: (targetType: TargetTypeRef) => void;
-  readonly takePending: () => CsharpExpectedTypePending | undefined;
-  readonly recordedUses: (expression: Node) => readonly CsharpExpectedTypeUse[];
-  readonly recordQuotationBinding: (declaration: Node, initializer: Node, callable: Node, targetType: TargetTypeRef,
-    argumentSite: TargetUseSiteRef) => void;
-  readonly quotationBinding: (declaration: Node) => CsharpQuotationBindingSelection | undefined;
-  readonly contextualCallables: ReadonlySet<Node>;
-  readonly issues: readonly CsharpExpectedTypeIssue[];
-  readonly snapshot: () => CsharpExpectedUseProjection;
-  readonly seal: () => CsharpExpectedUseProjection;
-}
 
 interface SiteEntry {
   readonly site: TargetUseSiteRef;

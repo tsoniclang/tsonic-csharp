@@ -2,7 +2,7 @@ import { createContractCollector, requireNonEmptyString, requireUnique } from ".
 import { validateExportList } from "./dotnet-declarations.js";
 import { validateOptionalDotnetAssemblyReference } from "./dotnet-identities.js";
 import { validateProviderExportDeclaration } from "./provider-declarations.js";
-import { validateUnsupportedExports } from "./dotnet-signatures.js";
+import { validateUnsupportedExports } from "./dotnet-signature-types.js";
 import type { DotnetModuleModel } from "../index.js";
 import type { DotnetProviderDiagnostic } from "../provider.js";
 import type { ProviderDeclarationModel } from "@tsonic/tsts";

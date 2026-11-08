@@ -1,7 +1,7 @@
 import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
 import type { CsharpExpression, CsharpStatement } from "../../target-ast/syntax/index.js";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";
-import type { CsharpPlanningContext } from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
 export function planCsharpCollectionElementRead(

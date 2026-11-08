@@ -1,4 +1,4 @@
-import type { CsharpPlanningContext } from "../../context.js";
+import type { CsharpPlanningContext } from "../../planning-data.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
@@ -14,15 +14,11 @@ import {
 import {
   createDestructuringPlannerState,
 } from "../../bindings/index.js";
-import {
-  planCallArgument,
-} from "../../expressions/index.js";
+
 import {
   planParametersWithPrelude,
 } from "../callables/parameters.js";
-import {
-  planBlockStatements,
-} from "../../statements/index.js";
+
 import {
   planAttributesForSubject,
 } from "../attributes.js";
@@ -31,12 +27,12 @@ import {
 } from "../../safety/explicit-safety.js";
 import { planClassMemberModifiers } from "./modifiers.js";
 import { planCsharpConstructorInitializerArgument } from "./initializer-arguments.js";
-import type { DestructuringPlannerState } from "../../bindings/index.js";
+import type { DestructuringPlannerState } from "../../planning-data.js";
 import { planCsharpPreparedConstructor, type CsharpConstructorArgumentPlan } from "./constructor-entry.js";
 import { planCsharpParameterPropertyAssignments } from "./parameter-properties.js";
 import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import { planProjectedArgument } from "../../expressions/calls/arguments.js";
-import { planExpression } from "../../expressions/index.js";
+
 
 export function planClassStaticBlockDeclaration(
   node: Node,
@@ -54,7 +50,7 @@ export function planClassStaticBlockDeclaration(
     parameters: [],
     body: {
       kind: "Block",
-      statements: planBlockStatements(declaration.Body, sourceFile, input, diagnostics, state),
+      statements: input.dispatch.planBlockStatements(declaration.Body, sourceFile, input, diagnostics, state),
     },
   };
 }
@@ -116,7 +112,7 @@ export function planConstructorDeclarations(
       : { initializer: { kind: "base", arguments: baseArguments } }),
     body: {
       kind: "Block",
-      statements: planBlockStatements(declaration.Body, sourceFile, input, diagnostics, state,
+      statements: input.dispatch.planBlockStatements(declaration.Body, sourceFile, input, diagnostics, state,
         [...parameters.prelude, ...initializers, ...planCsharpParameterPropertyAssignments(node, input, diagnostics, state)],
         leadingSuperCall === undefined ? 0 : 1),
     },
@@ -142,7 +138,7 @@ function planBaseConstructorArguments(
     const projection = target?.kind === "resolved" ? target.call.arguments.find(entry => entry.sourceArgumentIndex === index)?.projection : undefined;
     if (projection !== undefined) {
       const value = planProjectedArgument(projection, sourceFile, input, diagnostics,
-        (expression, file, context, issues) => planExpression(expression, file, context, issues, state));
+        (expression, file, context, issues) => input.dispatch.planExpression(expression, file, context, issues, state));
       if (value === undefined) failCsharpPlannerInvariant("An admitted native base argument requires its sealed member projection.", argument);
       planned.push({ node: argument, value, expectedCarrier: projection.target });
       continue;
@@ -152,7 +148,7 @@ function planBaseConstructorArguments(
     const selectedArgument = directEntry ? input.program.records.sourceArgument.get(argument) : undefined;
     if (directEntry && selectedArgument?.kind !== "resolved")
       failCsharpPlannerInvariant("C# call planning received an argument without sealed passing evidence.", argument);
-    const plannedArgument = planCallArgument(argument, sourceFile, input, diagnostics, carrier, state,
+    const plannedArgument = input.dispatch.planCallArgument(argument, sourceFile, input, diagnostics, carrier, state,
       selectedArgument?.kind === "resolved" ? selectedArgument.argument.passingMode : undefined);
     if (plannedArgument === undefined) {
       failCsharpPlannerInvariant("An admitted base argument requires its native expression plan.", argument);

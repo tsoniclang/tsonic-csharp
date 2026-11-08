@@ -1,5 +1,6 @@
 import type { TargetTypeRef } from "./native-type-data.js";
-import type { CsharpNativeCallableMember, CsharpTargetMember, CsharpTargetParameter, TargetConstraint } from "./model.js";
+import type { CsharpTargetMember, CsharpTargetParameter, TargetConstraint } from "./model.js";
+import type { CsharpNativeCallableMember } from "./native-type-data.js";
 import type { CsharpNativeDeclaration, CsharpNativeDeclarationApplication, CsharpNativeDeclarationMember } from "./native-declarations.js";
 import { targetTypeRefKey } from "./equality.js";
 import { csharpFreeTypeParameterIdentities } from "./generic-references.js";

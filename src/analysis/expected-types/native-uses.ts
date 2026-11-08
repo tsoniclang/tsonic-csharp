@@ -1,3 +1,4 @@
+import type { CsharpExpectedNativeUseSites } from "./model.js";
 import type { Node } from "@tsonic/tsts";
 import { targetUseSiteIdentity, type TargetUseSiteRef } from "@tsonic/target-api/analysis";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
@@ -8,13 +9,6 @@ import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { isCsharpAbsenceTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 import type { CsharpExpectedNativeUseAdmission, CsharpExpectedNativeUseFinalInput, CsharpExpectedNativeUsePendingReason,
   CsharpExpectedTypeAnalysis, CsharpExpectedUseRequest } from "./model.js";
-
-export interface CsharpExpectedNativeUseSites {
-  readonly requests: readonly CsharpExpectedUseRequest[];
-  readonly pending: readonly Extract<CsharpExpectedUseRequest, { readonly kind: "pending" }>[];
-  readonly get: (site: TargetUseSiteRef) => readonly CsharpExpectedUseRequest[];
-  readonly requestsOf: (expression: Node) => readonly CsharpExpectedUseRequest[];
-}
 
 type AdmissionState =
   | { readonly kind: "admitted"; readonly use: CsharpExpectedNativeUse; readonly children: ReadonlySet<AdmissionGroup> }

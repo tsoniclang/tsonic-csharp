@@ -1,4 +1,4 @@
-import type { CsharpPlanningContext } from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 import {
   AsCatchClause,
   AsTryStatement,
@@ -9,7 +9,7 @@ import type {
   CsharpCatchClause,
   CsharpStatement,
 } from "../../target-ast/syntax/index.js";
-import type { DestructuringPlannerState } from "../bindings/index.js";
+import type { DestructuringPlannerState } from "../planning-data.js";
 import {
   allocateCatchValue,
   declareCsharpLocalBindingName,

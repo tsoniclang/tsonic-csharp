@@ -1,4 +1,4 @@
-import type { CsharpPlanningContext } from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 import {
   HasSourceKind,
   KindArrayBindingPattern,
@@ -9,14 +9,14 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpExpression, CsharpStatement } from "../../target-ast/syntax/index.js";
 import { allocateDestructuringTemp } from "./binding-state.js";
-import type { DestructuringPlannerState } from "./binding-state.js";
+import type { DestructuringPlannerState } from "../planning-data.js";
 import {
   getCsharpTypeForExpressionCarrier,
   planBindingPatternFromExpression,
 } from "./binding-patterns.js";
 import type { CsharpEntryBinding } from "./binding-patterns.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
-import { planExpression } from "../expressions/index.js";
+
 import { consumeCsharpPlannedValue } from "../statements/statement-output.js";
 
 
@@ -41,7 +41,7 @@ export function planVariableBindingStatements(
   const sourceName = allocateDestructuringTemp(state);
   const sourceExpression: CsharpExpression = { kind: "IdentifierName", name: sourceName };
   const sourceType = getCsharpTypeForExpressionCarrier(initializer, input, diagnostics, bindingName, "Destructuring source expression");
-  const initializerExpression = planExpression(initializer, sourceFile, input, diagnostics, state
+  const initializerExpression = input.dispatch.planExpression(initializer, sourceFile, input, diagnostics, state
   );
   if (initializerExpression === undefined) {
     failCsharpPlannerInvariant("An admitted destructuring declaration requires its native initializer value.", initializer);
@@ -53,7 +53,7 @@ export function planVariableBindingStatements(
       type: sourceType,
       initializer: expression,
     },
-    ...planBindingPatternFromExpression(bindingName, sourceExpression, sourceFile, input, diagnostics, state, planExpression, retainBinding),
+    ...planBindingPatternFromExpression(bindingName, sourceExpression, sourceFile, input, diagnostics, state, input.dispatch.planExpression, retainBinding),
   ]);
 }
 
@@ -79,7 +79,7 @@ export function planParameterBindingPrelude(
     input,
     diagnostics,
     state,
-    planExpression,
+    input.dispatch.planExpression,
     retainBinding,
   );
 }

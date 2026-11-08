@@ -1,7 +1,7 @@
 import type { Node, Type } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../../types/native-type-data.js";
 import type { CsharpObjectShapeFact } from "../../types/model.js";
-import type { CsharpDelegateSignatureShape } from "../../types/model.js";
+import type { CsharpDelegateSignatureShape } from "../../types/native-type-data.js";
 import type { CsharpCallArgumentProjection } from "../objects/members.js";
 export type CustomRegExpProtocolKind = "match" | "match-all" | "replace" | "search" | "split";
 export interface CsharpSourceProfileTypeArgumentSource {

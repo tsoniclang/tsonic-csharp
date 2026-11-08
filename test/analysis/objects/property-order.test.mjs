@@ -4,7 +4,7 @@ import { withCsharpSessionRequest } from "../../helpers/direct-csharp-session.mj
 import { analyzeCsharpAnalysisProgram } from "../../../dist/analysis/program/index.js";
 import { createCsharpObjectShapePropertyOrderIndex } from "../../../dist/analysis/objects/property-order.js";
 import { analyzeCsharpObjectShapes } from "../../../dist/analysis/objects/analyze.js";
-import { namedTargetTypeImplicitlyAccepts } from "../../../dist/policy/conversions/carriers.js";
+import { namedTargetTypeImplicitlyAccepts } from "../../../dist/policy/constraints/native-relations.js";
 import { csharpTargetNamedType } from "../../../dist/target-model/types/factories.js";
 import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 

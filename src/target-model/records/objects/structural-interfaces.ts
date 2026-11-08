@@ -1,15 +1,20 @@
+import type { Node } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../../types/native-type-data.js";
-import type { CsharpFinalStructuralInterfaceImplementation } from "./heritage.js";
+import type { CsharpObjectShapeMemberFact } from "../../types/model.js";
+import type { CsharpNativePropertyRead } from "../program/source-profile-invocations.js";
 
-export interface CsharpStructuralInterfaceEmission extends Omit<CsharpFinalStructuralInterfaceImplementation, "methods"> {
-  readonly methods: readonly (CsharpFinalStructuralInterfaceImplementation["methods"][number] & {
-    readonly typeParameterNames: readonly { readonly identity: string; readonly name: string }[];
-    readonly invocations: readonly { readonly name: string; readonly sourceName: string }[];
-  })[];
-}
-
-export interface CsharpStructuralInterfaceRecords {
-  readonly structuralInterface: {
-    readonly get: (carrier: TargetTypeRef) => readonly CsharpStructuralInterfaceEmission[] | undefined;
-  };
+export interface CsharpStructuralInterfaceImplementation {
+  readonly sourceNode: Node;
+  readonly sourceType: TargetTypeRef;
+  readonly interfaceType: TargetTypeRef;
+  readonly properties: readonly ({
+    readonly sourceType: TargetTypeRef;
+    readonly member: CsharpObjectShapeMemberFact;
+  } & ({ readonly native: CsharpNativePropertyRead; readonly sourceName?: never } |
+    { readonly native?: never; readonly sourceName: string }))[];
+  readonly methods: readonly {
+    readonly sourceName: string;
+    readonly declaration: Node;
+    readonly member: CsharpObjectShapeMemberFact;
+  }[];
 }

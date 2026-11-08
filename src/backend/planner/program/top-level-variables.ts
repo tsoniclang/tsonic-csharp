@@ -1,4 +1,4 @@
-import type { CsharpPlanningContext } from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 import {
   AsVariableDeclaration,
   AsVariableStatement,
@@ -19,9 +19,9 @@ import type {
   CsharpTypeNode,
 } from "../../target-ast/syntax/index.js";
 import { planLocalDeclaration, planLocalDeclarationStatements } from "../bindings/locals.js";
-import { planStatements } from "../statements/index.js";
+
 import { planValueTypeDeclaration } from "../declarations/value-types.js";
-import type { DestructuringPlannerState } from "../bindings/index.js";
+import type { DestructuringPlannerState } from "../planning-data.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { planResourceRegistrationStatement } from "../statements/resource-management.js";
 import { planCsharpNativeMemberHiding } from "../declarations/modifiers.js";

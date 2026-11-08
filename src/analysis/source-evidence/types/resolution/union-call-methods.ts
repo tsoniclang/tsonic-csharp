@@ -2,7 +2,7 @@ import type { Node, ResolvedSourcePropertyAccessInfo, SourceFile } from "@tsonic
 import { asSourceNode, sourceCallableValueParameters } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../../../policy/model/context.js";
 import type { TargetTypeRef } from "../../../../target-model/types/native-type-data.js";
-import type { CsharpDelegateSignatureShape } from "../../../../target-model/types/model.js";
+import type { CsharpDelegateSignatureShape } from "../../../../target-model/types/native-type-data.js";
 import type { CsharpSourceCallResult } from "../../../../target-model/operations/source-call-results.js";
 import { getCsharpCallableValueSignature } from "../../../../target-model/types/carriers/delegates.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../../target-model/types/equality.js";

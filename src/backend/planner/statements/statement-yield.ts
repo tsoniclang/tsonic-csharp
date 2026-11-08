@@ -7,12 +7,8 @@ import type {
   CsharpExpression,
   CsharpStatement,
 } from "../../target-ast/syntax/index.js";
-import type {
-  CsharpPlanningContext,
-} from "../context.js";
-import type {
-  DestructuringPlannerState,
-} from "../bindings/index.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
+import type { DestructuringPlannerState } from "../planning-data.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import type { CsharpYieldFact } from "../../../target-model/records/callables/generators.js";
 import {
@@ -23,7 +19,7 @@ import {
   allocateGeneratorDelegationNames,
 } from "../bindings/index.js";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";
-import { planExpression } from "../expressions/index.js";
+
 import { csharpPlannedValue } from "../expressions/planned-values.js";
 import { consumeCsharpPlannedValue } from "./statement-output.js";
 export interface CsharpYieldValuePlan {
@@ -67,7 +63,7 @@ export function planCsharpYieldValue(
         type: yieldType,
         nullForgiving: true,
       })
-    : planExpression(source.operand, sourceFile, input, diagnostics, state
+    : input.dispatch.planExpression(source.operand, sourceFile, input, diagnostics, state
       );
   if (yieldedExpression === undefined) {
     failCsharpPlannerInvariant("An admitted yield requires its native operand plan.", yieldExpression);
@@ -105,7 +101,7 @@ function planCsharpDelegatedYield(
   ) {
     failCsharpPlannerInvariant("An admitted delegated yield requires its native protocol type syntax.", operand);
   }
-  const delegatedExpression = planExpression(operand, sourceFile, input, diagnostics, state
+  const delegatedExpression = input.dispatch.planExpression(operand, sourceFile, input, diagnostics, state
   );
   if (delegatedExpression === undefined) {
     failCsharpPlannerInvariant("An admitted delegated yield requires its native operand plan.", operand);

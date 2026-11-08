@@ -11,7 +11,7 @@ import { csharpSourcePrimitiveTargetType } from "../../../../dist/target-model/t
 import { csharpDelegateContractRecord, csharpTypeEmissionRecord } from "../../../helpers/planning-records.mjs";
 import { csharpMethodValueType } from "../../../../dist/target-model/types/method-values.js";
 import { targetTypeRefEquals } from "../../../../dist/target-model/types/equality.js";
-import { selectDelegateConversion } from "../../../../dist/policy/conversions/carriers.js";
+import { selectDelegateConversion } from "../../../../dist/policy/conversions/core.js";
 
 const number = csharpSourcePrimitiveTargetType("float64");
 const source = csharpDelegateTargetType("System.Action", []);

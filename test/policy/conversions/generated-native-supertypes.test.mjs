@@ -5,7 +5,7 @@ import { csharpTargetNamedType } from "../../../dist/target-model/types/factorie
 import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 import { csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { csharpRuntimeUnionTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
-import { csharpTargetTypeSatisfiesNativeConstraint } from "../../../dist/policy/conversions/carriers.js";
+import { csharpTargetTypeSatisfiesNativeConstraint } from "../../../dist/policy/constraints/native-relations.js";
 import { csharpNativeTypeImplements } from "../../../dist/policy/types/source-type-flow/relations.js";
 import { applyCsharpNativeCallableMember } from "../../../dist/policy/conversions/generic-callable.js";
 

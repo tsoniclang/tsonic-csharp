@@ -1,4 +1,4 @@
-import type { CsharpPlanningContext } from "../../context.js";
+import type { CsharpPlanningContext } from "../../planning-data.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
@@ -13,9 +13,7 @@ import type { CsharpNativeMemberIdentity } from "../../../../target-model/names/
 import {
   planParametersWithPrelude,
 } from "../callables/parameters.js";
-import {
-  planBlockStatements,
-} from "../../statements/index.js";
+
 import {
   planTypeParameters,
 } from "../../types/type-parameters.js";
@@ -81,7 +79,7 @@ export function planMethodDeclaration(
       diagnostics,
       state,
       parameters.prelude,
-      planBlockStatements,
+      input.dispatch.planBlockStatements,
     );
     if (generator === undefined) failCsharpPlannerInvariant("An admitted generator method requires its native body and return type.", node);
     return {
@@ -105,7 +103,7 @@ export function planMethodDeclaration(
   }
   const returnContract = input.program.records.returnContract.get(node);
   state.currentUndefinedReturn = returnContract?.kind === "resolved" && returnContract.undefinedReturn === true;
-  const bodyStatements = planBlockStatements(
+  const bodyStatements = input.dispatch.planBlockStatements(
     declaration.Body,
     sourceFile,
     input,

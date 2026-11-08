@@ -12,7 +12,7 @@ import type {
   SourceTypeParameter,
 } from "@tsonic/target-api/source";
 import type { TargetTypeRef, CsharpRepresentedTypeParameter, CsharpOptionalStorageLayout } from "./native-type-data.js";
-import type { CsharpNativeMethodTypeParameter } from "./model.js";
+import type { CsharpNativeMethodTypeParameter } from "./native-type-data.js";
 
 export interface CsharpNativeRepresentationRefusal {
   readonly kind: "native-refused";

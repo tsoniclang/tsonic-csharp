@@ -1,7 +1,7 @@
 import type { Node } from "@tsonic/tsts";
 import type { CsharpUnionPropertyProjection } from "../../../target-model/records/objects/property-admission.js";
 import type { CsharpExpression, CsharpSwitchExpressionArm } from "../../target-ast/syntax/index.js";
-import type { CsharpPlanningContext } from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 import { planCsharpUnionPattern } from "./union-patterns.js";
 
 export function planCsharpNativeUnionPropertyProjection(node: Node, expression: CsharpExpression,

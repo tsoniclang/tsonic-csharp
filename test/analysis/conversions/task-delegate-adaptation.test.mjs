@@ -5,7 +5,7 @@ import { executeCsharpConstruction } from "../../helpers/native-construction.mjs
 import { csharpDelegateTargetType, csharpTaskTargetType, getCsharpLambdaSignature, getCsharpTaskResultTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
 import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
-import { selectDelegateConversion } from "../../../dist/policy/conversions/carriers.js";
+import { selectDelegateConversion } from "../../../dist/policy/conversions/core.js";
 import { admitCsharpConversionSelection } from "../../../dist/analysis/conversions/validation.js";
 import { planCsharpDelegateAdapter } from "../../../dist/backend/planner/expressions/callable-conversions.js";
 import { applyCsharpConversionSelection } from "../../../dist/backend/planner/expressions/conversions.js";

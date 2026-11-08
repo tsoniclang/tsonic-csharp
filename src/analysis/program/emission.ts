@@ -1,6 +1,6 @@
 import type { analyzeCsharpNativeValueCarriers } from "../objects/value-carriers.js";
 import type { CsharpProgramRecordInput } from "./records/create.js";
-import type { CsharpRepresentationAnalysis } from "./iteration.js";
+import type { CsharpRepresentationAnalysis } from "./model.js";
 import { analyzeCsharpConstructorEmission } from "../declarations/classes/constructors.js";
 import { analyzeCsharpConstructorArguments } from "../declarations/classes/constructor-arguments.js";
 

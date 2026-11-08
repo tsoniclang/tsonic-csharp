@@ -11,7 +11,7 @@ import type { CsharpTargetMember } from "../../../target-model/types/model.js";
 import { csharpTargetId } from "../../../target-model/identities/target.js";
 import { csharpSourceErrorNames, type CsharpSourceErrorName } from "../../../target-model/identities/source-errors.js";
 import { snapshotCsharpMetadata } from "../../../target-model/metadata/immutable.js";
-import { namedTargetTypeImplicitlyAccepts } from "../../conversions/carriers.js";
+import { namedTargetTypeImplicitlyAccepts } from "../../constraints/native-relations.js";
 
 const errorType = csharpExceptionTargetType();
 const exceptionType = csharpExceptionTargetType();

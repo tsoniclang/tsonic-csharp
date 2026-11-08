@@ -1,4 +1,4 @@
-import type { CsharpClassFactoryType } from "../../types/carriers/class-factories.js";
+import type { CsharpClassFactoryType } from "../../types/model.js";
 import type { TargetTypeRef } from "../../types/native-type-data.js";
 import type { CsharpCaptureInitialization, CsharpTargetNamedTypeRef } from "../../types/model.js";
 import type { CsharpStorageIssue } from "../storage/storage.js";

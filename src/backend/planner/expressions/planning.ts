@@ -1,4 +1,4 @@
-import type { CsharpPlanningContext } from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 import { planCsharpMemoryBinding } from "./memory-bindings.js";
 import {
   KindArrowFunction,
@@ -27,9 +27,8 @@ import type {
 } from "../../../target-model/types/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpExpression } from "../../target-ast/syntax/index.js";
-import type { DestructuringPlannerState } from "../bindings/index.js";
+import type { DestructuringPlannerState } from "../planning-data.js";
 import { getCsharpExpressionOverride } from "../bindings/binding-state.js";
-import { getCsharpTypeForNode } from "../types/index.js";
 import { csharpTypeFromTargetTypeRefWithObjectShapeDeclarations } from "../types/target-type-object-shapes.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { planClassFactoryExpression } from "../declarations/classes/factories.js";
@@ -84,8 +83,8 @@ import {
   planCsharpJsStringConversion,
 } from "./expression-js-string-conversion.js";
 import { csharpPlannedValue, type CsharpPlannedArgument, type CsharpPlannedValue } from "./planned-values.js";
-import { planCsharpExpressionCompletion } from "./planned-value-composition.js";
-import { captureCsharpPlannedValue } from "./planned-value-composition.js";
+import { planCsharpExpressionCompletion } from "./expression-completions.js";
+import { captureCsharpPlannedValue } from "./value-captures.js";
 import { qualifiedCsharpType } from "../types/index.js";
 import type { CsharpPromiseDiscard } from "../../../target-model/records/callables/promise-results.js";
 import type { CsharpStatement } from "../../target-ast/syntax/index.js";

@@ -1,4 +1,4 @@
-import type { CsharpPlanningContext } from "../../context.js";
+import type { CsharpPlanningContext } from "../../planning-data.js";
 import type {
   Node,
   SourceFile,
@@ -12,7 +12,7 @@ import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import {
   objectShapeStorageMemberName,
 } from "../index.js";
-import type { ExpressionPlanner } from "../../expressions/expression-planner-types.js";
+import type { ExpressionPlanner } from "../../planning-data.js";
 import {
   planObjectShapeMethodMemberAssignment,
 } from "./methods.js";

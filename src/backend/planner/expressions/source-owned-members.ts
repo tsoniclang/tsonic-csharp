@@ -1,12 +1,13 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpPlanningContext } from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 import { translateCsharpJsValueInvocation } from "./js-value-operations.js";
 import { planFlowReadUseSiteProjection } from "./flow-read-projections.js";
 import { planCsharpSourceMemberName } from "./source-member-names.js";
 import { planCsharpNativeUnionPropertyProjection } from "./union-projections.js";
 import type { CsharpPlannedValue } from "./planned-values.js";
-import { planCsharpExpressionCompletion, projectCsharpPlannedValue, projectCsharpPlannedMember } from "./planned-value-composition.js";
+import { projectCsharpPlannedValue, projectCsharpPlannedMember } from "./planned-value-composition.js";
+import { planCsharpExpressionCompletion } from "./expression-completions.js";
 import { readCsharpNativeExpressionCarrier } from "./native-uses.js";
 import type { CsharpPlannedReceiver } from "./receivers.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";

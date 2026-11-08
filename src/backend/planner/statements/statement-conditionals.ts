@@ -1,4 +1,4 @@
-import type { CsharpPlanningContext } from "../context.js";
+import type { CsharpPlanningContext } from "../planning-data.js";
 import {
   AsDoStatement,
   AsIfStatement,
@@ -12,19 +12,13 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpStatement,
 } from "../../target-ast/syntax/index.js";
-import type {
-  DestructuringPlannerState,
-} from "../bindings/index.js";
-import {
-  planExpression,
-} from "../expressions/index.js";
+import type { DestructuringPlannerState } from "../planning-data.js";
+
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import {
   planCsharpConditionExpression as planCheckedConditionExpression,
 } from "../expressions/expression-bool-carriers.js";
-import type {
-  NestedStatementPlanner,
-} from "./model.js";
+import type { NestedStatementPlanner } from "../planning-data.js";
 import type { CsharpPlannedValue } from "../expressions/planned-values.js";
 import { consumeCsharpPlannedValue, planCsharpPlannedDiscard } from "./statement-output.js";
 import { readCsharpNativeDiscardEvaluation } from "../expressions/native-uses.js";
@@ -145,7 +139,7 @@ export function planConditionExpression(
     input,
     diagnostics,
     (condition, conditionSourceFile, conditionInput, conditionDiagnostics) =>
-      planExpression(
+      input.dispatch.planExpression(
         condition,
         conditionSourceFile,
         conditionInput,
