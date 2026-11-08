@@ -1,7 +1,7 @@
 import type { Node } from "@tsonic/tsts";
 import type { CsharpJsonObjectShapeContract } from "./json-object-shapes.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeCapability, CsharpObjectShapeProjection } from "../../types/model.js";
-import type { TargetTypeRef } from "../../types/model.js";
+import type { TargetTypeRef } from "../../types/native-type-data.js";
 import type { CsharpConversionSelection } from "../../conversions/selection.js";
 import type { CsharpObjectProjectionEmission } from "./closed-object-shapes.js";
 

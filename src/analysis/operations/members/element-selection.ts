@@ -1,7 +1,8 @@
 import type { ExtensionDiagnostic, Node, SourceFile } from "@tsonic/tsts";
 import type { SourceMemberUse } from "@tsonic/target-api/source";
 import type { CsharpProviderTargetRelation } from "../../../target-model/identities/provider-relations.js";
-import type { CsharpTargetMember, TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
+import type { CsharpTargetMember } from "../../../target-model/types/model.js";
 import type { CsharpRepresentationOutcome } from "../../../target-model/types/representation.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { instantiateCsharpProviderBindingMember } from "./calls/binding-instantiation.js";

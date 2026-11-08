@@ -14,7 +14,8 @@ import { csharpAbsenceTargetType, isCsharpAbsenceTargetType, isCsharpJsValueTarg
 import { getCsharpGenericOptionalParts } from "../../../target-model/types/projections.js";
 import { tryCsharpIdentifier } from "../../../target-model/names/identifiers.js";
 
-import type { TargetTypeRef, CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetMember } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetMember } from "../../../target-model/types/model.js";
 import { type CsharpArrayBindingCarrier } from "../../../target-model/types/carriers/binding-array-carrier.js";
 import { csharpArrayBindingProjectionTarget, resolveCsharpArrayBindingCarrier } from "../collections/binding-array-carrier.js";
 import { csharpTargetTypeRenderingRejection } from "../model/renderability.js";

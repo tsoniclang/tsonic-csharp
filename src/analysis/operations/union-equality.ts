@@ -4,7 +4,7 @@ import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpExactLiteralSelectionIndex } from "../../target-model/conversions/exact-literals.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
 import type { CsharpUnionEqualityOperand } from "../../target-model/records/operations/union-equality.js";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
 import { getCsharpNullableElementTargetType, isCsharpAbsenceTargetType, csharpSourcePrimitiveTargetType } from "../../target-model/types/index.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { createCsharpUnionEqualityProducer } from "../program/records/operations/union-equality.js";

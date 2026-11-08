@@ -1,4 +1,4 @@
-import type { TargetTypeRef } from "../model.js";
+import type { TargetTypeRef } from "../native-type-data.js";
 import type { CsharpDelegateSignatureShape, CsharpDelegateTargetTypeRef, CsharpNativeCallableMember, CsharpTaskTargetTypeRef, CsharpTargetNamedTypeRef } from "../model.js";
 import { isCsharpVoidTargetType } from "../identity.js";
 

@@ -1,5 +1,5 @@
 import { type Node } from "@tsonic/tsts";
-import { type TargetTypeRef } from "../../types/model.js";
+import type { TargetTypeRef } from "../../types/native-type-data.js";
 import { type CsharpConversionSelection } from "../../conversions/selection.js";
 import { type CsharpBorrowedSequenceInput } from "../storage/borrowed-sequences.js";
 import type { CsharpNativeSourceCarrierSelection } from "../objects/object-shapes.js";

@@ -2,7 +2,7 @@ import type { Node } from "@tsonic/tsts";
 import type { CsharpPropertyClassification } from "../operations/operations.js";
 import type { CsharpTargetPropertySelection } from "../operations/member-selections.js";
 import type { CsharpJsValueOperationSelection } from "../../operations/js-values.js";
-import type { TargetTypeRef } from "../../types/model.js";
+import type { TargetTypeRef } from "../../types/native-type-data.js";
 
 export type CsharpAdmittedPropertyClassification = Omit<CsharpPropertyClassification, "selection"> & {
   readonly selection: Extract<CsharpTargetPropertySelection, { readonly kind: "resolved" | "source-owned" | "union-property" }>;

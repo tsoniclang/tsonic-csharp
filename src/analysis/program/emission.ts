@@ -5,7 +5,7 @@ import { analyzeCsharpConstructorEmission } from "../declarations/classes/constr
 import { analyzeCsharpConstructorArguments } from "../declarations/classes/constructor-arguments.js";
 
 import type { Node } from "@tsonic/tsts";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
 import type { CsharpResolvedBinaryOperation } from "../../target-model/records/operations/operator-selection.js";
 
 import { analyzeCsharpNativeConstants } from "../operations/native-constants.js";

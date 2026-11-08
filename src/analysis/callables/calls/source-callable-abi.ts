@@ -5,7 +5,8 @@ import { AsParameterDeclaration, HasSourceKind, KindIdentifier, sourceCallableVa
 import type { SourceFileSemantics, SourceNodeNavigationFacts } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../../policy/model/context.js";
 import { csharpNullableTargetType, getCsharpCallableValueSignature } from "../../../policy/types/index.js";
-import type { CsharpTargetParameter, TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
+import type { CsharpTargetParameter } from "../../../target-model/types/model.js";
 import type { CsharpProjectForwardingConstructor } from "../../../target-model/records/types/project-types.js";
 import type { SourceCallableSourceContract, CsharpSourceCallableParameterContract, SourceCallableContract, CsharpSourceCallParameterContract, CsharpSourceCallableNativeSignature } from "../../../target-model/records/callables/source-callable-contract.js";
 import type { ResolvedSourceCallInfo } from "../../../target-model/records/calls/source-calls.js";

@@ -1,7 +1,7 @@
 import type { Node } from "@tsonic/tsts";
 import type { SourceStorageProducer } from "@tsonic/target-api/analysis";
 import type { CsharpPolicyContext } from "../../../policy/model/context.js";
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 
 export function csharpPointerStorageDomainRejection(

@@ -1,4 +1,4 @@
-import type { TargetTypeRef } from "../types/model.js";
+import type { TargetTypeRef } from "../types/native-type-data.js";
 import { targetTypeRefEquals } from "../types/equality.js";
 import { isCsharpTargetTypeRef } from "../types/snapshot.js";
 

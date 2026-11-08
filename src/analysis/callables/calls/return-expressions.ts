@@ -3,7 +3,7 @@ import type { SourceProgramFacts } from "@tsonic/target-api/source";
 import type { CsharpNativeLiteralQueries } from "../../../policy/model/native-literals.js";
 import type { CsharpRepresentationOutcome } from "../../../target-model/types/representation.js";
 import { csharpScalarLiteralIsRepresentableAs } from "../../../policy/conversions/literals.js";
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 
 /** Visits the expressions a callable returns directly: an expression body, or each `return` operand of its own body. */

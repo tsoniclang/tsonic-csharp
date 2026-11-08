@@ -1,6 +1,7 @@
 import { type CsharpObjectShapeClassifications, type CsharpObjectShapeRecords, type CsharpObjectShapeAnalysis, type CsharpObjectLiteralTargetShapeResolution } from "../../../../target-model/records/objects/object-shapes.js";
 import { type Node } from "@tsonic/tsts";
-import { type CsharpObjectShapeFact, type CsharpStructuralInterfaceImplementation, type TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../../target-model/types/native-type-data.js";
+import { type CsharpObjectShapeFact, type CsharpStructuralInterfaceImplementation } from "../../../../target-model/types/model.js";
 import { type CsharpProjectTypeIssue } from "../../../../target-model/records/types/project-types.js";
 import { targetTypeRefKey } from "../../../../target-model/types/equality.js";
 import { csharpObjectShapeContractKey } from "../../../../target-model/types/object-shape-identity.js";

@@ -1,6 +1,7 @@
-import type { ArgumentPassingMode, Node, SourcePrimitiveKind } from "@tsonic/tsts";
+import type { ArgumentPassingMode, Node } from "@tsonic/tsts";
 import type { SourceMemberOrigin, SourcePropertyName } from "@tsonic/target-api/source";
 import type { CsharpConversionSelection } from "../conversions/selection.js";
+import type { CsharpTypeParameterConstraint, TargetTypeRef } from "./native-type-data.js";
 
 export interface CsharpTargetBinaryExecutionDriver {
   readonly id: string;
@@ -28,7 +29,7 @@ export interface CsharpNativeMethodTypeParameter {
   readonly declaration?: Node;
   readonly identity: string;
   readonly name: string;
-  readonly constraints: readonly import("./generic-constraints.js").CsharpTypeParameterConstraint[];
+  readonly constraints: readonly CsharpTypeParameterConstraint[];
 }
 
 interface CsharpObjectShapeMemberBase {
@@ -102,22 +103,6 @@ export interface CsharpStructuralInterfaceImplementation {
     readonly member: CsharpObjectShapeMemberFact;
   }[];
 }
-
-export type TargetTypeRef =
-  | { readonly kind: "source-primitive"; readonly name: SourcePrimitiveKind }
-  | { readonly kind: "target-named"; readonly id: string; readonly typeArguments?: readonly TargetTypeRef[];
-      readonly csharpAllowsRefLikeTypeArguments: readonly boolean[];
-      readonly csharpRuntimeUnionSemantics?: "native-ordered" }
-  | { readonly kind: "type-parameter"; readonly identity: string; readonly name: string;
-      readonly csharpDeclaration?: Node;
-      readonly csharpRequirementDependencies?: readonly TargetTypeRef[];
-      readonly csharpConstraints?: import("./generic-constraints.js").CsharpTypeParameterConstraintResolution;
-      readonly csharpProjection?: import("./projections.js").CsharpOptionalTypeProjection }
-  | { readonly kind: "array"; readonly element: TargetTypeRef; readonly rank?: number }
-  | { readonly kind: "tuple"; readonly elements: readonly TargetTypeRef[] }
-  | { readonly kind: "pointer"; readonly pointee: TargetTypeRef; readonly mutability?: "const" | "mut" | "target-defined" }
-  | { readonly kind: "function-pointer"; readonly args: readonly TargetTypeRef[]; readonly result: TargetTypeRef; readonly abi?: readonly string[] }
-  | { readonly kind: "opaque"; readonly id: string };
 
 export type TargetConstraint =
   | { readonly kind: "implements"; readonly contract: CsharpTargetNamedTypeRef }

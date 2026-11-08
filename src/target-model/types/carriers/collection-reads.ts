@@ -1,4 +1,5 @@
-import type { CsharpTargetMember, TargetTypeRef } from "../model.js";
+import type { TargetTypeRef } from "../native-type-data.js";
+import type { CsharpTargetMember } from "../model.js";
 
 export type CsharpCollectionElementRead =
   | { readonly kind: "indexer"; readonly element: TargetTypeRef }

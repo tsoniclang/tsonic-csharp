@@ -4,7 +4,7 @@ import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import type { CsharpScopedTypePolicyResult, CsharpTypeResolutionState } from "./model.js";
 
 import type { CsharpSourceTargetTypeBinding } from "../../../../target-model/types/model.js";
-import type { TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../../target-model/types/native-type-data.js";
 import { csharpRuntimeLocationPointee, csharpTsValueTargetType } from "../../../../target-model/types/carriers/runtime-carriers.js";
 
 import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";

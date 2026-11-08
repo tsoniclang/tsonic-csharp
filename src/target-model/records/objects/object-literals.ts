@@ -1,5 +1,6 @@
 import type { Node } from "@tsonic/tsts";
-import type { CsharpDelegateSignatureShape, CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../types/model.js";
+import type { TargetTypeRef } from "../../types/native-type-data.js";
+import type { CsharpDelegateSignatureShape, CsharpObjectShapeFact, CsharpObjectShapeMemberFact } from "../../types/model.js";
 
 export type CsharpObjectLiteralMemberEmission =
   | { readonly kind: "value"; readonly property: Node; readonly member: CsharpObjectShapeMemberFact; readonly initializer: Node }

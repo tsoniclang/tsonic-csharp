@@ -5,7 +5,7 @@ import { csharpSourceProfileDeclarationIdentity } from "../../policy/identities/
 import { selectCsharpErrorNativeProperty } from "../../policy/operations/source-profiles/error-source-profile.js";
 import { selectCsharpBindingPatternProjection } from "../../policy/types/objects/binding-projection.js";
 import type { CsharpNativePropertyRead } from "../../target-model/records/program/source-profile-invocations.js";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
 
 type NativePropertyReadHost = Pick<CsharpPolicyContext,
   "ast" | "facts" | "providers" | "projectTypes" | "typeDefinitions">;

@@ -3,7 +3,7 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { selectCsharpBinaryOperation } from "../operations/operators.js";
 import { targetTypeRefKey } from "../../target-model/types/equality.js";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
 import type { CsharpValueReadStageIndex } from "../../target-model/records/operations/conversions.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";

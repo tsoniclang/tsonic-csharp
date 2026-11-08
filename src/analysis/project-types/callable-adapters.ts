@@ -11,7 +11,8 @@ import type { CsharpProjectTypeIssue } from "../../target-model/records/types/pr
 import type { SourceCallableSourceContract } from "../../target-model/records/callables/source-callable-contract.js";
 import { csharpDelegateSignatureHasSupportedPassingModes, getCsharpDelegateSignature } from "../../target-model/types/carriers/delegates.js";
 import { scopedTargetTypeRefKey, targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/equality.js";
-import type { CsharpStructuralInterfaceImplementation, CsharpTargetNamedTypeRef, CsharpTargetParameter, TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef, CsharpTypeParameterConstraint } from "../../target-model/types/native-type-data.js";
+import type { CsharpStructuralInterfaceImplementation, CsharpTargetNamedTypeRef, CsharpTargetParameter } from "../../target-model/types/model.js";
 import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../target-model/types/object-shape-members.js";
 import { substituteTargetTypeParameters } from "../../policy/types/resolution/substitution.js";
 import { admitCsharpCallableParameterAdapters, admitCsharpCallableResultAdapter, admitCsharpCallableValueAdapter, type CsharpCallableConversionPolicy } from "../callables/native/adapters.js";
@@ -20,7 +21,6 @@ import type { CsharpCallableContractIndex } from "../../target-model/records/cal
 import type { CsharpObjectShapeAnalysis, CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
 import { finalizeCsharpStructuralInterfaceForwarding } from "../objects/structural-forwarding.js";
 import { csharpTypeParameterConstraintsEqual, csharpTypeParameterConstraintsImply, selectCsharpExplicitImplementationConstraints } from "../../policy/constraints/type-parameter-constraints.js";
-import type { CsharpTypeParameterConstraint } from "../../target-model/types/generic-constraints.js";
 import type { CsharpGenericProjectionIndex } from "../../target-model/records/types/type-projections.js";
 import { selectCsharpNativeQuantifierArguments } from "../../policy/types/callables/method-values.js";
 import type { CsharpSourceNameResolver } from "../names/plan.js";

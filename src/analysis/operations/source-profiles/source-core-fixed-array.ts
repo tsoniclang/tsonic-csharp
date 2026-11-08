@@ -9,7 +9,7 @@ import type { CsharpSourceProfileElementPolicyResult } from "../../../policy/mod
 import type { CsharpSourceProfilePropertyPolicyResult } from "../../../target-model/records/program/source-profile-invocations.js";
 import { csharpSourceProfileDiagnostic } from "../../../policy/operations/source-profiles/source-profile-policy.js";
 import { csharpLiteralIsRepresentableAs } from "../../../policy/conversions/literals.js";
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
 
 type ResolvedSourcePropertyAccessInfo = NonNullable<
   ReturnType<SourceFileSemantics["operations"]["propertyAccess"]>

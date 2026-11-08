@@ -2,7 +2,8 @@ import type { Node } from "@tsonic/tsts";
 import type { CsharpSelectedTargetCall } from "../objects/members.js";
 import type { ResolvedSourceCallInfo } from "./source-calls.js";
 import type { CsharpObjectShapeProjectionDeclaration } from "../objects/object-shape-demand.js";
-import type { CsharpTargetInvocation, TargetTypeRef } from "../../types/model.js";
+import type { TargetTypeRef } from "../../types/native-type-data.js";
+import type { CsharpTargetInvocation } from "../../types/model.js";
 import type { CsharpSourceOperator } from "../../syntax/operators.js";
 
 export type CsharpTargetInvocationEmission =

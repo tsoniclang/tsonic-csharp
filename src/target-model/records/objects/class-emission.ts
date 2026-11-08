@@ -1,5 +1,5 @@
 import type { Node } from "@tsonic/tsts";
-import type { TargetTypeRef } from "../../types/model.js";
+import type { TargetTypeRef } from "../../types/native-type-data.js";
 import type { CsharpCaptureFrame } from "../callables/capture-storage.js";
 import type { SourceCallableContract } from "../callables/source-callable-contract.js";
 

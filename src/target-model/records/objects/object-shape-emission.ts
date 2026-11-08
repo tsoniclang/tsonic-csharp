@@ -1,5 +1,5 @@
-import type { CsharpObjectShapeFact, TargetTypeRef } from "../../types/model.js";
-import type { CsharpTypeParameterConstraint } from "../../types/generic-constraints.js";
+import type { TargetTypeRef, CsharpTypeParameterConstraint } from "../../types/native-type-data.js";
+import type { CsharpObjectShapeFact } from "../../types/model.js";
 import type { CsharpObjectShapeArtifact } from "./object-shape-demand.js";
 import type { CsharpObjectShapeDisplayName } from "./object-shape-names.js";
 

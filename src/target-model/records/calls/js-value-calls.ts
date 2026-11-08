@@ -1,5 +1,5 @@
 import type { Node } from "@tsonic/tsts";
-import type { TargetTypeRef } from "../../types/model.js";
+import type { TargetTypeRef } from "../../types/native-type-data.js";
 import type { CsharpJsValueOperationSelection, CsharpJsValueInvocation } from "../../operations/js-values.js";
 
 type ResolvedOperation = Extract<CsharpJsValueOperationSelection, { readonly kind: "resolved" }>;

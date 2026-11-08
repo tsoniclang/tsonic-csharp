@@ -1,5 +1,5 @@
 import type { Node } from "@tsonic/tsts";
-import type { TargetTypeRef } from "../types/model.js";
+import type { TargetTypeRef } from "../types/native-type-data.js";
 import type { CsharpNumericLiteralToken } from "../syntax/numeric-literals.js";
 import type { SourceMemberKey } from "@tsonic/target-api/source";
 

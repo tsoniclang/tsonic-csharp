@@ -2,7 +2,8 @@ import { csharpRegExpReceiverHasNativeExecution } from "../../../operations/sour
 import type { Node, Type, SourceFile } from "@tsonic/tsts";
 import { sourceCallArgumentCorrespondences, sourceExpressionValueInputs } from "@tsonic/target-api/source";
 import type { CsharpProviderCallSelectionHost } from "../../../../policy/model/provider-calls.js";
-import type { CsharpObjectShapeFact, TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../../target-model/types/native-type-data.js";
+import type { CsharpObjectShapeFact } from "../../../../target-model/types/model.js";
 import type { ResolvedSourceCallInfo } from "../../../../target-model/records/calls/source-calls.js";
 import type { CsharpSourceProfileInputFacts, CsharpSourceProfileInputRequirements, CsharpCustomRegExpProtocol, CustomRegExpProtocolKind } from "../../../../target-model/records/program/source-profile-inputs.js";
 import { csharpSourceHasNumericConstraint } from "../../../source-evidence/types/resolution/numeric-constraint-evidence.js";

@@ -1,4 +1,5 @@
-import type { CsharpTypeofRuntimeKind, TargetTypeRef } from "../../types/model.js";
+import type { TargetTypeRef } from "../../types/native-type-data.js";
+import type { CsharpTypeofRuntimeKind } from "../../types/model.js";
 import type { CsharpTypeofResult } from "../../types/runtime-kind.js";
 
 export type CsharpTypeofComparisonSelection =

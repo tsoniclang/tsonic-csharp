@@ -1,4 +1,4 @@
-import type { TargetTypeRef } from "../../types/model.js";
+import type { TargetTypeRef } from "../../types/native-type-data.js";
 import type { CsharpFinalStructuralInterfaceImplementation } from "./heritage.js";
 
 export interface CsharpStructuralInterfaceEmission extends Omit<CsharpFinalStructuralInterfaceImplementation, "methods"> {

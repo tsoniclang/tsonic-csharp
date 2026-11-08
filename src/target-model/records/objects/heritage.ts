@@ -1,9 +1,9 @@
 import type { Node } from "@tsonic/tsts";
-import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpStructuralInterfaceImplementation, TargetTypeRef } from "../../types/model.js";
+import type { TargetTypeRef, CsharpExplicitImplementationConstraint } from "../../types/native-type-data.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpStructuralInterfaceImplementation } from "../../types/model.js";
 import type { SourceCallableContract, SourceCallableSourceContract } from "../callables/source-callable-contract.js";
 import type { CsharpCallableParameterAdapter, CsharpCallableValueAdapter } from "../callables/callable-adapters.js";
 import type { CsharpDefaultParameterContract } from "../program/declarations.js";
-import type { CsharpExplicitImplementationConstraint } from "../../types/generic-constraints.js";
 import type { CsharpNativePropertyRead } from "../program/source-profile-invocations.js";
 
 export type CsharpStructuralInterfaceMemberEvidence = {
@@ -25,8 +25,8 @@ export interface CsharpStructuralInterfaceEvidence {
 export interface CsharpStructuralMethodForwarding {
   readonly contract: Pick<SourceCallableContract, "nativeParameters" | "returnType">;
   readonly implementation: SourceCallableSourceContract;
-  readonly typeArguments: readonly import("../../types/model.js").TargetTypeRef[];
-  readonly typeParameters: readonly Extract<import("../../types/model.js").TargetTypeRef, { readonly kind: "type-parameter" }>[];
+  readonly typeArguments: readonly import("../../types/native-type-data.js").TargetTypeRef[];
+  readonly typeParameters: readonly Extract<import("../../types/native-type-data.js").TargetTypeRef, { readonly kind: "type-parameter" }>[];
   readonly explicitConstraints: readonly CsharpExplicitImplementationConstraint[];
   readonly parameterDefaults: readonly (CsharpDefaultParameterContract | undefined)[];
   readonly parameters: readonly CsharpCallableParameterAdapter[];

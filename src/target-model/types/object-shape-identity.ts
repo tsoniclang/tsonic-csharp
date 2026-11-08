@@ -1,4 +1,5 @@
-import type { CsharpObjectMethodValueStorage, CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetNamedTypeRef, TargetTypeRef } from "./model.js";
+import type { TargetTypeRef } from "./native-type-data.js";
+import type { CsharpObjectMethodValueStorage, CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetNamedTypeRef } from "./model.js";
 
 export const csharpStructuralObjectShapeIdPrefix = "tsonic.shape:";
 

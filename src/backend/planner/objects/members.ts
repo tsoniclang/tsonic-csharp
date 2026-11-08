@@ -1,5 +1,6 @@
 import type { Node } from "@tsonic/tsts";
-import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact } from "../../../target-model/types/model.js";
 import type { CsharpObjectMemberRecords, CsharpObjectMemberEmission, CsharpObjectMethodSignature } from "../../../target-model/records/objects/object-members.js";
 import type { CsharpStructuralObjectEmissionRecords } from "../../../target-model/records/objects/structural-object-emission.js";
 import type { CsharpNativeMemberHidingReader } from "../../../target-model/records/native/native-member-names.js";

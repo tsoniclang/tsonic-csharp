@@ -7,7 +7,8 @@ import type { CsharpObjectShapeRegistry, CsharpTypeQueries } from "../../policy/
 import type { CsharpTypeDefinitions } from "../../target-model/types/native-definitions.js";
 import type { CsharpTypeDefinitionRegistry } from "../project-types/type-definitions.js";
 import type { CsharpProviderRelationResolver } from "../../providers/model/relation-resolver.js";
-import type { CsharpCaptureInitialization, CsharpObjectShapeFact, CsharpTargetMember, TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
+import type { CsharpCaptureInitialization, CsharpObjectShapeFact, CsharpTargetMember } from "../../target-model/types/model.js";
 import type { CsharpRepresentationOutcome, CsharpRepresentationView } from "../../target-model/types/representation.js";
 import type { CsharpObjectMethodSources } from "../../target-model/records/native/native-value-carriers.js";
 import type { CsharpProjectTypeCatalogBuilder } from "../project-types/catalog.js";

@@ -1,7 +1,7 @@
 import type { Node } from "@tsonic/tsts";
 import type { SourceCategoryDomain, SourceComponentSelector, SourceMemberOrigin, SourceSignatureIdentity, SourceSumApplication, SourceTypeEvidence } from "@tsonic/target-api/source";
 import { sourceNumericKeyValueKey } from "@tsonic/target-api/source";
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
 import type {
   CsharpRepresentationOutcome,
   CsharpRepresentedType,

@@ -1,7 +1,7 @@
 import type { CsharpNativeCompletion } from "../../../target-model/records/native/native-demand.js";
 import { isCsharpNeverTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import { isCsharpVoidTargetType } from "../../../target-model/types/identity.js";
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
 
 export type CsharpNativeCompletionFlow = { readonly discarded?: true } & (
   | { readonly kind: "sequence"; readonly children: readonly { readonly completion: CsharpNativeCompletion | undefined; readonly guarded?: boolean }[] }

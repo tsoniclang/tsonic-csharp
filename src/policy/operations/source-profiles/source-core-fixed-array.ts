@@ -3,7 +3,7 @@ import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/ind
 import type { CsharpSourceProfileElementPolicyResult } from "../../model/source-profiles.js";
 import type { CsharpSourceProfilePropertyPolicyResult } from "../../../target-model/records/program/source-profile-invocations.js";
 
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
 const instanceReceiver = { kind: "instance" } as const;
 export function selectCsharpFixedArrayPropertyPlan(carrier: Extract<TargetTypeRef, { readonly kind: "array" }>): CsharpSourceProfilePropertyPolicyResult {
   return {

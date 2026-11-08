@@ -2,7 +2,7 @@ import type { AstReader, Node, SourceFile } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../../../../policy/types/index.js";
 import type { CsharpTypePolicy } from "./model.js";
 
-import type { CsharpTypeParameterConstraint, CsharpTypeParameterConstraintResolution } from "../../../../target-model/types/generic-constraints.js";
+import type { CsharpTypeParameterConstraint, CsharpTypeParameterConstraintResolution } from "../../../../target-model/types/native-type-data.js";
 
 import { csharpTypeParameterConstraintKey, csharpTypeParameterConstraintOrder, selectCsharpNativeTypeParameterConstraint } from "../../../../policy/constraints/type-parameter-constraints.js";
 export interface CsharpTypeParameterConstraintPolicyHost {

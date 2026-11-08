@@ -2,7 +2,7 @@ import { compareSourceNumericLiteralMagnitude, type SourceLiteralUnit, type Sour
 import type { CsharpExactLiteralPrimitive, CsharpExactLiteralRecipe, CsharpExactLiteralSelection } from "../../target-model/conversions/exact-literals.js";
 import { createCsharpNumericLiteralToken } from "../../target-model/syntax/numeric-literals.js";
 import { csharpBigIntFitsSourcePrimitive, csharpNumericLiteralInteger } from "./literal-range.js";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
 import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
 import { isCsharpStringTargetType } from "../../target-model/types/identity.js";
 import { isCsharpIntegralTargetType } from "../../target-model/types/carriers/scalar-types.js";

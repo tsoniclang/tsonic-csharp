@@ -1,7 +1,7 @@
 import type { TargetTypeRef } from "../types/index.js";
 
 import { csharpQualifiedTypeRenderShape, csharpTargetNamedType, isCsharpStringTargetType, isCsharpValueTypeTargetType, targetTypeRefKey } from "../types/index.js";
-import type { CsharpExplicitImplementationConstraint, CsharpTypeParameterConstraint, CsharpTypeParameterConstraintResolution } from "../../target-model/types/generic-constraints.js";
+import type { CsharpExplicitImplementationConstraint, CsharpTypeParameterConstraint, CsharpTypeParameterConstraintResolution } from "../../target-model/types/native-type-data.js";
 import type { CsharpPolicyContext } from "../model/context.js";
 import type { CsharpConversionShapeQueries } from "../conversions/shape-queries.js";
 import { namedTargetTypeImplicitlyAccepts } from "../conversions/carriers.js";

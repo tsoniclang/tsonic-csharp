@@ -1,14 +1,13 @@
 import type { CsharpPlanningContext } from "../context.js";
 import type { CsharpOutputSourceFile } from "../../artifact-model/output.js";
 import type { CsharpExpression, CsharpMethodDeclaration, CsharpStatement, CsharpStructDeclaration, CsharpTypeNode } from "../../target-ast/syntax/index.js";
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef, CsharpOptionalStorageLayout } from "../../../target-model/types/native-type-data.js";
 import type { CsharpSourceRoleEmission } from "../../../target-model/records/types/source-roles.js";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { csharpGenericConstraintFromTargetTypeParameterConstraint } from "../types/type-parameters.js";
 import { csharpCompilationRequiresUnsafe, csharpTypeSafetyModifiers } from "../safety/explicit-safety.js";
 import { finalizeCsharpCompilationUnit } from "../program/compilation-unit.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
-import type { CsharpOptionalStorageLayout } from "../../../target-model/types/projections.js";
 
 const argument: CsharpExpression = { kind: "IdentifierName", name: "value" };
 const invalid: CsharpExpression = { kind: "ThrowExpression", expression: { kind: "ObjectCreationExpression",

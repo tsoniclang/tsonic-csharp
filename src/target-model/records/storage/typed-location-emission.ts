@@ -1,5 +1,5 @@
 import type { Node } from "@tsonic/tsts";
-import type { TargetTypeRef } from "../../types/model.js";
+import type { TargetTypeRef } from "../../types/native-type-data.js";
 import type { CsharpTypedLocationStorage } from "./typed-location-storage.js";
 import type { CsharpResolvedTypedLocationOperation } from "./typed-locations.js";
 import type { CsharpNativeLocationSelection } from "../native/native-locations.js";

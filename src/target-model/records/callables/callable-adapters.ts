@@ -1,5 +1,5 @@
 import type { CsharpConversionSelection } from "../../conversions/selection.js";
-import type { TargetTypeRef } from "../../types/model.js";
+import type { TargetTypeRef } from "../../types/native-type-data.js";
 import type { CsharpProjectTypeIssue } from "../types/project-types.js";
 import type { SourceCallableSourceContract } from "./source-callable-contract.js";
 import type { Node } from "@tsonic/tsts";

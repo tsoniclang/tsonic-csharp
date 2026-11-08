@@ -24,7 +24,8 @@ import { createCsharpAdmittedIterationProducer } from "../program/records/operat
 import type { CsharpCaptureStorage } from "../../target-model/records/callables/capture-storage.js";
 import { isCsharpValueTypeTargetType } from "../../target-model/types/identity.js";
 import { readCsharpSelectedWritingArguments } from "../callables/values/argument-passing.js";
-import type { CsharpTargetAttributeFact, TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
+import type { CsharpTargetAttributeFact } from "../../target-model/types/model.js";
 import { csharpProviderBindingFromResolution } from "../../providers/model/relation-resolver.js";
 
 export function admitCsharpIterationBindings(

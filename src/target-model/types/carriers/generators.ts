@@ -1,4 +1,5 @@
-import type { CsharpGeneratorProtocol, CsharpIteratorResultProtocol, CsharpRuntimeUnionTargetTypeRef, CsharpTargetNamedTypeRef, TargetTypeRef } from "../model.js";
+import type { TargetTypeRef } from "../native-type-data.js";
+import type { CsharpGeneratorProtocol, CsharpIteratorResultProtocol, CsharpRuntimeUnionTargetTypeRef, CsharpTargetNamedTypeRef } from "../model.js";
 import { csharpRuntimeUnionTargetType } from "./runtime-carriers.js";
 import { isCsharpVoidTargetType } from "../identity.js";
 import { csharpQualifiedTypeRenderShape } from "../render-shapes.js";

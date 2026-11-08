@@ -1,4 +1,5 @@
-import type { TargetTypeRef, CsharpObjectShapeFact, CsharpDelegateSignatureShape, CsharpNativeCallableMember } from "../../types/model.js";
+import type { TargetTypeRef } from "../../types/native-type-data.js";
+import type { CsharpObjectShapeFact, CsharpDelegateSignatureShape, CsharpNativeCallableMember } from "../../types/model.js";
 import type { CsharpCollectionElementRead } from "../../types/carriers/collection-reads.js";
 import { targetTypeRefKey } from "../../types/equality.js";
 import { getCsharpCallableMembers, getCsharpLambdaSignature } from "../../types/carriers/delegates.js";

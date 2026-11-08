@@ -2,7 +2,7 @@ import type { Node } from "@tsonic/tsts";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpCaptureStorage, CsharpCaptureStoragePublication, CsharpOriginalCapturedPlace } from "../../../../target-model/records/callables/capture-storage.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../../target-model/types/equality.js";
-import type { TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../../target-model/types/native-type-data.js";
 
 const empty: readonly Node[] = Object.freeze([]);
 

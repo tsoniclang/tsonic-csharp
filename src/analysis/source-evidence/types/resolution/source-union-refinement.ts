@@ -1,6 +1,7 @@
 import type { Type } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
-import type { CsharpObjectShapeFact, CsharpRuntimeUnionTargetTypeRef, TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../../target-model/types/native-type-data.js";
+import type { CsharpObjectShapeFact, CsharpRuntimeUnionTargetTypeRef } from "../../../../target-model/types/model.js";
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
 import { csharpAbsenceTargetType, csharpCarrierAdmitsSourceAbsence, csharpRuntimeUnionTargetType, getCsharpRuntimeUnionArms } from "../../../../target-model/types/carriers/runtime-carriers.js";
 import { getCsharpGenericOptionalParts } from "../../../../target-model/types/projections.js";

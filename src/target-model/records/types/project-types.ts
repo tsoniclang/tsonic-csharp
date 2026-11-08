@@ -1,4 +1,5 @@
-import { type CsharpTargetMember, type TargetTypeRef, type CsharpTargetNamedTypeRef } from "../../types/model.js";
+import type { TargetTypeRef } from "../../types/native-type-data.js";
+import { type CsharpTargetMember, type CsharpTargetNamedTypeRef } from "../../types/model.js";
 import type { SourceNodeConstructorSignature, SourceRefusal, SourceSignatureIdentity, SourcePresence } from "@tsonic/target-api/source";
 import type { CsharpRepresentationOutcome } from "../../types/representation.js";
 import type { Node, SourceFile } from "@tsonic/tsts";

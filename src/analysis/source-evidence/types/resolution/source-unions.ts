@@ -1,6 +1,6 @@
 import type { Node, Type } from "@tsonic/tsts";
 import { sourceBoundTypeRelationship, type SourceFileSemantics } from "@tsonic/target-api/source";
-import type { TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../../target-model/types/native-type-data.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../../target-model/types/equality.js";
 import { getCsharpRuntimeUnionArms } from "../../../../target-model/types/carriers/runtime-carriers.js";
 import { getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";

@@ -5,7 +5,7 @@ import type { CsharpTypePolicy } from "../source-evidence/types/resolution/model
 import type { CsharpObjectShapePolicy } from "../../target-model/records/objects/object-shapes.js";
 import type { CsharpValueDomainCarrierAnalysis, CsharpValueDomainCarrierIssue } from "../../target-model/records/types/value-domains.js";
 import { createCsharpValueDomainCarrierRecords } from "../program/records/types/value-domains.js";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { getCsharpCollectionElementTargetType } from "../../target-model/types/carriers/collections.js";
 import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../target-model/types/object-shape-members.js";

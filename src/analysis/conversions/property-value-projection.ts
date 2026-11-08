@@ -2,7 +2,8 @@ import type { CsharpConversionClassifications } from "../../target-model/records
 import type { CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
 import type { CsharpPropertyValueProjectionEmission } from "../../target-model/records/objects/property-value-projection.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
+import type { CsharpTargetNamedTypeRef } from "../../target-model/types/model.js";
 import type { Node } from "@tsonic/tsts";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
 import type { CsharpObjectLiteralRecords } from "../../target-model/records/objects/object-literals.js";

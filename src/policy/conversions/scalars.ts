@@ -1,5 +1,5 @@
 import type { SourceLiteralUnit, SourcePresence } from "@tsonic/target-api/source";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
 import type { CsharpConversionMode, CsharpConversionRelation, CsharpNativeCallableConversionMembers } from "../../target-model/conversions/selection.js";
 import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
 import { getCsharpRuntimeUnionArms } from "../../target-model/types/carriers/runtime-carriers.js";

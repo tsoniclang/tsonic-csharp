@@ -1,4 +1,4 @@
-import type { TargetTypeRef } from "../../types/model.js";
+import type { TargetTypeRef } from "../../types/native-type-data.js";
 import type { CsharpResolvedBinaryOperation } from "./operator-selection.js";
 import type { Node } from "@tsonic/tsts";
 

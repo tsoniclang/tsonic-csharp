@@ -8,7 +8,7 @@ import { csharpRepresentationDiagnostic } from "../source-evidence/representatio
 import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native/native-demand.js";
 import type { CsharpExactLiteralRecipe, CsharpExactLiteralSelectionIndex } from "../../target-model/conversions/exact-literals.js";
 import type { CsharpValueReadClassifications } from "../../target-model/records/operations/conversions.js";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
 import type { CsharpTypeEmissionRecords } from "../../target-model/records/types/type-emission.js";
 import type { CsharpSourceReferenceRecords } from "../../target-model/records/program/source-references.js";
 import { targetTypeRefKey } from "../../target-model/types/equality.js";

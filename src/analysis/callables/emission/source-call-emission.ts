@@ -4,7 +4,7 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpTargetOperationClassifications } from "../../../target-model/records/operations/operations.js";
 import type { CsharpSourceEvidenceIndex } from "../../../target-model/records/program/source-evidence.js";
 import type { CsharpSourceCallEmission } from "../../../target-model/records/calls/source-call-emission.js";
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
 import { csharpConstructorBaseCall } from "./constructor-entry.js";
 import { isCsharpVoidTargetType } from "../../../target-model/types/identity.js";
 import { selectCsharpTypeEmission } from "../../../policy/types/resolution/type-emission.js";

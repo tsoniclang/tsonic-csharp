@@ -4,7 +4,7 @@ import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import type { CsharpTypeResolutionState } from "./model.js";
 import type { ResolvedSourceCallInfo } from "../../../../target-model/records/calls/source-calls.js";
-import type { TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../../target-model/types/native-type-data.js";
 
 import { inferCsharpTargetTypeParameterBindings, substituteTargetTypeParameters } from "../../../../policy/types/resolution/substitution.js";
 import { nextState } from "./state.js";

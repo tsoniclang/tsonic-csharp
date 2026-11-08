@@ -1,5 +1,5 @@
 import type { Node } from "@tsonic/tsts";
-import type { TargetTypeRef } from "../../types/model.js";
+import type { TargetTypeRef } from "../../types/native-type-data.js";
 import type { CsharpSourceCalleeSelection } from "../../operations/source-callees.js";
 import type { CsharpSourceCallResult } from "../../operations/source-call-results.js";
 import type { CsharpUnionCallClassification } from "./union-calls.js";

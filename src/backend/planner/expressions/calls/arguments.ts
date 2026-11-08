@@ -103,7 +103,7 @@ function planExpandedArgument(
     prelude.push({ kind: "LocalDeclarationStatement", ...captured, initializer: receiver });
     receiver = { kind: "IdentifierName", name: captured.name };
   }
-  const values: { readonly binding: number; readonly expression: CsharpExpression; readonly type: import("../../../../target-model/types/model.js").TargetTypeRef }[] = [];
+  const values: { readonly binding: number; readonly expression: CsharpExpression; readonly type: import("../../../../target-model/types/native-type-data.js").TargetTypeRef }[] = [];
   for (const selectedValue of selected.values) {
     const read = selectedValue.read;
     const value: CsharpExpression | undefined = read.kind === "value" ? receiver : read.kind === "tuple"

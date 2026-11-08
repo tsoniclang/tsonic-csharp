@@ -4,7 +4,8 @@ import { csharpArrayInputDomainsEqual } from "../../policy/types/collections/arr
 
 import { csharpConversionIsApplicable } from "../../policy/conversions/applicability.js";
 import { getCsharpCallableValueSignature, getCsharpNullableElementTargetType, csharpNullableReferenceTargetType, csharpNullableTargetType, csharpTargetStorageIdentityEquals, csharpDelegateSignaturesMatchNativeBinding, targetTypeRefEquals, targetTypeRefKey } from "../../policy/types/index.js";
-import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
+import type { CsharpTargetNamedTypeRef } from "../../target-model/types/model.js";
 import type { CsharpDeclarationClassifications } from "../../target-model/records/program/declarations.js";
 import type { CsharpCallableContractIndex } from "../../target-model/records/callables/callable-values.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";

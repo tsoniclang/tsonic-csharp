@@ -7,7 +7,8 @@ import type { CsharpObjectShapeAnalysis, CsharpObjectShapeClassifications } from
 import type { CsharpProjectTypeClassifications } from "../../../target-model/records/types/project-types.js";
 import type { CsharpTypeDefinitions } from "../../../target-model/types/native-definitions.js";
 
-import type { TargetTypeRef, CsharpObjectShapeProjectionKind } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
+import type { CsharpObjectShapeProjectionKind } from "../../../target-model/types/model.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeCapability, CsharpObjectShapeProjection } from "../../../target-model/types/index.js";
 import { csharpObjectShapesEqual, csharpObjectShapeMemberContractKey } from "../../../target-model/types/index.js";
 import { objectShapeArtifactKey } from "../../../target-model/records/objects/object-shape-keys.js";

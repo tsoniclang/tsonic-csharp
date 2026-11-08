@@ -1,6 +1,6 @@
 import type { CsharpConversionMode, CsharpConversionSelection } from "../../conversions/selection.js";
 import type { CsharpDelegateContractRecords } from "../callables/callable-conversions.js";
-import type { TargetTypeRef } from "../../types/model.js";
+import type { TargetTypeRef } from "../../types/native-type-data.js";
 import type { CsharpClosedShapeMemberProjection } from "../objects/closed-object-shapes.js";
 import type { SourceNodeReference } from "@tsonic/target-api/source";
 import type { Node } from "@tsonic/tsts";

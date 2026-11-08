@@ -8,7 +8,7 @@ import type { CsharpNativeDemandAnalysis } from "../../target-model/records/nati
 import type { CsharpExactLiteralSelectionIndex } from "../../target-model/conversions/exact-literals.js";
 import type { CsharpValueReadClassifications } from "../../target-model/records/operations/conversions.js";
 import { csharpStringTargetType, csharpBigIntegerTargetType, targetTypeRefEquals } from "../../target-model/types/index.js";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
 import { createCsharpLiteralEmissionProducer } from "../program/records/operations/literal-emission.js";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 

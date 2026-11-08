@@ -1,4 +1,4 @@
-import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
 import type { CsharpConversionMode, CsharpConversionRelation } from "../../target-model/conversions/selection.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { csharpConversionIsApplicable } from "./applicability.js";

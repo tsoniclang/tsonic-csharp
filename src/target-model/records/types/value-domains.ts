@@ -1,5 +1,5 @@
 import type { Node } from "@tsonic/tsts";
-import type { TargetTypeRef } from "../../types/model.js";
+import type { TargetTypeRef } from "../../types/native-type-data.js";
 
 export interface CsharpValueDomainCarrierQueries {
   readonly carrierFor: (node: Node) => TargetTypeRef | undefined;

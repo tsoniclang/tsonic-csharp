@@ -1,4 +1,4 @@
-import type { TargetTypeRef } from "../../types/model.js";
+import type { TargetTypeRef } from "../../types/native-type-data.js";
 import type { CsharpNativeCallableConversionMembers } from "../../conversions/selection.js";
 import { csharpNativeCallableMemberKey } from "../../types/carriers/delegates.js";
 import { targetTypeRefKey } from "../../types/equality.js";

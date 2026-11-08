@@ -1,4 +1,5 @@
-import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../../target-model/types/native-type-data.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact } from "../../../../target-model/types/model.js";
 import { targetTypeRefKey } from "../../../../target-model/types/equality.js";
 
 import { csharpMetadataDescriptors, createCsharpMetadataBudget } from "../../../../target-model/metadata/immutable.js";

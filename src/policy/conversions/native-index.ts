@@ -1,7 +1,7 @@
 import type { SourceDescriptorView, SourceValueOperand } from "@tsonic/target-api/source";
 import type { CsharpConversionSelection } from "../../target-model/conversions/selection.js";
 import type { CsharpNativeIntegerUse } from "../../target-model/conversions/native-indices.js";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import type { CsharpResolvedBinaryOperation } from "../../target-model/records/operations/operator-selection.js";
 import { csharpSourcePrimitiveTargetType } from "../../target-model/types/carriers/scalar-types.js";

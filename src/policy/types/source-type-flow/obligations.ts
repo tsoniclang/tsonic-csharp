@@ -1,5 +1,6 @@
 import type { SourcePresence } from "@tsonic/target-api/source";
-import type { TargetConstraint, TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
+import type { TargetConstraint } from "../../../target-model/types/model.js";
 import type { CsharpNativeTypeEndpoints, CsharpNativeTypeObligation } from "../../../target-model/types/native-obligations.js";
 import type { CsharpRepresentationOutcome, CsharpRepresentationView } from "../../../target-model/types/representation.js";
 import type { CsharpNativeTypeRelationHost } from "./relations.js";

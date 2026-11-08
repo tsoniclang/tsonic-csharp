@@ -1,4 +1,4 @@
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
 
 import { csharpJsArrayTargetType } from "../../../target-model/types/carriers/js.js";
 import { getCsharpCollectionElementTargetType } from "../../../target-model/types/carriers/collections.js";

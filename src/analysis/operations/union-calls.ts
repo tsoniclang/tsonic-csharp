@@ -5,7 +5,7 @@ import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { getCsharpRuntimeUnionArms } from "../../target-model/types/carriers/runtime-carriers.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
 import { selectCsharpSourceArgument } from "../../source/extension/arguments.js";
 import { csharpDelegateSignatureHasSupportedPassingModes } from "../../target-model/types/carriers/delegates.js";
 import { selectCsharpConversion } from "../../policy/conversions/core.js";

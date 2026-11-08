@@ -1,5 +1,6 @@
 import type { SourceMemberOrigin } from "@tsonic/target-api/source";
-import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact } from "../../../target-model/types/model.js";
 import { canonicalCsharpObjectShapeMembers, canonicalCsharpObjectShapeImplementedTypes, csharpObjectShapeMemberContractKey } from "../../../target-model/types/object-shape-identity.js";
 import { csharpEmptyObjectTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { targetTypeRefKey } from "../../../target-model/types/equality.js";

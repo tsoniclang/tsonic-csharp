@@ -1,7 +1,8 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import type { SourceStorageQueries } from "@tsonic/target-api/analysis";
 import type { SourceDescriptorView, SourceMemberCorrespondenceQueries, SourceValueFacts } from "@tsonic/target-api/source";
-import type { CsharpCaptureInitialization, CsharpObjectShapeFact, TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
+import type { CsharpCaptureInitialization, CsharpObjectShapeFact } from "../../../target-model/types/model.js";
 import type { CsharpRepresentationOutcome, CsharpRepresentationView } from "../../../target-model/types/representation.js";
 import type { CsharpObjectMethodSources } from "../../../target-model/records/native/native-value-carriers.js";
 

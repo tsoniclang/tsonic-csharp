@@ -1,4 +1,4 @@
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
 
 import { csharpObjectTargetType, csharpUnitTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import { isCsharpVoidTargetType } from "../../../target-model/types/identity.js";

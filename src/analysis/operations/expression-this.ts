@@ -1,7 +1,7 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { HasSyntacticModifier, ModifierFlagsStatic } from "@tsonic/target-api/source";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
 import type { CsharpCaptureStorage } from "../../target-model/records/callables/capture-storage.js";
 import type { CsharpClassInitializationIndex } from "../../target-model/records/objects/class-initialization.js";
 import type { CsharpClassFactoryIndex } from "../../target-model/records/objects/class-factories.js";

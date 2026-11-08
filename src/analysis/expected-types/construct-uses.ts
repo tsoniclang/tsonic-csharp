@@ -10,7 +10,7 @@ import { getCsharpExpressionTreeDelegateType } from "../../target-model/types/ca
 import type { CsharpTargetCallSelection } from "../../target-model/records/operations/member-selections.js";
 import type { ResolvedSourceCallInfo } from "../../target-model/records/calls/source-calls.js";
 import type { CsharpSourceArgumentGrouping } from "../../target-model/records/operations/operations.js";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
 import type { CsharpExpectedUseCollection } from "./collection.js";
 import type { CsharpExpectedTypeAnalysisInput, CsharpExpectedUseSiteDemand, CsharpExpectedUseWithholding } from "./model.js";
 import { csharpNativeShiftCountType } from "../../policy/conversions/native-index.js";

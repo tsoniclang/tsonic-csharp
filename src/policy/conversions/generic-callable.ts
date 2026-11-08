@@ -1,8 +1,8 @@
 import type { CsharpPolicyContext } from "../model/context.js";
 import type { CsharpConversionShapeQueries } from "./shape-queries.js";
-import type { CsharpNativeCallableMember, TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef, CsharpTypeParameterConstraint } from "../../target-model/types/native-type-data.js";
+import type { CsharpNativeCallableMember } from "../../target-model/types/model.js";
 import type { CsharpNativeCallableApplication } from "../../target-model/conversions/selection.js";
-import type { CsharpTypeParameterConstraint } from "../../target-model/types/generic-constraints.js";
 import { csharpNativeCallableMemberKey } from "../../target-model/types/carriers/delegates.js";
 import { getCsharpNullableElementTargetType, isCsharpNullableReferenceTargetType } from "../../target-model/types/carriers/nullable.js";
 import { isCsharpReferenceCarrier, isCsharpValueTypeTargetType, isCsharpVoidTargetType } from "../../target-model/types/identity.js";

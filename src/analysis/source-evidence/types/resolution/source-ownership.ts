@@ -2,7 +2,7 @@ import { providerVirtualDeclarationFactKey } from "@tsonic/tsts";
 import type { ExtensionFactSubject, Node, SourceFile } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../../../policy/model/context.js";
 import { sourceTypeDescriptorStructure } from "@tsonic/target-api/source";
-import type { TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../../target-model/types/native-type-data.js";
 import { getCsharpMethodValue } from "../../../../target-model/types/method-values.js";
 import { isCsharpSourceDelegateTargetType } from "../../../../target-model/types/carriers/delegates.js";
 

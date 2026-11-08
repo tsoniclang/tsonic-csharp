@@ -1,7 +1,7 @@
 import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import type { Node } from "@tsonic/tsts";
-import type { TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../../target-model/types/native-type-data.js";
 import { nextState } from "./state.js";
 import { readCsharpSourceField } from "../../../../source/extension/markers.js";
 import { resolveCsharpPublishedCallableReturn, resolveCsharpSourceEffectiveType } from "./effective-types.js";

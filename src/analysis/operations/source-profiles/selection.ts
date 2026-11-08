@@ -1,5 +1,5 @@
 import type { SourceFile, Node, AstReader, ReadonlySourceFactResolver } from "@tsonic/tsts";
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
 import { selectCsharpArrayUnionElement, selectCsharpArrayUnionProperty } from "../members/number-array-unions.js";
 import { selectCsharpIndexedRecordElement, selectCsharpIndexedRecordProperty } from "../collections/indexed-records.js";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";

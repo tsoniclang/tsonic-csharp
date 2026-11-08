@@ -1,4 +1,5 @@
-import type { CsharpObjectShapeFact, CsharpPropertyKeyIterationPolicy, CsharpStringIterationPolicy, CsharpTargetMember, TargetTypeRef } from "../../types/model.js";
+import type { TargetTypeRef } from "../../types/native-type-data.js";
+import type { CsharpObjectShapeFact, CsharpPropertyKeyIterationPolicy, CsharpStringIterationPolicy, CsharpTargetMember } from "../../types/model.js";
 import type { Node, ResolvedSourceIterationInfo } from "@tsonic/tsts";
 import type { CsharpConversionSelection } from "../../conversions/selection.js";
 

@@ -5,7 +5,7 @@ import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { targetTypeRefKey } from "../../target-model/types/equality.js";
 import { csharpNativeUseSite } from "../../target-model/records/native/native-demand.js";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
 import type { CsharpExpectedTypeIssue, CsharpQuotationBindingSelection } from "../../target-model/records/types/expected-types.js";
 import type { CsharpExpectedTypePending, CsharpExpectedTypeRecord, CsharpExpectedTypeUse, CsharpExpectedUseRequest } from "./model.js";
 

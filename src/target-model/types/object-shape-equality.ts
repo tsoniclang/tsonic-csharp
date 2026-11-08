@@ -1,6 +1,7 @@
 import { canonicalCsharpObjectShapeImplementedTypes, canonicalCsharpObjectShapeMembers, csharpObjectMethodValueStorageKey, csharpObjectShapeMemberContractKey } from "./object-shape-identity.js";
 import { targetTypeRefEquals } from "./equality.js";
-import type { CsharpObjectShapeFact, TargetTypeRef } from "./model.js";
+import type { TargetTypeRef } from "./native-type-data.js";
+import type { CsharpObjectShapeFact } from "./model.js";
 import { csharpSourceMemberKeysEqual } from "./source-member-keys.js";
 import { csharpOwnerTypeParameterConstraintKey } from "./generic-constraints.js";
 

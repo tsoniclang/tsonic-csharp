@@ -8,7 +8,7 @@ import { csharpTypeFromTargetTypeRefWithObjectShapeDeclarations } from "../../ty
 import type { CsharpPlannedValue } from "../../expressions/planned-values.js";
 import { planCsharpBindingDefaultValue } from "../../bindings/optional-values.js";
 import type { CsharpDefaultParameterContract } from "../../../../target-model/records/program/declarations.js";
-import type { TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../../target-model/types/native-type-data.js";
 import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import { csharpPlannedValue } from "../../expressions/planned-values.js";
 import { convertCsharpPlannedValue } from "../../expressions/planned-value-conversions.js";

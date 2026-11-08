@@ -1,6 +1,6 @@
 import type { SourceLiteralUnit, SourcePresence } from "@tsonic/target-api/source";
 import type { CsharpExactLiteralSelection } from "../../../target-model/conversions/exact-literals.js";
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
 
 export function csharpParameterDefaultIsLiteral(input: {
   readonly source: SourcePresence<SourceLiteralUnit>;

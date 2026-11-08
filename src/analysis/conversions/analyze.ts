@@ -6,7 +6,7 @@ import type { CsharpConversionMode, CsharpConversionSelection } from "../../targ
 import { csharpTargetBindingFact, isCsharpReferenceCarrier, targetTypeRefKey, targetTypeRefEquals } from "../../policy/types/index.js";
 import { isSourceOwnedCallableRuntimeCarrierSubject, isSourceOwnedProjectReference } from "../source-evidence/types/resolution/source-ownership.js";
 
-import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
 import type { CsharpClosedShapeMemberProjection } from "../../target-model/records/objects/closed-object-shapes.js";
 
 import type { CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";

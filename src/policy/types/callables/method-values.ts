@@ -1,10 +1,9 @@
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef, CsharpTypeParameterConstraintResolution } from "../../../target-model/types/native-type-data.js";
 import { substituteTargetTypeParameters } from "../resolution/substitution.js";
 import { getCsharpMethodValue, csharpMethodValueType } from "../../../target-model/types/method-values.js";
 import { getCsharpDelegateSignature } from "../../../target-model/types/carriers/delegates.js";
 import { csharpOptionalProjectedType, getCsharpOptionalProjection } from "../../../target-model/types/projections.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
-import type { CsharpTypeParameterConstraintResolution } from "../../../target-model/types/generic-constraints.js";
 import { visitCsharpTargetTypeParameters } from "../../../target-model/types/generic-references.js";
 import { csharpTypeParameterConstraintsEqual } from "../../constraints/type-parameter-constraints.js";
 

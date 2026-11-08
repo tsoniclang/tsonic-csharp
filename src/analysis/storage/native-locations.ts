@@ -3,7 +3,7 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import { readCsharpSourceField } from "../../source/extension/markers.js";
 import { sourceDeclarationIsModuleScoped, sourceParameterIsProperty } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { selectCsharpAssignmentLocation } from "../operations/assignment-location.js";
 import { type CsharpAssignmentLocation } from "../../target-model/operations/assignment-locations.js";

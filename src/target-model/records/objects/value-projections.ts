@@ -1,6 +1,7 @@
 import type { Node } from "@tsonic/tsts";
 import type { CsharpArrayBindingCarrier } from "../../types/carriers/binding-array-carrier.js";
-import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../types/model.js";
+import type { TargetTypeRef } from "../../types/native-type-data.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact } from "../../types/model.js";
 import type { CsharpConversionSelection } from "../../conversions/selection.js";
 import type { CsharpNativePropertyRead } from "../program/source-profile-invocations.js";
 

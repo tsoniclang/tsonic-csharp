@@ -1,7 +1,7 @@
 import type { SourceApplication, SourcePresence } from "@tsonic/target-api/source";
 import type { CsharpProviderOperationHost } from "../../../policy/model/provider-calls.js";
 import type { CsharpRepresentationOutcome } from "../../../target-model/types/representation.js";
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
 
 export function selectCsharpProviderPointerResult(
   host: CsharpProviderOperationHost, application: SourceApplication,

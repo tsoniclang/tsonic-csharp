@@ -3,7 +3,7 @@ import { resolveCsharpConstructorValueType } from "./constructors.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import { IsTypeSyntaxNode, sourceTypeDescriptorsEqual, type SourceFileSemantics } from "@tsonic/target-api/source";
-import type { TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../../target-model/types/native-type-data.js";
 import { combineCsharpTargetUnionMembers } from "../../../../target-model/types/carriers/runtime-carriers.js";
 import { csharpJsArrayTargetType } from "../../../../target-model/types/carriers/js.js";
 import { csharpSourceTypeParameter } from "../../../../source/extension/type-parameters.js";

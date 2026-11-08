@@ -1,4 +1,5 @@
-import type { CsharpTargetNamedTypeRef, CsharpTypeofRuntimeKind, TargetTypeRef } from "./model.js";
+import type { TargetTypeRef } from "./native-type-data.js";
+import type { CsharpTargetNamedTypeRef, CsharpTypeofRuntimeKind } from "./model.js";
 import { getCsharpNullableElementTargetType } from "./carriers/nullable.js";
 import { getCsharpRuntimeUnionArms, isCsharpAbsenceTargetType } from "./carriers/runtime-carriers.js";
 import { getCsharpCallableMembers } from "./carriers/delegates.js";

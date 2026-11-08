@@ -2,8 +2,7 @@ import type { AstReader, Node } from "@tsonic/tsts";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { csharpSourceTypeParameter } from "../../../../source/extension/type-parameters.js";
 import { csharpTypeProjection } from "../../../../target-model/types/projections.js";
-import type { TargetTypeRef } from "../../../../target-model/types/model.js";
-import type { CsharpTypeParameterConstraintResolution } from "../../../../target-model/types/generic-constraints.js";
+import type { TargetTypeRef, CsharpTypeParameterConstraintResolution } from "../../../../target-model/types/native-type-data.js";
 import { snapshotCsharpTargetTypes } from "../../../../target-model/types/snapshot.js";
 import { csharpMetadataDescriptors } from "../../../../target-model/metadata/immutable.js";
 

@@ -2,7 +2,7 @@ import { providerVirtualDeclarationFactKey, type Node, type ExtensionFactSubject
 import { sourceIndexedTypeEvidence, type SourceFileSemantics } from "@tsonic/target-api/source";
 import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { CsharpTypeResolutionState } from "./model.js";
-import type { TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../../target-model/types/native-type-data.js";
 import { csharpTargetBindingSubstitutions, substituteCsharpTargetMember } from "../../../../policy/types/callables/member-substitution.js";
 import { csharpNullableTargetType } from "../../../../target-model/types/carriers/nullable.js";
 import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";

@@ -7,7 +7,7 @@ import type { CsharpReturnTargetContract } from "../../../target-model/records/p
 import type { CsharpReturnContext } from "../../../target-model/records/calls/return-contexts.js";
 import type { SourceCallableSourceContract } from "../../../target-model/records/callables/source-callable-contract.js";
 import type { CsharpSourceEvidenceIndex } from "../../../target-model/records/program/source-evidence.js";
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
 
 export function selectCsharpCallableReturnContext(
   policy: Pick<CsharpPolicyContext, "ast">,

@@ -2,7 +2,8 @@ import type { CsharpObjectShapePropertyOrders } from "../../../../target-model/r
 import type { Node } from "@tsonic/tsts";
 
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
-import type { CsharpObjectShapeFact, CsharpObjectShapeProjectionKind, TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../../target-model/types/native-type-data.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeProjectionKind } from "../../../../target-model/types/model.js";
 
 import type { CsharpObjectShapePropertyOrderSelection } from "../../../../target-model/records/objects/object-shapes.js";
 

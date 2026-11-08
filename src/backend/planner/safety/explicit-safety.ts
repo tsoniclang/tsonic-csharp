@@ -9,7 +9,8 @@ import { AsExpressionStatement } from "@tsonic/target-api/source";
 import { csharpPlannedValue, type CsharpPlannedValue } from "../expressions/planned-values.js";
 import { captureCsharpPlannedValue } from "../expressions/planned-value-composition.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
-import type { TargetTypeRef, CsharpObjectShapeFact } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
+import type { CsharpObjectShapeFact } from "../../../target-model/types/model.js";
 
 export function planCsharpExplicitSafetyExpression(
   node: Node,

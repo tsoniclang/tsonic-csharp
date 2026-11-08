@@ -8,7 +8,7 @@ import type { CsharpProjectTypeClassifications } from "../../target-model/record
 import { substituteTargetTypeParameters } from "../../policy/types/resolution/substitution.js";
 import { snapshotCsharpTargetTypes } from "../../target-model/types/snapshot.js";
 import { CsharpMetadataResourceLimitFailure } from "../../target-model/metadata/immutable.js";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
 import type { CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
 import { completeCsharpDeclarationHeritage } from "./heritage.js";
 

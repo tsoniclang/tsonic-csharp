@@ -1,8 +1,8 @@
 import type { Node } from "@tsonic/tsts";
 import type { SourceCategory, SourceTypeEvidence, SourceTypeParameter } from "@tsonic/target-api/source";
-import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef, CsharpRepresentedTypeParameter } from "../../../target-model/types/native-type-data.js";
+import type { CsharpTargetNamedTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpRepresentationOutcome, CsharpRepresentationView, CsharpSourceCategoryWitness } from "../../../target-model/types/representation.js";
-import type { CsharpRepresentedTypeParameter } from "../../../target-model/types/generic-constraints.js";
 import type { CsharpRepresentationHost } from "./representation-host.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { getCsharpGenericOptionalParts } from "../../../target-model/types/projections.js";

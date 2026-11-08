@@ -4,7 +4,7 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpGenericConstraint, CsharpTypeParameter } from "../../target-ast/syntax/index.js";
 import { planIdentifierName } from "../names/source-identifiers.js";
 import { csharpTypeFromTargetTypeRef } from "./render.js";
-import type { CsharpExplicitImplementationConstraint, CsharpTypeParameterConstraint } from "../../../target-model/types/generic-constraints.js";
+import type { CsharpExplicitImplementationConstraint, CsharpTypeParameterConstraint } from "../../../target-model/types/native-type-data.js";
 import type { CsharpProjectedType } from "../../../target-model/types/projections.js";
 import { sanitizeIdentifier } from "../../../target-model/names/identifiers.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";

@@ -3,7 +3,8 @@ import type { CsharpCallableParameterAdapter, CsharpCallableValueAdapter } from 
 import type { CsharpPolicyContext } from "../../../policy/model/context.js";
 import { selectCsharpConversion } from "../../../policy/conversions/core.js";
 import { csharpConversionIsApplicable } from "../../../policy/conversions/applicability.js";
-import type { CsharpTargetParameter, TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
+import type { CsharpTargetParameter } from "../../../target-model/types/model.js";
 import { selectCsharpFlowReadConversion } from "../../../policy/conversions/expression.js";
 import type { SourceCallableSourceContract } from "../../../target-model/records/callables/source-callable-contract.js";
 import { admitCsharpConversionSelection } from "../../conversions/validation.js";

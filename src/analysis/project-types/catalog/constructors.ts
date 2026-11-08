@@ -3,7 +3,8 @@ import type { SourceNodeConstructorSignature, SourceProgramFacts } from "@tsonic
 import { csharpSourceNodeIdentity } from "../../../source/extension/identities.js";
 import type { CsharpProjectForwardingConstructor, CsharpProjectTypeDefinition, CsharpProjectTypeIssue } from "../../../target-model/records/types/project-types.js";
 import type { CsharpProviderRelationResolver } from "../../../providers/model/relation-resolver.js";
-import type { CsharpTargetMember, CsharpTargetNamedTypeRef, CsharpTargetParameter, TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
+import type { CsharpTargetMember, CsharpTargetNamedTypeRef, CsharpTargetParameter } from "../../../target-model/types/model.js";
 import type { CsharpTypeQueries } from "../../../policy/model/type-resolution.js";
 import { csharpTargetBindingSubstitutions, substituteCsharpTargetMember } from "../../../policy/types/callables/member-substitution.js";
 import { targetTypeRefKey } from "../../../target-model/types/equality.js";

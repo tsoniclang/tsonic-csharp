@@ -1,6 +1,6 @@
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpConversionSelection } from "../../target-model/conversions/selection.js";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
 import type { CsharpDelegateContractProducer } from "../program/records/callables/callable-conversions.js";
 import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
 import { isCsharpVoidTargetType } from "../../target-model/types/identity.js";

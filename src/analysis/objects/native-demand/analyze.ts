@@ -24,7 +24,8 @@ import type { CsharpFinalStructuralInterfaceImplementation } from "../../../targ
 import type { CsharpDefaultValueContract } from "../../../target-model/records/objects/value-projections.js";
 import type { CsharpTargetCallSelection } from "../../../target-model/records/operations/member-selections.js";
 import type { CsharpConversionSelection } from "../../../target-model/conversions/selection.js";
-import type { CsharpObjectShapeFact, CsharpObjectShapeCapability, CsharpRuntimeUnionTargetTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeCapability, CsharpRuntimeUnionTargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpObjectShapeMethodDeclaration } from "../../../target-model/types/method-values.js";
 import { csharpPropertySourceMemberKey, csharpWellKnownSymbolSourceMemberKey } from "../../../target-model/types/source-member-keys.js";
 import { resolveCsharpObjectShapeMemberBySourceKey } from "../../../target-model/types/object-shape-members.js";

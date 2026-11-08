@@ -1,7 +1,7 @@
 import type { Node } from "@tsonic/tsts";
-import type { CsharpObjectShapeFact, TargetTypeRef } from "../../types/model.js";
+import type { TargetTypeRef, CsharpExplicitImplementationConstraint } from "../../types/native-type-data.js";
+import type { CsharpObjectShapeFact } from "../../types/model.js";
 import type { CsharpObjectMemberDeclaration } from "./object-members.js";
-import type { CsharpExplicitImplementationConstraint } from "../../types/generic-constraints.js";
 
 export interface CsharpObjectCaptureField {
   readonly name: string;

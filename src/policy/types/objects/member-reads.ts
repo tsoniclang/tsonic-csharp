@@ -1,4 +1,4 @@
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
 
 import { isCsharpStringTargetType } from "../../../target-model/types/identity.js";
 import { isCsharpJsValueTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";

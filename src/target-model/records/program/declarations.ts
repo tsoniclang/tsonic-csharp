@@ -1,4 +1,4 @@
-import type { TargetTypeRef } from "../../types/model.js";
+import type { TargetTypeRef } from "../../types/native-type-data.js";
 import type { CsharpRuntimeParameterDefault } from "../../types/parameter-defaults.js";
 import type { Node } from "@tsonic/tsts";
 import type { CsharpDefaultValueContract } from "../objects/value-projections.js";

@@ -1,5 +1,6 @@
 import type { Node } from "@tsonic/tsts";
-import type { CsharpTargetParameter, TargetTypeRef } from "../../types/model.js";
+import type { TargetTypeRef } from "../../types/native-type-data.js";
+import type { CsharpTargetParameter } from "../../types/model.js";
 import type { CsharpProviderArgumentMapping, CsharpSelectedCallArgument, CsharpCallArgumentProjection } from "../objects/members.js";
 import type { CsharpRestSequence } from "../objects/rest-sequences.js";
 import type { CsharpConversionSelection } from "../../conversions/selection.js";

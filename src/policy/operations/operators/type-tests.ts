@@ -1,4 +1,5 @@
-import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
+import type { CsharpTargetNamedTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpClosedTypePredicate, CsharpClosedTypeTestPlan } from "../../../target-model/operations/type-tests.js";
 import { getCsharpJsArrayElementTargetType } from "../../../target-model/types/carriers/collections.js";
 import { getCsharpTypeofRuntimeKind } from "../../../target-model/types/runtime-kind.js";

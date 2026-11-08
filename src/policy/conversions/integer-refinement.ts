@@ -1,5 +1,5 @@
 import type { Node } from "@tsonic/tsts";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
 import type { CsharpIntegerRangeIndex } from "../../target-model/records/operations/integer-ranges.js";
 import { csharpUnsignedIntegerCounterpart } from "../../target-model/conversions/integer-refinement.js";
 import type { CsharpIntegerRefinementConversion } from "../../target-model/conversions/integer-refinement.js";

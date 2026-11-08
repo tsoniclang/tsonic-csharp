@@ -1,4 +1,5 @@
-import type { CsharpObjectShapeMemberFact, TargetTypeRef } from "../../types/model.js";
+import type { TargetTypeRef } from "../../types/native-type-data.js";
+import type { CsharpObjectShapeMemberFact } from "../../types/model.js";
 import type { CsharpNativePropertyRead } from "../program/source-profile-invocations.js";
 
 export type CsharpPropertyProjectionMember = (CsharpObjectShapeMemberFact & { readonly native?: never }) |

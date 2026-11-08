@@ -2,7 +2,7 @@ import type { CsharpPlanningContext } from "../context.js";
 import type { CsharpOutputSourceFile } from "../../artifact-model/output.js";
 import type { CsharpInterfaceMethodDeclaration, CsharpParameter, CsharpTypeDeclaration, CsharpTypeParameter } from "../../target-ast/syntax/index.js";
 import type { CsharpTargetParameter } from "../../../target-model/types/model.js";
-import type { CsharpRepresentedTypeParameter } from "../../../target-model/types/generic-constraints.js";
+import type { CsharpRepresentedTypeParameter } from "../../../target-model/types/native-type-data.js";
 import type { CsharpNativeCallableEmissionMember } from "../../../target-model/records/callables/native-delegates.js";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { csharpGenericConstraintFromTargetTypeParameterConstraint } from "../types/type-parameters.js";

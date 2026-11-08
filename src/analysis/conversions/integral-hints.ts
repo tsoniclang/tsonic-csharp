@@ -1,7 +1,7 @@
 import type { Node } from "@tsonic/tsts";
 import { sourceAnnotationHint, type SourceAnnotationHintBindings } from "@tsonic/target-api/source";
 import { tsonicCoreSourceSemanticsModules } from "@tsonic/source-core";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
 import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
 import { isCsharpIntegralTargetType } from "../../target-model/types/carriers/scalar-types.js";
 

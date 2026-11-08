@@ -1,6 +1,6 @@
 import type { Type } from "@tsonic/tsts";
 import { sourceCallableParameterEvidence, type SourceFileSemantics } from "@tsonic/target-api/source";
-import type { TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../../target-model/types/native-type-data.js";
 import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import { selectCsharpClassFactoryType } from "../../../project-types/class-factory-types.js";

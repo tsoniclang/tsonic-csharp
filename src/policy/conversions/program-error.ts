@@ -1,5 +1,5 @@
 import type { CsharpPolicyContext } from "../model/context.js";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
 import { csharpExceptionTargetType, csharpTsValueTargetType, isCsharpClosedJsRuntimeCarrier } from "../../target-model/types/index.js";
 import { selectCsharpConversion } from "./core.js";
 import type { CsharpConversionShapeQueries } from "./shape-queries.js";

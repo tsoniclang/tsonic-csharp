@@ -5,7 +5,7 @@ import { sourceLexicalCaptures, type SourceCallOnlyAlias, type SourceProgramFact
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
 import type {
   CsharpNativeValueCarriers,
   CsharpNativeValueField,

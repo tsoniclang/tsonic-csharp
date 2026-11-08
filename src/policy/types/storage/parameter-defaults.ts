@@ -1,4 +1,5 @@
-import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
+import type { CsharpTargetNamedTypeRef } from "../../../target-model/types/model.js";
 import { isCsharpVoidTargetType } from "../../../target-model/types/identity.js";
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { isCsharpJsValueTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";

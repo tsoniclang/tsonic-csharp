@@ -1,5 +1,6 @@
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpNativeCallableMember, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpNativeCallableMember, CsharpTargetNamedTypeRef } from "../../target-model/types/model.js";
 import type { CsharpObjectMemberRecords } from "../../target-model/records/objects/object-members.js";
 import type { CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
 import type { CsharpObjectShapeDemand } from "../../target-model/records/objects/object-shape-demand.js";

@@ -1,7 +1,7 @@
 import type { Node } from "@tsonic/tsts";
 import { sourceBindingScope, sourceBindingIterationScope, sourceLexicalCaptures, type TargetSourceProgram } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
 import type { CsharpSourceEvidenceIndex } from "../../../target-model/records/program/source-evidence.js";
 import type { CsharpStorageIssue } from "../../../target-model/records/storage/storage.js";
 import { selectCsharpNamedSelfBinding } from "./named-self.js";

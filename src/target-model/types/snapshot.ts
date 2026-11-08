@@ -1,4 +1,4 @@
-import type { TargetTypeRef } from "./model.js";
+import type { TargetTypeRef } from "./native-type-data.js";
 import { targetTypeRefEquals } from "./equality.js";
 import { csharpTargetTypeComponents } from "./components.js";
 import { failCsharpMetadataResourceLimit, snapshotCsharpMetadata, csharpMetadataDescriptors, createCsharpMetadataBudget, maximumCsharpMetadataEntries, maximumCsharpMetadataDepth } from "../metadata/immutable.js";

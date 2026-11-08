@@ -2,7 +2,7 @@ import type { CsharpTypePolicyHost } from "./model.js";
 import type { Node } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../../../policy/model/context.js";
 import type { CsharpSourceCallResult } from "../../../../target-model/operations/source-call-results.js";
-import type { TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../../target-model/types/native-type-data.js";
 import { namedTargetTypeImplicitlyAccepts } from "../../../../policy/conversions/carriers.js";
 import { selectCsharpConversion } from "../../../../policy/conversions/core.js";
 import { csharpConversionIsApplicable } from "../../../../policy/conversions/applicability.js";

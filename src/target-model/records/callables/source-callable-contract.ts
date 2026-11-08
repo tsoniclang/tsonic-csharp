@@ -1,4 +1,5 @@
-import type { CsharpTargetParameter, TargetTypeRef } from "../../types/model.js";
+import type { TargetTypeRef } from "../../types/native-type-data.js";
+import type { CsharpTargetParameter } from "../../types/model.js";
 import type { Node } from "@tsonic/tsts";
 import type { CsharpCallableParameterAdapter } from "./callable-adapters.js";
 

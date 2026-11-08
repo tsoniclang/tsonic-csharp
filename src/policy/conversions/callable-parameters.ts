@@ -1,5 +1,6 @@
 import type { CsharpCallableParameterAdapter, CsharpCallableRestSegment, CsharpCallableValueAdapter } from "../../target-model/records/callables/callable-adapters.js";
-import type { CsharpTargetParameter, TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
+import type { CsharpTargetParameter } from "../../target-model/types/model.js";
 import { getCsharpJsArrayElementTargetType, getCsharpIndexableLengthMemberName } from "../../target-model/types/carriers/collections.js";
 import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/equality.js";

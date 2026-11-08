@@ -1,5 +1,5 @@
 import type { Node } from "@tsonic/tsts";
-import type { CsharpTypeParameterConstraint } from "../../types/generic-constraints.js";
+import type { CsharpTypeParameterConstraint } from "../../types/native-type-data.js";
 
 export interface CsharpTypeParameterEmission {
   readonly identity: string;

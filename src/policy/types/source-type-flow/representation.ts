@@ -1,8 +1,7 @@
 import type { Node } from "@tsonic/tsts";
 import type { SourceComponentSelector, SourceMemberOrigin, SourceTypeDescriptorSignature, SourceTypeEvidence, SourceTypeParameter } from "@tsonic/target-api/source";
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef, CsharpRepresentedTypeParameter } from "../../../target-model/types/native-type-data.js";
 import type { CsharpRepresentationOutcome, CsharpRepresentationPosition, CsharpRepresentationView, CsharpRepresentedType, CsharpRepresentedSignature } from "../../../target-model/types/representation.js";
-import type { CsharpRepresentedTypeParameter } from "../../../target-model/types/generic-constraints.js";
 import type { CsharpRepresentationHost } from "./representation-host.js";
 import { csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpObjectTargetType, csharpVoidTargetType, csharpNeverTargetType, csharpBigIntegerTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import { csharpJsArrayTargetType, csharpJsSymbolTargetType } from "../../../target-model/types/carriers/js.js";

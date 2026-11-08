@@ -4,7 +4,7 @@ import type { CsharpTargetOperationClassifications } from "../../../target-model
 import type { CsharpValueReadClassifications } from "../../../target-model/records/operations/conversions.js";
 import type { CsharpRestSequence, CsharpRestSequenceEmission } from "../../../target-model/records/objects/rest-sequences.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
 import { selectCsharpSequenceEmission } from "../../../policy/conversions/sequence-emission.js";
 import { createCsharpRestSequenceRecords } from "../../program/records/objects/rest-sequences.js";
 

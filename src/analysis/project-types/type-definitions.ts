@@ -1,5 +1,6 @@
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
-import type { CsharpTargetNamedTypeRef, TargetBindingFact, TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
+import type { CsharpTargetNamedTypeRef, TargetBindingFact } from "../../target-model/types/model.js";
 import type { CsharpTypeDefinitions } from "../../target-model/types/native-definitions.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/equality.js";
 import { csharpFreeTypeParameterIdentities } from "../../target-model/types/generic-references.js";

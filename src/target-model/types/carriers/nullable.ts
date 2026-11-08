@@ -1,4 +1,4 @@
-import type { TargetTypeRef } from "../model.js";
+import type { TargetTypeRef } from "../native-type-data.js";
 import type { CsharpNullableReferenceTargetTypeRef, CsharpTargetNamedTypeRef } from "../model.js";
 import { isCsharpValueTypeTargetType } from "../identity.js";
 import { csharpTargetNamedType } from "../factories.js";

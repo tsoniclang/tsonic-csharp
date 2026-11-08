@@ -1,4 +1,5 @@
-import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "./model.js";
+import type { TargetTypeRef } from "./native-type-data.js";
+import type { CsharpTargetNamedTypeRef } from "./model.js";
 
 import { csharpNativeCallableMemberComponents, csharpTargetTypeComponents } from "./components.js";
 

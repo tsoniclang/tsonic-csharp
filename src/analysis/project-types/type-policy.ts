@@ -6,7 +6,7 @@ import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { csharpProjectHeritageKindIssue } from "../../policy/types/project/relationships.js";
 import { csharpFreeTypeParameterIdentities, visitCsharpTargetTypeParameters } from "../../target-model/types/generic-references.js";
 import type { CsharpProviderRelationResolver } from "../../providers/model/relation-resolver.js";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
 import type { CsharpTypeQueries } from "../../policy/model/type-resolution.js";
 import { substituteTargetTypeParameters } from "../../policy/types/resolution/substitution.js";
 import { targetTypeRefKey } from "../../target-model/types/equality.js";

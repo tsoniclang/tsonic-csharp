@@ -1,4 +1,4 @@
-import type { TargetTypeRef } from "../../types/model.js";
+import type { TargetTypeRef } from "../../types/native-type-data.js";
 import type { CsharpSourceProfilePropertyPolicyResult } from "../program/source-profile-invocations.js";
 import type { ResolvedSourcePropertyAccessInfo } from "@tsonic/tsts";
 

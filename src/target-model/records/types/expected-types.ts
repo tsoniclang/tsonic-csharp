@@ -1,4 +1,4 @@
-import type { TargetTypeRef } from "../../types/model.js";
+import type { TargetTypeRef } from "../../types/native-type-data.js";
 import type { CsharpReturnContextIndex } from "../calls/return-contexts.js";
 import type { Node } from "@tsonic/tsts";
 import type { TargetUseSiteRef } from "@tsonic/target-api/analysis";

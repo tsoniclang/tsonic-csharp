@@ -1,7 +1,7 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpAwaitAlternative, CsharpAwaitCompletion } from "../../../target-model/types/await-completions.js";
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
 import { csharpTaskTargetType } from "../../../target-model/types/carriers/delegates.js";
 import { csharpVoidTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import type { CsharpExpression, CsharpSwitchExpressionArm, CsharpStatement } from "../../target-ast/syntax/index.js";

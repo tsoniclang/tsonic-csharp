@@ -1,7 +1,7 @@
 import { csharpNativeMemoryLayoutsEqual } from "../../target-model/operations/native-memory.js";
 
 import { targetTypeRefEquals } from "../../policy/types/index.js";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
 
 import type { CsharpStorageClassifications } from "../../target-model/records/storage/storage.js";
 

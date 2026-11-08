@@ -4,7 +4,7 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { selectCsharpTargetCall } from "../operations/members/selected-members.js";
 import { csharpBigIntegerTargetType, targetTypeRefEquals } from "../../target-model/types/index.js";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
 import type { CsharpConversionSelection } from "../../target-model/conversions/selection.js";
 import { csharpNumericLiteralInteger } from "../../policy/conversions/literal-range.js";
 

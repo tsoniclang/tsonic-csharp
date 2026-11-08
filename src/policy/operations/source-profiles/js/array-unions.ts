@@ -1,5 +1,5 @@
 import type { CsharpArrayLikeUnionProjection } from "../../../../target-model/conversions/selection.js";
-import type { TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../../target-model/types/native-type-data.js";
 import type { CsharpSourceProfileElementPolicyResult } from "../../../model/source-profiles.js";
 import type { CsharpSourceProfilePropertyPolicyResult } from "../../../../target-model/records/program/source-profile-invocations.js";
 

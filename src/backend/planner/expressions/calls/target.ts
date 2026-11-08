@@ -14,7 +14,7 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpPlannedValue } from "../planned-values.js";
 import { planCsharpExpressionCompletion } from "../planned-value-composition.js";
 import { composeCsharpPlannedCall } from "./planned-arguments.js";
-import type { TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../../target-model/types/native-type-data.js";
 import { qualifiedCsharpType } from "../../types/index.js";
 import { planCsharpDiscardedStatement } from "../../statements/statement-output.js";
 import { readCsharpNativeDiscardEvaluation } from "../native-uses.js";

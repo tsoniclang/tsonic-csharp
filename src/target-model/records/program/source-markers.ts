@@ -1,6 +1,6 @@
 import type { Node } from "@tsonic/tsts";
 import type { SourceTypeEvidence } from "@tsonic/target-api/source";
-import type { TargetTypeRef } from "../../types/model.js";
+import type { TargetTypeRef } from "../../types/native-type-data.js";
 
 export interface CsharpSourceDefaultValue {
   readonly typeNode: Node;

@@ -2,7 +2,7 @@ import type { Node } from "@tsonic/tsts";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpProgramRecords } from "../../../../target-model/records/program.js";
 import type { TargetUseSiteRef } from "@tsonic/target-api/analysis";
-import type { TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../../target-model/types/native-type-data.js";
 import type { CsharpConversionMode } from "../../../../target-model/conversions/selection.js";
 import type { CsharpExactLiteralRole } from "../../../../target-model/conversions/exact-literals.js";
 

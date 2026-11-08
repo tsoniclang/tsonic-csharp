@@ -1,4 +1,4 @@
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
 import type { CsharpTypeEmissionInput } from "../../model/type-emission.js";
 import { csharpRenderShapeForTargetNamedType, isCsharpNeverTargetType } from "../../../target-model/types/index.js";
 import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";

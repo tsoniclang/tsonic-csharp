@@ -18,7 +18,7 @@ import { planCsharpDiscardedOperand } from "../statements/statement-output.js";
 import { translateCsharpSourceOwnedMember } from "./source-owned-members.js";
 import { planCsharpCollectionElementRead } from "./collection-reads.js";
 import { captureCsharpPlannedMemberReceiver } from "./planned-locations.js";
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
 import { runtimeUnionArmProjection, runtimeUnionArmTest } from "./union-access.js";
 
 export function translateCsharpElementAccess(node: Node, sourceFile: SourceFile, input: CsharpPlanningContext,

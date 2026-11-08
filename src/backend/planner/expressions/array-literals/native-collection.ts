@@ -1,6 +1,6 @@
 import type { CsharpPlanningContext } from "../../context.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../../target-model/types/native-type-data.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { csharpTypeFromTargetTypeRef } from "../../types/render.js";
 import type { ArrayLiteralPlanner } from "./types.js";

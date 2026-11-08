@@ -1,4 +1,4 @@
-import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
 import type { CsharpConversionSelection } from "../../target-model/conversions/selection.js";
 import type { CsharpArraySpreadEmission } from "../../target-model/records/operations/array-literals.js";
 import { getCsharpIndexableLengthMemberName, getCsharpReadOnlyIndexableCollectionElementTargetType, csharpTupleElementMemberName } from "../../target-model/types/index.js";

@@ -16,7 +16,7 @@ import type { SourceCallableSourceContract } from "../../target-model/records/ca
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
 import type { CsharpNativeInheritedMember, CsharpNativeTargetBindingFact } from "../../target-model/types/native-inheritance.js";
 import { csharpNativeInheritanceLookup } from "../../target-model/types/native-inheritance.js";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact } from "../../target-model/types/model.js";
 import { csharpWellKnownSymbolTargetMemberName, getCsharpDelegateSignature, getCsharpLambdaSignature,
   getCsharpExpressionTreeDelegateType, csharpStringTargetType } from "../../target-model/types/index.js";

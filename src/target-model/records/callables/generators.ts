@@ -1,5 +1,6 @@
 import type { Node } from "@tsonic/tsts";
-import type { CsharpGeneratorProtocol, TargetTypeRef } from "../../types/model.js";
+import type { TargetTypeRef } from "../../types/native-type-data.js";
+import type { CsharpGeneratorProtocol } from "../../types/model.js";
 
 export interface CsharpGeneratorFact extends CsharpGeneratorProtocol {
   readonly resultCarrier: TargetTypeRef;

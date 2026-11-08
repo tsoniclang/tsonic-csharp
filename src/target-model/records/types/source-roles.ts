@@ -1,7 +1,6 @@
 import type { Node } from "@tsonic/tsts";
-import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../types/model.js";
-import type { CsharpRepresentedTypeParameter } from "../../types/generic-constraints.js";
-import type { CsharpOptionalStorageLayout } from "../../types/projections.js";
+import type { TargetTypeRef, CsharpRepresentedTypeParameter, CsharpOptionalStorageLayout } from "../../types/native-type-data.js";
+import type { CsharpTargetNamedTypeRef } from "../../types/model.js";
 
 export interface CsharpSourceRoleEmission {
   readonly carrier: CsharpTargetNamedTypeRef;

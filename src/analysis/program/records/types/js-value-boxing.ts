@@ -1,6 +1,6 @@
 import type { Node } from "@tsonic/tsts";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
-import type { TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../../target-model/types/native-type-data.js";
 import { targetTypeRefKey } from "../../../../target-model/types/equality.js";
 import type { CsharpJsValueBoxing, CsharpJsValueBoxingRecords } from "../../../../target-model/records/types/js-value-boxing.js";
 

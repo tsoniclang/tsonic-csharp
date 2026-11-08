@@ -4,7 +4,7 @@ import type { SourceIntegerRange, SourceResult, TargetSourceProgram } from "@tso
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native/native-demand.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
 import { createCsharpNumericRepresentationRecords } from "../program/records/operations/numeric.js";
 
 export function analyzeCsharpNumericRepresentations(input: {

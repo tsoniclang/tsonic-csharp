@@ -1,6 +1,6 @@
 import type { Node } from "@tsonic/tsts";
 import type { SourceTypeEvidence } from "@tsonic/target-api/source";
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
 import type { CsharpRepresentationOutcome, CsharpRepresentationView, CsharpSourceCollectionKey } from "../../../target-model/types/representation.js";
 import type { CsharpRepresentationRequirements } from "../source-type-flow/representation-requirements.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../target-model/types/equality.js";

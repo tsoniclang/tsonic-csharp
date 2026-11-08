@@ -5,7 +5,8 @@ import { csharpSourceNodeIdentity } from "../../source/extension/identities.js";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpProviderRelationResolver } from "../../providers/model/relation-resolver.js";
 import type { CsharpProjectTypeCatalog } from "../../target-model/records/types/project-types.js";
-import type { CsharpObjectShapeFact, CsharpTargetParameter, TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
+import type { CsharpObjectShapeFact, CsharpTargetParameter } from "../../target-model/types/model.js";
 import type {
   CsharpDeclaredRepresentation,
   CsharpRepresentationOutcome,

@@ -1,5 +1,5 @@
 import type { Node } from "@tsonic/tsts";
-import type { TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../../target-model/types/native-type-data.js";
 import type { CsharpValueDomainCarrierAnalysis, CsharpValueDomainCarrierIssue } from "../../../../target-model/records/types/value-domains.js";
 
 export function createCsharpValueDomainCarrierRecords(

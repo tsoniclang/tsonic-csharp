@@ -1,5 +1,5 @@
 import type { Node } from "@tsonic/tsts";
-import type { TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../../target-model/types/native-type-data.js";
 import type { CsharpDictionaryLiteral, CsharpDictionaryLiteralRecords } from "../../../../target-model/records/objects/dictionary-literals.js";
 import { targetTypeRefKey } from "../../../../target-model/types/equality.js";
 

@@ -1,7 +1,7 @@
 import type { CsharpSourceCallableArtifactIdentity } from "./callable-identities.js";
 import type { SourceCallableSourceContract, SourceCallableContract } from "./source-callable-contract.js";
 import type { Node } from "@tsonic/tsts";
-import type { TargetTypeRef } from "../../types/model.js";
+import type { TargetTypeRef } from "../../types/native-type-data.js";
 import type { CsharpNativeCallableCreation } from "../native/native-demand.js";
 
 export interface CsharpCallableContractPublication {

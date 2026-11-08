@@ -1,5 +1,5 @@
 import type { CsharpPromiseDiscard } from "../../../target-model/records/callables/promise-results.js";
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
 import { getCsharpTaskResultTargetType } from "../../../target-model/types/carriers/delegates.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { getCsharpRuntimeUnionArms } from "../../../target-model/types/carriers/runtime-carriers.js";

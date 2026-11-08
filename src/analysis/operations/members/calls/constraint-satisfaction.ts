@@ -1,10 +1,10 @@
 import { csharpProviderBindingFromResolution } from "../../../../providers/model/relation-resolver.js";
 import type { CsharpObjectShapeRegistry } from "../../../../policy/model/type-resolution.js";
 import type { CsharpProviderRelationResolver } from "../../../../providers/model/relation-resolver.js";
-import type { CsharpTargetBindingFact, CsharpTargetMember, CsharpTargetTypeParameter, TargetConstraint, TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { TargetTypeRef, CsharpTypeParameterConstraint } from "../../../../target-model/types/native-type-data.js";
+import type { CsharpTargetBindingFact, CsharpTargetMember, CsharpTargetTypeParameter, TargetConstraint } from "../../../../target-model/types/model.js";
 import { csharpTargetBindingFact } from "../../../../target-model/types/model.js";
 import { getCsharpNullableElementTargetType, isCsharpNullableReferenceTargetType, isCsharpValueTypeTargetType, targetTypeRefKey } from "../../../../target-model/types/index.js";
-import type { CsharpTypeParameterConstraint } from "../../../../target-model/types/generic-constraints.js";
 import { csharpTypeParameterConstraintsImply } from "../../../../policy/constraints/type-parameter-constraints.js";
 import type { CsharpSelectedTargetMethodTypeArgument } from "../../../../target-model/records/objects/members.js";
 import { csharpTargetTypeSatisfiesNativeConstraint, implementedConstraintType } from "../../../../policy/conversions/carriers.js";

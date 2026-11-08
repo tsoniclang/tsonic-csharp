@@ -2,7 +2,7 @@ import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import type { Node, Type } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
-import type { TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../../target-model/types/native-type-data.js";
 
 import { nextState } from "./state.js";
 import { selectCsharpTargetElement, selectCsharpTargetProperty } from "../../../operations/members/selected-members.js";

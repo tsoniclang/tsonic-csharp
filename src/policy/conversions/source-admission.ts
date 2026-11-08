@@ -1,6 +1,7 @@
 import type { Node } from "@tsonic/tsts";
 import type { SourceSignatureIdentity, SourceTypeDescriptorSignature, SourceTypeEvidence } from "@tsonic/target-api/source";
-import type { CsharpNativeCallableMember, TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
+import type { CsharpNativeCallableMember } from "../../target-model/types/model.js";
 import type { CsharpRepresentationOutcome, CsharpRepresentationView } from "../../target-model/types/representation.js";
 import type { CsharpConversionRelation, CsharpConversionSelection } from "../../target-model/conversions/selection.js";
 import { represented, sourceOutcome, nativeRepresentationFailure } from "../types/source-type-flow/representation-results.js";

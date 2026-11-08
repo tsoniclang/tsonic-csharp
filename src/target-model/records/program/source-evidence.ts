@@ -1,6 +1,5 @@
 import type { CsharpConversionSelection } from "../../conversions/selection.js";
-import type { CsharpTypeParameterConstraintResolution } from "../../types/generic-constraints.js";
-import type { TargetTypeRef } from "../../types/model.js";
+import type { CsharpTypeParameterConstraintResolution, TargetTypeRef } from "../../types/native-type-data.js";
 import type { CsharpSourceDefaultValue, CsharpSourceField, CsharpSourceStruct } from "./source-markers.js";
 import type { SourcePresence, SourceTypeEvidence } from "@tsonic/target-api/source";
 import type { CsharpRepresentationOutcome } from "../../types/representation.js";

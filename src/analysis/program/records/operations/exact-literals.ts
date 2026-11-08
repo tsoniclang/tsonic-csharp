@@ -1,7 +1,7 @@
 import type { Node } from "@tsonic/tsts";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../../target-model/types/equality.js";
-import type { TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../../target-model/types/native-type-data.js";
 import type { CsharpExactLiteralRole, CsharpExactLiteralSelection, CsharpExactLiteralSelectionIndex } from "../../../../target-model/conversions/exact-literals.js";
 
 const notALiteral: CsharpExactLiteralSelection = Object.freeze({ kind: "not-applicable" });

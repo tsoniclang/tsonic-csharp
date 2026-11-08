@@ -1,4 +1,4 @@
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { getCsharpGenericOptionalParts } from "../../../target-model/types/projections.js";
 import { isCsharpAbsenceTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";

@@ -1,7 +1,7 @@
 import { analyzeCsharpProjectNames } from "../names/project-types.js";
 import type { AstReader, Node } from "@tsonic/tsts";
 
-import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
 import type { CsharpProjectTypeCatalog } from "../../target-model/records/types/project-types.js";
 import type { CsharpProjectTypeCatalogHost } from "./type-policy.js";
 import type { CsharpProjectTypeDefinition, CsharpProjectTypeIssue } from "../../target-model/records/types/project-types.js";

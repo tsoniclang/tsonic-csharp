@@ -1,6 +1,7 @@
 import type { Node } from "@tsonic/tsts";
 import type { SourceTypeEvidence } from "@tsonic/target-api/source";
-import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetNamedTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpRepresentationOutcome, CsharpRepresentationView, CsharpRepresentedType } from "../../../target-model/types/representation.js";
 import type { CsharpRepresentationHost } from "./representation-host.js";
 import { represented, sourceOutcome, nativeRepresentationFailure, representationRequirements } from "./representation-results.js";

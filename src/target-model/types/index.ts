@@ -1,4 +1,5 @@
 export * from "./model.js";
+export * from "./native-type-data.js";
 export * from "./factories.js";
 export * from "./equality.js";
 export * from "./carriers/scalar-types.js";

@@ -1,6 +1,6 @@
 import type { Node, Type, TypeAliasApplicationInfo } from "@tsonic/tsts";
 import { sourceNodeIdentity, sourceTransformedTypeFactEvidenceNodes, type SourceFileSemantics } from "@tsonic/target-api/source";
-import type { TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../../target-model/types/native-type-data.js";
 import { csharpProjectedType } from "../../../../target-model/types/projections.js";
 import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
 import type { CsharpTypeResolutionScope } from "./scope.js";

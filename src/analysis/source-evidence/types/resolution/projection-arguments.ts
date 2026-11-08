@@ -1,6 +1,6 @@
 import type { Node } from "@tsonic/tsts";
 import type { SourceEffectiveTypeArgument, SourceTypeDescriptor } from "@tsonic/target-api/source";
-import type { TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../../target-model/types/native-type-data.js";
 import type { CsharpProjectedType } from "../../../../target-model/types/projections.js";
 import { csharpSourceTypeParameter } from "../../../../source/extension/type-parameters.js";
 import { substituteTargetTypeParameters } from "../../../../policy/types/resolution/substitution.js";

@@ -1,4 +1,4 @@
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
 import { csharpListTargetType, csharpCollectionUsesJsArraySemantics, getCsharpIndexableLengthMemberName, getCsharpReadOnlyIndexableCollectionElementTargetType } from "../../../target-model/types/carriers/collections.js";
 
 import type { CsharpArrayBindingCarrier } from "../../../target-model/types/carriers/binding-array-carrier.js";

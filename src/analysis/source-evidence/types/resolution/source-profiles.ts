@@ -1,5 +1,6 @@
 import { csharpProviderBindingFromResolution } from "../../../../providers/model/relation-resolver.js";
-import type { CsharpTargetParameter, TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../../target-model/types/native-type-data.js";
+import type { CsharpTargetParameter } from "../../../../target-model/types/model.js";
 import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import { retainCsharpUnionObjectShapes } from "./source-union-refinement.js";

@@ -1,4 +1,4 @@
-import type { TargetTypeRef } from "../model.js";
+import type { TargetTypeRef } from "../native-type-data.js";
 import type { CsharpTargetNamedTypeRef } from "../model.js";
 import { csharpQualifiedTypeRenderShape } from "../render-shapes.js";
 import { csharpTargetNamedType } from "../factories.js";

@@ -1,4 +1,4 @@
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
 import type { CsharpClassFieldInitialization } from "../../../target-model/records/objects/class-initialization.js";
 import { isCsharpValueTypeTargetType } from "../../../target-model/types/identity.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";

@@ -5,7 +5,7 @@ import { csharpSourcePrimitiveTargetType, isCsharpRecordDictionaryTargetType } f
 
 import { getCsharpJsArrayMutationPolicy } from "../../types/index.js";
 
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
 export function selectCsharpNativeElementDeletion(
   receiver: TargetTypeRef | undefined, receiverExpression: Node, indexExpression: Node, jsArrayIndexer: boolean,
 ): CsharpElementDeletionSelection {

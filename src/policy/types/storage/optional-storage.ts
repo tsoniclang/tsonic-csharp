@@ -1,5 +1,4 @@
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import type { CsharpOptionalTypeProjection, CsharpOptionalStorageLayout } from "../../../target-model/types/projections.js";
+import type { TargetTypeRef, CsharpOptionalTypeProjection, CsharpOptionalStorageLayout } from "../../../target-model/types/native-type-data.js";
 import { csharpOptionalProjectedType } from "../../../target-model/types/projections.js";
 import { csharpTargetNamedType } from "../../../target-model/types/factories.js";
 import { csharpQualifiedTypeRenderShape } from "../../../target-model/types/render-shapes.js";

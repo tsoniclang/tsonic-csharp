@@ -2,7 +2,8 @@ import type { CsharpObjectShapePropertyOrders, CsharpObjectShapeAuthoredOrder } 
 import type { AstReader, Node } from "@tsonic/tsts";
 import { orderEnumerableOwnStringProperties } from "@tsonic/target-api/source";
 
-import type { CsharpObjectShapeFact, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
+import type { CsharpObjectShapeFact, CsharpTargetNamedTypeRef } from "../../target-model/types/model.js";
 import { isSourceDeclaredNominalShape } from "../../target-model/types/object-shape-projection.js";
 
 import { inferCsharpTargetTypeParameterBindings, substituteTargetTypeParameters } from "../../policy/types/resolution/substitution.js";

@@ -1,7 +1,7 @@
 import type { Node } from "@tsonic/tsts";
 import { sourceTypeDescriptorStructure, type SourceEffectiveTypes, type SourceTypeDescriptor } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
-import type { TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../../target-model/types/native-type-data.js";
 import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
 
 export function resolveCsharpInstanceType(

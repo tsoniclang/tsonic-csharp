@@ -14,7 +14,7 @@ export function csharpSourceTemplateState(
 
 export function csharpBoundSourceType(
   type: Type, queries: SourceFileSemantics, state: CsharpTypeResolutionState,
-): { readonly sourceType: Type; readonly targetType: import("../../../../target-model/types/model.js").TargetTypeRef } | undefined {
+): { readonly sourceType: Type; readonly targetType: import("../../../../target-model/types/native-type-data.js").TargetTypeRef } | undefined {
   if (state.sourceBindings === undefined) return undefined;
   const symbol = queries.declarations.typeSymbol(type);
   if (symbol === undefined) return undefined;
@@ -28,7 +28,7 @@ export function csharpBoundSourceType(
 
 export function csharpSourceBindings(
   parameters: readonly Node[], sources: readonly Type[],
-  targets: readonly import("../../../../target-model/types/model.js").TargetTypeRef[],
+  targets: readonly import("../../../../target-model/types/native-type-data.js").TargetTypeRef[],
   state: CsharpTypeResolutionState,
 ): CsharpTypeResolutionState | undefined {
   if (parameters.length !== sources.length || parameters.length !== targets.length) return undefined;

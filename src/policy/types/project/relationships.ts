@@ -1,6 +1,7 @@
 import type { CsharpProjectTypeDefinition } from "../../../target-model/records/types/project-types.js";
 
-import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
+import type { CsharpTargetNamedTypeRef } from "../../../target-model/types/model.js";
 
 import { targetTypeRefKey } from "../../../target-model/types/equality.js";
 

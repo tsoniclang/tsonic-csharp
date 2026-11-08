@@ -6,7 +6,7 @@ import { csharpCarrierAdmitsSourceAbsence } from "../../target-model/types/carri
 import { isCsharpAbsenceTargetType } from "../../target-model/types/index.js";
 import { getCsharpGenericOptionalParts, csharpTypeProjection } from "../../target-model/types/projections.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
-import type { CsharpTypeParameterConstraint } from "../../target-model/types/generic-constraints.js";
+import type { CsharpTypeParameterConstraint } from "../../target-model/types/native-type-data.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
 import type { CsharpOptionalLocalOperation, CsharpOptionalLocalPlacement, CsharpOptionalLocalValue } from "../../target-model/records/storage/local-bindings.js";

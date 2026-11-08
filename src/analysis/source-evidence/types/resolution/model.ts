@@ -8,7 +8,8 @@ import type { CsharpProjectTypeCatalog, CsharpProjectTypePolicy } from "../../..
 import type { CsharpProviderRelationResolver } from "../../../../providers/model/relation-resolver.js";
 import type { SourceCallableContract, SourceCallableSourceContract } from "../../../../target-model/records/callables/source-callable-contract.js";
 
-import type { TargetTypeRef, CsharpSourceTargetTypeBinding, CsharpObjectShapeFact } from "../../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../../target-model/types/native-type-data.js";
+import type { CsharpSourceTargetTypeBinding, CsharpObjectShapeFact } from "../../../../target-model/types/model.js";
 import type { CsharpObjectShapePolicy } from "../../../../target-model/records/objects/object-shapes.js";
 import type { CsharpObjectMethodSources } from "../../../../target-model/records/native/native-value-carriers.js";
 

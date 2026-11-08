@@ -10,7 +10,7 @@ import type { CsharpSourceTypedLocationOperation } from "../../../../source/exte
 import type { CsharpTypePolicyHost, CsharpScopedTypePolicyResult, CsharpTypePolicy, CsharpTypeResolutionState } from "./model.js";
 import type { CsharpSourceCallParameterReadDomain, ResolvedSourceCallInfo } from "../../../../target-model/records/calls/source-calls.js";
 import type { CsharpSourceTargetTypeBinding } from "../../../../target-model/types/model.js";
-import type { TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../../target-model/types/native-type-data.js";
 import { classifyCsharpSourceProfileType } from "../../../../policy/identities/source-types.js";
 import { type CsharpSourceUnionIndex } from "./source-unions.js";
 import { createCsharpSourceUnionDefinitions } from "./union-definitions.js";

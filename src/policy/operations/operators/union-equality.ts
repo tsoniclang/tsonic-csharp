@@ -1,7 +1,7 @@
 import type { SourceLiteralUnit, SourcePresence } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../model/context.js";
 import type { CsharpUnionEqualityArm } from "../../../target-model/operations/binary.js";
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
 import { csharpUnionLeaves } from "../../../target-model/types/union-relations.js";
 import { csharpAbsenceTargetType, getCsharpRuntimeUnionArms, isCsharpAbsenceTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";

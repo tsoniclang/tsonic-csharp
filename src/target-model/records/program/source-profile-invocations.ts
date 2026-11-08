@@ -1,5 +1,6 @@
 import type { CsharpTargetReceiverRelation } from "../../identities/provider-relations.js";
-import type { CsharpTargetMember, TargetTypeRef } from "../../types/model.js";
+import type { TargetTypeRef } from "../../types/native-type-data.js";
+import type { CsharpTargetMember } from "../../types/model.js";
 import type { ExtensionDiagnostic, Node } from "@tsonic/tsts";
 
 export type CsharpTargetPropertyInvocation =

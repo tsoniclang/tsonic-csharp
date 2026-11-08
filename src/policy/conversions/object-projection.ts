@@ -1,6 +1,6 @@
 import { getCsharpJsArrayElementTargetType } from "../types/index.js";
 
-import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
 
 export function csharpObjectProjectionValueType(
     projection: "keys" | "values" | "entries" | "has-own",

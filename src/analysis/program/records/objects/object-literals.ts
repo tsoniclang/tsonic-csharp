@@ -1,6 +1,7 @@
 import type { Node } from "@tsonic/tsts";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
-import type { CsharpObjectShapeFact, TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../../target-model/types/native-type-data.js";
+import type { CsharpObjectShapeFact } from "../../../../target-model/types/model.js";
 import type { CsharpObjectLiteralEmission, CsharpObjectLiteralMemberEmission, CsharpObjectLiteralRecords } from "../../../../target-model/records/objects/object-literals.js";
 
 export function createCsharpObjectLiteralRecords(

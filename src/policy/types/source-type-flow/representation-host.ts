@@ -8,11 +8,8 @@ import type {
   SourceTypeEvidence,
   SourceTypeParameter,
 } from "@tsonic/target-api/source";
-import type {
-  CsharpObjectShapeFact,
-  CsharpObjectShapeMemberFact,
-  TargetTypeRef,
-} from "../../../target-model/types/model.js";
+import type { TargetTypeRef, CsharpTypeParameterConstraint } from "../../../target-model/types/native-type-data.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact } from "../../../target-model/types/model.js";
 import type {
   CsharpRepresentationOutcome,
   CsharpDeclaredRepresentation,
@@ -20,7 +17,6 @@ import type {
   CsharpRepresentedSignature,
   CsharpSourceRoleImplementation,
 } from "../../../target-model/types/representation.js";
-import type { CsharpTypeParameterConstraint } from "../../../target-model/types/generic-constraints.js";
 import type { CsharpNativeStorageCategory, CsharpNativeStorageDefinition, CsharpNativeStorageKey } from "../../../target-model/types/native-storage.js";
 import type { CsharpProviderRelationResolver } from "../../../providers/model/relation-resolver.js";
 

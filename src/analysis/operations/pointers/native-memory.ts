@@ -11,7 +11,7 @@ import { csharpRuntimeLocationPointee, csharpRuntimeLocationTargetType, csharpRu
 import { getCsharpNullableElementTargetType, csharpNullableReferenceTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import type { CsharpPolicyContext } from "../../../policy/model/context.js";
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
 import { csharpTargetBindingFact } from "../../../target-model/types/model.js";
 import type { CsharpNativeMemoryField, CsharpNativeMemoryLayout } from "../../../target-model/operations/native-memory.js";
 import type { CsharpValueReadClassifications } from "../../../target-model/records/operations/conversions.js";

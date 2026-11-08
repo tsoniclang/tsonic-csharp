@@ -1,12 +1,11 @@
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef, CsharpOptionalTypeProjection, CsharpTypeParameterConstraint } from "../../../target-model/types/native-type-data.js";
 import type { CsharpNativeCallableMember, CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpRuntimeUnionTargetTypeRef, CsharpTargetNamedTypeRef, CsharpTaskTargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpNullableReferenceTargetType, isCsharpNullableReferenceTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { getCsharpRuntimeUnionArms, isCsharpAbsenceTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
-import { getCsharpOptionalProjection, getCsharpGenericOptionalParts, type CsharpOptionalTypeProjection } from "../../../target-model/types/projections.js";
+import { getCsharpOptionalProjection, getCsharpGenericOptionalParts } from "../../../target-model/types/projections.js";
 import { resolveCsharpOptionalStorage } from "../storage/optional-storage.js";
 import { csharpFreeTypeParameterIdentities } from "../../../target-model/types/generic-references.js";
-import type { CsharpTypeParameterConstraint } from "../../../target-model/types/generic-constraints.js";
 
 export function substituteTargetTypeParameters(
   type: TargetTypeRef,

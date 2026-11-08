@@ -1,8 +1,6 @@
 import type { Node } from "@tsonic/tsts";
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import type { CsharpOptionalStorageLayout } from "../../../target-model/types/projections.js";
+import type { TargetTypeRef, CsharpOptionalStorageLayout, CsharpRepresentedTypeParameter } from "../../../target-model/types/native-type-data.js";
 import type { CsharpRepresentationOutcome } from "../../../target-model/types/representation.js";
-import type { CsharpRepresentedTypeParameter } from "../../../target-model/types/generic-constraints.js";
 import type { CsharpRepresentationHost } from "./representation-host.js";
 import { selectCsharpOptionalStorage, selectCsharpOptionalStorageOperation } from "../storage/optional-storage.js";
 import { represented, representationRequirements } from "./representation-results.js";

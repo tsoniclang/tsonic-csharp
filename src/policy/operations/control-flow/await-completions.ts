@@ -1,5 +1,5 @@
 import type { CsharpAwaitAlternative, CsharpAwaitCompletion } from "../../../target-model/types/await-completions.js";
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
 import type { CsharpSourceCallResult } from "../../../target-model/operations/source-call-results.js";
 import type { CsharpTypeDefinitions } from "../../../target-model/types/source-union-definitions.js";
 import { csharpUnionLeaves } from "../../../target-model/types/union-relations.js";

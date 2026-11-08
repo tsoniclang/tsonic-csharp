@@ -1,5 +1,5 @@
 import { type SourceNativeValueGuard } from "@tsonic/target-api/source";
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
 
 import { getCsharpTypeofRuntimeKind } from "../../../target-model/types/runtime-kind.js";
 import { getCsharpJsArrayElementTargetType } from "../../../target-model/types/carriers/collections.js";

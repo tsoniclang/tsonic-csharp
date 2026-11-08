@@ -1,5 +1,5 @@
 import type { Node } from "@tsonic/tsts";
-import type { TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../../target-model/types/native-type-data.js";
 import { targetTypeRefKey } from "../../../../target-model/types/equality.js";
 import type { CsharpArrayLiteralEmission, CsharpArraySpreadEmission, CsharpBorrowedSequenceEmission, CsharpArrayLiteralRecords } from "../../../../target-model/records/operations/array-literals.js";
 import type { CsharpBorrowedSequenceInput } from "../../../../target-model/records/storage/borrowed-sequences.js";

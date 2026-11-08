@@ -2,7 +2,7 @@ import type { Node, Type } from "@tsonic/tsts";
 import type { CsharpPropertyProjection, CsharpPropertyProjectionMember } from "../../target-model/records/objects/property-projections.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
 import {
   getCsharpNullableElementTargetType,
   isCsharpAbsenceTargetType,

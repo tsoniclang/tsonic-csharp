@@ -1,6 +1,6 @@
 import type { CsharpConversionSelection } from "../../../target-model/conversions/selection.js";
 import type { CsharpClosedShapeConversion, CsharpObjectProjectionEmission } from "../../../target-model/records/objects/closed-object-shapes.js";
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
 import type { CsharpObjectProjectionPolicyInput } from "../../model/closed-object-shapes.js";
 import { csharpObjectShapeAssignmentMembers, csharpObjectShapeProjectionMembers, csharpSourcePrimitiveTargetType,
   csharpStringTargetType, csharpTsValueTargetType, getCsharpJsArrayElementTargetType, targetTypeRefEquals } from "../../../target-model/types/index.js";

@@ -3,7 +3,8 @@ import type { CsharpObjectShapeDemandHost } from "./batches.js";
 import type { CsharpPreparedObjectShapeProjection } from "../../../target-model/records/objects/object-shape-demand.js";
 import type { CsharpObjectShapeProjectionDeclaration } from "../../../target-model/records/objects/object-shape-demand.js";
 
-import type { CsharpObjectShapeFact, CsharpObjectShapeProjection, TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeProjection } from "../../../target-model/types/model.js";
 
 import { visitCsharpTargetTypeParameters } from "../../../target-model/types/generic-references.js";
 import { closeCsharpOwnerTypeParameterEnvironment } from "../../source-evidence/types/resolution/owner-type-parameter-environment.js";

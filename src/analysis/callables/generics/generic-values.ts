@@ -1,7 +1,7 @@
 import type { Node } from "@tsonic/tsts";
-import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef, CsharpRepresentedTypeParameter } from "../../../target-model/types/native-type-data.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact } from "../../../target-model/types/model.js";
 import type { CsharpRepresentationOutcome } from "../../../target-model/types/representation.js";
-import type { CsharpRepresentedTypeParameter } from "../../../target-model/types/generic-constraints.js";
 import { represented, nativeRepresentationFailure } from "../../../policy/types/source-type-flow/representation-results.js";
 import { getCsharpDelegateSignature } from "../../../target-model/types/carriers/delegates.js";
 import { csharpMethodValueType } from "../../../target-model/types/method-values.js";

@@ -1,6 +1,6 @@
 import type { Node, Type } from "@tsonic/tsts";
 import { selectSourceGuardedValueMembers, selectSourceGuardedTypeMembers, selectSourceNativeGuardResult, selectSourceNativeValueGuard, type SourceNativeGuard, type SourceNativeValueGuard } from "@tsonic/target-api/source";
-import type { TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../../target-model/types/native-type-data.js";
 import { csharpUnionLeaves } from "../../../../target-model/types/union-relations.js";
 
 import type { CsharpTypePolicyHost } from "./model.js";

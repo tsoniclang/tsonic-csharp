@@ -1,5 +1,6 @@
 import type { ArgumentPassingMode, Node } from "@tsonic/tsts";
-import type { CsharpTargetParameter, TargetTypeRef } from "../../types/model.js";
+import type { TargetTypeRef } from "../../types/native-type-data.js";
+import type { CsharpTargetParameter } from "../../types/model.js";
 import type { CsharpNativeLocationSelection } from "../native/native-locations.js";
 
 export interface CsharpNativeArgumentRequest {

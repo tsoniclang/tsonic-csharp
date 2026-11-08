@@ -1,6 +1,7 @@
 import type { CsharpConversionSelection } from "../../conversions/selection.js";
 import type { CsharpProviderTargetRelation, CsharpTargetReceiverRelation } from "../../identities/provider-relations.js";
-import type { CsharpObjectShapeMemberFact, CsharpTargetMember, CsharpTargetParameter, TargetTypeRef } from "../../types/model.js";
+import type { TargetTypeRef } from "../../types/native-type-data.js";
+import type { CsharpObjectShapeMemberFact, CsharpTargetMember, CsharpTargetParameter } from "../../types/model.js";
 import type { SourceApplication, SourceTypeEvidence } from "@tsonic/target-api/source";
 import type { Node } from "@tsonic/tsts";
 

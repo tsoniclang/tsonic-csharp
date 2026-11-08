@@ -8,7 +8,7 @@ import { resolveCsharpPointerReturnContract } from "../../../callables/ownership
 
 import type { CsharpRecursiveTypeResolver, CsharpTypePolicyHost, CsharpTypePolicy, CsharpTypeResolutionState } from "./model.js";
 
-import type { TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../../target-model/types/native-type-data.js";
 
 import { createCsharpSourceUnionIndex } from "./source-unions.js";
 import { createCsharpSourceUnionDefinitions } from "./union-definitions.js";

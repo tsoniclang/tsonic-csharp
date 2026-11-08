@@ -1,4 +1,4 @@
-import type { TargetTypeRef } from "../../types/model.js";
+import type { TargetTypeRef } from "../../types/native-type-data.js";
 import type { Node } from "@tsonic/tsts";
 import type { CsharpSourceCallResult } from "../../operations/source-call-results.js";
 import type { CsharpConversionSelection } from "../../conversions/selection.js";

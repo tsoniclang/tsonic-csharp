@@ -1,5 +1,6 @@
 import type { CsharpProviderTypeParameterRelation } from "../../../../target-model/identities/provider-relations.js";
-import type { CsharpTargetBindingFact, CsharpTargetMember, TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../../target-model/types/native-type-data.js";
+import type { CsharpTargetBindingFact, CsharpTargetMember } from "../../../../target-model/types/model.js";
 import { csharpTargetBindingSubstitutions, csharpTargetTypePatternFromBinding, resolveCsharpTargetTypePatternArguments, substituteCsharpTargetMember, targetTypeRefEquals } from "../../../../policy/types/index.js";
 import { isCompleteTypeParameterRelation } from "../../../../policy/operations/members/binding-instantiation.js";
 

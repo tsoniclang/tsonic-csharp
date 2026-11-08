@@ -1,6 +1,7 @@
 import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import type { SourceTypeDescriptor } from "@tsonic/target-api/source";
-import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpSourceMemberKey, TargetTypeRef } from "../../types/model.js";
+import type { TargetTypeRef } from "../../types/native-type-data.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpSourceMemberKey } from "../../types/model.js";
 
 export type CsharpProjectConstructibleTypeProjection =
   | { readonly kind: "unchanged" }

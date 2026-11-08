@@ -1,4 +1,4 @@
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
 import type { CsharpTargetConversionOperatorFact, CsharpTargetMember, CsharpTargetParameter } from "../../../target-model/types/model.js";
 import type { DotnetConversionOperatorDeclaration, DotnetFunctionDeclaration, DotnetMemberDeclaration, DotnetParameterDeclaration, DotnetSignatureDeclaration, DotnetTypeRef } from "../model/types.js";
 import { dotnetAttributeToTargetAttribute, dotnetUnsupportedAttributeToTargetUnsupportedAttribute } from "./attributes.js";

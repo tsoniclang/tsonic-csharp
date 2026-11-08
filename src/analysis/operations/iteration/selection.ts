@@ -4,7 +4,7 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../../policy/model/context.js";
 
 import type { CsharpOperationSelection } from "../../../target-model/records/operations/operator-selection.js";
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
 
 import { selectCsharpNativeIteration, rejectCsharpIteration } from "../../../policy/operations/iteration/selection.js";
 export function selectCsharpIteration(

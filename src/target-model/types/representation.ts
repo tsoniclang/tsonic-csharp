@@ -11,9 +11,8 @@ import type {
   SourceTypeEvidence,
   SourceTypeParameter,
 } from "@tsonic/target-api/source";
-import type { CsharpNativeMethodTypeParameter, TargetTypeRef } from "./model.js";
-import type { CsharpRepresentedTypeParameter } from "./generic-constraints.js";
-import type { CsharpOptionalStorageLayout } from "./projections.js";
+import type { TargetTypeRef, CsharpRepresentedTypeParameter, CsharpOptionalStorageLayout } from "./native-type-data.js";
+import type { CsharpNativeMethodTypeParameter } from "./model.js";
 
 export interface CsharpNativeRepresentationRefusal {
   readonly kind: "native-refused";

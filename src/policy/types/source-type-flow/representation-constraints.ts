@@ -1,7 +1,7 @@
 import type { Node } from "@tsonic/tsts";
-import type { CsharpTargetNamedTypeRef, TargetBindingFact, TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef, CsharpTypeParameterConstraint } from "../../../target-model/types/native-type-data.js";
+import type { CsharpTargetNamedTypeRef, TargetBindingFact } from "../../../target-model/types/model.js";
 import type { CsharpRepresentationOutcome, CsharpRepresentedType } from "../../../target-model/types/representation.js";
-import type { CsharpTypeParameterConstraint } from "../../../target-model/types/generic-constraints.js";
 import type { CsharpPolicyContext } from "../../model/context.js";
 import { csharpProviderBindingFromResolution } from "../../../providers/model/relation-resolver.js";
 import { csharpTargetTypeFromBinding } from "../storage/bindings.js";

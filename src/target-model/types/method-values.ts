@@ -1,5 +1,6 @@
 import type { Node } from "@tsonic/tsts";
-import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetNamedTypeRef, TargetTypeRef } from "./model.js";
+import type { TargetTypeRef } from "./native-type-data.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetNamedTypeRef } from "./model.js";
 import { csharpStructuralObjectShapeIdentity } from "./object-shape-identity.js";
 import { targetTypeRefEquals, scopedTargetTypeRefKey } from "./equality.js";
 import { csharpDelegateSignatureHasSupportedPassingModes, csharpNativeCallableMemberKey, csharpNativeCallableMembersEqual, getCsharpCallableMembers } from "./carriers/delegates.js";

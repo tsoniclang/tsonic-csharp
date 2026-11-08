@@ -8,7 +8,7 @@ import type { CsharpSourceEvidenceIndex } from "../../target-model/records/progr
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
 import type { CsharpAdmittedIteration } from "../../target-model/records/operations/selection.js";
 import type { CsharpArrayLiteralEmission, CsharpArraySpreadEmission, CsharpBorrowedSequenceEmission } from "../../target-model/records/operations/array-literals.js";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { getCsharpNullableElementTargetType, csharpNullableTargetType } from "../../target-model/types/index.js";
 import { csharpCollectionUsesJsArraySemantics, getCsharpArrayLiteralElementTargetType,

@@ -1,5 +1,5 @@
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
-import type { TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../../target-model/types/native-type-data.js";
 import type { CsharpTypeEmission, CsharpTypeEmissionRecords } from "../../../../target-model/records/types/type-emission.js";
 import { csharpTypeEmissionKey } from "../../../../target-model/records/types/type-emission.js";
 

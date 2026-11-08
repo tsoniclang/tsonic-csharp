@@ -1,4 +1,4 @@
-import type { TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../../target-model/types/native-type-data.js";
 import { targetTypeRefKey } from "../../../../target-model/types/equality.js";
 import type { CsharpStructuralInterfaceEmission, CsharpStructuralInterfaceRecords } from "../../../../target-model/records/objects/structural-interfaces.js";
 

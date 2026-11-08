@@ -1,8 +1,8 @@
 import type { Node } from "@tsonic/tsts";
 import type { SourceApplicationIdentity, SourceSumApplication, SourceTypeEvidence, SourceTypeParameter } from "@tsonic/target-api/source";
-import type { CsharpNativeMethodTypeParameter, TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef, CsharpRepresentedTypeParameter } from "../../../target-model/types/native-type-data.js";
+import type { CsharpNativeMethodTypeParameter } from "../../../target-model/types/model.js";
 import type { CsharpRepresentationOutcome, CsharpRepresentationPosition, CsharpRepresentationView } from "../../../target-model/types/representation.js";
-import type { CsharpRepresentedTypeParameter } from "../../../target-model/types/generic-constraints.js";
 import type { CsharpRepresentationHost } from "./representation-host.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { csharpTypeParameterConstraintResolutionKey } from "../../../target-model/types/generic-constraints.js";

@@ -1,4 +1,5 @@
-import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetNamedTypeRef } from "../../target-model/types/model.js";
 import { csharpObjectShapeMemberContractKey, csharpStructuralObjectShapeIdentity } from "../../target-model/types/object-shape-identity.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/equality.js";
 import { csharpNativeMemoryLayoutsEqual, type CsharpNativeMemoryLayout } from "../../target-model/operations/native-memory.js";

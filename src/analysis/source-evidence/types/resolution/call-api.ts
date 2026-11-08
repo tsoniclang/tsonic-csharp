@@ -5,7 +5,7 @@ import type { CsharpSourceCallParameterReadDomain, ResolvedSourceCallInfo } from
 import type { CsharpSourceCallResult } from "../../../../target-model/operations/source-call-results.js";
 import { completeCsharpSourceDeclarationCallAdoption, selectCsharpSourceCallResult } from "./call-results.js";
 
-import type { TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../../target-model/types/native-type-data.js";
 import { combineCsharpTargetUnionMembers, csharpAbsenceTargetType } from "../../../../target-model/types/carriers/runtime-carriers.js";
 import { csharpTargetParameterValueType } from "../../../../target-model/types/member-facts.js";
 

@@ -7,7 +7,7 @@ import { getCsharpJsArrayElementTargetType } from "../../../target-model/types/c
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { admitCsharpCallableParameterAdapters } from "../native/adapters.js";
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
 import type { CsharpConversionClassifications } from "../../../target-model/records/operations/conversions.js";
 import { csharpConversionIsApplicable } from "../../../policy/conversions/applicability.js";
 

@@ -5,7 +5,7 @@ import { csharpNativeUseSite, type CsharpExpectedNativeUse, type CsharpNativeUse
 
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { csharpSourcePrimitiveTargetType } from "../../target-model/types/carriers/scalar-types.js";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
 import { csharpNativeShiftCountType } from "./native-index.js";
 
 import type { CsharpNativeRepresentationInput } from "../model/native-use-representation.js";

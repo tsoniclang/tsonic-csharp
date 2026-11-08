@@ -1,4 +1,4 @@
-import type { TargetTypeRef } from "./model.js";
+import type { TargetTypeRef } from "./native-type-data.js";
 import { targetTypeRefEquals } from "./equality.js";
 import { getCsharpRuntimeUnionArms } from "./carriers/runtime-carriers.js";
 import { csharpMetadataDescriptors } from "../metadata/immutable.js";

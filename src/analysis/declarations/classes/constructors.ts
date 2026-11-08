@@ -3,7 +3,7 @@ import { failTargetAnalysisInvariant, type TargetDiagnostic } from "@tsonic/targ
 import type { CsharpConstructorArgumentEmission, CsharpConstructorEntryEmission } from "../../../target-model/records/objects/constructor-emission.js";
 import type { CsharpDeclarationClassifications } from "../../../target-model/records/program/declarations.js";
 import type { CsharpStorageClassifications } from "../../../target-model/records/storage/storage.js";
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
 import { csharpConstructorBaseCall, csharpConstructorRequiresPreparation } from "../../callables/emission/constructor-entry.js";
 import { createCsharpConstructorEmissionRecords } from "../../program/records/objects/constructor-emission.js";
 

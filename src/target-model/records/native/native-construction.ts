@@ -1,5 +1,6 @@
 import type { Node } from "@tsonic/tsts";
-import type { CsharpObjectShapeFact, TargetTypeRef } from "../../types/model.js";
+import type { TargetTypeRef } from "../../types/native-type-data.js";
+import type { CsharpObjectShapeFact } from "../../types/model.js";
 
 export interface CsharpNativeConstructionIssue {
   readonly node: Node;

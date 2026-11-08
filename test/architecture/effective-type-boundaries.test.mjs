@@ -46,16 +46,28 @@ test("Native representation policy inputs own their data below analysis implemen
 });
 
 test("Native optional and finalized parameter data do not import the Source representation service", () => {
+  const data = readFileSync(join(root, "src/target-model/types/native-type-data.ts"), "utf8");
+  const model = readFileSync(join(root, "src/target-model/types/model.ts"), "utf8");
   const constraints = readFileSync(join(root, "src/target-model/types/generic-constraints.ts"), "utf8");
   const projections = readFileSync(join(root, "src/target-model/types/projections.ts"), "utf8");
   const representation = readFileSync(join(root, "src/target-model/types/representation.ts"), "utf8");
-  assert.match(constraints, /export type CsharpRepresentedTypeParameter\b/u);
-  assert.doesNotMatch(representation, /export\s+(?:type\s+CsharpRepresentedTypeParameter\b|type\s*\{[^}]*\bCsharpRepresentedTypeParameter\b)/u);
-  for (const [name, data] of [["constraints", constraints], ["projections", projections]]) {
-    assert.doesNotMatch(data, /(?:from\s*["']|import\s*\(["'])[^"']*representation\.js/u, name);
+  for (const name of ["TargetTypeRef", "CsharpTypeParameterConstraint", "CsharpTypeParameterConstraintResolution",
+    "CsharpRepresentedTypeParameter", "CsharpOptionalTypeProjection", "CsharpOptionalStorageLayout", "CsharpOptionalProjectedType"]) {
+    assert.match(data, new RegExp(`export (?:type|interface) ${name}\\b`, "u"), name);
+    for (const [owner, source] of [["model", model], ["constraints", constraints], ["projections", projections]]) {
+      assert.doesNotMatch(source, new RegExp(`export\\s+(?:(?:type|interface)\\s+${name}\\b|(?:type\\s*)?\\{[^}]*\\b${name}\\b)`, "u"), owner);
+    }
   }
-  assert.match(representation, /import type \{ CsharpRepresentedTypeParameter \} from "\.\/generic-constraints\.js"/u);
-  assert.match(projections, /import type \{[^}]*\bCsharpRepresentedTypeParameter\b[^}]*\} from "\.\/generic-constraints\.js"/u);
+  assert.doesNotMatch(data, /(?:from\s*["']|import\s*\(["'])\./u, "Native reference/constraint/projection data has no internal return edge");
+  assert.doesNotMatch(data, /export\s+(?:function|const|class)\b/u, "the one Native data owner contains no operations");
+  assert.doesNotMatch(model, /(?:from\s*["']|import\s*\(["'])[^"']*(?:generic-constraints|projections)\.js/u);
+  assert.doesNotMatch(representation, /export\s+(?:type\s+CsharpRepresentedTypeParameter\b|type\s*\{[^}]*\bCsharpRepresentedTypeParameter\b)/u);
+  for (const [name, source] of [["constraints", constraints], ["projections", projections]]) {
+    assert.doesNotMatch(source, /(?:from\s*["']|import\s*\(["'])[^"']*representation\.js/u, name);
+    assert.match(source, /from "\.\/native-type-data\.js"/u, name);
+  }
+  assert.match(representation, /import type \{[^}]*\bCsharpRepresentedTypeParameter\b[^}]*\} from "\.\/native-type-data\.js"/u);
+  assert.match(projections, /import type \{[^}]*\bCsharpOptionalTypeProjection\b[^}]*\} from "\.\/native-type-data\.js"/u);
 });
 
 for (const [label, text] of [

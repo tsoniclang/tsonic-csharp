@@ -4,7 +4,7 @@ import {
   isSourceCallableBodyBoundary,
   KindBlock,
 } from "@tsonic/target-api/source";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
 import type { CsharpReturnContext } from "../../target-model/records/calls/return-contexts.js";
 import { selectCsharpAccessorReturnContext, selectCsharpCallableReturnContext } from "../../policy/types/callables/return-contexts.js";
 import type { CsharpExpectedUseCollection } from "./collection.js";

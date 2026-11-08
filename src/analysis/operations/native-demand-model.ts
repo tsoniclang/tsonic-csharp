@@ -7,7 +7,7 @@ import type { CsharpExpectedNativeUseAdmission } from "../expected-types/model.j
 import type { CsharpDeclarationClassifications } from "../../target-model/records/program/declarations.js";
 import type { CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
 import type { CsharpExactLiteralSelectionIndex, CsharpNativePropertyKeyBinding } from "../../target-model/conversions/exact-literals.js";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
 
 import type { CsharpSourceEvidenceResult } from "../source-evidence/model.js";
 import type { SourceStorageQueries } from "@tsonic/target-api/analysis";

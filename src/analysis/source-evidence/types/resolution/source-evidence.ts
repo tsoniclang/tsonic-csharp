@@ -1,6 +1,6 @@
 import type { AstReader, ExtensionFactSubject, Node, Type } from "@tsonic/tsts";
 import type { SourceNodeReference, SourceFileSemantics, SourceNodeNavigationFacts } from "@tsonic/target-api/source";
-import type { TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../../target-model/types/native-type-data.js";
 import { csharpSourceTypeParameter } from "../../../../source/extension/type-parameters.js";
 import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { CsharpTypeResolutionState } from "./model.js";

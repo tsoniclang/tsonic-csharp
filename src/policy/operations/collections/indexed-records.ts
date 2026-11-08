@@ -1,6 +1,6 @@
 import type { TypeIndexInfo } from "@tsonic/tsts";
 
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
 import { getCsharpGenericOptionalParts, getCsharpNullableElementTargetType, isCsharpJsValueTargetType, targetTypeRefKey } from "../../../target-model/types/index.js";
 
 export function indexedRecordMember(receiver: TargetTypeRef, key: TargetTypeRef, value: TargetTypeRef, index: TypeIndexInfo) {

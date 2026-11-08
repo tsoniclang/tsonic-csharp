@@ -1,4 +1,4 @@
-import type { TargetTypeRef } from "./model.js";
+import type { TargetTypeRef } from "./native-type-data.js";
 import type { CsharpTargetNamedTypeRef, CsharpTargetTypeRenderShape, CsharpTypeofRuntimeKind } from "./model.js";
 
 export function csharpTargetNamedType(

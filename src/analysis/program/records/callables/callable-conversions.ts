@@ -1,5 +1,5 @@
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
-import type { TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../../target-model/types/native-type-data.js";
 import type { CsharpDelegateContract, CsharpDelegateContractRecords } from "../../../../target-model/records/callables/callable-conversions.js";
 import { csharpNativeCallableConversionKey } from "../../../../target-model/records/callables/callable-conversions.js";
 import { targetTypeRefKey } from "../../../../target-model/types/equality.js";

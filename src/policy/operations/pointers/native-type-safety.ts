@@ -1,4 +1,4 @@
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
 import type { CsharpNativePointerOperationSelection } from "../../../target-model/records/native/native-pointers.js";
 import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
 

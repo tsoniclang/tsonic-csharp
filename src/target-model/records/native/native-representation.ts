@@ -3,7 +3,7 @@ import { type TargetUseSiteRef } from "@tsonic/target-api/analysis";
 import { type CsharpExpectedNativeUse } from "./native-demand.js";
 import type { CsharpResolvedBinaryOperation } from "../operations/operator-selection.js";
 
-import type { TargetTypeRef } from "../../types/model.js";
+import type { TargetTypeRef } from "../../types/native-type-data.js";
 
 export type CsharpNativeRepresentationPending =
   | "source-unresolved" | "literal-unrequested" | "literal-rejected" | "callable-creation" | "callable-discarded"

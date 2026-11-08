@@ -10,7 +10,8 @@ import type { CsharpClassFactory } from "../../target-model/records/objects/clas
 import type { CsharpClassPropertyStorage } from "../../target-model/records/storage/class-property-storage.js";
 import type { CsharpNativeParticipationInput } from "../../target-model/records/native/native-demand.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
-import type { CsharpObjectShapeFact, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
+import type { CsharpObjectShapeFact, CsharpTargetNamedTypeRef } from "../../target-model/types/model.js";
 import type { CsharpTypeDefinitions } from "../../target-model/types/native-definitions.js";
 import { getCsharpTaskResultTargetType } from "../../target-model/types/carriers/delegates.js";
 import { getCsharpGeneratorProtocol } from "../../target-model/types/carriers/generators.js";

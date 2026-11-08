@@ -20,7 +20,7 @@ import { getCsharpMethodValue } from "../../../target-model/types/method-values.
 import type { CsharpCallableContractIndex } from "../../../target-model/records/callables/callable-values.js";
 import type { CsharpCallableCreationIndex } from "../../../target-model/records/callables/callable-values.js";
 import { csharpCallableValueType } from "../../../policy/types/callables/value-type.js";
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
 import type { CsharpTargetOperationClassifications } from "../../../target-model/records/operations/operations.js";
 import type { CsharpNativeCallableAllocation } from "../../../target-model/records/native/native-demand.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";

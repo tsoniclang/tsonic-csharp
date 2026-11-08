@@ -1,32 +1,6 @@
-import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "./model.js";
+import type { CsharpTargetNamedTypeRef } from "./model.js";
+import type { CsharpTypeParameterConstraint, CsharpTypeParameterConstraintResolution, TargetTypeRef } from "./native-type-data.js";
 import { targetTypeRefKey } from "./equality.js";
-
-export type CsharpTypeParameterConstraint =
-  | { readonly kind: "type"; readonly type: TargetTypeRef }
-  | {
-      readonly kind: "keyword";
-      readonly keyword: "class" | "struct" | "notnull" | "unmanaged";
-    }
-  | { readonly kind: "constructor" };
-
-export type CsharpTypeParameterConstraintResolution =
-  | {
-      readonly kind: "resolved";
-      readonly constraints: readonly CsharpTypeParameterConstraint[];
-    }
-  | {
-      readonly kind: "unsupported";
-      readonly reason: string;
-    };
-
-export type CsharpRepresentedTypeParameter = Extract<TargetTypeRef, { readonly kind: "type-parameter" }> & {
-  readonly csharpConstraints: {
-    readonly kind: "resolved";
-    readonly constraints: readonly CsharpTypeParameterConstraint[];
-  };
-};
-
-export type CsharpExplicitImplementationConstraint = "class" | "default" | undefined;
 
 export function csharpConstraintsRequireValue(
   constraints: readonly CsharpTypeParameterConstraint[],

@@ -1,6 +1,6 @@
 import type { CsharpSourceRawAddressOperation } from "../../../target-model/records/storage/raw-addresses.js";
 
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
 import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import { csharpRuntimeRawPointerTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { csharpNullableReferenceTargetType } from "../../../target-model/types/carriers/nullable.js";

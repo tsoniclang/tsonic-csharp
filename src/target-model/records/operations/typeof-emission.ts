@@ -1,5 +1,6 @@
 import type { Node } from "@tsonic/tsts";
-import type { TargetTypeRef, CsharpTypeofRuntimeKind } from "../../types/model.js";
+import type { TargetTypeRef } from "../../types/native-type-data.js";
+import type { CsharpTypeofRuntimeKind } from "../../types/model.js";
 import type { CsharpTypeofResult } from "../../types/runtime-kind.js";
 import type { CsharpJsValueInvocation } from "../../operations/js-values.js";
 import type { CsharpClosedTypeTest } from "../../operations/type-tests.js";

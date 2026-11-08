@@ -14,7 +14,7 @@ import type { CsharpBindingPatternClassifications, CsharpDestructuringAssignment
 import { getCsharpClassFactory } from "../../../target-model/types/carriers/class-factories.js";
 import { getCsharpDelegateSignature } from "../../../target-model/types/carriers/delegates.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
 import { csharpSelectedTargetArgumentBindings, csharpProviderArgumentSourceCarrier } from "../../../policy/operations/members/native-use-arguments.js";
 import { csharpSourceOperationOperator } from "../../../target-model/syntax/operators.js";
 import { csharpVoidTargetType } from "../../../target-model/types/carriers/scalar-types.js";

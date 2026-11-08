@@ -4,7 +4,7 @@ import type {
   CsharpStatement,
   CsharpTypeNode,
 } from "../../target-ast/syntax/index.js";
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
 import { planCsharpDiscardedStatement } from "../statements/statement-output.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 

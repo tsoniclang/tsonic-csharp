@@ -1,5 +1,5 @@
 import { sourceNumericLiteralIsExactlyRepresentableAsBinaryFloat, type SourceLiteralUnit } from "@tsonic/target-api/source";
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { isCsharpIntegralTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import { csharpBigIntFitsSourcePrimitive } from "../../conversions/literal-range.js";

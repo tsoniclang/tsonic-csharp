@@ -1,7 +1,7 @@
 import type { CsharpAssignmentLocation } from "../../operations/assignment-locations.js";
 import type { CsharpReferenceEquality, CsharpUnionEqualityArm } from "../../operations/binary.js";
 import type { CsharpSourceOperator } from "../../syntax/operators.js";
-import type { TargetTypeRef } from "../../types/model.js";
+import type { TargetTypeRef } from "../../types/native-type-data.js";
 import type { SourceRefusal } from "@tsonic/target-api/source";
 import type { Node } from "@tsonic/tsts";
 

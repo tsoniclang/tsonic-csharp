@@ -49,7 +49,7 @@ export function analyzeCsharpTargetOperations(
 function operationResultType(
   producer: CsharpOperationProducer,
   node: Node,
-): import("../../target-model/types/model.js").TargetTypeRef | undefined {
+): import("../../target-model/types/native-type-data.js").TargetTypeRef | undefined {
   const binding = producer.memoryBinding.get(node);
   if (binding !== undefined && binding.kind !== "rejected") return binding.type;
   const mutation = producer.jsArrayMutation.get(node);

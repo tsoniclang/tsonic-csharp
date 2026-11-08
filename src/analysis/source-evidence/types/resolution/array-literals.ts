@@ -1,7 +1,7 @@
 import type { CsharpArrayLiteralSelection } from "../../../../target-model/records/operations/array-literals.js";
 import type { Node } from "@tsonic/tsts";
 import { sourceSequenceInputChoice, sourceSequenceInputIsEmpty, type SourceFileSemantics } from "@tsonic/target-api/source";
-import type { TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../../target-model/types/native-type-data.js";
 import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import { nextState } from "./state.js";

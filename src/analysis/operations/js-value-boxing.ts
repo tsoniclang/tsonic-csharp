@@ -3,7 +3,7 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native/native-demand.js";
 import type { CsharpValueReadClassifications } from "../../target-model/records/operations/conversions.js";
 import type { CsharpExactLiteralSelectionIndex } from "../../target-model/conversions/exact-literals.js";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
 import { targetTypeRefKey } from "../../target-model/types/equality.js";
 import { isCsharpJsValueTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 import { createCsharpJsValueBoxingProducer } from "../program/records/types/js-value-boxing.js";

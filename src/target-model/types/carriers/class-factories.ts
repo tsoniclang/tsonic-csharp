@@ -1,5 +1,6 @@
 import type { Node } from "@tsonic/tsts";
-import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../model.js";
+import type { TargetTypeRef } from "../native-type-data.js";
+import type { CsharpTargetNamedTypeRef } from "../model.js";
 import { csharpTargetNamedType } from "../factories.js";
 
 export interface CsharpClassFactoryType {

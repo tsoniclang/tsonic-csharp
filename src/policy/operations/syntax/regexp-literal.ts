@@ -5,7 +5,7 @@ import { isCsharpJsRegExpTargetType } from "../../types/index.js";
 
 export function selectCsharpNativeRegularExpressionLiteral(
   literal: AstRegularExpressionLiteralSyntax | undefined,
-  targetType: import("../../../target-model/types/model.js").TargetTypeRef | undefined,
+  targetType: import("../../../target-model/types/native-type-data.js").TargetTypeRef | undefined,
 ): CsharpRegularExpressionLiteralSelection {
   if (literal === undefined) {
     return {

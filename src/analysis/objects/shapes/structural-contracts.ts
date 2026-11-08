@@ -1,5 +1,6 @@
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
-import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetNamedTypeRef } from "../../../target-model/types/model.js";
 import { canonicalCsharpObjectShapeMembers } from "../../../target-model/types/object-shape-identity.js";
 import { createStructuralObjectShapeTarget } from "./construction.js";
 

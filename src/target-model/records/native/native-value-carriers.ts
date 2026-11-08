@@ -1,5 +1,6 @@
 import type { Node } from "@tsonic/tsts";
-import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../types/model.js";
+import type { TargetTypeRef } from "../../types/native-type-data.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact } from "../../types/model.js";
 import type { CsharpSourceField, CsharpSourceStruct } from "../program/source-markers.js";
 import type { CsharpProjectTypeIssue } from "../types/project-types.js";
 

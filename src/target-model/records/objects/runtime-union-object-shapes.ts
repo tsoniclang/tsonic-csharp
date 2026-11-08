@@ -1,4 +1,5 @@
-import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../types/model.js";
+import type { TargetTypeRef } from "../../types/native-type-data.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact } from "../../types/model.js";
 
 export type CsharpRuntimeUnionObjectShapePropertyResolution =
   | { readonly kind: "not-runtime-union" }

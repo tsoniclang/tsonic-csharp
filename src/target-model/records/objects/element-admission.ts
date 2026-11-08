@@ -2,7 +2,7 @@ import type { Node } from "@tsonic/tsts";
 import type { CsharpElementClassification, CsharpMemberReceiverProjection } from "../operations/operations.js";
 import type { CsharpTargetElementSelection } from "../operations/member-selections.js";
 import type { CsharpJsValueOperationSelection, CsharpJsValueInvocation } from "../../operations/js-values.js";
-import type { TargetTypeRef } from "../../types/model.js";
+import type { TargetTypeRef } from "../../types/native-type-data.js";
 
 type ElementSource = Extract<CsharpTargetElementSelection, { readonly kind: "resolved" }>["source"];
 export interface CsharpElementOperands {

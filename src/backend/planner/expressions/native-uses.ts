@@ -1,7 +1,7 @@
 import type { Node } from "@tsonic/tsts";
 import type { CsharpPlanningContext } from "../context.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
 
 export function readCsharpNativeExpressionUse(input: CsharpPlanningContext, expression: Node) {
   return input.program.records.nativeExpression.get(expression);

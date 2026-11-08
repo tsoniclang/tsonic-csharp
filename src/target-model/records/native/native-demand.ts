@@ -4,7 +4,8 @@ import { targetUseSiteRef, type TargetUseSiteRef } from "@tsonic/target-api/anal
 import type { CsharpConversionMode, CsharpConversionSelection } from "../../conversions/selection.js";
 import { csharpTargetRepresentationContractId } from "../../identities/identities.js";
 import { targetTypeRefKey } from "../../types/equality.js";
-import type { CsharpObjectShapeFact, TargetTypeRef } from "../../types/model.js";
+import type { TargetTypeRef } from "../../types/native-type-data.js";
+import type { CsharpObjectShapeFact } from "../../types/model.js";
 import type { CsharpNativeHandler } from "./native-handlers.js";
 import type { CsharpExactLiteralRecipe, CsharpNativePropertyKey } from "../../conversions/exact-literals.js";
 import type { CsharpResolvedBinaryOperation } from "../operations/operator-selection.js";

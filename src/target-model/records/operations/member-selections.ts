@@ -1,5 +1,6 @@
 import type { CsharpTargetReceiverRelation } from "../../identities/provider-relations.js";
-import type { CsharpTargetMember, TargetTypeRef } from "../../types/model.js";
+import type { TargetTypeRef } from "../../types/native-type-data.js";
+import type { CsharpTargetMember } from "../../types/model.js";
 import type { CsharpSelectedTargetCall, CsharpTargetElementInvocation } from "../objects/members.js";
 import type { SourceApplication } from "@tsonic/target-api/source";
 import type { CsharpTargetPropertyInvocation } from "../program/source-profile-invocations.js";

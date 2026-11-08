@@ -3,7 +3,7 @@ import type { SourceCallableSourceContract } from "../../../target-model/records
 import { substituteTargetTypeParameters } from "../../../policy/types/resolution/substitution.js";
 import { csharpSourceTypeParameter } from "../../../source/extension/type-parameters.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { csharpTargetTypeComponents } from "../../../target-model/types/components.js";
 import { createCsharpMetadataBudget } from "../../../target-model/metadata/immutable.js";

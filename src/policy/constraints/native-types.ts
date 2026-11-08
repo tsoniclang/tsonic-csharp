@@ -1,4 +1,4 @@
-import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
 
 import { getCsharpNullableElementTargetType, isCsharpValueTypeTargetType } from "../../target-model/types/index.js";
 

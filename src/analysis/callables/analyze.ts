@@ -19,7 +19,7 @@ import { sourceExpressionCallArgument, sourceTransparentExpressionOperand, type 
 import { csharpDelegateSignatureHasSupportedPassingModes, getCsharpLambdaSignature, getCsharpExpressionTreeDelegateType } from "../../target-model/types/carriers/delegates.js";
 import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
 import { csharpFreeTypeParameterIdentities } from "../../target-model/types/generic-references.js";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
 import type { CsharpCallableConversionPolicy } from "./native/adapters.js";
 import type { CsharpConversionClassifications } from "../../target-model/records/operations/conversions.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";

@@ -1,6 +1,7 @@
 import type { Node } from "@tsonic/tsts";
 import type { SourceConstruction, SourcePresence, SourceTypeEvidence, SourceTypeParameter } from "@tsonic/target-api/source";
-import type { TargetConstraint, TargetTypeRef } from "./model.js";
+import type { TargetTypeRef } from "./native-type-data.js";
+import type { TargetConstraint } from "./model.js";
 
 export interface CsharpNativeTypeValue {
   readonly evidence: SourceTypeEvidence;

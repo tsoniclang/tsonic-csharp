@@ -7,7 +7,8 @@ import { failTargetAnalysisInvariant, type TargetDiagnostic } from "@tsonic/targ
 import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native/native-demand.js";
 import type { CsharpNativeUse } from "../../target-model/records/native/native-demand.js";
 import type { CsharpObjectLiteralEmission, CsharpObjectLiteralMemberEmission } from "../../target-model/records/objects/object-literals.js";
-import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact } from "../../target-model/types/model.js";
 import type { CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
 import type { CsharpObjectMethodRecords } from "../../target-model/records/objects/object-methods.js";
 import type { CsharpObjectMemberRecords } from "../../target-model/records/objects/object-members.js";

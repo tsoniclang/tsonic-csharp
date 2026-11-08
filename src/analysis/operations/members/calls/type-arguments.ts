@@ -22,7 +22,7 @@ export function resolveProviderBindingTypeArguments(
     : relation.bindingTypeArgumentSource === "callee" ? application.callee.occurrence : application.identity.invocation;
   if (occurrence === undefined) return refused(application,
     "A provider generic binding requires its exact original receiver/callee or result binding domain.");
-  let bindingCarrier: import("../../../../target-model/types/model.js").TargetTypeRef;
+  let bindingCarrier: import("../../../../target-model/types/native-type-data.js").TargetTypeRef;
   if (relation.bindingTypeArgumentSource === "result") {
     const represented = host.representation.represent(application.result, "type-argument", application.identity.invocation);
     if (represented.kind !== "represented") return represented;

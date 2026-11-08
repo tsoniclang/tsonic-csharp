@@ -1,4 +1,5 @@
-import type { CsharpNativeCallableMember, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
+import type { CsharpNativeCallableMember, CsharpTargetNamedTypeRef } from "../../../target-model/types/model.js";
 
 import type { CsharpObjectShapeMemberFact, CsharpStructuralInterfaceImplementation } from "../../../target-model/types/model.js";
 import type { CsharpStructuralInterfaceEvidence } from "../../../target-model/records/objects/heritage.js";

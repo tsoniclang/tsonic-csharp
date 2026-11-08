@@ -4,7 +4,8 @@ import { csharpTargetNamedType } from "../../../target-model/types/factories.js"
 
 import { targetTypeRefKey } from "../../../target-model/types/equality.js";
 
-import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetNamedTypeRef } from "../../../target-model/types/model.js";
 
 import { csharpTypeParameterConstraintResolutionKey } from "../../../target-model/types/generic-constraints.js";
 

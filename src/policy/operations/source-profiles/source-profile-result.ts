@@ -1,5 +1,5 @@
 import type { CsharpSourceProfileCallPolicyContext } from "../../model/source-profiles.js";
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
 export function resolveCsharpSourceProfileGenericResult(
   context: Pick<CsharpSourceProfileCallPolicyContext, "inputs" | "source">,
   arity: number,

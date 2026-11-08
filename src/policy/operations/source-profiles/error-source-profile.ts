@@ -6,7 +6,8 @@ import { csharpSourceErrorTargetType, csharpExceptionTargetType, csharpStringTar
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { csharpTargetNamedType } from "../../../target-model/types/factories.js";
 import { csharpQualifiedTypeRenderShape } from "../../../target-model/types/render-shapes.js";
-import type { CsharpTargetMember, TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
+import type { CsharpTargetMember } from "../../../target-model/types/model.js";
 import { csharpTargetId } from "../../../target-model/identities/target.js";
 import { csharpSourceErrorNames, type CsharpSourceErrorName } from "../../../target-model/identities/source-errors.js";
 import { snapshotCsharpMetadata } from "../../../target-model/metadata/immutable.js";

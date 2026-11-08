@@ -1,5 +1,5 @@
 import type { Node } from "@tsonic/tsts";
-import type { TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../../target-model/types/native-type-data.js";
 import type { CsharpPropertyValueProjectionEmission, CsharpPropertyValueProjectionRecords } from "../../../../target-model/records/objects/property-value-projection.js";
 import { targetTypeRefKey } from "../../../../target-model/types/equality.js";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";

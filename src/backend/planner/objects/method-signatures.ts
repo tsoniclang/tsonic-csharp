@@ -1,6 +1,6 @@
 import type { Node } from "@tsonic/tsts";
 import type { CsharpObjectMethodSignature } from "../../../target-model/records/objects/object-members.js";
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
 import type { CsharpParameter } from "../../target-ast/syntax/index.js";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";

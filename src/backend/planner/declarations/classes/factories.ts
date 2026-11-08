@@ -18,7 +18,7 @@ import { createCsharpTypeParameterPlanningContext } from "../../names/type-param
 import { planOuterTypeParameters, planTypeParameters } from "../../types/type-parameters.js";
 import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import { planClassInitializationRegion } from "./initializers.js";
-import type { TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../../target-model/types/native-type-data.js";
 import { csharpPlannedValue, type CsharpPlannedValue } from "../../expressions/planned-values.js";
 import { buildCsharpPlannedValue } from "../../expressions/planned-value-composition.js";
 import { planCsharpNativeMemberHiding } from "../modifiers.js";

@@ -1,5 +1,5 @@
 import type { Node } from "@tsonic/tsts";
-import type { TargetTypeRef } from "../../types/model.js";
+import type { TargetTypeRef } from "../../types/native-type-data.js";
 import type { CsharpUnionEqualityArm } from "../../operations/binary.js";
 import type { CsharpExactLiteralRecipe } from "../../conversions/exact-literals.js";
 

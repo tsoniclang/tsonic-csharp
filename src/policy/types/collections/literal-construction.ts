@@ -1,4 +1,4 @@
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
 import { getCsharpArrayLiteralElementTargetType } from "../../../target-model/types/carriers/collections.js";
 import { getCsharpArrayLiteralInputCarrierTargetType } from "./array-literal-input.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";

@@ -17,7 +17,7 @@ import { planBlockStatements } from "../../statements/planning.js";
 import { planCsharpGeneratedMethodCall } from "../generated-methods.js";
 import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import { planCapturedReceiverOwnerValue } from "../../expressions/expression-this.js";
-import type { TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../../target-model/types/native-type-data.js";
 import { planCsharpParameterPropertyAssignments } from "./parameter-properties.js";
 
 export interface CsharpConstructorArgumentPlan {

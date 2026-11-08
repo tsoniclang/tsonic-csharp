@@ -5,7 +5,7 @@ import type { CsharpClosedTypeTest, CsharpClosedTypeTestPlan } from "../../targe
 import type { CsharpClosedTypeTestEmission } from "../../target-model/records/types/type-tests.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
 import type { CsharpTypeDefinitions } from "../../target-model/types/native-definitions.js";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
 import { isCsharpJsValueTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 import { csharpClosedTypeTestMatches } from "./type-tests.js";
 import { selectCsharpTypeEmission } from "../../policy/types/resolution/type-emission.js";

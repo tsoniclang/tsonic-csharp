@@ -3,7 +3,7 @@ import type { Node } from "@tsonic/tsts";
 
 import { getCsharpJsArrayMutationPolicy } from "../../types/index.js";
 
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
 export function selectCsharpNativeArrayLengthWrite(
   receiver: TargetTypeRef | undefined, receiverExpression: Node, value: Node,
 ): CsharpJsArrayMutationSelection {

@@ -1,4 +1,4 @@
-import type { TargetTypeRef } from "../../types/model.js";
+import type { TargetTypeRef } from "../../types/native-type-data.js";
 import type { TsonicRawMemoryOperationFact } from "@tsonic/source-core/facts";
 import type { Node } from "@tsonic/tsts";
 

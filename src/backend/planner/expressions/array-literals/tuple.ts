@@ -5,7 +5,7 @@ import type { CsharpTypeNode } from "../../../target-ast/syntax/index.js";
 import type { ArrayLiteralPlanner } from "./types.js";
 import { csharpTupleExpression } from "../../types/tuples.js";
 import { plannedArrayElements } from "./dense-array.js";
-import type { TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../../target-model/types/native-type-data.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/render.js";
 import type { CsharpPlannedValue } from "../planned-values.js";
 import { buildCsharpPlannedValue } from "../planned-value-composition.js";

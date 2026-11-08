@@ -1,4 +1,4 @@
-import type { TargetTypeRef } from "../../types/model.js";
+import type { TargetTypeRef } from "../../types/native-type-data.js";
 import type { CsharpRawLocationSelection } from "./native-memory.js";
 import type { CsharpRawAddressSelection, CsharpSourceRawAddressOperation } from "../storage/raw-addresses.js";
 import type { Node } from "@tsonic/tsts";

@@ -1,26 +1,8 @@
 import { createHash } from "node:crypto";
-import type { TargetTypeRef } from "./model.js";
-import type { CsharpRepresentedTypeParameter, CsharpTypeParameterConstraint } from "./generic-constraints.js";
+import type { CsharpOptionalProjectedType, CsharpOptionalTypeProjection, CsharpTypeParameterConstraint, TargetTypeRef } from "./native-type-data.js";
 import { targetTypeRefKey } from "./equality.js";
 import { csharpTargetNamedType } from "./factories.js";
 import { csharpQualifiedTypeRenderShape } from "./render-shapes.js";
-
-export interface CsharpOptionalTypeProjection {
-  readonly kind: "optional";
-  readonly part: "storage" | "operations";
-  readonly arguments: readonly [TargetTypeRef];
-}
-
-export interface CsharpOptionalStorageLayout {
-  readonly payload: TargetTypeRef;
-  readonly carrier: TargetTypeRef;
-  readonly operations: TargetTypeRef;
-  readonly requirements: readonly CsharpRepresentedTypeParameter[];
-}
-
-export type CsharpOptionalProjectedType = CsharpRepresentedTypeParameter & {
-  readonly csharpProjection: CsharpOptionalTypeProjection;
-};
 
 export function csharpOptionalProjectedType(projection: CsharpOptionalTypeProjection): CsharpOptionalProjectedType {
   const key = JSON.stringify(["native-optional", projection.part, targetTypeRefKey(projection.arguments[0])]);

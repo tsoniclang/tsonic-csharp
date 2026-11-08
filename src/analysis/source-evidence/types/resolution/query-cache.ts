@@ -1,5 +1,5 @@
 import type { Node, SourceFile, Type } from "@tsonic/tsts";
-import type { TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../../target-model/types/native-type-data.js";
 import type { CsharpArrayLiteralSelection } from "../../../../target-model/records/operations/array-literals.js";
 import type { CsharpNodeTypeResolution } from "../../../../policy/model/type-resolution.js";
 

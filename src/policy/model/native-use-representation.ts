@@ -5,7 +5,7 @@ import type { CsharpConversionMode } from "../../target-model/conversions/select
 import { type CsharpNativeCallableCreation } from "../../target-model/records/native/native-demand.js";
 import type { CsharpOperationSelection, CsharpResolvedBinaryOperation } from "../../target-model/records/operations/operator-selection.js";
 
-import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
 
 export interface CsharpNativeRepresentationChild {
   readonly site: TargetUseSiteRef;

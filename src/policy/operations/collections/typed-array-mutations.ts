@@ -3,7 +3,7 @@ import type { Node } from "@tsonic/tsts";
 
 import { csharpUnaryNumericPromotion } from "../numeric/promotion.js";
 
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
 export function csharpTypedArrayWriteHasNativeCarriers(
   element: TargetTypeRef | undefined, value: TargetTypeRef | undefined,
 ): boolean {

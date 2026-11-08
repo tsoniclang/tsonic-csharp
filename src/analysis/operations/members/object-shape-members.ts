@@ -1,5 +1,6 @@
 import type { Type } from "@tsonic/tsts";
-import type { CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
+import type { CsharpObjectShapeMemberFact } from "../../../target-model/types/model.js";
 
 import { csharpObjectShapeMemberRetainsNativeReference } from "../../../policy/types/objects/member-reads.js";
 export function resolveCsharpObjectShapeMemberReadTargetType(

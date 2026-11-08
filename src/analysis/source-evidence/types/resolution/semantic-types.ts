@@ -6,7 +6,7 @@ import { resolveCsharpSemanticConditionalType } from "./conditional-types.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import type { ExtensionFactSubject, SourceFile, Type } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
-import type { TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../../target-model/types/native-type-data.js";
 import { csharpAnyTargetType, csharpEmptyObjectTargetType, csharpRuntimeLocationTargetType, csharpRuntimeRawPointerTargetType, csharpAbsenceTargetType, isCsharpAbsenceTargetType, csharpTsValueTargetType } from "../../../../target-model/types/carriers/runtime-carriers.js";
 import { csharpBigIntegerTargetType, csharpObjectTargetType, csharpJsStringTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpNeverTargetType, csharpVoidTargetType } from "../../../../target-model/types/carriers/scalar-types.js";
 import { csharpJsSymbolTargetType } from "../../../../target-model/types/carriers/js.js";

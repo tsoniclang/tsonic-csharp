@@ -1,4 +1,5 @@
-import type { CsharpNativeCallableMember, CsharpObjectShapeFact, CsharpRuntimeUnionTargetTypeRef, CsharpTargetNamedTypeRef, TargetTypeRef } from "./model.js";
+import type { TargetTypeRef } from "./native-type-data.js";
+import type { CsharpNativeCallableMember, CsharpObjectShapeFact, CsharpRuntimeUnionTargetTypeRef, CsharpTargetNamedTypeRef } from "./model.js";
 import { createCsharpMetadataBudget } from "../metadata/immutable.js";
 
 export function csharpTargetTypeComponents(

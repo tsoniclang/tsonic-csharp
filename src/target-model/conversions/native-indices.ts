@@ -1,6 +1,6 @@
 import type { ArgumentPassingMode, Node } from "@tsonic/tsts";
 import type { CsharpResolvedBinaryOperation } from "../records/operations/operator-selection.js";
-import type { TargetTypeRef } from "../types/model.js";
+import type { TargetTypeRef } from "../types/native-type-data.js";
 
 export type CsharpNativeIntegerUse =
   | { readonly kind: "index" | "parameter"; readonly occurrence: Node; readonly type: TargetTypeRef;

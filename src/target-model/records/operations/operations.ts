@@ -1,6 +1,7 @@
 import type { CsharpConversionSelection } from "../../conversions/selection.js";
 import type { CsharpJsValueOperationSelection } from "../../operations/js-values.js";
-import type { CsharpObjectShapeFact, CsharpTypeofRuntimeKind, TargetTypeRef } from "../../types/model.js";
+import type { TargetTypeRef } from "../../types/native-type-data.js";
+import type { CsharpObjectShapeFact, CsharpTypeofRuntimeKind } from "../../types/model.js";
 import type { CsharpTargetBinaryExecutionDriver } from "../../types/model.js";
 import type { CsharpObjectShapeMemberLookupResult } from "../../types/object-shape-members.js";
 import type { CsharpTypeofResult } from "../../types/runtime-kind.js";

@@ -1,4 +1,5 @@
-import type { CsharpObjectShapeFact, CsharpTargetNamedTypeRef, TargetTypeRef, CsharpRuntimeUnionTargetTypeRef } from "../model.js";
+import type { TargetTypeRef } from "../native-type-data.js";
+import type { CsharpObjectShapeFact, CsharpTargetNamedTypeRef, CsharpRuntimeUnionTargetTypeRef } from "../model.js";
 import { csharpQualifiedTypeRenderShape } from "../render-shapes.js";
 import { csharpTargetNamedType } from "../factories.js";
 import { csharpNullableReferenceTargetType, getCsharpNullableElementTargetType } from "./nullable.js";

@@ -3,7 +3,7 @@ import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpTargetOperationClassifications, CsharpOperationIssue, CsharpOperatorFormClassification } from "../../../../target-model/records/operations/operations.js";
 import type { CsharpMemoryBindingSelection } from "../../../../target-model/records/storage/memory-bindings.js";
 import type { CsharpJsStringConversionSelection } from "../../../../target-model/records/operations/explicit-js-string.js";
-import type { TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../../target-model/types/native-type-data.js";
 import type { CsharpTargetBinaryExecutionDriver } from "../../../../target-model/types/model.js";
 
 export function createCsharpOperationProducer() {

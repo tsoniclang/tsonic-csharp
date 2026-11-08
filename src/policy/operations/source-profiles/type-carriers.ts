@@ -1,4 +1,4 @@
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
 
 import { csharpAsyncGeneratorTargetType, csharpGeneratorTargetType, csharpIteratorResultTargetType } from "../../../target-model/types/carriers/generators.js";
 import { closeCsharpGeneratorProtocolType } from "../../types/callables/generators.js";

@@ -1,6 +1,7 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { TargetTypeRef, CsharpObjectShapeFact } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
+import type { CsharpObjectShapeFact } from "../../../target-model/types/model.js";
 import type { CsharpObjectShapeDemand } from "../../../target-model/records/objects/object-shape-demand.js";
 import type { CsharpSourceEvidenceIndex } from "../../../target-model/records/program/source-evidence.js";
 import type { CsharpValueReadClassifications } from "../../../target-model/records/operations/conversions.js";

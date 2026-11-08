@@ -12,7 +12,7 @@ import type { CsharpTargetOperationClassifications } from "../../../target-model
 import type { CsharpNativeUseClassifications } from "../../../target-model/records/native/native-demand.js";
 import type { CsharpStorageRepresentationClassifications } from "../../../target-model/records/storage/storage.js";
 import type { CsharpPromiseDiscard, CsharpPromiseResult, CsharpPromiseResults } from "../../../target-model/records/callables/promise-results.js";
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
 import type { CsharpTypeDefinitions } from "../../../target-model/types/native-definitions.js";
 import { isCsharpRefLikeTargetType } from "../../../target-model/types/ref-like.js";
 import { selectCsharpPromiseDiscard } from "../../../policy/types/callables/promise-results.js";

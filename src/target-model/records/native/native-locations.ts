@@ -1,6 +1,6 @@
 import type { CsharpAssignmentLocation } from "../../operations/assignment-locations.js";
 import type { CsharpNativeMemoryLayout } from "../../operations/native-memory.js";
-import type { TargetTypeRef } from "../../types/model.js";
+import type { TargetTypeRef } from "../../types/native-type-data.js";
 import type { CsharpNativeArrayStorage, CsharpNativeObjectField } from "../storage/storage.js";
 import type { Node } from "@tsonic/tsts";
 
