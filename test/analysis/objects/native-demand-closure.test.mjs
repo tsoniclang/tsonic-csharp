@@ -19,6 +19,7 @@ import { csharpObjectShapeArtifact } from "../../../dist/backend/planner/artifac
 import { csharpObjectShapeMemberContractKey } from "../../../dist/target-model/types/object-shape-identity.js";
 import { monomorphicStructuralOptionalFiles } from "../../../../tsonic/test/fixtures/generic-structural-methods.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
+import { compileEffectiveSource, assertPublishedSourceFormRefusal } from "../../helpers/source-effective-types.mjs";
 
 const runtimeConfiguration = createCsharpTargetConfiguration({ id: "csharp" }, process.cwd(), process.cwd());
 const jsRuntimeProject = classifyCsharpProjectConfiguration(runtimeConfiguration,
@@ -334,11 +335,11 @@ test("a native class static method named Proxy.revocable retains its actual sele
 });
 
 test("constructor refusals and other participating native refusals share one complete pre-seal result", () => {
-  const compiled = compileCsharpSource({ surface: "js", sourceText: `
+  const compiled = compileEffectiveSource("js", `
     export const value = new Proxy({}, {});
     function tag(parts: TemplateStringsArray, count: number): string { return "constant"; }
     export function run(count: number): string { return tag\`value=\${count}\`; }
-  ` });
+  `);
   assert.equal(compiled.sourceDiagnosticsText, "", "both refused constructs are valid checked source");
   assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0, true,
     "neither known source refusal becomes published or planned");
@@ -347,9 +348,10 @@ test("constructor refusals and other participating native refusals share one com
   assert.equal(diagnostics.some(diagnostic => diagnostic.code === "CSHARP_JS_SOURCE_PROFILE_OPERATION_UNSUPPORTED" &&
     diagnostic.message === "Proxy traps redefine object operations dynamically and have no closed C# source-to-source representation."), true,
   "exact constructor diagnostic transport");
-  assert.equal(diagnostics.some(diagnostic => diagnostic.code === "CSHARP_UNSUPPORTED_AST" &&
-    diagnostic.message === "Expression is outside the current C# planning surface."), true, "the existing independent native refusal is retained");
-  const tagged = diagnostics.find(diagnostic => diagnostic.code === "CSHARP_UNSUPPORTED_AST");
+  const tagged = diagnostics.find(diagnostic => diagnostic.code === "TSONIC_SOURCE_FORM_UNSUPPORTED");
+  assert.equal(tagged !== undefined, true, "the constructor cannot hide the independent Source form refusal");
+  assertPublishedSourceFormRefusal(compiled, tagged, "Tagged template expressions have no supported Source runtime application form.",
+    "tag`value=${count}`");
   assert.equal(compiled.source.ast.is.IsTaggedTemplateExpression(tagged.sourceNode), true,
     "the independent refusal belongs to the actual tagged template, not an unrelated tag-body operation");
 });

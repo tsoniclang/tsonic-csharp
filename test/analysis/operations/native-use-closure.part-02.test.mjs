@@ -14,6 +14,7 @@ import { memoryAbiCapability } from "../../helpers/memory-abi.mjs";
 import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 import { emissionPrograms, discardedPrograms, owners } from "./native-use-closure.fixtures.mjs";
+import { compileEffectiveSource, assertPublishedSourceFormRefusal } from "../../helpers/source-effective-types.mjs";
 
 for (const surface of Array.from(["native", "js"]).slice(0, 2)) {
 const originalSource = `
@@ -290,14 +291,14 @@ test(`${surface} actual native delegate variance preserves identity and allocate
 }
 
 test("tagged template operands have finite contexts without changing the retained source refusal", () => {
-  const compiled = compileCsharpSource({ sourceText: `
+  const compiled = compileEffectiveSource("js", `
     function tag(parts: TemplateStringsArray, value: number): string { return parts[0]; }
-    export function run(value: number): string { return tag\`value=\${value}\`; }`, surface: "js" });
+    export function run(value: number): string { return tag\`value=\${value}\`; }`);
   assert.equal(compiled.sourceDiagnosticsText === "", true, "the tagged-template control is source-valid");
   const errors = compiled.result.diagnostics.filter(diagnostic => diagnostic.category === "error");
-  assert.equal(errors.length === 1 && errors[0].code === "CSHARP_UNSUPPORTED_AST" &&
-    errors[0].message === "Expression is outside the current C# planning surface.", true,
-    "the unsupported tagged renderer keeps its exact source refusal, never an emission-context invariant");
+  assert.equal(errors.length, 1, "the original tagged operand keeps one Source refusal, never an emission-context invariant");
+  assertPublishedSourceFormRefusal(compiled, errors[0], "Tagged template expressions have no supported Source runtime application form.",
+    "tag`value=${value}`");
 });
 
 test("transparent wrappers of discarded callable creation remain erased without a fabricated completion", () => {

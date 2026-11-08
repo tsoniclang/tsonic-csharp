@@ -1,27 +1,35 @@
 import assert from "node:assert/strict";
-import { createCompilerSessionFromFiles } from "@tsonic/tsts";
-import { analyzeSourceLiteralValues, createTargetSourceProgram } from "@tsonic/target-api/source";
+import { analyzeCsharpSource, assertCsharpCheckingSucceeded } from "./direct-csharp-session.mjs";
+import { resolvedSourceValue } from "./published-return-contracts.mjs";
 
-export function checkedSourceLiteralValues(spellings) {
-  const checked = createCompilerSessionFromFiles({ currentDirectory: "/literal-proof", files: {
-    "/literal-proof/index.ts": spellings.map((text, index) => `export const value${index} = ${text};`).join("\n"),
-  }, compilerOptions: { strict: true, target: "es2022", module: "esnext" } }).checkSource();
-  assert.equal(checked.diagnostics.length, 0, "the native token fixtures check");
-  const source = createTargetSourceProgram(checked);
-  const file = checked.getSourceFile("/literal-proof/index.ts");
-  assert.equal(file !== undefined, true, "the fixture file exists");
+export function checkedSourceScalarLiterals(expressions) {
+  const compiled = analyzeCsharpSource({
+    sourceText: expressions.map((text, index) => `export const value${index} = (${text});`).join("\n"),
+  });
+  assertCsharpCheckingSucceeded(compiled);
+  const source = compiled.source;
+  const files = source.sourceFiles.filter(file => !source.ast.isDeclarationFile(file));
+  assert.equal(files.length, 1, "one actual authored fixture file is enrolled in the Source program");
+  const occurrences = new Set(source.facts.values.occurrences());
   const initializers = [];
   const visit = node => {
-    const initializer = source.ast.as.AsVariableDeclaration(node)?.Initializer;
-    if (initializer !== undefined) initializers.push(initializer);
+    if (source.ast.is.IsVariableDeclaration(node)) {
+      const initializer = source.ast.as.AsVariableDeclaration(node).Initializer;
+      assert.equal(initializer !== undefined, true, "each original fixture declaration has its authored initializer");
+      initializers.push(initializer);
+      return;
+    }
     source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
-  visit(file);
-  const records = analyzeSourceLiteralValues(source.ast, [file]);
-  assert.equal(initializers.length, spellings.length, "each spelling has one checked initializer");
+  visit(files[0]);
+  assert.equal(initializers.length, expressions.length, "each original expression has exactly one checked initializer in authored order");
   return Object.freeze(initializers.map((node, index) => {
-    const value = records.literalValue.get(node);
-    assert.equal(value !== undefined, true, `literal evidence ${index}`);
-    return value;
+    assert.equal(occurrences.has(node), true, `literal ${index}: the original initializer is in the complete value domain`);
+    const value = resolvedSourceValue(source.facts.values.type(node), `literal ${index}: original Source evidence`);
+    source.facts.descriptors.assertEvidence(value);
+    const scalar = source.facts.descriptors.scalarLiteral(value);
+    assert.equal(scalar.kind, "present", `literal ${index}: one genuine same-view scalar is required`);
+    assert.equal(Object.isFrozen(scalar.value), true, `literal ${index}: canonical scalar data is immutable`);
+    return scalar.value;
   }));
 }

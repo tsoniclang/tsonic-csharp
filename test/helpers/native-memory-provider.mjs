@@ -114,9 +114,9 @@ export function nativeMemoryProvider({ missingRelation = false, wrongCarrier = f
       parameters: parameters.map((parameter, index) => ({ sourceParameterIndex: index, targetParameterIndex: index,
         sourcePassingMode: "by-value", targetPassingMode: "by-value", sourceAcceptsOmission: false,
         targetAcceptsOmission: false, sourceRest: false, targetParamsArray: false })),
-      bindingTypeParameters: [], bindingTypeArgumentSource: "result",
+      bindingTypeParameters: [], bindingTypeArgumentSource: "signature-type-arguments",
       methodTypeParameters: (typeParameters ?? []).map((_parameter, index) => ({ sourceTypeParameterIndex: index, targetTypeParameterIndex: index })),
-      invocationTypeParameters: [], selectedTypeParameterCount: typeParameters?.length ?? 0,
+      invocationTypeParameters: [], sourceTypeParameterCounts: { class: 0, signature: typeParameters?.length ?? 0 },
     }));
   return {
     kind: "target-capability", id: providerId, targetId: "csharp", displayName: "Native memory proof",

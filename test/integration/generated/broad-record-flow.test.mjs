@@ -16,6 +16,7 @@ test("guarded broad record reads preserve raw storage and array backing", { time
 test("fresh nested broad arrays retain empty, primitive and exact integer carriers", { timeout: 300_000 }, () => {
   const sourceText = freshBroadArraySource
     .replace("return [[],", "const empty: unknown[] = []; return [empty,")
+    .replace('typeof nested[1] === "number"', 'typeof nested[1] === "bigint"')
     .replace('typeof result[3] === "bigint";', 'typeof result[3] === "bigint" && result[3] === value;');
   const compiled = compileCsharpSource({ surface: "js", sourceText });
   assertCsharpCompilationSucceeded(compiled);

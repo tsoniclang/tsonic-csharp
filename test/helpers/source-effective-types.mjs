@@ -119,6 +119,28 @@ export function assertPublishedRefusal(compiled, code, siteText) {
   assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true, "a refused source publishes no target program or artifacts");
 }
 
+export function assertPublishedSourceFormRefusal(compiled, issue, message, siteText) {
+  const source = compiled.targetSource;
+  assert.equal(source !== undefined && issue.sourceNode !== undefined, true, "the original Source view and exact form are required");
+  const refusal = source.facts.admission.form(issue.sourceNode);
+  assert.equal(refusal.kind, "refused", "the nonvalue form query returns its actual Source refusal");
+  assert.equal(refusal.code, "TSONIC_SOURCE_FORM_UNSUPPORTED");
+  assert.equal(refusal.source, "tsonic");
+  assert.equal(refusal.site === issue.sourceNode, true, "form refusal retains the original exact syntax identity");
+  assert.equal(refusal.message, message, "the exact form-specific Host message is independent of the Native forwarder");
+  assert.equal(source.facts.refusals().includes(refusal), true, "the SAME admission outcome belongs to the canonical refusal inventory");
+  assert.equal(source.facts.admission.form(issue.sourceNode) === refusal, true, "the original form has one canonical per-view outcome");
+  assert.equal(issue.code === refusal.code && issue.source === refusal.source && issue.message === refusal.message &&
+    issue.sourceNode === refusal.site, true, "Native forwards every original Host refusal field unchanged");
+  const range = source.ast.authoredRange(refusal.site);
+  assert.equal(range.kind, "authored", "the Source form refusal is on its original authored site");
+  const actual = source.ast.getSourceText(source.ast.getSourceFile(refusal.site)).slice(range.start, range.end);
+  assert.equal(actual, siteText, "the exact original form is not replaced by a binder or parent");
+  assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0, true,
+    "the Source form refusal publishes no Native program, plan or artifacts");
+  return refusal;
+}
+
 export function assertPublishedMixedConstructionRefusals(compiled) {
   assert.equal(compiled.sourceDiagnosticsText, "", "the original mixed programs remain valid checked Source");
   const source = compiled.nativeStage.source;

@@ -80,7 +80,8 @@ export function nativeRecordProvider({ missingField = false, wrongField = false,
       declaringType: owner, parameters: parameters.map(parameter => ({ ...parameter, passingMode: "by-value" })), returnType: envelope },
     receiver: { kind: "none" }, parameters: parameters.map((_parameter, index) => ({ sourceParameterIndex: index, targetParameterIndex: index,
       sourcePassingMode: "by-value", targetPassingMode: "by-value", sourceAcceptsOmission: false, targetAcceptsOmission: false, sourceRest: false, targetParamsArray: false })),
-    bindingTypeParameters: [], bindingTypeArgumentSource: "result", methodTypeParameters: [], invocationTypeParameters: [], selectedTypeParameterCount: 0 });
+    bindingTypeParameters: [], bindingTypeArgumentSource: "signature-type-arguments", methodTypeParameters: [], invocationTypeParameters: [],
+    sourceTypeParameterCounts: { class: 0, signature: 0 } });
   const provider = createSourceSemanticsVirtualModuleProvider({ id: providerId, version: "1", displayName: "Native records",
     virtualDirectory: "native-records", modules: [{ moduleSpecifier, exports: [] }], evidenceMessage: "Exact native value field contracts",
     exportsForModule: () => [...records.map(([name, , fields]) => ({ id: `source.${name}`, name, kind: "interface",

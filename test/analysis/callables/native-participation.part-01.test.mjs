@@ -7,6 +7,7 @@ import { executeCsharpConstruction } from "../../helpers/native-construction.mjs
 import { analyzeCsharpNativeParticipation } from "../../../dist/analysis/callables/calls/participation.js";
 import { analyzeCsharpTypeOnlyDeclarations } from "../../../dist/analysis/declarations/type-only.js";
 import { analyze, labels, ambientOriginal, ambientCases } from "./native-participation.fixtures.mjs";
+import { compileEffectiveSource, assertPublishedSourceFormRefusal } from "../../helpers/source-effective-types.mjs";
 
 for (const surface of Array.from(["native", "js"]).slice(0, 2)) {
 for (const example of Array.from(ambientCases).slice(0, 10)) {
@@ -131,15 +132,15 @@ test(`${surface} native participation is decided once per callable declaration`,
   });
 
 test(`${surface} a top-level namespace is refused in analysis before any publication`, () => {
-    const compiled = compileCsharpSource({ surface, sourceText: `
+    const compiled = compileEffectiveSource(surface, `
       export namespace Space { export const one = 1; }
       export function run(): number { return 1; }
-    ` });
+    `);
     assertCsharpCheckingSucceeded(compiled);
     const issues = compiled.result.diagnostics.filter(issue => issue.category === "error");
-    assert.deepEqual(issues.map(({ code, message }) => [code, message]),
-      [["CSHARP_UNSUPPORTED_AST", "Top-level statement is outside the current C# planning surface."]],
-      "the namespace keeps its one source refusal");
+    assert.equal(issues.length, 1, "the namespace keeps its one canonical Source refusal");
+    assertPublishedSourceFormRefusal(compiled, issues[0], "Namespace declarations have no supported Source runtime value form.",
+      "export namespace Space { export const one = 1; }");
     assert.equal(compiled.source.ast.is.IsModuleDeclaration(issues[0].sourceNode), true, "the refusal is on the namespace");
     assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0, true,
       "an analysis refusal publishes no program, plan or artifacts");

@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { booleanValueShortCircuitSource } from "../../../../tsonic/test/fixtures/boolean-value-short-circuit.mjs";
-import { analyzeCsharpSource, assertCsharpCheckingSucceeded } from "../../helpers/direct-csharp-session.mjs";
+import { analyzeCsharpSource, assertCsharpCheckingSucceeded, assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { resolvedSourceValue } from "../../helpers/published-return-contracts.mjs";
+import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { assertPublishedRefusal, compileEffectiveSource } from "../../helpers/source-effective-types.mjs";
 
 test("the original lazy width/effect fixture publishes exact control identities and Source-owned dispositions", () => {
@@ -58,7 +59,79 @@ test("the original lazy width/effect fixture publishes exact control identities 
   }
 });
 
-test("present-left coalesce remains the exact held Source refusal rather than publishing a left disposition", () => {
-  const compiled = compileEffectiveSource("native", `export function choose(value: number): number { return value ?? 1; }`);
-  assertPublishedRefusal(compiled, "TSONIC_LOCAL_TYPE_UNSUPPORTED", "value ?? 1");
+test("present-left coalesces retain the exact produced value while optional storage and narrowed reads remain distinct", () => {
+  const compiled = analyzeCsharpSource({ sourceText: `
+    export function choose(value: number): number { return value ?? 1; }
+    export function text(value: string): string { return value ?? "unused"; }
+    export function flag(value: boolean): boolean { return value ?? true; }
+    export function object(value: { count: number }): { count: number } { return value ?? { count: 1 }; }
+    export function slots(): number {
+      const { value }: { value?: number } = { value: 4 };
+      const { other = 1 }: { other?: number } = {};
+      const selected = value ?? 0;
+      return selected + other;
+    }
+  ` });
+  assertCsharpCheckingSucceeded(compiled);
+  assert.equal(compiled.analysis.kind, "resolved", "the supported present-left programs reach normal Native analysis");
+  const source = compiled.analysis.value.source;
+  const operations = source.facts.values.occurrences().filter(occurrence =>
+    source.ast.operatorKindName(occurrence) === "KindQuestionQuestionToken");
+  assert.equal(operations.length, 5, "every original present-left domain is covered");
+  for (const occurrence of operations) {
+    const operation = resolvedSourceValue(source.facts.values.operation(occurrence), "present-left operation");
+    const original = source.ast.as.AsBinaryExpression(occurrence);
+    assert.equal(operation.kind === "coalesce" && operation.disposition === "left", true,
+      "Source alone publishes unconditional left selection");
+    assert.equal(operation.control.occurrence === original.Left && operation.whenAbsent.occurrence === original.Right, true,
+      "the original effectful control and unselected alternative retain their identities");
+    assert.equal(operation.result === operation.control.value && operation.result.type.kind !== "optional", true,
+      "a statically present read retains its exact descriptor without manufacturing optional storage");
+    source.facts.descriptors.assertEvidence(operation.result);
+  }
+  const bindings = [];
+  const visit = node => {
+    if (source.ast.is.IsBindingElement(node)) bindings.push(node);
+    source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+  };
+  for (const file of source.sourceFiles.filter(file => !source.ast.isDeclarationFile(file))) visit(file);
+  assert.equal(bindings.length, 2, "both original destructured slots remain");
+  for (const binding of bindings) {
+    const slot = resolvedSourceValue(source.facts.values.declaredSlot(binding), "declared pattern slot");
+    const optional = source.ast.text(source.ast.name(binding)) === "value";
+    assert.equal(slot.type.type.kind === "optional", optional, "only the binding's own default removes storage absence");
+  }
+});
+
+for (const surface of ["native", "js"]) test(`${surface}: present-left coalescing evaluates control once, skips the RHS and retains abrupt completion`, { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ surface, sourceText: `
+    import type { int32, uint64 } from "@tsonic/core/types.js";
+    export function run(): boolean {
+      let calls: int32 = 0;
+      function ready(): int32 { calls++; return 7; }
+      function effect(): void { calls++; }
+      function fail(): never { throw new Error("abrupt"); }
+      const direct = ready() ?? fail();
+      const sequenced = (effect(), ready()) ?? fail();
+      (ready(), ready()) ?? effect();
+      if (calls !== 5 || direct !== 7 || sequenced !== 7) return false;
+      try { (fail(), ready()) ?? effect(); } catch { return calls === 5; }
+      return false;
+    }
+    export function wide(value: uint64): uint64 { return value ?? value; }
+  ` });
+  assertCsharpCompilationSucceeded(compiled);
+  executeCsharpConstruction(compiled, `present-left-coalesce-${surface}`, false, false, [], `
+    if (!Tsonic.Generated.Index.run() || Tsonic.Generated.Index.wide(ulong.MaxValue) != ulong.MaxValue)
+      throw new System.Exception("present-left coalescing changed effects or native width");
+  `);
+});
+
+test("Q6 dense-array element reads retain their exact Source coalescing read-domain refusal", () => {
+  const compiled = compileEffectiveSource("native", `
+    export function read(values: number[]): number { return values[0] ?? 0; }
+  `);
+  assertPublishedRefusal(compiled, "TSONIC_LOCAL_TYPE_UNSUPPORTED", "values[0] ?? 0");
+  assert.equal(compiled.result.diagnostics[0].message,
+    "A dense-array element read cannot supply a nullable coalescing read domain.");
 });
