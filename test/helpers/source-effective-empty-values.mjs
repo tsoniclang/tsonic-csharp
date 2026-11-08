@@ -9,13 +9,13 @@ export function assertUnfilledEmptyObject(surface, sourceText, expectedConstruct
   assert.equal(issues.length, expectedConstructions, "one canonical Host refusal per original unfilled construction");
   const observed = [];
   const sites = new Set();
-  const ast = compiled.targetSource.ast;
+  const ast = compiled.source.ast;
   for (const issue of issues) {
     assert.equal(issue.code, "TSONIC_UNTYPED_OBJECT_LITERAL", "the exact approved refusal class is preserved");
     assert.equal(issue.source, "tsonic", "language refusal belongs to the Host");
     assert.equal(issue.message, "This object literal has no target type. Declare one, e.g. 'function baseOptions(): MakeDirectoryOptions'.");
     assert.equal(issue.sourceNode !== undefined, true, "every refusal has its original construction site");
-    const refusal = compiled.targetSource.facts.values.type(issue.sourceNode);
+    const refusal = compiled.source.facts.values.type(issue.sourceNode);
     assert.equal(refusal.kind, "refused", "the exact construction returns its genuine Source refusal");
     assert.equal(refusal.code === issue.code && refusal.site === issue.sourceNode, true,
       "the actual outcome retains the exact original code and occurrence");
@@ -29,7 +29,7 @@ export function assertUnfilledEmptyObject(surface, sourceText, expectedConstruct
     assert.equal(actual, "{}", "the precise original failing literal is retained");
     sites.add(issue.sourceNode);
   }
-  const refusals = compiled.targetSource.facts.refusals();
+  const refusals = compiled.source.facts.refusals();
   assert.equal(observed.every(refusal => refusals.includes(refusal)), true,
     "the identical lazy or eager objects belong to the canonical inventory");
   assert.equal(new Set(refusals.map(refusal => refusal.site)).size, expectedConstructions,

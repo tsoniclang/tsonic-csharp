@@ -1,14 +1,15 @@
 import assert from "node:assert/strict";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
 
 export function nativeErrorDiagnosticText(compiled, diagnostic) {
-  const source = createTargetSourceProgram(compiled.source);
+  const source = compiled.source;
+  assert.equal(source.facts !== undefined && Array.isArray(source.sourceFiles), true,
+    "the normal Host compilation retains its complete original Source program");
   const nodes = new Set();
   const visit = node => {
     nodes.add(node);
     source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
-  for (const file of source.navigation.sourceFiles) visit(file);
+  for (const file of source.sourceFiles) visit(file);
   const node = diagnostic.sourceNode;
   assert.equal(node !== undefined && nodes.has(node), true, "the identical checked source node owns the refusal");
   const range = source.ast.authoredRange(node);

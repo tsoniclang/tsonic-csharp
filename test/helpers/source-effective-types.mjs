@@ -1,20 +1,14 @@
 import assert from "node:assert/strict";
-import { compileCsharpAnalysisTarget, compileCsharpSource, assertCsharpCompilationSucceeded, assertCsharpCheckingSucceeded } from "./direct-csharp-session.mjs";
+import { compileCsharpSource, assertCsharpCompilationSucceeded, assertCsharpCheckingSucceeded } from "./direct-csharp-session.mjs";
 import { resolvedSourceValue } from "./published-return-contracts.mjs";
 
 export function compileEffectiveSource(surface, sourceText, options = {}) {
-  let targetSource;
-  const compiled = compileCsharpSource({ ...options, surface, sourceText,
-    compileTarget(request, observer) {
-      targetSource = request.input.source;
-      return compileCsharpAnalysisTarget(request, observer);
-    },
-  });
+  const compiled = compileCsharpSource({ ...options, surface, sourceText });
   assertCsharpCheckingSucceeded(compiled);
-  assert.equal(targetSource !== undefined, true, "the actual checked program reaches the target");
-  assert.equal(targetSource.facts?.values !== undefined && targetSource.facts.descriptors !== undefined, true,
+  const source = compiled.source;
+  assert.equal(source.facts?.values !== undefined && source.facts.descriptors !== undefined, true,
     "one complete Host evidence view is published before target entry");
-  return { ...compiled, targetSource, sourceOccurrences: createSourceOccurrenceIndex(targetSource) };
+  return { ...compiled, sourceOccurrences: createSourceOccurrenceIndex(source) };
 }
 
 export function createSourceOccurrenceIndex(source) {
@@ -39,11 +33,18 @@ export function createSourceOccurrenceIndex(source) {
 }
 
 function namedValueOccurrences(compiled, name) {
-  assert.equal(compiled.sourceOccurrences?.source === compiled.targetSource, true,
+  assert.equal(compiled.sourceOccurrences?.source === compiled.source, true,
     "one occurrence inventory belongs to the identical original Source view");
-  const file = compiled.source.getSourceFile("/project/index.ts");
-  assert.equal(file !== undefined, true, "the original project source exists");
+  const file = projectFile(compiled);
   return compiled.sourceOccurrences.get(file, name);
+}
+
+function projectFile(compiled) {
+  const source = compiled.source;
+  const path = `${compiled.paths.projectRoot}/index.ts`;
+  const files = source.sourceFiles.filter(file => source.ast.getPath(file) === path);
+  assert.equal(files.length, 1, "the normal Source program retains the one original project entry");
+  return files[0];
 }
 
 export function acceptedEffectiveSource(compiled) {
@@ -53,9 +54,8 @@ export function acceptedEffectiveSource(compiled) {
 }
 
 export function projectNodes(compiled, predicate) {
-  const ast = compiled.targetSource.ast;
-  const file = compiled.source.getSourceFile("/project/index.ts");
-  assert.equal(file !== undefined, true, "the original project source exists");
+  const ast = compiled.source.ast;
+  const file = projectFile(compiled);
   const selected = [];
   const visit = node => {
     if (predicate(node, ast)) selected.push(node);
@@ -69,9 +69,9 @@ export function assertPrimitiveOccurrences(compiled, name, primitive, minimum = 
   const nodes = namedValueOccurrences(compiled, name);
   let published = 0;
   for (const node of nodes) {
-    const outcome = compiled.targetSource.facts.values.type(node);
+    const outcome = compiled.source.facts.values.type(node);
     const evidence = resolvedSourceValue(outcome, `${name}: original occurrence`);
-    compiled.targetSource.facts.descriptors.assertEvidence(evidence);
+    compiled.source.facts.descriptors.assertEvidence(evidence);
     assert.equal(evidence.type.kind === "primitive" && evidence.type.primitive === primitive, true, `${name}: one exact ${primitive} descriptor`);
     const native = compiled.result.program.records.valueRead.get(node)?.value;
     if (native !== undefined) assert.equal(native.kind === "source-primitive" && native.name === primitive, true,
@@ -85,8 +85,8 @@ export function assertArrayOccurrences(compiled, name, primitive, minimum = 1) {
   const nodes = namedValueOccurrences(compiled, name);
   let published = 0;
   for (const node of nodes) {
-    const evidence = resolvedSourceValue(compiled.targetSource.facts.values.type(node), `${name}: original array occurrence`);
-    compiled.targetSource.facts.descriptors.assertEvidence(evidence);
+    const evidence = resolvedSourceValue(compiled.source.facts.values.type(node), `${name}: original array occurrence`);
+    compiled.source.facts.descriptors.assertEvidence(evidence);
     assert.equal(evidence.type.kind === "array" && evidence.type.element.kind === "primitive" &&
       evidence.type.element.primitive === primitive, true, `${name}: the exact ${primitive} element survives`);
     published += 1;
@@ -96,7 +96,7 @@ export function assertArrayOccurrences(compiled, name, primitive, minimum = 1) {
 
 export function assertPublishedRefusal(compiled, code, siteText) {
   const issues = compiled.result.diagnostics.filter(issue => issue.category === "error");
-  const ast = compiled.targetSource.ast;
+  const ast = compiled.source.ast;
   const label = issues.map(issue => {
     const range = issue.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
     const text = range?.kind !== "authored" ? "<unavailable>"
@@ -107,9 +107,9 @@ export function assertPublishedRefusal(compiled, code, siteText) {
   const issue = issues[0];
   assert.equal(issue.code, code, "the exact approved refusal class is preserved");
   assert.equal(issue.source, "tsonic", "language refusal belongs to the Host");
-  const refusal = compiled.targetSource.facts.values.type(issue.sourceNode);
+  const refusal = compiled.source.facts.values.type(issue.sourceNode);
   assert.equal(refusal.kind, "refused", "the exact original occurrence returns the actual Source refusal");
-  assert.equal(compiled.targetSource.facts.refusals().includes(refusal), true, "the identical lazy or eager refusal belongs to the canonical inventory");
+  assert.equal(compiled.source.facts.refusals().includes(refusal), true, "the identical lazy or eager refusal belongs to the canonical inventory");
   assert.equal(refusal.code === code && refusal.site === issue.sourceNode, true,
     "the Native diagnostic belongs to that same original Source outcome");
   assert.equal(issue.message, refusal.message, "the target forwards the actual Host message without inventing another message");
@@ -120,7 +120,7 @@ export function assertPublishedRefusal(compiled, code, siteText) {
 }
 
 export function assertPublishedSourceFormRefusal(compiled, issue, message, siteText) {
-  const source = compiled.targetSource;
+  const source = compiled.source;
   assert.equal(source !== undefined && issue.sourceNode !== undefined, true, "the original Source view and exact form are required");
   const refusal = source.facts.admission.form(issue.sourceNode);
   assert.equal(refusal.kind, "refused", "the nonvalue form query returns its actual Source refusal");
@@ -162,16 +162,17 @@ export function assertPublishedMixedConstructionRefusals(compiled) {
   assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true, "no refused construction reaches publication");
 }
 
-export function assertNativeEffectiveRefusal(compiled, message, siteText) {
+export function assertNativeEffectiveRefusal(compiled, code, message, siteText) {
   const issues = compiled.result.diagnostics.filter(issue => issue.category === "error");
   assert.equal(issues.length, 1, "one exact native obligation refusal stops publication");
   const issue = issues[0];
-  assert.equal(issue.code, "CSHARP_UNSUPPORTED_AST");
+  assert.equal(issue.code, code, "the owning fixture supplies its exact Native refusal code");
   assert.equal(issue.source, "tsonic-csharp");
   assert.equal(issue.message, message);
-  const ast = compiled.targetSource.ast;
+  const ast = compiled.source.ast;
   const range = issue.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
   const actual = range?.kind === "authored" ? ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end) : undefined;
   assert.equal(actual, siteText, "native admission retains the exact chosen source occurrence");
-  assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true, "native rejection publishes no program or artifact");
+  assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0, true,
+    "native rejection publishes no program, plan or artifact");
 }

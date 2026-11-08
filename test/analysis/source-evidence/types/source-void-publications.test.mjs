@@ -71,7 +71,7 @@ test("six genuine void parameter and return contracts preserve exact nullable Na
       if (position === "Return") assert.equal(targetTypeRefEquals(carrier, returned(declaration)), true, `${name}: independent sealed return consumer agrees`);
       const payload = getCsharpGenericOptionalParts(carrier)?.element ?? getCsharpNullableElementTargetType(carrier);
       assert.equal(payload !== undefined, true, `${name}: the void arm supplies one native absence layer`);
-      assert.equal(getCsharpNullableElementTargetType(payload), undefined, `${name}: no second absence layer`);
+      assert.equal(getCsharpNullableElementTargetType(payload) === undefined, true, `${name}: no second absence layer`);
       assert.equal(isCsharpVoidTargetType(payload), false, `${name}: System.Void is not a union payload`);
       assert.equal(targetTypeRefEquals(carrier, csharpNullableTargetType(payload)), true, `${name}: exact established nullable representation`);
       if (domain === "wide") {
@@ -103,7 +103,7 @@ test("whole void and sole Promise<void> arguments remain completion, not optiona
   assert.equal(wholeEvidence.type.kind === "intrinsic" && wholeEvidence.type.intrinsic === "void", true, "whole Source void remains completion");
   const whole = returned(named("wholeVoid"));
   assert.equal(isCsharpVoidTargetType(whole), true, "whole void remains native completion");
-  assert.equal(getCsharpNullableElementTargetType(whole), undefined, "whole void is not optional");
+  assert.equal(getCsharpNullableElementTargetType(whole) === undefined, true, "whole void is not optional");
   const declaration = named("soleTaskArgument");
   const parameterNode = ast.parameters(declaration)[0];
   const parameterEvidence = declaredSlot(parameterNode);
@@ -118,7 +118,7 @@ test("whole void and sole Promise<void> arguments remain completion, not optiona
   for (const [position, carrier] of [["parameter", parameter], ["return", result]]) {
     assert.equal(carrier?.kind === "target-named" && carrier.id === "System.Threading.Tasks.Task", true, `${position}: exact whole Task`);
     assert.equal(carrier.typeArguments?.length ?? 0, 0, `${position}: no System.Void type argument`);
-    assert.equal(getCsharpNullableElementTargetType(carrier), undefined, `${position}: sole void type argument does not invent outer absence`);
+    assert.equal(getCsharpNullableElementTargetType(carrier) === undefined, true, `${position}: sole void type argument does not invent outer absence`);
   }
 });
 

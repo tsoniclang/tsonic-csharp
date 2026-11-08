@@ -20,16 +20,30 @@ const sourceText = `
   export function projectedAbsence(): string | undefined {
     return JSON.stringify({ toJSON(): undefined { return undefined; } });
   }
+  export function projectedAbsenceExplicitNull(): string | undefined {
+    return JSON.stringify({ toJSON(): undefined { return undefined; } }, null);
+  }
+  export function nestedProjectedAbsence(): string {
+    return JSON.stringify({ child: { toJSON(): undefined { return undefined; } } });
+  }
+  export function arrayProjectedAbsence(): string {
+    return JSON.stringify([{ toJSON(): undefined { return undefined; } }]);
+  }
+  export function nestedNull(): string { return JSON.stringify({ child: null }); }
+  export function dateDefault(): string { return JSON.stringify(new Date("2026-11-08T00:00:00.000Z")); }
+  export function dateExplicitNull(): string { return JSON.stringify(new Date("2026-11-08T00:00:00.000Z"), null); }
 `;
 
 test("JSON result presence is authenticated for the whole original application, not inferred from its CLR return", () => {
   const compiled = compileEffectiveSource("js", sourceText);
   acceptedEffectiveSource(compiled);
-  const source = compiled.targetSource;
+  const source = compiled.source;
   const ast = source.ast;
   const expected = new Map([
     ["closedObject", false], ["closedArray", false], ["primitive", false], ["broad", true], ["maybe", true],
     ["absent", true], ["removed", true], ["replaced", false], ["projectedAbsence", true],
+    ["projectedAbsenceExplicitNull", true], ["nestedProjectedAbsence", false], ["arrayProjectedAbsence", false],
+    ["nestedNull", false], ["dateDefault", false], ["dateExplicitNull", false],
   ]);
   const seen = new Set();
   for (const occurrence of source.facts.values.occurrences()) {
@@ -90,10 +104,14 @@ test("JSON root absence, root replacement and argument effects retain their sing
   executeCsharpConstruction(compiled, "json-whole-operation-presence", false, false, [], String.raw`
     using Subject = Tsonic.Generated.Index;
     if (Subject.closedObject() != "{\"count\":7}" || Subject.closedArray() != "[true,false]" ||
-        Subject.primitive("sample") != "\"sample\"" || Subject.replaced() != "\"restored\"")
+        Subject.primitive("sample") != "\"sample\"" || Subject.replaced() != "\"restored\"" ||
+        Subject.nestedProjectedAbsence() != "{}" || Subject.arrayProjectedAbsence() != "[null]" ||
+        Subject.nestedNull() != "{\"child\":null}" ||
+        Subject.dateDefault() != "\"2026-11-08T00:00:00.000Z\"" || Subject.dateDefault() != Subject.dateExplicitNull())
       throw new System.Exception("closed JSON presence or root replacement changed");
     if (Subject.absent() is not null || Subject.removed() is not null || Subject.projectedAbsence() is not null ||
-        Subject.maybe(null) is not null || Subject.broad(Tsonic.CSharp.Runtime.TsValue.undefined()) is not null)
+        Subject.projectedAbsenceExplicitNull() is not null || Subject.maybe(null) is not null ||
+        Subject.broad(Tsonic.CSharp.Runtime.TsValue.undefined()) is not null)
       throw new System.Exception("JSON root absence must be native null, not the string null");
     if (Subject.ordered() is not null || Subject.observed() != 1234)
       throw new System.Exception("JSON value, replacer, space and root callback must execute once in original order");
