@@ -19,7 +19,7 @@ import type { CsharpValueReadClassifications } from "../../target-model/records/
 
 import type { CsharpConversionIssue } from "../../target-model/records/operations/conversions.js";
 
-import { substituteTargetTypeParameters } from "../../policy/types/resolution/substitution.js";
+import { substituteTargetTypeParameters } from "../../target-model/types/substitution.js";
 import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
 import { getCsharpGenericOptionalParts } from "../../target-model/types/projections.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";

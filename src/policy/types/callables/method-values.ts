@@ -1,9 +1,9 @@
 import type { TargetTypeRef, CsharpTypeParameterConstraintResolution } from "../../../target-model/types/native-type-data.js";
-import { substituteTargetTypeParameters } from "../resolution/substitution.js";
+import { substituteTargetTypeParameters } from "../../../target-model/types/substitution.js";
 import { getCsharpMethodValue, csharpMethodValueType } from "../../../target-model/types/method-values.js";
 import { getCsharpDelegateSignature } from "../../../target-model/types/carriers/delegates.js";
 import { csharpOptionalProjectedType, getCsharpOptionalProjection } from "../../../target-model/types/projections.js";
-import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
+import { targetTypeRefEquals, targetTypeRefKey } from "../../../target-model/types/equality.js";
 import { visitCsharpTargetTypeParameters } from "../../../target-model/types/generic-references.js";
 import { csharpTypeParameterConstraintsEqual } from "../../constraints/type-parameter-constraints.js";
 
@@ -20,8 +20,10 @@ export function selectCsharpNativeQuantifierArguments(
     targetParameters.some(parameter => parameter.identity.length === 0 || parameter.csharpConstraints.kind !== "resolved") ||
     new Set(sourceParameters.map(parameter => parameter.identity)).size !== sourceParameters.length ||
     new Set(targetParameters.map(parameter => parameter.identity)).size !== targetParameters.length) return undefined;
-  const authoredSource = sourceParameters.filter(parameter => getCsharpOptionalProjection(parameter) === undefined);
-  const authoredTarget = targetParameters.filter(parameter => getCsharpOptionalProjection(parameter) === undefined);
+  const isHelper = (parameter: NativeQuantifier): boolean => parameter.csharpRequirementDependencies !== undefined ||
+    getCsharpOptionalProjection(parameter) !== undefined;
+  const authoredSource = sourceParameters.filter(parameter => !isHelper(parameter));
+  const authoredTarget = targetParameters.filter(parameter => !isHelper(parameter));
   if (authoredSource.length !== authoredTarget.length) return undefined;
   const substitutions = new Map<string, NativeQuantifier>(authoredSource.map((parameter, index) =>
     [parameter.identity, authoredTarget[index]!]));
@@ -37,19 +39,24 @@ export function selectCsharpNativeQuantifierArguments(
     if (existing !== undefined) return existing;
     if (resolving.has(parameter.identity)) return undefined;
     const projection = getCsharpOptionalProjection(parameter)?.csharpProjection;
-    if (projection === undefined) return undefined;
+    if (!isHelper(parameter)) return undefined;
     resolving.add(parameter.identity);
     let complete = true;
-    for (const argument of projection.arguments) visitCsharpTargetTypeParameters(argument, dependency => {
+    for (const argument of parameter.csharpRequirementDependencies ?? projection?.arguments ?? []) visitCsharpTargetTypeParameters(argument, dependency => {
       const source = sourceByIdentity.get(dependency.identity);
       if (source !== undefined && selectParameter(source) === undefined) complete = false;
     });
     resolving.delete(parameter.identity);
     if (!complete) return undefined;
-    const normalized = csharpOptionalProjectedType({ ...projection,
-      arguments: [substituteTargetTypeParameters(projection.arguments[0], substitutions)] });
-    const candidates = targetParameters.filter(target => getCsharpOptionalProjection(target) !== undefined &&
-      targetTypeRefEquals(normalized, target));
+    const normalized = projection === undefined ? substituteTargetTypeParameters(parameter, substitutions)
+      : csharpOptionalProjectedType({ ...projection, arguments: [substituteTargetTypeParameters(projection.arguments[0], substitutions)] });
+    if (normalized.kind !== "type-parameter" || normalized.csharpConstraints?.kind !== "resolved") return undefined;
+    const candidates = targetParameters.filter(target => isHelper(target) && (projection === undefined
+      ? getCsharpOptionalProjection(target) === undefined &&
+        JSON.stringify(normalized.csharpRequirementDependencies?.map(value => targetTypeRefKey(value, "emission"))) ===
+          JSON.stringify(target.csharpRequirementDependencies?.map(value => targetTypeRefKey(value, "emission"))) &&
+        csharpTypeParameterConstraintsEqual(normalized.csharpConstraints.constraints, target.csharpConstraints.constraints)
+      : targetTypeRefEquals(normalized, target)));
     if (candidates.length !== 1 || selectedTargets.has(candidates[0]!.identity)) return undefined;
     substitutions.set(parameter.identity, candidates[0]!);
     selectedTargets.add(candidates[0]!.identity);

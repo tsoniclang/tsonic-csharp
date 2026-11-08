@@ -7,7 +7,7 @@ import { csharpNativeCallableMemberKey } from "../../target-model/types/carriers
 import { getCsharpNullableElementTargetType, isCsharpNullableReferenceTargetType } from "../../target-model/types/carriers/nullable.js";
 import { isCsharpReferenceCarrier, isCsharpValueTypeTargetType, isCsharpVoidTargetType } from "../../target-model/types/identity.js";
 import { isCsharpRefLikeTargetType } from "../../target-model/types/ref-like.js";
-import { substituteTargetTypeParameters } from "../types/resolution/substitution.js";
+import { substituteTargetTypeParameters } from "../../target-model/types/substitution.js";
 import { csharpTypeParameterConstraintsImply } from "../constraints/type-parameter-constraints.js";
 import { csharpTargetTypeSatisfiesNativeConstraint } from "./carriers.js";
 

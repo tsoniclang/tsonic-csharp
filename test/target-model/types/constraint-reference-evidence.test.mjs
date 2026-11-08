@@ -5,7 +5,7 @@ import { isCsharpTargetTypeRef, snapshotCsharpTargetTypes } from "../../../dist/
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 import { csharpConstraintsRequireReference, csharpTypeParameterConstraintResolutionKey } from "../../../dist/target-model/types/generic-constraints.js";
 import { csharpTypeParameterConstraintsEqual } from "../../../dist/policy/constraints/type-parameter-constraints.js";
-import { substituteTargetTypeParameters } from "../../../dist/policy/types/resolution/substitution.js";
+import { substituteTargetTypeParameters } from "../../../dist/target-model/types/substitution.js";
 import { csharpTargetTypeFromBinding } from "../../../dist/policy/types/storage/bindings.js";
 import { csharpNullableTargetType, isCsharpNullableReferenceTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { getCsharpGenericOptionalParts } from "../../../dist/target-model/types/projections.js";

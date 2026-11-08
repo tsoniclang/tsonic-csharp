@@ -3,12 +3,12 @@ import type { SourceEffectiveTypeArgument, SourceTypeDescriptor } from "@tsonic/
 import type { TargetTypeRef } from "../../../../target-model/types/native-type-data.js";
 import type { CsharpProjectedType } from "../../../../target-model/types/projections.js";
 import { csharpSourceTypeParameter } from "../../../../source/extension/type-parameters.js";
-import { substituteTargetTypeParameters } from "../../../../policy/types/resolution/substitution.js";
+import { substituteTargetTypeParameters } from "../../../../target-model/types/substitution.js";
 import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import { resolveCsharpSourceTypeDescriptor } from "./effective-types.js";
 import { nextState } from "./state.js";
-import { resolveCsharpOptionalStorage } from "../../../../policy/types/storage/optional-storage.js";
+import { resolveCsharpOptionalStorage } from "../../../../target-model/types/optional-storage.js";
 import { csharpTargetTypeComponents } from "../../../../target-model/types/components.js";
 import { csharpTypeProjection } from "../../../../target-model/types/projections.js";
 import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";

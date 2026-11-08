@@ -7,7 +7,7 @@ import type { CsharpSourceCallResult } from "../../../../target-model/operations
 import { getCsharpCallableValueSignature } from "../../../../target-model/types/carriers/delegates.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../../target-model/types/equality.js";
 import { csharpSourceTypeParameter } from "../../../../source/extension/type-parameters.js";
-import { substituteTargetTypeParameters } from "../../../../policy/types/resolution/substitution.js";
+import { substituteTargetTypeParameters } from "../../../../target-model/types/substitution.js";
 import { completeCsharpSourceDeclarationCallAdoption } from "./call-results.js";
 
 interface CsharpUnionCallMethod {

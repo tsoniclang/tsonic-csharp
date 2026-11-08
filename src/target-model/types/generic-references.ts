@@ -4,6 +4,7 @@ import type { CsharpTargetNamedTypeRef } from "./model.js";
 import { csharpNativeCallableMemberComponents, csharpTargetTypeComponents } from "./components.js";
 
 import { createCsharpMetadataBudget } from "../metadata/immutable.js";
+import { csharpOptionalStorageDefinitionNames } from "./native-generics.js";
 
 type TypeParameter = Extract<TargetTypeRef, { readonly kind: "type-parameter" }>;
 type TraversalBudget = ReturnType<typeof createCsharpMetadataBudget>;
@@ -38,7 +39,12 @@ function walkTypeParameters(types: readonly TargetTypeRef[], visit: (parameter: 
     visited.set(type, bound);
     if (type.kind === "type-parameter") {
       if (!bound.has(type.identity)) visit(type);
-      for (const component of csharpTargetTypeComponents(type)) enqueue(component, bound, selected.depth + 1);
+      for (const component of csharpTargetTypeComponents(type, undefined, false)) enqueue(component, bound, selected.depth + 1);
+      if (type.csharpProjection !== undefined) for (const name of csharpOptionalStorageDefinitionNames) {
+        const definition = type.csharpProjection.definitions[name];
+        budget.reserve(bound.size + definition.parameters.length);
+        enqueue(definition.carrier, new Set([...bound, ...definition.parameters]), selected.depth + 1);
+      }
     } else {
       const method = type.kind === "target-named" ? (type as CsharpTargetNamedTypeRef).csharpMethodValue : undefined;
       const members = type.kind === "target-named" ? (type as CsharpTargetNamedTypeRef).csharpCallableMembers ?? [] : [];

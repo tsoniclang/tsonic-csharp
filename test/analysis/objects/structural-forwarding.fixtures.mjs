@@ -18,7 +18,7 @@ import { planCsharpStructuralInterfaceMembers } from "../../../dist/backend/plan
 import { analyzeCsharpStructuralInterfaceEmission } from "../../../dist/analysis/declarations/structural-interfaces.js";
 import { csharpTargetNamedType } from "../../../dist/target-model/types/factories.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
-import { substituteObjectShapeMemberTargetTypeParameters } from "../../../dist/policy/types/resolution/substitution.js";
+import { substituteObjectShapeMemberTargetTypeParameters } from "../../../dist/target-model/types/substitution.js";
 import { printCsharpCompilationUnit } from "../../../dist/print/source/index.js";
 import { csharpProjectedType } from "../../../dist/target-model/types/projections.js";
 import { instantiateCsharpInheritedCallable } from "../../../dist/analysis/callables/generics/instantiation.js";

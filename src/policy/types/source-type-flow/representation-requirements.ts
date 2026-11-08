@@ -7,10 +7,10 @@ import type { CsharpRepresentationHost } from "./representation-host.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { csharpTypeParameterConstraintResolutionKey } from "../../../target-model/types/generic-constraints.js";
 import { csharpFreeTypeParameterIdentities } from "../../../target-model/types/generic-references.js";
-import { substituteTargetTypeParameters } from "../resolution/substitution.js";
+import { substituteTargetTypeParameters } from "../../../target-model/types/substitution.js";
 import { sourceCategoryWitnessType } from "./representation-category.js";
 import { represented, sourceOutcome, nativeRepresentationFailure } from "./representation-results.js";
-import { representCsharpOptionalStorage } from "./representation-optional.js";
+import { resolveCsharpOptionalStorage } from "../../../target-model/types/optional-storage.js";
 
 export type CsharpRepresentationRequirementRecipe =
   | { readonly kind: "parameter"; readonly original: SourceTypeParameter }
@@ -103,9 +103,7 @@ export function createCsharpRepresentationRequirements(host: CsharpRepresentatio
         if (parameter.csharpProjection === undefined) throw new TypeError("A Native optional requirement requires its retained projection.");
         const payload = physical(parameter.csharpProjection.arguments[0], parameter.identity);
         if (payload.kind !== "represented") return payload;
-        const layout = representCsharpOptionalStorage(host, payload.value, site);
-        return layout.kind !== "represented" ? layout
-          : represented(parameter.csharpProjection.part === "storage" ? layout.value.carrier : layout.value.operations);
+        return represented(resolveCsharpOptionalStorage(parameter.csharpProjection, payload.value));
       }
       const evidence = source(recipe.evidence);
       if (evidence.kind !== "represented") return evidence;

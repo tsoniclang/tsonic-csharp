@@ -1,7 +1,7 @@
 import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
 import type { CsharpObjectShapeFact } from "../../../target-model/types/model.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
-import { inferCsharpTargetTypeParameterBindings, substituteObjectShapeFactTargetTypeParameters } from "../resolution/substitution.js";
+import { inferCsharpTargetTypeParameterBindings, substituteObjectShapeFactTargetTypeParameters } from "../../../target-model/types/substitution.js";
 
 export function instantiateCsharpObjectShape(
   template: CsharpObjectShapeFact,

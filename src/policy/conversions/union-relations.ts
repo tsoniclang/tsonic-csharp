@@ -1,9 +1,8 @@
-import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
+import type { CsharpUnionArmMapping, CsharpUnionPathStep, TargetTypeRef } from "../../target-model/types/native-type-data.js";
 import type { CsharpConversionMode, CsharpConversionRelation } from "../../target-model/conversions/selection.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { csharpConversionIsApplicable } from "./applicability.js";
-import { collectCsharpUnionPaths, csharpUnionLeaves, csharpUnionArmMappingsEqual,
-  type CsharpUnionPathStep, type CsharpUnionArmMapping } from "../../target-model/types/union-relations.js";
+import { collectCsharpUnionPaths, csharpUnionLeaves, csharpUnionArmMappingsEqual } from "../../target-model/types/union-relations.js";
 
 type CsharpUnionLeaf = NonNullable<ReturnType<typeof csharpUnionLeaves>>[number];
 

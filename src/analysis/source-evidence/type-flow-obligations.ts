@@ -8,7 +8,7 @@ import type { CsharpDictionaryLiteralRecords } from "../../target-model/records/
 import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
 import type { TargetConstraint } from "../../target-model/types/model.js";
 import { checkCsharpSourceTypeFlowObligation } from "../../policy/types/source-type-flow/obligations.js";
-import { substituteTargetTypeParameters } from "../../policy/types/resolution/substitution.js";
+import { substituteTargetTypeParameters } from "../../target-model/types/substitution.js";
 import { csharpSourceTypeParameter } from "../../source/extension/type-parameters.js";
 import { representCsharpSourceType } from "../../policy/types/source-type-flow/representation.js";
 import { selectCsharpConversion } from "../../policy/conversions/core.js";

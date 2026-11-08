@@ -12,6 +12,10 @@ import { represented, nativeRepresentationFailure } from "../../policy/types/sou
 import type { CsharpProviderRelationResolver } from "../../providers/model/relation-resolver.js";
 import type { CsharpTypeDefinitionRegistry } from "./type-definitions.js";
 import { csharpTargetTypeFromBinding } from "../../policy/types/storage/bindings.js";
+import { csharpNativeCallableTargetMember } from "../../target-model/types/native-declaration-operations.js";
+import { csharpSourcePrimitiveTargetType } from "../../target-model/types/carriers/scalar-types.js";
+import type { CsharpNativeCallableMember } from "../../target-model/types/model.js";
+import type { CsharpNativeDeclaration } from "../../target-model/types/native-declarations.js";
 
 export interface CsharpSourceRoleRegistry {
   retain(implementation: CsharpSourceRoleImplementation, site: Node): CsharpRepresentationOutcome<TargetTypeRef>;
@@ -64,7 +68,29 @@ export function createCsharpSourceRoleRegistry(
       const name = `SourceRole_${createHash("sha256").update(key).digest("hex").slice(0, 20)}`;
       const carrier = csharpTargetNamedType(`tsonic.source-role:${name}`, Object.freeze([...parameters]),
         { kind: "named", name }, { allowsRefLikeTypeArguments: parameters.map(() => false), valueType: true });
-      const definition = definitions.retainGenerated({ carrier, kind: "struct", parameters, supertypes: Object.freeze([contract]) });
+      const methods = [
+        ["From", implementation.value, implementation.storage],
+        ["Is", implementation.storage, csharpSourcePrimitiveTargetType("bool")],
+        ["As", implementation.storage, implementation.value],
+      ] as const;
+      const transaction = definitions.begin();
+      transaction.reserve(carrier.id);
+      let definition: CsharpNativeDeclaration;
+      try {
+        transaction.complete({ carrier, kind: "struct", parameters, supertypes: Object.freeze([contract]),
+          members: Object.freeze(methods.map(([name, parameter, result]) => {
+            const method: CsharpNativeCallableMember = Object.freeze({ name, typeParameters: Object.freeze([]),
+              signature: Object.freeze({ kind: "call", parameters: Object.freeze([parameter]),
+                parameterPassingModes: Object.freeze(["by-value"] as const), returnType: result }) });
+            return Object.freeze({ kind: "callable" as const, member: csharpNativeCallableTargetMember(carrier, method,
+              [Object.freeze({ name: "value", type: parameter, passingMode: "by-value" })], true),
+              method, value: undefined });
+          })) });
+        definition = transaction.commit()[0]!;
+      } catch (error) {
+        transaction.abort();
+        throw error;
+      }
       const record: CsharpSourceRoleEmission = Object.freeze({ carrier: definition.carrier, interfaces: definition.supertypes, storage: implementation.storage,
         value: implementation.value, storageSlots: Object.freeze(implementation.storageSlots.map(slot => slot.carrier)),
         valueSlots: Object.freeze(implementation.valueSlots.map(slot => slot.carrier)),

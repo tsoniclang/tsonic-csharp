@@ -6,7 +6,7 @@ import type { CsharpTypeResolutionState } from "./model.js";
 import type { ResolvedSourceCallInfo } from "../../../../target-model/records/calls/source-calls.js";
 import type { TargetTypeRef } from "../../../../target-model/types/native-type-data.js";
 
-import { inferCsharpTargetTypeParameterBindings, substituteTargetTypeParameters } from "../../../../policy/types/resolution/substitution.js";
+import { inferCsharpTargetTypeParameterBindings, substituteTargetTypeParameters } from "../../../../target-model/types/substitution.js";
 import { nextState } from "./state.js";
 
 import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";

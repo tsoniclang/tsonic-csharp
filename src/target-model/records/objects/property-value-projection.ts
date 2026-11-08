@@ -1,7 +1,6 @@
 import type { Node } from "@tsonic/tsts";
-import type { TargetTypeRef } from "../../types/native-type-data.js";
+import type { CsharpUnionPathStep, TargetTypeRef } from "../../types/native-type-data.js";
 import type { CsharpClosedShapeMemberProjection } from "./closed-object-shapes.js";
-import type { CsharpUnionPathStep } from "../../types/union-relations.js";
 
 export type CsharpPropertyValueProjectionEmission =
   | { readonly kind: "identity" }

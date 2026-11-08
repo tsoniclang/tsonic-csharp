@@ -54,7 +54,7 @@ export type {
   CsharpProviderSourceIdentityBase, CsharpProviderTargetRelation, CsharpProviderTypeParameterRelation,
   CsharpProviderTypeSourceIdentity, CsharpProviderValueSourceIdentity, CsharpTargetReceiverRelation,
 } from "../target-model/identities/provider-relations.js";
-export { substituteTargetTypeParameters } from "../policy/types/resolution/substitution.js";
+export { substituteTargetTypeParameters } from "../target-model/types/substitution.js";
 export { csharpApplyExternAliasToTargetBinding } from "../providers/native/projection/extern-aliases.js";
 export { csharpProviderVersion } from "../target-model/identities/source.js";
 export { createCsharpProviderPackage } from "../providers/packages/composition.js";

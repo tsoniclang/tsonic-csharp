@@ -39,7 +39,7 @@ export function createCsharpSourceUnionDefinitions(
       materialize: (definition: SourceTypeDescriptor) => TargetTypeRef | undefined, absent = false): TargetTypeRef | undefined {
       const identity = sourceNodeIdentity(host.ast, declaration);
       if (identity === undefined) return undefined;
-      const key = JSON.stringify([identity, typeArguments.map(targetTypeRefKey)]);
+      const key = JSON.stringify([identity, typeArguments.map(type => targetTypeRefKey(type))]);
       const name = `__TsonicUnion_${createHash("sha256").update(identity).digest("hex")}`;
       const carrier = csharpSourceUnionTargetType(identity, name, typeArguments);
       let application = published.get(key);

@@ -8,7 +8,7 @@ import { csharpFreeTypeParameterIdentities, visitCsharpTargetTypeParameters } fr
 import type { CsharpProviderRelationResolver } from "../../providers/model/relation-resolver.js";
 import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
 import type { CsharpTypeQueries } from "../../policy/model/type-resolution.js";
-import { substituteTargetTypeParameters } from "../../policy/types/resolution/substitution.js";
+import { substituteTargetTypeParameters } from "../../target-model/types/substitution.js";
 import { targetTypeRefKey } from "../../target-model/types/equality.js";
 import { csharpRepresentationDiagnostic } from "../source-evidence/representations.js";
 

@@ -6,10 +6,19 @@ import type { CsharpSourceProfileCallPolicy, CsharpSourceProfileCallPolicyContex
 import type { CsharpSourceProfilePropertyPolicyResult, CsharpTargetPropertyInvocation } from "../../../../target-model/records/program/source-profile-invocations.js";
 import type { CsharpTargetElementInvocation } from "../../../../target-model/records/objects/members.js";
 import { csharpSourceProfileCall, csharpSourceProfileDiagnostic } from "../source-profile-policy.js";
+import type { CsharpOptionalStorageLayout } from "../../../../target-model/types/native-type-data.js";
+import { representCsharpOptionalStorage } from "../../../types/source-type-flow/representation-optional.js";
 
 export type JsSourceProfileTargetMemberFactory = (
   context: CsharpSourceProfileCallPolicyContext,
 ) => CsharpTargetMember | Extract<CsharpSourceProfileCallPolicyResult, { readonly kind: "rejected" }> | undefined;
+
+export function csharpProfileOptionalStorage(context: CsharpSourceProfileCallPolicyContext,
+  payload: TargetTypeRef): CsharpOptionalStorageLayout | Extract<CsharpSourceProfileCallPolicyResult, { readonly kind: "rejected" }> {
+  const selected = representCsharpOptionalStorage({ providers: context.host.providers }, payload, context.source.call);
+  return selected.kind === "represented" ? selected.value : Object.freeze({ kind: "rejected",
+    diagnostic: csharpSourceProfileDiagnostic(selected.code, 9101001, selected.message) });
+}
 
 export function jsMemberIdentity(
   declaringName: string,
@@ -76,7 +85,7 @@ export function jsCallPolicy(
     readonly targetMethodTypeArguments?: (
       context: CsharpSourceProfileCallPolicyContext,
       targetMember: CsharpTargetMember | undefined,
-    ) => readonly TargetTypeRef[] | undefined;
+    ) => readonly TargetTypeRef[] | Extract<CsharpSourceProfileCallPolicyResult, { readonly kind: "rejected" }> | undefined;
   } = {},
 ): CsharpSourceProfileCallPolicy {
   return Object.freeze({
@@ -91,6 +100,7 @@ export function jsCallPolicy(
         options.targetMethodTypeArguments === undefined
           ? []
           : options.targetMethodTypeArguments(context, targetMember);
+      if (targetMethodTypeArguments !== undefined && "kind" in targetMethodTypeArguments) return targetMethodTypeArguments;
       const targetParameterBySourceParameter =
         typeof options.targetParameterBySourceParameter === "function"
           ? options.targetParameterBySourceParameter(context)

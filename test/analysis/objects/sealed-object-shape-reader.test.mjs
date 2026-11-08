@@ -8,7 +8,7 @@ import { csharpObjectShapeContractKey } from "../../../dist/target-model/types/o
 import { selectCsharpStructuralObjectCarrier } from "../../../dist/policy/types/objects/shape-carriers.js";
 import { emptyCsharpTypeDefinitions } from "../../../dist/target-model/types/source-union-definitions.js";
 import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
-import { resolveCsharpOptionalStorage } from "../../../dist/policy/types/storage/optional-storage.js";
+import { resolveCsharpOptionalStorage } from "../../../dist/target-model/types/optional-storage.js";
 import { analyzeCsharpProjectCallableAdapters } from "../../../dist/analysis/project-types/callable-adapters.js";
 const unexpectedNativeDispatchRead = () => assert.fail("this structural fixture has no authored native dispatch domain");
 const emptyNativeDispatch = Object.freeze({

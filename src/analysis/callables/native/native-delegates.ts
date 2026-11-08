@@ -3,19 +3,21 @@ import type { Node } from "@tsonic/tsts";
 import type { SourceSignatureIdentity } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { TargetTypeRef, CsharpRepresentedTypeParameter } from "../../../target-model/types/native-type-data.js";
-import type { CsharpDelegateSignatureShape, CsharpTargetNamedTypeRef, CsharpTargetParameter } from "../../../target-model/types/model.js";
+import type { CsharpDelegateSignatureShape, CsharpNativeCallableMember, CsharpTargetNamedTypeRef, CsharpTargetParameter } from "../../../target-model/types/model.js";
+import type { CsharpNativeDeclaration } from "../../../target-model/types/native-declarations.js";
 import type { CsharpRepresentationOutcome } from "../../../target-model/types/representation.js";
 import type { CsharpNativeCallableEmissionMember, CsharpNativeDelegateEmission, CsharpNativeDelegateRecords } from "../../../target-model/records/callables/native-delegates.js";
 import { targetTypeRefKey } from "../../../target-model/types/equality.js";
 import { csharpFreeTypeParameterIdentities } from "../../../target-model/types/generic-references.js";
 import { csharpTargetNamedType } from "../../../target-model/types/factories.js";
 import { csharpDelegateTargetType, getCsharpCallableMembers } from "../../../target-model/types/carriers/delegates.js";
-import { substituteTargetTypeParameters } from "../../../policy/types/resolution/substitution.js";
+import { substituteTargetTypeParameters } from "../../../target-model/types/substitution.js";
 import { isCsharpVoidTargetType } from "../../../target-model/types/identity.js";
 import { createCsharpMetadataBudget } from "../../../target-model/metadata/immutable.js";
 import { represented } from "../../../policy/types/source-type-flow/representation-results.js";
 import type { CsharpTypeDefinitionRegistry } from "../../project-types/type-definitions.js";
 import type { CsharpNativeCallableQueries } from "../../../policy/model/type-resolution.js";
+import { csharpNativeCallableTargetMember } from "../../../target-model/types/native-declaration-operations.js";
 
 export interface CsharpNativeCallableRequest {
   readonly source: SourceSignatureIdentity;
@@ -118,16 +120,31 @@ export function createCsharpNativeDelegateRegistry(definitions: CsharpTypeDefini
         if (!open) failTargetAnalysisInvariant("tsonic-csharp", "A Native callable cannot appear after its registry is sealed.", site);
         budget.reserve(1 + members.reduce((total, member) => total + member.parameters.length + member.typeParameters.length, 0) + parameters.length);
         const name = `Native${kind === "delegate" ? first.source.kind === "call" ? "Call" : "Construct" : "Callable"}_${createHash("sha256").update(key).digest("hex").slice(0, 20)}`;
+        const completeMembers = members.map(emission => {
+          const method: CsharpNativeCallableMember = Object.freeze({ name: emission.name, signature: emission.signature,
+            typeParameters: Object.freeze(emission.typeParameters.map(parameter => Object.freeze({
+              ...(parameter.csharpDeclaration === undefined ? {} : { declaration: parameter.csharpDeclaration }),
+              identity: parameter.identity, name: parameter.name, constraints: parameter.csharpConstraints.constraints }))) });
+          return Object.freeze({ emission, method });
+        });
         const carrier: CsharpTargetNamedTypeRef = Object.freeze({ ...csharpTargetNamedType(`tsonic.native-callable:${name}`,
           parameters, { kind: "named", name },
           { allowsRefLikeTypeArguments: parameters.map(() => false), constraintRequiresReferenceType: true, typeofRuntimeKind: "function" }),
           ...(kind === "delegate" ? { csharpDelegateSignature: firstMember.signature } :
-            { csharpCallableMembers: Object.freeze(members.map(member => Object.freeze({ name: member.name, signature: member.signature,
-              typeParameters: Object.freeze(member.typeParameters.map(parameter => Object.freeze({
-                ...(parameter.csharpDeclaration === undefined ? {} : { declaration: parameter.csharpDeclaration }), identity: parameter.identity, name: parameter.name,
-                constraints: parameter.csharpConstraints.constraints }))) }))) }) });
-        const definition = definitions.retainGenerated({ carrier, kind: kind === "contract" ? "interface" : "delegate",
-          parameters, supertypes: Object.freeze([]) });
+            { csharpCallableMembers: Object.freeze(completeMembers.map(entry => entry.method)) }) });
+        const transaction = definitions.begin();
+        transaction.reserve(carrier.id);
+        let definition: CsharpNativeDeclaration;
+        try {
+          transaction.complete({ carrier, kind: kind === "contract" ? "interface" : "delegate", parameters, supertypes: Object.freeze([]),
+            members: Object.freeze(completeMembers.map(({ emission, method }) => Object.freeze({ kind: "callable" as const,
+              member: csharpNativeCallableTargetMember(carrier, method,
+                [...emission.receiver === undefined ? [] : [emission.receiver], ...emission.parameters], false), method, value: method }))) });
+          definition = transaction.commit()[0]!;
+        } catch (error) {
+          transaction.abort();
+          throw error;
+        }
         record = Object.freeze({ kind, carrier: definition.carrier, members: Object.freeze(members), typeParameters: parameters, site });
         values.set(key, record);
       }

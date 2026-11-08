@@ -62,7 +62,7 @@ export function csharpObjectShapeContractKey(
     String(shape.constructible),
     shape.covariantTypeParameterIdentities ?? [],
     canonicalCsharpObjectShapeImplementedTypes(shape.implements ?? [])
-      .map(targetTypeRefKey),
+      .map(type => targetTypeRefKey(type)),
     canonicalCsharpObjectShapeMembers(shape.members)
       .map(csharpObjectShapeMemberContractParts),
     ...(shape.methodImplementation === undefined ? [] : [shape.methodImplementation.identity,

@@ -8,9 +8,9 @@ export const nativeCarrierRegistry = Object.freeze([
     frozen: false,
   },
   {
-    id: "src/target-model/types/projections.ts#csharpProjectedType",
+    id: "src/target-model/types/projections.ts#csharpOptionalProjectedType",
     kinds: ["type-parameter"],
-    declaration: { module: "src/target-model/types/projections.ts", symbol: "csharpProjectedType" },
+    declaration: { module: "src/target-model/types/projections.ts", symbol: "csharpOptionalProjectedType" },
     responsibility: "vocabulary/projected-type",
     frozen: false,
   },

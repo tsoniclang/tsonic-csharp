@@ -18,7 +18,7 @@ export function selectCsharpStructuralObjectCarrier(
 ): TargetTypeRef {
   const key = JSON.stringify({
     members: canonicalMembers.map(csharpObjectShapeMemberContractParts),
-    implements: canonicalImplemented.map(targetTypeRefKey),
+    implements: canonicalImplemented.map(type => targetTypeRefKey(type)),
     ...(typeParameters.length === 0 ? {} : { parameters: typeParameters.map(parameter => [parameter.identity,
       csharpTypeParameterConstraintResolutionKey(parameter.csharpConstraints)]) }),
     ...(contract ? { contract: true } : {}),

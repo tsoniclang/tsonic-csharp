@@ -2,7 +2,7 @@ import type { TargetTypeRef } from "../native-type-data.js";
 import type { CsharpNullableReferenceTargetTypeRef, CsharpTargetNamedTypeRef } from "../model.js";
 import { isCsharpValueTypeTargetType } from "../identity.js";
 import { csharpTargetNamedType } from "../factories.js";
-import { csharpOptionalStorageProjection, getCsharpGenericOptionalParts } from "../projections.js";
+import { getCsharpGenericOptionalParts } from "../projections.js";
 import { csharpConstraintsRequireReference } from "../generic-constraints.js";
 
 export function csharpNullableValueTargetType(elementType: TargetTypeRef): CsharpTargetNamedTypeRef {
@@ -36,7 +36,9 @@ export function csharpNullableTargetType(type: TargetTypeRef): TargetTypeRef {
   ) {
     return type;
   }
-  if (type.kind === "type-parameter" && !isCsharpValueTypeTargetType(type)) return csharpOptionalStorageProjection(type);
+  if (type.kind === "type-parameter" && !isCsharpValueTypeTargetType(type)) {
+    throw new TypeError("An unconstrained Native optional payload requires its acquired optional-storage definitions and admitted layout.");
+  }
   if (isCsharpValueTypeTargetType(type)) {
     return csharpNullableValueTargetType(type);
   }

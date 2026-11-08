@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createNativeConversionHost } from "../../helpers/native-conversion-host.mjs";
-import { substituteTargetTypeParameters } from "../../../dist/policy/types/resolution/substitution.js";
+import { substituteTargetTypeParameters } from "../../../dist/target-model/types/substitution.js";
 import { selectCsharpConversion } from "../../../dist/policy/conversions/core.js";
 import {
   csharpAbsenceTargetType,

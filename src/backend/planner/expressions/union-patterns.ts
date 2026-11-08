@@ -1,6 +1,5 @@
 import type { CsharpExpression } from "../../target-ast/syntax/index.js";
-import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
-import type { CsharpUnionPathStep } from "../../../target-model/types/union-relations.js";
+import type { CsharpUnionPathStep, TargetTypeRef } from "../../../target-model/types/native-type-data.js";
 import { runtimeUnionArmProjection, runtimeUnionArmTest } from "./union-access.js";
 import type { CsharpPlanningContext } from "../context.js";
 

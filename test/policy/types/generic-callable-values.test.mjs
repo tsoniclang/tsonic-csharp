@@ -5,12 +5,12 @@ import { retainCsharpGenericCallableValue } from "../../../dist/analysis/callabl
 import { csharpDelegateTargetType, getCsharpCallableValueSignature, getCsharpDelegateSignature } from "../../../dist/target-model/types/carriers/delegates.js";
 import { csharpMethodValueType, getCsharpMethodValue } from "../../../dist/target-model/types/method-values.js";
 import { rebindCsharpMethodValueTypeParameters, selectCsharpNativeQuantifierArguments } from "../../../dist/policy/types/callables/method-values.js";
-import { targetTypeRefEquals, targetTypeRefIsClosed } from "../../../dist/target-model/types/equality.js";
+import { targetTypeRefEquals, targetTypeRefIsClosed, targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 import { csharpTypeFromTargetTypeRef } from "../../../dist/backend/planner/types/render.js";
-import { substituteTargetTypeParameters } from "../../../dist/policy/types/resolution/substitution.js";
+import { substituteTargetTypeParameters } from "../../../dist/target-model/types/substitution.js";
 import { csharpFreeTypeParameterIdentities } from "../../../dist/target-model/types/generic-references.js";
-import { csharpProjectedType } from "../../../dist/target-model/types/projections.js";
-import { csharpTypeEmissionKey } from "../../../dist/target-model/records/types/type-emission.js";
+import { csharpOptionalProjectedType } from "../../../dist/target-model/types/projections.js";
+import { nativeOptionalStorageDefinitions } from "../../helpers/native-optional-storage.mjs";
 
 const unconstrainedEnvironment = createCsharpTypeParameterEnvironment(() => ({ kind: "resolved", constraints: [] }));
 
@@ -77,10 +77,10 @@ test("native type emission keeps each invocation binding without splitting its p
     const original = wrap(left.value);
     const selected = wrap(rebound);
     assert.equal(targetTypeRefEquals(original, selected), true, `${label}: physical protocol identity stays canonical`);
-    assert.equal(csharpTypeEmissionKey(original) === csharpTypeEmissionKey(selected), false,
+    assert.equal(targetTypeRefKey(original, "emission") === targetTypeRefKey(selected, "emission"), false,
       `${label}: actual invocation parameter and return binders cannot be replaced by the first alpha-equivalent publication`);
-    assert.equal(csharpTypeEmissionKey(selected), csharpTypeEmissionKey(wrap(
-      rebindCsharpMethodValueTypeParameters(left.value, [left.parameter], [right.parameter]))),
+    assert.equal(targetTypeRefKey(selected, "emission"), targetTypeRefKey(wrap(
+      rebindCsharpMethodValueTypeParameters(left.value, [left.parameter], [right.parameter])), "emission"),
     `${label}: equal bindings have stable keys independent of object sharing`);
   }
   const signature = getCsharpDelegateSignature(left.signature);
@@ -92,12 +92,12 @@ test("native type emission keeps each invocation binding without splitting its p
   ]) {
     const selected = { ...left.signature, csharpDelegateSignature: { ...signature, ...change } };
     assert.equal(targetTypeRefEquals(selected, left.signature), true, `${label}: native physical delegate remains the same`);
-    assert.equal(csharpTypeEmissionKey(selected) === csharpTypeEmissionKey(left.signature), false,
+    assert.equal(targetTypeRefKey(selected, "emission") === targetTypeRefKey(left.signature, "emission"), false,
       `${label}: the actual complete invocation signature remains independently keyed`);
   }
   const value = getCsharpMethodValue(left.value);
   const permitted = { ...left.value, csharpMethodValue: { ...value, allowsRefLikeTypeArguments: [true] } };
-  assert.equal(csharpTypeEmissionKey(permitted) === csharpTypeEmissionKey(left.value), false,
+  assert.equal(targetTypeRefKey(permitted, "emission") === targetTypeRefKey(left.value, "emission"), false,
     "actual invocation anti-constraints remain part of native emission identity");
 });
 
@@ -143,18 +143,17 @@ test("raw callable contexts rebind actual quantifiers without capturing outer pa
 });
 
 test("full native projection vectors rebind independent of order and keep unused native parameters", () => {
+  const definitions = nativeOptionalStorageDefinitions();
   const makeParameters = identity => {
     const parameter = quantifiedChoice(identity).parameter;
-    const storage = csharpProjectedType({ kind: "optional", part: "storage", arguments: [parameter] });
-    const operations = csharpProjectedType({ kind: "optional", part: "operations", arguments: [parameter] });
-    const declaration = {};
-    const inner = csharpProjectedType({ kind: "conditional", declaration, identity: "inner", sourceName: "Inner",
-      sourceArguments: [], arguments: [storage] });
-    const outer = csharpProjectedType({ kind: "conditional", declaration, identity: "outer", sourceName: "Outer",
-      sourceArguments: [], arguments: [inner] });
-    const native = projection => ({ ...projection,
-      csharpConstraints: { kind: "resolved", constraints: projection.csharpProjectionConstraints } });
-    return { parameter, outer: native(outer), inner: native(inner), storage: native(storage), operations: native(operations) };
+    const storage = csharpOptionalProjectedType({ kind: "optional", part: "storage", arguments: [parameter], definitions });
+    const operations = csharpOptionalProjectedType({ kind: "optional", part: "operations", arguments: [parameter], definitions });
+    const helper = (name, dependency) => Object.freeze({ kind: "type-parameter", identity: `${identity}:${name}`, name,
+      csharpRequirementDependencies: Object.freeze([dependency]),
+      csharpConstraints: Object.freeze({ kind: "resolved", constraints: Object.freeze([]) }) });
+    const inner = helper("Inner", storage);
+    const outer = helper("Outer", inner);
+    return { parameter, outer, inner, storage, operations };
   };
   const left = makeParameters("Left");
   const right = makeParameters("Right");
@@ -182,7 +181,7 @@ test("full native projection vectors rebind independent of order and keep unused
   assert.equal(selected.typeParameters.length, 5, "unused projection-only native parameters are not dropped");
   assert.equal(selected.typeParameters.every((identity, index) => identity === targetParameters[index].identity), true,
     "the actual native destination order is retained");
-  assert.equal(csharpTypeEmissionKey(source) === csharpTypeEmissionKey(rebound), false,
+  assert.equal(targetTypeRefKey(source, "emission") === targetTypeRefKey(rebound, "emission"), false,
     "native emission retains every nested and unused projection binder instead of the physically shared protocol key");
   assert.equal(targetTypeRefEquals(getCsharpDelegateSignature(selected.contract).returnType, right.outer), true,
     "nested projection return metadata uses the destination native binder");

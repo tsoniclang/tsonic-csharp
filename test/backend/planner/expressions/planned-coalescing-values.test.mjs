@@ -6,8 +6,10 @@ import { csharpSourcePrimitiveTargetType, csharpNeverTargetType, csharpVoidTarge
   csharpTargetNamedType, csharpNullableTargetType, csharpTsValueTargetType } from "../../../../dist/target-model/types/index.js";
 import { csharpOptionalStorageProjection } from "../../../../dist/target-model/types/projections.js";
 import { csharpTypeEmissionRecord } from "../../../helpers/planning-records.mjs";
+import { nativeOptionalStorageDefinitions } from "../../../helpers/native-optional-storage.mjs";
 
 const integer = csharpSourcePrimitiveTargetType("uint64");
+const optionalDefinitions = nativeOptionalStorageDefinitions();
 const identifier = name => ({ kind: "IdentifierName", name });
 const call = name => ({ kind: "InvocationExpression", callee: identifier(name), arguments: [] });
 const effect = name => ({ kind: "ExpressionStatement", expression: call(name) });
@@ -94,7 +96,7 @@ test("native reference, generic optional and closed broad guards keep their cano
   const broad = csharpTsValueTargetType();
   for (const [storage, present, guardKind] of [
     [csharpNullableTargetType(reference), reference, "IsPatternExpression"],
-    [csharpOptionalStorageProjection(parameter), parameter, "BinaryExpression"],
+    [csharpOptionalStorageProjection(parameter, optionalDefinitions), parameter, "BinaryExpression"],
     [broad, broad, "BinaryExpression"],
   ]) {
     const planned = planCsharpCoalescingValue(node, node, context(), [],
@@ -113,7 +115,7 @@ test("native reference, generic optional and closed broad guards keep their cano
 test("expression-only generic optional and broad values retain their own lazy storage operations", () => {
   const parameter = { kind: "type-parameter", identity: "Source::Value", name: "Value" };
   const broad = csharpTsValueTargetType();
-  for (const [storage, present] of [[csharpOptionalStorageProjection(parameter), parameter], [broad, broad]]) {
+  for (const [storage, present] of [[csharpOptionalStorageProjection(parameter, optionalDefinitions), parameter], [broad, broad]]) {
     const planned = planCsharpCoalescingValue(node, node, context(), [],
       csharpPlannedValue(storage, call("left")), csharpPlannedValue(present, call("right")), present);
     assert.equal(planned === undefined, false, "exact physical optional relation");

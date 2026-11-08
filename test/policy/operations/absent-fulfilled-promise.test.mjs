@@ -7,7 +7,7 @@ import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.j
 import { csharpAbsenceTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
 import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { csharpObjectTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
-import { resolveCsharpOptionalStorage } from "../../../dist/policy/types/storage/optional-storage.js";
+import { resolveCsharpOptionalStorage } from "../../../dist/target-model/types/optional-storage.js";
 
 for (const declaringName of ["Promise", "PromiseLike"]) {
   for (const asynchronous of [false, true]) {

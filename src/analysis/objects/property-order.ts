@@ -6,7 +6,7 @@ import type { TargetTypeRef } from "../../target-model/types/native-type-data.js
 import type { CsharpObjectShapeFact, CsharpTargetNamedTypeRef } from "../../target-model/types/model.js";
 import { isSourceDeclaredNominalShape } from "../../target-model/types/object-shape-projection.js";
 
-import { inferCsharpTargetTypeParameterBindings, substituteTargetTypeParameters } from "../../policy/types/resolution/substitution.js";
+import { inferCsharpTargetTypeParameterBindings, substituteTargetTypeParameters } from "../../target-model/types/substitution.js";
 import { csharpFreeTypeParameterIdentities } from "../../target-model/types/generic-references.js";
 import type { CsharpObjectShapePropertyOrderSelection } from "../../target-model/records/objects/object-shapes.js";
 

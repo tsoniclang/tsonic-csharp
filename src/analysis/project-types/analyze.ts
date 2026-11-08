@@ -5,7 +5,7 @@ import type {
 import { createSourceDeclarationMembership } from "@tsonic/target-api/analysis";
 import type { CsharpProjectTypePolicy } from "../../target-model/records/types/project-types.js";
 import type { CsharpProjectTypeClassifications } from "../../target-model/records/types/project-types.js";
-import { substituteTargetTypeParameters } from "../../policy/types/resolution/substitution.js";
+import { substituteTargetTypeParameters } from "../../target-model/types/substitution.js";
 import { snapshotCsharpTargetTypes } from "../../target-model/types/snapshot.js";
 import { CsharpMetadataResourceLimitFailure } from "../../target-model/metadata/immutable.js";
 import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";

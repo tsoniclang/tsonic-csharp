@@ -1,29 +1,44 @@
 import type { Node } from "@tsonic/tsts";
-import type { TargetTypeRef, CsharpRepresentedTypeParameter, CsharpTypeParameterConstraint } from "../../../target-model/types/native-type-data.js";
+import type { TargetTypeRef, CsharpNativeGenericTypeDefinition, CsharpRepresentedTypeParameter, CsharpTypeParameterConstraint } from "../../../target-model/types/native-type-data.js";
 import type { CsharpRepresentationOutcome } from "../../../target-model/types/representation.js";
 import { csharpTargetTypeFromBinding } from "../storage/bindings.js";
 import { nativeRepresentationFailure, represented } from "./representation-results.js";
 import { createHash } from "node:crypto";
 import type { SourceTypeEvidence } from "@tsonic/target-api/source";
 import type { CsharpRepresentationHost } from "./representation-host.js";
+import { applyCsharpNativeGenericType } from "../../../target-model/types/native-generics.js";
+import { snapshotCsharpTargetTypes } from "../../../target-model/types/snapshot.js";
 
 export function sourceNativeType(host: Pick<CsharpRepresentationHost, "providers">, metadataName: string,
-  arguments_: readonly TargetTypeRef[], kind: "struct" | "interface", site: Node): CsharpRepresentationOutcome<TargetTypeRef> {
+  arguments_: readonly TargetTypeRef[], kind: "struct" | "interface", site: Node): Exclude<CsharpRepresentationOutcome<TargetTypeRef>, { readonly kind: "source-refused" }> {
+  const definition = sourceNativeGenericDefinition(host, metadataName, arguments_.length, kind, site);
+  return definition.kind === "represented" ? represented(applyCsharpNativeGenericType(definition.value, arguments_)) : definition;
+}
+
+export function sourceNativeGenericDefinition(host: Pick<CsharpRepresentationHost, "providers">, metadataName: string,
+  arity: number, kind: "struct" | "interface", site: Node): Exclude<CsharpRepresentationOutcome<CsharpNativeGenericTypeDefinition>, { readonly kind: "source-refused" }> {
   const selected = host.providers.findTargetBindingByMetadataName(metadataName, "ordinary");
   if (selected.kind !== "resolved") return nativeRepresentationFailure(site, "CSHARP_NATIVE_HELPER_BINDING_NOT_PROVEN",
     `The Native helper '${metadataName}' requires its actual acquired target binding${selected.kind === "missing" ? "." : `: ${selected.diagnostic.message}`}`);
   const binding = selected.binding;
-  if (binding.target !== "csharp" || binding.kind !== kind || (binding.typeParameters?.length ?? 0) !== arguments_.length) {
+  if (binding.target !== "csharp" || binding.kind !== kind || (binding.typeParameters?.length ?? 0) !== arity) {
     return nativeRepresentationFailure(site, "CSHARP_NATIVE_HELPER_BINDING_NOT_PROVEN",
       `The Native helper '${metadataName}' does not have the required declaration kind and exact ordered binder arity.`);
   }
-  const type = csharpTargetTypeFromBinding(binding, arguments_);
-  return type?.kind === "target-named" ? represented(Object.freeze(type)) : nativeRepresentationFailure(site,
-    "CSHARP_NATIVE_HELPER_BINDING_NOT_PROVEN", `The Native helper '${metadataName}' has no acquired named physical carrier.`);
+  const parameters = Object.freeze((binding.typeParameters ?? []).map(parameter => Object.freeze({ kind: "type-parameter" as const,
+    identity: parameter.identity, name: parameter.name })));
+  const type = csharpTargetTypeFromBinding(binding, parameters);
+  if (type?.kind !== "target-named" || type.id !== binding.id || new Set(parameters.map(parameter => parameter.identity)).size !== arity) {
+    return nativeRepresentationFailure(site, "CSHARP_NATIVE_HELPER_BINDING_NOT_PROVEN",
+      `The Native helper '${metadataName}' has no acquired named physical template and original ordered binder vector.`);
+  }
+  const carrier = snapshotCsharpTargetTypes([type])[0]!;
+  if (carrier.kind !== "target-named") throw new TypeError("A snapshotted Native helper definition must retain its acquired named kind.");
+  return represented(Object.freeze({ carrier, parameters: Object.freeze(parameters.map(parameter => parameter.identity)) }));
 }
 
 export function sourceRuntimeType(host: Pick<CsharpRepresentationHost, "providers">, name: string,
-  arguments_: readonly TargetTypeRef[], kind: "struct" | "interface", site: Node): CsharpRepresentationOutcome<TargetTypeRef> {
+  arguments_: readonly TargetTypeRef[], kind: "struct" | "interface", site: Node): Exclude<CsharpRepresentationOutcome<TargetTypeRef>, { readonly kind: "source-refused" }> {
   return sourceNativeType(host, `Tsonic.CSharp.Runtime.${name}${arguments_.length === 0 ? "" : `\`${arguments_.length}`}`,
     arguments_, kind, site);
 }

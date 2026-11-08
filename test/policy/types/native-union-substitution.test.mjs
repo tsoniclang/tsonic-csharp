@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { substituteTargetTypeParameters } from "../../../dist/policy/types/resolution/substitution.js";
+import { substituteTargetTypeParameters } from "../../../dist/target-model/types/substitution.js";
 import { csharpRuntimeUnionTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType,
   getCsharpRuntimeUnionArms, targetTypeRefEquals } from "../../../dist/target-model/types/index.js";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";

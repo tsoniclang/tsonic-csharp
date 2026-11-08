@@ -3,11 +3,10 @@ import { csharpDelegateTargetType, csharpEnumerableTargetType, csharpObjectTarge
 import type { CsharpSourceProfileCallPolicy, CsharpSourceProfileCallPolicyContext } from "../../../model/source-profiles.js";
 import { resolveCsharpSelectedSourceValue } from "../source-profile-policy.js";
 import { promiseResolutionMember } from "../promise-source-profile.js";
-import { jsCallPolicy, jsMemberIdentity, receiverHelperMethod, staticMethod, targetParameter } from "./common.js";
+import { type JsSourceProfileTargetMemberFactory, csharpProfileOptionalStorage, jsCallPolicy, jsMemberIdentity, receiverHelperMethod, staticMethod, targetParameter } from "./common.js";
 import { csharpQualifiedTypeRenderShape } from "../../../../target-model/types/index.js";
 import { csharpTargetNamedType } from "../../../../target-model/types/index.js";
 import { csharpJsEventLoopBinaryExecutionDriver } from "../../../../target-model/project/binary-execution-drivers.js";
-import { resolveCsharpOptionalStorage } from "../../../types/storage/optional-storage.js";
 import { resolveCsharpSourceProfileGenericResult } from "../source-profile-result.js";
 
 const objectType = csharpObjectTargetType();
@@ -47,7 +46,7 @@ export const csharpJsPromiseCallPolicies:
       jsMemberIdentity(owner, "then"),
       context => promiseContinuationMember(context, "then"),
       firstParameterReceiver,
-      { targetMethodTypeArguments: (_context, member) => promiseContinuationTypeArguments(member) },
+      { targetMethodTypeArguments: (context, member) => promiseContinuationTypeArguments(context, member) },
     )),
     jsCallPolicy(
       jsMemberIdentity("Promise", "catch"),
@@ -59,7 +58,7 @@ export const csharpJsPromiseCallPolicies:
 function promiseContinuationMember(
   context: CsharpSourceProfileCallPolicyContext,
   name: "then" | "catch",
-): CsharpTargetMember | undefined {
+): ReturnType<JsSourceProfileTargetMemberFactory> {
   const receiver = resolveCsharpSelectedSourceValue(context, context.source.sourceReceiver);
   const input = getCsharpTaskResultTargetType(receiver);
   if (receiver === undefined || input === undefined) return undefined;
@@ -73,7 +72,7 @@ function promiseContinuationMember(
     const rejectedType = resolveCsharpSelectedSourceValue(context, rejected);
     const absentRejected = rejected === undefined || isCsharpAbsenceTargetType(rejectedType) ||
       rejectedType !== undefined && isCsharpVoidTargetType(rejectedType);
-    return promiseAbsentFulfilledMember(receiver, input, absentRejected ? undefined : callbackResults[1], absentRejected);
+    return promiseAbsentFulfilledMember(context, receiver, input, absentRejected ? undefined : callbackResults[1], absentRejected);
   }
   const output = resolveResultTask(context);
   if (output === undefined || name === "catch" && !targetTypeRefEquals(input, output.result)) return undefined;
@@ -106,11 +105,12 @@ function promiseContinuationMember(
 }
 
 function promiseAbsentFulfilledMember(
+  context: CsharpSourceProfileCallPolicyContext,
   receiver: TargetTypeRef,
   input: TargetTypeRef,
   rejectedResult: TargetTypeRef | undefined,
   absentRejected: boolean,
-): CsharpTargetMember | undefined {
+): ReturnType<JsSourceProfileTargetMemberFactory> {
   if (!absentRejected && rejectedResult === undefined) return undefined;
   const asynchronousResult = getCsharpTaskResultTargetType(rejectedResult);
   const asynchronous = asynchronousResult !== undefined;
@@ -126,9 +126,9 @@ function promiseAbsentFulfilledMember(
     typeParameterNames = [];
   } else if (inputVoid || completedVoid) {
     const element = inputVoid ? completed : input;
-    const storage = resolveCsharpOptionalStorage({ kind: "optional", part: "storage", arguments: [element] }, element);
-    if (storage === undefined) return undefined;
-    result = storage;
+    const layout = csharpProfileOptionalStorage(context, element);
+    if ("kind" in layout) return layout;
+    result = layout.carrier;
     targetName = asynchronous ? "ThenOptionalAsync" : "ThenOptional";
     typeParameterNames = inputVoid ? ["TResult", "TStorage", "TOperations"] : ["TStorage", "TOperations"];
   } else {
@@ -158,7 +158,8 @@ function promiseAbsentFulfilledMember(
   );
 }
 
-function promiseContinuationTypeArguments(member: CsharpTargetMember | undefined): readonly TargetTypeRef[] | undefined {
+function promiseContinuationTypeArguments(context: CsharpSourceProfileCallPolicyContext, member: CsharpTargetMember | undefined):
+  readonly TargetTypeRef[] | Extract<ReturnType<JsSourceProfileTargetMemberFactory>, { readonly kind: "rejected" }> | undefined {
   const result = getCsharpTaskResultTargetType(member?.returnType);
   if (member === undefined || result === undefined) return undefined;
   const count = member.typeParameters?.length ?? 0;
@@ -170,8 +171,8 @@ function promiseContinuationTypeArguments(member: CsharpTargetMember | undefined
   const element = count === 2 && owner?.kind === "target-named" ? owner.typeArguments?.[0]
     : getCsharpTaskResultTargetType(callback) ?? callback;
   if (element === undefined) return undefined;
-  const operations = resolveCsharpOptionalStorage({ kind: "optional", part: "operations", arguments: [element] }, element);
-  return operations === undefined ? undefined : count === 2 ? [result, operations] : [element, result, operations];
+  const layout = csharpProfileOptionalStorage(context, element);
+  return "kind" in layout ? layout : count === 2 ? [result, layout.operations] : [element, result, layout.operations];
 }
 
 function promiseResolveMember(

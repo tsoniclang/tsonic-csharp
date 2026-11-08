@@ -1,6 +1,6 @@
 import type { CsharpPolicyContext } from "../../../policy/model/context.js";
 import type { SourceCallableSourceContract } from "../../../target-model/records/callables/source-callable-contract.js";
-import { substituteTargetTypeParameters } from "../../../policy/types/resolution/substitution.js";
+import { substituteTargetTypeParameters } from "../../../target-model/types/substitution.js";
 import { csharpSourceTypeParameter } from "../../../source/extension/type-parameters.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";

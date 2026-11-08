@@ -5,7 +5,7 @@ import type { CsharpRepresentedTypeParameter } from "../../../target-model/types
 import { targetTypeRefKey } from "../../../target-model/types/equality.js";
 import { csharpTypeParameterConstraintResolutionKey } from "../../../target-model/types/generic-constraints.js";
 
-export function represented<Value>(value: Value): CsharpRepresentationOutcome<Value> {
+export function represented<Value>(value: Value): Extract<CsharpRepresentationOutcome<Value>, { readonly kind: "represented" }> {
   return Object.freeze({ kind: "represented", value });
 }
 
@@ -29,8 +29,8 @@ export function representationRequirements(
     const previous = byIdentity.get(parameter.identity);
     if (previous !== undefined && (targetTypeRefKey(previous) !== targetTypeRefKey(parameter) ||
       previous.csharpDeclaration !== parameter.csharpDeclaration ||
-      JSON.stringify(previous.csharpRequirementDependencies?.map(targetTypeRefKey) ?? []) !==
-        JSON.stringify(parameter.csharpRequirementDependencies?.map(targetTypeRefKey) ?? []) ||
+      JSON.stringify(previous.csharpRequirementDependencies?.map(type => targetTypeRefKey(type)) ?? []) !==
+        JSON.stringify(parameter.csharpRequirementDependencies?.map(type => targetTypeRefKey(type)) ?? []) ||
       csharpTypeParameterConstraintResolutionKey(previous.csharpConstraints) !== csharpTypeParameterConstraintResolutionKey(parameter.csharpConstraints))) {
       throw new TypeError("A Native representation parameter requires one physical identity.");
     }

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { targetTypeRefEquals, targetTypeRefKey, scopedTargetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 import { csharpTargetStorageIdentityEquals } from "../../../dist/policy/types/storage/storage-identity.js";
-import { substituteTargetTypeParameters, inferCsharpTargetTypeParameterBindings } from "../../../dist/policy/types/resolution/substitution.js";
+import { substituteTargetTypeParameters, inferCsharpTargetTypeParameterBindings } from "../../../dist/target-model/types/substitution.js";
 import { generatedTypeParameterNames } from "@tsonic/target-api/source";
 import { csharpFreeTypeParameterIdentities } from "../../../dist/target-model/types/generic-references.js";
 import { csharpObjectShapeTypeParameters } from "../../../dist/analysis/source-evidence/types/resolution/owner-type-parameter-environment.js";
@@ -12,8 +12,9 @@ import { csharpObjectShapeMemberTypeKey } from "../../../dist/target-model/types
 import { dotnetTypeRefKey } from "../../../dist/providers/native/model/type-refs.js";
 import { csharpAbsenceTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
 import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
-import { csharpProjectedType } from "../../../dist/target-model/types/projections.js";
-import { resolveCsharpOptionalStorage } from "../../../dist/policy/types/storage/optional-storage.js";
+import { csharpOptionalProjectedType } from "../../../dist/target-model/types/projections.js";
+import { resolveCsharpOptionalStorage, selectCsharpOptionalStorage } from "../../../dist/target-model/types/optional-storage.js";
+import { nativeOptionalStorageDefinitions } from "../../helpers/native-optional-storage.mjs";
 import { csharpConstraintsRequireReference } from "../../../dist/target-model/types/generic-constraints.js";
 import { csharpTargetNamedType } from "../../../dist/target-model/types/factories.js";
 import { isCsharpReferenceCarrier } from "../../../dist/target-model/types/identity.js";
@@ -21,6 +22,7 @@ import { isCsharpReferenceCarrier } from "../../../dist/target-model/types/ident
 const outer = Object.freeze({ kind: "type-parameter", identity: "source:outer/0", name: "T" });
 const inner = Object.freeze({ kind: "type-parameter", identity: "source:inner/0", name: "T" });
 const integer = Object.freeze({ kind: "source-primitive", name: "int32" });
+const definitions = nativeOptionalStorageDefinitions();
 
 test("native optional projections close only with exact selected reference constraints", () => {
   const nominal = csharpTargetNamedType("fixture.NativeBase", undefined, { kind: "named", name: "NativeBase" },
@@ -51,19 +53,19 @@ test("native optional projections close only with exact selected reference const
       `${label}: exact selected class evidence, never a name or default`);
     assert.equal(isCsharpReferenceCarrier(element), expected,
       `${label}: conversion and operation consumers use the same native reference proof`);
-    const contract = { kind: "optional", part: "operations", arguments: [element] };
+    const contract = { kind: "optional", part: "operations", arguments: [element], definitions };
     const operations = resolveCsharpOptionalStorage(contract, element);
     const storage = resolveCsharpOptionalStorage({ ...contract, part: "storage" }, element);
-    const optional = csharpNullableTargetType(element);
+    const optional = selectCsharpOptionalStorage(element, definitions).carrier;
     if (expected) {
-      assert.equal(operations.kind === "target-named" && operations.id === "Tsonic.CSharp.Runtime.ReferenceOptionalStorage`1", true,
+      assert.equal(operations.kind === "target-named" && operations.id === definitions.reference.carrier.id, true,
         `${label}: the existing native reference operations are selected`);
       assert.equal(operations.typeArguments.length === 1 && operations.typeArguments[0] === element, true,
         `${label}: no erased or boxed payload`);
       assert.equal(storage.kind === "type-parameter" && storage.identity === element.identity && storage.csharpNullableReference === true, true,
         `${label}: native T? retains binder identity`);
       assert.equal(targetTypeRefEquals(optional, storage), true, `${label}: optional normalization has one owner`);
-      const projected = csharpProjectedType({ kind: "optional", part: "storage", arguments: [element] });
+      const projected = csharpOptionalProjectedType({ kind: "optional", part: "storage", arguments: [element], definitions });
       assert.equal(targetTypeRefEquals(csharpNullableTargetType(projected), storage), true,
         `${label}: an existing projected carrier closes when its actual payload bound is already selected`);
       assert.equal(storage.csharpConstraints === proof, true, `${label}: selected native constraints remain unchanged`);
@@ -77,15 +79,15 @@ test("native optional projections close only with exact selected reference const
 });
 
 test("optional substitution closes new selected bounds without changing a binder identity", () => {
-  const storage = csharpNullableTargetType(outer);
-  const operations = csharpProjectedType({ kind: "optional", part: "operations", arguments: [outer] });
+  const storage = selectCsharpOptionalStorage(outer, definitions).carrier;
+  const operations = csharpOptionalProjectedType({ kind: "optional", part: "operations", arguments: [outer], definitions });
   const selected = { ...outer, csharpConstraints: { kind: "resolved", constraints: [{ kind: "keyword", keyword: "class" }] } };
   const bindings = new Map([[outer.identity, selected]]);
   const actualStorage = substituteTargetTypeParameters(storage, bindings);
   const actualOperations = substituteTargetTypeParameters(operations, bindings);
   assert.equal(actualStorage.csharpNullableReference === true && actualStorage.identity === outer.identity, true,
     "new native evidence changes optional representation even when the semantic binder identity is equal");
-  assert.equal(actualOperations.kind === "target-named" && actualOperations.id === "Tsonic.CSharp.Runtime.ReferenceOptionalStorage`1", true,
+  assert.equal(actualOperations.kind === "target-named" && actualOperations.id === definitions.reference.carrier.id, true,
     "operations and storage close through the same existing native selection");
   assert.equal(actualOperations.typeArguments[0] === selected, true, "the exact selected native payload is preserved");
   assert.equal(storage.csharpProjection?.part === "storage" && operations.csharpProjection?.part === "operations", true,
@@ -93,18 +95,18 @@ test("optional substitution closes new selected bounds without changing a binder
 });
 
 test("projection dependencies retain exact free identities through nested optional carriers", () => {
-  const optional = csharpNullableTargetType(outer);
+  const optional = selectCsharpOptionalStorage(outer, definitions).carrier;
   const nested = csharpNullableTargetType(optional);
   const carrier = { kind: "tuple", elements: [optional, { kind: "array", element: inner }, nested, integer] };
-  assert.deepEqual(csharpFreeTypeParameterIdentities([carrier]), new Set([outer.identity, inner.identity]));
+  assert.deepEqual(csharpFreeTypeParameterIdentities([carrier]), new Set([optional.identity, outer.identity, inner.identity]));
   assert.deepEqual(csharpFreeTypeParameterIdentities([integer]), new Set());
   assert.deepEqual(csharpFreeTypeParameterIdentities([csharpDelegateTargetType("System.Func", [optional], inner)]),
-    new Set([outer.identity, inner.identity]));
+    new Set([optional.identity, outer.identity, inner.identity]));
 });
 
 test("generic template binding retains declared optional storage identities before value projection", () => {
-  const storage = csharpNullableTargetType(outer);
-  const selectedStorage = csharpNullableTargetType(inner);
+  const storage = selectCsharpOptionalStorage(outer, definitions).carrier;
+  const selectedStorage = selectCsharpOptionalStorage(inner, definitions).carrier;
   const pattern = { kind: "tuple", elements: [outer, storage] };
   const actual = { kind: "tuple", elements: [inner, selectedStorage] };
   const identities = new Set([outer.identity, storage.identity]);
@@ -147,7 +149,7 @@ test("quantified signatures remain alpha-equivalent without capturing free param
 
 test("optional absence supplies no generic payload binding", () => {
   const absence = csharpAbsenceTargetType();
-  const optional = csharpNullableTargetType(outer);
+  const optional = selectCsharpOptionalStorage(outer, definitions).carrier;
   const identities = new Set([outer.identity]);
   assert.deepEqual(inferCsharpTargetTypeParameterBindings(optional, absence, identities), new Map());
   assert.deepEqual(inferCsharpTargetTypeParameterBindings(csharpNullableTargetType(integer), absence, identities), new Map());
@@ -180,8 +182,8 @@ test("generated generic scopes reserve authored binders and render nested refere
 });
 
 test("native generic binding validates derived optional arguments after binding their payload", () => {
-  const storage = csharpNullableTargetType(outer);
-  const operations = csharpProjectedType({ kind: "optional", part: "operations", arguments: [outer] });
+  const storage = selectCsharpOptionalStorage(outer, definitions).carrier;
+  const operations = csharpOptionalProjectedType({ kind: "optional", part: "operations", arguments: [outer], definitions });
   const box = typeArguments => ({ kind: "target-named", csharpAllowsRefLikeTypeArguments: typeArguments.map(() => false), id: "test.Box", typeArguments });
   const pattern = box([operations, storage, outer]);
   const identities = new Set([outer.identity]);

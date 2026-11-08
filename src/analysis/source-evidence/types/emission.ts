@@ -10,7 +10,6 @@ import { targetTypeRefKey } from "../../../target-model/types/equality.js";
 import { getCsharpNullableElementTargetType, isCsharpRuntimeUnionTargetType, isCsharpEmptyObjectTargetType } from "../../../target-model/types/index.js";
 import { csharpTargetTypeComponents } from "../../../target-model/types/components.js";
 import { createCsharpTypeEmissionProducer } from "../../program/records/types/type-emission.js";
-import { csharpTypeEmissionKey } from "../../../target-model/records/types/type-emission.js";
 import { selectCsharpTypeEmission } from "../../../policy/types/resolution/type-emission.js";
 import { selectCsharpTypeUnsafeContext } from "../../../policy/operations/pointers/native-type-safety.js";
 import { getCsharpGenericOptionalParts } from "../../../target-model/types/projections.js";
@@ -56,7 +55,7 @@ export function analyzeCsharpTypeEmission(input: { readonly ast: AstReader; read
   const seen = new Set<string>();
   for (let index = 0; index < pending.length; index++) {
     const root = pending[index]!;
-    const key = csharpTypeEmissionKey(root);
+    const key = targetTypeRefKey(root, "emission");
     if (seen.has(key)) continue;
     seen.add(key);
     const shapes = new Set<CsharpObjectShapeFact>();

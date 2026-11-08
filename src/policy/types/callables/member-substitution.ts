@@ -1,6 +1,6 @@
 import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
 import type { CsharpTargetBindingFact, CsharpTargetMember, TargetConstraint } from "../../../target-model/types/model.js";
-import { substituteTargetTypeParameters } from "../resolution/substitution.js";
+import { substituteTargetTypeParameters } from "../../../target-model/types/substitution.js";
 
 export function csharpTargetBindingSubstitutions(
   binding: CsharpTargetBindingFact,

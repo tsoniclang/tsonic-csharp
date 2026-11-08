@@ -1,6 +1,6 @@
 import type { CsharpTargetMember, TargetTypeRef } from "../../../types/index.js";
 import { csharpJsMapTargetType, csharpJsSetTargetType, getCsharpJsMapTargetTypes, getCsharpJsSetElementTargetType } from "../../../../target-model/types/carriers/js.js";
-import { csharpDelegateTargetType, csharpEnumerableTargetType, csharpNullableTargetType, csharpSourcePrimitiveTargetType, csharpVoidTargetType, getCsharpNullableElementTargetType, isCsharpValueTypeTargetType, targetTypeRefEquals } from "../../../../target-model/types/index.js";
+import { csharpDelegateTargetType, csharpEnumerableTargetType, csharpNullableTargetType, csharpSourcePrimitiveTargetType, csharpVoidTargetType, getCsharpNullableElementTargetType, isCsharpValueTypeTargetType } from "../../../../target-model/types/index.js";
 import type { CsharpSourceProfileCallPolicy, CsharpSourceProfileCallPolicyContext, CsharpSourceProfileCallPolicyResult, CsharpSourceProfilePropertyPolicy } from "../../../model/source-profiles.js";
 import { csharpSourceProfileCall, csharpSourceProfileDiagnostic, resolveCsharpSelectedSourceValue } from "../source-profile-policy.js";
 import { instanceMethod, jsCallPolicy, jsConstructIdentity, jsMemberIdentity, jsPropertyPolicy, jsRuntimeTargetType, staticMethod, targetParameter, targetProperty } from "./common.js";
@@ -174,17 +174,8 @@ function mapGetMember(
   context: CsharpSourceProfileCallPolicyContext,
 ): CsharpTargetMember | undefined {
   const shape = mapCallShape(context);
-  const result = shape === undefined
-    ? undefined
-    : csharpNullableTargetType(shape.value);
-  if (
-    shape === undefined ||
-    result === undefined ||
-    shape.value.kind === "type-parameter" ||
-    !targetTypeRefEquals(result, csharpNullableTargetType(shape.value))
-  ) {
-    return undefined;
-  }
+  if (shape === undefined || shape.value.kind === "type-parameter") return undefined;
+  const result = csharpNullableTargetType(shape.value);
   const valueType = isCsharpValueTypeTargetType(shape.value) && getCsharpNullableElementTargetType(shape.value) === undefined;
   return staticMethod(
     valueType

@@ -18,7 +18,7 @@ import { createCsharpNativeFieldBacking } from "../../../dist/analysis/storage/n
 import { prepareCsharpNativeBacking } from "../../../dist/analysis/storage/native-backing.js";
 import { createStructuralObjectShapeTarget } from "../../../dist/analysis/objects/shapes/construction.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
-import { substituteObjectShapeFactTargetTypeParameters } from "../../../dist/policy/types/resolution/substitution.js";
+import { substituteObjectShapeFactTargetTypeParameters } from "../../../dist/target-model/types/substitution.js";
 import { selectCsharpConversion } from "../../../dist/policy/conversions/core.js";
 import { analyzeCsharpFlowReadProjections } from "../../../dist/analysis/conversions/flow-read-projections.js";
 import { isCsharpSourceCallableArtifactDeclaration } from "../../../dist/policy/types/callables/source-callable-contract.js";

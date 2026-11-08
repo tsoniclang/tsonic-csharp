@@ -4,9 +4,11 @@ import { planCsharpPresentValueGuard } from "../../../../dist/backend/planner/ex
 import { csharpTsValueTargetType, csharpSourcePrimitiveTargetType, csharpNullableTargetType } from "../../../../dist/target-model/types/index.js";
 import { csharpOptionalStorageProjection } from "../../../../dist/target-model/types/projections.js";
 import { csharpTypeEmissionRecord } from "../../../helpers/planning-records.mjs";
+import { nativeOptionalStorageDefinitions } from "../../../helpers/native-optional-storage.mjs";
 
 // The planner reads each storage's optional representation from the sealed type emission record.
 const input = { scope: {}, program: { records: { typeEmission: csharpTypeEmissionRecord() } } };
+const optionalDefinitions = nativeOptionalStorageDefinitions();
 
 test("native optional guards bind the present value their sealed storage selects", () => {
   const value = { kind: "IdentifierName", name: "input" };
@@ -22,8 +24,8 @@ test("native optional guards bind the present value their sealed storage selects
   // present carrier cannot change the bound payload type.
   assert.deepEqual(planCsharpPresentValueGuard(csharpNullableTargetType(integer), broad, value, "present", input), nullable);
   const parameter = { kind: "type-parameter", identity: "Source::Value", name: "Value" };
-  const generic = planCsharpPresentValueGuard(csharpOptionalStorageProjection(parameter), parameter, value, "present", input);
+  const generic = planCsharpPresentValueGuard(csharpOptionalStorageProjection(parameter, optionalDefinitions), parameter, value, "present", input);
   assert.equal(generic.condition.right.operand.callee.name, "Is1");
   assert.equal(generic.value.callee.name, "As2");
-  assert.deepEqual(planCsharpPresentValueGuard(csharpOptionalStorageProjection(parameter), integer, value, "present", input), generic);
+  assert.deepEqual(planCsharpPresentValueGuard(csharpOptionalStorageProjection(parameter, optionalDefinitions), integer, value, "present", input), generic);
 });

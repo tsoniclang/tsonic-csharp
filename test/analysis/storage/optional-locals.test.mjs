@@ -7,6 +7,7 @@ import { sourceEnclosingCallable } from "@tsonic/target-api/source";
 import { analyzeCsharpOptionalLocals } from "../../../dist/analysis/storage/optional-locals.js";
 import { csharpOptionalStorageProjection } from "../../../dist/target-model/types/projections.js";
 import { csharpRuntimeLocationTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
+import { nativeOptionalStorageDefinitions } from "../../helpers/native-optional-storage.mjs";
 
 const sourceText = `import type { int32 } from "@tsonic/core/types.js";
 export function testPresence<Base extends object, Value extends Base>(fallback: Value, present: boolean): int32 {
@@ -62,7 +63,7 @@ test("selected native address and reference storage cannot be split by a narrowe
   const call = Object.freeze({});
   const payload = Object.freeze({ kind: "type-parameter", identity: "actual:payload", name: "Payload",
     csharpConstraints: Object.freeze({ kind: "resolved", constraints: Object.freeze([{ kind: "keyword", keyword: "notnull" }]) }) });
-  const storage = csharpOptionalStorageProjection(payload);
+  const storage = csharpOptionalStorageProjection(payload, nativeOptionalStorageDefinitions());
   const location = Object.freeze({ kind: "direct-storage", expression: reference, valueType: payload,
     identity: Object.freeze({ kind: "local-storage", declaration }) });
   for (const kind of ["native-address", "nested-native-address", "byref-readwrite", "byref-readonly", "byref-writeonly-must-init", "borrow-shared", "borrow-mut", "move"]) {

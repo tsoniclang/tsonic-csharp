@@ -9,7 +9,7 @@ import { selectCsharpTargetElement, selectCsharpTargetProperty } from "../../../
 import { selectCsharpMethodValue } from "../../../objects/method-values.js";
 import { getCsharpMethodValue } from "../../../../target-model/types/method-values.js";
 import { getCsharpClassFactory } from "../../../../target-model/types/carriers/class-factories.js";
-import { substituteTargetTypeParameters } from "../../../../policy/types/resolution/substitution.js";
+import { substituteTargetTypeParameters } from "../../../../target-model/types/substitution.js";
 import { resolveCsharpStaticMemberReceiver } from "../../../../policy/types/project/static-members.js";
 
 export function resolveMemberAccessTargetType(

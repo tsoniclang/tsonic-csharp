@@ -1,5 +1,4 @@
-import type { TargetTypeRef } from "./native-type-data.js";
-import type { CsharpUnionPathStep } from "./union-relations.js";
+import type { CsharpUnionPathStep, TargetTypeRef } from "./native-type-data.js";
 import type { CsharpConversionSelection } from "../conversions/selection.js";
 
 export interface CsharpAwaitAlternative {

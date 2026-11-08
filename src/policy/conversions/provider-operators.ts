@@ -1,6 +1,6 @@
 import { csharpProviderBindingFromResolution } from "../../providers/model/relation-resolver.js";
 import { csharpTargetBindingFact, targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/index.js";
-import { substituteTargetTypeParameters } from "../types/resolution/substitution.js";
+import { substituteTargetTypeParameters } from "../../target-model/types/substitution.js";
 import { csharpNativeInheritanceLookup } from "../../target-model/types/native-inheritance.js";
 import type { CsharpConversionMode, CsharpConversionRelation } from "../../target-model/conversions/selection.js";
 import type { CsharpPolicyContext } from "../model/context.js";
@@ -117,7 +117,7 @@ function providerConversionInputs(
       if (type === target) selectedTarget = physical;
     }
     const key = `${binding.id}\u0000${(type.typeArguments ?? [])
-      .map(targetTypeRefKey)
+      .map(type => targetTypeRefKey(type))
       .join("\u0000")}`;
     byId.set(key, {
       binding,

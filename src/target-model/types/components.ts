@@ -1,6 +1,7 @@
 import type { TargetTypeRef } from "./native-type-data.js";
 import type { CsharpNativeCallableMember, CsharpObjectShapeFact, CsharpRuntimeUnionTargetTypeRef, CsharpTargetNamedTypeRef } from "./model.js";
 import { createCsharpMetadataBudget } from "../metadata/immutable.js";
+import { csharpOptionalStorageDefinitionNames } from "./native-generics.js";
 
 export function csharpTargetTypeComponents(
   type: TargetTypeRef,
@@ -40,6 +41,9 @@ export function csharpTargetTypeComponents(
     case "type-parameter":
       addAll(type.csharpRequirementDependencies);
       addAll(type.csharpProjection?.arguments);
+      if (includeSignatureLocalTypes && type.csharpProjection !== undefined) {
+        for (const name of csharpOptionalStorageDefinitionNames) add(type.csharpProjection.definitions[name].carrier);
+      }
       if (type.csharpConstraints?.kind === "resolved") {
         budget.reserve(type.csharpConstraints.constraints.length);
         for (const constraint of type.csharpConstraints.constraints) {

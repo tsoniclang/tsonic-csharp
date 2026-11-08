@@ -1,5 +1,4 @@
-import type { TargetTypeRef } from "../types/native-type-data.js";
-import type { CsharpUnionPathStep } from "../types/union-relations.js";
+import type { CsharpUnionPathStep, TargetTypeRef } from "../types/native-type-data.js";
 
 export interface CsharpReferenceEquality {
   readonly kind: "reference-identity";

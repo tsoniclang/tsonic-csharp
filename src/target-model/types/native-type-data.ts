@@ -43,10 +43,25 @@ export type CsharpRepresentedTypeParameter = Extract<TargetTypeRef, { readonly k
 
 export type CsharpExplicitImplementationConstraint = "class" | "default" | undefined;
 
+export interface CsharpNativeGenericTypeDefinition {
+  readonly carrier: Extract<TargetTypeRef, { readonly kind: "target-named" }>;
+  readonly parameters: readonly string[];
+}
+
+export interface CsharpOptionalStorageDefinitions {
+  readonly contract: CsharpNativeGenericTypeDefinition;
+  readonly value: CsharpNativeGenericTypeDefinition;
+  readonly nullableValue: CsharpNativeGenericTypeDefinition;
+  readonly reference: CsharpNativeGenericTypeDefinition;
+  readonly absence: CsharpNativeGenericTypeDefinition;
+  readonly jsValue: CsharpNativeGenericTypeDefinition;
+}
+
 export interface CsharpOptionalTypeProjection {
   readonly kind: "optional";
   readonly part: "storage" | "operations";
   readonly arguments: readonly [TargetTypeRef];
+  readonly definitions: CsharpOptionalStorageDefinitions;
 }
 
 export interface CsharpOptionalStorageLayout {
@@ -59,3 +74,14 @@ export interface CsharpOptionalStorageLayout {
 export type CsharpOptionalProjectedType = CsharpRepresentedTypeParameter & {
   readonly csharpProjection: CsharpOptionalTypeProjection;
 };
+
+export interface CsharpUnionPathStep {
+  readonly union: TargetTypeRef;
+  readonly index: number;
+}
+
+export interface CsharpUnionArmMapping {
+  readonly carrier: TargetTypeRef;
+  readonly source: readonly CsharpUnionPathStep[];
+  readonly target: readonly CsharpUnionPathStep[];
+}

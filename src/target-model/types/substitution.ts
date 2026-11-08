@@ -1,11 +1,11 @@
-import type { TargetTypeRef, CsharpOptionalTypeProjection, CsharpTypeParameterConstraint } from "../../../target-model/types/native-type-data.js";
-import type { CsharpNativeCallableMember, CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpRuntimeUnionTargetTypeRef, CsharpTargetNamedTypeRef, CsharpTaskTargetTypeRef } from "../../../target-model/types/model.js";
-import { csharpNullableReferenceTargetType, isCsharpNullableReferenceTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
-import { getCsharpRuntimeUnionArms, isCsharpAbsenceTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
-import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
-import { getCsharpOptionalProjection, getCsharpGenericOptionalParts } from "../../../target-model/types/projections.js";
-import { resolveCsharpOptionalStorage } from "../storage/optional-storage.js";
-import { csharpFreeTypeParameterIdentities } from "../../../target-model/types/generic-references.js";
+import type { TargetTypeRef, CsharpOptionalTypeProjection, CsharpTypeParameterConstraint } from "./native-type-data.js";
+import type { CsharpNativeCallableMember, CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpRuntimeUnionTargetTypeRef, CsharpTargetNamedTypeRef, CsharpTaskTargetTypeRef } from "./model.js";
+import { csharpNullableReferenceTargetType, isCsharpNullableReferenceTargetType, getCsharpNullableElementTargetType } from "./carriers/nullable.js";
+import { getCsharpRuntimeUnionArms, isCsharpAbsenceTargetType } from "./carriers/runtime-carriers.js";
+import { targetTypeRefEquals } from "./equality.js";
+import { getCsharpOptionalProjection, getCsharpGenericOptionalParts } from "./projections.js";
+import { resolveCsharpOptionalStorage } from "./optional-storage.js";
+import { csharpFreeTypeParameterIdentities } from "./generic-references.js";
 
 export function substituteTargetTypeParameters(
   type: TargetTypeRef,
@@ -44,6 +44,8 @@ export function substituteTargetTypeParameters(
       const indexedRead = (type as CsharpTargetNamedTypeRef).csharpIndexableReadMember;
       const baseType = (type as CsharpTargetNamedTypeRef).csharpBaseType;
       const taskResultType = (type as Partial<CsharpTaskTargetTypeRef>).csharpTaskResultType;
+      const generator = (type as CsharpTargetNamedTypeRef).csharpGeneratorProtocol;
+      const iteratorResult = (type as CsharpTargetNamedTypeRef).csharpIteratorResultProtocol;
       const runtimeUnionArms = (type as Partial<CsharpRuntimeUnionTargetTypeRef>).csharpRuntimeUnionArms;
       const runtimeUnionObjectShapes = (type as Partial<CsharpRuntimeUnionTargetTypeRef>).csharpRuntimeUnionObjectShapes;
       const delegateSignature = (type as CsharpTargetNamedTypeRef).csharpDelegateSignature;
@@ -107,6 +109,13 @@ export function substituteTargetTypeParameters(
         ...(taskResultType === undefined
           ? {}
           : { csharpTaskResultType: substituteTargetTypeParameters(taskResultType, substitutions) }),
+        ...(generator === undefined ? {} : { csharpGeneratorProtocol: Object.freeze({ ...generator,
+          yieldType: substituteTargetTypeParameters(generator.yieldType, substitutions),
+          returnType: substituteTargetTypeParameters(generator.returnType, substitutions),
+          nextType: substituteTargetTypeParameters(generator.nextType, substitutions) }) }),
+        ...(iteratorResult === undefined ? {} : { csharpIteratorResultProtocol: Object.freeze({
+          yieldType: substituteTargetTypeParameters(iteratorResult.yieldType, substitutions),
+          returnType: substituteTargetTypeParameters(iteratorResult.returnType, substitutions) }) }),
         ...(runtimeUnionArms === undefined
           ? {}
           : { csharpRuntimeUnionArms: runtimeUnionArms.map((arm) => substituteTargetTypeParameters(arm, substitutions)) }),

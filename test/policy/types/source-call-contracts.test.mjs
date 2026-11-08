@@ -7,7 +7,7 @@ import { resolveSourceCallParameter, resolveSourceCallParameters, resolveSourceC
 import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
 import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { retainCsharpGenericCallableValue } from "../../../dist/analysis/callables/generics/generic-values.js";
-import { substituteTargetTypeParameters } from "../../../dist/policy/types/resolution/substitution.js";
+import { substituteTargetTypeParameters } from "../../../dist/target-model/types/substitution.js";
 import { csharpFreeTypeParameterIdentities } from "../../../dist/target-model/types/generic-references.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
 import { sourceCallableTypeParametersMatch, resolveSourceCallReceiverTargetType, resolveSourceCallInstantiation } from "../../../dist/analysis/source-evidence/types/resolution/calls.js";

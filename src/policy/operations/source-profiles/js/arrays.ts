@@ -10,8 +10,7 @@ import { sourcePrimitiveImplicitlyConverts } from "../../../conversions/source-p
 import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
 
 import { getCsharpRuntimeUnionArms } from "../../../../target-model/types/carriers/runtime-carriers.js";
-import { csharpOptionalStorageProjection, getCsharpGenericOptionalParts } from "../../../../target-model/types/projections.js";
-import { type JsSourceProfileTargetMemberFactory, instanceMethod, jsCallIdentity, jsCallPolicy, jsConstructIdentity, jsElementPolicy, jsMemberIdentity, jsPropertyPolicy, jsRuntimeTargetType, jsUnsupportedCallPolicy, receiverHelperMethod, staticMethod, targetIndexer, targetParameter, targetProperty } from "./common.js";
+import { type JsSourceProfileTargetMemberFactory, csharpProfileOptionalStorage, instanceMethod, jsCallIdentity, jsCallPolicy, jsConstructIdentity, jsElementPolicy, jsMemberIdentity, jsPropertyPolicy, jsRuntimeTargetType, jsUnsupportedCallPolicy, receiverHelperMethod, staticMethod, targetIndexer, targetParameter, targetProperty } from "./common.js";
 
 const intType = csharpSourcePrimitiveTargetType("int32");
 const doubleType = csharpSourcePrimitiveTargetType("float64");
@@ -210,10 +209,12 @@ export const csharpJsArrayCallPolicies:
           jsMemberIdentity(declaringName, row.sourceName),
           (context) => nullableArrayMember(context, row),
           firstParameterReceiver,
-          { targetMethodTypeArguments: (_context, member) => {
-            const result = member?.returnType;
-            const parts = getCsharpGenericOptionalParts(result);
-            return parts === undefined || result === undefined ? [] : [parts.element, result, parts.operations];
+          { targetMethodTypeArguments: (context, member) => {
+            if (member?.typeParameters?.length !== 3) return [];
+            const shape = arrayCallShape(context);
+            if (shape === undefined) return undefined;
+            const layout = csharpProfileOptionalStorage(context, shape.element);
+            return "kind" in layout ? layout : [shape.element, layout.carrier, layout.operations];
           } },
         )
       ),
@@ -497,13 +498,15 @@ function reduceArrayMember(
 function nullableArrayMember(
   context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
   row: typeof nullableArrayRows[number],
-): CsharpTargetMember | undefined {
+): ReturnType<JsSourceProfileTargetMemberFactory> {
   const shape = arrayCallShape(context);
   if (shape === undefined || shape.element.kind === "type-parameter" && row.parameterKind !== "predicate") {
     return undefined;
   }
   if (shape.element.kind === "type-parameter") {
-    const storage = csharpOptionalStorageProjection(shape.element);
+    const layout = csharpProfileOptionalStorage(context, shape.element);
+    if ("kind" in layout) return layout;
+    const storage = layout.carrier;
     return Object.freeze({
       ...staticMethod(`Tsonic.CSharp.Js.Array.${row.targetName}:native-optional-storage`,
         row.sourceName, row.targetName, arrayHelperType,

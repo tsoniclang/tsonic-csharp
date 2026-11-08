@@ -1,19 +1,8 @@
-import type { TargetTypeRef } from "./native-type-data.js";
+import type { CsharpUnionArmMapping, CsharpUnionPathStep, TargetTypeRef } from "./native-type-data.js";
 import { targetTypeRefEquals } from "./equality.js";
 import { getCsharpRuntimeUnionArms } from "./carriers/runtime-carriers.js";
 import { csharpMetadataDescriptors } from "../metadata/immutable.js";
 import { snapshotCsharpTargetTypes } from "./snapshot.js";
-
-export interface CsharpUnionPathStep {
-  readonly union: TargetTypeRef;
-  readonly index: number;
-}
-
-export interface CsharpUnionArmMapping {
-  readonly carrier: TargetTypeRef;
-  readonly source: readonly CsharpUnionPathStep[];
-  readonly target: readonly CsharpUnionPathStep[];
-}
 
 export function csharpUnionLeaves(carrier: TargetTypeRef):
   readonly { readonly carrier: TargetTypeRef; readonly path: readonly CsharpUnionPathStep[] }[] | undefined {

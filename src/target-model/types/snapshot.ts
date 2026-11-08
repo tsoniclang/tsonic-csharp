@@ -1,6 +1,7 @@
 import type { TargetTypeRef } from "./native-type-data.js";
 import { targetTypeRefEquals } from "./equality.js";
 import { csharpTargetTypeComponents } from "./components.js";
+import { csharpOptionalStorageDefinitionArities, csharpOptionalStorageDefinitionNames } from "./native-generics.js";
 import { failCsharpMetadataResourceLimit, snapshotCsharpMetadata, csharpMetadataDescriptors, createCsharpMetadataBudget, maximumCsharpMetadataEntries, maximumCsharpMetadataDepth } from "../metadata/immutable.js";
 
 export function snapshotCsharpTargetTypes(
@@ -43,7 +44,8 @@ function csharpTypeIdentityAt(path: readonly (string | number)[]): boolean {
     if (field === "csharpCallableMembers") return indexed(offset + 1, next => path[next] === "signature"
       ? signaturePath(next + 1) : path[next] === "typeParameters" && indexed(next + 1, parameterPath));
     if (field === "csharpConstraints") return path[offset + 1] === "constraints" && constraintsPath(offset + 2);
-    if (field === "csharpProjection") return path[offset + 1] === "arguments" && indexed(offset + 2, typePath);
+    if (field === "csharpProjection") return path[offset + 1] === "arguments" ? indexed(offset + 2, typePath)
+      : path[offset + 1] === "definitions" && path[offset + 3] === "carrier" && typePath(offset + 4);
     if (field === "csharpMethodValue") return (path[offset + 1] === "owner" || path[offset + 1] === "contract") && typePath(offset + 2);
     if (field === "csharpClassFactory") return path[offset + 1] === "declaration" ? final(offset + 2)
       : path[offset + 1] === "instance" && typePath(offset + 2);
@@ -180,8 +182,27 @@ export function isCsharpTargetTypeRef(value: unknown): value is TargetTypeRef {
   const optionalProjection = (input: unknown, depth: number): boolean => {
     if (typeof input !== "object" || input === null || Array.isArray(input) || !data(input)) return false;
     const value = input as Readonly<Record<string, unknown>>;
-    return Object.keys(value).length === 3 && value.kind === "optional" && (value.part === "storage" || value.part === "operations") &&
-      Array.isArray(value.arguments) && value.arguments.length === 1 && list(value.arguments, depth + 1);
+    return Object.keys(value).length === 4 && value.kind === "optional" && (value.part === "storage" || value.part === "operations") &&
+      Array.isArray(value.arguments) && value.arguments.length === 1 && list(value.arguments, depth + 1) && optionalDefinitions(value.definitions, depth + 1);
+  };
+  const optionalDefinitions = (input: unknown, depth: number): boolean => {
+    if (typeof input !== "object" || input === null || Array.isArray(input) || !data(input)) return false;
+    const definitions = input as Readonly<Record<string, unknown>>;
+    if (Object.keys(definitions).length !== csharpOptionalStorageDefinitionNames.length) return false;
+    for (const name of csharpOptionalStorageDefinitionNames) {
+      const input = definitions[name];
+      if (typeof input !== "object" || input === null || Array.isArray(input) || !data(input)) return false;
+      const definition = input as Readonly<Record<string, unknown>>;
+      if (Object.keys(definition).length !== 2 || !Array.isArray(definition.parameters) || !data(definition.parameters) ||
+        definition.parameters.length !== csharpOptionalStorageDefinitionArities[name] ||
+        Object.keys(definition.parameters).length !== definition.parameters.length || !definition.parameters.every(string) ||
+        new Set(definition.parameters).size !== definition.parameters.length || !visit(definition.carrier, depth + 1)) return false;
+      const carrier = definition.carrier as TargetTypeRef;
+      const parameters = definition.parameters;
+      if (carrier.kind !== "target-named" || (carrier.typeArguments?.length ?? 0) !== parameters.length ||
+        carrier.typeArguments?.some((parameter, index) => parameter.kind !== "type-parameter" || parameter.identity !== parameters[index])) return false;
+    }
+    return true;
   };
   const passingMode = (input: unknown): boolean => input === "by-value" || input === "byref-readonly" ||
     input === "byref-readwrite" || input === "byref-writeonly-must-init";

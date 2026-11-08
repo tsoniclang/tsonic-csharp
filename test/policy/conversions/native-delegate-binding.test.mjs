@@ -4,7 +4,7 @@ import { createNativeConversionHost } from "../../helpers/native-conversion-host
 import { selectCsharpConversion } from "../../../dist/policy/conversions/index.js";
 import { dotnetTypeRefToTargetTypeRef } from "../../../dist/providers/native/projection/type-ref.js";
 import { csharpDelegateTargetType, csharpDelegateSignaturesMatchNativeBinding, isCsharpSourceDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
-import { substituteTargetTypeParameters } from "../../../dist/policy/types/resolution/substitution.js";
+import { substituteTargetTypeParameters } from "../../../dist/target-model/types/substitution.js";
 
 const integer = { kind: "source-primitive", name: "int32" };
 const widened = { kind: "source-primitive", name: "int64" };
