@@ -1,29 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {
-  createCompilerSessionFromFiles,
-  formatDiagnostics,
-  TstsSourceProviderContractVersion,
-} from "@tsonic/tsts";
+import { TstsSourceProviderContractVersion } from "@tsonic/tsts";
 import {
   createCsharpProviderPackage,
   csharpProviderPolicyContribution,
 } from "../../../dist/public/provider.js";
+import { checkCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 
-const foundation = `
-interface Object {}
-interface Function {}
-interface CallableFunction extends Function {}
-interface NewableFunction extends Function {}
-interface IArguments {}
-interface Boolean {}
-interface Number {}
-interface String {}
-interface RegExp {}
-interface Array<T> { length: number; [index: number]: T; }
-`;
-
-function fixtureExtension(includeForeign = false) {
+function fixtureCapability(includeForeign = false) {
   const reference = (exportName, binding) => ({ kind: "provider-ref", moduleSpecifier: "basics", exportName, ...binding });
   const namedBase = reference("Base", { localName: "BaseValue" });
   const defaultBase = reference("default", { localName: "DefaultValue" });
@@ -79,19 +63,22 @@ function fixtureExtension(includeForeign = false) {
     createPolicy: () => csharpProviderPolicyContribution({ providerId: identity.id, providerVersion: identity.version, targetBindings: [], relations: [], rejections: [] }),
     runtime: {},
   });
-  return packageExtension(plugin);
+  return plugin;
 }
 
-function packageExtension(plugin) {
-  return plugin.sourceCompilerContributions({
+function packageProvider(plugin) {
+  const contributions = plugin.sourceCompilerContributions({
     project: { entryPoint: "index.ts", rootDir: ".", targets: [] }, projectDirectory: "/src", target: { id: "csharp" },
     selectedCapabilityIds: [plugin.id], selectedSurfaceIds: [], capability: plugin,
-  }).extensions[0];
+  });
+  assert.equal("extensions" in contributions, false, "the current package contract has no raw initializer");
+  assert.equal(contributions.declarationProviders.length, 1);
+  return contributions.declarationProviders[0];
 }
 
-function foreignExtension() {
+function foreignCapability() {
   const identity = { id: "fixture.outside", version: "2.0.0", extensionContractVersion: TstsSourceProviderContractVersion };
-  return packageExtension(createCsharpProviderPackage({
+  return createCsharpProviderPackage({
     id: "@fixture/outside", displayName: "Foreign package", providerIdentity: identity,
     modules: [{
       moduleSpecifier: "outside/package", providerModuleId: "foreign-model",
@@ -101,14 +88,11 @@ function foreignExtension() {
     virtualDeclarationFileName: (specifier) => `tsts-provider://outside/${encodeURIComponent(specifier)}.d.ts`,
     moduleDiagnostic: (kind, specifier) => ({ extensionId: identity.id, extensionCode: kind, numericCode: 9380002, category: "error", message: specifier }),
     createPolicy: () => csharpProviderPolicyContribution({ providerId: identity.id, providerVersion: identity.version, targetBindings: [], relations: [], rejections: [] }), runtime: {},
-  }));
+  });
 }
 
 test("SDK imports preserve reference aliases and distinct named/default/namespace binding identities", () => {
-  const providers = [];
-  fixtureExtension().initialize({ registerSourceDeclarationProvider: (provider) => providers.push(provider) });
-  assert.equal(providers.length, 1);
-  const provider = providers[0];
+  const provider = packageProvider(fixtureCapability());
   const expectedImports = [
     { moduleSpecifier: "basics", defaultImport: "DefaultType", typeOnly: true },
     { moduleSpecifier: "basics", defaultImport: "DefaultValue", typeOnly: false },
@@ -129,39 +113,40 @@ test("SDK imports preserve reference aliases and distinct named/default/namespac
 
 test("real TSTS accepts SDK alias imports and value-capable default/namespace heritage", () => {
   for (const specifier of ["consumer", "measurements/consumer"]) {
-    const checked = check(fixtureExtension(), specifier);
-    assert.equal(formatDiagnostics(checked.diagnostics), "");
-    assert.deepEqual(checked.extensionDiagnostics, []);
+    const checked = check(fixtureCapability(), specifier);
+    assert.equal(checked.sourceDiagnosticsText, "");
+    assert.deepEqual(checked.sourceDiagnostics, []);
+    assert.equal(checked.source !== undefined, true, "normal Host checking publishes the original Source program");
   }
 });
 
 test("foreign provider references produce imports without claiming ownership and satisfy real TSTS heritage", () => {
-  const sourceExtension = fixtureExtension(true);
-  const providers = [];
-  sourceExtension.initialize({ registerSourceDeclarationProvider: (provider) => providers.push(provider) });
-  assert.equal(providers.length, 1);
-  const provider = providers[0];
+  const capability = fixtureCapability(true);
+  const provider = packageProvider(capability);
   assert.deepEqual(provider.ownsModule("outside/package", {}), { kind: "unowned" });
   const model = provider.getDeclarationModel(provider.resolveModule("consumer", {}), { context: {}, materialization: { kind: "complete" } });
   assert.deepEqual(model.imports.find((entry) => entry.moduleSpecifier === "outside/package"), {
     moduleSpecifier: "outside/package", namedImports: [{ exportedName: "Foreign", kind: "value" }], typeOnly: false,
   });
-  const checked = check([sourceExtension, foreignExtension()], "consumer", `
+  const checked = check([capability, foreignCapability()], "consumer", `
     import { ForeignChild } from "consumer";
     import type { Foreign } from "outside/package";
     export class ForeignDerived extends ForeignChild {}
     export function peer(value: ForeignChild): Foreign { return value.peer; }
   `);
-  assert.equal(formatDiagnostics(checked.diagnostics), "");
-  assert.deepEqual(checked.extensionDiagnostics, []);
+  assert.equal(checked.sourceDiagnosticsText, "");
+  assert.deepEqual(checked.sourceDiagnostics, []);
+  assert.equal(checked.source !== undefined, true, "both actual declaration providers are registered before Source publication");
 });
 
 test("real TSTS rejects missing foreign imports even when the other provider is registered", () => {
-  const sourceExtension = fixtureExtension(true);
-  const checked = check([withImportMutation(sourceExtension, (imports) =>
+  const capability = fixtureCapability(true);
+  const checked = check([withImportMutation(capability, (imports) =>
     imports.filter((entry) => entry.moduleSpecifier !== "outside/package")
-  ), foreignExtension()], "consumer");
-  assert.ok(checked.extensionDiagnostics.some((diagnostic) => diagnostic.numericCode === 9000018 && diagnostic.extensionCode === "INVALID_PROVIDER_DECLARATION_MODEL"));
+  ), foreignCapability()], "consumer");
+  assert.ok(checked.sourceDiagnostics.some(diagnostic => diagnostic.code === "TS9000018" &&
+    diagnostic.source === "tsts.extension-host"));
+  assert.equal(checked.source === undefined, true, "an invalid declaration model cannot publish a resolved Source program");
 });
 
 test("real TSTS rejects canonicalized import aliases, wrong import kinds and type-only class heritage", () => {
@@ -184,38 +169,38 @@ test("real TSTS rejects canonicalized import aliases, wrong import kinds and typ
     }))],
   ];
   for (const [name, mutateImports] of mutations) {
-    const checked = check(withImportMutation(fixtureExtension(), mutateImports), "consumer");
-    assert.ok(checked.extensionDiagnostics.some((diagnostic) => diagnostic.numericCode === 9000018 && diagnostic.extensionCode === "INVALID_PROVIDER_DECLARATION_MODEL"), name);
+    const checked = check(withImportMutation(fixtureCapability(), mutateImports), "consumer");
+    assert.ok(checked.sourceDiagnostics.some(diagnostic => diagnostic.code === "TS9000018" &&
+      diagnostic.source === "tsts.extension-host"), name);
+    assert.equal(checked.source === undefined, true, `${name}: an invalid declaration model cannot publish Source`);
   }
 });
 
-function withImportMutation(sourceExtension, mutateImports) {
+function withImportMutation(capability, mutateImports) {
   return {
-    ...sourceExtension,
-    initialize(context) {
-      sourceExtension.initialize({
-        registerSourceDeclarationProvider(provider) {
-          context.registerSourceDeclarationProvider({
-            ...provider,
-            getDeclarationModel(resolution, request) {
-              const model = provider.getDeclarationModel(resolution, request);
-              return model.providerModuleId === "consumer-model"
-                ? { ...model, imports: mutateImports(model.imports) }
-                : model;
-            },
-          });
-        },
-      });
+    ...capability,
+    sourceCompilerContributions(context) {
+      const contributions = capability.sourceCompilerContributions(context);
+      return {
+        ...contributions,
+        declarationProviders: contributions.declarationProviders.map(provider => ({
+          ...provider,
+          getDeclarationModel(resolution, request) {
+            const model = provider.getDeclarationModel(resolution, request);
+            return model.providerModuleId === "consumer-model"
+              ? { ...model, imports: mutateImports(model.imports) }
+              : model;
+          },
+        })),
+      };
     },
   };
 }
 
-function check(sourceExtensions, specifier, additionalSource = "") {
-  return createCompilerSessionFromFiles({
-    currentDirectory: "/src",
-    files: {
-      "/src/foundation.d.ts": foundation,
-      "/src/index.ts": `
+function check(capabilities, specifier, additionalSource = "") {
+  return checkCsharpSource({
+    projectRoot: "/src",
+    sourceText: `
         import { NamedChild, DefaultChild, NamespaceChild } from "${specifier}";
         import type { Contract } from "${specifier}";
         export class Named extends NamedChild {}
@@ -223,10 +208,8 @@ function check(sourceExtensions, specifier, additionalSource = "") {
         export class Namespaced extends NamespaceChild {}
         export function identity(value: Contract): Contract { return value; }
         ${additionalSource}
-      `,
-    },
-    rootFiles: ["/src/foundation.d.ts", "/src/index.ts"],
+    `,
+    capabilities: Array.isArray(capabilities) ? capabilities : [capabilities],
     compilerOptions: { module: "esnext", moduleResolution: "bundler", noLib: true, strict: true, target: "esnext" },
-    extensionHostOptions: { extensions: Array.isArray(sourceExtensions) ? sourceExtensions : [sourceExtensions] },
-  }).checkSource();
+  });
 }

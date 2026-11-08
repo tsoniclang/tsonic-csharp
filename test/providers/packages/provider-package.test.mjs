@@ -51,7 +51,7 @@ function definition() {
   };
 }
 
-function extension(plugin, selectedSurfaceIds = []) {
+function sourceProvider(plugin, selectedSurfaceIds = []) {
   const contributions = plugin.sourceCompilerContributions({
     project: { entryPoint: "index.ts", rootDir: ".", targets: [] },
     projectDirectory: process.cwd(),
@@ -60,15 +60,9 @@ function extension(plugin, selectedSurfaceIds = []) {
     selectedSurfaceIds,
     capability: plugin,
   });
-  assert.equal(contributions.extensions.length, 1);
-  return contributions.extensions[0];
-}
-
-function registeredProvider(sourceExtension) {
-  const providers = [];
-  sourceExtension.initialize({ registerSourceDeclarationProvider: (provider) => providers.push(provider) });
-  assert.equal(providers.length, 1);
-  return providers[0];
+  assert.equal("extensions" in contributions, false, "package contributions do not expose the retired initializer route");
+  assert.equal(contributions.declarationProviders.length, 1);
+  return contributions.declarationProviders[0];
 }
 
 function declarationModel(provider, specifier) {
@@ -102,9 +96,9 @@ test("C# package SDK composes a non-Node complete provider without materializing
     specifierPrefix: entry.moduleSpecifier,
     ...(entry.message === undefined ? {} : { message: entry.message }),
   })));
-  const sourceExtension = extension(plugin, ["measurement-units"]);
-  assert.deepEqual(sourceExtension.identity, { id: providerIdentity.id, version: providerIdentity.version });
-  const provider = registeredProvider(sourceExtension);
+  const provider = sourceProvider(plugin, ["measurement-units"]);
+  assert.deepEqual({ id: provider.identity.id, version: provider.identity.version },
+    { id: providerIdentity.id, version: providerIdentity.version });
   assert.deepEqual(provider.identity, providerIdentity);
   assert.equal(provider.declarationMaterialization, "complete");
   assert.deepEqual(provider.ownsModule("measure", {}), { kind: "owned" });
@@ -136,9 +130,8 @@ test("package metadata and surface selection are snapshots, not live definition 
   const plugin = createCsharpProviderPackage(input);
   const targetContributions = plugin.createTargetContributions({ selectedSurfaceIds: [] });
   const surfaces = ["units"];
-  const sourceExtension = extension(plugin, surfaces);
+  const provider = sourceProvider(plugin, surfaces);
   surfaces.splice(0);
-  const provider = registeredProvider(sourceExtension);
   input.id = "changed";
   input.providerIdentity.id = "changed";
   input.providerIdentity.diagnosticRange.start = 1;
@@ -164,7 +157,7 @@ test("package metadata and surface selection are snapshots, not live definition 
   assert.equal(provider.resolveModule("unknown", {}).extensionCode, "MEASUREMENTS_UNOWNED");
   assert.equal(declarationModel(provider, "measure").exports[0].name, "WithUnits");
   assert.equal(declarationModel(provider, "measurements/core").exports[0].name, "WithUnits");
-  const nativeProvider = registeredProvider(extension(plugin));
+  const nativeProvider = sourceProvider(plugin);
   assert.equal(declarationModel(nativeProvider, "measure").exports[0].name, "Native");
   assert.equal(declarationModel(provider, "measure").exports[0].name, "WithUnits");
   assert.equal(capturedSelections.every(Object.isFrozen), true);
@@ -209,7 +202,7 @@ test("alias rebasing preserves exact default, member and signature identities th
   const input = definition();
   const original = nestedDeclaration("measurements/core");
   input.modules[0].getExports = () => [original];
-  const provider = registeredProvider(extension(createCsharpProviderPackage(input)));
+  const provider = sourceProvider(createCsharpProviderPackage(input));
   assert.deepEqual(declarationModel(provider, "measure").exports, [nestedDeclaration("measure")]);
   assert.deepEqual(declarationModel(provider, "measurements/core").exports, [nestedDeclaration("measurements/core")]);
   assert.deepEqual(original, nestedDeclaration("measurements/core"));
@@ -246,7 +239,7 @@ test("package imports are deterministic, de-duplicated and promote only class ex
     heritage: [{ kind: "extends", type: reference("measurements/alpha", "Contract") }],
   }];
   input.modules[0].getExports = () => declarations;
-  const provider = registeredProvider(extension(createCsharpProviderPackage(input)));
+  const provider = sourceProvider(createCsharpProviderPackage(input));
   const imports = declarationModel(provider, "measure").imports;
   assert.deepEqual(imports, [
     { moduleSpecifier: "measurements/alpha", namedImports: [
@@ -286,7 +279,7 @@ test("policy, rejections, execution driver and runtime data are retained per sel
   policy.relations[0].source.exportId = "changed";
   policy.rejections[0].diagnostic.message = "changed";
   policy.binaryExecutionDriver.runMethodName = "changed";
-  const provider = registeredProvider(extension(plugin));
+  const provider = sourceProvider(plugin);
   declarationModel(provider, "measure");
   declarationModel(provider, "measurements/core");
   assert.equal(plugin.createTargetContributions({ selectedSurfaceIds: [] })[0], contributions[0]);
@@ -300,7 +293,7 @@ test("policy, rejections, execution driver and runtime data are retained per sel
 test("unowned prefixes and forged module identities preserve package diagnostics without invoking exports", () => {
   const input = definition();
   input.modules[0].getExports = () => { throw new Error("invalid query reached exports"); };
-  const provider = registeredProvider(extension(createCsharpProviderPackage(input)));
+  const provider = sourceProvider(createCsharpProviderPackage(input));
   for (const specifier of ["measure/child", "measurements/core-extra", "node:fs", "unknown"]) {
     assert.deepEqual(provider.ownsModule(specifier, {}), { kind: "unowned" });
     assert.deepEqual(provider.resolveModule(specifier, {}), input.moduleDiagnostic("unowned", specifier));
@@ -409,7 +402,7 @@ test("physical target bindings are exact immutable metadata without a source exp
   assert.equal(contribution.targetBindings[0].targetName, "Measurement.Runtime.IUnits");
   assert.equal(Object.isFrozen(contribution.targetBindings[0]), true);
   assert.equal(contribution.relations.length, 0);
-  assert.deepEqual(declarationModel(registeredProvider(extension(plugin)), "measure").exports.map(entry => entry.name), ["Measurement"]);
+  assert.deepEqual(declarationModel(sourceProvider(plugin), "measure").exports.map(entry => entry.name), ["Measurement"]);
   for (const [label, mutate] of [
     ["wrong target", value => { value.target = "rust"; }],
     ["missing identity", value => { delete value.id; }],
