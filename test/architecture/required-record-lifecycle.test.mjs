@@ -228,11 +228,22 @@ test("native handler finalization receives the operations producer's mandatory l
 test("the fixed-point attempt returns only its representation contract", () => {
   assert.equal(evaluate !== undefined, true, "fixed-point attempt: one evaluate callback");
   assert.equal(identifiers(evaluate, "requiredRecords").length === 0, true, "fixed-point attempt: the callback never reads the list");
-  const contracts = descendants(evaluate).filter(node => ast.is.IsPropertyAssignment(node) && named(node, "contract"));
+  const contracts = descendants(evaluate).filter(node =>
+    (ast.is.IsPropertyAssignment(node) || ast.is.IsShorthandPropertyAssignment(node)) && named(node, "contract"));
   assert.equal(contracts.length === 1, true, "fixed-point attempt: one revision contract");
-  const literal = descendants(contracts[0]).find(node => ast.is.IsObjectLiteralExpression(node));
+  const contract = contracts[0];
+  const declarations = ast.is.IsShorthandPropertyAssignment(contract)
+    ? descendants(evaluate).filter(node => ast.is.IsVariableDeclaration(node) && named(node, text(ast.name(contract))))
+    : [];
+  if (ast.is.IsShorthandPropertyAssignment(contract)) {
+    assert.equal(declarations.length === 1, true, "fixed-point attempt: the returned contract has one exact local binding");
+  }
+  const initializer = ast.is.IsPropertyAssignment(contract)
+    ? ast.as.AsPropertyAssignment(contract).Initializer
+    : ast.as.AsVariableDeclaration(declarations[0]).Initializer;
+  const literal = descendants(initializer).find(node => ast.is.IsObjectLiteralExpression(node));
   assert.equal(literal !== undefined &&
-    ast.properties(literal).map(candidate => text(ast.name(candidate))).join() === "typeProjections,callables,storage", true,
+    ast.properties(literal).map(candidate => text(ast.name(candidate))).sort().join() === "callables,storage,typeProjections", true,
     "fixed-point attempt: the contract holds typeProjections, callables and storage only");
 });
 

@@ -1,19 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  analysisAbstractionDebtCatalog,
-  analysisAbstractionDebtClassifications,
-  analysisAbstractionDebtOwners,
   analysisAbstractionFileRules,
   analysisAbstractionRules,
   collectAnalysisAbstractionFindingsForSource,
   collectAnalysisAbstractionFindings,
-  summarizeAnalysisAbstractionFindings,
 } from "./analysis-abstraction-policy.mjs";
 
 const repoRoot = new URL("../..", import.meta.url).pathname;
-const classificationSet = new Set(analysisAbstractionDebtClassifications);
-const ownerSet = new Set(analysisAbstractionDebtOwners);
 
 
 
@@ -57,64 +51,10 @@ function findingIds(file, text) {
   return collectAnalysisAbstractionFindingsForSource(file, text).map((finding) => finding.ruleId);
 }
 
-function catalogedCounts() {
-  const counts = new Map();
-  for (const entry of analysisAbstractionDebtCatalog) {
-    for (const [ruleId, count] of Object.entries(entry.counts)) {
-      counts.set(`${entry.file}\u0000${ruleId}`, count);
-    }
-  }
-  return counts;
-}
-
-test("analysis abstraction debt catalog is explicit and reviewed", () => {
-  const metadataErrors = [];
-  for (const entry of analysisAbstractionDebtCatalog) {
-    if (!classificationSet.has(entry.classification)) {
-      metadataErrors.push(`${entry.file}: invalid classification ${entry.classification}`);
-    }
-    if (!ownerSet.has(entry.owner)) {
-      metadataErrors.push(`${entry.file}: invalid owner ${entry.owner}`);
-    }
-    if (entry.replacement.trim().length === 0) {
-      metadataErrors.push(`${entry.file}: missing replacement abstraction`);
-    }
-    if (entry.status !== "migration-required") {
-      metadataErrors.push(`${entry.file}: invalid status ${entry.status}`);
-    }
-  }
-  assert.deepEqual(metadataErrors, []);
+test("product analysis has no forbidden source-family or target-member algorithm", () => {
+  assert.deepEqual(collectAnalysisAbstractionFindings(repoRoot), []);
 });
-test("product analysis code has no unclassified source-family or target-member algorithms", () => {
-  const findings = collectAnalysisAbstractionFindings(repoRoot);
-  const counts = summarizeAnalysisAbstractionFindings(findings);
-  const catalogKeys = catalogedCounts();
-
-  const unclassified = [];
-  for (const key of counts.keys()) {
-    if (!catalogKeys.has(key)) {
-      const [file, ruleId] = key.split("\u0000");
-      const examples = findings
-        .filter((finding) => finding.file === file && finding.ruleId === ruleId)
-        .slice(0, 3)
-        .map((finding) => `${finding.line}: ${finding.snippet}`)
-        .join(" | ");
-      unclassified.push(`${file} ${ruleId}: ${examples}`);
-    }
-  }
-
-  const drift = [];
-  for (const [key, expectedCount] of catalogKeys) {
-    const actualCount = counts.get(key) ?? 0;
-    if (actualCount !== expectedCount) {
-      const [file, ruleId] = key.split("\u0000");
-      drift.push(`${file} ${ruleId}: expected ${expectedCount}, actual ${actualCount}`);
-    }
-  }
-
-  assert.deepEqual({ unclassified, drift }, { unclassified: [], drift: [] });
-});
-test("architecture validator rejects catch-all policy modules while permitting named policy abstractions", () => {
+test("deprecated catch-all module names remain a layout lint rather than semantic ownership proof", () => {
   const proceduralPolicyRule = analysisAbstractionFileRules.find((rule) => rule.id === "procedural-policy-file");
   assert.notEqual(proceduralPolicyRule, undefined);
   assert.deepEqual(
@@ -333,9 +273,16 @@ test("architecture validator rejects executable hooks in policy-like records", (
     "const row = { result: (request) => request.result };",
     "const row = { requiresClosedReceiver: (request) => request.receiver };",
     "const row = { mapCall: mapArrayCall };",
+    "const rows = [{ resolve: (request) => request.target }];",
+    "const row = Object.freeze({ validate: (request) => request.ok });",
+    "const rows = Object.freeze([{ mapCall: mapArrayCall }]);",
+    'const title = "αααααααααααααααα"; const row = { resolve: selectMember };',
   ];
   const allowed = [
     "const row = { result: \"defer\" };",
+    "const row = { result: undefined };",
+    "const selected = 4; const row = { result: selected };",
+    "analyzeValues(source, { resolve: (descriptor, occurrence) => represent(descriptor, occurrence) });",
     "interface Row { readonly result: CsharpJsPropertyPrecheckResult; }",
     "const row = { sourceIdentity: \"Array.map\", targetIdentity: \"Tsonic.CSharp.Js.Array.map\" };",
     "function call(diagnostics: TargetDiagnostic[], result: CsharpSourceCallResult, invocation: Value): void {}",
@@ -344,7 +291,7 @@ test("architecture validator rejects executable hooks in policy-like records", (
     "const select = (resolve: (node: Node) => TargetTypeRef) => resolve(node);",
     "const row = { select: (resolve: (node: Node) => TargetTypeRef) => resolve(node) };",
   ];
-  assert.deepEqual(forbidden.map((text) => ruleMatches(hookRule, text)), [true, true, true, true, true]);
+  assert.deepEqual(forbidden.map((text) => ruleMatches(hookRule, text)), Array(forbidden.length).fill(true));
   assert.deepEqual(allowed.map((text) => ruleMatches(hookRule, text)), Array(allowed.length).fill(false));
 });
 test("architecture validator rejects fabricated TSTS compiler objects", () => {

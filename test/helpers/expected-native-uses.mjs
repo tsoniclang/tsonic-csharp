@@ -1,9 +1,5 @@
 import assert from "node:assert/strict";
-import { analyzeSourceLiteralValues } from "@tsonic/target-api/source";
-import { analyzeCsharpExpectedTypes } from "../../dist/analysis/expected-types/analyze.js";
-import { createCsharpProviderRelationResolver } from "../../dist/providers/native/projection/relation-resolution.js";
 import { compileCsharpSource, compileCsharpAnalysisTarget } from "./direct-csharp-session.mjs";
-import { csharpProgramSourceFiles } from "./program-source-files.mjs";
 import { csharpAsyncGeneratorTargetType, csharpGeneratorTargetType } from "../../dist/target-model/types/carriers/generators.js";
 
 // The published generator fact of a declaration carries its protocol; its declared carrier is the protocol's generator type.
@@ -38,73 +34,31 @@ export function compileCsharpNativeUseSource(options) {
       return issue.code === original.code && issue.category === original.category && issue.message === original.message &&
         issue.source === original.source && issue.evidence === original.evidence;
     }), true, "the public diagnostic projection retains every native code, category, message, owner and evidence");
-  return { ...compiled, nativeStage, targetSource: nativeStage?.source };
+  return { ...compiled, nativeStage };
 }
 
 export function createExpectedNativeUseOwner(compiled) {
   const program = compiled.result.program;
+  assert.equal(program !== undefined && program.analysis !== undefined, true,
+    "the real compilation publishes its original complete analysis, not a reconstructed fixture context");
   const source = program.source;
-  assert.equal(source.effectiveTypes !== undefined, true, "the original compiled Host publication is retained by the Native owner");
+  const original = program.analysis;
+  const { policy, sourceEvidence, operations, objectShapes, callables, valueReadStages, declarations, typeProjections, expectedTypes } = original;
+  assert.equal(policy.facts === source.facts && policy.representation === program.representation, true,
+    "the actual Native policy retains the identical Source facts and single representation view");
+  assert.equal(sourceEvidence !== undefined && operations !== undefined && objectShapes !== undefined &&
+    callables !== undefined && valueReadStages !== undefined && declarations !== undefined &&
+    typeProjections !== undefined && expectedTypes !== undefined, true,
+  "all expected-use inputs are the original production references");
   const ast = source.ast;
-  const records = program.records;
   const nodes = [];
-  const pending = [...csharpProgramSourceFiles(program)];
+  const pending = [...policy.sourceFiles];
   while (pending.length > 0) {
     const node = pending.pop();
     nodes.push(node);
     ast.forEachChild(node, child => { if (child !== undefined) pending.push(child); });
   }
-  const contracts = nodes.flatMap(node => {
-    const contract = records.callableDeclaration.get(node)?.contract;
-    return contract === undefined ? [] : [contract];
-  });
-  const byDeclaration = new Map(contracts.map(contract => [contract.sourceDeclaration, contract]));
-  const typeProjections = publishedGenericProjections(records, nodes);
-  const evidence = Object.freeze({ ...records,
-    generator: Object.freeze({ get: node => source.semantics.forNode(node).operations.generator(node) }),
-    generatorTargetType: Object.freeze({ get: node => publishedGeneratorCarrier(records, node) }),
-    yield: Object.freeze({ get: node => source.semantics.forNode(node).operations.yield(node) }),
-    yieldTargetType: Object.freeze({ get: node => {
-      const yielded = source.semantics.forNode(node).operations.yield(node);
-      return yielded?.operand === undefined ? undefined : records.valueRead.get(yielded.operand.expression)?.value;
-    } }),
-  });
-  const unrelatedRepresentation = () => assert.fail("These expected-use fixtures require only published primitive and array representations.");
-  const representation = Object.freeze({
-    target: compiled.target,
-    typeParameterConstraints: Object.freeze({ resolve: unrelatedRepresentation }),
-    declaredType: unrelatedRepresentation,
-    indexType: unrelatedRepresentation,
-    callableType: unrelatedRepresentation,
-    constructorType: unrelatedRepresentation,
-    memberDeclaration: unrelatedRepresentation,
-    classStaticSide: unrelatedRepresentation,
-    shapeKind: unrelatedRepresentation,
-    memberTypeParameters: unrelatedRepresentation,
-    retainShape: unrelatedRepresentation,
-  });
-  const policy = { ast, sourceFiles: csharpProgramSourceFiles(program), navigation: source.navigation,
-    effectiveTypes: source.effectiveTypes,
-    types: { sourceTypeFlowRepresentation: occurrence => {
-      assert.equal(nodes.includes(occurrence), true, "the identical compiled Source occurrence owns its native representation");
-      return representation;
-    } },
-    target: compiled.target, providers: createCsharpProviderRelationResolver({ providers: [], providerPolicies: [] }),
-    objectShapes: program.objectShapes, projectTypes: program.projectTypes,
-    literalValues: analyzeSourceLiteralValues(ast, csharpProgramSourceFiles(program)),
-    semantics: source.semantics.forFile, semanticsFor: source.semantics.forNode,
-    typeDefinitions: program.typeDefinitions };
-  const input = { policy, evidence, operations: records, objectShapes: program.objectShapes,
-    callables: { contracts, declarationContracts: contracts, closedInputType: records.callableTarget.get,
-      get: identity => identity.kind === "declaration" ? byDeclaration.get(identity.declaration) : undefined },
-    valueReadStages: { get: node => {
-      const read = records.valueRead.get(node);
-      return read === undefined ? undefined : {
-        literalTarget: read.selectedOperation ?? read.source,
-        operationValue: read.selectedOperation ?? read.source,
-      };
-    } }, declarations: records, typeProjections };
-  const analysis = analyzeCsharpExpectedTypes(policy, evidence, records, input.objectShapes,
-    input.callables, input.valueReadStages, records, typeProjections);
-  return { analysis, input, program, source, nodes };
+  const input = Object.freeze({ policy, evidence: sourceEvidence, operations, objectShapes, callables,
+    valueReadStages, declarations, typeProjections });
+  return { analysis: expectedTypes, input, program, source, nodes };
 }

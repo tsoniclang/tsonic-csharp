@@ -1,10 +1,6 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
-import { createSourceCodeMask } from "./source-code-mask.mjs";
-
-export const selectedEvidenceClassifications = Object.freeze([
-  "shared-source-semantics-query",
-]);
+import { createSourceSyntaxIndex } from "./source-code-mask.mjs";
 
 const sourceQueryRules = Object.freeze([
   { id: "source-query.getResolvedSignature", pattern: /\bgetResolvedSignature\s*\(/gu },
@@ -47,39 +43,18 @@ export const selectedEvidenceRiskRules = Object.freeze([
   ...selectedEvidenceForbiddenRules,
 ]);
 
-export const expectedSharedSourceQuerySites = Object.freeze(new Map());
-
-export function buildSelectedEvidenceAuditRows(repoRoot) {
-  return collectSelectedEvidenceFindings(repoRoot).map((finding) => {
-    const expected = expectedSharedSourceQuerySites.get(
-      findingKey(finding.file, finding.ruleId),
-    );
-    return {
-      ...finding,
-      classification: expected === undefined
-        ? "forbidden-or-unclassified"
-        : "shared-source-semantics-query",
-      purpose: expected?.purpose ?? "Forbidden or unclassified source-semantic reconstruction.",
-      action: expected === undefined
-        ? "Remove or route through the shared source-semantics contract."
-        : "Retain only while the exact shared query remains necessary at this target policy or translation site.",
-      coverage: "selected-evidence audit exact-site and forbidden-pattern gates",
-    };
-  });
-}
-
 export function collectSelectedEvidenceFindings(repoRoot) {
   const sources = new Map(sourceFiles(join(repoRoot, "src")).map(filePath => {
     const file = relative(repoRoot, filePath).split(sep).join("/");
     return [file, readFileSync(filePath, "utf8")];
   }));
-  const mask = createSourceCodeMask(sources);
-  return [...sources].flatMap(([file, text]) => collectMaskedSelectedEvidenceFindings(file, text, mask(file)));
+  const syntax = createSourceSyntaxIndex(sources);
+  return [...sources].flatMap(([file, text]) => collectMaskedSelectedEvidenceFindings(file, text, syntax(file).code));
 }
 
 export function collectSelectedEvidenceFindingsForSource(file, text) {
-  const mask = createSourceCodeMask(new Map([[file, text]]));
-  return collectMaskedSelectedEvidenceFindings(file, text, mask(file));
+  const syntax = createSourceSyntaxIndex(new Map([[file, text]]));
+  return collectMaskedSelectedEvidenceFindings(file, text, syntax(file).code);
 }
 
 function collectMaskedSelectedEvidenceFindings(file, text, code) {
@@ -93,19 +68,6 @@ function collectMaskedSelectedEvidenceFindings(file, text, code) {
       enclosingSymbol: enclosingSymbolAt(text, match.index ?? 0),
     }));
   });
-}
-
-export function findingCounts(findings) {
-  const counts = new Map();
-  for (const finding of findings) {
-    const key = findingKey(finding.file, finding.ruleId);
-    counts.set(key, (counts.get(key) ?? 0) + 1);
-  }
-  return counts;
-}
-
-function findingKey(file, ruleId) {
-  return `${file}::${ruleId}`;
 }
 
 function sourceFiles(directory) {

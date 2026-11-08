@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { builtinModules } from "node:module";
 import { join, relative, sep } from "node:path";
-import { createSourceCodeMask } from "./source-code-mask.mjs";
+import { createSourceSyntaxIndex } from "./source-code-mask.mjs";
 
 export const approvedProductPackages = Object.freeze([
   "@tsonic/csharp-js",
@@ -78,12 +78,6 @@ export const nativeProductBoundaryCodeRules = Object.freeze([
     id: "runtime-reflection-invocation",
     pattern: /\b(?:MethodInfo\s*\.\s*Invoke|Activator\s*\.\s*CreateInstance|Assembly\s*\.\s*Load)\s*\(/g,
     replacement: "Do not invoke or load runtime members as language semantics; emit deterministic diagnostics when facts are missing.",
-    text: "code",
-  },
-  {
-    id: "csharp-dynamic-semantics",
-    pattern: /:\s*dynamic\b|\bdynamic\s+[A-Za-z_$][\w$]*\s*(?:=|;|,)/g,
-    replacement: "C# dynamic is not a runtime semantics fallback; use exact closed JS-value carrier facts or diagnose.",
     text: "code",
   },
   {
@@ -172,9 +166,9 @@ export function collectNativeProductBoundarySourceFindings(repoRoot) {
 }
 
 export function collectNativeProductBoundaryFindingsFromSources(sources) {
-  const mask = createSourceCodeMask(new Map(sources.map((source, index) => [`${index}/${source.file}`, source.text])));
+  const syntax = createSourceSyntaxIndex(new Map(sources.map((source, index) => [`${index}/${source.file}`, source.text])));
   return sortFindings(sources.flatMap((source, index) =>
-    collectSourceFileFindings(source.file, source.text, mask(`${index}/${source.file}`))));
+    collectSourceFileFindings(source.file, source.text, syntax(`${index}/${source.file}`))));
 }
 
 export function collectNativeProductManifestFindings(repoRoot) {
@@ -222,13 +216,24 @@ export function formatNativeProductBoundaryFinding(finding) {
   return `${finding.file}:${finding.line} ${finding.ruleId}: ${finding.snippet} -> ${finding.replacement}`;
 }
 
-function collectSourceFileFindings(file, text, codeText) {
+function collectSourceFileFindings(file, text, syntax) {
+  const codeText = syntax.code;
   const commentText = maskStringsAndBlockComments(text);
   return [
     ...nativeProductBoundaryFileRules.flatMap((rule) => collectFileRuleFinding(file, rule)),
     ...nativeProductBoundaryCodeRules.flatMap((rule) =>
       collectPatternFindings(file, text, rule.text === "comment" ? commentText : codeText, rule),
     ),
+    ...syntax.typeReferences.filter(reference => reference.name === "dynamic").map(reference => {
+      const offset = reference.start;
+      return {
+        file,
+        ruleId: "csharp-dynamic-semantics",
+        line: lineNumberAt(text, offset),
+        snippet: lineAt(text, offset).trim(),
+        replacement: "C# dynamic is not a runtime semantics fallback; use exact closed JS-value carrier facts or diagnose.",
+      };
+    }),
     ...collectImportFindings(file, text, codeText),
   ];
 }

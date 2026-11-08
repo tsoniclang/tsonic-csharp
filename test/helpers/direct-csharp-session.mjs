@@ -1,24 +1,15 @@
 import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 import {
-  createCompilerSessionFromFiles,
-  formatDiagnostics,
-} from "@tsonic/tsts";
-import {
   collectTargetSourceProfileContributions,
+  checkTargetSourceFiles,
 } from "../../../tsonic/packages/host/dist/index.js";
 import {
   captureTargetCapabilityContributions,
-  createTargetSourceCompilerComposition,
-  getTargetRequiredProviderModules,
 } from "../../../tsonic/packages/host/dist/target/extensions.js";
 import {
   collectTargetSourcePackageGraph,
 } from "../../../tsonic/packages/host/dist/source-package-inputs.js";
-import { collectTstsDiagnostics } from "../../../tsonic/packages/host/dist/diagnostics.js";
-import {
-  createTargetSourceProgram,
-} from "../../../tsonic/packages/target-api/dist/public/source.js";
 import {
   createCsharpTargetPack,
 } from "../../dist/public/index.js";
@@ -52,7 +43,7 @@ export function compileCsharpAnalysisTarget(request, observer) {
   }, { analyzed: () => observer?.analyzed?.(analysis), planned: value => observer?.planned?.(value) }));
 }
 
-function createCheckedCsharpSource(options) {
+function createCsharpSourceSession(options) {
   const projectRoot = options.projectRoot ?? "/project";
   const cacheRoot = options.cacheRoot ?? fileURLToPath(
     new URL("../../.temp/direct-csharp-session-cache/", import.meta.url),
@@ -122,45 +113,36 @@ function createCheckedCsharpSource(options) {
     projectRoot,
     projectFiles,
   );
-  const files = new Map([
-    ...projectFiles,
-    ...sourceProfile.files.map((file) => [file.path, file.text]),
-  ]);
-  const composition = createTargetSourceCompilerComposition({
-    project,
-    projectDirectory: projectRoot,
-    target,
-    targetPack,
-    selectedCapabilities,
-    selectedSurfaces,
-    targetContributions: targetSession.sourceCompilerContributions(),
-  });
-  const compiler = createCompilerSessionFromFiles({
-    currentDirectory: projectRoot,
-    files,
-    compilerOptions: {
-      noLib: true,
-      module: "esnext",
-      moduleResolution: "bundler",
-      // Real projects compile with module nodenext under a type-module package, so every project file is a module.
-      // esnext with the default detection would treat import-free fixtures as scripts and reject top-level await.
-      moduleDetection: "force",
-      strict: true,
-      ...(options.compilerOptions ?? {}),
-    },
-    extensionHostOptions: {
-      extensions: composition.extensions,
-      requiredProviderModules: getTargetRequiredProviderModules(
-        target,
-        targetPack.provider,
-        selectedCapabilities,
-      ),
-    },
-  });
-  const source = compiler.checkSource();
+  let checked;
+  try {
+    checked = checkTargetSourceFiles({
+      project,
+      projectDirectory: projectRoot,
+      target,
+      targetPack,
+      selectedCapabilities,
+      selectedSurfaces,
+      targetContributions: targetSession.sourceCompilerContributions(),
+      sourceProfile,
+      currentDirectory: projectRoot,
+      files: projectFiles,
+      compilerOptions: {
+        noLib: true,
+        module: "esnext",
+        moduleResolution: "bundler",
+        moduleDetection: "force",
+        strict: true,
+        ...(options.compilerOptions ?? {}),
+      },
+    });
+  } catch (error) {
+    targetSession.close();
+    throw error;
+  }
+  const source = checked.kind === "resolved" ? checked.value : undefined;
   return {
-    compiler,
     source,
+    sourceDiagnostics: checked.diagnostics,
     sourcePackages,
     targetPack,
     targetSession,
@@ -183,13 +165,12 @@ function createCheckedCsharpSource(options) {
     project,
     target,
     paths,
-    sourceDiagnosticsText: formatDiagnostics(source.diagnostics),
-    extensionDiagnostics: source.extensionDiagnostics,
+    sourceDiagnosticsText: checked.diagnostics.map(diagnostic => `${diagnostic.code}: ${diagnostic.message}`).join("\n"),
   };
 }
 
 export function checkCsharpSource(options) {
-  const checked = createCheckedCsharpSource(options);
+  const checked = createCsharpSourceSession(options);
   checked.targetSession.close();
   return checked;
 }
@@ -200,16 +181,17 @@ export function analyzeCsharpSource(options) {
   let analysis;
   let source;
   let providers;
-  const checked = createCheckedCsharpSource({ ...options, compileTarget: request => {
+  const checked = createCsharpSourceSession({ ...options, compileTarget: request => {
     source = request.input.source;
     providers = request.providers;
     analysis = analyzeCsharpAnalysisProgram(request);
     return analysis.kind === "rejected" ? analysis : { kind: "resolved", diagnostics: analysis.diagnostics, value: { artifacts: [] } };
   } });
   try {
+    assertCsharpCheckingSucceeded(checked);
     const runtime = checked.runtimeContributions();
     checked.targetSession.compile({
-      source: createTargetSourceProgram(checked.source),
+      source: checked.source,
       sourcePackages: checked.sourcePackages,
       project: checked.project,
       target: checked.target,
@@ -221,6 +203,7 @@ export function analyzeCsharpSource(options) {
     checked.targetSession.close();
   }
   assert.notEqual(analysis, undefined, "the session ran the C# analysis");
+  assert.equal(source === checked.source, true, "Native analysis receives the identical normal Host Source program");
   return { ...checked, source, analysis, providers };
 }
 
@@ -240,23 +223,24 @@ export function withCsharpSessionRequest(options, use) {
 }
 
 export function compileCsharpSource(options) {
-  const projectRoot = options.projectRoot ?? "/project";
   let program;
   let plan;
   const compileTarget = options.compileTarget ?? compileCsharpAnalysisTarget;
-  const checked = createCheckedCsharpSource({ ...options, compileTarget: request => compileTarget(request, {
+  const checked = createCsharpSourceSession({ ...options, compileTarget: request => compileTarget(request, {
     analyzed(value) { program = value; },
     planned(value) { plan = value; },
   }) });
-  const sourceDiagnostics = collectTstsDiagnostics(checked.source, projectRoot);
+  const sourceDiagnostics = checked.sourceDiagnostics;
   let compiled;
   try {
-    if (sourceDiagnostics.some(diagnostic => diagnostic.category === "error")) {
+    if (checked.source === undefined) {
+      assert.equal(sourceDiagnostics.some(diagnostic => diagnostic.category === "error"), true,
+        "the normal Host refusal retains its actual fatal diagnostic");
       compiled = { kind: "rejected", diagnostics: sourceDiagnostics };
     } else {
       const runtime = checked.runtimeContributions();
-      compiled = checked.targetSession.compile({
-        source: createTargetSourceProgram(checked.source),
+      const targetResult = checked.targetSession.compile({
+        source: checked.source,
         sourcePackages: checked.sourcePackages,
         project: checked.project,
         target: checked.target,
@@ -267,6 +251,7 @@ export function compileCsharpSource(options) {
         ],
         paths: checked.paths,
       });
+      compiled = { ...targetResult, diagnostics: [...sourceDiagnostics, ...targetResult.diagnostics] };
     }
   } finally {
     checked.targetSession.close();
@@ -304,16 +289,12 @@ export function assertCsharpCompilationSucceeded(compiled) {
 }
 
 export function assertCsharpCheckingSucceeded(compiled) {
-  if (compiled.sourceDiagnosticsText !== "") {
-    assert.fail(
-      `C# source checking produced diagnostics:\n${truncateDiagnosticText(compiled.sourceDiagnosticsText)}`,
-    );
-  }
   assertEmptyDiagnosticCollection(
-    "C# extension checking",
-    compiled.extensionDiagnostics,
-    compiled.source.ast,
+    "Host Source checking",
+    compiled.sourceDiagnostics,
+    compiled.source?.ast,
   );
+  assert.equal(compiled.source !== undefined, true, "the normal Host check publishes its original pure Source program");
 }
 
 function assertEmptyDiagnosticCollection(label, diagnostics, ast) {

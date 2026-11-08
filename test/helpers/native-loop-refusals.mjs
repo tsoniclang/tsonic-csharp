@@ -1,17 +1,18 @@
 import assert from "node:assert/strict";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
 
 export function assertNativeLoopRefusals(compiled, expected) {
   assert.equal(compiled.sourceDiagnosticsText, "", "the original program is checked source");
   assert.deepEqual(compiled.result.diagnostics.map(({ code, message }) => ({ code, message })),
     expected.map(({ message }) => ({ code: "CSHARP_UNSUPPORTED_AST", message })));
-  const source = createTargetSourceProgram(compiled.source);
+  const source = compiled.source;
+  assert.equal(source.facts !== undefined && Array.isArray(source.sourceFiles), true,
+    "the normal Host compilation retains its complete original Source program");
   const nodes = new Set();
   const visit = node => {
     nodes.add(node);
     source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
-  for (const file of source.navigation.sourceFiles) visit(file);
+  for (const file of source.sourceFiles) visit(file);
   for (const [index, diagnostic] of compiled.result.diagnostics.entries()) {
     const node = diagnostic.sourceNode;
     assert.equal(node !== undefined && nodes.has(node), true, `refusal ${index}: identical checked source node`);

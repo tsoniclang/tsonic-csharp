@@ -7,6 +7,7 @@ import {
 import { createCsharpPlanningContext } from "../../../../dist/backend/planner/context.js";
 import { planStatements } from "../../../../dist/backend/planner/statements/planning.js";
 import { csharpProgramSourceFiles } from "../../../helpers/program-source-files.mjs";
+import { compileEffectiveSource, assertPublishedSourceFormRefusal } from "../../../helpers/source-effective-types.mjs";
 
 for (const surface of ["native", "js"]) {
   test(`${surface} checked local aliases add no executable statements`, () => {
@@ -39,19 +40,16 @@ for (const surface of ["native", "js"]) {
   });
 
   test(`${surface} statement callers cannot route module-only declarations into body planning`, () => {
-    const compiled = compileCsharpSource({ surface, sourceText: `
+    const compiled = compileEffectiveSource(surface, `
       namespace Hidden {}
       export function run(): number { return 1; }
-    ` });
+    `);
     assert.equal(compiled.sourceDiagnosticsText, "", "the namespace is a real checked top-level source form");
-    // Source-module admission refuses the namespace during analysis (analysis/source-modules/emission.ts), so no
-    // program reaches planning.
     assert.equal(compiled.result.program === undefined, true, "the module admission owns this source refusal");
     const errors = compiled.result.diagnostics.filter(issue => issue.category === "error");
     assert.equal(errors.length, 1, "the foreign module obligation keeps its exact one existing refusal");
-    assert.equal(errors[0].code, "CSHARP_UNSUPPORTED_AST", "the foreign source code is unchanged");
-    assert.equal(errors[0].message, "Top-level statement is outside the current C# planning surface.",
-      "the foreign late refusal is not relabelled as an internal error");
+    assertPublishedSourceFormRefusal(compiled, errors[0], "Namespace declarations have no supported Source runtime value form.",
+      "namespace Hidden {}");
     const node = errors[0].sourceNode;
     assert.equal(node !== undefined && compiled.source.ast.is.IsModuleDeclaration(node), true,
       "the exact original top-level namespace remains the foreign diagnostic subject");
