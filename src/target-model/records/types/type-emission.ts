@@ -1,29 +1,63 @@
-import type { TargetTypeRef, CsharpObjectShapeFact, CsharpDelegateSignatureShape } from "../../types/model.js";
+import type { TargetTypeRef, CsharpObjectShapeFact, CsharpDelegateSignatureShape, CsharpNativeCallableMember } from "../../types/model.js";
 import type { CsharpCollectionElementRead } from "../../types/carriers/collection-reads.js";
 import { targetTypeRefKey } from "../../types/equality.js";
-import { getCsharpLambdaSignature } from "../../types/carriers/delegates.js";
+import { getCsharpCallableMembers, getCsharpLambdaSignature } from "../../types/carriers/delegates.js";
+import { csharpTargetTypeComponents } from "../../types/components.js";
 import { getCsharpMethodValue } from "../../types/method-values.js";
 
 export function csharpTypeEmissionKey(carrier: TargetTypeRef): string {
   const active = new Set<TargetTypeRef>();
-  return JSON.stringify(encode(carrier));
+  const encoded = new Map<TargetTypeRef, number>();
+  const positions = new Map<string, number>();
+  const entries: unknown[] = [];
+  const root = encode(carrier);
+  return JSON.stringify([root, entries]);
 
-  function encode(type: TargetTypeRef): unknown {
+  function intern(value: readonly unknown[]): number {
+    const key = JSON.stringify(value);
+    const previous = positions.get(key);
+    if (previous !== undefined) return previous;
+    const index = entries.length;
+    entries.push(value);
+    positions.set(key, index);
+    return index;
+  }
+
+  function encode(type: TargetTypeRef): number {
+    const previous = encoded.get(type);
+    if (previous !== undefined) return previous;
     const physical = targetTypeRefKey(type);
-    if (active.has(type)) return [physical, "recursive"];
+    if (active.has(type)) return intern([physical, "recursive"]);
     active.add(type);
     const method = getCsharpMethodValue(type);
     const signature = getCsharpLambdaSignature(type);
-    const children = type.kind === "target-named" ? type.typeArguments ?? []
-      : type.kind === "array" ? [type.element] : type.kind === "tuple" ? type.elements
-      : type.kind === "pointer" ? [type.pointee] : type.kind === "function-pointer" ? [...type.args, type.result] : [];
-    const result = [physical, children.map(encode), method === undefined ? null
+    const members = getCsharpCallableMembers(type);
+    const constraints = type.kind === "type-parameter" ? type.csharpConstraints : undefined;
+    const result = [physical, [...new Set(csharpTargetTypeComponents(type).map(encode))], method === undefined ? null
       : [method.method, method.identity, method.typeParameters, method.allowsRefLikeTypeArguments, encode(method.contract)],
-      signature === undefined ? null : [signature.parameters.map(targetTypeRefKey), signature.parameterPassingModes,
-        targetTypeRefKey(signature.returnType), signature.returnPassing ?? null,
-        signature.optionalParameterIndexes ?? [], signature.restParameterIndex ?? null]];
+      signature === undefined ? null : encodeSignature(signature),
+      members?.map(member => [member.name,
+        member.typeParameters.map(parameter => [parameter.identity, parameter.name, encodeConstraints(parameter.constraints)]),
+        encodeSignature(member.signature)]) ?? null,
+      type.kind === "type-parameter" ? [type.name, constraints === undefined ? null
+        : constraints.kind === "resolved" ? [constraints.kind, encodeConstraints(constraints.constraints)]
+        : [constraints.kind, constraints.reason]] : null];
     active.delete(type);
-    return result;
+    const position = intern(result);
+    encoded.set(type, position);
+    return position;
+  }
+
+  function encodeSignature(signature: CsharpDelegateSignatureShape): unknown {
+    return [signature.kind, signature.receiver === undefined ? null
+      : [encode(signature.receiver.type), signature.receiver.passingMode],
+      signature.parameters.map(encode), signature.parameterPassingModes, encode(signature.returnType), signature.returnPassing ?? null,
+      signature.optionalParameterIndexes ?? [], signature.restParameterIndex ?? null];
+  }
+
+  function encodeConstraints(constraints: CsharpNativeCallableMember["typeParameters"][number]["constraints"]): readonly unknown[] {
+    return constraints.map(constraint => constraint.kind === "type" ? [constraint.kind, encode(constraint.type)]
+      : constraint.kind === "keyword" ? [constraint.kind, constraint.keyword] : [constraint.kind]);
   }
 }
 
