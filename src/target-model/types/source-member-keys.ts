@@ -1,7 +1,6 @@
-import type { ResolvedSourceWellKnownSymbolInfo } from "@tsonic/tsts";
 import type { CsharpSourceMemberKey } from "./model.js";
 
-type ResolvedWellKnownSymbolKind = ResolvedSourceWellKnownSymbolInfo["kind"];
+type CsharpWellKnownSymbolKind = Extract<CsharpSourceMemberKey, { readonly kind: "well-known-symbol" }>["symbol"];
 
 export function csharpPropertySourceMemberKey(
   name: string,
@@ -10,7 +9,7 @@ export function csharpPropertySourceMemberKey(
 }
 
 export function csharpWellKnownSymbolSourceMemberKey(
-  symbol: ResolvedWellKnownSymbolKind,
+  symbol: CsharpWellKnownSymbolKind,
 ): CsharpSourceMemberKey {
   return Object.freeze({ kind: "well-known-symbol", symbol });
 }
@@ -59,7 +58,7 @@ export function csharpSourceMemberDisplayName(
 }
 
 export function csharpWellKnownSymbolTargetMemberName(
-  symbol: ResolvedWellKnownSymbolKind,
+  symbol: CsharpWellKnownSymbolKind,
 ): string | undefined {
   switch (symbol) {
     case "dispose": return "Dispose";

@@ -1,5 +1,5 @@
-import type { ArgumentPassingMode, Node, ResolvedSourceWellKnownSymbolInfo, SourcePrimitiveKind } from "@tsonic/tsts";
-import type { SourceMemberOrigin } from "@tsonic/target-api/source";
+import type { ArgumentPassingMode, Node, SourcePrimitiveKind } from "@tsonic/tsts";
+import type { SourceMemberOrigin, SourcePropertyName } from "@tsonic/target-api/source";
 import type { CsharpConversionSelection } from "../conversions/selection.js";
 
 export interface CsharpTargetBinaryExecutionDriver {
@@ -17,7 +17,7 @@ export type CsharpSourceMemberKey =
   | { readonly kind: "property"; readonly name: string }
   | {
       readonly kind: "well-known-symbol";
-      readonly symbol: ResolvedSourceWellKnownSymbolInfo["kind"];
+      readonly symbol: Extract<SourcePropertyName, { readonly kind: "well-known-symbol" }>["name"];
     };
 
 export interface CsharpObjectMethodValueStorage {
