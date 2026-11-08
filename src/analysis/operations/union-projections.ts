@@ -1,12 +1,10 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
-import type { CsharpTypeDefinitions } from "../../target-model/types/source-union-definitions.js";
 import { getCsharpRuntimeUnionArms } from "../../target-model/types/carriers/runtime-carriers.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 
-export function admitCsharpUnionProjections(nodes: readonly Node[], operations: CsharpTargetOperationClassifications,
-  definitions: CsharpTypeDefinitions): readonly TargetDiagnostic[] {
+export function admitCsharpUnionProjections(nodes: readonly Node[], operations: CsharpTargetOperationClassifications): readonly TargetDiagnostic[] {
   const issues: TargetDiagnostic[] = [];
   for (const node of nodes) {
     const fact = operations.selectedProperty.get(node)?.selection;
@@ -14,7 +12,7 @@ export function admitCsharpUnionProjections(nodes: readonly Node[], operations: 
     const reject = (message: string, code = "CSHARP_UNION_PROJECTION_CONTRACT_INVALID"): void => {
       issues.push({ code, category: "error", source: "tsonic-csharp", sourceNode: node, message });
     };
-    const variants = getCsharpRuntimeUnionArms(fact.unionCarrier, definitions);
+    const variants = getCsharpRuntimeUnionArms(fact.unionCarrier);
     if (!Array.isArray(fact.variants) || !Array.isArray(fact.selectedVariantIndexes)) {
       reject("Native union projection has no exact emitted shape and nonempty selected-variant set."); continue;
     }

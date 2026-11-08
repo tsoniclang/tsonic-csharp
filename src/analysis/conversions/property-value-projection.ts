@@ -1,6 +1,5 @@
 import type { CsharpConversionClassifications } from "../../target-model/records/operations/conversions.js";
 import type { CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
-import type { CsharpTypeDefinitions } from "../../target-model/types/source-union-definitions.js";
 import type { CsharpPropertyValueProjectionEmission } from "../../target-model/records/objects/property-value-projection.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
@@ -14,7 +13,7 @@ import { csharpUnionLeaves } from "../../target-model/types/union-relations.js";
 import { createCsharpPropertyValueProjectionProducer } from "../program/records/objects/property-value-projection.js";
 
 export function analyzeCsharpPropertyValueProjection(conversions: CsharpConversionClassifications,
-  shapes: Pick<CsharpObjectShapeClassifications, "resolveTarget">, definitions: CsharpTypeDefinitions,
+  shapes: Pick<CsharpObjectShapeClassifications, "resolveTarget">,
   literals: Pick<CsharpObjectLiteralRecords, "objectLiteral">, program: TargetSourceProgram) {
   const producer = createCsharpPropertyValueProjectionProducer();
   const issues: TargetDiagnostic[] = [];
@@ -43,7 +42,7 @@ export function analyzeCsharpPropertyValueProjection(conversions: CsharpConversi
       if (name !== undefined && program.ast.is.IsComputedPropertyName(name)) {
         const expression = program.ast.as.AsComputedPropertyName(name)?.Expression;
         if (expression === undefined) return undefined;
-        const effects = program.navigation.expressionEffects(expression);
+        const effects = program.facts.navigation.expressionEffects(expression);
         if (effects.invokes || effects.mutates || effects.suspends || effects.mayThrow) return undefined;
       }
       values.push(Object.freeze({ initializer: member.initializer, projection }));
@@ -58,7 +57,7 @@ export function analyzeCsharpPropertyValueProjection(conversions: CsharpConversi
       if (producer.records.propertyValueProjection.get(node, source) !== undefined) continue;
       let selected: CsharpPropertyValueProjectionEmission;
       const present = getCsharpNullableElementTargetType(source);
-      const leaves = csharpUnionLeaves(source, definitions);
+      const leaves = csharpUnionLeaves(source);
       if (isCsharpJsValueTargetType(source)) selected = { kind: "identity" };
       else if (isCsharpAbsenceTargetType(source)) selected = { kind: "absence" };
       else if (present !== undefined) { selected = { kind: "optional", present }; pending.push(present); }

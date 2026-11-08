@@ -43,7 +43,7 @@ export function selectCsharpResourceManagement(
     );
   }
   return selectCsharpNativeResourceManagement(source, storageType,
-    alternatives as readonly { readonly targetType: TargetTypeRef; readonly disposal: CsharpResourceDisposalOperation }[], input.typeDefinitions);
+    alternatives as readonly { readonly targetType: TargetTypeRef; readonly disposal: CsharpResourceDisposalOperation }[]);
 }
 
 function resolveDisposalOperation(

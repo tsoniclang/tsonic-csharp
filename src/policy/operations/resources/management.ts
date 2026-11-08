@@ -5,13 +5,11 @@ import { getCsharpRuntimeUnionArms, getCsharpNullableElementTargetType, isCsharp
 import type { CsharpOperationSelection } from "../../../target-model/records/operations/operator-selection.js";
 
 import type { ResolvedSourceResourceManagementInfo } from "@tsonic/tsts";
-import type { CsharpTypeDefinitions } from "../../../target-model/types/source-union-definitions.js";
 
 export function selectCsharpNativeResourceManagement(
   source: ResolvedSourceResourceManagementInfo,
   storageType: TargetTypeRef,
   alternatives: readonly { readonly targetType: TargetTypeRef; readonly disposal: CsharpResourceDisposalOperation }[],
-  definitions: CsharpTypeDefinitions | undefined,
 ): CsharpOperationSelection<CsharpResolvedResourceManagement> {
   const canonical = canonicalDisposalAlternatives(
     alternatives as readonly {
@@ -40,7 +38,7 @@ export function selectCsharpNativeResourceManagement(
       },
     };
   }
-  const storageArms = getCsharpRuntimeUnionArms(directResourceType, definitions);
+  const storageArms = getCsharpRuntimeUnionArms(directResourceType);
   if (storageArms === undefined) {
     return rejected(
       "Multiple selected resource alternatives require one exact C# runtime-union storage carrier.",

@@ -122,7 +122,6 @@ export function classifySourceOwnedMember(
     policy.objectShapes,
     selectedReceiverType,
     selectedSubjects,
-    policy.typeDefinitions,
   );
   const shapeMember = objectShape === undefined
       ? undefined

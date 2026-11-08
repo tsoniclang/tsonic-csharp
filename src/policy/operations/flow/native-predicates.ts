@@ -9,7 +9,7 @@ import { selectCsharpClosedTypeTestPlan } from "../operators/type-tests.js";
 
 import { csharpCarrierAdmitsSourceAbsence, isCsharpAbsenceTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 
-import type { CsharpTypeDefinitions } from "../../../target-model/types/source-union-definitions.js";
+import type { CsharpTypeDefinitions } from "../../../target-model/types/native-definitions.js";
 export type CsharpNativeFlowPredicate = CsharpClosedTypePredicate | { readonly kind: "typeof"; readonly value: string; readonly negated: boolean }
   | Extract<SourceNativeValueGuard, { readonly kind: "literal" }>
   | { readonly kind: "absence"; readonly negated: boolean };

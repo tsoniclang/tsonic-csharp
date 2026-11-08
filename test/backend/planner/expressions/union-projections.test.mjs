@@ -4,7 +4,6 @@ import { nativeUnionProjectionMutations } from "../../../../../tsonic/test/fixtu
 import { admitCsharpUnionProjections } from "../../../../dist/analysis/operations/union-projections.js";
 import { planCsharpNativeUnionPropertyProjection } from "../../../../dist/backend/planner/expressions/union-projections.js";
 import { csharpRuntimeUnionTargetType, csharpStringTargetType, csharpSourcePrimitiveTargetType } from "../../../../dist/target-model/types/index.js";
-import { emptyCsharpTypeDefinitions } from "../../../../dist/target-model/types/source-union-definitions.js";
 
 test("native union admission proves every carrier and selection before rendering a single receiver", () => {
   const carriers = [csharpSourcePrimitiveTargetType("int64"), csharpStringTargetType(), csharpSourcePrimitiveTargetType("bool")];
@@ -17,7 +16,7 @@ test("native union admission proves every carrier and selection before rendering
     } : {}) })) };
   const admit = selected => admitCsharpUnionProjections([node], {
     selectedProperty: { get: subject => subject === node ? { selection: selected } : undefined },
-  }, emptyCsharpTypeDefinitions);
+  });
   assert.equal(admit(fact).length, 0, "the exact native union is admitted");
   const receiver = { kind: "IdentifierName", name: "value" };
   const input = { program: { source: { ast: { pos: () => 1, end: () => 2 } },

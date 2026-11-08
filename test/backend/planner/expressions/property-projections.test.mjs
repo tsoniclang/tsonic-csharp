@@ -25,7 +25,7 @@ function fixture() {
     conversion: selectCsharpClosedShapeConversion({ kind: "js-value-box" }, csharpTsValueTargetType()).value })));
   const analyze = demand => analyzeCsharpPropertyValueProjection({ propertyProjectionRoots: [{ node, carrier: source }],
     propertyProjection: { get: (subject, carrier) => subject === node && carrier === source ? demand : undefined } },
-  { resolveTarget: () => shape }, undefined, { objectLiteral: { get: () => undefined } }, {});
+  { resolveTarget: () => shape }, { objectLiteral: { get: () => undefined } }, {});
   const analysis = analyze(projected);
   const input = { program: { source: { ast: { pos: () => 1 } },
     records: { propertyValueProjection: analysis.records.propertyValueProjection,
@@ -106,7 +106,7 @@ function literalFixture(change = () => {}) {
     navigation: { expressionEffects: () => state.keyEffects } };
   const analysis = analyzeCsharpPropertyValueProjection({ propertyProjectionRoots: [{ node: current.node, carrier: source }],
     propertyProjection: { get: (subject, carrier) => subject === current.node && carrier === source ? members : undefined } },
-  { resolveTarget: carrier => carrier === source ? shape : undefined }, undefined,
+  { resolveTarget: carrier => carrier === source ? shape : undefined },
   { objectLiteral: { get: (selectedShape, subject) => state.literalAvailable && selectedShape === shape && subject === current.node ? literal : undefined } }, program);
   current.input.program.records.propertyValueProjection = analysis.records.propertyValueProjection;
   current.input.program.records.nativeExpression = { get: subject => subject === current.node ? { use: { kind: "value", expression: subject,

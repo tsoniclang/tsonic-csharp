@@ -5,7 +5,7 @@ import type { CsharpCaptureStorage } from "../../../target-model/records/callabl
 import type { CsharpConversionClassifications } from "../../../target-model/records/operations/conversions.js";
 import type { CsharpObjectShapeAnalysis, CsharpObjectShapeClassifications } from "../../../target-model/records/objects/object-shapes.js";
 import type { CsharpProjectTypeClassifications } from "../../../target-model/records/types/project-types.js";
-import type { CsharpTypeDefinitions } from "../../../target-model/types/source-union-definitions.js";
+import type { CsharpTypeDefinitions } from "../../../target-model/types/native-definitions.js";
 
 import type { TargetTypeRef, CsharpObjectShapeProjectionKind } from "../../../target-model/types/model.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeCapability, CsharpObjectShapeProjection } from "../../../target-model/types/index.js";

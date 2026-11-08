@@ -7,7 +7,7 @@ import { getCsharpRuntimeUnionArms, isCsharpAbsenceTargetType } from "../../../t
 import { isCsharpJsValueTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { isCsharpValueTypeTargetType } from "../../../target-model/types/identity.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
-import type { CsharpTypeDefinitions } from "../../../target-model/types/source-union-definitions.js";
+import type { CsharpTypeDefinitions } from "../../../target-model/types/native-definitions.js";
 import { csharpStructuralObjectShapeIdentity } from "../../../target-model/types/object-shape-identity.js";
 
 export function selectCsharpClosedTypeTestPlan(
@@ -25,7 +25,7 @@ export function selectCsharpClosedTypeTestPlan(
     const test = selectCsharpClosedTypeTestPlan(element, predicate, nested, definitions);
     return test === undefined ? undefined : Object.freeze({ kind: "optional", element, test });
   }
-  const variants = getCsharpRuntimeUnionArms(source, definitions);
+  const variants = getCsharpRuntimeUnionArms(source);
   if (variants !== undefined) {
     const arms = variants.map(carrier => {
       const test = selectCsharpClosedTypeTestPlan(carrier, predicate, nested, definitions);

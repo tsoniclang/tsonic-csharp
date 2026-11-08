@@ -13,7 +13,7 @@ import type { CsharpNativeUseClassifications } from "../../../target-model/recor
 import type { CsharpStorageRepresentationClassifications } from "../../../target-model/records/storage/storage.js";
 import type { CsharpPromiseDiscard, CsharpPromiseResult, CsharpPromiseResults } from "../../../target-model/records/callables/promise-results.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import type { CsharpTypeDefinitions } from "../../../target-model/types/source-union-definitions.js";
+import type { CsharpTypeDefinitions } from "../../../target-model/types/native-definitions.js";
 import { isCsharpRefLikeTargetType } from "../../../target-model/types/ref-like.js";
 import { selectCsharpPromiseDiscard } from "../../../policy/types/callables/promise-results.js";
 

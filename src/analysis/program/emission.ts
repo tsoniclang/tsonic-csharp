@@ -165,7 +165,7 @@ export function finalizeCsharpNativeEmission(
   const callAdmission = analyzeCsharpCallAdmission(source.ast, sourceStorage.nodes, admittedOperations, analysis.valueReads, admittedControlNode);
   const optionalCallChains = analyzeCsharpOptionalCallChains(source.ast, sourceStorage.nodes, admittedOperations, nativeDemand, admittedControlNode);
   const nonCallableIssues = [
-    ...admitCsharpUnionProjections(sourceStorage.nodes, admittedOperations, typeDefinitions),
+    ...admitCsharpUnionProjections(sourceStorage.nodes, admittedOperations),
     ...literalEmission.issues,
     ...unionEquality.issues,
     ...closedTypeTests.issues,
@@ -421,7 +421,7 @@ export function finalizeCsharpNativeEmission(
   const arrayLiterals = analyzeCsharpArrayLiterals({ source, demand: nativeDemand, conversions,
     values: analysis.valueReads, expected: analysis.expectedTypes, evidence: analysis.sourceEvidence, operations: admittedOperations });
   if (arrayLiterals.issues.length !== 0) return rejectedTargetStage(arrayLiterals.issues);
-  const propertyValueProjection = analyzeCsharpPropertyValueProjection(conversions, callableAdapters.objectShapes, typeDefinitions,
+  const propertyValueProjection = analyzeCsharpPropertyValueProjection(conversions, callableAdapters.objectShapes,
     objectLiterals.records, source);
   if (propertyValueProjection.issues.length !== 0) return rejectedTargetStage(propertyValueProjection.issues);
   const sourceCallEmission = analyzeCsharpSourceCallEmission({ source, nodes: sourceStorage.nodes, operations: admittedOperations,

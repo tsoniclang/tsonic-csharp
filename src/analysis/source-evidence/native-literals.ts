@@ -1,6 +1,4 @@
-import type { Node } from "@tsonic/tsts";
-import type { SourceLiteralUnit, SourcePresence, TargetSourceProgram } from "@tsonic/target-api/source";
-import type { CsharpRepresentationOutcome } from "../../target-model/types/representation.js";
+import type { TargetSourceProgram } from "@tsonic/target-api/source";
 import type { CsharpNativeLiteralQueries } from "../../policy/model/native-literals.js";
 
 export function createCsharpNativeLiteralQueries(source: TargetSourceProgram): CsharpNativeLiteralQueries {

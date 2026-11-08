@@ -9,9 +9,8 @@ export function resolveCsharpRuntimeUnionObjectShapeProperty(
   objectShapes: CsharpObjectShapePolicy,
   receiverType: TargetTypeRef | undefined,
   selectedSubjects: readonly unknown[],
-  definitions?: import("../../target-model/types/source-union-definitions.js").CsharpTypeDefinitions,
 ): CsharpRuntimeUnionObjectShapePropertyResolution {
-  const arms = getCsharpRuntimeUnionArms(receiverType, definitions);
+  const arms = getCsharpRuntimeUnionArms(receiverType);
   if (arms === undefined) {
     return { kind: "not-runtime-union" };
   }
