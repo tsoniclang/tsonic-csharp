@@ -1,6 +1,5 @@
-import type { TsonicSafetyApplicationFact, TsonicSafetyBuilderFact, TsonicUnsafeContextFact } from "@tsonic/source-core/facts";
-import type { TargetSafetyApplication, TargetSafetyOperation } from "@tsonic/target-api/analysis";
 import type { Node, SourceFile } from "@tsonic/tsts";
+import type { SourceProgramFacts } from "@tsonic/target-api/source";
 
 export interface CsharpSafetyApplicationFactIndex {
   readonly all: readonly CsharpSafetyApplication[];
@@ -9,6 +8,14 @@ export interface CsharpSafetyApplicationFactIndex {
   readonly safetyOperation: { readonly get: (subject: Node) => CsharpSafetyOperation | undefined };
 }
 
-export type CsharpSafetyApplication = TargetSafetyApplication<TsonicSafetyApplicationFact>;
+type PublishedSafety = Extract<ReturnType<SourceProgramFacts["protocols"]["safety"]>, { readonly kind: "resolved" }>["value"];
 
-export type CsharpSafetyOperation = TargetSafetyOperation<TsonicUnsafeContextFact, TsonicSafetyBuilderFact>;
+export type CsharpSafetyOperation = Extract<PublishedSafety, { readonly kind: "present" }>["value"];
+
+export type CsharpSafetyApplication = Extract<Extract<CsharpSafetyOperation, { readonly kind: "safety-builder" }>["fact"],
+  { readonly kind: "application" }> & {
+  readonly sourceSubject: Node;
+  readonly sourceFile: SourceFile;
+  readonly resolvedRootDeclaration: Node | undefined;
+  readonly targetDeclarations: readonly Node[];
+};

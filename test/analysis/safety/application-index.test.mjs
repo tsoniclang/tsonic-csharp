@@ -3,7 +3,6 @@ import test from "node:test";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 
-// Membership is decided once by @tsonic/target-api's createTargetSafetyApplicationIndex.
 const header = `import { safety, unsafecontext } from "@tsonic/core/lang.js";
 import type { int32 } from "@tsonic/core/types.js";
 
@@ -57,7 +56,7 @@ function membership(body) {
     return found;
   };
   const placements = node => program.records.safetyApplication.get(node)
-    .map(application => `${application.applicationPlacement}:${application.contract}`);
+    .map(application => `${application.placement}:${application.contract}`);
   return {
     get: placements(find(node => ast.is.IsGetAccessorDeclaration(node))),
     set: placements(find(node => ast.is.IsSetAccessorDeclaration(node))),

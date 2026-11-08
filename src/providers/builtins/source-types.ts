@@ -1,6 +1,6 @@
 import { tsonicCoreProviderVersion, tsonicCoreTypesModule, tsonicCoreVirtualModulesProviderId } from "@tsonic/source-core/facts";
 import { csharpLangModule, csharpProviderVersion, csharpSourceVirtualModulesProviderId } from "../../target-model/identities/source.js";
-import { csharpNativePointerExport } from "../../source/extension/explicit-safety.js";
+import { csharpNativePointerExport } from "../../source/profiles/safety.js";
 import type { CsharpTargetBindingFact, TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpProviderTargetRelation } from "../../target-model/identities/provider-relations.js";
 import { csharpRankedArrayDescriptors } from "../../source/profiles/ranked-arrays.js";

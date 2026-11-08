@@ -22,7 +22,6 @@ import { nextState } from "./state.js";
 import { providerVirtualDeclarationFactKey, sourcePrimitiveFactKey } from "@tsonic/tsts";
 import { readCsharpSourceNativePointerOperation } from "../../../../source/extension/native-pointers.js";
 import { readCsharpSourceTypedLocationOperation } from "../../../../source/extension/typed-locations.js";
-import { readCsharpSourceUnsafeContext } from "../../../../source/extension/explicit-safety.js";
 import { relateTypeArguments } from "./generic-arguments.js";
 import { csharpRawAddressResultType } from "../../../../policy/operations/pointers/raw-addresses.js";
 import { readCsharpSourceRawAddress } from "../../../../source/extension/raw-addresses.js";
@@ -262,18 +261,6 @@ export function selectDirectSourceFacts(
         ? resolveTypeWithState(fixedArray.elementSourceType, sourceFile, nextState(state))
         : resolveNodeWithState(fixedArray.elementType, host.ast.getSourceFile(fixedArray.elementType) ?? sourceFile, nextState(state));
       return selectedFactType(element === undefined ? undefined : { kind: "array", element });
-    }
-    const unsafeContext = readCsharpSourceUnsafeContext(
-      host.sourceFacts,
-      subject,
-    );
-    if (unsafeContext?.kind === "expression") {
-      const type = resolveNodeWithState(
-        unsafeContext.expression,
-        sourceFile,
-        nextState(state),
-      );
-      return selectedFactType(type);
     }
     if (isCsharpSourceRawPointer(host.sourceFacts, subject)) return selectedFactType(csharpRuntimeRawPointerTargetType());
     const pointer = readCsharpSourcePointerType(host.sourceFacts, subject);

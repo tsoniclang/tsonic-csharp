@@ -47,22 +47,22 @@ export function analyzeCsharpSafetyEmission(input: {
     }
     for (const declaration of application.targetDeclarations) {
       if (conflicts.has(declaration)) continue;
-      const related = input.safety.safetyApplication.get(declaration).filter(candidate => candidate.applicationPlacement === application.applicationPlacement);
+      const related = input.safety.safetyApplication.get(declaration).filter(candidate => candidate.placement === application.placement);
       if (new Set(related.map(candidate => candidate.contract)).size > 1) {
         conflicts.add(declaration);
         refuse("CSHARP_SAFETY_CONTRACT_CONFLICT", "One exact C# declaration received conflicting finalized safe and requires-unsafe contracts.");
       }
       if (contractPreview && application.contract === "requires-unsafe" &&
-        (application.applicationPlacement === "getter" || application.applicationPlacement === "setter")) {
+        (application.placement === "getter" || application.placement === "setter")) {
         const field = input.evidence.sourceField.get([declaration]);
         const property = input.operations.classPropertyStorage.get(declaration);
         const signature = ast.kindName(declaration) === "KindPropertySignature" || ast.is.IsIndexSignatureDeclaration(declaration);
         const hasAccessors = field === undefined && property?.kind !== "field";
         const writable = signature ? !ast.hasModifierKind(declaration, "readonly") : property?.readonly !== true;
         if ((ast.is.IsPropertyDeclaration(declaration) || signature || ast.is.IsParameterDeclaration(declaration)) &&
-          (!hasAccessors || application.applicationPlacement === "setter" && !writable))
+          (!hasAccessors || application.placement === "setter" && !writable))
           refuse("CSHARP_SAFETY_ACCESSOR_TARGET_NOT_EMITTED",
-            `The selected source ${application.applicationPlacement} has no corresponding emitted C# accessor for its explicit safety contract.`);
+            `The selected source ${application.placement} has no corresponding emitted C# accessor for its explicit safety contract.`);
       }
     }
     if (application.targetDeclarations.some(declaration => conflicts.has(declaration))) continue;
@@ -133,7 +133,7 @@ export function analyzeCsharpSafetyEmission(input: {
     const constructorContext = children.some(child => (ast.is.IsConstructorDeclaration(child.node) ||
       ast.is.IsPropertyDeclaration(child.node) && !ast.hasModifierKind(child.node, "static")) && child.selection.context);
     for (const placement of ["declaration", "constructor", "getter", "setter"] as const) {
-      const applications = input.safety.safetyApplication.get(node).filter(application => application.applicationPlacement === placement);
+      const applications = input.safety.safetyApplication.get(node).filter(application => application.placement === placement);
       const contracts = new Set(applications.map(application => application.contract));
       const explicit = contractPreview && contracts.size === 1 && contracts.has("requires-unsafe");
       const lexicalContext = ast.is.IsSourceFile(node) ? value.moduleContext

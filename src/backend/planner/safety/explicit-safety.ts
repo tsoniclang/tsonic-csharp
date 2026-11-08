@@ -89,7 +89,7 @@ export function withExplicitUnsafeContext<T>(
 }
 
 
-export function csharpSafetyModifiersForDeclaration(declaration: Node, placement: CsharpSafetyApplication["applicationPlacement"],
+export function csharpSafetyModifiersForDeclaration(declaration: Node, placement: CsharpSafetyApplication["placement"],
   input: CsharpPlanningContext, additionalDeclaration?: Node): readonly CsharpModifier[] {
   const selected = input.program.records.declarationSafety.get(declaration, placement);
   if (selected === undefined) failCsharpPlannerInvariant("An admitted declaration requires its sealed native safety modifiers.", declaration);
@@ -102,7 +102,7 @@ export function csharpSafetyModifiersForDeclaration(declaration: Node, placement
 export function withCsharpSafetyModifiers(
   modifiers: readonly CsharpModifier[],
   declaration: Node,
-  placement: CsharpSafetyApplication["applicationPlacement"],
+  placement: CsharpSafetyApplication["placement"],
   input: CsharpPlanningContext,
   additionalDeclaration?: Node,
 ): readonly CsharpModifier[] {

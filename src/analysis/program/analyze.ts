@@ -85,12 +85,9 @@ function analyzeCsharpTargetProgramBeforeSeal(
   if (nativeErrors.issues.length !== 0) return rejectedTargetStage(nativeErrors.issues);
   const memoryBindings = createTsonicMemoryBindingFactsIndex(source);
   const sourceAttributeApplications = createCsharpSourceAttributeApplicationIndex(source, source.facts.navigation.sourceFiles);
-  const safetyApplications = createCsharpSafetyApplicationFactIndex({
-    ast: source.ast,
-    sourceFiles: source.facts.navigation.sourceFiles,
-    sourceFacts: source.sourceFacts,
-    navigation: source.facts.navigation,
-  });
+  const safety = createCsharpSafetyApplicationFactIndex(source);
+  if (safety.kind === "refused") return rejectedTargetStage([forwardSourceRefusal(safety)]);
+  const safetyApplications = safety.value;
   const statementErasure = Object.freeze({ attributeApplications: sourceAttributeApplications, safetyApplications,
     errorNameInitializations: nativeErrors.nameInitializations });
   const sourceFiles = Object.freeze([...source.facts.navigation.sourceFiles]);
