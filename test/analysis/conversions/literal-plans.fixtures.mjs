@@ -1,50 +1,76 @@
 import assert from "node:assert/strict";
-import test from "node:test";
 import { analyzeCsharpConversions } from "../../../dist/analysis/conversions/analyze.js";
 import { analyzeCsharpExactLiteralSelections } from "../../../dist/analysis/conversions/literal-plans.js";
-import { createCsharpExactLiteralRequestCollector } from "../../../dist/analysis/conversions/literal-requests.js";
-import { applyCsharpConversionSelection } from "../../../dist/backend/planner/expressions/conversions.js";
-import { selectCsharpExactLiteralConversion, selectCsharpExactPropertyKeyConversion } from "../../../dist/policy/conversions/literals.js";
-import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
-import { csharpRuntimeUnionTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType, getCsharpRuntimeUnionArms } from "../../../dist/target-model/types/index.js";
-import { csharpNativeUseSite } from "../../../dist/target-model/records/native/native-demand.js";
-import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
-import { compileCsharpSource, checkCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
-import { createTargetSourceProgram, analyzeSourceLiteralValues } from "@tsonic/target-api/source";
-import { assertCsharpRequiredRecords } from "../../../dist/analysis/program/records/objects/required-records.js";
-import { checkedSourceLiteralValues } from "../../helpers/source-literal-values.mjs";
-import { planCsharpExactLiteralRecipe } from "../../../dist/backend/planner/expressions/literal-conversions.js";
-import { printCsharpExpression } from "../../../dist/print/source/printer.js";
-import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
+import { createCsharpNativeLiteralQueries } from "../../../dist/analysis/source-evidence/native-literals.js";
+import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/index.js";
+import { analyzeCsharpSource, checkCsharpSource, assertCsharpCheckingSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { callEvidence, providerCallSource, directProviderHost, providerBinding, providerDeclaration, providerFact, providerMethod,
   selectCsharpProviderCall, signatureRelation, targetParameter } from "../../fixtures/dotnet-provider/direct-provider-selection.helpers.mjs";
-import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 
 const primitive = name => csharpSourcePrimitiveTargetType(name);
 
 const primitives = ["bool", "char", "int8", "uint8", "int16", "uint16", "int32", "uint32", "int64", "uint64", "native-int",
   "native-uint", "float16", "float32", "float64", "decimal", "int128", "uint128"];
 
-function literals(entries) {
-  const values = new Map(entries);
-  return Object.freeze({ literalValue: Object.freeze({ get: node => values.get(node) }) });
+function represented(result, label) {
+  assert.equal(result.kind === "represented", true, `${label}: ${result.message ?? result.refusal?.message ?? result.kind}`);
+  return result.value;
+}
+
+function resolved(result, label) {
+  assert.equal(result.kind === "resolved", true, `${label}: ${result.message ?? result.kind}`);
+  return result.value;
+}
+
+function literalFixture(compiled) {
+  assertCsharpCheckingSucceeded(compiled);
+  const source = compiled.source;
+  const nodes = [];
+  const visit = node => {
+    nodes.push(node);
+    source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+  };
+  for (const file of source.sourceFiles) if (!source.ast.isDeclarationFile(file)) visit(file);
+  return { compiled, source, nodes, literals: createCsharpNativeLiteralQueries(source) };
+}
+
+function literalProgram(sourceText, options = {}) {
+  return literalFixture(checkCsharpSource({ ...options, sourceText }));
+}
+
+function analyzedLiteralProgram(sourceText, options = {}) {
+  return literalFixture(analyzeCsharpSource({ ...options, sourceText }));
+}
+
+function literalExpressions(expressions) {
+  const fixture = literalProgram(expressions.map((text, index) => `export const value${index} = (${text});`).join("\n"));
+  const declarations = fixture.nodes.filter(node => fixture.source.ast.is.IsVariableDeclaration(node));
+  const originals = declarations.map(declaration => fixture.source.ast.as.AsVariableDeclaration(declaration).Initializer);
+  assert.equal(originals.length === expressions.length && originals.every(node => node !== undefined), true,
+    "each original fixture expression has one genuine authored initializer");
+  return { ...fixture, expressions: originals };
+}
+
+function nativeLiteralIndex(literals, requests, nodes) {
+  return represented(analyzeCsharpExactLiteralSelections(literals, requests, nodes), "the actual Native literal owner completes");
+}
+
+function literalAnalysis(fixture) {
+  assert.equal(fixture.compiled.analysis.kind === "resolved", true,
+    fixture.compiled.analysis.diagnostics.map(({ code, message }) => `${code}: ${message}`).join("; "));
+  return fixture.compiled.analysis.value.analysis;
 }
 
 function checkedPropertyKeys() {
-  const checked = checkCsharpSource({ surface: "js", sourceText: `
+  const fixture = literalProgram(`
     import type { decimal } from "@tsonic/core/types.js";
     enum NumericKey { Wide = 9007199254740993 }
     const selected = "fixed" as const;
     export const keys = { plain: "a", [selected]: "b", 1.0: "e" };
     export const wideKeys: Record<decimal, string> = { 9007199254740993: "c" };
     export const enumKeys: Record<decimal, string> = { [NumericKey.Wide]: "d" };
-  ` });
-  assert.equal(checked.sourceDiagnosticsText === "" && checked.extensionDiagnostics.length === 0, true,
-    `the full source key control passes checked admission: ${checked.sourceDiagnosticsText}; ${checked.extensionDiagnostics.map(({ message }) => message).join("; ")}`);
-  const source = createTargetSourceProgram(checked.source);
-  const nodes = [];
-  const visit = node => { nodes.push(node); source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); }); };
-  for (const file of source.navigation.sourceFiles) visit(file);
+  `, { surface: "js" });
+  const { source, nodes } = fixture;
   const object = nodes.find(node => source.ast.is.IsVariableDeclaration(node) && source.ast.text(source.ast.name(node)) === "keys");
   const expression = source.ast.as.AsVariableDeclaration(object).Initializer;
   const ordinary = source.ast.properties(expression).map(property => source.ast.name(property));
@@ -54,9 +80,22 @@ function checkedPropertyKeys() {
   const enumExpression = source.ast.as.AsVariableDeclaration(enumObject).Initializer;
   const names = [ordinary[0], ordinary[1], source.ast.name(source.ast.properties(wideExpression)[0]),
     source.ast.name(source.ast.properties(enumExpression)[0]), ordinary[2]];
-  const selections = names.map(name => source.semantics.forNode(name).propertyNames.get(name));
-  assert.equal(selections.every(selection => selection?.kind === "resolved"), true, "every original name has one canonical constant");
-  return { source, nodes, names, selections };
+  const memberKey = (value, property) => {
+    const evidence = resolved(source.facts.values.type(value), "the original object has Source evidence");
+    const definition = resolved(source.facts.descriptors.definition(evidence), "the same-view object definition is produced");
+    assert.equal(definition.type.kind === "shape", true, "the original object publishes its structural member inventory");
+    const member = definition.type.members.find(member => member.origin.kind === "declared" && member.origin.declaration === property);
+    assert.equal(member !== undefined, true, "the key belongs to this exact original property declaration");
+    return member.key;
+  };
+  const properties = source.ast.properties(expression);
+  const selections = [memberKey(expression, properties[0]), memberKey(expression, properties[1]),
+    memberKey(wideExpression, source.ast.properties(wideExpression)[0]),
+    memberKey(enumExpression, source.ast.properties(enumExpression)[0]), memberKey(expression, properties[2])];
+  const enumDeclaration = nodes.find(node => source.ast.is.IsEnumMember(node));
+  assert.equal(enumDeclaration !== undefined, true, "the original enum key member is retained");
+  const enumMember = resolved(source.facts.enums.member(enumDeclaration), "the canonical enum member is produced");
+  return { ...fixture, names, selections, enumMember };
 }
 
 function providerAdapterCall(read, inputType) {
@@ -110,10 +149,12 @@ function sealedProviderCallConversions(fixture) {
       exactIntegerConversion: Object.freeze({ get: () => false }) },
     valueReads: { valueRead: Object.freeze({ get: node => node === literal ? { value: read, source: read } : undefined }) },
   });
-  analysis.close({ entries: Object.freeze([]) }, []);
+  analysis.close({ entries: Object.freeze([]) }, [], undefined, undefined,
+    { flowReadProjection: { get: () => undefined }, issues: [] });
   const conversions = analysis.seal();
   assert.equal(conversions.issues.length, 0, "conversion analysis seals without issues");
   return { analysis, conversions, prepared };
 }
 
-export { primitive, primitives, literals, checkedPropertyKeys, providerAdapterCall, sealedProviderCallConversions };
+export { primitive, primitives, represented, resolved, literalProgram, analyzedLiteralProgram, literalExpressions, literalAnalysis, nativeLiteralIndex,
+  checkedPropertyKeys, providerAdapterCall, sealedProviderCallConversions };

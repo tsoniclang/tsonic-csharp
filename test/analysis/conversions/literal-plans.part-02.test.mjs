@@ -1,26 +1,22 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { analyzeCsharpConversions } from "../../../dist/analysis/conversions/analyze.js";
-import { analyzeCsharpExactLiteralSelections } from "../../../dist/analysis/conversions/literal-plans.js";
+import { createCsharpNativeLiteralQueries } from "../../../dist/analysis/source-evidence/native-literals.js";
 import { createCsharpExactLiteralRequestCollector } from "../../../dist/analysis/conversions/literal-requests.js";
 import { analyzeCsharpValueReadStages } from "../../../dist/analysis/conversions/value-read-stages.js";
 import { readCsharpExpressionOperandStability, applyCsharpConversionSelection } from "../../../dist/backend/planner/expressions/conversions.js";
-import { selectCsharpExactLiteralConversion, selectCsharpExactPropertyKeyConversion } from "../../../dist/policy/conversions/literals.js";
+import { selectCsharpExactLiteralConversion } from "../../../dist/policy/conversions/literals.js";
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
-import { csharpRuntimeUnionTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType, getCsharpRuntimeUnionArms } from "../../../dist/target-model/types/index.js";
+import { csharpRuntimeUnionTargetType, csharpStringTargetType, getCsharpRuntimeUnionArms } from "../../../dist/target-model/types/index.js";
 import { csharpNativeUseSite } from "../../../dist/target-model/records/native/native-demand.js";
 import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
-import { compileCsharpSource, checkCsharpSource, assertCsharpCheckingSucceeded, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
-import { createTargetSourceProgram, analyzeSourceLiteralValues } from "@tsonic/target-api/source";
-import { assertCsharpRequiredRecords } from "../../../dist/analysis/program/records/objects/required-records.js";
-import { checkedSourceLiteralValues } from "../../helpers/source-literal-values.mjs";
+import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { planCsharpExactLiteralRecipe } from "../../../dist/backend/planner/expressions/literal-conversions.js";
 import { printCsharpExpression } from "../../../dist/print/source/printer.js";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
-import { callEvidence, directProviderHost, providerBinding, providerDeclaration, providerFact, providerMethod,
-  selectCsharpProviderCall, signatureRelation, targetParameter } from "../../fixtures/dotnet-provider/direct-provider-selection.helpers.mjs";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
-import { primitive, primitives, literals, checkedPropertyKeys, providerAdapterCall, sealedProviderCallConversions } from "./literal-plans.fixtures.mjs";
+import { primitive, primitives, represented, resolved, analyzedLiteralProgram, literalExpressions, literalAnalysis, nativeLiteralIndex,
+  providerAdapterCall, sealedProviderCallConversions } from "./literal-plans.fixtures.mjs";
 
 const valueRecipeCases = [
   { name: "minimum signed integer", type: "int32", value: "-2147483648", recipe: "integer" },
@@ -44,9 +40,9 @@ for (const surface of ["native", "js"]) for (const destination of ["direct", "un
       const compiled = compileCsharpSource({ surface, sourceText: `${imported}
         export function run(): (${type})[] { return [${example.value}]; }` });
       assertCsharpCompilationSucceeded(compiled);
-      const source = createTargetSourceProgram(compiled.source);
+      const source = compiled.source;
       const ast = source.ast;
-      const file = compiled.source.getSourceFile("/project/index.ts");
+      const file = source.sourceFiles.find(file => !source.ast.isDeclarationFile(file));
       let aggregate;
       const visit = node => {
         if (ast.is.IsArrayLiteralExpression(node)) aggregate = node;
@@ -56,8 +52,8 @@ for (const surface of ["native", "js"]) for (const destination of ["direct", "un
       const element = aggregate === undefined ? undefined : ast.elements(aggregate)[0];
       assert.equal(element !== undefined, true, "the exact authored value occurrence is retained");
       if (destination === "union") {
-        const published = source.effectiveTypes.get(aggregate);
-        assert.equal(published?.kind !== "refused" && published?.type.kind === "array" &&
+        const published = resolved(source.facts.values.type(aggregate), "the original array's Source value is produced");
+        assert.equal(published.type.kind === "array" &&
           published.type.element.kind === "union" && published.type.element.types.length === 2, true,
         "each union case retains two distinct declared Source arms");
       }
@@ -99,8 +95,8 @@ for (const surface of ["native", "js"]) for (const storage of ["direct", "nullab
         type Inner = ${example.type} | boolean;
         export function run(): (${type})[] { return [${example.value}]; }` });
       assertCsharpCompilationSucceeded(compiled);
-      const source = createTargetSourceProgram(compiled.source);
-      const file = compiled.source.getSourceFile("/project/index.ts");
+      const source = compiled.source;
+      const file = source.sourceFiles.find(file => !source.ast.isDeclarationFile(file));
       let aggregate;
       const visit = node => {
         if (source.ast.is.IsArrayLiteralExpression(node)) aggregate = node;
@@ -109,7 +105,8 @@ for (const surface of ["native", "js"]) for (const storage of ["direct", "nullab
       visit(file);
       const expression = aggregate === undefined ? undefined : source.ast.elements(aggregate)[0];
       assert.equal(expression !== undefined, true, "the construction is the actual checked literal or constant expression");
-      const literal = analyzeSourceLiteralValues(source.ast, [file]).literalValue.get(expression);
+      const datum = represented(createCsharpNativeLiteralQueries(source).recipe(expression), "the original literal recipe is produced");
+      const literal = datum.kind === "present" ? datum.value : undefined;
       const records = compiled.result.program.records;
       const physicalSource = records.valueRead.get(expression)?.value;
       assert.equal(physicalSource?.kind === "source-primitive" && physicalSource.name === example.primitive, true,
@@ -137,10 +134,10 @@ for (const surface of ["native", "js"]) for (const storage of ["direct", "nullab
 }
 
 test("a literal wrapper cannot seal a missing physical value from its storage", () => {
-  const checked = checkCsharpSource({ sourceText: "export const result = (1 + 2);" });
-  assertCsharpCheckingSucceeded(checked);
-  const source = createTargetSourceProgram(checked.source);
-  const file = checked.source.getSourceFile("/project/index.ts");
+  const fixture = analyzedLiteralProgram("export const result = (1 + 2);");
+  const { source } = fixture;
+  const base = literalAnalysis(fixture);
+  const file = source.sourceFiles.find(file => !source.ast.isDeclarationFile(file));
   let expression;
   const visit = node => {
     if (source.ast.is.IsParenthesizedExpression(node)) expression = node;
@@ -149,12 +146,11 @@ test("a literal wrapper cannot seal a missing physical value from its storage", 
   visit(file);
   assert.equal(expression !== undefined, true, "the invariant uses the actual checked wrapper");
   const none = Object.freeze({ get: () => undefined });
-  const literalValues = analyzeSourceLiteralValues(source.ast, [file]);
-  const analysis = analyzeCsharpValueReadStages({ ast: source.ast, sourceFiles: [file], literalValues,
-    effectiveTypes: { get: () => undefined } }, {
+  const analysis = analyzeCsharpValueReadStages(base.policy, {
+    ...base.sourceEvidence,
     nodeTargetType: { get: node => node === expression ? primitive("int32") : undefined },
     storageTargetType: none, readStorageTargetType: none, valueRefinement: none, yield: none,
-  }, { operationResultType: none, sourceMember: none });
+  }, { ...base.operations, operationResultType: none, sourceMember: none });
   assert.equal(analysis.issues.length, 0, "a missing producer is not an authored range refusal");
   assert.throws(() => analysis.seal({ storageType: { get: () => primitive("int32") } }), error =>
     error.diagnostic?.code === "TSONIC_INTERNAL_ANALYSIS_INVARIANT" &&
@@ -192,8 +188,8 @@ for (const surface of ["native", "js"]) {
       export function nullableUnion(): (number | boolean) | undefined { return -0; }
     ` });
     assertCsharpCompilationSucceeded(compiled);
-    const source = createTargetSourceProgram(compiled.source);
-    const file = compiled.source.getSourceFile("/project/index.ts");
+    const source = compiled.source;
+    const file = source.sourceFiles.find(file => !source.ast.isDeclarationFile(file));
     const checks = ["direct", "nullable", "union", "nested", "nullableUnion"].map(name => {
       const declaration = source.ast.statements(file).find(node => source.ast.is.IsFunctionDeclaration(node) &&
         source.ast.text(source.ast.name(node)) === name);
@@ -247,8 +243,9 @@ test(`${surface} rejected ${type} literal ${value} retains its precise native re
     assert.equal(compiled.sourceDiagnosticsText, "", "the native literal refusal is not a source checker substitution");
     const diagnostics = compiled.result.diagnostics;
     assert.equal(diagnostics.length, 1, "one exact native refusal, never an internal pending invariant");
-    const source = createTargetSourceProgram(compiled.source);
-    const literal = analyzeSourceLiteralValues(source.ast, source.sourceFiles).literalValue.get(diagnostics[0].sourceNode);
+    const source = compiled.source;
+    const datum = represented(createCsharpNativeLiteralQueries(source).recipe(diagnostics[0].sourceNode), "the refused original literal is retained");
+    const literal = datum.kind === "present" ? datum.value : undefined;
     const selected = selectCsharpExactLiteralConversion(literal, primitive(type), primitive(type));
     assert.equal(selected.kind === "rejected" && diagnostics[0].code === "CSHARP_UNSUPPORTED_AST" &&
       diagnostics[0].message === selected.reason, true, "the completed native literal owner supplies the exact retained reason");
@@ -258,13 +255,14 @@ test(`${surface} rejected ${type} literal ${value} retains its precise native re
 }
 
 test("exact literal selections exist only at requested keys and equal the native rule", () => {
-  const wide = Object.freeze({});
-  const text = Object.freeze({});
-  const other = Object.freeze({});
-  const another = Object.freeze({});
-  const wideValue = Object.freeze({ form: "bigint", integer: 3n });
-  const textValue = Object.freeze({ form: "string", text: "x" });
-  const index = analyzeCsharpExactLiteralSelections(literals([[wide, wideValue], [text, textValue]]), [
+  const fixture = literalExpressions(["3n", '"x"']);
+  const [wide, text] = fixture.expressions;
+  const other = fixture.nodes.find(node => fixture.source.ast.is.IsVariableDeclaration(node));
+  const another = fixture.source.sourceFiles.find(file => !fixture.source.ast.isDeclarationFile(file));
+  const wideDatum = represented(fixture.literals.recipe(wide), "the original wide literal is published");
+  assert.equal(wideDatum.kind === "present", true, "the original exact bigint is retained");
+  const wideValue = wideDatum.value;
+  const index = nativeLiteralIndex(fixture.literals, [
     Object.freeze({ expression: wide, source: primitive("int64") }),
     Object.freeze({ expression: wide, source: primitive("int64"), target: primitive("int64") }),
     Object.freeze({ expression: wide, source: primitive("int64"), target: csharpNullableTargetType(primitive("uint128")) }),
@@ -289,12 +287,11 @@ test("exact literal selections exist only at requested keys and equal the native
 });
 
 test("exact literal selections are materialized once per canonical key and published read-only", () => {
-  const node = Object.freeze({});
-  const value = Object.freeze({ form: "bigint", integer: 1n << 40n });
+  const { expressions: [node], literals } = literalExpressions(["1099511627776n"]);
   const first = csharpNullableTargetType(primitive("int64"));
   const second = csharpNullableTargetType(primitive("int64"));
   const requests = [Object.freeze({ expression: node, source: undefined, target: first }), Object.freeze({ expression: node, source: undefined, target: second })];
-  const index = analyzeCsharpExactLiteralSelections(literals([[node, value]]), requests, [node]);
+  const index = nativeLiteralIndex(literals, requests, [node]);
   const selected = index.exactLiteral.get(node, first);
   assert.equal(selected.kind, "resolved");
   assert.equal(first !== second && index.exactLiteral.get(node, second) === selected, true, "one selection per canonical key");
@@ -307,9 +304,8 @@ test("exact literal selections are materialized once per canonical key and publi
 });
 
 test("exact native token plans are frozen once without treating a refused candidate as an actual use", () => {
-  const [value] = checkedSourceLiteralValues(["1e39"]);
-  const node = Object.freeze({});
-  const index = analyzeCsharpExactLiteralSelections(literals([[node, value]]), [
+  const { expressions: [node], literals } = literalExpressions(["1e39"]);
+  const index = nativeLiteralIndex(literals, [
     { expression: node, source: undefined, target: primitive("float32") }, { expression: node, source: undefined, target: primitive("float64") },
     { expression: node, source: undefined, target: primitive("float32") },
   ], [node]);
@@ -318,18 +314,20 @@ test("exact native token plans are frozen once without treating a refused candid
   assert.deepEqual(index.exactLiteral.get(node, primitive("float64")), { kind: "source-representation" });
   assert.equal(index.exactLiteral.get(node, primitive("float32")) === index.exactLiteral.get(node, primitive("float32")), true,
     "duplicate requests read one materialized selection");
-  const [decimal] = checkedSourceLiteralValues(["9007199254740993"]);
-  const exact = analyzeCsharpExactLiteralSelections(literals([[node, decimal]]), [{ expression: node, source: undefined, target: primitive("decimal") }], [node]);
-  const selected = exact.exactLiteral.get(node, primitive("decimal"));
+  const decimal = literalExpressions(["9007199254740993"]);
+  const decimalNode = decimal.expressions[0];
+  const exact = nativeLiteralIndex(decimal.literals, [{ expression: decimalNode, source: undefined, target: primitive("decimal") }], [decimalNode]);
+  const selected = exact.exactLiteral.get(decimalNode, primitive("decimal"));
   assert.equal(selected.kind === "resolved" && selected.recipe.token.significand === "9007199254740993", true,
     "a selected native decimal keeps its authored value above 2^53");
   assert.equal(Object.isFrozen(selected.recipe.token), true, "the token is immutable published data");
 });
 
 test("exact literal requests come from literal reads, the unary result and every literal step of a prepared conversion", () => {
-  const node = Object.freeze({});
-  const other = Object.freeze({});
-  const collector = createCsharpExactLiteralRequestCollector(literals([[node, Object.freeze({ form: "numeric", number: 1, integer: 1n })]]));
+  const fixture = literalExpressions(["1"]);
+  const node = fixture.expressions[0];
+  const other = fixture.nodes.find(node => fixture.source.ast.is.IsVariableDeclaration(node));
+  const collector = createCsharpExactLiteralRequestCollector(fixture.literals);
   const int32 = primitive("int32");
   const int64 = primitive("int64");
   const float32 = primitive("float32");
@@ -370,6 +368,7 @@ test("a compiled program publishes exact literal selections at its actual reques
   assertCsharpCompilationSucceeded(result);
   const { program } = result.result;
   const records = program.records;
+  const literals = createCsharpNativeLiteralQueries(program.source);
   const nodes = [];
   const pending = [...csharpProgramSourceFiles(program)];
   while (pending.length > 0) {
@@ -378,14 +377,19 @@ test("a compiled program publishes exact literal selections at its actual reques
     program.source.ast.forEachChild(node, child => { if (child !== undefined) pending.push(child); });
   }
   const find = predicate => {
-    const found = nodes.filter(node => { const value = records.literalValue.get(node); return value !== undefined && predicate(value); });
+    const found = nodes.filter(node => {
+      if (!literals.hasRecipeSyntax(node)) return false;
+      const value = represented(literals.recipe(node), "the original literal has a completed Native recipe input");
+      return value.kind === "present" && predicate(value.value);
+    });
     assert.equal(found.length, 1);
     return found[0];
   };
-  const wide = find(value => value.form === "bigint" && value.integer === 3n);
-  const asserted = find(value => value.form === "bigint" && value.integer === 5n);
-  const text = find(value => value.form === "string" && value.text === "x");
-  const zero = find(value => value.form === "prefix-unary" && Object.is(value.number, -0));
+  const wide = find(value => value.kind === "bigint" && value.value === 3n);
+  const asserted = find(value => value.kind === "bigint" && value.value === 5n);
+  const text = find(value => value.kind === "string" && value.value === "x");
+  const zero = find(value => value.kind === "number" && value.value.kind === "authored" &&
+    value.value.token.negative && value.value.token.coefficient === 0n);
   assert.deepEqual(records.exactLiteral.get(wide, primitive("int64")),
     { kind: "resolved", recipe: { kind: "integer", target: primitive("int64"), width: "int64", value: 3n } });
   assert.deepEqual(records.exactLiteral.get(asserted, primitive("int128")),
@@ -422,7 +426,7 @@ test("a provider argument adapter's literal input step is requested by the selec
     assert.deepEqual(requests.map(request => request.target === undefined ? "intrinsic" : targetTypeRefKey(request.target)),
       [primitive(inputName), "intrinsic", primitive(readName), fixture.counter].map(type => type === "intrinsic" ? type : targetTypeRefKey(type)),
       `${inputName}: the selected call requests the adapter input; reads and the expected type request the rest`);
-    const exactLiteral = analyzeCsharpExactLiteralSelections(fixture.host.literalValues, requests, [fixture.literal]).exactLiteral;
+    const exactLiteral = nativeLiteralIndex(fixture.host.literals, requests, [fixture.literal]).exactLiteral;
     assert.deepEqual(exactLiteral.get(fixture.literal, primitive(inputName)), record, `${inputName}: the record at the adapter input`);
     const diagnostics = [];
     const prelude = [];
@@ -448,11 +452,10 @@ test("exact literal requests are private frozen preparation data, not sealed con
 });
 
 test("the literal collector closes once and validates later exact endpoints without adding requests", () => {
-  const expression = {};
+  const { expressions: [expression], literals } = literalExpressions(["1.25"]);
   const source = primitive("float64");
   const target = primitive("float32");
-  const collector = createCsharpExactLiteralRequestCollector(literals([[expression,
-    Object.freeze({ form: "numeric", number: 1.25 })]]));
+  const collector = createCsharpExactLiteralRequestCollector(literals);
   const literal = Object.freeze({ kind: "implicit", proof: "literal" });
   collector.requestConversion(expression, source, target, literal, source);
   const requests = collector.seal();
@@ -469,10 +472,10 @@ test("the literal collector closes once and validates later exact endpoints with
 
 for (const { early, completed } of [{ early: false, completed: true }, { early: true, completed: true }, { early: true, completed: false }]) {
   test(`literal preparation ${early ? "retains an early classification" : "classifies after value reads"} and ${completed ? "requires its physical source" : "rejects missing physical reads"}`, () => {
-    const checked = checkCsharpSource({ surface: "native", sourceText: "export const value = 1.25;" });
-    assertCsharpCheckingSucceeded(checked);
-    const source = createTargetSourceProgram(checked.source);
-    const file = checked.source.getSourceFile("/project/index.ts");
+    const fixture = analyzedLiteralProgram("export const value = 1.25;", { surface: "native" });
+    const { source } = fixture;
+    const base = literalAnalysis(fixture);
+    const file = source.sourceFiles.find(file => !source.ast.isDeclarationFile(file));
     let expression;
     const visit = node => {
       const initializer = source.ast.as.AsVariableDeclaration(node)?.Initializer;
@@ -484,21 +487,14 @@ for (const { early, completed } of [{ early: false, completed: true }, { early: 
     const logical = primitive("float64");
     const physical = primitive("float16");
     const target = primitive("float32");
-    const none = Object.freeze({ get: () => undefined });
-    const policy = { sourceFiles: [file], target: {}, ast: source.ast, effectiveTypes: source.effectiveTypes,
-      literalValues: analyzeSourceLiteralValues(source.ast, [file]), navigation: { referenceFor: () => undefined },
-      projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) } };
-    const operations = { yield: none, nativeUnreachable: { get: () => false }, borrowedSequence: none,
-      binaryOperation: none, selectedCall: none, selectedConstruction: none, selectedElement: none, unaryOperation: none };
-    const analysis = analyzeCsharpConversions(policy, { compileTimeMetadata: { get: () => false },
-      nodeTargetType: { get: node => node === expression ? logical : undefined }, storageTargetType: none },
-    { resolveNode: () => undefined, resolveTarget: () => undefined, registerStructuralInterface: () => false }, operations);
+    const analysis = analyzeCsharpConversions(base.policy, base.sourceEvidence, base.objectShapes, base.operations);
     const before = early ? analysis.classifications.expressionConversion.get(expression, logical, target, "implicit") : undefined;
     assert.equal(!early || before?.selection.kind === "implicit" && before.selection.proof === "literal", true,
       "an early conversion is classified without publishing or guessing a physical literal source");
-    const prepare = () => analysis.prepare({ expectedTypes: { callableTarget: none,
-      expectedType: { get: node => node === expression ? [target] : [] }, exactIntegerConversion: { get: () => false } },
-    valueReads: { valueRead: { get: node => node === expression ? { source: logical, ...(completed ? { value: physical } : {}) } : undefined } } });
+    const prepare = () => analysis.prepare({ expectedTypes: { ...base.expectedTypes,
+      expectedType: { get: node => node === expression ? [target] : [] } },
+    valueReads: { ...base.valueReads,
+      valueRead: { get: node => node === expression ? { source: logical, ...(completed ? { value: physical } : {}) } : undefined } } });
     if (!completed) {
       assert.throws(prepare, error => error.diagnostic?.code === "TSONIC_INTERNAL_ANALYSIS_INVARIANT" &&
         error.message.includes("Literal conversion requests require completed value reads."),
@@ -517,10 +513,10 @@ for (const { early, completed } of [{ early: false, completed: true }, { early: 
 }
 
 test("actual literal uses prepare their selected union inner endpoint before the one literal snapshot", () => {
-  const checked = checkCsharpSource({ surface: "native", sourceText: "export const value = 1.25;" });
-  assertCsharpCheckingSucceeded(checked);
-  const syntax = createTargetSourceProgram(checked.source);
-  const sourceFile = checked.source.getSourceFile("/project/index.ts");
+  const fixture = analyzedLiteralProgram("export const value = 1.25;", { surface: "native" });
+  const syntax = fixture.source;
+  const base = literalAnalysis(fixture);
+  const sourceFile = syntax.sourceFiles.find(file => !syntax.ast.isDeclarationFile(file));
   assert.equal(sourceFile !== undefined, true, "the exact checked literal file is retained");
   let declaration;
   const visit = node => {
@@ -533,27 +529,17 @@ test("actual literal uses prepare their selected union inner endpoint before the
     "literal conversion uses the real checked initializer and its exact parent");
   const source = primitive("float64");
   const target = csharpRuntimeUnionTargetType([primitive("float32"), csharpStringTargetType()]);
-  const literalValues = analyzeSourceLiteralValues(syntax.ast, [sourceFile]);
-  assert.equal(literalValues.literalValue.get(expression)?.number === 1.25, true,
+  const literal = represented(fixture.literals.recipe(expression), "the actual Source literal recipe is available");
+  assert.equal(literal.kind === "present" && literal.value.kind === "number" && literal.value.value.kind === "authored" &&
+    literal.value.value.token.coefficient === 125n && literal.value.value.token.exponent === -2n, true,
     "the original exact checked literal is not reconstructed for the Native request");
-  const none = Object.freeze({ get: () => undefined });
-  const policy = { sourceFiles: [sourceFile], target: {}, literalValues,
-    ast: syntax.ast, effectiveTypes: syntax.effectiveTypes,
-    navigation: { referenceFor: () => undefined }, projectTypes: { directSupertypes: () => [] },
-    providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) } };
-  const operations = { yield: none, nativeUnreachable: { get: () => false }, borrowedSequence: none, binaryOperation: none, selectedCall: none,
-      selectedConstruction: none, selectedElement: none, unaryOperation: none };
-  const analysis = analyzeCsharpConversions(policy, { compileTimeMetadata: { get: () => false },
-    nodeTargetType: { get: node => node === expression ? source : undefined },
-    storageTargetType: { get: node => node === declaration ? source : undefined } },
-    { resolveNode: () => undefined, resolveTarget: () => undefined, registerStructuralInterface: () => false }, operations);
+  const analysis = analyzeCsharpConversions(base.policy, base.sourceEvidence, base.objectShapes, base.operations);
   const prepared = analysis.prepare({
-    expectedTypes: { callableTarget: none, expectedType: { get: node => node === expression ? [target] : [] },
-      exactIntegerConversion: { get: () => false } },
-    valueReads: { valueRead: { get: node => node === expression ? { value: source, source } : undefined } },
+    expectedTypes: { ...base.expectedTypes, expectedType: { get: node => node === expression ? [target] : [] } },
+    valueReads: { ...base.valueReads, valueRead: { get: node => node === expression ? { value: source, source } : undefined } },
   });
   const requests = prepared.exactLiteralRequests;
-  const exact = analyzeCsharpExactLiteralSelections(literalValues, requests, [expression]);
+  const exact = nativeLiteralIndex(fixture.literals, requests, [expression]);
   const inner = exact.exactLiteral.get(expression, primitive("float32"));
   assert.equal(inner?.kind === "resolved" && inner.recipe.kind === "float" && inner.recipe.precision === "float32" &&
     inner.recipe.token.significand === "1.25", true, "the selected inner target exists before NativeDemand consumes exact literals");
@@ -562,7 +548,8 @@ test("actual literal uses prepare their selected union inner endpoint before the
     input: Object.freeze({ kind: "value", type: source }), completion: Object.freeze({ kind: "value", type: target }),
     children: Object.freeze([]), evaluation: Object.freeze({ kind: "sequence", steps: Object.freeze([]) }) });
   const count = requests.length;
-  analysis.close({ entries: [{ site, use }] }, []);
+  analysis.close({ entries: [{ site, use }] }, [], undefined, undefined,
+    { flowReadProjection: { get: () => undefined }, issues: [] });
   const sealed = analysis.seal();
   const selected = sealed.expressionConversion.get(expression, source, target, "implicit")?.selection;
   assert.equal(selected?.kind === "implicit" && selected.proof === "runtime-union-arm" &&

@@ -1,35 +1,32 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { analyzeCsharpExactLiteralSelections } from "../../../dist/analysis/conversions/literal-plans.js";
 import { coalesceCsharpExactLiteralRequests, createCsharpExactLiteralRequestCollector } from "../../../dist/analysis/conversions/literal-requests.js";
 import { createCsharpExactLiteralProducer } from "../../../dist/analysis/program/records/operations/exact-literals.js";
 import { selectCsharpExactLiteralConversion } from "../../../dist/policy/conversions/literals.js";
 import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../../../dist/target-model/types/index.js";
-import { checkedSourceLiteralValues } from "../../helpers/source-literal-values.mjs";
+import { checkedSourceScalarLiterals } from "../../helpers/source-literal-values.mjs";
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
+import { literalExpressions, nativeLiteralIndex } from "./literal-plans.fixtures.mjs";
 
 const primitive = name => csharpSourcePrimitiveTargetType(name);
 const literalConversion = Object.freeze({ kind: "implicit", proof: "literal" });
 const noOperations = Object.freeze({ unaryOperation: Object.freeze({ get: () => undefined }) });
-const [negativeZero, writtenFloatZero] = checkedSourceLiteralValues(["-0", "-0.0"]);
-const valuesFor = (expression, value = negativeZero) => Object.freeze({
-  literalValue: Object.freeze({ get: node => node === expression ? value : undefined }),
-});
+const [negativeZero, writtenFloatZero] = checkedSourceScalarLiterals(["-0", "-0.0"]);
 const invariant = text => error => error.diagnostic?.code === "TSONIC_INTERNAL_ANALYSIS_INVARIANT" &&
   error.message.includes(text);
 
 test("literal publication requires the current source field and separates the property-key role", () => {
-  const expression = {};
+  const { expressions: [expression], literals } = literalExpressions(["-0"]);
   const target = primitive("float64");
   assert.throws(() => coalesceCsharpExactLiteralRequests([{ expression, target }]),
     invariant("requires its completed native source field"));
-  const propertyKey = Object.freeze({ kind: "resolved", name: "0", constant: { kind: "string", value: "0" } });
+  const [propertyKey] = checkedSourceScalarLiterals(['"0"']);
   assert.throws(() => coalesceCsharpExactLiteralRequests([{ expression, target,
     source: primitive("int64"), propertyKey }]), invariant("has no runtime value source"));
   const keyTarget = csharpStringTargetType();
-  const selected = analyzeCsharpExactLiteralSelections(valuesFor(expression), [
+  const selected = nativeLiteralIndex(literals, [
     { expression, source: primitive("int64"), target },
     { expression, source: undefined, target: keyTarget, propertyKey },
   ], [expression]).exactLiteral;
@@ -40,7 +37,7 @@ test("literal publication requires the current source field and separates the pr
 });
 
 test("target-only requests acquire the same source before the single publication in either order", () => {
-  const expression = {};
+  const { expressions: [expression], literals } = literalExpressions(["-0"]);
   const target = primitive("float64");
   const source = primitive("int64");
   const targetOnly = Object.freeze({ expression, target, source: undefined });
@@ -49,7 +46,7 @@ test("target-only requests acquire the same source before the single publication
     const coalesced = coalesceCsharpExactLiteralRequests(requests);
     assert.equal(coalesced.length === 1 && coalesced[0].source === source && Object.isFrozen(coalesced), true,
       "one completed endpoint is independent of request order");
-    const result = analyzeCsharpExactLiteralSelections(valuesFor(expression), requests, [expression]);
+    const result = nativeLiteralIndex(literals, requests, [expression]);
     assert.deepEqual(result.exactLiteral.get(expression, target), { kind: "resolved", recipe: {
       kind: "float", target, precision: "float64", token: { significand: "0" }, negative: false,
     } });
@@ -57,10 +54,10 @@ test("target-only requests acquire the same source before the single publication
 });
 
 test("the literal collector keeps ordered use requests while sharing one source per endpoint", () => {
-  const expression = {};
+  const { expressions: [expression], literals } = literalExpressions(["-0"]);
   const source = primitive("int64");
   const target = primitive("float64");
-  const collector = createCsharpExactLiteralRequestCollector(valuesFor(expression));
+  const collector = createCsharpExactLiteralRequestCollector(literals);
   collector.requestReads(expression, undefined, [], [target], noOperations);
   collector.requestReads(expression, source, [], [target], noOperations);
   const requests = collector.seal();
@@ -76,18 +73,18 @@ test("the literal collector keeps ordered use requests while sharing one source 
 });
 
 test("conflicting sources never become first-wins before or after publication", () => {
-  const expression = {};
+  const { expressions: [expression], literals } = literalExpressions(["-0"]);
   const source = primitive("int64");
   const other = primitive("float64");
   const target = primitive("float32");
   assert.throws(() => coalesceCsharpExactLiteralRequests([
     { expression, source, target }, { expression, source: other, target },
   ]), invariant("one completed native source carrier"));
-  const collector = createCsharpExactLiteralRequestCollector(valuesFor(expression));
+  const collector = createCsharpExactLiteralRequestCollector(literals);
   collector.requestConversion(expression, source, target, literalConversion, source);
   assert.throws(() => collector.requestConversion(expression, source, target, literalConversion, other),
     invariant("one completed native source carrier"));
-  const unknown = createCsharpExactLiteralRequestCollector(valuesFor(expression));
+  const unknown = createCsharpExactLiteralRequestCollector(literals);
   unknown.requestConversion(expression, source, target, literalConversion, undefined);
   unknown.seal();
   assert.throws(() => unknown.requestConversion(expression, source, target, literalConversion, source),
@@ -107,7 +104,7 @@ test("conflicting sources never become first-wins before or after publication", 
 });
 
 test("source-less publication cannot silently acquire a source after selection", () => {
-  const expression = {};
+  const { expressions: [expression] } = literalExpressions(["-0"]);
   const target = primitive("float64");
   const producer = createCsharpExactLiteralProducer();
   producer.select(expression, target, "value", undefined, { kind: "not-applicable" });
@@ -118,11 +115,11 @@ test("source-less publication cannot silently acquire a source after selection",
 });
 
 test("nullable, union, boxing and adapter endpoints retain the completed literal source", () => {
-  const expression = {};
+  const { expressions: [expression], literals } = literalExpressions(["-0"]);
   const source = primitive("int64");
   const float = primitive("float64");
   const text = csharpStringTargetType();
-  const collector = createCsharpExactLiteralRequestCollector(valuesFor(expression));
+  const collector = createCsharpExactLiteralRequestCollector(literals);
   collector.requestConversion(expression, source, text, { kind: "provider-argument-adapter",
     adapter: { inputType: float, resultType: primitive("int32") }, sourceToInput: literalConversion,
     resultToTarget: { kind: "js-value-box" } }, source);
@@ -133,7 +130,7 @@ test("nullable, union, boxing and adapter endpoints retain the completed literal
     armIndex: 0, armType: float, sourceToArm: literalConversion }, source);
   assert.equal(collector.requests.every(request => request.source === source), true,
     "the adapter output, nullable payload and union arm never replace the node's completed source");
-  const selected = analyzeCsharpExactLiteralSelections(valuesFor(expression), collector.seal(), [expression]);
+  const selected = nativeLiteralIndex(literals, collector.seal(), [expression]);
   assert.equal(selected.exactLiteral.get(expression, float)?.recipe?.negative === false, true);
   assert.equal(selected.exactLiteral.get(expression, primitive("int32"))?.recipe?.value === 0n, true,
     "the intermediate boxing endpoint is still published");
