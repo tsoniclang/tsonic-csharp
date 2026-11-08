@@ -30,6 +30,7 @@ import type { CsharpExpression } from "../../target-ast/syntax/index.js";
 import type { DestructuringPlannerState } from "../bindings/index.js";
 import { getCsharpExpressionOverride } from "../bindings/binding-state.js";
 import { getCsharpTypeForNode } from "../types/index.js";
+import { csharpTypeFromTargetTypeRefWithObjectShapeDeclarations } from "../types/target-type-object-shapes.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { planClassFactoryExpression } from "../declarations/classes/factories.js";
 import { planRegularExpressionLiteral } from "./regular-expression-literals.js";
@@ -156,11 +157,8 @@ function planExpressionCore(
     return complete({
       kind: "DefaultExpression",
       nullForgiving: true,
-      type: getCsharpTypeForNode(
-        defaultValue.sourceType,
-        sourceFile,
-        input, diagnostics,
-      ),
+      type: csharpTypeFromTargetTypeRefWithObjectShapeDeclarations(input, defaultValue.carrier, diagnostics, defaultValue.typeNode)
+        ?? failCsharpPlannerInvariant("An admitted Native default requires its exact renderable carrier.", defaultValue.typeNode),
     });
   }
   const storage = input.program.records.nativeExpression.get(node)?.storage

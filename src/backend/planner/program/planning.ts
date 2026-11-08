@@ -9,7 +9,8 @@ import type {
 import type { CsharpPlanningContext } from "../context.js";
 import type { CsharpOutputPlan } from "../../artifact-model/output.js";
 import { planCsharpStartupSourceFile } from "./startup.js";
-import { planCsharpSourceUnionFile } from "../objects/source-unions.js";
+import { planCsharpSourceRoleFile } from "../objects/source-roles.js";
+import { planCsharpNativeDelegateFile } from "../objects/native-delegates.js";
 import { planCsharpSourceFiles } from "../artifacts/source-files.js";
 import { planCsharpProject } from "../project/project-artifacts.js";
 import { preserveCsharpAuthoredNames } from "../../target-ast/normalization/authored-names.js";
@@ -32,7 +33,8 @@ export function planCsharpOutput(input: CsharpPlanningContext): CsharpPlanningRe
   }
   const plannedSources = reconstructed.sourceFiles;
   const objectShapes = reconstructed.objectShapes;
-  const sourceUnions = planCsharpSourceUnionFile(input);
+  const sourceRoles = planCsharpSourceRoleFile(input);
+  const nativeDelegates = planCsharpNativeDelegateFile(input);
   const startup = planCsharpStartupSourceFile(
     input,
     plannedSources,
@@ -43,7 +45,7 @@ export function planCsharpOutput(input: CsharpPlanningContext): CsharpPlanningRe
   const project = planCsharpProject(input, {
     allowUnsafeBlocks:
       plannedSources.some((source) => source.requiresUnsafe) ||
-      objectShapes?.requiresUnsafe === true || sourceUnions?.requiresUnsafe === true,
+      objectShapes?.requiresUnsafe === true || sourceRoles?.requiresUnsafe === true || nativeDelegates?.requiresUnsafe === true,
   });
   const sources = [
     ...plannedSources.map((source) => ({
@@ -51,7 +53,8 @@ export function planCsharpOutput(input: CsharpPlanningContext): CsharpPlanningRe
       unit: source.unit,
     })),
     ...(objectShapes === undefined ? [] : [objectShapes.source]),
-    ...(sourceUnions === undefined ? [] : [sourceUnions.source]),
+    ...(sourceRoles === undefined ? [] : [sourceRoles.source]),
+    ...(nativeDelegates === undefined ? [] : [nativeDelegates.source]),
     ...(startup === undefined ? [] : [startup]),
   ];
   const normalizedUnits = applyCsharpObjectShapeDisplayNames(

@@ -1,3 +1,12 @@
+import type { SourceLiteralUnit } from "@tsonic/target-api/source";
+
+export function csharpFloat64LiteralValue(unit: SourceLiteralUnit): number | undefined {
+  if (unit.kind !== "number") return undefined;
+  const value = unit.value;
+  return value.kind === "authored" ? Number(value.token.decimalText) * (value.token.negative ? -1 : 1)
+    : value.kind === "integer" ? Number(value.value) : value.value;
+}
+
 export interface CsharpNumericLiteralToken {
   readonly significand: string;
   readonly exponent?: string;

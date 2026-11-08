@@ -139,6 +139,14 @@ export type CsharpNativeEvaluation =
   | { readonly kind: "short-circuit"; readonly left: TargetUseSiteRef; readonly right: TargetUseSiteRef }
   | { readonly kind: "creation" };
 
+export type CsharpNativeConditionalValue = {
+  readonly control: Node;
+} & (
+  | { readonly disposition: "true"; readonly whenTrue: Node; readonly whenFalse?: never }
+  | { readonly disposition: "false"; readonly whenTrue?: never; readonly whenFalse: Node }
+  | { readonly disposition: "dynamic"; readonly whenTrue: Node; readonly whenFalse: Node }
+);
+
 export type CsharpNativeDiscardedGuard =
   | { readonly kind: "coalescing" }
   | { readonly kind: "boolean"; readonly whenTrue: "left" | "right" }
@@ -161,6 +169,7 @@ interface CsharpNativeEvaluatedUse {
   readonly completion: CsharpNativeCompletion;
   readonly children: readonly TargetUseSiteRef[];
   readonly evaluation: CsharpNativeEvaluation;
+  readonly conditionalValue?: CsharpNativeConditionalValue;
   readonly literal?: CsharpExactLiteralRecipe;
   readonly propertyKeys?: readonly CsharpNativePropertyKey[];
   readonly binary?: CsharpResolvedBinaryOperation;
@@ -211,7 +220,7 @@ export interface CsharpNativeExpressionRecord {
 
 export type CsharpNativeUnadmittedReason =
   | "argument-refused" | "argument-unresolved" | "argument-inconsistent" | "argument-expression-unresolved"
-  | "expression-form-unresolved" | "operation-unresolved" | "source-argument-rejected" | "construction-unresolved"
+  | "expression-form-unresolved" | "operation-unresolved" | "construction-unresolved"
   | "completion-unresolved" | "use-context-unresolved" | "expected-use-pending" | "cyclic-use" | "callable-creation" | "property-key-refused";
 
 export type CsharpNativeUnadmitted =

@@ -1,11 +1,16 @@
-import type { AstReader, Node } from "@tsonic/tsts";
+import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpTargetOperationClassifications } from "../../../target-model/records/operations/operations.js";
 import type { CsharpTargetParameter } from "../../../target-model/types/model.js";
 import type { CsharpProviderArgumentMapping, CsharpSelectedTargetCall } from "../../../target-model/records/objects/members.js";
-import type { ResolvedSourceCallInfo } from "../../../target-model/records/calls/source-calls.js";
-import type { CsharpCallArgumentForm, CsharpCallArgumentEmission, CsharpTargetArgumentOperand, CsharpTargetArgumentsEmission } from "../../../target-model/records/calls/target-arguments.js";
-import type { CsharpSourceCallEmissionRecords } from "../../../target-model/records/calls/source-call-emission.js";
+import type { SourceApplication } from "@tsonic/target-api/source";
+import type { CsharpCallArgumentForm, CsharpCallArgumentEmission, CsharpTargetArgumentOperand, CsharpTargetArgumentsEmission, CsharpCallArgumentEmissionGroup } from "../../../target-model/records/calls/target-arguments.js";
+import type { CsharpPolicyContext } from "../../../policy/model/context.js";
+import type { CsharpConversionClassifications } from "../../../target-model/records/operations/conversions.js";
+import { admitCsharpAuthoredArguments, type CsharpNativeBoundArgument } from "./authored-arguments.js";
+import { csharpAbsenceTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
+import { csharpConversionIsApplicable } from "../../../policy/conversions/applicability.js";
+import { forwardSourceRefusal } from "../../source-evidence/representations.js";
 import type { CsharpNativeDemandAnalysis } from "../../../target-model/records/native/native-demand.js";
 import { csharpTargetParameterValueType, getCsharpDelegateSignature, getCsharpJsArrayElementTargetType,
   csharpObjectTargetType, getCsharpNullableElementTargetType, targetTypeRefEquals } from "../../../target-model/types/index.js";
@@ -15,16 +20,15 @@ import { csharpPositionalArgumentsAreRepresentable } from "../../../policy/opera
 import { createCsharpTargetArgumentProducer } from "../../program/records/calls/target-arguments.js";
 import type { CsharpNativeArgumentRequest } from "../../../target-model/records/calls/argument-passing.js";
 
-export function analyzeCsharpTargetArguments(input: { readonly ast: AstReader; readonly nodes: readonly Node[];
-  readonly operations: CsharpTargetOperationClassifications; readonly sources: CsharpSourceCallEmissionRecords;
+export function analyzeCsharpTargetArguments(input: { readonly policy: CsharpPolicyContext; readonly nodes: readonly Node[];
+  readonly operations: CsharpTargetOperationClassifications; readonly conversions: CsharpConversionClassifications;
   readonly demand: CsharpNativeDemandAnalysis; readonly admitted: (node: Node) => boolean }) {
   const producer = createCsharpTargetArgumentProducer();
   const issues: TargetDiagnostic[] = [];
   const requests: CsharpNativeArgumentRequest[] = [];
   const refuse = (node: Node, message: string): void => { issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: node, message }); };
-  const argument = (expression: Node, parameter: CsharpTargetParameter, form: CsharpCallArgumentForm, mapping: CsharpProviderArgumentMapping | undefined): void => {
+  const prepareArgument = (expression: Node, parameter: CsharpTargetParameter, form: CsharpCallArgumentForm, mapping: CsharpProviderArgumentMapping | undefined): void => {
     if (producer.records.callArgumentEmission.get(expression, parameter, form, mapping) !== undefined) return;
-    if (form === "spread-element") { refuse(expression, "Tuple-expanded call arguments require an explicit target tuple expansion plan."); return; }
     if (form === "spread-sequence" && !parameter.paramsArray) { refuse(expression, "Sequence-spread call arguments require an exact related C# params parameter."); return; }
     let value: CsharpCallArgumentEmission;
     if (parameter.csharpSourceArgumentAdapter?.kind === "native-binding") {
@@ -78,69 +82,117 @@ export function analyzeCsharpTargetArguments(input: { readonly ast: AstReader; r
     else if (value.kind === "argument-vector" || value.kind === "native-binding" || value.read === "argument") requests.push({ node: expression, target: value.source, passing: "by-value", parameter: undefined });
     producer.argument(expression, parameter, form, mapping, value);
   };
-  const call = (node: Node, source: ResolvedSourceCallInfo, selection: CsharpSelectedTargetCall): void => {
-    const operands: { readonly operand: CsharpTargetArgumentOperand; readonly parameter: number; readonly order: number; readonly sequence: boolean }[] = [];
-    if (selection.receiver.kind === "target-parameter") {
-      const receiver = source.sourceReceiver?.expression;
-      const parameter = selection.targetMember.parameters[selection.receiver.targetParameterIndex];
-      if (receiver === undefined || parameter === undefined) { refuse(node, "Selected first-argument target receiver has no exact source receiver or target parameter."); return; }
-      argument(receiver, parameter, "value", undefined);
-      operands.push({ operand: { kind: "argument", expression: receiver, parameter, form: "value", mapping: undefined }, parameter: selection.receiver.targetParameterIndex, order: -1, sequence: false });
-    }
+
+  const argument = (expression: Node, parameter: CsharpTargetParameter, form: CsharpCallArgumentForm,
+    mapping: CsharpProviderArgumentMapping | undefined): boolean => {
+    const count = issues.length;
+    prepareArgument(expression, parameter, form, mapping);
+    return count === issues.length;
+  };
+  const suspends = (operand: CsharpTargetArgumentOperand): boolean => input.policy.facts.navigation.expressionEffects(
+    operand.kind === "projection" ? operand.projection.source : operand.kind === "sequence" ? operand.sequence.expression : operand.expression,
+  ).suspends;
+  const nativeCall = (node: Node, source: SourceApplication, selection: CsharpSelectedTargetCall): void => {
+    if (source.argumentDisposition === "skip") return;
+    const bindings: CsharpNativeBoundArgument[] = [];
     const sequences = new Map(selection.sequenceArguments?.map(sequence => [sequence.sourceArgumentIndex, sequence]));
-    const planned = new Set<number>();
-    if (sequences.size !== (selection.sequenceArguments?.length ?? 0)) { refuse(node, "A selected native argument sequence requires one exact source binding."); return; }
-    for (const entry of selection.arguments) {
-      const expression = source.sourceArguments[entry.sourceArgumentIndex]?.expression;
-      if (expression === undefined) { refuse(node, `Selected target argument ${entry.effectiveArgumentIndex} has no exact checker-owned source expression.`); return; }
-      if (entry.projection !== undefined) {
-        const projection = entry.projection;
-        if (projection.source !== expression || entry.sourceForm !== "value" || entry.targetParameter.passingMode !== "by-value" ||
-          !targetTypeRefEquals(projection.target, entry.targetParameter.type) || projection.resultIndex !== undefined &&
-          (!Number.isInteger(projection.resultIndex) || projection.resultIndex < 0 || projection.resultIndex >= projection.values.length)) {
-          refuse(node, "A native argument projection requires its exact original source, scalar slot and complete checked result correspondence."); return;
-        }
-        operands.push({ operand: { kind: "projection", projection, parameter: entry.targetParameter },
-          parameter: entry.targetParameterIndex, order: entry.sourceArgumentIndex, sequence: false });
-        continue;
-      }
-      const sequence = sequences.get(entry.sourceArgumentIndex);
-      if (sequence !== undefined) {
-        if (planned.has(sequence.sourceArgumentIndex)) continue;
-        if (input.ast.as.AsSpreadElement(expression)?.Expression !== sequence.expression || sequence.targetParameterIndex !== entry.targetParameterIndex) {
-          refuse(node, "A selected native argument sequence requires its exact source operand and parameter."); return;
-        }
-        planned.add(sequence.sourceArgumentIndex);
-        operands.push({ operand: { kind: "sequence", sequence }, parameter: sequence.targetParameterIndex, order: sequence.sourceArgumentIndex, sequence: true });
-      } else {
-        const mapping = selection.origin === "provider" ? selection.argumentMappings.find(mapping => mapping.effectiveArgumentIndex === entry.effectiveArgumentIndex) : undefined;
-        argument(expression, entry.targetParameter, entry.sourceForm, mapping);
-        operands.push({ operand: { kind: "argument", expression, parameter: entry.targetParameter, form: entry.sourceForm, mapping },
-          parameter: entry.targetParameterIndex, order: entry.sourceArgumentIndex, sequence: false });
-      }
+    if (sequences.size !== (selection.sequenceArguments?.length ?? 0)) {
+      refuse(node, "A selected Native rest sequence requires one exact authored Source binding."); return;
     }
-    operands.sort((left, right) => left.order - right.order);
-    const ordered = operands.map((entry, index) => ({ ...entry, index })).sort((left, right) => left.parameter - right.parameter || left.order - right.order);
-    if (!csharpPositionalArgumentsAreRepresentable({ indexes: ordered.map(entry => entry.parameter), parameters: selection.targetMember.parameters })) {
-      refuse(node, "Selected target argument relation requires a target argument reorder or omission that cannot be represented positionally."); return;
+    for (const selected of selection.arguments) {
+      const matches = source.arguments.filter(place => place.sourceArgumentIndex === selected.sourceArgumentIndex &&
+        place.effectiveArgumentIndex === selected.effectiveArgumentIndex && place.sourceForm === selected.sourceForm &&
+        place.spreadElementIndex === selected.spreadElementIndex);
+      if (matches.length !== 1) {
+        refuse(node, "A selected Native parameter requires exactly its original Source effective argument place."); return;
+      }
+      const mapping = selection.origin === "provider"
+        ? selection.argumentMappings.find(candidate => candidate.effectiveArgumentIndex === selected.effectiveArgumentIndex) : undefined;
+      bindings.push(Object.freeze({ place: matches[0]!, parameter: selected.targetParameter,
+        parameterIndex: selected.targetParameterIndex, mapping,
+        ...(selected.projection === undefined ? {} : { projection: selected.projection }),
+        ...(sequences.get(selected.sourceArgumentIndex) === undefined ? {} : { sequence: sequences.get(selected.sourceArgumentIndex)! }) }));
     }
-    const groups: CsharpTargetArgumentsEmission["groups"][number][] = [];
+    const prefix: CsharpTargetArgumentOperand[] = [];
+    const parameters: CsharpTargetParameter[] = [];
+    const positions: { readonly binding: number; readonly parameterIndex: number; readonly sequence: boolean }[] = [];
+    if (selection.receiver.kind === "target-parameter") {
+      const parameter = selection.targetMember.parameters[selection.receiver.targetParameterIndex];
+      if (source.receiver.kind !== "value" || parameter === undefined) {
+        refuse(node, "A Native receiver parameter requires its exact original Source value receiver and physical parameter."); return;
+      }
+      if (!argument(source.receiver.occurrence, parameter, "value", undefined)) return;
+      prefix.push(Object.freeze({ kind: "argument", binding: 0, expression: source.receiver.occurrence,
+        parameter, form: "value", mapping: undefined }));
+      parameters.push(parameter);
+      positions.push({ binding: 0, parameterIndex: selection.receiver.targetParameterIndex, sequence: false });
+    }
+    const offset = parameters.length;
+    const authored = admitCsharpAuthoredArguments({ source, policy: input.policy, demand: input.demand,
+      bindings, bindingOffset: offset, issues, admit: argument });
+    if (authored === undefined) return;
+    for (const [index, binding] of bindings.entries()) {
+      parameters.push(binding.parameter);
+      positions.push({ binding: index + offset, parameterIndex: binding.parameterIndex,
+        sequence: binding.place.sourceForm === "spread-sequence" });
+    }
+    const ordered = [...positions].sort((left, right) => left.parameterIndex - right.parameterIndex || left.binding - right.binding);
+    if (!csharpPositionalArgumentsAreRepresentable({
+      indexes: ordered.map(entry => entry.parameterIndex), parameters: selection.targetMember.parameters,
+    })) {
+      refuse(node, "The selected Native parameter relation cannot represent its exact omissions and positional bindings."); return;
+    }
+    const groups: CsharpCallArgumentEmissionGroup[] = [];
     for (let index = 0; index < ordered.length;) {
       const first = ordered[index]!;
       const group = [first];
       index += 1;
-      while (index < ordered.length && ordered[index]!.parameter === first.parameter) { group.push(ordered[index]!); index += 1; }
-      if (!group.some(entry => entry.sequence)) for (const entry of group) groups.push(Object.freeze({ collect: false, arguments: Object.freeze([{ index: entry.index, spread: false }]) }));
-      else groups.push(Object.freeze({ collect: group.length !== 1, arguments: Object.freeze(group.map(entry => Object.freeze({ index: entry.index, spread: entry.sequence }))) }));
+      while (index < ordered.length && ordered[index]!.parameterIndex === first.parameterIndex) group.push(ordered[index++]!);
+      if (group.length === 1) groups.push(Object.freeze({ kind: "value", index: first.binding }));
+      else groups.push(Object.freeze({ kind: "collect", arguments: Object.freeze(group.map(entry =>
+        Object.freeze({ index: entry.binding, spread: entry.sequence }))) }));
     }
-    producer.call(node, { operands: Object.freeze(operands.map(entry => Object.freeze(entry.operand))), groups: Object.freeze(groups), reordered: ordered.some((entry, index) => entry.index !== index) });
+    const operands = Object.freeze([...prefix, ...authored]);
+    producer.call(node, { operands, suspends: Object.freeze(operands.map(suspends)), bindings: Object.freeze(parameters),
+      groups: Object.freeze(groups), reordered: ordered.some((entry, index) => entry.binding !== index) });
+  };
+  const sourceCall = (node: Node, source: SourceApplication,
+    classification: import("../../../target-model/records/operations/operations.js").CsharpSourceCallArgumentClassification): void => {
+    if (source.argumentDisposition === "skip") return;
+    const grouping = classification.sourceArgumentGrouping;
+    if (grouping?.kind === "source-refused") { issues.push(forwardSourceRefusal(grouping.refusal)); return; }
+    if (grouping?.kind !== "grouped") {
+      refuse(node, "A Source-owned invocation requires its complete selected Native parameter binding."); return;
+    }
+    const bindings = grouping.arguments.map(entry => Object.freeze({ place: entry.binding, parameter: entry.parameter,
+      parameterIndex: entry.parameterIndex, mapping: undefined }));
+    const operands = admitCsharpAuthoredArguments({ source, policy: input.policy, demand: input.demand,
+      bindings, bindingOffset: 0, issues, admit: argument });
+    if (operands === undefined) return;
+    const groups: CsharpCallArgumentEmissionGroup[] = [];
+    for (const group of grouping.groups) {
+      if (group.collect) {
+        groups.push(Object.freeze({ kind: "collect", arguments: Object.freeze([...group.arguments]) }));
+      } else if (group.arguments.length === 1) {
+        groups.push(Object.freeze({ kind: "value", index: group.arguments[0]!.index }));
+      } else {
+        const conversion = input.conversions.conversion.get(csharpAbsenceTargetType(), group.type, "implicit");
+        if (conversion === undefined || !csharpConversionIsApplicable(conversion, "implicit")) {
+          refuse(node, "An omitted Source-owned parameter has no admitted Native representation of the single absence state."); return;
+        }
+        groups.push(Object.freeze({ kind: "absence", type: group.type, conversion,
+          literal: getCsharpNullableElementTargetType(group.type) !== undefined }));
+      }
+    }
+    producer.call(node, { operands, suspends: Object.freeze(operands.map(suspends)), bindings: Object.freeze(bindings.map(binding => binding.parameter)),
+      groups: Object.freeze(groups), reordered: false });
   };
   for (const node of input.nodes) {
     if (!input.admitted(node)) continue;
-    const selected = input.operations.selectedCall.get(node)?.target ?? input.operations.selectedConstruction.get(node)?.target;
-    if (selected?.kind === "resolved") call(node, selected.source, selected.call);
-    const source = input.sources.sourceArgumentsEmission.get(node);
-    if (source !== undefined) for (const entry of source.arguments) argument(entry.node, entry.parameter, entry.form, undefined);
+    const classification = input.operations.selectedCall.get(node) ?? input.operations.selectedConstruction.get(node);
+    const selected = classification?.target;
+    if (selected?.kind === "resolved") nativeCall(node, selected.source, selected.call);
+    else if (selected?.kind === "source-owned" && classification !== undefined) sourceCall(node, selected.source, classification);
   }
   return Object.freeze({ records: producer.seal(), requests: Object.freeze(requests), issues: Object.freeze(issues) });
 }

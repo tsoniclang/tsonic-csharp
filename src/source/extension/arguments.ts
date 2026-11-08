@@ -1,26 +1,25 @@
-import { type ArgumentPassingMode, argumentPassingFactKey, type ExtensionFactSubject, type Node, type ReadonlySourceFactResolver } from "@tsonic/tsts";
+import type { ArgumentPassingMode, Node } from "@tsonic/tsts";
+import type { SourceAnalysisFacts, SourceResult } from "@tsonic/target-api/source";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 
 export interface CsharpSourceArgumentSelection {
   readonly passingMode: ArgumentPassingMode;
   readonly storageExpression: Node;
 }
 
-export type CsharpSourceArgumentSelectionResult =
-  | {
-      readonly kind: "resolved";
-      readonly argument: CsharpSourceArgumentSelection;
-    }
-  | {
-      readonly kind: "rejected";
-      readonly reason: string;
-    };
+export interface CsharpSourceArgumentSelectionResult {
+  readonly kind: "resolved";
+  readonly argument: CsharpSourceArgumentSelection;
+}
 
 export function selectCsharpSourceArgument(
-  sourceFacts: ReadonlySourceFactResolver | undefined,
+  protocols: SourceAnalysisFacts,
   expression: Node,
-): CsharpSourceArgumentSelectionResult {
-  const passing = sourceFacts?.getFact(expression, argumentPassingFactKey);
-  if (passing === undefined) {
+): CsharpSourceArgumentSelectionResult | Extract<SourceResult<never>, { readonly kind: "refused" }> {
+  const publication = protocols.argumentPassing(expression);
+  if (publication.kind === "refused") return publication;
+  const selected = publication.value;
+  if (selected.kind === "none") {
     return {
       kind: "resolved",
       argument: {
@@ -29,13 +28,9 @@ export function selectCsharpSourceArgument(
       },
     };
   }
-  if (passing.storageExpression === undefined) {
-    return {
-      kind: "rejected",
-      reason:
-        "The exact source argument-passing fact has no storage expression.",
-    };
-  }
+  const passing = selected.value;
+  if (passing.role !== "argument" || passing.storageExpression === undefined) failTargetAnalysisInvariant("tsonic-csharp",
+    "A complete Source argument-passing fact requires its exact storage expression.", expression);
   return {
     kind: "resolved",
     argument: {
@@ -45,10 +40,16 @@ export function selectCsharpSourceArgument(
   };
 }
 
-export function csharpSourceArgumentPassingMode(
-  sourceFacts: ReadonlySourceFactResolver | undefined,
-  subject: ExtensionFactSubject | undefined,
-): ArgumentPassingMode {
-  return sourceFacts?.getFact(subject, argumentPassingFactKey)?.mode ??
-    "by-value";
+export function csharpSourceParameterPassingMode(
+  protocols: SourceAnalysisFacts,
+  subject: Node,
+): SourceResult<ArgumentPassingMode> {
+  const publication = protocols.argumentPassing(subject);
+  if (publication.kind === "refused") return publication;
+  const selected = publication.value;
+  if (selected.kind === "none") return Object.freeze({ kind: "resolved", value: "by-value" });
+  const passing = selected.value;
+  if (passing.role !== "declaration") failTargetAnalysisInvariant("tsonic-csharp",
+    "A Source parameter passing mode requires its original declaration fact.");
+  return Object.freeze({ kind: "resolved", value: passing.mode });
 }

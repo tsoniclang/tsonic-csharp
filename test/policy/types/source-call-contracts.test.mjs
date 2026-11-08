@@ -23,6 +23,28 @@ const integer = { kind: "source-primitive", name: "int64" };
 const string = { kind: "source-primitive", name: "string" };
 const outer = { kind: "type-parameter", identity: "outer:Item", name: "Item" };
 
+test("Native-owned calls consume their original application arguments without a Source callable ABI", () => {
+  const source = { call: {} };
+  const file = {};
+  let reads = 0;
+  const scope = {
+    resolveSourceCallContract: () => Object.freeze({ kind: "not-applicable" }),
+    resolveSourceCallInstantiation(selected, selectedFile, state, identities, callable) {
+      reads++;
+      assert.equal(selected === source && selectedFile === file && state.depth === 0, true,
+        "the exact original call and file own the application");
+      assert.equal(identities === undefined && callable === undefined, true,
+        "a Native call never fabricates a Source body ABI");
+      return Object.freeze({ arguments: Object.freeze([integer]) });
+    },
+  };
+  const selected = resolveSourceCallTypeArguments(scope, source, file);
+  assert.equal(selected.length === 1 && selected[0] === integer && reads === 1, true);
+  scope.resolveSourceCallInstantiation = () => undefined;
+  assert.equal(resolveSourceCallTypeArguments(scope, source, file) === undefined, true,
+    "a missing original application cannot use a checked type argument fallback");
+});
+
 test("only the identical Host invocation publishes generic arguments before the body ABI", () => {
   const checked = createCompilerSessionFromFiles({ currentDirectory: "/src", files: { "/src/index.ts": `
     declare class NativeCatalog<Native> {}

@@ -2,7 +2,7 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpArgument, CsharpExpression } from "../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../context.js";
-import type { CsharpPlannedArgument, CsharpPlannedValue } from "../planned-values.js";
+import type { CsharpPlannedArgument, CsharpPlannedValue, CsharpPlannedEffectOperand } from "../planned-values.js";
 import { composeCsharpPlannedValues } from "../planned-value-composition.js";
 import { captureCsharpPlannedValue } from "../planned-value-composition.js";
 import { csharpPlannedValue } from "../planned-values.js";
@@ -11,7 +11,7 @@ import { captureCsharpPlannedLocation } from "../planned-locations.js";
 import { castCsharpCallableOperand, unparenthesizeCsharpExpression } from "./callable-syntax.js";
 
 export interface CsharpPlannedCallArguments {
-  readonly operands: readonly CsharpPlannedArgument[];
+  readonly operands: readonly (CsharpPlannedArgument | CsharpPlannedEffectOperand)[];
   readonly reordered?: true;
   arguments(values: readonly CsharpExpression[]): readonly CsharpArgument[] | undefined;
 }
@@ -26,7 +26,8 @@ export function composeCsharpPlannedCall(
   call: (receiver: CsharpExpression | undefined, arguments_: readonly CsharpArgument[]) => CsharpPlannedValue | undefined,
 ): CsharpPlannedValue | undefined {
   const operands = arguments_.operands.map((argument, index) => {
-    const later = arguments_.operands.slice(index + 1);
+    if ("kind" in argument) return argument;
+    const later = arguments_.operands.slice(index + 1).map(operand => "kind" in operand ? operand.effect : operand);
     if (argument.passing !== undefined && (arguments_.reordered || later.some(value => value.prelude.length !== 0 || value.completion.kind !== "value"))) {
       if (argument.nativeLocation === undefined) {
         failCsharpPlannerInvariant("An admitted ordered native by-reference argument requires its physical location authority.", node);

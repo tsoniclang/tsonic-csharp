@@ -28,7 +28,10 @@ export function resolveSourceCallTypeArguments(
   sourceFile: SourceFile,
 ): readonly TargetTypeRef[] | undefined {
   const selected = resolveSourceCallContract(source, sourceFile, { depth: 0 }, "checked");
-  if (selected.kind === "rejected" || selected.kind === "not-applicable") return undefined;
+  if (selected.kind === "rejected") return undefined;
+  if (selected.kind === "not-applicable") {
+    return resolveSourceCallInstantiation(source, sourceFile, { depth: 0 })?.arguments;
+  }
   const callable = selected.contract;
   return resolveSourceCallInstantiation(
     source,

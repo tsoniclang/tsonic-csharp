@@ -1,97 +1,68 @@
-import type { SourceFile } from "@tsonic/tsts";
-import { sourceEnclosingCallable } from "@tsonic/target-api/source";
-import type { ResolvedSourceCallInfo } from "../../../target-model/records/calls/source-calls.js";
-import type { CsharpTypePolicyBaseHost, CsharpTypePolicy } from "../../source-evidence/types/resolution/model.js";
+import type { SourceApplication } from "@tsonic/target-api/source";
+import type { CsharpPolicyContext } from "../../../policy/model/context.js";
+import type { CsharpRepresentationOutcome } from "../../../target-model/types/representation.js";
+import type { CsharpSourceCallableApplication } from "../../../target-model/records/callables/native-application.js";
 import type { CsharpSourceCalleeSelection } from "../../../target-model/operations/source-callees.js";
-import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
-import { getCsharpCallableValueSignature, getCsharpDelegateSignature } from "../../../target-model/types/carriers/delegates.js";
-import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
-import type { CsharpProjectTypePolicy } from "../../../target-model/records/types/project-types.js";
-import { resolveCsharpStaticMemberReceiver } from "../../../policy/types/project/static-members.js";
-import { getCsharpRuntimeUnionArms } from "../../../target-model/types/carriers/runtime-carriers.js";
-import type { CsharpTypeDefinitions } from "../../../target-model/types/source-union-definitions.js";
-
-export interface CsharpSourceCalleeHost {
-  readonly moduleCallables: CsharpTypePolicyBaseHost["moduleCallables"];
-  readonly ast: CsharpTypePolicyBaseHost["ast"];
-  readonly navigation: CsharpTypePolicyBaseHost["navigation"];
-  readonly projectTypes: Pick<CsharpProjectTypePolicy, "catalog">;
-  readonly types: Pick<CsharpTypePolicy, "resolveSelectedValue" | "resolveReadStorage">;
-  readonly typeDefinitions?: CsharpTypeDefinitions;
-}
 
 export function classifyCsharpSourceCallee(
-  policy: CsharpSourceCalleeHost,
-  source: ResolvedSourceCallInfo,
-  sourceFile: SourceFile,
-): CsharpSourceCalleeSelection {
-  const expression = source.sourceCallee.expression;
-  const selected = source.sourceCalleeAccess?.selectedDeclaration ?? source.sourceCallee.selectedDeclaration;
-  const reference = policy.navigation.sourceReferenceFor(expression);
-  const declaration = reference?.declaration ?? source.sourceCalleeAccess?.declaration ?? source.sourceCallee.declaration;
-  const moduleCallable = declaration === undefined ? undefined : policy.moduleCallables.get(declaration)?.callable;
-  if (declaration !== undefined && selected !== undefined &&
-    (policy.ast.is.IsFunctionDeclaration(declaration) && policy.ast.is.IsFunctionDeclaration(selected) ||
-      moduleCallable !== undefined && (selected === declaration || selected === moduleCallable))) {
-    if (!policy.navigation.isProjectDeclaration(selected)) return Object.freeze({ kind: "rejected",
-      reason: "The exact selected source callee is external to the project and has no C# target relation.",
-      sourceContract: "not-applicable" });
-    return Object.freeze({ kind: "function", expression, declaration: moduleCallable ?? selected });
+  policy: CsharpPolicyContext,
+  source: SourceApplication,
+  application: CsharpSourceCallableApplication,
+): CsharpRepresentationOutcome<CsharpSourceCalleeSelection> {
+  if (application.identity !== source.identity) {
+    throw new TypeError("A physical Source callee requires the identical original application identity.");
   }
-  if (declaration !== undefined && declaration === selected && policy.ast.kindName(declaration) === "KindFunctionExpression" &&
-    policy.ast.name(declaration) !== undefined && sourceEnclosingCallable(expression, policy.ast) === declaration &&
-    policy.navigation.isProjectDeclaration(declaration)) {
-    return Object.freeze({ kind: "function", expression, declaration });
+  const expression = source.callee.occurrence;
+  const declaration = source.identity.signature.declaration;
+  const module = declaration === undefined ? undefined : policy.moduleCallables.get(declaration);
+  if (declaration !== undefined && (policy.ast.is.IsFunctionDeclaration(declaration) || module !== undefined)) {
+    const implementation = module?.callable ?? declaration;
+    if (!policy.facts.navigation.isProjectDeclaration(implementation)) return Object.freeze({
+      kind: "native-refused", source: "tsonic-csharp", code: "CSHARP_SOURCE_CALLABLE_ABI_NOT_PROVEN", site: expression,
+      message: "The original external function has no Native target relation or acquired physical callable implementation.",
+    });
+    return Object.freeze({ kind: "represented", value: Object.freeze({
+      kind: "function", expression, declaration: implementation,
+    }) });
   }
-  const access = source.sourceCalleeAccess;
-  if (access !== undefined && selected === undefined && declaration === undefined) {
-    const receiver = policy.types.resolveSelectedValue(access.receiver.expression, access.receiver.type, sourceFile);
-    const arms = getCsharpRuntimeUnionArms(receiver, policy.typeDefinitions);
-    if (receiver !== undefined && arms !== undefined && arms.length > 1 &&
-      arms.every(arm => policy.projectTypes.catalog.definitionForTarget(arm)?.kind === "class")) {
-      return Object.freeze({ kind: "union-method", expression: access.expression,
-        receiver: Object.freeze({ expression: access.receiver.expression, type: receiver }) });
+  if (declaration !== undefined &&
+    (policy.ast.is.IsMethodDeclaration(declaration) || policy.ast.is.IsMethodSignatureDeclaration(declaration))) {
+    if (source.receiver.kind === "value") {
+      const member = policy.facts.objects.use(expression);
+      if (member.kind === "refused") return Object.freeze({ kind: "source-refused", refusal: member });
+      if (!member.value.callCallee || member.value.receiver.occurrence !== source.receiver.occurrence ||
+        !member.value.readDeclarations.includes(declaration)) {
+        throw new TypeError("A direct Native method requires its exact same-use original Source declaration and receiver.");
+      }
+      const receiver = policy.nativeValue(source.receiver.occurrence);
+      if (receiver.kind !== "represented") return receiver;
+      return Object.freeze({ kind: "represented", value: Object.freeze({
+        kind: "method", expression, declaration,
+        receiver: Object.freeze({ expression: source.receiver.occurrence, type: receiver.value }),
+      }) });
+    }
+    if (source.receiver.kind === "type") {
+      const owner = policy.projectTypes.catalog.definitionForDeclaration(source.receiver.declaration);
+      if (owner === undefined) return Object.freeze({ kind: "native-refused", source: "tsonic-csharp",
+        code: "CSHARP_SOURCE_METHOD_RECEIVER_ABI_NOT_PROVEN", site: expression,
+        message: "The original static Source method has no actual Native declaring type." });
+      const parameters = owner.typeParameterBindings.map(parameter => {
+        if (parameter.csharpConstraints?.kind !== "resolved") throw new TypeError("A Native static owner requires its completed physical generic constraints.");
+        return Object.freeze({ identity: parameter.identity, name: parameter.name,
+          constraints: parameter.csharpConstraints.constraints,
+          ...(parameter.csharpDeclaration === undefined ? {} : { declaration: parameter.csharpDeclaration }) });
+      });
+      const arguments_ = policy.representation.applyRequirements(parameters, source.identity, source.identity.invocation);
+      if (arguments_.kind !== "represented") return arguments_;
+      const receiver = policy.projectTypes.catalog.targetTypeForDeclaration(owner.declaration, arguments_.value);
+      if (receiver === undefined) return Object.freeze({ kind: "native-refused", source: "tsonic-csharp",
+        code: "CSHARP_SOURCE_METHOD_RECEIVER_ABI_NOT_PROVEN", site: expression,
+        message: "The exact original static method owner has no complete Native type application." });
+      return Object.freeze({ kind: "represented", value: Object.freeze({ kind: "method", expression, declaration,
+        receiver: Object.freeze({ expression: source.callee.occurrence, type: receiver }) }) });
     }
   }
-  const staticReceiver = access === undefined ? undefined : resolveCsharpStaticMemberReceiver(
-    policy.ast, policy.navigation, policy.projectTypes.catalog, selected, access.receiver.expression);
-  if (staticReceiver !== undefined && declaration !== undefined && selected !== undefined &&
-    policy.ast.is.IsMethodDeclaration(declaration) && policy.ast.is.IsMethodDeclaration(selected) && access !== undefined) {
-    return Object.freeze({ kind: "method", expression: access.expression, declaration: selected,
-      receiver: Object.freeze({ expression: access.receiver.expression, type: staticReceiver }) });
-  }
-  const type = access === undefined
-    ? policy.types.resolveSelectedValue(expression, source.sourceCallee.type, sourceFile)
-    : policy.types.resolveReadStorage(expression, sourceFile);
-  const reject = (reason: string, sourceContract: "required" | "not-applicable"): CsharpSourceCalleeSelection =>
-    Object.freeze({ kind: "rejected", reason, sourceContract });
-  if (selected === undefined || declaration === undefined) {
-    if (type === undefined || getCsharpCallableValueSignature(getCsharpNullableElementTargetType(type) ?? type) === undefined) {
-      return reject("A source callee requires its exact selected declaration or native callable storage contract.", "required");
-    }
-  } else {
-    const nominalMethod = policy.ast.is.IsClassDeclaration(policy.ast.parent(declaration));
-    const liftedReceiver = source.optionalChain && source.sourceReceiver !== undefined &&
-      policy.ast.is.IsCallExpression(source.call) && policy.ast.as.AsCallExpression(source.call)?.QuestionDotToken === undefined &&
-      nominalMethod && policy.ast.questionToken(declaration) === undefined && policy.ast.questionToken(selected) === undefined;
-    const methodDeclaration = policy.ast.is.IsMethodDeclaration(declaration) || policy.ast.kindName(declaration) === "KindMethodSignature";
-    const selectedMethod = policy.ast.is.IsMethodDeclaration(selected) || policy.ast.kindName(selected) === "KindMethodSignature";
-    if ((getCsharpNullableElementTargetType(type) === undefined || liftedReceiver) &&
-      (getCsharpMethodValue(type) === undefined || nominalMethod) &&
-      (source.sourceCalleeAccess?.kind === "property" || source.sourceCalleeAccess?.kind === "element") &&
-      methodDeclaration && selectedMethod) {
-      const access = source.sourceCalleeAccess;
-      const receiver = policy.types.resolveSelectedValue(access.receiver.expression, access.receiver.type, sourceFile);
-      if (receiver === undefined) return reject("A direct source method requires its exact native receiver contract.",
-        policy.navigation.isProjectDeclaration(declaration) || policy.navigation.isProjectDeclaration(selected)
-          ? "required" : "not-applicable");
-      return Object.freeze({ kind: "method", expression: access.expression, declaration: selected,
-        receiver: Object.freeze({ expression: access.receiver.expression, type: receiver }) });
-    }
-  }
-  if (type === undefined || getCsharpMethodValue(getCsharpNullableElementTargetType(type) ?? type) === undefined &&
-      getCsharpDelegateSignature(getCsharpNullableElementTargetType(type) ?? type) === undefined) {
-    return reject("A source callable value requires its exact native delegate or method-value storage contract.", "required");
-  }
-  return Object.freeze({ kind: "value", expression, type });
+  return Object.freeze({ kind: "represented", value: Object.freeze({
+    kind: "value", expression, type: application.carrier,
+  }) });
 }

@@ -16,6 +16,7 @@ export interface CsharpPlannedValue {
   readonly receiverIdentity?: true;
   readonly callable?: CsharpPlannedCallable;
   readonly effect?: CsharpExpression;
+  readonly suspends?: true;
 }
 
 export type CsharpPlannedCallable =
@@ -51,7 +52,6 @@ export type CsharpPlannedOperand = CsharpPlannedValue | CsharpPlannedEffectOpera
 export interface CsharpPlannedArgument extends CsharpPlannedValue {
   readonly passing?: CsharpArgument["passing"];
   readonly nativeBinding?: CsharpTypeNode;
-  readonly suspends?: true;
   readonly nativeLocation?: Extract<CsharpNativeLocationSelection, { readonly kind: "resolved" }>;
 }
 

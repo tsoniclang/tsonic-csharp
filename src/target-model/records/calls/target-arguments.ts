@@ -14,15 +14,34 @@ export type CsharpCallArgumentEmission =
       readonly parameters: readonly { readonly type: TargetTypeRef; readonly rest: boolean }[] };
 
 export type CsharpTargetArgumentOperand =
-  | { readonly kind: "projection"; readonly projection: CsharpCallArgumentProjection; readonly parameter: CsharpTargetParameter }
-  | { readonly kind: "sequence"; readonly sequence: CsharpRestSequence }
+  | { readonly kind: "projection"; readonly binding: number; readonly projection: CsharpCallArgumentProjection; readonly parameter: CsharpTargetParameter }
+  | { readonly kind: "sequence"; readonly binding: number; readonly sequence: CsharpRestSequence }
   | { readonly kind: "argument"; readonly expression: Node; readonly parameter: CsharpTargetParameter; readonly form: CsharpCallArgumentForm;
-      readonly mapping: CsharpProviderArgumentMapping | undefined };
+      readonly binding: number; readonly mapping: CsharpProviderArgumentMapping | undefined }
+  | { readonly kind: "expanded"; readonly expression: Node; readonly carrier: TargetTypeRef;
+      readonly values: readonly CsharpExpandedCallArgument[] }
+  | { readonly kind: "discard"; readonly expression: Node };
+
+export interface CsharpExpandedCallArgument {
+  readonly binding: number;
+  readonly read: { readonly kind: "value" } | { readonly kind: "tuple"; readonly name: string }
+    | { readonly kind: "collection"; readonly index: number };
+  readonly source: TargetTypeRef;
+  readonly target: TargetTypeRef;
+  readonly conversion: CsharpConversionSelection;
+}
+
+export type CsharpCallArgumentEmissionGroup =
+  | { readonly kind: "collect"; readonly arguments: readonly { readonly index: number; readonly spread: boolean }[] }
+  | { readonly kind: "value"; readonly index: number }
+  | { readonly kind: "absence"; readonly type: TargetTypeRef; readonly conversion: CsharpConversionSelection; readonly literal: boolean };
 
 export interface CsharpTargetArgumentsEmission {
   readonly operands: readonly CsharpTargetArgumentOperand[];
+  readonly suspends: readonly boolean[];
+  readonly bindings: readonly CsharpTargetParameter[];
   readonly reordered: boolean;
-  readonly groups: readonly { readonly collect: boolean; readonly arguments: readonly { readonly index: number; readonly spread: boolean }[] }[];
+  readonly groups: readonly CsharpCallArgumentEmissionGroup[];
 }
 
 export interface CsharpTargetArgumentRecords {

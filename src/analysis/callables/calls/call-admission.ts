@@ -7,6 +7,7 @@ import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { selectCsharpTypeEmission } from "../../../policy/types/resolution/type-emission.js";
 import { createCsharpCallAdmissionRecords } from "../../program/records/calls/call-admission.js";
 import { csharpTargetCallRefusal } from "./call-refusals.js";
+import { csharpRepresentationDiagnostic } from "../../source-evidence/representations.js";
 
 export function analyzeCsharpCallAdmission(ast: AstReader, nodes: readonly Node[], operations: CsharpTargetOperationClassifications,
   reads: CsharpValueReadClassifications, admitted: (node: Node) => boolean) {
@@ -23,7 +24,7 @@ export function analyzeCsharpCallAdmission(ast: AstReader, nodes: readonly Node[
     const form = classification.form;
     if (form.kind === "type-test") {
       const argument = classification.source?.sourceArguments[0];
-      const carrier = argument === undefined ? undefined : reads.valueRead.get(argument.expression)?.value;
+      const carrier = argument?.operand.kind !== "resolved" ? undefined : reads.valueRead.get(argument.operand.value.occurrence)?.value;
       if (classification.source?.sourceArguments.length !== 1 || argument === undefined || carrier === undefined ||
         !targetTypeRefEquals(carrier, form.typeTest.sourceCarrier) || !selectCsharpTypeEmission({ carrier: form.typeTest.sourceCarrier })) {
         refuse(node, "CSHARP_CLOSED_TYPE_TEST_INVALID", "Array predicate requires its exact sealed native argument and payload test.");
@@ -41,6 +42,7 @@ export function analyzeCsharpCallAdmission(ast: AstReader, nodes: readonly Node[
     }
     const target = classification.target;
     if (target === undefined) { refuse(node, "CSHARP_TARGET_CALL_CLASSIFICATION_INCOMPLETE", "The sealed C# call classification selected neither a JS-value operation nor a target call."); continue; }
+    if (target.kind === "source-refused" || target.kind === "native-refused") { issues.push(csharpRepresentationDiagnostic(target)); continue; }
     if (target.kind === "resolved" || target.kind === "source-owned") { values.set(node, { ...common, form, target }); continue; }
     if (target.kind === "rejected") { issues.push(targetDiagnosticFromExtension(node, target.diagnostic)); continue; }
     const refusal = csharpTargetCallRefusal(target);

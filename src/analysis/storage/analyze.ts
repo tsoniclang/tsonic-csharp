@@ -93,7 +93,7 @@ export function analyzeCsharpStorage(
     if (sourceType === undefined) {
       continue;
     }
-    const declaration = policy.navigation.referenceFor(node)?.declaration;
+    const declaration = policy.facts.navigation.referenceFor(node)?.declaration;
     const required = declaration === undefined
       ? undefined
       : resolvedTypes.get(declaration);
@@ -145,7 +145,7 @@ export function analyzeCsharpStorage(
     if (evidence.compileTimeMetadata.get(node) || IsTypeSyntaxNode(policy.ast, node)) return;
     nodes.push(node);
     const declaration = policy.ast.is.IsVariableDeclaration(node) ? node
-      : policy.ast.is.IsIdentifier(node) ? policy.navigation.referenceFor(node)?.declaration : undefined;
+      : policy.ast.is.IsIdentifier(node) ? policy.facts.navigation.referenceFor(node)?.declaration : undefined;
     const quotation = declaration === undefined ? undefined : expectedTypes.quotationBinding.get(declaration);
     if (quotation?.kind === "selected") {
       requireTargetType(node, quotation.declaration, quotation.targetType);
@@ -301,7 +301,7 @@ export function analyzeCsharpStorage(
     }
     const sourceType = evidence.nodeTargetType.get(expression);
     if (csharpArrayInputDomainsEqual(sourceType, expectedType)) {
-      const declaration = policy.navigation.sourceReferenceFor(expression)?.declaration;
+      const declaration = policy.facts.navigation.sourceReferenceFor(expression)?.declaration;
       const outcome = policy.effectiveTypes.get(expression);
       const principal = declaration === undefined ? undefined : policy.effectiveTypes.get(declaration);
       if (declaration !== undefined && policy.ast.is.IsVariableDeclaration(declaration) &&
@@ -332,7 +332,7 @@ export function analyzeCsharpStorage(
         priorRequirement !== undefined &&
         targetTypeRefEquals(priorRequirement, requiredStorageType)
       ) {
-        const declaration = policy.navigation.referenceFor(expression)
+        const declaration = policy.facts.navigation.referenceFor(expression)
           ?.declaration;
         if (
           declaration !== undefined &&
@@ -391,24 +391,20 @@ export function analyzeCsharpStorage(
       }
       const expression = call.source.sourceArguments[
         argument.sourceArgumentIndex
-      ]?.expression;
+      ]?.operand.occurrence;
       if (expression === undefined) {
         continue;
       }
       const selected = selectCsharpSourceArgument(
-        policy.sourceFacts,
+        policy.facts.protocols,
         expression,
       );
-      if (selected.kind === "rejected") {
-        issues.push(issue(
-          expression,
-          "CSHARP_STORAGE_ARGUMENT_FACT_INVALID",
-          selected.reason,
-        ));
+      if (selected.kind === "refused") {
+        issues.push({ node: selected.site, source: selected.source, code: selected.code, message: selected.message });
         continue;
       }
       const storageExpression = selected.argument.storageExpression;
-      const declaration = policy.navigation.referenceFor(storageExpression)
+      const declaration = policy.facts.navigation.referenceFor(storageExpression)
         ?.declaration;
       if (declaration === undefined) {
         issues.push(issue(

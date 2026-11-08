@@ -11,7 +11,6 @@ import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { consumeCsharpPlannedValue, planCsharpVoidReturn } from "../statements/statement-output.js";
 import { planCsharpExpressionCompletion } from "./planned-value-composition.js";
-import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
 
 interface RenderedDelegateContract extends CsharpDelegateContract {
   readonly sourceType: TargetTypeRef;
@@ -28,12 +27,12 @@ export function planCsharpDelegateAdapter(node: Node, sourceFile: SourceFile, in
   prelude: CsharpStatement[], operandStability: "stable" | "snapshot", operand?: CsharpPlannedCallable): CsharpExpression | undefined {
   if (operandStability !== "stable" && operandStability !== "snapshot")
     failCsharpPlannerInvariant("A native delegate conversion requires its exact operand stability.", node);
-  const contract = requiredContract(node, input, sourceType, targetType);
-  const method = getCsharpMethodValue(contract.sourceType)?.method;
+  const contract = requiredContract(node, input, sourceType, targetType, selection);
+  const method = contract.members.source.name;
   if (selection.strategy === "native-binding") {
     if (operand?.kind === "lambda") return operand.expression;
     return instantiatedCallee(operand?.kind === "method" || operand?.kind === "captured-method" ? expression
-      : { kind: "SimpleMemberAccessExpression", receiver: expression, name: method ?? "Invoke" }, contract, input, node);
+      : { kind: "SimpleMemberAccessExpression", receiver: expression, name: method }, contract, input, node);
   }
   const identity = input.scope.delegateAdapters === undefined ? undefined : input.program.records.delegateAdapter.get(node, contract.sourceType, targetType!);
   if (identity !== undefined) {
@@ -49,10 +48,9 @@ export function planCsharpDelegateAdapter(node: Node, sourceFile: SourceFile, in
     initializer: operand?.kind === "captured-method" ? operand.receiver : expression });
   const callee: CsharpExpression = operand?.kind === "lambda" ? { kind: "IdentifierName", name }
     : operand?.kind === "method" ? expression
-    : direct ? operand?.kind === "captured-method" || method === undefined ? expression
+    : direct ? operand?.kind === "captured-method" ? expression
       : { kind: "SimpleMemberAccessExpression", receiver: expression, name: method }
     : operand?.kind === "captured-method" ? { kind: "SimpleMemberAccessExpression", receiver: { kind: "IdentifierName", name }, name: operand.name }
-    : method === undefined ? { kind: "IdentifierName", name }
     : { kind: "SimpleMemberAccessExpression", receiver: { kind: "IdentifierName", name }, name: method };
   return buildAdaptation(node, sourceFile, input, diagnostics, selection, contract, callee, convert,
     operand?.kind === "lambda" ? { name, expression: operand.expression } : undefined);
@@ -62,17 +60,18 @@ export function planCsharpDelegateAdaptationBody(node: Node, sourceFile: SourceF
   diagnostics: TargetDiagnostic[], sourceType: TargetTypeRef, targetType: TargetTypeRef, selection: DelegateSelection,
   callee: CsharpExpression, convert: typeof applyCsharpConversionSelection): DelegateLambda | undefined {
   if (selection.strategy !== "adaptation") failCsharpPlannerInvariant("An admitted retained delegate method requires its selected adaptation strategy.", node);
-  const contract = requiredContract(node, input, sourceType, targetType);
-  const method = getCsharpMethodValue(contract.sourceType)?.method;
+  const contract = requiredContract(node, input, sourceType, targetType, selection);
+  const method = contract.members.source.name;
   return buildAdaptation(node, sourceFile, input, diagnostics, selection, contract,
-    method === undefined || input.program.records.directCallableReference.get(node) !== undefined ? callee
+    input.program.records.directCallableReference.get(node) !== undefined ? callee
     : { kind: "SimpleMemberAccessExpression", receiver: callee, name: method }, convert);
 }
 
 function buildAdaptation(node: Node, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
   selection: DelegateSelection, contract: RenderedDelegateContract, callee: CsharpExpression,
   convert: typeof applyCsharpConversionSelection, local?: { readonly name: string; readonly expression: DelegateLambda }): DelegateLambda | undefined {
-  const { sourceSignature, targetSignature } = contract;
+  const sourceSignature = contract.members.source.signature;
+  const targetSignature = contract.members.target.signature;
   const type = (carrier: TargetTypeRef): CsharpTypeNode => csharpTypeFromTargetTypeRef(carrier, input.scope.typeParameterNames)
     ?? failCsharpPlannerInvariant("An admitted delegate adapter requires its exact rendered native signature.", node);
   const parameters = targetSignature.parameters.map((carrier, index) => ({ kind: "Parameter" as const, name: input.names.temporaryName(`__tsonic_arg${index}`), type: type(carrier) }));
@@ -125,9 +124,10 @@ function buildAdaptation(node: Node, sourceFile: SourceFile, input: CsharpPlanni
   return { kind: "LambdaExpression", parameters, body: { kind: "Block", statements } };
 }
 
-function requiredContract(node: Node, input: CsharpPlanningContext, source: TargetTypeRef | undefined, target: TargetTypeRef | undefined): RenderedDelegateContract {
+function requiredContract(node: Node, input: CsharpPlanningContext, source: TargetTypeRef | undefined, target: TargetTypeRef | undefined,
+  selection: DelegateSelection): RenderedDelegateContract {
   if (source === undefined || target === undefined) failCsharpPlannerInvariant("An admitted delegate conversion requires its exact native source and target.", node);
-  const contract = input.program.records.delegateContract.get(source, target)
+  const contract = input.program.records.delegateContract.get(source, target, selection.members)
     ?? failCsharpPlannerInvariant("An admitted delegate conversion requires its sealed physical signature contract.", node);
   const sourceDelegateType = csharpTypeFromTargetTypeRef(source, input.scope.typeParameterNames);
   const targetDelegateType = csharpTypeFromTargetTypeRef(contract.targetCarrier, input.scope.typeParameterNames);
@@ -138,8 +138,9 @@ function requiredContract(node: Node, input: CsharpPlanningContext, source: Targ
 
 function instantiatedCallee(expression: CsharpExpression, contract: CsharpDelegateContract,
   input: CsharpPlanningContext, node: Node): CsharpExpression {
-  if (contract.methodTypeArguments === undefined) return expression;
-  const typeArguments = contract.methodTypeArguments.map(argument => csharpTypeFromTargetTypeRef(argument, input.scope.typeParameterNames)
+  const application = contract.members.sourceApplication;
+  if (application === undefined) return expression;
+  const typeArguments = application.typeArguments.map(argument => csharpTypeFromTargetTypeRef(argument, input.scope.typeParameterNames)
     ?? failCsharpPlannerInvariant("An admitted quantified callable requires its exact native type arguments.", node));
   if (expression.kind !== "IdentifierName" && expression.kind !== "QualifiedName" && expression.kind !== "SimpleMemberAccessExpression")
     failCsharpPlannerInvariant("An admitted quantified callable requires its original native method group.", node);

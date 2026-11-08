@@ -20,7 +20,7 @@ function classify(declaration, selected, access, carrier = delegate, isStatic = 
       IsClassDeclaration: node => node?.kind === "class" }, parent: node => node.parent, name: node => node.name,
       kindName: node => node.kind, hasModifierKind: () => isStatic },
     navigation: { sourceReferenceFor: () => declaration === undefined ? undefined : { declaration },
-      isProjectDeclaration: node => node === functionDeclaration },
+      isProjectDeclaration: node => node === functionDeclaration || node?.kind === "method" },
     projectTypes: { catalog: { definitionForDeclaration: () => undefined } },
     types: { resolveSelectedValue: node => node === expression ? carrier : owner,
       resolveReadStorage: node => { assert.equal(node === expression, true, "the exact fixture member owns its native storage"); return carrier; } },
@@ -85,6 +85,24 @@ test("method-value protocols and optional delegates retain their physical storag
 test("missing native callee storage evidence rejects without printed-name guessing", () => {
   assert.equal(classify(variableDeclaration, functionDeclaration, undefined, { kind: "source-primitive", name: "uint64" }).kind, "rejected");
   assert.equal(classify(undefined, undefined, undefined, { kind: "source-primitive", name: "uint64" }).kind, "rejected");
+});
+
+test("an exact external method does not acquire a runtime Source receiver before Native selection", () => {
+  for (const kind of ["property", "element"]) {
+    const selected = classifyCsharpSourceCallee({
+      moduleCallables: Object.freeze({ get: () => undefined }),
+      ast: { is: { IsFunctionDeclaration: () => false, IsMethodDeclaration: node => node === methodDeclaration },
+        kindName: node => node.kind },
+      navigation: { sourceReferenceFor: () => ({ declaration: methodDeclaration }),
+        isProjectDeclaration: () => false },
+      projectTypes: { catalog: {} },
+      types: { resolveSelectedValue: () => assert.fail("Native callees do not represent a global runtime receiver"),
+        resolveReadStorage: () => assert.fail("Native methods are not Source delegate reads") },
+    }, { sourceCallee: { expression, selectedDeclaration: methodDeclaration },
+      sourceCalleeAccess: { kind, expression, receiver: { expression: receiver } } }, {});
+    assert.equal(selected.kind === "rejected" && selected.sourceContract === "not-applicable", true, kind);
+    assert.equal(Object.isFrozen(selected), true, kind);
+  }
 });
 
 test("nominal generic class methods retain native calls rather than structural callable storage", () => {

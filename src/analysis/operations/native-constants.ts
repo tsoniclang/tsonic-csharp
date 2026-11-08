@@ -1,6 +1,10 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import { AsParenthesizedExpression, KindNullKeyword } from "@tsonic/target-api/source";
-import type { SourceLiteralIndex } from "@tsonic/target-api/source";
+import type { SourceProgramFacts } from "@tsonic/target-api/source";
+import type { CsharpNativeLiteralQueries } from "../../policy/model/native-literals.js";
+import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import { csharpFloat64LiteralValue } from "../../target-model/syntax/numeric-literals.js";
+import { csharpRepresentationDiagnostic } from "../source-evidence/representations.js";
 import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native/native-demand.js";
 import type { CsharpExactLiteralRecipe, CsharpExactLiteralSelectionIndex } from "../../target-model/conversions/exact-literals.js";
 import type { CsharpValueReadClassifications } from "../../target-model/records/operations/conversions.js";
@@ -12,9 +16,11 @@ import { isCsharpStringTargetType } from "../../target-model/types/identity.js";
 import { createCsharpNativeConstantRecords } from "../program/records/native/native-constants.js";
 
 export function analyzeCsharpNativeConstants(input: { readonly ast: AstReader; readonly demand: CsharpNativeDemandAnalysis;
-  readonly literals: SourceLiteralIndex; readonly exact: CsharpExactLiteralSelectionIndex; readonly values: CsharpValueReadClassifications;
+  readonly facts: SourceProgramFacts; readonly literals: CsharpNativeLiteralQueries;
+  readonly exact: CsharpExactLiteralSelectionIndex; readonly values: CsharpValueReadClassifications;
   readonly types: CsharpTypeEmissionRecords; readonly references: CsharpSourceReferenceRecords }) {
   const values = new Map<Node, Map<string, boolean>>();
+  const issues: TargetDiagnostic[] = [];
   const absence = new Map<Node, Map<string, boolean>>();
   const constant = (recipe: CsharpExactLiteralRecipe): boolean => {
     switch (recipe.kind) {
@@ -35,16 +41,26 @@ export function analyzeCsharpNativeConstants(input: { readonly ast: AstReader; r
       literalNode = expression;
     }
     const exact = input.exact.exactLiteral.get(literalNode, carrier);
-    const literal = input.literals.literalValue.get(literalNode);
+    const literalResult = input.literals.recipe(literalNode);
+    if (literalResult.kind !== "represented") { issues.push(csharpRepresentationDiagnostic(literalResult)); return; }
+    const literal = literalResult.value.kind === "present" ? literalResult.value.value : undefined;
     const storage = input.types.typeEmission.get(carrier)?.optionalStorage;
-    const absent = storage?.kind === "native" && storage.absence && !storage.jsValue &&
-      (input.ast.kindName(literalNode) === KindNullKeyword || input.ast.is.IsVoidExpression(literalNode) ||
+    let absent = storage?.kind === "native" && storage.absence && !storage.jsValue &&
+      (input.ast.kindName(literalNode) === KindNullKeyword ||
         input.references.identifierEmission.get(literalNode)?.kind === "absence");
+    if (!absent && storage?.kind === "native" && storage.absence && !storage.jsValue && input.ast.is.IsVoidExpression(literalNode)) {
+      const effects = input.facts.navigation.expressionEffects(literalNode);
+      if (!effects.invokes && !effects.mutates && !effects.suspends && !effects.mayThrow) {
+        const selected = input.literals.scalar(literalNode);
+        if (selected.kind !== "represented") { issues.push(csharpRepresentationDiagnostic(selected)); return; }
+        absent = selected.value.kind === "present" && selected.value.value.kind === "absence";
+      }
+    }
     const selected = exact?.kind === "resolved" ? constant(exact.recipe)
-      : literal !== undefined && ((literal.form === "true" || literal.form === "false") && carrier.kind === "source-primitive" && carrier.name === "bool" ||
-        (literal.form === "string" || literal.form === "template" && input.ast.is.IsNoSubstitutionTemplateLiteral(literalNode)) && isCsharpStringTargetType(carrier) ||
-        literal.form === "numeric" && carrier.kind === "source-primitive" && carrier.name === "float64" &&
-          literal.number !== undefined && Number.isFinite(literal.number));
+      : literal !== undefined && (literal.kind === "boolean" && carrier.kind === "source-primitive" && carrier.name === "bool" ||
+        literal.kind === "string" && isCsharpStringTargetType(carrier) ||
+        literal.kind === "number" && carrier.kind === "source-primitive" && carrier.name === "float64" &&
+          Number.isFinite(csharpFloat64LiteralValue(literal)));
     carriers.set(key, selected || absent); values.set(node, carriers);
     const absenceCarriers = absence.get(node) ?? new Map<string, boolean>();
     absenceCarriers.set(key, absent); absence.set(node, absenceCarriers);
@@ -57,5 +73,5 @@ export function analyzeCsharpNativeConstants(input: { readonly ast: AstReader; r
     if (read?.source !== undefined) select(use.expression, read.source);
     if (read?.value !== undefined) select(use.expression, read.value);
   }
-  return createCsharpNativeConstantRecords(values, absence);
+  return Object.freeze({ records: createCsharpNativeConstantRecords(values, absence), issues: Object.freeze(issues) });
 }

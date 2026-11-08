@@ -426,7 +426,7 @@ function printCsharpLambdaParameters(
   context: CsharpPrintContext,
 ): string {
   const first = parameters[0];
-  if (parameters.length === 1 && first !== undefined && first.type === undefined) {
+  if (parameters.length === 1 && first !== undefined && first.type === undefined && first.passing === undefined) {
     return printCsharpLambdaParameter(first, context);
   }
   return `(${parameters.map((parameter) => printCsharpLambdaParameter(parameter, context)).join(", ")})`;
@@ -436,9 +436,13 @@ function printCsharpLambdaParameter(
   parameter: CsharpLambdaParameter,
   context: CsharpPrintContext,
 ): string {
+  if (parameter.passing !== undefined && parameter.type === undefined) {
+    throw new TypeError("A Native by-reference lambda parameter requires its exact explicit type.");
+  }
+  const passing = parameter.passing === undefined ? "" : `${parameter.passing} `;
   return parameter.type === undefined
     ? parameter.name
-    : `${context.printType(parameter.type)} ${parameter.name}`;
+    : `${passing}${context.printType(parameter.type)} ${parameter.name}`;
 }
 
 function printInterpolatedString(

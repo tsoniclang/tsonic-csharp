@@ -41,6 +41,7 @@ export function printCsharpCompilationUnit(
       case "ClassDeclaration":
       case "StructDeclaration":
       case "InterfaceDeclaration":
+      case "DelegateDeclaration":
       case "EnumDeclaration":
         lines.push(...printTypeDeclarationLines(member, context));
         break;
@@ -67,6 +68,18 @@ function printTypeDeclarationLines(
   }
   const typeParameters = context.printTypeParameters(declaration.typeParameters);
   const constraintLines = context.printTypeParameterConstraintLines(declaration.typeParameters);
+  if (declaration.kind === "DelegateDeclaration") {
+    const parameters = declaration.parameters.map(context.printParameter).join(", ");
+    const signature = [
+      `${modifiers}delegate ${printMethodReturnType(declaration, context)} ${declaration.name}${typeParameters}(${parameters})`,
+      ...constraintLines,
+    ];
+    return [
+      ...context.printAttributes(declaration.attributes),
+      ...signature.slice(0, -1),
+      `${signature[signature.length - 1]};`,
+    ];
+  }
   const bases = [
     ...(declaration.kind === "ClassDeclaration" && declaration.baseType !== undefined ? [declaration.baseType] : []),
     ...(declaration.interfaces ?? []),

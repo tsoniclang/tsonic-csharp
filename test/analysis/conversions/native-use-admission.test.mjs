@@ -353,7 +353,8 @@ for (const wrapper of ["direct", "delegate", "tuple", "native-generic"]) test(wr
   const use = Object.freeze({ kind: "converted", expression, carrier: sourceUse, target: targetUse, mode: "implicit",
     input: Object.freeze({ kind: "value", type: sourceUse }), completion: Object.freeze({ kind: "value", type: targetUse }),
     children: Object.freeze([]), evaluation: Object.freeze({ kind: "sequence", steps: Object.freeze([]) }) });
-  analysis.close({ entries: Object.freeze([Object.freeze({ site, use })]) }, []);
+  analysis.close({ entries: Object.freeze([Object.freeze({ site, use })]) }, [], undefined, undefined,
+    { flowReadProjection: { get: () => undefined }, issues: [] });
   assert.equal(registrations, 1, "the one actual expression key is completed once");
   structuralClosed = true;
   const sealed = analysis.seal();
@@ -369,7 +370,8 @@ for (const wrapper of ["direct", "delegate", "tuple", "native-generic"]) test(wr
   assert.equal(registrations, 1, "no lookup or final seal touches the closed structural registry");
   assert.equal(Object.isFrozen(prepared.exactLiteralRequests) && Object.isFrozen(prepared.issues) && Object.isFrozen(sealed), true,
     "closed preparation and publication expose immutable data");
-  assert.throws(() => analysis.close({ entries: [] }, []), /exactly once/u, "a closed preparation cannot be reopened");
+  assert.throws(() => analysis.close({ entries: [] }, [], undefined, undefined,
+    { flowReadProjection: { get: () => undefined }, issues: [] }), /exactly once/u, "a closed preparation cannot be reopened");
 });
 
 function owners(sourceText, surface) {

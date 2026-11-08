@@ -1,6 +1,6 @@
-import type { Node, SourcePrimitiveKind } from "@tsonic/tsts";
-import type { CsharpPolicyContext } from "../../model/context.js";
-import { csharpLiteralIsRepresentableAs } from "../../conversions/literals.js";
+import type { SourcePrimitiveKind } from "@tsonic/tsts";
+import type { SourceLiteralUnit, SourcePresence } from "@tsonic/target-api/source";
+import { csharpScalarLiteralIsRepresentableAs } from "../../conversions/literals.js";
 import type { TargetTypeRef } from "../../types/index.js";
 import { csharpSourcePrimitiveTargetType } from "../../types/index.js";
 
@@ -15,36 +15,38 @@ type SourcePrimitiveTargetType = Extract<
   { readonly kind: "source-primitive" }
 >;
 
+export interface CsharpNumericPromotionOperand {
+  readonly type: TargetTypeRef;
+  readonly scalar: SourcePresence<SourceLiteralUnit>;
+}
+
 export function selectCsharpNumericBinaryPromotion(
-  input: Pick<CsharpPolicyContext, "literalValues">,
-  leftNode: Node,
-  leftType: TargetTypeRef,
-  rightNode: Node,
-  rightType: TargetTypeRef,
+  left: CsharpNumericPromotionOperand,
+  right: CsharpNumericPromotionOperand,
   expectedResultType?: TargetTypeRef,
 ): CsharpNumericBinaryPromotion | undefined {
   const expectedPromotion = expectedNumericPromotion(
-    input, leftNode, leftType, rightNode, rightType, expectedResultType,
+    left, right, expectedResultType,
   );
   if (expectedPromotion !== undefined) return expectedPromotion;
+  const leftType = left.type;
+  const rightType = right.type;
   const selectedLeft = isNumericPrimitive(leftType) ? leftType
-    : isNumericPrimitive(rightType) && csharpLiteralIsRepresentableAs(input.literalValues.literalValue.get(leftNode), rightType)
+    : isNumericPrimitive(rightType) && scalarFits(left.scalar, rightType)
       ? rightType : undefined;
   const selectedRight = isNumericPrimitive(rightType) ? rightType
-    : isNumericPrimitive(leftType) && csharpLiteralIsRepresentableAs(input.literalValues.literalValue.get(rightNode), leftType)
+    : isNumericPrimitive(leftType) && scalarFits(right.scalar, leftType)
       ? leftType : undefined;
   if (selectedLeft === undefined || selectedRight === undefined) {
     return undefined;
   }
   const adaptedRight = literalAdaptation(
-    input,
-    rightNode,
+    right.scalar,
     selectedRight,
     selectedLeft,
   );
   const adaptedLeft = literalAdaptation(
-    input,
-    leftNode,
+    left.scalar,
     selectedLeft,
     selectedRight,
   );
@@ -71,17 +73,14 @@ export function selectCsharpNumericCarrierPromotion(
 }
 
 function expectedNumericPromotion(
-  input: Pick<CsharpPolicyContext, "literalValues">,
-  leftNode: Node,
-  leftType: TargetTypeRef,
-  rightNode: Node,
-  rightType: TargetTypeRef,
+  left: CsharpNumericPromotionOperand,
+  right: CsharpNumericPromotionOperand,
   expectedResultType: TargetTypeRef | undefined,
 ): CsharpNumericBinaryPromotion | undefined {
   if (
     !isNumericPrimitive(expectedResultType) ||
-    !operandCanUseExpectedType(input, leftNode, leftType, expectedResultType) ||
-    !operandCanUseExpectedType(input, rightNode, rightType, expectedResultType)
+    !operandCanUseExpectedType(left, expectedResultType) ||
+    !operandCanUseExpectedType(right, expectedResultType)
   ) {
     return undefined;
   }
@@ -96,13 +95,12 @@ function expectedNumericPromotion(
 }
 
 function operandCanUseExpectedType(
-  input: Pick<CsharpPolicyContext, "literalValues">,
-  node: Node,
-  source: TargetTypeRef,
+  operand: CsharpNumericPromotionOperand,
   expected: SourcePrimitiveTargetType,
 ): boolean {
+  const source = operand.type;
   return source.kind === "source-primitive" && source.name === expected.name ||
-    csharpLiteralIsRepresentableAs(input.literalValues.literalValue.get(node), expected);
+    scalarFits(operand.scalar, expected);
 }
 
 export function csharpUnaryNumericPromotion(
@@ -117,17 +115,20 @@ export function csharpUnaryNumericPromotion(
 }
 
 function literalAdaptation(
-  input: Pick<CsharpPolicyContext, "literalValues">,
-  node: Node,
+  scalar: SourcePresence<SourceLiteralUnit>,
   source: SourcePrimitiveTargetType,
   target: SourcePrimitiveTargetType,
 ): SourcePrimitiveTargetType | undefined {
   return !targetTypeIsLiteralAdaptationCandidate(target) ||
       source.kind !== "source-primitive" ||
       source.name === target.name ||
-      !csharpLiteralIsRepresentableAs(input.literalValues.literalValue.get(node), target)
+      !scalarFits(scalar, target)
     ? undefined
     : target;
+}
+
+function scalarFits(scalar: SourcePresence<SourceLiteralUnit>, target: TargetTypeRef): boolean {
+  return scalar.kind === "present" && csharpScalarLiteralIsRepresentableAs(scalar.value, target);
 }
 
 function targetTypeIsLiteralAdaptationCandidate(

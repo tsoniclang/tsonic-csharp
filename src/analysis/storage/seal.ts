@@ -78,10 +78,14 @@ export function sealCsharpStorage(
       nativeLocations.set(node, classifyCsharpNativeLocation(policy, node, policy.ast.getSourceFile(node)!,
         operations.classPropertyStorage.get, classifications, evidence.readStorageTargetType.get));
     }
-    const passing = selectCsharpSourceArgument(policy.sourceFacts, node);
-    if (passing.kind === "resolved" && passing.argument.passingMode !== "by-value") {
+    const passing = selectCsharpSourceArgument(policy.facts.protocols, node);
+    if (passing.kind === "refused") {
+      issues.push({ node: passing.site, source: passing.source, code: passing.code, message: passing.message });
+      return;
+    }
+    if (passing.argument.passingMode !== "by-value") {
       const expression = passing.argument.storageExpression;
-      const declaration = policy.navigation.referenceFor(expression)?.declaration;
+      const declaration = policy.facts.navigation.referenceFor(expression)?.declaration;
       const property = operations.selectedProperty.get(expression)?.sourceOwned;
       const shape = property?.objectShape;
       const member = property?.shapeMember?.kind === "resolved" ? property.shapeMember.member : undefined;

@@ -16,8 +16,15 @@ const dateNoArgumentRows: readonly {
   readonly returnType: TargetTypeRef;
 }[] = Object.freeze([
   { sourceName: "valueOf", targetName: "valueOf", returnType: doubleType },
-  ...["getFullYear", "getMonth", "getDate", "getDay", "getHours", "getMinutes", "getSeconds", "getMilliseconds", "getTimezoneOffset"]
-    .map(sourceName => ({ sourceName, targetName: sourceName, returnType: intType })),
+  { sourceName: "getFullYear", targetName: "getFullYear", returnType: intType },
+  { sourceName: "getMonth", targetName: "getMonth", returnType: intType },
+  { sourceName: "getDate", targetName: "getDate", returnType: intType },
+  { sourceName: "getDay", targetName: "getDay", returnType: intType },
+  { sourceName: "getHours", targetName: "getHours", returnType: intType },
+  { sourceName: "getMinutes", targetName: "getMinutes", returnType: intType },
+  { sourceName: "getSeconds", targetName: "getSeconds", returnType: intType },
+  { sourceName: "getMilliseconds", targetName: "getMilliseconds", returnType: intType },
+  { sourceName: "getTimezoneOffset", targetName: "getTimezoneOffset", returnType: intType },
   { sourceName: "getUTCFullYear", targetName: "getUTCFullYear", returnType: doubleType },
   { sourceName: "getUTCMonth", targetName: "getUTCMonth", returnType: doubleType },
   { sourceName: "getUTCDate", targetName: "getUTCDate", returnType: doubleType },

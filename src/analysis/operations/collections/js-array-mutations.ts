@@ -5,7 +5,6 @@ import { selectCsharpTypedArrayMutation } from "./typed-array-mutations.js";
 import type { CsharpPolicyContext } from "../../../policy/model/context.js";
 import { csharpSourceProfileDeclarationIdentity } from "../../../policy/identities/selected-source.js";
 
-import { sourceOperatorFromKindName } from "../../../target-model/syntax/operators.js";
 
 import { selectCsharpNativeArrayLengthWrite } from "../../../policy/operations/collections/js-array-mutations.js";
 export function selectCsharpJsArrayMutation(
@@ -27,12 +26,12 @@ function selectLengthAssignment(
   node: Node,
   sourceFile: SourceFile,
 ): CsharpJsArrayMutationSelection {
-  if (sourceOperatorFromKindName(input.ast.operatorKindName(node)) !== "=") {
+  const publication = input.facts.values.operation(node);
+  if (publication.kind === "refused" || publication.value.kind !== "assignment") {
     return { kind: "not-js-array-mutation" };
   }
-  const binary = input.ast.as.AsBinaryExpression(node);
-  const left = binary?.Left;
-  const value = binary?.Right;
+  const left = publication.value.target;
+  const value = publication.value.source.occurrence;
   if (
     left === undefined ||
     value === undefined ||
@@ -43,9 +42,7 @@ function selectLengthAssignment(
   const source = input.semantics(sourceFile)
     .operations.propertyAccess(left);
   const identity = csharpSourceProfileDeclarationIdentity(
-    input.ast,
-    input.semantics(sourceFile),
-    input.sourceFacts,
+    input.facts.navigation,
     source?.selectedDeclaration,
   );
   if (

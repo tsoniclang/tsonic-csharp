@@ -10,6 +10,7 @@ import { csharpSelectedTargetArgumentBindings } from "../../policy/operations/me
 import { csharpNativeUseSite } from "../../target-model/records/native/native-demand.js";
 import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/objects/required-records.js";
 import type { CsharpNativeCompletion } from "../../target-model/records/native/native-demand.js";
+import type { CsharpFlowReadClassifications } from "../../target-model/records/program/source-evidence.js";
 
 export interface CsharpCallConversionRequests {
   readonly completion?: { readonly source: TargetTypeRef; readonly target: TargetTypeRef };
@@ -28,6 +29,7 @@ export function sealCsharpConversionUses(
   requiredRecords: CsharpRequiredRecord[],
   preparationIssues: readonly CsharpConversionIssue[],
   callConversions: ReadonlyMap<Node, CsharpCallConversionRequests>,
+  flowReads: CsharpFlowReadClassifications,
 ): {
   readonly expressions: Map<Node, Map<string, CsharpExpressionConversionClassification>>;
   readonly issues: readonly CsharpConversionIssue[];
@@ -36,9 +38,18 @@ export function sealCsharpConversionUses(
   const issues: CsharpConversionIssue[] = [];
   const calls = new Set<Node>();
   const completedCalls = new Set<Node>();
+  const projectedReads = new Set<Node>();
   for (const entry of demand.entries) {
     const use = entry.use;
     if (use.kind === "erased") continue;
+    if (!projectedReads.has(use.expression)) {
+      projectedReads.add(use.expression);
+      const projection = flowReads.flowReadProjection.get(use.expression);
+      if (projection?.kind === "conversion") {
+        admit(use.expression, projection.source, projection.target, "implicit",
+          { selection: projection.selection, identityRequired: false });
+      }
+    }
     const defaultValue = use.defaultValue;
     if (defaultValue !== undefined) {
       if (defaultValue.normalize) admitValue(use.expression, defaultValue.source, defaultValue.storage);

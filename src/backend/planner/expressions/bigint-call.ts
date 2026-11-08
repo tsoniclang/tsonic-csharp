@@ -22,6 +22,7 @@ export function planCsharpBigIntCall(
 ): CsharpPlannedValue | undefined {
   const operation = selection.targetOperation;
   if (operation.kind !== "bigint-call") return undefined;
+  if (selection.right === undefined) failCsharpPlannerInvariant("An admitted Native integer operation requires its evaluated right operand.", node);
   let storage = selection.left;
   while (input.program.source.ast.is.IsParenthesizedExpression(storage)) {
     const nested = input.program.source.ast.as.AsParenthesizedExpression(storage)?.Expression;

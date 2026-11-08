@@ -42,13 +42,18 @@ export function planSelectedCsharpBinaryOperation(node: Node, selection: CsharpR
     ?? failCsharpPlannerInvariant("An admitted binary operation requires its exact contextual native emission record.", node);
   if (operation.kind === "conditional-value") return planCsharpConditionalValue(node, selection, sourceFile, input, diagnostics, planExpression, state);
   if (operation.kind === "sequence") {
-    const left = planExpression(selection.left, sourceFile, input, diagnostics, state);
-    if (left === undefined || left.completion.kind === "never") return left;
-    const right = planExpression(selection.right, sourceFile, input, diagnostics, state);
-    return right === undefined ? undefined : {
-      prelude: [...planCsharpPlannedDiscard(left), ...right.prelude], completion: right.completion,
-    };
+    const prelude: import("../../target-ast/syntax/index.js").CsharpStatement[] = [];
+    for (const [index, operand] of operation.operands.entries()) {
+      const value = planExpression(operand.occurrence, sourceFile, input, diagnostics, state);
+      if (value === undefined) return undefined;
+      if (value.completion.kind === "never" || index === operation.operands.length - 1) return {
+        ...value, prelude: [...prelude, ...value.prelude],
+      };
+      prelude.push(...planCsharpPlannedDiscard(value));
+    }
+    return failCsharpPlannerInvariant("A Native sequence requires its complete nonempty Source evaluation vector.", node);
   }
+  const rightNode = selection.right ?? failCsharpPlannerInvariant("An evaluated Native binary operation requires its admitted right occurrence.", node);
   if (operation.kind === "closed-value-coalesce") {
     return planCsharpClosedValueCoalescing(node, selection, sourceFile, input, diagnostics, planExpression, state);
   }
@@ -64,7 +69,7 @@ export function planSelectedCsharpBinaryOperation(node: Node, selection: CsharpR
       failCsharpPlannerInvariant("An admitted union coalescing operation requires its result type and hygienic scope.", node);
     }
     const left = planExpression(selection.left, sourceFile, input, diagnostics, state);
-    const right = planExpression(selection.right, sourceFile, input, diagnostics, state);
+    const right = planExpression(rightNode, sourceFile, input, diagnostics, state);
     if (left === undefined || right === undefined) return undefined;
     const name = allocateExpressionTemp(state);
     const reference: CsharpExpression = { kind: "IdentifierName", name };
@@ -83,14 +88,14 @@ export function planSelectedCsharpBinaryOperation(node: Node, selection: CsharpR
   }
   if (operation.kind === "array-index-presence") {
     const left = planExpression(selection.left, sourceFile, input, diagnostics);
-    const right = planExpression(selection.right, sourceFile, input, diagnostics);
+    const right = planExpression(rightNode, sourceFile, input, diagnostics);
     return buildCsharpPlannedValue(node, sourceFile, input, diagnostics, [left, right], values => callStatic(
       { kind: "IdentifierName", requiredUsingNamespace: "Tsonic.CSharp.Js", name: "ArrayLike" },
       "HasIndex", values,
     ), selection.resultType);
   }
   if (operation.kind === "nullish-equality") {
-    const operands = [selection.left, selection.right].map(operand =>
+    const operands = [selection.left, rightNode].map(operand =>
       planExpression(operand, sourceFile, input, diagnostics, state));
     const [left, right] = operands;
     if (left === undefined || right === undefined) return undefined;
@@ -107,7 +112,7 @@ export function planSelectedCsharpBinaryOperation(node: Node, selection: CsharpR
   if (operation.kind === "nullish-test") {
     const operandNode = operation.operand === "left"
       ? selection.left
-      : selection.right;
+      : rightNode;
     const operand = planExpression(
       operandNode,
       sourceFile,
@@ -115,7 +120,7 @@ export function planSelectedCsharpBinaryOperation(node: Node, selection: CsharpR
       diagnostics,
     );
     if (operand === undefined) return undefined;
-    const otherNode = operation.operand === "left" ? selection.right : selection.left;
+    const otherNode = operation.operand === "left" ? rightNode : selection.left;
     const other = planExpression(otherNode, sourceFile, input, diagnostics);
     if (other === undefined) return undefined;
     const ordered = operation.operand === "left" ? [operand, other] : [other, operand];
@@ -178,7 +183,7 @@ export function planSelectedCsharpBinaryOperation(node: Node, selection: CsharpR
       diagnostics,
     );
     const right = planExpression(
-      selection.right,
+      rightNode,
       sourceFile,
       input,
       diagnostics,
@@ -205,7 +210,7 @@ export function planSelectedCsharpBinaryOperation(node: Node, selection: CsharpR
       diagnostics,
     );
     const right = planExpression(
-      selection.right,
+      rightNode,
       sourceFile,
       input,
       diagnostics,
@@ -257,7 +262,7 @@ export function planSelectedCsharpBinaryOperation(node: Node, selection: CsharpR
       { ...input, storageExpression },
       diagnostics,
     );
-    const right = planExpression(selection.right, sourceFile, input, diagnostics, state);
+    const right = planExpression(rightNode, sourceFile, input, diagnostics, state);
     if (left === undefined || right === undefined) return undefined;
     if (left.completion.kind === "never") return left;
     if (left.completion.kind !== "value") return undefined;
@@ -322,7 +327,7 @@ export function planSelectedCsharpBinaryOperation(node: Node, selection: CsharpR
     failCsharpPlannerInvariant("An admitted native binary operation requires its exact operator token.", node);
   }
   const left = planExpression(selection.left, sourceFile, input, diagnostics, state);
-  const right = planExpression(selection.right, sourceFile, input, diagnostics, state);
+  const right = planExpression(rightNode, sourceFile, input, diagnostics, state);
   if (left === undefined || right === undefined) return undefined;
   if (binaryToken.kind === "QuestionQuestionToken") return planCsharpCoalescingValue(
     node, sourceFile, input, diagnostics, left, right, selection.resultType);

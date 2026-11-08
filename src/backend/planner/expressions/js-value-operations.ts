@@ -22,6 +22,7 @@ import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import {
   planCsharpExactLiteralRecipe,
 } from "./literal-conversions.js";
+import { planCsharpSourceValueBox } from "./source-value-boxing.js";
 
 export function planCsharpJsValueBox(
   node: Node,
@@ -50,17 +51,7 @@ export function planCsharpJsValueBox(
       expression,
     };
   }
-  const type = csharpTypeFromTargetTypeRef(csharpTsValueTargetType(), input.scope.typeParameterNames)
-    ?? failCsharpPlannerInvariant("An admitted closed-value input requires its native runtime owner.", node);
-  return {
-        kind: "InvocationExpression",
-        callee: {
-          kind: "SimpleMemberAccessExpression",
-          receiver: type,
-          name: "from",
-        },
-        arguments: [{ kind: "Argument", expression: sourceExpression }],
-      };
+  return planCsharpSourceValueBox(input.scope.typeParameterNames, selected.category, sourceExpression);
 }
 
 export function translateCsharpJsValueInvocation(

@@ -3,7 +3,8 @@ import { rejectedTargetStage, resolvedTargetStage, type TargetDiagnostic, type T
 import { csharpConstructorBaseCall } from "./emission/constructor-entry.js";
 import { selectCsharpSourceCallableAbi, selectCsharpProjectConstructorAbi } from "./calls/source-callable-abi.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import { isCsharpSourceCallableArtifactDeclaration, targetTypeRefEquals, targetTypeRefKey } from "../../policy/types/index.js";
+import { targetTypeRefEquals, targetTypeRefKey } from "../../policy/types/index.js";
+import { csharpNativeCallableArtifact } from "./native/artifacts.js";
 import type { CsharpTargetParameter } from "../../policy/types/index.js";
 
 import type { SourceCallableSourceContract, SourceCallableContract, CsharpSourceCallableParameterContract } from "../../target-model/records/callables/source-callable-contract.js";
@@ -55,7 +56,7 @@ export function analyzeCsharpCallableContracts(
     visit(sourceFile, sourceFile);
   }
   const nativeDeclarations = [...closeCsharpProjectCallableContracts({
-    ast: policy.ast, navigation: policy.navigation,
+    ast: policy.ast, navigation: policy.facts.navigation,
     typeDefinitions: conversions.typeDefinitions, projectTypes: conversions.projectTypes,
     providers: conversions.providers, target: conversions.target, objectShapes: conversions.objectShapes,
   }, declarationContracts)];
@@ -265,7 +266,7 @@ export function analyzeCsharpCallableContracts(
       }
     }
     const accessor = policy.ast.is.IsGetAccessorDeclaration(node) || policy.ast.is.IsSetAccessorDeclaration(node);
-    if (isCsharpSourceCallableArtifactDeclaration(policy.ast, node) || accessor) {
+    if (csharpNativeCallableArtifact(policy.ast, policy.facts.navigation, node) || accessor) {
       const selected = selectCsharpSourceCallableAbi(
         policy,
         evidence,
@@ -291,7 +292,7 @@ export function analyzeCsharpCallableContracts(
       const implementation = source.navigation.callableImplementation(node);
       if (implementation.kind === "resolved" &&
         source.navigation.isProjectDeclaration(implementation.implementation.declaration) &&
-        isCsharpSourceCallableArtifactDeclaration(policy.ast, implementation.implementation.declaration)) {
+        csharpNativeCallableArtifact(policy.ast, policy.facts.navigation, implementation.implementation.declaration)) {
         checkedDeclarations.push({ declaration: node, sourceFile });
       }
     }

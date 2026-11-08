@@ -101,6 +101,12 @@ export function analyzeCsharpConstructorArguments(
       const arguments_ = records.targetArguments.targetArgumentsEmission.get(node);
       if (arguments_ !== undefined) for (const operand of arguments_.operands) {
         if (operand.kind === "sequence") continue;
+        if (operand.kind === "expanded") return true;
+        if (operand.kind === "discard") {
+          const discarded = expression(operand.expression);
+          if (discarded.kind !== "erased" && (discarded.completion.kind === "value" || sequence(discarded))) return true;
+          continue;
+        }
         if (operand.kind === "projection") {
           if (operand.projection.values.some(value => sequence(expression(value.expression)))) return true;
           continue;

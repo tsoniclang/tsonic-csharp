@@ -6,7 +6,6 @@ import type { CallArgumentPlanner, ExpressionPlanner } from "./expression-planne
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import type { CsharpPlanningContext } from "../context.js";
 import { translateSelectedTargetArguments } from "./calls/arguments.js";
-import { translateSourceOwnedArguments } from "./calls/source.js";
 import { renderSelectedCsharpTargetMethodTypeArguments } from "./selected-method-type-arguments.js";
 import { translateCsharpJsValueInvocation } from "./js-value-operations.js";
 import type { CsharpPlannedValue } from "./planned-values.js";
@@ -23,8 +22,7 @@ export function translateCsharpConstruction(node: Node, sourceFile: SourceFile, 
     return buildCsharpPlannedValue(node, sourceFile, input, diagnostics, [callee, ...arguments_], values =>
       translateCsharpJsValueInvocation(input.scope.typeParameterNames, selected.operation, values[0]!, values.slice(1)), selected.result);
   }
-  const arguments_ = selected.kind === "native" ? translateSelectedTargetArguments(node, sourceFile, input, diagnostics, planExpression, planCallArgument) :
-    translateSourceOwnedArguments(node, sourceFile, input, diagnostics, planExpression, planCallArgument);
+  const arguments_ = translateSelectedTargetArguments(node, sourceFile, input, diagnostics, planExpression, planCallArgument);
   if (arguments_ === undefined) return undefined;
   if (selected.kind === "native") {
     const owner = csharpTypeFromTargetTypeRef(selected.owner, input.scope.typeParameterNames);

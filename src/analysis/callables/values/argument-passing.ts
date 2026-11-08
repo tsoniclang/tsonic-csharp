@@ -11,14 +11,17 @@ import { isCsharpJsValueTargetType, csharpSourcePrimitiveTargetType } from "../.
 import { csharpConstructorBaseCall } from "../emission/constructor-entry.js";
 import { createCsharpArgumentPassingRecords } from "../../program/records/calls/argument-passing.js";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
-import type { CsharpSourceArgumentSelection, CsharpSourceArgumentSelectionResult } from "../../../source/extension/arguments.js";
+import type { CsharpSourceArgumentSelection } from "../../../source/extension/arguments.js";
 import type { CsharpTargetCallSelection } from "../../../target-model/records/operations/member-selections.js";
 
+type CsharpNativeArgumentPassingSourceResult =
+  | { readonly kind: "resolved"; readonly argument: CsharpSourceArgumentSelection }
+  | { readonly kind: "rejected"; readonly reason: string };
+
 export function readCsharpArgumentPassingSource(source: Pick<TargetSourceProgram, "ast">,
-  evidence: Pick<CsharpSourceEvidenceIndex, "sourceArgument">, request: CsharpNativeArgumentRequest): CsharpSourceArgumentSelectionResult {
+  evidence: Pick<CsharpSourceEvidenceIndex, "sourceArgument">, request: CsharpNativeArgumentRequest): CsharpNativeArgumentPassingSourceResult {
   const selected = evidence.sourceArgument.get(request.node);
   if (selected === undefined) return { kind: "rejected", reason: "C# call planning received an argument without sealed passing evidence." };
-  if (selected.kind === "rejected") return selected;
   const argument = selected.argument;
   const mode = argument.passingMode;
   if (mode !== "by-value" && mode !== "byref-writeonly-must-init" && mode !== "byref-readwrite" && mode !== "byref-readonly")

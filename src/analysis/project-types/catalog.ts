@@ -7,24 +7,32 @@ import type { CsharpProjectTypeCatalogHost } from "./type-policy.js";
 import type { CsharpProjectTypeDefinition, CsharpProjectTypeIssue } from "../../target-model/records/types/project-types.js";
 import { projectDefinitionTargetType } from "../../policy/types/project/declaration-carriers.js";
 import { projectTypeDefinition } from "./type-policy.js";
+import type { SourceRefusal } from "@tsonic/target-api/source";
+import type { CsharpRepresentationView } from "../../target-model/types/representation.js";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
+import { csharpRepresentationDiagnostic } from "../source-evidence/representations.js";
+
+export interface CsharpProjectTypeCatalogBuilder extends CsharpProjectTypeCatalog {
+  complete(representation: CsharpRepresentationView): void;
+}
 
 export function createCsharpProjectTypeCatalog(
   host: CsharpProjectTypeCatalogHost,
   projections?: import("../../target-model/records/types/type-projections.js").CsharpGenericProjectionIndex,
-): CsharpProjectTypeCatalog {
+): CsharpProjectTypeCatalogBuilder {
   const definitions: CsharpProjectTypeDefinition[] = [];
   const issues: CsharpProjectTypeIssue[] = [];
   const byDeclaration = new WeakMap<Node, CsharpProjectTypeDefinition>();
   const byId = new Map<string, CsharpProjectTypeDefinition>();
+  const refused = new WeakMap<Node, SourceRefusal>();
+  let completed = false;
 
-  for (const sourceFile of host.navigation.sourceFiles) {
+  for (const sourceFile of host.facts.navigation.sourceFiles) {
     visitSourceTree(host.ast, sourceFile, (declaration) => {
       const selected = projectTypeDefinition(host, declaration);
       if (selected.kind === "not-project-type") return;
       if (selected.kind === "rejected") {
-        issues.push(Object.freeze({ node: selected.selection.member,
-          code: selected.selection.failure === "resource" ? "CSHARP_ENUM_CONSTANT_RESOURCE_LIMIT" : "CSHARP_ENUM_CONSTANT_NOT_SUPPORTED",
-          message: selected.selection.reason }));
+        refused.set(declaration, selected.refusal);
         return;
       }
       const sourceDefinition = selected.definition;
@@ -53,11 +61,39 @@ export function createCsharpProjectTypeCatalog(
   }
 
   analyzeCsharpProjectNames(host, definitions, issues, replaceDefinition);
-  const frozenDefinitions = Object.freeze(definitions.map(definition => byDeclaration.get(definition.declaration)!));
-  const frozenIssues = Object.freeze(issues);
   return Object.freeze({
-    definitions: frozenDefinitions,
-    issues: frozenIssues,
+    get definitions() { return Object.freeze(definitions.map(definition => byDeclaration.get(definition.declaration)!)); },
+    get issues() { return Object.freeze([...issues]); },
+    select(declaration) {
+      const refusal = refused.get(declaration);
+      if (refusal !== undefined) return Object.freeze({ kind: "source-refused", refusal });
+      const value = byDeclaration.get(declaration);
+      return Object.freeze({ kind: "represented", value: value === undefined ? Object.freeze({ kind: "none" })
+        : Object.freeze({ kind: "present", value }) });
+    },
+    complete(representation) {
+      if (completed) failTargetAnalysisInvariant("tsonic-csharp", "A Native project catalog completes its original binder constraints exactly once.");
+      completed = true;
+      for (const original of definitions) {
+        const definition = byDeclaration.get(original.declaration)!;
+        const parameters: Extract<TargetTypeRef, { readonly kind: "type-parameter" }>[] = [];
+        let failed = false;
+        for (const parameter of definition.typeParameterBindings) {
+          if (parameter.csharpProjection !== undefined) { parameters.push(parameter); continue; }
+          const declaration = parameter.csharpDeclaration;
+          if (declaration === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An original Native binder requires its declaration.", definition.declaration);
+          const selected = representation.parameter(host.facts.descriptors.typeParameter(declaration), declaration);
+          if (selected.kind !== "represented") {
+            const diagnostic = csharpRepresentationDiagnostic(selected);
+            issues.push({ node: diagnostic.sourceNode ?? declaration, source: diagnostic.source, code: diagnostic.code, message: diagnostic.message });
+            failed = true;
+            break;
+          }
+          parameters.push(selected.value);
+        }
+        if (!failed) replaceDefinition(Object.freeze({ ...definition, typeParameterBindings: Object.freeze(parameters) }));
+      }
+    },
     definitionForId(id: string) {
       return byId.get(id);
     },

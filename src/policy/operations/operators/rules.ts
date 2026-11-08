@@ -8,13 +8,12 @@ import {
 
 import { selectCsharpGuardedIntegerPromotion } from "../numeric/guarded.js";
 
-import { sourceBooleanShortCircuitBranch as csharpBooleanShortCircuitBranch } from "@tsonic/target-api/source";
-
 import { selectCsharpReferenceEquality } from "./reference-equality.js";
 import { selectCsharpUnionEquality } from "./union-equality.js";
 import { selectCsharpExpressionConversion } from "../../conversions/expression.js";
 import { csharpConversionIsApplicable } from "../../conversions/applicability.js";
 import type { Node } from "@tsonic/tsts";
+import type { SourceLiteralUnit, SourcePresence } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../model/context.js";
 import type { TargetTypeRef } from "../../types/index.js";
 import {
@@ -23,7 +22,7 @@ import {
   isCsharpJsValueTargetType, isCsharpReferenceCarrier, targetTypeRefEquals,
 } from "../../types/index.js";
 import { csharpUnaryNumericPromotion, selectCsharpNumericBinaryPromotion } from "../numeric/promotion.js";
-import { csharpLiteralIsRepresentableAs } from "../../conversions/literals.js";
+import { csharpScalarLiteralIsRepresentableAs } from "../../conversions/literals.js";
 import { csharpJsArrayCarrierId } from "../../../target-model/types/carriers/js.js";
 import type { CsharpSourceOperator } from "../../../target-model/syntax/operators.js";
 import { isCsharpAssignmentOperator } from "../../../target-model/syntax/operators.js";
@@ -34,6 +33,8 @@ export interface CsharpBinaryOperands {
   readonly sourceOperator: CsharpSourceOperator;
   readonly leftType: TargetTypeRef;
   readonly rightType: TargetTypeRef;
+  readonly leftScalar: SourcePresence<SourceLiteralUnit>;
+  readonly rightScalar: SourcePresence<SourceLiteralUnit>;
   readonly resultType: TargetTypeRef;
   readonly leftStorage: TargetTypeRef | undefined;
   readonly rightStorage: TargetTypeRef | undefined;
@@ -41,6 +42,7 @@ export interface CsharpBinaryOperands {
   /** The checked use of the right operand; read only for the sequence operator, the one operation it selects. */
   readonly resultUse: ReturnType<CsharpPolicyContext["navigation"]["expressionResultUse"]> | undefined;
   readonly assignmentLocation: import("../../../target-model/operations/assignment-locations.js").CsharpAssignmentLocation;
+  readonly disposition?: "left" | "right" | "dynamic";
 }
 
 export function selectCsharpNativeBinaryOperation(
@@ -61,6 +63,7 @@ export function selectCsharpNativeBinaryOperation(
     return {
       kind: "resolved", sourceOperator, targetOperation: {
         kind: "sequence", resultUse: facts.resultUse,
+        operands: [{ occurrence: left, carrier: leftType }, { occurrence: right, carrier: rightType }],
       },
       left, right, leftType, rightType, leftInputType: leftType, rightInputType: resultType, resultType,
     };
@@ -68,7 +71,8 @@ export function selectCsharpNativeBinaryOperation(
   if (sourceOperator === "&&" || sourceOperator === "||") {
     const boolean = csharpSourcePrimitiveTargetType("bool");
     if (!targetTypeRefEquals(leftType, boolean)) return rejectCsharpOperator("C# conditional-value operators require an exact bool condition.");
-    const branch = csharpBooleanShortCircuitBranch(input.ast, left, sourceOperator);
+    const branch = facts.disposition;
+    if (branch === undefined) return rejectCsharpOperator("A conditional value requires its authoritative Source disposition.");
     if (branch !== "left" && !csharpConversionIsApplicable(
       selectCsharpExpressionConversion(input, right, rightType, resultType, "implicit"), "implicit")) {
       return rejectCsharpOperator("C# conditional-value selection requires exact admission of the selected right-hand completion.");
@@ -101,15 +105,17 @@ export function selectCsharpNativeBinaryOperation(
     }
     const leftNullable = getCsharpNullableElementTargetType(leftType);
     const rightNullable = getCsharpNullableElementTargetType(rightType);
-    const leftArms = getCsharpRuntimeUnionArms(leftNullable ?? leftType, input.typeDefinitions) ?? (leftNullable === undefined ? [] : [leftNullable]);
-    const rightArms = getCsharpRuntimeUnionArms(rightNullable ?? rightType, input.typeDefinitions) ?? (rightNullable === undefined ? [] : [rightNullable]);
-    const rightCandidates = leftArms?.filter(arm => csharpLiteralIsRepresentableAs(input.literalValues.literalValue.get(right), arm));
-    const leftCandidates = rightArms?.filter(arm => csharpLiteralIsRepresentableAs(input.literalValues.literalValue.get(left), arm));
+    const leftArms = getCsharpRuntimeUnionArms(leftNullable ?? leftType) ?? (leftNullable === undefined ? [] : [leftNullable]);
+    const rightArms = getCsharpRuntimeUnionArms(rightNullable ?? rightType) ?? (rightNullable === undefined ? [] : [rightNullable]);
+    const rightScalar = facts.rightScalar;
+    const leftScalar = facts.leftScalar;
+    const rightCandidates = leftArms.filter(arm => rightScalar.kind === "present" && csharpScalarLiteralIsRepresentableAs(rightScalar.value, arm));
+    const leftCandidates = rightArms.filter(arm => leftScalar.kind === "present" && csharpScalarLiteralIsRepresentableAs(leftScalar.value, arm));
     if (rightCandidates?.length === 1) rightType = rightCandidates[0]!;
     if (leftCandidates?.length === 1) leftType = leftCandidates[0]!;
   }
   const numericOperands: Pick<NonNullable<ReturnType<typeof selectCsharpNumericBinaryPromotion>>, "leftType" | "rightType"> | undefined = selectCsharpNumericBinaryPromotion(
-    input, left, leftType, right, rightType, resultType,
+    { type: leftType, scalar: facts.leftScalar }, { type: rightType, scalar: facts.rightScalar }, resultType,
   ) ?? selectCsharpGuardedIntegerPromotion(input, left, right, leftType, rightType);
   if (numericOperands === undefined && targetTypeRefEquals(leftType, csharpBigIntegerTargetType()) &&
     targetTypeRefEquals(rightType, csharpBigIntegerTargetType())) {
@@ -137,9 +143,9 @@ export function selectCsharpNativeBinaryOperation(
   }
   const nullishTest = selectNullishTest(sourceOperator, leftType, rightType, input.typeDefinitions);
   if (nullishTest === undefined && (sourceOperator === "===" || sourceOperator === "!==") &&
-    (getCsharpRuntimeUnionArms(getCsharpNullableElementTargetType(leftType) ?? leftType, input.typeDefinitions) !== undefined ||
-      getCsharpRuntimeUnionArms(getCsharpNullableElementTargetType(rightType) ?? rightType, input.typeDefinitions) !== undefined)) {
-    const arms = selectCsharpUnionEquality(leftType, rightType, input, { left, right });
+    (getCsharpRuntimeUnionArms(getCsharpNullableElementTargetType(leftType) ?? leftType) !== undefined ||
+      getCsharpRuntimeUnionArms(getCsharpNullableElementTargetType(rightType) ?? rightType) !== undefined)) {
+    const arms = selectCsharpUnionEquality(leftType, rightType, input, { left: facts.leftScalar, right: facts.rightScalar });
     if (arms === undefined) return rejectCsharpOperator("Union equality requires exact native comparison evidence for every leaf pair.");
     return Object.freeze({ kind: "resolved", sourceOperator,
       targetOperation: Object.freeze({ kind: "union-equality", negated: sourceOperator === "!==", arms }),
@@ -185,7 +191,7 @@ export function selectCsharpNativeBinaryOperation(
       return rejectCsharpOperator("Source nullish coalescing requires exact native completion into its published Host result.");
     }
   }
-  const coalesceArms = sourceOperator === "??" ? getCsharpRuntimeUnionArms(leftType, input.typeDefinitions) : undefined;
+  const coalesceArms = sourceOperator === "??" ? getCsharpRuntimeUnionArms(leftType) : undefined;
   const coalesceValueArm = coalesceArms?.findIndex(arm => !isCsharpAbsenceTargetType(arm));
   const unionCoalesce: CsharpTargetBinaryOperation | undefined = coalesceValueArm !== undefined && coalesceValueArm >= 0
     ? { kind: "union-coalesce", valueArmIndex: coalesceValueArm, retainCarrier: targetTypeRefEquals(leftType, resultType) }
@@ -286,12 +292,12 @@ function selectNullishOperandStorage(
   definitions: CsharpPolicyContext["typeDefinitions"],
 ): TargetTypeRef {
   return storage !== undefined && (getCsharpNullableElementTargetType(storage) !== undefined ||
-    getCsharpRuntimeUnionArms(storage, definitions)?.some(isCsharpAbsenceTargetType)) ? storage : selected;
+    getCsharpRuntimeUnionArms(storage)?.some(isCsharpAbsenceTargetType)) ? storage : selected;
 }
 
 export function nullishValueType(
   type: TargetTypeRef | undefined,
-  definitions?: import("../../../target-model/types/source-union-definitions.js").CsharpTypeDefinitions,
+  _definitions?: import("../../../target-model/types/native-definitions.js").CsharpTypeDefinitions,
 ): TargetTypeRef | undefined {
   const nullableElement = getCsharpNullableElementTargetType(type);
   if (nullableElement !== undefined) {
@@ -299,7 +305,7 @@ export function nullishValueType(
   }
   const runtimeArms = type === undefined
     ? undefined
-    : getCsharpRuntimeUnionArms(type, definitions);
+    : getCsharpRuntimeUnionArms(type);
   const valueArms = runtimeArms?.filter((arm) =>
     !isCsharpAbsenceTargetType(arm)
   );
@@ -347,7 +353,7 @@ function selectNullishTest(
   operator: CsharpSourceOperator,
   left: TargetTypeRef,
   right: TargetTypeRef,
-  definitions?: import("../../../target-model/types/source-union-definitions.js").CsharpTypeDefinitions,
+  _definitions?: import("../../../target-model/types/native-definitions.js").CsharpTypeDefinitions,
 ): CsharpTargetBinaryOperation | undefined {
   if (!isEquality(operator)) {
     return undefined;
@@ -362,7 +368,7 @@ function selectNullishTest(
     return undefined;
   }
   const testedType = leftNullish ? right : left;
-  const unionArms = getCsharpRuntimeUnionArms(testedType, definitions);
+  const unionArms = getCsharpRuntimeUnionArms(testedType);
   if (unionArms !== undefined) {
     const compared = leftNullish ? left : right;
     const loose = operator === "==" || operator === "!=";
@@ -457,6 +463,7 @@ export function selectCsharpNativeUnaryOperation(
   operand: Node,
   operandType: TargetTypeRef,
   resultType: TargetTypeRef,
+  form: "prefix" | "postfix",
 ): CsharpOperationSelection<CsharpResolvedUnaryOperation> {
   const signedNegation = sourceOperator === "-" && operandType.kind === "source-primitive" &&
     (operandType.name === "uint8" || operandType.name === "uint16" || operandType.name === "uint32");
@@ -471,6 +478,8 @@ export function selectCsharpNativeUnaryOperation(
         sourceOperator,
         targetOperator: sourceOperator,
         operand,
+        form,
+        operandSourceType: operandType,
         operandType: signedNegation ? resultType : operandType,
         operandConversionMode: signedNegation ? "explicit" : "implicit",
         resultType,

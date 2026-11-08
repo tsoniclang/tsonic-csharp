@@ -1,14 +1,22 @@
-import type { CsharpDelegateSignatureShape, TargetTypeRef } from "../../types/model.js";
+import type { TargetTypeRef } from "../../types/model.js";
+import type { CsharpNativeCallableConversionMembers } from "../../conversions/selection.js";
+import { csharpNativeCallableMemberKey } from "../../types/carriers/delegates.js";
+import { targetTypeRefKey } from "../../types/equality.js";
+
+export function csharpNativeCallableConversionKey(members: CsharpNativeCallableConversionMembers): string {
+  const application = (value: CsharpNativeCallableConversionMembers["sourceApplication"]) => value === undefined ? []
+    : [csharpNativeCallableMemberKey(value.original), value.typeArguments.map(argument => targetTypeRefKey(argument))];
+  return JSON.stringify([csharpNativeCallableMemberKey(members.source), csharpNativeCallableMemberKey(members.target),
+    application(members.sourceApplication), application(members.targetApplication)]);
+}
 
 export interface CsharpDelegateContract {
-  readonly sourceSignature: CsharpDelegateSignatureShape;
-  readonly targetSignature: CsharpDelegateSignatureShape;
+  readonly members: CsharpNativeCallableConversionMembers;
   readonly targetCarrier: TargetTypeRef;
   readonly sourceVoid: boolean;
   readonly targetVoid: boolean;
-  readonly methodTypeArguments?: readonly TargetTypeRef[];
 }
 
 export interface CsharpDelegateContractRecords {
-  readonly delegateContract: { readonly get: (source: TargetTypeRef, target: TargetTypeRef) => CsharpDelegateContract | undefined };
+  readonly delegateContract: { readonly get: (source: TargetTypeRef, target: TargetTypeRef, members: CsharpNativeCallableConversionMembers) => CsharpDelegateContract | undefined };
 }

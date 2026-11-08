@@ -13,6 +13,7 @@ export interface CsharpStorageIssue {
   readonly node: Node;
   readonly code: string;
   readonly message: string;
+  readonly source?: string;
 }
 
 export interface CsharpNativeArrayStorage {

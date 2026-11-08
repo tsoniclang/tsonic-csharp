@@ -3,6 +3,7 @@ import type {
   CsharpAttribute,
   CsharpInterfaceMember,
   CsharpModifier,
+  CsharpParameter,
   CsharpTypeMember,
   CsharpTypeParameter,
 } from "./members.js";
@@ -28,7 +29,18 @@ export interface CsharpNamespace {
   readonly members: readonly CsharpTypeDeclaration[];
 }
 
-export type CsharpTypeDeclaration = CsharpClassDeclaration | CsharpStructDeclaration | CsharpInterfaceDeclaration | CsharpEnumDeclaration;
+export type CsharpTypeDeclaration = CsharpClassDeclaration | CsharpStructDeclaration | CsharpInterfaceDeclaration | CsharpEnumDeclaration | CsharpDelegateDeclaration;
+
+export interface CsharpDelegateDeclaration {
+  readonly kind: "DelegateDeclaration";
+  readonly name: string;
+  readonly modifiers: readonly CsharpModifier[];
+  readonly attributes?: readonly CsharpAttribute[];
+  readonly typeParameters?: readonly CsharpTypeParameter[];
+  readonly returnType: CsharpTypeNode;
+  readonly returnPassing?: "ref" | "ref-readonly";
+  readonly parameters: readonly CsharpParameter[];
+}
 
 export interface CsharpClassDeclaration {
   readonly kind: "ClassDeclaration";

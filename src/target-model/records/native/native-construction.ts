@@ -3,7 +3,8 @@ import type { CsharpObjectShapeFact, TargetTypeRef } from "../../types/model.js"
 
 export interface CsharpNativeConstructionIssue {
   readonly node: Node;
-  readonly code: "CSHARP_NATIVE_CONSTRUCTION_NOT_PROVEN" | "TSONIC_ANY_UNSUPPORTED" | "TSONIC_COMPILER_RESOURCE_LIMIT";
+  readonly code: string;
+  readonly source: string;
   readonly message: string;
 }
 

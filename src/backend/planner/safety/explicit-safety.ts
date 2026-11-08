@@ -138,7 +138,7 @@ function uniqueValues<T>(values: readonly T[]): readonly T[] {
   return [...new Set(values)];
 }
 
-export function csharpCompilationRequiresUnsafe(subject: Node | "object-shapes" | "source-unions", input: CsharpPlanningContext): boolean {
+export function csharpCompilationRequiresUnsafe(subject: Node | "object-shapes" | "source-roles", input: CsharpPlanningContext): boolean {
   return input.program.records.unsafeCompilation.get(subject)
     ?? failCsharpPlannerInvariant("An admitted compilation unit requires its exact native unsafe permission.",
       typeof subject === "string" ? undefined : subject);

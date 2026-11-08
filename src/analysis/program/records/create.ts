@@ -45,7 +45,8 @@ import type { CsharpObjectShapeRecords } from "../../../target-model/records/obj
 import type { CsharpObjectShapeEmissionRecords } from "../../../target-model/records/objects/object-shape-emission.js";
 import type { CsharpStructuralObjectEmissionRecords } from "../../../target-model/records/objects/structural-object-emission.js";
 import type { CsharpCompilationEmission } from "../../../target-model/records/program/compilation.js";
-import type { CsharpSourceUnionEmissionRecords } from "../../../target-model/records/types/source-unions.js";
+import type { CsharpSourceRoleEmissionRecords } from "../../../target-model/records/types/source-roles.js";
+import type { CsharpNativeDelegateRecords } from "../../../target-model/records/callables/native-delegates.js";
 import { createCsharpCompilationRecords } from "./program/compilation.js";
 import { createCsharpSourceNameRecords } from "./names.js";
 import { createCsharpJsonObjectShapeRecords } from "./objects/json-object-shapes.js";
@@ -109,7 +110,8 @@ export interface CsharpProgramRecordInput {
   readonly objectShapeEmission: CsharpObjectShapeEmissionRecords;
   readonly structuralObjectEmission: CsharpStructuralObjectEmissionRecords;
   readonly compilation: CsharpCompilationEmission;
-  readonly sourceUnions: CsharpSourceUnionEmissionRecords;
+  readonly sourceRoles: CsharpSourceRoleEmissionRecords;
+  readonly nativeDelegates: CsharpNativeDelegateRecords;
   readonly classEmission: CsharpClassEmissionRecords;
   readonly nativeMemberNames: CsharpNativeMemberNames;
   readonly methods: CsharpMethodEmissionRecords;
@@ -127,7 +129,6 @@ export interface CsharpProgramRecordInput {
   readonly generators: CsharpGeneratorRecords;
   readonly objectShapeDemand: CsharpObjectShapeDemand;
   readonly nativeValueCarriers: CsharpNativeValueCarriers;
-  readonly literalValues: import("@tsonic/target-api/source").SourceLiteralIndex;
   readonly nativeParticipation: CsharpNativeParticipationInput;
   readonly nativeDemand: CsharpNativeUseClassifications;
   readonly bindingPatterns: CsharpBindingPatternClassifications;
@@ -209,7 +210,8 @@ export function createCsharpProgramRecords(
     ...input.structuralObjectEmission,
     ...createCsharpCompilationRecords(input.compilation),
     ...createCsharpSourceNameRecords(input.names),
-    ...input.sourceUnions,
+    ...input.sourceRoles,
+    ...input.nativeDelegates,
     ...input.classEmission,
     ...input.callableParameters,
     ...input.callableDeclarations,
@@ -226,7 +228,6 @@ export function createCsharpProgramRecords(
     ...input.localBindings,
     objectShapeArtifact: input.objectShapeDemand,
     nativeValueDeclaration: input.nativeValueCarriers.nativeValueDeclaration,
-    literalValue: input.literalValues.literalValue,
     nativeParticipation: input.nativeParticipation.participation,
     nativeUse: Object.freeze({ get: input.nativeDemand.nativeUse.get }),
     nativeOrder: Object.freeze({ get: input.nativeDemand.nativeUse.order }),

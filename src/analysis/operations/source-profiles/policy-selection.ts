@@ -33,9 +33,7 @@ export function selectCsharpSourceProfileCallPolicy(
     .declarations.signatureDeclaration(source.selectedSignature);
   const semantics = host.semantics(sourceFile);
   const identity = csharpSourceProfileDeclarationIdentity(
-    host.ast,
-    semantics,
-    host.sourceFacts,
+    host.facts.navigation,
     declaration,
   );
   if (identity === undefined) {
@@ -103,9 +101,7 @@ export function sourceProfilePropertyIdentities(
   if (declarations === undefined) return [];
   const identities = declarations.map((declaration) =>
     csharpSourceProfileDeclarationIdentity(
-      host.ast,
-      semantics,
-      host.sourceFacts,
+      host.facts.navigation,
       declaration,
     )
   );
@@ -137,7 +133,7 @@ export function selectCsharpSourceProfileElementPolicy(
     for (const declaration of evidence.declarations) declarations.add(declaration);
   }
   const identities = [...declarations].map(declaration => csharpSourceProfileDeclarationIdentity(
-    host.ast, semantics, host.sourceFacts, declaration));
+    host.facts.navigation, declaration));
   if (identities.some(identity => identity === undefined)) return undefined;
   const identity = identities[0];
   if (identity === undefined) {

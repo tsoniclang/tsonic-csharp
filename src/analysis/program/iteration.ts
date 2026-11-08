@@ -11,6 +11,7 @@ import { analyzeCsharpClassInitialization } from "../project-types/class-initial
 import type { CsharpRequiredRecord } from "./records/objects/required-records.js";
 import { sourceDeclarationHasOnlyTypeUses, sourceDeclarationIsModuleScoped, sourceCallableValueExpression } from "@tsonic/target-api/source";
 import { analyzeCsharpExactLiteralSelections } from "../conversions/literal-plans.js";
+import { csharpRepresentationDiagnostic } from "../source-evidence/representations.js";
 
 import { analyzeCsharpTypeProjections, csharpTypeProjectionIndexesEqual } from "../declarations/type-projections.js";
 import { type CsharpGenericProjectionIndex } from "../../target-model/records/types/type-projections.js";
@@ -58,6 +59,7 @@ import { admitCsharpExpectedNativeUses } from "../expected-types/native-uses.js"
 import { analyzeCsharpNativeDemand } from "../operations/native-demand.js";
 
 import { analyzeCsharpValueReadStages } from "../conversions/value-read-stages.js";
+import { analyzeCsharpFlowReadProjections } from "../conversions/flow-read-projections.js";
 import { analyzeCsharpOptionalLocals } from "../storage/optional-locals.js";
 
 export interface CsharpRepresentationContract {
@@ -134,21 +136,18 @@ export function analyzeCsharpRepresentationIteration(
     createCsharpProjectTypeCatalog(typeHost, previous?.typeProjections),
     representations,
   );
-  const policyContext = createCsharpAnalysisPolicyContext({
+  const policy = createCsharpAnalysisPolicyContext({
     moduleCallables: typeHost.moduleCallables,
     integerRanges: typeHost.integerRanges,
-    literalValues: typeHost.literalValues,
+    literals: typeHost.literals,
     callOnlyAlias: typeHost.callOnlyAlias,
     input,
     sourceFiles,
     sourceStorage,
-    pointerStorage: typeHost.pointerStorage,
     providers,
     sourceIdentities,
     typeSystem,
   });
-  if (policyContext.issues.length > 0) return rejectCsharpAnalysisIssues(policyContext.issues);
-  const policy = policyContext.policy;
   const evidence = analyzeCsharpSourceEvidence(
     input.source,
     sourceFiles,
@@ -227,7 +226,7 @@ export function analyzeCsharpRepresentationIteration(
   const callableCreationResult = analyzeCsharpCallableCreations({
     source, nodes: sourceStorage.nodes, captures: captureStorage, contracts: callables,
     operations, storage: storageRepresentations, expectedTypes, evidence: sourceEvidence, conversions: preparedConversions,
-    literals: typeHost.literalValues,
+    literals: typeHost.literals,
   });
   if (callableCreationResult.kind === "rejected") return callableCreationResult;
   const callableCreations = callableCreationResult.value;
@@ -240,12 +239,14 @@ export function analyzeCsharpRepresentationIteration(
   if (participation.kind === "rejected") return participation;
   const nativeParticipation = participation.value;
   const classInitialization = analyzeCsharpClassInitialization(source, classFactories);
-  const exactLiterals = analyzeCsharpExactLiteralSelections(typeHost.literalValues, [
+  const literalSelections = analyzeCsharpExactLiteralSelections(typeHost.literals, [
     ...preparedConversions.exactLiteralRequests,
     ...expectedTypes.constructions.propertyKeyRequests,
     ...expectedTypes.nativeUseSites.requests.flatMap(request => request.kind === "requested"
       ? [{ expression: request.expression, source: valueReads.valueRead.get(request.expression)?.value, target: request.targetType }] : []),
   ], sourceStorage.nodes);
+  if (literalSelections.kind !== "represented") return rejectedTargetStage([csharpRepresentationDiagnostic(literalSelections)]);
+  const exactLiterals = literalSelections.value;
   const expectedUse = admitCsharpExpectedNativeUses(expectedTypes, {
     ast: source.ast, exactLiteral: exactLiterals.exactLiteral, callableCreation: callableCreations.callableCreation,
     valueRead: valueReads.valueRead, operations,
@@ -279,36 +280,36 @@ export function analyzeCsharpRepresentationIteration(
     }
     if (use === undefined || visited.has(use) || use.binary !== undefined || use.construction !== undefined ||
       use.children.length !== 0 || !targetTypeRefEquals(use.carrier, target) || !targetTypeRefEquals(use.target, target)) continue;
-    const literal = typeHost.literalValues.literalValue.get(use.expression);
-    if (literal === undefined) continue;
+    const literalResult = typeHost.literals.recipe(use.expression);
+    if (literalResult.kind !== "represented") return rejectedTargetStage([csharpRepresentationDiagnostic(literalResult)]);
+    if (literalResult.value.kind === "none") continue;
+    const literal = literalResult.value.value;
     const selected = exactLiterals.exactLiteral.get(use.expression, target);
     if (selected?.kind === "resolved" && use.representation === "construct" && use.literal === selected.recipe &&
       target.kind === "source-primitive" && (selected.recipe.kind !== "char" || !/[\uD800-\uDFFF]/u.test(selected.recipe.value))) {
       evidence.eraseCompileTimeDeclaration(declaration);
     } else if (selected?.kind === "source-representation" && use.representation === "forward" &&
-      ((literal.form === "string" || literal.form === "template") && isCsharpStringTargetType(target) &&
-          !/[\uD800-\uDFFF]/u.test(literal.text) ||
-        (literal.form === "true" || literal.form === "false") && target.kind === "source-primitive" && target.name === "bool" ||
-        (literal.form === "numeric" || literal.form === "prefix-unary") && literal.numeric !== undefined &&
-          literal.number !== undefined && target.kind === "source-primitive" && target.name === "float64")) {
+      (literal.kind === "string" && isCsharpStringTargetType(target) && !/[\uD800-\uDFFF]/u.test(literal.value) ||
+        literal.kind === "boolean" && target.kind === "source-primitive" && target.name === "bool" ||
+        literal.kind === "number" && target.kind === "source-primitive" && target.name === "float64")) {
       evidence.eraseCompileTimeDeclaration(declaration);
     }
   }
   evidence.sealCompileTimeDeclarations();
   const nativeDemand = analyzeCsharpNativeDemand({
-    ast: source.ast, sourceFiles, navigation: source.navigation, evidence: sourceEvidence,
+    facts: source.facts, ast: source.ast, sourceFiles, navigation: source.navigation, evidence: sourceEvidence,
     operations, valueReads, optionalLocals, participation: nativeParticipation.participation, declarations, objectShapes,
     bindingPatterns: bindingCandidates, callableCreation: callableCreations.callableCreation, attributeApplications: attributes.index,
     propertyKeyBindings: expectedTypes.constructions.propertyKeys, exactLiteral: exactLiterals.exactLiteral,
     classInitialization, projectTypes: typeSystem.projectTypes.catalog, classFactories, expected: expectedUse,
     nativeExpressionIssues: evidence.nativeExpressionIssues, sourceStorage,
   }, requiredRecords);
-  const sourceResolutionIssues = new Set<TargetDiagnostic>(evidence.nativeExpressionIssues);
   const requiredSourceRefusals = nativeDemand.unadmitted.flatMap(use =>
-    use.kind === "source-refusal" && sourceResolutionIssues.has(use.diagnostic) ? [use.diagnostic] : []);
+    use.kind === "source-refusal" ? [use.diagnostic] : []);
   if (requiredSourceRefusals.length !== 0) return rejectedTargetStage<never>(requiredSourceRefusals);
   const bindingPatterns = admitCsharpBindingPatterns(bindingCandidates, nativeDemand.requiredBindingRoots, requiredRecords);
-  conversionAnalysis.close(nativeDemand, requiredRecords, captureStorage, callableCreations);
+  const flowReads = analyzeCsharpFlowReadProjections({ ...policy, objectShapes }, sourceEvidence, operations, valueReads);
+  conversionAnalysis.close(nativeDemand, requiredRecords, captureStorage, callableCreations, flowReads);
   const conversions = conversionAnalysis.seal();
   const refLikeDiagnostics = analyzeCsharpRefLikePlacements({
     source, nodes: sourceStorage.nodes, callables, captureStorage,
@@ -337,6 +338,8 @@ export function analyzeCsharpRepresentationIteration(
     storage,
     optionalLocals,
     valueReads,
+    valueReadStages: valueReadStages.valueReadStages,
+    flowReads,
     requiredRecords,
     names,
     attributes,

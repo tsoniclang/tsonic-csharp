@@ -1,7 +1,7 @@
-import type { AstReader, Type } from "@tsonic/tsts";
+import type { Node } from "@tsonic/tsts";
 import type { TargetSelection } from "@tsonic/target-api";
-import type { SourceFileSemantics } from "@tsonic/target-api/source";
-import { isTsonicSourceProfileDeclarationPath } from "@tsonic/target-api/provider";
+import type { SourceProgramFacts } from "@tsonic/target-api/source";
+import { csharpSourceProfileDeclarationIdentity } from "./selected-source.js";
 import { csharpTargetId } from "../../target-model/identities/target.js";
 import { jsRegExpSourceProfileIdentity } from "@tsonic/js-source-profile";
 import { csharpSourceBaseErrorIdentity, csharpSourceErrorIdentities, type CsharpSourceErrorName } from "../../target-model/identities/source-errors.js";
@@ -208,77 +208,13 @@ const sourceProfileTypePolicies = Object.freeze([
   sourceProfileTypePolicy("js", "IterableIterator", "iterable"),
 ]);
 
-export function classifyCsharpSourceProfileType(
-  type: Type,
-  semantics: SourceFileSemantics,
-  ast: AstReader,
-): CsharpSourceProfileTypeIdentity | undefined {
-  const symbols = [
-    semantics.declarations.typeAliasSymbol(type),
-    semantics.declarations.typeSymbol(type),
-    ...(semantics.types.isTypeReference(type)
-      ? (() => {
-          const target = semantics.types.typeReferenceTarget(type);
-          return target === undefined
-            ? []
-            : [semantics.declarations.typeSymbol(target)];
-        })()
-      : []),
-  ];
-  for (const symbol of symbols) {
-    if (symbol === undefined) {
-      continue;
-    }
-    for (const declaration of semantics.declarations.symbolDeclarations(symbol)) {
-      const identity = classifyCsharpSourceProfileDeclaration(declaration, ast);
-      if (identity !== undefined) {
-        return identity;
-      }
-    }
-  }
-  return undefined;
-}
-
 export function classifyCsharpSourceProfileDeclaration(
-  declaration: Parameters<AstReader["name"]>[0],
-  ast: AstReader,
+  navigation: SourceProgramFacts["navigation"],
+  declaration: Node,
 ): CsharpSourceProfileTypeIdentity | undefined {
-  if (
-    !ast.is.IsClassDeclaration(declaration) &&
-    !ast.is.IsInterfaceDeclaration(declaration) &&
-    !ast.is.IsTypeAliasDeclaration(declaration)
-  ) {
-    return undefined;
-  }
-  const sourceFile = ast.getSourceFile(declaration);
-  if (sourceFile === undefined) {
-    return undefined;
-  }
-  const fileName = ast.getFileName(sourceFile);
-  const ownerId = sourceProfileOwner(fileName);
-  const nameNode = ast.name(declaration);
-  if (
-    ownerId === undefined ||
-    nameNode === undefined ||
-    !ast.is.IsIdentifier(nameNode)
-  ) {
-    return undefined;
-  }
-  const sourceName = ast.text(nameNode);
-  return sourceProfileTypePolicies.find(
-    (policy) => policy.ownerId === ownerId && policy.sourceName === sourceName,
-  );
-}
-
-function sourceProfileOwner(
-  fileName: string,
-): CsharpSourceProfileTypeIdentity["ownerId"] | undefined {
-  if (isTsonicSourceProfileDeclarationPath(fileName, csharpTargetId)) {
-    return csharpTargetId;
-  }
-  return isTsonicSourceProfileDeclarationPath(fileName, "js")
-    ? "js"
-    : undefined;
+  const identity = csharpSourceProfileDeclarationIdentity(navigation, declaration);
+  return identity?.kind !== "type" || identity.name === undefined ? undefined
+    : sourceProfileTypePolicies.find(policy => policy.ownerId === identity.owner && policy.sourceName === identity.name);
 }
 
 function sourceProfileTypePolicy(

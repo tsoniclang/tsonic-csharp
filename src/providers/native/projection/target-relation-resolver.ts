@@ -152,7 +152,7 @@ function resolveSignatureRelations(
         bindingTypeArgumentSource: template.bindingTypeArgumentSource,
         methodTypeParameters: template.methodTypeParameters,
         invocationTypeParameters: template.invocationTypeParameters,
-        selectedTypeParameterCount: template.selectedTypeParameterCount,
+        sourceTypeParameterCounts: template.sourceTypeParameterCounts,
       })),
   };
 }

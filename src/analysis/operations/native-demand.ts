@@ -2,7 +2,7 @@ import { sealCsharpNativeUseClassifications } from "../program/records/native/na
 import type { Node } from "@tsonic/tsts";
 import type { CsharpTargetNamedTypeRef } from "../../target-model/types/model.js";
 import { targetUseSiteIdentity, type SourceStorageSubject, type TargetUseSiteRef } from "@tsonic/target-api/analysis";
-import { failTargetAnalysisInvariant, targetDiagnosticFromExtension } from "@tsonic/target-api/artifacts";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { sourceExpressionValueInputs, sourceTransparentExpressionOperand } from "@tsonic/target-api/source";
 import { csharpNativeConstructIsErased, selectCsharpNativeConstructSteps } from "./control-flow/native-constructs.js";
 import { selectCsharpNativeOperandUses, selectCsharpNativeSourceRefusal, type CsharpNativeOperandSelection, type CsharpNativeOperandStep } from "./control-flow/native-operands.js";
@@ -203,12 +203,10 @@ export function analyzeCsharpNativeDemand(
     }
     const diagnostic = selectCsharpNativeSourceRefusal(input, requiredBy);
     if (diagnostic === undefined) return issues !== undefined;
-    const dependencies = sourceExpressionValueInputs(ast, requiredBy);
-    if (dependencies?.some(input => refuseSourceExpression(input.expression))) return true;
     if (!refusedSourceExpressions.has(requiredBy)) {
       refusedSourceExpressions.add(requiredBy);
       unadmitted.push(Object.freeze({ kind: "source-refusal", requiredBy,
-        diagnostic: targetDiagnosticFromExtension(requiredBy, diagnostic) }));
+        diagnostic }));
     }
     return true;
   }
@@ -350,6 +348,13 @@ export function analyzeCsharpNativeDemand(
       ? selectCsharpNativeOperandUses(policyInput, expression, child.access)
       : Object.freeze({ runtime: Object.freeze([]), planning: Object.freeze([]), flow: "sequence", carrier: expected.carrier,
         resultUse: input.navigation.expressionResultUse(expression) });
+    if (selected.sourceDiagnostic !== undefined) {
+      if (!refusedSourceExpressions.has(expression)) {
+        refusedSourceExpressions.add(expression);
+        unadmitted.push(Object.freeze({ kind: "source-refusal", requiredBy: expression, diagnostic: selected.sourceDiagnostic }));
+      }
+      return Object.freeze({ site, expression, completion: undefined });
+    }
     const expectedChildren = new Map<string, TargetUseSiteRef[]>();
     for (const reference of expected?.construction?.children ?? expected?.children ?? []) {
       const matching = expectedChildren.get(reference.role) ?? [];
@@ -441,15 +446,18 @@ export function analyzeCsharpNativeDemand(
     if (expected?.construction !== undefined) {
       publish(expected.construction.site, { kind: "constructed", expression, carrier: expected.construction.carrier,
         children, evaluation, completion: inputCompletion, objectShape: expected.objectShape, propertyKeys,
+        ...(selected.conditionalValue === undefined ? {} : { conditionalValue: selected.conditionalValue }),
         ...(expected.literal === undefined ? {} : { literal: expected.literal }) });
       const stage = expected.construction.site;
       const completion = selectCsharpNativeCompletion(expected.target, { kind: "sequence", children: [{ completion: inputCompletion }] });
       if (completion === undefined) return pending(site, expression, "completion-unresolved");
       return publish(site, { kind: "converted", expression, carrier: physical, input: inputCompletion, target: expected.target, mode: expected.mode,
         children: Object.freeze([stage]), evaluation: Object.freeze({ kind: "sequence", steps: Object.freeze([Object.freeze({ site: stage })]) }),
+        ...(selected.conditionalValue === undefined ? {} : { conditionalValue: selected.conditionalValue }),
         objectShape, defaultValue, propertyKeys, completion }, presence);
     }
     const common = { expression, carrier: physical, children, evaluation, completion: inputCompletion,
+      ...(selected.conditionalValue === undefined ? {} : { conditionalValue: selected.conditionalValue }),
       ...(discardedPresence === undefined ? {} : { discardedPresence }),
       ...(expected?.exactInteger === true ? { exactInteger: true as const } : {}),
       ...(expected?.literal === undefined ? {} : { literal: expected.literal }),
@@ -493,6 +501,8 @@ export function analyzeCsharpNativeDemand(
 
   function selectDiscardedPresence(expression: Node, selected: CsharpNativeOperandSelection,
     runtime: readonly NativeRuntimeChild[]): CsharpNativeDiscardedPresence | undefined {
+    if (selected.conditionalValue !== undefined && selected.conditionalValue.disposition !== "dynamic" && runtime.length === 2) return Object.freeze({
+      kind: "sequence", effects: Object.freeze([runtime[0]!.visited.site]), result: presenceOf(runtime[1]!.visited) });
     if (selected.flow === "conditional" && runtime.length === 3) return Object.freeze({ kind: "conditional",
       condition: runtime[0]!.visited.site, whenTrue: presenceOf(runtime[1]!.visited), whenFalse: presenceOf(runtime[2]!.visited) });
     if (selected.flow === "short-circuit" && runtime.length === 2) {

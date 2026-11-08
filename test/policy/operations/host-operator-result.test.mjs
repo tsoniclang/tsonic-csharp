@@ -149,7 +149,7 @@ test("D-A a compound result's storage kind never retargets a fixed fractional op
 test("Q10 Native unsigned negation represents the published signed result without replacing it", () => {
   for (const [kind, signed] of [["uint8", "int32"], ["uint16", "int32"], ["uint32", "int64"]]) {
     const current = checkedOperation("left + right", "+", primitive(kind), primitive(kind), primitive(signed));
-    const selected = selectCsharpNativeUnaryOperation(current.input, "-", current.operands.left, primitive(kind), current.resultType);
+    const selected = selectCsharpNativeUnaryOperation(current.input, "-", current.operands.left, primitive(kind), current.resultType, "prefix");
     assert.equal(selected.kind === "resolved", true, kind);
     assert.equal(selected.resultType === current.resultType && selected.operandType === current.resultType &&
       selected.operandConversionMode === "explicit", true,

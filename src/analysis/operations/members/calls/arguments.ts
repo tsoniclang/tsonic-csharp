@@ -1,184 +1,91 @@
-import type { SourceFile } from "@tsonic/tsts";
-
+import type { SourceApplication, SourceArgumentPlace } from "@tsonic/target-api/source";
 import type { CsharpProviderTargetRelation } from "../../../../target-model/identities/provider-relations.js";
-import type { CsharpTargetMember } from "../../../../policy/types/index.js";
-
-import { csharpTargetParameterValueType, csharpTargetStorageIdentityEquals, targetTypeRefKey } from "../../../../policy/types/index.js";
-import { selectCsharpProviderArgumentConversion } from "../../../../policy/conversions/index.js";
-import { csharpConversionIsApplicable } from "../../../../policy/conversions/applicability.js";
-import { selectCsharpSourceTypeFlowIndexConversion } from "../../../../policy/conversions/source-type-flow-index.js";
-import { csharpIntegralConversionAnnotationHint } from "../../../conversions/integral-hints.js";
-
-import { selectCsharpSourceArgument } from "../../../../source/extension/arguments.js";
+import type { CsharpTargetMember, TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { CsharpRepresentationOutcome } from "../../../../target-model/types/representation.js";
 import type { CsharpSelectedCallArgument, CsharpProviderArgumentMapping } from "../../../../target-model/records/objects/members.js";
-import type { ResolvedSourceCallInfo } from "../../../../target-model/records/calls/source-calls.js";
-
-type CsharpProviderSignatureRelation = Extract<
-  CsharpProviderTargetRelation,
-  { readonly kind: "signature" }
->;
-
 import type { CsharpProviderCallInstantiationHost } from "../../../../policy/model/provider-calls.js";
+import { csharpTargetParameterValueType, csharpTargetStorageIdentityEquals, targetTypeRefKey } from "../../../../policy/types/index.js";
+import { getCsharpArrayLiteralElementTargetType } from "../../../../target-model/types/carriers/collections.js";
+import { selectCsharpProviderArgumentConversion } from "../../../../policy/conversions/expression.js";
+import { csharpConversionIsApplicable } from "../../../../policy/conversions/applicability.js";
+import { admitCsharpSourceConversion } from "../../../../policy/conversions/source-admission.js";
+import { selectCsharpNativeIndexConversion } from "../../../../policy/conversions/native-index.js";
+import { selectCsharpSourceArgument } from "../../../../source/extension/arguments.js";
 import { everyRequiredTargetParameterIsSupplied } from "../../../../policy/operations/members/instantiation-arguments.js";
-type CsharpProviderArgumentValidation =
-  | {
-      readonly kind: "accepted";
-      readonly argumentMappings: readonly CsharpProviderArgumentMapping[];
-    }
-  | { readonly kind: "rejected"; readonly reason: string };
+
+type SignatureRelation = Extract<CsharpProviderTargetRelation, { readonly kind: "signature" }>;
+
+export function csharpApplicationArgumentCarrier(
+  host: CsharpProviderCallInstantiationHost, application: SourceApplication, binding: SourceArgumentPlace,
+): CsharpRepresentationOutcome<TargetTypeRef> {
+  const authored = application.sourceArguments[binding.sourceArgumentIndex];
+  if (authored === undefined || authored.occurrence !== binding.sourceArgument) {
+    throw new TypeError("A Native argument requires its identical canonical authored Source evaluation.");
+  }
+  const selection = selectCsharpSourceArgument(host.facts.protocols, authored.operand.occurrence);
+  if (selection.kind === "refused") return Object.freeze({ kind: "source-refused", refusal: selection });
+  const passing = selection.argument;
+  const selected = host.nativeValue(passing.storageExpression);
+  if (selected.kind !== "represented") return selected;
+  if (binding.sourceForm !== "spread-element") return selected;
+  if (passing.passingMode !== "by-value" || binding.spreadElementIndex === undefined) {
+    return refused(application, "Tuple-spread extraction requires a by-value original operand and its exact published element position.");
+  }
+  const carrier = selected.value.kind === "tuple" ? selected.value.elements[binding.spreadElementIndex]
+    : getCsharpArrayLiteralElementTargetType(selected.value);
+  return carrier === undefined ? refused(application, "The actual Native spread storage has no physical slot for the published Source tuple element.")
+    : Object.freeze({ kind: "represented", value: carrier });
+}
 
 export function validateArgumentsTargetSelectedParameters(
-  host: CsharpProviderCallInstantiationHost,
-  relation: CsharpProviderSignatureRelation,
-  targetMember: CsharpTargetMember,
-  source: ResolvedSourceCallInfo,
-  arguments_: readonly CsharpSelectedCallArgument[],
-  sourceFile: SourceFile,
-): CsharpProviderArgumentValidation {
-  const argumentMappings: CsharpProviderArgumentMapping[] = [];
+  host: CsharpProviderCallInstantiationHost, relation: SignatureRelation, targetMember: CsharpTargetMember,
+  source: SourceApplication, arguments_: readonly CsharpSelectedCallArgument[],
+): CsharpRepresentationOutcome<readonly CsharpProviderArgumentMapping[]> {
+  const mappings: CsharpProviderArgumentMapping[] = [];
   for (const argument of arguments_) {
-    const binding = source.sourceArgumentBindings.find((candidate) =>
-      candidate.effectiveArgumentIndex === argument.effectiveArgumentIndex);
-    if (binding === undefined) {
-      return {
-        kind: "rejected",
-        reason:
-          `Effective source argument ${argument.effectiveArgumentIndex} has no exact checker-selected parameter binding.`,
-      };
+    const binding = source.arguments.find(candidate => candidate.effectiveArgumentIndex === argument.effectiveArgumentIndex);
+    if (binding === undefined || binding.parameter.signature !== source.identity.signature) {
+      return refused(source, "Every Native parameter requires its exact original Source argument place and selected signature.");
     }
-    const sourceExpression = source.sourceArguments[
-      binding.sourceArgumentIndex
-    ]?.expression;
-    if (sourceExpression === undefined) {
-      return {
-        kind: "rejected",
-        reason:
-          `Source argument ${binding.sourceArgumentIndex} has no exact checker-owned expression.`,
-      };
-    }
-    const sourceArgument = selectCsharpSourceArgument(
-      host.sourceFacts,
-      sourceExpression,
-    );
-    if (sourceArgument.kind === "rejected") {
-      return {
-        kind: "rejected",
-        reason:
-          `Source argument ${binding.sourceArgumentIndex} is invalid. ${sourceArgument.reason}`,
-      };
-    }
-    if (
-      sourceArgument.argument.passingMode !==
-        argument.targetParameter.passingMode
-    ) {
-      return {
-        kind: "rejected",
-        reason:
-          `Source argument ${binding.sourceArgumentIndex} uses '${sourceArgument.argument.passingMode}', but exact target parameter '${argument.targetParameter.name}' requires '${argument.targetParameter.passingMode}'.`,
-      };
-    }
-    const sourceSelection = host.types.resolveNode(
-      sourceArgument.argument.storageExpression,
-      sourceFile,
-    );
-    const sourceType = sourceSelection?.kind === "resolved" ? sourceSelection.sourceResult.selectedType : undefined;
-    const targetType = csharpTargetParameterValueType(
-      argument.targetParameter,
-      argument.sourceForm,
-    );
-    if (sourceType === undefined) {
-      if (
-        argument.targetParameter.csharpAcceptsCheckedSourceArgument === true &&
-        sourceArgument.argument.passingMode === "by-value"
-      ) {
-        argumentMappings.push({
-          kind: "checked-source",
-          effectiveArgumentIndex: argument.effectiveArgumentIndex,
-          targetType,
-          proof: "selected-provider-signature",
-        });
-        continue;
-      }
-      return {
-        kind: "rejected",
-        reason:
-          `Source argument ${binding.sourceArgumentIndex} has no closed C# representation for its exact selected target parameter '${argument.targetParameter.name}'.`,
-      };
-    }
-    const parameterRelation = relation.parameters.find((candidate) =>
-      candidate.targetParameterIndex === argument.targetParameterIndex);
-    if (sourceArgument.argument.passingMode !== "by-value") {
-      if (!csharpTargetStorageIdentityEquals(sourceType, targetType)) {
-        return {
-          kind: "rejected",
-          reason:
-            `Source argument ${binding.sourceArgumentIndex} with C# representation '${targetTypeRefKey(sourceType)}' cannot satisfy exact target parameter '${argument.targetParameter.name}' with passing mode '${sourceArgument.argument.passingMode}' and representation '${targetTypeRefKey(targetType)}'. Exact C# by-reference passing requires one CLR storage identity; nullable-reference annotations may differ, but the underlying storage type may not.`,
-        };
-      }
-      argumentMappings.push({
-        kind: "by-reference",
-        effectiveArgumentIndex: argument.effectiveArgumentIndex,
-        sourceType,
-        targetType,
-        passingMode: sourceArgument.argument.passingMode,
-        proof: "storage-identity",
-      });
+    const authored = source.sourceArguments[binding.sourceArgumentIndex];
+    if (authored === undefined) return refused(source, "The effective argument has no original authored evaluation operand.");
+    const selection = selectCsharpSourceArgument(host.facts.protocols, authored.operand.occurrence);
+    if (selection.kind === "refused") return Object.freeze({ kind: "source-refused", refusal: selection });
+    const passing = selection.argument;
+    if (passing.passingMode !== argument.targetParameter.passingMode) return refused(source,
+      `Source argument ${binding.sourceArgumentIndex} uses '${passing.passingMode}', but Native parameter '${argument.targetParameter.name}' requires '${argument.targetParameter.passingMode}'.`);
+    const selected = csharpApplicationArgumentCarrier(host, source, binding);
+    if (selected.kind !== "represented") return selected;
+    const sourceType = selected.value;
+    const targetType = csharpTargetParameterValueType(argument.targetParameter, argument.sourceForm);
+    if (passing.passingMode !== "by-value") {
+      if (!csharpTargetStorageIdentityEquals(sourceType, targetType)) return refused(source,
+        `Native by-reference argument '${argument.targetParameter.name}' requires one CLR storage identity, not '${targetTypeRefKey(sourceType)}' versus '${targetTypeRefKey(targetType)}'.`);
+      mappings.push(Object.freeze({ kind: "by-reference", effectiveArgumentIndex: binding.effectiveArgumentIndex,
+        sourceType, targetType, passingMode: passing.passingMode, proof: "storage-identity" }));
       continue;
     }
-    const conversion = selectCsharpSourceTypeFlowIndexConversion(host.effectiveTypes.get(sourceArgument.argument.storageExpression),
-      { kind: "parameter", expression: sourceArgument.argument.storageExpression, parameter: argument.targetParameter }, sourceType, targetType)
-      ?? selectCsharpProviderArgumentConversion(
-      host,
-      sourceArgument.argument.storageExpression,
-      sourceType,
-      targetType,
-      parameterRelation?.argumentAdapter,
-    );
-    if (!csharpConversionIsApplicable(conversion, "implicit")) {
-      if (
-        argument.targetParameter.csharpAcceptsCheckedSourceArgument === true
-      ) {
-        argumentMappings.push({
-          kind: "checked-source",
-          effectiveArgumentIndex: argument.effectiveArgumentIndex,
-          targetType,
-          proof: "selected-provider-signature",
-        });
-        continue;
-      }
-      const detail = conversion.kind === "rejected" ||
-          conversion.kind === "ambiguous"
-        ? ` ${conversion.reason}`
-        : "";
-      const hint = csharpIntegralConversionAnnotationHint(sourceArgument.argument.storageExpression, sourceType, targetType,
-        { ast: host.ast, navigation: host.navigation, call: node => node === source.call ? source : undefined });
-      return {
-        kind: "rejected",
-        reason:
-          `Source argument ${binding.sourceArgumentIndex} with C# representation '${targetTypeRefKey(sourceType)}' cannot satisfy exact target parameter '${argument.targetParameter.name}' with passing mode '${sourceArgument.argument.passingMode}' and representation '${targetTypeRefKey(csharpTargetParameterValueType(argument.targetParameter, argument.sourceForm))}'.${detail}${hint === undefined ? "" : ` ${hint}`}`,
-      };
-    }
-    argumentMappings.push({
-      kind: "by-value",
-      effectiveArgumentIndex: argument.effectiveArgumentIndex,
-      sourceType,
-      targetType,
-      conversion,
-    });
+    const operand = { occurrence: binding.effectiveArgument, value: binding.source };
+    const index = selectCsharpNativeIndexConversion(host.facts.descriptors, operand,
+      { kind: "parameter", occurrence: binding.effectiveArgument, type: targetType, passingMode: argument.targetParameter.passingMode }, sourceType, targetType);
+    const parameterRelation = relation.parameters.find(candidate => candidate.targetParameterIndex === argument.targetParameterIndex);
+    const preliminary = index ?? selectCsharpProviderArgumentConversion(host, binding.effectiveArgument, sourceType,
+      targetType, parameterRelation?.argumentAdapter, host.facts.descriptors.scalarLiteral(binding.source));
+    if (!csharpConversionIsApplicable(preliminary, "implicit")) return refused(source,
+      `Argument ${binding.sourceArgumentIndex} with Native carrier '${targetTypeRefKey(sourceType)}' cannot satisfy '${argument.targetParameter.name}' with carrier '${targetTypeRefKey(targetType)}'.${preliminary.kind === "rejected" || preliminary.kind === "ambiguous" ? " " + preliminary.reason : ""}`);
+    const admitted = admitCsharpSourceConversion({ representation: host.representation, relation: preliminary,
+      source: { evidence: binding.source, carrier: sourceType },
+      destination: { evidence: binding.destination.applied, carrier: targetType }, site: binding.effectiveArgument });
+    if (admitted.kind !== "represented") return admitted;
+    mappings.push(Object.freeze({ kind: "by-value", effectiveArgumentIndex: binding.effectiveArgumentIndex,
+      sourceType, targetType, conversion: admitted.value }));
   }
-  if (!everyRequiredTargetParameterIsSupplied(
-    targetMember,
-    arguments_,
-    relation.receiver,
-  )) {
-    return {
-      kind: "rejected",
-      reason:
-        `The selected source call does not supply every required parameter of exact target member '${targetMember.id}'.`,
-    };
-  }
-  return {
-    kind: "accepted",
-    argumentMappings: Object.freeze(argumentMappings),
-  };
+  return everyRequiredTargetParameterIsSupplied(targetMember, arguments_, relation.receiver)
+    ? Object.freeze({ kind: "represented", value: Object.freeze(mappings) })
+    : refused(source, `The selected Source application does not supply every required parameter of Native member '${targetMember.id}'.`);
+}
+
+function refused(application: SourceApplication, message: string): Exclude<CsharpRepresentationOutcome<never>, { readonly kind: "represented" }> {
+  return Object.freeze({ kind: "native-refused", source: "tsonic-csharp", code: "CSHARP_PROVIDER_ARGUMENT_NOT_PROVEN",
+    site: application.identity.invocation, message });
 }

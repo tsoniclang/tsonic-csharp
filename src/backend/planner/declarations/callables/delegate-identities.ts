@@ -27,7 +27,7 @@ export function planCsharpDelegateAdapterDeclarations(block: Node, sourceFile: S
     if (ast.is.IsParameterDeclaration(identity.declaration) ? after !== block : statement !== after) continue;
     const identifier = input.program.source.ast.name(identity.declaration);
     const name = input.scope.delegateAdapters?.get(identity);
-    const contract = input.program.records.delegateContract.get(identity.source, identity.target);
+    const contract = input.program.records.delegateContract.get(identity.source, identity.target, identity.selection.members);
     const type = contract === undefined ? undefined : csharpTypeFromTargetTypeRef(contract.targetCarrier, input.scope.typeParameterNames);
     const callee = identifier === undefined ? undefined : planIdentifierExpression(identifier, sourceFile,
       { ...input, storageExpression: identifier }, diagnostics, statements, state);

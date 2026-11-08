@@ -1,15 +1,11 @@
-import type { SourceFileSemantics } from "@tsonic/target-api/source";
+import type { SourceMemberUse } from "@tsonic/target-api/source";
 import type { CsharpTargetReceiverRelation } from "../../../target-model/identities/provider-relations.js";
 import type { CsharpTargetMember } from "../../types/index.js";
-
-type ResolvedSourcePropertyAccessInfo = NonNullable<
-  ReturnType<SourceFileSemantics["operations"]["propertyAccess"]>
->;
 
 export function providerReceiverMatchesProperty(
   receiver: CsharpTargetReceiverRelation,
   targetMember: CsharpTargetMember,
-  source: ResolvedSourcePropertyAccessInfo,
+  source: SourceMemberUse,
 ): boolean {
   switch (receiver.kind) {
     case "instance":
@@ -17,7 +13,7 @@ export function providerReceiverMatchesProperty(
     case "none":
       return targetMember.static === true;
     case "target-parameter":
-      return source.receiver.expression !== undefined &&
+      return source.receiver.occurrence !== undefined &&
         targetMember.parameters[
           receiver.targetParameterIndex
         ] !== undefined;
@@ -26,7 +22,7 @@ export function providerReceiverMatchesProperty(
 
 export function csharpProviderPropertySupportsAccess(
   member: CsharpTargetMember,
-  accessMode: ResolvedSourcePropertyAccessInfo["accessMode"],
+  accessMode: SourceMemberUse["access"],
 ): boolean {
   if (
     member.kind !== "property" &&

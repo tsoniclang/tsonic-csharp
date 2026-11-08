@@ -1,4 +1,5 @@
 import { analyzeCsharpCallOperation } from "./call-operation.js";
+import { csharpSelectedCallResultType } from "../../target-model/types/member-facts.js";
 import { classifyCsharpNativeCallArguments, classifyCsharpSourceCallArguments } from "./source-call-arguments.js";
 import { classifyCsharpBorrowedSequenceInput } from "./borrowed-sequences.js";
 
@@ -27,7 +28,7 @@ import { selectCsharpProviderValue } from "./members/values.js";
 import { selectCsharpTargetProperty } from "./members/selected-members.js";
 import { selectCsharpTargetElement } from "./members/selected-members.js";
 import { selectCsharpTargetCall } from "./members/selected-members.js";
-import { sourceOperatorFromKindName } from "../../target-model/syntax/operators.js";
+import { csharpSourceOperationOperator } from "../../target-model/syntax/operators.js";
 import { selectCsharpNativePointerOperation } from "./pointers/native-pointers.js";
 import { selectCsharpJsArrayMutation } from "./collections/js-array-mutations.js";
 import { selectCsharpJsStringConversion } from "./strings/explicit-js-string.js";
@@ -78,7 +79,7 @@ export function analyzeCsharpOperationConstruct(
     const completion = selectCsharpSourceCallAwaitCompletion(
       expression === undefined ? undefined : policy.types.resolveNode(expression, sourceFile)?.sourceResult,
       policy.typeDefinitions,
-      policy.navigation.expressionResultUse(node));
+      policy.facts.navigation.expressionResultUse(node));
     const rejection = awaitResultMappingRejection(policy, completion);
     if (rejection !== undefined) {
       issues?.push(Object.freeze({ node, code: "CSHARP_AWAIT_RESULT_MAPPING_NOT_PROVEN", message: rejection }));
@@ -198,7 +199,15 @@ export function analyzeCsharpOperationConstruct(
     }
     const selectedResultType = jsValue.kind === "resolved"
       ? jsValue.resultType
-      : policy.types.resolveNode(node, sourceFile)?.sourceResult?.selectedType;
+      : target?.kind === "resolved"
+        ? csharpSelectedCallResultType(target.call.targetMember, target.call.discardResult === true)
+        : target?.kind === "source-owned"
+          ? policy.types.resolveSourceCallResult(target.source, sourceFile, undefined)?.nativeType
+          : undefined;
+    if (target?.kind === "resolved" && selectedResultType === undefined) {
+      issues?.push(Object.freeze({ node, code: "CSHARP_UNSUPPORTED_AST",
+        message: "The selected native construction requires its exact physical completion carrier." }));
+    }
     producer.construction.selected(node, Object.freeze({
       jsValue,
       ...(target === undefined ? {} : { target }),
@@ -273,9 +282,8 @@ export function analyzeCsharpOperationConstruct(
     }));
   } else if (ast.is.IsBinaryExpression(node)) {
     const expression = ast.as.AsBinaryExpression(node);
-    const sourceOperator = sourceOperatorFromKindName(
-      ast.operatorKindName(node),
-    ) ?? "";
+    const publication = policy.facts.values.operation(node);
+    const sourceOperator = publication.kind === "refused" ? "" : csharpSourceOperationOperator(publication.value) ?? "";
     const propertyWrite = expression?.Left !== undefined &&
         ast.is.IsPropertyAccessExpression(expression.Left)
       ? selectCsharpJsValueReceiverExpressionOperation(
@@ -322,7 +330,7 @@ export function analyzeCsharpOperationConstruct(
         destructuring: selectCsharpDestructuringAssignmentOperation(
           policy,
           node,
-          sourceFile,
+          evidence.nodeTargetType.get,
         ),
         ...(propertyWrite === undefined ? {} : { propertyWrite }),
         ...(elementWrite === undefined ? {} : { elementWrite }),
@@ -339,9 +347,8 @@ export function analyzeCsharpOperationConstruct(
     const operand = ast.is.IsPrefixUnaryExpression(node)
       ? ast.as.AsPrefixUnaryExpression(node)?.Operand
       : ast.as.AsPostfixUnaryExpression(node)?.Operand;
-    const sourceOperator = sourceOperatorFromKindName(
-      ast.operatorKindName(node),
-    ) ?? "";
+    const publication = policy.facts.values.operation(node);
+    const sourceOperator = publication.kind === "refused" ? "" : csharpSourceOperationOperator(publication.value) ?? "";
     producer.unary.selected(node, Object.freeze({
         jsValue: selectCsharpJsValueUnaryOperation(
           policy,
@@ -349,7 +356,7 @@ export function analyzeCsharpOperationConstruct(
           sourceFile,
           sourceOperator,
         ),
-        target: selectCsharpUnaryOperation(policy, node, sourceFile),
+        target: selectCsharpUnaryOperation(policy, node, evidence.nodeTargetType.get),
       }),
     );
   }

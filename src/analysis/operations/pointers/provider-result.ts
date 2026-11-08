@@ -1,31 +1,15 @@
-import { selectTsonicProviderPointerResult } from "@tsonic/source-core/facts";
-import type { SourceProviderTypeParameterSelection } from "@tsonic/target-api/source";
-import type { ResolvedSourceCallInfo } from "../../../target-model/records/calls/source-calls.js";
-import type { SourceFile } from "@tsonic/tsts";
-import type { CsharpProviderCallInstantiationHost } from "../../../policy/model/provider-calls.js";
-import { csharpRuntimeLocationTargetType, csharpRuntimeRawPointerTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
-import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/carriers/scalar-types.js";
-import { csharpNullableTargetType } from "../../../target-model/types/carriers/nullable.js";
-import { csharpJsArrayTargetType } from "../../../target-model/types/carriers/js.js";
-import { selectedCsharpSourceProfileOwner } from "../../../policy/identities/source-types.js";
+import type { SourceApplication, SourcePresence } from "@tsonic/target-api/source";
+import type { CsharpProviderOperationHost } from "../../../policy/model/provider-calls.js";
+import type { CsharpRepresentationOutcome } from "../../../target-model/types/representation.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 
 export function selectCsharpProviderPointerResult(
-  host: CsharpProviderCallInstantiationHost,
-  source: ResolvedSourceCallInfo,
-  file: SourceFile,
-  typeParameter: (parameter: SourceProviderTypeParameterSelection) => TargetTypeRef | undefined,
-) {
-  if (host.sourceFacts === undefined) return undefined;
-  return selectTsonicProviderPointerResult<TargetTypeRef>(source, host.ast, host.semantics(file), host.sourceFacts, {
-    primitive: csharpSourcePrimitiveTargetType,
-    raw: csharpRuntimeRawPointerTargetType,
-    pointer: csharpRuntimeLocationTargetType,
-    optional: csharpNullableTargetType,
-    array: element => selectedCsharpSourceProfileOwner(host.target) === "js"
-      ? csharpJsArrayTargetType(element) : { kind: "array", element },
-    tuple: elements => ({ kind: "tuple", elements }),
-    typeParameter,
-    sourceType: (type, syntax) => host.types.resolveSelectedType(syntax, type, file),
-  });
+  host: CsharpProviderOperationHost, application: SourceApplication,
+): CsharpRepresentationOutcome<SourcePresence<TargetTypeRef>> {
+  const pointer = host.facts.protocols.pointerType(application.result);
+  if (pointer.kind === "refused") return Object.freeze({ kind: "source-refused", refusal: pointer });
+  if (pointer.value.kind === "none") return Object.freeze({ kind: "represented", value: pointer.value });
+  const selected = host.representation.represent(application.result, "value", application.identity.invocation);
+  return selected.kind !== "represented" ? selected
+    : Object.freeze({ kind: "represented", value: Object.freeze({ kind: "present", value: selected.value.carrier }) });
 }

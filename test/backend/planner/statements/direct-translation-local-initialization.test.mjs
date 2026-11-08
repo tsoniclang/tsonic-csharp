@@ -219,8 +219,8 @@ test("local storage has one final carrier and no syntax, lambda or source-eviden
   // admitted native code; the sealed record carries only expression uses.
   const nativeUse = { ...program.records.nativeUse, order: node => node === declaration ? [] : undefined };
   const issues = admitCsharpNativeStorageBindings(ast, [declaration], nativeUse,
-    { ...program.records, storageType: { get: () => opaque } }, program.records.nativeRefReturn,
-    program.records.nativeParticipation, program.records.compileTimeMetadata, program.records.nativeUnreachable);
+    { ...program.records, storageType: { get: () => opaque } }, program.records,
+    program.records.nativeParticipation, program.records.compileTimeMetadata);
   assert.equal(issues.length, 1, "the actual pre-seal owner refuses an unrenderable local carrier once");
   assert.equal(issues[0].code, "CSHARP_OPAQUE_TARGET_TYPE_UNSUPPORTED", "the original code is preserved");
   assert.equal(issues[0].message, "Opaque target type 'missing' has no renderable C# source representation.",
@@ -250,7 +250,7 @@ test("iteration and catch bindings stay with their admitted owners rather than l
   const issues = admitCsharpNativeStorageBindings(ast, bindings, { order: () => [] }, {
     nativeBacking: { get: () => undefined }, nativeArray: { get: () => undefined },
     storageType: { get() { throw new Error("a different binding owner must not read ordinary local storage"); } },
-  }, program.records.nativeRefReturn, program.records.nativeParticipation,
-  program.records.compileTimeMetadata, program.records.nativeUnreachable);
+  }, program.records, program.records.nativeParticipation,
+  program.records.compileTimeMetadata);
   assert.equal(issues.length, 0, "no ordinary-local renderability rule is imposed on another admitted binding owner");
 });

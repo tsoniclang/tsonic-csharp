@@ -41,7 +41,8 @@ function sealedConversions(inputs, elementTarget = int64) {
     expectedTypes: { expectedType: Object.freeze({ get: () => [] }), requiredExpectedType: Object.freeze({ get: () => [] }), callableTarget: Object.freeze({ get: () => undefined }) },
     valueReads: { valueRead: Object.freeze({ get: () => undefined }) },
   });
-  analysis.close({ entries: Object.freeze([]) }, []);
+  analysis.close({ entries: Object.freeze([]) }, [], undefined, undefined,
+    { flowReadProjection: { get: () => undefined }, issues: [] });
   return analysis.seal();
 }
 

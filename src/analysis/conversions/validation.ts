@@ -1,15 +1,14 @@
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { csharpUnionReferenceImplicitlyAccepts, selectCsharpRuntimeUnionProjection } from "../../policy/conversions/carriers.js";
-import type { CsharpConversionSelection } from "../../target-model/conversions/selection.js";
+import type { CsharpConversionSelection, CsharpNativeCallableApplication } from "../../target-model/conversions/selection.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { CsharpNativeCallableMember, TargetTypeRef } from "../../target-model/types/model.js";
 import { csharpUnionPathsEqual } from "../../target-model/types/union-relations.js";
 import { csharpUnionArmMappingsMatch } from "../../policy/conversions/union-relations.js";
 import { csharpMetadataDescriptors } from "../../target-model/metadata/immutable.js";
-import { csharpDelegateSignatureHasSupportedPassingModes, csharpDelegateSignaturesMatchNativeBinding, getCsharpCallableValueSignature, getCsharpTaskResultTargetType } from "../../target-model/types/carriers/delegates.js";
+import { csharpDelegateSignatureHasSupportedPassingModes, csharpDelegateSignaturesMatchNativeBinding, getCsharpCallableMembers, csharpNativeCallableMemberKey, getCsharpTaskResultTargetType } from "../../target-model/types/carriers/delegates.js";
 import { csharpConversionIsApplicable } from "../../policy/conversions/applicability.js";
-import { getCsharpMethodValue } from "../../target-model/types/method-values.js";
-import { csharpCarrierAdmitsSourceAbsence, getCsharpDelegateSignature, getCsharpGenericOptionalParts,
+import { csharpCarrierAdmitsSourceAbsence, getCsharpGenericOptionalParts,
   getCsharpNullableElementTargetType, getCsharpRuntimeUnionArms, isCsharpAbsenceTargetType,
   isCsharpNullableReferenceTargetType } from "../../target-model/types/index.js";
 import type { CsharpConversionShapeQueries } from "../../policy/conversions/shape-queries.js";
@@ -18,9 +17,20 @@ import { csharpTargetTypeRenderingRejection } from "../../policy/types/model/ren
 import { csharpNativeRepresentationMatches } from "../../policy/conversions/native-representation.js";
 import type { CsharpNativeCompletion } from "../../target-model/records/native/native-demand.js";
 import { isCsharpVoidTargetType } from "../../target-model/types/identity.js";
-import { instantiateCsharpCallableContract } from "../../policy/conversions/generic-callable.js";
+import { csharpNativeCallableApplicationIsValid } from "../../policy/conversions/generic-callable.js";
 
 type CsharpUnionValidationPolicy = Pick<CsharpPolicyContext, "typeDefinitions" | "projectTypes" | "providers"> & CsharpConversionShapeQueries;
+
+function nativeCallableMemberIsValid(policy: CsharpUnionValidationPolicy, carrier: TargetTypeRef | undefined,
+  selected: CsharpNativeCallableMember, application: CsharpNativeCallableApplication | undefined): boolean {
+  const members = getCsharpCallableMembers(getCsharpNullableElementTargetType(carrier) ?? carrier);
+  const original = application?.original ?? selected;
+  const key = csharpNativeCallableMemberKey(original);
+  if (members?.filter(member => csharpNativeCallableMemberKey(member) === key).length !== 1) return false;
+  return application === undefined ? selected.typeParameters.length === 0
+    : csharpNativeCallableApplicationIsValid(policy, application) &&
+      csharpNativeCallableMemberKey(application.applied) === csharpNativeCallableMemberKey(selected);
+}
 
 const unionMappingRejected: CsharpConversionSelection = Object.freeze({ kind: "rejected",
   reason: "Union conversion requires exact sealed arm coverage and native absence correspondence." });
@@ -129,18 +139,13 @@ export function admitCsharpConversionSelection(
         break;
       }
       case "delegate-adapter": {
-        const sourceMethod = getCsharpMethodValue(current.source);
-        if (selected.instantiation !== undefined) {
-          const contract = current.source === undefined ? undefined
-            : instantiateCsharpCallableContract(policy, current.source, selected.instantiation.typeArguments);
-          if (contract === undefined || !targetTypeRefEquals(contract, selected.instantiation.contract)) return {
-            kind: "rejected", reason: "A quantified native callable requires its exact complete instantiated method contract.",
-          };
-        }
-        const sourceSignature = sourceMethod !== undefined && sourceMethod.typeParameters.length !== 0
-          ? getCsharpDelegateSignature(selected.instantiation?.contract) : getCsharpCallableValueSignature(current.source);
-        const targetSignature = getCsharpDelegateSignature(current.target);
-        if (sourceSignature === undefined || targetSignature === undefined ||
+        if (!nativeCallableMemberIsValid(policy, current.source, selected.members.source, selected.members.sourceApplication) ||
+          !nativeCallableMemberIsValid(policy, current.target, selected.members.target, selected.members.targetApplication)) return {
+          kind: "rejected", reason: "A Native callable conversion requires its exact original physical members and complete authenticated Native applications.",
+        };
+        const sourceSignature = selected.members.source.signature;
+        const targetSignature = selected.members.target.signature;
+        if (sourceSignature.kind !== targetSignature.kind ||
           !csharpDelegateSignatureHasSupportedPassingModes(sourceSignature) ||
           !csharpDelegateSignatureHasSupportedPassingModes(targetSignature) ||
           sourceSignature.parameters.length > targetSignature.parameters.length ||
@@ -156,14 +161,30 @@ export function admitCsharpConversionSelection(
             isCsharpVoidTargetType(sourceSignature.returnType) && isCsharpVoidTargetType(targetSignature.returnType)))) {
           return { kind: "rejected", reason: "A sealed native delegate binding requires identical parameter and return passing signatures." };
         }
-        if (selected.strategy === "adaptation" && (sourceSignature.returnPassing !== undefined || targetSignature.returnPassing !== undefined ||
-          sourceSignature.parameterPassingModes.some(mode => mode !== "by-value") ||
-          targetSignature.parameterPassingModes.some(mode => mode !== "by-value"))) {
-          return { kind: "rejected", reason: "Delegate adaptation cannot change or wrap native by-reference passing." };
+        if (sourceSignature.returnPassing !== targetSignature.returnPassing ||
+          sourceSignature.returnPassing !== undefined && (selected.returnConversion.kind !== "identity" ||
+            !targetTypeRefEquals(sourceSignature.returnType, targetSignature.returnType)) ||
+          sourceSignature.parameterPassingModes.some((mode, index) => mode !== targetSignature.parameterPassingModes[index] ||
+            mode !== "by-value" && (selected.parameterConversions[index]?.kind !== "identity" ||
+              !targetTypeRefEquals(sourceSignature.parameters[index]!, targetSignature.parameters[index]!)))) {
+          return { kind: "rejected", reason: "A Native callable adapter must preserve every by-reference slot and return identity without value conversion." };
         }
         const children: CsharpConversionAdmissionInput[] = selected.parameterConversions.map((conversion, index) => ({
           kind: "enter", source: targetSignature.parameters[index], target: sourceSignature.parameters[index], selection: conversion,
         }));
+        const sourceReceiver = sourceSignature.receiver;
+        const targetReceiver = targetSignature.receiver;
+        if ((sourceReceiver === undefined) !== (targetReceiver === undefined) ||
+          (sourceReceiver === undefined) !== (selected.receiverConversion === undefined)) return {
+          kind: "rejected", reason: "A Native callable adapter requires the identical explicit receiver presence and its separate conversion.",
+        };
+        if (sourceReceiver !== undefined && targetReceiver !== undefined && selected.receiverConversion !== undefined) {
+          if (sourceReceiver.passingMode !== targetReceiver.passingMode || sourceReceiver.passingMode !== "by-value" &&
+            (selected.receiverConversion.kind !== "identity" || !targetTypeRefEquals(sourceReceiver.type, targetReceiver.type))) return {
+            kind: "rejected", reason: "A Native callable receiver must preserve its exact separate passing and storage identity.",
+          };
+          children.push({ kind: "enter", source: targetReceiver.type, target: sourceReceiver.type, selection: selected.receiverConversion });
+        }
         if (selected.returnConversion.kind === "task-return") {
           const sourceResult = getCsharpTaskResultTargetType(sourceSignature.returnType);
           const targetResult = getCsharpTaskResultTargetType(targetSignature.returnType);

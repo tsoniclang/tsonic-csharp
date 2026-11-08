@@ -30,10 +30,10 @@ export function planValueTypeDeclaration(
   const members: CsharpTypeMember[] = [];
   for (const field of selected.fields) {
     const type = csharpTypeFromTargetTypeRefWithObjectShapeDeclarations(
-      input, field.carrier, diagnostics, field.source.sourceType,
+      input, field.carrier, diagnostics, field.source.typeNode,
     );
     if (type === undefined) {
-      return failCsharpPlannerInvariant("An admitted native value field lost its exact renderable selected carrier.", field.source.sourceType);
+      return failCsharpPlannerInvariant("An admitted native value field lost its exact renderable selected carrier.", field.source.typeNode);
     }
     if (field.bound !== undefined) {
       const rendered = renderBoundRecordMember(input.scope.typeParameterNames, field.bound.owner, field.bound.member, type, input.program.records, {
@@ -43,7 +43,7 @@ export function planValueTypeDeclaration(
           member: objectShapeBoundStorageMemberName(field.bound.owner, field.bound.member), role: "member" }),
       });
       if (rendered.some(candidate => candidate === undefined)) {
-        return failCsharpPlannerInvariant("An admitted bound native value field lost its renderable storage contract.", field.source.sourceType);
+        return failCsharpPlannerInvariant("An admitted bound native value field lost its renderable storage contract.", field.source.typeNode);
       }
       members.push(...rendered as readonly CsharpTypeMember[]);
       continue;
@@ -76,8 +76,6 @@ export function getCsharpTypeForSourceField(
   diagnostics: TargetDiagnostic[],
 ): CsharpTypeNode {
   void sourceFile;
-  const carrier = input.program.records.nodeTargetType.get(field.sourceType);
-  if (carrier === undefined) failCsharpPlannerInvariant(`An admitted ${diagnosticLabel} field requires its sealed native carrier.`, field.sourceType);
-  const type = csharpTypeFromTargetTypeRefWithObjectShapeDeclarations(input, carrier, diagnostics, field.sourceType);
-  return type ?? failCsharpPlannerInvariant(`An admitted ${diagnosticLabel} field requires its renderable native carrier.`, field.sourceType);
+  const type = csharpTypeFromTargetTypeRefWithObjectShapeDeclarations(input, field.carrier, diagnostics, field.typeNode);
+  return type ?? failCsharpPlannerInvariant(`An admitted ${diagnosticLabel} field requires its renderable native carrier.`, field.typeNode);
 }

@@ -179,12 +179,14 @@ export function analyzeCsharpNativeArtifactDemand(
       demandType(selection.armType, node);
       demandConversion(node, source, selection.armType, selection.sourceToArm);
     } else if (selection.kind === "delegate-adapter") {
-      for (const argument of selection.instantiation?.typeArguments ?? []) demandType(argument, node);
-      const contract = input.conversions.delegateContract.get(source, target)
+      for (const application of [selection.members.sourceApplication, selection.members.targetApplication]) {
+        for (const argument of application?.typeArguments ?? []) demandType(argument, node);
+      }
+      const contract = input.conversions.delegateContract.get(source, target, selection.members)
         ?? failTargetAnalysisInvariant("tsonic-csharp", "An admitted native conversion requires its sealed delegate demand contract.", node);
       for (const [index, conversion] of selection.parameterConversions.entries()) {
-        const from = contract.targetSignature.parameters[index];
-        const to = contract.sourceSignature.parameters[index];
+        const from = contract.members.target.signature.parameters[index];
+        const to = contract.members.source.signature.parameters[index];
         if (from === undefined || to === undefined)
           failTargetAnalysisInvariant("tsonic-csharp", "An admitted native conversion requires its exact parameter demand vector.", node);
         demandConversion(node, from, to, conversion);
@@ -192,7 +194,11 @@ export function analyzeCsharpNativeArtifactDemand(
       if (selection.returnConversion.kind === "task-return") demandConversion(node,
         selection.returnConversion.sourceResult, selection.returnConversion.targetResult, selection.returnConversion.conversion);
       else if (selection.returnConversion.kind !== "void-return") demandConversion(node,
-        contract.sourceSignature.returnType, contract.targetSignature.returnType, selection.returnConversion);
+        contract.members.source.signature.returnType, contract.members.target.signature.returnType, selection.returnConversion);
+      const receiver = selection.receiverConversion;
+      const from = contract.members.target.signature.receiver;
+      const to = contract.members.source.signature.receiver;
+      if (receiver !== undefined && from !== undefined && to !== undefined) demandConversion(node, from.type, to.type, receiver);
     } else if (selection.kind === "provider-argument-adapter") {
       demandConversion(node, source, selection.adapter.inputType, selection.sourceToInput);
       demandConversion(node, selection.adapter.resultType, target, selection.resultToTarget);

@@ -6,7 +6,8 @@ import type { CsharpProjectClassifications } from "../../target-model/project/pl
 import type { SourceFile } from "@tsonic/tsts";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
 import type { CsharpTargetProgram } from "../../target-model/records/target-program.js";
-import type { CsharpTypeDefinitions } from "../../target-model/types/source-union-definitions.js";
+import type { CsharpTypeDefinitions } from "../../target-model/types/native-definitions.js";
+import type { CsharpRepresentationAnalysis } from "./iteration.js";
 import type { CsharpProjectTypeClassifications } from "../../target-model/records/types/project-types.js";
 import type { CsharpObjectShapeAnalysis, CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
 import type { CsharpFinalStructuralInterfaceImplementation } from "../../target-model/records/objects/heritage.js";
@@ -29,8 +30,10 @@ export interface CsharpTargetAnalysisRequest {
  */
 export interface CsharpAnalysisProgram extends Omit<CsharpTargetProgram, "source"> {
   readonly source: TargetSourceProgram;
+  readonly representation: import("../../target-model/types/representation.js").CsharpRepresentationView;
+  readonly analysis: CsharpRepresentationAnalysis;
   readonly sourceFiles: readonly SourceFile[];
-  readonly sourceNavigation: TargetSourceProgram["navigation"];
+  readonly sourceNavigation: TargetSourceProgram["facts"]["navigation"];
   readonly typeDefinitions: CsharpTypeDefinitions;
   readonly projectTypes: CsharpProjectTypeClassifications;
   readonly objectShapes: CsharpObjectShapeClassifications<CsharpFinalStructuralInterfaceImplementation> &

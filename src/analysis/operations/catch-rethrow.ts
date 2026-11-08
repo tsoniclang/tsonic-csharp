@@ -8,7 +8,7 @@ export function classifyExactUnmodifiedCatchRethrow(
   throwStatement: Node,
   expression: Node,
 ): boolean {
-  const reference = policy.navigation.referenceFor(expression);
+  const reference = policy.facts.navigation.referenceFor(expression);
   const declaration = reference?.declaration;
   if (
     reference === undefined ||
@@ -29,7 +29,7 @@ export function classifyExactUnmodifiedCatchRethrow(
     !sourceNodesEqual(policy.ast, catchClause?.VariableDeclaration, declaration) ||
     catchClause?.Block === undefined ||
     !isLexicallyWithinExactCatch(policy, throwStatement, catchClauseNode) ||
-    policy.navigation.bindingWritesWithin(reference.symbol, catchClause.Block)
+    policy.facts.navigation.declarationWrites(reference.declaration, catchClause.Block)
       .length > 0
   ) {
     return false;
@@ -37,14 +37,17 @@ export function classifyExactUnmodifiedCatchRethrow(
   let sourceFactWrite = false;
   const visit = (node: Node | undefined): void => {
     if (node === undefined || sourceFactWrite) return;
-    const passing = selectCsharpSourceArgument(policy.sourceFacts, node);
+    const passing = selectCsharpSourceArgument(policy.facts.protocols, node);
+    if (passing.kind === "refused") {
+      sourceFactWrite = true;
+      return;
+    }
     if (
-      passing.kind === "resolved" &&
       passing.argument.passingMode !== "by-value" &&
       passing.argument.passingMode !== "byref-readonly" &&
       passing.argument.passingMode !== "borrow-shared"
     ) {
-      const storageDeclaration = policy.navigation.referenceFor(
+      const storageDeclaration = policy.facts.navigation.referenceFor(
         passing.argument.storageExpression,
       )?.declaration;
       if (sourceNodesEqual(policy.ast, storageDeclaration, declaration)) {

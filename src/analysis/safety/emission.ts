@@ -8,7 +8,7 @@ import type { CsharpTargetOperationClassifications } from "../../target-model/re
 import type { CsharpAdmittedIteration } from "../../target-model/records/operations/selection.js";
 import type { CsharpStorageClassifications } from "../../target-model/records/storage/storage.js";
 import type { CsharpObjectShapeDemand } from "../../target-model/records/objects/object-shape-demand.js";
-import type { CsharpSourceUnionEmissionRecords } from "../../target-model/records/types/source-unions.js";
+import type { CsharpSourceRoleEmissionRecords } from "../../target-model/records/types/source-roles.js";
 import type { CsharpUnsafeEmission, CsharpSafetyPlacement } from "../../target-model/records/storage/safety-emission.js";
 import type { CsharpTargetConfiguration } from "../../target-model/configuration/model.js";
 import { selectCsharpNativePointerUnsafeContext, selectCsharpTypeUnsafeContext } from "../../policy/operations/pointers/native-type-safety.js";
@@ -24,11 +24,11 @@ export function analyzeCsharpSafetyEmission(input: {
   readonly operations: CsharpTargetOperationClassifications<CsharpAdmittedIteration>;
   readonly storage: CsharpStorageClassifications;
   readonly shapes: CsharpObjectShapeDemand;
-  readonly unions: CsharpSourceUnionEmissionRecords;
+  readonly unions: CsharpSourceRoleEmissionRecords;
   readonly admitted: (node: Node) => boolean;
 }) {
   const subjects = new Map<Node, CsharpUnsafeEmission>();
-  const compilations = new Map<Node | "object-shapes" | "source-unions", boolean>();
+  const compilations = new Map<Node | "object-shapes" | "source-roles", boolean>();
   const declarations = new Map<Node, ReadonlyMap<CsharpSafetyPlacement, readonly "unsafe"[]>>();
   const shapes = new Map<CsharpObjectShapeFact, boolean>();
   const issues: TargetDiagnostic[] = [];
@@ -149,6 +149,6 @@ export function analyzeCsharpSafetyEmission(input: {
     artifact.fact.members.some(member => selectCsharpTypeUnsafeContext(member.methodValueStorage?.type ?? member.type)) ||
     (artifact.fact.implements ?? []).some(selectCsharpTypeUnsafeContext)));
   compilations.set("object-shapes", [...shapes.values()].some(required => required));
-  compilations.set("source-unions", !preview && input.unions.sourceUnions.get().some(union => selectCsharpTypeUnsafeContext(union.storage)));
+  compilations.set("source-roles", !preview && input.unions.sourceRoles.get().some(union => selectCsharpTypeUnsafeContext(union.storage)));
   return Object.freeze({ records: createCsharpSafetyEmissionRecords(subjects, compilations, declarations, shapes), issues: Object.freeze(issues) });
 }

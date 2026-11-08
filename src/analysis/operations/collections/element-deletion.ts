@@ -21,7 +21,7 @@ export function selectCsharpElementDeletion(
   if (member?.kind !== "index" || member.index.readonly) {
     return { kind: "rejected", reason: "Deletion requires one exact mutable checked index signature." };
   }
-  const identity = csharpSourceProfileDeclarationIdentity(input.ast, semantics, input.sourceFacts, source.selectedDeclaration);
+  const identity = csharpSourceProfileDeclarationIdentity(input.facts.navigation, source.selectedDeclaration);
   return selectCsharpNativeElementDeletion(receiver, source.receiver.expression, source.argument.expression,
     identity?.owner === "js" && identity.kind === "indexer" && identity.declaringName === "Array");
 }

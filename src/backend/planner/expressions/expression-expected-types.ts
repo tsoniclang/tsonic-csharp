@@ -133,14 +133,18 @@ export function planCsharpNativeExpression(
         receiverIdentity: value.receiverIdentity, callable: value.callable, address: { kind: "parenthesized", operand: csharpPlannedAddressOperand(value) } };
     }
     if (ast.is.IsConditionalExpression(node)) {
-      const conditional = ast.as.AsConditionalExpression(node);
-      if (conditional?.Condition === undefined || conditional.WhenTrue === undefined || conditional.WhenFalse === undefined) {
-        return failCsharpPlannerInvariant("A native conditional requires its admitted condition and branches.", node);
-      }
-      const condition = planCsharpConditionExpression(conditional.Condition, "Conditional expression condition", sourceFile, input,
+      const conditional = use.conditionalValue ?? failCsharpPlannerInvariant("A Native conditional requires its sealed original Source control and disposition.", node);
+      const condition = planCsharpConditionExpression(conditional.control, "Conditional expression condition", sourceFile, input,
         diagnostics, planners.planExpression);
-      const whenTrue = planners.planExpression(conditional.WhenTrue, sourceFile, input, diagnostics, state);
-      const whenFalse = planners.planExpression(conditional.WhenFalse, sourceFile, input, diagnostics, state);
+      if (condition === undefined || condition.completion.kind === "never") return condition;
+      if (conditional.disposition !== "dynamic") {
+        const selected = planners.planExpression(conditional.disposition === "true" ? conditional.whenTrue : conditional.whenFalse,
+          sourceFile, input, diagnostics, state);
+        const value = use.completion.kind === "void" ? discardedPlan(selected) : selected;
+        return value === undefined ? undefined : { ...value, prelude: [...planCsharpPlannedDiscard(condition), ...value.prelude] };
+      }
+      const whenTrue = planners.planExpression(conditional.whenTrue, sourceFile, input, diagnostics, state);
+      const whenFalse = planners.planExpression(conditional.whenFalse, sourceFile, input, diagnostics, state);
       const consequent = use.completion.kind === "void" ? discardedPlan(whenTrue) : whenTrue;
       const alternative = use.completion.kind === "void" ? discardedPlan(whenFalse) : whenFalse;
       if (use.completion.kind === "void" && condition !== undefined && consequent !== undefined && alternative !== undefined &&

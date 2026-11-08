@@ -1,6 +1,9 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { SourceLiteralIndex } from "@tsonic/target-api/source";
+import type { SourceProgramFacts } from "@tsonic/target-api/source";
+import type { CsharpNativeLiteralQueries } from "../../policy/model/native-literals.js";
+import { csharpFloat64LiteralValue } from "../../target-model/syntax/numeric-literals.js";
+import { csharpRepresentationDiagnostic } from "../source-evidence/representations.js";
 import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native/native-demand.js";
 import type { CsharpExactLiteralSelectionIndex } from "../../target-model/conversions/exact-literals.js";
 import type { CsharpValueReadClassifications } from "../../target-model/records/operations/conversions.js";
@@ -10,7 +13,8 @@ import { createCsharpLiteralEmissionProducer } from "../program/records/operatio
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 
 export function analyzeCsharpLiteralAdmission(input: { readonly ast: AstReader; readonly demand: CsharpNativeDemandAnalysis;
-  readonly literals: SourceLiteralIndex; readonly exact: CsharpExactLiteralSelectionIndex; readonly values: CsharpValueReadClassifications }) {
+  readonly facts: SourceProgramFacts; readonly literals: CsharpNativeLiteralQueries;
+  readonly exact: CsharpExactLiteralSelectionIndex; readonly values: CsharpValueReadClassifications }) {
   const issues: TargetDiagnostic[] = [];
   const rejected = new Set<Node>();
   const published = new Set<Node>();
@@ -30,7 +34,7 @@ export function analyzeCsharpLiteralAdmission(input: { readonly ast: AstReader; 
     if (exact?.kind === "rejected" && !(use.kind === "converted" && use.mode === "explicit")) { refuse(node, exact.reason); continue; }
     if (use.literal !== undefined) {
       if (!published.has(node) && input.ast.is.IsNumericLiteral(node) && use.literal.kind === "float" &&
-        use.literal.precision === "float64" && csharpTargetTypedIntegralToken(input.ast, node, emittedDestination(input.demand, node))) {
+        use.literal.precision === "float64" && csharpTargetTypedIntegralToken(input.ast, input.facts, node, emittedDestination(input.demand, node))) {
         producer.publish(node, { kind: "exact", recipe: use.literal, integralToken: true });
         published.add(node);
       }
@@ -42,17 +46,19 @@ export function analyzeCsharpLiteralAdmission(input: { readonly ast: AstReader; 
       failTargetAnalysisInvariant("tsonic-csharp", "Literal emission requires its completed physical value.", node);
     if (!published.has(node) && input.ast.is.IsNumericLiteral(node)) {
       const selected = input.exact.exactLiteral.get(node, carrier);
-      const number = input.literals.literalValue.get(node)?.number;
+      const scalar = input.literals.recipe(node);
+      if (scalar.kind !== "represented") { issues.push(csharpRepresentationDiagnostic(scalar)); continue; }
+      const number = scalar.value.kind === "present" ? csharpFloat64LiteralValue(scalar.value.value) : undefined;
       const castFloat64 = use.kind === "converted" && use.mode === "explicit" && use.input.kind === "value" &&
         use.input.type.kind === "source-primitive" && use.input.type.name === "float64";
       if ((carrier?.kind === "source-primitive" && carrier.name === "float64" || castFloat64) && number !== undefined) {
         // K-2448: the decision reads the ONE recorded emission context of this expression, never demand-entry order.
         // A staged construction publishes its physical entry first; the consuming (possibly broad) use is the emission.
-        const integralToken = !castFloat64 && csharpTargetTypedIntegralToken(input.ast, node, emittedDestination(input.demand, node));
+        const integralToken = !castFloat64 && csharpTargetTypedIntegralToken(input.ast, input.facts, node, emittedDestination(input.demand, node));
         producer.publish(node, { kind: "float64", value: number, ...(integralToken ? { integralToken: true as const } : {}) });
         published.add(node);
       } else if (selected?.kind === "resolved") {
-        const integralToken = csharpTargetTypedIntegralToken(input.ast, node, emittedDestination(input.demand, node));
+        const integralToken = csharpTargetTypedIntegralToken(input.ast, input.facts, node, emittedDestination(input.demand, node));
         producer.publish(node, { kind: "exact", recipe: selected.recipe, ...(integralToken ? { integralToken: true as const } : {}) });
         published.add(node);
       } else refuse(node, selected?.kind === "rejected" ? selected.reason : "Numeric literal emission requires parseable finite source literal text from TSTS.");
@@ -62,7 +68,9 @@ export function analyzeCsharpLiteralAdmission(input: { readonly ast: AstReader; 
       if (selected?.kind === "resolved") {
         producer.publish(node, { kind: "exact", recipe: selected.recipe }); published.add(node); continue;
       }
-      const value = input.literals.literalValue.get(node)?.integer;
+      const scalar = input.literals.recipe(node);
+      if (scalar.kind !== "represented") { issues.push(csharpRepresentationDiagnostic(scalar)); continue; }
+      const value = scalar.value.kind === "present" && scalar.value.value.kind === "bigint" ? scalar.value.value.value : undefined;
       if (value === undefined)
         refuse(node, "BigInt literal emission requires parseable source literal text from TSTS.");
       else if (carrier === undefined || !targetTypeRefEquals(carrier, csharpBigIntegerTargetType()))
@@ -87,7 +95,7 @@ function emittedDestination(demand: CsharpNativeDemandAnalysis, node: Node): Tar
 // literal: a declaration or field initializer, an assignment's right side, or a returned value. C# then converts the
 // integer constant to the destination double exactly. Everywhere else the token keeps D, so its own C# type never takes
 // part in overload resolution, inference or boxing.
-function csharpTargetTypedIntegralToken(ast: AstReader, node: Node, destination: TargetTypeRef | undefined): boolean {
+function csharpTargetTypedIntegralToken(ast: AstReader, facts: SourceProgramFacts, node: Node, destination: TargetTypeRef | undefined): boolean {
   if (destination?.kind !== "source-primitive" || destination.name !== "float64") return false;
   const text = ast.text(node);
   if (!/^[0-9]+$/u.test(text) || BigInt(text) > 9007199254740992n) return false;
@@ -97,6 +105,7 @@ function csharpTargetTypedIntegralToken(ast: AstReader, node: Node, destination:
   if (ast.is.IsPropertyDeclaration(parent)) return ast.as.AsPropertyDeclaration(parent)?.Initializer === node;
   if (ast.is.IsPropertyAssignment(parent)) return ast.as.AsPropertyAssignment(parent)?.Initializer === node;
   if (ast.is.IsReturnStatement(parent)) return true;
-  return ast.is.IsBinaryExpression(parent) && ast.operatorKindName(parent) === "KindEqualsToken" &&
-    ast.as.AsBinaryExpression(parent)?.Right === node;
+  if (!ast.is.IsBinaryExpression(parent)) return false;
+  const operation = facts.values.operation(parent);
+  return operation.kind === "resolved" && operation.value.kind === "assignment" && operation.value.source.occurrence === node;
 }

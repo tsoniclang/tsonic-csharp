@@ -22,6 +22,7 @@ const numberInstanceRows = [
   {
     sourceName: "toString",
     targetName: "toString",
+    requiresIntegralRadix: true,
     parameters: [targetParameter("radix", intType, { optional: true })],
     returnType: stringType,
   },
@@ -85,7 +86,7 @@ export const csharpJsNumberCallPolicies:
         jsMemberIdentity("Number", row.sourceName),
         (context) => {
           const receiver = resolveCsharpSelectedSourceValue(context, context.source.sourceReceiver);
-          if (row.sourceName === "toString" && context.source.sourceArguments.length > 0 &&
+          if ("requiresIntegralRadix" in row && row.requiresIntegralRadix && context.source.sourceArguments.length > 0 &&
               receiver !== undefined && !isCsharpIntegralTargetType(receiver) &&
               !targetTypeRefEquals(receiver, csharpBigIntegerTargetType())) {
             return { kind: "rejected", diagnostic: csharpSourceProfileDiagnostic(

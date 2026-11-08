@@ -23,6 +23,10 @@ export function createCsharpTargetArgumentProducer() {
     },
     call(node: Node, value: CsharpTargetArgumentsEmission): void {
       if (!open || calls.has(node)) failTargetAnalysisInvariant("tsonic-csharp", "A native call has one pre-seal positional argument plan.", node);
+      if (value.suspends.length !== value.operands.length || value.groups.some(group =>
+        group.kind === "value" ? value.bindings[group.index] === undefined : group.kind === "collect" &&
+          group.arguments.some(argument => value.bindings[argument.index] === undefined)))
+        failTargetAnalysisInvariant("tsonic-csharp", "A native call requires complete authored evaluation and exact physical binding vectors.", node);
       calls.set(node, Object.freeze(value));
     },
     seal(): CsharpTargetArgumentRecords {

@@ -17,6 +17,7 @@ export function planCsharpClosedValueCoalescing(node: Node, selection: CsharpRes
 ): CsharpPlannedValue | undefined {
   const operation = selection.targetOperation;
   if (operation.kind !== "closed-value-coalesce") return undefined;
+  if (selection.right === undefined) failCsharpPlannerInvariant("An admitted Native coalescing operation requires its evaluated fallback.", node);
   const type = csharpTypeFromTargetTypeRef(selection.resultType, input.scope.typeParameterNames);
   if (state === undefined || type === undefined) {
     failCsharpPlannerInvariant("An admitted closed-value coalescing expression requires its native carrier and name scope.", node);

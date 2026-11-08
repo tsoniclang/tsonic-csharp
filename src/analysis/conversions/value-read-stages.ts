@@ -13,7 +13,7 @@ import type { CsharpSourceEvidenceIndex } from "../../target-model/records/progr
 import type { CsharpStorageRepresentationClassifications } from "../../target-model/records/storage/storage.js";
 import type { TargetTypeRef } from "../../target-model/types/index.js";
 import { getCsharpGeneratorProtocol } from "../../target-model/types/carriers/generators.js";
-import { representCsharpSourceType } from "../../policy/types/source-type-flow/representation.js";
+import { csharpRepresentationDiagnostic } from "../source-evidence/representations.js";
 
 export interface CsharpValueReadStageAnalysis {
   readonly issues: readonly CsharpOperationIssue[];
@@ -59,7 +59,9 @@ export function analyzeCsharpValueReadStages(
 
   function visitStages(node: Node): void {
     nodes.push(node);
-    policy.ast.forEachChild(node, child => { if (child !== undefined) visitStages(child); });
+    if (operations.unaryOperation.get(node)?.target.kind !== "literal") {
+      policy.ast.forEachChild(node, child => { if (child !== undefined) visitStages(child); });
+    }
     const raw = rawValueReadStages(node);
     if (raw !== undefined) {
       rawStages.set(node, raw);
@@ -72,31 +74,16 @@ export function analyzeCsharpValueReadStages(
     const source = evidence.nodeTargetType.get(node);
     const declaredStorage = evidence.storageTargetType.get(node);
     const readStorage = evidence.readStorageTargetType.get(node);
-    const literal = policy.literalValues.literalValue.get(node);
-    const literalConstruction = source !== undefined && literal !== undefined && literal.form !== "array";
-    let selectedOperation: TargetTypeRef | undefined;
-    if (literalConstruction) {
-      const parent = policy.ast.parent(node);
-      const authored = parent !== undefined && policy.ast.is.IsPrefixUnaryExpression(parent) &&
-        policy.literalValues.literalValue.get(parent) !== undefined ? parent : node;
-      const outcome = policy.effectiveTypes.get(authored);
-      const physical = outcome === undefined || outcome.kind === "refused" ? undefined : outcome.construction ??
-        (outcome.type.kind === "primitive" || outcome.type.kind === "string" || outcome.type.kind === "intrinsic" &&
-          (outcome.type.intrinsic === "bigint" || outcome.type.intrinsic === "absence") ? outcome.type : undefined);
-      if (physical !== undefined) {
-        selectedOperation = representCsharpSourceType(policy.types.sourceTypeFlowRepresentation(authored), physical);
-      } else if (outcome !== undefined && outcome.kind !== "refused" && outcome.type.kind === "intrinsic" &&
-        (outcome.type.intrinsic === "unknown" || outcome.type.intrinsic === "object" || outcome.type.intrinsic === "any")) {
-        issues.push(Object.freeze({ node, code: "CSHARP_UNSUPPORTED_AST",
-          message: "A scalar construction requires its exact produced Source value before native storage conversion." }));
-      }
-    } else if (source !== undefined && literal?.form === "array") {
-      const outcome = policy.effectiveTypes.get(node);
-      const construction = outcome === undefined || outcome.kind === "refused" ? undefined : outcome.construction;
-      selectedOperation = construction === undefined ? operations.operationResultType.get(node)
-        : representCsharpSourceType(policy.types.sourceTypeFlowRepresentation(node), construction);
-    } else selectedOperation = operations.operationResultType.get(node) ?? yieldResumeType(node);
-    const narrowedRead = evidence.valueRefinement.get(node)?.flowReadTargetType;
+    const literal = policy.literals.hasRecipeSyntax(node) ? policy.literals.recipe(node) : undefined;
+    if (literal !== undefined && literal.kind !== "represented") {
+      const diagnostic = csharpRepresentationDiagnostic(literal);
+      issues.push(Object.freeze({ node: diagnostic.sourceNode ?? node, code: diagnostic.code,
+        source: diagnostic.source, message: diagnostic.message }));
+    }
+    const literalConstruction = source !== undefined && literal?.kind === "represented" && literal.value.kind === "present";
+    const selectedOperation = operations.operationResultType.get(node) ?? yieldResumeType(node) ?? (literalConstruction ? source : undefined);
+    const refinement = evidence.valueRefinement.get(node);
+    const narrowedRead = refinement?.kind === "represented" ? refinement.value.selected.carrier : undefined;
     const member = operations.sourceMember.get(node);
     const selectedMemberRead = member?.selectedReadType;
     const selectedMemberStorage = member === undefined ? undefined

@@ -226,7 +226,7 @@ export function analyzeCsharpSourceEvidence(
     arguments_.set(
       node,
       freezeSourceArgumentClassification(
-        selectCsharpSourceArgument(source.sourceFacts, node),
+        selectCsharpSourceArgument(source.facts.protocols, node),
       ),
     );
     const defaultValue = readCsharpSourceDefaultValue(source.sourceFacts, node);
@@ -290,30 +290,32 @@ export function analyzeCsharpSourceEvidence(
       const constantValue = semantics.types.constantValue(node);
       if (constantValue !== undefined) constants.set(node, Object.freeze({ value: constantValue }));
     }
-    const readStorageTargetType = cachedValue(readStorageTargetTypes.get(node));
-    const publication = source.effectiveTypes.get(node);
-    const principal = publication === undefined || publication.kind === "refused" ? undefined
-      : source.effectiveTypes.get(csharpFlowReadPrincipalDeclaration(source.ast, source.navigation, node) ??
-        publication.provenance.component?.declaration ?? publication.provenance.group);
-    const exact = publication !== undefined && publication.kind !== "refused" && principal !== undefined &&
-      principal.kind !== "refused" && sourceTypeDescriptorsEqual(publication.type, principal.type);
-    const nativeMembers = nodeTargetType === undefined || readStorageTargetType === undefined ||
-      !isCsharpFlowReadEvidenceNode(source.ast, node) ? undefined : types.nativeFlowMembers(node, readStorageTargetType);
-    const selectedTargetType = nativeMembers === undefined ? nodeTargetType
-      : recordTargetType(combineCsharpTargetUnionMembers(nativeMembers));
-    const flowReadTargetType = recordTargetType(selectCsharpFlowReadCarrier({
-      exactSourceRead: exact,
-      nativeSourceRead: nativeMembers !== undefined,
-      unrelatedSourceTypesShareTargetRepresentation: selectedTargetType !== undefined && readStorageTargetType !== undefined &&
-        targetTypeRefEquals(selectedTargetType, readStorageTargetType),
-      selectedTargetType, readStorageTargetType, memberTargetTypes: undefined,
-    }));
-    refinements.set(node, Object.freeze({
-      kind: publication === undefined || publication.kind === "refused" ? "unavailable" : "resolved",
-      exact,
-      ...(selectedTargetType === undefined ? {} : { selectedTargetType }),
-      ...(flowReadTargetType === undefined ? {} : { flowReadTargetType }),
-    }));
+    if (isCsharpFlowReadEvidenceNode(source.ast, node)) {
+      const readStorageTargetType = cachedValue(readStorageTargetTypes.get(node));
+      const publication = source.effectiveTypes.get(node);
+      const principal = publication === undefined || publication.kind === "refused" ? undefined
+        : source.effectiveTypes.get(csharpFlowReadPrincipalDeclaration(source.ast, source.navigation, node) ??
+          publication.provenance.component?.declaration ?? publication.provenance.group);
+      const exact = publication !== undefined && publication.kind !== "refused" && principal !== undefined &&
+        principal.kind !== "refused" && sourceTypeDescriptorsEqual(publication.type, principal.type);
+      const nativeMembers = nodeTargetType === undefined || readStorageTargetType === undefined
+        ? undefined : types.nativeFlowMembers(node, readStorageTargetType);
+      const selectedTargetType = nativeMembers === undefined ? nodeTargetType
+        : recordTargetType(combineCsharpTargetUnionMembers(nativeMembers));
+      const flowReadTargetType = recordTargetType(selectCsharpFlowReadCarrier({
+        exactSourceRead: exact,
+        nativeSourceRead: nativeMembers !== undefined,
+        unrelatedSourceTypesShareTargetRepresentation: selectedTargetType !== undefined && readStorageTargetType !== undefined &&
+          targetTypeRefEquals(selectedTargetType, readStorageTargetType),
+        selectedTargetType, readStorageTargetType, memberTargetTypes: undefined,
+      }));
+      refinements.set(node, Object.freeze({
+        kind: publication === undefined || publication.kind === "refused" ? "unavailable" : "resolved",
+        exact,
+        ...(selectedTargetType === undefined ? {} : { selectedTargetType }),
+        ...(flowReadTargetType === undefined ? {} : { flowReadTargetType }),
+      }));
+    }
     const generator = semantics.operations.generator(node);
     generators.set(node, generator ?? missing);
     generatorTargetTypes.set(

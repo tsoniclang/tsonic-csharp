@@ -14,6 +14,8 @@ import {
   csharpTsUnionTargetType,
   csharpTsValueTargetType,
   targetTypeRefKey,
+  getCsharpNullableElementTargetType,
+  isCsharpStringTargetType,
 } from "../../../target-model/types/index.js";
 import type {
   CsharpExpression,
@@ -28,9 +30,6 @@ import {
 import type {
   CsharpPlanningContext,
 } from "../context.js";
-import {
-  planCsharpExactLiteralConversion,
-} from "./literal-conversions.js";
 import { planCsharpNeverValue } from "./never-values.js";
 import {
   planCsharpJsValueBox,
@@ -189,19 +188,15 @@ export function applyCsharpConversionSelection(
         return type === undefined ? undefined : { kind: "CastExpression", type, expression };
       }
       if (selection.proof === "literal") {
-        const literal = planCsharpExactLiteralConversion(input, node, targetType);
-        if (literal.kind === "resolved") {
-          return literal.expression;
+        const target = renderRequiredTargetType(input.scope.typeParameterNames, node, targetType, diagnostics);
+        if (target === undefined) return undefined;
+        const physical = getCsharpNullableElementTargetType(targetType) ?? targetType;
+        if (sourceType?.kind === "source-primitive" && sourceType.name === "char" && isCsharpStringTargetType(physical)) {
+          return { kind: "InvocationExpression", callee: { kind: "SimpleMemberAccessExpression", receiver: expression, name: "ToString" }, arguments: [] };
         }
-        if (literal.kind === "rejected") {
-          return failCsharpPlannerInvariant(literal.reason, node);
-        }
-        if (literal.kind === "source-representation") {
-          return expression;
-        }
-        return failCsharpPlannerInvariant(
-          "A selected C# literal conversion requires an exact target literal representation.",
-          node);
+        const value: CsharpExpression = physical?.kind === "source-primitive" && physical.name === "char" && isCsharpStringTargetType(sourceType)
+          ? { kind: "ElementAccessExpression", receiver: expression, arguments: [{ kind: "LiteralExpression", value: 0 }] } : expression;
+        return { kind: "CastExpression", type: target, expression: value };
       }
       return selection.proof === "runtime-union-arm"
         ? applyRuntimeUnionArmConversion(

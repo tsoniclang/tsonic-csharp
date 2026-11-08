@@ -81,7 +81,8 @@ export function collectCsharpConversionRequirements(input: CsharpConversionRequi
       literalRequests.requestReads(binary.right, valueReads.valueRead.get(binary.right)?.value, [],
         comparisons.map(operation => operation.rightInputType), operations);
     }
-    if (policy.literalValues.literalValue.get(node) !== undefined) {
+    const literal = policy.literals.recipe(node);
+    if (literal.kind === "represented" && literal.value.kind === "present") {
       const source = valueReads.valueRead.get(node)?.value;
       if (source !== undefined) for (const target of expectedTypes.expectedType.get(node)) {
         classifyExpression(node, source, target, "implicit", expectedTypes.exactIntegerConversion.get(node, target));
