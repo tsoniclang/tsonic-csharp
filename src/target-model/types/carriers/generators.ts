@@ -1,4 +1,6 @@
-import type { CsharpGeneratorProtocol, CsharpIteratorResultProtocol, CsharpTargetNamedTypeRef, TargetTypeRef } from "../model.js";
+import type { CsharpGeneratorProtocol, CsharpIteratorResultProtocol, CsharpRuntimeUnionTargetTypeRef, CsharpTargetNamedTypeRef, TargetTypeRef } from "../model.js";
+import { csharpRuntimeUnionTargetType } from "./runtime-carriers.js";
+import { isCsharpVoidTargetType } from "../identity.js";
 import { csharpQualifiedTypeRenderShape } from "../render-shapes.js";
 import { csharpTargetNamedType } from "../factories.js";
 
@@ -22,8 +24,16 @@ export function csharpIteratorResultTargetType(
       "IteratorResult",
     ), { allowsRefLikeTypeArguments: [false, false],
       iteratorResultProtocol: protocol,
-      flowRefinementRepresentation: "identity",
     });
+}
+
+export function csharpIteratorResultValueTargetType(protocol: CsharpIteratorResultProtocol): CsharpRuntimeUnionTargetTypeRef {
+  if (isCsharpVoidTargetType(protocol.yieldType) || isCsharpVoidTargetType(protocol.returnType)) {
+    throw new TypeError("A Native iterator result requires Unit, not System.Void, in each payload slot.");
+  }
+  const carrier = csharpRuntimeUnionTargetType(Object.freeze([protocol.yieldType, protocol.returnType]));
+  if (carrier === undefined) throw new TypeError("A Native iterator result requires its exact two-slot value ABI.");
+  return carrier;
 }
 
 export function csharpAsyncEnumerableTargetType(

@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { csharpMethodValueType, csharpMethodValueCoversContract, getCsharpMethodValue } from "../../../dist/target-model/types/method-values.js";
 import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
-import { publishedReturnContracts, unrepresentedReturnContract } from "../../helpers/published-return-contracts.mjs";
-import { compileCsharpAnalysisTarget, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { publishedCallableReturn } from "../../helpers/published-return-contracts.mjs";
+import { createNativeConversionHost } from "../../helpers/native-conversion-host.mjs";
+import { assertCsharpCompilationSucceeded, compileCsharpAnalysisTarget, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { getCsharpCallableMembers } from "../../../dist/target-model/types/carriers/delegates.js";
 import { selectCsharpConversion } from "../../../dist/policy/conversions/core.js";
 
 const owner = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "tsonic.shape:environment", csharpRender: { kind: "named", name: "Environment" } };
@@ -12,7 +14,7 @@ const parameter = { kind: "type-parameter", name: "Value", identity: "original-s
 const signature = csharpDelegateTargetType("System.Func", [parameter], parameter);
 const method = csharpMethodValueType(owner, "identity", "source.identity", signature, [parameter.identity]);
 const inferred = csharpMethodValueType(protocol, "Invoke", "checked-callable", signature, [parameter.identity]);
-const policy = { projectTypes: { directSupertypes() { return []; } }, providers: { findTargetBindingByTargetId() { return { kind: "missing" }; } }, target: {} };
+const policy = createNativeConversionHost();
 
 test("Native generic callable coverage retains the original method and native environment", () => {
   assert.equal(csharpMethodValueCoversContract(method, inferred), true, "exact quantified baseline is covered");
@@ -21,7 +23,7 @@ test("Native generic callable coverage retains the original method and native en
   assert.deepEqual(getCsharpMethodValue(method).typeParameters, [parameter.identity], "the original ordered quantifiers are retained");
 });
 
-test("C2530 a returned generic method retains its Source identity and the current precise Native refusal", () => {
+test("C2530 a returned generic method retains its Source binders and actual captured Native receiver", () => {
   let source;
   const compiled = compileCsharpSource({ sourceText: `class Box {
       identity<Value>(value: Value): Value { return value; }
@@ -42,22 +44,24 @@ test("C2530 a returned generic method retains its Source identity and the curren
   };
   for (const file of source.sourceFiles) if (!source.ast.isDeclarationFile(file)) visit(file);
   assert.equal(methods.length === 1 && functions.length === 1, true, "one exact original method and returned callable owner");
-  const publication = source.effectiveTypes.callableReturn(functions[0]);
-  assert.equal(publication !== undefined && publication.kind !== "refused" && publication.type.kind === "callable", true,
+  const publication = publishedCallableReturn(source, functions[0]).publication;
+  assert.equal(publication.type.kind === "callable", true,
     "the Host publishes the original quantified callable, not a fabricated Native result");
   assert.equal(publication.type.calls.length, 1);
   const signature = publication.type.calls[0];
   const binders = source.ast.typeParameters(methods[0]);
-  assert.equal(signature.declaration === methods[0] && signature.typeParameters.length === 1 && binders.length === 1 &&
-    signature.typeParameters[0] === binders[0], true, "the actual published return retains the original method and ordered binder identity");
-  const issues = compiled.result.diagnostics.filter(issue => issue.category === "error");
-  assert.equal(issues.length, 1);
-  assert.equal(issues[0].code, "CSHARP_UNSUPPORTED_AST");
-  assert.equal(issues[0].source, "tsonic-csharp");
-  assert.equal(issues[0].message, "An extracted quantified nominal method has no supported native callable-value owner.",
-    "C2530 permits the measured current Native refusal instead of claiming an unrepresented sealed carrier");
-  assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
-    "the unsupported Native method-value representation publishes no invalid output");
+  assert.equal(signature.identity.declaration === methods[0] && signature.identity.typeParameters.length === 1 && binders.length === 1 &&
+    signature.identity.typeParameters[0] === binders[0], true, "the actual published return retains the original method and ordered binder identity");
+  assertCsharpCompilationSucceeded(compiled);
+  const contract = compiled.result.program.records.returnContract.get(functions[0]);
+  assert.equal(contract?.kind, "resolved", "one actual Native returned callable contract");
+  const members = getCsharpCallableMembers(contract.type);
+  assert.equal(members?.length, 1, "the Native carrier has its actual generic invocation member");
+  assert.equal(members[0].typeParameters.some(parameter => parameter.declaration === binders[0]), true,
+    "the original quantified method binder remains method-local, not a carrier argument");
+  const output = [...compiled.artifacts.values()].join("\n");
+  assert.equal(/Invoke\s*<[^>]+>\s*\(/u.test(output), true, "the real Native generic method is emitted, not Func<object,object>");
+  assert.equal(/new\s+Box\s*\(/u.test(output), true, "the actual receiver allocation remains in the original returned-method program");
 });
 
 test("inferred callable coverage rejects changed binders, quantified arity and native carriers", () => {
@@ -74,10 +78,8 @@ test("inferred callable coverage rejects changed binders, quantified arity and n
     assert.equal(csharpMethodValueCoversContract(method, changed), false, "different exact contract is not covered");
     assert.equal(selectCsharpConversion(policy, method, changed, "implicit").kind, "rejected", "incompatible Native storage contracts reject");
   }
-  const actual = publishedReturnContracts("export function run(value: number) { return value; }").get("run");
-  assert.deepEqual(unrepresentedReturnContract(actual), { kind: "rejected",
-    reason: "The Host-published callable return has no closed C# representation." },
-  "incomplete Native return representation still rejects without a separate inference path");
+  assert.equal(csharpMethodValueType(owner, "identity", "source.identity", parameter, [parameter.identity]) === undefined, true,
+    "a missing Native callable contract is not filled by a second Source return inferrer");
 });
 
 test("quantified coverage requires exact ordered identities even for unused binders", () => {

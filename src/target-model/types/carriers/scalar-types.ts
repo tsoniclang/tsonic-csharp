@@ -147,7 +147,10 @@ export function csharpSourcePrimitiveTargetType(kind: SourcePrimitiveKind): Targ
 
 export function isCsharpIntegralTargetType(
   type: TargetTypeRef,
-): boolean {
+): type is Extract<TargetTypeRef, { readonly kind: "source-primitive" }> & {
+  readonly name: "char" | "int8" | "uint8" | "int16" | "uint16" | "int32" | "uint32" | "int64" | "uint64" |
+    "native-int" | "native-uint" | "int128" | "uint128";
+} {
   if (type.kind !== "source-primitive") {
     return false;
   }

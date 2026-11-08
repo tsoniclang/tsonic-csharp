@@ -1,12 +1,11 @@
-import type { SourceLiteralValue } from "@tsonic/target-api/source";
+import type { SourceLiteralUnit, SourcePresence } from "@tsonic/target-api/source";
 import type { CsharpExactLiteralSelection } from "../../../target-model/conversions/exact-literals.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 
 export function csharpParameterDefaultIsLiteral(input: {
-  readonly source: SourceLiteralValue | undefined;
+  readonly source: SourcePresence<SourceLiteralUnit>;
   readonly exact: CsharpExactLiteralSelection | undefined;
   readonly carrier: TargetTypeRef;
-  readonly nullLiteral: boolean;
 }): boolean {
   if (input.exact?.kind === "resolved") {
     const recipe = input.exact.recipe;
@@ -14,6 +13,7 @@ export function csharpParameterDefaultIsLiteral(input: {
     if (recipe.kind === "float") return recipe.precision !== "float16";
     return recipe.kind === "char" || recipe.kind === "string" || recipe.kind === "signed-zero";
   }
-  if (input.nullLiteral) return input.carrier.kind !== "type-parameter";
-  return input.source?.form === "true" || input.source?.form === "false" || input.source?.form === "string" || input.source?.form === "template";
+  if (input.source.kind === "none") return false;
+  if (input.source.value.kind === "absence") return input.carrier.kind !== "type-parameter";
+  return input.source.value.kind === "boolean" || input.source.value.kind === "string";
 }

@@ -1,7 +1,8 @@
 import { csharpExceptionTargetType, getCsharpNullableElementTargetType, getCsharpExpressionTreeDelegateType, getCsharpRuntimeUnionArms, isCsharpNullableReferenceTargetType, isCsharpVoidTargetType, csharpCarrierAdmitsSourceAbsence, targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/index.js";
-import { csharpLiteralIsRepresentableAs } from "./literals.js";
+import type { SourceLiteralUnit, SourcePresence } from "@tsonic/target-api/source";
 import { selectCsharpConversion } from "./core.js";
-import type { CsharpConversionMode, CsharpConversionSelection } from "../../target-model/conversions/selection.js";
+import { selectCsharpScalarConversion } from "./scalars.js";
+import type { CsharpConversionMode, CsharpConversionRelation, CsharpNativeCallableConversionMembers } from "../../target-model/conversions/selection.js";
 import { csharpConversionIsApplicable } from "./applicability.js";
 import type { CsharpPolicyContext } from "../model/context.js";
 import type { CsharpProviderArgumentAdapter } from "../../target-model/conversions/selection.js";
@@ -16,65 +17,61 @@ import { isCsharpRefLikeTargetType } from "../../target-model/types/ref-like.js"
 export function selectCsharpExpressionConversion(
   input: Pick<
     CsharpPolicyContext,
-    "integerRanges" | "ast" | "literalValues" | "typeDefinitions" | "projectTypes" | "providers" | "target" | "navigation" | "sourceFacts"
+    "integerRanges" | "ast" | "typeDefinitions" | "projectTypes" | "providers" | "target"
   > & CsharpConversionShapeQueries,
   expression: Node,
   source: TargetTypeRef | undefined,
   target: TargetTypeRef | undefined,
   mode: CsharpConversionMode,
-): CsharpConversionSelection {
+  scalar: SourcePresence<SourceLiteralUnit>,
+  callable?: CsharpNativeCallableConversionMembers,
+): CsharpConversionRelation {
   if (isCsharpVoidTargetType(source) && target !== undefined && csharpCarrierAdmitsSourceAbsence(target)) {
     return { kind: "absence" };
   }
-  const selected = selectCsharpConversion(input, source, target, mode);
+  const selected = selectCsharpScalarConversion(input, source, target, mode, scalar, callable);
   if (selected.kind !== "rejected" || target === undefined || isCsharpRefLikeTargetType(source)) {
     return selected;
   }
   const quotationDelegate = getCsharpExpressionTreeDelegateType(getCsharpNullableElementTargetType(target) ?? target);
   if (source !== undefined && quotationDelegate !== undefined &&
     (input.ast.is.IsArrowFunction(expression) || input.ast.is.IsFunctionExpression(expression))) {
-    const signatureConversion = selectDelegateConversion(input, source, quotationDelegate);
+    const signatureConversion = selectDelegateConversion(input, source, quotationDelegate, callable);
     if (signatureConversion !== undefined && csharpConversionIsApplicable(signatureConversion, mode)) {
       return { kind: "implicit", proof: "lambda-quotation" };
     }
   }
   const refined = selectCsharpGuardedIntegerConversion(input, expression, source, target);
   if (refined !== undefined) return refined;
-  const runtimeUnionArms = getCsharpRuntimeUnionArms(getCsharpNullableElementTargetType(target) ?? target, input.typeDefinitions);
+  const runtimeUnionArms = getCsharpRuntimeUnionArms(getCsharpNullableElementTargetType(target) ?? target);
   if (runtimeUnionArms !== undefined) {
     const injection = selectCsharpUnionInjection(source, getCsharpNullableElementTargetType(target) ?? target,
-      input.typeDefinitions, mode, arm => selectCsharpExpressionConversion(input, expression, source, arm, mode));
+      mode, arm => selectCsharpExpressionConversion(input, expression, source, arm, mode, scalar));
     if (injection !== undefined) return injection;
   }
-  const literal = input.literalValues.literalValue.get(expression);
-  const targetPrimitive = getCsharpNullableElementTargetType(target) ?? target;
-  if (source?.kind === "source-primitive" && source.name === "float64" &&
-    targetPrimitive.kind === "source-primitive" &&
-    literal?.numeric?.kind === "checked-float64" && Number.isFinite(literal.numeric.value) &&
-    (targetPrimitive.name === "float32" || targetPrimitive.name === "decimal" && Math.abs(literal.numeric.value) < 2 ** 96)) {
-    return { kind: "implicit", proof: "checked-floating-literal" };
-  }
-  return csharpLiteralIsRepresentableAs(literal, target)
-    ? { kind: "implicit", proof: "literal" }
-    : selected;
+  return selected;
 }
 
 export function selectCsharpProviderArgumentConversion(
   input: Pick<
     CsharpPolicyContext,
-    "integerRanges" | "ast" | "literalValues" | "typeDefinitions" | "projectTypes" | "providers" | "target" | "navigation" | "sourceFacts"
+    "integerRanges" | "ast" | "typeDefinitions" | "projectTypes" | "providers" | "target"
   > & CsharpConversionShapeQueries,
   expression: Node,
   source: TargetTypeRef | undefined,
   target: TargetTypeRef,
   adapter: CsharpProviderArgumentAdapter | undefined,
-): CsharpConversionSelection {
+  scalar: SourcePresence<SourceLiteralUnit>,
+  callable?: CsharpNativeCallableConversionMembers,
+): CsharpConversionRelation {
   const direct = selectCsharpExpressionConversion(
     input,
     expression,
     source,
     target,
     "implicit",
+    scalar,
+    callable,
   );
   if (csharpConversionIsApplicable(direct, "implicit") || adapter === undefined) {
     return direct;
@@ -103,6 +100,7 @@ export function selectCsharpProviderArgumentConversion(
     source,
     adapter.inputType,
     "implicit",
+    scalar,
   );
   const resultToTarget = selectCsharpConversion(
     input,
@@ -136,7 +134,7 @@ export function selectCsharpFlowReadConversion(
   storageType: TargetTypeRef,
   selectedReadType: TargetTypeRef,
   selectedThrowable: boolean,
-): CsharpConversionSelection {
+): CsharpConversionRelation {
   if (targetTypeRefEquals(storageType, selectedReadType)) return { kind: "identity" };
   const nullableElement = getCsharpNullableElementTargetType(storageType);
   if (nullableElement !== undefined && targetTypeRefEquals(nullableElement, selectedReadType)) {
@@ -144,11 +142,11 @@ export function selectCsharpFlowReadConversion(
       ? { kind: "nullable-reference" }
       : { kind: "nullable-value", asserted: false };
   }
-  const runtimeUnionArms = getCsharpRuntimeUnionArms(nullableElement ?? storageType, input.typeDefinitions);
+  const runtimeUnionArms = getCsharpRuntimeUnionArms(nullableElement ?? storageType);
   if (runtimeUnionArms !== undefined) {
     const targetElement = getCsharpNullableElementTargetType(selectedReadType);
     const mapping = targetElement !== undefined && nullableElement === undefined ? undefined
-      : selectCsharpUnionArmMapping(nullableElement ?? storageType, targetElement ?? selectedReadType, "target", input.typeDefinitions);
+      : selectCsharpUnionArmMapping(nullableElement ?? storageType, targetElement ?? selectedReadType, "target");
     if (mapping !== undefined) return { kind: "union-map", coverage: "target", arms: mapping };
     return selectCsharpRuntimeUnionProjection(input, storageType, selectedReadType);
   }

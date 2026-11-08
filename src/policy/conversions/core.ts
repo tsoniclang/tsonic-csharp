@@ -6,7 +6,7 @@ import { sourcePrimitiveImplicitlyConverts } from "./source-primitives.js";
 import { selectCsharpEmptyRecordConversion } from "./empty-record.js";
 import { csharpArrayLikeElement, csharpArrayLikeTargetType } from "../../target-model/types/carriers/array-like.js";
 import { getCsharpRuntimeUnionArms } from "../../target-model/types/carriers/runtime-carriers.js";
-import type { CsharpConversionMode, CsharpConversionSelection } from "../../target-model/conversions/selection.js";
+import type { CsharpConversionMode, CsharpConversionRelation, CsharpConversionSelection, CsharpNativeCallableConversionMembers } from "../../target-model/conversions/selection.js";
 import type { CsharpPolicyContext } from "../model/context.js";
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../types/index.js";
 import type { CsharpConversionShapeQueries } from "./shape-queries.js";
@@ -23,7 +23,8 @@ export function selectCsharpConversion(
   source: TargetTypeRef | undefined,
   target: TargetTypeRef | undefined,
   mode: CsharpConversionMode,
-): CsharpConversionSelection {
+  callable?: CsharpNativeCallableConversionMembers,
+): CsharpConversionRelation {
   if (source === undefined || target === undefined) {
     return {
       kind: "rejected",
@@ -49,9 +50,9 @@ export function selectCsharpConversion(
     return { kind: "rejected", code: "CSHARP_REFLIKE_BOXING",
       reason: "A native ref-like value cannot be boxed or erased into an ordinary value carrier without an exact non-boxing native conversion." };
   }
-  const arrayElement = csharpArrayLikeElement(source, input.typeDefinitions);
+  const arrayElement = csharpArrayLikeElement(source);
   if (arrayElement !== undefined && targetTypeRefEquals(target, csharpArrayLikeTargetType(arrayElement))) {
-    const arms = getCsharpRuntimeUnionArms(source, input.typeDefinitions);
+    const arms = getCsharpRuntimeUnionArms(source);
     return arms === undefined ? { kind: "implicit", proof: "collection-interface" }
       : { kind: "array-like-union", arms };
   }
@@ -59,7 +60,7 @@ export function selectCsharpConversion(
   if (emptyRecord !== undefined) return emptyRecord;
   const targetShapeCarrier = getCsharpNullableElementTargetType(target) ?? target;
   if (isCsharpJsValueTargetType(source)) {
-    const shape = input.objectShapes?.resolveTarget(targetShapeCarrier);
+    const shape = input.objectShapes.resolveTarget(targetShapeCarrier);
     if (shape?.members.some(member => member.memberKind === "method") === true && !(shape.targetType.kind === "target-named" && (shape.targetType as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind === "class")) return {
       kind: "rejected", code: "CSHARP_NATIVE_METHOD_PROJECTION_UNSUPPORTED",
       reason: "A boxed value cannot project a native structural method contract. Pass a value with its declared native method interface instead.",
@@ -68,7 +69,6 @@ export function selectCsharpConversion(
   const jsValueConversion = selectJsValueConversion(
     source,
     target,
-    input.typeDefinitions,
   );
   if (jsValueConversion !== undefined) {
     return jsValueConversion;
@@ -132,7 +132,7 @@ export function selectCsharpConversion(
   if (namedTargetTypeImplicitlyAccepts(input, source, target, new Set())) {
     return { kind: "implicit", proof: "reference" };
   }
-  const delegate = selectDelegateConversion(input, source, target);
+  const delegate = selectDelegateConversion(input, source, target, callable);
   if (delegate !== undefined) {
     return delegate;
   }
@@ -171,11 +171,11 @@ function selectTupleConversion(
   input: Pick<
     CsharpPolicyContext,
     "typeDefinitions" | "projectTypes" | "providers" | "target"
-  >,
+  > & CsharpConversionShapeQueries,
   source: TargetTypeRef,
   target: TargetTypeRef,
   mode: CsharpConversionMode,
-): CsharpConversionSelection | undefined {
+): CsharpConversionRelation | undefined {
   if (source.kind !== "tuple" || target.kind !== "tuple") {
     return undefined;
   }
@@ -216,13 +216,14 @@ function selectTupleConversion(
 }
 
 export function conversionIsImplicitlyApplicable(
-  selection: CsharpConversionSelection,
+  selection: CsharpConversionRelation | CsharpConversionSelection,
 ): boolean {
   if (selection.kind === "nullable-map") return conversionIsImplicitlyApplicable(selection.conversion);
   if (selection.kind === "implicit" && selection.proof === "runtime-union-arm") {
     return conversionIsImplicitlyApplicable(selection.sourceToArm);
   }
   return selection.kind === "identity" ||
+    selection.kind === "source-erasure-required" || selection.kind === "js-value-box" ||
     selection.kind === "absence" ||
     selection.kind === "union-map" && selection.coverage === "source" ||
     selection.kind === "integer-truncation" ||
@@ -234,7 +235,7 @@ export function conversionIsImplicitlyApplicable(
 function selectCollectionInterfaceConversion(
   source: TargetTypeRef,
   target: TargetTypeRef,
-): CsharpConversionSelection | undefined {
+): CsharpConversionRelation | undefined {
   const jsArrayElement = getCsharpJsArrayElementTargetType(source);
   if (jsArrayElement !== undefined && targetTypeRefEquals(target, csharpReadOnlyListTargetType(jsArrayElement))) {
     return { kind: "implicit", proof: "collection-interface" };

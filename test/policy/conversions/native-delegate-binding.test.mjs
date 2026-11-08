@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createNativeConversionHost } from "../../helpers/native-conversion-host.mjs";
 import { selectCsharpConversion } from "../../../dist/policy/conversions/index.js";
 import { dotnetTypeRefToTargetTypeRef } from "../../../dist/providers/native/projection/type-ref.js";
 import { csharpDelegateTargetType, csharpDelegateSignaturesMatchNativeBinding, isCsharpSourceDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
@@ -7,7 +8,7 @@ import { substituteTargetTypeParameters } from "../../../dist/policy/types/resol
 
 const integer = { kind: "source-primitive", name: "int32" };
 const widened = { kind: "source-primitive", name: "int64" };
-const policy = { projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId() { return { kind: "missing" }; } }, target: {} };
+const policy = createNativeConversionHost();
 const passingModes = ["by-value", "byref-readonly", "byref-readwrite", "byref-writeonly-must-init"];
 
 function nativeDelegate(name, passingMode = "by-value", parameterType = integer, returnPassing) {

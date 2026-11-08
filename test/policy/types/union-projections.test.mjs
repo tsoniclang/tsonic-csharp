@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { csharpNullableTargetType, csharpRuntimeUnionTargetType, csharpStringTargetType, csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/index.js";
-import { csharpSourceUnionTargetType } from "../../../dist/target-model/types/source-union-definitions.js";
+import { csharpTargetNamedType } from "../../../dist/target-model/types/factories.js";
+import { createNativeConversionHost } from "../../helpers/native-conversion-host.mjs";
+import { checkCsharpSource, assertCsharpCheckingSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { csharpUnionProjectionPath } from "../../../dist/policy/conversions/union-relations.js";
 import { selectCsharpRuntimeUnionProjection } from "../../../dist/policy/conversions/carriers.js";
 import { csharpRuntimeUnionProjectionMatches } from "../../../dist/analysis/conversions/validation.js";
@@ -16,7 +18,7 @@ test("nested union payload paths are exact, immutable and independently checked"
   const path = csharpUnionProjectionPath(nested, integer);
   assert.deepEqual(path, [{ union: nested, index: 1 }, { union: inner, index: 0 }]);
   assert.ok(Object.isFrozen(path) && path.every(Object.isFrozen));
-  const policy = { projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId() { return { kind: "missing" }; } } };
+  const policy = createNativeConversionHost();
   const selected = selectCsharpRuntimeUnionProjection(policy, nested, integer);
   assert.deepEqual(selected, { kind: "runtime-union-projection", path, armType: integer, retainsAbsence: false });
   assert.equal(csharpRuntimeUnionProjectionMatches(policy, nested, integer, selected), true);
@@ -35,24 +37,27 @@ test("nested union payload paths are exact, immutable and independently checked"
   assert.equal(selectCsharpRuntimeUnionProjection(policy, nested, csharpNullableTargetType(signed)).kind, "rejected",
     "absence injection cannot change native width or signedness");
   assert.equal(csharpUnionProjectionPath(csharpRuntimeUnionTargetType([integer, inner]), integer), undefined);
-  const cycle = csharpSourceUnionTargetType("fixture.Cycle", "Cycle", []);
-  const definitions = { sourceUnionArms: carrier => carrier === cycle ? [cycle] : undefined };
-  assert.equal(csharpUnionProjectionPath(cycle, integer, definitions), undefined);
+  const nominal = csharpTargetNamedType("fixture.Cycle", [], { kind: "named", name: "Cycle" },
+    { allowsRefLikeTypeArguments: [] });
+  assert.equal(csharpUnionProjectionPath(nominal, integer), undefined,
+    "an opaque nominal carrier cannot become a union through a second Source-arm registry");
 });
 
 test("checked member evidence survives exact union projection without relaxing path or payload checks", () => {
   let reads = 0;
-  const identity = Object.create({ compilerOwned: true });
-  identity.self = identity;
-  Object.defineProperty(identity, "poison", { get() { reads += 1; throw new Error("compiler handle must stay opaque"); } });
+  const checked = checkCsharpSource({ sourceText: 'import type { uint64 } from "@tsonic/core/types.js"; export interface Payload { readonly value: uint64; }' });
+  assertCsharpCheckingSucceeded(checked);
+  const file = checked.source.sourceFiles.find(file => !checked.source.ast.isDeclarationFile(file));
+  const declaration = checked.source.ast.statements(file).find(node => checked.source.ast.is.IsInterfaceDeclaration(node));
+  const identity = checked.source.ast.members(declaration)[0];
+  assert.equal(identity !== undefined, true, "the original declaration Node is genuine Source evidence, not a raw checked Type");
   const payload = { kind: "target-named", id: "test.EvidencePayload", csharpAllowsRefLikeTypeArguments: [] };
-  const shape = { targetType: payload, sourceType: identity, members: [{ sourceKey: { kind: "property", name: "value" },
+  const shape = { targetType: payload, members: [{ sourceKey: { kind: "property", name: "value" },
     sourceName: "value", targetName: "value", memberKind: "property", type: csharpSourcePrimitiveTargetType("uint64"),
     readonly: true, origins: [{ kind: "declared", declaration: identity }],
-    sourceTypes: [identity], sourceSubjects: [identity], sourceDeclarations: [identity] }] };
+    sourceSubjects: [identity], sourceDeclarations: [identity] }] };
   const union = csharpRuntimeUnionTargetType([payload, csharpStringTargetType()], [shape, undefined]);
-  const policy = { projectTypes: { directSupertypes: () => [] },
-    providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) } };
+  const policy = createNativeConversionHost();
   const selected = selectCsharpRuntimeUnionProjection(policy, union, payload);
   assert.equal(selected.kind, "runtime-union-projection", "the original native payload has one exact projection");
   assert.equal(csharpRuntimeUnionProjectionMatches(policy, union, payload, selected), true,
@@ -60,10 +65,16 @@ test("checked member evidence survives exact union projection without relaxing p
   const [snapshot] = snapshotCsharpTargetTypes([union]);
   assert.equal(csharpRuntimeUnionProjectionMatches(policy, snapshot, payload, selected), true, "immutable roundtrip retains the same projection");
   const retained = snapshot.csharpRuntimeUnionObjectShapes[0];
-  assert.equal(retained.sourceType === identity && retained.members[0].sourceTypes[0] === identity &&
+  assert.equal(retained.members[0].sourceSubjects[0] === identity && retained.members[0].sourceDeclarations[0] === identity &&
     retained.members[0].origins[0].declaration === identity && retained.members[0].readonly === true &&
     retained.members[0].type.kind === "source-primitive" && retained.members[0].type.name === "uint64", true,
-    "roundtrip retains the checked owner identity");
+    "roundtrip retains the original opaque declaration identity and exact Native field width");
+  assert.equal(Object.hasOwn(retained, "sourceType"), false);
+  assert.equal(Object.hasOwn(retained.members[0], "sourceTypes"), false);
+  const rawType = { get poison() { reads += 1; throw new Error("raw compiler objects must not be traversed"); } };
+  assert.throws(() => snapshotCsharpTargetTypes([{ ...union, csharpRuntimeUnionObjectShapes:
+    [{ ...shape, sourceType: rawType }, undefined] }]), TypeError,
+  "a raw checked-Type field is not another accepted opaque identity path");
   const foreign = { ...payload, id: "foreign.EvidencePayload" };
   const foreignUnion = csharpRuntimeUnionTargetType([foreign, csharpStringTargetType()]);
   const poisoned = { get union() { reads += 1; return union; }, index: 0 };

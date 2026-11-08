@@ -1,85 +1,86 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createCsharpObjectShapeMemberResolver } from "../../../dist/analysis/objects/shapes/member-evidence.js";
-import { createTargetSourceProgram, sourceTypeDescriptorMemberOriginsEqual, sourceTypeDescriptorStructure } from "@tsonic/target-api/source";
-import { checkCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { analyzeCsharpSource, assertCsharpCheckingSucceeded } from "../../helpers/direct-csharp-session.mjs";
+import { resolvedSourceValue } from "../../helpers/published-return-contracts.mjs";
+import { selectCsharpHostLiteralCorrespondence } from "../../../dist/analysis/objects/shapes/host-correspondence.js";
+import { sourceMemberOriginsEqual } from "../../../dist/analysis/objects/shapes/member-origins.js";
 
-const carrier = Object.freeze({ kind: "source-primitive", name: "int64" });
-const identicalNodes = (actual, expected) => actual?.length === expected.length &&
-  actual.every((node, index) => node === expected[index]);
 function fixture() {
-  const checked = checkCsharpSource({ sourceText: `
-import type { int64 } from "@tsonic/core/types.js";
-interface Slot { count: int64; }
-const source: Slot = { count: 1n };
-const earlier: Slot = { count: 2n };
-` });
-  assert.equal(checked.sourceDiagnosticsText, "");
-  const program = createTargetSourceProgram(checked.source);
+  const compiled = analyzeCsharpSource({ sourceText: `
+    import type { int64 } from "@tsonic/core/types.js";
+    interface Slot { count: int64; }
+    export const current: Slot = { count: 1n };
+    export const previous: Slot = { count: 2n };
+  ` });
+  assertCsharpCheckingSucceeded(compiled);
+  assert.equal(compiled.analysis.kind, "resolved", "the genuine Native program owns its same Source view");
+  const program = compiled.analysis.value;
+  const source = compiled.source;
   const declarations = new Map();
   const visit = node => {
-    if (program.ast.is.IsVariableDeclaration(node)) declarations.set(program.ast.text(program.ast.name(node)), node);
-    program.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    if (source.ast.is.IsVariableDeclaration(node)) declarations.set(source.ast.text(source.ast.name(node)), node);
+    source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
-  program.navigation.sourceFiles.forEach(visit);
-  const literal = name => program.ast.as.AsVariableDeclaration(declarations.get(name)).Initializer;
-  const occurrence = literal("source");
-  const sourceDeclaration = program.ast.properties(occurrence)[0];
-  const earlierDeclaration = program.ast.properties(literal("earlier"))[0];
-  const base = program.effectiveTypes.get(occurrence);
-  assert.equal(base !== undefined && base.kind !== "refused", true, "the identical construction has its Host publication");
-  let publication = base;
-  const actualQueries = program.semantics.forNode(occurrence);
-  const queries = { ...actualQueries, types: new Proxy({}, { get() {
-    return assert.fail("the canonical member contract cannot reopen structural checker correspondence");
-  } }) };
-  const resolver = createCsharpObjectShapeMemberResolver({ ast: program.ast, navigation: program.navigation,
-    effectiveTypes: { get: node => node === occurrence ? publication : undefined },
-    hasSemantics: file => program.semantics.includes(file), semantics: () => queries, semanticsFor: () => queries,
-    sourceStorage: { memberSubjectFor: () => undefined }, memoryBindings: { hasBoundField: () => false },
-    representations: { genericProjections: () => [] }, typeResolver: { resolveDescriptor: descriptor => {
-      const selected = sourceTypeDescriptorStructure(descriptor);
-      assert.equal(selected.kind === "primitive" && selected.primitive === "int64", true, "the actual published width");
-      return carrier;
-    } },
-  });
-  const descriptor = resolver.publishedShapeDescriptor(occurrence);
-  const members = resolver.deriveMembers(descriptor, occurrence, queries, { depth: 0 });
-  assert.equal(members?.length === 1, true, "the complete published member vector");
-  const origin = sourceTypeDescriptorStructure(descriptor).members[0].origin;
-  const select = (selected = members) => resolver.retainPublishedMembers(selected, descriptor, occurrence, queries, { depth: 0 });
-  return { members, origin, sourceDeclaration, earlierDeclaration, select, publish: value => { publication = value; } };
+  for (const file of source.sourceFiles) if (!source.ast.isDeclarationFile(file)) visit(file);
+  const current = source.ast.as.AsVariableDeclaration(declarations.get("current")).Initializer;
+  const previous = source.ast.as.AsVariableDeclaration(declarations.get("previous")).Initializer;
+  const construction = resolvedSourceValue(source.facts.values.construction(current), "original construction").value;
+  const destination = resolvedSourceValue(source.facts.values.declaredSlot(declarations.get("current")), "original Slot destination").type;
+  const represent = evidence => {
+    const result = program.representation.represent(evidence, "storage", current);
+    assert.equal(result.kind, "represented");
+    const shape = program.analysis.typeSystem.objectShapes.resolveTarget(result.value.carrier);
+    assert.equal(shape !== undefined, true, "the actual completed Native shape");
+    return shape;
+  };
+  const sourceShape = represent(construction.value);
+  const destinationShape = represent(destination);
+  const select = (selected = sourceShape, evidence = construction.value) => selectCsharpHostLiteralCorrespondence(
+    source.facts.descriptors, source.facts.objects, evidence, destination, selected, destinationShape, current);
+  return { source, current, previous, construction, destination, sourceShape, destinationShape, select };
 }
 
-test("structural receiver evidence uses exact checker correspondence without changing native storage", () => {
+test("structural correspondence preserves exact current original Source pairs and Native width", () => {
   const input = fixture();
-  const selected = input.select();
-  assert.equal(selected?.length, 1);
-  assert.strictEqual(selected[0].type, carrier);
-  assert.equal(identicalNodes(selected[0].sourceSubjects, [input.origin.declaration, input.sourceDeclaration]), true, "the exact ordered canonical subjects");
-  assert.equal(identicalNodes(selected[0].sourceDeclarations, [input.sourceDeclaration]), true, "only the actual producer declaration");
-  assert.equal(selected[0].origins.length === 1 && sourceTypeDescriptorMemberOriginsEqual(selected[0].origins[0], input.origin), true);
-  assert.equal(selected[0].sourceTypes === undefined && selected[0].sourceMemberEvidence === undefined, true);
-  assert.equal(Object.isFrozen(selected[0].sourceSubjects), true);
+  const result = input.select();
+  assert.equal(result.kind, "represented");
+  assert.equal(result.value.length, 1);
+  const pair = result.value[0];
+  assert.equal(pair.source.type.name, "int64");
+  assert.equal(pair.destination.type.name, "int64");
+  const current = input.source.ast.properties(input.current)[0];
+  assert.equal(pair.original.source.declarations.includes(current), true, "the current authored producer declaration");
+  assert.equal(pair.source.origins.every(origin => pair.original.source.origins.some(original =>
+    sourceMemberOriginsEqual(origin, original))), true, "all original source identities, not a name join");
+  assert.equal(pair.source.sourceTypes === undefined && pair.source.sourceMemberEvidence === undefined, true,
+    "no raw checker or retired evidence transport");
 });
 
-test("structural instance declarations retain only the exact selected producer occurrence", () => {
+test("a previous physical subject cannot replace the current Source producer declaration", () => {
   const input = fixture();
-  const selectedMember = { ...input.members[0], sourceSubjects: [input.origin.declaration, input.earlierDeclaration],
-    sourceDeclarations: [input.earlierDeclaration] };
-  const selected = input.select([selectedMember]);
-  assert.equal(identicalNodes(selected[0].sourceDeclarations, [input.sourceDeclaration]), true, "only the current producer declaration");
-  assert.equal(selected[0].sourceSubjects.includes(input.earlierDeclaration), true);
-  assert.equal(identicalNodes(selectedMember.sourceDeclarations, [input.earlierDeclaration]), true, "the original input remains unchanged");
-  assert.equal(Object.isFrozen(selected[0].sourceDeclarations), true);
+  const current = input.source.ast.properties(input.current)[0];
+  const previous = input.source.ast.properties(input.previous)[0];
+  const selected = { ...input.sourceShape, members: input.sourceShape.members.map(member => ({
+    ...member, sourceSubjects: [...member.sourceSubjects, previous], sourceDeclarations: [previous],
+  })) };
+  const result = input.select(selected);
+  assert.equal(result.kind, "represented");
+  assert.equal(result.value[0].original.source.declarations.includes(current), true);
+  assert.equal(result.value[0].original.source.declarations.includes(previous), false,
+    "the actual Source pair, not retained Native subject history, owns construction declarations");
+  assert.equal(selected.members[0].sourceDeclarations[0] === previous, true, "input Native metadata is not rewritten");
 });
 
-test("structural receiver evidence rejects absent, ambiguous and unrelated destination identities", () => {
+test("structural correspondence rejects absent, ambiguous, foreign origins and counterfeit Source evidence", () => {
   const input = fixture();
-  assert.equal(input.select([]) === undefined, true, "absent member");
-  assert.equal(input.select([input.members[0], input.members[0]]) === undefined, true, "ambiguous member");
-  assert.equal(input.select([{ ...input.members[0], origins: [{ kind: "declared", declaration: input.earlierDeclaration }] }]) === undefined,
-    true, "unrelated destination");
-  input.publish(undefined);
-  assert.equal(input.select() === undefined, true, "unavailable correspondence");
+  const member = input.sourceShape.members[0];
+  const previous = input.source.ast.properties(input.previous)[0];
+  for (const members of [[], [member, member], [{ ...member, origins: [{ kind: "declared", declaration: previous }] }]]) {
+    const result = input.select({ ...input.sourceShape, members });
+    assert.equal(result.kind, "native-refused");
+    assert.equal(result.code, "CSHARP_NATIVE_MEMBER_ORIGIN_MISSING");
+    assert.equal(result.site === input.current, true);
+  }
+  assert.throws(() => input.select(input.sourceShape, { ...input.construction.value }), TypeError,
+    "a foreign publication cannot borrow a cached same-view correspondence");
 });

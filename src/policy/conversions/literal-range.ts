@@ -1,11 +1,29 @@
 import type { SourcePrimitiveKind } from "@tsonic/tsts";
-import type { SourceLiteralValue } from "@tsonic/target-api/source";
+import { compareSourceNumericLiteralMagnitude, type SourceLiteralUnit } from "@tsonic/target-api/source";
+
+export function csharpNumericLiteralInteger(literal: SourceLiteralUnit | undefined): bigint | undefined {
+  if (literal?.kind === "bigint") return literal.value;
+  if (literal?.kind !== "number") return undefined;
+  const value = literal.value;
+  if (value.kind === "integer") return value.value;
+  if (value.kind === "checked-float64") return Number.isFinite(value.value) && Number.isInteger(value.value) ? BigInt(value.value) : undefined;
+  const token = value.token;
+  if (token.coefficient === 0n) return 0n;
+  if (compareSourceNumericLiteralMagnitude(token, (1n << 128n) - 1n) > 0) return undefined;
+  const sign = token.negative ? -1n : 1n;
+  if (token.exponent >= 0n) return token.coefficient * 10n ** token.exponent * sign;
+  const scale = -token.exponent;
+  if (scale >= BigInt(token.coefficient.toString().length)) return undefined;
+  const divisor = 10n ** scale;
+  return token.coefficient % divisor === 0n ? token.coefficient / divisor * sign : undefined;
+}
 
 export function csharpNumericLiteralFitsSourcePrimitive(
-  literal: Pick<SourceLiteralValue, "integer" | "number" | "numeric"> | undefined,
+  literal: SourceLiteralUnit | undefined,
   primitive: Exclude<SourcePrimitiveKind, "float16" | "float32" | "float64" | "decimal">,
 ): boolean {
-  return literal?.integer !== undefined && csharpBigIntFitsSourcePrimitive(literal.integer, primitive);
+  const integer = csharpNumericLiteralInteger(literal);
+  return integer !== undefined && csharpBigIntFitsSourcePrimitive(integer, primitive);
 }
 
 export function csharpBigIntFitsSourcePrimitive(

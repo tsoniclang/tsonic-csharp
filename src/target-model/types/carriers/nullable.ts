@@ -36,7 +36,7 @@ export function csharpNullableTargetType(type: TargetTypeRef): TargetTypeRef {
   ) {
     return type;
   }
-  if (type.kind === "type-parameter") return csharpOptionalStorageProjection(type);
+  if (type.kind === "type-parameter" && !isCsharpValueTypeTargetType(type)) return csharpOptionalStorageProjection(type);
   if (isCsharpValueTypeTargetType(type)) {
     return csharpNullableValueTargetType(type);
   }

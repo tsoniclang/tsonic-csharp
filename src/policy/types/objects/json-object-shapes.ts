@@ -3,7 +3,7 @@ import type { CsharpJsonObjectShapeContractResult } from "../../../target-model/
 import { csharpJsonObjectProtocol } from "../../../target-model/records/objects/json-object-shapes.js";
 import { objectShapeStorageMemberName } from "../../../target-model/names/object-members.js";
 import {
-  getCsharpDelegateSignature,
+  getCsharpCallableValueSignature,
 } from "../../../target-model/types/carriers/delegates.js";
 import {
   isCsharpStringTargetType,
@@ -29,7 +29,7 @@ export function selectCsharpJsonObjectShapeContract(
     };
   }
   const member = candidates[0]!;
-  const signature = getCsharpDelegateSignature(member.type);
+  const signature = getCsharpCallableValueSignature(member.type);
   if (signature === undefined) {
     return {
       kind: "rejected",

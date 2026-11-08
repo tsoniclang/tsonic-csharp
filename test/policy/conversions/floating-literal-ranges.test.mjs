@@ -2,12 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { isDeepStrictEqual } from "node:util";
 import {
-  csharpLiteralIsRepresentableAs,
+  csharpScalarLiteralIsRepresentableAs,
   selectCsharpExactLiteralConversion,
 } from "../../../dist/policy/conversions/literals.js";
 import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/index.js";
-import { checkedSourceLiteralValues } from "../../helpers/source-literal-values.mjs";
+import { checkedSourceScalarLiterals } from "../../helpers/source-literal-values.mjs";
 
 const primitive = name => csharpSourcePrimitiveTargetType(name);
 const rows = [
@@ -49,31 +49,31 @@ const halfBoundaryBits = new Map([
 function expectation(name, value, fits) {
   if (!fits) return { kind: "rejected", reason: `Source numeric literal is outside the '${name}' range.` };
   if (name === "float16") {
-    const bits = halfBoundaryBits.get(value.numeric.token.decimalText);
+    const bits = halfBoundaryBits.get(value.value.token.decimalText);
     assert.equal(bits !== undefined, true, "the exact original Half boundary has a native bit-pattern oracle");
-    const [significand, exponent] = Number(value.numeric.token.decimalText).toString().split("e");
+    const [significand, exponent] = value.value.token.decimalText.split("e");
     return { kind: "resolved", recipe: { kind: "float", target: primitive(name), precision: name,
-      bits: bits | (value.numeric.token.negative ? 0x8000 : 0),
-      token: { significand, ...(exponent === undefined ? {} : { exponent }) }, negative: value.numeric.token.negative } };
+      bits: bits | (value.value.token.negative ? 0x8000 : 0),
+      token: { significand, ...(exponent === undefined ? {} : { exponent }) }, negative: value.value.token.negative } };
   }
-  const [significand, exponent] = value.numeric.token.decimalText.split("e");
+  const [significand, exponent] = value.value.token.decimalText.split("e");
   return { kind: "resolved", recipe: { kind: "float", target: primitive(name), precision: name,
-    token: { significand, ...(exponent === undefined ? {} : { exponent }) }, negative: value.numeric.token.negative } };
+    token: { significand, ...(exponent === undefined ? {} : { exponent }) }, negative: value.value.token.negative } };
 }
 
 test("an authored literal is selected at float32, decimal and float16 only inside its measured native range", () => {
   const spellings = rows.flatMap(([, , text]) => [text, `+${text}`, `-${text}`]);
-  const values = checkedSourceLiteralValues(spellings);
+  const values = checkedSourceScalarLiterals(spellings);
   const mismatched = rows.flatMap(([name, label, , fits], row) => [0, 1, 2].flatMap(offset => {
     const value = values[row * 3 + offset];
-    const tag = `${name} ${value.form} ${offset === 2 ? "-" : ""}${label}`;
+    const tag = `${name} ${offset === 2 ? "-" : ""}${label}`;
     const target = primitive(name);
     const nullable = csharpNullableTargetType(target);
     return [
       [`${tag}: selection`, selectCsharpExactLiteralConversion(value, primitive("float64"), target), expectation(name, value, fits)],
       [`${tag}: nullable selection`, selectCsharpExactLiteralConversion(value, primitive("float64"), nullable), expectation(name, value, fits)],
-      [`${tag}: representable`, csharpLiteralIsRepresentableAs(value, target), fits],
-      [`${tag}: nullable representable`, csharpLiteralIsRepresentableAs(value, nullable), fits],
+      [`${tag}: representable`, csharpScalarLiteralIsRepresentableAs(value, target), fits],
+      [`${tag}: nullable representable`, csharpScalarLiteralIsRepresentableAs(value, nullable), fits],
     ].filter(([, actual, expected]) => !isDeepStrictEqual(actual, expected)).map(([entry]) => entry);
   }));
   assert.deepEqual(mismatched, [], "all 25 original boundary rows retain positive, signed and nullable coverage");
@@ -81,19 +81,41 @@ test("an authored literal is selected at float32, decimal and float16 only insid
 
 test("float64 keeps every finite actual value without treating it as an authored narrower literal", () => {
   const float64 = primitive("float64");
-  const datum = value => Object.freeze({ form: "numeric", number: value,
-    numeric: Object.freeze({ kind: "checked-float64", value }) });
+  const datum = value => Object.freeze({ kind: "number", value: Object.freeze({ kind: "checked-float64", value }) });
   const failures = [Number.MAX_VALUE, 1e39, 65520, 2 ** 96, -Number.MAX_VALUE].flatMap(value => [
     [`float64 ${value}: selection`, selectCsharpExactLiteralConversion(datum(value), primitive("float64"), float64), { kind: "source-representation" }],
-    [`float64 ${value}: representable`, csharpLiteralIsRepresentableAs(datum(value), float64), true],
+    [`float64 ${value}: representable`, csharpScalarLiteralIsRepresentableAs(datum(value), float64), true],
   ]).concat([
-    ["float16 without a finite number", selectCsharpExactLiteralConversion(Object.freeze({ form: "numeric" }), primitive("float64"), primitive("float16")),
-      { kind: "rejected", reason: "C# numeric literal conversion requires an exact finite source value." }],
+    ["float16 without a finite number", selectCsharpExactLiteralConversion(undefined, primitive("float64"), primitive("float16")),
+      { kind: "not-applicable" }],
     ...["float32", "decimal"].flatMap(name => [
-      [`${name} without authored evidence`, selectCsharpExactLiteralConversion(Object.freeze({ form: "numeric" }), primitive("float64"), primitive(name)),
+      [`${name} without authored evidence`, selectCsharpExactLiteralConversion(undefined, primitive("float64"), primitive(name)),
         { kind: "not-applicable" }],
-      [`${name} actual double is not an authored literal`, csharpLiteralIsRepresentableAs(datum(0.1), primitive(name)), false],
+      [`${name} actual double is not an authored literal`, csharpScalarLiteralIsRepresentableAs(datum(0.1), primitive(name)), false],
     ]),
   ]).filter(([, actual, expected]) => !isDeepStrictEqual(actual, expected)).map(([label]) => label);
   assert.deepEqual(failures, [], "literal admission never fabricates an authored token from an actual value");
+});
+
+test("Half creation and conversion respect the actual Native producer precision at a binary midpoint", () => {
+  const values = checkedSourceScalarLiterals([
+    "1.000488281249999999999999999999999999999999999999999999999999",
+    "1.00048828125",
+    "1.000488281250000000000000000000000000000000000000000000000001",
+    "65519.999999999999999999999999999999999999999999",
+  ]);
+  for (const [index, bits] of [[0, 0x3c00], [1, 0x3c00], [2, 0x3c01], [3, 0x7bff]]) {
+    const selected = selectCsharpExactLiteralConversion(values[index], primitive("float16"), primitive("float16"));
+    assert.equal(selected.kind, "resolved", "exact Native Half range and ties-to-even admission");
+    assert.equal(selected.recipe.bits, bits, "no intermediate double rounding may change the chosen Native bits");
+  }
+  for (const index of [0, 1, 2]) {
+    const selected = selectCsharpExactLiteralConversion(values[index], primitive("float64"), primitive("float16"));
+    assert.equal(selected.kind === "resolved" && selected.recipe.bits === 0x3c00, true,
+      "an already produced Double is rounded to Half, not re-created from the exact authored rational");
+    assert.equal(selected.recipe.token.significand, "1.00048828125");
+  }
+  assert.deepEqual(selectCsharpExactLiteralConversion(values[3], primitive("float64"), primitive("float16")),
+    { kind: "rejected", reason: "Source numeric literal is outside the 'float16' range." },
+    "an authored value below the Half threshold may already have rounded to the Double overflow threshold");
 });

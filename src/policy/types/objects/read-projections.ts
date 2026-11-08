@@ -1,33 +1,29 @@
 import { selectCsharpFlowReadConversion } from "../../conversions/expression.js";
+import { admitCsharpSourceConversion } from "../../conversions/source-admission.js";
 import type { CsharpFlowReadProjection, CsharpValueRefinementClassification } from "../../../target-model/records/program/source-evidence.js";
-import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
+import type { CsharpRepresentationOutcome, CsharpRepresentationView } from "../../../target-model/types/representation.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
+import { nativeRepresentationFailure, represented } from "../source-type-flow/representation-results.js";
 
 export function selectCsharpFlowReadProjection(
   policy: Parameters<typeof selectCsharpFlowReadConversion>[0],
-  storageType: TargetTypeRef | undefined,
-  selectedType: TargetTypeRef | undefined,
-  refinement: CsharpValueRefinementClassification | undefined,
+  representation: CsharpRepresentationView,
+  refinement: CsharpValueRefinementClassification,
   deferredConstructorField: boolean,
   selectedThrowable: boolean,
-): CsharpFlowReadProjection {
-  if (storageType === undefined) return { kind: "identity" };
-  if (storageType.kind === "type-parameter" && selectedType !== undefined &&
-      targetTypeRefEquals(storageType, selectedType) && deferredConstructorField) return { kind: "non-null" };
-  if (refinement === undefined) return { kind: "rejected",
-    reason: "C# analysis received a source value without finalized refinement evidence." };
-  if (refinement.kind !== "resolved") {
-    if (selectedType === undefined || targetTypeRefEquals(storageType, selectedType)) return { kind: "identity" };
-    return { kind: "rejected", reason: "A target storage-read projection requires its exact Source publication." };
-  }
-  if (refinement.exact && (refinement.flowReadTargetType === undefined ||
-      targetTypeRefEquals(storageType, refinement.flowReadTargetType))) return { kind: "identity" };
-  if (storageType.kind === "target-named" &&
-      (storageType as CsharpTargetNamedTypeRef).csharpFlowRefinementRepresentation === "identity") return { kind: "identity" };
-  const target = refinement.flowReadTargetType;
-  if (target === undefined) return { kind: "rejected",
-    reason: "The exact checked source value refinement has no closed C# representation." };
-  if (targetTypeRefEquals(storageType, target)) return { kind: "identity" };
-  const selection = selectCsharpFlowReadConversion(policy, storageType, target, selectedThrowable);
-  return selection.kind === "rejected" ? selection : { kind: "conversion", source: storageType, target, selection };
+): CsharpRepresentationOutcome<Exclude<CsharpFlowReadProjection, { readonly kind: "rejected" }>> {
+  if (refinement.kind !== "represented") return refinement;
+  const { occurrence, selected, storage } = refinement.value;
+  representation.source.assertEvidence(selected.evidence);
+  if (storage.kind === "none") return represented(Object.freeze({ kind: "identity" }));
+  representation.source.assertEvidence(storage.value.evidence);
+  const source = storage.value.carrier;
+  const target = selected.carrier;
+  if (targetTypeRefEquals(source, target)) return represented(Object.freeze({ kind:
+    source.kind === "type-parameter" && deferredConstructorField ? "non-null" : "identity" }));
+  const relation = selectCsharpFlowReadConversion(policy, source, target, selectedThrowable);
+  if (relation.kind === "rejected") return nativeRepresentationFailure(occurrence, "CSHARP_NATIVE_READ_PROJECTION_UNSUPPORTED", relation.reason);
+  const admitted = admitCsharpSourceConversion({ representation, relation, source: storage.value, destination: selected, site: occurrence });
+  return admitted.kind !== "represented" ? admitted
+    : represented(Object.freeze({ kind: "conversion", source, target, selection: admitted.value }));
 }

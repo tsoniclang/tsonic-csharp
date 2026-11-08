@@ -17,3 +17,5 @@ export * from "./object-shape-identity.js";
 export * from "./object-shape-equality.js";
 export * from "./object-shape-projection.js";
 export * from "./source-member-keys.js";
+export * from "./representation.js";
+export * from "./native-obligations.js";

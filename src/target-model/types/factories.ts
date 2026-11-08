@@ -21,7 +21,6 @@ export function csharpTargetNamedType(
     readonly expressionTreeDelegateType?: TargetTypeRef;
     readonly generatorProtocol?: CsharpTargetNamedTypeRef["csharpGeneratorProtocol"];
     readonly iteratorResultProtocol?: CsharpTargetNamedTypeRef["csharpIteratorResultProtocol"];
-    readonly flowRefinementRepresentation?: CsharpTargetNamedTypeRef["csharpFlowRefinementRepresentation"];
     readonly specialType?: CsharpTargetNamedTypeRef["csharpSpecialType"];
     readonly sourceDeclarationKind?: CsharpTargetNamedTypeRef["csharpSourceDeclarationKind"];
     readonly baseType?: TargetTypeRef;
@@ -38,6 +37,9 @@ export function csharpTargetNamedType(
     readonly jsStringCarrier?: true;
   },
 ): CsharpTargetNamedTypeRef {
+  if (typeof metadata === "object" && metadata !== null && "flowRefinementRepresentation" in metadata) {
+    throw new TypeError("A Native read projection requires exact storage and selected carrier evidence, not a carrier-wide refinement override.");
+  }
   if (typeof metadata === "object" && metadata !== null && metadata.constraintRequiresReferenceType !== undefined &&
     (metadata.constraintRequiresReferenceType !== true || metadata.valueType === true || metadata.byRefLike === true ||
       metadata.sourceDeclarationKind !== undefined && metadata.sourceDeclarationKind !== "class")) {
@@ -75,9 +77,6 @@ export function csharpTargetNamedType(
     ...(metadata.expressionTreeDelegateType !== undefined ? { csharpExpressionTreeDelegateType: metadata.expressionTreeDelegateType } : {}),
     ...(metadata.generatorProtocol !== undefined ? { csharpGeneratorProtocol: metadata.generatorProtocol } : {}),
     ...(metadata.iteratorResultProtocol !== undefined ? { csharpIteratorResultProtocol: metadata.iteratorResultProtocol } : {}),
-    ...(metadata.flowRefinementRepresentation !== undefined
-      ? { csharpFlowRefinementRepresentation: metadata.flowRefinementRepresentation }
-      : {}),
     ...(metadata.specialType !== undefined ? { csharpSpecialType: metadata.specialType } : {}),
     ...(metadata.sourceDeclarationKind !== undefined ? { csharpSourceDeclarationKind: metadata.sourceDeclarationKind } : {}),
     ...(metadata.baseType !== undefined ? { csharpBaseType: metadata.baseType } : {}),

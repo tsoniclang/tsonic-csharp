@@ -1,4 +1,7 @@
-import type { CsharpTargetTypeRenderShape, TargetTypeRef } from "../../../target-model/types/index.js";
+import type { CsharpTargetNamedTypeRef, CsharpTargetTypeRenderShape, TargetTypeRef } from "../../../target-model/types/index.js";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
+import { csharpTargetTypeComponents } from "../../../target-model/types/components.js";
+import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { csharpRenderShapeForTargetNamedType, csharpSourcePrimitiveCsharpRender, isCsharpNeverTargetType, isCsharpNullableReferenceTargetType } from "../../../target-model/types/index.js";
 import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
 import { tryCsharpIdentifier } from "../../../target-model/names/identifiers.js";
@@ -26,12 +29,17 @@ type TargetNamedTypeRef = Extract<TargetTypeRef, { readonly kind: "target-named"
 type NamedRenderShape = Extract<CsharpTargetTypeRenderShape, { readonly kind: "named" }>;
 
 export function csharpTargetTypeRenderingRejection(type: TargetTypeRef): CsharpTargetTypeRenderingRejection | undefined {
+  assertNativeArrayRoles(type);
+  return renderingRejection(type);
+}
+
+function renderingRejection(type: TargetTypeRef): CsharpTargetTypeRenderingRejection | undefined {
   if (isCsharpNeverTargetType(type)) {
     return undefined;
   }
   const method = getCsharpMethodValue(type);
   if (method !== undefined) {
-    return csharpTargetTypeRenderingRejection(method.owner);
+    return renderingRejection(method.owner);
   }
   switch (type.kind) {
     case "source-primitive":
@@ -43,14 +51,14 @@ export function csharpTargetTypeRenderingRejection(type: TargetTypeRef): CsharpT
         ? { reason: "type-parameter-name", subject: type, name: type.name }
         : undefined;
     case "array":
-      return csharpTargetTypeRenderingRejection(type.element);
+      return renderingRejection(type.element);
     case "tuple":
       return firstRejection(type.elements);
     case "pointer":
-      return csharpTargetTypeRenderingRejection(type.pointee);
+      return renderingRejection(type.pointee);
     case "function-pointer":
       return firstRejection(type.args) ??
-        csharpTargetTypeRenderingRejection(type.result) ??
+        renderingRejection(type.result) ??
         (csharpFunctionPointerCallingConvention(type.abi) === undefined
           ? { reason: "function-pointer-abi", subject: type }
           : undefined);
@@ -95,7 +103,28 @@ export function csharpTargetTypeRendersAsUnqualifiedIdentifier(type: TargetTypeR
 }
 
 function firstRejection(types: readonly TargetTypeRef[]): CsharpTargetTypeRenderingRejection | undefined {
-  return types.map(csharpTargetTypeRenderingRejection).find(rejection => rejection !== undefined);
+  return types.map(renderingRejection).find(rejection => rejection !== undefined);
+}
+
+function assertNativeArrayRoles(root: TargetTypeRef): void {
+  const pending = [root];
+  const visited = new Set<TargetTypeRef>();
+  while (pending.length !== 0) {
+    const type = pending.pop()!;
+    if (visited.has(type)) continue;
+    visited.add(type);
+    if (type.kind === "target-named" && type.id === "Tsonic.CSharp.Js.JSArray`1") {
+      const physical = type.typeArguments?.length === 1 ? type.typeArguments[0] : undefined;
+      const native = type as CsharpTargetNamedTypeRef;
+      const roles = [native.csharpArrayLiteralElementType, native.csharpArrayLikeElementType,
+        native.csharpEnumerableElementType, native.csharpReadOnlyIndexableElementType,
+        native.csharpDenseMutableElementType, native.csharpImplicitArrayInputElementType];
+      if (physical === undefined || roles.some(role => role !== undefined && !targetTypeRefEquals(role, physical))) {
+        failTargetAnalysisInvariant("tsonic-csharp", "JSArray metadata roles must match its physical generic element.");
+      }
+    }
+    pending.push(...csharpTargetTypeComponents(type));
+  }
 }
 
 function namedTypeRejection(type: TargetNamedTypeRef): CsharpTargetTypeRenderingRejection | undefined {

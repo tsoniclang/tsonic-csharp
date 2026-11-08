@@ -1,8 +1,8 @@
 import type { CsharpTargetNamedTypeRef, CsharpTypeofRuntimeKind, TargetTypeRef } from "./model.js";
 import { getCsharpNullableElementTargetType } from "./carriers/nullable.js";
 import { getCsharpRuntimeUnionArms, isCsharpAbsenceTargetType } from "./carriers/runtime-carriers.js";
-import { getCsharpDelegateSignature } from "./carriers/delegates.js";
-import type { CsharpTypeDefinitions } from "./source-union-definitions.js";
+import { getCsharpCallableMembers } from "./carriers/delegates.js";
+import type { CsharpTypeDefinitions } from "./native-definitions.js";
 
 import { targetTypeRefEquals } from "./equality.js";
 
@@ -36,7 +36,7 @@ export function getCsharpTypeofResult(
     const value = getCsharpTypeofResult(optional, nested, definitions);
     return value === undefined ? undefined : { kind: "optional", sourceCarrier: type, element: optional, value };
   }
-  const arms = getCsharpRuntimeUnionArms(type, definitions)?.map(carrier => {
+  const arms = getCsharpRuntimeUnionArms(type)?.map(carrier => {
     const result = getCsharpTypeofResult(carrier, nested, definitions);
     return result === undefined ? undefined : { carrier, result };
   });
@@ -50,7 +50,7 @@ export function getCsharpTypeofRuntimeKind(
 ): CsharpTypeofRuntimeKind | undefined {
   if (isCsharpAbsenceTargetType(type)) return "object";
   if (type === undefined || getCsharpNullableElementTargetType(type) !== undefined) return undefined;
-  if (type.kind === "function-pointer" || getCsharpDelegateSignature(type) !== undefined) return "function";
+  if (type.kind === "function-pointer" || getCsharpCallableMembers(type) !== undefined) return "function";
   if (type.kind === "array") return "object";
   if (type.kind === "target-named") {
     const named = type as CsharpTargetNamedTypeRef;

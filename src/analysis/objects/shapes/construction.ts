@@ -1,85 +1,68 @@
-import { canonicalCsharpObjectShapeImplementedTypes, canonicalCsharpObjectShapeMembers, csharpObjectShapeMemberContractKey } from "../../../target-model/types/object-shape-identity.js";
-
-import { csharpEmptyObjectTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
-
-import { targetTypeRefKey } from "../../../target-model/types/equality.js";
-import type { CsharpTypeParameterEnvironment } from "../../../target-model/records/types/type-parameter-constraints.js";
-import { csharpObjectShapeTypeParameters, closeCsharpOwnerTypeParameterEnvironment } from "../../source-evidence/types/resolution/owner-type-parameter-environment.js";
+import type { SourceMemberOrigin } from "@tsonic/target-api/source";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../target-model/types/model.js";
-
+import { canonicalCsharpObjectShapeMembers, canonicalCsharpObjectShapeImplementedTypes, csharpObjectShapeMemberContractKey } from "../../../target-model/types/object-shape-identity.js";
+import { csharpEmptyObjectTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
+import { targetTypeRefKey } from "../../../target-model/types/equality.js";
+import { visitCsharpTargetTypeParameters } from "../../../target-model/types/generic-references.js";
 import { selectCsharpStructuralObjectCarrier } from "../../../policy/types/objects/shape-carriers.js";
-import { sourceTypeDescriptorMemberOriginsEqual } from "@tsonic/target-api/source";
+import { sourceMemberOriginsEqual } from "./member-origins.js";
+import { csharpTypeParameterConstraintResolutionKey } from "../../../target-model/types/generic-constraints.js";
+import { csharpNativeCallableMemberComponents } from "../../../target-model/types/components.js";
+
 export function createStructuralObjectShapeTarget(
   members: readonly CsharpObjectShapeMemberFact[],
   implemented: readonly TargetTypeRef[] | undefined,
-  environment: CsharpTypeParameterEnvironment,
   contract = false,
   implementation?: CsharpObjectShapeFact["methodImplementation"],
 ): TargetTypeRef {
-  if (members.length === 0 && (implemented?.length ?? 0) === 0) {
-    return csharpEmptyObjectTargetType();
-  }
+  if (members.length === 0 && (implemented?.length ?? 0) === 0) return csharpEmptyObjectTargetType();
   const canonicalMembers = canonicalCsharpObjectShapeMembers(members);
-  const canonicalImplemented = canonicalCsharpObjectShapeImplementedTypes(
-    (implemented ?? []).filter(type => !members.some(member => member.methodValueContract !== undefined &&
-      targetTypeRefKey(member.methodValueContract) === targetTypeRefKey(type))),
-  );
-  const typeParameters = closeCsharpOwnerTypeParameterEnvironment(csharpObjectShapeTypeParameters(
-    canonicalMembers, canonicalImplemented, implementation,
-  ), environment);
-  return selectCsharpStructuralObjectCarrier(canonicalMembers, canonicalImplemented, typeParameters, contract, implementation);
+  const canonicalImplemented = canonicalCsharpObjectShapeImplementedTypes(implemented ?? []);
+  const parameters = new Map<string, Extract<TargetTypeRef, { readonly kind: "type-parameter" }>>();
+  const retain = (type: TargetTypeRef, bound: ReadonlySet<string>): void => {
+    visitCsharpTargetTypeParameters(type, parameter => {
+      if (bound.has(parameter.identity)) return;
+      const previous = parameters.get(parameter.identity);
+      if (previous !== undefined && targetTypeRefKey(previous) !== targetTypeRefKey(parameter)) throw new TypeError("A physical shape parameter has contradictory Native identities.");
+      if (previous?.csharpConstraints?.kind === "resolved" && parameter.csharpConstraints?.kind === "resolved" &&
+        csharpTypeParameterConstraintResolutionKey(previous.csharpConstraints) !== csharpTypeParameterConstraintResolutionKey(parameter.csharpConstraints)) {
+        throw new TypeError("A physical shape parameter has contradictory completed Native constraints.");
+      }
+      if (previous?.csharpConstraints?.kind !== "resolved") parameters.set(parameter.identity, parameter);
+    });
+  };
+  for (const member of canonicalMembers) {
+    retain(member.type, new Set());
+    if (member.methodValueStorage !== undefined) retain(member.methodValueStorage.type, new Set());
+    if (member.memberKind === "method") for (const method of member.methods) {
+      for (const signature of [method.member, method.value]) {
+        const bound = new Set(signature.typeParameters.map(parameter => parameter.identity));
+        for (const type of csharpNativeCallableMemberComponents(signature)) retain(type, bound);
+      }
+    }
+  }
+  for (const type of canonicalImplemented) retain(type, new Set());
+  for (const capture of implementation?.captures ?? []) retain(capture.type, new Set());
+  if ([...parameters.values()].some(parameter => parameter.csharpConstraints?.kind !== "resolved")) {
+    throw new TypeError("A physical shape requires the completed Native constraint definition for each free parameter, not a bare recursive reference.");
+  }
+  return selectCsharpStructuralObjectCarrier(canonicalMembers, canonicalImplemented,
+    Object.freeze([...parameters.values()]), contract, implementation);
 }
 
-export function mergeCsharpObjectShapeSubjects(
-  left: CsharpObjectShapeFact,
-  right: CsharpObjectShapeFact,
-): CsharpObjectShapeFact {
-  const rightMembers = new Map(
-    right.members.map((member) => [
-      csharpObjectShapeMemberContractKey(member),
-      member,
-    ]),
-  );
-  return {
-    ...left,
-    ...(left.sourceType === undefined && right.sourceType !== undefined ? { sourceType: right.sourceType } : {}),
-    ...(right.declarationTemplate === undefined ? {} : {
-      declarationTemplate: left.declarationTemplate === undefined ? right.declarationTemplate
-        : mergeCsharpObjectShapeSubjects(left.declarationTemplate, right.declarationTemplate),
-    }),
-    members: left.members.map((member) => {
-      const other = rightMembers.get(
-        csharpObjectShapeMemberContractKey(member),
-      )!;
-      const subjects = new Set([
-        ...(member.sourceSubjects ?? []),
-        ...(other.sourceSubjects ?? []),
-        ...(member.sourceDeclarations ?? []),
-        ...(other.sourceDeclarations ?? []),
-      ]);
-      const declarations = member.sourceDeclarations;
-      const otherDeclarations = other.sourceDeclarations;
-      const currentDeclarations = declarations === undefined ? otherDeclarations
-        : otherDeclarations === undefined || declarations.length === otherDeclarations.length &&
-          declarations.every(declaration => otherDeclarations.includes(declaration)) ? declarations : [];
-      const sourceTypes = new Set([
-        ...(member.sourceTypes ?? []),
-        ...(other.sourceTypes ?? []),
-      ]);
-      const origins = [...(member.origins ?? []), ...(other.origins ?? [])].filter((origin, index, alternatives) =>
-        alternatives.findIndex(candidate => sourceTypeDescriptorMemberOriginsEqual(candidate, origin)) === index);
-      const { sourceDeclarations: _sourceDeclarations, ...physicalMember } = member;
-      return {
-        ...physicalMember,
-        ...(currentDeclarations === undefined ? {} : { sourceDeclarations: Object.freeze([...currentDeclarations]) }),
-        ...(origins.length === 0 ? {} : { origins: Object.freeze(origins) }),
-        ...(subjects.size === 0
-          ? {}
-          : { sourceSubjects: Object.freeze([...subjects]) }),
-        ...(sourceTypes.size === 0
-          ? {}
-          : { sourceTypes: Object.freeze([...sourceTypes]) }),
-      };
-    }),
-  };
+export function mergeCsharpObjectShapeSubjects(left: CsharpObjectShapeFact, right: CsharpObjectShapeFact): CsharpObjectShapeFact {
+  const members = new Map(right.members.map(member => [csharpObjectShapeMemberContractKey(member), member]));
+  return Object.freeze({ ...left,
+    ...(right.declarationTemplate === undefined ? {} : { declarationTemplate: left.declarationTemplate === undefined
+      ? right.declarationTemplate : mergeCsharpObjectShapeSubjects(left.declarationTemplate, right.declarationTemplate) }),
+    members: Object.freeze(left.members.map(member => {
+      const other = members.get(csharpObjectShapeMemberContractKey(member));
+      if (other === undefined) throw new TypeError("Only identical complete physical member inventories can share a shape.");
+      const origins: SourceMemberOrigin[] = [...member.origins ?? []];
+      for (const origin of other.origins ?? []) if (!origins.some(previous => sourceMemberOriginsEqual(previous, origin))) origins.push(origin);
+      return Object.freeze({ ...member,
+        origins: Object.freeze(origins),
+        sourceDeclarations: Object.freeze([...new Set([...member.sourceDeclarations ?? [], ...other.sourceDeclarations ?? []])]),
+        sourceSubjects: Object.freeze([...new Set([...member.sourceSubjects ?? [], ...other.sourceSubjects ?? []])]) });
+    })) });
 }

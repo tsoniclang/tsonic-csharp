@@ -36,22 +36,24 @@ export function csharpJsArrayTargetType(
 export function csharpJsMapTargetType(
   keyType: TargetTypeRef,
   valueType: TargetTypeRef,
+  keyContract: TargetTypeRef,
 ): CsharpTargetNamedTypeRef {
   const entryType: TargetTypeRef = {
     kind: "tuple",
     elements: [keyType, valueType],
   };
   return {
-    ...csharpTargetNamedType("Tsonic.CSharp.Js.Map`2", [keyType, valueType], csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "Map"), { allowsRefLikeTypeArguments: [false, false], enumerableElementType: entryType, typeofRuntimeKind: "object" }),
+    ...csharpTargetNamedType("Tsonic.CSharp.Js.Map`3", [keyType, valueType, keyContract], csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "Map"), { allowsRefLikeTypeArguments: [false, false, false], enumerableElementType: entryType, typeofRuntimeKind: "object" }),
     csharpJsSurfaceKind: "map",
   };
 }
 
 export function csharpJsSetTargetType(
   elementType: TargetTypeRef,
+  keyContract: TargetTypeRef,
 ): CsharpTargetNamedTypeRef {
   return {
-    ...csharpTargetNamedType("Tsonic.CSharp.Js.Set`1", [elementType], csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "Set"), { allowsRefLikeTypeArguments: [false], enumerableElementType: elementType, typeofRuntimeKind: "object" }),
+    ...csharpTargetNamedType("Tsonic.CSharp.Js.Set`2", [elementType, keyContract], csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "Set"), { allowsRefLikeTypeArguments: [false, false], enumerableElementType: elementType, typeofRuntimeKind: "object" }),
     csharpJsSurfaceKind: "set",
   };
 }
@@ -221,7 +223,7 @@ export function getCsharpJsMapTargetTypes(
   if (
     type?.kind !== "target-named" ||
     (type as CsharpTargetNamedTypeRef).csharpJsSurfaceKind !== "map" ||
-    type.typeArguments?.length !== 2
+    type.typeArguments?.length !== 3
   ) {
     return undefined;
   }
@@ -236,7 +238,7 @@ export function getCsharpJsSetElementTargetType(
 ): TargetTypeRef | undefined {
   return type?.kind === "target-named" &&
       (type as CsharpTargetNamedTypeRef).csharpJsSurfaceKind === "set" &&
-      type.typeArguments?.length === 1
+      type.typeArguments?.length === 2
     ? type.typeArguments[0]
     : undefined;
 }

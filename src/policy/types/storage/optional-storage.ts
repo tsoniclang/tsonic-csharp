@@ -1,23 +1,33 @@
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import type { CsharpOptionalTypeProjection } from "../../../target-model/types/projections.js";
-import { csharpProjectedType } from "../../../target-model/types/projections.js";
+import type { CsharpOptionalTypeProjection, CsharpOptionalStorageLayout } from "../../../target-model/types/projections.js";
+import { csharpOptionalProjectedType } from "../../../target-model/types/projections.js";
 import { csharpTargetNamedType } from "../../../target-model/types/factories.js";
 import { csharpQualifiedTypeRenderShape } from "../../../target-model/types/render-shapes.js";
 import { isCsharpValueTypeTargetType } from "../../../target-model/types/identity.js";
-import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
+import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { csharpConstraintsRequireReference } from "../../../target-model/types/generic-constraints.js";
-import { combineCsharpTargetUnionMembers, csharpAbsenceTargetType, isCsharpAbsenceTargetType, isCsharpJsValueTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
+import { isCsharpAbsenceTargetType, isCsharpJsValueTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 
 export function resolveCsharpOptionalStorage(
   contract: CsharpOptionalTypeProjection,
   element: TargetTypeRef,
-): TargetTypeRef | undefined {
-  if (element.kind === "type-parameter" && !(element.csharpConstraints?.kind === "resolved" &&
+): TargetTypeRef {
+  if (element.kind === "type-parameter" && !isCsharpValueTypeTargetType(element) && !(element.csharpConstraints?.kind === "resolved" &&
     csharpConstraintsRequireReference(element.csharpConstraints.constraints))) {
-    return csharpProjectedType({ ...contract, arguments: [element] });
+    return csharpOptionalProjectedType({ ...contract, arguments: [element] });
   }
-  const storage = combineCsharpTargetUnionMembers([element, csharpAbsenceTargetType()]);
-  if (storage === undefined || contract.part === "storage") return storage;
+  const storage = csharpNullableTargetType(element);
+  if (contract.part === "storage") return storage;
+  const selected = selectCsharpOptionalStorageOperation(element);
+  const arity = selected.arguments.length === 0 ? "" : "`" + selected.arguments.length;
+  return csharpTargetNamedType(`Tsonic.CSharp.Runtime.${selected.name}${arity}`, selected.arguments,
+    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", selected.name),
+    { allowsRefLikeTypeArguments: selected.arguments.map(() => false), valueType: true });
+}
+
+export function selectCsharpOptionalStorageOperation(element: TargetTypeRef): {
+  readonly name: string; readonly arguments: readonly TargetTypeRef[];
+} {
   let name: string;
   let arguments_: readonly TargetTypeRef[];
   if (isCsharpAbsenceTargetType(element)) {
@@ -34,6 +44,13 @@ export function resolveCsharpOptionalStorage(
       : "ReferenceOptionalStorage";
     arguments_ = [nullable !== undefined && valueType ? nullable : element];
   }
-  const arity = arguments_.length === 0 ? "" : "`" + arguments_.length;
-  return csharpTargetNamedType(`Tsonic.CSharp.Runtime.${name}${arity}`, arguments_, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", name), { allowsRefLikeTypeArguments: arguments_.map(() => false), valueType: true });
+  return Object.freeze({ name, arguments: Object.freeze(arguments_) });
+}
+
+export function selectCsharpOptionalStorage(payload: TargetTypeRef): CsharpOptionalStorageLayout {
+  const carrier = resolveCsharpOptionalStorage({ kind: "optional", part: "storage", arguments: [payload] }, payload);
+  const operations = resolveCsharpOptionalStorage({ kind: "optional", part: "operations", arguments: [payload] }, payload);
+  const requirements = [carrier, operations].flatMap(type => type.kind === "type-parameter" && type.csharpConstraints?.kind === "resolved"
+    ? [Object.freeze({ ...type, csharpConstraints: type.csharpConstraints })] : []);
+  return Object.freeze({ payload, carrier, operations, requirements: Object.freeze(requirements) });
 }

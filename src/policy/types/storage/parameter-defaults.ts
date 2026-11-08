@@ -3,11 +3,11 @@ import { isCsharpVoidTargetType } from "../../../target-model/types/identity.js"
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { isCsharpJsValueTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
-import { csharpTypeProjection, getCsharpGenericOptionalParts } from "../../../target-model/types/projections.js";
+import { getCsharpOptionalProjection, getCsharpGenericOptionalParts } from "../../../target-model/types/projections.js";
 
 import type { CsharpRuntimeParameterDefault } from "../../../target-model/types/parameter-defaults.js";
 export function csharpRuntimeParameterDefault(type: TargetTypeRef, incomingType?: TargetTypeRef): CsharpRuntimeParameterDefault | undefined {
-  if (type.kind === "type-parameter" && csharpTypeProjection(type) === undefined && type.csharpConstraints?.kind !== "resolved") return undefined;
+  if (type.kind === "type-parameter" && getCsharpOptionalProjection(type) === undefined && type.csharpConstraints?.kind !== "resolved") return undefined;
   if (getCsharpNullableElementTargetType(type) !== undefined) {
     return incomingType === undefined || targetTypeRefEquals(type, incomingType)
       ? nativeDefault(type, type) : undefined;

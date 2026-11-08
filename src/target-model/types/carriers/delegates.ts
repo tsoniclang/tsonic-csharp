@@ -1,8 +1,8 @@
 import type { TargetTypeRef } from "../model.js";
-import type { CsharpDelegateSignatureShape, CsharpDelegateTargetTypeRef, CsharpTaskTargetTypeRef, CsharpTargetNamedTypeRef } from "../model.js";
+import type { CsharpDelegateSignatureShape, CsharpDelegateTargetTypeRef, CsharpNativeCallableMember, CsharpTaskTargetTypeRef, CsharpTargetNamedTypeRef } from "../model.js";
 import { isCsharpVoidTargetType } from "../identity.js";
 
-import { targetTypeRefEquals } from "../equality.js";
+import { scopedTargetTypeRefKey, targetTypeRefEquals } from "../equality.js";
 import { csharpQualifiedTypeRenderShape } from "../render-shapes.js";
 import { csharpVoidTargetType } from "./scalar-types.js";
 import { csharpTargetNamedType } from "../factories.js";
@@ -31,6 +31,7 @@ export function csharpDelegateTargetType(
   return {
     ...targetType,
     csharpDelegateSignature: {
+      kind: "call",
       parameters,
       parameterPassingModes: Object.freeze(parameters.map(() => "by-value" as const)),
       returnType: returnType ?? csharpVoidTargetType(),
@@ -74,12 +75,43 @@ export function getCsharpDelegateSignature(type: TargetTypeRef | undefined): Csh
 }
 
 export function getCsharpCallableValueSignature(type: TargetTypeRef | undefined): CsharpDelegateSignatureShape | undefined {
+  const members = getCsharpCallableMembers(type);
+  return members?.length === 1 ? members[0]!.signature : undefined;
+}
+
+export function getCsharpCallableMembers(type: TargetTypeRef | undefined): readonly CsharpNativeCallableMember[] | undefined {
   const contract = type?.kind === "target-named" ? (type as CsharpTargetNamedTypeRef).csharpMethodValue?.contract : undefined;
-  return getCsharpDelegateSignature(contract ?? type);
+  const physical = contract ?? type;
+  if (physical?.kind !== "target-named") return undefined;
+  const native = physical as CsharpTargetNamedTypeRef;
+  if (native.csharpCallableMembers !== undefined && native.csharpDelegateSignature !== undefined) {
+    throw new TypeError("A Native callable has either a delegate Invoke ABI or a complete member ABI, never both.");
+  }
+  return native.csharpCallableMembers ?? (native.csharpDelegateSignature === undefined ? undefined
+    : Object.freeze([Object.freeze({ name: "Invoke", typeParameters: Object.freeze([]), signature: native.csharpDelegateSignature })]));
 }
 
 export function getCsharpExpressionTreeDelegateType(type: TargetTypeRef | undefined): TargetTypeRef | undefined {
   return type?.kind === "target-named" ? (type as CsharpTargetNamedTypeRef).csharpExpressionTreeDelegateType : undefined;
+}
+
+export function csharpNativeCallableMemberKey(member: CsharpNativeCallableMember,
+  enclosingParameters: ReadonlyMap<string, number> = new Map()): string {
+  const bound = new Map(enclosingParameters);
+  for (const [index, parameter] of member.typeParameters.entries()) bound.set(parameter.identity, enclosingParameters.size + index);
+  const key = (type: TargetTypeRef): string => scopedTargetTypeRefKey(type, bound);
+  const signature = member.signature;
+  return JSON.stringify([member.name,
+    member.typeParameters.map(parameter => parameter.constraints.map(constraint => constraint.kind === "type"
+      ? [constraint.kind, key(constraint.type)] : constraint.kind === "keyword" ? [constraint.kind, constraint.keyword] : [constraint.kind])),
+    signature.kind, signature.receiver === undefined ? null : [key(signature.receiver.type), signature.receiver.passingMode],
+    signature.parameters.map(key), signature.parameterPassingModes, key(signature.returnType), signature.returnPassing ?? null,
+    signature.optionalParameterIndexes ?? [], signature.restParameterIndex ?? null,
+  ]);
+}
+
+export function csharpNativeCallableMembersEqual(left: readonly CsharpNativeCallableMember[], right: readonly CsharpNativeCallableMember[]): boolean {
+  return left.length === right.length && left.every((member, index) => csharpNativeCallableMemberKey(member) === csharpNativeCallableMemberKey(right[index]!));
 }
 
 export function getCsharpLambdaSignature(type: TargetTypeRef | undefined): CsharpDelegateSignatureShape | undefined {
@@ -87,7 +119,9 @@ export function getCsharpLambdaSignature(type: TargetTypeRef | undefined): Cshar
 }
 
 export function csharpDelegateSignatureHasSupportedPassingModes(signature: CsharpDelegateSignatureShape): boolean {
-  if (!Array.isArray(signature.parameters) || !Array.isArray(signature.parameterPassingModes) ||
+  if ((signature.kind !== "call" && signature.kind !== "construct") ||
+    signature.receiver !== undefined && !["by-value", "byref-readonly", "byref-readwrite", "byref-writeonly-must-init"].includes(signature.receiver.passingMode) ||
+    !Array.isArray(signature.parameters) || !Array.isArray(signature.parameterPassingModes) ||
     signature.parameterPassingModes.length !== signature.parameters.length ||
     signature.returnPassing !== undefined && signature.returnPassing !== "byref-readwrite" &&
       signature.returnPassing !== "byref-readonly") return false;
@@ -105,6 +139,9 @@ export function csharpDelegateSignaturesMatchNativeBinding(
 ): boolean {
   return csharpDelegateSignatureHasSupportedPassingModes(source) &&
     csharpDelegateSignatureHasSupportedPassingModes(target) &&
+    source.kind === target.kind &&
+    (source.receiver === undefined ? target.receiver === undefined : target.receiver !== undefined &&
+      source.receiver.passingMode === target.receiver.passingMode && targetTypeRefEquals(source.receiver.type, target.receiver.type)) &&
     source.parameters.length === target.parameters.length &&
     source.returnPassing === target.returnPassing &&
     source.parameters.every((parameter, index) => targetTypeRefEquals(parameter, target.parameters[index]!) &&
@@ -115,7 +152,7 @@ export function csharpDelegateSignaturesMatchNativeBinding(
 export function isCsharpSourceDelegateTargetType(type: TargetTypeRef | undefined): boolean {
   const value = getCsharpNullableElementTargetType(type) ?? type;
   const signature = getCsharpDelegateSignature(value);
-  if (value === undefined || signature === undefined || signature.returnPassing !== undefined ||
+  if (value === undefined || signature === undefined || signature.kind !== "call" || signature.receiver !== undefined || signature.returnPassing !== undefined ||
     !csharpDelegateSignatureHasSupportedPassingModes(signature) ||
     signature.parameterPassingModes.some(mode => mode !== "by-value")) return false;
   return targetTypeRefEquals(value, csharpDelegateTargetType(

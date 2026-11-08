@@ -1,5 +1,7 @@
-import type { CsharpPolicyContext } from "../model/context.js";
+import type { CsharpObjectShapeFact, TargetTypeRef } from "../../target-model/types/model.js";
 
 export interface CsharpConversionShapeQueries {
-  readonly objectShapes?: Pick<CsharpPolicyContext["objectShapes"], "resolveNode" | "resolveTarget">;
+  readonly objectShapes: {
+    resolveTarget(carrier: TargetTypeRef | undefined): CsharpObjectShapeFact | undefined;
+  };
 }
