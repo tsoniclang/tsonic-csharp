@@ -105,8 +105,15 @@ for (const surface of ["native", "js"]) for (const storage of ["direct", "nullab
       visit(file);
       const expression = aggregate === undefined ? undefined : source.ast.elements(aggregate)[0];
       assert.equal(expression !== undefined, true, "the construction is the actual checked literal or constant expression");
-      const datum = represented(createCsharpNativeLiteralQueries(source).recipe(expression), "the original literal recipe is produced");
+      const literals = createCsharpNativeLiteralQueries(source);
+      const datum = represented(literals.scalar(expression), "the original scalar value is produced");
+      assert.equal(datum.kind, "present", "the original value retains its authenticated Source scalar");
       const literal = datum.kind === "present" ? datum.value : undefined;
+      if (example.recipe === undefined) {
+        assert.equal(literals.hasRecipeSyntax(expression), false, "a computed operation is not Native literal creation");
+        assert.equal(represented(literals.recipe(expression), "the original creation query is resolved").kind, "none",
+          "a computed operation has no synthetic literal-creation recipe");
+      }
       const records = compiled.result.program.records;
       const physicalSource = records.valueRead.get(expression)?.value;
       assert.equal(physicalSource?.kind === "source-primitive" && physicalSource.name === example.primitive, true,
