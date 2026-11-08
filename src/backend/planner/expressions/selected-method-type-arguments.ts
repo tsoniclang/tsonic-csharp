@@ -3,7 +3,7 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpSelectedTargetCall } from "../../../target-model/records/objects/members.js";
 import type { CsharpTypeNode } from "../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../planning-data.js";
-import { csharpTypeFromObjectShapeFact } from "../objects/index.js";
+import { csharpTypeFromObjectShapeFact } from "../objects/type-references.js";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 

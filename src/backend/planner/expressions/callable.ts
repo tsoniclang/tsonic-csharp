@@ -51,18 +51,7 @@ import { csharpPlannedEffect } from "./planned-values.js";
 import { planCsharpExpressionCompletion } from "./expression-completions.js";
 import { planCsharpLocalLambdaCreation } from "./lambda-creation.js";
 import { allocateUnusedParameter, getCsharpLocalBindingName, redirectCsharpParameterStorage } from "../bindings/binding-state.js";
-
-export interface LambdaTargetContext {
-  readonly carrier: TargetTypeRef;
-  readonly type: CsharpTypeNode;
-  readonly signature: {
-    readonly parameters: readonly CsharpTypeNode[];
-    readonly parameterTargetTypes: readonly TargetTypeRef[];
-    readonly returnType?: CsharpTypeNode;
-    readonly returnTargetType?: TargetTypeRef;
-    readonly restParameterIndex?: number;
-  };
-}
+import type { LambdaReturnContext, LambdaTargetContext } from "./lambda-data.js";
 
 export function planArrowFunctionExpression(node: Node, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], planExpression: ExpressionPlanner, state?: DestructuringPlannerState
 ): CsharpPlannedValue | undefined {
@@ -304,12 +293,6 @@ export function planCsharpCapturedFunctionLambdaSyntax(
     state, targetContext, returnContext, parameterPlan.prelude, generator);
   return body === undefined ? undefined : { kind: "LambdaExpression", parameters: parameterPlan.parameters, body,
     ...(!generator && isAsyncExpression(input.program.source.ast, node) ? { async: true } : {}) };
-}
-
-export interface LambdaReturnContext {
-  readonly returnExpressionType: CsharpTypeNode;
-  readonly returnExpressionTypeSubject?: Node;
-  readonly returnExpressionTargetType?: TargetTypeRef;
 }
 
 export function planLambdaBlockBody(

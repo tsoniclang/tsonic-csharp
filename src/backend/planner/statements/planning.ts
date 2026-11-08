@@ -177,7 +177,7 @@ export function planStatements(
     }
     case KindSwitchStatement: {
       const statement = planSwitchStatement(node, sourceFile, input, diagnostics, state, {
-        input.dispatch.planExpression,
+        planExpression: input.dispatch.planExpression,
         planStatements,
       });
       if (statement === undefined) failCsharpPlannerInvariant("An admitted switch requires its native plan.", node);

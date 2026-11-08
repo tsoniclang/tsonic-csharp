@@ -9,7 +9,7 @@ import type {
 import type { DestructuringPlannerState } from "../planning-data.js";
 import type { BindingProjectionPlanner } from "./binding-pattern-contracts.js";
 import type { ExpressionPlanner } from "../planning-data.js";
-import { csharpTypeFromObjectShapeFact } from "../objects/index.js";
+import { csharpTypeFromObjectShapeFact } from "../objects/type-references.js";
 import { planObjectBindingElement } from "./binding-object-source-patterns.js";
 import {
   planObjectShapeBindingPattern,

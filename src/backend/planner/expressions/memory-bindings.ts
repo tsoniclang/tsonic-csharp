@@ -7,7 +7,7 @@ import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { objectShapeBoundStorageMemberName } from "../../../target-model/names/object-members.js";
 import { objectShapeBoundStorageTargetType } from "../objects/object-shape-storage.js";
-import { csharpConstructibleTypeFromObjectShapeFact } from "../objects/index.js";
+import { csharpConstructibleTypeFromObjectShapeFact } from "../objects/type-references.js";
 import type { CsharpPlannedValue } from "./planned-values.js";
 import { buildCsharpPlannedValue } from "./planned-value-composition.js";
 import type { CsharpMemoryBindingSelection } from "../../../target-model/records/storage/memory-bindings.js";

@@ -2,7 +2,7 @@ import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpPlanningContext } from "../planning-data.js";
 import type { CsharpBlock, CsharpExpression, CsharpLambdaParameter, CsharpStatement } from "../../target-ast/syntax/index.js";
-import type { LambdaTargetContext } from "./callable.js";
+import type { LambdaTargetContext } from "./lambda-data.js";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { withCsharpSafetyModifiers } from "../safety/explicit-safety.js";
