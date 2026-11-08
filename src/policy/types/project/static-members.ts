@@ -1,12 +1,12 @@
 import type { AstReader, Node } from "@tsonic/tsts";
-import type { SourceProgramNavigation } from "@tsonic/target-api/source";
+import type { SourceNodeNavigationFacts } from "@tsonic/target-api/source";
 import type { CsharpProjectTypeCatalog } from "../../../target-model/records/types/project-types.js";
 import { projectDefinitionTargetType } from "./declaration-carriers.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 
 export function resolveCsharpStaticMemberReceiver(
   ast: AstReader,
-  navigation: SourceProgramNavigation,
+  navigation: Pick<SourceNodeNavigationFacts, "sourceReferenceFor">,
   catalog: CsharpProjectTypeCatalog,
   declaration: Node | undefined,
   receiver: Node | undefined,

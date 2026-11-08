@@ -1,5 +1,5 @@
 import type { Node } from "@tsonic/tsts";
-import type { SourceCategoryDomain, SourceComponentSelector, SourceMemberOrigin, SourceSumApplication, SourceTypeEvidence } from "@tsonic/target-api/source";
+import type { SourceCategoryDomain, SourceComponentSelector, SourceMemberOrigin, SourceSignatureIdentity, SourceSumApplication, SourceTypeEvidence } from "@tsonic/target-api/source";
 import { sourceNumericKeyValueKey } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import type {
@@ -261,14 +261,18 @@ function componentIdentity(host: CsharpRepresentationHost, selector: SourceCompo
     case "sum-arm": return [selector.kind, host.identity(selector.family.component.root).identity,
       selector.family.component.path.map(part => componentIdentity(host, part)), selector.index];
     case "member": return [selector.kind, memberIdentity(host, selector.origin)];
-    case "parameter": return [selector.kind, host.identity(selector.signature.owner).identity,
-      selector.signature.kind, selector.signature.declaration === undefined ? null : host.identity(selector.signature.declaration).identity, selector.index];
-    case "receiver": case "result": return [selector.kind, host.identity(selector.signature.owner).identity, selector.signature.kind,
-      selector.signature.declaration === undefined ? null : host.identity(selector.signature.declaration).identity];
-    case "signature-tail": return [selector.kind, host.identity(selector.signature.owner).identity,
-      selector.signature.kind, selector.signature.declaration === undefined ? null : host.identity(selector.signature.declaration).identity,
-      selector.start, selector.readonly];
+    case "parameter": return [selector.kind, signatureIdentity(host, selector.signature), selector.index];
+    case "receiver": case "result": return [selector.kind, signatureIdentity(host, selector.signature)];
+    case "signature-tail": return [selector.kind, signatureIdentity(host, selector.signature), selector.start, selector.readonly];
   }
+}
+
+function signatureIdentity(host: CsharpRepresentationHost, signature: SourceSignatureIdentity): unknown {
+  return [signature.owner === undefined ? null : host.identity(signature.owner).identity, signature.kind,
+    signature.declaration === undefined ? null : host.identity(signature.declaration).identity,
+    signature.typeParameters.map(parameter => host.identity(parameter).identity),
+    signature.composition.kind === "none" ? null : [signature.composition.value.kind,
+      signature.composition.value.signatures.map(part => signatureIdentity(host, part))]];
 }
 
 function memberIdentity(host: CsharpRepresentationHost, origin: SourceMemberOrigin): unknown {

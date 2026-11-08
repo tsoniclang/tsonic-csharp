@@ -2,7 +2,7 @@ import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { substituteTargetTypeParameters } from "../resolution/substitution.js";
 import { getCsharpMethodValue, csharpMethodValueType } from "../../../target-model/types/method-values.js";
 import { getCsharpDelegateSignature } from "../../../target-model/types/carriers/delegates.js";
-import { csharpProjectedType, csharpTypeProjection } from "../../../target-model/types/projections.js";
+import { csharpOptionalProjectedType, getCsharpOptionalProjection } from "../../../target-model/types/projections.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import type { CsharpTypeParameterConstraintResolution } from "../../../target-model/types/generic-constraints.js";
 import { visitCsharpTargetTypeParameters } from "../../../target-model/types/generic-references.js";
@@ -21,8 +21,8 @@ export function selectCsharpNativeQuantifierArguments(
     targetParameters.some(parameter => parameter.identity.length === 0 || parameter.csharpConstraints.kind !== "resolved") ||
     new Set(sourceParameters.map(parameter => parameter.identity)).size !== sourceParameters.length ||
     new Set(targetParameters.map(parameter => parameter.identity)).size !== targetParameters.length) return undefined;
-  const authoredSource = sourceParameters.filter(parameter => csharpTypeProjection(parameter) === undefined);
-  const authoredTarget = targetParameters.filter(parameter => csharpTypeProjection(parameter) === undefined);
+  const authoredSource = sourceParameters.filter(parameter => getCsharpOptionalProjection(parameter) === undefined);
+  const authoredTarget = targetParameters.filter(parameter => getCsharpOptionalProjection(parameter) === undefined);
   if (authoredSource.length !== authoredTarget.length) return undefined;
   const substitutions = new Map<string, NativeQuantifier>(authoredSource.map((parameter, index) =>
     [parameter.identity, authoredTarget[index]!]));
@@ -37,7 +37,7 @@ export function selectCsharpNativeQuantifierArguments(
     const existing = substitutions.get(parameter.identity);
     if (existing !== undefined) return existing;
     if (resolving.has(parameter.identity)) return undefined;
-    const projection = csharpTypeProjection(parameter)?.csharpProjection;
+    const projection = getCsharpOptionalProjection(parameter)?.csharpProjection;
     if (projection === undefined) return undefined;
     resolving.add(parameter.identity);
     let complete = true;
@@ -47,11 +47,9 @@ export function selectCsharpNativeQuantifierArguments(
     });
     resolving.delete(parameter.identity);
     if (!complete) return undefined;
-    const normalized = projection.kind === "optional" ? csharpProjectedType({ ...projection,
-      arguments: [substituteTargetTypeParameters(projection.arguments[0], substitutions)] })
-      : csharpProjectedType({ ...projection,
-        arguments: projection.arguments.map(argument => substituteTargetTypeParameters(argument, substitutions)) });
-    const candidates = targetParameters.filter(target => csharpTypeProjection(target) !== undefined &&
+    const normalized = csharpOptionalProjectedType({ ...projection,
+      arguments: [substituteTargetTypeParameters(projection.arguments[0], substitutions)] });
+    const candidates = targetParameters.filter(target => getCsharpOptionalProjection(target) !== undefined &&
       targetTypeRefEquals(normalized, target));
     if (candidates.length !== 1 || selectedTargets.has(candidates[0]!.identity)) return undefined;
     substitutions.set(parameter.identity, candidates[0]!);

@@ -1,5 +1,5 @@
 import type { Node } from "@tsonic/tsts";
-import type { SourceComponentSelector, SourceTypeDescriptorSignature, SourceTypeEvidence, SourceTypeParameter } from "@tsonic/target-api/source";
+import type { SourceComponentSelector, SourceMemberOrigin, SourceTypeDescriptorSignature, SourceTypeEvidence, SourceTypeParameter } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpRepresentationOutcome, CsharpRepresentationPosition, CsharpRepresentationView, CsharpRepresentedType, CsharpRepresentedTypeParameter, CsharpRepresentedSignature } from "../../../target-model/types/representation.js";
 import type { CsharpRepresentationHost } from "./representation-host.js";
@@ -28,7 +28,7 @@ export function createCsharpRepresentationView(host: CsharpRepresentationHost): 
   const view: CsharpRepresentationView = Object.freeze({
     source: host.source,
     applyRequirements: requirements.apply,
-    collectionKey(evidence, physicalCarrier, site) {
+    collectionKey(evidence: SourceTypeEvidence, physicalCarrier: TargetTypeRef, site: Node) {
       host.source.assertEvidence(evidence);
       const result = representCsharpSourceCollectionKey(host, view, requirements, evidence, physicalCarrier, site);
       if (result.kind === "represented") requirements.retainNative(result.value.requirements);
@@ -36,14 +36,14 @@ export function createCsharpRepresentationView(host: CsharpRepresentationHost): 
     },
     represent,
     parameter,
-    member(owner, origin, position, site) {
+    member(owner: SourceTypeEvidence, origin: SourceMemberOrigin, position: CsharpRepresentationPosition, site: Node) {
       host.source.assertEvidence(owner);
       const definition = sourceOutcome(host.source.definition(owner));
       if (definition.kind !== "represented") return definition;
       const selected = sourceOutcome(host.source.component(definition.value, { kind: "member", origin }));
       return selected.kind === "represented" ? represent(selected.value, position, site) : selected;
     },
-    category(evidence, physicalCarrier, site) {
+    category(evidence: SourceTypeEvidence, physicalCarrier: TargetTypeRef, site: Node) {
       host.source.assertEvidence(evidence);
       const result = representSourceCategory(host, view, requirements, evidence, physicalCarrier, site, original => {
         const recursive = activeParameters.get(original);
