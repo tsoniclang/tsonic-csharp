@@ -2,7 +2,7 @@ import type { AstReader, Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { AsParameterDeclaration, HasSourceKind, KindIdentifier, sourceCallableValueParameters, sourceTransparentExpressionOperand,
   sourceCallArgumentCorrespondences } from "@tsonic/target-api/source";
-import type { SourceFileSemantics, SourceProgramNavigation } from "@tsonic/target-api/source";
+import type { SourceFileSemantics, SourceNodeNavigationFacts } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../../policy/model/context.js";
 import { csharpNullableTargetType, getCsharpCallableValueSignature } from "../../../policy/types/index.js";
 import type { CsharpTargetParameter, TargetTypeRef } from "../../../target-model/types/model.js";
@@ -260,7 +260,7 @@ export function selectCsharpProjectConstructorAbi(
 
 export function selectCsharpSourceCallableValueAbi(input: {
   readonly ast: AstReader;
-  readonly navigation: Pick<SourceProgramNavigation, "isProjectDeclaration">;
+  readonly navigation: Pick<SourceNodeNavigationFacts, "isProjectDeclaration">;
   readonly semantics: SourceFileSemantics;
   readonly source: ResolvedSourceCallInfo;
   readonly carrier: TargetTypeRef;

@@ -1,5 +1,5 @@
 import type { AstReader, Node } from "@tsonic/tsts";
-import type { SourceProgramNavigation } from "@tsonic/target-api/source";
+import type { SourceNodeNavigationFacts } from "@tsonic/target-api/source";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpCaptureStorage } from "../../../target-model/records/callables/capture-storage.js";
 import type { CsharpValueReadClassifications } from "../../../target-model/records/operations/conversions.js";
@@ -11,7 +11,7 @@ import { createCsharpLexicalValueRecords } from "../../program/records/storage/l
 export function analyzeCsharpLexicalValues(input: {
   readonly ast: AstReader;
   readonly nodes: readonly Node[];
-  readonly navigation: SourceProgramNavigation;
+  readonly navigation: SourceNodeNavigationFacts;
   readonly captures: CsharpCaptureStorage;
   readonly values: CsharpValueReadClassifications;
   readonly metadata: CsharpSourceEvidenceIndex;

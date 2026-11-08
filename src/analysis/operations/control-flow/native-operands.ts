@@ -1,7 +1,7 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import { failTargetAnalysisInvariant, targetDiagnosticFromExtension, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { csharpRepresentationDiagnostic } from "../../source-evidence/representations.js";
-import type { SourceApplication, SourceProgramFacts, SourceProgramNavigation } from "@tsonic/target-api/source";
+import type { SourceApplication, SourceProgramFacts, SourceNodeNavigationFacts } from "@tsonic/target-api/source";
 import { forwardSourceRefusal } from "../../source-evidence/representations.js";
 import { sourceDeclarationIsModuleScoped, sourceNodesEqual, sourceExpressionValueInputs } from "@tsonic/target-api/source";
 import type { CsharpNativeCallableCreation, CsharpNativeChildUse, CsharpNativeUseSlot, CsharpNativeDiscardedGuard } from "../../../target-model/records/native/native-demand.js";
@@ -26,7 +26,7 @@ import type { CsharpConversionMode } from "../../../target-model/conversions/sel
 export interface CsharpNativeOperandInput {
   readonly facts: SourceProgramFacts;
   readonly ast: AstReader;
-  readonly navigation: Pick<SourceProgramNavigation, "isProjectDeclaration" | "referenceFor" | "sourceReferenceFor" | "expressionResultUse">;
+  readonly navigation: Pick<SourceNodeNavigationFacts, "isProjectDeclaration" | "referenceFor" | "sourceReferenceFor" | "expressionResultUse">;
   readonly evidence: Pick<CsharpSourceEvidenceIndex, "compileTimeMetadata" | "sourceArgument" | "sourceDefaultValue" | "sourceField" | "sourceStruct">;
   readonly operations: Pick<CsharpTargetOperationClassifications, "nativeHandler" | "selectedCall" | "selectedConstruction" |
     "selectedProperty" | "selectedElement" | "operatorForm" | "binaryOperation" | "unaryOperation" | "jsArrayMutation" |

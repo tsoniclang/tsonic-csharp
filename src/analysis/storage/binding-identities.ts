@@ -6,8 +6,8 @@ import { createCsharpBindingIdentityRecords } from "../program/records/storage/b
 export function analyzeCsharpBindingIdentities(source: TargetSourceProgram, nodes: readonly Node[]) {
   const identities = new Map<Node, CsharpBindingIdentity>();
   for (const node of nodes) {
-    const symbol = source.facts.navigation.sourceReferenceFor(node)?.symbol;
-    identities.set(node, symbol === undefined ? node : symbol);
+    const declaration = source.facts.navigation.sourceReferenceFor(node)?.declaration;
+    identities.set(node, declaration ?? node);
   }
   return createCsharpBindingIdentityRecords(identities);
 }

@@ -1,15 +1,15 @@
 import type { Node } from "@tsonic/tsts";
-import type { SourceDeclarationReference, SourceProjectReference } from "@tsonic/target-api/source";
+import type { SourceNodeReference } from "@tsonic/target-api/source";
 import type { CsharpIdentifierEmission, CsharpSourceReferenceRecords } from "../../../../target-model/records/program/source-references.js";
 
 export function createCsharpSourceReferenceRecords(input: {
   readonly identifiers: ReadonlyMap<Node, CsharpIdentifierEmission>;
-  readonly modules: ReadonlyMap<Node, SourceProjectReference>;
-  readonly references: ReadonlyMap<Node, { readonly value: SourceProjectReference | undefined; readonly declaration: SourceDeclarationReference | undefined }>;
+  readonly modules: ReadonlyMap<Node, SourceNodeReference>;
+  readonly references: ReadonlyMap<Node, { readonly value: SourceNodeReference | undefined; readonly declaration: SourceNodeReference | undefined }>;
 }): CsharpSourceReferenceRecords {
   const identifiers = new WeakMap<Node, CsharpIdentifierEmission>();
-  const modules = new WeakMap<Node, SourceProjectReference>();
-  const references = new WeakMap<Node, { readonly value: SourceProjectReference | undefined; readonly declaration: SourceDeclarationReference | undefined }>();
+  const modules = new WeakMap<Node, SourceNodeReference>();
+  const references = new WeakMap<Node, { readonly value: SourceNodeReference | undefined; readonly declaration: SourceNodeReference | undefined }>();
   for (const [node, value] of input.identifiers) identifiers.set(node, Object.freeze(value));
   for (const [node, value] of input.modules) modules.set(node, value);
   for (const [node, value] of input.references) references.set(node, Object.freeze(value));

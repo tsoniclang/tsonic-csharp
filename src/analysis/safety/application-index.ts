@@ -4,7 +4,7 @@ import type {
   ReadonlySourceFactResolver,
   SourceFile,
 } from "@tsonic/tsts";
-import type { SourceProgramNavigation } from "@tsonic/target-api/source";
+import type { SourceNodeNavigationFacts } from "@tsonic/target-api/source";
 import { createTargetSafetyApplicationIndex } from "@tsonic/target-api/analysis";
 import {
   readCsharpSourceSafetyBuilder,
@@ -15,7 +15,7 @@ export interface CsharpSafetyApplicationFactIndexInput {
   readonly ast: AstReader;
   readonly sourceFiles: readonly SourceFile[];
   readonly sourceFacts?: ReadonlySourceFactResolver;
-  readonly navigation: SourceProgramNavigation;
+  readonly navigation: SourceNodeNavigationFacts;
 }
 
 export function createCsharpSafetyApplicationFactIndex(

@@ -1,6 +1,6 @@
 import type { Node } from "@tsonic/tsts";
-import type { TargetSourceProgram, SourceDeclarationReference, SourceProjectReference } from "@tsonic/target-api/source";
-import { AsPropertyAccessExpression, sourceDeclarationIsModuleScoped, sourceTypeDescriptorStructure } from "@tsonic/target-api/source";
+import type { TargetSourceProgram, SourceNodeReference } from "@tsonic/target-api/source";
+import { AsPropertyAccessExpression, sourceDeclarationIsModuleScoped } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpIdentifierEmission } from "../../target-model/records/program/source-references.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
@@ -16,6 +16,7 @@ import { getCsharpDelegateSignature } from "../../target-model/types/carriers/de
 import { selectCsharpTypeEmission } from "../../policy/types/resolution/type-emission.js";
 import { createCsharpSourceReferenceRecords } from "../program/records/program/source-references.js";
 import { selectCsharpEmittedExpressions } from "./emitted-expressions.js";
+import { forwardSourceRefusal } from "../source-evidence/representations.js";
 
 export function analyzeCsharpSourceReferences(input: { readonly source: TargetSourceProgram; readonly nodes: readonly Node[];
   readonly admitted: (node: Node) => boolean; readonly evidence: CsharpSourceEvidenceIndex;
@@ -26,8 +27,8 @@ export function analyzeCsharpSourceReferences(input: { readonly source: TargetSo
   readonly delegateAdapters: CsharpConversionClassifications["delegateAdapters"]; readonly jsCalls: CsharpJsCallRecords }) {
   const { ast } = input.source;
   const identifiers = new Map<Node, CsharpIdentifierEmission>();
-  const modules = new Map<Node, SourceProjectReference>();
-  const references = new Map<Node, { readonly value: SourceProjectReference | undefined; readonly declaration: SourceDeclarationReference | undefined }>();
+  const modules = new Map<Node, SourceNodeReference>();
+  const references = new Map<Node, { readonly value: SourceNodeReference | undefined; readonly declaration: SourceNodeReference | undefined }>();
   const issues: TargetDiagnostic[] = [];
   const moduleStatic = (node: Node): boolean => (ast.is.IsFunctionDeclaration(node) || ast.is.IsExportAssignment(node) ||
     ast.is.IsVariableDeclaration(node) || ast.is.IsBindingElement(node)) && sourceDeclarationIsModuleScoped(node, ast);
@@ -39,7 +40,7 @@ export function analyzeCsharpSourceReferences(input: { readonly source: TargetSo
     if (sourceFile === undefined) failTargetAnalysisInvariant("tsonic-csharp", "Checked source reference requires its original source module.", node);
     const name = AsPropertyAccessExpression(ast, node)?.name;
     const memberReference = value ?? (name === undefined ? undefined : input.source.facts.navigation.referenceFor(name));
-    const external = (reference: SourceProjectReference | SourceDeclarationReference | undefined): boolean => reference !== undefined && reference.sourceFile !== sourceFile &&
+    const external = (reference: SourceNodeReference | undefined): boolean => reference !== undefined && reference.sourceFile !== sourceFile &&
       (reference.sourceFile.IsDeclarationFile || input.files.providerSourceFile.get(reference.sourceFile) === true);
     if (memberReference !== undefined && !external(memberReference) && moduleStatic(memberReference.declaration)) modules.set(node, memberReference);
   }
@@ -52,7 +53,7 @@ export function analyzeCsharpSourceReferences(input: { readonly source: TargetSo
     const sourceFile = ast.getSourceFile(node);
     if (sourceFile === undefined) failTargetAnalysisInvariant("tsonic-csharp", "Identifier admission requires its original source module.", node);
     const memberReference = value;
-    const external = (selected: SourceProjectReference | SourceDeclarationReference | undefined): boolean => selected !== undefined && selected.sourceFile !== sourceFile &&
+    const external = (selected: SourceNodeReference | undefined): boolean => selected !== undefined && selected.sourceFile !== sourceFile &&
       (selected.sourceFile.IsDeclarationFile || input.files.providerSourceFile.get(selected.sourceFile) === true);
     const parent = ast.parent(node);
     if (parent !== undefined && ast.is.IsNewExpression(parent) && ast.as.AsNewExpression(parent)?.Expression === node &&
@@ -80,10 +81,12 @@ export function analyzeCsharpSourceReferences(input: { readonly source: TargetSo
       }
       identifiers.set(node, { kind: "class", declaration, factory: input.factories.classFactory.get(declaration) !== undefined, constructor: signature }); continue;
     }
-    const outcome = input.source.effectiveTypes.get(node);
-    const sourceType = outcome === undefined || outcome.kind === "refused" ? undefined : sourceTypeDescriptorStructure(outcome.type);
-    if (value === undefined && sourceType?.kind === "intrinsic" && sourceType.intrinsic === "absence") {
-      identifiers.set(node, { kind: "absence" }); continue;
+    if (value === undefined) {
+      const selected = input.source.facts.values.type(node);
+      if (selected.kind === "refused") { issues.push(forwardSourceRefusal(selected)); continue; }
+      if (selected.value.type.kind === "intrinsic" && selected.value.type.intrinsic === "absence") {
+        identifiers.set(node, { kind: "absence" }); continue;
+      }
     }
     const provider = input.operations.providerValue.get(node);
     if (provider === undefined) { refuse("C# planning received a provider value without a sealed operation classification."); continue; }

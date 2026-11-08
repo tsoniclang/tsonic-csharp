@@ -3,7 +3,7 @@ import type { AstReader, ExtensionFactSubject, Node, ReadonlySourceFactResolver,
 import type { TargetSelection } from "@tsonic/target-api";
 import type { TsonicPointerStorageRelation, TsonicMemoryBindingIndex } from "@tsonic/source-core/facts";
 
-import type { SourceFileSemantics, SourceProgramNavigation } from "@tsonic/target-api/source";
+import type { SourceFileSemantics, SourceNodeNavigationFacts } from "@tsonic/target-api/source";
 import type { CsharpProjectTypeCatalog, CsharpProjectTypePolicy } from "../../../../target-model/records/types/project-types.js";
 import type { CsharpProviderRelationResolver } from "../../../../providers/model/relation-resolver.js";
 import type { SourceCallableContract, SourceCallableSourceContract } from "../../../../target-model/records/callables/source-callable-contract.js";
@@ -41,7 +41,7 @@ export interface CsharpTypePolicyBaseHost {
   readonly ast: AstReader;
   readonly sourceFiles: readonly SourceFile[];
   readonly sourceFacts?: ReadonlySourceFactResolver;
-  readonly navigation: SourceProgramNavigation;
+  readonly navigation: SourceNodeNavigationFacts;
   readonly pointerStorage: TsonicPointerStorageRelation;
   readonly memoryBindings: TsonicMemoryBindingIndex;
   readonly providers: CsharpProviderRelationResolver;

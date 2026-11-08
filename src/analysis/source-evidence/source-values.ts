@@ -1,9 +1,9 @@
 import type { AstReader, Node } from "@tsonic/tsts";
-import type { SourceProgramNavigation } from "@tsonic/target-api/source";
+import type { SourceNodeNavigationFacts } from "@tsonic/target-api/source";
 
 export function csharpFlowReadPrincipalDeclaration(
   ast: AstReader,
-  navigation: Pick<SourceProgramNavigation, "sourceReferenceFor">,
+  navigation: Pick<SourceNodeNavigationFacts, "sourceReferenceFor">,
   node: Node,
 ): Node | undefined {
   const declaration = navigation.sourceReferenceFor(node)?.declaration;

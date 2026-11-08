@@ -1,5 +1,5 @@
 import type { AstReader, Node } from "@tsonic/tsts";
-import type { SourceProgramNavigation } from "@tsonic/target-api/source";
+import type { SourceNodeNavigationFacts } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpProgramRecords } from "../../target-model/records/program.js";
 import type { CsharpLocalBindingCompletion } from "../../target-model/records/storage/local-bindings.js";
@@ -10,7 +10,7 @@ import type { CsharpOptionalLocalPlan } from "./optional-locals.js";
 import { csharpSourcePrimitiveTargetType, csharpVoidTargetType } from "../../target-model/types/carriers/scalar-types.js";
 
 export function analyzeCsharpLocalBindings(input: {
-  readonly ast: AstReader; readonly navigation: SourceProgramNavigation; readonly nodes: readonly Node[];
+  readonly ast: AstReader; readonly navigation: SourceNodeNavigationFacts; readonly nodes: readonly Node[];
   readonly admitted: (node: Node) => boolean;
   readonly nativeRefs: CsharpProgramRecords["nativeRefReturn"]; readonly storage: CsharpProgramRecords["storageType"];
   readonly moduleInitialization: CsharpProgramRecords["moduleBindingInitialization"];

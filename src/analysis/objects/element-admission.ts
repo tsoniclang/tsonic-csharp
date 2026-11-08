@@ -4,7 +4,7 @@ import type { CsharpTargetOperationClassifications } from "../../target-model/re
 import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native/native-demand.js";
 import type { CsharpAdmittedElementClassification, CsharpElementEmission, CsharpElementRead } from "../../target-model/records/objects/element-admission.js";
 import type { CsharpMemberReceiverRecords } from "../../target-model/records/objects/member-receivers.js";
-import { selectedSourceIndexedDeclarations, type SourceProgramNavigation } from "@tsonic/target-api/source";
+import { selectedSourceIndexedDeclarations, type SourceNodeNavigationFacts } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { csharpNullableTargetType, getCsharpNullableElementTargetType, getCsharpReadOnlyIndexableCollectionElementTargetType,
   isCsharpDenseMutableCollectionTargetType, targetTypeRefEquals } from "../../target-model/types/index.js";
@@ -17,7 +17,7 @@ import { resolveCsharpNativePropertyRead } from "./native-property-reads.js";
 export function analyzeCsharpElementAdmission(input: { readonly ast: AstReader; readonly nodes: readonly Node[];
   readonly operations: CsharpTargetOperationClassifications; readonly demand: CsharpNativeDemandAnalysis;
   readonly admitted: (node: Node) => boolean; readonly receivers: CsharpMemberReceiverRecords;
-  readonly navigation: SourceProgramNavigation; readonly policy: CsharpPolicyContext }) {
+  readonly navigation: SourceNodeNavigationFacts; readonly policy: CsharpPolicyContext }) {
   const values = new Map<Node, CsharpAdmittedElementClassification>();
   const issues: TargetDiagnostic[] = [];
   const { ast } = input;

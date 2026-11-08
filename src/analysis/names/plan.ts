@@ -8,7 +8,7 @@ import type {
 } from "@tsonic/tsts";
 import { AsBindingPattern, ObjectLiteralProperty_SourceName, sourceBindingScope, sourceBindingWriteAtReference,
   sourceDeclarationIsModuleScoped, sourceNodesEqual } from "@tsonic/target-api/source";
-import type { SourceFileSemantics, SourceProgramNavigation } from "@tsonic/target-api/source";
+import type { SourceFileSemantics, SourceNodeNavigationFacts } from "@tsonic/target-api/source";
 import { objectShapeMemberTargetName } from "../../policy/identities/source-member-names.js";
 import {
   tryCsharpIdentifier,
@@ -38,7 +38,7 @@ export interface CsharpSourceNameBuilder extends CsharpSourceNameResolver {
 
 export interface CsharpSourceNameResolverHost {
   readonly ast: AstReader;
-  readonly navigation: SourceProgramNavigation;
+  readonly navigation: SourceNodeNavigationFacts;
   readonly sourceFiles: readonly SourceFile[];
   readonly sourceIdentities: CsharpSourceIdentityPolicy;
   semanticsFor(node: Node): SourceFileSemantics;

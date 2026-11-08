@@ -1,5 +1,5 @@
 import type { AstReader, ExtensionFactSubject, Node, Type } from "@tsonic/tsts";
-import type { SourceDeclarationReference, SourceFileSemantics, SourceProgramNavigation } from "@tsonic/target-api/source";
+import type { SourceNodeReference, SourceFileSemantics, SourceNodeNavigationFacts } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import { csharpSourceTypeParameter } from "../../../../source/extension/type-parameters.js";
 import type { CsharpTypeResolutionScope } from "./scope.js";
@@ -21,7 +21,7 @@ export function resolveCsharpUnionMemberCarrier(
 
 export function sourceFactSubjectsForNode(
   node: Node,
-  navigation: SourceProgramNavigation,
+  navigation: SourceNodeNavigationFacts,
   parent?: Node,
 ): readonly ExtensionFactSubject[] {
   const reference = navigation.sourceReferenceFor(node);
@@ -37,7 +37,7 @@ export function sourceFactSubjectsForNode(
 }
 
 export function sourceDeclarationReferenceFactSubjects(
-  reference: SourceDeclarationReference,
+  reference: SourceNodeReference,
 ): readonly ExtensionFactSubject[] {
   return Object.freeze([
     ...(reference.symbol === undefined ? [] : [reference.symbol]),

@@ -1,13 +1,13 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { SourceProgramNavigation } from "@tsonic/target-api/source";
+import type { SourceNodeNavigationFacts } from "@tsonic/target-api/source";
 import type { CsharpNativeDemandAnalysis } from "../../../target-model/records/native/native-demand.js";
 import type { CsharpValueReadClassifications } from "../../../target-model/records/operations/conversions.js";
 import type { CsharpTargetOperationClassifications } from "../../../target-model/records/operations/operations.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 
 export function analyzeCsharpAwaitAdmission(input: { readonly ast: AstReader; readonly demand: CsharpNativeDemandAnalysis;
-  readonly navigation: Pick<SourceProgramNavigation, "expressionResultUse">;
+  readonly navigation: Pick<SourceNodeNavigationFacts, "expressionResultUse">;
   readonly values: CsharpValueReadClassifications; readonly operations: Pick<CsharpTargetOperationClassifications, "awaitCompletion"> }): readonly TargetDiagnostic[] {
   const issues: TargetDiagnostic[] = [];
   const visited = new Set<Node>();

@@ -1,5 +1,5 @@
 import type { AstReader, Node } from "@tsonic/tsts";
-import type { SourceProgramNavigation } from "@tsonic/target-api/source";
+import type { SourceNodeNavigationFacts } from "@tsonic/target-api/source";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { HasSyntacticModifier, ModifierFlagsAbstract, ModifierFlagsAccessor, ModifierFlagsAmbient,
   ModifierFlagsConst, ModifierFlagsOverride, ModifierFlagsPrivate, ModifierFlagsProtected, ModifierFlagsPublic,
@@ -28,7 +28,7 @@ export function admitCsharpNativeDeclarations(
   nodes: readonly Node[],
   nativeUse: CsharpNativeUseClassifications["nativeUse"],
   projectTypes: Pick<CsharpProjectTypeClassifications, "heritageForDeclaration">,
-  authoredHeritage: Pick<SourceProgramNavigation, "declaredHeritage">,
+  authoredHeritage: Pick<SourceNodeNavigationFacts, "declaredHeritage">,
   metadata: Pick<CsharpSourceEvidenceIndex, "compileTimeMetadata" | "sourceField">,
   storage: Pick<CsharpStorageClassifications, "storageType" | "nativeBacking" | "typedLocationIdentity">,
   participation: CsharpNativeParticipationInput["participation"],

@@ -1,7 +1,7 @@
 import type { CsharpBindingProjection } from "../../target-model/records/storage/binding-projection-policy.js";
 
 import type { AstReader, Node, SourceFile } from "@tsonic/tsts";
-import type { SourceFileSemantics, SourceProgramNavigation } from "@tsonic/target-api/source";
+import type { SourceFileSemantics, SourceNodeNavigationFacts } from "@tsonic/target-api/source";
 import { csharpNullableTargetType } from "../../target-model/types/carriers/nullable.js";
 import { csharpBindingDefaultCarrier } from "../../policy/types/storage/binding-normalization.js";
 import { getCsharpCollectionElementTargetType } from "../../target-model/types/carriers/collections.js";
@@ -18,7 +18,7 @@ import { resolveCsharpPublishedNativePropertyRead } from "../objects/native-prop
 
 export interface CsharpBindingProjectionPolicyHost extends Pick<CsharpTypePolicyBaseHost, "providers" | "sourceFacts" | "semanticsFor" | "typeDefinitions" | "effectiveTypes"> {
   readonly ast: AstReader;
-  readonly navigation: SourceProgramNavigation;
+  readonly navigation: SourceNodeNavigationFacts;
   readonly typeResolver: CsharpRecursiveTypeResolver;
   readonly objectShapes: CsharpRecursiveObjectShapePolicy;
   scopedTargetType(node: Node): TargetTypeRef | undefined;
