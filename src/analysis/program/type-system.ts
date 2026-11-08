@@ -24,6 +24,9 @@ import { createCsharpNativeDelegateRegistry } from "../callables/native/native-d
 import { createCsharpSourceRoleRegistry } from "../project-types/source-roles.js";
 import { analyzeCsharpProjectTypePolicy } from "../project-types/catalog/resolution.js";
 import { createCsharpNativeConstructionDemandQuery } from "../objects/native-construction-demand.js";
+import { createCsharpIntegerRangeIndex } from "./records/operations/integer-ranges.js";
+import { csharpUnsignedIntegerCounterpart } from "../../target-model/conversions/integer-refinement.js";
+import type { CsharpIntegerRangeIndex } from "../../target-model/records/operations/integer-ranges.js";
 
 export interface CsharpNativeTypeServices {
   readonly source: TargetSourceProgram;
@@ -49,6 +52,7 @@ export interface CsharpTypeSystemHost {
 }
 
 export interface CsharpTypeSystem {
+  readonly integerRanges: CsharpIntegerRangeIndex;
   readonly typeDefinitions: CsharpTypeDefinitions;
   readonly representation: CsharpRepresentationView;
   readonly analysisTypes: CsharpTypeQueries;
@@ -64,6 +68,7 @@ export interface CsharpTypeAnalysis extends CsharpTypeSystem {
 }
 
 export function createCsharpTypeAnalysis(host: CsharpTypeSystemHost, catalog: CsharpProjectTypeCatalogBuilder): CsharpTypeAnalysis {
+  const integerRanges = createCsharpIntegerRangeIndex();
   let objectShapes: CsharpObjectShapeRegistry | undefined;
   let representation: CsharpRepresentationView | undefined;
   let services: CsharpNativeTypeServices | undefined;
@@ -84,8 +89,15 @@ export function createCsharpTypeAnalysis(host: CsharpTypeSystemHost, catalog: Cs
   }));
   const selected = representation;
   const types = createCsharpTypeQueries(host.source.facts, selected);
-  const nativeValue = (occurrence: Node): CsharpRepresentationOutcome<TargetTypeRef> =>
-    host.nativeValue(occurrence, initialized(services, "The Native producer queries"));
+  const nativeValue = (occurrence: Node): CsharpRepresentationOutcome<TargetTypeRef> => {
+    const value = host.nativeValue(occurrence, initialized(services, "The Native producer queries"));
+    if (value.kind !== "represented" || value.value.kind !== "source-primitive" ||
+      csharpUnsignedIntegerCounterpart(value.value.name) === undefined) return value;
+    const proof = host.source.facts.integers.nonnegative(occurrence);
+    if (proof.kind === "refused") return Object.freeze({ kind: "source-refused", refusal: proof });
+    integerRanges.retain(occurrence, proof.value);
+    return value;
+  };
   objectShapes = createCsharpObjectShapePolicy({
     ast: host.source.ast, source: host.source.facts.descriptors, values: host.source.facts.values,
     objects: host.source.facts.objects, sourceStorage: host.sourceStorage, objectMethodSources: host.objectMethodSources,
@@ -103,6 +115,6 @@ export function createCsharpTypeAnalysis(host: CsharpTypeSystemHost, catalog: Cs
   });
   return Object.freeze({
     typeDefinitions: host.typeDefinitions, representation: selected, analysisTypes: types, objectShapes, projectTypes,
-    sourceRoles, nativeDelegates, nativeValue, nativeConstruction,
+    sourceRoles, nativeDelegates, nativeValue, nativeConstruction, integerRanges: integerRanges.records,
   });
 }

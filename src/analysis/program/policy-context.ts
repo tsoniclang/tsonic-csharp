@@ -8,7 +8,6 @@ import type { CsharpTypeSystem } from "./type-system.js";
 
 export interface CsharpAnalysisPolicyContextInput {
   readonly moduleCallables: CsharpPolicyContext["moduleCallables"];
-  readonly integerRanges: CsharpPolicyContext["integerRanges"];
   readonly literals: CsharpPolicyContext["literals"];
   readonly callOnlyAlias: CsharpPolicyContext["callOnlyAlias"];
   readonly input: TargetCompileInput;
@@ -28,7 +27,7 @@ export function createCsharpAnalysisPolicyContext(
     facts: source.facts,
     representation: typeSystem.representation,
     moduleCallables: context.moduleCallables,
-    integerRanges: context.integerRanges,
+    integerRanges: typeSystem.integerRanges,
     literals: context.literals,
     callOnlyAlias: context.callOnlyAlias,
     ast: source.ast,

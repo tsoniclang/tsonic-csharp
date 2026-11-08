@@ -138,7 +138,6 @@ export function analyzeCsharpRepresentationIteration(
   );
   const policy = createCsharpAnalysisPolicyContext({
     moduleCallables: typeHost.moduleCallables,
-    integerRanges: typeHost.integerRanges,
     literals: typeHost.literals,
     callOnlyAlias: typeHost.callOnlyAlias,
     input,

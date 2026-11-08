@@ -88,6 +88,7 @@ import { analyzeCsharpNativeControlFlow, admitCsharpStatementBindings, admitCsha
 import { isCsharpNeverTargetType } from "../../target-model/types/carriers/scalar-types.js";
 
 import { analyzeCsharpNumericRepresentations } from "../numeric/representations.js";
+import { forwardSourceRefusal } from "../source-evidence/representations.js";
 
 import { rejectedTargetStage, resolvedTargetStage, failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { createSourceSwitchCoverage, targetSourceSyntaxProgram } from "@tsonic/target-api/analysis";
@@ -136,8 +137,9 @@ export function finalizeCsharpNativeEmission(
   const { classFactories, captureStorage, callableCreations, nativeParticipation, classInitialization,
     exactLiterals, nativeDemand, bindingPatterns, conversions } = analysis;
   const attributeApplications = analysis.attributes.index;
-  const numericRepresentations = analyzeCsharpNumericRepresentations({ source, sourceFiles,
-    evidence: analysis.sourceEvidence, operations: analysis.operations });
+  const numericRepresentation = analyzeCsharpNumericRepresentations({ source, demand: nativeDemand, operations: analysis.operations });
+  if (numericRepresentation.kind === "refused") return rejectedTargetStage([forwardSourceRefusal(numericRepresentation)]);
+  const numericRepresentations = numericRepresentation.value;
   const typeDefinitions = analysis.typeDefinitions.seal();
   const projectTypes = sealCsharpProjectTypeClassifications(
     analysis.typeSystem.projectTypes, source.ast, sourceStorage.nodes, analysis.objectShapes,

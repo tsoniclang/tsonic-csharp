@@ -1,4 +1,3 @@
-import { createCsharpIntegerRangeIndex } from "./records/operations/integer-ranges.js";
 import { analyzeCsharpSourceAliasReexports } from "../source-modules/alias-reexports.js";
 import type { CsharpTargetProgram } from "../../target-model/records/target-program.js";
 import { analyzeCsharpRepresentationIteration, representationContractsEqual, type CsharpRepresentationContract } from "./iteration.js";
@@ -119,7 +118,6 @@ function analyzeCsharpTargetProgramBeforeSeal(
   const typeHost = {
     effectiveTypes: source.effectiveTypes,
     moduleCallables,
-    integerRanges: createCsharpIntegerRangeIndex(source, sourceNodes),
     enumConstants: source.semantics.enumConstants,
     literals,
     sourceStorage,
