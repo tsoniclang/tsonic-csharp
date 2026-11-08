@@ -97,7 +97,11 @@ for (const specifier of ["../../target-analysis/source-storage/index.js", "tsoni
 
 test("Native cannot use the private Host entry or an internal Host path", () => {
   for (const specifier of ["@tsonic/host", "@tsonic/host/host-input/reader", "@tsonic/source-core/host", "../../../tsonic/packages/host/src/host-input/reader.js"]) {
-    assert.equal(findings(`import { reader } from ${JSON.stringify(specifier)};`).some(row => row.rule === "native-imports-private-host"), true);
+    for (const text of [
+      `import { reader } from ${JSON.stringify(specifier)};`,
+      `export { reader as exposed } from ${JSON.stringify(specifier)};`,
+      `type Hidden = import(${JSON.stringify(specifier)}).Input;`,
+    ]) assert.equal(findings(text).some(row => row.rule === "native-imports-private-host"), true);
   }
 });
 

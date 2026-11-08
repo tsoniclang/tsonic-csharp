@@ -1,5 +1,6 @@
 import { readArchitectureTypeScript } from "../../../tsonic/test/architecture/tooling/typescript-source.mjs";
 import { checkerImportFindings } from "../../../tsonic/test/architecture/tooling/source-boundaries.mjs";
+import { publicModuleDependency } from "../../../tsonic/test/architecture/tooling/public-declarations.mjs";
 const checkerQueries = new Set([
   "getTypeAtLocation", "getTypeFromTypeNode", "getContextualType", "getResolvedSignature", "getResolvedCallInfo",
   "getResolvedPropertyAccessInfo", "getResolvedElementAccessInfo", "getTypeOfSymbol", "getDeclaredTypeOfSymbol",
@@ -41,15 +42,14 @@ export function sourceEvidenceBoundaryFindings(sourceFiles) {
       return node;
     };
     const visit = node => {
-      if (ast.is.IsImportDeclaration(node) || ast.is.IsExportDeclaration(node)) {
-        const declaration = ast.is.IsImportDeclaration(node) ? ast.as.AsImportDeclaration(node) : ast.as.AsExportDeclaration(node);
-        const specifier = declaration?.ModuleSpecifier;
-        const name = specifier === undefined ? undefined : ast.text(specifier);
-        if (native && name !== undefined && (name === "@tsonic/host" || name.startsWith("@tsonic/host/") ||
+      const dependency = publicModuleDependency(ast, node);
+      if (dependency !== undefined) {
+        const name = ast.text(dependency.specifier);
+        if (native && (name === "@tsonic/host" || name.startsWith("@tsonic/host/") ||
           name === "@tsonic/source-core/host" || /(?:^|\/)tsonic\/packages\//u.test(name))) {
           add(node, "native-imports-private-host");
         }
-        if (hostFlow && name !== undefined && /(?:target-analysis|source-storage|tsonic-csharp|tsonic-rust|providers\/native)/u.test(name)) {
+        if (hostFlow && /(?:target-analysis|source-storage|tsonic-csharp|tsonic-rust|providers\/native)/u.test(name)) {
           add(node, "host-solver-imports-target-or-storage");
         }
       }
