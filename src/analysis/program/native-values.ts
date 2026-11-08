@@ -10,7 +10,8 @@ import { getCsharpTaskResultTargetType } from "../../target-model/types/carriers
 import { getCsharpReadOnlyIndexableCollectionElementTargetType } from "../../target-model/types/carriers/collections.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { csharpAbsenceTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
-import { optionalResultType } from "../../policy/operations/members/optional-results.js";
+import { isCsharpVoidTargetType } from "../../target-model/types/identity.js";
+import { representCsharpOptionalStorage } from "../../policy/types/source-type-flow/representation-optional.js";
 import { selectCsharpTargetCall, selectCsharpTargetElement, selectCsharpTargetProperty } from "../operations/members/selected-members.js";
 import { selectCsharpSourceCallableApplication } from "../callables/calls/native-application.js";
 import { selectCsharpBinaryOperation, selectCsharpUnaryOperation } from "../operations/operators.js";
@@ -63,13 +64,13 @@ export function createCsharpNativeValueQuery(
       if (selection.kind === "resolved") {
         const carrier = csharpSelectedCallResultType(selection.call.targetMember, selection.call.discardResult === true);
         return carrier === undefined ? missing(occurrence, "The selected Native call has no complete physical result ABI.")
-          : represented(optionalResultType(carrier, publication.value.argumentDisposition === "dynamic"));
+          : result(carrier, publication.value.argumentDisposition === "dynamic", occurrence);
       }
       if (selection.kind !== "source-owned") return missing(occurrence,
         selection.kind === "rejected" ? selection.diagnostic.message : selection.reason);
       const application = selectCsharpSourceCallableApplication(policy, publication.value);
-      return application.kind !== "represented" ? application : represented(optionalResultType(
-        application.value.applied.signature.returnType, publication.value.argumentDisposition === "dynamic"));
+      return application.kind !== "represented" ? application : result(
+        application.value.applied.signature.returnType, publication.value.argumentDisposition === "dynamic", occurrence);
     }
     if (ast.is.IsPropertyAccessExpression(occurrence) || ast.is.IsElementAccessExpression(occurrence)) {
       return member(occurrence);
@@ -157,14 +158,17 @@ export function createCsharpNativeValueQuery(
     const publication = facts.objects.use(occurrence);
     if (publication.kind === "refused") return Object.freeze({ kind: "source-refused", refusal: publication });
     const use = publication.value;
+    if (use.readType === undefined) return missing(occurrence, "The original Source member use has no published read result.");
+    const readResult = (carrier: TargetTypeRef): CsharpRepresentationOutcome<TargetTypeRef> =>
+      result(carrier, use.optionalChain || use.chainContinuation, occurrence);
     const sourceFile = ast.getSourceFile(occurrence);
     if (sourceFile === undefined) throw new TypeError("A Native member use requires its original Source file.");
     const selected = ast.is.IsElementAccessExpression(occurrence)
       ? selectCsharpTargetElement(policy, occurrence, sourceFile) : selectCsharpTargetProperty(policy, occurrence, sourceFile);
     if (selected.kind === "source-refused" || selected.kind === "native-refused") return selected;
     if (selected.kind === "resolved") return selected.targetMember.returnType === undefined
-      ? missing(occurrence, "The selected Native field or indexer has no physical read ABI.") : represented(selected.targetMember.returnType);
-    if (selected.kind === "project-indexer") return represented(selected.valueType);
+      ? missing(occurrence, "The selected Native field or indexer has no physical read ABI.") : readResult(selected.targetMember.returnType);
+    if (selected.kind === "project-indexer") return readResult(selected.valueType);
     if (selected.kind !== "source-owned") return missing(occurrence,
       selected.kind === "rejected" ? selected.diagnostic.message
         : "The member use requires its completed exact Native branch layout.");
@@ -187,7 +191,13 @@ export function createCsharpNativeValueQuery(
     const carrier = carriers[0];
     if (carrier === undefined || carriers.some(value => !targetTypeRefEquals(value, carrier))) return missing(occurrence,
       "The member read requires its published Source role and complete Native branch conversion plan.");
-    return represented(carrier);
+    return readResult(carrier);
+  }
+
+  function result(carrier: TargetTypeRef, optional: boolean, occurrence: Node): CsharpRepresentationOutcome<TargetTypeRef> {
+    if (!optional || isCsharpVoidTargetType(carrier)) return represented(carrier);
+    const layout = representCsharpOptionalStorage(policyFor(), carrier, occurrence);
+    return layout.kind === "represented" ? represented(layout.value.carrier) : layout;
   }
 
   function represent(evidence: SourceTypeEvidence, occurrence: Node,
