@@ -1,5 +1,5 @@
 import type { Node } from "@tsonic/tsts";
-import type { CsharpSourceAttributeApplicationIndex } from "../attributes/application-index.js";
+import type { CsharpSourceAttributeApplicationIndex } from "../attributes/model.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpOperationIssue } from "../../target-model/records/operations/operations.js";
 import type { CsharpSafetyApplicationFactIndex } from "../../target-model/records/storage/safety.js";

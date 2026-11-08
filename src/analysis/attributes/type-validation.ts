@@ -8,7 +8,7 @@ import type { CsharpSourceEvidenceIndex } from "../../target-model/records/progr
 import { getCsharpTypeofRuntimeKind } from "../../target-model/types/runtime-kind.js";
 import { isCsharpAbsenceTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
-import type { CsharpSourceAttributeApplicationIndex } from "./application-index.js";
+import type { CsharpSourceAttributeApplicationIndex } from "./model.js";
 import type { CsharpRepresentationOutcome } from "../../target-model/types/representation.js";
 import { represented } from "../../policy/types/source-type-flow/representation-results.js";
 import { forwardSourceRefusal } from "../source-evidence/representations.js";

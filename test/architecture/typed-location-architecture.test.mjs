@@ -89,6 +89,11 @@ test("Native attributes consume one published Node-only Source owner and retire 
   assert.deepEqual(files.filter(path => forbidden.test(readFileSync(path, "utf8")))
     .map(path => path.slice(repositoryRoot.length + 1)), []);
   const owner = readFileSync(join(sourceRoot, "analysis/attributes/application-index.ts"), "utf8");
+  const model = readFileSync(join(sourceRoot, "analysis/attributes/model.ts"), "utf8");
+  assert.match(model, /export interface CsharpSourceAttributeApplicationIndex/u);
+  assert.doesNotMatch(model, /import\s+(?!type\b)|facts\.|application-index|type-validation/u);
+  assert.doesNotMatch(owner, /export interface CsharpSourceAttributeApplicationIndex/u);
+  assert.match(owner, /import type \{ CsharpSourceAttributeApplicationIndex \} from "\.\/model\.js"/u);
   assert.match(owner, /source\.facts\.protocols\.attributeBuilder\(occurrence\)/u);
   assert.match(owner, /if \(selected\.kind === "refused"\) return selected/u);
   assert.match(owner, /member\.value\.selectedDeclaration/u);
@@ -99,6 +104,10 @@ test("Native attributes consume one published Node-only Source owner and retire 
     assert.doesNotMatch(text, /@tsonic\/source-core\/facts|sourceFacts|\.semantics\b/u, path);
   }
   const constants = readFileSync(join(sourceRoot, "analysis/attributes/type-validation.ts"), "utf8");
+  assert.match(constants, /import type \{ CsharpSourceAttributeApplicationIndex \} from "\.\/model\.js"/u);
+  assert.doesNotMatch(constants, /from "\.\/application-index\.js"/u);
+  const erasure = readFileSync(join(sourceRoot, "analysis/operations/statement-erasure.ts"), "utf8");
+  assert.match(erasure, /import type \{ CsharpSourceAttributeApplicationIndex \} from "\.\.\/attributes\/model\.js"/u);
   assert.match(constants, /application\.sourceArguments\.entries\(\)/u);
   assert.match(constants, /place\.effectiveArgumentIndex/u);
   assert.doesNotMatch(constants, /\.Arguments\b|ast\.arguments\(/u);

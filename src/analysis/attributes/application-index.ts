@@ -5,13 +5,9 @@ import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { admitCsharpAttributeArguments, diagnoseCsharpAttributeTypeValues, type CsharpAttributeArgumentEvidence } from "./type-validation.js";
 import type { CsharpAttributeApplication, CsharpAttributeApplicationIndex } from "../../target-model/records/program/attributes.js";
 import { csharpRepresentationDiagnostic, forwardSourceRefusal } from "../source-evidence/representations.js";
+import type { CsharpSourceAttributeApplicationIndex } from "./model.js";
 
 const emptyApplications: readonly CsharpAttributeApplication[] = Object.freeze([]);
-
-export interface CsharpSourceAttributeApplicationIndex {
-  readonly all: readonly Extract<SourceAttributeBuilderFact, { readonly kind: "application" }>[];
-  forSubject(subject: Node): SourceAttributeBuilderFact | undefined;
-}
 
 export function createCsharpSourceAttributeApplicationIndex(
   source: TargetSourceProgram,
