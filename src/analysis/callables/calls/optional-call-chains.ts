@@ -29,7 +29,7 @@ export function analyzeCsharpOptionalCallChains(ast: AstReader, nodes: readonly 
         invalid = true;
         break;
       }
-      steps.push({ node: current, expression: selected.expression, callee: classification.source?.sourceCallee.expression,
+      steps.push({ node: current, expression: selected.expression, callee: classification.source?.callee.occurrence,
         storage: selected.storage, type: selected.type, guard: selected.guard,
         argument: receiver?.parameterType === undefined || receiver.conversion === undefined ? undefined :
           Object.freeze({ type: receiver.parameterType, conversion: receiver.conversion }) });

@@ -1,247 +1,108 @@
+import type { Node } from "@tsonic/tsts";
+import type { TargetSelection } from "@tsonic/target-api";
+import type { TargetSourceProgram } from "@tsonic/target-api/source";
+import type { SourceStorageQueries } from "@tsonic/target-api/analysis";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
-import {
-  createCsharpNativeConstructionDemandQuery,
-} from "../objects/native-construction-demand.js";
-import type { CsharpNativeConstructionDemandQueries } from "../../target-model/records/native/native-construction.js";
-import type {
-  ExtensionFactSubject,
-  Node,
-  SourceFile,
-  Type,
-} from "@tsonic/tsts";
-import { emptyCsharpTypeDefinitions } from "../../target-model/types/source-union-definitions.js";
-import { selectCsharpArrayTypeGuard } from "../operations/source-profiles/js/type-tests.js";
-import type {
-  CsharpRecursiveObjectShapePolicy,
-} from "../objects/shapes/model.js";
-import { createCsharpObjectShapePolicy } from "../objects/shapes/api.js";
-import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../target-model/types/object-shape-members.js";
-import type { CsharpPlanningRepresentationQueries, CsharpTypePolicy, CsharpTypePolicyBaseHost } from "../source-evidence/types/resolution/model.js";
-import { createCsharpTypeResolutionServices } from "../source-evidence/types/resolution/engine.js";
+import type { CsharpTypeQueries } from "../../policy/model/type-resolution.js";
+import type { CsharpTypeDefinitions } from "../../target-model/types/native-definitions.js";
+import type { CsharpTypeDefinitionRegistry } from "../project-types/type-definitions.js";
+import type { CsharpProviderRelationResolver } from "../../providers/model/relation-resolver.js";
+import type { CsharpCaptureInitialization, CsharpObjectShapeFact, CsharpTargetMember, TargetTypeRef } from "../../target-model/types/model.js";
+import type { CsharpRepresentationOutcome, CsharpRepresentationView } from "../../target-model/types/representation.js";
+import type { CsharpObjectMethodSources } from "../../target-model/records/native/native-value-carriers.js";
+import type { CsharpProjectTypeCatalogBuilder } from "../project-types/catalog.js";
 import type { CsharpProjectTypeCatalog, CsharpProjectTypePolicy } from "../../target-model/records/types/project-types.js";
-import {
-  analyzeCsharpProjectTypePolicy,
-} from "../project-types/catalog/resolution.js";
-import type { CsharpBindingProjectionPolicy } from "../control-flow/binding-projections.js";
-import { createCsharpBindingProjectionPolicy } from "../control-flow/binding-projections.js";
-import {
-  csharpTargetTypeComponents,
-} from "../../target-model/types/components.js";
-import type {
-  TargetTypeRef,
-} from "../../target-model/types/model.js";
-import { createCsharpSourceTypeParameterEnvironment } from "../source-evidence/types/resolution/type-parameter-environment.js";
-import { resolveCsharpTypeParameterConstraints } from "../source-evidence/types/resolution/type-parameter-constraints.js";
-import { csharpNativeInheritanceLookup } from "../../target-model/types/native-inheritance.js";
-import { csharpTargetTypeFromBinding } from "../../policy/types/storage/bindings.js";
-import type { CsharpTypeParameterConstraint } from "../../target-model/types/generic-constraints.js";
+import type { CsharpNativeConstructionDemandQueries } from "../../target-model/records/native/native-construction.js";
+import type { CsharpObjectShapeRegistry } from "../objects/shapes/model.js";
+import type { CsharpNativeDelegateRegistry } from "../callables/native/native-delegates.js";
+import type { CsharpSourceRoleRegistry } from "../project-types/source-roles.js";
+import { createCsharpRepresentationView } from "../../policy/types/source-type-flow/representation.js";
+import { createCsharpNativeRepresentationHost } from "./representation-host.js";
+import { createCsharpTypeQueries } from "../source-evidence/types/queries.js";
+import { createCsharpObjectShapePolicy } from "../objects/shapes/api.js";
+import { createCsharpNativeDelegateRegistry } from "../callables/native/native-delegates.js";
+import { createCsharpSourceRoleRegistry } from "../project-types/source-roles.js";
+import { analyzeCsharpProjectTypePolicy } from "../project-types/catalog/resolution.js";
+import { createCsharpNativeConstructionDemandQuery } from "../objects/native-construction-demand.js";
 
-export interface CsharpTypeSystem {
-  readonly typeDefinitions: import("../../target-model/types/source-union-definitions.js").CsharpTypeDefinitions;
-  readonly analysisTypes: CsharpTypePolicy;
-  readonly objectShapes: CsharpRecursiveObjectShapePolicy;
-  readonly projectTypes: CsharpProjectTypePolicy;
+export interface CsharpNativeTypeServices {
+  readonly source: TargetSourceProgram;
+  readonly types: CsharpTypeQueries;
+  readonly representation: CsharpRepresentationView;
+  readonly objectShapes: CsharpObjectShapeRegistry;
+  readonly catalog: CsharpProjectTypeCatalog;
+  readonly nativeDelegates: CsharpNativeDelegateRegistry;
+  projectTypes(): CsharpProjectTypePolicy;
 }
 
-function createCsharpTypeSystem(
-  host: CsharpTypePolicyBaseHost,
-  projectTypeCatalog: CsharpProjectTypeCatalog,
-  representations: CsharpPlanningRepresentationQueries,
-): CsharpTypeSystem {
-  let objectShapes: CsharpRecursiveObjectShapePolicy | undefined;
-  let bindingProjections: CsharpBindingProjectionPolicy | undefined;
-  let projectTypes: CsharpProjectTypePolicy | undefined;
-  const requireProjectTypes = (): CsharpProjectTypePolicy => {
-    if (projectTypes === undefined) failTargetAnalysisInvariant("tsonic-csharp", "C# project heritage was requested before the type system was fully initialized.");
-    return projectTypes;
-  };
-  const typeParameterConstraints = createCsharpSourceTypeParameterEnvironment(host.ast, (declaration, parameter, source) => {
-    const sourceFile = source?.sourceFile ?? host.ast.getSourceFile(declaration);
-    if (sourceFile === undefined || !host.hasSemantics(sourceFile)) return undefined;
-    const sourceType = source?.sourceType ?? host.semantics(sourceFile).declarations.declaredType(declaration);
-    if (sourceType === undefined) return undefined;
-    const resolution = resolveCsharpTypeParameterConstraints(declaration, parameter, sourceFile, {
-      ast: host.ast,
-      types: { resolveNode: (node, file) => {
-        let rejected: Extract<import("../../policy/model/type-resolution.js").CsharpNodeTypeResolution, { readonly kind: "rejected" }> | undefined;
-        const type = typeResolution.recursive.resolveNode(node, file, {
-          depth: 0, sourceBindings: new Map([[declaration, { sourceType, targetType: parameter }]]),
-          rejectNativeResolution: rejection => { rejected ??= rejection; },
-        });
-        return rejected ?? (type === undefined ? undefined : Object.freeze({ kind: "resolved" as const,
-          sourceResult: csharpSourceValueResult(type)! }));
-      } },
-    });
-    if (resolution.kind !== "resolved") return resolution;
-    const constraints: CsharpTypeParameterConstraint[] = [];
-    for (const constraint of resolution.constraints) {
-      const selected = constraint.kind === "type" && constraint.type.kind === "target-named"
-        ? csharpNativeInheritanceLookup(constraint.type) : undefined;
-      if (selected?.kind !== "metadata-name" || constraint.kind !== "type" || constraint.type.kind !== "target-named") {
-        constraints.push(constraint);
-        continue;
-      }
-      const binding = host.providers.findTargetBindingByMetadataName(selected.metadataName, "ordinary");
-      if (binding.kind !== "resolved") return Object.freeze({ kind: "unsupported" as const,
-        reason: binding.kind === "missing"
-          ? "The selected native generic constraint has no exact C# provider binding."
-          : binding.diagnostic.message });
-      const type = csharpTargetTypeFromBinding(binding.binding, constraint.type.typeArguments);
-      if (type === undefined) return Object.freeze({ kind: "unsupported" as const,
-        reason: "The selected native generic constraint has no exact C# binding carrier." });
-      constraints.push(Object.freeze({ kind: "type", type }));
-    }
-    return Object.freeze({ kind: "resolved" as const, constraints: Object.freeze(constraints) });
-  });
-  const createTypeResolution = (
-    representations: CsharpPlanningRepresentationQueries,
-  ) => createCsharpTypeResolutionServices({
-      ...host,
-      typeParameterConstraints,
-      representations,
-      projectTypeCatalog,
-      closedTypeGuard(node) {
-        const semantics = host.semanticsFor(node);
-        return selectCsharpArrayTypeGuard(host, semantics.operations.call(node), semantics.sourceFile);
-      },
-      bindingProjection(node: Node, sourceFile: SourceFile) {
-        if (bindingProjections === undefined) failTargetAnalysisInvariant("tsonic-csharp", "C# binding projection ran before type-system initialization.");
-        return bindingProjections.resolveProjection(node, sourceFile, { depth: 0 });
-      },
-      get objectShapes() {
-        if (objectShapes === undefined) {
-          failTargetAnalysisInvariant("tsonic-csharp", "C# object-shape selection ran before the type system was fully initialized.");
-        }
-        return objectShapes;
-      },
-      projectTypes: requireProjectTypes,
-      targetTypeComponents(type) {
-        return csharpTargetTypeComponents(
-          type,
-          objectShapes?.resolveTarget(type),
-        );
-      },
-      structuralTypes: {
-        resolveReference(type) {
-          if (objectShapes === undefined) failTargetAnalysisInvariant("tsonic-csharp", "C# structural references requested before type-system initialization.");
-          return objectShapes.resolveReference(type);
-        },
-        resolveUnion(type, sourceFile, state) {
-          if (objectShapes === undefined) failTargetAnalysisInvariant("tsonic-csharp", "C# structural definitions requested before type-system initialization.");
-          return objectShapes.resolveUnion(type, sourceFile, state);
-        },
-        resolveTarget(type) {
-          if (objectShapes === undefined) {
-            failTargetAnalysisInvariant("tsonic-csharp", "C# structural type resolution ran before the type system was fully initialized.");
-          }
-          return objectShapes.resolveTarget(type);
-        },
-        resolveNode(
-          node: Node,
-          sourceFile: SourceFile,
-          state,
-        ) {
-          if (objectShapes === undefined) {
-            failTargetAnalysisInvariant("tsonic-csharp", "C# structural type resolution ran before the type system was fully initialized.");
-          }
-          if (bindingProjections === undefined) {
-            failTargetAnalysisInvariant("tsonic-csharp", "C# binding projection ran before the type system was fully initialized.");
-          }
-          return bindingProjections.resolveNode(node, sourceFile, state) ??
-            objectShapes.resolveNodeWithState(node, sourceFile, state)?.targetType;
-        },
-        resolveType(
-          type: Type,
-          sourceFile: SourceFile,
-          state,
-          authoredTypeRoot?: Node,
-        ) {
-          if (objectShapes === undefined) {
-            failTargetAnalysisInvariant("tsonic-csharp", "C# structural type resolution ran before the type system was fully initialized.");
-          }
-          return objectShapes.resolveTypeWithState(
-            type,
-            sourceFile,
-            authoredTypeRoot,
-            state,
-          )?.targetType;
-        },
-        resolveSelectedProperty(
-          receiverType: TargetTypeRef | undefined,
-          selectedSubjects: readonly ExtensionFactSubject[],
-        ): TargetTypeRef | undefined {
-          if (objectShapes === undefined || receiverType === undefined) {
-            return undefined;
-          }
-          const shape = objectShapes.resolveTarget(receiverType);
-          if (shape === undefined) {
-            return undefined;
-          }
-          const selected = resolveCsharpObjectShapeMemberBySelectedSubject(
-            shape,
-            selectedSubjects,
-          );
-          return selected.kind === "resolved" ? selected.member.type : undefined;
-        },
-      },
-    });
-  const typeResolution = createTypeResolution(representations);
-  const types = typeResolution.policy;
-  objectShapes = createCsharpObjectShapePolicy({
-    ...host,
-    typeParameterConstraints,
-    representations,
-    projectTypeCatalog,
-    projectTypes: requireProjectTypes,
-    typeResolver: typeResolution.recursive,
-  });
-  bindingProjections = createCsharpBindingProjectionPolicy({
-    ...host,
-    projectTypes: requireProjectTypes,
-    typeResolver: typeResolution.recursive,
-    objectShapes,
-    scopedTargetType: representations.scopedTargetType,
-  });
-  projectTypes = analyzeCsharpProjectTypePolicy(
-    { ...host, types },
-    projectTypeCatalog,
-  );
-  return Object.freeze({
-    typeDefinitions: host.typeDefinitions ?? emptyCsharpTypeDefinitions,
-    analysisTypes: types,
-    objectShapes,
-    projectTypes,
-  });
+export interface CsharpTypeSystemHost {
+  readonly source: TargetSourceProgram;
+  readonly target: TargetSelection;
+  readonly providers: CsharpProviderRelationResolver;
+  readonly sourceStorage: SourceStorageQueries;
+  readonly objectMethodSources: CsharpObjectMethodSources;
+  readonly typeDefinitions: CsharpTypeDefinitionRegistry;
+  nativeValue(occurrence: Node, services: CsharpNativeTypeServices): CsharpRepresentationOutcome<TargetTypeRef>;
+  nativeShape(carrier: TargetTypeRef, services: CsharpNativeTypeServices): CsharpObjectShapeFact | undefined;
+  profileConstructors(declaration: Node): readonly CsharpTargetMember[];
+  captureInitialization(declaration: Node): CsharpCaptureInitialization;
+}
+
+export interface CsharpTypeSystem {
+  readonly typeDefinitions: CsharpTypeDefinitions;
+  readonly representation: CsharpRepresentationView;
+  readonly analysisTypes: CsharpTypeQueries;
+  readonly objectShapes: CsharpObjectShapeRegistry;
+  readonly projectTypes: CsharpProjectTypePolicy;
+  readonly sourceRoles: CsharpSourceRoleRegistry;
+  readonly nativeDelegates: CsharpNativeDelegateRegistry;
+  nativeValue(occurrence: Node): CsharpRepresentationOutcome<TargetTypeRef>;
 }
 
 export interface CsharpTypeAnalysis extends CsharpTypeSystem {
   readonly nativeConstruction: CsharpNativeConstructionDemandQueries;
 }
 
-export function createCsharpTypeAnalysis(
-  host: CsharpTypePolicyBaseHost,
-  catalog: CsharpProjectTypeCatalog,
-  representations: CsharpPlanningRepresentationQueries,
-): CsharpTypeAnalysis {
-  let nativeConstruction: CsharpNativeConstructionDemandQueries | undefined;
-  const selectedRepresentations: CsharpPlanningRepresentationQueries = Object.freeze({
-    ...representations,
-    scopedTargetType(node: Node): TargetTypeRef | undefined {
-      return nativeConstruction?.constructionFor(node)?.targetType ?? representations.scopedTargetType(node);
+export function createCsharpTypeAnalysis(host: CsharpTypeSystemHost, catalog: CsharpProjectTypeCatalogBuilder): CsharpTypeAnalysis {
+  let objectShapes: CsharpObjectShapeRegistry | undefined;
+  let representation: CsharpRepresentationView | undefined;
+  let services: CsharpNativeTypeServices | undefined;
+  let projectTypes: CsharpProjectTypePolicy | undefined;
+  const initialized = <Value>(value: Value | undefined, name: string): Value =>
+    value ?? failTargetAnalysisInvariant("tsonic-csharp", `${name} was requested before Native type-service assembly completed.`);
+  const sourceRoles = createCsharpSourceRoleRegistry(host.providers, host.typeDefinitions);
+  const nativeDelegates = createCsharpNativeDelegateRegistry(host.typeDefinitions);
+  representation = createCsharpRepresentationView(createCsharpNativeRepresentationHost({
+    source: host.source, target: host.target, providers: host.providers, catalog, nativeDelegates,
+    representation: () => initialized(representation, "The one representation view"),
+    retainShape(shape, site) {
+      const retained = initialized(objectShapes, "The Native physical-shape registry").retainShape(shape, site);
+      if (retained.kind === "represented") nativeDelegates.inherit(retained.value.targetType, retained.value.implements ?? []);
+      return retained;
     },
+    retainRoleWitness: sourceRoles.retain,
+  }));
+  const selected = representation;
+  const types = createCsharpTypeQueries(host.source.facts, selected);
+  const nativeValue = (occurrence: Node): CsharpRepresentationOutcome<TargetTypeRef> =>
+    host.nativeValue(occurrence, initialized(services, "The Native producer queries"));
+  objectShapes = createCsharpObjectShapePolicy({
+    ast: host.source.ast, source: host.source.facts.descriptors, values: host.source.facts.values,
+    objects: host.source.facts.objects, sourceStorage: host.sourceStorage, objectMethodSources: host.objectMethodSources,
+    representation: () => selected, nativeShape: carrier => host.nativeShape(carrier, initialized(services, "The Native producer queries")),
+    nativeValue, captureInitialization: host.captureInitialization,
   });
-  const system = createCsharpTypeSystem(host, catalog, selectedRepresentations);
-  nativeConstruction = createCsharpNativeConstructionDemandQuery({
-    ...host,
-    projectTypes: system.projectTypes,
-    resolveEffectiveShape(node, file) {
-      return system.objectShapes.resolveNode(node, file);
-    },
-    scopedTargetType: representations.scopedTargetType,
-    resolveLiteralShape: system.objectShapes.resolveObjectLiteralTargetShape,
-    retainSourceShape: system.objectShapes.retainConstructionSource,
-    publishedShapeTarget: system.objectShapes.publishedShapeTarget,
+  services = Object.freeze({ source: host.source, types, representation: selected, objectShapes, catalog, nativeDelegates,
+    projectTypes: () => initialized(projectTypes, "The Native project heritage catalog") });
+  catalog.complete(selected);
+  projectTypes = analyzeCsharpProjectTypePolicy({
+    ast: host.source.ast, facts: host.source.facts, types, providers: host.providers, profileConstructors: host.profileConstructors,
+  }, catalog);
+  const nativeConstruction = createCsharpNativeConstructionDemandQuery({
+    source: host.source, representation: selected, objectShapes, physicalValue: nativeValue,
   });
-  return Object.freeze({ ...system, nativeConstruction });
+  return Object.freeze({
+    typeDefinitions: host.typeDefinitions, representation: selected, analysisTypes: types, objectShapes, projectTypes,
+    sourceRoles, nativeDelegates, nativeValue, nativeConstruction,
+  });
 }
-import { csharpSourceValueResult } from "../source-evidence/types/resolution/call-results.js";

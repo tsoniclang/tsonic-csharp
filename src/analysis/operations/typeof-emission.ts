@@ -1,18 +1,20 @@
 import type { AstReader, Node } from "@tsonic/tsts";
+import type { SourceProgramFacts } from "@tsonic/target-api/source";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
 import type { CsharpValueReadClassifications } from "../../target-model/records/operations/conversions.js";
 import type { CsharpClassFactoryIndex } from "../../target-model/records/objects/class-factories.js";
-import type { CsharpTypeDefinitions } from "../../target-model/types/source-union-definitions.js";
+import type { CsharpTypeDefinitions } from "../../target-model/types/native-definitions.js";
 import type { CsharpTypeofOperationEmission } from "../../target-model/records/operations/typeof-emission.js";
 import { getCsharpClassFactory } from "../../target-model/types/carriers/class-factories.js";
-import { sourceOperatorFromKindName } from "../../target-model/syntax/operators.js";
+import { csharpRepresentationDiagnostic } from "../source-evidence/representations.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { csharpTypeofResultsEqual, getCsharpTypeofResult } from "../../target-model/types/runtime-kind.js";
 import { selectCsharpTypeEmission } from "../../policy/types/resolution/type-emission.js";
 import { createCsharpTypeofEmissionProducer } from "../program/records/operations/typeof-emission.js";
 
 export function analyzeCsharpTypeofEmission(input: { readonly ast: AstReader; readonly nodes: readonly Node[];
+  readonly facts: SourceProgramFacts;
   readonly admitted: (node: Node) => boolean; readonly operations: CsharpTargetOperationClassifications;
   readonly values: CsharpValueReadClassifications; readonly factories: CsharpClassFactoryIndex; readonly definitions: CsharpTypeDefinitions }) {
   const producer = createCsharpTypeofEmissionProducer();
@@ -21,8 +23,9 @@ export function analyzeCsharpTypeofEmission(input: { readonly ast: AstReader; re
   for (const node of input.nodes) {
     if (!input.admitted(node)) continue;
     const binary = input.operations.binaryOperation.get(node);
-    const operator = input.ast.is.IsBinaryExpression(node) ? sourceOperatorFromKindName(input.ast.operatorKindName(node)) : undefined;
-    if (operator === "instanceof") {
+    const operation = input.ast.is.IsBinaryExpression(node) ? input.facts.values.operation(node) : undefined;
+    if (operation?.kind === "refused") { issues.push(csharpRepresentationDiagnostic({ kind: "source-refused", refusal: operation })); continue; }
+    if (operation?.value.kind === "instanceof") {
       const syntax = input.ast.as.AsBinaryExpression(node);
       const left = syntax?.Left;
       const right = syntax?.Right;

@@ -1,75 +1,32 @@
-import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import type { CsharpProviderTypeParameterRelation } from "../../../../target-model/identities/provider-relations.js";
-import type { CsharpTargetBindingFact, CsharpTargetMember, TargetTypeRef } from "../../../../policy/types/index.js";
-import type { CsharpTypeQueries } from "../../../../policy/model/type-resolution.js";
+import type { CsharpTargetBindingFact, CsharpTargetMember, TargetTypeRef } from "../../../../target-model/types/model.js";
 import { csharpTargetBindingSubstitutions, csharpTargetTypePatternFromBinding, resolveCsharpTargetTypePatternArguments, substituteCsharpTargetMember, targetTypeRefEquals } from "../../../../policy/types/index.js";
-
 import { isCompleteTypeParameterRelation } from "../../../../policy/operations/members/binding-instantiation.js";
-export interface CsharpSourceTypeEvidence {
-  readonly node: Node | undefined;
-  readonly type?: Type;
-}
 
 export function resolveCsharpTargetBindingArguments(
-  types: CsharpTypeQueries,
   binding: CsharpTargetBindingFact,
-  sourceEvidence: readonly CsharpSourceTypeEvidence[],
-  sourceFile: SourceFile,
+  carriers: readonly TargetTypeRef[],
 ): readonly TargetTypeRef[] | undefined {
-  const targetArity = binding.typeParameters?.length ?? 0;
-  if (targetArity === 0) {
-    return [];
-  }
-  const selections = sourceEvidence.map(evidence => types.resolveNode(evidence.node, sourceFile));
-  if (selections.some(selected => selected?.kind === "rejected")) return undefined;
-  const candidates = sourceEvidence
-    .map((_evidence, index) => selections[index]?.sourceResult?.selectedType)
-    .filter((type): type is TargetTypeRef => type !== undefined)
-    .map((type) => resolveCsharpTargetTypePatternArguments(
-      csharpTargetTypePatternFromBinding(binding),
-      type,
-      binding.typeParameters ?? [],
-    ))
-    .filter(
-      (arguments_): arguments_ is readonly TargetTypeRef[] =>
-        arguments_ !== undefined && arguments_.length === targetArity,
-    );
-  if (candidates.length === 0) {
-    return undefined;
-  }
-  const first = candidates[0]!;
-  return candidates.every((arguments_) =>
-      arguments_.every((argument, index) =>
-        targetTypeRefEquals(argument, first[index]!)))
-    ? first
-    : undefined;
+  const arity = binding.typeParameters?.length ?? 0;
+  if (arity === 0) return Object.freeze([]);
+  const argumentsByCarrier = carriers.map(carrier => resolveCsharpTargetTypePatternArguments(
+    csharpTargetTypePatternFromBinding(binding), carrier, binding.typeParameters ?? []));
+  if (argumentsByCarrier.length === 0 || argumentsByCarrier.some(arguments_ => arguments_ === undefined || arguments_.length !== arity)) return undefined;
+  const first = argumentsByCarrier[0]!;
+  if (first === undefined) return undefined;
+  return argumentsByCarrier.every(arguments_ => arguments_?.every((argument, index) =>
+    targetTypeRefEquals(argument, first[index]!))) ? Object.freeze([...first]) : undefined;
 }
 
 export function instantiateCsharpProviderBindingMember(
-  types: CsharpTypeQueries,
   binding: CsharpTargetBindingFact,
   member: CsharpTargetMember,
-  bindingTypeParameters: readonly CsharpProviderTypeParameterRelation[],
-  sourceEvidence: readonly CsharpSourceTypeEvidence[],
-  sourceFile: SourceFile,
+  parameters: readonly CsharpProviderTypeParameterRelation[],
+  carriers: readonly TargetTypeRef[],
 ): CsharpTargetMember | undefined {
-  if (!isCompleteTypeParameterRelation(
-    bindingTypeParameters,
-    binding.typeParameters?.length ?? 0,
-  )) {
-    return undefined;
-  }
-  const arguments_ = resolveCsharpTargetBindingArguments(
-    types,
-    binding,
-    sourceEvidence,
-    sourceFile,
-  );
-  if (arguments_ === undefined) {
-    return undefined;
-  }
+  if (!isCompleteTypeParameterRelation(parameters, binding.typeParameters?.length ?? 0)) return undefined;
+  const arguments_ = resolveCsharpTargetBindingArguments(binding, carriers);
+  if (arguments_ === undefined) return undefined;
   const substitutions = csharpTargetBindingSubstitutions(binding, arguments_);
-  return substitutions === undefined
-    ? undefined
-    : substituteCsharpTargetMember(member, substitutions);
+  return substitutions === undefined ? undefined : substituteCsharpTargetMember(member, substitutions);
 }

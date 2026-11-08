@@ -1,5 +1,4 @@
 import { allocateDestructuringTemp } from "./binding-state.js";
-import { csharpDestructuringAssignmentSyntax } from "../../../target-model/syntax/operators.js";
 import { getCsharpTypeForExpressionCarrier } from "./binding-patterns.js";
 import type { ExpressionPlanner } from "../expressions/expression-planner-types.js";
 import type { CsharpExpression, CsharpStatement } from "../../target-ast/syntax/index.js";
@@ -30,7 +29,7 @@ export function isDestructuringAssignmentExpression(
   node: Node | undefined,
   input: CsharpPlanningContext,
 ): boolean {
-  return csharpDestructuringAssignmentSyntax(input.program.source.ast, node) !== undefined;
+  return node !== undefined && input.program.records.binaryOperation.get(node)?.destructuring.kind === "resolved";
 }
 
 export function planDestructuringAssignmentStatement(node: Node | undefined, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], state: DestructuringPlannerState, planExpression: ExpressionPlanner

@@ -1,166 +1,52 @@
+import type { Node, SourceFile, ExtensionDiagnostic } from "@tsonic/tsts";
+import type { SourceApplication } from "@tsonic/target-api/source";
 import type { CsharpProviderCallSelectionHost } from "../../../../policy/model/provider-calls.js";
-import type { ExtensionDiagnostic, Node, SourceFile } from "@tsonic/tsts";
-import type { SourceFileSemantics } from "@tsonic/target-api/source";
-import type { CsharpProviderOperationResolution } from "../relations.js";
-
+import type { CsharpRepresentationOutcome } from "../../../../target-model/types/representation.js";
 import { resolveCsharpProviderCallRelations } from "../relations.js";
-
-import type { CsharpInstantiatedProviderCall, CsharpProviderCallInstantiation } from "./instantiation.js";
-import { compareInstantiatedProviderCalls, instantiateCsharpProviderCall } from "./instantiation.js";
+import { compareInstantiatedProviderCalls, instantiateCsharpProviderCall, type CsharpInstantiatedProviderCall, type CsharpProviderCallInstantiation } from "./instantiation.js";
 import { selectCsharpInheritedConstructorTarget } from "./implicit-super.js";
 
-type ResolvedSourceCallInfo = NonNullable<
-  ReturnType<SourceFileSemantics["operations"]["call"]>
->;
-
 export type CsharpProviderCallSelection =
-  | {
-      readonly kind: "resolved";
-      readonly source: ResolvedSourceCallInfo;
-      readonly call: CsharpInstantiatedProviderCall;
-    }
-  | {
-      readonly kind: "not-provider";
-      readonly source: ResolvedSourceCallInfo;
-      readonly reason: string;
-    }
-  | {
-      readonly kind: "missing";
-      readonly reason: string;
-    }
-  | {
-      readonly kind: "conflict";
-      readonly reason: string;
-    }
-  | {
-      readonly kind: "ambiguous";
-      readonly reason: string;
-      readonly candidates: readonly string[];
-    }
-  | {
-      readonly kind: "rejected";
-      readonly diagnostic: ExtensionDiagnostic;
-    };
+  | { readonly kind: "resolved"; readonly source: SourceApplication; readonly call: CsharpInstantiatedProviderCall }
+  | { readonly kind: "not-provider"; readonly source: SourceApplication; readonly reason: string }
+  | { readonly kind: "missing" | "conflict"; readonly reason: string }
+  | { readonly kind: "ambiguous"; readonly reason: string; readonly candidates: readonly string[] }
+  | { readonly kind: "rejected"; readonly diagnostic: ExtensionDiagnostic }
+  | Exclude<CsharpRepresentationOutcome<never>, { readonly kind: "represented" }>;
 
 export function selectCsharpProviderCall(
-  host: CsharpProviderCallSelectionHost,
-  call: Node,
-  sourceFile: SourceFile,
+  host: CsharpProviderCallSelectionHost, call: Node, _sourceFile: SourceFile,
 ): CsharpProviderCallSelection {
-  const source = host.semantics(sourceFile).operations.call(
-    call,
-  );
-  if (source === undefined) {
-    return {
-      kind: "missing",
-      reason: "The checker did not resolve an exact source call.",
-    };
-  }
-  const resolution = resolveCsharpProviderCallRelations(
-    host,
-    call,
-    sourceFile,
-  );
-  if (resolution.kind === "missing") {
-    return {
-      kind: "not-provider",
-      source,
-      reason: resolution.reason,
-    };
-  }
-  if (resolution.kind === "conflict") {
-    return { kind: "conflict", reason: resolution.reason };
-  }
-  if (resolution.kind === "rejected") {
-    return resolution;
-  }
-  const selected = selectResolvedProviderCall(
-    host,
-    source,
-    sourceFile,
-    resolution,
-  );
-  if (selected.kind !== "resolved") {
-    return selected;
-  }
-  const member = selected.call.targetMember;
-  const declaration = source.sourceCallee.selectedDeclaration;
+  const published = host.facts.applications.application(call);
+  if (published.kind === "refused") return Object.freeze({ kind: "source-refused", refusal: published });
+  const source = published.value;
+  const resolution = resolveCsharpProviderCallRelations(host, source);
+  if (resolution.kind === "missing") return { kind: "not-provider", source, reason: resolution.reason };
+  if (resolution.kind !== "resolved") return resolution;
+  const candidates = resolution.relations.filter(relation => relation.kind === "signature")
+    .map(relation => instantiateCsharpProviderCall(host, relation, source));
+  const sourceRefusal = candidates.find(candidate => candidate.kind === "source-refused");
+  if (sourceRefusal !== undefined) return sourceRefusal;
+  const accepted = candidates.filter((candidate): candidate is Extract<CsharpProviderCallInstantiation, { readonly kind: "resolved" }> =>
+    candidate.kind === "resolved");
+  if (accepted.length === 0) return { kind: "missing", reason: candidates.flatMap(candidate =>
+    candidate.kind === "native-refused" ? [candidate.message] : []).join(" ") || "The exact provider signature has no complete Native member relation." };
+  const best = accepted.filter(candidate => !accepted.some(other =>
+    other !== candidate && compareInstantiatedProviderCalls(host, other, candidate) === "left"));
+  if (best.length !== 1) return { kind: "ambiguous", reason: "Several Native target signatures satisfy the same original selected Source signature.",
+    candidates: best.map(candidate => `${candidate.call.relation.targetBinding.id}::${candidate.call.targetMember.id}`) };
+  const selected = best[0]!.call;
+  const member = selected.targetMember;
   if (member.kind === "constructor" && member.csharpInvocation === undefined) {
-    if (member.csharpConstructorAccessibility === undefined) {
-      return { kind: "missing", reason: "The selected native constructor has no exact accessibility evidence." };
-    }
-    if (member.csharpConstructorObsolete === undefined) {
-      return { kind: "missing", reason: "The selected native constructor has no exact obsolescence evidence." };
-    }
-    if (member.csharpConstructorObsolete) {
-      return { kind: "missing", reason: "The selected native constructor is obsolete and cannot be called from source." };
-    }
-    if (host.ast.is.IsNewExpression(call) &&
-      (declaration === undefined || !host.navigation.isProjectDeclaration(declaration)) &&
-      (member.csharpConstructorAccessibility !== "public" || selected.call.relation.targetBinding.csharpAbstract === true)) {
-      return { kind: "missing", reason: "The selected native constructor is not accessible for direct construction." };
+    if (member.csharpConstructorAccessibility === undefined || member.csharpConstructorObsolete === undefined) return {
+      kind: "missing", reason: "An actual Native constructor requires exact accessibility and obsolescence metadata." };
+    if (member.csharpConstructorObsolete) return { kind: "missing", reason: "The selected Native constructor is obsolete." };
+    if (source.kind === "construct" && !host.facts.navigation.isProjectDeclaration(source.identity.signature.owner) &&
+      (member.csharpConstructorAccessibility !== "public" || selected.relation.targetBinding.csharpAbstract === true)) {
+      return { kind: "missing", reason: "The selected Native constructor is inaccessible or abstract for direct construction." };
     }
   }
-  const forwarding = selectCsharpInheritedConstructorTarget(host, source, selected.call.targetMember);
-  if (forwarding.kind === "missing") return forwarding;
-  return {
-    kind: "resolved",
-    source,
-    call: {
-      ...selected.call,
-      targetMember: forwarding.member,
-    },
-  };
-}
-
-function selectResolvedProviderCall(
-  host: CsharpProviderCallSelectionHost,
-  source: ResolvedSourceCallInfo,
-  sourceFile: SourceFile,
-  resolution: Extract<
-    CsharpProviderOperationResolution,
-    { readonly kind: "resolved" }
-  >,
-): CsharpProviderCallSelection {
-  const candidates = resolution.relations
-    .filter((relation) => relation.kind === "signature")
-    .map((relation) => instantiateCsharpProviderCall(
-      host,
-      relation,
-      source,
-      sourceFile,
-    ));
-  const accepted = candidates
-    .filter((candidate): candidate is Extract<
-      CsharpProviderCallInstantiation,
-      { readonly kind: "resolved" }
-    > => candidate.kind === "resolved");
-  if (accepted.length === 1) {
-    return { kind: "resolved", source, call: accepted[0]!.call };
-  }
-  if (accepted.length === 0) {
-    return {
-      kind: "missing",
-      reason: candidates
-        .map((candidate) =>
-          candidate.kind === "rejected" ? candidate.reason : undefined)
-        .filter((reason): reason is string => reason !== undefined)
-        .join(" "),
-    };
-  }
-  const best = accepted.filter((candidate) =>
-    !accepted.some((other) =>
-      other !== candidate &&
-      compareInstantiatedProviderCalls(host, other, candidate) === "left"
-    ));
-  if (best.length === 1) {
-    return { kind: "resolved", source, call: best[0]!.call };
-  }
-  return {
-    kind: "ambiguous",
-    reason:
-      "More than one C# target signature satisfies the same exact selected provider source signature.",
-    candidates: best.map((candidate) =>
-      `${candidate.call.relation.targetBinding.id}::${candidate.call.targetMember.id}`),
-  };
+  const forwarding = selectCsharpInheritedConstructorTarget(host, source, member);
+  return forwarding.kind === "missing" ? forwarding : Object.freeze({ kind: "resolved", source,
+    call: Object.freeze({ ...selected, targetMember: forwarding.member }) });
 }

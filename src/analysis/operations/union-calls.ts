@@ -6,7 +6,7 @@ import { getCsharpRuntimeUnionArms } from "../../target-model/types/carriers/run
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
-import { csharpSourceArgumentPassingMode } from "../../source/extension/arguments.js";
+import { selectCsharpSourceArgument } from "../../source/extension/arguments.js";
 import { csharpDelegateSignatureHasSupportedPassingModes } from "../../target-model/types/carriers/delegates.js";
 import { selectCsharpConversion } from "../../policy/conversions/core.js";
 import { csharpConversionIsApplicable } from "../../policy/conversions/applicability.js";
@@ -27,7 +27,7 @@ export function classifyCsharpUnionCall(
     arms.some(arm => policy.projectTypes.catalog.definitionForTarget(arm)?.kind !== "class")) return { kind: "not-union" };
   const reject = (reason: string): CsharpUnionCallClassification => ({ kind: "rejected", reason });
   if (property.optionalChain ||
-    source.sourceArguments.some(argument => csharpSourceArgumentPassingMode(policy.sourceFacts, argument.expression) !== "by-value")) {
+    source.sourceArguments.some(argument => selectCsharpSourceArgument(policy.facts.protocols, argument.expression).argument.passingMode !== "by-value")) {
     return reject("Closed class-union calls require a present receiver and exact value-argument passing contracts.");
   }
   const parameterTypes = source.sourceSelectedSignatureParameters.map((_, index) => policy.types.resolveSourceCallParameter(source, index, sourceFile, "callable"));

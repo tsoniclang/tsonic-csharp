@@ -1,7 +1,6 @@
 import { applyCalleeTypeArguments } from "./helpers.js";
 import { planCsharpUnionDispatcherCall } from "./union.js";
-import { planCsharpSourceUndefinedValue } from "../undefined-values.js";
-import { translateCallArgument } from "./arguments.js";
+import { translateSelectedTargetArguments } from "./arguments.js";
 import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import type { CallArgumentPlanner, ExpressionPlanner } from "../expression-planner-types.js";
 import type { CsharpArgument, CsharpExpression, CsharpStatement } from "../../../target-ast/syntax/index.js";
@@ -9,21 +8,26 @@ import type { CsharpPlanningContext } from "../../context.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { convertCsharpPlannedValue } from "../planned-value-conversions.js";
-import type { CsharpPlannedArgument, CsharpPlannedValue } from "../planned-values.js";
+import type { CsharpPlannedValue } from "../planned-values.js";
 import { csharpPlannedValue } from "../planned-values.js";
 import { composeCsharpPlannedValues, planCsharpExpressionCompletion, planCsharpOptionalReceiverValue } from "../planned-value-composition.js";
-import { composeCsharpPlannedCall, csharpPlannedArgumentSyntax, type CsharpPlannedCallArguments } from "./planned-arguments.js";
+import { composeCsharpPlannedCall } from "./planned-arguments.js";
 import { planCsharpNativeFunctionCallee, planCsharpNativeMethodCallee } from "./native-callees.js";
 import type { DestructuringPlannerState } from "../../bindings/binding-state.js";
-import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/render.js";
 import { castCsharpCallableOperand, unparenthesizeCsharpExpression } from "./callable-syntax.js";
+import { planCsharpPlannedDiscard } from "../../statements/statement-output.js";
 
 export function translateSourceOwnedCall(node: Node, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner, planCallArgument: CallArgumentPlanner, state?: DestructuringPlannerState): CsharpPlannedValue | undefined {
   const selected = input.program.records.sourceCallEmission.get(node);
   if (selected === undefined) failCsharpPlannerInvariant("An admitted source call requires its exact native invocation plan.", node);
-  const arguments_ = translateSourceOwnedArguments(node, sourceFile, input, diagnostics, planExpression, planCallArgument);
+  if (selected.kind === "skipped") {
+    const callee = planExpression(selected.callee, sourceFile, input, diagnostics, state);
+    if (callee === undefined || callee.completion.kind === "never") return callee;
+    return csharpPlannedValue(selected.result, { kind: "LiteralExpression", value: null }, planCsharpPlannedDiscard(callee), true, true);
+  }
+  const arguments_ = translateSelectedTargetArguments(node, sourceFile, input, diagnostics, planExpression, planCallArgument);
   if (arguments_ === undefined) return undefined;
   if (selected.kind === "union") {
     const receiver = planExpression(selected.union.receiver, sourceFile, input, diagnostics);
@@ -33,27 +37,11 @@ export function translateSourceOwnedCall(node: Node, sourceFile: SourceFile, inp
   const callee = selected.callee;
   const optional = selected.optionalCallee !== undefined && !input.scope.presentOptionalValues?.has(selected.optionalCallee.expression) ? selected.optionalCallee : undefined;
   const invoke = (expression: CsharpExpression, args: readonly CsharpArgument[]): CsharpPlannedValue | undefined => {
-    const member: CsharpExpression = selected.methodValue === undefined ? expression : { kind: "SimpleMemberAccessExpression", receiver: expression, name: selected.methodValue };
+    const member: CsharpExpression = callee.kind !== "value" ? expression : { kind: "SimpleMemberAccessExpression", receiver: expression, name: selected.member.name };
     const generic = applyCalleeTypeArguments(input.scope.typeParameterNames, member, selected.typeArguments, node, diagnostics);
     const invocation = generic === undefined ? undefined : planCsharpExpressionCompletion(node, sourceFile, input, diagnostics,
       { kind: "InvocationExpression", callee: generic, arguments: args }, selected.result.nativeType);
     if (invocation === undefined) return undefined;
-    if (selected.result.completion !== undefined) {
-      if (invocation.completion.kind !== "value") failCsharpPlannerInvariant("A completed source Promise adoption requires its native Task value.", node);
-      const value = invocation.completion.expression;
-      if (selected.result.completion.form === "direct") return csharpPlannedValue(selected.result.selectedType, {
-        kind: "InvocationExpression", callee: { kind: "SimpleMemberAccessExpression", receiver: {
-          kind: "SimpleMemberAccessExpression", receiver: {
-            kind: "AliasQualifiedName", alias: "global", name: { kind: "QualifiedName", left: {
-              kind: "QualifiedName", left: { kind: "IdentifierName", name: "System" }, name: "Threading",
-            }, name: "Tasks" },
-          }, name: "TaskExtensions",
-        }, name: "Unwrap" }, arguments: [{ kind: "Argument", expression: value }],
-      }, invocation.prelude);
-      if (!targetTypeRefEquals(selected.result.nativeType, selected.result.selectedType))
-        failCsharpPlannerInvariant("A deferred source Promise completion must retain its exact physical Task carrier.", node);
-      return csharpPlannedValue(selected.result.selectedType, value, invocation.prelude);
-    }
     return convertCsharpPlannedValue(node, sourceFile, input, diagnostics, invocation, selected.result.selectedType, "explicit");
   };
   if (callee.kind === "function") {
@@ -82,34 +70,4 @@ export function translateSourceOwnedCall(node: Node, sourceFile: SourceFile, inp
   return optional === undefined ? expression === undefined ? undefined : composeCsharpPlannedCall(node, sourceFile, input, diagnostics, expression, arguments_, (value, args) => invokeValue(value!, args))
     : planCsharpOptionalReceiverValue(node, sourceFile, input, diagnostics, expression, value => composeCsharpPlannedCall(node, sourceFile, input, diagnostics,
       csharpPlannedValue(optional.type, value), arguments_, (callable, args) => invokeValue(callable!, args)), selected.result.selectedType);
-}
-
-export function translateSourceOwnedArguments(node: Node, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
-  planExpression: ExpressionPlanner, planCallArgument: CallArgumentPlanner): CsharpPlannedCallArguments | undefined {
-  const selected = input.program.records.sourceArgumentsEmission.get(node);
-  if (selected === undefined) failCsharpPlannerInvariant("Admitted source arguments require their exact native parameter grouping.", node);
-  const planned: CsharpPlannedArgument[] = [];
-  for (const entry of selected.arguments) {
-    const argument = translateCallArgument(entry.node, entry.parameter, entry.form, sourceFile, input, diagnostics, planExpression, planCallArgument);
-    if (argument === undefined) return undefined;
-    planned.push(argument);
-  }
-  const groups = selected.groups.map(group => {
-    if (group.kind !== "absence") return group;
-    const prelude: CsharpStatement[] = [];
-    const expression = planCsharpSourceUndefinedValue(node, group, sourceFile, input, diagnostics, prelude);
-    const index = planned.length;
-    planned.push(csharpPlannedValue(group.type, expression, prelude, true, true));
-    return { kind: "value" as const, index };
-  });
-  return { operands: planned, arguments: values => {
-    const arguments_: CsharpArgument[] = [];
-    for (const group of groups) {
-      if (group.kind === "collect") arguments_.push({ kind: "Argument", expression: { kind: "CollectionExpression", elements: group.arguments.map(argument => ({
-        kind: argument.spread ? "SpreadElement" : "ExpressionElement", expression: values[argument.index]!,
-      })) } });
-      else if (group.kind === "value") arguments_.push(csharpPlannedArgumentSyntax(planned[group.index]!, values[group.index]!));
-    }
-    return arguments_;
-  } };
 }

@@ -1,5 +1,5 @@
 import type { AstReader, Node } from "@tsonic/tsts";
-import type { SourceLiteralIndex } from "@tsonic/target-api/source";
+import type { CsharpNativeLiteralQueries } from "../../../policy/model/native-literals.js";
 import { failTargetAnalysisInvariant, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpDeclarationClassifications } from "../../../target-model/records/program/declarations.js";
 import type { CsharpValueReadClassifications, CsharpConversionClassifications } from "../../../target-model/records/operations/conversions.js";
@@ -13,17 +13,19 @@ import { requireCsharpRecord, type CsharpRequiredRecord } from "../../program/re
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { selectCsharpTypeEmission } from "../../../policy/types/resolution/type-emission.js";
 import type { CsharpCallableContractIndex } from "../../../target-model/records/callables/callable-values.js";
-import { isCsharpSourceCallableArtifactDeclaration } from "../../../policy/types/callables/source-callable-contract.js";
+import { csharpNativeCallableArtifact } from "../native/artifacts.js";
+import { csharpRepresentationDiagnostic } from "../../source-evidence/representations.js";
 
 export function analyzeCsharpCallableParameterEmission(input: {
   readonly ast: AstReader;
+  readonly facts: import("@tsonic/target-api/source").SourceProgramFacts;
   readonly callables: CsharpCallableContractIndex;
   readonly nodes: readonly Node[];
   readonly declarations: CsharpDeclarationClassifications;
   readonly values: CsharpValueReadClassifications;
   readonly storage: CsharpStorageClassifications;
   readonly conversions: CsharpConversionClassifications;
-  readonly literals: SourceLiteralIndex;
+  readonly literals: CsharpNativeLiteralQueries;
   readonly exact: CsharpExactLiteralSelectionIndex;
   readonly admitted: (owner: Node) => boolean;
   readonly required: CsharpRequiredRecord[];
@@ -37,7 +39,7 @@ export function analyzeCsharpCallableParameterEmission(input: {
   };
   for (const owner of owners) {
     if (owner === undefined || !input.admitted(owner)) continue;
-    if (!isCsharpSourceCallableArtifactDeclaration(input.ast, owner) &&
+    if (!csharpNativeCallableArtifact(input.ast, input.facts.navigation, owner) &&
       !input.ast.is.IsGetAccessorDeclaration(owner) && !input.ast.is.IsSetAccessorDeclaration(owner)) continue;
     const contract = input.callables.get({ kind: "declaration", declaration: owner });
     if (contract === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted callable requires its checked source value parameters.", owner);
@@ -98,8 +100,10 @@ export function analyzeCsharpCallableParameterEmission(input: {
           kind: getCsharpNullableElementTargetType(carrier) === undefined ? "default" : "null",
         });
         else if (initializer !== undefined) {
-          if (csharpParameterDefaultIsLiteral({ source: input.literals.literalValue.get(initializer), exact: input.exact.exactLiteral.get(initializer, carrier),
-            carrier, nullLiteral: input.ast.kindName(initializer) === "KindNullKeyword" })) defaultValue = Object.freeze({ kind: "literal", expression: initializer });
+          const literal = input.literals.recipe(initializer);
+          if (literal.kind !== "represented") { issues.push(csharpRepresentationDiagnostic(literal)); continue; }
+          if (csharpParameterDefaultIsLiteral({ source: literal.value, exact: input.exact.exactLiteral.get(initializer, carrier),
+            carrier })) defaultValue = Object.freeze({ kind: "literal", expression: initializer });
           else refuse(initializer, "C# parameter defaults require compile-time literal values.");
         }
         if (defaultValue.kind !== "none") {

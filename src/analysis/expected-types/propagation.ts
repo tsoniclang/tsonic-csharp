@@ -2,7 +2,6 @@ import type { Node } from "@tsonic/tsts";
 import type { TargetUseSiteRef } from "@tsonic/target-api/analysis";
 import { ObjectLiteralProperty_SourceName } from "@tsonic/target-api/source";
 import { selectCsharpArrayLiteralCarrier } from "../../policy/types/collections/literal-construction.js";
-import { csharpArrayInputDomainsEqual } from "../../policy/types/collections/array-input-layout.js";
 import { getCsharpNullableElementTargetType, csharpNullableTargetType, getCsharpArrayLiteralElementTargetType, isCsharpJsValueTargetType, isCsharpRecordDictionaryTargetType, csharpPropertySourceMemberKey, csharpWellKnownSymbolSourceMemberKey, resolveCsharpObjectShapeMemberBySourceKey, csharpObjectTargetType, targetTypeRefEquals, targetTypeRefKey } from "../../policy/types/index.js";
 import type { selectCsharpBinaryOperation } from "../operations/operators.js";
 import type { CsharpObjectShapeFact, TargetTypeRef } from "../../target-model/types/model.js";
@@ -342,8 +341,7 @@ export function createCsharpExpectedTypePropagation(
     const sourceCarrier = published === undefined ? selectCsharpArrayLiteralCarrier(targetType,
       valueReadStages.get(expression)?.operationValue, policy.typeDefinitions) : published.kind === "refused" ? undefined
       : representCsharpSourceType(policy.types.sourceTypeFlowRepresentation(expression), published.construction ?? published.type);
-    const requested = sourceCarrier === undefined ? undefined : selectCsharpArrayLiteralCarrier(targetType, sourceCarrier, policy.typeDefinitions);
-    const carrier = csharpArrayInputDomainsEqual(sourceCarrier, requested) ? requested : sourceCarrier;
+    const carrier = sourceCarrier === undefined ? undefined : selectCsharpArrayLiteralCarrier(targetType, sourceCarrier, policy.typeDefinitions);
     if (carrier === undefined) return;
     let carriers = arrayCarriers.get(expression);
     if (carriers === undefined) {
@@ -376,8 +374,7 @@ export function createCsharpExpectedTypePropagation(
         node !== undefined &&
         !policy.ast.is.IsSpreadElement(node)
       ) {
-        const literal = policy.literalValues.literalValue.get(node);
-        const physical = literal === undefined || literal.form === "array" ? undefined : valueReadStages.get(node)?.operationValue;
+        const physical = policy.literals.hasRecipeSyntax(node) ? valueReadStages.get(node)?.operationValue : undefined;
         if (physical !== undefined && !targetTypeRefEquals(physical, elementTarget)) {
           let native = nonArrayCarriers.get(node);
           if (native === undefined) { native = new Map(); nonArrayCarriers.set(node, native); }

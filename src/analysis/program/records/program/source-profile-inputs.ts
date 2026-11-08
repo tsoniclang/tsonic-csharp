@@ -136,7 +136,7 @@ function analyzeCsharpErrorCauseArgument(
   const member = members.length === 1 ? members[0] : undefined;
   const declarations = member === undefined ? [] : queries.declarations.symbolDeclarations(member.symbol);
   const declaration = declarations.length === 1 ? declarations[0] : undefined;
-  const identity = csharpSourceProfileDeclarationIdentity(host.ast, queries, host.sourceFacts, declaration);
+  const identity = csharpSourceProfileDeclarationIdentity(host.facts.navigation, declaration);
   if (declaration === undefined || identity?.kind !== "member" || identity.declaringName !== "ErrorOptions" || identity.name !== "cause") {
     return unresolved("An Error cause requires the original selected ErrorOptions.cause declaration.");
   }

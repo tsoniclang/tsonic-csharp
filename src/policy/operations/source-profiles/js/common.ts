@@ -49,7 +49,6 @@ export function jsGlobalCallIdentity(
   return Object.freeze({
     owner: "js",
     kind: "call",
-    declaringName: "Global",
     name,
   });
 }

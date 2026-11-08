@@ -1,16 +1,9 @@
-import type { Node } from "@tsonic/tsts";
-import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../types/model.js";
-import type { CsharpTypeParameterConstraint } from "../../types/generic-constraints.js";
+import type { CsharpObjectShapeFact, CsharpNativeCallableMember, CsharpNativeMethodTypeParameter, TargetTypeRef } from "../../types/model.js";
 import type { CsharpObjectMethodSignature } from "./object-members.js";
 
 export interface CsharpStructuralMethodEmission extends Omit<CsharpObjectMethodSignature, "returnsVoid"> {
   readonly name: string;
-  readonly typeParameters: readonly {
-    readonly declaration: Node;
-    readonly identity: string;
-    readonly name: string;
-    readonly constraints: readonly CsharpTypeParameterConstraint[];
-  }[];
+  readonly typeParameters: readonly CsharpNativeMethodTypeParameter[];
 }
 
 export interface CsharpStructuralPropertyEmission {
@@ -34,7 +27,7 @@ export interface CsharpMethodValueContractEmission {
 export interface CsharpStructuralObjectEmission {
   readonly members: readonly CsharpStructuralInterfaceMemberEmission[];
   readonly methodValues: readonly CsharpStructuralPropertyEmission[];
-  readonly methods: ReadonlyMap<CsharpObjectShapeMemberFact, CsharpStructuralMethodEmission>;
+  readonly methods: ReadonlyMap<CsharpNativeCallableMember, CsharpStructuralMethodEmission>;
   readonly contracts: readonly CsharpMethodValueContractEmission[];
 }
 

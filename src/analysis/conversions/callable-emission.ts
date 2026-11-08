@@ -2,8 +2,6 @@ import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpConversionSelection } from "../../target-model/conversions/selection.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpDelegateContractProducer } from "../program/records/callables/callable-conversions.js";
-import { getCsharpCallableValueSignature, getCsharpDelegateSignature } from "../../target-model/types/carriers/delegates.js";
-import { getCsharpMethodValue } from "../../target-model/types/method-values.js";
 import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
 import { isCsharpVoidTargetType } from "../../target-model/types/identity.js";
 import type { AstReader, Node } from "@tsonic/tsts";
@@ -20,16 +18,14 @@ export function admitCsharpDelegateEmission(producer: CsharpDelegateContractProd
     admitCsharpDelegateEmission(producer, selected.adapter.resultType, target, selected.resultToTarget);
     return;
   }
-  if (selected.kind !== "delegate-adapter" || producer.records.delegateContract.get(source, target) !== undefined) return;
-  const sourceMethod = getCsharpMethodValue(source);
-  const sourceSignature = sourceMethod !== undefined && sourceMethod.typeParameters.length !== 0
-    ? getCsharpDelegateSignature(selected.instantiation?.contract) : getCsharpCallableValueSignature(source);
-  const targetSignature = getCsharpDelegateSignature(target);
-  if (sourceSignature === undefined || targetSignature === undefined)
-    failTargetAnalysisInvariant("tsonic-csharp", "An admitted delegate conversion requires its exact native source and destination signatures.");
-  producer.publish(source, target, { sourceSignature, targetSignature, targetCarrier: getCsharpNullableElementTargetType(target) ?? target,
-    ...(selected.instantiation === undefined ? {} : { methodTypeArguments: selected.instantiation.typeArguments }),
+  if (selected.kind !== "delegate-adapter" || producer.records.delegateContract.get(source, target, selected.members) !== undefined) return;
+  const sourceSignature = selected.members.source.signature;
+  const targetSignature = selected.members.target.signature;
+  producer.publish(source, target, { members: selected.members, targetCarrier: getCsharpNullableElementTargetType(target) ?? target,
     sourceVoid: isCsharpVoidTargetType(sourceSignature.returnType), targetVoid: isCsharpVoidTargetType(targetSignature.returnType) });
+  if (selected.receiverConversion !== undefined && sourceSignature.receiver !== undefined && targetSignature.receiver !== undefined) {
+    admitCsharpDelegateEmission(producer, targetSignature.receiver.type, sourceSignature.receiver.type, selected.receiverConversion);
+  }
   for (const [index, conversion] of selected.parameterConversions.entries()) {
     const input = targetSignature.parameters[index];
     const output = sourceSignature.parameters[index];
@@ -46,12 +42,14 @@ export function admitCsharpDelegateOperand(ast: AstReader, captures: CsharpCaptu
   producer: CsharpDelegateContractProducer,
   node: Node, source: TargetTypeRef, target: TargetTypeRef, selection: CsharpConversionSelection): readonly CsharpConversionIssue[] {
   if (selection.kind !== "delegate-adapter") return [];
-  const contract = producer.records.delegateContract.get(source, target)
+  const contract = producer.records.delegateContract.get(source, target, selection.members)
     ?? failTargetAnalysisInvariant("tsonic-csharp", "An admitted delegate operand requires its exact native conversion contract.", node);
   const refuse = (message: string): readonly CsharpConversionIssue[] => [{ node, code: "CSHARP_UNSUPPORTED_AST", message }];
   if (!selectCsharpTypeEmission({ carrier: source }) || !selectCsharpTypeEmission({ carrier: contract.targetCarrier }))
     return refuse("C# delegate adaptation requires exact renderable source and target signatures.");
-  if (contract.targetSignature.parameters.some(carrier => !selectCsharpTypeEmission({ carrier })))
+  const sourceSignature = contract.members.source.signature;
+  const targetSignature = contract.members.target.signature;
+  if (targetSignature.parameters.some(carrier => !selectCsharpTypeEmission({ carrier })))
     return refuse("C# delegate adaptation requires renderable exact target parameter types.");
   let lambda = false;
   if ((ast.is.IsArrowFunction(node) || ast.is.IsFunctionExpression(node)) && captures.captureClosure.get(node) === undefined) {
@@ -60,11 +58,8 @@ export function admitCsharpDelegateOperand(ast: AstReader, captures: CsharpCaptu
       "An admitted delegate operand requires its exact native callable creation.", node);
     lambda = creation.allocation.kind !== "quotation";
   }
-  if (lambda && selection.strategy === "native-binding" && (contract.sourceSignature.returnPassing !== undefined ||
-    contract.sourceSignature.parameterPassingModes.some(mode => mode !== "by-value")))
-    return refuse("A by-reference native delegate binding requires an exact native method group or delegate value.");
-  if (lambda && (!selectCsharpTypeEmission({ carrier: contract.sourceSignature.returnType }) ||
-    contract.sourceSignature.parameters.some(carrier => !selectCsharpTypeEmission({ carrier }))))
+  if (lambda && (!selectCsharpTypeEmission({ carrier: sourceSignature.returnType }) ||
+    sourceSignature.parameters.some(carrier => !selectCsharpTypeEmission({ carrier }))))
     return refuse("An adapted lambda requires its exact native function parameters and return type.");
   return [];
 }

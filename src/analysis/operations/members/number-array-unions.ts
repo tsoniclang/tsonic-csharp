@@ -59,7 +59,7 @@ export function selectCsharpArrayUnionElement(
   const selected = indexes[0]!;
   const declarations = selected.declaration === undefined ? selected.components : [selected.declaration];
   if (declarations.length === 0 || declarations.some(declaration => {
-    const identity = csharpSourceProfileDeclarationIdentity(host.ast, semantics, host.sourceFacts, declaration);
+    const identity = csharpSourceProfileDeclarationIdentity(host.facts.navigation, declaration);
     return !owned(identity) || identity?.kind !== "indexer";
   })) return undefined;
   return selectCsharpArrayUnionElementPlan(projection, indexType);

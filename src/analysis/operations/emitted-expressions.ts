@@ -26,7 +26,7 @@ export function selectCsharpEmittedExpressions(input: CsharpCallPlanningRecords 
   const unplannedCallees = new Set<Node>();
   for (const node of input.nodes) {
     const call = input.operations.selectedCall.get(node);
-    const callee = call?.source?.sourceCallee.expression;
+    const callee = call?.source?.callee.occurrence;
     if (callee !== undefined && !(csharpCallIsPlannedAsSourceCall(node, input) && call?.unionCall.kind !== "resolved") &&
       callee !== input.jsCalls.jsCall.get(node)?.receiver) unplannedCallees.add(callee);
   }
@@ -40,7 +40,7 @@ export function selectCsharpEmittedExpressions(input: CsharpCallPlanningRecords 
       for (let storage: CsharpTypedLocationStorage | undefined = handler.selection.storage; storage !== undefined;
         storage = storage.kind === "value-property-storage" ? storage.receiverStorage : undefined) retain(storage.expression);
     }
-    const callee = input.operations.selectedCall.get(node)?.source?.sourceCallee.expression;
+    const callee = input.operations.selectedCall.get(node)?.source?.callee.occurrence;
     if (callee !== undefined) {
       const jsReceiver = input.jsCalls.jsCall.get(node)?.receiver;
       if (jsReceiver !== undefined) retain(jsReceiver);

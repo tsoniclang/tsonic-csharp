@@ -4,12 +4,12 @@ import type { CsharpSafetyEmissionRecords, CsharpUnsafeEmission, CsharpSafetyPla
 
 export function createCsharpSafetyEmissionRecords(
   subjects: ReadonlyMap<Node, CsharpUnsafeEmission>,
-  compilations: ReadonlyMap<Node | "object-shapes" | "source-unions", boolean>,
+  compilations: ReadonlyMap<Node | "object-shapes" | "source-roles", boolean>,
   declarations: ReadonlyMap<Node, ReadonlyMap<CsharpSafetyPlacement, readonly "unsafe"[]>>,
   shapes: ReadonlyMap<CsharpObjectShapeFact, boolean>,
 ): CsharpSafetyEmissionRecords {
   return Object.freeze({ unsafeShape: Object.freeze({ get: (subject: CsharpObjectShapeFact) => shapes.get(subject) }),
     unsafeEmission: Object.freeze({ get: (subject: Node) => subjects.get(subject) }),
-    unsafeCompilation: Object.freeze({ get: (subject: Node | "object-shapes" | "source-unions") => compilations.get(subject) }),
+    unsafeCompilation: Object.freeze({ get: (subject: Node | "object-shapes" | "source-roles") => compilations.get(subject) }),
     declarationSafety: Object.freeze({ get: (subject: Node, placement: CsharpSafetyPlacement) => declarations.get(subject)?.get(placement) }) });
 }

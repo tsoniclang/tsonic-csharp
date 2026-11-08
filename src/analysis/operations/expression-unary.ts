@@ -1,13 +1,17 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { SourceLiteralIndex } from "@tsonic/target-api/source";
+import type { CsharpNativeLiteralQueries } from "../../policy/model/native-literals.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
 import type { CsharpExactLiteralSelectionIndex } from "../../target-model/conversions/exact-literals.js";
 import { createCsharpUnaryEmissionProducer } from "../program/records/operations/expression-unary.js";
+import { csharpRepresentationDiagnostic } from "../source-evidence/representations.js";
+import type { CsharpStorageClassifications } from "../../target-model/records/storage/storage.js";
+import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 
 export function analyzeCsharpUnaryEmission(input: { readonly ast: AstReader; readonly nodes: readonly Node[];
   readonly admitted: (node: Node) => boolean; readonly operations: CsharpTargetOperationClassifications;
-  readonly literals: SourceLiteralIndex; readonly exact: CsharpExactLiteralSelectionIndex }) {
+  readonly storage: CsharpStorageClassifications;
+  readonly literals: CsharpNativeLiteralQueries; readonly exact: CsharpExactLiteralSelectionIndex }) {
   const producer = createCsharpUnaryEmissionProducer();
   const issues: TargetDiagnostic[] = [];
   const refuse = (node: Node, message: string): void => { issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: node, message }); };
@@ -26,11 +30,18 @@ export function analyzeCsharpUnaryEmission(input: { readonly ast: AstReader; rea
       continue;
     }
     const selected = classification.target;
+    if (selected.kind === "literal") {
+      producer.publish(node, { kind: "literal", carrier: selected.resultType, recipe: selected.recipe });
+      continue;
+    }
     if (selected.kind === "rejected") { refuse(node, selected.reason); continue; }
-    const postfix = input.ast.is.IsPostfixUnaryExpression(node);
-    const authoredLiteral = input.literals.literalValue.get(node);
-    if (!postfix && (Object.is(authoredLiteral?.number, -0) ||
-      authoredLiteral?.form === "prefix-unary" && authoredLiteral.numeric?.kind === "authored")) {
+    if (selected.kind === "source-refused" || selected.kind === "native-refused") {
+      issues.push(csharpRepresentationDiagnostic(selected)); continue;
+    }
+    const postfix = selected.form === "postfix";
+    const authoredLiteral = input.literals.recipe(node);
+    if (authoredLiteral.kind !== "represented") { issues.push(csharpRepresentationDiagnostic(authoredLiteral)); continue; }
+    if (!postfix && authoredLiteral.value.kind === "present") {
       const literal = input.exact.exactLiteral.get(node, selected.resultType);
       if (literal?.kind === "resolved") { producer.publish(node, { kind: "literal", carrier: selected.resultType, recipe: literal.recipe }); continue; }
       if (literal?.kind === "rejected") { refuse(node, literal.reason); continue; }
@@ -48,6 +59,12 @@ export function analyzeCsharpUnaryEmission(input: { readonly ast: AstReader; rea
         storage = inner;
       }
       if (storage === undefined) continue;
+      const location = input.storage.nativeLocation.get(storage);
+      if (selected.storageType === undefined || location?.kind !== "resolved" || !location.writable ||
+        !targetTypeRefEquals(location.storageType, selected.storageType) ||
+        !targetTypeRefEquals(location.storageType, selected.operandSourceType)) {
+        refuse(node, "A Native update requires its exact writable physical location and original read/write carrier."); continue;
+      }
     }
     producer.publish(node, { kind: "native", operand: selected.operand, carrier: selected.resultType,
       operator: selected.targetOperator, postfix, storage });

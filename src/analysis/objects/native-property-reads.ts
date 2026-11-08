@@ -8,7 +8,7 @@ import type { CsharpNativePropertyRead } from "../../target-model/records/progra
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 
 type NativePropertyReadHost = Pick<CsharpPolicyContext,
-  "ast" | "sourceFacts" | "providers" | "projectTypes" | "typeDefinitions">;
+  "ast" | "facts" | "providers" | "projectTypes" | "typeDefinitions">;
 
 export function resolveCsharpPublishedNativePropertyRead(
   descriptor: SourceTypeDescriptor | undefined,
@@ -39,7 +39,7 @@ export function resolveCsharpNativePropertyRead(
   { readonly kind: "resolved"; readonly property: CsharpNativePropertyRead } {
   if (receiverCarrier === undefined) return { kind: "unresolved" };
   const selections = [...new Set(declarations)].flatMap(declaration => {
-    const identity = csharpSourceProfileDeclarationIdentity(host.ast, semantics, host.sourceFacts, declaration);
+    const identity = csharpSourceProfileDeclarationIdentity(host.facts.navigation, declaration);
     if (identity?.kind !== "member") return [];
     const selected = selectCsharpErrorNativeProperty(host, identity, receiverCarrier);
     return selected === undefined ? [] : [{ identity, selected }];

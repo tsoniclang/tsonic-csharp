@@ -47,14 +47,13 @@ const elementPolicies = Object.freeze([
 export function selectCsharpSourceProfileConstructor(
   host: {
     readonly ast: AstReader;
-    readonly sourceFacts?: ReadonlySourceFactResolver;
+    readonly facts: import("@tsonic/target-api/source").SourceProgramFacts;
     readonly providers: CsharpProviderRelationResolver;
     semanticsFor(node: Node): SourceFileSemantics;
   },
   declaration: Node,
 ): readonly CsharpTargetMember[] {
-  const identity = csharpSourceProfileDeclarationIdentity(host.ast,
-    host.semanticsFor(declaration), host.sourceFacts, declaration);
+  const identity = csharpSourceProfileDeclarationIdentity(host.facts.navigation, declaration);
   if (identity === undefined || identity.kind !== "construct") return [];
   return callPolicies.flatMap(policy => {
     if (policy.inheritableConstructor === undefined || !sourceProfileIdentityMatches(policy.source, identity)) return [];

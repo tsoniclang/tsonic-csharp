@@ -26,11 +26,13 @@ export function planCsharpConditionalValue(node: Node, selection: CsharpResolved
       applyCsharpConversionSelection(selection.left, sourceFile, input, diagnostics,
         selection.leftType, selection.resultType, conversion, value, prelude, readCsharpExpressionOperandStability(selection.left, input, selection.leftType, selection.resultType, "implicit", conversion)));
   }
+  if (selection.right === undefined) failCsharpPlannerInvariant("An evaluated conditional branch requires its admitted original occurrence.", node);
   const right = planExpression(selection.right, sourceFile, input, diagnostics, state);
   if (right === undefined) return undefined;
   if (operation.branch === "right") return {
     ...right, prelude: [...planCsharpPlannedDiscard(left), ...right.prelude],
   };
+  if (operation.operator === "??") failCsharpPlannerInvariant("A dynamically coalescing value requires its admitted Native absence protocol.", node);
   const boolean = csharpSourcePrimitiveTargetType("bool");
   if (left.completion.kind === "value" && right.completion.kind === "value" && right.prelude.length === 0 &&
     emission.nativeBoolean) {

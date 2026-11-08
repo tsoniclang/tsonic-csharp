@@ -4,7 +4,7 @@ import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { createSourceStorageQuery, targetUseSiteIdentity } from "@tsonic/target-api/analysis";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { compileCsharpNativeUseSource } from "../../helpers/expected-native-uses.mjs";
-import { assertPrimitiveOccurrences, assertPublishedRefusal, projectNodes } from "../../helpers/source-effective-types.mjs";
+import { assertPrimitiveOccurrences, assertPublishedRefusal, createSourceOccurrenceIndex, projectNodes } from "../../helpers/source-effective-types.mjs";
 import { analyzeCsharpBindingPatterns } from "../../../dist/analysis/control-flow/binding-patterns.js";
 import { analyzeCsharpNativeDemand } from "../../../dist/analysis/operations/native-demand.js";
 import { csharpNativeUseSite } from "../../../dist/target-model/records/native/native-demand.js";
@@ -104,7 +104,9 @@ test(`${surface} an annotated compound and logical assignment source keeps every
   assert.equal(errors.length, 0, `${label}: ${errors.map(diagnostic => `${diagnostic.code}: ${diagnostic.message}`).join("; ")}`);
   assert.equal(compiled.result.program !== undefined && [...compiled.artifacts.keys()].some(path => path.endsWith(".cs")), true,
     `${label}: one sealed program reaches native source emission`);
-  assertPrimitiveOccurrences({ ...compiled, targetSource: compiled.nativeStage.source }, "value", "int32");
+  const targetSource = compiled.nativeStage.source;
+  const sourceOccurrences = createSourceOccurrenceIndex(targetSource);
+  assertPrimitiveOccurrences({ ...compiled, targetSource, sourceOccurrences }, "value", "int32");
 });
 }
 }

@@ -106,11 +106,13 @@ export type CsharpPostfixUnaryOperatorToken =
   | { readonly kind: "PlusPlusToken" }
   | { readonly kind: "MinusMinusToken" };
 
-export interface CsharpLambdaParameter {
+export type CsharpLambdaParameter = {
   readonly kind: "Parameter";
   readonly name: string;
-  readonly type?: CsharpTypeNode;
-}
+} & (
+  | { readonly type?: CsharpTypeNode; readonly passing?: never }
+  | { readonly type: CsharpTypeNode; readonly passing: "in" | "out" | "ref" }
+);
 
 export interface CsharpObjectInitializerAssignment {
   readonly kind: "AssignmentExpression";

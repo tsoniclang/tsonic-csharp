@@ -13,7 +13,7 @@ import type { CsharpSourceArgumentGrouping } from "../../target-model/records/op
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpExpectedUseCollection } from "./collection.js";
 import type { CsharpExpectedTypeAnalysisInput, CsharpExpectedUseSiteDemand, CsharpExpectedUseWithholding } from "./model.js";
-import { csharpSourceTypeFlowShiftCountType } from "../../policy/conversions/source-type-flow-index.js";
+import { csharpNativeShiftCountType } from "../../policy/conversions/native-index.js";
 
 export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnalysisInput, collection: CsharpExpectedUseCollection) {
   const { policy, evidence, operations, callables, declarations, valueReadStages } = input;
@@ -59,7 +59,7 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
   function recordOperationUses(node: Node, _sourceFile: SourceFile): boolean {
     if (!policy.ast.isConstAssertion(node) && (policy.ast.is.IsAsExpression(node) || policy.ast.is.IsTypeAssertion(node) ||
       policy.ast.is.IsNonNullExpression(node)) &&
-      (policy.navigation.expressionResultUse(node) !== "discarded" || policy.effectiveTypes.get(node) !== undefined)) {
+      (policy.facts.navigation.expressionResultUse(node) !== "discarded" || policy.effectiveTypes.get(node) !== undefined)) {
       const operand = policy.ast.is.IsNonNullExpression(node) ? policy.ast.as.AsNonNullExpression(node)?.Expression
         : policy.ast.is.IsAsExpression(node) ? policy.ast.as.AsAsExpression(node)?.Expression : policy.ast.as.AsTypeAssertion(node)?.Expression;
       record(operand, evidence.nodeTargetType.get(node), "required",
@@ -124,13 +124,13 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
       if (binary.targetOperation.kind === "conditional-value" && binary.targetOperation.branch !== "right") {
         record(binary.left, binary.resultType, "required", at(node, { kind: "present-payload" }));
       }
-      if (binary.targetOperation.kind !== "conditional-value" || binary.targetOperation.branch !== "left") record(binary.right, csharpSourceTypeFlowShiftCountType(binary),
+      if (binary.targetOperation.kind !== "conditional-value" || binary.targetOperation.branch !== "left") record(binary.right, csharpNativeShiftCountType(binary),
         "required", at(node, { kind: "operand", position: "right" }));
     }
     const mutation = operations.jsArrayMutation.get(node);
     if (mutation?.kind === "set-typed-element" && mutation.calculation !== undefined) {
       record(mutation.calculation.left, mutation.calculation.leftInputType, "required", at(node, { kind: "operand", position: "left" }));
-      record(mutation.calculation.right, csharpSourceTypeFlowShiftCountType(mutation.calculation), "required", at(node, { kind: "operand", position: "right" }));
+      record(mutation.calculation.right, csharpNativeShiftCountType(mutation.calculation), "required", at(node, { kind: "operand", position: "right" }));
     }
     const unary = operations.unaryOperation.get(node)?.target;
     if (unary?.kind === "resolved") record(unary.operand, unary.operandType, "required",
@@ -138,6 +138,8 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
     const element = operations.selectedElement.get(node)?.target;
     if (element?.kind === "resolved") record(policy.ast.as.AsElementAccessExpression(node)?.ArgumentExpression,
       element.targetMember.parameters[element.targetParameterIndex]?.type, "required", at(node, { kind: "key" }));
+    else if (element?.kind === "array-union-read") record(element.source.argument.expression,
+      element.plan.indexType, "required", at(node, { kind: "key" }));
     else if (element?.kind === "project-indexer") record(policy.ast.as.AsElementAccessExpression(node)?.ArgumentExpression,
       element.keyType, "required", at(node, { kind: "key" }));
     if (pointer?.kind === "store") record(pointer.valueExpression, pointer.pointeeType, "required", intrinsic("value"));
@@ -236,7 +238,7 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
   function quotationInitializer(expression: Node, scope: Node):
     { readonly declaration: Node; readonly initializer: Node; readonly value: Node } | undefined {
     if (!policy.ast.is.IsIdentifier(expression)) return undefined;
-    const reference = policy.navigation.sourceReferenceFor(expression);
+    const reference = policy.facts.navigation.sourceReferenceFor(expression);
     const declaration = reference?.declaration;
     if (reference?.project !== true || declaration === undefined || !policy.ast.is.IsVariableDeclaration(declaration) ||
       policy.ast.variableDeclarationKind(declaration) !== "const" || policy.ast.typeNode(declaration) !== undefined ||

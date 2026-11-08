@@ -55,12 +55,12 @@ export function sealCsharpDelegateAdapterIdentities(
 function stableSourceBinding(expression: Node, policy: CsharpPolicyContext,
   source: CsharpExpressionConversionClassification["source"]): Node | undefined {
   if (!policy.ast.is.IsIdentifier(expression)) return undefined;
-  let reference = policy.navigation.referenceFor(expression);
+  let reference = policy.facts.navigation.referenceFor(expression);
   const seen = new Set<Node>();
   while (reference !== undefined && isSourceOwnedProjectReference(reference, policy)) {
     const declaration = reference.declaration;
     if (seen.has(declaration) || policy.ast.getSourceFile(declaration) !== reference.sourceFile ||
-      seen.size !== 0 && policy.navigation.declarationUseSummary(declaration).bindingWritten ||
+      seen.size !== 0 && policy.facts.navigation.declarationUseSummary(declaration).bindingWritten ||
       !policy.ast.is.IsVariableDeclaration(declaration) && !policy.ast.is.IsParameterDeclaration(declaration)) return undefined;
     seen.add(declaration);
     const initializer = policy.ast.is.IsVariableDeclaration(declaration)
@@ -68,7 +68,7 @@ function stableSourceBinding(expression: Node, policy: CsharpPolicyContext,
     if (initializer === undefined || !policy.ast.is.IsIdentifier(initializer)) return declaration;
     const type = policy.types.resolveNode(initializer, reference.sourceFile)?.sourceResult?.selectedType;
     if (type === undefined || !targetTypeRefEquals(getCsharpNullableElementTargetType(type) ?? type, source)) return declaration;
-    const origin = policy.navigation.referenceFor(initializer);
+    const origin = policy.facts.navigation.referenceFor(initializer);
     if (origin === undefined || !isSourceOwnedProjectReference(origin, policy)) return declaration;
     reference = origin;
   }

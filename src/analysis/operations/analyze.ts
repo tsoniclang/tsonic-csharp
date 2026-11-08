@@ -85,6 +85,7 @@ function operationResultType(
       element.target.source.optionalChain,
     );
   }
+  if (element?.target?.kind === "array-union-read") return element.target.plan.result;
   if (element?.selectedResultType !== undefined) {
     return element.selectedResultType;
   }
@@ -102,7 +103,7 @@ function operationResultType(
   if (unary?.jsValue.kind === "resolved") {
     return unary.jsValue.resultType;
   }
-  return unary?.target.kind === "resolved"
+  return unary?.target.kind === "resolved" || unary?.target.kind === "literal"
     ? unary.target.resultType
     : undefined;
 }

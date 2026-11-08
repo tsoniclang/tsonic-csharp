@@ -1,20 +1,20 @@
 import { createCsharpNativeParticipationProducer } from "../../program/records/native/native-participation.js";
 import type { AstReader, Node } from "@tsonic/tsts";
-import { sourceEnclosingCallable, sourceLexicalFunctionIsUnused, sourceNodesOutsideErasedSubtrees } from "@tsonic/target-api/source";
+import { sourceLexicalFunctionIsUnused, sourceNodesOutsideErasedSubtrees } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant, rejectedTargetStage, resolvedTargetStage, type TargetStageResult } from "@tsonic/target-api/artifacts";
 import type { SourceStorageQueries } from "@tsonic/target-api/analysis";
-import type { SourceProgramNavigation } from "@tsonic/target-api/source";
+import type { SourceProgramFacts } from "@tsonic/target-api/source";
 import type { CsharpCaptureStorage } from "../../../target-model/records/callables/capture-storage.js";
 import type { CsharpCallableCreationIndex } from "../../../target-model/records/callables/callable-values.js";
 import type { CsharpNativeParticipation, CsharpNativeParticipationInput } from "../../../target-model/records/native/native-demand.js";
 import type { CsharpSourceEvidenceIndex } from "../../../target-model/records/program/source-evidence.js";
 import { requireCsharpRecord, type CsharpRequiredRecord } from "../../program/records/objects/required-records.js";
-import { isCsharpSourceCallableArtifactDeclaration } from "../../../policy/types/callables/source-callable-contract.js";
+import { csharpNativeCallableArtifact } from "../native/artifacts.js";
 
 export interface CsharpNativeParticipationAnalysisInput {
   readonly ast: AstReader;
   readonly storage: Pick<SourceStorageQueries, "nodes" | "failureReason">;
-  readonly navigation: Pick<SourceProgramNavigation, "declarationUseSummary" | "declarationSymbol" |
+  readonly navigation: Pick<SourceProgramFacts["navigation"], "declarationUseSummary" | "callableRoles" | "enclosing" |
     "sourceReferenceFor" | "callableImplementation" | "referencesWithin">;
   readonly captureClosure: CsharpCaptureStorage["captureClosure"];
   readonly callableCreation: CsharpCallableCreationIndex["callableCreation"];
@@ -52,7 +52,7 @@ export function analyzeCsharpNativeParticipation(input: CsharpNativeParticipatio
     }
     if (ast.is.IsFunctionDeclaration(node)) {
       if (ast.body(node) === undefined) return "erased";
-      if (sourceEnclosingCallable(ast.parent(node), ast) === undefined) return "body";
+      if (input.navigation.enclosing(node, "body") === undefined) return "body";
       if (sourceLexicalFunctionIsUnused(node, ast, input.navigation)) return "erased";
       if (input.captureClosure.get(node) !== undefined) return "frame-body";
       return "body";
@@ -66,7 +66,7 @@ export function analyzeCsharpNativeParticipation(input: CsharpNativeParticipatio
     }
     if (ast.is.IsMethodSignatureDeclaration(node)) {
       const declaringType = ast.parent(node);
-      if (declaringType === undefined || !isCsharpSourceCallableArtifactDeclaration(ast, node)) return "erased";
+      if (declaringType === undefined || !csharpNativeCallableArtifact(ast, input.navigation, node)) return "erased";
       if (ast.is.IsInterfaceDeclaration(declaringType)) {
         const owner = ast.parent(declaringType);
         if (owner === undefined || !ast.is.IsSourceFile(owner)) return "erased";

@@ -1,4 +1,4 @@
-import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact } from "../../../target-model/types/model.js";
+import type { CsharpObjectShapeFact, CsharpNativeCallableMember } from "../../../target-model/types/model.js";
 import type {
   CsharpStructuralObjectEmissionRecords, CsharpStructuralMethodEmission, CsharpStructuralPropertyEmission,
 } from "../../../target-model/records/objects/structural-object-emission.js";
@@ -10,6 +10,7 @@ import type {
 } from "../../target-ast/syntax/index.js";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
+import { renderCsharpObjectMethodParameters } from "./method-signatures.js";
 
 export function renderCsharpStructuralInterfaceMembers(
   typeParameterNames: ReadonlyMap<string, string> | undefined,
@@ -36,11 +37,11 @@ export function renderCsharpStructuralInterfaceMethodValues(
 export function renderCsharpStructuralMethod(
   typeParameterNames: ReadonlyMap<string, string> | undefined,
   shape: CsharpObjectShapeFact,
-  member: CsharpObjectShapeMemberFact,
+  member: CsharpNativeCallableMember,
   records: CsharpStructuralObjectEmissionRecords & { readonly nativeMemberHiding: CsharpNativeMemberHidingReader },
 ): CsharpInterfaceMethodDeclaration {
   const selected = records.structuralObject.get(shape)?.methods.get(member);
-  if (selected === undefined) failCsharpPlannerInvariant("An admitted copied native method requires its sealed signature.", member.sourceDeclarations?.[0] ?? shape.methodImplementation?.declaration);
+  if (selected === undefined) failCsharpPlannerInvariant("An admitted native method requires its identical sealed physical signature.", shape.methodImplementation?.declaration);
   return renderMethod(typeParameterNames, shape, selected, records.nativeMemberHiding);
 }
 
@@ -66,15 +67,7 @@ function renderMethod(
         return { kind: "TypeConstraint", type };
       }),
     })),
-    parameters: method.parameters.map((parameter, index) => {
-      const type = csharpTypeFromTargetTypeRef(parameter.type, typeParameterNames);
-      if (type === undefined) failCsharpPlannerInvariant("An admitted native method requires its renderable parameter carrier.", subject);
-      return { name: `arg${index}`, type,
-        ...(parameter.passingMode === "by-value" ? {} : { passing: parameter.passingMode === "byref-readonly" ? "in" as const
-          : parameter.passingMode === "byref-readwrite" ? "ref" as const : "out" as const }),
-        ...(parameter.rest ? { isParams: true } : {}),
-        ...(parameter.optional ? { defaultValue: { kind: "DefaultExpression" as const, type } } : {}) };
-    }) };
+    parameters: renderCsharpObjectMethodParameters({ ...method, returnsVoid: false }, typeParameterNames, subject) };
 }
 
 function renderProperty(

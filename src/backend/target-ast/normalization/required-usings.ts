@@ -93,6 +93,7 @@ function isTypeDeclaration(kind: unknown): boolean {
   return kind === "ClassDeclaration" ||
     kind === "StructDeclaration" ||
     kind === "InterfaceDeclaration" ||
+    kind === "DelegateDeclaration" ||
     kind === "EnumDeclaration";
 }
 

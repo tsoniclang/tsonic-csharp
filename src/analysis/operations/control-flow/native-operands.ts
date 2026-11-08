@@ -1,5 +1,8 @@
-import type { AstReader, ExtensionDiagnostic, Node } from "@tsonic/tsts";
-import type { SourceProgramNavigation } from "@tsonic/target-api/source";
+import type { AstReader, Node } from "@tsonic/tsts";
+import { failTargetAnalysisInvariant, targetDiagnosticFromExtension, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import { csharpRepresentationDiagnostic } from "../../source-evidence/representations.js";
+import type { SourceApplication, SourceProgramFacts, SourceProgramNavigation } from "@tsonic/target-api/source";
+import { forwardSourceRefusal } from "../../source-evidence/representations.js";
 import { sourceDeclarationIsModuleScoped, sourceNodesEqual, sourceExpressionValueInputs } from "@tsonic/target-api/source";
 import type { CsharpNativeCallableCreation, CsharpNativeChildUse, CsharpNativeUseSlot, CsharpNativeDiscardedGuard } from "../../../target-model/records/native/native-demand.js";
 import type { CsharpTargetOperationClassifications, CsharpSourceArgumentGrouping } from "../../../target-model/records/operations/operations.js";
@@ -7,21 +10,21 @@ import type { CsharpSourceEvidenceIndex } from "../../../target-model/records/pr
 import type { CsharpValueReadClassifications } from "../../../target-model/records/operations/conversions.js";
 import type { CsharpClassFactoryIndex } from "../../../target-model/records/objects/class-factories.js";
 import type { CsharpSelectedTargetCall } from "../../../target-model/records/objects/members.js";
-import type { ResolvedSourceCallInfo } from "../../../target-model/records/calls/source-calls.js";
 import type { CsharpBindingPatternClassifications, CsharpDestructuringAssignmentPattern } from "../../../target-model/records/objects/value-projections.js";
 import { getCsharpClassFactory } from "../../../target-model/types/carriers/class-factories.js";
 import { getCsharpDelegateSignature } from "../../../target-model/types/carriers/delegates.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import { csharpSelectedTargetArgumentBindings, csharpSourceOwnedArgumentBindings, csharpProviderArgumentSourceCarrier } from "../../../policy/operations/members/native-use-arguments.js";
-import { sourceOperatorFromKindName } from "../../../target-model/syntax/operators.js";
+import { csharpSelectedTargetArgumentBindings, csharpProviderArgumentSourceCarrier } from "../../../policy/operations/members/native-use-arguments.js";
+import { csharpSourceOperationOperator } from "../../../target-model/syntax/operators.js";
 import { csharpVoidTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import { csharpRuntimeLocationTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import type { CsharpOptionalLocalOperation } from "../../../target-model/records/storage/local-bindings.js";
-import { csharpSourceTypeFlowShiftCountType } from "../../../policy/conversions/source-type-flow-index.js";
+import { csharpNativeShiftCountType } from "../../../policy/conversions/native-index.js";
 import type { CsharpConversionMode } from "../../../target-model/conversions/selection.js";
 
 export interface CsharpNativeOperandInput {
+  readonly facts: SourceProgramFacts;
   readonly ast: AstReader;
   readonly navigation: Pick<SourceProgramNavigation, "isProjectDeclaration" | "referenceFor" | "sourceReferenceFor" | "expressionResultUse">;
   readonly evidence: Pick<CsharpSourceEvidenceIndex, "compileTimeMetadata" | "sourceArgument" | "sourceDefaultValue" | "sourceField" | "sourceStruct">;
@@ -37,7 +40,7 @@ export interface CsharpNativeOperandInput {
 }
 
 export type CsharpNativeOperandRefusal = "argument-refused" | "argument-unresolved" | "argument-inconsistent"
-  | "argument-expression-unresolved" | "expression-form-unresolved" | "operation-unresolved" | "source-argument-rejected" | "construction-unresolved"
+  | "argument-expression-unresolved" | "expression-form-unresolved" | "operation-unresolved" | "construction-unresolved"
   | "callable-creation";
 
 export type CsharpNativeOperandStep =
@@ -53,13 +56,15 @@ export interface CsharpNativeOperandSelection {
   readonly refusal?: CsharpNativeOperandRefusal;
   readonly refusalMessage?: string;
   readonly refusalCode?: string;
-  readonly sourceDiagnostic?: ExtensionDiagnostic;
+  readonly sourceDiagnostic?: TargetDiagnostic;
   readonly discardedGuard?: CsharpNativeDiscardedGuard;
+  readonly conditionalValue?: import("../../../target-model/records/native/native-demand.js").CsharpNativeConditionalValue;
 }
 
 interface CsharpNativeArgumentRefusal {
   readonly reason: CsharpNativeOperandRefusal;
   readonly message: string;
+  readonly sourceDiagnostic?: TargetDiagnostic;
 }
 
 const expressionKinds: ReadonlySet<string> = new Set([
@@ -87,25 +92,27 @@ export function csharpNativeChildUses(owner: Node, expression: Node | undefined,
 export function selectCsharpNativeSourceRefusal(
   input: Pick<CsharpNativeOperandInput, "ast" | "operations">,
   node: Node,
-): ExtensionDiagnostic | undefined {
+): TargetDiagnostic | undefined {
   if (input.operations.nativeHandler.get(node) !== undefined) return undefined;
+  const operation = input.operations.binaryOperation.get(node)?.target ?? input.operations.unaryOperation.get(node)?.target;
+  if (operation?.kind === "source-refused" || operation?.kind === "native-refused") return csharpRepresentationDiagnostic(operation);
   if (input.ast.is.IsCallExpression(node)) {
     const call = input.operations.selectedCall.get(node);
-    return call?.form.kind === "target" && call.target?.kind === "rejected" ? call.target.diagnostic : undefined;
+    return call?.form.kind === "target" && call.target?.kind === "rejected" ? targetDiagnosticFromExtension(node, call.target.diagnostic) : undefined;
   }
   if (input.ast.is.IsNewExpression(node)) {
     const construction = input.operations.selectedConstruction.get(node);
     return construction?.jsValue.kind === "not-js-value" && construction.target?.kind === "rejected"
-      ? construction.target.diagnostic : undefined;
+      ? targetDiagnosticFromExtension(node, construction.target.diagnostic) : undefined;
   }
   if (input.ast.is.IsPropertyAccessExpression(node)) {
     const property = input.operations.selectedProperty.get(node)?.selection;
-    return property?.kind === "rejected" ? property.diagnostic : undefined;
+    return property?.kind === "rejected" ? targetDiagnosticFromExtension(node, property.diagnostic) : undefined;
   }
   if (input.ast.is.IsElementAccessExpression(node)) {
     const element = input.operations.selectedElement.get(node);
     return element?.jsValue.kind === "not-js-value" && element.target?.kind === "rejected"
-      ? element.target.diagnostic : undefined;
+      ? targetDiagnosticFromExtension(node, element.target.diagnostic) : undefined;
   }
   return undefined;
 }
@@ -156,7 +163,6 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
   }
   if (evidence.sourceDefaultValue.get(node) !== undefined) return chosen([]);
   const passing = evidence.sourceArgument.get(node);
-  if (passing?.kind === "rejected") return refused("source-argument-rejected", passing.reason);
   if (passing?.kind === "resolved" && !sourceNodesEqual(ast, passing.argument.storageExpression, node)) {
     return chosen(use(passing.argument.storageExpression, { kind: "operand", position: "only" }, undefined, "location"));
   }
@@ -238,37 +244,54 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
   if (ast.is.IsCallExpression(node)) {
     const call = operations.selectedCall.get(node);
     if (call === undefined) return refused("operation-unresolved");
+    if (call.skippedInvocation === true) {
+      if (call.source === undefined || call.source.argumentDisposition !== "skip") failTargetAnalysisInvariant("tsonic-csharp",
+        "A skipped Native call requires its identical original Source disposition.", node);
+      return chosen(use(call.source.callee.occurrence, { kind: "callee" }), "sequence", undefined, call.selectedResultType);
+    }
     const guarded = (children: readonly CsharpNativeChildUse[]): readonly CsharpNativeChildUse[] =>
       call.optionalReceiver?.guard === true || call.optionalCallee !== undefined
         ? children.map(child => Object.freeze({ ...child, guard: "if-present" as const })) : children;
     switch (call.form.kind) {
-      case "type-test": return chosen(use(call.source?.sourceArguments[0]?.expression, { kind: "argument", sourceIndex: 0, effectiveIndex: 0 }));
+      case "type-test": {
+        const operand = call.source?.sourceArguments[0]?.operand;
+        return operand?.kind === "refused" ? Object.freeze({ ...refused("argument-refused"), sourceDiagnostic: forwardSourceRefusal(operand) })
+          : operand === undefined ? refused("argument-unresolved")
+          : chosen(use(operand.value.occurrence, { kind: "argument", sourceIndex: 0, effectiveIndex: 0 }));
+      }
       case "keep-alive": return chosen(use(call.form.sourceFlow.valueExpression, { kind: "argument", sourceIndex: 0, effectiveIndex: 0 }));
       case "source-flow-rejected": return refused("operation-unresolved", call.form.sourceFlow.reason, call.form.sourceFlow.code);
       case "js-value": {
         if (call.form.operation.kind !== "resolved") return refused("operation-unresolved");
-        const access = call.source?.sourceCalleeAccess;
-        const member = access?.kind === "property" || access?.kind === "element" ? access : undefined;
-        const receiver = member?.receiver.expression ?? call.source?.sourceCallee.expression;
-        return receiver === undefined ? refused("operation-unresolved") : chosen([
-          ...use(receiver, { kind: member === undefined ? "callee" : "receiver" }),
-          ...guarded([...(member?.kind === "element" ? use(member.argument.expression, { kind: "key" }) : []), ...jsArguments()])]);
+        const publication = input.facts.applications.application(node);
+        if (publication.kind === "refused") return Object.freeze({ ...refused("operation-unresolved"), sourceDiagnostic: forwardSourceRefusal(publication) });
+        const application = publication.value;
+        const member = ast.is.IsPropertyAccessExpression(application.callee.occurrence) || ast.is.IsElementAccessExpression(application.callee.occurrence)
+          ? input.facts.objects.use(application.callee.occurrence) : undefined;
+        if (member?.kind === "refused") return Object.freeze({ ...refused("operation-unresolved"), sourceDiagnostic: forwardSourceRefusal(member) });
+        const useRecord = member?.value;
+        const receiver = useRecord?.receiver.occurrence ?? application.callee.occurrence;
+        const arguments_ = authoredArguments(application);
+        if ("reason" in arguments_) return argumentFailure(arguments_);
+        return chosen([
+          ...use(receiver, { kind: useRecord === undefined ? "callee" : "receiver" }),
+          ...guarded([...(useRecord?.key.kind === "present" ? use(useRecord.key.value.occurrence, { kind: "key" }) : []), ...arguments_])]);
       }
       case "target": break;
     }
     if (call.target?.kind === "resolved") {
       const bound = targetArguments(call.target.source, call.target.call);
-      if ("reason" in bound) return refused(bound.reason, bound.message);
+      if ("reason" in bound) return argumentFailure(bound);
       const head = call.target.call.receiver.kind === "target-parameter"
-        ? use(call.target.source.sourceReceiver?.expression, { kind: "receiver" })
-        : call.target.call.receiver.kind === "instance" ? receiverUses(call.target.source.sourceReceiver) : [];
+        ? use(call.target.source.receiver.kind === "value" ? call.target.source.receiver.occurrence : undefined, { kind: "receiver" })
+        : call.target.call.receiver.kind === "instance" ? call.target.source.receiver.kind === "value" ? use(call.target.source.receiver.occurrence, { kind: "receiver" }) : [] : [];
       return call.target.call.receiver.kind === "target-parameter" ? chosen([...head, ...guarded(bound)]) : argumentsFirst(head, guarded(bound));
     }
     if (call.target?.kind === "rejected") return refused("operation-unresolved");
     if (call.target?.kind !== "source-owned" || call.source === undefined) return refused("operation-unresolved");
-    if (ast.kindName(call.source.sourceCallee.expression) === "KindSuperKeyword" || call.unionCall.kind === "resolved") {
-      const arguments_ = sourceArguments(call.sourceArgumentGrouping);
-      if ("reason" in arguments_) return refused(arguments_.reason, arguments_.message);
+    if (ast.kindName(call.source.callee.occurrence) === "KindSuperKeyword" || call.unionCall.kind === "resolved") {
+      const arguments_ = sourceArguments(call.source, call.sourceArgumentGrouping);
+      if ("reason" in arguments_) return argumentFailure(arguments_);
       return call.unionCall.kind === "resolved"
         ? chosen([...use(call.unionCall.receiver, { kind: "receiver" }), ...guarded(arguments_)])
         : argumentsFirst([], arguments_);
@@ -276,30 +299,39 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
     const callee = call.sourceCall;
     if (callee?.kind === "rejected") return refused("operation-unresolved", callee.reason);
     if (callee === undefined || callee.kind === "union-method") return refused("operation-unresolved");
-    const arguments_ = sourceArguments(call.sourceArgumentGrouping);
-    if ("reason" in arguments_) return refused(arguments_.reason, arguments_.message);
+    const arguments_ = sourceArguments(call.source, call.sourceArgumentGrouping);
+    if ("reason" in arguments_) return argumentFailure(arguments_);
     // A declared function is called by its declaration reference (a static method group), never evaluated as a value,
     // so it has no runtime callee use; only a callee value is evaluated before the arguments.
     if (callee.kind === "function") return argumentsFirst([], guarded(arguments_));
     if (callee.kind === "value") return argumentsFirst(use(callee.expression, { kind: "callee" }), guarded(arguments_));
-    const access = call.source.sourceCalleeAccess;
-    const receiver = receiverUses(callee.receiver);
-    const key = guarded(access?.kind === "element" ? use(access.argument.expression, { kind: "key" }) : []);
+    const selectedMember = input.facts.objects.use(call.source.callee.occurrence);
+    if (selectedMember.kind === "refused") return Object.freeze({ ...refused("operation-unresolved"),
+      sourceDiagnostic: forwardSourceRefusal(selectedMember) });
+    const receiver = use(selectedMember.value.receiver.occurrence, { kind: "receiver" });
+    const key = guarded(selectedMember.value.key.kind === "present"
+      ? use(selectedMember.value.key.value.occurrence, { kind: "key" }) : []);
     return argumentsFirst([...receiver, ...key], guarded(arguments_), [...key, ...receiver]);
   }
   if (ast.is.IsNewExpression(node)) {
     const construction = operations.selectedConstruction.get(node);
     if (construction === undefined || construction.jsValue.kind === "rejected") return refused("construction-unresolved");
-    if (construction.jsValue.kind === "resolved") return chosen([...use(ast.as.AsNewExpression(node)?.Expression, { kind: "callee" }), ...jsArguments()]);
+    if (construction.jsValue.kind === "resolved") {
+      const application = input.facts.applications.application(node);
+      if (application.kind === "refused") return Object.freeze({ ...refused("operation-unresolved"), sourceDiagnostic: forwardSourceRefusal(application) });
+      const arguments_ = authoredArguments(application.value);
+      return "reason" in arguments_ ? argumentFailure(arguments_)
+        : chosen([...use(application.value.callee.occurrence, { kind: "callee" }), ...arguments_]);
+    }
     if (construction.target?.kind === "resolved") {
       const arguments_ = targetArguments(construction.target.source, construction.target.call);
-      return "reason" in arguments_ ? refused(arguments_.reason, arguments_.message) : argumentsFirst([], arguments_);
+      return "reason" in arguments_ ? argumentFailure(arguments_) : argumentsFirst([], arguments_);
     }
     if (construction.target?.kind === "rejected") return refused("construction-unresolved");
     if (construction.target?.kind !== "source-owned") return refused("construction-unresolved");
-    const arguments_ = sourceArguments(construction.sourceArgumentGrouping);
-    if ("reason" in arguments_) return refused(arguments_.reason, arguments_.message);
-    const callee = construction.target.source.sourceCallee.expression;
+    const arguments_ = sourceArguments(construction.target.source, construction.sourceArgumentGrouping);
+    if ("reason" in arguments_) return argumentFailure(arguments_);
+    const callee = construction.target.source.callee.occurrence;
     const type = input.valueReads.valueRead.get(callee)?.value;
     const reference = input.navigation.sourceReferenceFor(callee);
     const value = getCsharpClassFactory(type) !== undefined || type !== undefined && getCsharpDelegateSignature(type) !== undefined &&
@@ -312,17 +344,68 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
       : chosen([], "creation", [Object.freeze({ kind: "construct", node })], creation.carrier);
   }
   if (ast.is.IsClassExpression(node)) return chosen([], "creation", [Object.freeze({ kind: "construct", node })]);
-  if (ast.is.IsConditionalExpression(node)) return sourceSelection("conditional", resultUse === "discarded" ? csharpVoidTargetType() : carrier);
+  if (ast.is.IsConditionalExpression(node)) {
+    const publication = input.facts.values.operation(node);
+    if (publication.kind === "refused") return Object.freeze({ ...refused("operation-unresolved"), sourceDiagnostic: forwardSourceRefusal(publication) });
+    const source = publication.value;
+    if (source.kind !== "conditional") return refused("operation-unresolved", "A Native conditional requires its original Source selection record.");
+    const control = use(source.control.occurrence, { kind: "condition" });
+    let trueNode: Node | undefined;
+    let falseNode: Node | undefined;
+    if (source.disposition !== "false") {
+      if (source.whenTrue.kind === "refused") return Object.freeze({ ...refused("operation-unresolved"), sourceDiagnostic: forwardSourceRefusal(source.whenTrue) });
+      trueNode = source.whenTrue.value.occurrence;
+    }
+    if (source.disposition !== "true") {
+      if (source.whenFalse.kind === "refused") return Object.freeze({ ...refused("operation-unresolved"), sourceDiagnostic: forwardSourceRefusal(source.whenFalse) });
+      falseNode = source.whenFalse.value.occurrence;
+    }
+    let conditional: NonNullable<CsharpNativeOperandSelection["conditionalValue"]>;
+    if (source.disposition === "true") {
+      if (trueNode === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted selected branch requires its original Source operand.", node);
+      conditional = Object.freeze({ control: source.control.occurrence, disposition: "true", whenTrue: trueNode });
+    } else if (source.disposition === "false") {
+      if (falseNode === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted selected branch requires its original Source operand.", node);
+      conditional = Object.freeze({ control: source.control.occurrence, disposition: "false", whenFalse: falseNode });
+    } else {
+      if (trueNode === undefined || falseNode === undefined) failTargetAnalysisInvariant("tsonic-csharp", "A dynamic selection requires both admitted Source operands.", node);
+      conditional = Object.freeze({ control: source.control.occurrence, disposition: "dynamic", whenTrue: trueNode, whenFalse: falseNode });
+    }
+    const operands = source.disposition === "true" ? [...control, ...use(trueNode, { kind: "branch", branch: "true" })]
+      : source.disposition === "false" ? [...control, ...use(falseNode, { kind: "branch", branch: "false" })]
+      : [...control, ...use(trueNode, { kind: "branch", branch: "true" }), ...use(falseNode, { kind: "branch", branch: "false" })];
+    return Object.freeze({ ...chosen(operands, source.disposition === "dynamic" ? "conditional" : "sequence", undefined,
+      resultUse === "discarded" ? csharpVoidTargetType() : carrier), conditionalValue: conditional });
+  }
   if (ast.is.IsBinaryExpression(node)) {
-    const binary = ast.as.AsBinaryExpression(node);
-    const left = binary?.Left;
-    const right = binary?.Right;
-    const sourceOperator = sourceOperatorFromKindName(ast.operatorKindName(node));
+    const publication = input.facts.values.operation(node);
+    if (publication.kind === "refused") return Object.freeze({ ...refused("operation-unresolved"), sourceDiagnostic: forwardSourceRefusal(publication) });
+    const source = publication.value;
+    const sourceOperator = csharpSourceOperationOperator(source);
+    const controlledRight = (source.kind === "and" || source.kind === "or" || source.kind === "coalesce") && source.disposition !== "left"
+      ? source.kind === "and" ? source.whenTrue : source.kind === "or" ? source.whenFalse : source.whenAbsent : undefined;
+    if (controlledRight?.kind === "refused") {
+      return Object.freeze({ ...refused("operation-unresolved"), sourceDiagnostic: forwardSourceRefusal(controlledRight) });
+    }
+    const operands = source.kind === "binary" || source.kind === "compound" || source.kind === "sequence" ? source.operands
+      : source.kind === "assignment" ? [{ occurrence: source.target }, source.source]
+      : source.kind === "in" || source.kind === "instanceof" ? [source.left, source.right]
+      : source.kind === "and" || source.kind === "or" || source.kind === "coalesce"
+        ? [source.control, ...(controlledRight?.kind === "resolved" ? [controlledRight.value] : [])] : [];
+    const left = operands[0]?.occurrence;
+    const right = operands.length > 1 ? operands.at(-1)?.occurrence : undefined;
     if ((sourceOperator === "??" || sourceOperator === "&&" || sourceOperator === "||") && resultUse === "discarded") {
-      return Object.freeze({ ...chosen([...use(left, { kind: "operand", position: "left" }),
-        ...use(right, { kind: "operand", position: "right" })], "short-circuit", undefined, csharpVoidTargetType()),
-        discardedGuard: Object.freeze(sourceOperator === "??" ? { kind: "coalescing" as const }
-          : { kind: "boolean" as const, whenTrue: sourceOperator === "&&" ? "right" as const : "left" as const }) });
+      if (source.kind !== "and" && source.kind !== "or" && source.kind !== "coalesce") return refused("operation-unresolved",
+        "A discarded selected value requires its original Source control and disposition.");
+      const control = use(source.control.occurrence, { kind: "operand", position: "left" });
+      if (source.disposition === "left") return chosen(control, "sequence", undefined, csharpVoidTargetType());
+      const selectedRight = source.kind === "and" ? source.whenTrue : source.kind === "or" ? source.whenFalse : source.whenAbsent;
+      if (selectedRight.kind === "refused") return Object.freeze({ ...refused("operation-unresolved"), sourceDiagnostic: forwardSourceRefusal(selectedRight) });
+      const operands = [...control, ...use(selectedRight.value.occurrence, { kind: "operand", position: "right" })];
+      if (source.disposition === "right") return chosen(operands, "sequence", undefined, csharpVoidTargetType());
+      return Object.freeze({ ...chosen(operands, "short-circuit", undefined, csharpVoidTargetType()),
+        discardedGuard: Object.freeze(source.kind === "coalesce" ? { kind: "coalescing" as const }
+          : { kind: "boolean" as const, whenTrue: source.kind === "and" ? "right" as const : "left" as const }) });
     }
     switch (operations.operatorForm.get(node)) {
       case "js-value-operation": {
@@ -331,7 +414,7 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
         const operands = chosen([...use(left, { kind: "operand", position: "left" }), ...use(right, { kind: "operand", position: "right" })],
           selected.shortCircuit === undefined ? "sequence" : "short-circuit", undefined, selected.resultType);
         return selected.shortCircuit === undefined ? operands : Object.freeze({ ...operands,
-          discardedGuard: Object.freeze(sourceOperatorFromKindName(ast.operatorKindName(node)) === "??"
+          discardedGuard: Object.freeze(sourceOperator === "??"
             ? { kind: "coalescing" as const } : { kind: "js-value" as const, ...selected.shortCircuit }) });
       }
       case "destructuring-assignment": {
@@ -347,14 +430,18 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
       case "selected": {
         const selected = operations.binaryOperation.get(node)?.target;
         if (selected?.kind !== "resolved") return refused("operation-unresolved", selected?.kind === "rejected" ? selected.reason : undefined);
+        if (selected.targetOperation.kind === "sequence") return chosen(selected.targetOperation.operands.flatMap((operand, index, operands) =>
+          use(operand.occurrence, index === operands.length - 1 ? { kind: "operand", position: "right" }
+            : { kind: "intrinsic-operand", operand: "argument", index }, index === operands.length - 1 ? selected.resultType : operand.carrier)),
+          "sequence", undefined, selected.resultType);
         const assignment = selected.sourceOperator === "=" || selected.sourceOperator.endsWith("=") &&
           !["==", "===", "!=", "!==", "<=", ">="].includes(selected.sourceOperator);
         const operands = [...use(selected.left, assignment ? { kind: "write-target" } : { kind: "operand", position: "left" },
-          selected.leftInputType, assignment ? "location" : undefined)];
+          assignment && selected.compound !== undefined ? selected.compound.storageType : selected.leftInputType, assignment ? "location" : undefined)];
         if (selected.targetOperation.kind !== "conditional-value" || selected.targetOperation.branch !== "left") {
-          operands.push(...use(selected.right, { kind: "operand", position: "right" }, csharpSourceTypeFlowShiftCountType(selected)));
+          operands.push(...use(selected.right, { kind: "operand", position: "right" }, csharpNativeShiftCountType(selected)));
         }
-        const flow = selected.targetOperation.kind === "conditional-value" && selected.targetOperation.branch === "conditional" ||
+        const flow = selected.targetOperation.kind === "conditional-value" && selected.targetOperation.branch === "dynamic" ||
           selected.sourceOperator === "??" || selected.sourceOperator === "??=" ? "short-circuit" : "sequence";
         const result = chosen(operands, operands.length === 1 ? "sequence" : flow, undefined, selected.resultType);
         return result.flow !== "short-circuit" ? result : Object.freeze({ ...result,
@@ -375,6 +462,7 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
         : chosen(use(operand, { kind: "operand", position: "only" }), "sequence", undefined, selected.resultType);
     }
     const selected = operations.unaryOperation.get(node)?.target;
+    if (selected?.kind === "literal") return chosen([], "sequence", undefined, selected.resultType);
     if (selected?.kind !== "resolved") return refused("operation-unresolved", selected?.kind === "rejected" ? selected.reason : undefined);
     return chosen(use(selected.operand, selected.sourceOperator === "++" || selected.sourceOperator === "--"
       ? { kind: "update-target" } : { kind: "operand", position: "only" }, selected.operandType,
@@ -451,49 +539,120 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
   return isCsharpNativeExpression(ast, node) && ast.children(node).every(child => child === undefined || !isCsharpNativeExpression(ast, child))
     ? chosen([]) : refused("expression-form-unresolved");
 
-  function jsArguments(): readonly CsharpNativeChildUse[] {
-    return ast.arguments(node).flatMap((expression, index) => use(expression, { kind: "argument", sourceIndex: index, effectiveIndex: index }));
+  function argumentFailure(failure: CsharpNativeArgumentRefusal): CsharpNativeOperandSelection {
+    return Object.freeze({ ...refused(failure.reason, failure.message),
+      ...(failure.sourceDiagnostic === undefined ? {} : { sourceDiagnostic: failure.sourceDiagnostic }) });
   }
 
-  function sourceArguments(grouping: CsharpSourceArgumentGrouping | undefined): readonly CsharpNativeChildUse[] | CsharpNativeArgumentRefusal {
-    const bindings = csharpSourceOwnedArgumentBindings(grouping);
-    if (bindings.kind !== "bound") return Object.freeze({
-      reason: bindings.kind === "refused" ? "argument-refused" : bindings.kind === "inconsistent" ? "argument-inconsistent" : "argument-unresolved",
-      message: bindings.reason });
-    if (grouping?.kind !== "grouped") return Object.freeze({ reason: "argument-unresolved", message: "A source argument stream requires its selected grouping." });
-    return Object.freeze(grouping.arguments.flatMap((entry, index) => use(entry.sourceForm === "spread-sequence"
-      ? ast.as.AsSpreadElement(entry.expression)?.Expression : entry.expression, bindings.bindings[index]!.slot, entry.type)));
-  }
-
-  function targetArguments(source: ResolvedSourceCallInfo, call: CsharpSelectedTargetCall): readonly CsharpNativeChildUse[] | CsharpNativeArgumentRefusal {
-    const bindings = csharpSelectedTargetArgumentBindings(call);
-    if (bindings.kind !== "bound") return Object.freeze({
-      reason: bindings.kind === "inconsistent" ? "argument-inconsistent" : bindings.kind === "refused" ? "argument-refused" : "argument-unresolved",
-      message: bindings.reason });
-    const selected = new Map<number, Map<number, CsharpSelectedTargetCall["arguments"][number]>>();
-    for (const argument of call.arguments) {
-      const effective = selected.get(argument.sourceArgumentIndex) ?? new Map();
-      effective.set(argument.effectiveArgumentIndex, argument); selected.set(argument.sourceArgumentIndex, effective);
+  function argumentAdmission(application: SourceApplication): CsharpNativeArgumentRefusal | undefined {
+    if (application.argumentDisposition === "skip") return application.arguments.length !== 0
+      ? Object.freeze({ reason: "argument-inconsistent",
+          message: "Skipped Source arguments cannot retain effective parameter bindings." }) : undefined;
+    for (const argument of application.sourceArguments) {
+      if (argument.operand.kind === "refused") {
+        return Object.freeze({ reason: "argument-refused", message: argument.operand.message,
+          sourceDiagnostic: forwardSourceRefusal(argument.operand) });
+      }
     }
-    const uses: CsharpNativeChildUse[] = [];
+    return undefined;
+  }
+
+  function authoredArguments(application: SourceApplication): readonly CsharpNativeChildUse[] | CsharpNativeArgumentRefusal {
+    const failure = argumentAdmission(application);
+    if (failure !== undefined) return failure;
+    if (application.argumentDisposition === "skip") return Object.freeze([]);
+    return Object.freeze(application.sourceArguments.flatMap((argument, index) =>
+      argument.operand.kind === "resolved" ? intrinsic(argument.operand.value.occurrence, "argument", undefined, index) : []));
+  }
+
+  function sourceArguments(application: SourceApplication,
+    grouping: CsharpSourceArgumentGrouping | undefined): readonly CsharpNativeChildUse[] | CsharpNativeArgumentRefusal {
+    const failure = argumentAdmission(application);
+    if (failure !== undefined) return failure;
+    if (application.argumentDisposition === "skip") return Object.freeze([]);
+    if (grouping?.kind === "source-refused") return Object.freeze({ reason: "argument-refused",
+      message: grouping.refusal.message, sourceDiagnostic: forwardSourceRefusal(grouping.refusal) });
+    if (grouping?.kind !== "grouped") return Object.freeze({
+      reason: grouping?.kind === "refused" ? "argument-refused" : grouping?.kind === "inconsistent" ? "argument-inconsistent" : "argument-unresolved",
+      message: grouping?.reason ?? "A source argument requires its complete physical Native binding plan." });
+    if (grouping.arguments.length !== application.arguments.length || grouping.arguments.some((entry, index) =>
+      entry.binding !== application.arguments[index])) return Object.freeze({ reason: "argument-inconsistent",
+      message: "A Native grouping must retain the complete identical Source argument-place vector." });
+    const bindingsBySource = new Map<number, typeof grouping.arguments[number][]>();
+    for (const entry of grouping.arguments) {
+      const entries = bindingsBySource.get(entry.sourceArgumentIndex) ?? [];
+      entries.push(entry);
+      bindingsBySource.set(entry.sourceArgumentIndex, entries);
+    }
+    return Object.freeze(application.sourceArguments.flatMap((authored, sourceIndex) => {
+      if (authored.operand.kind !== "resolved") return [];
+      const operand = authored.operand.value;
+      const bindings = bindingsBySource.get(sourceIndex) ?? [];
+      if (authored.form === "value" && bindings.length === 1) {
+        const entry = bindings[0]!;
+        return use(operand.occurrence, { kind: "argument", sourceIndex,
+          effectiveIndex: entry.effectiveArgumentIndex, parameterIndex: entry.parameterIndex,
+          sourceParameterIndex: entry.sourceParameterIndex }, entry.type);
+      }
+      return intrinsic(operand.occurrence, "argument", undefined, sourceIndex);
+    }));
+  }
+
+  function targetArguments(source: SourceApplication, call: CsharpSelectedTargetCall):
+    readonly CsharpNativeChildUse[] | CsharpNativeArgumentRefusal {
+    const failure = argumentAdmission(source);
+    if (failure !== undefined) return failure;
+    if (source.argumentDisposition === "skip") return Object.freeze([]);
+    const bindingPlan = csharpSelectedTargetArgumentBindings(call);
+    if (bindingPlan.kind !== "bound") return Object.freeze({
+      reason: bindingPlan.kind === "inconsistent" ? "argument-inconsistent" : bindingPlan.kind === "refused" ? "argument-refused" : "argument-unresolved",
+      message: bindingPlan.reason });
+    const sequences = new Map(call.sequenceArguments?.map(sequence => [sequence.sourceArgumentIndex, sequence]));
     const mappings = call.origin === "provider" ? new Map(call.argumentMappings.map(mapping => [mapping.effectiveArgumentIndex, mapping])) : undefined;
-    for (const binding of bindings.bindings) {
-      const argument = selected.get(binding.slot.sourceIndex)?.get(binding.slot.effectiveIndex);
-      const expression = source.sourceArguments[binding.sourceArgumentIndex]?.expression;
-      if (argument === undefined || expression === undefined || argument.spreadElementIndex !== undefined && !binding.sequence) return Object.freeze({
-        reason: "argument-expression-unresolved", message: "A selected native argument requires its exact source expression and sequence contract." });
-      if (argument.projection !== undefined) {
-        const projection = argument.projection;
-        if (projection.source !== expression || binding.sequence || argument.sourceForm !== "value") return Object.freeze({
-          reason: "argument-inconsistent", message: "A selected native argument projection requires its exact scalar source expression." });
-        for (const [index, value] of projection.values.entries()) uses.push(...csharpNativeChildUses(projection.source,
-          value.expression, { kind: "member", index }, value.member !== undefined ? value.type
-            : projection.resultIndex === index ? projection.target : value.type));
+    const uses: CsharpNativeChildUse[] = [];
+    const byEffective = new Map(source.arguments.map(place => [place.effectiveArgumentIndex, place]));
+    const bySource = new Map<number, typeof call.arguments[number][]>();
+    for (const argument of call.arguments) {
+      const original = byEffective.get(argument.effectiveArgumentIndex);
+      if (original === undefined || original.sourceArgumentIndex !== argument.sourceArgumentIndex ||
+        original.sourceForm !== argument.sourceForm || original.spreadElementIndex !== argument.spreadElementIndex) {
+        return Object.freeze({ reason: "argument-inconsistent",
+          message: "A Native target binding must retain the exact original Source place and extraction." });
+      }
+      const entries = bySource.get(argument.sourceArgumentIndex) ?? [];
+      entries.push(argument);
+      bySource.set(argument.sourceArgumentIndex, entries);
+    }
+    for (const [sourceIndex, authored] of source.sourceArguments.entries()) {
+      if (authored.operand.kind !== "resolved") continue;
+      const operand = authored.operand.value;
+      const selected = bySource.get(sourceIndex) ?? [];
+      if (authored.form === "value" && selected.length === 1) {
+        const argument = selected[0]!;
+        if (argument.projection !== undefined) {
+          const projection = argument.projection;
+          if (projection.source !== operand.occurrence || argument.sourceForm !== "value") {
+            return Object.freeze({ reason: "argument-inconsistent",
+              message: "A Native projection requires its exact authored scalar occurrence." });
+          }
+          for (const [index, value] of projection.values.entries()) uses.push(...csharpNativeChildUses(projection.source,
+            value.expression, { kind: "member", index }, value.member !== undefined ? value.type
+              : projection.resultIndex === index ? projection.target : value.type));
+          continue;
+        }
+        const binding = bindingPlan.bindings.find(binding => binding.slot.effectiveIndex === argument.effectiveArgumentIndex);
+        if (binding === undefined) return Object.freeze({ reason: "argument-inconsistent",
+          message: "A selected Native parameter lost its physical binding slot." });
+        uses.push(...use(operand.occurrence, binding.slot,
+          csharpProviderArgumentSourceCarrier(mappings?.get(argument.effectiveArgumentIndex)) ?? argument.targetParameter.type));
         continue;
       }
-      const underlying = binding.sequence && ast.is.IsSpreadElement(expression) ? ast.as.AsSpreadElement(expression)?.Expression : expression;
-      uses.push(...use(underlying, binding.slot, binding.sequence ? undefined
-        : csharpProviderArgumentSourceCarrier(mappings?.get(argument.effectiveArgumentIndex)) ?? argument.targetParameter.type));
+      const sequence = sequences.get(sourceIndex);
+      if (sequence !== undefined && (sequence.expression !== operand.occurrence || authored.form !== "spread")) {
+        return Object.freeze({ reason: "argument-inconsistent",
+          message: "A Native sequence requires the same original authored spread operand." });
+      }
+      uses.push(...intrinsic(operand.occurrence, "argument", undefined, sourceIndex));
     }
     return Object.freeze(uses);
   }

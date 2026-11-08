@@ -53,7 +53,8 @@ import type { CsharpIndexedRecordRecords } from "./objects/indexed-records.js";
 import type { CsharpCaptureMethodRecords } from "./callables/capture-methods.js";
 import type { CsharpCompilationRecords } from "./program/compilation.js";
 import type { CsharpSourceNameRecords } from "./names.js";
-import type { CsharpSourceUnionEmissionRecords } from "./types/source-unions.js";
+import type { CsharpSourceRoleEmissionRecords } from "./types/source-roles.js";
+import type { CsharpNativeDelegateRecords } from "./callables/native-delegates.js";
 
 export interface CsharpProgramRecords extends CsharpSourceNameRecords, CsharpStatementExitRecords, CsharpStatementCompletionRecords, CsharpResourceScopeRecords, CsharpDeclarationModifierRecords, CsharpNativeDeclarationRecords, CsharpStructuralInterfaceRecords, CsharpLexicalValueRecords, CsharpConstructorEmissionRecords, CsharpClassEmissionRecords {
   readonly projectDeclaration: import("./program/project-emission.js").CsharpProjectEmissionRecords["projectDeclaration"];
@@ -113,7 +114,8 @@ export interface CsharpProgramRecords extends CsharpSourceNameRecords, CsharpSta
   readonly enumerableKeys: CsharpObjectShapeEmissionRecords["enumerableKeys"];
   readonly compilation: CsharpCompilationRecords["compilation"];
   readonly moduleFactories: import("./program/source-file-emission.js").CsharpSourceFileEmissionRecords["moduleFactories"];
-  readonly sourceUnions: CsharpSourceUnionEmissionRecords["sourceUnions"];
+  readonly sourceRoles: CsharpSourceRoleEmissionRecords["sourceRoles"];
+  readonly nativeDelegates: CsharpNativeDelegateRecords["nativeDelegates"];
   readonly classFieldDefault: CsharpClassFieldInitializationRecords["classFieldDefault"];
   readonly callableParameter: CsharpCallableParameterRecords["callableParameter"];
   readonly callableDeclaration: { readonly get: (subject: Node) => CsharpCallableDeclarationEmission | undefined };
@@ -122,7 +124,6 @@ export interface CsharpProgramRecords extends CsharpSourceNameRecords, CsharpSta
   readonly localBinding: { readonly get: (subject: Node | undefined) => CsharpLocalBindingCompletion | undefined };
   readonly objectShapeArtifact: CsharpObjectShapeDemand;
   readonly nativeValueDeclaration: CsharpNativeValueCarriers["nativeValueDeclaration"];
-  readonly literalValue: import("@tsonic/target-api/source").SourceLiteralIndex["literalValue"];
   readonly nativeParticipation: CsharpNativeParticipationInput["participation"];
   readonly nativeUse: CsharpNativeUseRecords["nativeUse"];
   readonly nativeOrder: CsharpNativeUseRecords["nativeOrder"];
@@ -191,7 +192,6 @@ export interface CsharpProgramRecords extends CsharpSourceNameRecords, CsharpSta
   readonly nativeFunctionCallee: import("./objects/member-receivers.js").CsharpMemberReceiverRecords["nativeFunctionCallee"];
   readonly nativeMethodCallee: import("./objects/member-receivers.js").CsharpMemberReceiverRecords["nativeMethodCallee"];
   readonly sourceCallEmission: import("./calls/source-call-emission.js").CsharpSourceCallEmissionRecords["sourceCallEmission"];
-  readonly sourceArgumentsEmission: import("./calls/source-call-emission.js").CsharpSourceCallEmissionRecords["sourceArgumentsEmission"];
   readonly callOptional: import("./calls/source-call-emission.js").CsharpSourceCallEmissionRecords["callOptional"];
   readonly arrayCreationCall: import("./calls/source-call-emission.js").CsharpSourceCallEmissionRecords["arrayCreationCall"];
   readonly callArgumentEmission: import("./calls/target-arguments.js").CsharpTargetArgumentRecords["callArgumentEmission"];

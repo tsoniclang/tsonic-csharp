@@ -72,8 +72,8 @@ test(`destructuring sources have exact final native renderability before publica
       const nativeUse = { get: site => program.records.nativeUse.get(site), order: node => program.records.nativeOrder.get(node),
         expression: node => nativeExpression.get(node) };
       const issues = admitCsharpNativeStorageBindings(ast, [form.node], nativeUse, program.records,
-        program.records.nativeRefReturn, program.records.nativeParticipation,
-        program.records.compileTimeMetadata, program.records.nativeUnreachable);
+        program.records, program.records.nativeParticipation,
+        program.records.compileTimeMetadata);
       assert.equal(issues.length, 1, `${form.description}: one pre-seal refusal owner`);
       assert.equal(issues[0].sourceNode === form.subject, true, `${form.description}: original source subject`);
       assert.equal(issues[0].code, "CSHARP_UNSUPPORTED_AST", `${form.description}: original refusal code`);

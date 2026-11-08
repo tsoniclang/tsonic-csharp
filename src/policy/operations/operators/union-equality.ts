@@ -1,4 +1,4 @@
-import type { Node } from "@tsonic/tsts";
+import type { SourceLiteralUnit, SourcePresence } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../model/context.js";
 import type { CsharpUnionEqualityArm } from "../../../target-model/operations/binary.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
@@ -15,12 +15,12 @@ export function selectCsharpUnionEquality(
   left: TargetTypeRef,
   right: TargetTypeRef,
   input: CsharpPolicyContext,
-  operands: { readonly left: Node; readonly right: Node },
+  operands: { readonly left: SourcePresence<SourceLiteralUnit>; readonly right: SourcePresence<SourceLiteralUnit> },
 ): readonly CsharpUnionEqualityArm[] | undefined {
   const leftPresent = getCsharpNullableElementTargetType(left) ?? left;
   const rightPresent = getCsharpNullableElementTargetType(right) ?? right;
-  const leftUnion = getCsharpRuntimeUnionArms(leftPresent, input.typeDefinitions);
-  const rightUnion = getCsharpRuntimeUnionArms(rightPresent, input.typeDefinitions);
+  const leftUnion = getCsharpRuntimeUnionArms(leftPresent);
+  const rightUnion = getCsharpRuntimeUnionArms(rightPresent);
   if (leftUnion === undefined && rightUnion === undefined) return undefined;
   const leftLeaves = equalityLeaves(left, leftPresent, leftUnion !== undefined, input);
   const rightLeaves = equalityLeaves(right, rightPresent, rightUnion !== undefined, input);
@@ -29,7 +29,7 @@ export function selectCsharpUnionEquality(
   for (const left of leftLeaves) for (const right of rightLeaves) {
     if (isCsharpAbsenceTargetType(left.carrier) !== isCsharpAbsenceTargetType(right.carrier)) continue;
     const identity = selectCsharpReferenceEquality("===", left.carrier, right.carrier, input);
-    const promotion = selectCsharpNumericBinaryPromotion(input, operands.left, left.carrier, operands.right, right.carrier);
+    const promotion = selectCsharpNumericBinaryPromotion({ type: left.carrier, scalar: operands.left }, { type: right.carrier, scalar: operands.right });
     const intrinsic = (targetTypeRefEquals(left.carrier, right.carrier) || promotion !== undefined ||
       isCsharpBigIntegerIntegralEquality(left.carrier, right.carrier)) &&
       validateBinaryTargetSemantics("===", promotion?.leftType ?? left.carrier,
@@ -54,7 +54,7 @@ function equalityLeaves(
   input: CsharpPolicyContext,
 ): readonly CsharpUnionEqualityArm["left"][] | undefined {
   if (isCsharpAbsenceTargetType(storage)) return [{ carrier: storage, path: Object.freeze([]) }];
-  const leaves = union ? csharpUnionLeaves(present, input.typeDefinitions)
+  const leaves = union ? csharpUnionLeaves(present)
     : [{ carrier: present, path: Object.freeze([]) }];
   return leaves === undefined || getCsharpNullableElementTargetType(storage) === undefined ? leaves
     : [...leaves, { carrier: csharpAbsenceTargetType(), path: Object.freeze([]) }];

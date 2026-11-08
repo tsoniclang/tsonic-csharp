@@ -1,5 +1,6 @@
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpNativeCallableMember, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
+import type { CsharpObjectMemberRecords } from "../../target-model/records/objects/object-members.js";
 import type { CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
 import type { CsharpObjectShapeDemand } from "../../target-model/records/objects/object-shape-demand.js";
 import { objectShapeArtifactKey } from "../../target-model/records/objects/object-shape-keys.js";
@@ -13,13 +14,13 @@ import { csharpObjectShapeMethodDeclaration, csharpPresentObjectShapeMethod } fr
 import { objectShapeMethodInvocationName, objectShapeStorageMemberName } from "../../target-model/names/object-members.js";
 import { csharpTargetTypeRenderingRejection } from "../../policy/types/model/renderability.js";
 import { createCsharpStructuralObjectEmissionRecords } from "../program/records/objects/structural-object-emission.js";
-import { selectCsharpObjectMethodSignature } from "../../policy/types/objects/object-members.js";
 
 export function analyzeCsharpStructuralObjectEmission(input: {
   readonly shapes: CsharpObjectShapeClassifications;
   readonly demand: CsharpObjectShapeDemand;
   readonly storage: Pick<CsharpStorageClassifications, "nativeField">;
   readonly captureMethods: CsharpCaptureMethodRecords["captureMethods"];
+  readonly objectMembers: CsharpObjectMemberRecords;
 }) {
   const values = new Map<string, CsharpStructuralObjectEmission>();
   const issues: TargetDiagnostic[] = [];
@@ -50,7 +51,7 @@ export function analyzeCsharpStructuralObjectEmission(input: {
     const structural = shape.targetType.kind === "target-named" && (shape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract === true;
     const interfaceMembers: CsharpStructuralInterfaceMemberEmission[] = [];
     const methodValues: CsharpStructuralPropertyEmission[] = [];
-    const methods = new Map<CsharpObjectShapeMemberFact, CsharpStructuralMethodEmission>();
+    const methods = new Map<CsharpNativeCallableMember, CsharpStructuralMethodEmission>();
     const contracts: CsharpMethodValueContractEmission[] = [];
     const refuse = (message: string, member?: CsharpObjectShapeMemberFact): void => {
       if (artifact === undefined) return;
@@ -91,25 +92,37 @@ export function analyzeCsharpStructuralObjectEmission(input: {
         interfaceMembers.push(Object.freeze({ kind: "property", property: handle }));
       const copied = member.methodValueStorage !== undefined;
       if (!(structural && member.optional !== true) && !copied) continue;
-      const signature = selectCsharpObjectMethodSignature(member.type);
-      if (signature === undefined) { refuse("A structural reference contract requires exact renderable member signatures.", member); continue; }
-      const types = [signature.returnType, ...signature.parameters.map(parameter => parameter.type)];
-      const typeParameters = member.typeParameters ?? [];
-      for (const parameter of typeParameters) {
-        for (const constraint of parameter.constraints) {
-          if (constraint.kind === "type" && csharpTargetTypeRenderingRejection(constraint.type) !== undefined)
-            refuse("C# emission could not render finalized provider type-parameter constraint facts.", member);
-        }
+      const layout = input.objectMembers.objectMember.get(shape, member)?.declaration;
+      if (layout === undefined || layout.kind !== "authored" && layout.kind !== "copied" &&
+        layout.kind !== "method" && layout.kind !== "optional-method") {
+        refuse("A structural method requires its complete admitted Native member-pair inventory.", member);
+        continue;
       }
-      if (!types.every(type => admit(type, member))) continue;
-      const method: CsharpStructuralMethodEmission = Object.freeze({ name: member.targetName,
-        returnType: signature.returnType, returnPassing: signature.returnPassing, typeParameters,
-        parameters: signature.parameters });
-      methods.set(member, method);
-      if (structural && member.optional !== true) interfaceMembers.push(Object.freeze({ kind: "method", method }));
-      if (structural && member.methodValueContract !== undefined && targetTypeRefEquals(member.methodValueContract, shape.targetType)) {
-        if (shape.members.length !== 1) { refuse("An immutable method-body protocol requires its single exact invocation contract.", member); continue; }
-        interfaceMembers.push(Object.freeze({ kind: "method", method: Object.freeze({ ...method, name: objectShapeMethodInvocationName(member) }) }));
+      if (layout.methods.length !== member.methods.length || layout.methods.some((entry, index) =>
+        entry.member !== member.methods[index]?.member || entry.value !== member.methods[index]?.value)) {
+        refuse("A structural method inventory must be the identical complete physical/value member pairing.", member);
+        continue;
+      }
+      for (const entry of layout.methods) {
+        const signature = entry.signature;
+        const typeParameters = entry.member.typeParameters;
+        const types = [signature.returnType, ...signature.parameters.map(parameter => parameter.type),
+          ...(signature.receiver === undefined ? [] : [signature.receiver.type])];
+        let complete = true;
+        for (const parameter of typeParameters) {
+          for (const constraint of parameter.constraints) {
+            if (constraint.kind === "type" && !admit(constraint.type, member)) complete = false;
+          }
+        }
+        if (!complete || !types.every(type => admit(type, member))) continue;
+        const method: CsharpStructuralMethodEmission = Object.freeze({ name: entry.member.name,
+          receiver: signature.receiver, returnType: signature.returnType, returnPassing: signature.returnPassing,
+          typeParameters, parameters: signature.parameters });
+        methods.set(entry.member, method);
+        if (structural && member.optional !== true) interfaceMembers.push(Object.freeze({ kind: "method", method }));
+        if (structural && member.methodValueContract !== undefined && targetTypeRefEquals(member.methodValueContract, shape.targetType)) {
+          interfaceMembers.push(Object.freeze({ kind: "method", method: Object.freeze({ ...method, name: entry.value.name }) }));
+        }
       }
     }
     if (artifact?.materialization === "synthetic" && !structural) {

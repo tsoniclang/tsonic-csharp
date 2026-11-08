@@ -1,6 +1,7 @@
 import { type CsharpTargetMember, type TargetTypeRef, type CsharpTargetNamedTypeRef } from "../../types/model.js";
-import { type SourceClassConstructorSignature, type SourceEnumIntegerWidthSelection } from "@tsonic/target-api/source";
-import { type Node, type SourceFile, type Signature } from "@tsonic/tsts";
+import type { SourceNodeConstructorSignature, SourceRefusal, SourceSignatureIdentity, SourcePresence } from "@tsonic/target-api/source";
+import type { CsharpRepresentationOutcome } from "../../types/representation.js";
+import type { Node, SourceFile } from "@tsonic/tsts";
 
 export interface CsharpProjectTypeClassifications {
   readonly issues: readonly CsharpProjectTypeIssue[];
@@ -23,6 +24,7 @@ export interface CsharpProjectTypeIssue {
   readonly node: Node;
   readonly code: string;
   readonly message: string;
+  readonly source?: string;
 }
 
 interface CsharpProjectTypeDefinitionData {
@@ -58,7 +60,7 @@ export interface CsharpProjectTypeHeritage {
 
 export interface CsharpProjectForwardingConstructor {
   readonly definition: CsharpProjectTypeDefinition;
-  readonly source: SourceClassConstructorSignature;
+  readonly source: SourceNodeConstructorSignature;
   readonly targetMember: CsharpTargetMember;
   readonly baseMemberId?: string;
 }
@@ -66,6 +68,7 @@ export interface CsharpProjectForwardingConstructor {
 export interface CsharpProjectTypeCatalog {
   readonly definitions: readonly CsharpProjectTypeDefinition[];
   readonly issues: readonly CsharpProjectTypeIssue[];
+  select(declaration: Node): CsharpRepresentationOutcome<SourcePresence<CsharpProjectTypeDefinition>>;
   definitionForId(id: string): CsharpProjectTypeDefinition | undefined;
   definitionForDeclaration(
     declaration: Node | undefined,
@@ -106,8 +109,7 @@ export interface CsharpProjectTypePolicy {
   ): readonly CsharpProjectForwardingConstructor[] | undefined;
   implicitConstructorForSignature(
     declaration: Node,
-    signature: import("@tsonic/tsts").Signature,
-    parameters: import("@tsonic/target-api/source").ResolvedSourceCallInfo["sourceSelectedSignatureParameters"],
+    signature: SourceSignatureIdentity,
   ): CsharpProjectForwardingConstructor | undefined;
 }
 
@@ -119,7 +121,7 @@ export type CsharpProjectMemberTypeInstantiation =
 export type CsharpProjectTypeDefinitionSelection =
   | { readonly kind: "resolved"; readonly definition: CsharpProjectTypeDefinition }
   | { readonly kind: "not-project-type" }
-  | { readonly kind: "rejected"; readonly selection: Extract<SourceEnumIntegerWidthSelection, { readonly kind: "rejected" }> };
+  | { readonly kind: "rejected"; readonly refusal: SourceRefusal };
 
 
 export interface CsharpProjectConstructorPolicy {
@@ -129,7 +131,6 @@ export interface CsharpProjectConstructorPolicy {
   ): readonly CsharpProjectForwardingConstructor[] | undefined;
   implicitConstructorForSignature(
     declaration: CsharpProjectTypeDefinition["declaration"],
-    signature: Signature,
-    parameters: import("@tsonic/target-api/source").ResolvedSourceCallInfo["sourceSelectedSignatureParameters"],
+    signature: SourceSignatureIdentity,
   ): CsharpProjectForwardingConstructor | undefined;
 }

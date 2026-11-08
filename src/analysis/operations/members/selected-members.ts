@@ -79,6 +79,8 @@ export function selectCsharpTargetProperty(
   if (fixedArray !== undefined) {
     return fixedArray.kind === "rejected"
       ? fixedArray
+      : fixedArray.kind === "array-union-read"
+      ? { kind: "array-union-read", source: provider.source, plan: fixedArray.plan }
       : {
           kind: "resolved",
           source: provider.source,
@@ -102,6 +104,8 @@ export function selectCsharpTargetProperty(
   }
   return profile.kind === "rejected"
     ? profile
+    : profile.kind === "array-union-read"
+    ? { kind: "array-union-read", source: provider.source, plan: profile.plan }
     : {
         kind: "resolved",
         source: provider.source,

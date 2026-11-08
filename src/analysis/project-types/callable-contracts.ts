@@ -24,7 +24,7 @@ export function closeCsharpProjectCallableContracts(
     if (owner?.kind !== "class") return implementation;
     active.add(declaration);
     let selected = implementation;
-    const inherited = policy.navigation.memberContracts(declaration);
+    const inherited = policy.facts.navigation.memberContracts(declaration);
     const receiver = policy.projectTypes.catalog.targetTypeForDeclaration(owner.declaration, owner.typeParameterBindings);
     for (const baseDeclaration of inherited.kind === "resolved" ? inherited.contracts : []) {
       const baseOwner = policy.projectTypes.catalog.definitionForDeclaration(policy.ast.parent(baseDeclaration));

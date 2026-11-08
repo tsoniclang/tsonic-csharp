@@ -1,133 +1,58 @@
 import type { ExtensionDiagnostic, Node, SourceFile } from "@tsonic/tsts";
-import type { SourceFileSemantics } from "@tsonic/target-api/source";
+import type { SourceMemberUse } from "@tsonic/target-api/source";
 import type { CsharpProviderTargetRelation, CsharpTargetReceiverRelation } from "../../../target-model/identities/provider-relations.js";
-import type { CsharpTargetMember } from "../../../policy/types/index.js";
-import { instantiateCsharpProviderBindingMember } from "./calls/binding-instantiation.js";
+import type { CsharpTargetMember } from "../../../target-model/types/model.js";
+import type { CsharpRepresentationOutcome } from "../../../target-model/types/representation.js";
 import type { CsharpProviderCallSelectionHost } from "../../../policy/model/provider-calls.js";
-import { resolveCsharpProviderPropertyRelations } from "./relations.js";
-
-type ResolvedSourcePropertyAccessInfo = NonNullable<
-  ReturnType<SourceFileSemantics["operations"]["propertyAccess"]>
->;
-type CsharpProviderPropertyRelation = Extract<
-  CsharpProviderTargetRelation,
-  { readonly kind: "member" | "value" }
->;
-
+import { instantiateCsharpProviderBindingMember } from "./calls/binding-instantiation.js";
+import { resolveCsharpProviderMemberRelations } from "./relations.js";
 import { providerReceiverMatchesProperty, csharpProviderPropertySupportsAccess } from "../../../policy/operations/members/property-selection.js";
+
+type Relation = Extract<CsharpProviderTargetRelation, { readonly kind: "member" | "value" }>;
+
 export interface CsharpSelectedProviderProperty {
-  readonly source: ResolvedSourcePropertyAccessInfo;
-  readonly relation: CsharpProviderPropertyRelation;
+  readonly source: SourceMemberUse;
+  readonly relation: Relation;
   readonly targetMember: CsharpTargetMember;
   readonly receiver: CsharpTargetReceiverRelation;
 }
 
 export type CsharpProviderPropertySelection =
-  | {
-      readonly kind: "resolved";
-      readonly property: CsharpSelectedProviderProperty;
-    }
-  | {
-      readonly kind: "not-provider";
-      readonly source: ResolvedSourcePropertyAccessInfo;
-      readonly reason: string;
-    }
-  | {
-      readonly kind: "missing" | "conflict";
-      readonly reason: string;
-    }
-  | {
-      readonly kind: "ambiguous";
-      readonly reason: string;
-      readonly candidates: readonly string[];
-    }
-  | {
-      readonly kind: "rejected";
-      readonly diagnostic: ExtensionDiagnostic;
-    };
+  | { readonly kind: "resolved"; readonly property: CsharpSelectedProviderProperty }
+  | { readonly kind: "not-provider"; readonly source: SourceMemberUse; readonly reason: string }
+  | { readonly kind: "missing" | "conflict"; readonly reason: string }
+  | { readonly kind: "ambiguous"; readonly reason: string; readonly candidates: readonly string[] }
+  | { readonly kind: "rejected"; readonly diagnostic: ExtensionDiagnostic }
+  | Exclude<CsharpRepresentationOutcome<never>, { readonly kind: "represented" }>;
 
 export function selectCsharpProviderProperty(
-  host: CsharpProviderCallSelectionHost,
-  propertyAccess: Node,
-  sourceFile: SourceFile,
+  host: CsharpProviderCallSelectionHost, occurrence: Node, _sourceFile: SourceFile,
 ): CsharpProviderPropertySelection {
-  const source = host.semantics(sourceFile)
-    .operations.propertyAccess(propertyAccess);
-  if (source === undefined) {
-    return {
-      kind: "missing",
-      reason: "The checker did not resolve an exact source property access.",
-    };
+  const published = host.facts.objects.use(occurrence);
+  if (published.kind === "refused") return Object.freeze({ kind: "source-refused", refusal: published });
+  const source = published.value;
+  const resolution = resolveCsharpProviderMemberRelations(host, source);
+  if (resolution.kind === "missing") return { kind: "not-provider", source, reason: resolution.reason };
+  if (resolution.kind !== "resolved") return resolution;
+  const candidates: CsharpSelectedProviderProperty[] = [];
+  for (const relation of resolution.relations) {
+    if (relation.kind !== "member" && relation.kind !== "value") continue;
+    let targetMember: CsharpTargetMember | undefined;
+    if (relation.kind === "value") targetMember = relation.targetMember;
+    else {
+      const evidence = relation.bindingTypeArgumentSource === "result" ? source.readType ?? source.writeType : source.receiver.value;
+      if (evidence === undefined) continue;
+      const owner = host.representation.represent(evidence, "type-argument", occurrence);
+      if (owner.kind !== "represented") return owner;
+      targetMember = instantiateCsharpProviderBindingMember(relation.targetBinding, relation.targetMember,
+        relation.bindingTypeParameters, [owner.value.carrier]);
+    }
+    const receiver = relation.kind === "value" ? Object.freeze({ kind: "none" as const }) : relation.receiver;
+    if (targetMember !== undefined && providerReceiverMatchesProperty(receiver, targetMember, source) &&
+      csharpProviderPropertySupportsAccess(targetMember, source.access)) candidates.push(Object.freeze({ source, relation, targetMember, receiver }));
   }
-  const resolution = resolveCsharpProviderPropertyRelations(
-    host,
-    propertyAccess,
-    sourceFile,
-  );
-  if (resolution.kind === "missing") {
-    return {
-      kind: "not-provider",
-      source,
-      reason: resolution.reason,
-    };
-  }
-  if (resolution.kind === "conflict") {
-    return { kind: "conflict", reason: resolution.reason };
-  }
-  if (resolution.kind === "rejected") {
-    return resolution;
-  }
-  const candidates = resolution.relations
-    .filter((relation): relation is CsharpProviderPropertyRelation =>
-      relation.kind === "member" || relation.kind === "value")
-    .map((relation) => {
-      const targetMember = relation.kind === "value"
-        ? relation.targetMember
-        : instantiateCsharpProviderBindingMember(
-            host.types,
-            relation.targetBinding,
-            relation.targetMember,
-            relation.bindingTypeParameters,
-            relation.bindingTypeArgumentSource === "receiver" ||
-                relation.bindingTypeArgumentSource === "callee"
-              ? [{
-                  node: source.receiver.expression,
-                  type: source.receiver.type,
-                }]
-              : [{
-                  node: source.expression,
-                  type: source.sourceReadType ?? source.sourceWriteType,
-                }],
-            sourceFile,
-          );
-      const receiver = relation.kind === "value"
-        ? { kind: "none" as const }
-        : relation.receiver;
-      return targetMember === undefined ||
-          !providerReceiverMatchesProperty(receiver, targetMember, source) ||
-          !csharpProviderPropertySupportsAccess(targetMember, source.accessMode)
-        ? undefined
-        : { source, relation, targetMember, receiver };
-    })
-    .filter(
-      (candidate): candidate is CsharpSelectedProviderProperty =>
-        candidate !== undefined,
-    );
-  if (candidates.length === 1) {
-    return { kind: "resolved", property: candidates[0]! };
-  }
-  if (candidates.length === 0) {
-    return {
-      kind: "missing",
-      reason:
-        "No related C# provider member satisfies the exact selected property access.",
-    };
-  }
-  return {
-    kind: "ambiguous",
-    reason:
-      "More than one C# target member satisfies the same exact selected provider property.",
-    candidates: candidates.map((candidate) =>
-      `${candidate.relation.targetBinding.id}::${candidate.targetMember.id}`),
-  };
+  if (candidates.length === 1) return Object.freeze({ kind: "resolved", property: candidates[0]! });
+  return candidates.length === 0 ? { kind: "missing", reason: "No exact Native provider field/property satisfies every published member-use access requirement." }
+    : { kind: "ambiguous", reason: "Several Native provider fields/properties satisfy the same original Source member use.",
+      candidates: candidates.map(candidate => `${candidate.relation.targetBinding.id}::${candidate.targetMember.id}`) };
 }

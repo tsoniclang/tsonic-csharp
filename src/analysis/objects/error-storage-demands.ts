@@ -4,7 +4,6 @@ import { sourceMemberOwner, sourceParameterIsProperty, sourceTypeDescriptorStruc
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { classifyCsharpSourceProfileDeclaration, classifyCsharpSourceProfileType } from "../../policy/identities/source-types.js";
 import { csharpSourceProfileDeclarationIdentity } from "../../policy/identities/selected-source.js";
-import { sourceOperatorFromKindName } from "../../target-model/syntax/operators.js";
 
 type DeclaredErrorOwner = { readonly kind: "error"; readonly declaration: Node; readonly plain: boolean }
   | { readonly kind: "unavailable"; readonly site: Node };
@@ -19,7 +18,7 @@ export function analyzeCsharpNativeErrorAdmission(source: TargetSourceProgram): 
   const declaredErrorOwner = (declaration: Node, seen = new Set<Node>()): DeclaredErrorOwner | undefined => {
     if (seen.has(declaration)) return undefined;
     seen.add(declaration);
-    if (classifyCsharpSourceProfileDeclaration(declaration, ast)?.kind === "error") {
+    if (classifyCsharpSourceProfileDeclaration(source.facts.navigation, declaration)?.kind === "error") {
       return { kind: "error", declaration, plain: true };
     }
     if (!ast.is.IsClassDeclaration(declaration) && !ast.is.IsClassExpression(declaration)) return undefined;
@@ -91,7 +90,7 @@ export function analyzeCsharpNativeErrorAdmission(source: TargetSourceProgram): 
         const declarations = [...new Set([inherited.symbol, ...inherited.rootSymbols]
           .flatMap(symbol => queries.declarations.symbolDeclarations(symbol)))];
         for (const declaration of declarations) {
-          const identity = csharpSourceProfileDeclarationIdentity(ast, queries, source.sourceFacts, declaration);
+          const identity = csharpSourceProfileDeclarationIdentity(source.facts.navigation, declaration);
           if (identity?.kind !== "member" || identity.declaringName !== "Error") continue;
           const pair = queries.types.structuralMember(type, owner.nativeType, declaration, "correspondence");
           if (pair?.kind !== "present") continue;
@@ -119,16 +118,17 @@ export function analyzeCsharpNativeErrorAdmission(source: TargetSourceProgram): 
     const property = queries.operations.propertyAccess(node);
     if (property === undefined || property.accessMode === "read") continue;
     const declaration = property.selectedWriteDeclaration ?? property.selectedDeclaration;
-    const identity = csharpSourceProfileDeclarationIdentity(ast, queries, source.sourceFacts, declaration);
+    const identity = csharpSourceProfileDeclarationIdentity(source.facts.navigation, declaration);
     if (identity?.kind !== "member" || identity.declaringName !== "Error") continue;
     const owner = errorOwner(property.receiver.type, queries);
     if (owner === undefined) continue;
     const assignment = ast.parent(node);
+    const operation = assignment === undefined ? undefined : source.facts.values.operation(assignment);
     const binary = assignment === undefined ? undefined : ast.as.AsBinaryExpression(assignment);
     const statement = assignment === undefined ? undefined : ast.parent(assignment);
     const className = ast.name(owner.declaration);
     if (identity.name === "name" && !owner.plain && ast.kindName(property.receiver.expression) === "KindThisKeyword" &&
-      binary?.Left === node && sourceOperatorFromKindName(ast.operatorKindName(assignment!)) === "=" &&
+      binary?.Left === node && operation?.kind === "resolved" && operation.value.kind === "assignment" && operation.value.target === node &&
       ast.is.IsStringLiteral(binary.Right) && className !== undefined && ast.text(binary.Right) === ast.text(className) &&
       statement !== undefined && ast.is.IsExpressionStatement(statement)) {
       nameInitializations.add(statement);

@@ -52,7 +52,7 @@ export type DotnetProviderTargetRelationTemplate =
       readonly bindingTypeParameters: readonly CsharpProviderTypeParameterRelation[];
       readonly bindingTypeArgumentSource: Exclude<
         CsharpProviderBindingTypeArgumentSource,
-        "selected-operation-type-arguments"
+        "class-type-arguments" | "signature-type-arguments"
       >;
     }
   | {
@@ -70,7 +70,7 @@ export type DotnetProviderTargetRelationTemplate =
       readonly bindingTypeArgumentSource: CsharpProviderBindingTypeArgumentSource;
       readonly methodTypeParameters: readonly CsharpProviderTypeParameterRelation[];
       readonly invocationTypeParameters: readonly CsharpProviderTypeParameterRelation[];
-      readonly selectedTypeParameterCount: number;
+      readonly sourceTypeParameterCounts: { readonly class: number; readonly signature: number };
     };
 
 export function dotnetProviderTargetRelationTemplates(
@@ -201,10 +201,10 @@ function dotnetProviderExportTargetRelationTemplates(
         receiver: { kind: "none" as const },
         parameters: providerParameterRelations(signature.parameters, projection),
         bindingTypeParameters: projection.bindingTypeParameters,
-        bindingTypeArgumentSource: "selected-operation-type-arguments" as const,
+        bindingTypeArgumentSource: "signature-type-arguments" as const,
         methodTypeParameters: projection.methodTypeParameters,
         invocationTypeParameters: projection.invocationTypeParameters,
-        selectedTypeParameterCount: projection.selectedTypeParameterCount,
+        sourceTypeParameterCounts: { class: 0, signature: signature.typeParameters?.length ?? 0 },
       })));
   }
   const targetBinding = lookup.getTargetBinding(declaration.id);
@@ -269,15 +269,10 @@ function dotnetProviderMemberTargetRelationTemplates(
         signature.parameters,
         projection,
       );
+      const classTypeArgumentsCloseBinding = member.kind === "constructor";
       const selectedTypeArgumentsCloseBinding =
-        projection.targetMember.kind === "constructor" ||
+        classTypeArgumentsCloseBinding ||
         projection.targetMember.csharpInvocation?.kind === "array-creation";
-      const selectedTypeParameterCount =
-        projection.targetMember.csharpInvocation?.kind === "array-creation"
-          ? signature.typeParameters?.length ?? 0
-          : projection.targetMember.kind === "constructor"
-            ? declaration.typeParameters?.length ?? 0
-            : signature.typeParameters?.length ?? 0;
       const relationBindingTypeParameters =
         projection.targetMember.csharpInvocation?.kind === "array-creation"
           ? providerTypeParameterRelations(
@@ -308,14 +303,17 @@ function dotnetProviderMemberTargetRelationTemplates(
         bindingTypeParameters: relationBindingTypeParameters,
         bindingTypeArgumentSource:
           selectedTypeArgumentsCloseBinding
-            ? "selected-operation-type-arguments"
+            ? classTypeArgumentsCloseBinding ? "class-type-arguments" : "signature-type-arguments"
             : providerBindingTypeArgumentSource(
                 projection.targetMember,
                 receiver,
               ),
         methodTypeParameters,
         invocationTypeParameters: [],
-        selectedTypeParameterCount,
+        sourceTypeParameterCounts: {
+          class: declaration.typeParameters?.length ?? 0,
+          signature: signature.typeParameters?.length ?? 0,
+        },
       };
     }));
 }
@@ -332,7 +330,7 @@ function providerBindingTypeArgumentSource(
   receiver: CsharpTargetReceiverRelation,
 ): Exclude<
   CsharpProviderBindingTypeArgumentSource,
-  "selected-operation-type-arguments"
+  "class-type-arguments" | "signature-type-arguments"
 > {
   return receiver.kind !== "none" || member.static !== true
     ? "receiver"

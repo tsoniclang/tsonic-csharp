@@ -1,12 +1,8 @@
 import type { CsharpConversionSelection } from "../../conversions/selection.js";
 import type { CsharpProviderTargetRelation, CsharpTargetReceiverRelation } from "../../identities/provider-relations.js";
 import type { CsharpObjectShapeMemberFact, CsharpTargetMember, CsharpTargetParameter, TargetTypeRef } from "../../types/model.js";
-import type { SourceFileSemantics, SourceTypeDescriptor } from "@tsonic/target-api/source";
-import type { Node, Type } from "@tsonic/tsts";
-
-export type ResolvedSourceCallInfo = NonNullable<
-  ReturnType<SourceFileSemantics["operations"]["call"]>
->;
+import type { SourceApplication, SourceTypeEvidence } from "@tsonic/target-api/source";
+import type { Node } from "@tsonic/tsts";
 
 export type CsharpSelectedTargetCall =
   | CsharpSelectedTargetCallBase & {
@@ -31,6 +27,20 @@ export type CsharpTargetElementInvocation =
       readonly targetName: string;
       readonly appendInt32Literal?: number;
     };
+
+export interface CsharpArrayUnionRead {
+  readonly source: TargetTypeRef;
+  readonly result: TargetTypeRef;
+  readonly indexType: TargetTypeRef;
+  readonly storage: "direct" | "union";
+  readonly variants: readonly {
+    readonly slotIndex: number;
+    readonly carrier: TargetTypeRef;
+    readonly targetMember: CsharpTargetMember;
+    readonly receiverConversion: CsharpConversionSelection;
+    readonly resultConversion: CsharpConversionSelection;
+  }[];
+}
 
 export interface CsharpSelectedTargetCallBase {
   readonly discardResult?: true;
@@ -90,11 +100,10 @@ export type CsharpSelectedTargetMethodTypeArgument =
       readonly targetType: TargetTypeRef;
     }
   | {
-      readonly kind: "selected-source";
+      readonly kind: "source";
       readonly targetType: TargetTypeRef;
-      readonly selectedType: Type;
-      readonly descriptor: SourceTypeDescriptor;
-      readonly explicitTypeNode?: Node;
+      readonly evidence: SourceTypeEvidence;
+      readonly parameter: Node;
     };
 
 export interface CsharpSelectedCallArgument {

@@ -3,7 +3,7 @@ import type { Node } from "@tsonic/tsts";
 import { sourceObjectMemberDeclarations, sourceParameterIsProperty } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { namedTargetTypeImplicitlyAccepts } from "../../policy/conversions/carriers.js";
-import { isCsharpSourceCallableArtifactDeclaration } from "../../policy/types/callables/source-callable-contract.js";
+import { csharpNativeCallableArtifact } from "../callables/native/artifacts.js";
 import type { CsharpProjectCallableAdapter, CsharpProjectCallableAdapters, CsharpProjectCallableDispatch } from "../../target-model/records/callables/callable-adapters.js";
 import type { CsharpDeclarationClassifications } from "../../target-model/records/program/declarations.js";
 import type { CsharpFinalStructuralInterfaceImplementation, CsharpStructuralMethodForwarding } from "../../target-model/records/objects/heritage.js";
@@ -102,7 +102,7 @@ export function analyzeCsharpProjectCallableAdapters(
     const owner = policy.projectTypes.catalog.definitionForDeclaration(parent);
     const objectMethod = parent !== undefined && policy.ast.is.IsObjectLiteralExpression(parent);
     if (owner === undefined && !objectMethod) continue;
-    const inherited = objectMethod ? { kind: "resolved" as const, contracts: [] } : policy.navigation.memberContracts(declaration);
+    const inherited = objectMethod ? { kind: "resolved" as const, contracts: [] } : policy.facts.navigation.memberContracts(declaration);
     if (inherited.kind !== "resolved") {
       reject(declaration, inherited.reason);
       continue;
@@ -116,7 +116,7 @@ export function analyzeCsharpProjectCallableAdapters(
     for (const contractDeclaration of inherited.contracts) {
       const original = callables.get({ kind: "declaration", declaration: contractDeclaration });
       if (original === undefined) {
-        if (isCsharpSourceCallableArtifactDeclaration(policy.ast, contractDeclaration)) {
+        if (csharpNativeCallableArtifact(policy.ast, policy.facts.navigation, contractDeclaration)) {
           reject(declaration, "An inherited callable is missing its sealed native signature.");
         }
         continue;
@@ -148,7 +148,7 @@ export function analyzeCsharpProjectCallableAdapters(
       }
       // A base class overload signature (a bodiless, non-abstract method beside its implementation) emits no native method:
       // the implementation alone carries every overload, so it is no inherited native slot to adapt or override.
-      if (!isCsharpSourceCallableArtifactDeclaration(policy.ast, contractDeclaration)) continue;
+      if (!csharpNativeCallableArtifact(policy.ast, policy.facts.navigation, contractDeclaration)) continue;
       hasProjectBaseContract = true;
       const contract = instantiateCsharpInheritedCallable(policy, original, implementation, receiver);
       if (contract === undefined) { reject(declaration, "An inherited callable has no exact instantiated native signature."); continue; }
@@ -174,7 +174,7 @@ export function analyzeCsharpProjectCallableAdapters(
       }
       adapters.push(Object.freeze({ contract, parameters, result }));
     }
-    const dispatch = objectMethod ? undefined : policy.navigation.memberDispatch(declaration);
+    const dispatch = objectMethod ? undefined : policy.facts.navigation.memberDispatch(declaration);
     const nativeOverride = hasProjectBaseContract ? overridesBase : overridesNativeMethod(declaration, implementation, parent);
     byDeclaration.set(declaration, Object.freeze({ kind: "method", implementation,
       overridesBase: nativeOverride,
@@ -189,8 +189,8 @@ export function analyzeCsharpProjectCallableAdapters(
       const property = native.classPropertyStorage.get(member);
       const accessor = policy.ast.is.IsGetAccessorDeclaration(member) || policy.ast.is.IsSetAccessorDeclaration(member);
       if (!accessor && property?.kind !== "property") continue;
-      const dispatch = policy.navigation.memberDispatch(member);
-      const contracts = policy.navigation.memberContracts(member);
+      const dispatch = policy.facts.navigation.memberDispatch(member);
+      const contracts = policy.facts.navigation.memberContracts(member);
       const projectBase = contracts.kind === "resolved" && contracts.contracts.some(contract =>
         policy.projectTypes.catalog.definitionForDeclaration(policy.ast.parent(contract))?.kind === "class");
       const overridesBase = policy.ast.hasModifierKind(member, "static") ? false

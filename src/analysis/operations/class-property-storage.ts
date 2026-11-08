@@ -25,8 +25,8 @@ export function classifyCsharpClassPropertyStorage(
           !sourceParameterIsProperty(policy.ast, member)) continue;
         const declaration = policy.ast.as.AsPropertyDeclaration(member) ?? policy.ast.as.AsParameterDeclaration(member)!;
         const field = evidence.sourceField.get([member, declaration.name, declaration.Type, declaration.Initializer]);
-        const dispatch = policy.navigation.memberDispatch(member);
-        const contracts = policy.navigation.memberContracts(member);
+        const dispatch = policy.facts.navigation.memberDispatch(member);
+        const contracts = policy.facts.navigation.memberContracts(member);
         const interfaceProperty = contracts.kind === "resolved" && contracts.contracts.some(contract =>
           policy.ast.is.IsPropertySignatureDeclaration(contract));
         const kind = field !== undefined ? "field"

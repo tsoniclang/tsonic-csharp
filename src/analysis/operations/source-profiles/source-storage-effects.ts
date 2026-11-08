@@ -26,7 +26,7 @@ export function createCsharpSourceProfileStorageEffects(
   const global = createSourceGlobalCallStorageEffects(source, (node, call) => {
     const semantics = source.semantics.forNode(node);
     const declaration = semantics.declarations.signatureDeclaration(call.selectedSignature);
-    const identity = csharpSourceProfileDeclarationIdentity(source.ast, semantics, source.sourceFacts, declaration);
+    const identity = csharpSourceProfileDeclarationIdentity(source.facts.navigation, declaration);
     if (identity === undefined || identity.owner !== "js" && identity.owner !== csharpTargetId ||
       identity.declaringName === undefined) return undefined;
     const memberName = identity.kind === "member" ? identity.name
@@ -37,7 +37,7 @@ export function createCsharpSourceProfileStorageEffects(
       !jsSourceNativeStorageOperation(operation)
       ? undefined : selectJsSourceCallStorageEffect(operation, call);
   }, (declaration, semantics) => {
-    const identity = csharpSourceProfileDeclarationIdentity(source.ast, semantics, source.sourceFacts, declaration);
+    const identity = csharpSourceProfileDeclarationIdentity(source.facts.navigation, declaration);
     return identity?.kind !== "construct" || identity.declaringName === undefined ? undefined
       : jsSourceNativeConstructorStorage({ ownerName: identity.declaringName, memberName: "constructor", declaration: identity.declaration });
   });
@@ -77,7 +77,7 @@ export function createCsharpSourceProfileStorageEffects(
     callbackEntries(node, call) {
       const semantics = source.semantics.forNode(node);
       const declaration = semantics.declarations.signatureDeclaration(call.selectedSignature);
-      const identity = csharpSourceProfileDeclarationIdentity(source.ast, semantics, source.sourceFacts, declaration);
+      const identity = csharpSourceProfileDeclarationIdentity(source.facts.navigation, declaration);
       if (identity === undefined || identity.owner !== "js" && identity.owner !== csharpTargetId ||
         identity.declaringName === undefined || identity.declaration !== declaration ||
         call.sourceSelectedSignatureKind !== "resolved") return undefined;

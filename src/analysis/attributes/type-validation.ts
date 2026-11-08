@@ -114,6 +114,7 @@ export function admitCsharpAttributeArguments(
       }
       case "KindPrefixUnaryExpression": {
         const unary = operations.unaryOperation.get(node);
+        if (unary?.target.kind === "literal") break;
         if (unary?.jsValue.kind !== "not-js-value" || unary.target.kind !== "resolved" ||
           unary.target.sourceOperator !== "-" && unary.target.sourceOperator !== "+" &&
           unary.target.sourceOperator !== "~" && unary.target.sourceOperator !== "!") return false;

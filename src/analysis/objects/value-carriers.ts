@@ -1,9 +1,8 @@
 import { createCsharpNativeValueProducer, createCsharpObjectMethodSourceProducer } from "../program/records/native/native-value-carriers.js";
 import { createHash } from "node:crypto";
 import type { AstReader, Node } from "@tsonic/tsts";
-import { sourceLexicalCaptures, type SourceCallOnlyAlias, type SourceEffectiveTypes, type SourceFileSemantics, type SourceProgramNavigation, type SourceTypeDescriptor } from "@tsonic/target-api/source";
+import { sourceLexicalCaptures, type SourceCallOnlyAlias, type SourceProgramFacts } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
-import { csharpNativePropertyNameIssue } from "./computed-field-names.js";
 import type { CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
@@ -18,101 +17,39 @@ import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/recor
 import { csharpTargetTypeRenderingRejection } from "../../policy/types/model/renderability.js";
 import { csharpRuntimeRecordFieldTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 
-export interface CsharpNativeValueTypeSelection {
-  readonly effectiveTypes: Pick<SourceEffectiveTypes, "callInstantiation">;
-  resolve(descriptor: SourceTypeDescriptor, occurrence: Node): TargetTypeRef | undefined;
-}
-
 export function analyzeCsharpNativeValueCarriers(
-  ast: AstReader,
-  nodes: readonly Node[],
-  evidence: CsharpSourceEvidenceIndex,
-  types: CsharpNativeValueTypeSelection,
-  shapes: CsharpObjectShapeClassifications,
-  semanticsFor: (node: Node) => SourceFileSemantics,
-  requiredRecords: CsharpRequiredRecord[],
+  ast: AstReader, nodes: readonly Node[], evidence: CsharpSourceEvidenceIndex,
+  shapes: CsharpObjectShapeClassifications, requiredRecords: CsharpRequiredRecord[],
 ): CsharpNativeValueCarriers {
   const producer = createCsharpNativeValueProducer();
   const issues: CsharpProjectTypeIssue[] = [];
-  const refuse = (node: Node, message: string): void => {
-    issues.push(Object.freeze({ node, code: "CSHARP_UNSUPPORTED_AST", message }));
-  };
   for (const node of nodes) {
-    if (!ast.is.IsVariableDeclaration(node)) continue;
     const source = evidence.sourceStruct.get(node);
     if (source === undefined) continue;
     requireCsharpRecord(requiredRecords, { family: "nativeValueDeclaration", subject: node,
       construct: "native value declaration", producer: "analyzeCsharpNativeValueCarriers" });
     if (!source.valueType) {
-      refuse(node, "Struct declaration emission requires a finalized value-type struct fact.");
+      issues.push({ node, code: "CSHARP_UNSUPPORTED_AST", message: "Native struct emission requires its exact Source value-type marker." });
       continue;
     }
-    const declaration = ast.as.AsVariableDeclaration(node)!;
-    const initializer = declaration.Initializer;
-    const shapeNode = initializer !== undefined && ast.is.IsCallExpression(initializer)
-      ? ast.arguments(initializer)[0] : undefined;
-    if (shapeNode === undefined || !ast.is.IsObjectLiteralExpression(shapeNode)) {
-      refuse(initializer ?? node,
-        "Struct declaration emission requires struct(...) to receive an object-literal field shape so C# value-type fields are proven before emission.");
-      continue;
-    }
-    const start = issues.length;
-    const fieldCalls = new Map<Node, Node | null>();
-    for (const property of ast.properties(shapeNode)) {
-      if (property === undefined) continue;
-      const name = ast.name(property);
-      if (name !== undefined) {
-        const selected = semanticsFor(name).propertyNames.get(name);
-        if (selected === undefined && ast.is.IsComputedPropertyName(name)) failTargetAnalysisInvariant("tsonic-csharp",
-          "A native computed field requires its completed checked property-name selection.", name);
-        if (selected !== undefined) {
-          const issue = csharpNativePropertyNameIssue(name, selected);
-          if (issue !== undefined) {
-            issues.push(Object.freeze({ node: name, code: issue.code, message: issue.message }));
-            continue;
-          }
-        }
-      }
-      if (!ast.is.IsPropertyAssignment(property)) {
-        refuse(property, "Value-type members require finalized field facts from field-marker property assignments.");
-        continue;
-      }
-      const assignment = ast.as.AsPropertyAssignment(property)!;
-      const field = evidence.sourceField.get([property, assignment.Initializer, ast.name(property)]);
-      if (field === undefined) {
-        refuse(property, "Value-type member requires a finalized field fact before C# struct emission.");
-      } else if (assignment.Initializer !== undefined && ast.is.IsCallExpression(assignment.Initializer)) {
-        fieldCalls.set(field.sourceType, fieldCalls.has(field.sourceType) ? null : assignment.Initializer);
-      }
-    }
-    if (issues.length !== start) continue;
     const shape = shapes.resolveNode(node);
     const fields: CsharpNativeValueField[] = [];
+    const start = issues.length;
     for (const field of source.fields) {
-      const call = fieldCalls.get(field.sourceType);
-      const publication = call == null ? undefined : types.effectiveTypes.callInstantiation(call);
-      const arguments_ = publication?.call.sourceSelectedMethodTypeArguments ?? [];
-      const matches = arguments_.flatMap((argument, index) => argument.explicitTypeNode === field.sourceType ? [index] : []);
-      const descriptor = publication !== undefined && publication.call.call === call &&
-        publication.method.length === arguments_.length && matches.length === 1
-        ? publication.method[matches[0]!]!.type : undefined;
-      const carrier = descriptor === undefined || call == null ? undefined : types.resolve(descriptor, call);
-      if (carrier === undefined) {
-        refuse(field.sourceType, `Value-type field '${field.sourceName}' requires an exact selected native carrier before C# struct emission.`);
+      if (csharpTargetTypeRenderingRejection(field.carrier) !== undefined) {
+        issues.push({ node: field.typeNode, code: "CSHARP_UNSUPPORTED_AST",
+          message: `Native value field '${field.sourceName}' requires its exact renderable physical carrier.` });
         continue;
       }
-      if (csharpTargetTypeRenderingRejection(carrier) !== undefined) {
-        refuse(field.sourceType, `Value-type field '${field.sourceName}' has no renderable selected native carrier.`);
-        continue;
-      }
-      const member = shape?.members.find(candidate => candidate.sourceSubjects?.includes(field.sourceType));
+      const matches = shape?.members.filter(member => member.sourceSubjects?.includes(field.typeNode)) ?? [];
+      if (matches.length > 1) failTargetAnalysisInvariant("tsonic-csharp", "A Native field marker must select exactly one original physical field.", field.typeNode);
+      const member = matches[0];
       if (member?.bound === true && csharpTargetTypeRenderingRejection(csharpRuntimeRecordFieldTargetType(member.type)) !== undefined) {
-        refuse(field.sourceType, "The bound value-type member has no renderable storage contract.");
+        issues.push({ node: field.typeNode, code: "CSHARP_UNSUPPORTED_AST", message: "The bound Native value member requires its exact renderable storage contract." });
         continue;
       }
-      fields.push(Object.freeze({ source: field, carrier,
-        ...(shape !== undefined && member?.bound === true ? { bound: Object.freeze({ owner: shape, member }) } : {}),
-      }));
+      fields.push(Object.freeze({ source: field, carrier: field.carrier,
+        ...(shape !== undefined && member?.bound === true ? { bound: Object.freeze({ owner: shape, member }) } : {}) }));
     }
     if (issues.length === start) producer.publish(node, Object.freeze({ source, fields: Object.freeze(fields) }));
   }
@@ -122,7 +59,7 @@ export function analyzeCsharpNativeValueCarriers(
 export function analyzeCsharpObjectMethodSources(
   ast: AstReader,
   nodes: readonly Node[],
-  navigation: SourceProgramNavigation,
+  navigation: SourceProgramFacts["navigation"],
   callOnlyAlias: (declaration: Node) => SourceCallOnlyAlias | undefined,
 ): CsharpObjectMethodSources {
   const producer = createCsharpObjectMethodSourceProducer();

@@ -159,6 +159,9 @@ function selectCsharpElementStorage(
   sourceFile: SourceFile,
 ): CsharpTypedLocationStorageSelection {
   const selection = selectCsharpTargetElement(input, expression, sourceFile);
+  if (selection.kind === "array-union-read") return storageRejected(
+    "A native array union read is not a writable C# element location.",
+  );
   if (
     selection.kind !== "resolved" &&
     selection.kind !== "project-indexer" &&

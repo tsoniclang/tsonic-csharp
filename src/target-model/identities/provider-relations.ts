@@ -52,7 +52,7 @@ export type CsharpProviderTargetRelation =
       readonly bindingTypeParameters: readonly CsharpProviderTypeParameterRelation[];
       readonly bindingTypeArgumentSource: Exclude<
         CsharpProviderBindingTypeArgumentSource,
-        "selected-operation-type-arguments"
+        "class-type-arguments" | "signature-type-arguments"
       >;
     }
   | {
@@ -66,7 +66,7 @@ export type CsharpProviderTargetRelation =
       readonly bindingTypeArgumentSource: CsharpProviderBindingTypeArgumentSource;
       readonly methodTypeParameters: readonly CsharpProviderTypeParameterRelation[];
       readonly invocationTypeParameters: readonly CsharpProviderTypeParameterRelation[];
-      readonly selectedTypeParameterCount: number;
+      readonly sourceTypeParameterCounts: { readonly class: number; readonly signature: number };
     };
 
 export interface CsharpProviderTypeSourceIdentity extends CsharpProviderSourceIdentityBase {
@@ -97,7 +97,8 @@ export type CsharpProviderBindingTypeArgumentSource =
   | "receiver"
   | "result"
   | "callee"
-  | "selected-operation-type-arguments";
+  | "class-type-arguments"
+  | "signature-type-arguments";
 
 export interface CsharpProviderSignatureSourceIdentity extends CsharpProviderSourceIdentityBase {
   readonly kind: "signature";

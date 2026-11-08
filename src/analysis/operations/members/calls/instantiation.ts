@@ -1,179 +1,67 @@
-import type { ReadonlySourceFactResolver, SourceFile } from "@tsonic/tsts";
-
+import type { SourceApplication, SourceTypeDescriptorSignature } from "@tsonic/target-api/source";
 import type { CsharpProviderTargetRelation } from "../../../../target-model/identities/provider-relations.js";
-
+import type { CsharpProviderCallInstantiationHost } from "../../../../policy/model/provider-calls.js";
+import type { CsharpRepresentationOutcome } from "../../../../target-model/types/representation.js";
+import type { CsharpSelectedTargetCall, CsharpProviderArgumentMapping } from "../../../../target-model/records/objects/members.js";
 import { substituteCsharpTargetMember, targetTypeRefEquals } from "../../../../policy/types/index.js";
 import { compareCsharpImplicitConversionTargets } from "../../../../policy/conversions/index.js";
-
-import { csharpSourceArgumentPassingMode } from "../../../../source/extension/arguments.js";
-import { selectCsharpProviderPointerResult } from "../../pointers/provider-result.js";
-
+import { csharpSourceParameterPassingMode } from "../../../../source/extension/arguments.js";
 import { csharpRuntimeLocationTargetType } from "../../../../target-model/types/carriers/runtime-carriers.js";
-
+import { csharpSelectedCallResultType } from "../../../../target-model/types/member-facts.js";
+import { csharpSourceApplicationSignature } from "../../../source-evidence/representations.js";
+import { selectCsharpProviderPointerResult } from "../../pointers/provider-result.js";
 import { validateCsharpProviderConstraints } from "./constraint-satisfaction.js";
-
-import type { CsharpProviderArgumentMapping, CsharpSelectedTargetCall } from "../../../../target-model/records/objects/members.js";
-import type { ResolvedSourceCallInfo } from "../../../../target-model/records/calls/source-calls.js";
-
-type CsharpProviderSignatureRelation = Extract<
-  CsharpProviderTargetRelation,
-  { readonly kind: "signature" }
->;
-
-export type CsharpInstantiatedProviderCall = Extract<
-  CsharpSelectedTargetCall,
-  { readonly origin: "provider" }
->;
-
-export type CsharpProviderCallInstantiation =
-  | {
-      readonly kind: "resolved";
-      readonly call: CsharpInstantiatedProviderCall;
-      readonly argumentMappings: readonly CsharpProviderArgumentMapping[];
-    }
-  | {
-      readonly kind: "rejected";
-      readonly reason: string;
-    };
-
-import type { CsharpProviderCallInstantiationHost } from "../../../../policy/model/provider-calls.js";
 import { resolveProviderBindingTypeArguments, resolveMethodTypeArguments, resolveInvocationTypeArguments } from "./type-arguments.js";
 import { targetTypeParameterSubstitutions, relateCallArguments } from "../../../../policy/operations/members/instantiation-arguments.js";
 import { validateArgumentsTargetSelectedParameters } from "./arguments.js";
+
+type SignatureRelation = Extract<CsharpProviderTargetRelation, { readonly kind: "signature" }>;
+export type CsharpInstantiatedProviderCall = Extract<CsharpSelectedTargetCall, { readonly origin: "provider" }>;
+export type CsharpProviderCallInstantiation =
+  | { readonly kind: "resolved"; readonly call: CsharpInstantiatedProviderCall; readonly argumentMappings: readonly CsharpProviderArgumentMapping[] }
+  | Exclude<CsharpRepresentationOutcome<never>, { readonly kind: "represented" }>;
+
 export function instantiateCsharpProviderCall(
-  host: CsharpProviderCallInstantiationHost,
-  relation: CsharpProviderSignatureRelation,
-  source: ResolvedSourceCallInfo,
-  sourceFile: SourceFile,
+  host: CsharpProviderCallInstantiationHost, relation: SignatureRelation, source: SourceApplication,
 ): CsharpProviderCallInstantiation {
-  const relationError = validateProviderCallRelation(
-    host.sourceFacts,
-    relation,
-    source,
-  );
-  if (relationError !== undefined) {
-    return { kind: "rejected", reason: relationError };
-  }
-  const bindingArguments = resolveProviderBindingTypeArguments(
-    host,
-    relation,
-    source,
-    sourceFile,
-  );
-  if (bindingArguments === undefined) {
-    return {
-      kind: "rejected",
-      reason:
-        "The exact selected receiver/result evidence does not close the provider target binding type parameters.",
-    };
-  }
-  const methodArguments = resolveMethodTypeArguments(
-    host,
-    relation,
-    source,
-    sourceFile,
-  );
-  if (methodArguments === undefined) {
-    return {
-      kind: "rejected",
-      reason:
-        "The exact selected method type-argument evidence does not close the provider target method type parameters.",
-    };
-  }
-  const invocationArguments = resolveInvocationTypeArguments(
-    host,
-    relation,
-    source,
-    sourceFile,
-  );
-  if (invocationArguments === undefined) {
-    return {
-      kind: "rejected",
-      reason:
-        "The exact selected invocation type-argument evidence does not close the provider target invocation.",
-    };
-  }
-  const substitutions = targetTypeParameterSubstitutions(
-    relation,
-    bindingArguments.map((argument) => argument.targetType),
-    methodArguments,
-  );
-  if (substitutions === undefined) {
-    return {
-      kind: "rejected",
-      reason:
-        "Provider binding and method type-parameter identities overlap and cannot be substituted unambiguously.",
-    };
-  }
-  const targetMember = substituteCsharpTargetMember(
-    relation.targetMember,
-    substitutions,
-  );
-  const constraintError = validateCsharpProviderConstraints(host, {
-    targetBinding: relation.targetBinding,
-    bindingArguments,
-    targetMember,
-    methodArguments,
-    invocationArguments,
-    sourceFile,
+  const signature = csharpSourceApplicationSignature(host.facts, source);
+  if (signature.kind !== "represented") return signature;
+  const failure = validateProviderCallRelation(host, relation, source, signature.value);
+  if (failure.kind !== "represented") return failure;
+  const bindingArguments = resolveProviderBindingTypeArguments(host, relation, source);
+  if (bindingArguments.kind !== "represented") return bindingArguments;
+  const methodArguments = resolveMethodTypeArguments(host, relation, source);
+  if (methodArguments.kind !== "represented") return methodArguments;
+  const invocationArguments = resolveInvocationTypeArguments(host, relation, source);
+  if (invocationArguments.kind !== "represented") return invocationArguments;
+  const substitutions = targetTypeParameterSubstitutions(relation,
+    bindingArguments.value.map(argument => argument.targetType), methodArguments.value);
+  if (substitutions === undefined) return refused(source,
+    "The selected Native binding and method parameter identities overlap or are incomplete.");
+  const targetMember = substituteCsharpTargetMember(relation.targetMember, substitutions);
+  const constraint = validateCsharpProviderConstraints(host, {
+    targetBinding: relation.targetBinding, bindingArguments: bindingArguments.value, targetMember,
+    methodArguments: methodArguments.value, invocationArguments: invocationArguments.value,
   });
-  if (constraintError !== undefined) {
-    return { kind: "rejected", reason: constraintError };
-  }
+  if (constraint !== undefined) return refused(source, constraint);
   const arguments_ = relateCallArguments(relation, targetMember, source);
-  if (arguments_ === undefined) {
-    return {
-      kind: "rejected",
-      reason:
-        "The checker-selected source argument slots do not match the provider parameter relation.",
-    };
+  if (arguments_ === undefined) return refused(source,
+    "The complete canonical Source argument-place vector does not match the Native provider parameter relation.");
+  const validation = validateArgumentsTargetSelectedParameters(host, relation, targetMember, source, arguments_);
+  if (validation.kind !== "represented") return validation;
+  const pointer = selectCsharpProviderPointerResult(host, source);
+  if (pointer.kind !== "represented") return pointer;
+  const result = csharpSelectedCallResultType(targetMember, false);
+  const physical = result === undefined || targetMember.csharpReturnPassing === undefined ? result : csharpRuntimeLocationTargetType(result);
+  if (pointer.value.kind === "present" && (physical === undefined || !targetTypeRefEquals(physical, pointer.value.value))) {
+    return refused(source, "The actual Native return ABI conflicts with the authenticated Source pointer/result contract.");
   }
-  const argumentValidation = validateArgumentsTargetSelectedParameters(
-    host,
-    relation,
-    targetMember,
-    source,
-    arguments_,
-    sourceFile,
-  );
-  if (argumentValidation.kind === "rejected") {
-    return {
-      kind: "rejected",
-      reason: argumentValidation.reason,
-    };
-  }
-  const pointerResult = selectCsharpProviderPointerResult(host, source, sourceFile, parameter => {
-    const method = parameter.scope === "signature";
-    if (method && source.sourceSelectedMethodTypeArguments?.[parameter.index]?.typeParameterName !== parameter.parameter.name) {
-      return undefined;
-    }
-    const mapping = (method ? relation.methodTypeParameters : relation.bindingTypeParameters)
-      .find(value => value.sourceTypeParameterIndex === parameter.index);
-    return mapping === undefined ? undefined :
-      (method ? methodArguments : bindingArguments)[mapping.targetTypeParameterIndex]?.targetType;
-  });
-  if (pointerResult?.kind === "invalid") return { kind: "rejected", reason: pointerResult.reason };
-  const resultCarrier = targetMember.returnType === undefined ? undefined :
-    targetMember.csharpReturnPassing === undefined ? targetMember.returnType :
-      csharpRuntimeLocationTargetType(targetMember.returnType);
-  if (pointerResult !== undefined && (resultCarrier === undefined ||
-      !targetTypeRefEquals(pointerResult.carrier, resultCarrier))) {
-    return { kind: "rejected", reason: "The provider result conflicts with the canonical source pointer carrier." };
-  }
-  return {
-    kind: "resolved",
-    call: {
-      relation,
-      origin: "provider",
-      targetMember,
-      receiver: relation.receiver,
-      targetMethodTypeArguments: methodArguments,
-      targetInvocationTypeArguments: invocationArguments,
-      arguments: arguments_,
-      argumentMappings: argumentValidation.argumentMappings,
-    },
-    argumentMappings: argumentValidation.argumentMappings,
-  };
+  if (physical === undefined) return refused(source, "The selected Native call metadata has no complete physical return ABI.");
+  return Object.freeze({ kind: "resolved", call: Object.freeze({
+    origin: "provider", relation, targetMember, receiver: relation.receiver,
+    targetMethodTypeArguments: methodArguments.value, targetInvocationTypeArguments: invocationArguments.value,
+    arguments: arguments_, argumentMappings: validation.value,
+  }), argumentMappings: validation.value });
 }
 
 export function compareInstantiatedProviderCalls(
@@ -222,71 +110,43 @@ export function compareInstantiatedProviderCalls(
   return leftBetter ? "left" : "right";
 }
 
+
 function validateProviderCallRelation(
-  sourceFacts: ReadonlySourceFactResolver | undefined,
-  relation: CsharpProviderSignatureRelation,
-  source: ResolvedSourceCallInfo,
-): string | undefined {
-  const sourceParameters = source.sourceSelectedSignatureParameters;
-  if (
-    relation.parameters.length !== sourceParameters.length ||
-    relation.parameters.length !== relation.targetMember.parameters.length -
-      (relation.receiver.kind === "target-parameter" ? 1 : 0)
-  ) {
-    return "Provider parameter relation cardinality does not match the selected source and target signatures.";
+  host: CsharpProviderCallInstantiationHost, relation: SignatureRelation, application: SourceApplication,
+  source: SourceTypeDescriptorSignature,
+): CsharpRepresentationOutcome<true> {
+  if (relation.parameters.length !== source.parameters.length ||
+    relation.parameters.length !== relation.targetMember.parameters.length - (relation.receiver.kind === "target-parameter" ? 1 : 0)) {
+    return refused(application, "The Native provider parameter relation must cover the complete original Source and physical Native signatures.");
   }
-  const seenSource = new Set<number>();
-  const seenTarget = new Set<number>();
-  for (const parameterRelation of relation.parameters) {
-    const sourceParameter =
-      sourceParameters[parameterRelation.sourceParameterIndex];
-    const targetParameter =
-      relation.targetMember.parameters[parameterRelation.targetParameterIndex];
-    if (
-      sourceParameter === undefined ||
-      targetParameter === undefined ||
-      seenSource.has(parameterRelation.sourceParameterIndex) ||
-      seenTarget.has(parameterRelation.targetParameterIndex)
-    ) {
-      return "Provider parameter relation contains a missing, duplicate, or out-of-range slot.";
-    }
-    seenSource.add(parameterRelation.sourceParameterIndex);
-    seenTarget.add(parameterRelation.targetParameterIndex);
-    const sourcePassingMode = csharpSourceArgumentPassingMode(
-      sourceFacts,
-      sourceParameter.parameterDeclaration ?? sourceParameter.parameterSymbol,
-    );
-    if (
-      sourcePassingMode !== parameterRelation.sourcePassingMode ||
-      targetParameter.passingMode !== parameterRelation.targetPassingMode ||
-      sourceParameter.acceptsOmission !==
-        parameterRelation.sourceAcceptsOmission ||
-      (targetParameter.optional === true ||
-        targetParameter.csharpOmittableOptionalArgument === true ||
-        targetParameter.paramsArray === true) !==
-        parameterRelation.targetAcceptsOmission ||
-      sourceParameter.rest !== parameterRelation.sourceRest ||
-      (targetParameter.paramsArray === true) !==
-        parameterRelation.targetParamsArray
-    ) {
-      return "Provider parameter relation contradicts selected source or target parameter semantics.";
-    }
+  const sourceIndexes = new Set<number>();
+  const targetIndexes = new Set<number>();
+  for (const parameter of relation.parameters) {
+    const selected = source.parameters[parameter.sourceParameterIndex];
+    const target = relation.targetMember.parameters[parameter.targetParameterIndex];
+    if (selected === undefined || target === undefined || sourceIndexes.has(parameter.sourceParameterIndex) ||
+      targetIndexes.has(parameter.targetParameterIndex)) return refused(application, "The Native provider parameter relation contains an absent or duplicate slot.");
+    sourceIndexes.add(parameter.sourceParameterIndex);
+    targetIndexes.add(parameter.targetParameterIndex);
+    const passing = selected.declaration === undefined ? Object.freeze({ kind: "resolved" as const, value: "by-value" as const })
+      : csharpSourceParameterPassingMode(host.facts.protocols, selected.declaration);
+    if (passing.kind === "refused") return Object.freeze({ kind: "source-refused", refusal: passing });
+    const mode = passing.value;
+    if (mode !== parameter.sourcePassingMode || target.passingMode !== parameter.targetPassingMode ||
+      (selected.kind !== "required") !== parameter.sourceAcceptsOmission || (selected.kind === "rest") !== parameter.sourceRest ||
+      (target.optional === true || target.csharpOmittableOptionalArgument === true || target.paramsArray === true) !== parameter.targetAcceptsOmission ||
+      (target.paramsArray === true) !== parameter.targetParamsArray) return refused(application, "The Native provider parameter relation contradicts an original Source slot or exact Native parameter law.");
   }
-  if (relation.receiver.kind === "target-parameter") {
-    const receiverParameter =
-      relation.targetMember.parameters[relation.receiver.targetParameterIndex];
-    if (
-      source.sourceReceiver === undefined ||
-      receiverParameter === undefined ||
-      seenTarget.has(relation.receiver.targetParameterIndex)
-    ) {
-      return "Provider first-argument receiver relation is incomplete or overlaps a source parameter.";
-    }
-  } else if (
-    relation.receiver.kind === "instance" &&
-    source.sourceReceiver === undefined
-  ) {
-    return "Provider instance relation has no checker-selected source receiver.";
+  if (relation.receiver.kind === "none") return Object.freeze({ kind: "represented", value: true });
+  if (application.receiver.kind !== "value") return refused(application, "The selected Native instance/target-parameter call requires its canonical Source value receiver.");
+  if (relation.receiver.kind === "target-parameter" &&
+    (relation.targetMember.parameters[relation.receiver.targetParameterIndex] === undefined || targetIndexes.has(relation.receiver.targetParameterIndex))) {
+    return refused(application, "The Native first-parameter receiver overlaps an authored Source argument or has no physical parameter.");
   }
-  return undefined;
+  return Object.freeze({ kind: "represented", value: true });
+}
+
+function refused(source: SourceApplication, message: string): Exclude<CsharpRepresentationOutcome<never>, { readonly kind: "represented" }> {
+  return Object.freeze({ kind: "native-refused", source: "tsonic-csharp", code: "CSHARP_PROVIDER_CALL_NOT_PROVEN",
+    site: source.identity.invocation, message });
 }

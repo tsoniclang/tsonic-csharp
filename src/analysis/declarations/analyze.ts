@@ -1,29 +1,19 @@
 import type { Node } from "@tsonic/tsts";
-import { csharpMethodValueCoversContract } from "../../target-model/types/method-values.js";
 import {
   HasSyntacticModifier,
   ModifierFlagsAsync,
   sourceCallableValueParameters,
 } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import { selectCsharpConversion } from "../../policy/conversions/index.js";
-import { csharpConversionIsApplicable } from "../../policy/conversions/applicability.js";
-import { csharpNumericReturnBaselineCovered, csharpSourceUnionLayoutsMatch } from "../../policy/conversions/union-relations.js";
-import { selectCsharpCommonImplicitTarget } from "../conversions/common-target.js";
 import {
-  csharpAbsenceTargetType,
-  combineCsharpTargetUnionMembers,
   isCsharpAbsenceTargetType,
   csharpCarrierAdmitsSourceAbsence,
   getCsharpNullableElementTargetType,
-  getCsharpRuntimeUnionArms,
   getCsharpDelegateSignature,
-  targetTypeRefKey,
   targetTypeRefEquals,
   isCsharpVoidTargetType,
   getCsharpTaskResultTargetType,
 } from "../../policy/types/index.js";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { csharpRuntimeParameterDefault } from "../../policy/types/storage/parameter-defaults.js";
 import { selectCsharpDefaultValueContract } from "../../policy/types/objects/binding-projection.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
@@ -102,7 +92,7 @@ export function analyzeCsharpDeclarations(
           const native = selectCsharpDefaultValueContract(runtimeDefault.parameterType, runtimeDefault.valueType, false);
           const absentInitializer = isCsharpAbsenceTargetType(initializerType) &&
             (policy.ast.kindName(parameter.Initializer) === "KindNullKeyword" ||
-              policy.ast.is.IsIdentifier(parameter.Initializer) && policy.navigation.sourceReferenceFor(parameter.Initializer) === undefined);
+              policy.ast.is.IsIdentifier(parameter.Initializer) && policy.facts.navigation.sourceReferenceFor(parameter.Initializer) === undefined);
           declarations.runtimeDefault(node, Object.freeze({ ...runtimeDefault, acceptsOmission: presentOnly ? false : slot.acceptsOmission, native,
             passthrough: (presentOnly || (native.kind === "value" || absentInitializer) && !native.normalize) &&
               targetTypeRefEquals(native.source, native.target) }));
@@ -145,94 +135,6 @@ function classifyReturnContract(
     fallthroughUndefined: !isCsharpVoidTargetType(value) && completion?.canFallThrough === true });
 }
 
-export function reconcileInferredReturnTargetContract(
-  policy: CsharpPolicyContext,
-  baseline: TargetTypeRef,
-  observed: readonly TargetTypeRef[],
-  incomplete: boolean,
-): CsharpReturnTargetContract {
-  if (incomplete) {
-    return {
-      kind: "rejected",
-      reason:
-        "An inferred C# public return contract contains a return expression without one closed target representation.",
-    };
-  }
-  if (observed.length === 0) {
-    return { kind: "resolved", type: baseline };
-  }
-  const requiredSources = [
-    ...observed,
-    ...uncoveredBaselineReturnAlternatives(policy, baseline, observed),
-  ];
-  const selected = selectCsharpCommonImplicitTarget(
-    policy,
-    requiredSources,
-    [...observed, baseline, ...(requiredSources.some(isCsharpAbsenceTargetType)
-      ? observed.flatMap(source => {
-          const optional = combineCsharpTargetUnionMembers([source, csharpAbsenceTargetType()]);
-          return optional === undefined ? [] : [optional];
-        }) : [])],
-  );
-  if (selected.kind === "resolved") return { kind: "resolved", type: selected.target };
-  // Mutually convertible carriers (an empty source struct and the empty object) tie as equally specific. When every
-  // returned value already has one carrier that accepts every required source, the return keeps that carrier: the
-  // returned values then need no conversion at all.
-  const single = observed.every(type => targetTypeRefEquals(type, observed[0]!)) ? observed[0]! : undefined;
-  const actual = single === undefined ? undefined : selectCsharpCommonImplicitTarget(policy, requiredSources, [single]);
-  return actual?.kind === "resolved"
-    ? { kind: "resolved", type: actual.target }
-    : {
-        kind: "rejected",
-        reason:
-          `An inferred C# public return contract contains incompatible exact target representations. ${selected.reason}`,
-      };
-}
-
-function uncoveredBaselineReturnAlternatives(
-  policy: CsharpPolicyContext,
-  baseline: TargetTypeRef,
-  observed: readonly TargetTypeRef[],
-): readonly TargetTypeRef[] {
-  const alternatives = new Map<string, TargetTypeRef>();
-  collectTargetContractAlternatives(baseline, alternatives, policy);
-  const observedAlternatives = new Map<string, TargetTypeRef>();
-  observed.forEach(source => collectTargetContractAlternatives(source, observedAlternatives, policy));
-  const observedSources = [...observedAlternatives.values()];
-  return [...alternatives.values()].filter((alternative) =>
-    !observedSources.some((source) =>
-      csharpNumericReturnBaselineCovered({ source, baseline: alternative, definitions: policy.typeDefinitions,
-        convert: (source, target) => selectCsharpConversion(policy, source, target, "implicit") }) ||
-      csharpSourceUnionLayoutsMatch(source, alternative) ||
-      csharpMethodValueCoversContract(source, alternative) || csharpConversionIsApplicable(
-        selectCsharpConversion(policy, source, alternative, "implicit"),
-        "implicit",
-      )
-    )
-  );
-}
-
-function collectTargetContractAlternatives(
-  type: TargetTypeRef,
-  alternatives: Map<string, TargetTypeRef>,
-  policy: CsharpPolicyContext,
-): void {
-  const union = getCsharpRuntimeUnionArms(type, policy.typeDefinitions);
-  if (union !== undefined) {
-    union.forEach((member) =>
-      collectTargetContractAlternatives(member, alternatives, policy)
-    );
-    return;
-  }
-  const nullableElement = getCsharpNullableElementTargetType(type);
-  if (nullableElement !== undefined) {
-    collectTargetContractAlternatives(nullableElement, alternatives, policy);
-    const undefinedType = csharpAbsenceTargetType();
-    alternatives.set(targetTypeRefKey(undefinedType), undefinedType);
-    return;
-  }
-  alternatives.set(targetTypeRefKey(type), type);
-}
 
 function isCallableDeclaration(
   policy: CsharpPolicyContext,

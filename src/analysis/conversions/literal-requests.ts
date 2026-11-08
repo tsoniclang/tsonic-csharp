@@ -1,5 +1,6 @@
 import type { Node } from "@tsonic/tsts";
-import type { SourceLiteralIndex } from "@tsonic/target-api/source";
+import type { CsharpNativeLiteralQueries } from "../../policy/model/native-literals.js";
+import type { CsharpRepresentationOutcome } from "../../target-model/types/representation.js";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpConversionSelection } from "../../target-model/conversions/selection.js";
 import type { CsharpExactLiteralRequest } from "../../target-model/conversions/exact-literals.js";
@@ -10,6 +11,7 @@ import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/
 export interface CsharpExactLiteralRequestCollector {
   readonly requests: readonly CsharpExactLiteralRequest[];
   readonly seal: () => readonly CsharpExactLiteralRequest[];
+  readonly failures: () => readonly Exclude<CsharpRepresentationOutcome<never>, { readonly kind: "represented" }>[];
   readonly requestReads: (
     expression: Node,
     physicalSource: TargetTypeRef | undefined,
@@ -31,11 +33,18 @@ interface CsharpRequestedLiteralEndpoint {
   readonly positions: number[];
 }
 
-export function createCsharpExactLiteralRequestCollector(literalValues: SourceLiteralIndex): CsharpExactLiteralRequestCollector {
+export function createCsharpExactLiteralRequestCollector(literals: CsharpNativeLiteralQueries): CsharpExactLiteralRequestCollector {
   const requests: CsharpExactLiteralRequest[] = [];
   const requestedTargets = new WeakMap<Node, Map<string, CsharpRequestedLiteralEndpoint>>();
   let closed = false;
-  return Object.freeze({ requests, requestReads, requestConversion, seal });
+  const failures: Exclude<CsharpRepresentationOutcome<never>, { readonly kind: "represented" }>[] = [];
+  return Object.freeze({ requests, requestReads, requestConversion, seal, failures: () => Object.freeze([...failures]) });
+
+  function isLiteral(expression: Node): boolean {
+    const selected = literals.recipe(expression);
+    if (selected.kind !== "represented") { failures.push(selected); return false; }
+    return selected.value.kind === "present";
+  }
 
   function seal(): readonly CsharpExactLiteralRequest[] {
     if (closed) return failTargetAnalysisInvariant("tsonic-csharp", "Exact native literal requests close exactly once.");
@@ -55,7 +64,7 @@ export function createCsharpExactLiteralRequestCollector(literalValues: SourceLi
     operations: Pick<CsharpTargetOperationClassifications, "unaryOperation">,
   ): void {
     if (closed) return failTargetAnalysisInvariant("tsonic-csharp", "Closed native literal requests cannot read another source use.", expression);
-    if (literalValues.literalValue.get(expression) === undefined) return;
+    if (!isLiteral(expression)) return;
     request(expression, physicalSource);
     for (const target of sourceTypes) request(expression, physicalSource, target);
     for (const target of expectedTypes) request(expression, physicalSource, target);
@@ -70,7 +79,7 @@ export function createCsharpExactLiteralRequestCollector(literalValues: SourceLi
     selection: CsharpConversionSelection,
     physicalSource: TargetTypeRef | undefined,
   ): void {
-    if (literalValues.literalValue.get(expression) === undefined) return;
+    if (!isLiteral(expression)) return;
     const pending: { readonly source: TargetTypeRef; readonly target: TargetTypeRef; readonly selection: CsharpConversionSelection }[] =
       [{ source, target, selection }];
     for (let entry = pending.pop(); entry !== undefined; entry = pending.pop()) {

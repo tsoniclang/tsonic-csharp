@@ -189,7 +189,7 @@ export function analyzeCsharpPromiseResults(input: {
       const outcome = source.effectiveTypes.get(node);
       let descriptor = outcome === undefined || outcome.kind === "refused" ? undefined : outcome.type;
       while (descriptor?.kind === "optional") descriptor = descriptor.value;
-      const profile = descriptor?.kind !== "declared" ? undefined : classifyCsharpSourceProfileDeclaration(descriptor.declaration, ast);
+      const profile = descriptor?.kind !== "declared" ? undefined : classifyCsharpSourceProfileDeclaration(source.facts.navigation, descriptor.declaration);
       observeDiscard = profile?.kind === "promise" && profile.ownerId === "js";
     }
     results.set(node, Object.freeze({ disposition, ...(disposition.kind === "discarded" && observeDiscard ? { discard: selection } : {}) }));

@@ -10,6 +10,7 @@ import { csharpGenericConstraintFromTargetTypeParameterConstraint } from "../typ
 import { planCsharpArtifactMemberHiding } from "../declarations/modifiers.js";
 import { qualifiedCsharpType } from "../types/primitives.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
+import { planCsharpSourceValueBox } from "../expressions/source-value-boxing.js";
 
 export function renderObjectShapeProjectionMethods(
   input: CsharpPlanningContext, projections: readonly CsharpObjectShapeProjectionDeclaration[], _diagnostics: TargetDiagnostic[],
@@ -108,7 +109,6 @@ export function renderCsharpClosedShapeConversion(
     }, name: "Item2" };
     case "runtime-union": return { kind: "InvocationExpression", callee: { kind: "SimpleMemberAccessExpression", receiver: type, name: selected.constructor },
       arguments: [{ kind: "Argument", expression: renderCsharpClosedShapeConversion(names, selected.operand, expression) }] };
-    case "js-value": return { kind: "InvocationExpression", callee: { kind: "SimpleMemberAccessExpression", receiver: type, name: "from" },
-      arguments: [{ kind: "Argument", expression }] };
+    case "js-value": return planCsharpSourceValueBox(names, selected.category, expression);
   }
 }

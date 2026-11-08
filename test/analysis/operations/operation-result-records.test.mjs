@@ -2,6 +2,36 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
+import { csharpSelectedCallResultType } from "../../../dist/target-model/types/member-facts.js";
+import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
+
+test("a Native call's physical completion is not a fabricated narrowed Source read", () => {
+  const compiled = compileCsharpSource({ surface: "native", sourceText: `
+    import { Convert } from "@tsonic/dotnet/System.js";
+    import type { byte } from "@tsonic/csharp/types.js";
+    export function read(value: number): byte { return Convert.ToByte(value); }
+  ` });
+  assertCsharpCompilationSucceeded(compiled);
+  const program = compiled.result.program;
+  let calls = 0;
+  const visit = node => {
+    const call = program.records.selectedCall.get(node);
+    if (call?.target?.kind === "resolved") {
+      const physical = csharpSelectedCallResultType(call.target.call.targetMember, call.target.call.discardResult === true);
+      assert.equal(physical?.kind === "source-primitive" && physical.name === "uint8", true,
+        "the selected CLR method returns its real byte carrier");
+      assert.equal(program.records.valueRefinement.get(node) === undefined, true,
+        "creating a result is not a storage read and cannot invent a narrowing proof");
+      assert.equal(targetTypeRefEquals(program.records.operationResultType.get(node), physical) &&
+        targetTypeRefEquals(program.records.valueRead.get(node)?.value, physical), true,
+      "operation and consumed-value records retain the same physical completion");
+      calls++;
+    }
+    program.source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+  };
+  for (const file of csharpProgramSourceFiles(program)) visit(file);
+  assert.equal(calls === 1, true, "one exact provider invocation is covered");
+});
 
 const source = `
   import type { int32 } from "@tsonic/core/types.js";

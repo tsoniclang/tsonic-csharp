@@ -13,10 +13,12 @@ export function classifyCsharpModuleFieldDemand(
   const visit = (node: Node): void => {
     if (evidence.compileTimeMetadata.get(node) || IsTypeSyntaxNode(policy.ast, node) ||
       policy.types.nativeUnreachable(node)) return;
-    const selected = selectCsharpSourceArgument(policy.sourceFacts, node);
+    const selected = selectCsharpSourceArgument(policy.facts.protocols, node);
     if (selected.kind === "resolved" && selected.argument.passingMode !== "by-value") {
       const expression = selected.argument.storageExpression;
-      const declaration = policy.semanticsFor(expression).operations.storage(expression)?.declaration;
+      const place = policy.facts.protocols.storage(expression);
+      const declaration = place.kind !== "refused" && place.value.kind === "present" && place.value.value.kind === "binding"
+        ? place.value.value.declaration : undefined;
       if (declaration !== undefined && (policy.ast.is.IsVariableDeclaration(declaration) ||
         policy.ast.is.IsBindingElement(declaration)) && sourceDeclarationIsModuleScoped(declaration, policy.ast)) {
         if (fields.size >= 131_072 && !fields.has(declaration))

@@ -1,6 +1,6 @@
 import { targetSourceProfileDeclaration, typescriptNoLibUtilityDeclarations } from "@tsonic/target-api/provider";
 import type { TargetCompilationSessionContext, TargetSourceProfileContributions } from "@tsonic/target-api/provider";
-import { jsSurfaceSourceProfileDeclarations, sourceNoLibBaseDeclarations, sourcePrimitiveProfileDeclarations } from "@tsonic/js-source-profile";
+import { createJsSourceApiFacts, jsSurfaceSourceProfileDeclarations, sourceNoLibBaseDeclarations, sourcePrimitiveProfileDeclarations } from "@tsonic/js-source-profile";
 import { csharpTargetId } from "../../target-model/identities/target.js";
 
 export const csharpSourceProfileOwnerId = csharpTargetId;
@@ -58,6 +58,7 @@ export function csharpSourceProfileContributions(context: TargetCompilationSessi
 
 export function csharpJsSurfaceSourceProfileContributions(): TargetSourceProfileContributions {
   return {
+    apiFacts: createJsSourceApiFacts,
     declarations: [
       targetSourceProfileDeclaration(
         "typescript-utilities.d.ts",

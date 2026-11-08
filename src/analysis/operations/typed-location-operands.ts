@@ -34,7 +34,8 @@ function refusedRoot(policy: CsharpPolicyContext, expression: Node, sourceFile: 
     const deeper = argument === undefined ? undefined : refusedRoot(policy, argument, sourceFile, visited);
     if (deeper !== undefined) return deeper;
   }
-  return Object.freeze({ node: call, code: refusal.code, message: refusal.message });
+  return Object.freeze({ node: refusal.site ?? call, code: refusal.code, message: refusal.message,
+    ...(refusal.source === undefined ? {} : { source: refusal.source }) });
 }
 
 function originatingCall(policy: CsharpPolicyContext, expression: Node): Node | undefined {
@@ -44,9 +45,9 @@ function originatingCall(policy: CsharpPolicyContext, expression: Node): Node | 
     visited.add(current);
     if (policy.ast.is.IsCallExpression(current)) return current;
     if (!policy.ast.is.IsIdentifier(current)) return undefined;
-    const declaration: Node | undefined = policy.navigation.referenceFor(current)?.declaration;
+    const declaration: Node | undefined = policy.facts.navigation.referenceFor(current)?.declaration;
     if (declaration === undefined || !policy.ast.is.IsVariableDeclaration(declaration) ||
-      policy.navigation.declarationUseSummary(declaration).bindingWritten) return undefined;
+      policy.facts.navigation.declarationUseSummary(declaration).bindingWritten) return undefined;
     current = policy.ast.as.AsVariableDeclaration(declaration)?.Initializer;
   }
   return undefined;

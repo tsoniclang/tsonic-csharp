@@ -17,6 +17,7 @@ export interface CsharpConversionAnalysis {
   }): CsharpPreparedConversionClassifications;
   close(nativeDemand: CsharpNativeDemandAnalysis, requiredRecords: CsharpRequiredRecord[],
     captures: import("../../target-model/records/callables/capture-storage.js").CsharpCaptureStorage,
-    creations: import("../../target-model/records/callables/callable-values.js").CsharpCallableCreationIndex): void;
+    creations: import("../../target-model/records/callables/callable-values.js").CsharpCallableCreationIndex,
+    flowReads: import("../../target-model/records/program/source-evidence.js").CsharpFlowReadClassifications): void;
   seal(): CsharpConversionClassifications;
 }

@@ -10,7 +10,7 @@ import type { CsharpTargetCallEmission } from "../../../target-model/records/cal
 import { selectCsharpTargetCallEmission } from "../../../policy/operations/members/target-call-emission.js";
 import { createCsharpTargetCallEmissionRecords } from "../../program/records/calls/target-call-emission.js";
 import type { CsharpNativeUseRecords } from "../../../target-model/records/native/native-demand.js";
-import type { CsharpTypeDefinitions } from "../../../target-model/types/source-union-definitions.js";
+import type { CsharpTypeDefinitions } from "../../../target-model/types/native-definitions.js";
 
 export function analyzeCsharpTargetCallEmission(input: { readonly nodes: readonly Node[]; readonly admitted: (node: Node) => boolean;
   readonly typeDefinitions: CsharpTypeDefinitions;
@@ -29,16 +29,14 @@ export function analyzeCsharpTargetCallEmission(input: { readonly nodes: readonl
     const optional = input.sources.callOptional.get(node);
     if (arguments_ === undefined || optional === undefined) { refuse(node, "Selected native call requires its exact physical argument and optional-receiver contract."); continue; }
     const passing = arguments_.groups.map(group => {
-      if (group.collect) return false;
-      const index = group.arguments[0]?.index;
-      const operand = index === undefined ? undefined : arguments_.operands[index];
-      if (operand?.kind !== "argument") return false;
-      const emission = input.arguments.callArgumentEmission.get(operand.expression, operand.parameter, operand.form, operand.mapping);
-      return emission?.kind === "plain" && operand.parameter.passingMode !== undefined && operand.parameter.passingMode !== "by-value";
+      if (group.kind !== "value") return false;
+      const parameter = arguments_.bindings[group.index];
+      return parameter?.passingMode !== undefined && parameter.passingMode !== "by-value";
     });
     const request = selected.call.targetMember.csharpArtifactRequirements?.find(requirement => requirement.kind === "object-shape-projection");
-    const subject = request?.source.kind === "receiver" ? selected.source.sourceReceiver?.expression :
-      request?.source.kind === "argument" ? selected.source.sourceArguments[request.source.index]?.expression : undefined;
+    const authored = request?.source.kind === "argument" ? selected.source.sourceArguments[request.source.index] : undefined;
+    const subject = request?.source.kind === "receiver" && selected.source.receiver.kind === "value" ? selected.source.receiver.occurrence :
+      authored?.operand.kind === "resolved" ? authored.operand.value.occurrence : undefined;
     const projection = subject === undefined ? undefined : input.shapes.projection(subject);
     if (request !== undefined && projection === undefined) failTargetAnalysisInvariant("tsonic-csharp", "A participating selected call requires its admitted object-shape projection.", node);
     const use = input.demand.nativeUse.expression(node)?.use;

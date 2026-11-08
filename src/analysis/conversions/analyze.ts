@@ -37,6 +37,7 @@ import { sourceTransparentExpressionOperand } from "@tsonic/target-api/source";
 import { readCsharpSelectedWritingReference } from "../callables/values/argument-passing.js";
 import { sourceAnnotationHint } from "@tsonic/target-api/source";
 import { csharpIntegralConversionAnnotationHint } from "./integral-hints.js";
+import { csharpRepresentationDiagnostic } from "../source-evidence/representations.js";
 
 const maximumConversionClassifications = 1_048_576;
 
@@ -54,13 +55,13 @@ export function csharpConversionOperandStability(expression: Node, policy: Cshar
       kind === "KindTrueKeyword" || kind === "KindFalseKeyword" || kind === "KindStringLiteral" ||
       kind === "KindNumericLiteral" || kind === "KindBigIntLiteral" || kind === "KindNoSubstitutionTemplateLiteral") return "stable";
     if (policy.ast.is.IsIdentifier(current)) {
-      const reference = policy.navigation.referenceFor(current);
+      const reference = policy.facts.navigation.referenceFor(current);
       return reference !== undefined && isSourceOwnedProjectReference(reference, policy) &&
         policy.ast.getSourceFile(reference.declaration) === reference.sourceFile &&
         (policy.ast.is.IsVariableDeclaration(reference.declaration) || policy.ast.is.IsParameterDeclaration(reference.declaration) ||
           policy.ast.is.IsFunctionDeclaration(reference.declaration)) &&
-        !policy.navigation.declarationUseSummary(reference.declaration).bindingWritten &&
-        !policy.navigation.declarationUseSummary(reference.declaration).uses.some(use =>
+        !policy.facts.navigation.declarationUseSummary(reference.declaration).bindingWritten &&
+        !policy.facts.navigation.declarationUseSummary(reference.declaration).uses.some(use =>
           readCsharpSelectedWritingReference(policy, evidence, operations, use.reference) !== undefined) ? "stable" : "snapshot";
     }
     const property = operations.selectedProperty.get(current);
@@ -105,12 +106,12 @@ export function analyzeCsharpConversions(
   let preparedClassifications: CsharpPreparedConversionClassifications | undefined;
   let preparedValueReads: CsharpValueReadClassifications | undefined;
   let sealedClassifications: CsharpConversionClassifications | undefined;
-  const literalRequests = createCsharpExactLiteralRequestCollector(policy.literalValues);
+  const literalRequests = createCsharpExactLiteralRequestCollector(policy.literals);
   const conversionPolicy = Object.freeze({
     integerRanges: policy.integerRanges,
-    ast: policy.ast, literalValues: policy.literalValues, typeDefinitions: policy.typeDefinitions,
+    ast: policy.ast, typeDefinitions: policy.typeDefinitions,
     projectTypes: policy.projectTypes, providers: policy.providers, target: policy.target,
-    navigation: policy.navigation, sourceFacts: policy.sourceFacts, objectShapes,
+    navigation: policy.facts.navigation, sourceFacts: policy.sourceFacts, objectShapes,
   });
 
   const openClassifications: CsharpConversionClassifications = {
@@ -156,10 +157,15 @@ export function analyzeCsharpConversions(
       collectCsharpConversionRequirements({ policy, evidence, objectShapes, operations: selectedOperations, expectedTypes, valueReads,
         literalRequests, classifyPair, classifyExpression, reserveClassification, issues, propertyProjectionRoots,
         propertyProjections, callConversions });
+      for (const failure of literalRequests.failures()) {
+        const diagnostic = csharpRepresentationDiagnostic(failure);
+        issues.push(Object.freeze({ node: failure.kind === "source-refused" ? failure.refusal.site : failure.site,
+          code: diagnostic.code, message: diagnostic.message, diagnostic }));
+      }
       preparedClassifications = Object.freeze({ ...classifications, exactLiteralRequests: literalRequests.seal() });
       return preparedClassifications;
     },
-    close(nativeDemand, requiredRecords, captures, creations) {
+    close(nativeDemand, requiredRecords, captures, creations, flowReads) {
       if (closed) return failTargetAnalysisInvariant("tsonic-csharp", "Native conversion preparation closes exactly once.");
       if (preparedClassifications === undefined || preparedValueReads === undefined) failTargetAnalysisInvariant("tsonic-csharp", "Native conversion uses require completed preparation.");
       const admitted = sealCsharpConversionUses(nativeDemand, selectedOperations, (expression, source, target, mode, exactInteger, boundary, sourceCompletion) => {
@@ -181,10 +187,10 @@ export function analyzeCsharpConversions(
       }, (expression, source, target) => {
         const selected = classifyPair(source, target, "implicit", expression);
         return selected;
-      }, requiredRecords, issues, callConversions);
+      }, requiredRecords, issues, callConversions, flowReads);
       issues.push(...admitted.issues.map(issue => {
         const bindings = {
-          ast: policy.ast, navigation: policy.navigation,
+          ast: policy.ast, navigation: policy.facts.navigation,
           call: (node: Node) => {
             const construction = policy.ast.is.IsNewExpression(node) ? selectedOperations.selectedConstruction.get(node)?.target : undefined;
             return policy.ast.is.IsCallExpression(node) ? selectedOperations.selectedCall.get(node)?.source
@@ -266,12 +272,12 @@ export function analyzeCsharpConversions(
       return undefined;
     }
     const sourceFile = policy.ast.getSourceFile(expression);
-    const reference = policy.navigation.referenceFor(expression);
+    const reference = policy.facts.navigation.referenceFor(expression);
     if (reference !== undefined && isSourceOwnedProjectReference(reference, policy) &&
       (policy.moduleCallables.get(reference.declaration) !== undefined ||
         policy.ast.is.IsFunctionDeclaration(reference.declaration) &&
         policy.ast.is.IsSourceFile(policy.ast.parent(reference.declaration)) &&
-        !policy.navigation.declarationUseSummary(reference.declaration).bindingWritten)) {
+        !policy.facts.navigation.declarationUseSummary(reference.declaration).bindingWritten)) {
       directCallables.set(expression, Object.freeze({ ...reference }));
     }
     const elementAccess = policy.ast.parent(expression);
@@ -319,11 +325,11 @@ export function analyzeCsharpConversions(
             "C# delegate adaptation requires a source-owned callable; provider-owned delegate conversion requires provider conversion metadata.",
         })
       : candidate, sourceCompletion);
-    if (selected.kind === "delegate-adapter" && selected.instantiation !== undefined && reference !== undefined &&
+    if (selected.kind === "delegate-adapter" && selected.members.sourceApplication !== undefined && reference !== undefined &&
       isSourceOwnedProjectReference(reference, policy) &&
       (policy.moduleCallables.get(reference.declaration) !== undefined ||
         policy.ast.is.IsFunctionDeclaration(reference.declaration) &&
-        !policy.navigation.declarationUseSummary(reference.declaration).bindingWritten)) {
+        !policy.facts.navigation.declarationUseSummary(reference.declaration).bindingWritten)) {
       const direct = Object.freeze({ ...reference });
       directCallables.set(expression, direct);
       const name = policy.ast.name(reference.declaration);
@@ -342,7 +348,13 @@ export function analyzeCsharpConversions(
 
   function requestLiteralConversion(expression: Node, source: TargetTypeRef, target: TargetTypeRef,
     selection: CsharpConversionSelection, valueReads: CsharpValueReadClassifications): void {
-    if (policy.literalValues.literalValue.get(expression) === undefined) return;
+    const literal = policy.literals.recipe(expression);
+    if (literal.kind !== "represented") {
+      const diagnostic = csharpRepresentationDiagnostic(literal);
+      issues.push(Object.freeze({ node: expression, code: diagnostic.code, message: diagnostic.message, diagnostic }));
+      return;
+    }
+    if (literal.value.kind === "none") return;
     const physicalSource = valueReads.valueRead.get(expression)?.value;
     if (physicalSource === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
       "Literal conversion requests require completed value reads.", expression);

@@ -7,19 +7,17 @@ import type { CsharpFlowReadClassifications, CsharpSourceEvidenceIndex } from ".
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
 import type { CsharpValueReadClassifications } from "../../target-model/records/operations/conversions.js";
 import type { CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
-import { admitCsharpConversionSelection } from "./validation.js";
+import { csharpRepresentationDiagnostic } from "../source-evidence/representations.js";
 
 export function analyzeCsharpFlowReadProjections(
-  policy: Pick<CsharpPolicyContext, "ast" | "sourceFiles" | "navigation" | "typeDefinitions" | "projectTypes" | "providers" | "target"> & {
-    readonly objectShapes: Pick<CsharpObjectShapeClassifications, "resolveNode" | "resolveTarget">;
-  },
+  policy: CsharpPolicyContext,
   evidence: CsharpSourceEvidenceIndex,
   operations: CsharpTargetOperationClassifications,
   valueReads: CsharpValueReadClassifications,
 ): CsharpFlowReadClassifications {
   const producer = createCsharpFlowReadProjectionProducer();
   const runtimeReads = new WeakMap<Node, ReadonlySet<Node>>();
-  const issues: { readonly node: Node; readonly code: string; readonly message: string }[] = [];
+  const issues: CsharpFlowReadClassifications["issues"][number][] = [];
   for (const sourceFile of policy.sourceFiles) visit(sourceFile);
   return producer.seal(issues);
 
@@ -28,21 +26,19 @@ export function analyzeCsharpFlowReadProjections(
     if ((policy.ast.is.IsIdentifier(node) || policy.ast.is.IsPropertyAccessExpression(node) ||
         policy.ast.is.IsElementAccessExpression(node)) && requiresFlowReadProjection(node)) {
       const read = valueReads.valueRead.get(node);
-      const selected = selectCsharpFlowReadProjection(
-        policy, read?.flowReadStorage, read?.flowReadValue, evidence.valueRefinement.get(node), deferredConstructorFieldRead(policy.ast, node),
-        isCsharpThrowableType(policy, evidence.valueRefinement.get(node)?.flowReadTargetType),
-      );
-      const projection = selected.kind === "conversion"
-        ? { ...selected, selection: admitCsharpConversionSelection(policy, selected.source, selected.target, selected.selection) }
-        : selected;
-      const failure = projection.kind === "rejected" ? projection
-        : projection.kind === "conversion" &&
-          (projection.selection.kind === "rejected" || projection.selection.kind === "ambiguous")
-          ? projection.selection : undefined;
-      if (failure !== undefined) {
-        issues.push(Object.freeze({ node, code: "CSHARP_FLOW_READ_PROJECTION_NOT_PROVEN", message: failure.reason }));
-      } else if (projection.kind !== "rejected") {
-        producer.publish(node, projection);
+      if (read !== undefined) {
+        const refinement = evidence.valueRefinement.get(node);
+        if (refinement === undefined) {
+          issues.push({ node, code: "CSHARP_FLOW_READ_PROJECTION_NOT_PROVEN", message: "A required Native read has no same-occurrence Source refinement record." });
+        } else {
+          const projection = selectCsharpFlowReadProjection(policy, policy.representation, refinement,
+            deferredConstructorFieldRead(policy.ast, node), isCsharpThrowableType(policy,
+              refinement.kind === "represented" ? refinement.value.selected.carrier : undefined));
+          if (projection.kind !== "represented") {
+            const diagnostic = csharpRepresentationDiagnostic(projection);
+            issues.push({ node: diagnostic.sourceNode ?? node, code: diagnostic.code, source: diagnostic.source, message: diagnostic.message });
+          } else producer.publish(node, projection.value);
+        }
       }
     }
     policy.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
@@ -50,19 +46,24 @@ export function analyzeCsharpFlowReadProjections(
 
   function requiresFlowReadProjection(node: Node): boolean {
     if (!policy.ast.is.IsIdentifier(node)) {
-      if (operations.sourceMember.get(node) === undefined) return false;
       const selected = policy.ast.is.IsPropertyAccessExpression(node)
         ? operations.selectedProperty.get(node)?.selection : operations.selectedElement.get(node)?.target;
-      return selected?.kind === "source-owned" && selected.source.accessMode === "read" && !selected.source.callCallee;
+      if (selected?.kind !== "source-owned" && selected?.kind !== "resolved") return false;
+      const use = policy.facts.objects.use(node);
+      if (use.kind === "refused") return true;
+      if (use.value.access !== "read" && use.value.access !== "read-write") return false;
+      if (!use.value.callCallee) return true;
+      const invocation = policy.ast.parent(node);
+      return invocation !== undefined && operations.selectedCall.get(invocation)?.sourceCall?.kind === "value";
     }
     // The parameter named by a type predicate (`value is Buffer`) is a type position, never a runtime read.
     const parent = policy.ast.parent(node);
     if (parent !== undefined && policy.ast.kindName(parent) === "KindTypePredicate") return false;
-    const reference = policy.navigation.sourceReferenceFor(node);
+    const reference = policy.facts.navigation.sourceReferenceFor(node);
     if (reference === undefined) return false;
     let reads = runtimeReads.get(reference.declaration);
     if (reads === undefined) {
-      reads = new Set(policy.navigation.declarationUses(reference.declaration)
+      reads = new Set(policy.facts.navigation.declarationUses(reference.declaration)
         .filter(use => use.kind !== "type-only" && use.kind !== "source-linkage" &&
           (use.role !== "write" || use.throughMember))
         .map(use => use.reference));

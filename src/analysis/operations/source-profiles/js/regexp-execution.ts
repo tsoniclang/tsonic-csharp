@@ -27,7 +27,7 @@ export function csharpRegExpReceiverHasNativeExecution(
   const semantics = context.host.semantics(ast.getSourceFile(origin) ?? context.sourceFile);
   const selected = semantics.operations.call(origin);
   const identity = selected === undefined ? undefined : csharpSourceProfileDeclarationIdentity(
-    ast, semantics, context.host.sourceFacts,
+    context.host.facts.navigation,
     semantics.declarations.signatureDeclaration(selected.selectedSignature),
   );
   return identity?.owner === "js" && identity.kind === "construct" &&

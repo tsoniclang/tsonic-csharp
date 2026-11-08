@@ -1,21 +1,22 @@
 import type { CsharpTargetReceiverRelation } from "../../identities/provider-relations.js";
 import type { CsharpTargetMember, TargetTypeRef } from "../../types/model.js";
 import type { CsharpSelectedTargetCall, CsharpTargetElementInvocation } from "../objects/members.js";
-import type { ResolvedSourceCallInfo } from "../calls/source-calls.js";
+import type { SourceApplication } from "@tsonic/target-api/source";
 import type { CsharpTargetPropertyInvocation } from "../program/source-profile-invocations.js";
 import type { CsharpUnionProperty } from "../objects/union-properties.js";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import type { ExtensionDiagnostic } from "@tsonic/tsts";
 
 export type CsharpTargetCallSelection =
+  | Exclude<import("../../types/representation.js").CsharpRepresentationOutcome<never>, { readonly kind: "represented" }>
   | {
       readonly kind: "resolved";
-      readonly source: ResolvedSourceCallInfo;
+      readonly source: SourceApplication;
       readonly call: CsharpSelectedTargetCall;
     }
   | {
       readonly kind: "source-owned";
-      readonly source: ResolvedSourceCallInfo;
+      readonly source: SourceApplication;
       readonly reason: string;
     }
   | {
@@ -37,6 +38,11 @@ export type CsharpTargetCallSelection =
     };
 
 export type CsharpTargetElementSelection =
+  | {
+      readonly kind: "array-union-read";
+      readonly source: ResolvedSourceElementAccessInfo;
+      readonly plan: import("../objects/members.js").CsharpArrayUnionRead;
+    }
   | {
       readonly kind: "resolved";
       readonly source: ResolvedSourceElementAccessInfo;

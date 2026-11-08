@@ -2,7 +2,9 @@ import type { Node } from "@tsonic/tsts";
 import { rejectedTargetStage, resolvedTargetStage, type TargetDiagnostic, type TargetStageResult } from "@tsonic/target-api/artifacts";
 import { HasSyntacticModifier, ModifierFlagsAsync, sourceCallableDefinitionIsDiscarded,
   sourceExpressionCallArgument, sourceCallArgumentCorrespondences,
-  type SourceLiteralIndex, type TargetSourceProgram } from "@tsonic/target-api/source";
+  type TargetSourceProgram } from "@tsonic/target-api/source";
+import type { CsharpNativeLiteralQueries } from "../../../policy/model/native-literals.js";
+import { csharpRepresentationDiagnostic } from "../../source-evidence/representations.js";
 import { csharpLiteralReturnsFit } from "../calls/return-expressions.js";
 import type { CsharpCaptureStorage } from "../../../target-model/records/callables/capture-storage.js";
 
@@ -33,7 +35,7 @@ export interface CsharpCallableCreationInput {
   readonly expectedTypes: Pick<CsharpExpectedTypeClassifications, "requiredExpectedType">;
   readonly evidence: Pick<CsharpSourceEvidenceIndex, "nodeTargetType" | "contextualType" | "compileTimeMetadata">;
   readonly conversions: Pick<CsharpConversionClassifications, "conversion">;
-  readonly literals: SourceLiteralIndex;
+  readonly literals: CsharpNativeLiteralQueries;
 }
 
 export function analyzeCsharpCallableCreations(input: CsharpCallableCreationInput): TargetStageResult<CsharpCallableCreationIndex> {
@@ -166,10 +168,12 @@ export function analyzeCsharpCallableCreations(input: CsharpCallableCreationInpu
       const awaited = bodyResult === undefined || delegateResult === undefined ? undefined
         : input.conversions.conversion.get(bodyResult, delegateResult, "implicit");
       // A literal-only body returns through the delegate's own return context, so `() => 9n` matches Func<long>.
+      const literalReturns = csharpLiteralReturnsFit(ast, input.source.facts.navigation, input.literals, node, signature.returnType);
+      if (literalReturns.kind !== "represented") { issues.push(csharpRepresentationDiagnostic(literalReturns)); return false; }
       return csharpArgumentVectorCallbackResultMatches(contract.returnType, signature.returnType) ||
         completion !== undefined && csharpConversionIsApplicable(completion, "implicit") ||
         awaited !== undefined && csharpConversionIsApplicable(awaited, "implicit") ||
-        csharpLiteralReturnsFit(ast, input.literals, node, signature.returnType, input.source.effectiveTypes);
+        literalReturns.value;
     }
   }
   return issues.length === 0 ? resolvedTargetStage(producer.seal()) : rejectedTargetStage(issues);

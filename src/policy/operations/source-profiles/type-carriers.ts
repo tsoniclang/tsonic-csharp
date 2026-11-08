@@ -3,7 +3,7 @@ import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpAsyncGeneratorTargetType, csharpGeneratorTargetType, csharpIteratorResultTargetType } from "../../../target-model/types/carriers/generators.js";
 import { closeCsharpGeneratorProtocolType } from "../../types/callables/generators.js";
 import { csharpJsArrayTargetType, csharpJsDateTargetType, csharpJsMapTargetType, csharpJsRegExpExecArrayTargetType, csharpJsRegExpIndicesArrayTargetType, csharpJsRegExpMatchArrayTargetType, csharpJsRegExpNamedGroupsTargetType, csharpJsRegExpNamedIndicesTargetType, csharpJsRegExpStringIteratorTargetType, csharpJsRegExpTargetType, csharpExactJsRegExpExecArrayTargetType, csharpExactJsRegExpIndicesArrayTargetType, csharpExactJsRegExpMatchArrayTargetType, csharpExactJsRegExpNamedGroupsTargetType, csharpExactJsRegExpNamedIndicesTargetType, csharpExactJsRegExpStringIteratorTargetType, csharpJsSetTargetType, csharpJsWeakMapTargetType, csharpJsWeakSetTargetType, csharpJsArrayBufferTargetType, csharpJsDataViewTargetType, csharpJsTypedArrayTargetType, csharpJsPromiseFulfilledResultTargetType, csharpJsPromiseRejectedResultTargetType, csharpJsIntlTargetType, type CsharpJsTypedArrayName } from "../../../target-model/types/carriers/js.js";
-import { classifyCsharpSourceProfileType } from "../../identities/source-types.js";
+import type { CsharpSourceProfileTypeIdentity } from "../../identities/source-types.js";
 
 import { csharpTaskTargetType } from "../../../target-model/types/carriers/delegates.js";
 import { csharpEnumerableTargetType, csharpRecordDictionaryCarrier } from "../../../target-model/types/carriers/collections.js";
@@ -12,7 +12,7 @@ import { csharpSourceErrorTargetType, csharpSourcePrimitiveTargetType, csharpStr
 
 export function selectCsharpSourceProfileCarrier(
   data: { readonly dictionaryCarrier: TargetTypeRef | undefined },
-  identity: ReturnType<typeof classifyCsharpSourceProfileType>,
+  identity: CsharpSourceProfileTypeIdentity | undefined,
   typeArguments: readonly TargetTypeRef[],
 ): TargetTypeRef | undefined {
   if (identity === undefined) {

@@ -46,7 +46,8 @@ function planningContext(policy) {
   const operations = {};
   const analysis = analyzeCsharpConversions(policy, {}, {}, operations);
   analysis.prepare({ expectedTypes: {}, valueReads: {} });
-  analysis.close({ entries: Object.freeze([]) }, []);
+  analysis.close({ entries: Object.freeze([]) }, [], undefined, undefined,
+    { flowReadProjection: { get: () => undefined }, issues: [] });
   const conversions = analysis.seal();
   return { program: { source: { ast: { pos: () => 0, end: () => 5 } },
     records: { conversion: conversions.conversion, typeEmission: csharpTypeEmissionRecord() },

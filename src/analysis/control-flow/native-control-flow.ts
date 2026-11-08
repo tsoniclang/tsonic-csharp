@@ -19,7 +19,6 @@ import type { CsharpConversionSelection } from "../../target-model/conversions/s
 import type { CsharpValueReadClassifications } from "../../target-model/records/operations/conversions.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/equality.js";
 import { directCsharpSourceYieldExpression } from "../../target-model/syntax/yield-expression.js";
-import { csharpDestructuringAssignmentSyntax } from "../../target-model/syntax/operators.js";
 import type { CsharpStatementCompletionRecords } from "../../target-model/records/operations/statement-completion.js";
 import { createCsharpAdmittedIterationProducer } from "../program/records/operations/iteration.js";
 import type { CsharpCaptureStorage } from "../../target-model/records/callables/capture-storage.js";
@@ -390,10 +389,9 @@ export function admitCsharpNativeStorageBindings(
   nodes: readonly Node[],
   nativeUse: CsharpNativeUseClassifications["nativeUse"],
   storage: Pick<CsharpStorageClassifications, "nativeBacking" | "nativeArray" | "storageType">,
-  nativeRefs: CsharpTargetOperationClassifications["nativeRefReturn"],
+  operations: Pick<CsharpTargetOperationClassifications, "nativeRefReturn" | "nativeUnreachable" | "binaryOperation">,
   participation: CsharpNativeParticipationInput["participation"],
   metadata: CsharpSourceEvidenceIndex["compileTimeMetadata"],
-  unreachable: CsharpTargetOperationClassifications["nativeUnreachable"],
 ): readonly TargetDiagnostic[] {
   const issues: TargetDiagnostic[] = [];
   const refuse = (node: Node, message: string): void => {
@@ -410,10 +408,10 @@ export function admitCsharpNativeStorageBindings(
     }
   };
   for (const node of nodes) {
-    if (nativeUse.order(node) === undefined || metadata.get(node) || unreachable.get(node) ||
+    if (nativeUse.order(node) === undefined || metadata.get(node) || operations.nativeUnreachable.get(node) ||
       participation.get(node) === "erased") continue;
-    const assignment = csharpDestructuringAssignmentSyntax(ast, node);
-    if (assignment !== undefined) {
+    const assignment = operations.binaryOperation.get(node)?.destructuring;
+    if (assignment?.kind === "resolved") {
       admitBindingSource(assignment.source, assignment.pattern, "Destructuring assignment source");
     }
     const backing = storage.nativeBacking.get(node);
@@ -435,7 +433,7 @@ export function admitCsharpNativeStorageBindings(
       admitBindingSource(initializer, declaration.name, "Destructuring source expression");
     }
     const nativeRef = initializer !== undefined && ast.variableDeclarationKind(node) === "const"
-      ? nativeRefs.get(initializer) : undefined;
+      ? operations.nativeRefReturn.get(initializer) : undefined;
     if (nativeRef?.kind === "resolved" && nativeRef.returnType === undefined) {
       refuse(initializer ?? node, "A selected C# native ref-return local has no closed pointee type.");
     }

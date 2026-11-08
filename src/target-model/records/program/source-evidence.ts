@@ -2,21 +2,17 @@ import type { CsharpConversionSelection } from "../../conversions/selection.js";
 import type { CsharpTypeParameterConstraintResolution } from "../../types/generic-constraints.js";
 import type { TargetTypeRef } from "../../types/model.js";
 import type { CsharpSourceDefaultValue, CsharpSourceField, CsharpSourceStruct } from "./source-markers.js";
-import type { SourceTypeComponentEvidence } from "@tsonic/target-api/source";
+import type { SourcePresence, SourceTypeEvidence } from "@tsonic/target-api/source";
+import type { CsharpRepresentationOutcome } from "../../types/representation.js";
 import type { Node, ResolvedSourceGeneratorInfo, ResolvedSourceWellKnownSymbolInfo, ResolvedSourceYieldInfo, Signature } from "@tsonic/tsts";
 
-export type CsharpSourceArgumentClassification =
-  | {
-      readonly kind: "resolved";
-      readonly argument: {
-        readonly passingMode: import("@tsonic/tsts").ArgumentPassingMode;
-        readonly storageExpression: Node;
-      };
-    }
-  | {
-      readonly kind: "rejected";
-      readonly reason: string;
-    };
+export interface CsharpSourceArgumentClassification {
+  readonly kind: "resolved";
+  readonly argument: {
+    readonly passingMode: import("@tsonic/tsts").ArgumentPassingMode;
+    readonly storageExpression: Node;
+  };
+}
 
 export type CsharpContextualTupleClassification =
   | {
@@ -27,12 +23,12 @@ export type CsharpContextualTupleClassification =
     }
   | { readonly kind: "unavailable" };
 
-export interface CsharpValueRefinementClassification {
-  readonly kind: "resolved" | "unavailable";
+export type CsharpValueRefinementClassification = CsharpRepresentationOutcome<{
+  readonly occurrence: Node;
   readonly exact: boolean;
-  readonly selectedTargetType?: TargetTypeRef;
-  readonly flowReadTargetType?: TargetTypeRef;
-}
+  readonly selected: { readonly evidence: SourceTypeEvidence; readonly carrier: TargetTypeRef };
+  readonly storage: SourcePresence<{ readonly evidence: SourceTypeEvidence; readonly carrier: TargetTypeRef }>;
+}>;
 
 export type CsharpFlowReadProjection =
   | { readonly kind: "identity" }
@@ -45,11 +41,12 @@ export interface CsharpFlowReadClassifications {
   readonly flowReadProjection: {
     readonly get: (node: Node) => Exclude<CsharpFlowReadProjection, { readonly kind: "rejected" }> | undefined;
   };
-  readonly issues: readonly { readonly node: Node; readonly code: string; readonly message: string }[];
+  readonly issues: readonly { readonly node: Node; readonly code: string; readonly message: string; readonly source?: string }[];
 }
 
-export interface CsharpContextualTypeEvidence extends SourceTypeComponentEvidence {
-  readonly targetType: TargetTypeRef | undefined;
+export interface CsharpContextualTypeEvidence {
+  readonly evidence: SourceTypeEvidence;
+  readonly targetType: TargetTypeRef;
 }
 
 export interface CsharpSourceEvidenceIndex {

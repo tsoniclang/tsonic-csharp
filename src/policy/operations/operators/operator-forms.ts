@@ -2,8 +2,8 @@ import type { Node } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../model/context.js";
 import type { CsharpJsArrayMutationSelection } from "../../../target-model/records/storage/js-array-mutations.js";
 import type { CsharpBinaryClassification, CsharpOperatorForm, CsharpOperatorFormClassification, CsharpPropertyClassification, CsharpUnaryClassification } from "../../../target-model/records/operations/operations.js";
-import { isCsharpAssignmentOperator, sourceOperatorFromKindName, type CsharpSourceOperator } from "../../../target-model/syntax/operators.js";
-import { csharpDestructuringAssignmentSyntax } from "../../../target-model/syntax/operators.js";
+import { isCsharpAssignmentOperator, csharpSourceOperationOperator, type CsharpSourceOperator } from "../../../target-model/syntax/operators.js";
+import { isCsharpDestructuringAssignmentPattern } from "../../../target-model/syntax/operators.js";
 import { csharpBinaryOperationUsesExpectedResultType } from "./expected-result.js";
 import { targetBinaryOperator } from "./rules.js";
 
@@ -16,7 +16,12 @@ export function selectCsharpOperatorForm(
   property: (subject: Node) => CsharpPropertyClassification | undefined,
 ): CsharpOperatorFormClassification {
   const { ast } = input;
-  const operator = sourceOperatorFromKindName(ast.operatorKindName(node));
+  const operation = input.facts.values.operation(node);
+  if (operation.kind === "refused") return Object.freeze({ form: "selected" });
+  if (operation.value.kind === "assignment" && isCsharpDestructuringAssignmentPattern(ast, operation.value.target)) {
+    return Object.freeze({ form: "destructuring-assignment" });
+  }
+  const operator = csharpSourceOperationOperator(operation.value);
   const form = selectOperatorForm(ast, node, operator, mutation, binary, unary, property);
   return Object.freeze(ast.is.IsBinaryExpression(node) && operator !== undefined
     ? { form, usesExpectedResultType: csharpBinaryOperationUsesExpectedResultType(operator) }
@@ -37,7 +42,6 @@ function selectOperatorForm(
     return operator !== undefined && (unary === undefined || unary.jsValue.kind !== "not-js-value")
       ? "js-value-operation" : "selected";
   }
-  if (csharpDestructuringAssignmentSyntax(ast, node) !== undefined) return "destructuring-assignment";
   if (mutation === undefined || mutation.kind !== "not-js-array-mutation") return "js-array-mutation";
   if (operator === "instanceof") return "type-test";
   const expression = ast.as.AsBinaryExpression(node);

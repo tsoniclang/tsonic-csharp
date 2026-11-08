@@ -104,8 +104,9 @@ export function analyzeCsharpLambdaEmission(input: { readonly source: TargetSour
         nestedCreation !== undefined && nestedCreation.kind !== "discarded" && (nestedCreation.kind !== "selected" ||
           nestedEmission?.preparation === "statements") ||
         signature !== undefined && nestedCreation !== undefined && ast.is.IsBlock((ast.as.AsArrowFunction(expression) ?? ast.as.AsFunctionExpression(expression))?.Body) ||
-        call?.reordered === true && call.operands.some(operand => operand.kind !== "argument" ||
-          input.constants.nativeConstant.get(operand.expression, operand.parameter.type) !== true);
+        call !== undefined && (call.operands.some(operand => operand.kind === "expanded" || operand.kind === "discard") ||
+          call.reordered && call.operands.some(operand => operand.kind !== "argument" ||
+            input.constants.nativeConstant.get(operand.expression, operand.parameter.type) !== true));
       if (!prepared) forEachSourceImmediateEvaluationChild(ast, expression, child => pending.push(child));
     }
     if (prepared) refuse(node, "A native expression-tree quotation requires a synchronous expression-bodied lambda without statement preparation.");

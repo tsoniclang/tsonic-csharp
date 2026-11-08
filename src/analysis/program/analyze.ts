@@ -7,7 +7,7 @@ import { finalizeCsharpNativeEmission } from "./emission.js";
 
 import { analyzeCsharpProjectCallableAdapters } from "../project-types/callable-adapters.js";
 
-import { analyzeSourceLiteralValues } from "@tsonic/target-api/source";
+import { createCsharpNativeLiteralQueries } from "../source-evidence/native-literals.js";
 
 import { createTsonicPointerStorageRelation, createTsonicMemoryBindingFactsIndex } from "@tsonic/source-core/facts";
 import { rejectedTargetStage, resolvedTargetStage, failTargetAnalysisInvariant, targetDiagnosticFromExtension } from "@tsonic/target-api/artifacts";
@@ -29,7 +29,6 @@ import { createCsharpSourceProfileStorageEffects } from "../operations/source-pr
 import { analyzeCsharpPromiseResults } from "../callables/async/promise-results.js";
 import { analyzeCsharpNativeErrorAdmission } from "../objects/error-storage-demands.js";
 
-import { analyzeCsharpFlowReadProjections } from "../conversions/flow-read-projections.js";
 
 import { analyzeCsharpNativeValueCarriers, analyzeCsharpObjectMethodSources } from "../objects/value-carriers.js";
 import { analyzeCsharpModuleCallables } from "../callables/module-callables.js";
@@ -98,7 +97,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
   const sourceFiles = Object.freeze([...source.navigation.sourceFiles]);
   const sourceNodes = source.navigation.nodesForFiles(sourceFiles);
   const moduleCallables = analyzeCsharpModuleCallables(source.ast, sourceNodes);
-  const literalValues = analyzeSourceLiteralValues(source.ast, sourceFiles);
+  const literals = createCsharpNativeLiteralQueries(source);
   const sourceStorage = createSourceStorageQuery(source, sourceFiles, undefined, createCsharpSourceProfileStorageEffects(source, providers));
   const sourceStorageFailure = sourceStorage.failureReason();
   if (sourceStorageFailure !== undefined) return rejectedTargetStage([{
@@ -122,7 +121,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
     moduleCallables,
     integerRanges: createCsharpIntegerRangeIndex(source, sourceNodes),
     enumConstants: source.semantics.enumConstants,
-    literalValues,
+    literals,
     sourceStorage,
     callOnlyAlias,
     objectMethodSources: analyzeCsharpObjectMethodSources(source.ast, sourceNodes, source.navigation, callOnlyAlias),
@@ -216,7 +215,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
     }]);
   }
   const callablePolicy = Object.freeze({
-    ast: analysis.policy.ast, navigation: analysis.policy.navigation,
+    ast: analysis.policy.ast, navigation: analysis.policy.facts.navigation,
     typeDefinitions: analysis.policy.typeDefinitions, projectTypes: analysis.policy.projectTypes,
     providers: analysis.policy.providers, target: analysis.policy.target, objectShapes: analysis.objectShapes,
   });
@@ -236,7 +235,8 @@ function analyzeCsharpTargetProgramBeforeSeal(
     ...analysis.typeSystem.nativeConstruction.issues,
     ...analysis.operations.issues,
     ...analysis.expectedTypes.issues,
-    ...analysis.conversions.issues,
+    ...analysis.conversions.issues.map(issue => ({ node: issue.diagnostic?.sourceNode ?? issue.node,
+      code: issue.code, message: issue.message, source: issue.diagnostic?.source ?? "tsonic-csharp" })),
     ...analysis.storage.issues,
   ];
   if (analysisIssues.length > 0) {
@@ -291,8 +291,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
     })));
   }
   const { classFactories, captureStorage, nativeDemand, bindingPatterns } = analysis;
-  const flowReads = analyzeCsharpFlowReadProjections({ ...callablePolicy, sourceFiles: analysis.policy.sourceFiles },
-    analysis.sourceEvidence, analysis.operations, analysis.valueReads);
+  const flowReads = analysis.flowReads;
   if (classFactories.issues.length > 0) return rejectedTargetStage(classFactories.issues.map(issue => ({
     code: issue.code, category: "error" as const, source: "tsonic-csharp", sourceNode: issue.node, message: issue.message,
   })));
@@ -311,7 +310,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
         }];
       }
     }
-    if (use.message === undefined && use.reason !== "argument-refused" && use.reason !== "source-argument-rejected" &&
+    if (use.message === undefined && use.reason !== "argument-refused" &&
       use.reason !== "property-key-refused") return [];
     return [{ sourceNode: use.expression, source: "tsonic-csharp", category: "error",
       code: use.code ?? "CSHARP_UNSUPPORTED_AST", message: use.message ?? failTargetAnalysisInvariant(

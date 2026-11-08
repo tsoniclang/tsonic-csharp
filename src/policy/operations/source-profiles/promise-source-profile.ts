@@ -79,6 +79,7 @@ function completionDelegate(
       ? `Tsonic.CSharp.Runtime.${name}`
       : `Tsonic.CSharp.Runtime.${name}\`${typeArguments.length}`, typeArguments, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", name), { allowsRefLikeTypeArguments: (typeArguments ?? []).map(() => false),
       delegateSignature: {
+        kind: "call",
         parameters,
         parameterPassingModes: Object.freeze(parameters.map(() => "by-value" as const)),
         returnType: voidType,

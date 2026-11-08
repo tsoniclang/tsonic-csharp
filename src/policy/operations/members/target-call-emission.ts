@@ -12,6 +12,7 @@ import { getCsharpRuntimeUnionArms } from "../../../target-model/types/carriers/
 import { csharpArrayLikeElement } from "../../../target-model/types/carriers/array-like.js";
 import { getCsharpJsArrayElementTargetType } from "../../../target-model/types/carriers/collections.js";
 import { csharpConversionIsApplicable } from "../../conversions/applicability.js";
+import { csharpSelectedCallResultType } from "../../../target-model/types/member-facts.js";
 
 export function selectCsharpTargetCallEmission(input: CsharpTargetCallEmissionInput):
   | { readonly kind: "selected"; readonly value: CsharpTargetCallEmission }
@@ -24,9 +25,8 @@ export function selectCsharpTargetCallEmission(input: CsharpTargetCallEmissionIn
     return refuse(`Checked call selected C# ${member.kind} '${member.id}', not an invocable method.`);
   const instance = selection.receiver.kind === "instance";
   if (instance && source.sourceReceiver === undefined) return refuse("Selected instance call requires its exact native receiver acquisition.");
-  const physicalResult = member.kind === "constructor" ? member.declaringType : member.returnType;
-  if (physicalResult === undefined) return refuse("Selected native call requires its exact physical completion carrier.");
-  const result = selection.discardResult ? csharpVoidTargetType() : physicalResult;
+  const result = csharpSelectedCallResultType(member, selection.discardResult === true);
+  if (result === undefined) return refuse("Selected native call requires its exact physical completion carrier.");
   const selected = member.csharpInvocation;
   let invocation: CsharpTargetInvocationEmission;
   if (selection.condition !== undefined) {

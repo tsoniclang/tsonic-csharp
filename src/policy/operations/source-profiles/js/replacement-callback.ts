@@ -42,6 +42,7 @@ export function csharpJsArgumentVectorCallbackParameter(
       targetName,
     ), { allowsRefLikeTypeArguments: [],
       delegateSignature: {
+        kind: "call",
         parameters: [argumentVectorType],
         parameterPassingModes: ["by-value"],
         returnType: resultType,

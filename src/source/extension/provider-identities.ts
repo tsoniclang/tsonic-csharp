@@ -1,5 +1,5 @@
-import { providerVirtualDeclarationFactKey } from "@tsonic/tsts";
-import type { ExtensionFactSubject, ProviderVirtualDeclarationFact, ReadonlySourceFactResolver } from "@tsonic/tsts";
+import type { Node, ProviderVirtualDeclarationFact } from "@tsonic/tsts";
+import type { SourceProgramFacts } from "@tsonic/target-api/source";
 
 export type CsharpProviderDeclarationEvidenceResolution =
   | {
@@ -20,39 +20,31 @@ export type CsharpProviderDeclarationEvidenceResolution =
 export type CsharpProviderDeclarationKind = "export" | "member" | "signature";
 
 export function resolveCsharpProviderDeclarationEvidence(
-  sourceFacts: ReadonlySourceFactResolver | undefined,
-  subjects: readonly (ExtensionFactSubject | undefined)[],
+  navigation: SourceProgramFacts["navigation"],
+  subjects: readonly (Node | undefined)[],
   requiredKind: CsharpProviderDeclarationKind,
 ): CsharpProviderDeclarationEvidenceResolution {
   return resolveCsharpProviderDeclarationEvidenceKinds(
-    sourceFacts,
+    navigation,
     subjects,
     [requiredKind],
   );
 }
 
 export function resolveCsharpProviderDeclarationEvidenceKinds(
-  sourceFacts: ReadonlySourceFactResolver | undefined,
-  subjects: readonly (ExtensionFactSubject | undefined)[],
+  navigation: SourceProgramFacts["navigation"],
+  subjects: readonly (Node | undefined)[],
   requiredKinds: readonly [
     CsharpProviderDeclarationKind,
     ...CsharpProviderDeclarationKind[],
   ],
 ): CsharpProviderDeclarationEvidenceResolution {
-  if (sourceFacts === undefined) {
-    return {
-      kind: "missing",
-      reason: "The checked source program did not expose source facts.",
-    };
-  }
   const declarations = uniqueProviderDeclarations(
-    subjects
-      .map((subject) =>
-        sourceFacts.getFact(subject, providerVirtualDeclarationFactKey))
-      .filter(
-        (declaration): declaration is ProviderVirtualDeclarationFact =>
-          declaration !== undefined,
-      ),
+    subjects.flatMap(subject => {
+      if (subject === undefined) return [];
+      const selected = navigation.providerDeclaration(subject);
+      return selected.kind === "present" ? [selected.value] : [];
+    }),
   );
   if (declarations.length === 0) {
     return {

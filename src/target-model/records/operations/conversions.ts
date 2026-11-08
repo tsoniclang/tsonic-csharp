@@ -6,6 +6,7 @@ import type { SourceProjectReference } from "@tsonic/target-api/source";
 import type { Node } from "@tsonic/tsts";
 
 export interface CsharpConversionIssue {
+  readonly diagnostic?: import("@tsonic/target-api/artifacts").TargetDiagnostic;
   readonly node: Node;
   readonly code: string;
   readonly message: string;

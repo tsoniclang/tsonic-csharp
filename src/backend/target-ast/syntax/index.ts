@@ -1,5 +1,6 @@
 export type {
   CsharpCompilationUnit,
+  CsharpDelegateDeclaration,
   CsharpEnumDeclaration,
   CsharpEnumMember,
   CsharpClassDeclaration,

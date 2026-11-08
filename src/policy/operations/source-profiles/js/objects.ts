@@ -15,6 +15,7 @@ const jsonRuntimeType = jsRuntimeTargetType("JSON");
 const jsonValueType = csharpTsValueTargetType();
 const jsonReplacerType = csharpTargetNamedType("Tsonic.CSharp.Js.JsonReplacer", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "JsonReplacer"), { allowsRefLikeTypeArguments: [],
     delegateSignature: {
+      kind: "call",
       parameters: [stringType, jsonValueType],
       parameterPassingModes: ["by-value", "by-value"],
       returnType: jsonValueType,
@@ -449,7 +450,7 @@ function jsonStringifyMember(
             csharpAcceptsCheckedSourceArgument: true,
           }),
         ],
-        stringType,
+        csharpNullableTargetType(stringType),
         {
           csharpArtifactRequirements: [{
             kind: "object-shape-capability",

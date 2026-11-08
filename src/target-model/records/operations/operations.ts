@@ -10,7 +10,7 @@ import type { CsharpNativeHandler } from "../native/native-handlers.js";
 import type { CsharpJsArrayMutationSelection } from "../storage/js-array-mutations.js";
 import type { CsharpResolvedResourceManagement } from "../storage/management.js";
 import type { CsharpTargetCallSelection, CsharpTargetElementSelection, CsharpTargetPropertySelection } from "./member-selections.js";
-import type { ResolvedSourceCallInfo } from "../calls/source-calls.js";
+import type { SourceApplication, SourceArgumentPlace, SourceRefusal } from "@tsonic/target-api/source";
 import type { CsharpNativePointerOperationSelection } from "../native/native-pointers.js";
 import type { CsharpProjectConstructibleTypeProjection } from "../objects/object-shapes.js";
 import type { CsharpOperationSelection, CsharpResolvedBinaryOperation, CsharpResolvedDestructuringAssignmentOperation, CsharpResolvedUnaryOperation } from "./operator-selection.js";
@@ -31,20 +31,20 @@ export interface CsharpMethodTypeArgumentProjectionClassification {
 
 export interface CsharpSourceCallArgumentClassification {
   readonly sourceCall?: import("../../operations/source-callees.js").CsharpSourceCalleeSelection;
-  readonly sourceMethodValue?: NonNullable<import("../../types/model.js").CsharpTargetNamedTypeRef["csharpMethodValue"]>;
+  readonly callableApplication?: import("../callables/native-application.js").CsharpSourceCallableApplication;
   readonly sourceParameterTypes?: readonly (TargetTypeRef | undefined)[];
   readonly sourceArgumentParameterTypes?: readonly (TargetTypeRef | undefined)[];
   readonly sourceArgumentGrouping?: CsharpSourceArgumentGrouping;
 }
 
 export interface CsharpSourceArgumentGroupingEntry {
-  readonly binding: ResolvedSourceCallInfo["sourceArgumentBindings"][number];
+  readonly binding: SourceArgumentPlace;
   readonly expression: Node;
   readonly sourceArgumentIndex: number;
   readonly effectiveArgumentIndex: number;
   readonly sourceParameterIndex: number;
   readonly parameterIndex: number;
-  readonly sourceForm: ResolvedSourceCallInfo["sourceArgumentBindings"][number]["sourceForm"];
+  readonly sourceForm: SourceArgumentPlace["sourceForm"];
   readonly type: TargetTypeRef;
   readonly parameter: import("../../types/model.js").CsharpTargetParameter;
 }
@@ -59,6 +59,7 @@ export interface CsharpSourceArgumentGroup {
 export type CsharpSourceArgumentGrouping =
   | { readonly kind: "grouped"; readonly arguments: readonly CsharpSourceArgumentGroupingEntry[];
       readonly groups: readonly CsharpSourceArgumentGroup[] }
+  | { readonly kind: "source-refused"; readonly refusal: SourceRefusal }
   | { readonly kind: "refused"; readonly reason: string }
   | { readonly kind: "unresolved"; readonly reason: string }
   | { readonly kind: "inconsistent"; readonly reason: string };
@@ -73,6 +74,7 @@ export type CsharpCallForm = { readonly optionalReceiverRouting: "call" | "chain
 
 export interface CsharpCallClassification
   extends CsharpSourceCallArgumentClassification {
+  readonly skippedInvocation?: true;
   readonly form: CsharpCallForm;
   readonly sourceResult?: import("../../operations/source-call-results.js").CsharpSourceCallResult;
   readonly optionalCallee?: {
@@ -90,7 +92,7 @@ export interface CsharpCallClassification
     readonly conversion?: CsharpConversionSelection;
   };
   readonly unionCall: import("../calls/union-calls.js").CsharpUnionCallClassification;
-  readonly source?: ResolvedSourceCallInfo;
+  readonly source?: SourceApplication;
   readonly target?: CsharpTargetCallSelection;
   readonly selectedResultType?: TargetTypeRef;
   readonly sourceTypeArguments?: readonly TargetTypeRef[];
@@ -165,6 +167,7 @@ export interface CsharpOperationIssue {
   readonly node: Node;
   readonly code: string;
   readonly message: string;
+  readonly source?: string;
 }
 
 export type CsharpOperatorForm =

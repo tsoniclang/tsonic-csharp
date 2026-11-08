@@ -499,46 +499,36 @@ function assertCompleteTypeParameterRelation(
 }
 
 function assertSelectedTypeParameterRelation(
-  relation: Extract<
-    CsharpProviderTargetRelation,
-    { readonly kind: "signature" }
-  >,
+  relation: Extract<CsharpProviderTargetRelation, { readonly kind: "signature" }>,
 ): void {
-  if (
-    !Number.isSafeInteger(relation.selectedTypeParameterCount) ||
-    relation.selectedTypeParameterCount < 0
-  ) {
-    throw new Error(
-      "C# provider selected type-parameter count must be a non-negative safe integer.",
-    );
+  const counts = relation.sourceTypeParameterCounts;
+  if (counts === undefined || !Number.isSafeInteger(counts.class) || counts.class < 0 ||
+    !Number.isSafeInteger(counts.signature) || counts.signature < 0) {
+    throw new Error("C# provider type arguments require exact separate Source class and signature arities.");
   }
-  const selectedRelations = [
-    ...(relation.bindingTypeArgumentSource === "selected-operation-type-arguments"
-      ? relation.bindingTypeParameters
-      : []),
+  const classRelations = relation.bindingTypeArgumentSource === "class-type-arguments" ? relation.bindingTypeParameters : [];
+  const signatureRelations = [
+    ...(relation.bindingTypeArgumentSource === "signature-type-arguments" ? relation.bindingTypeParameters : []),
     ...relation.methodTypeParameters,
     ...relation.invocationTypeParameters,
   ];
-  const indexes = new Set<number>();
-  for (const selected of selectedRelations) {
-    if (
-      selected.sourceTypeParameterIndex < 0 ||
-      selected.sourceTypeParameterIndex >= relation.selectedTypeParameterCount ||
-      indexes.has(selected.sourceTypeParameterIndex)
-    ) {
-      throw new Error(
-        "C# provider selected type-parameter roles overlap or contain an out-of-range source index.",
-      );
+  for (const [domain, roles, count] of [
+    ["class", classRelations, counts.class],
+    ["signature", signatureRelations, counts.signature],
+  ] as const) {
+    const indexes = new Set<number>();
+    for (const role of roles) {
+      if (!Number.isSafeInteger(role.sourceTypeParameterIndex) || role.sourceTypeParameterIndex < 0 ||
+        role.sourceTypeParameterIndex >= count || indexes.has(role.sourceTypeParameterIndex)) {
+        throw new Error(`C# provider ${domain} type-argument roles overlap or exceed their original Source binder vector.`);
+      }
+      indexes.add(role.sourceTypeParameterIndex);
     }
-    indexes.add(selected.sourceTypeParameterIndex);
-  }
-  if (indexes.size !== relation.selectedTypeParameterCount) {
-    throw new Error(
-      "C# provider selected type-parameter roles do not cover the exact selected source arity.",
-    );
+    if ((domain === "signature" || relation.bindingTypeArgumentSource === "class-type-arguments") && indexes.size !== count) {
+      throw new Error(`C# provider type-argument roles do not cover the complete original Source ${domain} binder vector.`);
+    }
   }
 }
-
 function assertParameterRelations(
   relation: Extract<
     CsharpProviderTargetRelation,
