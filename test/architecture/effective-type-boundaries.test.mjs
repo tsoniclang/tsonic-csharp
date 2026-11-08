@@ -20,6 +20,21 @@ test("the superseded allowance and partial-publication APIs are not exported", (
   assert.equal(Object.hasOwn(boundary, "effectiveTypeBoundaryFindings"), false);
 });
 
+test("Native representation policy inputs own their data below analysis implementations", () => {
+  const model = readFileSync(join(root, "src/policy/model/type-resolution.ts"), "utf8");
+  assert.doesNotMatch(model, /(?:from\s*["']|import\s*\(["'])[^"']*analysis\//u);
+  assert.doesNotMatch(model, /ReturnType\s*<\s*typeof\s+import/u);
+  for (const name of ["CsharpSourceRepresentationQueries", "CsharpRepresentedApplication", "CsharpRepresentedArgument",
+    "CsharpRepresentedDeclaredSlot", "CsharpRepresentedMemberUse", "CsharpRepresentedMemberUseArm"]) {
+    assert.match(model, new RegExp(`export interface ${name}\\b`, "u"), name);
+  }
+  for (const path of ["representations.ts", "member-use.ts"]) {
+    const producer = readFileSync(join(root, "src/analysis/source-evidence", path), "utf8");
+    assert.match(producer, /from ["']\.\.\/\.\.\/policy\/model\/type-resolution\.js["']/u, path);
+    assert.doesNotMatch(producer, /export\s+(?:interface\s+Csharp(?:SourceRepresentationQueries|Represented)|type\s*\{)/u, path);
+  }
+});
+
 for (const [label, text] of [
   ["direct checker type", 'import type { Type } from "@tsonic/tsts";'],
   ["aliased checker type", 'import type { Type as Input } from "@tsonic/tsts"; type Cached = Map<Input, TargetTypeRef>;'],

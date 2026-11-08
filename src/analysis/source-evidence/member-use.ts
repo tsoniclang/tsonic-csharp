@@ -1,26 +1,8 @@
 import type { Node } from "@tsonic/tsts";
-import type { SourceMemberUse, SourceMemberUseArm, SourceMemberOrigin } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpRepresentationOutcome, CsharpRepresentedType } from "../../target-model/types/representation.js";
-import type { CsharpSourceRepresentationQueries } from "./representations.js";
-
-export interface CsharpRepresentedMemberUseArm {
-  readonly source: SourceMemberUseArm;
-  readonly receiver: CsharpRepresentedType;
-  readonly members: readonly { readonly origin: SourceMemberOrigin; readonly value: CsharpRepresentedType }[];
-  readonly read: CsharpRepresentedType | undefined;
-  readonly write: CsharpRepresentedType | undefined;
-  readonly destination: CsharpRepresentedType | undefined;
-  readonly key: CsharpRepresentedType | undefined;
-}
-
-export interface CsharpRepresentedMemberUse {
-  readonly source: SourceMemberUse;
-  readonly receiver: CsharpRepresentedType;
-  readonly arms: readonly CsharpRepresentedMemberUseArm[];
-  readonly read: CsharpRepresentedType | undefined;
-  readonly write: CsharpRepresentedType | undefined;
-}
+import type { CsharpRepresentedMemberUse, CsharpRepresentedMemberUseArm,
+  CsharpSourceRepresentationQueries } from "../../policy/model/type-resolution.js";
 
 export function representCsharpMemberUse(host: CsharpSourceRepresentationQueries,
   occurrence: Node): CsharpRepresentationOutcome<CsharpRepresentedMemberUse> {

@@ -2,8 +2,6 @@ import type { Node } from "@tsonic/tsts";
 import { failTargetAnalysisInvariant, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   SourceApplication,
-  SourceArgumentPlace,
-  SourceDeclaredSlot,
   SourceProgramFacts,
   SourceRefusal,
   SourceSignatureIdentity,
@@ -13,36 +11,10 @@ import type {
 import type {
   CsharpRepresentationOutcome,
   CsharpRepresentationPosition,
-  CsharpRepresentationView,
   CsharpRepresentedType,
 } from "../../target-model/types/representation.js";
-
-export interface CsharpSourceRepresentationQueries {
-  readonly facts: SourceProgramFacts;
-  readonly representation: CsharpRepresentationView;
-}
-
-export interface CsharpRepresentedArgument {
-  readonly source: SourceArgumentPlace;
-  readonly value: CsharpRepresentedType;
-  readonly destination: CsharpRepresentedType;
-}
-
-export interface CsharpRepresentedApplication {
-  readonly source: SourceApplication;
-  readonly callee: { readonly occurrence: Node; readonly value: CsharpRepresentedType };
-  readonly sourceArguments: readonly {
-    readonly source: SourceApplication["sourceArguments"][number];
-    readonly value: CsharpRepresentedType;
-  }[];
-  readonly classBindings: readonly { readonly declaration: Node; readonly value: CsharpRepresentedType }[];
-  readonly signatureBindings: readonly { readonly declaration: Node; readonly value: CsharpRepresentedType }[];
-  readonly receiver:
-    | Extract<SourceApplication["receiver"], { readonly kind: "none" | "type" }>
-    | { readonly kind: "value"; readonly occurrence: Node; readonly value: CsharpRepresentedType };
-  readonly arguments: readonly CsharpRepresentedArgument[];
-  readonly result: CsharpRepresentedType;
-}
+import type { CsharpRepresentedApplication, CsharpRepresentedArgument, CsharpRepresentedDeclaredSlot,
+  CsharpSourceRepresentationQueries } from "../../policy/model/type-resolution.js";
 
 export function forwardSourceRefusal(refusal: SourceRefusal): TargetDiagnostic {
   return Object.freeze({
@@ -78,7 +50,7 @@ export function representCsharpValue(
 export function representCsharpDeclaredSlot(
   host: CsharpSourceRepresentationQueries,
   declaration: Node,
-): CsharpRepresentationOutcome<{ readonly source: SourceDeclaredSlot; readonly value: CsharpRepresentedType }> {
+): CsharpRepresentationOutcome<CsharpRepresentedDeclaredSlot> {
   const slot = host.facts.values.declaredSlot(declaration);
   if (slot.kind === "refused") return Object.freeze({ kind: "source-refused", refusal: slot });
   const value = host.representation.represent(slot.value.type, "storage", declaration);
