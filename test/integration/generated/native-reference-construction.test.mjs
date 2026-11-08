@@ -50,7 +50,7 @@ for (int index = 0; index < 10000; index++) GC.KeepAlive(Handwritten(key, cert))
 long handwritten = GC.GetAllocatedBytesForCurrentThread() - before;
 if (generated != handwritten) throw new Exception($"native option allocation {generated} != {handwritten}");
 static TlsOptions Handwritten(string key, string cert) =>
-    new TlsOptions { key = TsValue.from(key), cert = TsValue.from(cert) };
+    new TlsOptions { key = TsValue.fromnative(key), cert = TsValue.fromnative(cert) };
 ` );
   const source = [...compiled.artifacts].filter(([path]) => path.endsWith(".cs")).map(([, text]) => text).join("\n");
   assert.equal([...source.matchAll(/new Tsonic\.CSharp\.Node\.TlsOptions\b/gu)].length, 1,

@@ -4,7 +4,7 @@ import type { CsharpObjectMemberRecords, CsharpObjectMemberEmission, CsharpObjec
 import type { CsharpStructuralObjectEmissionRecords } from "../../../target-model/records/objects/structural-object-emission.js";
 import type { CsharpNativeMemberHidingReader } from "../../../target-model/records/native/native-member-names.js";
 import type { CsharpNativeLayoutRecords } from "../../../target-model/records/native/native-layout-emission.js";
-import type { CsharpExpression, CsharpParameter, CsharpStatement, CsharpTypeMember, CsharpTypeNode } from "../../target-ast/syntax/index.js";
+import type { CsharpExpression, CsharpStatement, CsharpTypeMember, CsharpTypeNode } from "../../target-ast/syntax/index.js";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { planCsharpArtifactMemberHiding } from "../declarations/modifiers.js";
 import { planCsharpNativeMemoryCall } from "../expressions/native-memory.js";
@@ -14,7 +14,6 @@ import {
 } from "../../../target-model/names/object-members.js";
 import { renderCsharpStructuralMethod } from "./structural-interfaces.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
-import { renderCsharpExplicitImplementationTypeParameters } from "../types/type-parameters.js";
 
 export function renderObjectShapeMembers(
   typeParameterNames: ReadonlyMap<string, string> | undefined,
@@ -50,49 +49,45 @@ function renderMember(
     case "authored": {
       const value = selected.value;
       if (value.kind === "fixed") return [];
-      const method = renderCsharpStructuralMethod(typeParameterNames, shape, member, records);
       const type = render(value.type);
       const stored: CsharpExpression = { kind: "IdentifierName", name: value.valueName };
-      const arguments_ = method.parameters.map(parameter => ({ kind: "Argument" as const,
-        expression: { kind: "IdentifierName" as const, name: parameter.name },
-        ...(parameter.passing === undefined ? {} : { passing: parameter.passing }) }));
-      const typeArguments = (method.typeParameters ?? []).map(parameter => ({ kind: "IdentifierName" as const, name: parameter.name }));
       const present: CsharpExpression = { kind: "PostfixUnaryExpression", operand: stored, operatorToken: { kind: "ExclamationToken" } };
-      const indirect: CsharpExpression = { kind: "InvocationExpression", callee: value.kind === "delegate" ? present
-        : { kind: "SimpleMemberAccessExpression", receiver: present, name: value.invocationName, typeArguments }, arguments: arguments_ };
-      const complete = (expression: CsharpExpression): readonly CsharpStatement[] => selected.signature.returnsVoid
-        ? [{ kind: "ExpressionStatement", expression }, { kind: "ReturnStatement" }]
-        : [{ kind: "ReturnStatement", expression, ...(method.returnPassing === undefined ? {} : { ref: true as const }) }];
+      const methods = selected.methods.map(entry => {
+        const method = renderCsharpStructuralMethod(typeParameterNames, shape, entry.member, records);
+        const typeArguments = (method.typeParameters ?? []).map(parameter => ({ kind: "IdentifierName" as const, name: parameter.name }));
+        const indirect: CsharpExpression = { kind: "InvocationExpression", callee: {
+          kind: "SimpleMemberAccessExpression", receiver: present, name: entry.value.name, typeArguments,
+        }, arguments: method.parameters.map(parameter => ({ kind: "Argument", expression: { kind: "IdentifierName", name: parameter.name },
+          ...(parameter.passing === undefined ? {} : { passing: parameter.passing }) })) };
+        return { ...method, modifiers: publicModifiers(entry.member.name), body: { kind: "Block" as const, statements:
+          completeMethod(entry.signature, indirect) } };
+      });
       return [
         { kind: "FieldDeclaration", name: value.valueName, type, modifiers: ["private", ...hiding(value.valueName)] },
         { kind: "PropertyDeclaration", name: value.name, type, modifiers: publicModifiers(value.name),
           getter: { kind: "Block", statements: [{ kind: "ReturnStatement", expression: stored }] },
           setter: { kind: "Block", statements: [
-            { kind: "ExpressionStatement", expression: { kind: "AssignmentExpression", operatorToken: { kind: "EqualsToken" }, left: stored,
-              right: { kind: "IdentifierName", name: "value" } } },
+            { kind: "ExpressionStatement", expression: { kind: "AssignmentExpression", operatorToken: { kind: "EqualsToken" },
+              left: stored, right: { kind: "IdentifierName", name: "value" } } },
           ] } },
-        { ...method, modifiers: publicModifiers(member.targetName), body: { kind: "Block", statements: complete(indirect) } },
+        ...methods,
       ];
     }
     case "copied": {
-      const method = renderCsharpStructuralMethod(typeParameterNames, shape, member, records);
       const name = objectShapeStorageMemberName(shape, member);
-      const call: CsharpExpression = { kind: "InvocationExpression", callee: { kind: "SimpleMemberAccessExpression",
-        receiver: { kind: "IdentifierName", name }, name: selected.invocationName,
-        typeArguments: (member.typeParameters ?? []).map(parameter => render({ kind: "type-parameter", identity: parameter.identity, name: parameter.name })) },
-        arguments: method.parameters.map(parameter => ({ kind: "Argument", expression: { kind: "IdentifierName", name: parameter.name },
-          ...(parameter.passing === undefined ? {} : { passing: parameter.passing }) })) };
       return [{ kind: "FieldDeclaration", name, type: render(selected.storage), modifiers: publicModifiers(name, true) },
-        { ...method, modifiers: publicModifiers(member.targetName), body: { kind: "Block", statements: [
-          selected.signature.returnsVoid ? { kind: "ExpressionStatement", expression: call }
-            : { kind: "ReturnStatement", expression: call, ...(method.returnPassing === undefined ? {} : { ref: true as const }) },
-        ] } }, { ...method, name: selected.bodyInvocationName, explicitInterface: render(selected.interface), modifiers: [],
-          typeParameters: renderCsharpExplicitImplementationTypeParameters(
-            (method.typeParameters ?? []).map(parameter => parameter.name), selected.explicitConstraints),
-          parameters: method.parameters.map(({ defaultValue: _default, ...parameter }) => parameter),
-          body: { kind: "Block", statements: [selected.signature.returnsVoid
-            ? { kind: "ExpressionStatement", expression: call }
-            : { kind: "ReturnStatement", expression: call, ...(method.returnPassing === undefined ? {} : { ref: true as const }) }] } }];
+        ...selected.methods.map(entry => {
+          const method = renderCsharpStructuralMethod(typeParameterNames, shape, entry.member, records);
+          const typeArguments = entry.member.typeParameters.map(parameter => render({
+            kind: "type-parameter", identity: parameter.identity, name: parameter.name,
+          }));
+          const call: CsharpExpression = { kind: "InvocationExpression", callee: {
+            kind: "SimpleMemberAccessExpression", receiver: { kind: "IdentifierName", name }, name: entry.value.name, typeArguments,
+          }, arguments: method.parameters.map(parameter => ({ kind: "Argument", expression: { kind: "IdentifierName", name: parameter.name },
+            ...(parameter.passing === undefined ? {} : { passing: parameter.passing }) })) };
+          const body = { kind: "Block" as const, statements: completeMethod(entry.signature, call) };
+          return { ...method, modifiers: publicModifiers(entry.member.name), body };
+        })];
     }
     case "optional-method": {
       const name = objectShapeStorageMemberName(shape, member);
@@ -105,16 +100,19 @@ function renderMember(
     }
     case "method": {
       const name = objectShapeStorageMemberName(shape, member);
-      const parameters = renderParameters(selected.signature, typeParameterNames, subject);
-      const call: CsharpExpression = { kind: "InvocationExpression", callee: { kind: "IdentifierName", name },
-        arguments: parameters.map(parameter => ({ kind: "Argument" as const, expression: { kind: "IdentifierName" as const, name: parameter.name },
-          ...(parameter.passing === undefined ? {} : { passing: parameter.passing }) })) };
       return [{ kind: "FieldDeclaration", name, modifiers: publicModifiers(name, member.optional !== true), type: render(selected.storage) },
-        { kind: "MethodDeclaration", name: member.targetName, modifiers: publicModifiers(member.targetName), returnType: render(selected.signature.returnType),
-          ...(selected.signature.returnPassing === undefined ? {} : { returnPassing: selected.signature.returnPassing === "byref-readonly" ? "ref-readonly" : "ref" }),
-          parameters, body: { kind: "Block", statements: [selected.signature.returnsVoid
-            ? { kind: "ExpressionStatement", expression: call }
-            : { kind: "ReturnStatement", expression: call, ...(selected.signature.returnPassing === undefined ? {} : { ref: true as const }) }] } }];
+        ...selected.methods.map(entry => {
+          const method = renderCsharpStructuralMethod(typeParameterNames, shape, entry.member, records);
+          const call: CsharpExpression = { kind: "InvocationExpression", callee: {
+            kind: "SimpleMemberAccessExpression", receiver: { kind: "IdentifierName", name }, name: entry.value.name,
+            typeArguments: entry.member.typeParameters.map(parameter => render({
+              kind: "type-parameter", identity: parameter.identity, name: parameter.name,
+            })),
+          }, arguments: method.parameters.map(parameter => ({ kind: "Argument", expression: { kind: "IdentifierName", name: parameter.name },
+            ...(parameter.passing === undefined ? {} : { passing: parameter.passing }) })) };
+          return { ...method, modifiers: publicModifiers(entry.member.name),
+            body: { kind: "Block" as const, statements: completeMethod(entry.signature, call) } };
+        })];
     }
     case "accessor": {
       const getterName = objectShapeAccessorGetterStorageMemberName(shape, member);
@@ -182,12 +180,7 @@ function renderCarrier(carrier: TargetTypeRef, names: ReadonlyMap<string, string
   return type;
 }
 
-function renderParameters(signature: CsharpObjectMethodSignature, names: ReadonlyMap<string, string> | undefined, subject: Node | undefined): readonly CsharpParameter[] {
-  return signature.parameters.map((parameter, index) => {
-    const type = renderCarrier(parameter.type, names, subject);
-    return { name: `arg${index}`, type, ...(parameter.rest ? { isParams: true } : {}),
-      ...(parameter.passingMode === "by-value" ? {} : { passing: parameter.passingMode === "byref-readonly" ? "in" as const
-        : parameter.passingMode === "byref-readwrite" ? "ref" as const : "out" as const }),
-      ...(parameter.optional ? { defaultValue: { kind: "DefaultExpression" as const, type } } : {}) };
-  });
+function completeMethod(signature: CsharpObjectMethodSignature, expression: CsharpExpression): readonly CsharpStatement[] {
+  return signature.returnsVoid ? [{ kind: "ExpressionStatement", expression }, { kind: "ReturnStatement" }]
+    : [{ kind: "ReturnStatement", expression, ...(signature.returnPassing === undefined ? {} : { ref: true }) }];
 }
