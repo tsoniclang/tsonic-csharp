@@ -166,6 +166,8 @@ test("C# sealed nominal mapping validation rejects stale relationships and malfo
   const { source, target, policy } = fixture({ nested: true });
   const selection = selectCsharpConversion(policy, source, target, "implicit");
   const context = planningContext(policy);
+  assert.equal(Object.hasOwn(context.program.records, "conversion"), false,
+    "direct union planning consumes its sealed selection without any conversion-cache record");
   assert.equal(csharpRuntimeUnionMappingMatches(policy, source, target, selection), true);
   assert.equal(admitCsharpConversionSelection(policy, source, target, selection), selection, "a valid mapping is admitted unchanged");
   assert.equal(Object.hasOwn(context.program, "conversions"), false, "planning has no conversion validation service");
