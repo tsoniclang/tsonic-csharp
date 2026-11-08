@@ -4,7 +4,7 @@ import type { CsharpObjectMemberRecords, CsharpObjectMemberEmission, CsharpObjec
 import type { CsharpStructuralObjectEmissionRecords } from "../../../target-model/records/objects/structural-object-emission.js";
 import type { CsharpNativeMemberHidingReader } from "../../../target-model/records/native/native-member-names.js";
 import type { CsharpNativeLayoutRecords } from "../../../target-model/records/native/native-layout-emission.js";
-import type { CsharpExpression, CsharpParameter, CsharpStatement, CsharpTypeMember, CsharpTypeNode } from "../../target-ast/syntax/index.js";
+import type { CsharpExpression, CsharpStatement, CsharpTypeMember, CsharpTypeNode } from "../../target-ast/syntax/index.js";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { planCsharpArtifactMemberHiding } from "../declarations/modifiers.js";
 import { planCsharpNativeMemoryCall } from "../expressions/native-memory.js";
@@ -14,7 +14,6 @@ import {
 } from "../../../target-model/names/object-members.js";
 import { renderCsharpStructuralMethod } from "./structural-interfaces.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
-import { renderCsharpExplicitImplementationTypeParameters } from "../types/type-parameters.js";
 
 export function renderObjectShapeMembers(
   typeParameterNames: ReadonlyMap<string, string> | undefined,
@@ -77,7 +76,7 @@ function renderMember(
     case "copied": {
       const name = objectShapeStorageMemberName(shape, member);
       return [{ kind: "FieldDeclaration", name, type: render(selected.storage), modifiers: publicModifiers(name, true) },
-        ...selected.methods.flatMap(entry => {
+        ...selected.methods.map(entry => {
           const method = renderCsharpStructuralMethod(typeParameterNames, shape, entry.member, records);
           const typeArguments = entry.member.typeParameters.map(parameter => render({
             kind: "type-parameter", identity: parameter.identity, name: parameter.name,
@@ -87,11 +86,7 @@ function renderMember(
           }, arguments: method.parameters.map(parameter => ({ kind: "Argument", expression: { kind: "IdentifierName", name: parameter.name },
             ...(parameter.passing === undefined ? {} : { passing: parameter.passing }) })) };
           const body = { kind: "Block" as const, statements: completeMethod(entry.signature, call) };
-          return [{ ...method, modifiers: publicModifiers(entry.member.name), body },
-            { ...method, name: entry.value.name, explicitInterface: render(selected.interface), modifiers: [],
-              typeParameters: renderCsharpExplicitImplementationTypeParameters(
-                (method.typeParameters ?? []).map(parameter => parameter.name), entry.explicitConstraints),
-              parameters: method.parameters.map(({ defaultValue: _default, ...parameter }) => parameter), body }];
+          return { ...method, modifiers: publicModifiers(entry.member.name), body };
         })];
     }
     case "optional-method": {
@@ -189,4 +184,3 @@ function completeMethod(signature: CsharpObjectMethodSignature, expression: Csha
   return signature.returnsVoid ? [{ kind: "ExpressionStatement", expression }, { kind: "ReturnStatement" }]
     : [{ kind: "ReturnStatement", expression, ...(signature.returnPassing === undefined ? {} : { ref: true }) }];
 }
-
