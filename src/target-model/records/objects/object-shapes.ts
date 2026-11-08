@@ -20,7 +20,7 @@ export type CsharpObjectLiteralTargetShapeResolution =
   | { readonly kind: "resolved"; readonly shape: CsharpObjectShapeFact }
   | { readonly kind: "rejected"; readonly subject: Node; readonly reason: string };
 
-export interface CsharpObjectShapeClassifications<StructuralImplementation = import("./structural-interfaces.js").CsharpStructuralInterfaceImplementation> {
+export interface CsharpObjectShapeClassifications<StructuralImplementation = import("./structural-interface-data.js").CsharpStructuralInterfaceImplementation> {
   propertyOrder(shape: CsharpObjectShapeFact, sourceValue: Node | undefined,
     projection: CsharpObjectShapeProjectionKind): CsharpObjectShapePropertyOrderSelection;
   assignmentSourceOrder(shape: CsharpObjectShapeFact): CsharpObjectShapePropertyOrderSelection;

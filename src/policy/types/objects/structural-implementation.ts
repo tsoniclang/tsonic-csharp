@@ -3,7 +3,7 @@ import type { CsharpTargetNamedTypeRef } from "../../../target-model/types/model
 import type { CsharpNativeCallableMember } from "../../../target-model/types/native-type-data.js";
 
 import type { CsharpObjectShapeMemberFact } from "../../../target-model/types/model.js";
-import type { CsharpStructuralInterfaceImplementation } from "../../../target-model/records/objects/structural-interfaces.js";
+import type { CsharpStructuralInterfaceImplementation } from "../../../target-model/records/objects/structural-interface-data.js";
 import type { CsharpStructuralInterfaceEvidence } from "../../../target-model/records/objects/heritage.js";
 import { isCsharpValueTypeTargetType } from "../../../target-model/types/identity.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";

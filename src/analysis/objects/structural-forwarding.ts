@@ -1,6 +1,6 @@
 import type { CsharpFinalStructuralInterfaceImplementation } from "../../target-model/records/objects/heritage.js";
 import type { CsharpProjectTypeIssue } from "../../target-model/records/types/project-types.js";
-import type { CsharpStructuralInterfaceImplementation } from "../../target-model/records/objects/structural-interfaces.js";
+import type { CsharpStructuralInterfaceImplementation } from "../../target-model/records/objects/structural-interface-data.js";
 import { admitCsharpCallableValueAdapter, type CsharpCallableConversionPolicy } from "../callables/native/adapters.js";
 import { csharpTargetTypeRenderingRejection } from "../../policy/types/model/renderability.js";
 
