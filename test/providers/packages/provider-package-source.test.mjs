@@ -144,7 +144,7 @@ test("real TSTS rejects missing foreign imports even when the other provider is 
   const checked = check([withImportMutation(capability, (imports) =>
     imports.filter((entry) => entry.moduleSpecifier !== "outside/package")
   ), foreignCapability()], "consumer");
-  assert.ok(checked.sourceDiagnostics.some(diagnostic => diagnostic.code === "TS9000018" &&
+  assert.ok(checked.sourceDiagnostics.some(diagnostic => diagnostic.code === "TSEXT9000018" &&
     diagnostic.source === "tsts.extension-host"));
   assert.equal(checked.source === undefined, true, "an invalid declaration model cannot publish a resolved Source program");
 });
@@ -170,7 +170,7 @@ test("real TSTS rejects canonicalized import aliases, wrong import kinds and typ
   ];
   for (const [name, mutateImports] of mutations) {
     const checked = check(withImportMutation(fixtureCapability(), mutateImports), "consumer");
-    assert.ok(checked.sourceDiagnostics.some(diagnostic => diagnostic.code === "TS9000018" &&
+    assert.ok(checked.sourceDiagnostics.some(diagnostic => diagnostic.code === "TSEXT9000018" &&
       diagnostic.source === "tsts.extension-host"), name);
     assert.equal(checked.source === undefined, true, `${name}: an invalid declaration model cannot publish Source`);
   }
