@@ -1,5 +1,5 @@
 import type { Node } from "@tsonic/tsts";
-import type { SourcePresence, SourceTypeEvidence } from "@tsonic/target-api/source";
+import type { SourceMemberOrigin, SourcePresence, SourceTypeEvidence } from "@tsonic/target-api/source";
 import type { CsharpObjectShapeFact, TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpRepresentationOutcome } from "../../../target-model/types/representation.js";
 import type { CsharpObjectShapePolicyHost, CsharpObjectShapeRegistry } from "./model.js";
@@ -116,11 +116,11 @@ export function createCsharpObjectShapePolicy(host: CsharpObjectShapePolicyHost)
   const literal = createCsharpLiteralShapeResolver(host, { resolveTarget, remember, methodUses });
 
   return Object.freeze({
-    retainShape(shape, _site) { return represented(remember(shape)); },
+    retainShape(shape: CsharpObjectShapeFact, _site: Node) { return represented(remember(shape)); },
     resolveTarget,
     resolveNode,
     resolveEvidence,
-    resolveMember(evidence, carrier, origin, site) {
+    resolveMember(evidence: SourceTypeEvidence, carrier: TargetTypeRef, origin: SourceMemberOrigin, site: Node) {
       host.source.assertEvidence(evidence);
       const definition = sourceOutcome(host.source.definition(evidence));
       if (definition.kind !== "represented") return definition;
@@ -136,7 +136,7 @@ export function createCsharpObjectShapePolicy(host: CsharpObjectShapePolicyHost)
     knownShapes: () => Object.freeze([...shapes.values()]),
     retainConstructionSource,
     resolveObjectLiteralTargetShape: literal,
-    resolveCopyShape(shape, site, source) {
+    resolveCopyShape(shape: CsharpObjectShapeFact, site: Node, source?: CsharpObjectShapeFact) {
       const uses = methodUses();
       if (uses.kind !== "represented") return uses;
       let failure: Exclude<CsharpRepresentationOutcome<never>, { readonly kind: "represented" }> | undefined;
