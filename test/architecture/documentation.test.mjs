@@ -24,13 +24,13 @@ test("canonical C# configuration lists every accepted option", () => {
 
 test("canonical C# source-module reference lists every public source alias", () => {
   const modules = readFileSync(resolve(repositoryRoot, "src/source/profiles/source-modules.ts"), "utf8");
-  const safety = readFileSync(resolve(repositoryRoot, "src/source/extension/explicit-safety.ts"), "utf8");
+  const safety = readFileSync(resolve(repositoryRoot, "src/source/profiles/safety.ts"), "utf8");
   const rankedArrays = readFileSync(resolve(repositoryRoot, "src/source/profiles/ranked-arrays.ts"), "utf8");
   const reference = readFileSync(resolve(referenceRoot, "source-modules.md"), "utf8");
   const names = new Set([
     ...[...modules.matchAll(/sourcePrimitive\("([^"]+)"/gu)].map((match) => match[1]),
     ...[...modules.matchAll(/exportName:\s*"([^"]+)"/gu)].map((match) => match[1]),
-    ...extractObjectStringValues(safety, "csharpSafetyProviderNames"),
+    ...extractProviderNameStringValues(safety, "csharpSourceSafetyProvider"),
     "ptr",
   ]);
   for (const name of names) {
@@ -56,8 +56,10 @@ function extractFrozenStringList(source, name) {
   return [...match[1].matchAll(/"([^"]+)"/gu)].map((entry) => entry[1]);
 }
 
-function extractObjectStringValues(source, name) {
-  const match = source.match(new RegExp(`${name}[^=]*=\\s*Object\\.freeze\\(\\{([\\s\\S]*?)\\}\\)`, "u"));
-  assert.ok(match?.[1] !== undefined, name);
-  return [...match[1].matchAll(/:\s*"([^"]+)"/gu)].map((entry) => entry[1]);
+function extractProviderNameStringValues(source, name) {
+  const match = source.match(new RegExp(`${name}[^=]*=\\s*Object\\.freeze\\(\\{[\\s\\S]*?\\bnames:\\s*Object\\.freeze\\(\\{([\\s\\S]*?)\\}\\)`, "u"));
+  assert.ok(match?.[1] !== undefined, `${name}.names`);
+  const names = [...match[1].matchAll(/:\s*"([^"]+)"/gu)].map((entry) => entry[1]);
+  assert.equal(names.length > 0, true, `${name}.names declares its source aliases`);
+  return names;
 }
