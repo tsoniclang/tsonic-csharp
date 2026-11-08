@@ -1,31 +1,22 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { analyzeCsharpConversions } from "../../../dist/analysis/conversions/analyze.js";
-import { analyzeCsharpExactLiteralSelections } from "../../../dist/analysis/conversions/literal-plans.js";
-import { createCsharpExactLiteralRequestCollector } from "../../../dist/analysis/conversions/literal-requests.js";
-import { applyCsharpConversionSelection } from "../../../dist/backend/planner/expressions/conversions.js";
 import { selectCsharpExactLiteralConversion, selectCsharpExactPropertyKeyConversion } from "../../../dist/policy/conversions/literals.js";
-import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
-import { csharpRuntimeUnionTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType, getCsharpRuntimeUnionArms } from "../../../dist/target-model/types/index.js";
-import { csharpNativeUseSite } from "../../../dist/target-model/records/native/native-demand.js";
-import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
+import { createCsharpExactLiteralProducer } from "../../../dist/analysis/program/records/operations/exact-literals.js";
+import { csharpStringTargetType } from "../../../dist/target-model/types/index.js";
 import { compileCsharpSource, checkCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
-import { createTargetSourceProgram, analyzeSourceLiteralValues } from "@tsonic/target-api/source";
 import { assertCsharpRequiredRecords } from "../../../dist/analysis/program/records/objects/required-records.js";
-import { checkedSourceLiteralValues } from "../../helpers/source-literal-values.mjs";
+import { checkedSourceScalarLiterals } from "../../helpers/source-literal-values.mjs";
 import { planCsharpExactLiteralRecipe } from "../../../dist/backend/planner/expressions/literal-conversions.js";
 import { printCsharpExpression } from "../../../dist/print/source/printer.js";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
-import { callEvidence, directProviderHost, providerBinding, providerDeclaration, providerFact, providerMethod,
-  selectCsharpProviderCall, signatureRelation, targetParameter } from "../../fixtures/dotnet-provider/direct-provider-selection.helpers.mjs";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
-import { primitive, primitives, literals, checkedPropertyKeys, providerAdapterCall, sealedProviderCallConversions } from "./literal-plans.fixtures.mjs";
+import { primitive, resolved, nativeLiteralIndex, checkedPropertyKeys } from "./literal-plans.fixtures.mjs";
 
 test("native property-key literals retain exact tokens and the identical source enum entry", () => {
   const value = checkedPropertyKeys();
   const requests = value.names.map((expression, index) => ({ expression, source: undefined,
     target: index < 2 ? csharpStringTargetType() : primitive(index === 4 ? "decimal" : "int64"), propertyKey: value.selections[index] }));
-  const index = analyzeCsharpExactLiteralSelections(analyzeSourceLiteralValues(value.source.ast, value.source.navigation.sourceFiles), requests, value.nodes);
+  const index = nativeLiteralIndex(value.literals, requests, value.nodes);
   const selected = requests.map(request => index.exactLiteral.get(request.expression, request.target, "property-key"));
   assert.equal(selected.every(selection => selection?.kind === "resolved"), true, "all requested physical constants are admitted");
   assert.equal(selected[0].recipe.kind === "string" && selected[0].recipe.value === "plain", true, "ordinary property syntax is checked once");
@@ -34,11 +25,14 @@ test("native property-key literals retain exact tokens and the identical source 
     true, `${position}: native int64 key never rounds through a JavaScript number`);
   assert.equal(selected[4].recipe.kind === "float" && selected[4].recipe.precision === "decimal" && selected[4].recipe.token.significand === "1.0",
     true, "authored decimal key scale is retained in its token");
-  const enumKey = value.selections[3].constant;
-  assert.equal(enumKey.kind, "enum-member", "an enum key is not fabricated authored-literal evidence");
-  assert.equal(enumKey.entry === value.source.semantics.enumConstants.get(enumKey.entry.declaration), true,
-    "the exact frozen source enum-index entry is transported, not re-evaluated");
-  assert.equal(Object.isFrozen(enumKey.entry) && Object.isFrozen(index.exactLiteral) && selected.every(Object.isFrozen), true,
+  const enumKey = value.selections[3];
+  const enumScalar = value.source.facts.descriptors.scalarLiteral(value.enumMember.value);
+  assert.equal(enumKey.kind === "number" && enumScalar.kind === "present" && enumScalar.value.kind === "number", true,
+    "the numeric enum key belongs to its genuine original enum member evidence");
+  assert.equal(resolved(value.source.facts.enums.member(value.enumMember.declaration), "the same enum member is retained") === value.enumMember &&
+    enumKey.value === enumScalar.value.value, true,
+  "the exact frozen source enum value is transported, not re-evaluated");
+  assert.equal(Object.isFrozen(value.enumMember) && Object.isFrozen(index.exactLiteral) && selected.every(Object.isFrozen), true,
     "source constants and native literal publications remain immutable");
   assert.equal(selectCsharpExactPropertyKeyConversion(value.selections[2], primitive("int32")).kind, "rejected",
     "the same exact wide key still respects the native int32 range");
@@ -50,8 +44,9 @@ test("an exact property-key requirement cannot borrow the same node's value lite
   const value = checkedPropertyKeys();
   const expression = value.names[2];
   const target = primitive("int64");
-  const literalValues = analyzeSourceLiteralValues(value.source.ast, value.source.navigation.sourceFiles);
-  const onlyValue = analyzeCsharpExactLiteralSelections(literalValues, [{ expression, source: target, target }], value.nodes);
+  const producer = createCsharpExactLiteralProducer();
+  producer.select(expression, target, "value", target, selectCsharpExactLiteralConversion(value.selections[2], target, target));
+  const onlyValue = producer.seal();
   assert.equal(onlyValue.exactLiteral.get(expression, target)?.kind, "resolved", "the sibling value-purpose record really exists");
   assert.equal(onlyValue.exactLiteral.get(expression, target, "property-key") === undefined, true,
     "the property-key purpose never falls back to value evidence");
@@ -98,7 +93,7 @@ test("Half authored midpoint neighbors follow native Double-to-Half semantics in
   const expected = [0x3c00, 0x3c00, 0x8000, 1];
   const nodeBits = spellings.map(token => new Uint16Array(new Float16Array([Math.f16round(Number(token))]).buffer)[0]);
   assert.deepEqual(nodeBits, expected, "Node parses each authored Double before rounding it to native Half");
-  const selected = checkedSourceLiteralValues(spellings).map(value => selectCsharpExactLiteralConversion(value, primitive("float64"), primitive("float16")));
+  const selected = checkedSourceScalarLiterals(spellings).map(value => selectCsharpExactLiteralConversion(value, primitive("float64"), primitive("float16")));
   const expressions = selected.map((selection, index) => {
     assert.equal(selection.kind === "resolved" && selection.recipe.kind === "float" && selection.recipe.bits === expected[index], true,
       `${index}: the checked Double-to-Half value is selected before rendering`);
@@ -165,7 +160,7 @@ test("actual native dictionary construction carries its computed string key reci
 test("checked wide key recipes render and execute in an actual native Dictionary<long, int>", { timeout: 300_000 }, () => {
   const value = checkedPropertyKeys();
   const target = primitive("int64");
-  const index = analyzeCsharpExactLiteralSelections(analyzeSourceLiteralValues(value.source.ast, value.source.navigation.sourceFiles),
+  const index = nativeLiteralIndex(value.literals,
     [2, 3].map(position => ({ expression: value.names[position], source: undefined, target, propertyKey: value.selections[position] })), value.nodes);
   const expressions = [2, 3].map(position => {
     const admitted = index.exactLiteral.get(value.names[position], target, "property-key");
