@@ -1,101 +1,112 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createCompilerSessionFromFiles } from "@tsonic/tsts";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
-import { resolveCompositionalSourceTypeAlias } from "../../../dist/analysis/source-evidence/types/resolution/source-references.js";
+import { analyzeCsharpSource, assertCsharpCheckingSucceeded } from "../../helpers/direct-csharp-session.mjs";
+import { resolvedSourceValue } from "../../helpers/published-return-contracts.mjs";
+import { csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
+import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
 
 function fixture(alias = "export type View<Value> = { readonly [Key in keyof Value]: Value[Key] }", use = "View<Box>") {
-  const checked = createCompilerSessionFromFiles({ currentDirectory: "/project",
-    compilerOptions: { strict: true, module: "esnext", moduleResolution: "bundler" }, files: {
-      "/project/records.ts": `export interface Box { value: bigint; label: string; } ${alias}`,
-      "/project/index.ts": `import type { Box, View } from './records.js'; export function use(value: ${use}): void {}`,
-    },
-  }).checkSource();
-  assert.equal(checked.diagnostics.length, 0, "the original cross-file source is valid");
-  const source = createTargetSourceProgram(checked);
-  const file = source.navigation.sourceFiles.find(candidate => source.ast.getFileName(candidate) === "/project/index.ts");
-  let parameter;
-  const visit = node => {
-    if (source.ast.is.IsParameterDeclaration(node)) parameter = node;
-    source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+  const compiled = analyzeCsharpSource({
+    sourceText: `import type { Box, View } from "./records.js"; export declare function use(value: ${use}): void;`,
+    files: { "records.ts": `import type { int64 } from "@tsonic/core/types.js";
+      export interface Box { value: int64; label: string; } ${alias}` },
+  });
+  assertCsharpCheckingSucceeded(compiled);
+  assert.equal(compiled.analysis.kind, "resolved");
+  const source = compiled.source;
+  const file = source.sourceFiles.find(file => source.ast.getFileName(file).endsWith("/index.ts"));
+  const declarationFile = source.sourceFiles.find(file => source.ast.getFileName(file).endsWith("/records.ts"));
+  const declaration = source.ast.statements(file).find(node => source.ast.is.IsFunctionDeclaration(node));
+  const parameter = source.ast.parameters(declaration)[0];
+  const aliasDeclaration = source.ast.statements(declarationFile).find(node => source.ast.is.IsTypeAliasDeclaration(node) &&
+    source.ast.text(source.ast.name(node)) === "View");
+  const evidence = resolvedSourceValue(source.facts.values.declaredSlot(parameter), "the original imported-alias parameter").type;
+  const view = source.facts.descriptors;
+  const represent = value => {
+    const selected = compiled.analysis.value.representation.represent(value, "storage", parameter);
+    assert.equal(selected.kind, "represented");
+    assert.equal(selected.value.evidence === value, true);
+    return selected.value;
   };
-  visit(file);
-  const node = source.ast.typeNode(parameter);
-  const typeName = source.ast.as.AsTypeReferenceNode(node).TypeName;
-  const reference = source.navigation.sourceReferenceFor(typeName);
-  const parameters = source.ast.typeParameters(reference.declaration);
-  const queries = source.semantics.forFile(file);
-  const selectedType = queries.types.authoredType(node);
-  const sourceArguments = source.ast.typeArguments(node).map(argument => queries.types.authoredType(argument));
-  const targets = sourceArguments.map((argument, index) => ({ kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: `Native.Argument${index}`, name: `Argument${index}` }));
-  return { source, file, node, typeName, reference, parameters, queries, selectedType, sourceArguments, targets };
+  return { compiled, source, file, declarationFile, parameter, aliasDeclaration, evidence, view, represent,
+    program: compiled.analysis.value };
 }
 
-test("cross-file transformed aliases retain the selected checker and exact generic bindings", () => {
-  const selected = fixture();
-  const resultType = { kind: "source-primitive", name: "int64" };
-  const inherited = {};
-  const inheritedBinding = { sourceType: {}, targetType: { kind: "source-primitive", name: "uint64" } };
-  const state = { depth: 4, sourceBindings: new Map([[inherited, inheritedBinding]]) };
-  let selections = 0;
-  const result = resolveCompositionalSourceTypeAlias({ host: {
-    ast: selected.source.ast, navigation: selected.source.navigation,
-    semantics: () => { assert.fail("selected types must not switch to their declaration checker"); },
-  }, resolveCheckerTransformedSourceType: (root, type, queries, bound) => {
-    selections += 1;
-    assert.equal(root === selected.source.ast.typeNode(selected.reference.declaration), true, "original authored alias root");
-    assert.equal(type === selected.selectedType && queries === selected.queries, true, "one exact caller checker");
-    assert.equal(bound.depth, 5, "bounded recursion remains selected");
-    assert.equal(bound.sourceBindings.get(inherited) === inheritedBinding, true, "outer bindings remain intact");
-    assert.equal(bound.sourceBindings.get(selected.parameters[0]).sourceType === selected.sourceArguments[0], true, "exact checked generic argument");
-    assert.equal(bound.sourceBindings.get(selected.parameters[0]).targetType === selected.targets[0], true, "matching native carrier");
-    return resultType;
-  }, resolveNodeWithState: () => assert.fail("a checked mapped result is not declaration-only syntax") },
-  selected.typeName, selected.targets, selected.selectedType, selected.queries, state, selected.sourceArguments);
-  assert.equal(result.kind === "resolved" && result.type === resultType, true, "retain the native result without carrier repair");
-  assert.equal(selections, 1, "single canonical alias selection");
-  assert.equal(state.sourceBindings.size, 1, "caller bindings are never mutated");
-});
-
-test("compositional cross-file alias syntax retains its declaration owner and parameter order", () => {
-  const selected = fixture("export type View<First, Second> = [First, Second]", "View<Box, string>");
-  const carrier = { kind: "tuple", elements: selected.targets };
-  const result = resolveCompositionalSourceTypeAlias({ host: {
-    ast: selected.source.ast, navigation: selected.source.navigation,
-  }, resolveCheckerTransformedSourceType: () => assert.fail("tuple syntax already has its exact owner"),
-  resolveNodeWithState: (root, file, state) => {
-    assert.equal(root === selected.source.ast.typeNode(selected.reference.declaration), true, "authored tuple root");
-    assert.equal(file === selected.reference.sourceFile, true, "syntax stays with its declaration source file");
-    for (const [index, parameter] of selected.parameters.entries()) {
-      assert.equal(state.sourceBindings.get(parameter).sourceType === selected.sourceArguments[index], true, `checked argument ${index}`);
-      assert.equal(state.sourceBindings.get(parameter).targetType === selected.targets[index], true, `native argument ${index}`);
-    }
-    return carrier;
-  } }, selected.typeName, selected.targets, selected.selectedType, selected.queries, { depth: 0 }, selected.sourceArguments);
-  assert.equal(result.kind === "resolved" && result.type === carrier, true, "one ordered native tuple representation");
-});
-
-test("alias selection rejects incomplete arguments and duplicate declaration identities before resolution", () => {
-  const selected = fixture();
-  const host = { ast: selected.source.ast, navigation: selected.source.navigation };
-  const scope = { host, resolveCheckerTransformedSourceType: () => assert.fail("malformed binders cannot select a native result"),
-    resolveNodeWithState: () => assert.fail("malformed binders cannot resolve declaration syntax") };
-  for (const [targets, arguments_] of [[[], []], [selected.targets, [undefined]], [selected.targets, []]]) {
-    assert.equal(resolveCompositionalSourceTypeAlias(scope, selected.typeName, targets, selected.selectedType,
-      selected.queries, { depth: 0 }, arguments_).kind, "rejected", "arity and absence remain fail-closed");
+function definition(input, evidence) {
+  const visited = new Set();
+  while (evidence.type.kind === "declared" || evidence.type.kind === "projection") {
+    assert.equal(visited.has(evidence), false, "a closed Source alias has one completed definition, not a Native syntax retry");
+    visited.add(evidence);
+    evidence = resolvedSourceValue(input.view.definition(evidence), "the exact original alias definition");
   }
-  const duplicate = { ...scope, host: { ...host, ast: { ...host.ast,
-    typeParameters: () => [selected.parameters[0], selected.parameters[0]],
-  } } };
-  assert.equal(resolveCompositionalSourceTypeAlias(duplicate, selected.typeName, [...selected.targets, ...selected.targets],
-    selected.selectedType, selected.queries, { depth: 0 }, [...selected.sourceArguments, ...selected.sourceArguments]).kind,
-  "rejected", "same-spelled syntax cannot invent a second declaration quantifier");
+  return evidence;
+}
+
+test("cross-file transformed aliases retain original Source bindings and exact Native field contracts", () => {
+  const input = fixture();
+  const originalArguments = input.view.freeParameters(input.evidence);
+  assert.equal(originalArguments.length, 0);
+  const selected = definition(input, input.evidence);
+  assert.equal(selected.type.kind, "shape");
+  const represented = input.represent(input.evidence);
+  const shape = input.program.analysis.typeSystem.objectShapes.resolveTarget(represented.carrier);
+  assert.equal(shape !== undefined, true);
+  assert.deepEqual(shape.members.map(member => member.sourceName), ["label", "value"]);
+  for (const member of shape.members) {
+    assert.equal(member.readonly, true);
+    const source = selected.type.members.find(candidate => candidate.origin === member.origins[0]);
+    assert.equal(source !== undefined, true, "the mapped slot keeps its actual original Source origin");
+    assert.equal(member.origins[0].kind, "mapped");
+    assert.equal(input.source.ast.getSourceFile(member.origins[0].owner) === input.declarationFile, true);
+    assert.equal(targetTypeRefEquals(member.type, member.sourceName === "value"
+      ? csharpSourcePrimitiveTargetType("int64") : csharpStringTargetType()), true);
+  }
+  assert.equal(input.represent(input.evidence) === represented, true, "one canonical Native result, no declaration-checker retry");
+  assert.equal(input.view.freeParameters(input.evidence) === originalArguments, true);
 });
 
-test("unresolved transformed evidence does not invent a selected native carrier", () => {
-  const selected = fixture();
-  const result = resolveCompositionalSourceTypeAlias({ host: { ast: selected.source.ast, navigation: selected.source.navigation },
-    resolveCheckerTransformedSourceType: () => undefined,
-  }, selected.typeName, selected.targets, selected.selectedType, selected.queries, { depth: 0 }, selected.sourceArguments);
-  assert.equal(result.kind, "checker-transformed-alias", "unavailable exact evidence remains unavailable");
+test("compositional cross-file aliases retain their declaration owner and exact parameter order", () => {
+  const input = fixture("export type View<First, Second> = [First, Second]", "View<Box, string>");
+  const parameters = input.source.ast.typeParameters(input.aliasDeclaration);
+  assert.equal(parameters.length, 2);
+  assert.deepEqual(parameters.map(node => input.source.ast.text(input.source.ast.name(node))), ["First", "Second"]);
+  const selected = definition(input, input.evidence);
+  assert.equal(selected.type.kind, "tuple");
+  const first = resolvedSourceValue(input.view.component(selected, { kind: "tuple-element", index: 0 }), "the first original argument");
+  const second = resolvedSourceValue(input.view.component(selected, { kind: "tuple-element", index: 1 }), "the second original argument");
+  const carrier = input.represent(input.evidence).carrier;
+  assert.equal(carrier.kind, "tuple");
+  assert.equal(carrier.elements.length, 2);
+  assert.equal(targetTypeRefEquals(carrier.elements[0], input.represent(first).carrier), true);
+  assert.equal(targetTypeRefEquals(carrier.elements[1], input.represent(second).carrier), true);
+  assert.equal(targetTypeRefEquals(carrier.elements[1], csharpStringTargetType()), true);
+  assert.equal(first.component === second.component, false);
+  assert.equal(input.source.ast.getSourceFile(input.aliasDeclaration) === input.declarationFile, true);
+  assert.equal(input.source.ast.getSourceFile(input.parameter) === input.file, true);
+});
+
+test("alias substitution rejects missing evidence and duplicate original declaration identities before Native receiving", () => {
+  const input = fixture();
+  const parameter = input.source.ast.typeParameters(input.aliasDeclaration)[0];
+  const replacement = definition(input, input.evidence);
+  assert.throws(() => input.view.substitute(input.evidence, [
+    { declaration: parameter, value: replacement }, { declaration: parameter, value: replacement },
+  ]), { message: "A Source application must bind each original parameter exactly once." });
+  assert.throws(() => input.view.substitute(input.evidence, [{ declaration: parameter, value: undefined }]), TypeError);
+  assert.throws(() => input.program.representation.represent(undefined, "storage", input.parameter), TypeError);
+  assert.equal(input.view.freeParameters(input.evidence).length, 0,
+    "failed applications cannot mutate the original complete caller environment");
+});
+
+test("unavailable or foreign transformed evidence cannot invent a selected Native carrier after a warm cache", () => {
+  const input = fixture();
+  const represented = input.represent(input.evidence);
+  const foreign = fixture();
+  for (const evidence of [foreign.evidence, { ...input.evidence },
+    { ...input.evidence, component: foreign.evidence.component }]) {
+    assert.throws(() => input.program.representation.represent(evidence, "storage", input.parameter), TypeError);
+  }
+  assert.equal(input.represent(input.evidence) === represented, true);
+  assert.equal(Object.hasOwn(input.source, "semantics"), false);
+  assert.equal(Object.hasOwn(input.source, "effectiveTypes"), false);
 });

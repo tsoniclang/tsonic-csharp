@@ -1,660 +1,492 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { representCsharpSourceType } from "../../../dist/policy/types/source-type-flow/representation.js";
-import { checkCsharpSourceTypeFlowObligation, checkCsharpSourceTypeFlowObligations } from "../../../dist/policy/types/source-type-flow/obligations.js";
-import { selectCsharpSourceTypeFlowIndexConversion, csharpSourceTypeFlowShiftCountType } from "../../../dist/policy/conversions/source-type-flow-index.js";
-import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
-import { csharpStringTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
+import * as representations from "../../../dist/policy/types/source-type-flow/representation.js";
+import * as obligations from "../../../dist/policy/types/source-type-flow/obligations.js";
+import * as integerUses from "../../../dist/policy/conversions/native-index.js";
+import { sourceOutcome } from "../../../dist/policy/types/source-type-flow/representation-results.js";
+import { csharpNativeTypeImplements } from "../../../dist/policy/types/source-type-flow/relations.js";
+import { selectCsharpParameterListCarrier } from "../../../dist/policy/types/callables/parameter-list.js";
+import { csharpTargetTypeFailsConstraint } from "../../../dist/analysis/operations/members/calls/constraint-satisfaction.js";
+import { csharpObjectShapeMemberContractKey } from "../../../dist/target-model/types/object-shape-identity.js";
+import { csharpRuntimeUnionTargetType, csharpTsValueTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
+import { csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpObjectTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
+import { csharpTargetNamedType } from "../../../dist/target-model/types/factories.js";
+import { csharpQualifiedTypeRenderShape } from "../../../dist/target-model/types/render-shapes.js";
 import { getCsharpArrayLiteralElementTargetType, csharpEnumerableTargetType, csharpReadOnlyListTargetType } from "../../../dist/target-model/types/carriers/collections.js";
-import { getCsharpNullableElementTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
-import { createCsharpTypeParameterEnvironment } from "../../../dist/analysis/source-evidence/types/resolution/type-parameter-environment.js";
-import { csharpSourceTypeFlowInterfaceAccepts } from "../../../dist/policy/types/source-type-flow/relations.js";
+import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 import { csharpJsArrayTargetType } from "../../../dist/target-model/types/carriers/js.js";
-import { createCompilerSessionFromFiles } from "@tsonic/tsts";
-import { createTargetSourceProgram, sourceTypeDescriptorStructure } from "@tsonic/target-api/source";
-import { bindCsharpSourceDeclarationArguments } from "../../../dist/analysis/source-evidence/types/resolution/generic-arguments.js";
-import { resolveNodeValueWithState } from "../../../dist/analysis/source-evidence/types/resolution/nodes.js";
-import * as sourceReferenceOperations from "../../../dist/analysis/source-evidence/types/resolution/source-references.js";
-import * as sourceCallOperations from "../../../dist/analysis/source-evidence/types/resolution/calls.js";
-import * as sourceExpressionOperations from "../../../dist/analysis/source-evidence/types/resolution/expressions.js";
-import { analyzeCsharpSourceTypeFlowObligations } from "../../../dist/analysis/source-evidence/type-flow-obligations.js";
+import { analyzeCsharpSource, assertCsharpCheckingSucceeded } from "../../helpers/direct-csharp-session.mjs";
+import { resolvedSourceValue } from "../../helpers/published-return-contracts.mjs";
+import { createNativeConversionHost } from "../../helpers/native-conversion-host.mjs";
 
-const primitive = name => Object.freeze({ kind: "primitive", primitive: name });
-const unexpected = () => assert.fail("a primitive unit must not query declarations shapes or an unrelated native child");
-const representationHost = surface => ({ target: { id: "csharp", ...(surface === "js" ? { surfaces: ["js"] } : {}) },
-  typeParameterConstraints: {}, declaredType: unexpected, retainShape: unexpected, shapeKind: () => "storage",
-  memberDeclaration: declaration => ({ declarations: [declaration], kind: "property", bound: false }) });
+const primitive = csharpSourcePrimitiveTargetType;
+const core = 'import type { int32, int64, uint32, uint64, float32, float64, decimal } from "@tsonic/core/types.js";';
 
-test("published tuple slots reuse native parameter-list absence and rest storage without reopening source types", () => {
-  for (const surface of ["native", "js"]) {
-    const host = representationHost(surface);
-    const descriptor = { kind: "tuple", readonly: false, elements: [
-      { kind: "required", type: primitive("int64") },
-      { kind: "optional", type: primitive("int64") },
-    ] };
-    const selected = representCsharpSourceType(host, descriptor);
-    assert.equal(selected?.kind === "tuple" && selected.elements.length === 2, true, `${surface}: exact tuple slots`);
-    assert.equal(targetTypeRefEquals(selected.elements[0], csharpSourcePrimitiveTargetType("int64")), true,
-      `${surface}: present width is retained`);
-    assert.equal(targetTypeRefEquals(getCsharpNullableElementTargetType(selected.elements[1]),
-      selected.elements[0]), true, `${surface}: optional slot has one native absence`);
-    const rest = { kind: "rest", type: { kind: "array", readonly: false, element: primitive("int64") } };
-    const homogeneous = representCsharpSourceType(host, { ...descriptor, elements: [...descriptor.elements, rest] });
-    assert.equal(targetTypeRefEquals(getCsharpArrayLiteralElementTargetType(homogeneous), selected.elements[0]), true,
-      `${surface}: homogeneous rest uses the same native collection element`);
-    assert.equal(representCsharpSourceType(host, { ...descriptor,
-      elements: [{ kind: "required", type: primitive("float64") }, rest] }) === undefined, true,
-      `${surface}: incompatible rest widths do not manufacture a common element`);
-    assert.equal(representCsharpSourceType(host, { ...descriptor, elements: [rest, rest] }) === undefined, true,
-      `${surface}: multiple rest slots still refuse`);
-  }
-});
-
-test("declarations and reads use only their actual Host outcome across every publication state", () => {
-  const checked = createCompilerSessionFromFiles({ currentDirectory: "/src", files: { "/src/index.ts": `
-    class Box { field: number = 1; }
-    function run(input: number): number {
-      const value: number = input;
-      const { item } = { item: value };
-      const record = { value, value2: value };
-      const box = new Box();
-      return value + item + record.value + record["value"] + box.field;
-    }
-  ` }, compilerOptions: { strict: true, target: "es2022", module: "esnext" } }).checkSource();
-  assert.equal(checked.diagnostics.length, 0);
-  const source = createTargetSourceProgram(checked);
-  const file = checked.getSourceFile("/src/index.ts");
+function fixture(text, surface = "native") {
+  const compiled = analyzeCsharpSource({ surface, sourceText: core + text });
+  assertCsharpCheckingSucceeded(compiled);
+  assert.equal(compiled.analysis.kind, "resolved", "the genuine Native program owns one representation view");
+  const program = compiled.analysis.value;
+  const source = compiled.source;
   const nodes = [];
-  const visit = node => { nodes.push(node); source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); }); };
-  visit(file);
+  const visit = node => {
+    nodes.push(node);
+    source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+  };
+  for (const file of source.sourceFiles) if (!source.ast.isDeclarationFile(file)) visit(file);
   const named = (node, name) => source.ast.text(source.ast.name(node)) === name;
-  const cases = [
+  const parameter = name => {
+    const matches = nodes.filter(node => source.ast.is.IsParameterDeclaration(node) && named(node, name));
+    assert.equal(matches.length, 1, `one original parameter ${name}`);
+    return matches[0];
+  };
+  const slot = name => {
+    const node = parameter(name);
+    const evidence = resolvedSourceValue(source.facts.values.declaredSlot(node), "the original declared storage").type;
+    return { node, evidence };
+  };
+  const endpoint = name => {
+    const selected = slot(name);
+    const result = program.representation.represent(selected.evidence, "storage", selected.node);
+    assert.equal(result.kind, "represented", `actual Native storage for ${name}`);
+    return { ...selected, carrier: result.value.carrier, represented: result.value };
+  };
+  return { compiled, program, source, nodes, named, parameter, slot, endpoint };
+}
+
+function nativeHost(context, laws = createNativeConversionHost()) {
+  return { ...laws, representation: context.program.representation,
+    nativeConstraintFailure(carrier, constraint) {
+      const reason = csharpTargetTypeFailsConstraint(laws, { kind: "target-derived", targetType: carrier }, constraint);
+      return reason === undefined ? { kind: "none" } : { kind: "present", value: reason };
+    } };
+}
+
+function write(context, source, destination, site = source.node) {
+  return obligations.checkCsharpNativeTypeObligation(nativeHost(context), { kind: "write-fit", site, source, destination });
+}
+
+function scalar(context, text) {
+  const node = context.source.facts.values.occurrences().find(node => context.source.ast.text(node) === text);
+  assert.equal(node !== undefined, true, `the actual original scalar ${text}`);
+  return { node, evidence: resolvedSourceValue(context.source.facts.values.type(node), "the original scalar value") };
+}
+
+for (const surface of ["native", "js"]) {
+  test(`published ${surface} tuple slots retain exact absence and homogeneous Native rest ABI`, () => {
+    const context = fixture(`export declare function slots(
+      fixed: [int64, int64?], rest: [int64, int64?, ...int64[]],
+      heterogeneous: [float64, ...int64[]]): void;`, surface);
+    const fixed = context.endpoint("fixed");
+    assert.equal(fixed.carrier.kind, "tuple");
+    assert.equal(fixed.carrier.elements.length, 2);
+    assert.equal(targetTypeRefEquals(fixed.carrier.elements[0], primitive("int64")), true);
+    assert.equal(targetTypeRefEquals(getCsharpNullableElementTargetType(fixed.carrier.elements[1]), primitive("int64")), true);
+    assert.equal(targetTypeRefEquals(getCsharpArrayLiteralElementTargetType(context.endpoint("rest").carrier), primitive("int64")), true);
+    const bad = context.slot("heterogeneous");
+    const rejected = context.program.representation.represent(bad.evidence, "storage", bad.node);
+    assert.equal(rejected.kind, "native-refused");
+    assert.equal(rejected.code, "CSHARP_TUPLE_STORAGE_UNSUPPORTED");
+    assert.equal(rejected.site === bad.node, true);
+    const rest = surface === "js" ? csharpJsArrayTargetType(primitive("int64")) : { kind: "array", element: primitive("int64") };
+    assert.equal(selectCsharpParameterListCarrier([rest, rest], [0, 1], surface === "js"), undefined,
+      "malformed multiple-rest Native metadata never acquires a common element");
+  });
+}
+
+test("declarations, original reads and metadata have one genuine Source publication boundary", () => {
+  const context = fixture(`export class Box { field: number = 1; }
+    export function run(input: number): number {
+      const value: number = input; const { item } = { item: value };
+      const record = { value, value2: value }; const box = new Box();
+      return value + item + record.value + record["value"] + box.field;
+    }`);
+  const { source, nodes, named } = context;
+  const occurrences = source.facts.values.occurrences();
+  const kinds = [
     ["variable", node => source.ast.is.IsVariableDeclaration(node) && named(node, "value")],
     ["parameter", node => source.ast.is.IsParameterDeclaration(node) && named(node, "input")],
     ["binding", node => source.ast.is.IsBindingElement(node) && named(node, "item")],
     ["field", node => source.ast.is.IsPropertyDeclaration(node) && named(node, "field")],
-    ["property metadata", node => source.ast.is.IsPropertyAssignment(node) && named(node, "value2"), true],
-    ["shorthand metadata", node => source.ast.is.IsShorthandPropertyAssignment(node) && named(node, "value"), true],
-    ["identifier read", node => source.ast.is.IsIdentifier(node) && source.ast.text(node) === "value" &&
-      source.ast.is.IsBinaryExpression(source.ast.parent(node))],
-    ["property read", node => source.ast.is.IsPropertyAccessExpression(node) && named(node, "value")],
-    ["element read", node => source.ast.is.IsElementAccessExpression(node)],
   ];
-  for (const [name, predicate, metadata] of cases) {
+  for (const [name, predicate] of kinds) {
     const node = nodes.find(predicate);
     assert.equal(node !== undefined, true, name);
-    const actual = source.effectiveTypes.get(node);
-    assert.equal(metadata ? actual === undefined : actual !== undefined && actual.kind !== "refused" &&
-      actual.provenance.occurrence === node, true, `${name}: the real Source value/metadata boundary`);
-    const states = metadata ? [["metadata absent", undefined]] : [
-      ["resolved", { ...actual, kind: "resolved" }],
-      ["default", { ...actual, kind: "default" }],
-      ["absent", undefined],
-      ["refused", { kind: "refused", source: "tsonic", code: "TSONIC_LOCAL_TYPE_CONFLICT", site: node,
-        reason: "The original Source group has conflicting declared fills." }],
-      ["foreign", { ...actual, provenance: { ...actual.provenance, occurrence: file } }],
-    ];
-    for (const [stateName, outcome] of states) {
-      const label = `${name}/${stateName}`;
-      const forbidden = () => assert.fail(`${label}: a missing Host fact cannot trigger a second Source chooser`);
-      const rejections = [];
-      const host = { ast: source.ast, target: { id: "csharp" }, typeParameterConstraints: {},
-        effectiveTypes: { get(selected) { assert.equal(selected === node, true, label); return outcome; } },
-        semantics: forbidden, semanticsFor: forbidden, navigation: { referenceFor: forbidden },
-        representations: { scopedTargetType: forbidden },
-        objectShapes: { resolveNativeParameter(owner, parameter, type) {
-          assert.equal(parameter === node && owner === source.ast.parent(node), true, label);
-          return { kind: "resolved", type };
-        } },
-      };
-      const scope = { host, resolveTypeWithState: forbidden, resolveNodeWithState: forbidden,
-        resolveSelectedExpressionResult: forbidden, resolveSelectedValueResultWithState: forbidden };
-      const resolve = () => resolveNodeValueWithState(scope, node, file, { depth: 0,
-        rejectNativeResolution: rejection => rejections.push(rejection) });
-      if (stateName === "foreign") {
-        assert.throws(resolve, error => error.diagnostic?.code === "TSONIC_INTERNAL_ANALYSIS_INVARIANT" &&
-          error.diagnostic.sourceNode === node, label);
-        continue;
-      }
-      const result = resolve();
-      if (outcome === undefined || outcome.kind === "refused") assert.equal(result === undefined, true, label);
-      else assert.equal(targetTypeRefEquals(result?.selectedType,
-        representCsharpSourceType(representationHost("native"), outcome.type)), true, label);
-      assert.equal(rejections.length, outcome?.kind === "refused" ? 1 : 0, label);
-      if (outcome?.kind === "refused") assert.equal(rejections[0].subject === node && rejections[0].code === outcome.code, true, label);
-    }
+    const slot = resolvedSourceValue(source.facts.values.declaredSlot(node), `${name} original storage`);
+    source.facts.descriptors.assertEvidence(slot.type);
+  }
+  for (const node of nodes.filter(node => source.ast.is.IsPropertyAssignment(node) || source.ast.is.IsShorthandPropertyAssignment(node))) {
+    assert.equal(occurrences.includes(node), false, "member metadata is not a second value occurrence");
+  }
+  for (const node of occurrences.filter(node => source.ast.is.IsPropertyAccessExpression(node) || source.ast.is.IsElementAccessExpression(node))) {
+    const value = resolvedSourceValue(source.facts.values.type(node), "the original read");
+    const represented = context.program.representation.represent(value, "value", node);
+    assert.equal(represented.kind, "represented");
+    assert.equal(represented.value.evidence === value, true, "the exact Source evidence reaches Native unchanged");
+    assert.throws(() => context.program.representation.represent({ ...value }, "value", node), TypeError,
+      "a copied record is not authenticated evidence, even after caching its real counterpart");
   }
 });
 
-test("the superseded declaration initializer and refinement value APIs are absent", () => {
-  assert.equal("resolveSourceValueResult" in sourceReferenceOperations, false);
-  assert.equal("resolveSourceValueDeclaration" in sourceReferenceOperations, false);
-  assert.equal("sourceValueDeclarationSyntax" in sourceCallOperations, false);
-  assert.equal("inferSourceCallTargetTypeArguments" in sourceCallOperations, false);
-  assert.equal("resolveSelectedExpressionResult" in sourceExpressionOperations, false);
-  assert.equal("resolveSelectedExpressionType" in sourceExpressionOperations, false);
-  assert.equal("resolveNonNullExpressionType" in sourceExpressionOperations, false);
+test("superseded representation and batch obligation APIs are not exported", () => {
+  for (const name of ["representCsharpSourceType", "sourceTypeFlowRepresentation"]) assert.equal(Object.hasOwn(representations, name), false, name);
+  for (const name of ["checkCsharpSourceTypeFlowObligation", "checkCsharpSourceTypeFlowObligations"]) assert.equal(Object.hasOwn(obligations, name), false, name);
+  for (const name of ["selectCsharpSourceTypeFlowIndexConversion", "csharpSourceTypeFlowShiftCountType"]) assert.equal(Object.hasOwn(integerUses, name), false, name);
 });
 
-test("a real enum declaration has zero native generic binders without an invalid AST accessor", () => {
-  const checked = createCompilerSessionFromFiles({ currentDirectory: "/src", files: {
-    "/src/index.ts": "enum Token { Ready = 1, Done = 2 }",
-  }, compilerOptions: { strict: true, target: "es2022", module: "esnext" } }).checkSource();
-  assert.equal(checked.diagnostics.length, 0);
-  const source = createTargetSourceProgram(checked);
-  const file = checked.getSourceFile("/src/index.ts");
-  const declaration = source.ast.statements(file).find(node => source.ast.is.IsEnumDeclaration(node));
-  assert.equal(declaration !== undefined, true, "the exact checked enum declaration is retained");
-  const state = { depth: 0 };
-  const scope = { host: { ast: source.ast }, resolveNodeWithState: unexpected };
-  assert.equal(bindCsharpSourceDeclarationArguments(scope, declaration, [], [], state,
-    source.semantics.forFile(file)) === state, true, "a non-generic declaration retains the identical binding environment");
-  assert.equal(bindCsharpSourceDeclarationArguments(scope, declaration, [csharpStringTargetType()], [], state,
-    source.semantics.forFile(file)) === undefined, true, "an enum cannot acquire an invented type argument");
+test("the unchanged Source refusal object and its exact original child site are forwarded", () => {
+  const context = fixture("export function original(value: number): number { return value; }");
+  const site = context.parameter("value");
+  const refusal = Object.freeze({ kind: "refused", source: "tsonic", code: "TSONIC_SOURCE_FORM_UNSUPPORTED",
+    message: "Exact unsupported demanded Source child.", site });
+  const result = sourceOutcome(refusal);
+  assert.equal(result.kind, "source-refused");
+  assert.equal(result.refusal === refusal && result.refusal.site === site, true,
+    "unit contract, not a reconstructed or claimed measured lazy-constraint program");
 });
 
-test("representation maps each exact Host primitive and keeps native versus JS array carriers", () => {
-  for (const surface of ["native", "js"]) for (const name of ["int32", "int64", "float32", "float64", "uint32", "uint64", "decimal"]) {
-    const descriptor = Object.freeze({ kind: "array", readonly: false, element: primitive(name) });
-    const selected = representCsharpSourceType(representationHost(surface), descriptor);
-    assert.equal(getCsharpArrayLiteralElementTargetType(selected)?.name, name, `${surface}/${name}: no width choice at representation`);
-    assert.equal(surface === "native" ? selected?.kind === "array" : selected?.kind === "target-named", true,
-      `${surface}: the pre-JS-semantics carrier remains unchanged`);
-    assert.equal(Object.isFrozen(descriptor) && descriptor.element.primitive === name, true, "representation does not rewrite the Host fact");
-  }
-});
-
-test("declared representation keeps nominal identity ordered arguments and the exact Source component", () => {
-  const declaration = {};
-  const descriptor = { kind: "declared", declaration, typeArguments: [primitive("int64"), primitive("float32")] };
-  const expected = { kind: "target-named", id: "fixture.Pair`2" };
-  let calls = 0;
-  const selected = representCsharpSourceType({ ...representationHost("native"), declaredType(owner, arguments_, published) {
-    calls += 1;
-    assert.equal(owner === declaration && published === descriptor, true, "the exact declaration and its published descriptor are retained");
-    assert.deepEqual(arguments_.map(argument => argument.name), ["int64", "float32"], "declared argument order is unchanged");
-    assert.equal(Object.isFrozen(arguments_), true);
-    return expected;
-  } }, descriptor);
-  assert.equal(selected === expected && calls === 1, true, "the actual declared producer is called once");
-});
-
-test("a declared optional value keeps one native absence without another wrapper", () => {
-  const selected = representCsharpSourceType(representationHost("native"), { kind: "optional", value: primitive("int32") });
-  const element = getCsharpNullableElementTargetType(selected);
-  assert.equal(element?.kind === "source-primitive" && element.name === "int32" && getCsharpNullableElementTargetType(element) === undefined, true,
-    "optional(int32) has one exact nullable integer carrier");
-});
-
-test("literal admission uses the retained authored value and rejects before publication with the target diagnostic", () => {
-  const site = {};
-  const literal = Object.freeze({ form: "numeric", integer: 2147483648n,
-    numeric: Object.freeze({ kind: "authored", token: Object.freeze({ coefficient: 2147483648n, exponent: 0n,
-      negative: false, decimalText: "2147483648" }) }) });
-  let reads = 0;
-  const host = { ...representationHost("native"), literalValues: { literalValue: { get(node) {
-    reads += 1;
-    assert.equal(node === site, true, "the literal input is the exact retained value occurrence");
-    return literal;
-  } } } };
-  const issue = checkCsharpSourceTypeFlowObligation(host, { kind: "literal-admission", authority: "declared", site, required: site, value: site, type: primitive("int32") });
-  assert.equal(issue?.sourceNode === site && issue.code === "CSHARP_UNSUPPORTED_AST" && issue.source === "tsonic-csharp", true);
-  assert.equal(issue.message, "Source bigint literal is outside the exact 'int32' range.");
-  assert.equal(reads, 1, "no late source query or literal reconstruction");
-});
-
-test("write checks keep the projected descriptor and do not ask another native value owner", () => {
-  const site = {};
-  const value = {};
-  const binder = {};
-  const variable = Object.freeze({ node: value, path: Object.freeze([
-    Object.freeze({ kind: "binder", declaration: binder }), Object.freeze({ kind: "element" }),
-    Object.freeze({ kind: "tuple", index: 0 }), Object.freeze({ kind: "member", name: "count" }),
-  ]) });
-  const host = { ...representationHost("native"), literalValues: { literalValue: { get: () => undefined } },
-    valueType: unexpected };
-  const issue = checkCsharpSourceTypeFlowObligation(host, { kind: "write-fit", site, required: site,
-    value, valueType: primitive("int32"), valueVariable: variable, type: primitive("int32") });
-  assert.equal(issue === undefined, true, "the same actual projected int32 value fits int32 storage");
-  assert.equal(variable.node === value && variable.path[0].declaration === binder && Object.isFrozen(variable.path), true,
-    "the original Box RHS and full binder metadata path are kept, never interpreted as a runtime access or retyped as Box");
-  assert.deepEqual(variable.path.map(part => part.kind), ["binder", "element", "tuple", "member"],
-    "no metadata path kind is removed or converted into a runtime property path");
-  const missing = checkCsharpSourceTypeFlowObligation(host, { kind: "write-fit", site, required: site,
-    value, valueVariable: variable, type: primitive("int32") });
-  assert.equal(missing?.sourceNode === site && missing.code === "CSHARP_UNSUPPORTED_AST", true);
-  assert.equal(missing.message, "A native write check requires the exact projected value's Host-selected representation.");
-});
-
-test("actual retained shapes keep exact declared properties and reject a different retained Native answer", () => {
-  const declaration = {};
-  const environment = createCsharpTypeParameterEnvironment(unexpected);
-  const descriptor = Object.freeze({ kind: "shape", indexes: [], calls: [], constructs: [], members: Object.freeze([
-    Object.freeze({ name: "count", origin: Object.freeze({ kind: "declared", declaration }), optional: false, readonly: true, type: primitive("int32") }),
-  ]) });
-  let retained;
-  const host = { ...representationHost("native"), typeParameterConstraints: environment, retainShape(shape) {
-    assert.equal(shape.constructible === undefined && !Object.prototype.hasOwnProperty.call(shape, "constructible"), true,
-      "a Host shape descriptor does not fabricate a Native construction capability");
-    retained = Object.freeze({ ...shape, constructible: true });
-    assert.equal(shape.members[0].sourceDeclarations[0] === declaration && shape.members[0].readonly === true, true,
-      "the actual Native header keeps the original property identity and readonly fact");
-    assert.equal(shape.members[0].type.name, "int32");
-    assert.equal(shape.members[0].optional, false, "the required presence bit reaches the existing Native header unchanged");
-    return retained;
-  } };
-  const selected = representCsharpSourceType(host, descriptor);
-  assert.equal(selected === retained.targetType && retained.constructible === true, true, "one retained Native shape is the actual representation");
-  const changed = representCsharpSourceType({ ...host, retainShape: shape => ({ ...shape, constructible: true, targetType: csharpSourcePrimitiveTargetType("int32") }) }, descriptor);
-  assert.equal(changed === undefined, true, "a second physical answer is rejected, not repaired");
-});
-
-test("optional member presence stays independent of its optional value and missing presence is rejected", () => {
-  const environment = createCsharpTypeParameterEnvironment(unexpected);
-  const headers = [];
-  const host = { ...representationHost("native"), typeParameterConstraints: environment,
-    retainShape: shape => { headers.push(shape); return shape; } };
-  for (const optional of [false, true]) {
-    const selected = representCsharpSourceType(host, { kind: "shape", indexes: [], calls: [], constructs: [], members: [
-      { name: "value", optional, origin: { kind: "declared", declaration: {} }, type: { kind: "optional", value: primitive("int32") } },
-    ] });
-    assert.equal(selected !== undefined, true);
-    const member = headers.at(-1).members[0];
-    assert.equal(member.optional, optional);
-    assert.equal(getCsharpNullableElementTargetType(member.type)?.name, "int32");
-  }
-  assert.equal(targetTypeRefKey(headers[0].targetType) !== targetTypeRefKey(headers[1].targetType), true,
-    "the existing Native header identity distinguishes optional presence, not the value type");
-  assert.equal(representCsharpSourceType(host, { kind: "shape", indexes: [], calls: [], constructs: [], members: [{ name: "value", origin: { kind: "declared", declaration: {} }, type: primitive("int32") }] }), undefined,
-    "the removed presence-less contract is rejected without a compatibility default");
-});
-
-test("bound and unbound member representations retain the exact published declaration and Native binding fact", () => {
-  const checked = createCompilerSessionFromFiles({ currentDirectory: "/src", files: {
-    "/src/index.ts": "export interface Fields { value: number; }",
-  }, compilerOptions: { strict: true, module: "esnext", target: "es2022" } }).checkSource();
-  assert.equal(checked.diagnostics.length, 0);
-  const source = createTargetSourceProgram(checked);
-  const owner = source.ast.statements(checked.getSourceFile("/src/index.ts"))
-    .find(node => source.ast.is.IsInterfaceDeclaration(node));
-  const published = source.effectiveTypes.get(owner);
-  assert.equal(published?.kind === "resolved", true, "the real declared owner has a published member inventory");
-  const descriptor = sourceTypeDescriptorStructure(published.type);
-  assert.equal(descriptor.kind === "shape" && descriptor.members.length === 1, true);
-  const origin = descriptor.members[0].origin;
-  assert.equal(origin.kind, "declared");
-  const carriers = [];
-  for (const bound of [false, true]) {
-    let retained;
-    let reads = 0;
-    const carrier = representCsharpSourceType({ ...representationHost("native"),
-      typeParameterConstraints: createCsharpTypeParameterEnvironment(unexpected),
-      memberDeclaration(declaration) {
-        reads += 1;
-        assert.equal(declaration === origin.declaration, true, "only the identical published declaration supplies binding");
-        return { declarations: [declaration], kind: "property", bound };
-      }, retainShape(shape) { retained = shape; return shape; },
-    }, descriptor);
-    assert.equal(carrier !== undefined && reads === 1, true, "one binding read finishes one exact representation");
-    assert.equal((retained.members[0].bound === true) === bound && retained.members[0].origins[0] === origin, true,
-      "bound storage and original Source origin are both retained");
-    assert.equal(retained.members[0].type.name, "float64", "binding never retypes the member");
-    carriers.push(carrier);
-  }
-  assert.equal(targetTypeRefKey(carriers[0]) !== targetTypeRefKey(carriers[1]), true,
-    "the primary Native shape distinguishes bound and ordinary storage before correspondence checks");
-});
-
-test("runtime representation obligations exclude only proven compile-time metadata subtrees", () => {
-  const checked = createCompilerSessionFromFiles({ currentDirectory: "/src", files: {
-    "/src/index.ts": "const erased: { value: number } = { value: 1 }; const live: { value: number } = { value: 2 };",
-  }, compilerOptions: { strict: true, module: "esnext", target: "es2022" } }).checkSource();
-  assert.equal(checked.diagnostics.length, 0);
-  const source = createTargetSourceProgram(checked);
-  const file = checked.getSourceFile("/src/index.ts");
-  const literals = [];
-  const visit = node => {
-    if (source.ast.is.IsObjectLiteralExpression(node)) literals.push(node);
-    source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
-  };
-  visit(file);
-  assert.equal(literals.length, 2);
-  const obligations = literals.map(site => {
-    const outcome = source.effectiveTypes.get(site);
-    assert.equal(outcome?.kind === "resolved", true, "the actual literal has its checked published descriptor");
-    return { kind: "literal-admission", authority: "declared", site, type: outcome.type };
-  });
-  const erased = source.ast.parent(literals[0]);
-  for (const classification of [true, false, undefined]) {
-    let representations = 0;
-    const issues = analyzeCsharpSourceTypeFlowObligations({ ast: source.ast,
-      effectiveTypes: { get: source.effectiveTypes.get, obligations: () => obligations },
-      types: { sourceTypeFlowRepresentation() {
-        representations += 1;
-        return { ...representationHost("native"),
-          typeParameterConstraints: createCsharpTypeParameterEnvironment(unexpected), retainShape: () => undefined };
-      } },
-    }, {}, {}, {}, { get: node => node === erased ? classification : false });
-    assert.equal(issues.length, classification === true ? 1 : 2,
-      "false or absent classification never grants runtime representation admission");
-    assert.equal(representations, issues.length, "only the proven metadata subtree bypasses Native representation");
-    assert.equal(issues.every(issue => issue.code === "CSHARP_UNSUPPORTED_AST" &&
-      issue.message === "The Host-selected source type has no closed native C# representation." &&
-      obligations.some(obligation => obligation.site === issue.sourceNode)), true,
-      "nonmetadata refusals retain the original code, exact reason and actual occurrence");
-  }
-});
-
-test("native collection obligations preserve exact arguments and reject variance rank changes and copies", () => {
-  const integer = csharpSourcePrimitiveTargetType("int32");
-  const text = csharpStringTargetType();
-  const broad = csharpSourcePrimitiveTargetType("object");
-  const host = { projectTypes: { directSupertypes: () => [] }, providers: {
-    findTargetBindingByTargetId: () => undefined, findTargetBindingByMetadataName: () => undefined,
-  } };
-  for (const contract of [csharpEnumerableTargetType(integer), csharpReadOnlyListTargetType(integer)]) {
-    assert.equal(csharpSourceTypeFlowInterfaceAccepts(host, { kind: "array", element: integer }, contract), true,
-      "a native vector directly implements the identical element contract");
-    assert.equal(csharpSourceTypeFlowInterfaceAccepts(host, { kind: "array", rank: 2, element: integer }, contract), false,
-      "a multidimensional array does not acquire vector interfaces from its element metadata");
-    assert.equal(csharpSourceTypeFlowInterfaceAccepts(host, csharpJsArrayTargetType(integer), contract), true,
-      "the existing JSArray directly implements the identical native collection contracts");
-  }
-  assert.equal(csharpSourceTypeFlowInterfaceAccepts(host, { kind: "array", element: text }, csharpEnumerableTargetType(broad)), false,
-    "native covariance is not used to choose a source type or manufacture a copied array");
-});
-
-test("write checks reject an out-of-range authored literal despite identical Native types", () => {
-  const value = {};
-  const site = {};
-  const token = integer => Object.freeze({ form: "numeric", integer, number: Number(integer),
-    numeric: Object.freeze({ kind: "authored", token: Object.freeze({ coefficient: integer, exponent: 0n, negative: false, decimalText: `${integer}` }) }) });
-  const literal = token(2147483648n);
-  const variable = Object.freeze({ node: value, path: Object.freeze([]) });
-  const host = { ...representationHost("native"), literalValues: { literalValue: { get: node => node === value ? literal : undefined } }, valueType: unexpected };
-  const issue = checkCsharpSourceTypeFlowObligation(host, { kind: "write-fit", site, required: site,
-    value, valueType: primitive("int32"), valueVariable: variable, type: primitive("int32") });
-  assert.equal(issue?.code === "CSHARP_UNSUPPORTED_AST" && issue.sourceNode === site, true,
-    "identical int32 carriers never bypass the original literal's full-token range");
-  assert.equal(issue.message, "The written literal does not fit the existing 'source:int32' storage.");
-  assert.equal(variable.node === value && variable.path.length === 0, true,
-    "the literal receipt retains its exact value occurrence");
-});
-
-for (const [name, elements, path, valueType, expected] of [
-  ["overflowing spread element", [2147483648n], [{ kind: "element" }], "int32", "The written literal does not fit the existing 'source:int32' storage."],
-  ["fitting spread elements", [1n, 2n], [{ kind: "element" }], "int32", undefined],
-  ["overflowing tuple element", [1n, 2147483648n], [{ kind: "tuple", index: 1 }], "int32", "The written literal does not fit the existing 'source:int32' storage."],
-  ["known plus unknown spread elements", [1n, undefined], [{ kind: "element" }], "int64", "No exact C# implicit conversion relates 'source:int64' to 'source:int32'."],
-]) {
-  test(`projected literal metadata checks ${name} before Native identity without losing unknown inputs`, () => {
-    const rhs = {};
-    const site = {};
-    const values = Object.freeze(elements.map(integer => integer === undefined ? undefined : Object.freeze({
-      form: "numeric", integer, number: Number(integer), numeric: Object.freeze({ kind: "authored",
-        token: Object.freeze({ coefficient: integer, exponent: 0n, negative: false, decimalText: `${integer}` }) }),
-    })));
-    const literal = Object.freeze({ form: "array", elements: values });
-    const variable = Object.freeze({ node: rhs, path: Object.freeze(path.map(part => Object.freeze(part))) });
-    const providers = { findTargetBindingByTargetId: () => undefined, findTargetBindingByMetadataName: () => undefined };
-    const host = { ...representationHost("native"), providers, projectTypes: { directSupertypes: () => [] },
-      literalValues: { literalValue: { get(node) {
-        assert.equal(node === rhs, true, "the original retained RHS owns the literal index entry");
-        return literal;
-      } } }, valueType: unexpected };
-    const issue = checkCsharpSourceTypeFlowObligation(host, { kind: "write-fit", site, required: site, value: rhs,
-      valueVariable: variable, valueType: primitive(valueType), type: primitive("int32") });
-    if (expected === undefined) assert.equal(issue === undefined, true, "every exact known projected token fits");
-    else {
-      assert.equal(issue?.sourceNode === site && issue.source === "tsonic-csharp" && issue.code === "CSHARP_UNSUPPORTED_AST", true,
-        "the original write site retains the exact Native refusal");
-      assert.equal(issue.message, expected);
-    }
-    assert.equal(literal.elements === values && values.length === elements.length && variable.node === rhs, true,
-      "projection neither copies the Source token rows nor compacts an unknown element");
-    assert.equal(variable.path.length === path.length && variable.path.every((part, index) => part.kind === path[index].kind), true,
-      "the exact element or tuple metadata path remains unchanged");
-  });
-}
-
-test("aggregate literal admission consumes the existing Native construction receipt at the retained site", () => {
-  const site = {};
-  const carrier = Object.freeze({ kind: "array", element: csharpSourcePrimitiveTargetType("int32") });
-  let queries = 0;
-  const host = { ...representationHost("native"), literalAdmission(node, selected) {
-    queries += 1;
-    assert.equal(node === site && targetTypeRefEquals(selected, carrier), true,
-      "the actual aggregate occurrence and Host-selected carrier reach the existing Native admission owner");
-    return { kind: "resolved", type: carrier };
-  } };
-  const obligation = { kind: "literal-admission", authority: "declared", site, required: site,
-    type: { kind: "array", readonly: false, element: primitive("int32") } };
-  assert.equal(checkCsharpSourceTypeFlowObligation(host, obligation) === undefined && queries === 1, true,
-    "the actual producer's site-only literal obligation needs no fabricated Host value field");
-  const unavailable = checkCsharpSourceTypeFlowObligation({ ...host, literalAdmission: () => undefined }, obligation);
-  assert.equal(unavailable?.sourceNode === site && unavailable.code === "CSHARP_UNSUPPORTED_AST", true);
-  assert.equal(unavailable.message, "An aggregate literal requires its completed native construction admission for the Host-selected representation.");
-  const subject = {};
-  const rejected = checkCsharpSourceTypeFlowObligation({ ...host, literalAdmission: () => ({
-    kind: "rejected", subject, code: "CSHARP_UNSUPPORTED_AST", reason: "exact retained native literal refusal",
-  }) }, obligation);
-  assert.equal(rejected.sourceNode === subject && rejected.message === "exact retained native literal refusal", true,
-    "Native admission's original subject and reason are forwarded unchanged");
+test("a real enum underlying publication has no invented generic parameters", () => {
+  const context = fixture("export enum Token { Ready = 1, Done = 2 }");
+  const declaration = context.nodes.find(node => context.source.ast.is.IsEnumDeclaration(node));
+  assert.equal(declaration !== undefined, true);
+  const enumeration = resolvedSourceValue(context.source.facts.enums.declaration(declaration), "original enum metadata");
+  assert.equal(enumeration.declaration === declaration, true);
+  assert.deepEqual(context.source.facts.descriptors.freeParameters(enumeration.underlying), []);
 });
 
 for (const surface of ["native", "js"]) {
-  test(`partial ${surface} array write receipts range-check only constant leaves without replacing aggregate admission`, () => {
-    const site = {};
-    const descriptor = Object.freeze({ kind: "array", readonly: false, element: primitive("float32") });
-    const carrier = representCsharpSourceType(representationHost(surface), descriptor);
-    const literal = Object.freeze({ form: "array", elements: Object.freeze([undefined, Object.freeze({ form: "numeric",
-      integer: 1n, number: 1, numeric: Object.freeze({ kind: "authored", token: Object.freeze({
-        coefficient: 1n, exponent: 0n, negative: false, decimalText: "1",
-      }) }),
-    })]) });
-    let admissions = 0;
-    const host = { ...representationHost(surface), literalValues: { literalValue: { get: node => node === site ? literal : undefined } },
-      valueType: unexpected, literalAdmission(node, selected) {
-        admissions += 1;
-        assert.equal(node === site && targetTypeRefEquals(selected, carrier), true, "the exact aggregate admission remains mandatory");
-        return { kind: "resolved", type: carrier };
-      } };
-    const issues = checkCsharpSourceTypeFlowObligations(host, [
-      { kind: "literal-admission", authority: "declared", site, required: site, type: descriptor },
-      { kind: "write-fit", site, required: site, value: site, valueType: descriptor, type: descriptor },
-    ]);
-    assert.equal(issues.length === 0 && admissions === 1, true,
-      "a nonconstant float32 element is checked by its published descriptor, not treated as a missing literal");
-    const overflow = Object.freeze({ form: "array", elements: Object.freeze([undefined, Object.freeze({ form: "numeric",
-      integer: 2147483648n, number: 2147483648, numeric: Object.freeze({ kind: "authored", token: Object.freeze({
-        coefficient: 2147483648n, exponent: 0n, negative: false, decimalText: "2147483648",
-      }) }),
-    })]) });
-    const integerArray = Object.freeze({ kind: "array", readonly: false, element: primitive("int32") });
-    const issue = checkCsharpSourceTypeFlowObligation({ ...host,
-      literalValues: { literalValue: { get: () => overflow } },
-    }, { kind: "write-fit", site, required: site, value: site, valueType: integerArray, type: integerArray });
-    assert.equal(issue?.code === "CSHARP_UNSUPPORTED_AST" && issue.sourceNode === site && issue.message.includes("written literal does not fit"), true,
-      "unknown siblings never waive the exact range of a retained constant leaf");
+  test(`representation retains every exact Source width and ${surface} array carrier`, () => {
+    const names = ["int32", "int64", "float32", "float64", "uint32", "uint64", "decimal"];
+    const context = fixture(`export declare function widths(${names.map(name => `${name}Values: ${name}[]`).join(",")}): void;`, surface);
+    for (const name of names) {
+      const selected = context.endpoint(`${name}Values`);
+      assert.equal(getCsharpArrayLiteralElementTargetType(selected.carrier)?.name, name);
+      assert.equal(selected.carrier.kind === "array", surface === "native");
+      assert.equal(Object.isFrozen(selected.evidence), true, "the original publication is not rewritten");
+    }
   });
 }
 
-test("native write-fit checks broad storage through its exact boxing conversion without treating it as a numeric range", () => {
-  const site = {};
-  const literal = Object.freeze({ form: "false" });
-  const host = { ...representationHost("native"), literalValues: { literalValue: { get: node => node === site ? literal : undefined } },
-    valueType: unexpected, providers: { findTargetBindingByTargetId: () => undefined, findTargetBindingByMetadataName: () => undefined },
-    projectTypes: { directSupertypes: () => [] } };
-  const issue = checkCsharpSourceTypeFlowObligation(host, { kind: "write-fit", site, required: site, value: site,
-    valueType: primitive("bool"), type: { kind: "intrinsic", intrinsic: "unknown" } });
-  assert.equal(issue === undefined, true, "a retained bool is boxed into the existing closed unknown storage, not range-checked as unknown");
-  const rejected = checkCsharpSourceTypeFlowObligation(host, { kind: "write-fit", site, required: site, value: site,
-    valueType: primitive("bool"), type: primitive("int32") });
-  assert.equal(rejected?.code === "CSHARP_UNSUPPORTED_AST" && rejected.sourceNode === site, true,
-    "a bool literal still cannot become a native integer through broad-storage admission");
+test("declared Native representation keeps original identity and ordered class arguments", () => {
+  const context = fixture(`export class Pair<Left, Right> {
+      constructor(public left: Left, public right: Right) {}
+    }
+    export declare function take(pair: Pair<int64, float32>): void;`);
+  const selected = context.endpoint("pair");
+  assert.equal(selected.evidence.type.kind, "declared");
+  assert.equal(selected.carrier.kind, "target-named");
+  assert.deepEqual(selected.carrier.typeArguments.map(type => type.name), ["int64", "float32"]);
+  const repeated = context.program.representation.represent(selected.evidence, "storage", selected.node);
+  assert.equal(repeated.kind, "represented");
+  assert.equal(repeated.value === selected.represented, true, "same-view representation is canonical");
 });
 
-test("native write-fit admits the existing nullable lift without narrowing optional values", () => {
-  const site = {};
-  const host = { ...representationHost("native"), literalValues: { literalValue: { get: () => undefined } },
-    valueType: unexpected, providers: { findTargetBindingByTargetId: () => undefined, findTargetBindingByMetadataName: () => undefined },
-    projectTypes: { directSupertypes: () => [] } };
-  for (const name of ["float32", "float64", "int32", "int64"]) {
-    const type = primitive(name);
-    const optional = Object.freeze({ kind: "optional", value: type });
-    const issue = checkCsharpSourceTypeFlowObligation(host, { kind: "write-fit", site, required: site, value: site,
-      valueType: type, type: optional });
-    assert.equal(issue === undefined, true, `${name}: the Native implicit nullable conversion is not a Source width choice`);
-    const unwrapping = checkCsharpSourceTypeFlowObligation(host, { kind: "write-fit", site, required: site, value: site,
-      valueType: optional, type });
-    assert.equal(unwrapping?.code === "CSHARP_UNSUPPORTED_AST" && unwrapping.sourceNode === site, true,
-      `${name}: an optional source still cannot implicitly lose absence`);
+test("optional value storage has one absence and no nested optional payload", () => {
+  const context = fixture("export declare function optional(value: int32 | undefined): void;");
+  const selected = context.endpoint("value");
+  const payload = getCsharpNullableElementTargetType(selected.carrier);
+  assert.equal(targetTypeRefEquals(payload, primitive("int32")), true);
+  assert.equal(getCsharpNullableElementTargetType(payload), undefined);
+});
+
+test("literal admission retains exact authored data and the original Native failure site", () => {
+  const context = fixture("export const huge = 2147483648; export declare function take(target: int32): void;");
+  const original = scalar(context, "2147483648");
+  const destination = context.endpoint("target");
+  const result = obligations.checkCsharpNativeTypeObligation(nativeHost(context), { kind: "literal-admission", site: original.node,
+    source: { evidence: original.evidence, carrier: primitive("int64") }, destination, construction: { kind: "none" } });
+  assert.equal(result.kind, "native-refused");
+  assert.equal(result.code, "CSHARP_NATIVE_WRITE_CARRIER_MISMATCH");
+  assert.equal(result.message, "Source bigint literal is outside the exact 'int32' range.");
+  assert.equal(result.site === original.node && result.source === "tsonic-csharp", true);
+});
+
+test("projected RHS checks use exact registered child evidence rather than a parent Box", () => {
+  const context = fixture("export function run(box: { values: [int32] }): int32 { return box.values[0]; }");
+  const read = context.source.facts.values.occurrences().find(node => context.source.ast.is.IsElementAccessExpression(node));
+  assert.equal(read !== undefined, true);
+  const evidence = resolvedSourceValue(context.source.facts.values.type(read), "the exact projected read");
+  const endpoint = { evidence, carrier: primitive("int32") };
+  assert.equal(write(context, { ...endpoint, node: read }, endpoint).kind, "represented");
+  assert.throws(() => write(context, { node: read, evidence: { ...evidence }, carrier: primitive("int32") }, endpoint), TypeError,
+    "a missing/counterfeit child cannot be filled by retyping the Box");
+});
+
+test("canonical shapes retain readonly and original declarations and reject contradictory Native headers", () => {
+  const context = fixture("export declare function shape(record: { readonly count: int32 }): void;");
+  const selected = context.endpoint("record");
+  const registry = context.program.analysis.typeSystem.objectShapes;
+  const shape = registry.resolveTarget(selected.carrier);
+  assert.equal(shape !== undefined && shape.members.length === 1, true);
+  const member = shape.members[0];
+  assert.equal(member.readonly === true && member.origins.length === 1, true);
+  assert.equal(member.sourceDeclarations.includes(member.origins[0].declaration), true);
+  assert.equal(member.type.name, "int32");
+  assert.throws(() => registry.retainShape({ ...shape, members: [{ ...member, readonly: false }] }, selected.node), TypeError,
+    "same physical identity cannot retain the first incompatible header");
+});
+
+test("optional member presence is independent of optional value storage and authentic evidence is mandatory", () => {
+  const context = fixture("export declare function shape(required: { value: int32 | undefined }, optional: { value?: int32 }): void;");
+  const required = context.endpoint("required");
+  const optional = context.endpoint("optional");
+  const registry = context.program.analysis.typeSystem.objectShapes;
+  const first = registry.resolveTarget(required.carrier).members[0];
+  const second = registry.resolveTarget(optional.carrier).members[0];
+  assert.equal(first.optional, false);
+  assert.equal(second.optional, true);
+  assert.equal(targetTypeRefEquals(getCsharpNullableElementTargetType(first.type), primitive("int32")), true);
+  assert.equal(targetTypeRefEquals(getCsharpNullableElementTargetType(second.type), primitive("int32")), true);
+  assert.notEqual(targetTypeRefKey(required.carrier), targetTypeRefKey(optional.carrier));
+  assert.throws(() => context.program.representation.represent({ ...required.evidence, type: { ...required.evidence.type, members: [] } },
+    "storage", required.node), TypeError, "opaque evidence has no presence-less mock/default form");
+});
+
+test("Native bound and unbound physical fields keep exact Source origins and width", () => {
+  const context = fixture("export declare function shape(record: { count: int32 }): void;");
+  const value = context.endpoint("record");
+  const member = context.program.analysis.typeSystem.objectShapes.resolveTarget(value.carrier).members[0];
+  const bound = Object.freeze({ ...member, bound: true });
+  assert.equal(bound.origins === member.origins && bound.sourceDeclarations === member.sourceDeclarations, true);
+  assert.equal(bound.type === member.type, true, "Native binding never retypes the Source child");
+  assert.notEqual(csharpObjectShapeMemberContractKey(bound), csharpObjectShapeMemberContractKey(member));
+});
+
+test("only real type-only metadata avoids Native runtime representation demand", () => {
+  const context = fixture(`type CompileOnly = [number, string, ...number[]];
+    export const live = 1; export declare function rejected(runtime: [number, string, ...number[]]): void;`);
+  const metadata = context.nodes.find(node => context.source.ast.is.IsTypeAliasDeclaration(node));
+  assert.equal(metadata !== undefined, true);
+  assert.equal(context.source.facts.values.occurrences().includes(metadata), false);
+  const runtime = context.slot("runtime");
+  const result = context.program.representation.represent(runtime.evidence, "storage", runtime.node);
+  assert.equal(result.kind, "native-refused");
+  assert.equal(result.code, "CSHARP_TUPLE_STORAGE_UNSUPPORTED");
+  assert.equal(result.site === runtime.node, true, "unproven runtime demand cannot borrow the type-only exemption");
+});
+
+test("Native collection contracts retain exact arguments, vector rank and no copied covariance", () => {
+  const host = createNativeConversionHost();
+  const integer = primitive("int32");
+  for (const contract of [csharpEnumerableTargetType(integer), csharpReadOnlyListTargetType(integer)]) {
+    assert.equal(csharpNativeTypeImplements(host, { kind: "array", element: integer }, contract), true);
+    assert.equal(csharpNativeTypeImplements(host, csharpJsArrayTargetType(integer), contract), true);
+    assert.equal(csharpNativeTypeImplements(host, { kind: "array", rank: 2, element: integer }, contract), false);
+  }
+  assert.equal(csharpNativeTypeImplements(host, { kind: "array", element: csharpStringTargetType() },
+    csharpEnumerableTargetType(csharpObjectTargetType())), false);
+});
+
+test("identical Native scalar carriers cannot bypass overflow through identity, nullable or union injection", () => {
+  const context = fixture("export const huge = 2147483648; export declare function take(target: int32): void;");
+  const original = scalar(context, "2147483648");
+  const evidence = context.endpoint("target").evidence;
+  const source = { ...original, carrier: primitive("int32") };
+  for (const carrier of [primitive("int32"), csharpNullableTargetType(primitive("int32")),
+    csharpRuntimeUnionTargetType([primitive("int32"), primitive("bool")])]) {
+    assert.equal(carrier !== undefined, true);
+    const result = write(context, source, { evidence, carrier });
+    assert.equal(result.kind, "native-refused");
+    assert.equal(result.code, "CSHARP_NATIVE_WRITE_CARRIER_MISMATCH");
+    assert.equal(result.site === original.node, true);
   }
 });
 
-test("constraint obligations retain the Native owner's lowered bounds source file and association", () => {
-  const site = {};
-  const required = {};
-  const sourceFile = {};
-  const association = { occurrence: site, sourceFile };
-  const syntheticConstraints = Object.freeze([]);
-  let queries = 0;
-  const host = { ...representationHost("native"), nativeConstraints(owner, type, packet) {
-    queries += 1;
-    assert.equal(owner === required && packet === association && type.name === "int32", true,
-      "only the exact Native constraint owner receives the actual chosen representation and retained Source association");
-    return { sourceFile, constraints: syntheticConstraints };
-  } };
-  const issue = checkCsharpSourceTypeFlowObligation(host, { kind: "constraint", site, required, association, type: primitive("int32") });
-  assert.equal(issue === undefined && queries === 1, true, "explicit monomorphic unit bounds are consumed once, not inferred as production emptiness");
-  const missing = checkCsharpSourceTypeFlowObligation({ ...host, nativeConstraints: () => undefined },
-    { kind: "constraint", site, required, association, type: primitive("int32") });
-  assert.equal(missing?.sourceNode === site && missing.code === "CSHARP_UNSUPPORTED_AST", true, "unavailable Native constraints do not become an empty list");
-  assert.equal(missing.message, "A source constraint requires its actual lowered C# declaration constraints.");
-});
+function arrayReceipt(context, contribution, elementCarrier) {
+  const construction = resolvedSourceValue(context.source.facts.values.construction(contribution), "original array construction");
+  assert.equal(construction.kind, "present");
+  const original = construction.value;
+  const carrier = { kind: "array", element: elementCarrier };
+  const contributions = original.evaluation.map(entry => {
+    const values = entry.form === "spread" ? entry.value.type.kind === "tuple"
+      ? entry.value.type.elements.map((_, index) => resolvedSourceValue(context.source.facts.descriptors.component(entry.value,
+        { kind: "tuple-element", index }), "the original spread component"))
+      : [resolvedSourceValue(context.source.facts.descriptors.component(entry.value, { kind: "array-element" }), "the spread element")]
+      : [entry.value];
+    return { original: entry, elements: values.map(evidence => ({ site: entry.occurrence,
+      source: { evidence, carrier: evidence.type.kind === "primitive" ? primitive(evidence.type.primitive) : elementCarrier },
+      destination: { evidence, carrier: elementCarrier } })) };
+  });
+  const receipt = { kind: "array", carrier, construction: original, contributions };
+  const endpoints = { source: { evidence: original.value, carrier }, destination: { evidence: original.value, carrier } };
+  return { receipt, obligation: { kind: "literal-admission", site: contribution, ...endpoints, construction: { kind: "present", value: receipt } } };
+}
 
-test("nonempty lowered Native constraints are checked without substituting a guessed source bound", () => {
-  const site = {};
-  const required = {};
-  const sourceFile = {};
-  const association = Object.freeze({ occurrence: site, sourceFile, component: {} });
-  const constraints = Object.freeze([Object.freeze({ kind: "value-type" }), Object.freeze({ kind: "unmanaged" })]);
-  const host = { ...representationHost("native"), constraintHost: {}, nativeConstraints(owner, represented, retained) {
-    assert.equal(owner === required && represented.name === "int32" && retained === association, true,
-      "the actual binder owner and selected Source component are not replaced");
-    return { sourceFile, constraints };
-  } };
-  assert.equal(checkCsharpSourceTypeFlowObligation(host, { kind: "constraint", site, required, association, type: primitive("int32") }) === undefined, true,
-    "the existing Native validator accepts the actual nonempty value-type and unmanaged bounds");
-  const issue = checkCsharpSourceTypeFlowObligation({ ...host, nativeConstraints: () => ({ sourceFile,
-    constraints: Object.freeze([Object.freeze({ kind: "reference-type" })]),
-  }) }, { kind: "constraint", site, required, association, type: primitive("int32") });
-  assert.equal(issue?.sourceNode === site && issue.code === "CSHARP_UNSUPPORTED_AST", true);
-  assert.equal(issue.message, "The argument is not a proven C# reference type.");
-});
-
-test("lowered interface bounds keep the exact Native binder arguments rather than a variance guess", () => {
-  const declaration = {};
-  const binder = {};
-  const site = {};
-  const sourceFile = {};
-  const component = {};
-  const integer = csharpSourcePrimitiveTargetType("int32");
-  const wide = csharpSourcePrimitiveTargetType("int64");
-  const chosen = Object.freeze({ kind: "target-named", id: "fixture.Box`1", typeArguments: Object.freeze([integer]) });
-  const required = Object.freeze({ kind: "target-named", id: "fixture.IBound`1", typeArguments: Object.freeze([integer]) });
-  const different = Object.freeze({ ...required, typeArguments: Object.freeze([wide]) });
-  const constraints = Object.freeze([Object.freeze({ kind: "implements", contract: required })]);
-  const association = Object.freeze({ occurrence: site, sourceFile, component });
-  const host = { ...representationHost("native"),
-    providers: { findTargetBindingByTargetId: () => undefined },
-    projectTypes: { directSupertypes: type => type === chosen ? [required] : [] },
-    declaredType(owner, arguments_, kept) {
-      assert.equal(owner === declaration && kept === obligation.type && arguments_.length === 1 && targetTypeRefEquals(arguments_[0], integer), true,
-        "the actual declared representation retains the ordered Native argument vector");
-      return chosen;
-    }, nativeConstraints(owner, represented, kept) {
-      assert.equal(owner === binder && represented === chosen && kept === association, true,
-        "the lowered Native bound keeps its actual binder owner Source file and Source association");
-      return { sourceFile, constraints };
-    },
-  };
-  const obligation = { kind: "constraint", site, required: binder, association,
-    type: { kind: "declared", declaration, typeArguments: [primitive("int32")] } };
-  assert.equal(checkCsharpSourceTypeFlowObligation(host, obligation) === undefined, true,
-    "the identical directly implemented Native contract is accepted without choosing a different Source type");
-  const issue = checkCsharpSourceTypeFlowObligation({ ...host, nativeConstraints: () => ({ sourceFile,
-    constraints: [Object.freeze({ kind: "implements", contract: different })],
-  }) }, obligation);
-  assert.equal(issue?.sourceNode === site && issue.code === "CSHARP_UNSUPPORTED_AST", true);
-  assert.equal(issue.message, `Native type '${targetTypeRefKey(chosen)}' does not directly implement '${targetTypeRefKey(different)}' with identical type arguments.`);
-});
-
-for (const kind of ["interface", "read-only"]) {
-  test(`${kind} obligations keep the required contract without asking it to choose a source type`, () => {
-    const site = {};
-    const owner = {};
-    const association = { occurrence: site, sourceFile: {} };
-    let queries = 0;
-    const host = { ...representationHost("native"), requiredType(required, packet) {
-      queries += 1;
-      assert.equal(required === owner && packet === association, true);
-      return csharpSourcePrimitiveTargetType("int32");
-    } };
-    const issues = checkCsharpSourceTypeFlowObligations(host, [{ kind, site, required: owner, association, type: primitive("int32") }]);
-    assert.equal(issues.length === 0 && queries === 1, true, "one exact identical Native contract is checked, not used as a fill");
+for (const [name, values, accepted] of [
+  ["overflowing spread element", "[2147483648] as const", false],
+  ["fitting spread elements", "[1, 2] as const", true],
+  ["overflowing tuple element", "[1, 2147483648] as const", false],
+  ["known plus unknown spread elements", "[1, unknownValue] as const", false],
+]) {
+  test(`original grouped construction checks ${name} without losing any unknown contribution`, () => {
+    const context = fixture(`export function values(unknownValue: int64) { return [...(${values})]; }`);
+    const node = context.source.facts.values.occurrences().find(node => context.source.ast.is.IsArrayLiteralExpression(node) &&
+      context.source.ast.is.IsReturnStatement(context.source.ast.parent(node)));
+    assert.equal(node !== undefined, true);
+    const { obligation, receipt } = arrayReceipt(context, node, primitive("int32"));
+    const result = obligations.checkCsharpNativeTypeObligation(nativeHost(context), obligation);
+    assert.equal(result.kind === "represented", accepted, name);
+    if (!accepted) {
+      assert.equal(result.code, "CSHARP_NATIVE_WRITE_CARRIER_MISMATCH");
+      assert.equal(receipt.contributions.some(entry => entry.elements.some(element => element.site === result.site)), true);
+    }
+    assert.equal(receipt.contributions.every((entry, index) => entry.original === receipt.construction.evaluation[index]), true);
   });
 }
 
-test("an actual published int64 at the same admitted native int32 index selects checked narrowing", () => {
-  const occurrence = {};
-  const declaration = {};
-  const sourceFile = {};
-  const source = csharpSourcePrimitiveTargetType("int64");
-  const target = csharpSourcePrimitiveTargetType("int32");
-  const outcome = { kind: "resolved", type: primitive("int64"), provenance: {
-    group: declaration, occurrence, sourceFile, fixedRule: { kind: "loop-counter", declaration } } };
-  const selection = { kind: "resolved", source: { argument: { expression: occurrence } },
-    targetMember: { parameters: [{ type: target }] }, targetParameterIndex: 0 };
-  const use = { kind: "element", selection };
-  const conversion = selectCsharpSourceTypeFlowIndexConversion(outcome, use, source, target);
-  assert.equal(conversion?.kind, "checked-native-integer");
-  assert.equal(selectCsharpSourceTypeFlowIndexConversion({ ...outcome, provenance: { group: declaration, occurrence, sourceFile } },
-    use, source, target)?.kind, "checked-native-integer", "ordinary integer creation needs no invented loop rule");
-  for (const [label, chosen, admitted, from, to] of [
-    ["foreign index occurrence", outcome, { kind: "element", selection: { ...selection, source: { argument: { expression: {} } } } }, source, target],
-    ["wrong native parameter", outcome, { kind: "element", selection: { ...selection, targetMember: { parameters: [{ type: source }] } } }, source, target],
-    ["no native admission", outcome, undefined, source, target],
-    ["source-owned operation without Native index admission", outcome, { kind: "element", selection: { kind: "source-owned", source: selection.source, reason: "unit source owner" } }, source, target],
-    ["by-ref native argument", outcome, { kind: "element", selection: { ...selection, targetMember: { parameters: [{ type: target, passingMode: "byref-readwrite" }] } } }, source, target],
-    ["wrong source width", outcome, use, target, target],
-    ["retired selection-only API", outcome, selection, source, target],
-  ]) assert.equal(selectCsharpSourceTypeFlowIndexConversion(chosen, admitted, from, to) === undefined, true, label);
-  assert.equal(targetTypeRefEquals(source, target), false, "checked narrowing never claims an identity conversion");
+test("aggregate Native admission requires the original complete grouping including empty spreads", () => {
+  const context = fixture("export function values() { return [...([] as const), 1]; }");
+  const node = context.source.facts.values.occurrences().find(node => context.source.ast.is.IsArrayLiteralExpression(node) &&
+    context.source.ast.is.IsReturnStatement(context.source.ast.parent(node)));
+  const { obligation, receipt } = arrayReceipt(context, node, primitive("int64"));
+  assert.equal(obligations.checkCsharpNativeTypeObligation(nativeHost(context), obligation).kind, "represented");
+  assert.equal(receipt.contributions[0].elements.length, 0);
+  assert.throws(() => obligations.checkCsharpNativeTypeObligation(nativeHost(context), {
+    ...obligation, construction: { kind: "present", value: { ...receipt, contributions: receipt.contributions.slice(1) } },
+  }), TypeError, "an empty spread still belongs to authored evaluation order");
+  assert.throws(() => obligations.checkCsharpNativeTypeObligation(nativeHost(context), {
+    ...obligation, construction: { kind: "present", value: { ...receipt, contributions: [...receipt.contributions].reverse() } },
+  }), TypeError, "equivalent leaf data cannot replace the original ordered contributions");
 });
 
-test("native parameter and all six shift-count uses share checked int64-to-int32 conversion without retargeting the result", () => {
-  const occurrence = {};
-  const source = csharpSourcePrimitiveTargetType("int64");
-  const target = csharpSourcePrimitiveTargetType("int32");
-  const result = csharpSourcePrimitiveTargetType("uint64");
-  const outcome = { kind: "resolved", type: primitive("int64"), provenance: { occurrence, group: {}, sourceFile: {} } };
-  assert.equal(selectCsharpSourceTypeFlowIndexConversion(outcome,
-    { kind: "parameter", expression: occurrence, parameter: { type: target, passingMode: "by-value" } }, source, target)?.kind,
-  "checked-native-integer");
-  for (const passingMode of ["byref-readonly", "byref-readwrite", "out"]) {
-    assert.equal(selectCsharpSourceTypeFlowIndexConversion(outcome,
-      { kind: "parameter", expression: occurrence, parameter: { type: target, passingMode } }, source, target) === undefined, true, passingMode);
+for (const surface of ["native", "js"]) {
+  test(`partial ${surface} array admission checks unknown leaves normally and retains known overflow`, () => {
+    const context = fixture("export function values(input: float32) { return [input, 1]; }", surface);
+    const node = context.source.facts.values.occurrences().find(node => context.source.ast.is.IsArrayLiteralExpression(node));
+    const { obligation } = arrayReceipt(context, node, primitive("float32"));
+    assert.equal(obligations.checkCsharpNativeTypeObligation(nativeHost(context), obligation).kind, "represented");
+    const overflow = fixture("export function values(input: int32) { return [input, 2147483648]; }", surface);
+    const badNode = overflow.source.facts.values.occurrences().find(node => overflow.source.ast.is.IsArrayLiteralExpression(node));
+    const bad = arrayReceipt(overflow, badNode, primitive("int32"));
+    const rejected = obligations.checkCsharpNativeTypeObligation(nativeHost(overflow), bad.obligation);
+    assert.equal(rejected.kind, "native-refused");
+    assert.equal(rejected.code, "CSHARP_NATIVE_WRITE_CARRIER_MISMATCH");
+    assert.equal(overflow.source.ast.text(rejected.site), "2147483648");
+  });
+}
+
+test("Native broad boolean writes use admitted boxing rather than a numeric range classifier", () => {
+  const context = fixture("export const value = false; export declare function take(broad: unknown, integer: int32): void;");
+  const original = scalar(context, "false");
+  const source = { ...original, carrier: primitive("bool") };
+  assert.equal(write(context, source, { evidence: context.endpoint("broad").evidence, carrier: csharpTsValueTargetType() }).kind, "represented");
+  const rejected = write(context, source, context.endpoint("integer"));
+  assert.equal(rejected.kind, "native-refused");
+  assert.equal(rejected.code, "CSHARP_NATIVE_WRITE_CARRIER_MISMATCH");
+});
+
+test("nullable Native write lifts retain width and optional values cannot be implicitly unwrapped", () => {
+  const names = ["float32", "float64", "int32", "int64"];
+  const context = fixture(`export declare function values(${names.flatMap(name => [
+    `${name}Value: ${name}`, `${name}Optional: ${name} | undefined`]).join(",")}): void;`);
+  for (const name of names) {
+    const value = context.endpoint(`${name}Value`);
+    const optional = context.endpoint(`${name}Optional`);
+    assert.equal(write(context, value, optional).kind, "represented");
+    const rejected = write(context, optional, value);
+    assert.equal(rejected.kind, "native-refused");
+    assert.equal(rejected.code, "CSHARP_NATIVE_WRITE_CARRIER_MISMATCH");
+    assert.equal(targetTypeRefEquals(getCsharpNullableElementTargetType(optional.carrier), value.carrier), true);
   }
-  for (const operator of ["<<", ">>", ">>>", "<<=", ">>=", ">>>=", "+"]) {
-    const operation = { kind: "resolved", sourceOperator: operator, right: occurrence,
-      rightInputType: source, rightType: source, resultType: result };
-    const input = csharpSourceTypeFlowShiftCountType(operation);
-    assert.equal(targetTypeRefEquals(input, operator === "+" ? source : target), true, operator);
-    assert.equal(selectCsharpSourceTypeFlowIndexConversion(outcome, { kind: "shift-count", operation }, source, target)?.kind ===
-      "checked-native-integer", operator !== "+", operator);
-    assert.equal(operation.rightInputType === source && operation.rightType === source && operation.resultType === result, true,
-      `${operator}: the actual count and result objects remain the original records`);
+});
+
+test("Native constraints retain the original Source binder and actual nonempty lowered bounds", () => {
+  const context = fixture("export function bound<T extends number>(argument: T): T { return argument; }");
+  const declaration = context.nodes.find(node => context.source.ast.is.IsTypeParameterDeclaration(node));
+  const parameter = context.source.facts.descriptors.typeParameter(declaration);
+  const lowered = context.program.representation.parameter(parameter, declaration);
+  assert.equal(lowered.kind, "represented");
+  assert.equal(lowered.value.csharpDeclaration === declaration, true);
+  assert.equal(lowered.value.csharpConstraints.kind, "resolved");
+  assert.equal(lowered.value.csharpConstraints.constraints.length > 0, true, "numeric Native capabilities are not fabricated emptiness");
+  const value = context.endpoint("argument");
+  assert.equal(value.carrier.identity, lowered.value.identity);
+  assert.throws(() => context.program.representation.parameter({ ...parameter }, declaration), TypeError);
+});
+
+test("nonempty Native value and unmanaged constraints reject an opposite reference requirement", () => {
+  const context = fixture("export function bound<T>(value: T): T { return value; }");
+  const original = context.nodes.find(node => context.source.ast.is.IsTypeParameterDeclaration(node));
+  const parameter = context.source.facts.descriptors.typeParameter(original);
+  const value = { evidence: context.endpoint("value").evidence, carrier: primitive("int32") };
+  const base = { kind: "constraint", site: original, source: value, parameter };
+  assert.equal(obligations.checkCsharpNativeTypeObligation(nativeHost(context), {
+    ...base, constraints: [{ kind: "value-type" }, { kind: "unmanaged" }],
+  }).kind, "represented");
+  const failure = obligations.checkCsharpNativeTypeObligation(nativeHost(context), { ...base, constraints: [{ kind: "reference-type" }] });
+  assert.equal(failure.kind, "native-refused");
+  assert.equal(failure.code, "CSHARP_NATIVE_CONSTRAINT_UNSATISFIED");
+  assert.equal(failure.message, "The argument is not a proven C# reference type.");
+  assert.equal(failure.site === original, true);
+});
+
+test("exact Native generic interfaces never accept substituted argument or variance guesses", () => {
+  const integer = primitive("int32");
+  const wide = primitive("int64");
+  const named = (name, value) => csharpTargetNamedType(`fixture.${name}\`1`, [value],
+    csharpQualifiedTypeRenderShape("fixture", name), { allowsRefLikeTypeArguments: [false] });
+  const chosen = named("Box", integer);
+  const required = named("IBound", integer);
+  const different = named("IBound", wide);
+  const host = createNativeConversionHost({ heritage: [{ carrier: chosen, supertypes: [required] }] });
+  assert.equal(csharpNativeTypeImplements(host, chosen, required), true);
+  assert.equal(csharpNativeTypeImplements(host, chosen, different), false);
+});
+
+for (const purpose of ["interface", "read-only"]) {
+  test(`${purpose} obligation checks the existing exact Native contract, never fills Source`, () => {
+    const context = fixture("export declare function take(value: int32, wrong: int64): void;");
+    const value = context.endpoint("value");
+    const check = destination => obligations.checkCsharpNativeTypeObligation(nativeHost(context), {
+      kind: "contract", site: value.node, source: value, destination,
+    });
+    assert.equal(check(value).kind, "represented");
+    const failure = check(context.endpoint("wrong"));
+    assert.equal(failure.kind, "native-refused");
+    assert.equal(failure.code, "CSHARP_NATIVE_CONTRACT_MISMATCH");
+  });
+}
+
+test("only the actual original int64 read and admitted Native int32 index may narrow", () => {
+  const context = fixture("export function read(index: int64): int64 { return index; }");
+  const occurrence = context.source.facts.values.occurrences().find(node => context.source.ast.is.IsIdentifier(node) &&
+    context.source.ast.text(node) === "index" && context.source.ast.is.IsReturnStatement(context.source.ast.parent(node)));
+  assert.equal(occurrence !== undefined, true);
+  const operand = { occurrence, value: resolvedSourceValue(context.source.facts.values.type(occurrence), "the original index read") };
+  const from = primitive("int64");
+  const to = primitive("int32");
+  const use = { kind: "index", occurrence, type: to, passingMode: "by-value" };
+  const select = (selected, source = from, target = to) => integerUses.selectCsharpNativeIndexConversion(
+    context.source.facts.descriptors, operand, selected, source, target);
+  assert.equal(select(use)?.kind, "checked-native-integer");
+  for (const selected of [{ ...use, occurrence: context.parameter("index") }, { ...use, type: from },
+    ...["byref-readonly", "byref-readwrite", "out"].map(passingMode => ({ ...use, passingMode }))]) {
+    assert.equal(select(selected), undefined, "foreign occurrence, wrong ABI and byref uses cannot borrow index admission");
   }
+  assert.equal(select(use, to, to), undefined, "wrong actual source width");
+  assert.throws(() => select(undefined), TypeError, "there is no omitted Native admission overload");
+});
+
+test("Native parameters and all six shift counts share checked narrowing without retargeting results", () => {
+  const context = fixture("export function read(index: int64): int64 { return index; }");
+  const occurrence = context.source.facts.values.occurrences().find(node => context.source.ast.is.IsIdentifier(node) &&
+    context.source.ast.text(node) === "index" && context.source.ast.is.IsReturnStatement(context.source.ast.parent(node)));
+  const operand = { occurrence, value: resolvedSourceValue(context.source.facts.values.type(occurrence), "the original count read") };
+  const from = primitive("int64");
+  const to = primitive("int32");
+  const result = primitive("uint64");
+  assert.equal(integerUses.selectCsharpNativeIndexConversion(context.source.facts.descriptors, operand,
+    { kind: "parameter", occurrence, type: to, passingMode: "by-value" }, from, to)?.kind, "checked-native-integer");
+  for (const sourceOperator of ["<<", ">>", ">>>", "<<=", ">>=", ">>>=", "+"]) {
+    const operation = { kind: "resolved", sourceOperator, right: occurrence, rightInputType: from, rightType: from, resultType: result };
+    assert.equal(targetTypeRefEquals(integerUses.csharpNativeShiftCountType(operation), sourceOperator === "+" ? from : to), true);
+    const selected = integerUses.selectCsharpNativeIndexConversion(context.source.facts.descriptors, operand,
+      { kind: "shift-count", operation }, from, to);
+    assert.equal(selected?.kind === "checked-native-integer", sourceOperator !== "+");
+    assert.equal(operation.rightInputType === from && operation.rightType === from && operation.resultType === result, true);
+  }
+  assert.throws(() => integerUses.csharpNativeShiftCountType({ sourceOperator: "<<", rightInputType: undefined }), TypeError);
+  assert.equal(integerUses.csharpNativeShiftCountType({ sourceOperator: "+", rightInputType: undefined }), undefined,
+    "a genuinely dead non-shift RHS has no fake Native carrier");
 });

@@ -4,12 +4,13 @@ import { targetTypeRefEquals } from "../../target-model/types/index.js";
 import type { CsharpConversionTargetPreference } from "../../target-model/conversions/selection.js";
 import type { CsharpPolicyContext } from "../model/context.js";
 import type { TargetTypeRef } from "../types/index.js";
+import type { CsharpConversionShapeQueries } from "./shape-queries.js";
 
 export function compareCsharpImplicitConversionTargets(
   input: Pick<
     CsharpPolicyContext,
-    "projectTypes" | "providers" | "target"
-  >,
+    "typeDefinitions" | "projectTypes" | "providers" | "target"
+  > & CsharpConversionShapeQueries,
   left: TargetTypeRef,
   right: TargetTypeRef,
 ): CsharpConversionTargetPreference {

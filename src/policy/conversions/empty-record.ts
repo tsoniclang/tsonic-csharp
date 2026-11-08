@@ -4,17 +4,17 @@ import { isCsharpEmptyObjectTargetType } from "../../target-model/types/carriers
 import {
   targetTypeRefEquals,
 } from "../../target-model/types/index.js";
-import type { CsharpConversionSelection } from "../../target-model/conversions/selection.js";
+import type { CsharpConversionRelation } from "../../target-model/conversions/selection.js";
 
 export function selectCsharpEmptyRecordConversion(
   input: CsharpConversionShapeQueries,
   source: TargetTypeRef,
   target: TargetTypeRef,
-): CsharpConversionSelection | undefined {
+): Extract<CsharpConversionRelation, { readonly kind: "empty-record" }> | undefined {
   const closed = (type: TargetTypeRef): boolean => {
     if (isCsharpEmptyObjectTargetType(type)) return true;
     if (type.kind !== "target-named" || (type as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind !== "struct") return false;
-    const shape = input.objectShapes?.resolveTarget(type);
+    const shape = input.objectShapes.resolveTarget(type);
     return shape !== undefined && targetTypeRefEquals(type, shape.targetType) &&
       shape.members.length === 0 && (shape.implements?.length ?? 0) === 0;
   };

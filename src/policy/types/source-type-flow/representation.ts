@@ -1,230 +1,292 @@
 import type { Node } from "@tsonic/tsts";
-import type { TargetSelection } from "@tsonic/target-api";
-import { sourceTypeDescriptorMemberOriginsEqual, type SourceTypeDescriptor, type SourceTypeDescriptorSignature } from "@tsonic/target-api/source";
-import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
-import type { CsharpTypeParameterEnvironment } from "../../../target-model/records/types/type-parameter-constraints.js";
+import type { SourceComponentSelector, SourceTypeDescriptorSignature, SourceTypeEvidence, SourceTypeParameter } from "@tsonic/target-api/source";
+import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { CsharpRepresentationOutcome, CsharpRepresentationPosition, CsharpRepresentationView, CsharpRepresentedType, CsharpRepresentedTypeParameter, CsharpRepresentedSignature } from "../../../target-model/types/representation.js";
+import type { CsharpRepresentationHost } from "./representation-host.js";
 import { csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpObjectTargetType, csharpVoidTargetType, csharpNeverTargetType, csharpBigIntegerTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import { csharpJsArrayTargetType, csharpJsSymbolTargetType } from "../../../target-model/types/carriers/js.js";
-import { csharpAnyTargetType, csharpTsValueTargetType, csharpAbsenceTargetType, combineCsharpTargetUnionMembers } from "../../../target-model/types/carriers/runtime-carriers.js";
-import { csharpNullableTargetType } from "../../../target-model/types/carriers/nullable.js";
-import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
-import { canonicalCsharpObjectShapeMembers, csharpObjectShapeMemberContractKey } from "../../../target-model/types/object-shape-identity.js";
-import { createStructuralObjectShapeTarget } from "../../../analysis/objects/shapes/construction.js";
-import { objectShapeMemberTargetName } from "../../identities/source-member-names.js";
+import { csharpAnyTargetType, csharpTsValueTargetType, csharpAbsenceTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { selectedCsharpSourceProfileOwner } from "../../identities/source-types.js";
-import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
 import { selectCsharpParameterListCarrier } from "../callables/parameter-list.js";
+import { represented, sourceOutcome, nativeRepresentationFailure, representationRequirements } from "./representation-results.js";
+import { representSourceSum } from "./representation-sums.js";
+import { representSourceShape } from "./representation-shapes.js";
+import { representSourceCategory } from "./representation-category.js";
+import { representCsharpOptionalStorage } from "./representation-optional.js";
+import { csharpFreeTypeParameterIdentities } from "../../../target-model/types/generic-references.js";
+import { createCsharpRepresentationRequirements } from "./representation-requirements.js";
+import { representCsharpSourceCollectionKey } from "../collections/source-keys.js";
 
-export interface CsharpSourceMemberDeclaration {
-  readonly declarations: readonly Node[];
-  readonly kind: "property" | "method";
-  readonly bound: boolean;
-  readonly accessor?: CsharpObjectShapeMemberFact["accessor"];
-}
+export type { CsharpRepresentationHost, CsharpSourceMemberDeclaration } from "./representation-host.js";
 
-export interface CsharpSourceTypeRepresentationHost {
-  readonly target: TargetSelection;
-  readonly typeParameterConstraints: CsharpTypeParameterEnvironment;
-  declaredType(
-    declaration: Node,
-    typeArguments: readonly TargetTypeRef[],
-    descriptor: Extract<SourceTypeDescriptor, { readonly kind: "declared" }>,
-  ): TargetTypeRef | undefined;
-  indexType(key: TargetTypeRef, value: TargetTypeRef): TargetTypeRef | undefined;
-  callableType(
-    signature: Extract<SourceTypeDescriptor, { readonly kind: "callable" }>["calls"][number],
-    parameters: readonly TargetTypeRef[],
-    result: TargetTypeRef,
-  ): TargetTypeRef | undefined;
-  constructorType(
-    signatures: Extract<SourceTypeDescriptor, { readonly kind: "callable" }>["constructs"],
-    results: readonly TargetTypeRef[],
-  ): TargetTypeRef | undefined;
-  memberDeclaration(declaration: Node): CsharpSourceMemberDeclaration | undefined;
-  // True when every member of a construct-carrying shape is part of the static side of the one class its construct
-  // signatures belong to: a static member of that class, or its class prototype (K-2448 #3).
-  classStaticSide(descriptor: Extract<SourceTypeDescriptor, { readonly kind: "shape" }>): boolean;
-  shapeKind(descriptor: Extract<SourceTypeDescriptor, { readonly kind: "shape" }>): "contract" | "storage" | undefined;
-  memberTypeParameters(signature: Extract<SourceTypeDescriptor, { readonly kind: "callable" }>["calls"][number]):
-    NonNullable<CsharpObjectShapeMemberFact["typeParameters"]> | undefined;
-  retainShape(shape: CsharpObjectShapeFact): CsharpObjectShapeFact | undefined;
-}
+export function createCsharpRepresentationView(host: CsharpRepresentationHost): CsharpRepresentationView {
+  const results = new WeakMap<SourceTypeEvidence, Map<CsharpRepresentationPosition, CsharpRepresentedType>>();
+  const active = new Set<SourceTypeEvidence>();
+  const parameters = new Map<SourceTypeParameter, CsharpRepresentedTypeParameter>();
+  const activeParameters = new Map<SourceTypeParameter, Extract<TargetTypeRef, { readonly kind: "type-parameter" }>>();
+  const requirements = createCsharpRepresentationRequirements(host, () => view);
+  const view: CsharpRepresentationView = Object.freeze({
+    source: host.source,
+    applyRequirements: requirements.apply,
+    collectionKey(evidence, physicalCarrier, site) {
+      host.source.assertEvidence(evidence);
+      const result = representCsharpSourceCollectionKey(host, view, requirements, evidence, physicalCarrier, site);
+      if (result.kind === "represented") requirements.retainNative(result.value.requirements);
+      return result;
+    },
+    represent,
+    parameter,
+    member(owner, origin, position, site) {
+      host.source.assertEvidence(owner);
+      const definition = sourceOutcome(host.source.definition(owner));
+      if (definition.kind !== "represented") return definition;
+      const selected = sourceOutcome(host.source.component(definition.value, { kind: "member", origin }));
+      return selected.kind === "represented" ? represent(selected.value, position, site) : selected;
+    },
+    category(evidence, physicalCarrier, site) {
+      host.source.assertEvidence(evidence);
+      const result = representSourceCategory(host, view, requirements, evidence, physicalCarrier, site, original => {
+        const recursive = activeParameters.get(original);
+        if (recursive !== undefined) return represented(Object.freeze({ carrier: recursive, requirements: Object.freeze([]) }));
+        const selected = parameter(original, site);
+        return selected.kind !== "represented" ? selected
+          : represented(Object.freeze({ carrier: selected.value, requirements: Object.freeze([selected.value]) }));
+      });
+      if (result.kind === "represented") requirements.retainNative(result.value.requirements);
+      return result;
+    },
+  });
 
-export function representCsharpSourceType(
-  host: CsharpSourceTypeRepresentationHost,
-  descriptor: SourceTypeDescriptor,
-): TargetTypeRef | undefined {
-  return representDescriptor(host, descriptor, new Set());
-}
-
-function representDescriptor(
-  host: CsharpSourceTypeRepresentationHost,
-  descriptor: SourceTypeDescriptor,
-  active: Set<SourceTypeDescriptor>,
-): TargetTypeRef | undefined {
-  if (active.has(descriptor)) return undefined;
-  active.add(descriptor);
-  const representConstructor = (constructs: readonly SourceTypeDescriptorSignature[]): TargetTypeRef | undefined => {
-    const results: TargetTypeRef[] = [];
-    for (const signature of constructs) {
-      const result = representDescriptor(host, signature.result, active);
-      if (result === undefined) return undefined;
-      results.push(result);
+  function parameter(original: SourceTypeParameter, site: Node): CsharpRepresentationOutcome<CsharpRepresentedTypeParameter> {
+    if (host.source.typeParameter(original.declaration) !== original) throw new TypeError("A Native binder requires its exact Source view identity.");
+    const constraint = sourceOutcome(host.source.constraint(original));
+    if (constraint.kind !== "represented") return constraint;
+    const defaultType = sourceOutcome(host.source.defaultType(original));
+    if (defaultType.kind !== "represented") return defaultType;
+    const cached = parameters.get(original);
+    if (cached !== undefined) return represented(cached);
+    const recursive = activeParameters.get(original);
+    if (recursive !== undefined) throw new TypeError("A public Native parameter query cannot publish an unfinished constraint definition.");
+    const identity = host.identity(original.declaration);
+    if (identity.name === undefined || identity.name.length === 0) throw new TypeError("An original Source type parameter requires its actual authored Native binder name.");
+    const shell = Object.freeze({ kind: "type-parameter" as const,
+      identity: identity.identity, name: identity.name, csharpDeclaration: original.declaration });
+    activeParameters.set(original, shell);
+    try {
+      let bound: CsharpRepresentedType | undefined;
+      let defaultValue: CsharpRepresentedType | undefined;
+      if (constraint.value.kind === "type") {
+        const selected = represent(constraint.value.value, "type-argument", site);
+        if (selected.kind !== "represented") return selected;
+        bound = selected.value;
+      }
+      if (defaultType.value.kind === "type") {
+        const selected = represent(defaultType.value.value, "type-argument", site);
+        if (selected.kind !== "represented") return selected;
+        defaultValue = selected.value;
+      }
+      const constraints = host.nativeConstraints(original, bound, defaultValue, shell, site);
+      if (constraints.kind !== "represented") return constraints;
+      const value: CsharpRepresentedTypeParameter = Object.freeze({ ...shell,
+        csharpConstraints: Object.freeze({ kind: "resolved", constraints: Object.freeze([...constraints.value]) }) });
+      parameters.set(original, value);
+      requirements.retain(value, { kind: "parameter", original });
+      return represented(value);
+    } finally {
+      activeParameters.delete(original);
     }
-    return host.constructorType(constructs, Object.freeze(results));
-  };
-  try {
+  }
+
+  function represent(evidence: SourceTypeEvidence, position: CsharpRepresentationPosition,
+    site: Node): CsharpRepresentationOutcome<CsharpRepresentedType> {
+    host.source.assertEvidence(evidence);
+    const cached = activeParameters.size === 0 ? results.get(evidence)?.get(position) : undefined;
+    if (cached !== undefined) return represented(cached);
+    if (active.has(evidence)) return nativeRepresentationFailure(site, "CSHARP_RECURSIVE_REPRESENTATION_UNSUPPORTED",
+      "A recursive Native value requires its original declared carrier; anonymous recursive value storage cannot be expanded.");
+    active.add(evidence);
+    try {
+      const result = evidence.sum !== undefined && (evidence.type.kind === "union" || evidence.type.kind === "optional")
+        ? representSourceSum(host, view, requirements, evidence, evidence.sum, site) : representDirect(evidence, position, site);
+      if (result.kind === "represented") requirements.retainNative(result.value.requirements);
+      if (result.kind === "represented" && activeParameters.size === 0) {
+        const byPosition = results.get(evidence) ?? new Map<CsharpRepresentationPosition, CsharpRepresentedType>();
+        byPosition.set(position, result.value);
+        results.set(evidence, byPosition);
+      }
+      return result;
+    } finally {
+      active.delete(evidence);
+    }
+  }
+
+  function direct(evidence: SourceTypeEvidence, carrier: TargetTypeRef,
+    children: readonly CsharpRepresentedType[] = []): CsharpRepresentationOutcome<CsharpRepresentedType> {
+    return represented(Object.freeze({ kind: "direct", evidence, carrier,
+      requirements: representationRequirements(children.map(child => child.requirements)) }));
+  }
+
+  function child(evidence: SourceTypeEvidence, selector: SourceComponentSelector,
+    position: CsharpRepresentationPosition, site: Node): CsharpRepresentationOutcome<CsharpRepresentedType> {
+    const selected = sourceOutcome(host.source.component(evidence, selector));
+    return selected.kind === "represented" ? represent(selected.value, position, site) : selected;
+  }
+
+  function signatureValue(evidence: SourceTypeEvidence, signature: SourceTypeDescriptorSignature,
+    site: Node): CsharpRepresentationOutcome<CsharpRepresentedSignature> {
+    const children: CsharpRepresentedType[] = [];
+    for (const [index] of signature.parameters.entries()) {
+      const value = child(evidence, { kind: "parameter", signature: signature.identity, index }, "storage", site);
+      if (value.kind !== "represented") return value;
+      children.push(value.value);
+    }
+    let receiver: CsharpRepresentedType | undefined;
+    if (signature.receiver !== undefined) {
+      const value = child(evidence, { kind: "receiver", signature: signature.identity }, "storage", site);
+      if (value.kind !== "represented") return value;
+      receiver = value.value;
+    }
+    const completion = child(evidence, { kind: "result", signature: signature.identity }, "return", site);
+    if (completion.kind !== "represented") return completion;
+    const typeParameters: CsharpRepresentedTypeParameter[] = [];
+    for (const declaration of signature.identity.typeParameters) {
+      const original = parameter(host.source.typeParameter(declaration), site);
+      if (original.kind !== "represented") return original;
+      typeParameters.push(original.value);
+    }
+    const requirements = representationRequirements([...children.map(child => child.requirements), completion.value.requirements,
+      receiver?.requirements ?? []]);
+    const bound = new Set(typeParameters.map(parameter => parameter.identity));
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const requirement of requirements) {
+        if (bound.has(requirement.identity) || requirement.csharpDeclaration !== undefined) continue;
+        const dependencies = csharpFreeTypeParameterIdentities([requirement]);
+        if (![...bound].some(identity => dependencies.has(identity))) continue;
+        bound.add(requirement.identity);
+        typeParameters.push(requirement);
+        changed = true;
+      }
+    }
+    return represented(Object.freeze({ source: signature, typeParameters: Object.freeze(typeParameters), receiver,
+      parameters: Object.freeze(children), result: completion.value }));
+  }
+
+  function callable(evidence: SourceTypeEvidence, signatures: readonly SourceTypeDescriptorSignature[],
+    site: Node, storage: "value" | "contract"): CsharpRepresentationOutcome<CsharpRepresentedType> {
+    const values: CsharpRepresentedSignature[] = [];
+    const children: CsharpRepresentedType[] = [];
+    for (const signature of signatures) {
+      const result = signatureValue(evidence, signature, site);
+      if (result.kind !== "represented") return result;
+      values.push(result.value);
+      children.push(...result.value.parameters, result.value.result, ...(result.value.receiver === undefined ? [] : [result.value.receiver]));
+    }
+    const carrier = host.callableType(Object.freeze(values), site, storage);
+    if (carrier.kind !== "represented") return carrier;
+    const bound = new Set(values.flatMap(value => value.typeParameters.map(parameter => parameter.identity)));
+    return represented(Object.freeze({ kind: "direct", evidence, carrier: carrier.value,
+      requirements: Object.freeze(representationRequirements(children.map(child => child.requirements)).filter(parameter => !bound.has(parameter.identity))) }));
+  }
+
+  function representDirect(evidence: SourceTypeEvidence, position: CsharpRepresentationPosition,
+    site: Node): CsharpRepresentationOutcome<CsharpRepresentedType> {
+    const descriptor = evidence.type;
     switch (descriptor.kind) {
-      case "primitive":
-        return csharpSourcePrimitiveTargetType(descriptor.primitive);
-      case "string":
-        return csharpStringTargetType();
+      case "primitive": return direct(evidence, csharpSourcePrimitiveTargetType(descriptor.primitive));
+      case "string": return direct(evidence, csharpStringTargetType());
+      case "parameter": {
+        const original = host.source.typeParameter(descriptor.declaration);
+        const recursive = activeParameters.get(original);
+        if (recursive !== undefined) return direct(evidence, recursive);
+        const selected = parameter(original, site);
+        return selected.kind === "represented" ? represented(Object.freeze({ kind: "direct", evidence,
+          carrier: selected.value, requirements: Object.freeze([selected.value]) })) : selected;
+      }
       case "intrinsic":
         switch (descriptor.intrinsic) {
-          case "any": return csharpAnyTargetType();
-          case "unknown": return csharpTsValueTargetType();
-          case "object": return csharpObjectTargetType();
-          case "void": return csharpVoidTargetType();
-          case "never": return csharpNeverTargetType();
-          case "absence": return csharpAbsenceTargetType();
-          case "bigint": return csharpBigIntegerTargetType();
-          case "symbol": return csharpJsSymbolTargetType();
+          case "any": return direct(evidence, csharpAnyTargetType());
+          case "unknown": return direct(evidence, csharpTsValueTargetType());
+          case "object": return direct(evidence, csharpObjectTargetType());
+          case "void": return direct(evidence, csharpVoidTargetType());
+          case "never": return direct(evidence, csharpNeverTargetType());
+          case "absence": return direct(evidence, csharpAbsenceTargetType());
+          case "bigint": return direct(evidence, csharpBigIntegerTargetType());
+          case "symbol": return direct(evidence, csharpJsSymbolTargetType());
         }
-      case "union": {
-        const members: TargetTypeRef[] = [];
-        for (const member of descriptor.types) {
-          const selected = representDescriptor(host, member, active);
-          if (selected === undefined) return undefined;
-          members.push(selected);
-        }
-        return members.length === 0 ? undefined : combineCsharpTargetUnionMembers(members);
-      }
-      case "callable": {
-        if (descriptor.calls.length === 0 && descriptor.constructs.length !== 0) return representConstructor(descriptor.constructs);
-        const signature = descriptor.calls.length === 1 && descriptor.constructs.length === 0 ? descriptor.calls[0] : undefined;
-        if (signature === undefined) return undefined;
-        const parameters: TargetTypeRef[] = [];
-        for (const parameter of signature.parameters) {
-          const selected = representDescriptor(host, parameter.type, active);
-          if (selected === undefined) return undefined;
-          parameters.push(selected);
-        }
-        const result = representDescriptor(host, signature.result, active);
-        return result === undefined ? undefined : host.callableType(signature, Object.freeze(parameters), result);
-      }
       case "array": {
-        const element = representDescriptor(host, descriptor.element, active);
-        return element === undefined ? undefined
-          : selectedCsharpSourceProfileOwner(host.target) === "js"
-            ? csharpJsArrayTargetType(element)
-            : Object.freeze({ kind: "array", element });
-      }
-      case "tuple": {
-        const elements: TargetTypeRef[] = [];
-        for (const element of descriptor.elements) {
-          const represented = representDescriptor(host, element.type, active);
-          if (represented === undefined) return undefined;
-          elements.push(element.kind === "optional" ? csharpNullableTargetType(represented) : represented);
-        }
-        const restIndexes = descriptor.elements.flatMap((element, index) => element.kind === "rest" ? [index] : []);
-        return selectCsharpParameterListCarrier(Object.freeze(elements), restIndexes,
-          selectedCsharpSourceProfileOwner(host.target) === "js");
+        const element = child(evidence, { kind: "array-element" }, "type-argument", site);
+        return element.kind !== "represented" ? element : direct(evidence,
+          selectedCsharpSourceProfileOwner(host.target) === "js" ? csharpJsArrayTargetType(element.value.carrier)
+            : Object.freeze({ kind: "array", element: element.value.carrier }), [element.value]);
       }
       case "optional": {
-        const element = representDescriptor(host, descriptor.value, active);
-        return element === undefined ? undefined : csharpNullableTargetType(element);
+        const value = child(evidence, { kind: "optional-value" }, position, site);
+        if (value.kind !== "represented") return value;
+        const layout = representCsharpOptionalStorage(host, value.value.carrier, site);
+        return layout.kind !== "represented" ? layout : represented(Object.freeze({ kind: "direct", evidence, carrier: layout.value.carrier,
+          requirements: representationRequirements([value.value.requirements, layout.value.requirements]) }));
+      }
+      case "tuple": {
+        const children: CsharpRepresentedType[] = [];
+        const requirements = [];
+        const elements: TargetTypeRef[] = [];
+        const rest: number[] = [];
+        for (const [index, entry] of descriptor.elements.entries()) {
+          const value = child(evidence, { kind: "tuple-element", index }, "type-argument", site);
+          if (value.kind !== "represented") return value;
+          children.push(value.value);
+          const optional = entry.kind === "optional" ? representCsharpOptionalStorage(host, value.value.carrier, site) : undefined;
+          if (optional !== undefined && optional.kind !== "represented") return optional;
+          elements.push(optional?.value.carrier ?? value.value.carrier);
+          requirements.push(value.value.requirements, optional?.value.requirements ?? []);
+          if (entry.kind === "rest") rest.push(index);
+        }
+        const carrier = selectCsharpParameterListCarrier(Object.freeze(elements), Object.freeze(rest),
+          selectedCsharpSourceProfileOwner(host.target) === "js");
+        return carrier === undefined ? nativeRepresentationFailure(site, "CSHARP_TUPLE_STORAGE_UNSUPPORTED",
+          "This Source tuple requires a Native storage layout that preserves every fixed and rest element.") : represented(Object.freeze({
+            kind: "direct", evidence, carrier, requirements: representationRequirements(requirements) }));
       }
       case "declared": {
-        const arguments_: TargetTypeRef[] = [];
-        for (const argument of descriptor.typeArguments) {
-          const represented = representDescriptor(host, argument, active);
-          if (represented === undefined) return undefined;
-          arguments_.push(represented);
+        const arguments_: CsharpRepresentedType[] = [];
+        for (const [index] of descriptor.typeArguments.entries()) {
+          const value = child(evidence, { kind: "type-argument", declaration: descriptor.declaration, index }, "type-argument", site);
+          if (value.kind !== "represented") return value;
+          arguments_.push(value.value);
         }
-        return host.declaredType(descriptor.declaration, Object.freeze(arguments_), descriptor);
+        const native = host.declaredType(evidence, Object.freeze(arguments_), site);
+        if (native.kind !== "represented") return native;
+        if (native.value.kind === "present") return represented(Object.freeze({ kind: "direct", evidence,
+          carrier: native.value.value.carrier,
+          requirements: representationRequirements([...arguments_.map(value => value.requirements), native.value.value.requirements]) }));
+        const definition = sourceOutcome(host.source.definition(evidence));
+        if (definition.kind !== "represented") return definition;
+        if (definition.value === evidence) return nativeRepresentationFailure(site, "CSHARP_DECLARED_CARRIER_MISSING",
+          "The original Source declaration has no selected Native type binding or structural definition.");
+        const selected = represent(definition.value, position, site);
+        return selected.kind === "represented" ? represented(Object.freeze({ ...selected.value, evidence })) : selected;
       }
+      case "projection":
+      case "intersection": {
+        const definition = sourceOutcome(host.source.definition(evidence));
+        if (definition.kind !== "represented") return definition;
+        if (definition.value === evidence) return nativeRepresentationFailure(site, "CSHARP_OPEN_PROJECTION_UNSUPPORTED",
+          "The Source projection requires its original closed publication or an exact Native generic result witness.");
+        const selected = represent(definition.value, position, site);
+        return selected.kind === "represented" ? represented(Object.freeze({ ...selected.value, evidence })) : selected;
+      }
+      case "callable":
+        return callable(evidence, [...descriptor.calls, ...descriptor.constructs], site, "value");
       case "shape": {
-        if (!Array.isArray(descriptor.indexes)) return undefined;
-        // A shape with construct signatures and no call signatures is a constructor value. It is represented as the
-        // constructed class's static receiver only when its whole inventory IS that class's static side: no indexes, and
-        // every member a static member of that class or its prototype. Any other construct-plus-member/index contract has
-        // no native representation here, so its consumer refuses rather than dropping members (K-2448 #3).
-        if (descriptor.calls.length === 0 && descriptor.constructs.length !== 0) {
-          return descriptor.indexes.length === 0 && (descriptor.members.length === 0 || host.classStaticSide(descriptor))
-            ? representConstructor(descriptor.constructs) : undefined;
-        }
-        if (descriptor.calls.length !== 0) return undefined;
-        if (descriptor.indexes.length !== 0) {
-          let key: TargetTypeRef | undefined;
-          let value: TargetTypeRef | undefined;
-          for (const index of descriptor.indexes) {
-            if (index.declaration === undefined || typeof index.readonly !== "boolean") return undefined;
-            const selectedKey = representDescriptor(host, index.key, active);
-            const selectedValue = representDescriptor(host, index.value, active);
-            if (selectedKey === undefined || selectedValue === undefined || key !== undefined && !targetTypeRefEquals(key, selectedKey) ||
-              value !== undefined && !targetTypeRefEquals(value, selectedValue)) return undefined;
-            key = selectedKey;
-            value = selectedValue;
-          }
-          return descriptor.members.length !== 0 || key === undefined || value === undefined ? undefined : host.indexType(key, value);
-        }
-        const members: CsharpObjectShapeMemberFact[] = [];
-        const names = new Set<string>();
-        for (const member of descriptor.members) {
-          if (typeof member.optional !== "boolean" || names.has(member.name)) return undefined;
-          names.add(member.name);
-          const type = representDescriptor(host, member.type, active);
-          if (type === undefined) return undefined;
-          const callable = member.type.kind === "callable" ? member.type : undefined;
-          const declaration = member.origin.kind === "declared" ? member.origin.declaration : undefined;
-          const selection = declaration === undefined ? undefined : host.memberDeclaration(declaration);
-          if (declaration !== undefined && (selection === undefined || !selection.declarations.includes(declaration))) return undefined;
-          const memberKind = selection?.kind ?? "property";
-          if (memberKind === "method" && callable === undefined) return undefined;
-          const bound = selection?.bound === true;
-          const signature = memberKind === "method" && callable?.calls.length === 1 ? callable.calls[0] : undefined;
-          const typeParameters = signature === undefined ? [] : host.memberTypeParameters(signature);
-          if (typeParameters === undefined) return undefined;
-          members.push(Object.freeze({
-            sourceKey: Object.freeze({ kind: "property", name: member.name }),
-            sourceName: member.name,
-            targetName: objectShapeMemberTargetName(member.name),
-            memberKind,
-            type: memberKind === "method" ? getCsharpMethodValue(type)?.contract ?? type : type,
-            ...(typeParameters.length === 0 ? {} : { typeParameters }),
-            ...(bound ? { bound: true } : {}),
-            ...(selection?.accessor === undefined ? {} : { accessor: selection.accessor }),
-            optional: member.optional,
-            origins: Object.freeze([member.origin]),
-            ...(declaration === undefined ? {} : {
-              sourceDeclarations: selection!.declarations,
-              sourceSubjects: selection!.declarations,
-            }),
-            ...(member.readonly === undefined ? {} : { readonly: member.readonly }),
-          }));
-        }
-        const kind = host.shapeKind(descriptor);
-        if (kind === undefined) return undefined;
-        const contract = kind === "contract";
-        const targetType = createStructuralObjectShapeTarget(members, undefined, host.typeParameterConstraints, contract);
-        const shape = host.retainShape(Object.freeze({ targetType, members: Object.freeze(members) }));
-        if (shape === undefined || shape.members.length !== members.length) return undefined;
-        if (members.length === 0) return targetTypeRefEquals(shape.targetType, targetType) ? shape.targetType : undefined;
-        if (shape.targetType.kind !== "target-named") return undefined;
-        const carrier: CsharpTargetNamedTypeRef = shape.targetType;
-        if (carrier.csharpGeneratedStructuralStorage !== true || (carrier.csharpStructuralContract === true) !== contract) return undefined;
-        const retained = canonicalCsharpObjectShapeMembers(shape.members);
-        const expected = canonicalCsharpObjectShapeMembers(members);
-        return expected.every((member, index) => {
-          const actual = retained[index]!;
-          return csharpObjectShapeMemberContractKey(actual) === csharpObjectShapeMemberContractKey(member) &&
-            (actual.readonly === true) === (member.readonly === true) &&
-            member.origins?.length === 1 && actual.origins?.some(origin =>
-              sourceTypeDescriptorMemberOriginsEqual(origin, member.origins![0]!)) === true;
-        }) ? shape.targetType : undefined;
+        if (descriptor.calls.length + descriptor.constructs.length === 0) return representSourceShape(host, view, evidence, site, undefined);
+        const composite = descriptor.members.length !== 0 || descriptor.indexes.length !== 0;
+        const selected = callable(evidence, [...descriptor.calls, ...descriptor.constructs], site, composite ? "contract" : "value");
+        return selected.kind !== "represented" || !composite ? selected : representSourceShape(host, view, evidence, site, selected.value);
       }
+      case "union": throw new TypeError("A Source union requires its authenticated family application before Native representation.");
     }
-  } finally {
-    active.delete(descriptor);
   }
+  return view;
 }

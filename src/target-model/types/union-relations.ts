@@ -1,7 +1,6 @@
 import type { TargetTypeRef } from "./model.js";
 import { targetTypeRefEquals } from "./equality.js";
 import { getCsharpRuntimeUnionArms } from "./carriers/runtime-carriers.js";
-import type { CsharpTypeDefinitions } from "./source-union-definitions.js";
 import { csharpMetadataDescriptors } from "../metadata/immutable.js";
 import { snapshotCsharpTargetTypes } from "./snapshot.js";
 
@@ -16,12 +15,12 @@ export interface CsharpUnionArmMapping {
   readonly target: readonly CsharpUnionPathStep[];
 }
 
-export function csharpUnionLeaves(carrier: TargetTypeRef, definitions?: CsharpTypeDefinitions):
+export function csharpUnionLeaves(carrier: TargetTypeRef):
   readonly { readonly carrier: TargetTypeRef; readonly path: readonly CsharpUnionPathStep[] }[] | undefined {
-  return collectCsharpUnionPaths(carrier, definitions);
+  return collectCsharpUnionPaths(carrier);
 }
 
-export function collectCsharpUnionPaths(carrier: TargetTypeRef, definitions?: CsharpTypeDefinitions, target?: TargetTypeRef):
+export function collectCsharpUnionPaths(carrier: TargetTypeRef, target?: TargetTypeRef):
   readonly { readonly carrier: TargetTypeRef; readonly path: readonly CsharpUnionPathStep[] }[] | undefined {
   const leaves: { readonly carrier: TargetTypeRef; readonly path: readonly CsharpUnionPathStep[] }[] = [];
   const visit = (current: TargetTypeRef, path: readonly CsharpUnionPathStep[]): boolean => {
@@ -30,7 +29,7 @@ export function collectCsharpUnionPaths(carrier: TargetTypeRef, definitions?: Cs
       leaves.push(Object.freeze({ carrier: current, path }));
       return true;
     }
-    const alternatives = getCsharpRuntimeUnionArms(current, definitions);
+    const alternatives = getCsharpRuntimeUnionArms(current);
     if (alternatives === undefined) {
       if (path.length === 0) return false;
       if (target === undefined) leaves.push(Object.freeze({ carrier: current, path }));

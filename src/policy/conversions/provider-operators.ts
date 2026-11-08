@@ -2,7 +2,7 @@ import { csharpProviderBindingFromResolution } from "../../providers/model/relat
 import { csharpTargetBindingFact, targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/index.js";
 import { substituteTargetTypeParameters } from "../types/resolution/substitution.js";
 import { csharpNativeInheritanceLookup } from "../../target-model/types/native-inheritance.js";
-import type { CsharpConversionMode, CsharpConversionSelection } from "../../target-model/conversions/selection.js";
+import type { CsharpConversionMode, CsharpConversionRelation } from "../../target-model/conversions/selection.js";
 import type { CsharpPolicyContext } from "../model/context.js";
 import type { CsharpTargetBindingFact, CsharpTargetConversionOperatorFact, TargetTypeRef } from "../types/index.js";
 
@@ -22,7 +22,7 @@ export function targetBindingSubstitutions(
 
 type ProviderConversionSelection =
   | { readonly kind: "none" }
-  | Extract<CsharpConversionSelection, { readonly kind: "implicit" | "cast" | "ambiguous" }>;
+  | Extract<CsharpConversionRelation, { readonly kind: "implicit" | "cast" | "ambiguous" }>;
 
 export function selectProviderConversionOperator(
   input: Pick<CsharpPolicyContext, "providers">,

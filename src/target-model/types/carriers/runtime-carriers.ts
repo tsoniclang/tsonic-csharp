@@ -1,11 +1,8 @@
 import type { CsharpObjectShapeFact, CsharpTargetNamedTypeRef, TargetTypeRef, CsharpRuntimeUnionTargetTypeRef } from "../model.js";
 import { csharpQualifiedTypeRenderShape } from "../render-shapes.js";
 import { csharpTargetNamedType } from "../factories.js";
-import { targetTypeRefKey } from "../equality.js";
-import { csharpNullableTargetType, csharpNullableReferenceTargetType, getCsharpNullableElementTargetType } from "./nullable.js";
+import { csharpNullableReferenceTargetType, getCsharpNullableElementTargetType } from "./nullable.js";
 import { getCsharpGenericOptionalParts } from "../projections.js";
-import { isCsharpVoidTargetType } from "../identity.js";
-import { emptyCsharpTypeDefinitions, type CsharpTypeDefinitions } from "../source-union-definitions.js";
 
 export function csharpAnyTargetType(): CsharpTargetNamedTypeRef {
   return csharpTsValueTargetType();
@@ -96,52 +93,6 @@ export function csharpRuntimeUnionTargetType(
   } satisfies CsharpRuntimeUnionTargetTypeRef;
 }
 
-export function combineCsharpTargetUnionMembers(
-  members: readonly TargetTypeRef[],
-): TargetTypeRef | undefined {
-  const valueUnion = members.some(member => !isCsharpVoidTargetType(member));
-  const byIdentity = new Map<string, TargetTypeRef>();
-  const pending = [...members];
-  while (pending.length > 0) {
-    const member = pending.pop()!;
-    if (isCsharpAbsenceTargetType(member)) {
-      byIdentity.set(targetTypeRefKey(member), member);
-      continue;
-    }
-    const optional = getCsharpNullableElementTargetType(member);
-    if (optional !== undefined) {
-      pending.push(optional, csharpAbsenceTargetType());
-      continue;
-    }
-    const arms = isCsharpRuntimeUnionTargetType(member) && member.csharpRuntimeUnionSemantics === "source-sum"
-      ? member.csharpRuntimeUnionArms : undefined;
-    if (arms !== undefined) {
-      pending.push(...arms);
-      continue;
-    }
-    const value = valueUnion && isCsharpVoidTargetType(member) ? csharpAbsenceTargetType() : member;
-    byIdentity.set(targetTypeRefKey(value), value);
-  }
-  const canonicalMembers = [...byIdentity.values()].sort((left, right) =>
-    targetTypeRefKey(left).localeCompare(targetTypeRefKey(right)));
-  const nonNullishMembers = canonicalMembers.filter(
-    (member) =>
-      !isCsharpAbsenceTargetType(member),
-  );
-  const nullishMembers = canonicalMembers.filter(
-    (member) =>
-      isCsharpAbsenceTargetType(member),
-  );
-  if (nonNullishMembers.length === 0) {
-    return nullishMembers[0];
-  }
-  const union = nonNullishMembers.length > 1 ? csharpRuntimeUnionTargetType(nonNullishMembers) : undefined;
-  const value = nonNullishMembers.length === 1 ? nonNullishMembers[0]
-    : union === undefined ? undefined : { ...union, csharpRuntimeUnionSemantics: "source-sum" as const };
-  return nullishMembers.length === 0 ? value
-    : value === undefined ? undefined : csharpNullableTargetType(value);
-}
-
 export function isCsharpJsValueTargetType(
   type: TargetTypeRef | undefined,
 ): boolean {
@@ -180,19 +131,19 @@ export function csharpCarrierAdmitsSourceAbsence(type: TargetTypeRef | undefined
 export function isCsharpRuntimeUnionTargetType(type: TargetTypeRef | undefined): type is CsharpRuntimeUnionTargetTypeRef {
   const arms = (type as Partial<CsharpRuntimeUnionTargetTypeRef> | undefined)?.csharpRuntimeUnionArms;
   return type?.kind === "target-named" &&
-    (type.csharpRuntimeUnionSemantics === "native-ordered" || type.csharpRuntimeUnionSemantics === "source-sum") &&
+    type.csharpRuntimeUnionSemantics === "native-ordered" &&
     Array.isArray(arms) &&
     arms.length >= 2 &&
     arms.length <= 8;
 }
 
 export function getCsharpRuntimeUnionArms(
-  type: TargetTypeRef | undefined, definitions: CsharpTypeDefinitions = emptyCsharpTypeDefinitions,
+  type: TargetTypeRef | undefined,
 ): readonly TargetTypeRef[] | undefined {
   const optional = getCsharpGenericOptionalParts(type);
   if (optional !== undefined) return [csharpAbsenceTargetType(), optional.element];
   return isCsharpRuntimeUnionTargetType(type)
     ? type.csharpRuntimeUnionArms
-    : type === undefined ? undefined : definitions.sourceUnionArms(type);
+    : undefined;
 }
 

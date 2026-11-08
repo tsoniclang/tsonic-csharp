@@ -1,12 +1,11 @@
 import type { CsharpPromiseDiscard } from "../../../target-model/records/callables/promise-results.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import type { CsharpTypeDefinitions } from "../../../target-model/types/source-union-definitions.js";
 import { getCsharpTaskResultTargetType } from "../../../target-model/types/carriers/delegates.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { getCsharpRuntimeUnionArms } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { isCsharpValueTypeTargetType } from "../../../target-model/types/identity.js";
 
-export function selectCsharpPromiseDiscard(carrier: TargetTypeRef, definitions: CsharpTypeDefinitions):
+export function selectCsharpPromiseDiscard(carrier: TargetTypeRef):
   | { readonly kind: "selected"; readonly discard: CsharpPromiseDiscard | undefined }
   | { readonly kind: "unsupported"; readonly reason: string } {
   const active = new Set<TargetTypeRef>();
@@ -25,7 +24,7 @@ export function selectCsharpPromiseDiscard(carrier: TargetTypeRef, definitions: 
           kind: "optional", valueType: isCsharpValueTypeTargetType(nullable), present: present.discard });
       } else if (getCsharpTaskResultTargetType(carrier) !== undefined) discard = Object.freeze({ kind: "task" });
       else {
-        const alternatives = getCsharpRuntimeUnionArms(carrier, definitions);
+        const alternatives = getCsharpRuntimeUnionArms(carrier);
         if (alternatives !== undefined) {
           const arms: { readonly index: number; readonly selection: CsharpPromiseDiscard }[] = [];
           for (const [index, alternative] of alternatives.entries()) {

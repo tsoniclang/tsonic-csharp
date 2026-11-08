@@ -11,6 +11,21 @@ export type CsharpProviderArgumentAdapter =
 import type { TargetTypeRef } from "../types/index.js";
 import type { CsharpUnionArmMapping, CsharpUnionPathStep } from "../types/union-relations.js";
 import type { CsharpIntegerRefinementConversion } from "./integer-refinement.js";
+import type { CsharpSourceCategoryWitness } from "../types/representation.js";
+import type { CsharpNativeCallableMember } from "../types/model.js";
+
+export interface CsharpNativeCallableApplication {
+  readonly original: CsharpNativeCallableMember;
+  readonly applied: CsharpNativeCallableMember;
+  readonly typeArguments: readonly TargetTypeRef[];
+}
+
+export interface CsharpNativeCallableConversionMembers {
+  readonly source: CsharpNativeCallableMember;
+  readonly target: CsharpNativeCallableMember;
+  readonly sourceApplication?: CsharpNativeCallableApplication;
+  readonly targetApplication?: CsharpNativeCallableApplication;
+}
 
 export type CsharpConversionMode = "implicit" | "explicit";
 
@@ -20,7 +35,18 @@ export interface CsharpArrayLikeUnionProjection {
   readonly conversion: Extract<CsharpConversionSelection, { readonly kind: "array-like-union" }>;
 }
 
-export type CsharpConversionSelection =
+export type CsharpConversionSelection = CsharpConversion<{
+  readonly kind: "js-value-box";
+  readonly category: CsharpSourceCategoryWitness;
+}>;
+
+export type CsharpConversionRelation = CsharpConversion<{
+  readonly kind: "source-erasure-required";
+  readonly source: TargetTypeRef;
+  readonly target: TargetTypeRef;
+}>;
+
+export type CsharpConversion<Erasure> =
   | CsharpIntegerRefinementConversion
   | { readonly kind: "union-map"; readonly coverage: "source" | "target"; readonly arms: readonly CsharpUnionArmMapping[] }
   | { readonly kind: "never" }
@@ -53,7 +79,7 @@ export type CsharpConversionSelection =
       readonly proof: "runtime-union-arm";
       readonly armIndex: number;
       readonly armType: TargetTypeRef;
-      readonly sourceToArm: CsharpConversionSelection;
+      readonly sourceToArm: CsharpConversion<Erasure>;
     }
   | {
       readonly kind: "cast";
@@ -71,7 +97,7 @@ export type CsharpConversionSelection =
       readonly kind: "nullable-map";
       readonly sourceElement: TargetTypeRef;
       readonly targetElement: TargetTypeRef;
-      readonly conversion: CsharpConversionSelection;
+      readonly conversion: CsharpConversion<Erasure>;
     }
   | {
       readonly kind: "runtime-union-projection";
@@ -83,23 +109,21 @@ export type CsharpConversionSelection =
   | {
       readonly kind: "delegate-adapter";
       readonly strategy: "native-binding" | "adaptation";
-      readonly instantiation?: {
-        readonly contract: TargetTypeRef;
-        readonly typeArguments: readonly TargetTypeRef[];
-      };
-      readonly parameterConversions: readonly CsharpConversionSelection[];
-      readonly returnConversion: CsharpConversionSelection | { readonly kind: "void-return" } | {
+      readonly members: CsharpNativeCallableConversionMembers;
+      readonly parameterConversions: readonly CsharpConversion<Erasure>[];
+      readonly receiverConversion?: CsharpConversion<Erasure>;
+      readonly returnConversion: CsharpConversion<Erasure> | { readonly kind: "void-return" } | {
         readonly kind: "task-return";
         readonly sourceResult: TargetTypeRef;
         readonly targetResult: TargetTypeRef;
-        readonly conversion: CsharpConversionSelection;
+        readonly conversion: CsharpConversion<Erasure>;
       };
     }
   | {
       readonly kind: "provider-argument-adapter";
       readonly adapter: CsharpProviderArgumentAdapter;
-      readonly sourceToInput: CsharpConversionSelection;
-      readonly resultToTarget: CsharpConversionSelection;
+      readonly sourceToInput: CsharpConversion<Erasure>;
+      readonly resultToTarget: CsharpConversion<Erasure>;
     }
   | {
       readonly kind: "lifted-provider-argument-adapter";
@@ -107,7 +131,7 @@ export type CsharpConversionSelection =
       readonly sourceElementType: TargetTypeRef;
       readonly targetElementType: TargetTypeRef;
     }
-  | { readonly kind: "js-value-box" }
+  | Erasure
   | {
       readonly kind: "js-value-cast";
       readonly runtimeUnionArms?: readonly TargetTypeRef[];

@@ -1,6 +1,6 @@
 import type { TargetTypeRef } from "./model.js";
 import type { CsharpTargetNamedTypeRef } from "./model.js";
-import { csharpConstraintsRequireReference } from "./generic-constraints.js";
+import { csharpConstraintsRequireReference, csharpConstraintsRequireValue } from "./generic-constraints.js";
 
 export function isCsharpThrowableTargetType(type: TargetTypeRef | undefined): boolean {
   return type?.kind === "target-named" && (type as CsharpTargetNamedTypeRef).csharpThrowable === true;
@@ -22,6 +22,10 @@ export function isCsharpVoidTargetType(type: TargetTypeRef | undefined): boolean
 export function isCsharpValueTypeTargetType(type: TargetTypeRef): boolean {
   if (type.kind === "source-primitive" || type.kind === "pointer" || type.kind === "function-pointer" || type.kind === "tuple") {
     return true;
+  }
+  if (type.kind === "type-parameter") {
+    return type.csharpConstraints?.kind === "resolved" &&
+      csharpConstraintsRequireValue(type.csharpConstraints.constraints);
   }
   if (type.kind !== "target-named") {
     return false;

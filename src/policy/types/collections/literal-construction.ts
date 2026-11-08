@@ -1,5 +1,4 @@
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import type { CsharpTypeDefinitions } from "../../../target-model/types/source-union-definitions.js";
 import { getCsharpArrayLiteralElementTargetType } from "../../../target-model/types/carriers/collections.js";
 import { getCsharpArrayLiteralInputCarrierTargetType } from "./array-literal-input.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
@@ -19,10 +18,9 @@ export function csharpArrayLiteralElisionIssue(ast: AstReader, node: Node): Extr
 export function selectCsharpArrayLiteralCarrier(
   expected: TargetTypeRef,
   source: TargetTypeRef | undefined,
-  definitions?: CsharpTypeDefinitions,
 ): TargetTypeRef | undefined {
   const value = getCsharpNullableElementTargetType(expected) ?? expected;
-  const arms = getCsharpRuntimeUnionArms(value, definitions);
+  const arms = getCsharpRuntimeUnionArms(value);
   if (arms === undefined) return getCsharpArrayLiteralInputCarrierTargetType(value, source);
   const candidates = arms.filter(arm => arm.kind === "tuple" || getCsharpArrayLiteralElementTargetType(arm) !== undefined);
   const exact = source === undefined ? [] : candidates.filter(arm => targetTypeRefEquals(arm, source));

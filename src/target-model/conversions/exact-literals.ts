@@ -1,7 +1,7 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../types/model.js";
 import type { CsharpNumericLiteralToken } from "../syntax/numeric-literals.js";
-import type { SourcePropertyNameSelection } from "@tsonic/target-api/source";
+import type { SourceMemberKey } from "@tsonic/target-api/source";
 
 export type CsharpExactLiteralPrimitive = Extract<TargetTypeRef, { readonly kind: "source-primitive" }>;
 export type CsharpExactLiteralRole = "value" | "property-key";
@@ -43,7 +43,7 @@ export interface CsharpExactLiteralRequest {
   readonly expression: Node;
   readonly source: TargetTypeRef | undefined;
   readonly target?: TargetTypeRef;
-  readonly propertyKey?: SourcePropertyNameSelection;
+  readonly propertyKey?: SourceMemberKey;
 }
 
 export interface CsharpNativePropertyKeyBinding {

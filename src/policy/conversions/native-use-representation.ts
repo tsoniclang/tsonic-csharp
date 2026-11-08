@@ -6,7 +6,7 @@ import { csharpNativeUseSite, type CsharpExpectedNativeUse, type CsharpNativeUse
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { csharpSourcePrimitiveTargetType } from "../../target-model/types/carriers/scalar-types.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
-import { csharpSourceTypeFlowShiftCountType } from "./source-type-flow-index.js";
+import { csharpNativeShiftCountType } from "./native-index.js";
 
 import type { CsharpNativeRepresentationInput } from "../model/native-use-representation.js";
 import type { CsharpNativeRepresentationPending, CsharpNativeRepresentationSelection } from "../../target-model/records/native/native-representation.js";
@@ -18,8 +18,8 @@ export function selectCsharpNativeUseRepresentation(input: CsharpNativeRepresent
     Object.freeze({ kind: "selected", representation, carrier, children: Object.freeze([...children]) });
   const pending = (reason: CsharpNativeRepresentationPending, message?: string): CsharpNativeRepresentationSelection =>
     Object.freeze({ kind: "pending", reason, ...(message === undefined ? {} : { message }) });
-  const child = (node: Node | undefined, slot: CsharpNativeUseSlot, carrier: TargetTypeRef): TargetUseSiteRef | undefined => {
-    if (node === undefined) return undefined;
+  const child = (node: Node | undefined, slot: CsharpNativeUseSlot, carrier: TargetTypeRef | undefined): TargetUseSiteRef | undefined => {
+    if (node === undefined || carrier === undefined) return undefined;
     const site = csharpNativeUseSite(expression, slot, { target: carrier, mode: input.mode });
     const entry = input.children.get(targetUseSiteIdentity(site));
     return entry?.expression === node && entry.target !== undefined && targetTypeRefEquals(entry.target, carrier) ? entry.site : undefined;
@@ -47,7 +47,7 @@ export function selectCsharpNativeUseRepresentation(input: CsharpNativeRepresent
     const binary = input.binary;
     const left = child(binary.left, { kind: "operand", position: "left" }, binary.leftInputType);
     const rightNeeded = binary.targetOperation.kind !== "conditional-value" || binary.targetOperation.branch !== "left";
-    const right = rightNeeded ? child(binary.right, { kind: "operand", position: "right" }, csharpSourceTypeFlowShiftCountType(binary)) : undefined;
+    const right = rightNeeded ? child(binary.right, { kind: "operand", position: "right" }, csharpNativeShiftCountType(binary)) : undefined;
     if (left === undefined || rightNeeded && right === undefined) return pending("forwarding-child-unresolved");
     const children = right === undefined ? [left] : [left, right];
     if (binary.targetOperation.kind === "conditional-value" && binary.targetOperation.branch !== "right") {

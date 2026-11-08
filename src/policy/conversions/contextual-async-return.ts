@@ -4,9 +4,10 @@ import { selectCsharpAwaitCompletion } from "../operations/control-flow/await-co
 import { csharpCarrierAdmitsSourceAbsence, csharpNullableTargetType, getCsharpTaskResultTargetType, isCsharpVoidTargetType, targetTypeRefEquals } from "../../target-model/types/index.js";
 import { selectCsharpConversion } from "./core.js";
 import { csharpConversionIsApplicable } from "./applicability.js";
+import type { CsharpConversionShapeQueries } from "./shape-queries.js";
 
 export function selectCsharpContextualAsyncReturn(
-  policy: Pick<CsharpPolicyContext, "typeDefinitions" | "projectTypes" | "providers" | "target">,
+  policy: Pick<CsharpPolicyContext, "typeDefinitions" | "projectTypes" | "providers" | "target"> & CsharpConversionShapeQueries,
   inferred: TargetTypeRef,
   contextual: TargetTypeRef | undefined,
   authority: "authored" | "inferred",

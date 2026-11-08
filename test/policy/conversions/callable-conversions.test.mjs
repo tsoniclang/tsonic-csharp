@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createNativeConversionHost } from "../../helpers/native-conversion-host.mjs";
 import { selectCsharpConversion } from "../../../dist/policy/conversions/index.js";
 import { csharpDelegateTargetType, csharpNullableTargetType, csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/index.js";
 
-const policy = { projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId() { return { kind: "missing" }; } }, target: {} };
+const policy = createNativeConversionHost();
 const number = csharpSourcePrimitiveTargetType("float64");
 const optional = csharpNullableTargetType(number);
 const callable = (parameters, result = number, optionalParameterIndexes = []) => csharpDelegateTargetType(

@@ -1,7 +1,7 @@
 export * from "./literals.js";
 export * from "./source-primitives.js";
 export type {
-  CsharpCommonImplicitTargetSelection, CsharpConversionMode, CsharpConversionSelection,
+  CsharpCommonImplicitTargetSelection, CsharpConversionMode, CsharpConversionSelection, CsharpConversionRelation,
   CsharpConversionTargetPreference,
 } from "../../target-model/conversions/selection.js";
 export {
@@ -12,3 +12,5 @@ export {
 } from "./core.js";
 export { selectCsharpExpressionConversion, selectCsharpFlowReadConversion, selectCsharpProviderArgumentConversion } from "./expression.js";
 export { csharpConversionIsApplicable } from "./applicability.js";
+export { admitCsharpSourceConversion } from "./source-admission.js";
+export type { CsharpSourceConversionAdmission, CsharpSourceConversionValue } from "./source-admission.js";

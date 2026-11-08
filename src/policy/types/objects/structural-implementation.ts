@@ -1,4 +1,4 @@
-import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
+import type { CsharpNativeCallableMember, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
 
 import type { CsharpObjectShapeMemberFact, CsharpStructuralInterfaceImplementation } from "../../../target-model/types/model.js";
 import type { CsharpStructuralInterfaceEvidence } from "../../../target-model/records/objects/heritage.js";
@@ -111,13 +111,49 @@ function inferStructuralMemberTypeArguments(
   actual: CsharpObjectShapeMemberFact,
   parameterIdentities: ReadonlySet<string>,
 ): ReadonlyMap<string, TargetTypeRef> | undefined {
+  if (pattern.memberKind !== actual.memberKind) return undefined;
+  if (pattern.memberKind === "property") return inferCsharpTargetTypeParameterBindings(pattern.type, actual.type, parameterIdentities);
+  if (actual.memberKind !== "method" || pattern.methods.length !== actual.methods.length) return undefined;
+  const bindings = new Map<string, TargetTypeRef>();
+  for (const [index, method] of pattern.methods.entries()) {
+    const selected = actual.methods[index]!;
+    if (method.member.name !== selected.member.name) return undefined;
+    const inferred = inferStructuralMethodTypeArguments(method.member, selected.member, parameterIdentities);
+    if (inferred === undefined) return undefined;
+    for (const [identity, type] of inferred) {
+      const previous = bindings.get(identity);
+      if (previous !== undefined && !targetTypeRefEquals(previous, type)) return undefined;
+      bindings.set(identity, type);
+    }
+  }
+  return bindings;
+}
+
+function inferStructuralMethodTypeArguments(
+  pattern: CsharpNativeCallableMember,
+  actual: CsharpNativeCallableMember,
+  parameterIdentities: ReadonlySet<string>,
+): ReadonlyMap<string, TargetTypeRef> | undefined {
+  const expected = pattern.signature;
+  const supplied = actual.signature;
+  if (expected.kind !== supplied.kind || expected.parameters.length !== supplied.parameters.length ||
+    expected.returnPassing !== supplied.returnPassing || expected.restParameterIndex !== supplied.restParameterIndex ||
+    expected.receiver?.passingMode !== supplied.receiver?.passingMode ||
+    JSON.stringify(expected.optionalParameterIndexes ?? []) !== JSON.stringify(supplied.optionalParameterIndexes ?? []) ||
+    JSON.stringify(expected.parameterPassingModes) !== JSON.stringify(supplied.parameterPassingModes)) return undefined;
+  const patternType: TargetTypeRef = { kind: "tuple", elements: [
+    ...(expected.receiver === undefined ? [] : [expected.receiver.type]), ...expected.parameters, expected.returnType,
+  ] };
+  const actualType: TargetTypeRef = { kind: "tuple", elements: [
+    ...(supplied.receiver === undefined ? [] : [supplied.receiver.type]), ...supplied.parameters, supplied.returnType,
+  ] };
   const containsParameter = (type: TargetTypeRef): boolean =>
     [...csharpFreeTypeParameterIdentities([type])].some(identity => parameterIdentities.has(identity));
-  const constrained = pattern.typeParameters?.some(parameter => parameter.constraints.some(constraint =>
-    constraint.kind === "type" && containsParameter(constraint.type))) === true;
-  if (!containsParameter(pattern.type) && !constrained) return new Map();
-  const from = actual.typeParameters ?? [];
-  const to = pattern.typeParameters ?? [];
+  const constrained = pattern.typeParameters.some(parameter => parameter.constraints.some(constraint =>
+    constraint.kind === "type" && containsParameter(constraint.type)));
+  if (!containsParameter(patternType) && !constrained) return new Map();
+  const from = actual.typeParameters;
+  const to = pattern.typeParameters;
   if (from.length !== to.length) return undefined;
   const substitutions = new Map<string, TargetTypeRef>();
   for (const [index, parameter] of from.entries()) {
@@ -125,8 +161,8 @@ function inferStructuralMemberTypeArguments(
     substitutions.set(parameter.identity, Object.freeze({ kind: "type-parameter", identity: target.identity,
       name: target.name, csharpConstraints: Object.freeze({ kind: "resolved", constraints: target.constraints }) }));
   }
-  const inferred = containsParameter(pattern.type) ? inferCsharpTargetTypeParameterBindings(pattern.type,
-    substituteTargetTypeParameters(actual.type, substitutions), parameterIdentities) : new Map<string, TargetTypeRef>();
+  const inferred = containsParameter(patternType) ? inferCsharpTargetTypeParameterBindings(patternType,
+    substituteTargetTypeParameters(actualType, substitutions), parameterIdentities) : new Map<string, TargetTypeRef>();
   if (inferred === undefined) return undefined;
   const bindings = new Map(inferred);
   for (const [index, parameter] of to.entries()) {

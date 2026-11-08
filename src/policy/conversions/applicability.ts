@@ -1,6 +1,6 @@
-import type { CsharpConversionSelection, CsharpConversionMode } from "../../target-model/conversions/selection.js";
+import type { CsharpConversionSelection, CsharpConversionRelation, CsharpConversionMode } from "../../target-model/conversions/selection.js";
 export function csharpConversionIsApplicable(
-  selection: CsharpConversionSelection,
+  selection: CsharpConversionSelection | CsharpConversionRelation,
   mode: CsharpConversionMode,
 ): boolean {
   if (selection.kind === "nullable-map") return csharpConversionIsApplicable(selection.conversion, mode);
@@ -23,6 +23,7 @@ export function csharpConversionIsApplicable(
     selection.kind === "nullable-reference" ||
     selection.kind === "runtime-union-projection" ||
     selection.kind === "js-value-box" ||
+    selection.kind === "source-erasure-required" ||
     selection.kind === "js-value-cast" ||
     mode === "explicit" && selection.kind === "cast";
 }

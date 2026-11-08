@@ -1,9 +1,10 @@
-import type { CsharpObjectShapeFact, CsharpRuntimeUnionTargetTypeRef, CsharpTargetNamedTypeRef, TargetTypeRef } from "./model.js";
+import type { CsharpNativeCallableMember, CsharpObjectShapeFact, CsharpRuntimeUnionTargetTypeRef, CsharpTargetNamedTypeRef, TargetTypeRef } from "./model.js";
 import { createCsharpMetadataBudget } from "../metadata/immutable.js";
 
 export function csharpTargetTypeComponents(
   type: TargetTypeRef,
   objectShape?: CsharpObjectShapeFact,
+  includeSignatureLocalTypes = true,
 ): readonly TargetTypeRef[] {
   const components: TargetTypeRef[] = [];
   const budget = createCsharpMetadataBudget();
@@ -36,6 +37,7 @@ export function csharpTargetTypeComponents(
       add(type.result);
       break;
     case "type-parameter":
+      addAll(type.csharpRequirementDependencies);
       addAll(type.csharpProjection?.arguments);
       if (type.csharpConstraints?.kind === "resolved") {
         budget.reserve(type.csharpConstraints.constraints.length);
@@ -66,7 +68,7 @@ export function csharpTargetTypeComponents(
     }
     add(target.csharpBaseType);
     add(target.csharpMethodValue?.owner);
-    add(target.csharpMethodValue?.contract);
+    if (includeSignatureLocalTypes) add(target.csharpMethodValue?.contract);
     add(target.csharpClassFactory?.instance);
     add(target.csharpTaskResultType);
     add(target.csharpGeneratorProtocol?.yieldType);
@@ -75,8 +77,10 @@ export function csharpTargetTypeComponents(
     add(target.csharpIteratorResultProtocol?.yieldType);
     add(target.csharpIteratorResultProtocol?.returnType);
     addAll(target.csharpDelegateSignature?.parameters);
+    add(target.csharpDelegateSignature?.receiver?.type);
     add(target.csharpExpressionTreeDelegateType);
     add(target.csharpDelegateSignature?.returnType);
+    if (includeSignatureLocalTypes) for (const member of target.csharpCallableMembers ?? []) addAll(csharpNativeCallableMemberComponents(member));
     const union = target as Partial<CsharpRuntimeUnionTargetTypeRef>;
     addAll(union.csharpRuntimeUnionArms);
     budget.reserve(union.csharpRuntimeUnionObjectShapes?.length ?? 0);
@@ -93,15 +97,28 @@ export function csharpTargetTypeComponents(
     for (const member of shape.members) {
       add(member.type);
       add(member.methodValueStorage?.type);
-      add(member.methodValueContract);
-      budget.reserve(member.typeParameters?.length ?? 0);
-      for (const parameter of member.typeParameters ?? []) {
-        budget.reserve(parameter.constraints.length);
-        for (const constraint of parameter.constraints) if (constraint.kind === "type") add(constraint.type);
+      if (includeSignatureLocalTypes && member.memberKind === "method") {
+        budget.reserve(member.methods.length);
+        for (const method of member.methods) {
+          addAll(csharpNativeCallableMemberComponents(method.member));
+          addAll(csharpNativeCallableMemberComponents(method.value));
+        }
       }
     }
     budget.reserve(shape.methodImplementation?.captures.length ?? 0);
     for (const capture of shape.methodImplementation?.captures ?? []) add(capture.type);
     addAll(shape.implements);
   }
+}
+
+export function csharpNativeCallableMemberComponents(member: CsharpNativeCallableMember): readonly TargetTypeRef[] {
+  const budget = createCsharpMetadataBudget();
+  budget.reserve(member.signature.parameters.length + member.typeParameters.length + 2);
+  const values = [...member.signature.parameters, member.signature.returnType];
+  if (member.signature.receiver !== undefined) values.push(member.signature.receiver.type);
+  for (const parameter of member.typeParameters) {
+    budget.reserve(parameter.constraints.length);
+    for (const constraint of parameter.constraints) if (constraint.kind === "type") values.push(constraint.type);
+  }
+  return Object.freeze(values);
 }

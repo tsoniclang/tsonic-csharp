@@ -1,10 +1,9 @@
 import assert from "node:assert/strict";
-import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
 import test from "node:test";
 import { selectCsharpCommonImplicitTarget } from "../../../dist/analysis/conversions/common-target.js";
-import { reconcileInferredReturnTargetContract } from "../../../dist/analysis/declarations/analyze.js";
-
-import { publishedReturnContracts, unrepresentedReturnContract } from "../../helpers/published-return-contracts.mjs";
+import { createNativeConversionHost } from "../../helpers/native-conversion-host.mjs";
+import { publishedCallableReturn, publishedReturnContracts } from "../../helpers/published-return-contracts.mjs";
+import { analyzeCsharpSource, assertCsharpCheckingSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
 import { getCsharpNullableElementTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { selectCsharpConversion, selectCsharpFlowReadConversion } from "../../../dist/policy/conversions/index.js";
@@ -23,14 +22,10 @@ import {
   csharpBigIntegerTargetType,
 } from "../../../dist/policy/types/index.js";
 
-const host = {
-  projectTypes: { directSupertypes() { return []; } },
-  providers: createCsharpProviderRelationResolver({ providers: [], providerPolicies: [] }),
-  target: {},
-};
+const host = createNativeConversionHost();
 const int32 = csharpSourcePrimitiveTargetType("int32");
 const float64 = csharpSourcePrimitiveTargetType("float64");
-const string = csharpSourcePrimitiveTargetType("string");
+const string = csharpStringTargetType();
 
 test("never supplies a bottom conversion without admitting void values", () => {
   const never = csharpNeverTargetType();
@@ -83,22 +78,19 @@ test("the Host-published optional return retains an unobserved absence alternati
 });
 
 test("inferred nullable numeric returns preserve exact observed storage and absence", () => {
-  for (const [baseline, observed] of [
-    [float64, int32],
-    [csharpBigIntegerTargetType(), csharpSourcePrimitiveTargetType("int64")],
-  ]) {
+  for (const observed of [int32, csharpSourcePrimitiveTargetType("int64")]) {
     const nullable = csharpNullableTargetType(observed);
-    assert.deepEqual(reconcileInferredReturnTargetContract(host, csharpNullableTargetType(baseline),
-      [observed, csharpAbsenceTargetType()], false), { kind: "resolved", type: nullable });
-    assert.equal(reconcileInferredReturnTargetContract(host, csharpNullableTargetType(baseline),
-      [observed, csharpAbsenceTargetType()], true).kind, "rejected");
-    assert.deepEqual(reconcileInferredReturnTargetContract(host, csharpNullableTargetType(baseline), [nullable], false),
-      { kind: "resolved", type: nullable });
-    assert.equal(reconcileInferredReturnTargetContract(host, csharpNullableTargetType(baseline), [nullable], true).kind, "rejected");
+    assert.deepEqual(selectCsharpCommonImplicitTarget(host, [observed, csharpAbsenceTargetType()], [nullable]),
+      { kind: "resolved", target: nullable });
+    assert.deepEqual(selectCsharpCommonImplicitTarget(host, [nullable], [nullable]), { kind: "resolved", target: nullable });
+    assert.equal(selectCsharpCommonImplicitTarget(host, [observed, csharpAbsenceTargetType()], [observed]).kind, "rejected",
+      "a fixed present destination cannot discard an observed absence");
+    assert.equal(selectCsharpConversion(host, nullable, observed, "implicit").kind, "rejected",
+      "a declared present return is validated, not repaired by a second inference path");
   }
   const nullableFloat = csharpNullableTargetType(float64);
-  assert.deepEqual(reconcileInferredReturnTargetContract(host, nullableFloat,
-    [csharpNullableTargetType(int32), nullableFloat], false), { kind: "resolved", type: nullableFloat });
+  assert.deepEqual(selectCsharpCommonImplicitTarget(host, [csharpNullableTargetType(int32), nullableFloat], [nullableFloat]),
+    { kind: "resolved", target: nullableFloat });
 });
 
 test("published integer results retain every Native primitive without allocating a checker bigint baseline", () => {
@@ -120,8 +112,27 @@ test("published integer results retain every Native primitive without allocating
     selected.get("actualBigint").publication.type.intrinsic === "bigint", true);
   assert.equal(targetTypeRefEquals(selected.get("actualBigint").contract.type, bigint), true);
   assert.equal(selectCsharpConversion(host, float64, bigint, "implicit").kind, "rejected");
-  assert.deepEqual(unrepresentedReturnContract(selected.get("read_int32")), { kind: "rejected",
-    reason: "The Host-published callable return has no closed C# representation." });
+});
+
+test("an unrepresentable actual Source return fails precisely without a second return inferrer", () => {
+  const compiled = analyzeCsharpSource({ sourceText: `
+    declare function unavailable(): [number, ...string[]];
+    export function available(value: number): number { return value; }
+  ` });
+  assertCsharpCheckingSucceeded(compiled);
+  assert.equal(compiled.analysis.kind, "resolved", "the unused type contract does not fabricate runtime demand");
+  const program = compiled.analysis.value;
+  const source = program.source;
+  const declaration = source.sourceFiles.filter(file => !source.ast.isDeclarationFile(file))
+    .flatMap(file => source.ast.statements(file)).find(node => source.ast.is.IsFunctionDeclaration(node) && source.ast.text(source.ast.name(node)) === "unavailable");
+  assert.equal(declaration !== undefined, true, "one actual original callable type declaration");
+  const completion = publishedCallableReturn(source, declaration).publication;
+  const outcome = program.representation.represent(completion, "return", declaration);
+  assert.equal(outcome.kind, "native-refused", "no undefined outcome or coarse return repair");
+  assert.equal(outcome.code, "CSHARP_TUPLE_STORAGE_UNSUPPORTED");
+  assert.equal(outcome.site === declaration && outcome.source === "tsonic-csharp", true,
+    "the exact Native failure remains at the requested original site");
+  assert.equal(outcome.message, "This Source tuple requires a Native storage layout that preserves every fixed and rest element.");
 });
 
 test("published compound returns retain exact Native elements without inferring a collection conversion", () => {
@@ -229,7 +240,7 @@ test("delegate adapters retain exact contravariant parameter conversions", () =>
     kind: "delegate-adapter",
     strategy: "adaptation",
     parameterConversions: [
-      { kind: "js-value-box" },
+      { kind: "source-erasure-required", source: csharpNullableTargetType(csharpExceptionTargetType()), target: csharpTsValueTargetType() },
       { kind: "identity" },
       { kind: "implicit", proof: "numeric" },
     ],

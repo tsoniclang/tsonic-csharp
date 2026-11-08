@@ -1,246 +1,210 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createCompilerSessionFromFiles } from "@tsonic/tsts";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
-import { sourceValueDeclaration } from "../../../dist/analysis/source-evidence/types/resolution/calls.js";
-import { resolveNode, resolveSelectedValueWithState, resolveSelectedValueResultWithState, resolveStorage } from "../../../dist/analysis/source-evidence/types/resolution/public-api.js";
-import { csharpSourceValueResult } from "../../../dist/analysis/source-evidence/types/resolution/call-results.js";
-import { selectCsharpPublishedParameterCarrier } from "../../../dist/analysis/source-evidence/types/resolution/source-references.js";
+import { analyzeCsharpSource, assertCsharpCheckingSucceeded, checkCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { resolvedSourceValue } from "../../helpers/published-return-contracts.mjs";
 import { csharpTsValueTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
-import { resolveSelectedDeclarationResult } from "../../../dist/analysis/source-evidence/types/resolution/declarations.js";
+import { sourceOutcome } from "../../../dist/policy/types/source-type-flow/representation-results.js";
+import { selectCsharpFlowReadProjection } from "../../../dist/policy/types/objects/read-projections.js";
 import { selectCsharpClassFactoryType } from "../../../dist/analysis/project-types/class-factory-types.js";
 import { getCsharpClassFactory } from "../../../dist/target-model/types/carriers/class-factories.js";
 
-function checkedStorage(kind) {
-  const checked = createCompilerSessionFromFiles({ currentDirectory: "/src", files: {
-    "/src/index.ts": "class Container { value: unknown; } declare const container: Container; declare const value: unknown; void container.value; void container['value']; void value; void function(value: unknown): unknown { return value; };",
-  }, compilerOptions: { strict: true, target: "es2022", module: "esnext" } }).checkSource();
-  assert.equal(checked.diagnostics.length, 0);
-  const source = createTargetSourceProgram(checked);
-  const file = checked.getSourceFile("/src/index.ts");
+function fixture() {
+  const compiled = analyzeCsharpSource({ sourceText: `
+    export class Container { value: unknown; }
+    export function inspect(container: Container, value: unknown): unknown {
+      void container.value; void container["value"];
+      const callable = (input: unknown): unknown => input;
+      void callable;
+      return value;
+    }
+  ` });
+  assertCsharpCheckingSucceeded(compiled);
+  assert.equal(compiled.analysis.kind, "resolved");
+  const source = compiled.source;
   const nodes = [];
-  const visit = node => { nodes.push(node); source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); }); };
-  visit(file);
-  const expression = nodes.find(node => kind === "property" ? source.ast.is.IsPropertyAccessExpression(node)
-    : kind === "element" ? source.ast.is.IsElementAccessExpression(node)
-      : kind === "function" ? source.ast.is.IsFunctionExpression(node)
-        : source.ast.is.IsIdentifier(node) && source.ast.is.IsVoidExpression(source.ast.parent(node)));
-  assert.equal(expression !== undefined, true, "the Native storage control uses its original checked value occurrence");
-  return { source, file, expression, queries: source.semantics.forFile(file) };
-}
-
-function fixture(kind, project) {
-  const { source, file: declarationFile, expression, queries } = checkedStorage(kind);
-  const access = kind === "property" ? queries.operations.propertyAccess(expression) : queries.operations.elementAccess(expression);
-  const declaration = access.selectedDeclaration;
-  const scope = {
-    host: {
-      ast: source.ast,
-      effectiveTypes: source.effectiveTypes,
-      navigation: {
-        ...source.navigation,
-        isProjectDeclaration: node => project && node === declaration,
-      },
-      semanticsFor: node => source.semantics.forNode(node),
-    },
-    catchVariableStorageCarrier: () => undefined,
+  const visit = node => {
+    nodes.push(node);
+    source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
-  scope.sourceValueDeclaration = (node, reference) => sourceValueDeclaration(scope, node, reference);
-  return { scope, expression, declaration, declarationFile };
+  for (const file of source.sourceFiles) if (!source.ast.isDeclarationFile(file)) visit(file);
+  const program = compiled.analysis.value;
+  const parameter = name => nodes.find(node => source.ast.is.IsParameterDeclaration(node) &&
+    source.ast.text(source.ast.name(node)) === name);
+  const represent = (evidence, site) => {
+    const result = program.representation.represent(evidence, "storage", site);
+    assert.equal(result.kind, "represented");
+    assert.equal(result.value.evidence === evidence, true);
+    return result.value;
+  };
+  return { compiled, source, nodes, program, parameter, represent };
 }
 
-test("parameter carrier selection has one publication owner for every outcome state", () => {
-  const { source, expression, file } = checkedStorage("function");
-  const parameter = source.ast.parameters(expression)[0];
-  assert.equal(parameter !== undefined, true, "the boundary input is a real checked parameter");
-  const actual = source.effectiveTypes.get(parameter);
-  assert.equal(actual !== undefined && actual.kind !== "refused" && actual.provenance.occurrence === parameter &&
-    actual.type.kind === "intrinsic" && actual.type.intrinsic === "unknown", true,
-    "the Native boundary consumes the real checked unknown parameter's publication");
-  const descriptor = actual.type;
-  const provenance = Object.freeze({ group: parameter, occurrence: parameter, sourceFile: file });
-  const refusal = Object.freeze({ kind: "refused", source: "tsonic", code: "TSONIC_LOCAL_TYPE_SIGNATURE",
-    site: parameter, reason: "The source signature has no chosen type." });
-  const cases = [
-    ["resolved", { kind: "resolved", type: descriptor, provenance }, "resolved"],
-    ["default", { kind: "default", type: descriptor, provenance }, "resolved"],
-    ["missing", undefined, "unresolved"],
-    ["refused", refusal, "unresolved"],
-    ["unrepresentable", { kind: "resolved", type: { kind: "union", types: [] }, provenance }, "unresolved"],
+test("parameter carrier selection has one authenticated publication owner and no missing or default facade", () => {
+  const input = fixture();
+  for (const name of ["value", "input"]) {
+    const parameter = input.parameter(name);
+    const slot = resolvedSourceValue(input.source.facts.values.declaredSlot(parameter), "the actual unknown parameter");
+    assert.equal(slot.type.type.kind, "intrinsic");
+    assert.equal(slot.type.type.intrinsic, "unknown");
+    assert.equal(targetTypeRefEquals(input.represent(slot.type, parameter).carrier, csharpTsValueTargetType()), true);
+    assert.equal(input.program.representation.represent(slot.type, "storage", parameter).value ===
+      input.program.representation.represent(slot.type, "storage", parameter).value, true);
+    for (const foreign of [undefined, { ...slot.type }, { ...slot.type, component: { ...slot.type.component } }]) {
+      assert.throws(() => input.program.representation.represent(foreign, "storage", parameter), TypeError,
+        "missing or copied evidence cannot authorize a warm cached Native carrier");
+    }
+  }
+  assert.equal(Object.hasOwn(input.source, "effectiveTypes"), false);
+  assert.equal(Object.hasOwn(input.source, "semantics"), false);
+});
+
+test("a dependent Native read forwards its original precise failure object without a carrier fallback", () => {
+  const input = fixture();
+  const site = input.parameter("value");
+  const failure = Object.freeze({ kind: "native-refused", source: "tsonic-csharp", site,
+    code: "CSHARP_ARRAY_ELEMENT_CARRIER_MISMATCH",
+    message: "The original native element destination is inconsistent." });
+  const result = selectCsharpFlowReadProjection(input.program.analysis.policy, input.program.representation,
+    failure, false, false);
+  assert.equal(result === failure, true);
+  assert.equal(result.site === site && result.message === failure.message, true);
+  const refusal = Object.freeze({ kind: "refused", source: "tsonic", site,
+    code: "TSONIC_SOURCE_FORM_UNSUPPORTED", message: "The exact original demanded child is unavailable." });
+  const forwarded = sourceOutcome(refusal);
+  assert.equal(forwarded.kind, "source-refused");
+  assert.equal(forwarded.refusal === refusal, true, "this is an identity forwarding unit control, not a fabricated lazy-constraint E2E receipt");
+  assert.equal(selectCsharpFlowReadProjection(input.program.analysis.policy, input.program.representation,
+    forwarded, false, false) === forwarded, true);
+});
+
+test("project storage ownership never includes an actual foreign declaration-file member", () => {
+  const checked = checkCsharpSource({ sourceText: `
+    import type { Remote } from "./remote.js";
+    export class Local { value: unknown; }
+    export function inspect(local: Local, remote: Remote): void { void local.value; void remote.value; }
+  `, files: { "remote.d.ts": "export declare class Remote { value: unknown; }" } });
+  assertCsharpCheckingSucceeded(checked);
+  const source = checked.source;
+  const reads = source.facts.values.occurrences().filter(node => source.ast.is.IsPropertyAccessExpression(node));
+  assert.equal(reads.length, 2);
+  for (const read of reads) {
+    const use = resolvedSourceValue(source.facts.objects.use(read), "the actual original property use");
+    assert.equal(use.selectedDeclaration.kind, "present");
+    const declaration = use.selectedDeclaration.value;
+    const local = source.ast.text(read).startsWith("local.");
+    assert.equal(source.facts.navigation.isProjectDeclaration(declaration), local);
+    assert.equal(source.ast.isDeclarationFile(source.ast.getSourceFile(declaration)), !local);
+    assert.equal(use.selectedDeclarations.includes(declaration), true,
+      "a foreign member remains a real Source fact without becoming project Native storage authority");
+  }
+});
+
+test("project member storage keeps the original declaration file and exact physical Native slot", () => {
+  const input = fixture();
+  const parameter = input.parameter("container");
+  const evidence = resolvedSourceValue(input.source.facts.values.declaredSlot(parameter), "the exact receiver slot").type;
+  const carrier = input.represent(evidence, parameter).carrier;
+  const registry = input.program.analysis.typeSystem.objectShapes;
+  for (const read of input.source.facts.values.occurrences().filter(node =>
+    input.source.ast.is.IsPropertyAccessExpression(node) || input.source.ast.is.IsElementAccessExpression(node))) {
+    const use = resolvedSourceValue(input.source.facts.objects.use(read), "the original declared property selection");
+    const arm = use.arms[0];
+    assert.equal(arm.kind, "member");
+    assert.equal(arm.origins.length, 1);
+    const physical = registry.resolveMember(evidence, carrier, arm.origins[0], read);
+    assert.equal(physical.kind, "represented");
+    assert.equal(physical.value.kind, "present");
+    assert.equal(physical.value.value.sourceDeclarations.includes(use.selectedDeclaration.value), true);
+    assert.equal(physical.value.value.sourceDeclarations.every(node =>
+      input.source.ast.getSourceFile(node) === input.source.ast.getSourceFile(use.selectedDeclaration.value)), true);
+    assert.equal(targetTypeRefEquals(physical.value.value.type, csharpTsValueTargetType()), true);
+  }
+});
+
+test("selected values consume their exact occurrence publication without checked-type or member retries", () => {
+  const input = fixture();
+  const occurrences = input.source.facts.values.occurrences();
+  const selected = [
+    occurrences.find(node => input.source.ast.is.IsPropertyAccessExpression(node)),
+    occurrences.find(node => input.source.ast.is.IsElementAccessExpression(node)),
+    occurrences.find(node => input.source.ast.is.IsIdentifier(node) && input.source.ast.text(node) === "value"),
+    occurrences.find(node => input.source.ast.is.IsArrowFunction(node)),
   ];
-  for (const [label, publication, expected] of cases) {
-    const rejections = [];
-    const scope = { host: { ast: source.ast, target: { id: "csharp" }, effectiveTypes: { get(node) {
-      assert.equal(node === parameter, true, label);
-      return publication;
-    } } }, sourceValueDeclarationSyntax: () => assert.fail("annotation syntax is not a parameter type owner"),
-    resolveCallableEvidence: () => assert.fail("Native delegate context cannot infer a missing Source parameter"),
-    semanticsFor: () => assert.fail("a missing publication cannot invoke checker queries") };
-    const selected = selectCsharpPublishedParameterCarrier(scope, parameter,
-      { depth: 0, rejectNativeResolution: rejection => rejections.push(rejection) });
-    assert.equal(selected.kind, expected, label);
-    if (selected.kind === "resolved") assert.equal(targetTypeRefEquals(selected.type, csharpTsValueTargetType()), true, label);
-    assert.equal(rejections.length, label === "refused" ? 1 : 0, label);
-    if (label === "refused") assert.equal(rejections[0].subject === parameter && rejections[0].code === refusal.code, true, label);
-    scope.host.effectiveTypes.get = () => assert.fail("a non-parameter has no parameter lookup");
-    assert.equal(selectCsharpPublishedParameterCarrier(scope, expression, { depth: 0 }).kind, "not-applicable", label);
+  assert.equal(selected.every(node => node !== undefined), true);
+  for (const node of selected) {
+    const evidence = resolvedSourceValue(input.source.facts.values.type(node), "the exact original value");
+    const first = input.represent(evidence, node);
+    const repeated = input.represent(evidence, node);
+    assert.equal(first === repeated, true);
+    assert.equal(first.evidence === evidence, true);
+    assert.equal(resolvedSourceValue(input.source.facts.values.type(node), "the same occurrence") === evidence, true);
+    assert.throws(() => input.program.representation.represent({ ...evidence }, "storage", node), TypeError);
   }
-  const foreign = { host: { ast: source.ast, target: { id: "csharp" }, effectiveTypes: {
-    get: () => ({ kind: "resolved", type: descriptor, provenance: { ...provenance, occurrence: expression } }),
-  } } };
-  assert.throws(() => selectCsharpPublishedParameterCarrier(foreign, parameter, { depth: 0 }),
-    error => error.diagnostic?.code === "TSONIC_INTERNAL_ANALYSIS_INVARIANT" && error.diagnostic.sourceNode === parameter,
-    "a foreign occurrence is rejected rather than typed through another path");
+  assert.equal(Object.hasOwn(input.source, "sourceFacts"), false);
 });
 
-test("a dependent native node retains the original selected rejection without a carrier fallback", () => {
-  const expression = {};
-  const array = {};
-  const file = {};
-  const selected = Object.freeze({ kind: "rejected", subject: array, code: "CSHARP_ARRAY_ELEMENT_CARRIER_MISMATCH",
-    reason: "The original native element destination is inconsistent." });
-  const carrier = { kind: "source-primitive", name: "int32" };
-  const result = resolveNode({ resolveNodeValueWithState(node, sourceFile, state) {
-    assert.equal(node === expression && sourceFile === file, true, "the actual dependent use retains its source context");
-    assert.equal("rejectNativeParameter" in state, false, "the superseded parameter-only callback is not another API");
-    state.rejectNativeResolution(selected);
-    return csharpSourceValueResult(carrier);
-  } }, expression, file);
-  assert.equal(result === selected && Object.isFrozen(result), true, "the actual immutable owner result is transported unchanged");
-  assert.equal(result.subject === array && result.code === selected.code && result.reason === selected.reason, true,
-    "the original array subject, precise public code and reason survive its dependent use");
+test("generic member writes retain the original declared slot and exact receiver substitution environment", () => {
+  const checked = checkCsharpSource({ sourceText: `
+    export class Box<Value> { constructor(public value: Value) {} }
+    export function put(box: Box<unknown>, input: unknown): void { box.value = input; }
+  ` });
+  assertCsharpCheckingSucceeded(checked);
+  const source = checked.source;
+  const assignment = source.facts.values.occurrences().find(node => source.ast.is.IsIdentifier(node) &&
+    source.ast.text(node) === "input");
+  assert.equal(assignment !== undefined, true);
+  const destination = resolvedSourceValue(source.facts.values.destination(assignment), "the exact original member-write destination");
+  assert.equal(destination.kind, "present");
+  const selected = destination.value;
+  assert.equal(selected.application.kind, "receiver", "a member write is not a fabricated invocation");
+  assert.equal(selected.application.bindings.length, 1);
+  assert.equal(selected.declaration.type.type.kind, "parameter");
+  assert.equal(selected.application.bindings[0].declaration === selected.declaration.type.type.declaration, true);
+  const applied = resolvedSourceValue(source.facts.descriptors.substitute(selected.declaration.type,
+    selected.application.bindings), "the exact original receiver application");
+  assert.equal(applied === selected.applied, true);
+  assert.equal(selected.applied.type.kind, "intrinsic");
+  assert.equal(selected.applied.type.intrinsic, "unknown");
 });
 
-test("project storage selection excludes checked external and virtual provider members", () => {
-  for (const kind of ["property", "element"]) {
-    for (const project of [true, false]) {
-      const { scope, expression, declaration } = fixture(kind, project);
-      const selected = sourceValueDeclaration(scope, expression, declaration);
-      assert.equal(selected === declaration, project, `${kind}: exact project ownership`);
-      assert.equal(selected === undefined, !project, `${kind}: provider owns external members`);
+test("member storage consumes identical published origins instead of read-type reconstruction", () => {
+  const input = fixture();
+  const reads = input.source.facts.values.occurrences().filter(node =>
+    input.source.ast.is.IsPropertyAccessExpression(node) || input.source.ast.is.IsElementAccessExpression(node));
+  const uses = reads.map(read => resolvedSourceValue(input.source.facts.objects.use(read), "the actual current member"));
+  assert.equal(uses[0].selectedDeclaration.value === uses[1].selectedDeclaration.value, true);
+  assert.equal(uses[0].arms[0].origins[0] === uses[1].arms[0].origins[0], true);
+  const evidence = uses[0].readType;
+  input.source.facts.descriptors.assertEvidence(evidence);
+  assert.equal(targetTypeRefEquals(input.represent(evidence, reads[0]).carrier, csharpTsValueTargetType()), true);
+  const declaration = uses[0].selectedDeclaration.value;
+  assert.equal(input.source.facts.values.occurrences().includes(declaration), false,
+    "metadata declarations are not guessed value occurrences");
+});
+
+test("local class factories use the real project instance and original collision-free member inventory", () => {
+  const compiled = analyzeCsharpSource({ sourceText: `
+    export function outer() {
+      class Local { Create: unknown; _Create: unknown; IsInstance: unknown; }
+      return Local;
     }
-  }
-});
-
-test("project storage queries use the selected declaration's file, not another reference owner", () => {
-  for (const kind of ["property", "element"]) {
-    const { scope, expression, declaration, declarationFile } = fixture(kind, true);
-    const carrier = { kind: "source-primitive", name: "int32" };
-    scope.resolveNode = (selected, file) => {
-      assert.equal(selected === declaration, true, `${kind}: exact storage declaration`);
-      assert.equal(file === declarationFile, true, `${kind}: exact checked declaration file`);
-      return { kind: "resolved", sourceResult: csharpSourceValueResult(carrier) };
-    };
-    assert.equal(resolveStorage(scope, expression, {}) === carrier, true, `${kind}: native carrier`);
-  }
-});
-
-test("selected values consume the exact occurrence publication without a checked type or member retry", () => {
-  for (const kind of ["identifier", "property", "element", "function"]) {
-    for (const available of [true, false]) {
-      const { source, file, expression: node, queries } = checkedStorage(kind);
-      const type = queries.types.expressionType(node);
-      const enclosing = { kind: "value", node: {}, projection: [] };
-      const bindings = new Map();
-      const state = { depth: 3, sourceStorageSubject: enclosing, sourceBindings: bindings };
-      const carrier = { kind: "source-primitive", name: "int64" };
-      const observed = [];
-      const accept = selected => {
-        assert.equal(selected === state && selected.sourceStorageSubject === enclosing, true, `${kind}: the immutable caller context is retained`);
-        assert.equal(selected.sourceBindings === bindings && selected.depth === 3, true, kind);
-      };
-      const scope = {
-        host: {
-          ast: source.ast,
-          effectiveTypes: source.effectiveTypes,
-          navigation: source.navigation,
-          sourceStorage: { subjectFor: () => assert.fail("published value selection does not infer a replacement storage owner") },
-          representations: { genericProjections: () => [], scopedTargetType: () => undefined },
-          structuralTypes: { resolveTarget: () => assert.fail("these exact unknown/primitive Native unit operands have no structural union member") },
-          semantics: () => queries,
-        },
-        sourceValueDeclaration: () => undefined,
-        resolveSelectedValueResultWithState: (...args) => resolveSelectedValueResultWithState(scope, ...args),
-        resolveNodeValueWithState(selected, selectedFile, nested) {
-          assert.equal(selected === node && selectedFile === file, true, kind);
-          accept(nested); observed.push("publication"); return available ? csharpSourceValueResult(carrier) : undefined;
-        },
-        resolveTypeWithState(selected, selectedFile, nested) {
-          assert.equal(selected === type && selectedFile === file, true, kind);
-          assert.fail("missing publications cannot invoke checked type resolution");
-        },
-        resolveMemberAccessTargetType(selected, selectedQueries, nested) {
-          assert.equal(selected === node && selectedQueries === queries, true, kind);
-          assert.fail("missing publications cannot invoke member retyping");
-        },
-      };
-      assert.equal(resolveSelectedValueWithState(scope, node, type, file, state) === (available ? carrier : undefined), true, kind);
-      assert.deepEqual(observed, ["publication"]);
-      assert.equal(state.sourceStorageSubject === enclosing, true, "the enclosing operation is immutable");
-    }
-  }
-});
-
-test("member storage consumes its published declaration without checked symbol or read-type reconstruction", () => {
-  const { source, queries, expression } = checkedStorage("property");
-  const declaration = queries.operations.propertyAccess(expression).selectedDeclaration;
-  assert.equal(declaration !== undefined, true);
-  const actual = source.effectiveTypes.get(declaration);
-  assert.equal(actual !== undefined && actual.kind !== "refused", true);
-  const receiver = Object.freeze({ kind: "target-named", id: "fixture.Container" });
-  const refusal = Object.freeze({ kind: "refused", source: "tsonic", code: "TSONIC_LOCAL_TYPE_CONFLICT",
-    site: declaration, reason: "The original declaration is refused." });
-  for (const [label, publication, available] of [["resolved", { ...actual, kind: "resolved" }, true],
-    ["default", { ...actual, kind: "default" }, true], ["missing", undefined, false], ["refused", refusal, false],
-    ["unrepresentable", { ...actual, type: { kind: "union", types: [] } }, false]]) {
-    const forbidden = () => assert.fail(label + ": no second Source storage decision");
-    const instantiated = [];
-    const rejections = [];
-    const scope = { host: { ast: source.ast, target: { id: "csharp" },
-      effectiveTypes: { get(node) { assert.equal(node === declaration, true); return publication; } },
-      semanticsFor: forbidden, semantics: forbidden,
-      projectTypes: () => ({ instantiateMemberType(node, selected, type) {
-        assert.equal(node === declaration && selected === receiver, true);
-        instantiated.push(type);
-        return { kind: "resolved", type };
-      } }),
-    }, resolveNodeWithState: forbidden, resolveAuthoredAndSelectedSourceType: forbidden,
-    resolveProjectEnumMemberTarget: () => undefined };
-    const result = resolveSelectedDeclarationResult(scope, declaration,
-      { depth: 0, rejectNativeResolution: rejection => rejections.push(rejection) }, receiver);
-    assert.equal(result !== undefined, available, label);
-    assert.equal(instantiated.length, available ? 1 : 0, label);
-    if (available) assert.equal(result === instantiated[0] && targetTypeRefEquals(result, csharpTsValueTargetType()), true, label);
-    assert.equal(rejections.length, label === "refused" ? 1 : 0, label);
-    if (label === "refused") assert.equal(rejections[0].subject === declaration && rejections[0].reason === refusal.reason, true);
-  }
-});
-
-test("local class factories derive their metadata only from the published instance and original class members", () => {
-  const checked = createCompilerSessionFromFiles({ currentDirectory: "/src", files: {
-    "/src/index.ts": "function outer() { class Local { Create: unknown; _Create: unknown; IsInstance: unknown; } return Local; }",
-  }, compilerOptions: { strict: true, target: "es2022", module: "esnext" } }).checkSource();
-  assert.equal(checked.diagnostics.length, 0);
-  const source = createTargetSourceProgram(checked);
-  const nodes = [];
-  const visit = node => { if (source.ast.is.IsClassDeclaration(node)) nodes.push(node);
-    source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); }); };
-  visit(checked.getSourceFile("/src/index.ts"));
-  const owner = nodes[0];
-  const publication = source.effectiveTypes.get(owner);
-  assert.equal(publication !== undefined && publication.kind !== "refused" && publication.type.kind === "declared", true);
-  const instance = Object.freeze({ kind: "target-named", id: "fixture.Local", typeArguments: Object.freeze([]) });
-  const definition = { kind: "class", declaration: owner, local: true, abstract: false, factoryName: "LocalFactory",
-    outerTypeParameters: [], outerTypeProjections: [] };
-  const catalog = { definitionForTarget(type) { return type === instance ? definition : undefined; } };
+  ` });
+  assertCsharpCheckingSucceeded(compiled);
+  assert.equal(compiled.analysis.kind, "resolved");
+  const program = compiled.analysis.value;
+  const source = compiled.source;
+  const catalog = program.analysis.policy.projectTypes.catalog;
+  const definition = catalog.definitions.find(definition => definition.local);
+  assert.equal(definition !== undefined, true);
+  const instance = catalog.targetTypeForDeclaration(definition.declaration, []);
+  assert.equal(instance !== undefined, true);
   const factory = selectCsharpClassFactoryType(source.ast, catalog, instance);
   const contract = getCsharpClassFactory(factory);
-  assert.equal(contract?.declaration === owner && contract.instance === instance, true);
+  assert.equal(contract.declaration === definition.declaration && targetTypeRefEquals(contract.instance, instance), true);
   assert.equal(contract.createMethodName, "__Create");
   assert.equal(contract.instanceTestMethodName, "_IsInstance");
   assert.equal(selectCsharpClassFactoryType(source.ast, catalog, undefined), undefined);
-  assert.equal(selectCsharpClassFactoryType(source.ast, catalog, { ...instance }), undefined);
-  definition.abstract = true;
-  assert.equal(selectCsharpClassFactoryType(source.ast, catalog, instance), undefined);
+  assert.equal(selectCsharpClassFactoryType(source.ast, catalog,
+    { ...instance, id: "fixture.foreign" }), undefined, "a copied foreign Native identity is not project factory authority");
 });

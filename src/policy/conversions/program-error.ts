@@ -2,9 +2,10 @@ import type { CsharpPolicyContext } from "../model/context.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { csharpExceptionTargetType, csharpTsValueTargetType, isCsharpClosedJsRuntimeCarrier } from "../../target-model/types/index.js";
 import { selectCsharpConversion } from "./core.js";
+import type { CsharpConversionShapeQueries } from "./shape-queries.js";
 
 export function selectCsharpProgramErrorCarrier(
-  input: Pick<CsharpPolicyContext, "projectTypes" | "providers" | "typeDefinitions" | "target">,
+  input: Pick<CsharpPolicyContext, "projectTypes" | "providers" | "typeDefinitions" | "target"> & CsharpConversionShapeQueries,
   source: TargetTypeRef | undefined,
   sourceThrowable: boolean,
 ): TargetTypeRef | undefined {

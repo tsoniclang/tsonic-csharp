@@ -1,9 +1,9 @@
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpRuntimeUnionTargetTypeRef, CsharpTargetNamedTypeRef, CsharpTaskTargetTypeRef } from "../../../target-model/types/model.js";
-import { csharpNullableTargetType, isCsharpNullableReferenceTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
+import type { CsharpNativeCallableMember, CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpRuntimeUnionTargetTypeRef, CsharpTargetNamedTypeRef, CsharpTaskTargetTypeRef } from "../../../target-model/types/model.js";
+import { csharpNullableReferenceTargetType, isCsharpNullableReferenceTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { getCsharpRuntimeUnionArms, isCsharpAbsenceTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
-import { csharpTypeProjection, getCsharpGenericOptionalParts, type CsharpOptionalTypeProjection } from "../../../target-model/types/projections.js";
+import { getCsharpOptionalProjection, getCsharpGenericOptionalParts, type CsharpOptionalTypeProjection } from "../../../target-model/types/projections.js";
 import { resolveCsharpOptionalStorage } from "../storage/optional-storage.js";
 import { csharpFreeTypeParameterIdentities } from "../../../target-model/types/generic-references.js";
 import type { CsharpTypeParameterConstraint } from "../../../target-model/types/generic-constraints.js";
@@ -17,20 +17,22 @@ export function substituteTargetTypeParameters(
     case "type-parameter":
       const substitution = substitutions.get(type.identity);
       if (substitution === undefined) {
-        const projection = csharpTypeProjection(type)?.csharpProjection;
+        const projection = getCsharpOptionalProjection(type)?.csharpProjection;
         if (projection?.kind === "optional") {
           const element = substituteTargetTypeParameters(projection.arguments[0], substitutions);
           const selected = resolveCsharpOptionalStorage(projection, element);
           if (selected === undefined) throw new Error("A substituted optional carrier has no native storage representation.");
           if (!targetTypeRefEquals(selected, type)) return selected;
         }
-        return type.csharpConstraints?.kind !== "resolved" ? type : { ...type,
-          csharpConstraints: Object.freeze({ kind: "resolved", constraints:
-            substituteConstraints(type.csharpConstraints.constraints, substitutions) }),
+        return { ...type,
+          ...(type.csharpRequirementDependencies === undefined ? {} : { csharpRequirementDependencies:
+            Object.freeze(type.csharpRequirementDependencies.map(value => substituteTargetTypeParameters(value, substitutions))) }),
+          ...(type.csharpConstraints?.kind !== "resolved" ? {} : { csharpConstraints: Object.freeze({ kind: "resolved" as const,
+            constraints: substituteConstraints(type.csharpConstraints.constraints, substitutions) }) }),
         };
       }
       return isCsharpNullableReferenceTargetType(type)
-        ? csharpNullableTargetType(substitution)
+        ? csharpNullableReferenceTargetType(substitution)
         : substitution;
     case "target-named":
       const arrayLiteralElementType = (type as CsharpTargetNamedTypeRef).csharpArrayLiteralElementType;
@@ -46,6 +48,7 @@ export function substituteTargetTypeParameters(
       const runtimeUnionArms = (type as Partial<CsharpRuntimeUnionTargetTypeRef>).csharpRuntimeUnionArms;
       const runtimeUnionObjectShapes = (type as Partial<CsharpRuntimeUnionTargetTypeRef>).csharpRuntimeUnionObjectShapes;
       const delegateSignature = (type as CsharpTargetNamedTypeRef).csharpDelegateSignature;
+      const callableMembers = (type as CsharpTargetNamedTypeRef).csharpCallableMembers;
       const expressionTreeDelegateType = (type as CsharpTargetNamedTypeRef).csharpExpressionTreeDelegateType;
       const methodValue = (type as CsharpTargetNamedTypeRef).csharpMethodValue;
       const factory = (type as CsharpTargetNamedTypeRef).csharpClassFactory;
@@ -53,6 +56,8 @@ export function substituteTargetTypeParameters(
         : new Map([...substitutions].filter(([name]) => !methodValue.typeParameters.includes(name)));
       return {
         ...type,
+        ...(callableMembers === undefined ? {} : { csharpCallableMembers: Object.freeze(callableMembers.map(member =>
+          substituteCsharpNativeCallableMember(member, substitutions))) }),
         ...(expressionTreeDelegateType === undefined ? {} : {
           csharpExpressionTreeDelegateType: substituteTargetTypeParameters(expressionTreeDelegateType, substitutions),
         }),
@@ -113,6 +118,11 @@ export function substituteTargetTypeParameters(
           ? {}
           : {
               csharpDelegateSignature: {
+                kind: delegateSignature.kind,
+                ...(delegateSignature.receiver === undefined ? {} : { receiver: {
+                  type: substituteTargetTypeParameters(delegateSignature.receiver.type, substitutions),
+                  passingMode: delegateSignature.receiver.passingMode,
+                } }),
                 parameters: delegateSignature.parameters.map((parameter) => substituteTargetTypeParameters(parameter, substitutions)),
                 parameterPassingModes: delegateSignature.parameterPassingModes,
                 returnType: substituteTargetTypeParameters(delegateSignature.returnType, substitutions),
@@ -178,7 +188,7 @@ export function inferCsharpTargetTypeParameterBindings(
       }
       return targetTypeRefEquals(existing, right);
     }
-    const projection = csharpTypeProjection(left)?.csharpProjection;
+    const projection = getCsharpOptionalProjection(left)?.csharpProjection;
     if (projection?.kind === "optional" && projection.part === "operations") {
       projections.push({ contract: projection, actual: right });
       return true;
@@ -248,7 +258,7 @@ export function inferCsharpTargetTypeParameterBindings(
     const rightArguments = right ?? [];
     return leftArguments.length === rightArguments.length &&
       leftArguments.every((argument, index) => {
-        const projection = csharpTypeProjection(argument);
+        const projection = getCsharpOptionalProjection(argument);
         if (projection?.csharpProjection.kind === "optional" && !parameterIdentities.has(projection.identity)) {
           projections.push({ contract: projection.csharpProjection, actual: rightArguments[index]! });
           return true;
@@ -296,22 +306,34 @@ export function substituteObjectShapeMemberTargetTypeParameters(
   member: CsharpObjectShapeMemberFact,
   substitutions: ReadonlyMap<string, TargetTypeRef>,
 ): CsharpObjectShapeMemberFact {
-  const boundParameters = new Set(member.typeParameters?.map(parameter => parameter.identity));
-  const freeSubstitutions = boundParameters.size === 0 ? substitutions
-    : new Map([...substitutions].filter(([identity]) => !boundParameters.has(identity)));
-  return Object.freeze({ ...member,
-    type: substituteTargetTypeParameters(member.type, freeSubstitutions),
+  const value = {
+    type: substituteTargetTypeParameters(member.type, substitutions),
     ...(member.methodValueStorage === undefined ? {} : {
       methodValueStorage: Object.freeze({ ...member.methodValueStorage,
         type: substituteTargetTypeParameters(member.methodValueStorage.type, substitutions) }),
     }),
-    ...(member.methodValueContract === undefined ? {} : {
-      methodValueContract: substituteTargetTypeParameters(member.methodValueContract, substitutions),
-    }),
-    ...(member.typeParameters === undefined ? {} : {
-      typeParameters: Object.freeze(member.typeParameters.map(parameter => Object.freeze({ ...parameter,
-        constraints: substituteConstraints(parameter.constraints, freeSubstitutions),
-      }))),
+  };
+  return member.memberKind === "property" ? Object.freeze({ ...member, ...value })
+    : Object.freeze({ ...member, ...value, methods: Object.freeze(member.methods.map(method => Object.freeze({
+      member: substituteCsharpNativeCallableMember(method.member, substitutions),
+      value: substituteCsharpNativeCallableMember(method.value, substitutions),
+    }))) });
+}
+
+export function substituteCsharpNativeCallableMember(
+  member: CsharpNativeCallableMember,
+  substitutions: ReadonlyMap<string, TargetTypeRef>,
+): CsharpNativeCallableMember {
+  const bound = new Set(member.typeParameters.map(parameter => parameter.identity));
+  const free = new Map([...substitutions].filter(([identity]) => !bound.has(identity)));
+  return Object.freeze({ name: member.name,
+    typeParameters: Object.freeze(member.typeParameters.map(parameter => Object.freeze({ ...parameter,
+      constraints: substituteConstraints(parameter.constraints, free) }))),
+    signature: Object.freeze({ ...member.signature,
+      ...(member.signature.receiver === undefined ? {} : { receiver: Object.freeze({ ...member.signature.receiver,
+        type: substituteTargetTypeParameters(member.signature.receiver.type, free) }) }),
+      parameters: Object.freeze(member.signature.parameters.map(parameter => substituteTargetTypeParameters(parameter, free))),
+      returnType: substituteTargetTypeParameters(member.signature.returnType, free),
     }),
   });
 }

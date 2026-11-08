@@ -3,25 +3,28 @@ import test from "node:test";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { compileCsharpTarget } from "../../../dist/backend/compile.js";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
+import { resolvedSourceValue } from "../../helpers/published-return-contracts.mjs";
+import { csharpNumericLiteralInteger } from "../../../dist/policy/conversions/literal-range.js";
 
 function literals(sourceText, surface = "native") {
   const compiled = compileCsharpSource({ surface, sourceText });
   const program = compiled.result.program;
   assert.equal(program !== undefined, true, `${surface}: the program publishes`);
-  const ast = program.source.ast;
+  const source = program.source;
+  const ast = source.ast;
   const found = [];
-  const visit = (node) => {
-    const datum = program.records.literalValue.get(node);
-    if (datum !== undefined) found.push({ node, kind: ast.kindName(node), datum });
-    ast.forEachChild(node, (child) => { if (child !== undefined) visit(child); });
-  };
-  for (const file of csharpProgramSourceFiles(program)) visit(file);
-  return { compiled, program, found };
+  for (const node of source.facts.values.occurrences()) {
+    const evidence = resolvedSourceValue(source.facts.values.type(node), "the authoritative original value occurrence");
+    source.facts.descriptors.assertEvidence(evidence);
+    const scalar = source.facts.descriptors.scalarLiteral(evidence);
+    if (scalar.kind === "present") found.push({ node, kind: ast.kindName(node), evidence, datum: scalar.value });
+  }
+  return { compiled, program, found, source };
 }
 
 test("one checked extraction publishes exact frozen literal data with bigint precision and signed zero", () => {
   for (const surface of ["native", "js"]) {
-    const { program, found } = literals(`
+    const { program, source, found } = literals(`
       export const wide = 9007199254740993n;
       export const exact = 9007199254740993;
       export const zero = -0;
@@ -31,25 +34,33 @@ test("one checked extraction publishes exact frozen literal data with bigint pre
     `, surface);
     const byKind = (kind) => found.filter((entry) => entry.kind === kind);
     const wide = byKind("KindBigIntLiteral")[0]?.datum;
-    assert.equal(wide?.form === "bigint" && wide.integer === 9007199254740993n, true, `${surface}: bigint keeps its exact value`);
-    const exact = byKind("KindNumericLiteral").find((entry) => entry.datum.integer === 9007199254740993n)?.datum;
-    assert.equal(exact !== undefined && exact.number === Number("9007199254740993"), true,
-      `${surface}: a numeric literal keeps both its double and its exact integer`);
+    assert.equal(wide?.kind === "bigint" && wide.value === 9007199254740993n, true, `${surface}: bigint keeps its exact value`);
+    const exact = byKind("KindNumericLiteral").find(entry => csharpNumericLiteralInteger(entry.datum) === 9007199254740993n)?.datum;
+    assert.equal(exact?.kind === "number" && exact.value.kind === "authored" &&
+      exact.value.token.decimalText === "9007199254740993", true,
+      `${surface}: the original decimal token is never rounded through a double`);
     const zero = byKind("KindPrefixUnaryExpression")[0]?.datum;
-    assert.equal(zero !== undefined && Object.is(zero.number, -0) && zero.integer === 0n, true, `${surface}: -0 keeps signed zero`);
-    const grouped = byKind("KindBinaryExpression").find((entry) => entry.datum.integerConstant === 20n);
+    assert.equal(zero?.kind === "number" && zero.value.kind === "authored" &&
+      zero.value.token.negative && zero.value.token.coefficient === 0n, true, `${surface}: -0 keeps its original sign`);
+    const grouped = byKind("KindBinaryExpression").find(entry => csharpNumericLiteralInteger(entry.datum) === 20n);
     assert.equal(grouped !== undefined, true, `${surface}: an integer constant expression keeps its exact value`);
-    const array = byKind("KindArrayLiteralExpression")[0]?.datum;
-    assert.equal(array?.elements?.length === 2 && array.elements[0].text === "a" && array.elements[1].text === "bc", true,
-      `${surface}: array data references each element datum`);
-    assert.equal(byKind("KindTrueKeyword")[0]?.datum.form === "true", true, `${surface}: boolean literal form`);
-    assert.equal(found.every((entry) => Object.isFrozen(entry.datum) && (entry.datum.elements === undefined || Object.isFrozen(entry.datum.elements))),
-      true, `${surface}: every datum and element list is frozen`);
-    assert.equal(found.every((entry) => (entry.datum.form === "array") === Array.isArray(entry.datum.elements) &&
-      ((entry.datum.form === "string" || entry.datum.form === "template") === (typeof entry.datum.text === "string"))), true,
-    `${surface}: array data always has elements and text data always has text, by form`);
-    assert.equal(found.every((entry) => program.records.literalValue.get(entry.node) === entry.datum), true,
-      `${surface}: every read returns the one extracted datum`);
+    const arrays = source.facts.values.occurrences().filter(node => source.ast.is.IsArrayLiteralExpression(node));
+    assert.equal(arrays.length, 1, `${surface}: one original array construction`);
+    const construction = resolvedSourceValue(source.facts.values.construction(arrays[0]), "original array evaluation");
+    assert.equal(construction.kind, "present");
+    assert.equal(construction.value.kind, "array");
+    assert.deepEqual(construction.value.evaluation.map(entry => {
+      const scalar = source.facts.descriptors.scalarLiteral(entry.value);
+      assert.equal(entry.form === "value" && scalar.kind === "present" && scalar.value.kind === "string", true);
+      return scalar.value.value;
+    }), ["a", "bc"], `${surface}: authored array grouping references exact child evidence, not a recursive literal census`);
+    assert.equal(byKind("KindTrueKeyword")[0]?.datum.kind === "boolean" &&
+      byKind("KindTrueKeyword")[0].datum.value, true, `${surface}: boolean literal value`);
+    assert.equal(found.every(entry => Object.isFrozen(entry.datum)) && Object.isFrozen(construction.value.evaluation),
+      true, `${surface}: the scalar units and authored construction vector are immutable`);
+    assert.equal(found.every(entry => source.facts.descriptors.scalarLiteral(entry.evidence).value === entry.datum), true,
+      `${surface}: every read returns the same original singleton unit`);
+    assert.equal(Object.hasOwn(program.records, "literalValue"), false, `${surface}: the detached Native literal census is retired`);
   }
 });
 
@@ -59,11 +70,11 @@ test("extraction covers literals that type resolution reaches before their decla
     function later(flag: boolean) { return flag ? 1 : 2; }
   `);
   assert.equal(compiled.result.diagnostics.length === 0, true, "the program compiles without diagnostics");
-  const integers = found.filter((entry) => entry.kind === "KindNumericLiteral").map((entry) => entry.datum.integer);
+  const integers = found.filter((entry) => entry.kind === "KindNumericLiteral").map(entry => csharpNumericLiteralInteger(entry.datum));
   assert.equal(integers.includes(1n) && integers.includes(2n), true, "both conditional arms have data");
   const output = [...compiled.artifacts.values()].join("\n");
-  assert.equal(/public static int first\(bool flag\)/u.test(output) && /public static int later\(bool flag\)/u.test(output), true,
-    "both functions keep the exact int carrier their literal arms select");
+  assert.equal(/public static long first\(bool flag\)/u.test(output) && /public static long later\(bool flag\)/u.test(output), true,
+    "both functions retain the ruled native int64 integer-creation carrier");
 });
 
 test("literals in type-only declarations, overload sets and abstract signatures are extracted without changing admission", () => {
@@ -75,11 +86,11 @@ test("literals in type-only declarations, overload sets and abstract signatures 
     export const limit: Limit = 10;
   `);
   assert.equal(compiled.result.diagnostics.length === 0, true, "the program compiles without diagnostics");
-  const integers = found.filter((entry) => entry.kind === "KindNumericLiteral").map((entry) => entry.datum.integer);
+  const integers = found.filter((entry) => entry.kind === "KindNumericLiteral").map(entry => csharpNumericLiteralInteger(entry.datum));
   assert.equal(integers.includes(1n) && integers.includes(2n) && integers.filter((value) => value === 10n).length >= 1, true,
-    "literals in emitted bodies, the overload's body and the alias position all have data");
+    "the overload implementation, concrete body and original initializer have authentic singleton units");
   const output = [...compiled.artifacts.values()].join("\n");
-  assert.equal(/abstract double area\(double scale\);/u.test(output) && /return 2;/u.test(output), true,
+  assert.equal(/abstract double area\(double scale\);/u.test(output) && /return 2(?:L|D)?;/u.test(output), true,
     "the abstract signature and the concrete body keep their native output");
 });
 
@@ -130,13 +141,17 @@ export function preciseDouble(): float64 { return 9007199254740992; }
     const { compiled, program, found } = literals(sourceText, surface);
     assert.equal(compiled.result.diagnostics.length, 0, `${surface}: selected scalar and arithmetic controls compile`);
     const output = [...compiled.artifacts.values()].join("\n");
-    const arithmetic = found.find(entry => entry.kind === "KindBinaryExpression" && entry.datum.integerConstant === 0n);
+    const ast = program.source.ast;
+    const arithmetic = program.source.facts.values.occurrences().find(node => ast.is.IsBinaryExpression(node) &&
+      ast.authoredRange(node).kind === "authored" && ast.getSourceText(ast.getSourceFile(node))
+        .slice(ast.authoredRange(node).start, ast.authoredRange(node).end) === "(1 + 2) / 4");
     assert.equal(arithmetic !== undefined, true, `${surface}: the selected operation remains an operation`);
-    const source = program.records.valueRead.get(arithmetic.node)?.source;
-    assert.equal(source?.kind === "source-primitive" && source.name === (surface === "native" ? "int32" : "float64"), true,
+    const source = program.records.valueRead.get(arithmetic)?.source;
+    assert.equal(source?.kind === "source-primitive" && source.name === "int64", true,
       `${surface}: the intrinsic carrier is separate from the enclosing number context`);
-    assert.equal(output.includes(surface === "native" ? "return (1 + 2) / 4;" : "return (1D + 2D) / 4D;"), true,
-      `${surface}: arithmetic is not folded or retyped from the destination`);
+    assert.equal(program.records.binaryOperation.get(arithmetic) !== undefined, true,
+      `${surface}: the original arithmetic has a sealed operation, not a folded destination literal`);
+    assert.match(output, /\(1L \+ 2L\) \/ 4L/u, `${surface}: arithmetic operands retain their native integer producers`);
     assert.equal(output.includes("return 9007199254740992D;"), true, `${surface}: the actual double is a native double at its producer`);
     assert.equal(output.includes("return (short)7;") && output.includes("return (uint)4294967295;"), true,
       `${surface}: scalar integer adaptation uses native constant casts`);
@@ -144,18 +159,26 @@ export function preciseDouble(): float64 { return 9007199254740992; }
   }
 });
 
-test("checked float64 provenance keeps genuine native conversion operations and their value domain", () => {
+test("Source provenance survives Native AST decoration and actual float64 casts remain operations", () => {
   for (const surface of ["native", "js"]) {
     for (const [target, literal, accepted, syntax] of [
-      ["float32", "1.00000005960464477539062500000001", true, "(float)1.0000000596046448D"],
-      ["float32", "1e40", true, "(float)1e+40D"],
-      ["decimal", "9007199254740992", true, "(decimal)9007199254740992D"],
+      ["float32", "1.00000005960464477539062500000001", true, "1.00000005960464477539062500000001F"],
+      ["float32", "1e40", false, undefined],
+      ["decimal", "9007199254740992", true, "9007199254740992M"],
       ["decimal", "1e30", false, undefined],
     ]) {
+      let originalUnit;
       const compiled = compileCsharpSource({ surface,
         sourceText: `import type { ${target} } from "@tsonic/core/types.js"; export function value(): ${target} { return ${literal}; }`,
         compileTarget(request) {
           const ast = request.input.source.ast;
+          const occurrences = request.input.source.facts.values.occurrences().filter(node => ast.is.IsNumericLiteral(node));
+          assert.equal(occurrences.length, 1, "one original numeric occurrence");
+          const evidence = resolvedSourceValue(request.input.source.facts.values.type(occurrences[0]), "original authored evidence");
+          const scalar = request.input.source.facts.descriptors.scalarLiteral(evidence);
+          assert.equal(scalar.kind === "present" && scalar.value.kind === "number" && scalar.value.value.kind === "authored", true,
+            "an emission AST decorator cannot replace registered Source provenance");
+          originalUnit = scalar.value;
           const source = { ...request.input.source, ast: { ...ast, authoredRange(node) {
             return node !== undefined && ast.is.IsNumericLiteral(node) ? { kind: "synthetic" } : ast.authoredRange(node);
           } } };
@@ -163,12 +186,11 @@ test("checked float64 provenance keeps genuine native conversion operations and 
         } });
       const label = `${surface} ${target} ${literal}`;
       assert.equal(compiled.sourceDiagnosticsText, "", `${label}: checked source is valid`);
-      assert.equal(compiled.result.diagnostics.length === 0, accepted, `${label}: actual conversion has its own native domain`);
+      assert.equal(compiled.result.diagnostics.length === 0, accepted, `${label}: original authored precision and range remain authoritative`);
+      assert.equal(originalUnit?.kind === "number" && originalUnit.value.kind === "authored", true);
       if (!accepted) continue;
       const output = [...compiled.artifacts.values()].join("\n");
-      assert.equal(output.includes(syntax), true, `${label}: the cast consumes the actual double expression`);
-      assert.equal(output.includes(`${Number(literal)}${target === "float32" ? "F" : "M"}`), false,
-        `${label}: the value is not reinterpreted as an authored token`);
+      assert.equal(output.includes(syntax), true, `${label}: the Native token consumes unchanged Source provenance`);
     }
     const variable = compileCsharpSource({ surface, sourceText: `import type { float32, float64 } from "@tsonic/core/types.js";
 export function negativeZero(): float32 { const value: float64 = -0; return value as float32; }

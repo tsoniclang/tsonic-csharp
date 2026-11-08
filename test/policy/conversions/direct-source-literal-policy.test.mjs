@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { csharpSourcePrimitiveTargetType, isCsharpArrayIndexTargetType, isCsharpIntegralTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
-import { analyzeSourceLiteralValues } from "@tsonic/target-api/source";
-import { acceptedEffectiveSource, assertNativeEffectiveRefusal, assertPrimitiveOccurrences, compileEffectiveSource, projectNodes } from "../../helpers/source-effective-types.mjs";
+import { acceptedEffectiveSource, assertPrimitiveOccurrences, compileEffectiveSource, projectNodes } from "../../helpers/source-effective-types.mjs";
+import { resolvedSourceValue } from "../../helpers/published-return-contracts.mjs";
 import * as literalPolicy from "../../../dist/policy/conversions/literals.js";
 import { csharpStringTargetType, csharpBigIntegerTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
@@ -30,18 +30,18 @@ test("published scalar construction retains one physical payload before every de
         : `import type { ${declared} } from "@tsonic/core/types.js";`;
       const compiled = compileEffectiveSource(surface, `${imported} export function run(): (${storage})[] { return [${spelling}]; }`);
       acceptedEffectiveSource(compiled);
-      const ast = compiled.targetSource.ast;
+      const source = compiled.source;
+      const ast = source.ast;
       const aggregate = projectNodes(compiled, node => ast.is.IsArrayLiteralExpression(node))[0];
       const expression = ast.elements(aggregate)[0];
-      const outcome = compiled.targetSource.effectiveTypes.get(expression);
-      assert.equal(outcome !== undefined && outcome.kind !== "refused", true,
-        `${surface}/${name}/${form}: the original Source occurrence publishes its outcome`);
-      const produced = outcome.construction ?? outcome.type;
-      assert.equal(payload.kind === "source-primitive"
-        ? produced.kind === "primitive" && produced.primitive === payload.name
-        : declared === "bigint" ? produced.kind === "intrinsic" && produced.intrinsic === "bigint"
-          : produced.kind === "string", true,
-      `${surface}/${name}/${form}: Source, not Native storage, selects the complete physical scalar`);
+      const evidence = resolvedSourceValue(source.facts.values.type(expression), "the original scalar occurrence");
+      source.facts.descriptors.assertEvidence(evidence);
+      const scalar = source.facts.descriptors.scalarLiteral(evidence);
+      assert.equal(scalar.kind, "present", `${surface}/${name}/${form}: one authentic Source singleton is retained`);
+      assert.equal(literalPolicy.csharpScalarLiteralIsRepresentableAs(scalar.value, payload), true,
+        `${surface}/${name}/${form}: the original scalar fits the exact selected Native creation ABI`);
+      assert.equal(source.facts.descriptors.scalarLiteral(evidence).value === scalar.value, true,
+        `${surface}/${name}/${form}: storage forms do not manufacture a second literal or Source classifier`);
       assert.equal(targetTypeRefEquals(compiled.result.program.records.valueRead.get(expression)?.value, payload), true,
         `${surface}/${name}/${form}: the Native read consumes the same physical payload`);
     }
@@ -50,13 +50,14 @@ test("published scalar construction retains one physical payload before every de
     export function run(value: int32): int32 { return value; }`);
   acceptedEffectiveSource(nonliteral);
   const nonliteralReturn = projectNodes(nonliteral, (node, ast) => ast.is.IsReturnStatement(node))[0];
-  const nonliteralValue = nonliteral.targetSource.ast.as.AsReturnStatement(nonliteralReturn)?.Expression;
-  assert.equal(analyzeSourceLiteralValues(nonliteral.targetSource.ast, nonliteral.targetSource.navigation.sourceFiles)
-    .literalValue.get(nonliteralValue) === undefined, true, "a nonliteral read supplies no authored scalar literal");
+  const nonliteralValue = nonliteral.source.ast.as.AsReturnStatement(nonliteralReturn)?.Expression;
+  const nonliteralEvidence = resolvedSourceValue(nonliteral.source.facts.values.type(nonliteralValue), "actual parameter read");
+  assert.equal(nonliteral.source.facts.descriptors.scalarLiteral(nonliteralEvidence).kind, "none",
+    "a nonliteral read supplies no singleton scalar receipt");
   const unannotated = compileEffectiveSource("native", "export function run() { return -2147483648; }");
   acceptedEffectiveSource(unannotated);
   const ownReturn = projectNodes(unannotated, (node, ast) => ast.is.IsReturnStatement(node))[0];
-  const ownValue = unannotated.targetSource.ast.as.AsReturnStatement(ownReturn)?.Expression;
+  const ownValue = unannotated.source.ast.as.AsReturnStatement(ownReturn)?.Expression;
   assert.equal(targetTypeRefEquals(unannotated.result.program.records.valueRead.get(ownValue)?.value,
     csharpSourcePrimitiveTargetType("int64")), true, "no authored storage still keeps the Source int64 creation default");
   const aggregate = compileEffectiveSource("native", "export function run() { return [1]; }");
@@ -67,7 +68,20 @@ test("published scalar construction retains one physical payload before every de
   for (const storage of ["int32", "int32 | undefined", "int32 | boolean"]) {
     const overflow = compileEffectiveSource("native", `import type { int32 } from "@tsonic/core/types.js";
       export function run(): (${storage})[] { return [2147483648]; }`);
-    assertNativeEffectiveRefusal(overflow, "Source bigint literal is outside the exact 'int32' range.", "2147483648");
+    const issues = overflow.result.diagnostics.filter(issue => issue.category === "error");
+    assert.equal(issues.length, 1, "one exact Native storage law rejects the original out-of-range scalar");
+    const issue = issues[0];
+    assert.equal(issue.code, "CSHARP_NATIVE_WRITE_CARRIER_MISMATCH");
+    assert.equal(issue.source, "tsonic-csharp");
+    const ast = overflow.source.ast;
+    const range = ast.authoredRange(issue.sourceNode);
+    assert.equal(range.kind, "authored");
+    assert.equal(ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end), "2147483648");
+    const evidence = resolvedSourceValue(overflow.source.facts.values.type(issue.sourceNode), "valid original Source scalar");
+    assert.equal(overflow.source.facts.descriptors.scalarLiteral(evidence).kind, "present",
+      "an actual Native range refusal is not a recoded Source refusal");
+    assert.equal(overflow.result.program === undefined && overflow.artifacts.size === 0, true,
+      "an out-of-range existing Native slot publishes no partial output");
   }
 });
 
@@ -119,10 +133,13 @@ test("integer negative zero defaults to int64 while written floating zero retain
       const text = acceptedEffectiveSource(compiled);
       const declarations = projectNodes(compiled, (node, ast) => ast.is.IsVariableDeclaration(node) && ast.text(ast.name(node)) === "negative");
       assert.equal(declarations.length, 1, "one original negative-zero declaration");
-      const ast = compiled.targetSource.ast;
+      const ast = compiled.source.ast;
       const initializer = ast.as.AsVariableDeclaration(declarations[0])?.Initializer;
-      const literal = analyzeSourceLiteralValues(ast, [ast.getSourceFile(declarations[0])]).literalValue.get(initializer);
-      assert.equal(Object.is(literal?.number, -0), true, `${surface}/${token}: the actual checked authored literal retains its sign`);
+      const evidence = resolvedSourceValue(compiled.source.facts.values.type(initializer), "original signed-zero occurrence");
+      const scalar = compiled.source.facts.descriptors.scalarLiteral(evidence);
+      assert.equal(scalar.kind === "present" && scalar.value.kind === "number" && scalar.value.value.kind === "authored" &&
+        scalar.value.value.token.coefficient === 0n && scalar.value.value.token.negative, true,
+        `${surface}/${token}: the original singleton token retains its sign without a Native parser`);
       assertPrimitiveOccurrences(compiled, "negative", token === "0" ? "int64" : "float64");
       assertPrimitiveOccurrences(compiled, "positive", "int64");
       if (token === "0") assert.match(text, /long negative = 0L;/u, `${surface}: integer creation has one native zero`);

@@ -1,4 +1,4 @@
-import type { CsharpObjectMethodValueStorage, CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "./model.js";
+import type { CsharpObjectMethodValueStorage, CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetNamedTypeRef, TargetTypeRef } from "./model.js";
 
 export const csharpStructuralObjectShapeIdPrefix = "tsonic.shape:";
 
@@ -10,11 +10,10 @@ export function csharpStructuralObjectShapeIdentity(
     ? type.id.slice(csharpStructuralObjectShapeIdPrefix.length)
     : undefined;
 }
-import { targetTypeRefKey, scopedTargetTypeRefKey } from "./equality.js";
+import { targetTypeRefKey } from "./equality.js";
 import { csharpSourceMemberKeyParts } from "./source-member-keys.js";
 import { csharpOwnerTypeParameterConstraintKey } from "./generic-constraints.js";
-import { getCsharpDelegateSignature } from "./carriers/delegates.js";
-import { getCsharpNullableElementTargetType } from "./carriers/nullable.js";
+import { csharpNativeCallableMemberKey } from "./carriers/delegates.js";
 
 export function csharpObjectShapeMemberContractParts(
   member: CsharpObjectShapeMemberFact,
@@ -24,6 +23,7 @@ export function csharpObjectShapeMemberContractParts(
     member.targetName,
     member.memberKind,
     member.optional === true ? "optional" : "required",
+    member.readonly === true ? "readonly" : "writable",
     member.bound === true ? "bound-location" : "value",
     member.accessor === undefined
       ? "mutable"
@@ -31,28 +31,14 @@ export function csharpObjectShapeMemberContractParts(
         ? "getter-setter"
         : "getter",
     csharpObjectShapeMemberTypeKey(member),
+    csharpObjectMethodValueStorageKey(member.methodValueStorage) ?? "",
   ];
 }
 
 export function csharpObjectShapeMemberTypeKey(member: CsharpObjectShapeMemberFact): string {
-  const parameters = member.typeParameters ?? [];
-  const boundParameters = new Map(parameters.map((parameter, index) => [parameter.identity, index]));
-  const physical = scopedTargetTypeRefKey(member.type, boundParameters);
-  const signature = member.memberKind === "method"
-    ? getCsharpDelegateSignature(getCsharpNullableElementTargetType(member.type) ?? member.type) : undefined;
-  const type = signature !== undefined && (signature.returnPassing !== undefined ||
-      signature.parameterPassingModes.some(mode => mode !== "by-value") ||
-      (signature.optionalParameterIndexes?.length ?? 0) !== 0 || signature.restParameterIndex !== undefined)
-    ? JSON.stringify([physical, signature.parameters.map(parameter => scopedTargetTypeRefKey(parameter, boundParameters)),
-      signature.parameterPassingModes, scopedTargetTypeRefKey(signature.returnType, boundParameters), signature.returnPassing ?? null,
-      signature.optionalParameterIndexes ?? [], signature.restParameterIndex ?? null])
-    : physical;
-  if (parameters.length === 0) return type;
-  return JSON.stringify([type,
-    parameters.map(parameter => parameter.constraints.map(constraint =>
-      constraint.kind === "type" ? [constraint.kind, scopedTargetTypeRefKey(constraint.type, boundParameters)]
-        : constraint.kind === "keyword" ? [constraint.kind, constraint.keyword] : [constraint.kind])),
-  ]);
+  const value = targetTypeRefKey(member.type);
+  return member.memberKind === "property" ? value : JSON.stringify([value, member.methods.map(method =>
+    [csharpNativeCallableMemberKey(method.member), csharpNativeCallableMemberKey(method.value)])]);
 }
 
 export function csharpObjectShapeMemberContractKey(
@@ -62,8 +48,7 @@ export function csharpObjectShapeMemberContractKey(
 }
 
 export function csharpObjectMethodValueStorageKey(storage: CsharpObjectMethodValueStorage | undefined): string | undefined {
-  return storage === undefined ? undefined : JSON.stringify([storage.kind, targetTypeRefKey(storage.type),
-    ...(storage.kind === "protocol" ? [storage.invocationName] : [])]);
+  return storage === undefined ? undefined : targetTypeRefKey(storage.type);
 }
 
 export function csharpObjectShapeContractKey(
@@ -72,14 +57,13 @@ export function csharpObjectShapeContractKey(
   return JSON.stringify([
     targetTypeRefKey(shape.targetType),
     csharpOwnerTypeParameterConstraintKey(shape.targetType),
+    shape.targetType.kind === "target-named" ? (shape.targetType as CsharpTargetNamedTypeRef).csharpCallableMembers?.map(member => csharpNativeCallableMemberKey(member)) ?? [] : [],
     String(shape.constructible),
     shape.covariantTypeParameterIdentities ?? [],
     canonicalCsharpObjectShapeImplementedTypes(shape.implements ?? [])
       .map(targetTypeRefKey),
     canonicalCsharpObjectShapeMembers(shape.members)
       .map(csharpObjectShapeMemberContractParts),
-    ...(shape.members.some(member => member.methodValueStorage !== undefined) ? [canonicalCsharpObjectShapeMembers(shape.members).map(member =>
-      csharpObjectMethodValueStorageKey(member.methodValueStorage))] : []),
     ...(shape.methodImplementation === undefined ? [] : [shape.methodImplementation.identity,
       shape.methodImplementation.captures.map(capture => [capture.fieldName, targetTypeRefKey(capture.type), capture.mutable, capture.initialization]),
     ]),

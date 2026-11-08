@@ -11,10 +11,10 @@ import { csharpBaseTargetTypeFromBinding } from "../storage/bindings.js";
 import { targetBindingSubstitutions } from "../../conversions/provider-operators.js";
 import { implementedConstraintType } from "../../conversions/carriers.js";
 
-export type CsharpSourceTypeFlowRelationHost = Pick<CsharpPolicyContext, "projectTypes" | "providers"> & CsharpConversionShapeQueries;
+export type CsharpNativeTypeRelationHost = Pick<CsharpPolicyContext, "typeDefinitions" | "projectTypes" | "providers"> & CsharpConversionShapeQueries;
 
-export function csharpSourceTypeFlowInterfaceAccepts(
-  host: CsharpSourceTypeFlowRelationHost,
+export function csharpNativeTypeImplements(
+  host: CsharpNativeTypeRelationHost,
   source: TargetTypeRef,
   required: TargetTypeRef,
 ): boolean {
@@ -35,7 +35,7 @@ export function csharpSourceTypeFlowInterfaceAccepts(
     if (vector && element !== undefined && targetTypeRefEquals(target, csharpEnumerableTargetType(element))) return true;
     if (vector && (current.kind === "array" || getCsharpJsArrayElementTargetType(current) !== undefined) && element !== undefined &&
       targetTypeRefEquals(target, csharpReadOnlyListTargetType(element))) return true;
-    const shape = host.objectShapes?.resolveTarget(current);
+    const shape = host.objectShapes.resolveTarget(current);
     if (shape !== undefined && targetTypeRefEquals(shape.targetType, current)) pending.push(...shape.implements ?? []);
     if (current.kind === "type-parameter") {
       if (current.csharpConstraints?.kind === "resolved") {
@@ -44,6 +44,7 @@ export function csharpSourceTypeFlowInterfaceAccepts(
       continue;
     }
     if (current.kind === "target-named") {
+      pending.push(...host.typeDefinitions.nativeSupertypes(current) ?? []);
       pending.push(...host.projectTypes.directSupertypes(current) ?? []);
       const named: CsharpTargetNamedTypeRef = current;
       if (named.csharpBaseType !== undefined) pending.push(named.csharpBaseType);

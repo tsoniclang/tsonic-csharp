@@ -21,6 +21,13 @@ export type CsharpTypeParameterConstraintResolution =
 
 export type CsharpExplicitImplementationConstraint = "class" | "default" | undefined;
 
+export function csharpConstraintsRequireValue(
+  constraints: readonly CsharpTypeParameterConstraint[],
+): boolean {
+  return constraints.some(constraint => constraint.kind === "keyword" &&
+    (constraint.keyword === "struct" || constraint.keyword === "unmanaged"));
+}
+
 export function csharpConstraintsRequireReference(
   constraints: readonly CsharpTypeParameterConstraint[],
   parameters: ReadonlyMap<string, readonly CsharpTypeParameterConstraint[]> = new Map(),
