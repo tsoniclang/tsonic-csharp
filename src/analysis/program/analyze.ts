@@ -23,8 +23,8 @@ import { analyzeCsharpSourceModuleConstructions } from "../source-modules/index.
 import { composeCsharpBinaryExecutionDriver } from "../../target-model/metadata/binary-execution-drivers.js";
 import { analyzeCsharpModuleInitialization } from "../module-initialization/index.js";
 import { createCsharpSourceProfileCallableAliasQuery } from "../operations/source-profiles/callable-aliases.js";
-import { createSourceStorageQuery } from "@tsonic/target-api/analysis";
-import { createCsharpSourceProfileStorageEffects } from "../operations/source-profiles/source-storage-effects.js";
+import { collectCsharpNativeConstructorPremises } from "../storage/native-constructors.js";
+import { forwardSourceRefusal } from "../source-evidence/representations.js";
 import { analyzeCsharpPromiseResults } from "../callables/async/promise-results.js";
 import { analyzeCsharpNativeErrorAdmission } from "../objects/error-storage-demands.js";
 
@@ -97,11 +97,19 @@ function analyzeCsharpTargetProgramBeforeSeal(
   const sourceNodes = source.facts.navigation.nodesForFiles(sourceFiles);
   const moduleCallables = analyzeCsharpModuleCallables(source.ast, sourceNodes);
   const literals = createCsharpNativeLiteralQueries(source);
-  const sourceStorage = createSourceStorageQuery(source, sourceFiles, undefined, createCsharpSourceProfileStorageEffects(source, providers));
-  const sourceStorageFailure = sourceStorage.failureReason();
-  if (sourceStorageFailure !== undefined) return rejectedTargetStage([{
-    code: "CSHARP_SOURCE_STORAGE_NOT_PROVEN", category: "error", source: "tsonic-csharp", message: sourceStorageFailure,
+  const nativeConstructors = collectCsharpNativeConstructorPremises(source, providers);
+  if (nativeConstructors.kind === "refused") return rejectedTargetStage([forwardSourceRefusal(nativeConstructors)]);
+  const storageAnalysis = source.facts.protocols.storageAnalysis({ sourceFiles,
+    nativeClassConstructors: nativeConstructors.value,
+    limits: Object.freeze({ maximumNodes: 1_048_576, maximumEdges: 262_144, maximumSubjectRows: 1_048_576,
+      maximumTransportRows: 4_194_304, maximumSteps: 33_554_432 }) });
+  if (storageAnalysis.kind === "refused") return rejectedTargetStage([forwardSourceRefusal(storageAnalysis)]);
+  if (storageAnalysis.kind === "unresolved") return rejectedTargetStage([{
+    code: "CSHARP_SOURCE_STORAGE_NOT_PROVEN", category: "error", source: "tsonic-csharp", message: storageAnalysis.reason,
   }]);
+  const sourceStorage = storageAnalysis.queries;
+  if (sourceStorage.source !== source) return failTargetAnalysisInvariant("tsonic-csharp",
+    "Native storage analysis requires the identical original Source program.");
   const sourceIdentities = createCsharpSourceIdentityPolicy(
     source.ast,
     input.paths.projectRoot,
