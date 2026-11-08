@@ -171,8 +171,8 @@ for (const surface of ["native", "js"]) for (const storage of ["nullable", "unio
     assert.equal(compiled.sourceDiagnosticsText, "", "the real source is checked before Native admission");
     assert.equal(compiled.result.diagnostics.length, 1, "one Native range refusal, not an internal missing-physical invariant");
     const diagnostic = compiled.result.diagnostics[0];
-    assert.equal(diagnostic.code === "CSHARP_UNSUPPORTED_AST" && diagnostic.message === reason, true,
-      "the canonical exact-literal D2 reason is unchanged");
+    assert.equal(diagnostic.code === "CSHARP_NATIVE_WRITE_CARRIER_MISMATCH" && diagnostic.message === reason, true,
+      "the canonical Native write owner preserves the exact-literal D2 reason");
     assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true);
   });
 }
@@ -247,8 +247,8 @@ test(`${surface} rejected ${type} literal ${value} retains its precise native re
     const datum = represented(createCsharpNativeLiteralQueries(source).recipe(diagnostics[0].sourceNode), "the refused original literal is retained");
     const literal = datum.kind === "present" ? datum.value : undefined;
     const selected = selectCsharpExactLiteralConversion(literal, primitive(type), primitive(type));
-    assert.equal(selected.kind === "rejected" && diagnostics[0].code === "CSHARP_UNSUPPORTED_AST" &&
-      diagnostics[0].message === selected.reason, true, "the completed native literal owner supplies the exact retained reason");
+    assert.equal(selected.kind === "rejected" && diagnostics[0].code === "CSHARP_NATIVE_WRITE_CARRIER_MISMATCH" &&
+      diagnostics[0].message === selected.reason, true, "the canonical Native write owner supplies the exact retained reason");
     assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true, "refusal precedes publication and native planning");
   });
 }
