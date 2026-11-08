@@ -35,13 +35,17 @@ test("the original lazy width/effect fixture publishes exact control identities 
     source.facts.descriptors.assertEvidence(operation.control.value);
     if (conditional) {
       const original = ast.as.AsConditionalExpression(occurrence);
-      assert.equal(operation.whenTrue.occurrence === original.WhenTrue && operation.whenFalse.occurrence === original.WhenFalse, true,
+      const whenTrue = resolvedSourceValue(operation.whenTrue, "the original true alternative");
+      const whenFalse = resolvedSourceValue(operation.whenFalse, "the original false alternative");
+      assert.equal(whenTrue.occurrence === original.WhenTrue && whenFalse.occurrence === original.WhenFalse, true,
         "both original alternatives stay distinct from their execution disposition");
     } else if (kind === "and") {
-      assert.equal(operation.whenTrue.occurrence === ast.as.AsBinaryExpression(occurrence).Right && operation.whenFalse === "control-false", true,
+      const whenTrue = resolvedSourceValue(operation.whenTrue, "the original and alternative");
+      assert.equal(whenTrue.occurrence === ast.as.AsBinaryExpression(occurrence).Right && operation.whenFalse === "control-false", true,
         "and preserves the selected RHS and original false control value");
     } else if (kind === "or") {
-      assert.equal(operation.whenFalse.occurrence === ast.as.AsBinaryExpression(occurrence).Right && operation.whenTrue === "control-true", true,
+      const whenFalse = resolvedSourceValue(operation.whenFalse, "the original or alternative");
+      assert.equal(whenFalse.occurrence === ast.as.AsBinaryExpression(occurrence).Right && operation.whenTrue === "control-true", true,
         "or preserves the selected RHS and original true control value");
     }
     const originalText = text(occurrence);
@@ -83,7 +87,8 @@ test("present-left coalesces retain the exact produced value while optional stor
     const original = source.ast.as.AsBinaryExpression(occurrence);
     assert.equal(operation.kind === "coalesce" && operation.disposition === "left", true,
       "Source alone publishes unconditional left selection");
-    assert.equal(operation.control.occurrence === original.Left && operation.whenAbsent.occurrence === original.Right, true,
+    const whenAbsent = resolvedSourceValue(operation.whenAbsent, "the original unselected coalescing alternative");
+    assert.equal(operation.control.occurrence === original.Left && whenAbsent.occurrence === original.Right, true,
       "the original effectful control and unselected alternative retain their identities");
     assert.equal(operation.result === operation.control.value && operation.result.type.kind !== "optional", true,
       "a statically present read retains its exact descriptor without manufacturing optional storage");

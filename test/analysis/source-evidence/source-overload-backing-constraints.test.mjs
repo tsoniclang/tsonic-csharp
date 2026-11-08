@@ -42,6 +42,12 @@ for (const [name, declarations, selectedIndex] of [
   assert.equal(application.identity.signature === signatures[0].identity, true,
     "the application retains the identical same-view signature rather than reconstructing its shape");
   assert.equal(application.sourceArguments.length, 2, "both original evaluation operands remain published");
+  assert.equal(application.argumentDisposition, "evaluate", "the ordinary call retains the Source-owned argument evaluation decision");
+  for (const authored of application.sourceArguments) {
+    const operand = resolvedSourceValue(authored.operand, "the original authored argument");
+    assert.equal(operand.occurrence === authored.occurrence, true, "each ordinary argument retains its exact original produced operand");
+    source.facts.descriptors.assertEvidence(operand.value);
+  }
   assert.equal(application.arguments.length, 2, "both effective parameter bindings remain published");
   const argument = application.arguments[1];
   assert.equal(argument.sourceArgumentIndex === 1 && argument.effectiveArgumentIndex === 1 &&
