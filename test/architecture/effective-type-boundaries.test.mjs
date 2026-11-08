@@ -45,6 +45,19 @@ test("Native representation policy inputs own their data below analysis implemen
   assert.doesNotMatch(callables, /export interface CsharpSelectedCallableMember\b/u);
 });
 
+test("Native optional and finalized parameter data do not import the Source representation service", () => {
+  const constraints = readFileSync(join(root, "src/target-model/types/generic-constraints.ts"), "utf8");
+  const projections = readFileSync(join(root, "src/target-model/types/projections.ts"), "utf8");
+  const representation = readFileSync(join(root, "src/target-model/types/representation.ts"), "utf8");
+  assert.match(constraints, /export type CsharpRepresentedTypeParameter\b/u);
+  assert.doesNotMatch(representation, /export\s+(?:type\s+CsharpRepresentedTypeParameter\b|type\s*\{[^}]*\bCsharpRepresentedTypeParameter\b)/u);
+  for (const [name, data] of [["constraints", constraints], ["projections", projections]]) {
+    assert.doesNotMatch(data, /(?:from\s*["']|import\s*\(["'])[^"']*representation\.js/u, name);
+  }
+  assert.match(representation, /import type \{ CsharpRepresentedTypeParameter \} from "\.\/generic-constraints\.js"/u);
+  assert.match(projections, /import type \{[^}]*\bCsharpRepresentedTypeParameter\b[^}]*\} from "\.\/generic-constraints\.js"/u);
+});
+
 for (const [label, text] of [
   ["direct checker type", 'import type { Type } from "@tsonic/tsts";'],
   ["aliased checker type", 'import type { Type as Input } from "@tsonic/tsts"; type Cached = Map<Input, TargetTypeRef>;'],

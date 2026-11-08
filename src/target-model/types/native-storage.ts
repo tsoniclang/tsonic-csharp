@@ -1,5 +1,5 @@
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "./model.js";
-import type { CsharpRepresentedTypeParameter } from "./representation.js";
+import type { CsharpRepresentedTypeParameter } from "./generic-constraints.js";
 
 export interface CsharpNativeStorageDefinition {
   readonly carrier: CsharpTargetNamedTypeRef;

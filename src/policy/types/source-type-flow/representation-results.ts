@@ -1,6 +1,7 @@
 import type { Node } from "@tsonic/tsts";
 import type { SourceResult } from "@tsonic/target-api/source";
-import type { CsharpRepresentationOutcome, CsharpRepresentedTypeParameter } from "../../../target-model/types/representation.js";
+import type { CsharpRepresentationOutcome } from "../../../target-model/types/representation.js";
+import type { CsharpRepresentedTypeParameter } from "../../../target-model/types/generic-constraints.js";
 import { targetTypeRefKey } from "../../../target-model/types/equality.js";
 import { csharpTypeParameterConstraintResolutionKey } from "../../../target-model/types/generic-constraints.js";
 

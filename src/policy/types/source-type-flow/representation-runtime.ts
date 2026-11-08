@@ -1,7 +1,7 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import type { CsharpRepresentationOutcome, CsharpRepresentedTypeParameter } from "../../../target-model/types/representation.js";
-import type { CsharpTypeParameterConstraint } from "../../../target-model/types/generic-constraints.js";
+import type { CsharpRepresentationOutcome } from "../../../target-model/types/representation.js";
+import type { CsharpRepresentedTypeParameter, CsharpTypeParameterConstraint } from "../../../target-model/types/generic-constraints.js";
 import { csharpTargetTypeFromBinding } from "../storage/bindings.js";
 import { nativeRepresentationFailure, represented } from "./representation-results.js";
 import { createHash } from "node:crypto";

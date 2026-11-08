@@ -12,7 +12,7 @@ import type {
   SourceTypeParameter,
 } from "@tsonic/target-api/source";
 import type { CsharpNativeMethodTypeParameter, TargetTypeRef } from "./model.js";
-import type { CsharpTypeParameterConstraint } from "./generic-constraints.js";
+import type { CsharpRepresentedTypeParameter } from "./generic-constraints.js";
 import type { CsharpOptionalStorageLayout } from "./projections.js";
 
 export interface CsharpNativeRepresentationRefusal {
@@ -33,13 +33,6 @@ export type CsharpRepresentationPosition =
   | "value"
   | "type-argument"
   | "return";
-
-export type CsharpRepresentedTypeParameter = Extract<TargetTypeRef, { readonly kind: "type-parameter" }> & {
-  readonly csharpConstraints: {
-    readonly kind: "resolved";
-    readonly constraints: readonly CsharpTypeParameterConstraint[];
-  };
-};
 
 export interface CsharpSourceSumPhysicalSlot {
   readonly carrier: TargetTypeRef;

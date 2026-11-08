@@ -19,6 +19,13 @@ export type CsharpTypeParameterConstraintResolution =
       readonly reason: string;
     };
 
+export type CsharpRepresentedTypeParameter = Extract<TargetTypeRef, { readonly kind: "type-parameter" }> & {
+  readonly csharpConstraints: {
+    readonly kind: "resolved";
+    readonly constraints: readonly CsharpTypeParameterConstraint[];
+  };
+};
+
 export type CsharpExplicitImplementationConstraint = "class" | "default" | undefined;
 
 export function csharpConstraintsRequireValue(
