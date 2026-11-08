@@ -71,16 +71,10 @@ function analyzeCsharpTargetProgramBeforeSeal(
 ): TargetStageResult<CsharpAnalysisProgram> {
   const { input, configuration, providers } = request;
   const source = input.source;
-  const typeFlowRefusals = source.effectiveTypes.refusals();
-  if (typeFlowRefusals.length !== 0) return rejectedTargetStage(typeFlowRefusals.map(refusal => Object.freeze({
-    code: refusal.code, category: "error" as const, source: refusal.source,
-    sourceNode: refusal.site, message: refusal.reason,
-  })));
   const aliasIssues = analyzeCsharpSourceAliasReexports(source.ast, source.facts.navigation.sourceFiles);
   if (aliasIssues.length !== 0) return rejectedTargetStage(aliasIssues.map(diagnostic => ({
     ...targetDiagnosticFromExtension(diagnostic.nodeOrSpan, diagnostic), code: diagnostic.publicCode,
   })));
-  if (source.semantics.enumConstants.issues.length !== 0) return rejectedTargetStage(source.semantics.enumConstants.issues);
   const nativeErrors = analyzeCsharpNativeErrorAdmission(source);
   if (nativeErrors.issues.length !== 0) return rejectedTargetStage(nativeErrors.issues);
   const memoryBindings = createTsonicMemoryBindingFactsIndex(source);
@@ -121,6 +115,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
   });
   const callOnlyAlias = createCsharpSourceProfileCallableAliasQuery(source);
   const typeHost = {
+    source,
     effectiveTypes: source.effectiveTypes,
     moduleCallables,
     enumConstants: source.semantics.enumConstants,

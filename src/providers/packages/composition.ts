@@ -19,16 +19,9 @@ export function createCsharpProviderPackage(
     moduleOwnership,
     sourceCompilerContributions(context: TargetCapabilityContext): TargetSourceCompilerContributions {
       const selectedSurfaceIds = Object.freeze([...context.selectedSurfaceIds]);
-      return {
-        extensions: [{
-          identity: { id: snapshot.providerIdentity.id, version: snapshot.providerIdentity.version },
-          initialize(extensionContext) {
-            extensionContext.registerSourceDeclarationProvider(
-              createCsharpPackageSourceProvider(snapshot, selectedSurfaceIds),
-            );
-          },
-        }],
-      };
+      return Object.freeze({ declarationProviders: Object.freeze([
+        createCsharpPackageSourceProvider(snapshot, selectedSurfaceIds),
+      ]) });
     },
     createTargetContributions(context) {
       return Object.freeze([snapshot.createPolicy(context.selectedSurfaceIds)]);

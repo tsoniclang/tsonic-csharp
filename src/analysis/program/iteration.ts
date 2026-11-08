@@ -9,13 +9,12 @@ import { analyzeCsharpClassFactories } from "../project-types/class-factories.js
 import { analyzeCsharpClassInitialization } from "../project-types/class-initialization.js";
 
 import type { CsharpRequiredRecord } from "./records/objects/required-records.js";
-import { sourceDeclarationHasOnlyTypeUses, sourceDeclarationIsModuleScoped, sourceCallableValueExpression } from "@tsonic/target-api/source";
+import { sourceDeclarationHasOnlyTypeUses, sourceDeclarationIsModuleScoped } from "@tsonic/target-api/source";
 import { analyzeCsharpExactLiteralSelections } from "../conversions/literal-plans.js";
 import { csharpRepresentationDiagnostic } from "../source-evidence/representations.js";
 
 import { analyzeCsharpTypeProjections, csharpTypeProjectionIndexesEqual } from "../declarations/type-projections.js";
 import { type CsharpGenericProjectionIndex } from "../../target-model/records/types/type-projections.js";
-import { csharpCallableValueType } from "../../policy/types/callables/value-type.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { isCsharpStringTargetType } from "../../target-model/types/identity.js";
 
@@ -24,13 +23,12 @@ import type { CsharpExpectedNativeUse } from "../../target-model/records/native/
 import { createCsharpProjectTypeCatalog } from "../project-types/catalog.js";
 import { createCsharpTypeDefinitionRegistry } from "../project-types/type-definitions.js";
 
-import { rejectedTargetStage, resolvedTargetStage } from "@tsonic/target-api/artifacts";
-import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import { failTargetAnalysisInvariant, rejectedTargetStage, resolvedTargetStage } from "@tsonic/target-api/artifacts";
 
 import { createCsharpTypeAnalysis } from "./type-system.js";
-import type { CsharpTypeAnalysis } from "./type-system.js";
-import type { CsharpPlanningRepresentationQueries } from "../source-evidence/types/resolution/model.js";
-import type { ResolvedSourceCallInfo } from "../../target-model/records/calls/source-calls.js";
+import type { CsharpTypeSystemHost } from "./type-system.js";
+import type { CsharpPolicyContext } from "../../policy/model/context.js";
+import { createCsharpNativeValueQuery } from "./native-values.js";
 import { analyzeCsharpAttributeApplications } from "../attributes/application-index.js";
 
 import type { CsharpTargetAnalysisRequest } from "./model.js";
@@ -68,14 +66,19 @@ export interface CsharpRepresentationContract {
   readonly storage: CsharpStorageClassifications;
 }
 
+export interface CsharpRepresentationIterationHost extends Omit<CsharpTypeSystemHost, "typeDefinitions" | "nativeValue"> {
+  readonly moduleCallables: CsharpPolicyContext["moduleCallables"];
+  readonly literals: CsharpPolicyContext["literals"];
+  readonly callOnlyAlias: CsharpPolicyContext["callOnlyAlias"];
+}
+
 export function analyzeCsharpRepresentationIteration(
   input: CsharpTargetAnalysisRequest["input"],
   providers: CsharpTargetAnalysisRequest["providers"],
   sourceFiles: readonly SourceFile[],
   sourceIdentities: ReturnType<typeof createCsharpSourceIdentityPolicy>,
   nameHost: Parameters<typeof createCsharpSourceNameBuilder>[0],
-  typeHost: Parameters<typeof createCsharpTypeAnalysis>[0] &
-    Pick<import("../project-types/type-policy.js").CsharpProjectTypeCatalogHost, "enumConstants">,
+  typeHost: CsharpRepresentationIterationHost,
   sourceStorage: SourceStorageQueries,
   statementErasure: Parameters<typeof analyzeCsharpTargetOperations>[2],
   previous: CsharpRepresentationContract | undefined,
@@ -83,58 +86,13 @@ export function analyzeCsharpRepresentationIteration(
   const requiredRecords: CsharpRequiredRecord[] = [];
   const source = input.source;
   const names = createCsharpSourceNameBuilder(nameHost);
-  let typeSystem: CsharpTypeAnalysis | undefined;
-  const planningRepresentations: CsharpPlanningRepresentationQueries = {
-    genericProjections(declaration) { return previous?.typeProjections.genericProjection.get(declaration) ?? []; },
-    requiresClosedStructuralContract(type) {
-      return previous?.storage.closedNativeContracts.some(contract => targetTypeRefEquals(contract, type)) === true;
-    },
-    scopedTargetType(node) {
-      const moduleSource = typeHost.moduleCallables.get(node);
-      if (moduleSource !== undefined) {
-        const moduleCallable = moduleSource.callable;
-        const moduleOwner = moduleSource.sourceOwner;
-        const annotation = source.ast.typeNode(moduleOwner);
-        if (annotation !== undefined && typeSystem?.analysisTypes.resolveNode(annotation,
-          source.ast.getSourceFile(moduleOwner))?.kind !== "resolved") return undefined;
-        const callable = previous?.callables.get({ kind: "declaration", declaration: moduleCallable });
-        return callable === undefined ? undefined : csharpCallableValueType(callable);
-      }
-      if (source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node)) {
-        const selected = previous?.callables.closedInputType(node);
-        if (selected !== undefined) return selected;
-      }
-      const storage = previous?.storage.requiredStorageType.get(node);
-      if (storage !== undefined) return storage;
-      if (!input.source.ast.is.IsArrowFunction(node) && !input.source.ast.is.IsFunctionExpression(node) &&
-        !input.source.ast.is.IsFunctionDeclaration(node)) return undefined;
-      const callable = previous?.callables.get({ kind: "declaration", declaration: node });
-      return callable === undefined ? undefined : csharpCallableValueType(callable);
-    },
-    closedInputContract(node) {
-      const value = sourceCallableValueExpression(source.ast, node, { typeAssertions: "transparent" });
-      if (value === undefined) return undefined;
-      const declaration = source.facts.navigation.sourceReferenceFor(value)?.declaration ?? value;
-      return previous?.callables.closedInputContract(declaration);
-    },
-    sourceCallable(source, sourceFile, selection) {
-      return sourceCallableContract(
-        input,
-        typeHost.moduleCallables,
-        source,
-        sourceFile,
-        typeSystem,
-        previous?.callables,
-        selection,
-      );
-    },
-  };
-  const representations = Object.freeze(planningRepresentations);
+  let completedPolicy: CsharpPolicyContext | undefined;
+  const nativeValue = createCsharpNativeValueQuery(source, () => completedPolicy ?? failTargetAnalysisInvariant(
+    "tsonic-csharp", "Native value production requires the identical initialized representation policy."), previous);
   const typeDefinitions = createCsharpTypeDefinitionRegistry(id => csharpProviderBindingFromResolution(providers.findTargetBindingByTargetId(id, "ordinary")));
-  typeSystem = createCsharpTypeAnalysis(
-    { ...typeHost, typeDefinitions },
-    createCsharpProjectTypeCatalog(typeHost, previous?.typeProjections),
-    representations,
+  const typeSystem = createCsharpTypeAnalysis(
+    { ...typeHost, typeDefinitions, nativeValue },
+    createCsharpProjectTypeCatalog({ ast: source.ast, facts: source.facts }, previous?.typeProjections),
   );
   const policy = createCsharpAnalysisPolicyContext({
     moduleCallables: typeHost.moduleCallables,
@@ -147,6 +105,7 @@ export function analyzeCsharpRepresentationIteration(
     sourceIdentities,
     typeSystem,
   });
+  completedPolicy = policy;
   const evidence = analyzeCsharpSourceEvidence(
     input.source,
     sourceFiles,
@@ -352,58 +311,6 @@ export function analyzeCsharpRepresentationIteration(
     bindingPatterns,
     refLikeDiagnostics,
   }));
-}
-
-function sourceCallableContract(
-  input: CsharpTargetAnalysisRequest["input"],
-  moduleCallables: import("../../target-model/records/callables/module-callables.js").CsharpModuleCallableIdentities,
-  source: ResolvedSourceCallInfo,
-  sourceFile: SourceFile,
-  typeSystem: CsharpTypeAnalysis | undefined,
-  callables: CsharpCallableContractIndex | undefined,
-  selection: "checked" | "implementation",
-) {
-  if (callables === undefined) {
-    return undefined;
-  }
-  if (selection === "implementation") {
-    const reference = input.source.facts.navigation.sourceReferenceFor(source.sourceCallee.expression);
-    const declaration = reference?.declaration ?? source.sourceCalleeAccess?.declaration ?? source.sourceCallee.declaration;
-    const initializer = declaration === undefined ? undefined : moduleCallables.get(declaration)?.callable;
-    if (initializer !== undefined) {
-      const selected = source.sourceCalleeAccess?.selectedDeclaration ?? source.sourceCallee.selectedDeclaration;
-      if (selected === undefined || selected !== declaration && selected !== initializer ||
-        !input.source.facts.navigation.isProjectDeclaration(selected)) return undefined;
-      return callables.get({ kind: "declaration", declaration: initializer });
-    }
-  }
-  const selectedCallee = source.sourceCallee.selectedDeclaration;
-  if (
-    selectedCallee !== undefined &&
-    input.source.ast.is.IsClassDeclaration(selectedCallee)
-  ) {
-    const constructor = typeSystem?.projectTypes.implicitConstructorForSignature(
-      selectedCallee,
-      source.selectedSignature,
-      source.sourceSelectedSignatureParameters,
-    );
-    if (constructor !== undefined) {
-      return callables.get({
-        kind: "project-constructor",
-        targetMemberId: constructor.targetMember.id,
-      });
-    }
-  }
-  const selectedDeclaration = input.source.semantics.forFile(sourceFile)
-    .declarations.signatureDeclaration(source.selectedSignature);
-  const implementation = selection !== "implementation" || selectedDeclaration === undefined
-    ? undefined : input.source.facts.navigation.callableImplementation(selectedDeclaration);
-  const declaration = implementation?.kind === "resolved"
-    ? implementation.implementation.declaration : selectedDeclaration;
-  return declaration !== undefined &&
-      input.source.facts.navigation.isProjectDeclaration(declaration)
-    ? callables.get({ kind: "declaration", declaration })
-    : undefined;
 }
 
 export function representationContractsEqual(
