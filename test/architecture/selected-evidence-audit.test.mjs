@@ -94,7 +94,7 @@ test("C# consumes shared source semantics instead of raw compiler query containe
 });
 
 test("the central application adapter reads the original complete Source publication once", () => {
-  const owner = applicationAdapter();
+  const owner = sourceFunction("src/analysis/source-evidence/representations.ts", "representCsharpApplication");
   const queries = owner.nodes.filter(node => owner.ast.is.IsCallExpression(node) &&
     owner.text(owner.ast.as.AsCallExpression(node).Expression) === "host.facts.applications.application");
   assert.equal(queries.length, 1, "one canonical Source application read in its adapter");
@@ -102,6 +102,22 @@ test("the central application adapter reads the original complete Source publica
   const properties = new Set(owner.nodes.filter(node => owner.ast.is.IsPropertyAccessExpression(node)).map(owner.text));
   for (const field of ["source.identity.invocation", "source.identity.signature", "source.receiver", "source.sourceArguments", "source.arguments", "source.result"]) {
     assert.equal(properties.has(field), true, `the adapter explicitly reads ${field}, not only a result type`);
+  }
+});
+
+test("operation selection consumes atomic shared semantic decisions", () => {
+  for (const [path, name, query] of [
+    ["src/analysis/operations/members/calls/selection.ts", "selectCsharpProviderCall", "host.facts.applications.application"],
+    ["src/analysis/operations/members/property-selection.ts", "selectCsharpProviderProperty", "host.facts.objects.use"],
+    ["src/analysis/operations/members/element-selection.ts", "selectCsharpProviderElement", "host.facts.objects.use"],
+  ]) {
+    const owner = sourceFunction(path, name);
+    const occurrence = owner.ast.name(owner.ast.parameters(owner.declaration)[1]);
+    assert.equal(occurrence !== undefined, true, `${name} declares its original occurrence parameter`);
+    const queries = owner.nodes.filter(node => owner.ast.is.IsCallExpression(node) &&
+      owner.text(owner.ast.as.AsCallExpression(node).Expression) === query);
+    assert.equal(queries.length, 1, `${name} reads one canonical Source operation publication`);
+    assert.equal(owner.text(owner.ast.arguments(queries[0])[0]), owner.text(occurrence), `${name} queries its original occurrence`);
   }
 });
 
@@ -133,7 +149,7 @@ test("retired target observation and operation-fact architecture is absent", () 
 test("generic method type arguments come only from shared selected call evidence", () => {
   const forbidden = /\b(?:TypeArguments|sourceSelectedMethodTypeArguments|getSourceCallTypeParameterSubstitutions|addInferredTargetTypeParameterSubstitutions|inferMethodTypeArguments|inferTypeArgumentsFromCallback)\b/gu;
   assert.deepEqual(productHits(forbidden), []);
-  const owner = applicationAdapter();
+  const owner = sourceFunction("src/analysis/source-evidence/representations.ts", "representCsharpApplication");
   const properties = new Set(owner.nodes.filter(node => owner.ast.is.IsPropertyAccessExpression(node)).map(owner.text));
   assert.equal(properties.has("source.identity.classBindings"), true, "original class bindings are an independent Source vector");
   assert.equal(properties.has("source.identity.signatureBindings"), true, "original method bindings are an independent Source vector");
@@ -154,13 +170,12 @@ test("selected-evidence fixtures do not fabricate non-contract request fields", 
   assert.deepEqual(hits, []);
 });
 
-function applicationAdapter() {
-  const path = "src/analysis/source-evidence/representations.ts";
+function sourceFunction(path, name) {
   const checked = readArchitectureTypeScript(new Map([[path, readFileSync(join(repoRoot, path), "utf8")]]));
   const ast = checked.ast;
   const file = checked.getSourceFile(`/architecture/${path}`);
-  const declarations = ast.statements(file).filter(node => ast.is.IsFunctionDeclaration(node) && ast.text(ast.name(node)) === "representCsharpApplication");
-  assert.equal(declarations.length, 1, "one concrete current application adapter, not a synthetic consumer");
+  const declarations = ast.statements(file).filter(node => ast.is.IsFunctionDeclaration(node) && ast.text(ast.name(node)) === name);
+  assert.equal(declarations.length, 1, `one concrete current ${name} owner, not a synthetic consumer`);
   const nodes = [];
   const visit = node => {
     nodes.push(node);
@@ -171,7 +186,7 @@ function applicationAdapter() {
     const range = ast.authoredRange(node);
     return range.kind === "authored" ? ast.getSourceText(file).slice(range.start, range.end) : undefined;
   };
-  return { ast, nodes, text };
+  return { ast, declaration: declarations[0], nodes, text };
 }
 
 function productHits(pattern) {

@@ -7,7 +7,8 @@ const checkerQueries = new Set([
   "expressionType", "declaredValueType", "typeOfSymbol", "declaredSymbolType", "writeSymbolType",
   "selectValueTypeRefinement", "resolveTypeWithState", "resolveSemanticTypeArguments", "bindCsharpSourceTypeArguments",
 ]);
-const retiredProperties = new Set(["semantics", "semanticsFor", "effectiveTypes", "semanticType", "semanticTargetType"]);
+const retiredProperties = new Set(["semantics", "semanticsFor", "effectiveTypes", "semanticType", "semanticTargetType",
+  "sourceSelectedSignatureParameters"]);
 const resolverObjects = new Set(["types", "structuralTypes", "objectShapes", "host"]);
 
 export function sourceEvidenceBoundaryFindings(sourceFiles) {

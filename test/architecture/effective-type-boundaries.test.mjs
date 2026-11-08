@@ -26,6 +26,10 @@ for (const [label, text] of [
   ["nested Type keyed map", 'import type { Type } from "@tsonic/tsts"; type Cached = Map<Node, WeakMap<Type, TargetTypeRef>>;'],
   ["map alias", 'import type { Type } from "@tsonic/tsts"; const cache = new Map<Type, TargetTypeRef>(); const other = cache;'],
   ["property map", 'import type { Type } from "@tsonic/tsts"; class Store { values = new Map<Type, TargetTypeRef>(); }'],
+  ["annotated map", 'import type { Type } from "@tsonic/tsts"; const values: Map<Type, TargetTypeRef> = new Map(); values.get(selected);'],
+  ["renamed native carrier", 'import type { Type } from "@tsonic/tsts"; import type { TargetTypeRef as Carrier } from "./native-types.js"; const values = new Map<Type, Carrier>(); values.get(selected);'],
+  ["annotated profile channel", 'import type { Type } from "@tsonic/tsts"; interface Inputs { types: Map<Type, TargetTypeRef>; }'],
+  ["published profile channel", 'import type { Type } from "@tsonic/tsts"; interface Inputs { types: Map<Type, TargetTypeRef>; } function read(operation: { inputs: Inputs; sourceResultType: Type }) { return operation.inputs.types.get(operation.sourceResultType); }'],
   ["checked program", 'import type { CheckedSourceProgram as Input } from "@tsonic/tsts";'],
   ["signature", 'import type { Signature } from "@tsonic/tsts";'],
   ["symbol", 'import type { Symbol } from "@tsonic/tsts";'],
@@ -64,6 +68,11 @@ test("same-occurrence, foreign-occurrence and conditional gates cannot rescue a 
     "return effective === undefined ? types.resolveType(type) : selected;",
     "if (facts.values.type(node).kind === 'refused') return queries.getTypeAtLocation(node);",
   ]) assert.equal(findings(text).some(row => ["retired-source-query-channel", "raw-type-resolver-reference", "native-checker-query"].includes(row.rule)), true);
+});
+
+test("effective-type architecture rejects selected parameter vector", () => {
+  assert.equal(findings("deriveMembers(source.sourceSelectedSignatureParameters);")
+    .some(row => row.rule === "retired-source-query-channel"), true);
 });
 
 test("parentheses and assertion expressions cannot hide checker queries", () => {
