@@ -18,7 +18,7 @@ export function renderSelectedCsharpTargetMethodTypeArguments(selection: CsharpS
     if (projection === undefined || projection.kind === "rejected")
       failCsharpPlannerInvariant("An admitted native method requires each exact type-argument projection.", node);
     const type = projection.kind === "resolved"
-      ? csharpTypeFromObjectShapeFact(input, projection.shape, diagnostics, argument.kind === "selected-source" ? argument.explicitTypeNode ?? node : node)
+      ? csharpTypeFromObjectShapeFact(input, projection.shape, diagnostics, argument.kind === "source" ? argument.parameter : node)
       : csharpTypeFromTargetTypeRef(argument.targetType, input.scope.typeParameterNames);
     return type ?? failCsharpPlannerInvariant("An admitted native method argument requires its exact target type syntax.", node);
   }));

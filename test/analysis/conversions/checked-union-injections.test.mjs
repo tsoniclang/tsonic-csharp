@@ -39,7 +39,7 @@ export function run(): boolean {
 test("native conversion applicability alone does not choose a checked numeric union branch", () => {
   const source = csharpSourcePrimitiveTargetType("int32");
   const target = csharpRuntimeUnionTargetType([csharpSourcePrimitiveTargetType("float64"), csharpBigIntegerTargetType()]);
-  const selected = selectCsharpUnionInjection(source, target, undefined, "implicit", () => ({ kind: "implicit", proof: "numeric" }));
+  const selected = selectCsharpUnionInjection(source, target, "implicit", () => ({ kind: "implicit", proof: "numeric" }));
   assert.equal(selected?.kind === "rejected", true, "missing checked source correspondence remains ambiguous");
   assert.equal(selected?.reason, "C# runtime-union conversion has more than one applicable native payload arm.",
     "the original precise ambiguity refusal is preserved");

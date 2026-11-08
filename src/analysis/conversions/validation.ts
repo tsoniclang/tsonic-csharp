@@ -94,7 +94,7 @@ export function admitCsharpConversionSelection(
         }
         break;
       case "runtime-union-reference": {
-        const arms = getCsharpRuntimeUnionArms(current.source, policy.typeDefinitions);
+        const arms = getCsharpRuntimeUnionArms(current.source);
         if (current.target === undefined || arms === undefined || arms.length !== selected.arms.length ||
           !arms.every((arm, index) => targetTypeRefEquals(arm, selected.arms[index]!)) ||
           !targetTypeRefEquals(current.target, selected.target)) {
@@ -131,7 +131,7 @@ export function admitCsharpConversionSelection(
           break;
         }
         if (selected.proof !== "runtime-union-arm") break;
-        const arm = getCsharpRuntimeUnionArms(targetElement ?? current.target, policy.typeDefinitions)?.[selected.armIndex];
+        const arm = getCsharpRuntimeUnionArms(targetElement ?? current.target)?.[selected.armIndex];
         if (arm === undefined || !targetTypeRefEquals(arm, selected.armType)) {
           return { kind: "rejected", reason: "C# runtime-union construction requires one exact source arm and a renderable closed union carrier." };
         }
@@ -284,7 +284,7 @@ export function csharpRuntimeUnionMappingMatches(
     const coverage: unknown = fields.coverage.value;
     if (coverage !== "source" && coverage !== "target") return false;
     return csharpUnionArmMappingsMatch(source, target, coverage, fields.arms.value as Extract<CsharpConversionSelection, { readonly kind: "union-map" }>["arms"],
-      policy.typeDefinitions, coverage === "source"
+      coverage === "source"
         ? (sourceArm, targetArm) => csharpUnionReferenceImplicitlyAccepts(policy, sourceArm, targetArm) : undefined);
   } catch (error) {
     if (error instanceof TypeError) return false;
