@@ -25,7 +25,7 @@ export function snapshotCsharpTargetTypes(
   return snapshot;
 }
 
-function csharpTypeIdentityAt(path: readonly (string | number)[]): boolean {
+export function csharpTypeIdentityAt(path: readonly (string | number)[]): boolean {
   return typeof path[0] === "number" && typePath(1);
 
   function final(offset: number): boolean { return offset === path.length; }

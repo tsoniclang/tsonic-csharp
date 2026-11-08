@@ -79,9 +79,10 @@ export function createCsharpTypeDefinitionRegistry(
       },
       complete(definition: CsharpNativeDeclaration) {
         requireOpen();
-        if (!reserved.has(definition.carrier.id) || completed.has(definition.carrier.id)) failTargetAnalysisInvariant("tsonic-csharp",
+        const immutable = snapshotCsharpNativeDeclaration(definition);
+        if (!reserved.has(immutable.carrier.id) || completed.has(immutable.carrier.id)) failTargetAnalysisInvariant("tsonic-csharp",
           "A complete Native definition belongs to its one original reserved transaction identity.");
-        completed.set(definition.carrier.id, snapshotCsharpNativeDeclaration(definition));
+        completed.set(immutable.carrier.id, immutable);
       },
       commit() {
         requireOpen();

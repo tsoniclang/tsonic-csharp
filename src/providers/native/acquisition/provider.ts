@@ -1,3 +1,4 @@
+import type { CsharpProviderNativeDeclarationResolution } from "../../../target-model/metadata/provider-metadata.js";
 import { performance } from "node:perf_hooks";
 import { isAbsolute } from "node:path";
 import type { ExtensionDiagnostic, ProviderDeclarationMaterialization, ProviderDeclarationModel } from "@tsonic/tsts";
@@ -58,6 +59,7 @@ export interface DotnetReflectionTypeDataProviderOptions {
 }
 
 export interface DotnetReflectionTypeDataProvider extends DotnetTypeDataProvider {
+  acquireNativeDeclaration(identity: string): CsharpProviderNativeDeclarationResolution;
   validateReferences(): ExtensionDiagnostic | undefined;
   prepareRuntimeSources(preparation: CsharpProviderRuntimePreparation): CsharpProviderRuntimeAcquisition;
   findTargetBindingByTargetId(targetId: string, purpose: CsharpProviderBindingLookupPurpose): CsharpProviderBindingResolution;

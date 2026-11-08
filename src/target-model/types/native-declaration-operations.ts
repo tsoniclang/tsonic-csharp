@@ -3,13 +3,15 @@ import type { CsharpNativeCallableMember, CsharpTargetMember, CsharpTargetParame
 import type { CsharpNativeDeclaration, CsharpNativeDeclarationApplication, CsharpNativeDeclarationMember } from "./native-declarations.js";
 import { targetTypeRefKey } from "./equality.js";
 import { csharpFreeTypeParameterIdentities } from "./generic-references.js";
-import { snapshotCsharpTargetTypes } from "./snapshot.js";
+import { csharpTypeIdentityAt, snapshotCsharpTargetTypes } from "./snapshot.js";
 import { substituteCsharpNativeCallableMember, substituteTargetTypeParameters } from "./substitution.js";
+import { snapshotCsharpMetadata } from "../metadata/immutable.js";
 
 export function csharpNativeCallableTargetMember(owner: TargetTypeRef, callable: CsharpNativeCallableMember,
   parameters: readonly CsharpTargetParameter[], staticMember: boolean): CsharpTargetMember {
   return Object.freeze({ id: JSON.stringify([owner.kind === "target-named" ? owner.id : targetTypeRefKey(owner), callable.name]),
     kind: "method", sourceName: callable.name, targetName: callable.name, declaringType: owner, static: staticMember,
+    ...(callable.signature.receiver === undefined ? {} : { receiverPassing: "target-parameter" as const }),
     parameters: Object.freeze([...parameters]),
     returnType: callable.signature.returnType,
     ...(callable.signature.returnPassing === undefined ? {} : { csharpReturnPassing: callable.signature.returnPassing }),
@@ -18,6 +20,7 @@ export function csharpNativeCallableTargetMember(owner: TargetTypeRef, callable:
 }
 
 export function snapshotCsharpNativeDeclaration(definition: CsharpNativeDeclaration): CsharpNativeDeclaration {
+  definition = snapshotCsharpMetadata(definition, path => nativeDeclarationIdentityAt(definition, path));
   const identities = new Set(definition.parameters.map(parameter => parameter.identity));
   const arguments_ = definition.carrier.typeArguments ?? [];
   if (definition.carrier.kind !== "target-named" || identities.size !== definition.parameters.length ||
@@ -29,6 +32,10 @@ export function snapshotCsharpNativeDeclaration(definition: CsharpNativeDeclarat
     throw new TypeError("A completed Native definition requires its exact ordered binders and finalized constraints.");
   }
   const members = Object.freeze(definition.members.map(member => mapDeclarationMember(member, snapshotType, snapshotCallable)));
+  if (new Set(members.map(member => member.member.id)).size !== members.length) {
+    throw new TypeError("A complete Native declaration retains every original physical member identity exactly once.");
+  }
+  for (const member of members) validateDeclarationMember(member);
   const types = [definition.carrier, ...definition.parameters, ...definition.supertypes];
   const free = new Set([...csharpFreeTypeParameterIdentities(types), ...members.flatMap(member => [...memberFreeParameters(member)])]);
   if ([...free].some(identity => !identities.has(identity))) {
@@ -51,16 +58,16 @@ export function applyCsharpNativeDeclaration(definition: CsharpNativeDeclaration
   carrier: TargetTypeRef): CsharpNativeDeclarationApplication | undefined {
   if (carrier.kind !== "target-named" || carrier.id !== definition.carrier.id ||
     (carrier.typeArguments?.length ?? 0) !== definition.parameters.length) return undefined;
-  const arguments_ = carrier.typeArguments ?? [];
+  const arguments_ = snapshotCsharpTargetTypes(carrier.typeArguments ?? []);
   const substitutions = new Map(definition.parameters.map((parameter, index) => [parameter.identity, arguments_[index]!]));
   const unchanged = arguments_.every((argument, index) =>
     targetTypeRefKey(argument, "emission") === targetTypeRefKey(definition.parameters[index]!, "emission"));
-  const physical = substituteTargetTypeParameters(definition.carrier, substitutions);
+  const physical = snapshotType(substituteTargetTypeParameters(definition.carrier, substitutions));
   if (physical.kind !== "target-named") throw new TypeError("A Native declaration application retains its named physical carrier.");
   return Object.freeze({ definition, carrier: Object.freeze(physical),
-    supertypes: unchanged ? definition.supertypes : Object.freeze(definition.supertypes.map(type => substituteTargetTypeParameters(type, substitutions))),
+    supertypes: unchanged ? definition.supertypes : Object.freeze(definition.supertypes.map(type => snapshotType(substituteTargetTypeParameters(type, substitutions)))),
     members: unchanged ? definition.members : Object.freeze(definition.members.map(member => mapDeclarationMember(member,
-      type => substituteTargetTypeParameters(type, substitutions), member => substituteCsharpNativeCallableMember(member, substitutions)))) });
+      type => snapshotType(substituteTargetTypeParameters(type, substitutions)), member => snapshotCallable(substituteCsharpNativeCallableMember(member, substitutions))))) });
 }
 
 export function csharpNativeDeclarationKey(definition: CsharpNativeDeclaration): string {
@@ -134,7 +141,39 @@ function snapshotType(type: TargetTypeRef): TargetTypeRef {
   return snapshotCsharpTargetTypes([type])[0]!;
 }
 
+function nativeDeclarationIdentityAt(definition: CsharpNativeDeclaration, path: readonly (string | number)[]): boolean {
+  if (path.length === 6 && path[0] === "members" && typeof path[1] === "number" &&
+    (path[2] === "method" || path[2] === "value") && path[3] === "typeParameters" &&
+    typeof path[4] === "number" && path[5] === "declaration") return true;
+  let value: unknown = definition;
+  for (let index = 0; index < path.length && typeof value === "object" && value !== null; index += 1) {
+    const kind: unknown = Object.getOwnPropertyDescriptor(value, "kind")?.value;
+    if (typeof kind === "string" && ["target-named", "type-parameter", "array", "tuple", "pointer", "function-pointer"].includes(kind) &&
+      csharpTypeIdentityAt([0, ...path.slice(index)])) return true;
+    value = Object.getOwnPropertyDescriptor(value, path[index]!)?.value;
+  }
+  return false;
+}
+
 function snapshotCallable(member: CsharpNativeCallableMember): CsharpNativeCallableMember {
+  const signature = member.signature;
+  const modes = new Set(["by-value", "byref-readonly", "byref-readwrite", "byref-writeonly-must-init"]);
+  if (member.name.length === 0 || new Set(member.typeParameters.map(parameter => parameter.identity)).size !== member.typeParameters.length ||
+    member.typeParameters.some(parameter => parameter.identity.length === 0 || parameter.name.length === 0 ||
+      Object.prototype.hasOwnProperty.call(parameter, "declaration") && (typeof parameter.declaration !== "object" || parameter.declaration === null)) ||
+    signature.kind !== "call" && signature.kind !== "construct" ||
+    signature.parameters.length !== signature.parameterPassingModes.length || signature.parameterPassingModes.some(mode => !modes.has(mode)) ||
+    signature.receiver !== undefined && !modes.has(signature.receiver.passingMode) ||
+    signature.returnPassing !== undefined && signature.returnPassing !== "byref-readonly" && signature.returnPassing !== "byref-readwrite" ||
+    new Set(signature.optionalParameterIndexes ?? []).size !== (signature.optionalParameterIndexes?.length ?? 0) ||
+    signature.optionalParameterIndexes?.some(index => !Number.isSafeInteger(index) || index < 0 || index >= signature.parameters.length) ||
+    signature.restParameterIndex !== undefined && (!Number.isSafeInteger(signature.restParameterIndex) ||
+      signature.restParameterIndex < 0 || signature.restParameterIndex !== signature.parameters.length - 1)) {
+    throw new TypeError("A Native callable retains its complete exact binder, passing, optional and rest vectors.");
+  }
+  for (const parameter of member.typeParameters) snapshotType({ kind: "type-parameter", identity: parameter.identity, name: parameter.name,
+    ...(parameter.declaration === undefined ? {} : { csharpDeclaration: parameter.declaration }),
+    csharpConstraints: { kind: "resolved", constraints: parameter.constraints } });
   return Object.freeze({ name: member.name,
     typeParameters: Object.freeze(member.typeParameters.map(parameter => Object.freeze({ ...parameter,
       constraints: Object.freeze(parameter.constraints.map(constraint => constraint.kind !== "type" ? Object.freeze({ ...constraint })
@@ -146,6 +185,50 @@ function snapshotCallable(member: CsharpNativeCallableMember): CsharpNativeCalla
       parameterPassingModes: Object.freeze([...member.signature.parameterPassingModes]),
       returnType: snapshotType(member.signature.returnType),
       ...(member.signature.optionalParameterIndexes === undefined ? {} : { optionalParameterIndexes: Object.freeze([...member.signature.optionalParameterIndexes]) }) }) });
+}
+
+function validateDeclarationMember(entry: CsharpNativeDeclarationMember): void {
+  const member = entry.member;
+  const equal = (left: TargetTypeRef | undefined, right: TargetTypeRef | undefined): boolean => left !== undefined && right !== undefined &&
+    targetTypeRefKey(left, "emission") === targetTypeRefKey(right, "emission");
+  if (member.id.length === 0 || member.targetName.length === 0) throw new TypeError("A Native declaration retains original physical member identities and names.");
+  if (entry.kind === "event") return;
+  if (entry.kind === "slot") {
+    if (entry.storage !== undefined && (!equal(entry.storage.type, member.returnType) ||
+      entry.storage.readonly !== (member.readonly === true) || entry.storage.readonly && entry.write !== undefined ||
+      entry.read !== undefined && !equal(entry.storage.type, entry.read.type) ||
+      entry.write !== undefined && !equal(entry.storage.type, entry.write.type))) {
+      throw new TypeError("A Native field retains its actual physical storage type and readonly access.");
+    }
+    if (entry.read !== undefined && (!equal(entry.read.type, entry.read.member.returnType) ||
+      entry.read.passingMode !== (entry.read.member.csharpReturnPassing ?? "by-value"))) {
+      throw new TypeError("A Native read accessor retains its exact physical result and passing mode.");
+    }
+    if (entry.write !== undefined) {
+      const parameter = entry.write.member.kind === "method" ? entry.write.member.parameters.at(-1) : undefined;
+      const type = parameter?.type ?? entry.write.member.returnType;
+      if (!equal(entry.write.type, type) || entry.write.passingMode !== (parameter?.passingMode ?? "by-value")) {
+        throw new TypeError("A Native write accessor retains its exact physical input and passing mode.");
+      }
+    }
+    return;
+  }
+  const signature = entry.method.signature;
+  const receiverOffset = member.receiverPassing === "target-parameter" ? 1 : 0;
+  const parameters = member.parameters.slice(receiverOffset);
+  const optional = new Set(signature.optionalParameterIndexes ?? []);
+  if (member.targetName !== entry.method.name ||
+    receiverOffset === 1 && (signature.receiver === undefined || !equal(member.parameters[0]?.type, signature.receiver.type) ||
+      member.parameters[0]?.passingMode !== signature.receiver.passingMode) ||
+    receiverOffset === 0 && signature.receiver !== undefined && (!equal(member.declaringType, signature.receiver.type) || member.static === true) ||
+    parameters.length !== signature.parameters.length || parameters.some((parameter, index) => !equal(parameter.type, signature.parameters[index]) ||
+      parameter.passingMode !== signature.parameterPassingModes[index] || (parameter.optional === true) !== optional.has(index) ||
+      (parameter.paramsArray === true) !== (signature.restParameterIndex === index)) ||
+    !equal(member.returnType, signature.returnType) || member.csharpReturnPassing !== signature.returnPassing ||
+    (member.typeParameters?.length ?? 0) !== entry.method.typeParameters.length || entry.method.typeParameters.some((parameter, index) =>
+      parameter.identity !== member.typeParameters?.[index]?.identity || parameter.name !== member.typeParameters?.[index]?.name)) {
+    throw new TypeError("A Native callable declaration retains the supplied physical method and its complete exact ABI vector.");
+  }
 }
 
 function memberFreeParameters(member: CsharpNativeDeclarationMember): ReadonlySet<string> {

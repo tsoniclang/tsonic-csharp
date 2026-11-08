@@ -2,6 +2,7 @@ import type { ExtensionDiagnostic, ProviderVirtualDeclarationFact } from "@tsoni
 import type { TargetBindingFact } from "../../target-model/types/model.js";
 import type { CsharpProviderTargetRelation } from "../../target-model/identities/provider-relations.js";
 import type { CsharpProviderBindingLookupPurpose, CsharpProviderBindingResolution, CsharpProviderNativeBindingResolution } from "../../target-model/metadata/provider-metadata.js";
+import type { CsharpProviderNativeDeclarationResolution } from "../../target-model/metadata/provider-metadata.js";
 import type { CsharpRuntimeProjectInstance, CsharpRuntimeSourceProject } from "../../target-model/project/runtime.js";
 import type { CsharpProjectConfiguration } from "../../target-model/configuration/model.js";
 import type { CsharpProjectProperty } from "../../target-model/project/model.js";
@@ -57,6 +58,7 @@ export type CsharpProviderIdentityPublication<Value> =
   | Extract<CsharpProviderBindingResolution, { readonly kind: "rejected" }>;
 
 export interface CsharpProviderRelationResolver {
+  acquireNativeDeclaration(identity: string): CsharpProviderNativeDeclarationResolution;
   publishNativeIdentities<Value>(value: Value): CsharpProviderIdentityPublication<Value>;
   validateReferences(): readonly ExtensionDiagnostic[];
   failures(): readonly ExtensionDiagnostic[];

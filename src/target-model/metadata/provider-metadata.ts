@@ -5,6 +5,7 @@ import type { CsharpTargetBindingFact } from "../types/model.js";
 import type { TargetBindingFact } from "../types/model.js";
 import type { CsharpNativeTargetBindingFact } from "../types/native-inheritance.js";
 import type { CsharpTargetBinaryExecutionDriver } from "../types/model.js";
+import type { CsharpNativeDeclaration } from "../types/native-declarations.js";
 
 export type CsharpProviderBindingResolution =
   | { readonly kind: "resolved"; readonly binding: TargetBindingFact }
@@ -12,6 +13,11 @@ export type CsharpProviderBindingResolution =
   | { readonly kind: "rejected"; readonly diagnostic: ExtensionDiagnostic };
 
 export type CsharpProviderBindingLookupPurpose = "ordinary" | "inheritance";
+
+export type CsharpProviderNativeDeclarationResolution =
+  | { readonly kind: "resolved"; readonly definition: CsharpNativeDeclaration }
+  | { readonly kind: "missing" }
+  | { readonly kind: "rejected"; readonly diagnostic: ExtensionDiagnostic };
 
 export type CsharpProviderNativeBindingResolution =
   | { readonly kind: "resolved"; readonly binding: CsharpNativeTargetBindingFact }
@@ -24,6 +30,7 @@ export interface CsharpProviderPolicyContribution extends TargetCapabilityContri
   readonly providerId: string;
   readonly providerVersion: string;
   readonly targetBindings: readonly CsharpTargetBindingFact[];
+  readonly nativeDeclarations: readonly CsharpNativeDeclaration[];
   readonly relations: readonly CsharpProviderTargetRelation[];
   readonly rejections: readonly CsharpProviderTargetRejection[];
   readonly binaryExecutionDriver?: CsharpTargetBinaryExecutionDriver;
