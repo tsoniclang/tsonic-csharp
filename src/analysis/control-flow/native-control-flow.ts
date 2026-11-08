@@ -1,5 +1,5 @@
 import type { AstReader, Node } from "@tsonic/tsts";
-import { sourceProjectDeclaration } from "../program/source-facts.js";
+import { forwardSourceRefusal, sourceProjectDeclaration } from "../program/source-facts.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { TryStatement_FinallyBlock, sourceBindingWriteAtReference, type TargetSourceProgramFacts } from "@tsonic/target-api/source";
 import type { CsharpNativeParticipationInput, CsharpNativeUseClassifications } from "../../target-model/records/native/native-demand.js";
@@ -307,7 +307,8 @@ export function admitCsharpStatementBindings(
       }
     } else if (ast.is.IsSwitchStatement(node)) {
       const selected = operations.switchStatement.get(node);
-      if (selected === undefined || selected.kind === "rejected") {
+      if (selected?.kind === "refused") issues.push(forwardSourceRefusal(selected.refusal));
+      else if (selected === undefined || selected.kind === "rejected") {
         refuse(node, selected?.code ?? "CSHARP_SWITCH_NOT_REPRESENTABLE", selected?.reason ?? "Switch requires sealed C# classification.");
       }
     } else if (ast.is.IsCatchClause(node)) {

@@ -1,3 +1,4 @@
+import { knownNativePlatform64 } from "../../helpers/native-integer-platform.mjs";
 // Conditional values (ported from the c2529 after-image to the nextgen facts, C-2542). The union carriers come from
 // real Host sums through the one mapping (I6): arms positional in Host order, one absence (R6, A11). Operator
 // selection reads Host facts only (facts.values.literal for constant conditions, facts.navigation for result use);
@@ -53,9 +54,17 @@ const literal = node => node.kind === "KindTrueKeyword" ? Object.freeze({ form: 
   : node.kind === "ParenthesizedExpression" ? literal(node.expression)
   : node.kind === "BinaryExpression" && node.operator === "KindCommaToken" ? literal(node.right) : undefined;
 const facts = (resultUse = () => assert.fail("no comma result use is read")) => Object.freeze({
-  values: Object.freeze({ literal, type: () => assert.fail("operand types come from the target-type query") }),
+  // A nested binary operation's own published outcome is read only for its Host construction (operators.ts
+  // publishedOutcome); this fixture's operations have none, so their result comes from the target-type query as before.
+  // Every other node's value type is never read: operand types come from the target-type query.
+  values: Object.freeze({ literal, type: node => node.kind === "BinaryExpression"
+    ? Object.freeze({ kind: "resolved", type: Object.freeze({ kind: "intrinsic", intrinsic: "unknown" }), provenance: Object.freeze({ occurrence: node }) })
+    : assert.fail("operand types come from the target-type query") }),
+  // facts.analyses.platform: the Host native-integer premise the literal checks read (Q89/Q90; W2-T-4).
+  analyses: Object.freeze({ platform: knownNativePlatform64 }),
   navigation: Object.freeze({ expressions: Object.freeze({ resultUse }) }),
-  relations: Object.freeze({ at: () => undefined }),
+  // No operand flows into a closed sum: no read relation and no write relation (relations.write, Q1).
+  relations: Object.freeze({ at: () => undefined, write: () => undefined }),
 });
 const input = { ast, facts: facts(), target: {},
   types: { readStorage: () => undefined, value: () => assert.fail("operand types come from the target-type query"),
@@ -130,7 +139,12 @@ test("conditional value admission never invents truthiness, numeric conversion o
 
 test("comma condition completion selects its exact literal branch without dropping preceding effects", () => {
   const sequence = { kind: "BinaryExpression", operator: "KindCommaToken", left: value, right: trueLiteral };
-  const selected = selectCsharpBinaryOperands(input, sequence, rightValue, "&&", integer,
+  // The nested sequence is selected as its own binary operation, which reads the Host result use of its right operand:
+  // the literal is the && condition, so it is consumed (facts.navigation.expressions.resultUse).
+  const selected = selectCsharpBinaryOperands({ ...input, facts: facts(node => {
+    assert.equal(node === trueLiteral, true, "only the sequence's own right operand has a result use");
+    return "consumed";
+  }) }, sequence, rightValue, "&&", integer,
     node => node === sequence ? boolean : integer);
   assert.equal(selected.kind, "resolved");
   assert.equal(selected.targetOperation.branch, "right");

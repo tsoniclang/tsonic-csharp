@@ -55,7 +55,9 @@ function selectedHeritageFixture(relation, target, binding) {
     ast: {},
     facts: { objects: { heritage: node => {
       assert.equal(node, declaration, "heritage is read for the exact project declaration");
-      return [Object.freeze({ kind: relation, declaration, heritage, target: targetDeclaration, typeArguments: [] })];
+      // SourceHeritageEdge.type (objects.ts:37) is required: the Host descriptor of the base reference (W2-T-2, FX-CC-H2).
+      return [Object.freeze({ kind: relation, declaration, heritage, target: targetDeclaration, typeArguments: [],
+        type: Object.freeze({ kind: "declared", declaration: targetDeclaration, typeArguments: [] }) })];
     } } },
     providers: { findTargetBindingByTargetId(id) {
       providerReads += 1;

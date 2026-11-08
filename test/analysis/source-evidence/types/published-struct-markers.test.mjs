@@ -140,6 +140,9 @@ for (const surface of ["native", "js"]) {
       assert.equal(compiled.result.diagnostics.some(issue => issue.category === "error" && issue.source === "tsonic-csharp"), true,
         "the absent or foreign ABI is a .NET refusal, not structural reconstruction");
       assert.equal(compiled.artifacts.size, 0, "no raw Source replay replaces the field ABI");
+      // Q107 (TEST-REVIEW-RC2-ITEM7 row published-struct-markers:142): a refused nested field ABI also prevents
+      // semantic-program publication, not only artifact emission (baseline predicate restored).
+      assert.equal(compiled.result.program === undefined, true, "a refused field ABI publishes no semantic program");
     });
   }
 

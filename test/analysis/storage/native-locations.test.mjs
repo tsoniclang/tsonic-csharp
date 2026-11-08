@@ -76,6 +76,10 @@ function fixture(kind = "identifier", options = {}) {
       return element;
     } },
     objects: { indexes: () => [] },
+    // facts.profile.identity (FX-CC #42, D18): the selected member is a project declaration, not a JS source-profile one.
+    profile: { identity: () => undefined },
+    // facts.relations.at: no receiver of this fixture is a closed sum, so no access has a Host union relation.
+    relations: { at: () => undefined },
     navigation: {
       identity: { target: node => node === expression ? { declaration, project: true } : undefined,
         isProjectDeclaration: () => false },

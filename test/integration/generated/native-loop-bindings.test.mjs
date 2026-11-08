@@ -204,8 +204,13 @@ export function run(): int {
       const writeOffset = sourceText.lastIndexOf(control.write);
       const subjectOffset = writeOffset + control.write.indexOf(control.subject);
       const occurrence = sourceText.slice(0, subjectOffset).split(control.subject).length - 1;
-      assertNativeLoopRefusals(compiled, [{ message: control.member ? "the per-iteration value-type loop binding is mutated through a member; copy it to a body local first." : "the loop variable is captured by a closure and also written in the loop; use a separate variable.",
-        text: control.subject, occurrence }]);
+      // Each refusal names its producer's own code (C-2542, R5): native-control-flow.ts refuseMutatingValueMembers gives
+      // CSHARP_LOOP_VALUE_BINDING_MEMBER_MUTATION, refuseWrittenCapturedBindings gives CSHARP_CAPTURED_LOOP_BINDING_WRITTEN.
+      assertNativeLoopRefusals(compiled, [control.member
+        ? { code: "CSHARP_LOOP_VALUE_BINDING_MEMBER_MUTATION", message: "the per-iteration value-type loop binding is mutated through a member; copy it to a body local first.",
+          text: control.subject, occurrence }
+        : { code: "CSHARP_CAPTURED_LOOP_BINDING_WRITTEN", message: "the loop variable is captured by a closure and also written in the loop; use a separate variable.",
+          text: control.subject, occurrence }]);
     });
   }
 }

@@ -55,6 +55,76 @@ test("foreign, declaration-file and non-callable references do not manufacture S
   assert.equal(owns(undefined), false);
 });
 
+// Q107 (TEST-REVIEW-RC2-ITEM7, source-callable-authority:49): the baseline eight-case signature-authority matrix and its
+// all-owned overload positive, restored over Host facts. The alias reference reaches the variable-declaration branch of
+// isSourceOwnedCallableRuntimeCarrierSubject, which reads the published callable inventory of the initializer
+// (facts.values.type -> callable calls[].declaration) and the role model (navigation.identity.isProjectDeclaration).
+// Each case wraps the received facts (one member replaced); the represented carrier is unchanged, so only the
+// inventory decides.
+const matrixSource = `
+import type { int32 } from "@tsonic/core/types.js";
+import { foreign } from "./external.js";
+import { elsewhere } from "./other.js";
+export type Shape = (value: int32) => int32;
+function twice(value: int32): int32 { return value; }
+const alias = twice;
+const count: int32 = 1 as int32;
+export function run(): number { return alias(count) + foreign(count) + elsewhere(count); }
+`;
+
+test("Source callable authority requires the complete signature inventory to belong to included project declarations", () => {
+  const program = hostProgram(matrixSource, { files: {
+    "external.d.ts": "export declare function foreign(value: number): number;",
+    "other.ts": `import type { int32 } from "@tsonic/core/types.js"; export function elsewhere(value: int32): int32 { return value; }`,
+  } });
+  const { ast } = program;
+  const at = representations(representationServices(program));
+  const run = program.named("run");
+  const reference = name => program.nodes.find(node => ast.is.IsIdentifier(node) && ast.text(node) === name &&
+    ast.is.IsCallExpression(ast.parent(node)) && isWithin(program, node, run));
+  const subject = reference("alias");
+  const initializer = ast.as.AsVariableDeclaration(program.named("alias")).Initializer;
+  const outcome = program.facts.values.type(initializer);
+  assert.equal(outcome.kind !== "refused" && outcome.type.kind === "callable" && outcome.type.calls.length === 1 &&
+    outcome.type.calls[0].declaration === program.named("twice"), true, "the alias initializer publishes the one project signature");
+  const [signature] = outcome.type.calls;
+  const foreign = program.facts.navigation.identity.target(reference("foreign"))?.declaration;
+  assert.equal(foreign !== undefined && ast.isDeclarationFile(ast.getSourceFile(foreign)), true, "foreign is declared in a declaration file");
+  const elsewhere = program.named("elsewhere");
+  const otherFile = ast.getSourceFile(elsewhere);
+  const shape = program.nodes.find(node => ast.is.IsFunctionTypeNode(node));
+  const count = program.named("count");
+  const owns = ({ calls, published, project, sourceFiles = program.host.sourceFiles } = {}) => {
+    const facts = Object.freeze({ ...program.facts,
+      values: Object.freeze({ ...program.facts.values, type: node => node !== initializer ? program.facts.values.type(node)
+        : published ?? Object.freeze({ ...outcome, type: Object.freeze({ ...outcome.type, calls: Object.freeze(calls ?? outcome.type.calls) }) }) }),
+      navigation: Object.freeze({ ...program.facts.navigation, identity: Object.freeze({ ...program.facts.navigation.identity,
+        isProjectDeclaration: node => project?.(node) ?? program.facts.navigation.identity.isProjectDeclaration(node) }) }),
+    });
+    return isSourceOwnedCallableRuntimeCarrierSubject(subject, { ast, facts, sourceFiles,
+      sourceFacts: program.host.sourceFacts, types: { value: node => at.value(node) } });
+  };
+  const replaced = declaration => Object.freeze({ ...signature, declaration });
+  assert.equal(owns(), true, "control: the alias of a project function is source owned");
+  assert.equal(owns({ calls: [signature, replaced(elsewhere)] }), true, "all selected overload declarations are source owned");
+  assert.equal(owns({ calls: [replaced(shape)] }), true, "an authored project function signature is authority");
+  const cases = [
+    ["an empty inventory", { calls: [] }],
+    ["a declaration-less signature", { calls: [replaced(undefined)] }],
+    ["a signature the role model does not own", { project: node => node === signature.declaration ? false : undefined }],
+    ["a signature in a project file outside the included source files", { calls: [replaced(elsewhere)],
+      sourceFiles: program.host.sourceFiles.filter(file => file !== otherFile) }],
+    ["a declaration-file signature even if marked project", { calls: [replaced(foreign)], project: node => node === foreign ? true : undefined }],
+    ["a non-callable declaration", { calls: [replaced(count)] }],
+    ["a mixed project and foreign inventory", { calls: [signature, replaced(foreign)] }],
+    ["a refused initializer publication", { published: Object.freeze({ kind: "refused", source: "tsonic",
+      code: "TSONIC_LOCAL_TYPE_UNSUPPORTED", message: "fixture", site: initializer }) }],
+  ];
+  for (const [label, corruption] of cases) {
+    assert.equal(owns(corruption), false, `${label} does not manufacture Source callable authority`);
+  }
+});
+
 const interfaceSource = `
 import type { int32, int64 } from "@tsonic/core/types.js";
 export interface Unary<Value> { (value: Value): Value; }

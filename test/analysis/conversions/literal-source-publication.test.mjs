@@ -18,6 +18,8 @@ const [negativeZero, writtenFloatZero] = checkedSourceLiteralValues(["-0", "-0.0
 // The literal owners read facts.values.literal (nextgen C-2542); this double publishes exactly the one constant.
 const valuesFor = (expression, value = negativeZero) => Object.freeze({
   values: Object.freeze({ literal: node => node === expression ? value : undefined }),
+  // facts.analyses.platform: the Host native-integer premise the literal checks read (Q89/Q90; W2-T-4).
+  analyses: Object.freeze({ platform: knownNativePlatform64 }),
 });
 const invariant = text => error => error.diagnostic?.code === "TSONIC_INTERNAL_ANALYSIS_INVARIANT" &&
   error.message.includes(text);

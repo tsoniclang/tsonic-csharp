@@ -764,14 +764,32 @@ test("missing, foreign, stale and mismatched member evidence cannot inherit opti
   const [member] = slot.members;
   const { origins: _removed, ...missing } = member;
   const presentProperty = value.program.ast.properties(value.literal("present"))[0];
+  // Q107 (TEST-REVIEW-RC2-ITEM7 native-construction-demand:773): each control lists the explicit outcome arguments for
+  // prove. The missing, foreign and mismatched rows pass the genuine original literal publication, so only their
+  // corrupted member evidence differs from the proven control; an explicit undefined stays a separate row.
+  const genuine = value.outcome("omitted");
+  assert.equal(genuine !== undefined && genuine.kind !== "refused" && genuine.memberCorrespondence !== undefined &&
+    genuine.provenance.occurrence === value.literal("omitted"), true,
+    "the genuine original literal publication is present for this occurrence");
   const controls = [
-    ["missing evidence", { ...slot, members: [missing] }],
-    ["foreign declared owner", value.destination("other")],
-    ["stale absence", slot, value.outcome("fresh")],
-    ["mismatched present property", { ...slot, members: [{ ...member, origins: [{ kind: "declared", declaration: presentProperty }] }] }],
+    ["missing evidence", { ...slot, members: [missing] }, [genuine]],
+    ["foreign declared owner", value.destination("other"), [genuine]],
+    ["stale absence", slot, [value.outcome("fresh")]],
+    ["mismatched present property", { ...slot, members: [{ ...member, origins: [{ kind: "declared", declaration: presentProperty }] }] },
+      [genuine]],
+    ["missing publication", slot, [undefined]],
   ];
-  for (const [label, shape, outcome] of controls) assert.notEqual(value.prove("omitted", shape, outcome).kind, "proven",
-    `${label}: no native slot is published from missing or unrelated proof`);
+  for (const [label, shape, outcome] of controls) {
+    if (outcome[0] === genuine) {
+      // Q107: the same genuine publication proves the uncorrupted shape with the same target type, so the rejection
+      // below comes from the corrupted member evidence reaching correspondence validation.
+      assert.equal(shape.targetType, slot.targetType, `${label}: the corrupted shape keeps the published target type`);
+      assert.equal(value.prove("omitted", slot, ...outcome).kind, "proven",
+        `${label}: the genuine publication proves the uncorrupted member evidence`);
+    }
+    assert.notEqual(value.prove("omitted", shape, ...outcome).kind, "proven",
+      `${label}: no native slot is published from missing or unrelated proof`);
+  }
 });
 
 test("canonical member merging retains separate owners without transferring an absence proof", () => {

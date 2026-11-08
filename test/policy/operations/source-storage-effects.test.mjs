@@ -5,7 +5,8 @@ import { Node_Initializer } from "@tsonic/target-api/source";
 import { createCsharpSourceStorageTargetPremises } from "../../../dist/analysis/operations/source-profiles/source-storage-effects.js";
 import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
 import { checkCsharpSource } from "../../helpers/direct-csharp-session.mjs";
-import { nativeStorageOperationAuthoritySource } from "../../../../tsonic/test/fixtures/native-storage-operation-authority.mjs";
+import { nativeStorageOperationAuthoritySource, nativeStorageOperationCheckedSource, nativeStorageVirtualOperationSource } from "../../../../tsonic/test/fixtures/native-storage-operation-authority.mjs";
+import { jsSourceSemanticsIdentity } from "@tsonic/js-source-profile";
 import { namedVariable } from "../../../../tsonic/test/fixtures/source-navigation.mjs";
 
 function selectedEffects(sourceText, surface = "js") {
@@ -199,6 +200,57 @@ test("native alias and preservation effects require actual owned operation ident
   assert.equal(domain.boundaries.some(boundary => boundary.kind === "opaque-write"), true,
     "the actual unknown invocation retains its member-write witness");
   assert.equal(storage.failureReason(), undefined, "one finite proof graph");
+});
+
+// Q107 (TEST-REVIEW-RC2-ITEM7 row source-storage-effects:208). The identity/binding purposes of the retired C# test
+// "virtual native operation authority requires its matching provider-owned runtime binding" run at the Host profile
+// authority: tsonic/test/js-source-profile/storage-effects.test.mjs (same title; facts.profile.callStorage names the
+// required binding, the Host storage analysis admits the effect only through it). This C# control runs the same four
+// operation identities and five binding corruptions through the C# handoff (the C# test program and the C# target
+// premises), so C# premises cannot re-admit a foreign binding.
+test("virtual native operation authority through the C# target premises requires the matching runtime binding", () => {
+  const checked = checkCsharpSource({ surface: "js", sourceText: `export {};\n${nativeStorageVirtualOperationSource}` });
+  assert.equal(checked.sourceDiagnosticsText, "", "the source fixture remains checked");
+  const control = csharpTestSourceProgram(checked.source);
+  const file = checked.source.getSourceFile("/project/index.ts");
+  assert.equal(file !== undefined, true, "the virtual operation fixture is the checked project file");
+  const frozen = Node_Initializer(control.syntax, namedVariable(control.syntax, file, "frozen"));
+  const original = Node_Initializer(control.syntax, namedVariable(control.syntax, file, "original"));
+  const selected = control.facts.selections.call(frozen);
+  assert.equal(selected !== undefined && selected.kind !== "refused" && selected.receiver !== undefined, true,
+    "exact checked virtual operation");
+  const nodes = { signature: selected.signature, binding: control.facts.navigation.identity.target(selected.receiver)?.declaration };
+  assert.equal(control.facts.profile.callStorage(selected), undefined, "without provider facts the declaration is no JS operation");
+  const providers = createCsharpProviderRelationResolver({ providers: [], providerPolicies: [] });
+  const identity = { providerId: jsSourceSemanticsIdentity.providerId, providerVersion: "1",
+    providerModuleId: "test.selected-js", moduleSpecifier: "@test/selected-js", artifactFileName: "/src/selected-js.d.ts",
+    exportName: "ObjectConstructor", memberName: "freeze", memberKey: { kind: "property-key", name: "freeze" } };
+  const global = { ...identity, exportName: "Object", memberName: undefined, memberKey: undefined };
+  const authority = (operation, binding) => {
+    const program = csharpTestSourceProgram(nativeStorageOperationCheckedSource(checked.source, nodes, operation, binding));
+    const call = program.facts.selections.call(frozen);
+    assert.equal(call !== undefined && call.kind !== "refused", true);
+    const premises = createCsharpSourceStorageTargetPremises(program, providers);
+    const storage = program.facts.analyses.storage({ sourceFiles: [file], premises });
+    const subject = storage.subjectFor(frozen);
+    assert.equal(subject.kind, "resolved", "the call result has its exact storage subject");
+    const domain = storage.closedOriginsFor(subject.subject);
+    assert.equal(storage.failureReason(), undefined, "one finite proof graph");
+    return { call, published: program.facts.profile.callStorage(call), domain };
+  };
+  for (const operation of [identity, { ...identity, memberName: undefined }, { ...identity, memberKey: undefined },
+    { ...identity, memberName: "assign" }]) {
+    const { call, published, domain } = authority(operation, global);
+    assert.equal(published?.effect.resultAlias === call.arguments[0].argument, true, "the operation aliases its argument");
+    assert.equal(domain.kind === "complete" && domain.origins.length === 1 && domain.origins[0].subject.node === original &&
+      domain.origins[0].subject.projection.length === 0, true,
+    "exact selected provider member and actual binding jointly supply native authority");
+  }
+  for (const binding of [undefined, { ...global, exportName: "Other" }, { ...global, providerId: "foreign-provider" },
+    { ...global, providerModuleId: "other-module" }, { ...global, signatureId: "not-a-global" }]) {
+    const { domain } = authority(identity, binding);
+    assert.equal(domain.kind, "open", "a selected virtual signature cannot certify a foreign binding");
+  }
 });
 
 test("local same-spelled constructors and named globals cannot acquire native allocation evidence", () => {

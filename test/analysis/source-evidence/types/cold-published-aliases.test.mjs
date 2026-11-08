@@ -52,8 +52,16 @@ for (const label of ["numeric", "text", "generic", "optional"]) {
     const arms = current.registry.sourceUnionArms(carrier);
     assert.equal(arms?.some(arm => arm.kind === "array" && targetTypeRefEquals(arm.element, result)), true,
       "the recursive element is the instantiated carrier with its absence state, positional among the Host arms");
-    if (label === "generic") assert.equal(carrier.typeArguments[0].kind, "type-parameter",
-      "an open argument stays the alias binder, not its spelling");
+    // Q107 (TEST-REVIEW-RC2-ITEM7 cold-published-aliases:55): the represented open argument is the exact binder
+    // declaration of the original published application (Tree<Value> in retain<Value>), not a same-spelled or foreign one.
+    if (label === "generic") {
+      const binder = current.published(label).typeArguments[0];
+      assert.equal(binder.kind === "declared" && binder.declaration !== undefined, true,
+        "the published application carries its open argument as the binder reference");
+      assert.equal(carrier.typeArguments[0].kind === "type-parameter" &&
+        carrier.typeArguments[0].csharpDeclaration === binder.declaration, true,
+        "an open argument stays the original alias binder declaration, not its spelling");
+    }
     assert.equal(targetTypeRefEquals(represented(current.represent.type(current.published(label), site, "storage")), result), true,
       "a second read has the identical contract");
     assert.equal(current.registry.sourceUnions().length, 1, "one open template owns every application of the alias");

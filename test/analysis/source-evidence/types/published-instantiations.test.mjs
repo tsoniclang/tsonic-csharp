@@ -16,6 +16,12 @@ import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../../
 import { csharpProgramObjectLiteralShapes, csharpProgramSourceFiles } from "../../../helpers/program-source-files.mjs";
 import { hostProgram, representationServices, representations, represented } from "../../../representation/host-fixture.mjs";
 import { createTsonicPlugin as nodejsCapability } from "../../../../../csharp-nodejs/dist/index.js";
+import { createCompilerSessionFromFiles, createSourceSemanticsExtension, sourcePrimitive, TstsSourceProviderContractVersion } from "@tsonic/tsts";
+import { csharpTestSourceProgram } from "../../../helpers/target-source-program.mjs";
+import { createCsharpNativeConstructionDemandQuery } from "../../../../dist/analysis/objects/native-construction-demand.js";
+import { createCsharpObjectShapePolicy } from "../../../../dist/analysis/objects/shapes/api.js";
+import { createCsharpTypeParameterEnvironment } from "../../../../dist/representation/index.js";
+import { csharpNullableTargetType } from "../../../../dist/target-model/types/carriers/nullable.js";
 
 test("C2377 class forwarding keeps the declared instance and its published member origins", () => {
   for (const surface of ["native", "js"]) {
@@ -358,7 +364,10 @@ test("one published member inventory keeps exact width and declaration origin", 
 test("construction never drops a published call, construct or index inventory and never opens an unexpressible cut", () => {
   const program = memberProgram();
   const box = program.named("box", node => program.ast.is.IsVariableDeclaration(node));
-  const represent = representations(representationServices(program));
+  // Q107 (TEST-REVIEW-RC2-ITEM7 row published-instantiations:358): no refused inventory leaves a partial object shape.
+  const retained = [];
+  const represent = representations(representationServices(program, { shapes: Object.freeze({
+    retainShape: shape => { retained.push(shape); return shape; }, resolveCallableValue: () => assert.fail("no callable value") }) }));
   const member = { name: "value", optional: false, type: { kind: "string" },
     origin: { kind: "declared", declaration: box } };
   const signature = { typeParameters: [], parameters: [], result: { kind: "string" } };
@@ -366,7 +375,171 @@ test("construction never drops a published call, construct or index inventory an
     "CSHARP_SHAPE_CALLABLE_MEMBERS");
   assert.equal(represent.type({ kind: "shape", members: [member], calls: [], constructs: [],
     indexes: [{ key: { kind: "string" }, type: { kind: "string" }, readonly: false }] }, box, "storage").code, "CSHARP_INDEX_SIGNATURES");
+  // Q107 (same row): the constructor-plus-member counterpart. A member that is not the static side of the class the
+  // construct signature belongs to cannot be discarded to materialize the property-only shape.
+  assert.equal(represent.type({ kind: "shape", members: [member], indexes: [], calls: [], constructs: [signature] }, box, "storage").code,
+    "CSHARP_CONSTRUCTOR_VALUE", "a published construct inventory is never dropped for a member-only shape");
+  assert.equal(retained.length, 0, "no refused call, construct or index inventory retains a partial object shape");
   const alias = program.named("First", node => program.ast.is.IsTypeAliasDeclaration(node));
   assert.equal(represent.type({ kind: "declared", declaration: alias, typeArguments: [], cut: "unexpressible" }, box, "storage").code,
     "CSHARP_DECLARATION_UNEXPRESSIBLE", "an unexpressible declaration is refused, never rebuilt");
+});
+
+// ---- Provider-contract corruptions at the current construction boundary (Q107) ----
+// Q107 (TEST-REVIEW-RC2-ITEM7 row published-instantiations:314): the retired provider-member resolver matrix (wrong
+// field width, lost nullable storage, changed destination member, foreign origin, foreign target, stale or foreign
+// retained-alias publication, and preservation of the valid original allocation) runs at the current boundary:
+// createCsharpNativeConstructionDemandQuery over the real object-shape policy and the real representation services of
+// a checked program whose provider type `ContextRow` (`@fixture/native`, object-initializer construction) declares one
+// optional int64 field `mode` bound to a nullable CLR int64 property. The same fixture shape as
+// test/analysis/objects/native-construction-demand.test.mjs; only the CLR relations are fixture doubles, and each
+// corruption is a spread copy of one query input (the effective shape, the published target or the value facts).
+const providerInteger = Object.freeze({ kind: "source-primitive", name: "int64" });
+const providerNative = Object.freeze({ kind: "target-named", csharpAllowsRefLikeTypeArguments: Object.freeze([]), id: "native.Counters" });
+const providerStorage = csharpNullableTargetType(providerInteger);
+
+function providerProgram(source) {
+  const nativeModel = { moduleSpecifier: "@fixture/native", providerModuleId: "Fixture.Native", exports: [{
+    id: "ContextRow", name: "ContextRow", kind: "class", members: [{ id: "ContextRow::mode", name: "mode", kind: "property",
+      type: { kind: "source-primitive", name: "int64" }, optional: true, readonly: false }],
+  }] };
+  const providerExtension = { identity: { id: "fixture.native.extension", version: "1.0.0" },
+    initialize(extension) {
+      extension.registerSourceDeclarationProvider({
+        identity: { id: "fixture.native", version: "1.0.0", extensionContractVersion: TstsSourceProviderContractVersion,
+          diagnosticRange: { start: 9900000, end: 9900099 } },
+        declarationMaterialization: "complete",
+        ownsModule: specifier => ({ kind: specifier === "@fixture/native" ? "owned" : "unowned" }),
+        resolveModule: specifier => ({ kind: "virtual", moduleSpecifier: specifier,
+          virtualFileName: "/provider/native.d.ts", providerModuleId: "Fixture.Native" }),
+        getDeclarationModel: () => nativeModel,
+      });
+    } };
+  const checked = createCompilerSessionFromFiles({ currentDirectory: "/src", files: {
+    "/src/node_modules/@fixture/words/package.json": JSON.stringify({ name: "@fixture/words", version: "1.0.0",
+      type: "module", exports: { ".": "./index.d.ts" } }),
+    "/src/node_modules/@fixture/words/index.d.ts": "export type int64 = bigint;",
+    "/src/index.ts": `import type * as Words from "@fixture/words";\nimport type { ContextRow } from "@fixture/native";\n${source}`,
+  }, compilerOptions: { strict: true, target: "es2022", module: "esnext", moduleResolution: "bundler" },
+  extensionHostOptions: { extensions: [createSourceSemanticsExtension({ modules: [{ moduleSpecifier: "@fixture/words",
+    packageName: "@fixture/words", exports: [sourcePrimitive("int64", "int64", "bigint", true, 64)] }] }), providerExtension] } }).checkSource();
+  assert.equal(checked.diagnostics.length, 0, "the provider fixture is valid Source");
+  const view = csharpTestSourceProgram(checked);
+  const ast = view.syntax;
+  const nodes = [];
+  const visit = node => { nodes.push(node); ast.forEachChild(node, child => { if (child !== undefined) visit(child); }); };
+  view.sourceFiles.filter(file => !ast.isDeclarationFile(file)).forEach(visit);
+  const providers = {
+    findTargetBindingByTargetId: () => ({ kind: "missing" }),
+    findTargetBindingByMetadataName: () => ({ kind: "missing" }),
+    publishNativeIdentities: value => ({ kind: "resolved", value }),
+    resolveType: () => ({ kind: "resolved", relations: [{ kind: "type", bindingTypeParameters: [],
+      objectLiteralConstruction: { kind: "object-initializer" },
+      targetBinding: { target: "csharp", id: providerNative.id, csharpType: providerNative } }] }),
+    resolveMember(fact) {
+      if (fact.memberId !== "ContextRow::mode") return { kind: "missing", reason: "not a fixture member" };
+      return { kind: "resolved", relations: [{ kind: "member", source: { kind: "member", ...fact,
+        memberStatic: false, memberKey: { kind: "property-key", name: "mode" } },
+        targetBinding: { target: "csharp", id: providerNative.id, csharpType: providerNative },
+        targetMember: { kind: "property", id: `${providerNative.id}-mode`, targetName: `${providerNative.id}-mode`,
+          declaringType: providerNative, parameters: [], returnType: providerStorage, readonly: false },
+        receiver: { kind: "instance" }, bindingTypeParameters: [], bindingTypeArgumentSource: "receiver" }] };
+    },
+  };
+  const variable = name => nodes.find(node => ast.is.IsVariableDeclaration(node) && ast.text(ast.name(node)) === name);
+  const run = (overrides = {}) => {
+    const facts = overrides.facts ?? view.facts;
+    let policy;
+    const services = representationServices({ facts, ast, nodes, host: { sourceFacts: view.sourceFacts } }, {
+      facts, providers,
+      shapes: Object.freeze({
+        retainShape: (shape, occurrence) => policy.retainShape(shape, occurrence),
+        resolveCallableValue: (signature, typeParameters) => policy.resolveCallableValue(signature, typeParameters),
+      }),
+    });
+    policy = createCsharpObjectShapePolicy({
+      ast,
+      sourceStorage: facts.analyses.storage({ sourceFiles: view.sourceFiles, premises: {} }),
+      projectTypeCatalog: services.projectTypes,
+      typeParameterConstraints: createCsharpTypeParameterEnvironment(() => ({ kind: "resolved", constraints: [] })),
+      representation: () => services,
+    });
+    const host = {
+      ast, facts, providers, sourceFacts: view.sourceFacts, sourceFiles: view.sourceFiles,
+      target: Object.freeze({ id: "csharp", options: Object.freeze({}) }),
+      typeDefinitions: createCsharpTypeDefinitionRegistry(),
+      types: new Proxy({}, { get: (_target, key) => assert.fail(`native construction reads no C# type query (${String(key)})`) }),
+      projectTypes: Object.freeze({ directSupertypes: () => undefined }),
+      resolveEffectiveShape: node => overrides.effectiveShape?.(policy.resolveNode(node), node) ?? policy.resolveNode(node),
+      resolveLiteralShape: (shape, node) => policy.resolveObjectLiteralTargetShape(shape, node),
+      retainSourceShape: (node, shape) => policy.retainConstructionSource(node, shape),
+      publishedShapeTarget: node => overrides.publishedShapeTarget !== undefined
+        ? overrides.publishedShapeTarget(node, policy.publishedShapeTarget(node)) : policy.publishedShapeTarget(node),
+      scopedTargetType: () => undefined,
+    };
+    return createCsharpNativeConstructionDemandQuery(host);
+  };
+  return Object.freeze({ view, ast, nodes, variable, initializer: name => ast.as.AsVariableDeclaration(variable(name))?.Initializer, run });
+}
+
+test("canonical provider construction never waives the field ABI, absence, destination member or target", () => {
+  const program = providerProgram("export function run(): void { const value: ContextRow = { mode: 1n }; void value; }");
+  const literal = program.initializer("value");
+  const valid = program.run();
+  assert.equal(valid.issues.length, 0, valid.issues.map(issue => issue.message).join("; "));
+  const construction = valid.constructionFor(literal);
+  assert.equal(construction !== undefined && targetTypeRefEquals(construction.targetType, providerNative) &&
+    construction.shape.members.length === 1, true, "the valid provider literal constructs its CLR type");
+  const member = construction.shape.members[0];
+  assert.equal(member.optional === true && targetTypeRefEquals(member.type, providerStorage) &&
+    member.targetName === `${providerNative.id}-mode` && member.origins?.length === 1, true,
+  "the published optional int64 field keeps its nullable CLR int64 property and its one canonical origin");
+  const other = program.variable("value");
+  for (const [label, change] of [
+    ["changed field width", shape => ({ ...shape, members: [{ ...shape.members[0],
+      type: csharpNullableTargetType(csharpSourcePrimitiveTargetType("int32")) }] })],
+    ["lost nullable storage", shape => ({ ...shape, members: [{ ...shape.members[0], type: providerInteger }] })],
+    ["lost canonical origin", shape => ({ ...shape, members: [{ ...shape.members[0], origins: undefined }] })],
+    ["foreign origin", shape => ({ ...shape, members: [{ ...shape.members[0], origins: [{ kind: "declared", declaration: other }] }] })],
+    ["changed destination member", shape => ({ ...shape, members: [{ ...shape.members[0], targetName: "unselectedField" }] })],
+    ["foreign target", shape => ({ ...shape, targetType: { ...shape.targetType, id: "foreign.Provider" } })],
+  ]) {
+    const rejected = program.run({ effectiveShape: (shape, node) => node === literal && shape !== undefined ? change(shape) : undefined });
+    assert.equal(rejected.constructionFor(literal), undefined, `${label}: no partial construction is published`);
+    assert.equal(rejected.issues.length === 1 && rejected.issues[0].node === literal &&
+      rejected.issues[0].code === "CSHARP_NATIVE_CONSTRUCTION_NOT_PROVEN", true,
+    `${label}: one native construction refusal at the literal; ${rejected.issues.map(issue => issue.message).join("; ")}`);
+  }
+});
+
+test("a retained provider alias validates its current publication and target without changing allocation identity", () => {
+  const program = providerProgram(
+    "export function make(): ContextRow { const value: ContextRow = { mode: 1n }; void value; return value; }");
+  const literal = program.initializer("value");
+  const alias = program.nodes.find(node => program.ast.is.IsIdentifier(node) && program.ast.text(node) === "value" &&
+    program.ast.is.IsReturnStatement(program.ast.parent(node)));
+  assert.equal(alias !== undefined, true, "the returned alias read is a checked reference");
+  const facts = program.view.facts;
+  const stale = facts.values.type(literal);
+  for (const changed of ["current", "missing-target", "foreign-target", "stale-publication"]) {
+    const overrides = changed === "missing-target" || changed === "foreign-target"
+      ? { publishedShapeTarget: (node, published) => node !== alias ? published
+        : changed === "missing-target" ? undefined : { ...providerNative, id: "foreign.Provider" } }
+      : changed === "stale-publication"
+        // Another occurrence's publication handed out at the alias (its provenance names the literal).
+        ? { facts: Object.freeze({ ...facts, values: Object.freeze({ ...facts.values,
+          type: node => node === alias ? stale : facts.values.type(node) }) }) }
+        : {};
+    const selected = program.run(overrides);
+    const original = selected.constructionFor(literal);
+    const retained = selected.constructionFor(alias);
+    assert.equal(original !== undefined && targetTypeRefEquals(original.targetType, providerNative), true,
+      `${changed}: a rejected alias publication cannot erase the separately proven original construction`);
+    assert.equal(retained !== undefined, changed === "current",
+      `${changed}: missing, foreign-target and stale publications cannot inherit the original construction`);
+    assert.equal(selected.issues.every(issue => issue.node !== literal), true, `${changed}: the original literal is not refused`);
+    if (changed === "current") assert.equal(retained.shape === original.shape &&
+      targetTypeRefEquals(retained.targetType, original.targetType), true,
+    "current canonical validation preserves the original proven allocation identity");
+  }
 });

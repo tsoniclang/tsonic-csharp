@@ -48,6 +48,10 @@ export function selectCsharpTypedArrayMutation(input: CsharpPolicyContext, node:
     operator.slice(0, -1) as CsharpSourceOperator, element,
     operand => operand === left ? element : represented(input, operand));
   if (calculation?.kind === "rejected") return calculation;
+  // A compound assignment operator is never a comparison, so no generic-numeric binder proof (and no Host refusal of
+  // one) takes part in its calculation.
+  if (calculation?.kind === "refused") failTargetAnalysisInvariant("tsonic-csharp",
+    "A typed-array compound assignment calculation reached a generic-numeric comparison refusal.", node);
   return { kind: "set-typed-element", receiver: source.receiver, index,
     value, resultType: calculation?.resultType ?? valueType!, ...(calculation === undefined ? {} : { calculation }) };
 }

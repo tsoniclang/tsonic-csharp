@@ -152,7 +152,11 @@ for (const [name, declaration, invocation, expected] of [
       ? binding?.kind === "intrinsic" && binding.intrinsic === "absence"
       : primitive(binding, expected), true, "a required absence contributes; a nullable absence does not replace the present binder");
     // The Host instantiation always publishes its result (SourceInstantiation.result); a present binder is the result.
-    assert.equal(expected === "absence" ? publication?.result !== undefined : publication?.result === binding, true,
-      "absence-only calls publish a result descriptor; present results retain the selected generic descriptor");
+    // Q107 (TEST-REVIEW-RC2-ITEM7 row inherited-typed-array-callbacks:155): the required-absence result is the exact
+    // canonical absence descriptor, never an invented present (numeric or callable) result.
+    assert.equal(expected === "absence"
+      ? publication?.result?.kind === "intrinsic" && publication.result.intrinsic === "absence"
+      : publication?.result === binding, true,
+    "absence-only calls publish the canonical absence result; present results retain the selected generic descriptor");
   });
 }

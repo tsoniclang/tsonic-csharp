@@ -9,6 +9,7 @@ import test from "node:test";
 import { csharpArrayBindingProjectionTarget, resolveCsharpArrayBindingCarrier } from "../../../dist/policy/types/collections/binding-array-carrier.js";
 import { csharpJsArrayTargetType, csharpReadOnlyListTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../../../dist/policy/types/index.js";
 import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
+import { csharpEmptyObjectTargetType, isCsharpEmptyObjectTargetType, isCsharpJsValueTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
 import { conversionIsImplicitlyApplicable } from "../../../dist/policy/conversions/core.js";
 import { createCsharpBindingProjectionPolicy } from "../../../dist/analysis/control-flow/binding-projections.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
@@ -136,6 +137,7 @@ test("native construction proof does not inherit source payload extraction throu
 });
 
 test("every read has one carrier: the representation of its Host descriptor (no authored/selected reconciliation)", () => {
+  // The JS surface supplies Array.isArray (the baseline fixture was checked with the default lib).
   const program = hostProgram(`import type { int32 } from "@tsonic/core/types.js";
 export interface Box<T> { value: T }
 export type IntBox = Box<int32>;
@@ -143,7 +145,9 @@ export function alias(box: IntBox): IntBox { return box; }
 export function broad(value: unknown): unknown { if (value !== undefined && value !== null) { return value; } return undefined; }
 export function listed(value: unknown): unknown { if (Array.isArray(value)) { return value; } return undefined; }
 export function gone(value: int32): int32 { if (typeof value === "string") { return value; } return value; }
-`);
+export function stop(): never { throw new Error("stop"); }
+export function halt(): never { return stop(); }
+`, { surface: "js" });
   const represent = representations(representationServices(program));
   const { ast } = program;
   const returned = program.nodes.filter(node => ast.is.IsReturnStatement(node)).map(node => ast.as.AsReturnStatement(node).Expression)
@@ -154,15 +158,49 @@ export function gone(value: int32): int32 { if (typeof value === "string") { ret
     assert.notEqual(outcome.kind, "refused", `the Host publishes the read ${ast.text(read)}`);
     const viaNode = represent.value(read);
     const viaDescriptor = represent.type(outcome.type, read, "value");
+    // Q107 (TEST-REVIEW-RC2-ITEM7, direct-binding-projection-policy:157): two matching refusals are not preservation.
+    assert.equal(viaNode.kind === "csharp-refused" || viaNode.kind === "refused", false, `${ast.text(read)}: the read is accepted`);
     assert.equal(viaNode.kind === viaDescriptor.kind &&
       (viaNode.kind === "csharp-refused" ? viaNode.code === viaDescriptor.code : targetTypeRefEquals(viaNode, viaDescriptor)), true,
       `${ast.text(read)}: the node-keyed carrier is the represented Host descriptor, nothing else`);
   }
-  const box = returned.find(read => ast.text(ast.parent(ast.parent(ast.parent(read)))).includes("function alias("));
+  const within = name => {
+    const declaration = program.named(name);
+    return returned.filter(read => ast.text(read) !== "undefined" && ast.pos(read) >= ast.pos(declaration) && ast.end(read) <= ast.end(declaration));
+  };
+  const [box] = within("alias");
   const carrier = represent.value(box);
   assert.equal(carrier.kind === "target-named" && carrier.id === "global::Fixture.Box", true);
   assert.equal(carrier.typeArguments[0].kind === "source-primitive" && carrier.typeArguments[0].name === "int32", true,
     "a closed authored alias keeps its authored int32 argument; nothing re-selects a float64 instance");
+  // Q107 (TEST-REVIEW-RC2-ITEM7, direct-binding-projection-policy:157), baseline "non-nullish broad values do not become
+  // empty object identities": the non-nullish read of unknown is the broad TsValue carrier, never EmptyObject.
+  const [nonNullish] = within("broad");
+  assert.deepEqual(program.facts.values.type(nonNullish).type, { kind: "intrinsic", intrinsic: "unknown" });
+  const broadCarrier = represent.value(nonNullish);
+  assert.equal(isCsharpJsValueTargetType(broadCarrier), true, "a non-nullish unknown read keeps the broad TsValue carrier");
+  assert.equal(isCsharpEmptyObjectTargetType(broadCarrier) || targetTypeRefEquals(broadCarrier, csharpEmptyObjectTargetType()), false,
+    "a non-nullish unknown read is not an empty-object identity");
+  // Q107 (same row), baseline "array category narrowing does not invent the erased backing's native element layout":
+  // Array.isArray on unknown keeps the broad TsValue carrier; no array, tuple, JS array or list element layout appears.
+  const [listedRead] = within("listed");
+  const listedCarrier = represent.value(listedRead);
+  assert.equal(isCsharpJsValueTargetType(listedCarrier), true, "an Array.isArray-narrowed unknown read keeps the broad TsValue carrier");
+  assert.equal(listedCarrier.kind === "array" || listedCarrier.kind === "tuple" || listedCarrier.typeArguments !== undefined, false,
+    "the narrowed read carries no invented element layout");
+  // Q107 (same row), baseline "flow-unreachable reads retain their declared carrier without changing genuine never
+  // expressions": the read inside the unreachable typeof branch keeps its declared int32 storage, and a genuine never
+  // expression (a call of a never-returning function) stays never.
+  const goneReads = within("gone");
+  assert.equal(goneReads.length, 2, "the unreachable and the reachable read");
+  for (const read of goneReads) {
+    assert.deepEqual(program.facts.values.type(read).type, { kind: "primitive", primitive: "int32" });
+    assert.equal(targetTypeRefEquals(represent.value(read), int32), true, "the unreachable read keeps its declared int32 storage");
+  }
+  const halt = program.named("halt");
+  const call = program.nodes.find(node => ast.is.IsCallExpression(node) && ast.pos(node) >= ast.pos(halt) && ast.end(node) <= ast.end(halt));
+  assert.deepEqual(program.facts.values.type(call).type, { kind: "intrinsic", intrinsic: "never" });
+  assert.deepEqual(represent.value(call), { kind: "opaque", id: "never" }, "a genuine never expression is still never");
 });
 
 test("array binding policy preserves raw and JS array rest carriers", () => {

@@ -56,8 +56,12 @@ test("Error ancestry follows the published heritage edge, and a refused edge is 
     const heritage = source.facts.objects.heritage(derived);
     assert.equal(Array.isArray(heritage) && heritage.length === 1 && heritage[0].kind === "extends", true, "the actual source has one base");
     const published = analyzeCsharpNativeErrorAdmission(source).issues.map(issue => issue.code);
+    // Q106(5): the ancestry walk reads the edge's Host base descriptor (`edge.type`), so the retargeted edge names the
+    // Foreign class both as its target and as its Host-published instance type (objects.selfType).
+    const foreignType = source.facts.objects.selfType(foreign);
+    assert.equal(foreignType.kind, "declared", "the Foreign class has a declared Host instance type");
     const retargeted = analyzeCsharpNativeErrorAdmission(withObjects(source, {
-      heritage: node => node === derived ? [{ ...heritage[0], target: foreign }] : source.facts.objects.heritage(node),
+      heritage: node => node === derived ? [{ ...heritage[0], target: foreign, type: foreignType }] : source.facts.objects.heritage(node),
     })).issues.map(issue => issue.code);
     // Q94: a base whose Host instance type is not one declared type gives no proven ancestry.
     const expression = source.syntax.as.AsExpressionWithTypeArguments(heritage[0].heritage).Expression;

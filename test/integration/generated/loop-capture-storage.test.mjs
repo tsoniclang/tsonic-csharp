@@ -77,7 +77,7 @@ System.GC.KeepAlive(read);
       }
     `;
     const refused = compileCsharpSource({ surface, sourceText });
-    assertNativeLoopRefusals(refused, [{ message: "the loop variable is captured by a closure and also written in the loop; use a separate variable.", text: "index += 1", occurrence: 0 }]);
+    assertNativeLoopRefusals(refused, [{ code: "CSHARP_CAPTURED_LOOP_BINDING_WRITTEN", message: "the loop variable is captured by a closure and also written in the loop; use a separate variable.", text: "index += 1", occurrence: 0 }]);
     const compiled = compileCsharpSource({ surface, sourceText: sourceText.replace("try { continue outer; } finally { index += 1; }", "continue outer;") });
     assertCsharpCompilationSucceeded(compiled);
     const source = compiled.artifacts.get("src/Index.cs");
@@ -144,7 +144,7 @@ test("retained loop named-self recursion uses its original live frame without pe
     }
   `;
   const refused = compileCsharpSource({ sourceText });
-  assertNativeLoopRefusals(refused, [{ message: "the loop variable is captured by a closure and also written in the loop; use a separate variable.", text: "index += 1", occurrence: 0 }]);
+  assertNativeLoopRefusals(refused, [{ code: "CSHARP_CAPTURED_LOOP_BINDING_WRITTEN", message: "the loop variable is captured by a closure and also written in the loop; use a separate variable.", text: "index += 1", occurrence: 0 }]);
   const compiled = compileCsharpSource({ sourceText: sourceText.replace("        index += 1;\n", "") });
   assertCsharpCompilationSucceeded(compiled);
   executeCsharpConstruction(compiled, "loop-named-self-recursion-cost", false, false, [], `
@@ -313,10 +313,10 @@ for (const surface of ["native", "js"]) {
       }
     `;
     const bodyRefused = compileCsharpSource({ surface, sourceText: bodySource });
-    assertNativeLoopRefusals(bodyRefused, [{ message: "the loop variable is captured by a closure and also written in the loop; use a separate variable.", text: "step += 10", occurrence: 0 },
-      { message: "the loop variable is captured by a closure and also written in the loop; use a separate variable.", text: "row += 10", occurrence: 0 },
-      { message: "the loop variable is captured by a closure and also written in the loop; use a separate variable.", text: "row += 1", occurrence: 1 },
-      { message: "the loop variable is captured by a closure and also written in the loop; use a separate variable.", text: "value += 10", occurrence: 0 }]);
+    assertNativeLoopRefusals(bodyRefused, [{ code: "CSHARP_CAPTURED_LOOP_BINDING_WRITTEN", message: "the loop variable is captured by a closure and also written in the loop; use a separate variable.", text: "step += 10", occurrence: 0 },
+      { code: "CSHARP_CAPTURED_LOOP_BINDING_WRITTEN", message: "the loop variable is captured by a closure and also written in the loop; use a separate variable.", text: "row += 10", occurrence: 0 },
+      { code: "CSHARP_CAPTURED_LOOP_BINDING_WRITTEN", message: "the loop variable is captured by a closure and also written in the loop; use a separate variable.", text: "row += 1", occurrence: 1 },
+      { code: "CSHARP_CAPTURED_LOOP_BINDING_WRITTEN", message: "the loop variable is captured by a closure and also written in the loop; use a separate variable.", text: "value += 10", occurrence: 0 }]);
     const compiled = compileCsharpSource({ surface, sourceText: `
       ${surface === "native" ? 'import { List } from "@tsonic/dotnet/System.Collections.Generic.js";' : ""}
       interface Cursor {

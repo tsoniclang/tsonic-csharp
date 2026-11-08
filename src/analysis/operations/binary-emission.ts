@@ -13,6 +13,7 @@ import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { sourceOperatorFromKindName } from "../../target-model/syntax/operators.js";
 import { csharpNativeAssignmentTokens, csharpNativeBinaryTokens } from "../../target-model/syntax/native-binary.js";
 import { createCsharpBinaryEmissionRecords } from "../program/records/operations/binary-emission.js";
+import { forwardSourceRefusal } from "../program/source-facts.js";
 
 export function analyzeCsharpBinaryEmission(input: { readonly source: TargetSourceProgramFacts; readonly nodes: readonly Node[];
   readonly operations: CsharpTargetOperationClassifications; readonly demand: CsharpNativeDemandAnalysis;
@@ -120,6 +121,7 @@ export function analyzeCsharpBinaryEmission(input: { readonly source: TargetSour
     const use = input.demand.nativeUse.expression(node)?.use;
     if (use !== undefined && use.kind !== "erased" && (use.discardedPresence !== undefined || use.completion.kind === "never")) continue;
     if (selected.target.kind === "rejected") { refuse(node, selected.target.code, selected.target.reason); continue; }
+    if (selected.target.kind === "refused") { issues.push(forwardSourceRefusal(selected.target.refusal)); continue; }
     addNative(node, selected.target);
     forms.set(node, { kind: "native", selection: selected.target });
   }

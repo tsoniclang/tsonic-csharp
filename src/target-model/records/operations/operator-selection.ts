@@ -2,12 +2,20 @@ import type { CsharpAssignmentLocation } from "../../operations/assignment-locat
 import type { CsharpReferenceEquality, CsharpUnionEqualityArm } from "../../operations/binary.js";
 import type { CsharpSourceOperator } from "../../syntax/operators.js";
 import type { TargetTypeRef } from "../../types/model.js";
-import type { SourceBooleanShortCircuitBranch as CsharpShortCircuitBranch } from "@tsonic/target-api/source";
+import type { SourceBooleanShortCircuitBranch as CsharpShortCircuitBranch, SourceTypeFlowRefusal } from "@tsonic/target-api/source";
 import type { Node } from "@tsonic/tsts";
 
 export type CsharpOperationSelection<T> =
   | T
   | { readonly kind: "rejected"; readonly reason: string; readonly code: `CSHARP_${string}` };
+
+/**
+ * A binary operation selection. Besides a C# rejection it can be the Host refusal of a generic operand binder's
+ * authored constraint (the INumber<T> proof of a generic-numeric comparison), which readers forward unchanged (R5, I7).
+ */
+export type CsharpBinaryOperationSelection =
+  | CsharpOperationSelection<CsharpResolvedBinaryOperation>
+  | { readonly kind: "refused"; readonly refusal: SourceTypeFlowRefusal };
 
 export interface CsharpResolvedBinaryOperation {
   readonly kind: "resolved";

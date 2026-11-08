@@ -3,7 +3,7 @@ import type { CsharpTargetMember, TargetTypeRef } from "../../types/model.js";
 import type { CsharpSelectedTargetCall, CsharpTargetElementInvocation } from "../objects/members.js";
 import type { CsharpTargetPropertyInvocation } from "../program/source-profile-invocations.js";
 import type { CsharpUnionProperty } from "../objects/union-properties.js";
-import type { SourceCallSelection, SourceElementAccessRecord, SourceMemberAccessSelection } from "@tsonic/target-api/source";
+import type { SourceCallSelection, SourceElementAccessRecord, SourceMemberAccessSelection, SourceTypeFlowRefusal } from "@tsonic/target-api/source";
 import type { ExtensionDiagnostic } from "@tsonic/tsts";
 
 export type CsharpTargetCallSelection =
@@ -33,6 +33,11 @@ export type CsharpTargetCallSelection =
   | {
       readonly kind: "rejected";
       readonly diagnostic: ExtensionDiagnostic;
+    }
+  | {
+      /** A Host refusal (a source binder's constraint) that decided the call; readers forward it unchanged (R5, I7). */
+      readonly kind: "refused";
+      readonly refusal: SourceTypeFlowRefusal;
     };
 
 export type CsharpTargetElementSelection =

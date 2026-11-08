@@ -207,6 +207,43 @@ test("object shapes keep the Host member declaration, readonly-ness and optional
     "CSHARP_SHAPE_REGISTRY", "a second physical answer from the registry is refused, not repaired");
 });
 
+// Q107 (TEST-REVIEW-RC2-ITEM7, source-type-flow:180), baseline "optional member presence stays independent of its
+// optional value and missing presence is rejected": at the Host-member-to-Native shape boundary (representObject over
+// facts.objects.members), a member record without its required `optional` presence field is not defaulted to
+// required or optional. It is an invariant failure or a CSHARP_ refusal, and no shape with an undecided presence is
+// retained. The complete records of the same program are the control. Own program: the shared one also declares an enum.
+test("a Host member without its presence field is rejected at the native shape boundary, not defaulted", () => {
+  const input = hostProgram(`
+  export interface Presence { value?: number | undefined; }
+  export interface Required { value: number | undefined; }
+  export function take(presence: Presence, required: Required): void {}`);
+  const parameters = input.ast.parameters(input.named("take"));
+  for (const [index, expected] of [[0, true], [1, false]]) {
+    const descriptor = input.slot(parameters[index]);
+    const members = input.facts.objects.members(descriptor);
+    assert.equal(Array.isArray(members) && members.length === 1 && members[0].optional === expected, true,
+      "the Host publishes the presence bit separately from the nullable value");
+    const headers = [];
+    const services = representationServices(input, { shapes: Object.freeze({ retainShape: shape => { headers.push(shape); return shape; },
+      resolveCallableValue: unexpected }) });
+    const context = csharpRepresentationContext(services, input.files[0], "storage");
+    assert.equal(isCsharpRefusal(representObject(descriptor, members, context)), false, "control: the complete member record");
+    assert.equal(headers.at(-1).members[0].optional, expected, "control: the presence bit reaches the native header unchanged");
+    const { optional: _presence, ...presenceless } = members[0];
+    const retained = headers.length;
+    let outcome;
+    try {
+      outcome = representObject(descriptor, Object.freeze([Object.freeze(presenceless)]), context);
+    } catch (error) {
+      outcome = { kind: "invariant", message: String(error?.message ?? error) };
+    }
+    assert.equal(outcome.kind === "invariant" || isCsharpRefusal(outcome), true,
+      `presence-less member (expected ${expected}): rejected without a compatibility default, got ${outcome.kind}`);
+    assert.equal(headers.slice(retained).some(shape => shape.members.some(member => typeof member.optional !== "boolean")), false,
+      "no native header with an undecided presence is retained");
+  }
+});
+
 test("bound and unbound members retain the Host declaration and the native binding fact", () => {
   const input = program();
   const declaration = input.named("Fields", node => input.ast.is.IsInterfaceDeclaration(node));

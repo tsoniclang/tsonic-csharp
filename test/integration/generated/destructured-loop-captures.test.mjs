@@ -38,8 +38,8 @@ const sourceText = `
 for (const surface of ["native", "js"]) {
   test(`${surface} destructured loop headers initialize once and retain live iteration storage`, { timeout: 300_000 }, () => {
     const refused = compileCsharpSource({ surface, sourceText });
-    assertNativeLoopRefusals(refused, [{ message: "the loop variable is captured by a closure and also written in the loop; use a separate variable.", text: "index += 1", occurrence: 0 },
-      { message: "the loop variable is captured by a closure and also written in the loop; use a separate variable.", text: "index += 1", occurrence: 1 }]);
+    assertNativeLoopRefusals(refused, [{ code: "CSHARP_CAPTURED_LOOP_BINDING_WRITTEN", message: "the loop variable is captured by a closure and also written in the loop; use a separate variable.", text: "index += 1", occurrence: 0 },
+      { code: "CSHARP_CAPTURED_LOOP_BINDING_WRITTEN", message: "the loop variable is captured by a closure and also written in the loop; use a separate variable.", text: "index += 1", occurrence: 1 }]);
     const compiled = compileCsharpSource({ surface, sourceText: sourceText.replaceAll(
       "try { continue outer; }\n      finally { index += 1; }", "continue outer;") });
     assertCsharpCompilationSucceeded(compiled);

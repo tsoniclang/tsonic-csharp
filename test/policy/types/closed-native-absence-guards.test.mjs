@@ -27,8 +27,10 @@ const fold = relation => relation?.kind !== "test" || relation.outcome === "unde
 test("absence folding follows the Host test outcome, not a native carrier, an object category or the selected arms", () => {
   const parameters = [
     { name: "unknown", type: "unknown", expected: [undefined, undefined, undefined, undefined] },
-    { name: "absent", type: "undefined" },
-    { name: "scalar", type: "int64" },
+    // Q107 (TEST-REVIEW-RC2-ITEM7, closed-native-absence-guards:30): a definitively absent operand folds all four
+    // directions to their exact outcomes and a definitively present scalar folds to the opposites (baseline arrays).
+    { name: "absent", type: "undefined", expected: [true, false, true, false] },
+    { name: "scalar", type: "int64", expected: [false, true, false, true] },
     { name: "payload", type: "Payload | undefined", expected: [undefined, undefined, undefined, undefined] },
     { name: "optional", type: "int64 | undefined", expected: [undefined, undefined, undefined, undefined] },
     { name: "present", type: "int64 | string", expected: [false, true, false, true] },

@@ -31,7 +31,6 @@ export interface CsharpExpectedTypeClassifications {
   readonly storageExpectedType: { readonly get: (expression: Node) => readonly TargetTypeRef[] };
   readonly quotationBinding: { readonly get: (declaration: Node) => CsharpQuotationBindingSelection | undefined };
   readonly arrayLiteralCarrier: { readonly get: (expression: Node, targetType: TargetTypeRef) => TargetTypeRef | undefined };
-  readonly expectedBinary: { readonly get: (expression: Node, targetType: TargetTypeRef) => import("../operations/operator-selection.js").CsharpOperationSelection<
-    import("../operations/operator-selection.js").CsharpResolvedBinaryOperation
-  > | undefined };
+  readonly expectedBinary: { readonly get: (expression: Node, targetType: TargetTypeRef) =>
+    import("../operations/operator-selection.js").CsharpBinaryOperationSelection | undefined };
 }

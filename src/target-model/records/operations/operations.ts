@@ -13,7 +13,7 @@ import type { CsharpTargetCallSelection, CsharpTargetElementSelection, CsharpTar
 import type { SourceArgumentCorrespondence, SourceCallSelection } from "@tsonic/target-api/source";
 import type { CsharpNativePointerOperationSelection } from "../native/native-pointers.js";
 import type { CsharpProjectConstructibleTypeProjection } from "../objects/object-shapes.js";
-import type { CsharpOperationSelection, CsharpResolvedBinaryOperation, CsharpResolvedDestructuringAssignmentOperation, CsharpResolvedUnaryOperation } from "./operator-selection.js";
+import type { CsharpBinaryOperationSelection, CsharpOperationSelection, CsharpResolvedDestructuringAssignmentOperation, CsharpResolvedUnaryOperation } from "./operator-selection.js";
 import type { CsharpRegularExpressionLiteralSelection } from "./regexp-literal.js";
 import type { CsharpRuntimeUnionObjectShapePropertyResolution } from "../objects/runtime-union-object-shapes.js";
 import type { CsharpResolvedIteration } from "./selection.js";
@@ -146,7 +146,7 @@ export interface CsharpBinaryClassification {
   readonly instanceTest?: import("../../operations/type-tests.js").CsharpClosedTypeTest;
   readonly instanceFactory?: TargetTypeRef;
   readonly jsValue: CsharpJsValueOperationSelection;
-  readonly target: CsharpOperationSelection<CsharpResolvedBinaryOperation>;
+  readonly target: CsharpBinaryOperationSelection;
   readonly destructuring: CsharpOperationSelection<
     CsharpResolvedDestructuringAssignmentOperation
   >;
@@ -168,6 +168,8 @@ export interface CsharpOperationIssue {
   readonly node: Node;
   readonly code: string;
   readonly message: string;
+  /** "tsonic" for a Host refusal forwarded unchanged (R5, I7); otherwise a C# issue. */
+  readonly source?: "tsonic";
 }
 
 export type CsharpOperatorForm =

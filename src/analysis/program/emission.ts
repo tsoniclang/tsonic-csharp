@@ -370,7 +370,7 @@ export function finalizeCsharpNativeEmission(
       ...binary?.destructuring.kind === "resolved" ? [binary.destructuring.sourceType, binary.destructuring.resultType] : [],
       ...unary?.kind === "resolved" ? [unary.operandType, unary.resultType] : [],
       ...mutation?.kind === "set-typed-element" && mutation.calculation !== undefined ? binaryCarriers(mutation.calculation) : [],
-      ...selectedSwitch === undefined || selectedSwitch.kind === "rejected" ? [] : [selectedSwitch.type],
+      ...selectedSwitch === undefined || selectedSwitch.kind === "rejected" || selectedSwitch.kind === "refused" ? [] : [selectedSwitch.type],
       ...selectedSwitch?.kind === "ordered" ? selectedSwitch.clauses.flatMap(clause =>
         clause.comparison === undefined ? [] : binaryCarriers(clause.comparison)) : [],
     ];

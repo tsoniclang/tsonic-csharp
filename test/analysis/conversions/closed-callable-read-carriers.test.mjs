@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { compileCsharpAnalysisTarget, compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
-import { hostProgram, representationServices, representations } from "../../representation/host-fixture.mjs";
+import { hostProgram, representationServices, representations, represented } from "../../representation/host-fixture.mjs";
 import { isCsharpRefusal } from "../../../dist/representation/index.js";
+import { selectCsharpPhysicalRead } from "../../../dist/analysis/source-evidence/physical-reads.js";
 import { getCsharpCallableValueSignature } from "../../../dist/target-model/types/carriers/delegates.js";
 import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
 import { csharpStringTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
@@ -91,6 +92,116 @@ function hostRead(override) {
   const services = representationServices(program, { facts, profile: "js",
     shapes: Object.freeze({ retainShape: shape => shape, resolveCallableValue: signature => signature }) });
   return { program, alias, represented: representations(services).value(alias) };
+}
+
+// Q107 (TEST-REVIEW-RC2-ITEM7 closed-callable-read-carriers:84): the ten-case Native ABI/proof corruption matrix of
+// the baseline, ported from the retired resolver (resolution/nodes.ts resolveNodeValueWithState, deleted) to its current
+// owner, analysis/source-evidence/physical-reads.ts selectCsharpPhysicalRead, composed by CsharpTypeQueries.value as
+// `physicalRead(node, logical) ?? logical` (type-queries.ts:279). The Host facts are the real program's; a corruption
+// wraps them (spread copy replacing one member). The C# planning inputs the owner reads (scopedTargetType and
+// closedInputContract, iteration.ts:90-116) are test doubles: the real compile that records them (fixture() above)
+// stops at a product invariant at present, so the selected callback ABI and the closed contract are built here with
+// the same shape analyze.ts:96-174 records (one completed record shared by the source callable and its alias bindings).
+function physicalCallableRead() {
+  const program = hostProgram(sourceText, { surface: "js" });
+  const { ast, facts } = program;
+  const alias = program.nodes.find(node => ast.is.IsIdentifier(node) && ast.text(node) === "alias" &&
+    ast.is.IsCallExpression(ast.parent(node)));
+  const declaration = facts.navigation.identity.target(alias)?.declaration;
+  const arrow = ast.as.AsVariableDeclaration(program.named("mapper", node => ast.is.IsVariableDeclaration(node))).Initializer;
+  const foreignDeclaration = program.named("foreign", node => ast.is.IsFunctionDeclaration(node));
+  assert.equal(ast.is.IsVariableDeclaration(declaration) && ast.is.IsArrowFunction(arrow), true,
+    "the proof subjects are the original alias binding and its source arrow");
+  assert.equal(facts.navigation.expressions.valueFlow(arrow).aliasDeclarations.includes(declaration), true,
+    "the Host value flow carries the arrow into the unannotated alias binding");
+  const services = representationServices(program, { profile: "js",
+    shapes: Object.freeze({ retainShape: shape => shape, resolveCallableValue: signature => signature }) });
+  const logical = represented(representations(services).value(alias));
+  const signature = getCsharpCallableValueSignature(logical);
+  assert.equal(signature?.parameters.length, 1, "the logical read is the authored one-parameter delegate");
+  const valuesRead = program.nodes.find(node => ast.is.IsIdentifier(node) && ast.text(node) === "values" &&
+    ast.is.IsPropertyAccessExpression(ast.parent(node)));
+  const array = represented(representations(services).value(valuesRead));
+  const [int32] = signature.parameters;
+  // The selected callback storage ABI (value, index, array): its first parameter and result are the logical ones.
+  const storage = csharpDelegateTargetType("System.Func", [int32, int32, array], int32);
+  const closedContract = (callable, returnType = int32) => {
+    const parameter = ast.parameters(callable)[0];
+    return Object.freeze({ kind: "source", sourceDeclaration: callable, parameters: Object.freeze([parameter]),
+      nativeSignature: Object.freeze({ methodTypeParameterIdentities: Object.freeze([]), methodAllowsRefLikeTypeArguments: Object.freeze([]) }),
+      nativeParameters: Object.freeze([Object.freeze({ sourceParameter: parameter,
+        targetParameter: Object.freeze({ name: "value", type: int32, passingMode: "by-value" }) })]),
+      returnType });
+  };
+  const contract = closedContract(arrow);
+  const foreignContract = closedContract(foreignDeclaration);
+  const read = (changes = {}) => {
+    const has = key => Object.hasOwn(changes, key);
+    const selected = has("selected") ? changes.selected : storage;
+    const principalSelected = has("principalSelected") ? changes.principalSelected : storage;
+    const selectedContract = has("contract") ? changes.contract : contract;
+    const owner = has("owner") ? changes.owner : selectedContract;
+    const readFacts = changes.facts?.(facts, declaration) ?? facts;
+    const result = selectCsharpPhysicalRead(Object.freeze({
+      facts: readFacts,
+      syntax: ast,
+      scopedTargetType: node => node === alias ? selected : node === declaration ? principalSelected : undefined,
+      closedInputContract: node => node === alias || node === declaration ? selectedContract
+        : node === selectedContract?.sourceDeclaration ? owner : undefined,
+      objectShapes: Object.freeze({ resolveTarget: () => assert.fail("a callable read reads no object shape") }),
+    }), alias, logical) ?? logical;
+    return result;
+  };
+  return { program, facts, alias, declaration, arrow, logical, storage, contract, foreignContract, read, int32 };
+}
+
+/** `facts` with `values` replaced at the principal binding only (spread copy; the Host records stay untouched). */
+function withPrincipalValue(facts, declaration, has, type) {
+  return Object.freeze({ ...facts, values: Object.freeze({ ...facts.values,
+    has: node => node === declaration ? has : facts.values.has(node),
+    type: node => node === declaration ? type(facts.values.type(node)) : facts.values.type(node) }) });
+}
+
+test("an unchanged Host alias read with its complete closed proof selects the one callback storage ABI", () => {
+  const value = physicalCallableRead();
+  const before = value.facts.values.type(value.alias);
+  const selected = value.read();
+  // Q107: the positive opposite of the matrix below; the exact selected carrier, the Host publication unchanged.
+  assert.equal(selected === value.storage, true, "the complete proof reads the selected callback storage ABI");
+  assert.equal(value.facts.values.type(value.alias) === before, true, "the exact Host publication is retained unchanged");
+  assert.equal(before.kind === "resolved" && before.type.kind === "callable" && before.type.calls[0].parameters.length === 1, true,
+    "Source logical arity stays authored");
+});
+
+for (const [label, change] of [
+  ["missing selected ABI", () => ({ selected: undefined })],
+  ["missing principal ABI", () => ({ principalSelected: undefined })],
+  ["missing closed contract", () => ({ contract: undefined })],
+  ["foreign same-width declaration", value => ({ contract: value.foreignContract })],
+  ["copied contract record", value => ({ contract: { ...value.contract }, owner: value.contract })],
+  ["mismatched selected ABI", value => ({ selected: csharpDelegateTargetType("System.Func", [csharpStringTargetType()], csharpStringTargetType()) })],
+  ["mismatched ABI parameter contract", () => {
+    const selected = csharpDelegateTargetType("System.Func", [csharpStringTargetType()], csharpStringTargetType());
+    return { selected, principalSelected: selected };
+  }],
+  ["mismatched contract result", value => {
+    const contract = { ...value.contract, returnType: csharpStringTargetType() };
+    return { contract, owner: contract };
+  }],
+  ["missing principal publication", () => ({ facts: (facts, declaration) => withPrincipalValue(facts, declaration, false,
+    () => assert.fail("an unpublished principal is not read")) })],
+  ["non-exact Source read", () => ({ facts: (facts, declaration) => withPrincipalValue(facts, declaration, true,
+    principal => ({ ...principal, type: { kind: "optional", value: principal.type } })) })],
+]) {
+  test(`${label} cannot replace a real logical callable read with its storage ABI`, () => {
+    const value = physicalCallableRead();
+    const before = value.facts.values.type(value.alias);
+    const result = value.read(change(value));
+    // Q107: the three baseline assertions of each matrix row, on the current owner's result.
+    assert.equal(value.facts.values.type(value.alias) === before, true, "missing or foreign proof keeps the original Host publication");
+    assert.equal(getCsharpCallableValueSignature(result)?.parameters.length, 1, "the original logical read is not retargeted");
+    assert.equal(targetTypeRefEquals(result, value.storage), false, "a failed proof cannot promote arbitrary storage");
+  });
 }
 
 test("the representation of the Host alias read is the logical delegate, never the storage ABI", () => {

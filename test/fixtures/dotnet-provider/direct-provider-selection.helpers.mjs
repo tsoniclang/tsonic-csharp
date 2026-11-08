@@ -443,7 +443,8 @@ export function directProviderHost(options = {}) {
     instantiations: Object.freeze({ at: () => undefined }),
     sums: Object.freeze({ sumOf: () => undefined }),
     objects: Object.freeze({ indexes: () => [], members: () => [], member: () => undefined }),
-    profile: Object.freeze({ collection: () => undefined, member: () => undefined }),
+    // facts.profile.identity (FX-CC #42, D18): no declaration of this provider fixture belongs to the JS source profile.
+    profile: Object.freeze({ collection: () => undefined, member: () => undefined, identity: () => undefined }),
     navigation: Object.freeze({
       identity: Object.freeze({
         isProjectDeclaration: node => projectDeclarations.has(node),

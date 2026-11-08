@@ -31,7 +31,8 @@ function fixture() {
   const methodTypes = declarations.map(declaration => ({ kind: "callable", calls: [], constructs: [], method: declaration }));
   const parameterDescriptor = { kind: "optional", value: { kind: "primitive", primitive: "int64" } };
   const slot = { declaration: parameters[0], kind: "optional" };
-  const source = { use: call, callee: access, arguments: [], parameters: [parameterDescriptor],
+  // SourceCallParameter (target-api selections.ts:42-45): the slot plus its name and instantiated descriptor (W2-T-1).
+  const source = { use: call, callee: access, arguments: [], parameters: [{ ...slot, name: "value", type: parameterDescriptor }],
     signatureParameters: [slot], result: { kind: "primitive", primitive: "int64" }, optionalChain: false };
   const union = csharpRuntimeUnionTargetType(arms);
   // The Host publishes per-arm at the property or element access (relations.ts perArm), never at the call node.
@@ -43,7 +44,9 @@ function fixture() {
     },
     analyses: { propertyName: node => node === name ? { kind: "resolved", name: "value", constant: undefined } : undefined },
     sums: { sum: () => ({ arms: armDescriptors.map((type, role) => ({ role, type })), roles: [] }), substitute: type => type },
-    values: { slot: () => assert.fail("The arm member type is the per-arm relation's published `type`, not a C# slot read.") },
+    values: { slot: () => assert.fail("The arm member type is the per-arm relation's published `type`, not a C# slot read."),
+      // The call's awaited result is int64, not a closed sum, so the Host publishes no awaited-arm relation (facts.ts:158-162).
+      awaitedArms: node => node === call ? undefined : assert.fail("Only the call's Host awaited-arm relation is read.") },
     navigation: { identity: { isProjectDeclaration: () => true } },
   };
   const represent = descriptor => {
@@ -141,9 +144,11 @@ for (const [name, mutate] of invalidSignatures) {
 test("native rest contracts follow the Host signature slot, not initializer syntax", () => {
   const input = fixture();
   const array = { kind: "array", element: input.integer };
-  input.policy.types.represent = (represent => descriptor => descriptor === input.source.parameters[0] ? array : represent(descriptor))(
+  input.policy.types.represent = (represent => descriptor => descriptor === input.source.parameters[0].type ? array : represent(descriptor))(
     input.policy.types.represent);
+  // The rest slot is the Host signature slot, aligned in signatureParameters and parameters (selections.ts:57-60; W2-T-1).
   input.source.signatureParameters = [{ ...input.slot, kind: "rest" }];
+  input.source.parameters = [{ ...input.source.parameters[0], kind: "rest" }];
   for (const parameter of input.parameters) {
     delete parameter.Initializer;
     parameter.DotDotDotToken = {};

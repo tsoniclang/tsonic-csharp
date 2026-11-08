@@ -14,6 +14,7 @@ import { getCsharpClassFactory } from "../../target-model/types/carriers/class-f
 import { getCsharpDelegateSignature } from "../../target-model/types/carriers/delegates.js";
 import { selectCsharpTypeEmission } from "../../policy/types/resolution/type-emission.js";
 import { createCsharpConstructionRecords } from "../program/records/objects/construction.js";
+import { forwardSourceRefusal } from "../program/source-facts.js";
 
 export function analyzeCsharpConstructionEmission(input: { readonly source: TargetSourceProgramFacts; readonly nodes: readonly Node[];
   readonly admitted: (node: Node) => boolean; readonly operations: CsharpTargetOperationClassifications; readonly values: CsharpValueReadClassifications;
@@ -42,6 +43,7 @@ export function analyzeCsharpConstructionEmission(input: { readonly source: Targ
     const selection = classification.target;
     if (selection === undefined) { refuse(node, "The sealed C# construction classification selected neither a JS-value operation nor a target constructor.", "CSHARP_TARGET_CONSTRUCTION_CLASSIFICATION_INCOMPLETE"); continue; }
     if (selection.kind === "rejected") { issues.push(targetDiagnosticFromExtension(node, selection.diagnostic)); continue; }
+    if (selection.kind === "refused") { issues.push(forwardSourceRefusal(selection.refusal)); continue; }
     if (selection.kind === "missing" || selection.kind === "conflict" || selection.kind === "ambiguous") {
       refuse(node, selection.reason, selection.kind === "missing" ? "CSHARP_TARGET_CONSTRUCTION_NOT_CLOSED" : selection.kind === "conflict" ?
         "CSHARP_TARGET_CONSTRUCTION_IDENTITY_CONFLICT" : "CSHARP_TARGET_CONSTRUCTION_AMBIGUOUS", selection.kind === "ambiguous" ? selection.candidates.map(candidate => `candidate=${candidate}`) : []);

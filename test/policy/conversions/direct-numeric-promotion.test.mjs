@@ -1,3 +1,4 @@
+import { knownNativePlatform64 } from "../../helpers/native-integer-platform.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { csharpBigIntegerTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
@@ -10,7 +11,8 @@ import { selectCsharpNumericBinaryPromotion } from "../../../dist/policy/operati
 // no longer public). Every literal operand is a real checked literal (checkedSourceLiteralValues); a node without a
 // registered literal is a nonliteral value.
 const authoredLiterals = new WeakMap();
-const input = { facts: { values: { literal: (node) => authoredLiterals.get(node) } } };
+// facts.analyses.platform: the Host native-integer premise the literal checks read (Q89/Q90; W2-T-4).
+const input = { facts: { values: { literal: (node) => authoredLiterals.get(node) }, analyses: { platform: knownNativePlatform64 } } };
 const value = { kind: "value" };
 
 test("C# numeric promotion follows exact predefined target arithmetic", () => {

@@ -36,7 +36,7 @@ for (const surface of ["native", "js"]) {
         }
       `;
     const refused = compileCsharpSource({ surface, sourceText });
-    assertNativeLoopRefusals(refused, [{ message: "the loop variable is captured by a closure and also written in the loop; use a separate variable.", text: "index += 1", occurrence: 0 }]);
+    assertNativeLoopRefusals(refused, [{ code: "CSHARP_CAPTURED_LOOP_BINDING_WRITTEN", message: "the loop variable is captured by a closure and also written in the loop; use a separate variable.", text: "index += 1", occurrence: 0 }]);
     const compiled = compileCsharpSource({ surface, sourceText: sourceText.replace("            index += 1;\n", "") });
       assertCsharpCompilationSucceeded(compiled);
       const source = [...compiled.artifacts.values()].join("\n");

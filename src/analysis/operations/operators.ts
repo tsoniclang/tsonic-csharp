@@ -1,7 +1,7 @@
 import { nullishValueType } from "../../policy/operations/operators/rules.js";
 import { isEquality } from "../../policy/operations/operators/operator-validation.js";
 import { csharpBinaryOperationRequiresLocation } from "../../policy/operations/operators/rules.js";
-import type { CsharpOperationSelection, CsharpResolvedBinaryOperation, CsharpResolvedDestructuringAssignmentOperation, CsharpResolvedUnaryOperation } from "../../target-model/records/operations/operator-selection.js";
+import type { CsharpBinaryOperationSelection, CsharpOperationSelection, CsharpResolvedDestructuringAssignmentOperation, CsharpResolvedUnaryOperation } from "../../target-model/records/operations/operator-selection.js";
 
 import { selectCsharpAssignmentLocation } from "./assignment-location.js";
 
@@ -45,7 +45,7 @@ export function selectCsharpBinaryOperation(
   node: Node,
   targetTypeFor: CsharpOperationTargetTypeQuery,
   expectedResultType?: TargetTypeRef,
-): CsharpOperationSelection<CsharpResolvedBinaryOperation> {
+): CsharpBinaryOperationSelection {
   if (!input.ast.is.IsBinaryExpression(node)) {
     return failTargetAnalysisInvariant("tsonic-csharp", "C# binary-operation policy requires a binary expression.", node);
   }
@@ -75,7 +75,7 @@ export function selectCsharpBinaryOperands(
   selectedResultType: TargetTypeRef | undefined,
   targetTypeFor: CsharpOperationTargetTypeQuery,
   expectedResultType?: TargetTypeRef,
-): CsharpOperationSelection<CsharpResolvedBinaryOperation> {
+): CsharpBinaryOperationSelection {
   const leftStorage: CsharpOperandCarrier = sourceOperator === "??" ? input.types.readStorage(left) : undefined;
   const leftCarrier: CsharpOperandCarrier = sourceOperator === "=" || sourceOperator === "??="
     ? input.types.readStorage(left)
@@ -106,7 +106,10 @@ export function selectCsharpBinaryOperands(
   const rightEqualityStorage = isEquality(sourceOperator) && isCsharpAbsenceTargetType(leftType) ? input.types.readStorage(right) : undefined;
   if (leftEqualityStorage !== undefined && isCsharpRefusal(leftEqualityStorage)) return refusedRepresentation(leftEqualityStorage);
   if (rightEqualityStorage !== undefined && isCsharpRefusal(rightEqualityStorage)) return refusedRepresentation(rightEqualityStorage);
-  const genericNumeric = selectCsharpGenericNumericOperation(input, sourceOperator, left, right, leftType, rightType);
+  const generic = selectCsharpGenericNumericOperation(input, sourceOperator, left, right, leftType, rightType);
+  // A Host-refused operand binder constraint decides the operation; it is forwarded unchanged (R5, I7).
+  if (generic?.kind === "refused") return Object.freeze({ kind: "refused", refusal: generic.refusal });
+  const genericNumeric = generic;
   return selectCsharpNativeBinaryOperation(input, {
     left, right, sourceOperator, resultType, leftType, rightType, genericNumeric,
     leftStorage: leftEqualityStorage,

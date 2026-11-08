@@ -30,6 +30,13 @@ test("optional runtime categories emit the Host present and absent categories ov
     assert.deepEqual(planned.expression, input);
     assert.deepEqual(planned.arms[0].expression, { kind: "LiteralExpression", value: absent });
     assert.deepEqual(planned.arms[1].expression, { kind: "LiteralExpression", value: kind });
+    // Q107 (TEST-REVIEW-RC2-ITEM7, runtime-kind:29), baseline wrong-physical-carrier opposite: the dispatch is sealed
+    // for the actual operand carrier, absence wrapper included. A category whose sourceCarrier is the present payload
+    // while the operand is nullable (and the reverse) is not planned; the Host category string is not re-derived.
+    assert.equal(planCsharpRuntimeCategory(input, sourceCarrier, { ...selected, sourceCarrier: value }, context, state, prelude, "omit"), undefined,
+      "a nullable operand never borrows the present payload's dispatch plan");
+    assert.equal(planCsharpRuntimeCategory(input, value, selected, context, state, prelude, "omit"), undefined,
+      "a present operand never borrows the nullable carrier's dispatch plan");
     const comparison = { runtimeKind: kind, negated: false };
     const tested = planCsharpRuntimeCategory(input, sourceCarrier, selected, context, state, prelude, "omit", comparison);
     assert.deepEqual(tested.arms[0].expression, { kind: "LiteralExpression", value: false });

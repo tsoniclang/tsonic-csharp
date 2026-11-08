@@ -84,7 +84,7 @@ export function checkCsharpSourceTypeFlowObligation(
       }
       const reason = csharpTargetTypeFailsConstraint(host.constraintHost,
         { kind: "target-derived", targetType: chosen }, constraint);
-      if (reason !== undefined) return fail(reason);
+      if (reason !== undefined) return typeof reason === "string" ? fail(reason) : forwardSourceRefusal(reason);
     }
     return undefined;
   }

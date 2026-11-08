@@ -11,6 +11,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { hostProgram, representationServices, representations, represented } from "../../representation/host-fixture.mjs";
 import { csharpRepresentationContext, representInstantiation } from "../../../dist/representation/index.js";
+import { selectCsharpSourceCallableValueAbi } from "../../../dist/analysis/callables/calls/source-callable-abi.js";
+import { classifyCsharpSourceCallArguments } from "../../../dist/analysis/operations/source-call-arguments.js";
 import {
   csharpNullableTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType, getCsharpDelegateSignature, targetTypeRefEquals,
 } from "../../../dist/target-model/types/index.js";
@@ -149,7 +151,8 @@ export function run(): void { invoke(); invoke(1n, "a", "b"); }
 });
 
 test("a wide optional signature publishes every parameter once and keeps every optional index", () => {
-  const width = 48;
+  // Q107 (TEST-REVIEW-RC2-ITEM7, source-call-contracts:151): the baseline width 128 is restored.
+  const width = 128;
   const parameters = Array.from({ length: width }, (_value, index) => `value${index}?: string`).join(", ");
   const current = fixture(`declare const invoke: (${parameters}) => void; export function run(): void { invoke(); }`);
   const call = current.callNamed("invoke");
@@ -163,6 +166,73 @@ test("a wide optional signature publishes every parameter once and keeps every o
   } else {
     assert.deepEqual(signature.optionalParameterIndexes, Array.from({ length: width }, (_value, index) => index));
   }
+});
+
+// Q107 (TEST-REVIEW-RC2-ITEM7, source-call-contracts:151), baseline "bulk parameter resolution selects the complete
+// stored contract once" and "wide optional signatures collect optional indexes once rather than scanning them per
+// parameter". The current owners: the Host call selection (facts.selections.call), the stored-value ABI built from it
+// (selectCsharpSourceCallableValueAbi) and the per-call parameter classification (classifyCsharpSourceCallArguments,
+// which takes the complete contract from policy.sourceCallable). The policy here carries only the members that
+// classification reads; its types mirror analysis/program/type-system.ts (represent, instantiation).
+test("bulk call parameters select the complete contract once and never rescan the parameter vectors per parameter", () => {
+  const width = 128;
+  const parameters = Array.from({ length: width }, (_value, index) => `value${index}?: string`).join(", ");
+  const current = fixture(`declare const invoke: (${parameters}) => void; export function run(): void { invoke(); }`);
+  const { program } = current;
+  const call = current.callNamed("invoke");
+  const selected = current.selection(call);
+  assert.equal(selected.parameters.length === width && selected.parameters.every(parameter => parameter.kind === "optional"), true,
+    "the Host selection carries every optional parameter");
+  let selections = 0;
+  const facts = Object.freeze({ ...program.facts, selections: Object.freeze({ ...program.facts.selections, call: use => {
+    selections += 1;
+    return program.facts.selections.call(use);
+  } }) });
+  const services = representationServices(program, { facts });
+  const at = representations(services);
+  const carrier = represented(at.value(program.ast.as.AsCallExpression(call).Expression));
+  const signature = getCsharpDelegateSignature(carrier);
+  assert.deepEqual(signature.optionalParameterIndexes, Array.from({ length: width }, (_value, index) => index),
+    "the represented delegate keeps every optional index");
+  // The baseline trap: the optional-index vector is collected once, never searched per parameter.
+  const indexes = [...signature.optionalParameterIndexes];
+  for (const method of ["includes", "indexOf", "lastIndexOf", "find", "findIndex"]) {
+    indexes[method] = () => assert.fail(`the stored contract cannot repeatedly scan its optional-index array (${method})`);
+  }
+  const trapped = Object.freeze({ ...carrier, csharpDelegateSignature: Object.freeze({ ...carrier.csharpDelegateSignature,
+    optionalParameterIndexes: indexes }) });
+  const contract = selectCsharpSourceCallableValueAbi({ ast: program.ast, facts, source: selected, carrier: trapped });
+  assert.equal(contract !== undefined && contract.nativeParameters.length === width, true, "the complete contract has every parameter");
+  assert.equal(contract.nativeParameters.every(parameter => parameter.targetParameter.optional === true &&
+    targetTypeRefEquals(parameter.targetParameter.type, signature.parameters[0])), true, "every slot is the optional native slot");
+  // Per-parameter searches over the complete contract's parameter vector are counted: one pass at most.
+  let searches = 0;
+  const nativeParameters = [...contract.nativeParameters];
+  for (const method of ["includes", "indexOf", "lastIndexOf", "find", "findIndex", "findLast", "findLastIndex"]) {
+    const original = nativeParameters[method];
+    nativeParameters[method] = function (...arguments_) { searches += 1; return original.apply(this, arguments_); };
+  }
+  const counted = Object.freeze({ ...contract, nativeParameters });
+  let contracts = 0;
+  const policy = Object.freeze({ ast: program.ast, facts,
+    types: Object.freeze({
+      represent: (descriptor, occurrence, position) => at.type(descriptor, occurrence, position),
+      instantiation: use => facts.instantiations.at(use) === undefined ? undefined : assert.fail("a closed stored callable has no instantiation"),
+    }),
+    sourceCallable: (use, selection) => {
+      contracts += 1;
+      assert.equal(use === call && selection === "implementation", true, "the contract of this exact use");
+      return counted;
+    },
+  });
+  selections = 0;
+  const classified = classifyCsharpSourceCallArguments(policy, selected, undefined, undefined);
+  assert.equal(classified.sourceParameterTypes.length === width &&
+    classified.sourceParameterTypes.every(type => type !== undefined && targetTypeRefEquals(type, signature.parameters[0])), true,
+    "every selected parameter has its native slot type");
+  assert.equal(contracts, 1, "no quadratic complete contract reconstruction");
+  assert.equal(selections, 0, "the parameter classification reuses the given Host selection and never re-queries it");
+  assert.equal(searches <= 1, true, `the contract parameter vector is not searched per parameter (searched ${searches} times)`);
 });
 
 test("a refused Host call is published as a refusal and no C# contract replaces it", () => {

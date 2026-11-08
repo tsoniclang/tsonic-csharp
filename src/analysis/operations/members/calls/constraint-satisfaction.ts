@@ -1,7 +1,7 @@
 import { csharpProviderBindingFromResolution } from "../../../../providers/model/relation-resolver.js";
 import type { AstReader } from "@tsonic/tsts";
 import { csharpSourceTypeParameter } from "../../../../source/extension/type-parameters.js";
-import type { SourceProgramFacts, SourceTypeDescriptor } from "@tsonic/target-api/source";
+import type { SourceProgramFacts, SourceTypeDescriptor, SourceTypeFlowRefusal } from "@tsonic/target-api/source";
 import type { CsharpProviderRelationResolver } from "../../../../providers/model/relation-resolver.js";
 import type { CsharpTargetBindingFact, CsharpTargetMember, CsharpTargetTypeParameter, TargetConstraint, TargetTypeRef } from "../../../../target-model/types/model.js";
 import { csharpTargetBindingFact } from "../../../../target-model/types/model.js";
@@ -26,6 +26,12 @@ export interface CsharpConstraintSatisfactionHost {
   readonly types: CsharpTypeQueries;
 }
 
+/**
+ * Why a type argument fails a target constraint: a C# reason (a .NET rule, reported with a CSHARP_ code), or the Host
+ * refusal of the source binder's authored constraint, which every reader forwards unchanged (R5, I7) and never wraps.
+ */
+export type CsharpConstraintFailure = string | SourceTypeFlowRefusal;
+
 export interface CsharpProviderConstraintSelection {
   readonly targetBinding: CsharpTargetBindingFact;
   readonly bindingArguments: readonly CsharpSelectedTargetMethodTypeArgument[];
@@ -37,7 +43,7 @@ export interface CsharpProviderConstraintSelection {
 export function validateCsharpProviderConstraints(
   host: CsharpConstraintSatisfactionHost,
   selection: CsharpProviderConstraintSelection,
-): string | undefined {
+): CsharpConstraintFailure | undefined {
   const bindingError = validateTypeParameterArguments(
     host,
     selection.targetBinding.typeParameters ?? [],
@@ -94,6 +100,7 @@ export function validateCsharpProviderConstraints(
       },
     );
     if (dispatchError !== undefined) {
+      if (typeof dispatchError !== "string") return dispatchError;
       return `Static target member '${selection.targetMember.id}' requires dispatch type '${targetTypeRefKey(dispatchArgument.targetType)}' to implement '${targetTypeRefKey(declaringType)}'. ${dispatchError}`;
     }
   }
@@ -105,7 +112,7 @@ function validateTypeParameterArguments(
   parameters: readonly CsharpTargetTypeParameter[],
   arguments_: readonly CsharpSelectedTargetMethodTypeArgument[],
   owner: string,
-): string | undefined {
+): CsharpConstraintFailure | undefined {
   if (parameters.length !== arguments_.length) {
     return `C# ${owner} requires ${parameters.length} target type arguments, but ${arguments_.length} were selected.`;
   }
@@ -129,6 +136,7 @@ function validateTypeParameterArguments(
         substituted,
       );
       if (reason !== undefined) {
+        if (typeof reason !== "string") return reason;
         return `C# ${owner} type argument '${targetTypeRefKey(argument.targetType)}' for '${parameter.name}' does not satisfy '${constraintDescription(host, substituted)}'. ${reason}`;
       }
     }
@@ -140,7 +148,7 @@ export function csharpTargetTypeFailsConstraint(
   host: CsharpConstraintSatisfactionHost,
   argument: CsharpSelectedTargetMethodTypeArgument,
   constraint: TargetConstraint,
-): string | undefined {
+): CsharpConstraintFailure | undefined {
   const target = argument.targetType;
   if (
     target.kind === "type-parameter" &&
@@ -152,8 +160,8 @@ export function csharpTargetTypeFailsConstraint(
       constraint,
     );
     if (sourceConstraint !== undefined) {
-      return sourceConstraint ? undefined :
-        "The exact selected source type parameter does not declare a sufficient C# constraint.";
+      return sourceConstraint === true ? undefined : sourceConstraint === false
+        ? "The exact selected source type parameter does not declare a sufficient C# constraint." : sourceConstraint;
     }
   }
   switch (constraint.kind) {
@@ -201,7 +209,7 @@ function validateConstructedTargetType(
   host: CsharpConstraintSatisfactionHost,
   type: TargetTypeRef,
   active: Set<string>,
-): string | undefined {
+): CsharpConstraintFailure | undefined {
   switch (type.kind) {
     case "source-primitive":
       return undefined;
@@ -276,23 +284,23 @@ function validateConstructedTargetType(
   }
 }
 
-/** A Host type-argument descriptor that is a type-parameter reference satisfies a target constraint through its declared constraint. */
+/**
+ * A Host type-argument descriptor that is a type-parameter reference satisfies a target constraint through its declared
+ * constraint. A Host-refused constraint is returned as that refusal, unchanged (R5, I7): the candidate filter
+ * (selection.ts) reports it when no candidate is accepted, instead of a C# reason.
+ */
 function selectedSourceConstraintSatisfies(
   host: CsharpConstraintSatisfactionHost,
   descriptor: SourceTypeDescriptor,
   targetConstraint: TargetConstraint,
-): boolean | undefined {
+): boolean | SourceTypeFlowRefusal | undefined {
   if (descriptor.kind !== "declared" || !host.ast.is.IsTypeParameterDeclaration(descriptor.declaration)) return undefined;
   const declaration = descriptor.declaration;
   const parameter = csharpSourceTypeParameter(declaration, host.ast, host.facts.navigation.identity);
   if (parameter === undefined) return false;
   // The binder constraints represented from their Host descriptors (representation/generics, via CsharpTypeQueries).
   const resolution = host.types.typeParameterConstraints(declaration, parameter);
-  // A Host-refused constraint proves no target constraint for this provider candidate. This channel is a candidate
-  // filter (selection.ts joins the reasons of rejected candidates), so it carries no diagnostic; the Host refusal is
-  // forwarded unchanged where the binder itself is used: its emission (declarations/type-parameters.ts) and its
-  // type-flow obligations (source-evidence/type-flow-obligation-checks.ts).
-  if (resolution.kind === "refused") return false;
+  if (resolution.kind === "refused") return resolution.refusal;
   return resolution.kind === "resolved" &&
     sourceConstraintsImplyTargetConstraint(
       host,

@@ -6,6 +6,7 @@ import { csharpBigIntegerTargetType, csharpNullableTargetType, csharpObjectTarge
 import { assertCsharpCompilationSucceeded, checkCsharpSource, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { csharpTestSourceProgram } from "../../helpers/target-source-program.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
+import { csharpSourceProfileCallSource } from "../../../dist/analysis/operations/source-profiles/source-profile-sources.js";
 
 const selectedIs = csharpJsObjectCallPolicies.find(policy =>
   policy.source.declaringName === "ObjectConstructor" && policy.source.name === "is");
@@ -25,13 +26,25 @@ function fixture() {
   program.sourceFiles.filter(file => !program.syntax.isDeclarationFile(file)).forEach(visit);
   assert.equal(calls.length, 1, "one original Object.is occurrence");
   // The Host call selection (selections.call) carries the ordered argument correspondences.
-  const source = program.facts.selections.call(calls[0]);
-  assert.equal(source.use === calls[0] && source.arguments.length === 2 &&
-    source.arguments.every((binding, index) => binding.parameterIndex === index && binding.mode === "positional"), true,
+  const selection = program.facts.selections.call(calls[0]);
+  // Q107 (TEST-REVIEW-RC2-ITEM7 object-is-native-domains:30): the baseline three-index equality
+  // (source-argument, effective-argument, parameter) restored on the current correspondence fields,
+  // plus the identity of each authored operand expression.
+  assert.equal(selection.use === calls[0] && selection.arguments.length === 2 &&
+    selection.arguments.every((binding, index) => binding.argument === program.syntax.arguments(calls[0])[index] &&
+      binding.argumentIndex === index && binding.effectiveIndex === index &&
+      binding.parameterIndex === index && binding.mode === "positional"), true,
     "the real publication retains both original ordered argument bindings");
+  // Q107 (same row): the policy receives the C# source-profile view of that selection, built by its production owner
+  // (analysis/operations/source-profiles/source-profile-sources.ts) from the same Host facts; its bindings are the
+  // Host correspondences above, unchanged.
+  const source = csharpSourceProfileCallSource({ facts: program.facts, ast: program.syntax }, calls[0]);
+  assert.equal(source.selection === selection && source.bindings === selection.arguments &&
+    source.arguments.every((argument, index) => argument.expression === selection.arguments[index].argument), true,
+    "the policy input carries the original Host correspondences and operands in source order");
   return (value, other) => selectedIs.select({ source,
     inputs: { values: new Map(source.arguments.map((argument, index) =>
-      [argument.argument, [value, other][index]])) } });
+      [argument.expression, [value, other][index]])) } });
 }
 
 test("Object.is publishes exact completed native scalar slots without widening or boxing", () => {

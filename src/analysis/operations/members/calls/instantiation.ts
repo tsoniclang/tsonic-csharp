@@ -1,5 +1,5 @@
 import type { ReadonlySourceFactResolver } from "@tsonic/tsts";
-import type { SourceCallSelection } from "@tsonic/target-api/source";
+import type { SourceCallSelection, SourceTypeFlowRefusal } from "@tsonic/target-api/source";
 
 import type { CsharpProviderTargetRelation } from "../../../../target-model/identities/provider-relations.js";
 
@@ -34,6 +34,11 @@ export type CsharpProviderCallInstantiation =
   | {
       readonly kind: "rejected";
       readonly reason: string;
+    }
+  | {
+      /** A source binder's Host-refused constraint decided the candidate; forwarded unchanged (R5, I7). */
+      readonly kind: "refused";
+      readonly refusal: SourceTypeFlowRefusal;
     };
 
 import type { CsharpProviderCallInstantiationHost, CsharpProviderCallSelectionHost } from "../../../../policy/model/provider-calls.js";
@@ -113,7 +118,9 @@ export function instantiateCsharpProviderCall(
     invocationArguments,
   });
   if (constraintError !== undefined) {
-    return { kind: "rejected", reason: constraintError };
+    return typeof constraintError === "string"
+      ? { kind: "rejected", reason: constraintError }
+      : { kind: "refused", refusal: constraintError };
   }
   const arguments_ = relateCallArguments(relation, targetMember, source);
   if (arguments_ === undefined) {

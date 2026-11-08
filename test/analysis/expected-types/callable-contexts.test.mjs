@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { hostProgram } from "../../representation/host-fixture.mjs";
+import { hostProgram, representationServices, representations } from "../../representation/host-fixture.mjs";
 import { analyzeCsharpCallableContracts } from "../../../dist/analysis/callables/analyze.js";
 import { analyzeCsharpCallableCreations } from "../../../dist/analysis/callables/values/creation.js";
 import { csharpCallableValueType } from "../../../dist/policy/types/callables/value-type.js";
@@ -16,6 +16,20 @@ const integer = Object.freeze({ kind: "source-primitive", name: "int32" });
 const selectedType = csharpDelegateTargetType("System.Func", [scalar, scalar], scalar);
 const firstBinder = Object.freeze({ kind: "type-parameter", identity: "outer:first", name: "T" });
 const otherBinder = Object.freeze({ kind: "type-parameter", identity: "outer:other", name: "T" });
+
+// The CsharpTypeQueries members this owner reads (policy/model/type-resolution.ts:31-47). Every occurrence outside the
+// callable under test gets the one Host-descriptor representation of the fixture program (representation/host-fixture.mjs).
+// The callable's own parameter and return contracts are the fixture's injected native contract, as at baseline, where
+// the same values were injected through evidence.nodeTargetType and declarations.returnContract; the owner now reads
+// them through types.represent(values.type(parameter)) and types.callableReturn (W2-T-3; R4 #49, FX-CC rows 49 and 13).
+function hostTypeQueries(program, injected) {
+  const represented = representations(representationServices(program));
+  return Object.freeze({
+    represent: (descriptor, occurrence, position) => injected.parameter(occurrence) ?? represented.type(descriptor, occurrence, position),
+    representSum: represented.sum, value: represented.value, storage: represented.slot,
+    callableReturn: declaration => injected.callableReturn(declaration) ?? represented.callableReturn(declaration),
+  });
+}
 
 function fixture(body, overrides = {}) {
   // nextgen C-2542: the program goes through the Host (facts + authored syntax); the callable owners read
@@ -85,9 +99,20 @@ function fixture(body, overrides = {}) {
   });
   const policy = { ast: source.syntax, sourceFiles: [file], facts: source.facts, sourceFacts: source.sourceFacts, objectShapes,
     projectTypes: { catalog: { definitions: [] } },
+    // CsharpPolicyContext.types (policy/model/context.ts:50): the one Host-descriptor representation of this program
+    // (W2-T-3; R4 #49, FX-CC rows 49 and 13). The callable ABI reads callableReturn from it.
+    types: hostTypeQueries(program, {
+      parameter: occurrence => source.syntax.parameters(lambda).includes(occurrence)
+        ? source.syntax.is.IsArrayTypeNode(source.syntax.typeNode(occurrence))
+          ? csharpJsArrayTargetType(scalar) : overrides.sourceParameter ?? scopedBinder ?? scalar
+        : undefined,
+      callableReturn: declaration => declaration === lambda ? overrides.sourceReturn ?? scopedBinder ?? scalar : undefined,
+    }),
   };
   const evidence = { compileTimeMetadata: { get: () => false },
     generatorTargetType: { get: () => undefined },
+    // CsharpSourceEvidenceIndex.generator (source-evidence.ts:66): no callable of this fixture is a generator.
+    generator: { get: () => undefined },
     contextualType: { get: () => undefined },
     nodeTargetType: { get: node => source.syntax.is.IsArrayTypeNode(node)
       ? csharpJsArrayTargetType(scalar) : overrides.sourceParameter ?? scopedBinder ?? scalar } };

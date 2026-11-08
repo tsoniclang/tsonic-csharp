@@ -11,8 +11,8 @@ import { getCsharpRuntimeUnionArms } from "../../../../dist/target-model/types/c
 import { getCsharpNullableElementTargetType } from "../../../../dist/target-model/types/carriers/nullable.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../../dist/target-model/types/equality.js";
 
-function fixture(sourceText) {
-  const program = hostProgram(sourceText);
+function fixture(sourceText, options = {}) {
+  const program = hostProgram(sourceText, options);
   const { ast, nodes } = program;
   const reads = nodes.filter(node => ast.is.IsCallExpression(node) && ast.text(ast.as.AsCallExpression(node).Expression) === "observe")
     .map(call => ast.arguments(call)[0]);
@@ -109,21 +109,25 @@ test("narrowed reads materialize every surviving Host arm, positionally, without
     "typeof string narrows the second read to string");
 });
 
-function guardedArray(body) {
+function guardedArray(body, options = {}) {
   return fixture(`
     declare function list(value: unknown): value is unknown[];
     declare function observe(value: unknown): void;
     function run(value: string | readonly string[] | bigint | undefined, other: unknown): void { ${body} }
-  `);
+  `, options);
 }
 
 test("a type-guard narrowing to the array arm cannot be widened by C#", () => {
-  for (const body of [
-    "if (list(value)) observe(value);",
-    "if (list(value) && value.length > 0) { observe(value); }",
-    "if (!list(value)) return; observe(value);",
+  for (const [body, options] of [
+    ["if (list(value)) observe(value);", {}],
+    // Q107 (TEST-REVIEW-RC2-ITEM7 native-flow-refinement:123): the guarded element write before the observed read
+    // is restored from the baseline program; the read after the write keeps the exact narrowed array carrier.
+    // The baseline program uses the JS array API (`length`, a writable element after the unknown[] guard), so it is
+    // checked on the js surface; the default surface rejects `length` (TS2551) and the write (TS2542).
+    ["if (list(value) && value.length > 0) { value[0] = 'next'; observe(value); }", { surface: "js" }],
+    ["if (!list(value)) return; observe(value);", {}],
   ]) {
-    const input = guardedArray(body);
+    const input = guardedArray(body, options);
     assert.equal(input.reads.length, 1, body);
     const narrowed = input.type(input.reads[0]);
     assert.equal(narrowed.kind, "array", `${body}: the Host narrows to the array arm`);
@@ -139,11 +143,29 @@ test("guard intersections keep every surviving Host arm and its native width", (
   const narrowed = input.type(input.reads[0]);
   const record = input.sum(narrowed);
   assert.equal(record.arms.length, 2, "array and bigint survive");
-  const arms = getCsharpRuntimeUnionArms(represented(input.represent.value(input.reads[0])));
+  // Q107 (TEST-REVIEW-RC2-ITEM7 native-flow-refinement:145): the two Host arms are pinned exactly: the declared
+  // readonly string[] arm (element string) and the declared bigint arm.
+  const hostArms = record.arms.map(arm => arm.type);
+  const arrayIndex = hostArms.findIndex(type => type.kind === "array");
+  const integerIndex = hostArms.findIndex(type => type.kind === "intrinsic" && type.intrinsic === "bigint");
+  assert.equal(arrayIndex >= 0 && hostArms[arrayIndex].element.kind === "string", true,
+    "the surviving array arm is the declared string[] arm, not the guard's unknown[]");
+  assert.equal(integerIndex >= 0 && integerIndex !== arrayIndex, true, "the surviving integer arm is the declared bigint arm");
+  const carrier = represented(input.represent.value(input.reads[0]));
+  assert.equal(getCsharpNullableElementTargetType(carrier), undefined, "no Nullable lift: the absence arm does not survive");
+  const arms = getCsharpRuntimeUnionArms(carrier);
   assert.equal(arms.length, 2);
-  assert.equal(arms.some(arm => arm.kind === "array"), true);
-  assert.equal(arms.some(arm => targetTypeRefEquals(arm, csharpBigIntegerTargetType()) ||
-    targetTypeRefEquals(arm, csharpSourcePrimitiveTargetType("int64"))), true, "the bigint arm keeps its published width");
+  // Q107: each Native arm is exactly the one mapping (I6) of its own Host arm, positionally.
+  assert.equal(arms.every((arm, index) =>
+    targetTypeRefEquals(arm, represented(input.represent.type(hostArms[index], input.reads[0], "value")))), true,
+  "every surviving Native arm is the representation of the corresponding published Host arm");
+  assert.equal(arms[arrayIndex].kind === "array" && targetTypeRefEquals(arms[arrayIndex].element, csharpStringTargetType()), true,
+    "the array arm keeps its exact string element carrier");
+  // Q107: bigint has one native carrier, System.Numerics.BigInteger (representation/descriptors.ts:111). The
+  // baseline int64 was the test's own hand-built storage carrier, not a product result.
+  assert.equal(targetTypeRefEquals(arms[integerIndex], csharpBigIntegerTargetType()), true, "the bigint arm keeps its published width");
+  assert.equal(arms.some(arm => targetTypeRefEquals(arm, csharpSourcePrimitiveTargetType("int64"))), false,
+    "no alternative integer width is accepted");
   assert.equal(arms.some(arm => targetTypeRefEquals(arm, csharpStringTargetType())), false);
 });
 

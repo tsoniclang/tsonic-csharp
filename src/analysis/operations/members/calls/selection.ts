@@ -1,6 +1,6 @@
 import type { CsharpProviderCallSelectionHost } from "../../../../policy/model/provider-calls.js";
 import type { ExtensionDiagnostic, Node } from "@tsonic/tsts";
-import type { SourceCallSelection } from "@tsonic/target-api/source";
+import type { SourceCallSelection, SourceTypeFlowRefusal } from "@tsonic/target-api/source";
 import type { CsharpProviderOperationResolution } from "../relations.js";
 
 import { resolveCsharpProviderCallRelations } from "../relations.js";
@@ -38,6 +38,11 @@ export type CsharpProviderCallSelection =
   | {
       readonly kind: "rejected";
       readonly diagnostic: ExtensionDiagnostic;
+    }
+  | {
+      /** No candidate was accepted and a source binder's constraint is a Host refusal; forwarded unchanged (R5, I7). */
+      readonly kind: "refused";
+      readonly refusal: SourceTypeFlowRefusal;
     };
 
 export function selectCsharpProviderCall(
@@ -124,6 +129,10 @@ function selectResolvedProviderCall(
     return { kind: "resolved", source, call: accepted[0]!.call };
   }
   if (accepted.length === 0) {
+    // A Host-refused binder constraint is the cause; it is forwarded unchanged, never joined into a C# reason (I7).
+    const refused = candidates.find((candidate): candidate is Extract<CsharpProviderCallInstantiation,
+      { readonly kind: "refused" }> => candidate.kind === "refused");
+    if (refused !== undefined) return { kind: "refused", refusal: refused.refusal };
     return {
       kind: "missing",
       reason: candidates

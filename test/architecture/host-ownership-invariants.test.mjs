@@ -186,29 +186,69 @@ test("I5: Host production code keeps no module-level mutable cache (lifetime is 
 // code of the @tsonic/csharp/lang.js marker re-export refusal is CSHARP_LANG_MARKER_REEXPORT (Claude's ruling on R-C5-3: C#
 // originates only CSHARP_ codes for .NET reasons; writer C7).
 const allowedForeignCodes = /^TSONIC_COMPILER_RESOURCE_LIMIT$/u;
+// Named baseline-code exceptions to the CSHARP_UNSUPPORTED_AST split (C-2542 R5), each with its ruling: file → count.
+// Q115(3), basis Q94: the source-module statement refusal keeps the baseline code (analysis/source-modules/emission.ts).
+const unsupportedAstBaselineExceptions = new Map([["tsonic-csharp/src/analysis/source-modules/emission.ts", 1]]);
+const forwardFile = "tsonic-csharp/src/analysis/program/source-facts.ts";
 
+/** The body of `export function forwardSourceRefusal(...) { ... }` in code-only text, as [start, end) offsets. */
+function forwardSourceRefusalBody(code) {
+  const header = /export\s+function\s+forwardSourceRefusal\s*\(/u.exec(code);
+  if (header === null) return undefined;
+  const open = code.indexOf("{", code.indexOf(")", header.index));
+  let depth = 0;
+  for (let index = open; index < code.length; index++) {
+    if (code[index] === "{") depth++;
+    else if (code[index] === "}" && --depth === 0) return [open, index + 1];
+  }
+  return undefined;
+}
+
+// Q115(3): C# turns a Host refusal into a diagnostic only through forwardSourceRefusal, which copies its code, message
+// and site unchanged; the number of its call sites is not limited. No other C# code originates a TSONIC_/TSTS_ code
+// or builds a Host-attributed diagnostic (`source: "tsonic"`). The eager census facts.refusals() is read only at the
+// program entry.
 export function i7Breaches(sources) {
   const breaches = [];
   for (const [file, text] of sources) {
     for (const match of text.matchAll(/["'`]((?:TSONIC|TSTS)_[A-Z0-9_]*)/gu)) {
       if (!allowedForeignCodes.test(match[1])) breaches.push(`${file}:${lineOf(text, match.index)} originates ${match[1]}`);
     }
-    for (const match of text.matchAll(/\bCSHARP_UNSUPPORTED_AST\b/gu)) breaches.push(`${file}:${lineOf(text, match.index)} CSHARP_UNSUPPORTED_AST`);
+    const unsupported = [...text.matchAll(/\bCSHARP_UNSUPPORTED_AST\b/gu)];
+    if (unsupported.length !== (unsupportedAstBaselineExceptions.get(file) ?? 0)) {
+      for (const match of unsupported) breaches.push(`${file}:${lineOf(text, match.index)} CSHARP_UNSUPPORTED_AST`);
+    }
     const code = codeOnly(text);
+    const body = file === forwardFile ? forwardSourceRefusalBody(code) : undefined;
+    for (const match of text.matchAll(/\bsource\s*:\s*["'`]tsonic["'`]/gu)) {
+      if (!code.startsWith("source", match.index)) continue;
+      if (body !== undefined && match.index >= body[0] && match.index < body[1]) continue;
+      breaches.push(`${file}:${lineOf(text, match.index)} builds a Host-attributed diagnostic outside forwardSourceRefusal`);
+    }
     if (file !== "tsonic-csharp/src/analysis/program/analyze.ts") {
-      for (const match of code.matchAll(/\.refusals\s*\(\s*\)|\bforwardSourceRefusal\s*\(/gu)) {
-        if (file === "tsonic-csharp/src/analysis/program/source-facts.ts" && /^forwardSourceRefusal/u.test(match[0]) &&
-          /export\s+function\s+$/u.test(code.slice(Math.max(0, match.index - 20), match.index))) continue;
-        breaches.push(`${file}:${lineOf(code, match.index)} reads or forwards Host refusals outside the program entry`);
+      for (const match of code.matchAll(/\.refusals\s*\(\s*\)/gu)) {
+        breaches.push(`${file}:${lineOf(code, match.index)} reads the eager Host refusal census outside the program entry`);
       }
     }
   }
   return breaches;
 }
 
-test("I7: C# originates only CSHARP_ codes and forwards Host refusals once, before C# analysis", () => {
+/** Q115(3)(b): forwardSourceRefusal copies the Host refusal's code, message and site unchanged, and adds nothing else. */
+export function forwardSourceRefusalBreaches(text) {
+  const code = codeOnly(text);
+  const body = forwardSourceRefusalBody(code);
+  if (body === undefined) return ["forwardSourceRefusal is not defined"];
+  const raw = text.slice(body[0], body[1]).replace(/\s+/gu, " ");
+  const expected = '{ return Object.freeze({ code: refusal.code, category: "error" as const, source: "tsonic", ' +
+    'message: "message" in refusal ? refusal.message : refusal.reason, sourceNode: refusal.site, }); }';
+  return raw === expected ? [] : [`forwardSourceRefusal body is not the unchanged copy: ${raw}`];
+}
+
+test("I7: C# originates only CSHARP_ codes and forwards Host refusals only through forwardSourceRefusal, unchanged", () => {
   const sources = readSources(path.join(packageRoot, "src"));
   assert.deepEqual(i7Breaches(sources), []);
+  assert.deepEqual(forwardSourceRefusalBreaches(sources.get(forwardFile)), []);
   const entry = codeOnly(sources.get("tsonic-csharp/src/analysis/program/analyze.ts"));
   const refusals = entry.indexOf("facts.refusals()");
   const forwarded = entry.indexOf("forwardSourceRefusal", refusals);
@@ -609,9 +649,21 @@ test("negative controls: every text scan sees a planted breach and passes its cl
     ["tsonic-csharp/src/c.ts", `const refusals = program.facts.refusals();`],
     ["tsonic-csharp/src/d.ts", `issues.push({ code: "TSONIC_COMPILER_RESOURCE_LIMIT" }); refuse("CSHARP_LITERAL_NOT_REPRESENTABLE");`],
     ["tsonic-csharp/src/e.ts", "const publicCode = `TSONIC_CSHARP_${numericCode}`;"],
+    // Q115(3): any number of forward sites is allowed; a Host-attributed diagnostic built elsewhere is a breach.
+    ["tsonic-csharp/src/f.ts", "issues.push(forwardSourceRefusal(a)); issues.push(forwardSourceRefusal(b));"],
+    ["tsonic-csharp/src/g.ts", "return { code: refusal.code, category: \"error\", source: \"tsonic\", sourceNode: refusal.site };"],
+    ["tsonic-csharp/src/h.ts", "// source: \"tsonic\" in a comment is not code"],
+    ["tsonic-csharp/src/analysis/source-modules/emission.ts", "issues.push({ code: \"CSHARP_UNSUPPORTED_AST\" });"],
+    ["tsonic-csharp/src/analysis/program/source-facts.ts", "export function forwardSourceRefusal(refusal) {\n  return Object.freeze({ code: refusal.code, source: \"tsonic\" });\n}\nconst other = { source: \"tsonic\" };"],
   ]);
-  assert.deepEqual(i7Breaches(codes).map(line => line.split(":")[0]),
-    ["tsonic-csharp/src/a.ts", "tsonic-csharp/src/b.ts", "tsonic-csharp/src/c.ts", "tsonic-csharp/src/e.ts"]);
+  assert.deepEqual(i7Breaches(codes).map(line => line.split(" ")[0]),
+    ["tsonic-csharp/src/a.ts:1", "tsonic-csharp/src/b.ts:1", "tsonic-csharp/src/c.ts:1", "tsonic-csharp/src/e.ts:1",
+      "tsonic-csharp/src/g.ts:1", "tsonic-csharp/src/analysis/program/source-facts.ts:4"]);
+  assert.deepEqual(forwardSourceRefusalBreaches(
+    'export function forwardSourceRefusal(refusal: SourceRefusal | SourceTypeFlowRefusal): TargetDiagnostic {\n  return Object.freeze({\n    code: refusal.code,\n    category: "error" as const,\n    source: "tsonic",\n    message: "message" in refusal ? refusal.message : refusal.reason,\n    sourceNode: refusal.site,\n  });\n}\n'), []);
+  assert.equal(forwardSourceRefusalBreaches(
+    'export function forwardSourceRefusal(refusal) {\n  return Object.freeze({ code: "CSHARP_X", category: "error" as const, source: "tsonic", message: refusal.reason, sourceNode: refusal.site });\n}\n').length, 1,
+    "a recoded forward is a breach");
   const keys = csharpFactKeys(new Map([["tsonic-csharp/src/source/x.ts",
     `import { providerVirtualDeclarationFactKey, defineExtensionFactKey, type ExtensionFactKey } from "@tsonic/tsts";\nexport const localFactKey = defineExtensionFactKey({});`]]));
   assert.deepEqual(keys.map(key => key.name), ["localFactKey", "providerVirtualDeclarationFactKey"]);

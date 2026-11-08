@@ -40,7 +40,7 @@ export function selectCsharpSwitch(input: CsharpPolicyContext, node: Node): Csha
         const carrier = operand === expression ? type : operand === candidate ? label : input.types.value(operand);
         return isCsharpRefusal(carrier) ? undefined : carrier;
       });
-    if (comparison.kind === "rejected") return comparison;
+    if (comparison.kind === "rejected" || comparison.kind === "refused") return comparison;
     selected.push({ node: clause, comparison });
   }
   return { kind: "ordered", expression, type, clauses: Object.freeze(selected),

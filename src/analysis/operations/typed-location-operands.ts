@@ -32,7 +32,8 @@ function refusedRoot(policy: CsharpPolicyContext, expression: Node, visited: Set
     const deeper = argument === undefined ? undefined : refusedRoot(policy, argument, visited);
     if (deeper !== undefined) return deeper;
   }
-  return Object.freeze({ node: call, code: refusal.code, message: refusal.message });
+  return Object.freeze({ node: refusal.site ?? call, code: refusal.code, message: refusal.message,
+    ...(refusal.source === undefined ? {} : { source: refusal.source }) });
 }
 
 function originatingCall(policy: CsharpPolicyContext, expression: Node): Node | undefined {

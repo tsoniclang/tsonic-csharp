@@ -1,3 +1,4 @@
+import { knownNativePlatform64 } from "../../helpers/native-integer-platform.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { selectCsharpUnionEquality } from "../../../dist/policy/operations/operators/union-equality.js";
@@ -12,7 +13,9 @@ import { csharpBigIntegerTargetType } from "../../../dist/target-model/types/car
 
 const operands = { left: {}, right: {} };
 // Literal values are published facts (facts.values.literal).
-const facts = { values: { literal: () => undefined } };
+// facts.analyses.platform: the Host native-integer premise the literal checks read (Q89/Q90; W2-T-4).
+const platform = Object.freeze({ platform: knownNativePlatform64 });
+const facts = { values: { literal: () => undefined }, analyses: platform };
 
 test("union numeric comparisons retain actual literal endpoints and the canonical native integer relation", () => {
   const narrow = csharpSourcePrimitiveTargetType("int32");
@@ -20,7 +23,7 @@ test("union numeric comparisons retain actual literal endpoints and the canonica
   const big = csharpBigIntegerTargetType();
   const union = csharpRuntimeUnionTargetType([narrow, wide]);
   const literal = { form: "bigint", integer: 3n };
-  const input = { facts: { values: { literal: node => node === operands.right ? literal : undefined } },
+  const input = { facts: { values: { literal: node => node === operands.right ? literal : undefined }, analyses: platform },
     providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) }, objectShapes: { resolveTarget() {} },
     projectTypes: { catalog: { definitionForTarget() {} } } };
   const selected = selectCsharpUnionEquality(union, big, input, operands);
@@ -28,7 +31,7 @@ test("union numeric comparisons retain actual literal endpoints and the canonica
   assert.deepEqual(selected.map(arm => [arm.operation.leftInputType.name, arm.operation.rightInputType.name]),
     [["int32", "int32"], ["int64", "int64"]]);
   const nonliteral = { ...input, facts };
-  for (const value of [nonliteral, { ...input, facts: { values: {
+  for (const value of [nonliteral, { ...input, facts: { analyses: platform, values: {
     literal: node => node === operands.right ? { form: "bigint", integer: 1n << 128n } : undefined,
   } } }]) {
     const native = selectCsharpUnionEquality(union, big, value, operands);
@@ -119,7 +122,7 @@ test("nullable union equality enters the existing binary owner and preserves inc
   const right = {};
   const input = { ...policy, ast: { is: { IsBinaryExpression: () => false, IsObjectLiteralExpression: () => false,
     IsArrayLiteralExpression: () => false, IsStringLiteral: () => false, IsNoSubstitutionTemplateLiteral: () => false },
-    kindName: () => "KindIdentifier" }, facts: { values: { literal: () => undefined } },
+    kindName: () => "KindIdentifier" }, facts: { values: { literal: () => undefined }, analyses: platform },
     types: { resolveReadStorage: () => undefined } };
   for (const sourceOperator of ["===", "!=="]) {
     const selected = selectCsharpBinaryOperands(input, left, right, sourceOperator,
