@@ -1,6 +1,16 @@
 import type { TargetTypeRef } from "./model.js";
 import type { CsharpTargetMember, CsharpTargetParameter } from "./model.js";
 import { getCsharpJsArrayElementTargetType } from "./carriers/collections.js";
+import { csharpVoidTargetType } from "./carriers/scalar-types.js";
+
+export function csharpSelectedCallResultType(
+  member: CsharpTargetMember,
+  discardResult: boolean,
+): TargetTypeRef | undefined {
+  const physical = member.kind === "constructor" ? member.declaringType
+    : member.kind === "method" || member.kind === "operator" ? member.returnType : undefined;
+  return physical === undefined ? undefined : discardResult ? csharpVoidTargetType() : physical;
+}
 
 export function targetMethod(
   id: string,
