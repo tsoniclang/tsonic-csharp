@@ -22,6 +22,7 @@ export interface CsharpValueReadStageAnalysis {
 }
 
 interface CsharpRawValueReadStages {
+  readonly computedOperation: boolean;
   readonly literalConstruction: boolean;
   readonly source: TargetTypeRef | undefined;
   readonly declaredStorage: TargetTypeRef | undefined;
@@ -74,14 +75,20 @@ export function analyzeCsharpValueReadStages(
     const source = evidence.nodeTargetType.get(node);
     const declaredStorage = evidence.storageTargetType.get(node);
     const readStorage = evidence.readStorageTargetType.get(node);
-    const literal = policy.literals.hasRecipeSyntax(node) ? policy.literals.recipe(node) : undefined;
+    const operand = policy.ast.is.IsParenthesizedExpression(node) ? policy.ast.as.AsParenthesizedExpression(node)?.Expression : undefined;
+    const wrapped = operand === undefined ? undefined : rawStages.get(operand);
+    const recipeSyntax = policy.literals.hasRecipeSyntax(node);
+    const computed = operations.binaryOperation.get(node)?.target.kind === "resolved" ||
+      operations.unaryOperation.get(node)?.target.kind === "resolved" || wrapped?.computedOperation === true;
+    const literal = source !== undefined && (recipeSyntax || computed) ? policy.literals.scalar(node) : undefined;
     if (literal !== undefined && literal.kind !== "represented") {
       const diagnostic = csharpRepresentationDiagnostic(literal);
       issues.push(Object.freeze({ node: diagnostic.sourceNode ?? node, code: diagnostic.code,
         source: diagnostic.source, message: diagnostic.message }));
     }
     const literalConstruction = source !== undefined && literal?.kind === "represented" && literal.value.kind === "present";
-    const selectedOperation = operations.operationResultType.get(node) ?? yieldResumeType(node) ?? (literalConstruction ? source : undefined);
+    const selectedOperation = operations.operationResultType.get(node) ?? yieldResumeType(node) ?? wrapped?.selectedOperation ??
+      (literalConstruction && recipeSyntax ? source : undefined);
     const refinement = evidence.valueRefinement.get(node);
     const narrowedRead = refinement?.kind === "represented" ? refinement.value.selected.carrier : undefined;
     const member = operations.sourceMember.get(node);
@@ -90,9 +97,9 @@ export function analyzeCsharpValueReadStages(
       : member.runtimeUnionProperty.kind === "resolved" ? member.runtimeUnionProperty.resultType : member.rawReadType;
     if (source === undefined && declaredStorage === undefined && readStorage === undefined &&
       selectedOperation === undefined && narrowedRead === undefined && selectedMemberRead === undefined &&
-      selectedMemberStorage === undefined) return undefined;
+      selectedMemberStorage === undefined && !computed) return undefined;
     return Object.freeze({
-      literalConstruction, source, declaredStorage, readStorage, selectedOperation, narrowedRead, selectedMemberRead, selectedMemberStorage,
+      computedOperation: computed, literalConstruction, source, declaredStorage, readStorage, selectedOperation, narrowedRead, selectedMemberRead, selectedMemberStorage,
     });
   }
 

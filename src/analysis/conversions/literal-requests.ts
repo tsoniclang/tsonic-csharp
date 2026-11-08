@@ -40,8 +40,8 @@ export function createCsharpExactLiteralRequestCollector(literals: CsharpNativeL
   const failures: Exclude<CsharpRepresentationOutcome<never>, { readonly kind: "represented" }>[] = [];
   return Object.freeze({ requests, requestReads, requestConversion, seal, failures: () => Object.freeze([...failures]) });
 
-  function isLiteral(expression: Node): boolean {
-    const selected = literals.recipe(expression);
+  function hasScalar(expression: Node): boolean {
+    const selected = literals.scalar(expression);
     if (selected.kind !== "represented") { failures.push(selected); return false; }
     return selected.value.kind === "present";
   }
@@ -64,7 +64,7 @@ export function createCsharpExactLiteralRequestCollector(literals: CsharpNativeL
     operations: Pick<CsharpTargetOperationClassifications, "unaryOperation">,
   ): void {
     if (closed) return failTargetAnalysisInvariant("tsonic-csharp", "Closed native literal requests cannot read another source use.", expression);
-    if (!isLiteral(expression)) return;
+    if (!hasScalar(expression)) return;
     request(expression, physicalSource);
     for (const target of sourceTypes) request(expression, physicalSource, target);
     for (const target of expectedTypes) request(expression, physicalSource, target);
@@ -79,7 +79,7 @@ export function createCsharpExactLiteralRequestCollector(literals: CsharpNativeL
     selection: CsharpConversionSelection,
     physicalSource: TargetTypeRef | undefined,
   ): void {
-    if (!isLiteral(expression)) return;
+    if (!hasScalar(expression)) return;
     const pending: { readonly source: TargetTypeRef; readonly target: TargetTypeRef; readonly selection: CsharpConversionSelection }[] =
       [{ source, target, selection }];
     for (let entry = pending.pop(); entry !== undefined; entry = pending.pop()) {

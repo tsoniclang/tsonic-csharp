@@ -16,15 +16,23 @@ export function analyzeCsharpExactLiteralSelections(
     if (!literals.hasRecipeSyntax(node)) producer.nonLiteral(node);
   }
   for (const request of coalesceCsharpExactLiteralRequests(requests)) {
-    const selected = literals.recipe(request.expression);
+    if (request.propertyKey !== undefined) {
+      if (!producer.has(request.expression, request.target, "property-key", request.source)) producer.select(
+        request.expression, request.target, "property-key", request.source,
+        selectCsharpExactPropertyKeyConversion(request.propertyKey, request.target));
+      continue;
+    }
+    const selected = literals.scalar(request.expression);
     if (selected.kind !== "represented") return selected;
     const literal = selected.value.kind === "present" ? selected.value.value : undefined;
-    if (literal === undefined && request.propertyKey === undefined) { producer.nonLiteral(request.expression); continue; }
-    const role = request.propertyKey === undefined ? "value" : "property-key";
-    if (producer.has(request.expression, request.target, role, request.source)) continue;
-    producer.select(request.expression, request.target, role, request.source,
-      request.propertyKey === undefined ? selectCsharpExactLiteralConversion(literal, request.source, request.target)
-        : selectCsharpExactPropertyKeyConversion(request.propertyKey, request.target));
+    if (literal === undefined) { producer.nonLiteral(request.expression); continue; }
+    if (producer.has(request.expression, request.target, "value", request.source)) continue;
+    const recipe = literals.recipe(request.expression);
+    if (recipe.kind !== "represented") return recipe;
+    const conversion = selectCsharpExactLiteralConversion(literal, request.source, request.target);
+    producer.select(request.expression, request.target, "value", request.source,
+      recipe.value.kind === "none" && conversion.kind === "resolved"
+        ? Object.freeze({ kind: "source-representation" }) : conversion);
   }
   return Object.freeze({ kind: "represented", value: producer.seal() });
 }
