@@ -138,8 +138,8 @@ if (generated != native) throw new Exception($"selected property allocation {gen
 Console.WriteLine($"{generated}:{native}");
 [MethodImpl(MethodImplOptions.NoInlining)]
 static string Handwritten(Tsonic.Generated.Options options) =>
-    Tsonic.CSharp.Js.Intl.formatInteger(9007199254740993L, TsValue.from("en"),
-        TsValue.CreateDynamicObject("useGrouping", TsValue.from(options.useGrouping)));
+    Tsonic.CSharp.Js.Intl.formatInteger(9007199254740993L, TsValue.fromnative("en"),
+        TsValue.CreateDynamicObject("useGrouping", TsValue.fromnative(options.useGrouping)));
 `);
   assert.match(output, /^\d+:\d+\s*$/u);
 });

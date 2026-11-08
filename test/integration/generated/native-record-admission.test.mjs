@@ -10,13 +10,13 @@ export function absent(value: Record<string, unknown> | null | undefined): unkno
 
 const nativeProgram = `
 var dictionary = new System.Collections.Generic.Dictionary<string, Tsonic.CSharp.Runtime.TsValue>();
-dictionary["present"] = Tsonic.CSharp.Runtime.TsValue.from((ulong)1);
+dictionary["present"] = Tsonic.CSharp.Runtime.TsValue.fromnative((ulong)1);
 dictionary["absent"] = Tsonic.CSharp.Runtime.TsValue.undefined();
 var first = Tsonic.Generated.Index.admit(dictionary);
 var second = Tsonic.Generated.Index.admit(dictionary);
 if (!object.ReferenceEquals(first.unwrap(), dictionary) || !object.ReferenceEquals(second.unwrap(), dictionary))
     throw new System.Exception("dictionary alias identity changed");
-dictionary["present"] = Tsonic.CSharp.Runtime.TsValue.from(ulong.MaxValue);
+dictionary["present"] = Tsonic.CSharp.Runtime.TsValue.fromnative(ulong.MaxValue);
 if (first.ReadDynamicSlot("present").unwrap() is not ulong value || value != ulong.MaxValue)
     throw new System.Exception("dictionary mutation or uint64 precision lost");
 first.WriteDynamicSlot("written", first.ReadDynamicSlot("present"));
@@ -55,15 +55,15 @@ export function options(value: Record<string, unknown>): string { return new Int
 ` });
   executeCsharpConstruction(compiled, "native-record-json", false, false, [], `
 var record = new System.Collections.Generic.Dictionary<string, Tsonic.CSharp.Runtime.TsValue> {
-    ["wide"] = Tsonic.CSharp.Runtime.TsValue.from(ulong.MaxValue),
+    ["wide"] = Tsonic.CSharp.Runtime.TsValue.fromnative(ulong.MaxValue),
     ["absent"] = Tsonic.CSharp.Runtime.TsValue.undefined(),
 };
 var expected = "{\\\"wide\\\":18446744073709551615,\\\"absent\\\":null}";
 if (Tsonic.Generated.Index.encode(record) != expected ||
-    Tsonic.Generated.Index.broad(Tsonic.CSharp.Runtime.TsValue.from(record)) != expected)
+    Tsonic.Generated.Index.broad(Tsonic.CSharp.Runtime.TsValue.fromnative(record)) != expected)
     throw new System.Exception("source JSON Record carrier changed exact values");
 var options = new System.Collections.Generic.Dictionary<string, Tsonic.CSharp.Runtime.TsValue> {
-    ["useGrouping"] = Tsonic.CSharp.Runtime.TsValue.from(false),
+    ["useGrouping"] = Tsonic.CSharp.Runtime.TsValue.fromnative(false),
 };
 if (Tsonic.Generated.Index.options(options) != "1234") throw new System.Exception("source Intl Record options did not reach exact slots");
 `);
