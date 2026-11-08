@@ -1,13 +1,12 @@
 import type { Node } from "@tsonic/tsts";
-import { isAstNode } from "@tsonic/target-api/source";
-import type { TsonicAttributeApplicationFactIndex } from "@tsonic/source-core/facts";
+import type { CsharpSourceAttributeApplicationIndex } from "../attributes/application-index.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpOperationIssue } from "../../target-model/records/operations/operations.js";
 import type { CsharpSafetyApplicationFactIndex } from "../../target-model/records/storage/safety.js";
 
 export interface CsharpOperationErasureIndexes {
   readonly errorNameInitializations: ReadonlySet<Node>;
-  readonly attributeApplications: TsonicAttributeApplicationFactIndex;
+  readonly attributeApplications: CsharpSourceAttributeApplicationIndex;
   readonly safetyApplications: Pick<CsharpSafetyApplicationFactIndex, "safetyOperation">;
 }
 
@@ -17,7 +16,7 @@ export interface CsharpOperationErasure extends CsharpOperationErasureIndexes {
 }
 
 export function createCsharpOperationErasure(
-  ast: CsharpPolicyContext["ast"],
+  _ast: CsharpPolicyContext["ast"],
   indexes: CsharpOperationErasureIndexes,
   issues: CsharpOperationIssue[],
 ): CsharpOperationErasure {
@@ -25,8 +24,7 @@ export function createCsharpOperationErasure(
     errorNameInitializations: indexes.errorNameInitializations,
     attributeApplications: indexes.attributeApplications,
     safetyApplications: indexes.safetyApplications,
-    demandedInvocations: new Set(indexes.attributeApplications.all.flatMap(application =>
-      isAstNode(ast, application.invocation) ? [application.invocation] : [])),
+    demandedInvocations: new Set(indexes.attributeApplications.all.map(application => application.invocation)),
     issues,
   });
 }

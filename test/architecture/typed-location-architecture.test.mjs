@@ -23,7 +23,6 @@ const neutralFactReaders = new Map([
   ["tsonicNativePointerOperationFactKey", ["src/source/extension/native-pointers.ts"]],
   ["tsonicSafetyBuilderFactKey", ["src/source/extension/explicit-safety.ts"]],
   ["tsonicUnsafeContextFactKey", ["src/source/extension/explicit-safety.ts"]],
-  ["createTsonicAttributeApplicationFactIndex", ["src/analysis/attributes/application-index.ts"]],
 ]);
 
 function sourceFiles(directory) {
@@ -82,6 +81,27 @@ test("C# backend consumes target-owned marker models only", () => {
         .map((name) => `${path.slice(repositoryRoot.length + 1)}: ${name}`);
     });
   assert.deepEqual(failures, []);
+});
+
+test("Native attributes consume one published Node-only Source owner and retire the raw index", () => {
+  const files = sourceFiles(sourceRoot);
+  const forbidden = /\b(?:createTsonicAttributeApplicationFactIndex|TsonicAttributeApplicationFactIndex|TsonicAttributeApplicationFact|TsonicAttributeBuilderFact|tsonicAttributeBuilderFactKey)\b/u;
+  assert.deepEqual(files.filter(path => forbidden.test(readFileSync(path, "utf8")))
+    .map(path => path.slice(repositoryRoot.length + 1)), []);
+  const owner = readFileSync(join(sourceRoot, "analysis/attributes/application-index.ts"), "utf8");
+  assert.match(owner, /source\.facts\.protocols\.attributeBuilder\(occurrence\)/u);
+  assert.match(owner, /if \(selected\.kind === "refused"\) return selected/u);
+  assert.match(owner, /member\.value\.selectedDeclaration/u);
+  assert.match(owner, /member\.value\.declarations/u);
+  for (const path of ["analysis/attributes/application-index.ts", "analysis/attributes/type-validation.ts",
+    "analysis/operations/statement-erasure.ts"]) {
+    const text = readFileSync(join(sourceRoot, path), "utf8");
+    assert.doesNotMatch(text, /@tsonic\/source-core\/facts|sourceFacts|\.semantics\b/u, path);
+  }
+  const constants = readFileSync(join(sourceRoot, "analysis/attributes/type-validation.ts"), "utf8");
+  assert.match(constants, /application\.sourceArguments\.entries\(\)/u);
+  assert.match(constants, /place\.effectiveArgumentIndex/u);
+  assert.doesNotMatch(constants, /\.Arguments\b|ast\.arguments\(/u);
 });
 
 test("C# backend consumes only resolved C# typed-location operations", () => {

@@ -7,25 +7,34 @@ import type { CsharpConversionClassifications, CsharpValueReadClassifications } 
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
 import { getCsharpTypeofRuntimeKind } from "../../target-model/types/runtime-kind.js";
 import { isCsharpAbsenceTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
-import { isAstNode, type TargetSourceProgram } from "@tsonic/target-api/source";
-import type { TsonicAttributeApplicationFactIndex } from "@tsonic/source-core/facts";
+import type { TargetSourceProgram } from "@tsonic/target-api/source";
+import type { CsharpSourceAttributeApplicationIndex } from "./application-index.js";
+import type { CsharpRepresentationOutcome } from "../../target-model/types/representation.js";
+import { represented } from "../../policy/types/source-type-flow/representation-results.js";
+import { forwardSourceRefusal } from "../source-evidence/representations.js";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 
 export function diagnoseCsharpAttributeTypeValues(
   source: TargetSourceProgram,
-  applications: TsonicAttributeApplicationFactIndex,
+  applications: CsharpSourceAttributeApplicationIndex,
 ): readonly TargetDiagnostic[] {
   const diagnostics: TargetDiagnostic[] = [];
   for (const application of applications.all) {
     const node = application.invocation;
-    const semantics = isAstNode(source.ast, node) ? source.semantics.forNode(node) : undefined;
-    if (isAstNode(source.ast, node) && source.ast.is.IsNewExpression(node) &&
-      semantics?.operations.call(node)?.outcome === "applicable") continue;
+    if (source.ast.is.IsNewExpression(node)) {
+      const original = source.facts.applications.application(node);
+      if (original.kind === "refused") {
+        diagnostics.push(forwardSourceRefusal(original));
+        continue;
+      }
+      if (original.value.kind === "construct") continue;
+    }
     diagnostics.push({
       code: "CSHARP_ATTRIBUTE_CONSTRUCTION_REQUIRED",
       category: "error",
       source: "tsonic-csharp",
       message: "A C# attribute requires an inline lambda containing an exact checked construction: () => new AttributeType(...).",
-      ...(isAstNode(source.ast, node) ? { sourceNode: node } : {}),
+      sourceNode: node,
     });
   }
   return diagnostics;
@@ -47,31 +56,44 @@ export function admitCsharpAttributeArguments(
   source: Pick<TargetSourceProgram, "ast" | "facts">,
   evidence: CsharpAttributeArgumentEvidence,
   invocation: Node,
-): readonly CsharpAttributeArgumentRejection[] {
+): CsharpRepresentationOutcome<readonly CsharpAttributeArgumentRejection[]> {
   const { ast } = source;
   const { operations, conversions, valueReads, sourceEvidence } = evidence;
+  const publication = source.facts.applications.application(invocation);
+  if (publication.kind === "refused") return Object.freeze({ kind: "source-refused", refusal: publication });
+  const application = publication.value;
+  if (application.kind !== "construct" || application.identity.invocation !== invocation)
+    failTargetAnalysisInvariant("tsonic-csharp", "A Native attribute requires its identical original Source construction application.", invocation);
   const construction = operations.selectedConstruction.get(invocation)?.target;
   if (construction?.kind === "resolved" && construction.call.targetMember.csharpInvocation !== undefined) {
-    return [{ node: invocation, reason: "selects a special native invocation rather than a native attribute constructor." }];
+    return represented([{ node: invocation, reason: "selects a special native invocation rather than a native attribute constructor." }]);
   }
   if (construction?.kind === "resolved" && (construction.call.sequenceArguments?.length ?? 0) > 0) {
-    return [{ node: invocation, reason: "spreads a sequence into the attribute constructor; C# attribute arguments are constant expressions." }];
+    return represented([{ node: invocation, reason: "spreads a sequence into the attribute constructor; C# attribute arguments are constant expressions." }]);
   }
   const mappings = construction?.kind === "resolved" && construction.call.origin === "provider"
     ? construction.call.argumentMappings : undefined;
   const mappingsByArgument = new Map(mappings?.map(mapping => [mapping.effectiveArgumentIndex, mapping]));
   const rejections: CsharpAttributeArgumentRejection[] = [];
-  for (const [index, argument] of (ast.as.AsNewExpression(invocation)?.Arguments?.Nodes ?? []).entries()) {
-    if (argument === undefined) continue;
-    const mapping = mappingsByArgument.get(index);
-    if (mappings !== undefined && (mapping?.kind !== "by-value" || !nativeConstantConversion(mapping.conversion))) {
+  for (const [index, authored] of application.sourceArguments.entries()) {
+    if (authored.operand.kind === "refused") return Object.freeze({ kind: "source-refused", refusal: authored.operand });
+    const argument = authored.operand.value.occurrence;
+    const places = application.arguments.filter(place => place.sourceArgumentIndex === index);
+    if (places.some(place => place.sourceArgument !== authored.occurrence)) failTargetAnalysisInvariant("tsonic-csharp",
+      "An attribute binding must retain its identical original authored argument.", invocation);
+    let rejectedConversion = false;
+    if (mappings !== undefined) for (const place of places) {
+      const mapping = mappingsByArgument.get(place.effectiveArgumentIndex);
+      if (mapping?.kind === "by-value" && nativeConstantConversion(mapping.conversion)) continue;
+      rejectedConversion = true;
       rejections.push({ node: argument, reason: `argument ${index + 1} requires a ${
         mapping?.kind === "by-value" ? `'${mapping.conversion.kind}'` : `'${mapping?.kind ?? "missing"}'`} argument conversion, which is not a C# constant conversion.` });
-    } else if (!admittedConstant(argument, false)) {
+    }
+    if (!rejectedConversion && (authored.form === "spread" || !admittedConstant(argument, false))) {
       rejections.push({ node: argument, reason: `argument ${index + 1} is not a C# attribute constant; attribute arguments must be literals, .NET literal fields, native operators over constants, or one-dimensional arrays of them.` });
     }
   }
-  return rejections;
+  return represented(Object.freeze(rejections));
 
   function admittedConstant(node: Node, element: boolean): boolean {
     const pending = [{ node, element }];
