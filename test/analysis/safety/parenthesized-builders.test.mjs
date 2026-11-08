@@ -17,7 +17,7 @@ function compile(body) {
   const compiled = compileCsharpSource({ sourceText: `${header}${body}\n`,
     targetOptions: { languageDialect: "csharp15-preview", memorySafetyRules: "preview" } });
   assert.equal(compiled.sourceDiagnosticsText, "");
-  assert.deepEqual(compiled.extensionDiagnostics, []);
+  assert.deepEqual(compiled.sourceDiagnostics, []);
   assert.deepEqual(compiled.targetDiagnostics, []);
   return compiled.result.artifacts.filter(artifact => artifact.path.endsWith(".cs"))
     .map(artifact => artifact.text).join("\n");
@@ -72,7 +72,7 @@ for (const surface of ["native", "js"]) {
       export function readCount(): int32 { return reads; }
     `, targetOptions: { languageDialect: "csharp15-preview", memorySafetyRules: "preview" } });
     assert.equal(compiled.sourceDiagnosticsText, "", "the supported checked source is unchanged");
-    assert.equal(compiled.extensionDiagnostics.length, 0, "the original explicit unsafe scope remains admitted");
+    assert.equal(compiled.sourceDiagnostics.length, 0, "the original explicit unsafe scope remains admitted");
     assert.equal(compiled.targetDiagnostics.length, 0,
       compiled.targetDiagnostics.map(({ code, message }) => `${code}: ${message}`).join("; "));
     const program = compiled.result.program;

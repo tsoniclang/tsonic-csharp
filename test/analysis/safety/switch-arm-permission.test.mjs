@@ -1,36 +1,39 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createCompilerSessionFromFiles } from "@tsonic/tsts";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { analyzeCsharpSafetyEmission } from "../../../dist/analysis/safety/emission.js";
-import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
+import { createCsharpSafetyApplicationFactIndex } from "../../../dist/analysis/safety/application-index.js";
+import { checkCsharpSource, compileCsharpSource, assertCsharpCheckingSucceeded,
+  assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 
 for (const pointer of [false, true]) {
   test(`conditional-arm source admission retains unsafe permission: ${pointer}`, () => {
-    const checked = createCompilerSessionFromFiles({
-      currentDirectory: "/project",
-      files: { "/project/index.ts": "declare function load(value: number): number; export function read(value: number): number { return value > 0 ? load(value) : 0; }" },
-      compilerOptions: { noLib: true, strict: true, target: "esnext" },
-    }).checkSource();
-    const source = createTargetSourceProgram(checked);
-    const file = checked.getSourceFile("/project/index.ts");
+    const checked = checkCsharpSource({
+      sourceText: "declare function load(value: number): number; export function read(value: number): number { return value > 0 ? load(value) : 0; }",
+      compilerOptions: { target: "esnext" },
+    });
+    assertCsharpCheckingSucceeded(checked);
+    const { source } = checked;
+    const file = source.sourceFiles.find(candidate => source.ast.getPath(candidate) === "/project/index.ts");
+    assert.equal(file !== undefined, true, "the normal Source program retains the original conditional's file");
     const nodes = [];
     const visit = node => { nodes.push(node); source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); }); };
     visit(file);
     const call = nodes.find(node => source.ast.is.IsCallExpression(node));
     assert.equal(call !== undefined, true, "the checked conditional arm has its original source call");
+    const safety = createCsharpSafetyApplicationFactIndex(source);
+    assert.equal(safety.kind, "resolved", "the same original Source program publishes its authentic safety facts");
     const absent = Object.freeze({ get: () => undefined });
     const result = analyzeCsharpSafetyEmission({
       source,
       configuration: { languageDialect: "csharp14", memorySafetyRules: "csharp14" },
-      safety: { all: [], safetyOperation: absent, safetyApplication: { get: () => [] } },
+      safety: safety.value,
       evidence: { nodeTargetType: absent, sourceField: absent },
       operations: { classPropertyStorage: absent, erasedStatement: absent,
         nativePointer: { get: node => pointer && node === call ? { kind: "load" } : undefined } },
       storage: { storageType: absent },
       shapes: { artifacts: [] },
-      unions: { sourceUnions: { get: () => [] } },
+      unions: { sourceRoles: { get: () => [] } },
       admitted: () => true,
     });
     const selected = result.records.unsafeEmission.get(call);
