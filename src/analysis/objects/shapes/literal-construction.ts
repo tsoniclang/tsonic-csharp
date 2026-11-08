@@ -129,7 +129,8 @@ export function createCsharpLiteralShapeResolver(host: CsharpObjectShapePolicyHo
     });
     const uses = owner.methodUses();
     if (uses.kind !== "represented") return uses;
-    shape = retainCsharpMethodValueStorage(shape, host.sourceStorage, uses.value);
-    return represented(Object.freeze({ kind: "present", value: owner.remember(shape) }));
+    const retained = retainCsharpMethodValueStorage(shape, host.sourceStorage, uses.value);
+    if (retained.kind !== "represented") return retained;
+    return represented(Object.freeze({ kind: "present", value: owner.remember(retained.value) }));
   };
 }

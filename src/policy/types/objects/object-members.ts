@@ -12,6 +12,8 @@ import { selectCsharpMethodValueEnvironment } from "./method-environments.js";
 import { csharpDelegateSignatureHasSupportedPassingModes, csharpNativeCallableMemberKey } from "../../../target-model/types/carriers/delegates.js";
 import { getCsharpGenericOptionalParts } from "../../../target-model/types/projections.js";
 import { selectCsharpExplicitImplementationConstraints } from "../../constraints/type-parameter-constraints.js";
+import type { CsharpRepresentationOutcome } from "../../../target-model/types/representation.js";
+import { represented } from "../source-type-flow/representation-results.js";
 
 export function selectCsharpObjectMethodSignature(metadata: CsharpDelegateSignatureShape): CsharpObjectMethodSignature | undefined {
   if (metadata.returnType === undefined || !csharpDelegateSignatureHasSupportedPassingModes(metadata)) return undefined;
@@ -28,9 +30,12 @@ export function selectCsharpObjectMethodSignature(metadata: CsharpDelegateSignat
       passingMode: metadata.parameterPassingModes[index]!, rest: rest === index, optional: optional.has(index) }))) });
 }
 
-export function csharpObjectMethodHasFixedNativeExposure(writes: SourceStorageMemberWritesSelection | undefined): boolean {
-  return writes !== undefined && writes.kind !== "unresolved" && writes.writes.length === 0 &&
-    (writes.kind === "complete" || writes.boundaries.length > 0 && writes.boundaries.every(boundary => boundary.kind === "external-write"));
+export function csharpObjectMethodHasFixedNativeExposure(
+  writes: SourceStorageMemberWritesSelection | undefined,
+): CsharpRepresentationOutcome<boolean> {
+  if (writes?.kind === "refused") return Object.freeze({ kind: "source-refused", refusal: writes });
+  return represented(writes !== undefined && writes.kind !== "unresolved" && writes.writes.length === 0 &&
+    (writes.kind === "complete" || writes.boundaries.length > 0 && writes.boundaries.every(boundary => boundary.kind === "external-write")));
 }
 
 function selectMethods(member: Extract<CsharpObjectShapeMemberFact, { readonly memberKind: "method" }>):

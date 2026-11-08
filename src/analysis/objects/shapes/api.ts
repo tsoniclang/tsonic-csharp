@@ -147,8 +147,9 @@ export function createCsharpObjectShapePolicy(host: CsharpObjectShapePolicyHost)
           return resolveTarget(native.value);
         }, remember, host.sourceStorage, uses.value, source);
       if (failure !== undefined) return failure;
-      return selected === undefined ? nativeRepresentationFailure(site, "CSHARP_METHOD_COPY_UNSUPPORTED",
-        "The copied Native object must preserve its original receiver, method storage, capture identity and lifetime.") : represented(selected);
+      if (selected.kind !== "represented") return selected;
+      return selected.value.kind === "none" ? nativeRepresentationFailure(site, "CSHARP_METHOD_COPY_UNSUPPORTED",
+        "The copied Native object must preserve its original receiver, method storage, capture identity and lifetime.") : represented(selected.value.value);
     },
     resolveNativeParameter: nativeProjections.resolveNativeParameter,
     resolveNativeReturn: nativeProjections.resolveNativeReturn,

@@ -63,7 +63,9 @@ export function createCsharpNativeShapeProjections(host: CsharpObjectShapePolicy
       member.methodValueStorage !== undefined && member.optional !== true && !written.includes(member)));
     if (candidates.size === 0) return represented(shape);
     const subject = host.sourceStorage.subjectFor(parameter);
+    if (subject.kind === "refused") return Object.freeze({ kind: "source-refused", refusal: subject });
     const origins = subject.kind === "resolved" ? host.sourceStorage.closedOriginsFor(subject.subject) : undefined;
+    if (origins?.kind === "refused") return Object.freeze({ kind: "source-refused", refusal: origins });
     if (origins?.kind !== "complete" || origins.origins.length === 0) return represented(shape);
     const formal = sourceOutcome(host.values.declaredSlot(parameter));
     if (formal.kind !== "represented") return formal;
@@ -96,8 +98,12 @@ export function createCsharpNativeShapeProjections(host: CsharpObjectShapePolicy
           !targetTypeRefEquals(member.type, destination.type)) continue;
         const declaration = csharpObjectShapeMethodDeclaration(source, member);
         const storage = declaration === undefined ? undefined : host.sourceStorage.memberSubjectFor(declaration);
-        if (declaration !== undefined && !csharpObjectMethodValueIsExtracted(uses.value, declaration) && storage?.kind === "resolved" &&
-          csharpObjectMethodHasFixedNativeExposure(host.sourceStorage.memberWritesFor(storage.subject))) selected.set(destination, member.type);
+        if (storage?.kind === "refused") return Object.freeze({ kind: "source-refused", refusal: storage });
+        if (declaration !== undefined && !csharpObjectMethodValueIsExtracted(uses.value, declaration) && storage?.kind === "resolved") {
+          const exposure = csharpObjectMethodHasFixedNativeExposure(host.sourceStorage.memberWritesFor(storage.subject));
+          if (exposure.kind !== "represented") return exposure;
+          if (exposure.value) selected.set(destination, member.type);
+        }
       }
       for (const member of candidates) {
         const contract = selected.get(member);
@@ -128,6 +134,7 @@ export function createCsharpNativeShapeProjections(host: CsharpObjectShapePolicy
     const shape = resolveTarget(present);
     if (shape === undefined || !shape.members.some(member => member.memberKind === "method") || host.ast.body(declaration) === undefined) return represented(type);
     const demand = host.sourceStorage.formalMemberWriteDemand(declaration, parameter);
+    if (demand.kind === "refused") return Object.freeze({ kind: "source-refused", refusal: demand });
     if (demand.kind !== "complete") return nativeRepresentationFailure(parameter, "CSHARP_SOURCE_STORAGE_NOT_PROVEN", demand.reason);
     const written: CsharpObjectShapeMemberFact[] = [];
     for (const original of demand.members) {
@@ -157,23 +164,31 @@ export function createCsharpNativeShapeProjections(host: CsharpObjectShapePolicy
     if (producers.some(producer => producer === undefined || producer.targetType.kind !== "target-named" ||
       (producer.targetType as CsharpTargetNamedTypeRef).csharpValueType === true || !targetTypeRefEquals(producer.targetType, present) &&
       !producer.implements?.some(implemented => targetTypeRefEquals(implemented, present)))) return represented(type);
-    const written = shape.members.filter(member => {
-      if (member.memberKind !== "method" || member.readonly === true) return false;
+    const written: CsharpObjectShapeMemberFact[] = [];
+    for (const member of shape.members) {
+      if (member.memberKind !== "method" || member.readonly === true) continue;
       const signature = csharpPresentObjectShapeMethod(member);
-      return signature !== undefined && producers.every(producer => {
+      if (signature === undefined) continue;
+      let everyProducerWrites = true;
+      for (const producer of producers) {
         const candidates = producer!.members.filter(candidate => {
           const selected = csharpPresentObjectShapeMethod(candidate);
           return selected !== undefined && csharpObjectShapeMemberContractKey(selected) === csharpObjectShapeMemberContractKey(signature);
         });
-        return candidates.length === 1 && candidates[0]!.methodValueStorage !== undefined &&
-          candidates[0]!.sourceDeclarations?.some(original => {
-            const subject = host.sourceStorage.memberSubjectFor(original);
-            if (subject.kind !== "resolved") return false;
-            const writes = host.sourceStorage.memberWritesFor(subject.subject);
-            return writes.kind !== "unresolved" && writes.writes.length > 0;
-          }) === true;
-      });
-    });
+        if (candidates.length !== 1 || candidates[0]!.methodValueStorage === undefined) { everyProducerWrites = false; break; }
+        let observedWrite = false;
+        for (const original of candidates[0]!.sourceDeclarations ?? []) {
+          const subject = host.sourceStorage.memberSubjectFor(original);
+          if (subject.kind === "refused") return Object.freeze({ kind: "source-refused", refusal: subject });
+          if (subject.kind !== "resolved") continue;
+          const writes = host.sourceStorage.memberWritesFor(subject.subject);
+          if (writes.kind === "refused") return Object.freeze({ kind: "source-refused", refusal: writes });
+          if (writes.kind !== "unresolved" && writes.writes.length > 0) { observedWrite = true; break; }
+        }
+        if (!observedWrite) { everyProducerWrites = false; break; }
+      }
+      if (everyProducerWrites) written.push(member);
+    }
     if (written.length === 0) return represented(type);
     const selected = resolveCsharpWritableMethodContract(shape, written);
     return selected === undefined ? nativeRepresentationFailure(declaration, "CSHARP_SOURCE_STORAGE_NOT_PROVEN",
