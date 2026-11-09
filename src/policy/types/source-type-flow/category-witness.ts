@@ -10,7 +10,7 @@ const categoryNames: Readonly<Record<SourceCategory, string>> = Object.freeze({
   absence: "Absent", boolean: "Boolean", number: "Number", bigint: "BigInt", string: "String", symbol: "Symbol", object: "Object", function: "Function",
 });
 
-export function sourceCategoryWitnessType(host: Pick<CsharpRepresentationHost, "providers">,
+export function sourceCategoryWitnessType(host: Pick<CsharpRepresentationHost, "providers" | "acquireNativeDeclaration">,
   category: CsharpSourceCategoryWitness, site: Node): CsharpRepresentationOutcome<TargetTypeRef> {
   return category.kind === "witness" ? represented(category.witnessType)
     : sourceRuntimeType(host, `Source${categoryNames[category.category]}Category`, [category.valueType], "struct", site);

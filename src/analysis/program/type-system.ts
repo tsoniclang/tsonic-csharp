@@ -78,7 +78,7 @@ export function createCsharpTypeAnalysis(host: CsharpTypeSystemHost, catalog: Cs
   const sourceRoles = createCsharpSourceRoleRegistry(host.providers, host.typeDefinitions);
   const nativeDelegates = createCsharpNativeDelegateRegistry(host.typeDefinitions);
   representation = createCsharpRepresentationView(createCsharpNativeRepresentationHost({
-    source: host.source, target: host.target, providers: host.providers, catalog, nativeDelegates,
+    source: host.source, target: host.target, providers: host.providers, nativeDeclarations: host.typeDefinitions, catalog, nativeDelegates,
     representation: () => initialized(representation, "The one representation view"),
     retainShape(shape, site) {
       const retained = initialized(objectShapes, "The Native physical-shape registry").retainShape(shape, site);

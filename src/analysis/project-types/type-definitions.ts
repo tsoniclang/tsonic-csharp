@@ -2,6 +2,7 @@ import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
 import type { CsharpNativeDeclaration } from "../../target-model/types/native-declarations.js";
 import type { CsharpTypeDefinitions } from "../../target-model/types/native-definitions.js";
+import type { CsharpProviderNativeDeclarationResolution } from "../../target-model/metadata/provider-metadata.js";
 import { targetTypeRefKey } from "../../target-model/types/equality.js";
 import { applyCsharpNativeDeclaration, csharpNativeDeclarationKey, snapshotCsharpNativeDeclaration } from "../../target-model/types/native-declaration-operations.js";
 
@@ -13,39 +14,22 @@ export interface CsharpNativeDeclarationTransaction {
 }
 
 export interface CsharpTypeDefinitionRegistry extends CsharpTypeDefinitions {
+  acquireNativeDeclaration(identity: string): CsharpProviderNativeDeclarationResolution;
   begin(): CsharpNativeDeclarationTransaction;
   seal(): CsharpTypeDefinitions;
 }
 
 export function createCsharpTypeDefinitionRegistry(
-  acquire: (identity: string) => CsharpNativeDeclaration | undefined,
+  acquire: (identity: string) => CsharpProviderNativeDeclarationResolution,
 ): CsharpTypeDefinitionRegistry {
   const declarations = new Map<string, CsharpNativeDeclaration>();
   const reservations = new Map<string, object>();
-  const absent = new Set<string>();
   const applications = new Map<string, ReturnType<CsharpTypeDefinitions["nativeDeclaration"]>>();
   let sealed = false;
 
   const nativeDeclaration: CsharpTypeDefinitions["nativeDeclaration"] = carrier => {
     if (carrier.kind !== "target-named") return undefined;
-    let definition = declarations.get(carrier.id);
-    if (definition === undefined && !sealed && !absent.has(carrier.id) && !reservations.has(carrier.id)) {
-      const acquired = acquire(carrier.id);
-      if (acquired === undefined) absent.add(carrier.id);
-      else {
-        if (acquired.carrier.id !== carrier.id) failTargetAnalysisInvariant("tsonic-csharp",
-          "A Native definition acquisition must retain its exact requested physical identity.");
-        const transaction = begin();
-        transaction.reserve(carrier.id);
-        try {
-          transaction.complete(acquired);
-          definition = transaction.commit()[0];
-        } catch (error) {
-          transaction.abort();
-          throw error;
-        }
-      }
-    }
+    const definition = declarations.get(carrier.id);
     if (definition === undefined) return undefined;
     const key = targetTypeRefKey(carrier, "emission");
     if (applications.has(key)) return applications.get(key);
@@ -55,6 +39,25 @@ export function createCsharpTypeDefinitionRegistry(
   };
   const nativeDeclarationKind: CsharpTypeDefinitions["nativeDeclarationKind"] = carrier => nativeDeclaration(carrier)?.definition.kind;
   const nativeSupertypes: CsharpTypeDefinitions["nativeSupertypes"] = carrier => nativeDeclaration(carrier)?.supertypes;
+
+  function acquireNativeDeclaration(identity: string): CsharpProviderNativeDeclarationResolution {
+    if (sealed || identity.length === 0 || reservations.has(identity)) failTargetAnalysisInvariant("tsonic-csharp",
+      "A Native declaration acquisition requires an original unreserved identity before sealing.");
+    const existing = declarations.get(identity);
+    if (existing !== undefined) return Object.freeze({ kind: "resolved", definition: existing });
+    const selected = acquire(identity);
+    if (selected.kind !== "resolved") return selected;
+    const transaction = begin();
+    transaction.reserve(identity);
+    try {
+      transaction.complete(selected.definition);
+      const definition = transaction.commit()[0]!;
+      return Object.freeze({ kind: "resolved", definition });
+    } catch (error) {
+      transaction.abort();
+      throw error;
+    }
+  }
 
   function begin(): CsharpNativeDeclarationTransaction {
     if (sealed) failTargetAnalysisInvariant("tsonic-csharp", "Native declaration transactions begin before sealing.");
@@ -101,7 +104,6 @@ export function createCsharpTypeDefinitionRegistry(
           }
           for (const definition of result) {
             declarations.set(definition.carrier.id, definition);
-            absent.delete(definition.carrier.id);
           }
           return Object.freeze(result);
         } finally {
@@ -112,7 +114,7 @@ export function createCsharpTypeDefinitionRegistry(
     });
   }
 
-  return Object.freeze({ nativeDeclaration, nativeDeclarationKind, nativeSupertypes, begin,
+  return Object.freeze({ nativeDeclaration, nativeDeclarationKind, nativeSupertypes, acquireNativeDeclaration, begin,
     seal() {
       if (sealed || reservations.size !== 0) failTargetAnalysisInvariant("tsonic-csharp",
         "The Native declaration catalog seals exactly once after every reserved transaction completes or aborts.");

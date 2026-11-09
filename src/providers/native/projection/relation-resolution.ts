@@ -4,7 +4,7 @@ import type { DotnetReflectionTypeDataProvider } from "../acquisition/provider.j
 import { resolveDotnetProviderTargetRelations } from "./target-relation-resolver.js";
 import type { CsharpProviderTargetRelation } from "../../../target-model/identities/provider-relations.js";
 import { assertCsharpProviderPolicyIsNonContradictory, createCsharpProviderRejectionCatalog, createCsharpProviderRelationCatalog, providerMemberSourceIdentity, providerSignatureSourceIdentity, providerTypeSourceIdentity, providerValueSourceIdentity } from "../../model/provider-relations.js";
-import type { CsharpProviderPolicyContribution, CsharpProviderBindingResolution, CsharpProviderBindingLookupPurpose, CsharpProviderNativeBindingResolution } from "../../../target-model/metadata/provider-metadata.js";
+import type { CsharpProviderPolicyContribution, CsharpProviderBindingResolution, CsharpProviderBindingLookupPurpose, CsharpProviderNativeBindingResolution, CsharpProviderNativeDeclarationResolution } from "../../../target-model/metadata/provider-metadata.js";
 import { dotnetExtensionDiagnostic } from "../model/diagnostics.js";
 import { dotnetReflectionProviderIdentity } from "../acquisition/provider-identity.js";
 import { canonicalProviderValue } from "../../../target-model/metadata/canonical-value.js";
@@ -19,6 +19,7 @@ import { createCsharpProviderIdentityPublication } from "./native-identity-publi
 import type { CsharpProviderIdentityPublication } from "../../model/relation-resolver.js";
 import { csharpExceptionTargetType, csharpRuntimeErrorTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import { csharpSourceErrorNames } from "../../../target-model/identities/source-errors.js";
+import { csharpNativeDeclarationKey, snapshotCsharpNativeDeclaration } from "../../../target-model/types/native-declaration-operations.js";
 
 export interface CsharpProviderRelationResolverInputs {
   readonly providers: readonly DotnetReflectionTypeDataProvider[];
@@ -33,6 +34,7 @@ export function createCsharpProviderRelationResolver(
     ...csharpBuiltInProviderPolicies().map((policy) => ({
       ...policy,
       targetBindings: Object.freeze(policy.relations.map(relation => relation.targetBinding)),
+      nativeDeclarations: Object.freeze([]),
       rejections: [],
     })),
     ...inputs.providerPolicies,
@@ -40,6 +42,7 @@ export function createCsharpProviderRelationResolver(
     providerId: contribution.providerId,
     providerVersion: contribution.providerVersion,
     targetBindings: contribution.targetBindings,
+    nativeDeclarations: Object.freeze(contribution.nativeDeclarations.map(snapshotCsharpNativeDeclaration)),
     relationCatalog: createCsharpProviderRelationCatalog([
       contribution.relations,
     ]),
@@ -73,7 +76,7 @@ export function createCsharpProviderRelationResolver(
   >();
   let runtimePrepared = false;
   const failures = new Map<string, ExtensionDiagnostic>();
-  const retained = <Value extends CsharpProviderBindingResolution | CsharpProviderRelationResolution | CsharpProviderRuntimeAcquisition>(result: Value): Value => {
+  const retained = <Value extends CsharpProviderBindingResolution | CsharpProviderRelationResolution | CsharpProviderRuntimeAcquisition | CsharpProviderNativeDeclarationResolution>(result: Value): Value => {
     if (result.kind === "rejected") {
       const diagnostic = result.diagnostic;
       failures.set(canonicalProviderValue(diagnostic), diagnostic);
@@ -174,6 +177,26 @@ export function createCsharpProviderRelationResolver(
     assertCsharpProviderLookupPurpose(purpose);
     return retained(purpose === "inheritance" ? inheritanceQuery(metadataName, "metadata")
       : publishBinding(ordinaryQuery(metadataName, "metadata")));
+  }
+  function acquireNativeDeclaration(identity: string): CsharpProviderNativeDeclarationResolution {
+    const candidates: readonly CsharpProviderNativeDeclarationResolution[] = [
+      ...providers.map(provider => provider.acquireNativeDeclaration(identity)),
+      ...staticCatalogs.flatMap(policy => policy.nativeDeclarations
+        .filter(definition => definition.carrier.id === identity)
+        .map(definition => Object.freeze({ kind: "resolved" as const, definition }))),
+    ];
+    const rejected = candidates.find(candidate => candidate.kind === "rejected");
+    if (rejected !== undefined) return retained(rejected);
+    const definitions = candidates.flatMap(candidate => candidate.kind === "resolved" ? [candidate.definition] : []);
+    const definition = definitions[0];
+    if (definition === undefined) return Object.freeze({ kind: "missing" });
+    const key = csharpNativeDeclarationKey(definition);
+    if (definitions.some(candidate => candidate.carrier.id !== identity || csharpNativeDeclarationKey(candidate) !== key)) {
+      return retained(Object.freeze({ kind: "rejected", diagnostic: dotnetExtensionDiagnostic(dotnetReflectionProviderIdentity.id,
+        "CSHARP_PROVIDER_NATIVE_DECLARATION_CONFLICT", 9200000,
+        "C# providers supplied contradictory complete Native declaration identities or ABI inventories.", [{ targetId: identity }]) }));
+    }
+    return Object.freeze({ kind: "resolved", definition });
   }
   const resolve = (
     declaration: ProviderVirtualDeclarationFact | undefined,
@@ -315,6 +338,7 @@ export function createCsharpProviderRelationResolver(
     },
     findTargetBindingByTargetId,
     findTargetBindingByMetadataName,
+    acquireNativeDeclaration,
   });
 }
 

@@ -6,12 +6,15 @@ import { csharpProviderPolicyContributionKind, type CsharpProviderPolicyContribu
 import type { CsharpTargetBinaryExecutionDriver } from "../../target-model/types/model.js";
 import { hasExactContributionFields, isContributionRecord, nonEmptyContributionString } from "./contribution-values.js";
 import { snapshotCsharpMetadata } from "../../target-model/metadata/immutable.js";
+import type { CsharpNativeDeclaration } from "../../target-model/types/native-declarations.js";
+import { snapshotCsharpNativeDeclaration } from "../../target-model/types/native-declaration-operations.js";
 
 export function csharpProviderPolicyContribution(
   input: {
     readonly providerId: string;
     readonly providerVersion: string;
     readonly targetBindings: readonly CsharpTargetBindingFact[];
+    readonly nativeDeclarations: readonly CsharpNativeDeclaration[];
     readonly relations: readonly CsharpProviderTargetRelation[];
     readonly rejections: readonly CsharpProviderTargetRejection[];
     readonly binaryExecutionDriver?: CsharpTargetBinaryExecutionDriver;
@@ -24,6 +27,7 @@ export function csharpProviderPolicyContribution(
       "providerId",
       "providerVersion",
       "targetBindings",
+      "nativeDeclarations",
       "relations",
       "rejections",
       "binaryExecutionDriver",
@@ -31,16 +35,18 @@ export function csharpProviderPolicyContribution(
     !nonEmptyContributionString(input.providerId) ||
     !nonEmptyContributionString(input.providerVersion) ||
     !Array.isArray(input.targetBindings) ||
+    !Array.isArray(input.nativeDeclarations) ||
     !Array.isArray(input.relations) ||
     !Array.isArray(input.rejections)
   ) {
     throw new Error(
-      "C# provider policy contributions require one object containing providerId, providerVersion, targetBindings, relations and rejections.",
+      "C# provider policy contributions require one object containing providerId, providerVersion, targetBindings, nativeDeclarations, relations and rejections.",
     );
   }
   return snapshotCsharpMetadata({
     kind: csharpProviderPolicyContributionKind,
     ...input,
+    nativeDeclarations: completeProviderDeclarations(input.nativeDeclarations, input.targetBindings),
   });
 }
 
@@ -56,6 +62,7 @@ export function validateCsharpProviderPolicyContribution(
       "providerId",
       "providerVersion",
       "targetBindings",
+      "nativeDeclarations",
       "relations",
       "rejections",
       "binaryExecutionDriver",
@@ -63,6 +70,7 @@ export function validateCsharpProviderPolicyContribution(
     !nonEmptyContributionString(contribution.providerId) ||
     !nonEmptyContributionString(contribution.providerVersion) ||
     !Array.isArray(contribution.targetBindings) ||
+    !Array.isArray(contribution.nativeDeclarations) ||
     !Array.isArray(contribution.relations) ||
     !Array.isArray(contribution.rejections)
   ) {
@@ -124,7 +132,28 @@ export function validateCsharpProviderPolicyContribution(
       );
     }
   }
-  return snapshot;
+  return Object.freeze({ ...snapshot,
+    nativeDeclarations: completeProviderDeclarations(snapshot.nativeDeclarations, snapshot.targetBindings) });
+}
+
+function completeProviderDeclarations(
+  declarations: readonly CsharpNativeDeclaration[], bindings: readonly CsharpTargetBindingFact[],
+): readonly CsharpNativeDeclaration[] {
+  const completed = Object.freeze(declarations.map(snapshotCsharpNativeDeclaration));
+  const identities = new Set(completed.map(definition => definition.carrier.id));
+  if (identities.size !== completed.length) {
+    throw new TypeError("A C# provider declares each original Native physical type exactly once.");
+  }
+  for (const binding of bindings) {
+    const type = binding.csharpType;
+    const named = type === undefined
+      ? ["class", "struct", "interface", "enum", "delegate"].includes(binding.kind)
+      : type.kind === "target-named";
+    if (named && !identities.has(type?.kind === "target-named" ? type.id : binding.id)) {
+      throw new TypeError("A C# provider's owned named binding requires its complete original Native declaration.");
+    }
+  }
+  return completed;
 }
 
 function validateCsharpProviderRejection(

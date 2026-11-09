@@ -28,11 +28,13 @@ import { selectCsharpSourceParameterEvidenceVector } from "../../policy/types/ca
 import { selectCsharpClassFactoryType } from "../project-types/class-factory-types.js";
 import { csharpSourceParameterPassingMode } from "../../source/extension/arguments.js";
 import type { CsharpNativeCallableRequest, CsharpNativeDelegateRegistry } from "../callables/native/native-delegates.js";
+import type { CsharpTypeDefinitionRegistry } from "../project-types/type-definitions.js";
 
 export interface CsharpNativeRepresentationPorts {
   readonly source: TargetSourceProgram;
   readonly target: TargetSelection;
   readonly providers: CsharpProviderRelationResolver;
+  readonly nativeDeclarations: Pick<CsharpTypeDefinitionRegistry, "acquireNativeDeclaration" | "nativeDeclarationKind">;
   readonly catalog: CsharpProjectTypeCatalog;
   readonly representation: () => CsharpRepresentationView;
   readonly retainShape: (shape: CsharpObjectShapeFact, site: Node) => CsharpRepresentationOutcome<CsharpObjectShapeFact>;
@@ -48,6 +50,7 @@ export function createCsharpNativeRepresentationHost(ports: CsharpNativeRepresen
     source: sourceView,
     applications: source.facts.applications,
     providers,
+    acquireNativeDeclaration: ports.nativeDeclarations.acquireNativeDeclaration,
     target: ports.target,
     identity(declaration) {
       const identity = csharpSourceNodeIdentity(ast, declaration);
@@ -58,12 +61,14 @@ export function createCsharpNativeRepresentationHost(ports: CsharpNativeRepresen
     },
     nativeConstraints(_original, bound, _defaultType, parameter, site) {
       return selectCsharpRepresentationConstraints({ bound, parameter, site, providers,
+        acquireNativeDeclaration: ports.nativeDeclarations.acquireNativeDeclaration,
         nativeDeclarationKind(carrier) {
           const project = catalog.definitionForTarget(carrier);
-          if (project !== undefined) return project.kind;
-          if (carrier.kind !== "target-named") return undefined;
-          const binding = providers.findTargetBindingByTargetId(carrier.id, "ordinary");
-          return binding.kind === "resolved" ? binding.binding.kind : undefined;
+          if (project !== undefined) return represented(project.kind);
+          if (carrier.kind !== "target-named") return represented(undefined);
+          const acquired = ports.nativeDeclarations.acquireNativeDeclaration(carrier.id);
+          if (acquired.kind === "rejected") return Object.freeze({ kind: "provider-refused", diagnostic: acquired.diagnostic });
+          return represented(acquired.kind === "resolved" ? acquired.definition.kind : undefined);
         } });
     },
     declaredType(evidence, arguments_, site) {

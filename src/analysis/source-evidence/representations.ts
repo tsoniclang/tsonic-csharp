@@ -1,5 +1,5 @@
 import type { Node } from "@tsonic/tsts";
-import { failTargetAnalysisInvariant, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import { failTargetAnalysisInvariant, targetDiagnosticFromExtension, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   SourceApplication,
   SourceProgramFacts,
@@ -29,6 +29,7 @@ export function forwardSourceRefusal(refusal: SourceRefusal): TargetDiagnostic {
 export function csharpRepresentationDiagnostic(
   outcome: Exclude<CsharpRepresentationOutcome<unknown>, { readonly kind: "represented" }>,
 ): TargetDiagnostic {
+  if (outcome.kind === "provider-refused") return targetDiagnosticFromExtension(undefined, outcome.diagnostic);
   return outcome.kind === "source-refused" ? forwardSourceRefusal(outcome.refusal) : Object.freeze({
     code: outcome.code,
     category: "error",

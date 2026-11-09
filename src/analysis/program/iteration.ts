@@ -81,7 +81,7 @@ export function analyzeCsharpRepresentationIteration(
   let completedPolicy: CsharpPolicyContext | undefined;
   const nativeValue = createCsharpNativeValueQuery(source, () => completedPolicy ?? failTargetAnalysisInvariant(
     "tsonic-csharp", "Native value production requires the identical initialized representation policy."), previous);
-  const typeDefinitions = createCsharpTypeDefinitionRegistry(id => csharpProviderBindingFromResolution(providers.findTargetBindingByTargetId(id, "ordinary")));
+  const typeDefinitions = createCsharpTypeDefinitionRegistry(identity => providers.acquireNativeDeclaration(identity));
   const typeSystem = createCsharpTypeAnalysis(
     { ...typeHost, typeDefinitions, nativeValue },
     createCsharpProjectTypeCatalog({ ast: source.ast, facts: source.facts }, previous?.typeProjections),

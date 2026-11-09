@@ -8,10 +8,10 @@ import { csharpTargetNamedType } from "../../target-model/types/factories.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/equality.js";
 import { csharpFreeTypeParameterIdentities } from "../../target-model/types/generic-references.js";
 import { createCsharpMetadataBudget } from "../../target-model/metadata/immutable.js";
-import { represented, nativeRepresentationFailure } from "../../policy/types/source-type-flow/representation-results.js";
+import { represented } from "../../policy/types/source-type-flow/representation-results.js";
 import type { CsharpProviderRelationResolver } from "../../providers/model/relation-resolver.js";
 import type { CsharpTypeDefinitionRegistry } from "./type-definitions.js";
-import { csharpTargetTypeFromBinding } from "../../policy/types/storage/bindings.js";
+import { sourceNativeType } from "../../policy/types/source-type-flow/representation-runtime.js";
 import { csharpNativeCallableTargetMember } from "../../target-model/types/native-declaration-operations.js";
 import { csharpSourcePrimitiveTargetType } from "../../target-model/types/carriers/scalar-types.js";
 import type { CsharpNativeCallableMember } from "../../target-model/types/native-type-data.js";
@@ -55,15 +55,10 @@ export function createCsharpSourceRoleRegistry(
       const previous = records.get(key);
       if (previous !== undefined) return represented(previous.carrier);
       if (!open) failTargetAnalysisInvariant("tsonic-csharp", "Native Source role implementations cannot appear after their registry is sealed.", site);
-      const selected = providers.findTargetBindingByMetadataName("Tsonic.CSharp.Runtime.ISourceUnionRole`2", "ordinary");
-      if (selected.kind !== "resolved" || selected.binding.kind !== "interface" || selected.binding.typeParameters?.length !== 2) {
-        return nativeRepresentationFailure(site, "CSHARP_SOURCE_ROLE_CONTRACT_MISSING",
-          selected.kind === "rejected" ? selected.diagnostic.message :
-            "A Source role witness requires the exact two-parameter Native ISourceUnionRole interface binding.");
-      }
-      const contract = csharpTargetTypeFromBinding(selected.binding, [implementation.storage, implementation.value]);
-      if (contract?.kind !== "target-named") return nativeRepresentationFailure(site, "CSHARP_SOURCE_ROLE_CONTRACT_MISSING",
-        "A Source role witness requires the actual represented Native ISourceUnionRole interface.");
+      const selected = sourceNativeType({ providers, acquireNativeDeclaration: definitions.acquireNativeDeclaration },
+        "Tsonic.CSharp.Runtime.ISourceUnionRole`2", [implementation.storage, implementation.value], "interface", site);
+      if (selected.kind !== "represented") return selected;
+      const contract = selected.value;
       budget.reserve(1 + implementation.storageSlots.length + implementation.valueSlots.length + parameters.length);
       const name = `SourceRole_${createHash("sha256").update(key).digest("hex").slice(0, 20)}`;
       const carrier = csharpTargetNamedType(`tsonic.source-role:${name}`, Object.freeze([...parameters]),

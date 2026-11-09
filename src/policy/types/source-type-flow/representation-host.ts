@@ -19,6 +19,7 @@ import type {
 } from "../../../target-model/types/representation.js";
 import type { CsharpNativeStorageCategory, CsharpNativeStorageDefinition, CsharpNativeStorageKey } from "../../../target-model/types/native-storage.js";
 import type { CsharpProviderRelationResolver } from "../../../providers/model/relation-resolver.js";
+import type { CsharpProviderNativeDeclarationResolution } from "../../../target-model/metadata/provider-metadata.js";
 
 export interface CsharpSourceMemberDeclaration {
   readonly declarations: readonly Node[];
@@ -32,6 +33,7 @@ export interface CsharpRepresentationHost {
   readonly applications: SourceApplicationFacts;
   readonly target: TargetSelection;
   readonly providers: Pick<CsharpProviderRelationResolver, "findTargetBindingByMetadataName">;
+  acquireNativeDeclaration(identity: string): CsharpProviderNativeDeclarationResolution;
   identity(node: Node): { readonly identity: string; readonly name: string | undefined };
   nativeConstraints(
     parameter: SourceTypeParameter,

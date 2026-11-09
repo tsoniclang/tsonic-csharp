@@ -1,4 +1,4 @@
-import type { Node } from "@tsonic/tsts";
+import type { ExtensionDiagnostic, Node } from "@tsonic/tsts";
 import type {
   SourceApplicationIdentity,
   SourceCategory,
@@ -25,6 +25,7 @@ export interface CsharpNativeRepresentationRefusal {
 export type CsharpRepresentationOutcome<Value> =
   | { readonly kind: "represented"; readonly value: Value }
   | { readonly kind: "source-refused"; readonly refusal: SourceRefusal }
+  | { readonly kind: "provider-refused"; readonly diagnostic: ExtensionDiagnostic }
   | CsharpNativeRepresentationRefusal;
 
 export type CsharpRepresentationPosition =

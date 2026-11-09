@@ -5,11 +5,11 @@ import type { CsharpRepresentationHost } from "./representation-host.js";
 import { sourceNativeGenericDefinition } from "./representation-runtime.js";
 import { represented } from "./representation-results.js";
 
-const definitionsByHost = new WeakMap<CsharpRepresentationHost["providers"], CsharpOptionalStorageDefinitions>();
+const definitionsByHost = new WeakMap<CsharpRepresentationHost["acquireNativeDeclaration"], CsharpOptionalStorageDefinitions>();
 
-export function acquireCsharpOptionalStorageDefinitions(host: Pick<CsharpRepresentationHost, "providers">,
+export function acquireCsharpOptionalStorageDefinitions(host: Pick<CsharpRepresentationHost, "providers" | "acquireNativeDeclaration">,
   site: Node): Exclude<CsharpRepresentationOutcome<CsharpOptionalStorageDefinitions>, { readonly kind: "source-refused" }> {
-  const previous = definitionsByHost.get(host.providers);
+  const previous = definitionsByHost.get(host.acquireNativeDeclaration);
   if (previous !== undefined) return represented(previous);
   const declarations = [
     ["contract", "IOptionalStorage`2", 2, "interface"],
@@ -28,6 +28,6 @@ export function acquireCsharpOptionalStorageDefinitions(host: Pick<CsharpReprese
   const definitions: CsharpOptionalStorageDefinitions = Object.freeze({ contract: acquired.get("contract")!,
     value: acquired.get("value")!, nullableValue: acquired.get("nullableValue")!, reference: acquired.get("reference")!,
     absence: acquired.get("absence")!, jsValue: acquired.get("jsValue")! });
-  definitionsByHost.set(host.providers, definitions);
+  definitionsByHost.set(host.acquireNativeDeclaration, definitions);
   return represented(definitions);
 }

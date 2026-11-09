@@ -348,6 +348,15 @@ export function createDotnetReflectionTypeDataProvider(
 
   const typeDataProvider: DotnetReflectionTypeDataProvider = {
     identity: providerIdentity,
+    acquireNativeDeclaration(identity): CsharpProviderNativeDeclarationResolution {
+      const binding = typeDataProvider.findTargetBindingByTargetId(identity, "ordinary");
+      if (binding.kind !== "resolved") return binding;
+      const definition = targetBindingIndex.acquireNativeDeclaration(identity);
+      if (definition === undefined) return Object.freeze({ kind: "missing" });
+      if ("code" in definition) return Object.freeze({ kind: "rejected",
+        diagnostic: dotnetProviderDiagnosticToExtensionDiagnostic(providerIdentity.id, definition) });
+      return Object.freeze({ kind: "resolved", definition });
+    },
     validateReferences(): ExtensionDiagnostic | undefined {
       const result = validateReferenceSnapshot();
       if (result !== undefined) return dotnetProviderDiagnosticToExtensionDiagnostic(providerIdentity.id, result);

@@ -6,7 +6,7 @@ import { selectCsharpOptionalStorage } from "../../../target-model/types/optiona
 import { acquireCsharpOptionalStorageDefinitions } from "./optional-definitions.js";
 import { represented } from "./representation-results.js";
 
-export function representCsharpOptionalStorage(host: Pick<CsharpRepresentationHost, "providers">,
+export function representCsharpOptionalStorage(host: Pick<CsharpRepresentationHost, "providers" | "acquireNativeDeclaration">,
   payload: TargetTypeRef, site: Node): Exclude<CsharpRepresentationOutcome<CsharpOptionalStorageLayout>, { readonly kind: "source-refused" }> {
   const definitions = acquireCsharpOptionalStorageDefinitions(host, site);
   return definitions.kind !== "represented" ? definitions : represented(selectCsharpOptionalStorage(payload, definitions.value));

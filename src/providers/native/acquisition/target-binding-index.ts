@@ -14,11 +14,16 @@ import { diagnostic } from "../model/diagnostics.js";
 import type { CsharpProviderBindingResolution } from "../../../target-model/metadata/provider-metadata.js";
 import { dotnetExtensionDiagnostic } from "../model/diagnostics.js";
 import { dotnetReflectionProviderIdentity } from "./provider-identity.js";
+import type { CsharpNativeDeclaration } from "../../../target-model/types/native-declarations.js";
+import { csharpNativeDeclarationKey } from "../../../target-model/types/native-declaration-operations.js";
+import { snapshotCsharpMetadata } from "../../../target-model/metadata/immutable.js";
+import { dotnetTypeToNativeDeclaration } from "../projection/native-declarations.js";
 
 export interface DotnetTargetBindingIndex extends DotnetTargetRelationLookup {
   readonly rememberModule: (module: DotnetModuleModel, request: DotnetProviderCacheRequest) => DotnetProviderDiagnostic | undefined;
   readonly getByTargetId: (targetId: string) => TargetBindingFact | undefined;
   readonly getCompleteCandidatesByMetadataName: (metadataName: string) => readonly TargetBindingFact[];
+  readonly acquireNativeDeclaration: (targetId: string) => CsharpNativeDeclaration | DotnetProviderDiagnostic | undefined;
 }
 
 export function createDotnetTargetBindingIndex(): DotnetTargetBindingIndex {
@@ -32,6 +37,8 @@ export function createDotnetTargetBindingIndex(): DotnetTargetBindingIndex {
     DotnetTargetMemberProjection[]
   >();
   const functionProjectionsByProviderId = new Map<string, DotnetTargetFunctionProjection[]>();
+  const nativeOriginals = new Map<string, Map<string, DotnetTypeDeclaration>>();
+  const nativeDeclarations = new Map<string, CsharpNativeDeclaration>();
 
   function rememberModule(module: DotnetModuleModel, request: DotnetProviderCacheRequest): DotnetProviderDiagnostic | undefined {
     const targetOnlyDeclarations = new Set(module.targetOnlyTypes ?? []);
@@ -69,6 +76,13 @@ export function createDotnetTargetBindingIndex(): DotnetTargetBindingIndex {
       targetBindingsByTargetId.set(mergedTargetBinding.id, mergedTargetBinding);
       if (targetOnlyDeclarations.has(declaration) || dotnetTypeDeclarationIsComplete(declaration, request)) {
         completeTargetIds.add(mergedTargetBinding.id);
+        const originals = nativeOriginals.get(mergedTargetBinding.id) ?? new Map<string, DotnetTypeDeclaration>();
+        const key = canonicalProviderValue(declaration);
+        if (!originals.has(key)) {
+          originals.set(key, snapshotCsharpMetadata(declaration));
+          nativeOriginals.set(mergedTargetBinding.id, originals);
+          nativeDeclarations.delete(mergedTargetBinding.id);
+        }
       }
       const targetIds = targetIdsByMetadataName.get(declaration.metadataName) ?? new Set<string>();
       targetIds.add(mergedTargetBinding.id);
@@ -143,6 +157,25 @@ export function createDotnetTargetBindingIndex(): DotnetTargetBindingIndex {
 
   return {
     rememberModule,
+    acquireNativeDeclaration(targetId) {
+      const previous = nativeDeclarations.get(targetId);
+      if (previous !== undefined) return previous;
+      const originals = nativeOriginals.get(targetId);
+      if (originals === undefined) return undefined;
+      let definition: CsharpNativeDeclaration | undefined;
+      let key: string | undefined;
+      for (const original of originals.values()) {
+        const projected = dotnetTypeToNativeDeclaration(original);
+        if ("code" in projected) return projected;
+        const candidate = csharpNativeDeclarationKey(projected);
+        if (key !== undefined && candidate !== key) return diagnostic("DOTNET_REFLECTION_NATIVE_DECLARATION_CONFLICT",
+          ".NET reflection provider supplied contradictory complete Native declaration inventories.", { targetId });
+        definition ??= projected;
+        key ??= candidate;
+      }
+      if (definition !== undefined) nativeDeclarations.set(targetId, definition);
+      return definition;
+    },
     getByTargetId(targetId: string): TargetBindingFact | undefined {
       return completeTargetIds.has(targetId)
         ? targetBindingsByTargetId.get(targetId)
