@@ -8,7 +8,7 @@ import type { CsharpObjectShapeFact } from "../../../../target-model/types/index
 import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import type { DestructuringPlannerState } from "../../planning-data.js";
 import { planCsharpObjectCaptureAssignments } from "../authored-methods.js";
-import { csharpConstructibleTypeFromObjectShapeFact } from "../index.js";
+import { csharpConstructibleTypeFromObjectShapeFact } from "../type-references.js";
 import type { ExpressionPlanner } from "../../planning-data.js";
 import {
   planObjectShapeLiteralAssignment,

@@ -35,7 +35,7 @@ export function analyzeCsharpUnaryEmission(input: { readonly ast: AstReader; rea
       continue;
     }
     if (selected.kind === "rejected") { refuse(node, selected.reason); continue; }
-    if (selected.kind === "source-refused" || selected.kind === "native-refused") {
+    if (selected.kind === "source-refused" || selected.kind === "native-refused" || selected.kind === "provider-refused") {
       issues.push(csharpRepresentationDiagnostic(selected)); continue;
     }
     const postfix = selected.form === "postfix";

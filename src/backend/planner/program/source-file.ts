@@ -178,7 +178,7 @@ export function planSourceFile(
           case KindTryStatement:
           case KindDebuggerStatement:
           case KindLabeledStatement:
-            topLevelStatements.push(...planStatements(statement, sourceFile, input, diagnostics, topLevelState));
+            topLevelStatements.push(...input.dispatch.planStatements(statement, sourceFile, input, diagnostics, topLevelState));
             break;
           default:
             failCsharpPlannerInvariant("An admitted native source module contains an unplanned top-level statement.", statement);

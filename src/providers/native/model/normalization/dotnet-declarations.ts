@@ -1,5 +1,5 @@
 import { dotnetConversionOperatorNameMatchesKind, validateDotnetTargetIdentity, validateOptionalDotnetAssemblyReference, validateOptionalDotnetRenderShape } from "./dotnet-identities.js";
-import { requireNonEmptyString, requireSupportedDiscriminant, requireUnique, supportedDotnetConversionKinds, supportedDotnetConversionOperatorNames, supportedDotnetExportKinds, supportedDotnetMemberKinds, supportedDotnetTypeKinds, supportedReturnPassingModes } from "./support.js";
+import { readContractRecord, requireNonEmptyString, requireSupportedDiscriminant, requireUnique, supportedDotnetConversionKinds, supportedDotnetConversionOperatorNames, supportedDotnetExportKinds, supportedDotnetMemberKinds, supportedDotnetTypeKinds, supportedReturnPassingModes } from "./support.js";
 import { validateDotnetConstraints, validateDotnetSignatureList, validateDotnetTypeParameters, validateUnsupportedConstraints, validateUnsupportedMembers } from "./dotnet-signature-types.js";
 import { validateDotnetTypeRef, validateOptionalDotnetTypeRef } from "./dotnet-signature-types.js";
 import type { DotnetExportDeclaration, DotnetMemberDeclaration, DotnetTypeDeclaration } from "../index.js";
@@ -16,7 +16,9 @@ export function validateExportList(
   const targetIds = new Set<string>();
   for (const [index, declaration] of declarations.entries()) {
     const declarationPath = `${path}[${index}]`;
-    validateDotnetExportDeclaration(declaration, declarationPath, collector, options);
+    const record = readContractRecord(declaration, declarationPath, collector);
+    if (record === undefined) continue;
+    validateDotnetExportDeclaration(declaration, record, declarationPath, collector, options);
     if (options.sourceVisible && "sourceName" in declaration) {
       requireUnique(sourceNames, declaration.sourceName, `${declarationPath}.sourceName`, collector);
     }
@@ -27,12 +29,13 @@ export function validateExportList(
 }
 function validateDotnetExportDeclaration(
   declaration: DotnetExportDeclaration,
+  record: Readonly<Record<string, unknown>>,
   path: string,
   collector: ContractCollector,
   options: { readonly sourceVisible: boolean },
 ): void {
   if (!requireSupportedDiscriminant(
-    (declaration as unknown as Readonly<Record<string, unknown>>).kind,
+    record.kind,
     `${path}.kind`,
     collector,
     ".NET export declaration kind",
@@ -42,7 +45,7 @@ function validateDotnetExportDeclaration(
   }
   switch (declaration.kind) {
     case "type":
-      validateDotnetTypeDeclaration(declaration, path, collector, options);
+      validateDotnetTypeDeclaration(declaration, record, path, collector, options);
       return;
     case "function":
       requireNonEmptyString(declaration.sourceName, `${path}.sourceName`, collector);
@@ -70,13 +73,14 @@ function validateDotnetExportDeclaration(
 }
 function validateDotnetTypeDeclaration(
   declaration: DotnetTypeDeclaration,
+  record: Readonly<Record<string, unknown>>,
   path: string,
   collector: ContractCollector,
   options: { readonly sourceVisible: boolean },
 ): void {
   validateDotnetInheritance(declaration, path, collector);
   const typeKindValid = requireSupportedDiscriminant(
-    (declaration as unknown as Readonly<Record<string, unknown>>).typeKind,
+    record.typeKind,
     `${path}.typeKind`,
     collector,
     ".NET type declaration kind",
@@ -138,15 +142,17 @@ function validateDotnetTypeDeclaration(
   validateUnsupportedMembers(unsupportedMembers, `${path}.unsupportedMembers`, collector);
   for (const [index, operator] of (declaration.conversionOperators ?? []).entries()) {
     const operatorPath = `${path}.conversionOperators[${index}]`;
+    const original = readContractRecord(operator, operatorPath, collector);
+    if (original === undefined) continue;
     const targetNameValid = requireSupportedDiscriminant(
-      (operator as unknown as Readonly<Record<string, unknown>>).targetName,
+      original.targetName,
       `${operatorPath}.targetName`,
       collector,
       ".NET conversion operator target name",
       supportedDotnetConversionOperatorNames,
     );
     const conversionKindValid = requireSupportedDiscriminant(
-      (operator as unknown as Readonly<Record<string, unknown>>).conversionKind,
+      original.conversionKind,
       `${operatorPath}.conversionKind`,
       collector,
       ".NET conversion operator kind",
@@ -191,8 +197,10 @@ function validateDotnetMemberList(
 ): void {
   for (const [index, member] of members.entries()) {
     const memberPath = `${path}[${index}]`;
+    const record = readContractRecord(member, memberPath, collector);
+    if (record === undefined) continue;
     if (!requireSupportedDiscriminant(
-      (member as unknown as Readonly<Record<string, unknown>>).kind,
+      record.kind,
       `${memberPath}.kind`,
       collector,
       ".NET member declaration kind",

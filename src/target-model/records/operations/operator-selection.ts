@@ -2,13 +2,12 @@ import type { CsharpAssignmentLocation } from "../../operations/assignment-locat
 import type { CsharpReferenceEquality, CsharpUnionEqualityArm } from "../../operations/binary.js";
 import type { CsharpSourceOperator } from "../../syntax/operators.js";
 import type { TargetTypeRef } from "../../types/native-type-data.js";
-import type { SourceRefusal } from "@tsonic/target-api/source";
+import type { CsharpRepresentationOutcome } from "../../types/representation.js";
 import type { Node } from "@tsonic/tsts";
 
 export type CsharpOperationSelection<T> =
   | T
-  | { readonly kind: "source-refused"; readonly refusal: SourceRefusal }
-  | import("../../types/representation.js").CsharpNativeRepresentationRefusal
+  | Exclude<CsharpRepresentationOutcome<never>, { readonly kind: "represented" }>
   | { readonly kind: "rejected"; readonly reason: string };
 
 export interface CsharpResolvedBinaryOperation {

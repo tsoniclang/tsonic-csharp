@@ -8,7 +8,7 @@ export function csharpTargetCallRefusal(target: CsharpTargetCallSelection):
   switch (target.kind) {
     case "resolved": case "source-owned": return undefined;
     case "rejected": return { code: target.diagnostic.publicCode, message: target.diagnostic.message, source: target.diagnostic.extensionId };
-    case "source-refused": case "native-refused": {
+    case "source-refused": case "native-refused": case "provider-refused": {
       const diagnostic = csharpRepresentationDiagnostic(target);
       return { code: diagnostic.code, message: diagnostic.message, source: diagnostic.source, site: diagnostic.sourceNode };
     }

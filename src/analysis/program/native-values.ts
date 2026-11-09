@@ -60,7 +60,7 @@ export function createCsharpNativeValueQuery(
       const sourceFile = ast.getSourceFile(occurrence);
       if (sourceFile === undefined) throw new TypeError("An original Native application requires its Source file.");
       const selection = selectCsharpTargetCall(policy, occurrence, sourceFile);
-      if (selection.kind === "source-refused" || selection.kind === "native-refused") return selection;
+      if (selection.kind === "source-refused" || selection.kind === "native-refused" || selection.kind === "provider-refused") return selection;
       if (selection.kind === "resolved") {
         const carrier = csharpSelectedCallResultType(selection.call.targetMember, selection.call.discardResult === true);
         return carrier === undefined ? missing(occurrence, "The selected Native call has no complete physical result ABI.")
@@ -148,7 +148,7 @@ export function createCsharpNativeValueQuery(
       ? selectCsharpUnaryOperation(policy, selected.occurrence, child)
       : selectCsharpBinaryOperation(policy, selected.occurrence, child);
     if (failure !== undefined) return failure;
-    if (value.kind === "source-refused" || value.kind === "native-refused") return value;
+    if (value.kind === "source-refused" || value.kind === "native-refused" || value.kind === "provider-refused") return value;
     return value.kind === "resolved" || value.kind === "literal" ? represented(value.resultType)
       : missing(selected.occurrence, value.reason);
   }
@@ -165,7 +165,7 @@ export function createCsharpNativeValueQuery(
     if (sourceFile === undefined) throw new TypeError("A Native member use requires its original Source file.");
     const selected = ast.is.IsElementAccessExpression(occurrence)
       ? selectCsharpTargetElement(policy, occurrence, sourceFile) : selectCsharpTargetProperty(policy, occurrence, sourceFile);
-    if (selected.kind === "source-refused" || selected.kind === "native-refused") return selected;
+    if (selected.kind === "source-refused" || selected.kind === "native-refused" || selected.kind === "provider-refused") return selected;
     if (selected.kind === "resolved") return selected.targetMember.returnType === undefined
       ? missing(occurrence, "The selected Native field or indexer has no physical read ABI.") : readResult(selected.targetMember.returnType);
     if (selected.kind === "project-indexer") return readResult(selected.valueType);

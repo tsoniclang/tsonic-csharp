@@ -127,7 +127,7 @@ export function analyzeCsharpBinaryEmission(input: { readonly source: TargetSour
     const use = input.demand.nativeUse.expression(node)?.use;
     if (use !== undefined && use.kind !== "erased" && (use.discardedPresence !== undefined || use.completion.kind === "never")) continue;
     if (selected.target.kind === "rejected") { refuse(node, selected.target.reason); continue; }
-    if (selected.target.kind === "source-refused" || selected.target.kind === "native-refused") {
+    if (selected.target.kind === "source-refused" || selected.target.kind === "native-refused" || selected.target.kind === "provider-refused") {
       issues.push(csharpRepresentationDiagnostic(selected.target)); continue;
     }
     addNative(node, selected.target);

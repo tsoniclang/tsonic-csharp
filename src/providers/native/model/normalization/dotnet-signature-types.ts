@@ -1,4 +1,4 @@
-import { dotnetTypeRefFieldsByKind, requireNonEmptyString, requireSupportedDiscriminant, supportedDotnetTypeRefKinds, supportedReturnPassingModes, dotnetSignatureFields, requireUnique, supportedDotnetConstraintKinds, supportedDotnetMemberKinds, supportedPassingModes, supportedTypeParameterVariance } from "./support.js";
+import { dotnetTypeRefFieldsByKind, readContractRecord, requireNonEmptyString, requireSupportedDiscriminant, supportedDotnetTypeRefKinds, supportedReturnPassingModes, dotnetSignatureFields, requireUnique, supportedDotnetConstraintKinds, supportedDotnetMemberKinds, supportedPassingModes, supportedTypeParameterVariance } from "./support.js";
 import { validateDotnetRawProviderRef } from "./provider-declarations.js";
 import { validateDotnetTargetIdentity, validateOptionalDotnetRenderShape, validateDotnetAssemblyReference, validateOptionalDotnetAssemblyReference, validateOptionalDotnetParameterDefaultValue, validateOptionalDotnetUnsupportedDefaultValue } from "./dotnet-identities.js";
 import type { ContractCollector } from "./support.js";
@@ -21,8 +21,10 @@ export function validateDotnetTypeRef(
   collector: ContractCollector,
   options: { readonly allowLiteral: boolean; readonly allowProviderRef: boolean; readonly targetPosition?: boolean },
 ): void {
+  const record = readContractRecord(type, path, collector);
+  if (record === undefined) return;
   if (!requireSupportedDiscriminant(
-    (type as unknown as Readonly<Record<string, unknown>>).kind,
+    record.kind,
     `${path}.kind`,
     collector,
     ".NET type ref kind",
@@ -30,7 +32,7 @@ export function validateDotnetTypeRef(
   )) {
     return;
   }
-  validateDotnetTypeRefFields(type, path, collector);
+  validateDotnetTypeRefFields(record, path, collector);
   switch (type.kind) {
     case "literal":
     case "undefined":
@@ -186,11 +188,10 @@ export function validateDotnetTypeRef(
 }
 
 function validateDotnetTypeRefFields(
-  type: DotnetTypeRef,
+  record: Readonly<Record<string, unknown>>,
   path: string,
   collector: ContractCollector,
 ): void {
-  const record = type as unknown as Readonly<Record<string, unknown>>;
   const allowed = dotnetTypeRefFieldsByKind.get(String(record.kind));
   if (allowed === undefined) {
     return;
@@ -222,7 +223,9 @@ export function validateDotnetSignatureList(
   const signatureIds = new Set<string>();
   for (const [index, signature] of signatures.entries()) {
     const signaturePath = `${path}[${index}]`;
-    validateDotnetSignatureFields(signature, signaturePath, collector);
+    const record = readContractRecord(signature, signaturePath, collector);
+    if (record === undefined) continue;
+    validateDotnetSignatureFields(record, signaturePath, collector);
     requireNonEmptyString(signature.id, `${signaturePath}.id`, collector);
     requireUnique(signatureIds, signature.id, `${signaturePath}.id`, collector);
     requireNonEmptyString(signature.sourceId, `${signaturePath}.sourceId`, collector);
@@ -283,11 +286,10 @@ export function validateDotnetSignatureList(
   }
 }
 function validateDotnetSignatureFields(
-  signature: DotnetSignatureDeclaration,
+  record: Readonly<Record<string, unknown>>,
   path: string,
   collector: ContractCollector,
 ): void {
-  const record = signature as unknown as Readonly<Record<string, unknown>>;
   for (const key of Object.keys(record)) {
     if (!dotnetSignatureFields.has(key)) {
       collector.add(
@@ -307,6 +309,8 @@ function validateDotnetTargetInvocation(
   if (invocation === undefined) {
     return;
   }
+  const record = readContractRecord(invocation, `${path}.targetInvocation`, collector);
+  if (record === undefined) return;
   const supportedFields = invocation.kind === "array-creation"
     ? new Set(["kind", "lengthParameterIndex"])
     : invocation.kind === "static-factory-construction"
@@ -325,7 +329,7 @@ function validateDotnetTargetInvocation(
       collector.add(
         `${path}.targetInvocation.${key}`,
         `Field is not valid for '${invocation.kind}' .NET target invocation.`,
-        (invocation as unknown as Readonly<Record<string, unknown>>)[key],
+        record[key],
       );
     }
   }
@@ -659,8 +663,10 @@ export function validateDotnetConstraints(
 ): void {
   for (const [index, constraint] of constraints.entries()) {
     const constraintPath = `${path}[${index}]`;
+    const record = readContractRecord(constraint, constraintPath, collector);
+    if (record === undefined) continue;
     if (!requireSupportedDiscriminant(
-      (constraint as unknown as Readonly<Record<string, unknown>>).kind,
+      record.kind,
       `${constraintPath}.kind`,
       collector,
       ".NET constraint kind",
@@ -697,8 +703,10 @@ export function validateUnsupportedMembers(
   const memberIds = new Set<string>();
   for (const [index, member] of members.entries()) {
     const memberPath = `${path}[${index}]`;
+    const record = readContractRecord(member, memberPath, collector);
+    if (record === undefined) continue;
     requireSupportedDiscriminant(
-      (member as unknown as Readonly<Record<string, unknown>>).memberKind,
+      record.memberKind,
       `${memberPath}.memberKind`,
       collector,
       ".NET unsupported member kind",
@@ -720,6 +728,8 @@ export function validateUnsupportedExports(
   const sourceNames = new Set<string>();
   for (const [index, declaration] of declarations.entries()) {
     const declarationPath = `${path}[${index}]`;
+    const record = readContractRecord(declaration, declarationPath, collector);
+    if (record === undefined) continue;
     requireNonEmptyString(declaration.sourceName, `${declarationPath}.sourceName`, collector);
     requireUnique(sourceNames, declaration.sourceName, `${declarationPath}.sourceName`, collector);
     requireNonEmptyString(declaration.reason, `${declarationPath}.reason`, collector);
@@ -729,9 +739,8 @@ export function validateUnsupportedExports(
       });
       validateOptionalDotnetAssemblyReference(declaration.assembly, `${declarationPath}.assembly`, collector);
     } else {
-      const record = declaration as unknown as Readonly<Record<string, unknown>>;
-      const targetIds = Array.isArray(record.targetIds) ? record.targetIds as readonly unknown[] : undefined;
-      const metadataNames = Array.isArray(record.metadataNames) ? record.metadataNames as readonly unknown[] : undefined;
+      const targetIds: readonly unknown[] | undefined = Array.isArray(record.targetIds) ? record.targetIds : undefined;
+      const metadataNames: readonly unknown[] | undefined = Array.isArray(record.metadataNames) ? record.metadataNames : undefined;
       if (targetIds === undefined) {
         collector.add(`${declarationPath}.targetIds`, "Unsupported type-family exports must carry a targetIds array.", record.targetIds);
       }

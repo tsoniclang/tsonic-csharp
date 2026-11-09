@@ -145,6 +145,27 @@ export interface ContractCollector {
   readonly diagnostic: () => DotnetProviderDiagnostic | undefined;
 }
 
+export function readContractRecord(
+  value: unknown, path: string, collector: ContractCollector,
+): Readonly<Record<string, unknown>> | undefined {
+  if (!isContractRecord(value)) {
+    collector.add(path, "Expected a plain provider data record without accessors or symbol keys.", value);
+    return undefined;
+  }
+  return value;
+}
+
+function isContractRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) return false;
+  return Reflect.ownKeys(value).every(key => {
+    if (typeof key !== "string") return false;
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    return descriptor !== undefined && "value" in descriptor;
+  });
+}
+
 export function createContractCollector(code: string, message: string): ContractCollector {
   const evidence: Readonly<Record<string, unknown>>[] = [];
   return {
@@ -186,7 +207,7 @@ export function requireSupportedDiscriminant(
   return true;
 }
 
-export function requireNonEmptyString(value: string | undefined, path: string, collector: ContractCollector): void {
+export function requireNonEmptyString(value: unknown, path: string, collector: ContractCollector): void {
   if (typeof value !== "string" || value.length === 0) {
     collector.add(path, "Expected a non-empty string.", value);
   }
@@ -222,10 +243,9 @@ function summarizeContractValue(value: unknown): unknown {
   if (Array.isArray(value)) {
     return { kind: "array", length: value.length };
   }
-  const record = value as Readonly<Record<string, unknown>>;
   const summary: Record<string, string> = {};
   for (const key of contractSummaryStringKeys) {
-    const fieldValue = record[key];
+    const fieldValue: unknown = Object.getOwnPropertyDescriptor(value, key)?.value;
     if (typeof fieldValue === "string") {
       summary[key] = fieldValue;
     }

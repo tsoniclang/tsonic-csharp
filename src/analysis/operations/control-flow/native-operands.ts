@@ -95,22 +95,30 @@ export function selectCsharpNativeSourceRefusal(
 ): TargetDiagnostic | undefined {
   if (input.operations.nativeHandler.get(node) !== undefined) return undefined;
   const operation = input.operations.binaryOperation.get(node)?.target ?? input.operations.unaryOperation.get(node)?.target;
-  if (operation?.kind === "source-refused" || operation?.kind === "native-refused") return csharpRepresentationDiagnostic(operation);
+  if (operation?.kind === "source-refused" || operation?.kind === "native-refused" || operation?.kind === "provider-refused") {
+    return csharpRepresentationDiagnostic(operation);
+  }
   if (input.ast.is.IsCallExpression(node)) {
     const call = input.operations.selectedCall.get(node);
+    if (call?.form.kind === "target" && call.target?.kind === "provider-refused") return csharpRepresentationDiagnostic(call.target);
     return call?.form.kind === "target" && call.target?.kind === "rejected" ? targetDiagnosticFromExtension(node, call.target.diagnostic) : undefined;
   }
   if (input.ast.is.IsNewExpression(node)) {
     const construction = input.operations.selectedConstruction.get(node);
+    if (construction?.jsValue.kind === "not-js-value" && construction.target?.kind === "provider-refused") {
+      return csharpRepresentationDiagnostic(construction.target);
+    }
     return construction?.jsValue.kind === "not-js-value" && construction.target?.kind === "rejected"
       ? targetDiagnosticFromExtension(node, construction.target.diagnostic) : undefined;
   }
   if (input.ast.is.IsPropertyAccessExpression(node)) {
     const property = input.operations.selectedProperty.get(node)?.selection;
+    if (property?.kind === "provider-refused") return csharpRepresentationDiagnostic(property);
     return property?.kind === "rejected" ? targetDiagnosticFromExtension(node, property.diagnostic) : undefined;
   }
   if (input.ast.is.IsElementAccessExpression(node)) {
     const element = input.operations.selectedElement.get(node);
+    if (element?.jsValue.kind === "not-js-value" && element.target?.kind === "provider-refused") return csharpRepresentationDiagnostic(element.target);
     return element?.jsValue.kind === "not-js-value" && element.target?.kind === "rejected"
       ? targetDiagnosticFromExtension(node, element.target.diagnostic) : undefined;
   }

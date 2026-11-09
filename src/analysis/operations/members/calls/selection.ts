@@ -27,6 +27,8 @@ export function selectCsharpProviderCall(
     .map(relation => instantiateCsharpProviderCall(host, relation, source));
   const sourceRefusal = candidates.find(candidate => candidate.kind === "source-refused");
   if (sourceRefusal !== undefined) return sourceRefusal;
+  const providerRefusal = candidates.find(candidate => candidate.kind === "provider-refused");
+  if (providerRefusal !== undefined) return providerRefusal;
   const accepted = candidates.filter((candidate): candidate is Extract<CsharpProviderCallInstantiation, { readonly kind: "resolved" }> =>
     candidate.kind === "resolved");
   if (accepted.length === 0) return { kind: "missing", reason: candidates.flatMap(candidate =>

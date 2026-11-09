@@ -1,4 +1,4 @@
-import { requireNonEmptyString, requireUnique, stringProperty, supportedPassingModes, supportedTypeParameterVariance } from "./support.js";
+import { readContractRecord, requireNonEmptyString, requireUnique, stringProperty, supportedPassingModes, supportedTypeParameterVariance } from "./support.js";
 import { getProviderMemberSurfaceKey } from "@tsonic/tsts";
 import type { ProviderExportDeclaration, ProviderHeritageDeclaration, ProviderMemberDeclaration, ProviderParameterDeclaration, ProviderSignatureDeclaration, ProviderTypeExpression, ProviderTypeParameterDeclaration } from "@tsonic/tsts";
 import type { ContractCollector } from "./support.js";
@@ -158,7 +158,8 @@ export function validateDotnetRawProviderRef(
   path: string,
   collector: ContractCollector,
 ): void {
-  const record = type as unknown as Readonly<Record<string, unknown>>;
+  const record = readContractRecord(type, path, collector);
+  if (record === undefined) return;
   if (stringProperty(record, "exportName") === undefined) {
     collector.add(`${path}.exportName`, "Raw .NET provider-ref source shapes must identify the referenced export name.", record.exportName);
   }

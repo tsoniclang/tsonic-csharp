@@ -4,9 +4,12 @@ import { createCsharpTypeDefinitionRegistry } from "../../../dist/analysis/proje
 import { csharpTargetNamedType } from "../../../dist/target-model/types/factories.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
 import { csharpNativeCallableTargetMember } from "../../../dist/target-model/types/native-declaration-operations.js";
+import { csharpRepresentationDiagnostic } from "../../../dist/analysis/source-evidence/representations.js";
+import { csharpTargetCallRefusal } from "../../../dist/analysis/callables/calls/call-refusals.js";
 
 const integer = Object.freeze({ kind: "source-primitive", name: "int64" });
 const unsigned = Object.freeze({ kind: "source-primitive", name: "uint64" });
+const missing = Object.freeze({ kind: "missing" });
 const binder = identity => Object.freeze({ kind: "type-parameter", identity, name: "Value",
   csharpConstraints: Object.freeze({ kind: "resolved", constraints: Object.freeze([]) }) });
 const named = (identity, arguments_ = []) => Object.freeze(csharpTargetNamedType(identity, Object.freeze([...arguments_]),
@@ -25,7 +28,7 @@ function publish(definitions, definition) {
 }
 
 test("generated Native heritage publishes the same immutable physical interface vector", () => {
-  const definitions = createCsharpTypeDefinitionRegistry(() => undefined);
+  const definitions = createCsharpTypeDefinitionRegistry(() => missing);
   const parameter = binder("definition:Value");
   const carrier = named("definition:Role", [parameter]);
   assert.equal(definitions.nativeDeclarationKind(carrier), undefined, "missing metadata before production");
@@ -47,7 +50,7 @@ test("generated Native heritage publishes the same immutable physical interface 
 });
 
 test("generated Native heritage substitutes exact ordered binder identities", () => {
-  const definitions = createCsharpTypeDefinitionRegistry(() => undefined);
+  const definitions = createCsharpTypeDefinitionRegistry(() => missing);
   const first = binder("definition:First");
   const second = binder("definition:Second");
   const carrier = named("definition:Pair", [first, second]);
@@ -63,7 +66,7 @@ test("generated Native heritage substitutes exact ordered binder identities", ()
 });
 
 test("one Native definition rejects same-name foreign binders and competing interfaces", () => {
-  const definitions = createCsharpTypeDefinitionRegistry(() => undefined);
+  const definitions = createCsharpTypeDefinitionRegistry(() => missing);
   const original = binder("definition:Original");
   const foreign = binder("foreign:Original");
   const carrier = named("definition:Witness", [original]);
@@ -79,7 +82,7 @@ test("one Native definition rejects same-name foreign binders and competing inte
 });
 
 test("Native hierarchy references remain finite across cycles without name-based satisfaction", () => {
-  const definitions = createCsharpTypeDefinitionRegistry(() => undefined);
+  const definitions = createCsharpTypeDefinitionRegistry(() => missing);
   const first = named("definition:First");
   const second = named("definition:Second");
   publish(definitions, { carrier: first, parameters: [], kind: "interface", members: [], supertypes: [second] });
@@ -126,11 +129,11 @@ function completeInventory() {
 }
 
 test("one Native declaration retains every field, independent accessor and complete generic overload ABI", () => {
-  const registry = createCsharpTypeDefinitionRegistry(() => undefined);
+  const registry = createCsharpTypeDefinitionRegistry(() => missing);
   const fixture = completeInventory();
   const definition = publish(registry, fixture.definition);
   assert.deepEqual(definition.members.map(entry => entry.member.id),
-    ["Value", "Read", "Write", "Item", fixture.definition.members[4].member.id, "definition:Inventory/Dispatch/int64"],
+    ["Value", "Read", "Write", "Item", '["definition:Inventory","Dispatch"]', "definition:Inventory/Dispatch/int64"],
     "the complete expected six-member domain is required before inspecting any slot or overload");
   const application = registry.nativeDeclaration(named(fixture.carrier.id, [integer]));
   assert.equal(application.definition === definition, true, "one immutable declaration for all applications");
@@ -170,7 +173,7 @@ test("one Native declaration retains every field, independent accessor and compl
 });
 
 test("Native transactions never publish partial, aborted or contradictory member inventories", () => {
-  const registry = createCsharpTypeDefinitionRegistry(() => undefined);
+  const registry = createCsharpTypeDefinitionRegistry(() => missing);
   const first = named("transaction:First");
   const second = named("transaction:Second");
   const transaction = registry.begin();
@@ -214,9 +217,83 @@ test("complete Native declaration admission validates original binders and suppl
   assert.deepEqual(cases.map(([label]) => label), ["unfinalized definition binder", "duplicate physical member", "readonly field write",
     "field storage ABI", "callable passing vector", "foreign method constraint"]);
   for (const [label, malformed] of cases) {
-    const registry = createCsharpTypeDefinitionRegistry(() => undefined);
+    const registry = createCsharpTypeDefinitionRegistry(() => missing);
     const fixture = completeInventory();
     assert.throws(() => publish(registry, malformed(fixture)), TypeError, label);
     assert.equal(registry.nativeDeclaration(fixture.carrier) === undefined, true, `${label}: no partially completed result`);
+  }
+});
+
+test("Native acquisition forwards exact rejected and missing values without query production or failed memoization", () => {
+  const diagnostic = Object.freeze({ extensionId: "fixture.native", extensionCode: "FIXTURE_NATIVE_REJECTED",
+    numericCode: 9200000, category: "error", message: "Original site-less Native acquisition rejection." });
+  const rejected = Object.freeze({ kind: "rejected", diagnostic });
+  let selected = rejected;
+  const requested = [];
+  const registry = createCsharpTypeDefinitionRegistry(identity => {
+    requested.push(identity);
+    return selected;
+  });
+  const fixture = completeInventory();
+  assert.equal(registry.nativeDeclaration(fixture.carrier) === undefined, true);
+  assert.equal(registry.nativeDeclarationKind(fixture.carrier) === undefined, true);
+  assert.equal(registry.nativeSupertypes(fixture.carrier) === undefined, true);
+  assert.deepEqual(requested, [], "all building queries remain pure lookups");
+  assert.equal(registry.acquireNativeDeclaration(fixture.carrier.id) === rejected, true, "same refusal result");
+  assert.equal(registry.acquireNativeDeclaration(fixture.carrier.id).diagnostic === diagnostic, true, "same original diagnostic on retry");
+  assert.equal(Object.hasOwn(diagnostic, "nodeOrSpan") || Object.hasOwn(diagnostic, "sourceSpan"), false,
+    "the original acquisition domain is genuinely site-less");
+  selected = missing;
+  assert.equal(registry.acquireNativeDeclaration(fixture.carrier.id) === missing, true, "genuine missing stays missing");
+  assert.equal(registry.nativeDeclaration(fixture.carrier) === undefined, true, "no failed result is published");
+  selected = Object.freeze({ kind: "resolved", definition: fixture.definition });
+  const acquired = registry.acquireNativeDeclaration(fixture.carrier.id);
+  assert.equal(acquired.kind, "resolved");
+  assert.deepEqual(acquired.definition.members.map(entry => entry.member.id),
+    ["Value", "Read", "Write", "Item", fixture.definition.members[4].member.id, "definition:Inventory/Dispatch/int64"],
+    "successful acquisition retains the full original six-member inventory");
+  assert.equal(registry.nativeDeclaration(fixture.carrier).definition === acquired.definition, true);
+  assert.equal(registry.acquireNativeDeclaration(fixture.carrier.id).definition === acquired.definition, true,
+    "only completed immutable declarations are retained");
+  assert.deepEqual(requested, Array(4).fill(fixture.carrier.id), "every rejection/missing was retried, completed acquisition was not");
+  const sealed = registry.seal();
+  assert.equal(Object.hasOwn(sealed, "acquireNativeDeclaration"), false, "sealed queries cannot produce metadata");
+  assert.equal(sealed.nativeDeclaration(fixture.carrier).definition === acquired.definition, true);
+  assert.equal(sealed.nativeDeclaration(named("foreign:Inventory")) === undefined, true);
+  assert.throws(() => registry.acquireNativeDeclaration(fixture.carrier.id), /before sealing/);
+  assert.deepEqual(requested, Array(4).fill(fixture.carrier.id), "sealed reads and rejected mutation never acquire");
+});
+
+test("a foreign Native acquisition cannot publish or poison the requested identity", () => {
+  const fixture = completeInventory();
+  const requested = named("requested:Inventory", [fixture.parameter]);
+  const registry = createCsharpTypeDefinitionRegistry(() => ({ kind: "resolved", definition: fixture.definition }));
+  assert.throws(() => registry.acquireNativeDeclaration(requested.id), /original reserved transaction identity/);
+  assert.equal(registry.nativeDeclaration(requested) === undefined, true, "requested identity remains absent");
+  assert.equal(registry.nativeDeclaration(fixture.carrier) === undefined, true, "foreign identity is not incidentally published");
+  assert.equal(registry.acquireNativeDeclaration(fixture.carrier.id).kind, "resolved", "failed reservation is released");
+});
+
+test("site-less Native acquisition rejection reaches the final diagnostic without a fabricated demand site", () => {
+  const cases = [
+    ["explicit public code", "DOTNET_FIXTURE_NATIVE_DECLARATION_REJECTED", "DOTNET_FIXTURE_NATIVE_DECLARATION_REJECTED"],
+    ["original numeric code", undefined, "TS9200000"],
+  ];
+  assert.deepEqual(cases.map(([name]) => name), ["explicit public code", "original numeric code"]);
+  for (const [name, publicCode, code] of cases) {
+    const diagnostic = Object.freeze({ extensionId: "fixture.native", extensionCode: "FIXTURE_NATIVE_REJECTED",
+      numericCode: 9200000, ...(publicCode === undefined ? {} : { publicCode }), category: "error",
+      message: "Original site-less Native acquisition rejection.", evidence: Object.freeze([{ message: "original metadata evidence" }]) });
+    const outcome = Object.freeze({ kind: "provider-refused", diagnostic });
+    const published = csharpRepresentationDiagnostic(outcome);
+    assert.deepEqual(published, { code, source: "fixture.native", category: "error",
+      message: diagnostic.message, evidence: ["original metadata evidence"] }, name);
+    assert.equal(Object.hasOwn(published, "sourceNode") || Object.hasOwn(published, "sourceSpan"), false, name);
+    assert.equal(outcome.diagnostic === diagnostic, true, `${name}: original provider diagnostic`);
+    const call = csharpTargetCallRefusal(outcome);
+    assert.equal(call.code, code, name);
+    assert.equal(call.source, "fixture.native", name);
+    assert.equal(call.message, diagnostic.message, name);
+    assert.equal(call.site === undefined, true, name);
   }
 });

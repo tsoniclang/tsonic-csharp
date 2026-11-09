@@ -42,7 +42,9 @@ export function analyzeCsharpCallAdmission(ast: AstReader, nodes: readonly Node[
     }
     const target = classification.target;
     if (target === undefined) { refuse(node, "CSHARP_TARGET_CALL_CLASSIFICATION_INCOMPLETE", "The sealed C# call classification selected neither a JS-value operation nor a target call."); continue; }
-    if (target.kind === "source-refused" || target.kind === "native-refused") { issues.push(csharpRepresentationDiagnostic(target)); continue; }
+    if (target.kind === "source-refused" || target.kind === "native-refused" || target.kind === "provider-refused") {
+      issues.push(csharpRepresentationDiagnostic(target)); continue;
+    }
     if (target.kind === "resolved" || target.kind === "source-owned") { values.set(node, { ...common, form, target }); continue; }
     if (target.kind === "rejected") { issues.push(targetDiagnosticFromExtension(node, target.diagnostic)); continue; }
     const refusal = csharpTargetCallRefusal(target);

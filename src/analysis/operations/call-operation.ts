@@ -70,7 +70,9 @@ export function analyzeCsharpCallOperation(
   const flow = selectCsharpSourceFlowCall(policy, node);
   const selectedTarget = typeTest === undefined && flow.kind === "not-source-flow"
     ? selectCsharpTargetCall(policy, node, sourceFile) : undefined;
-  if (selectedTarget?.kind === "source-refused" || selectedTarget?.kind === "native-refused") failed(selectedTarget);
+  if (selectedTarget?.kind === "source-refused" || selectedTarget?.kind === "native-refused" || selectedTarget?.kind === "provider-refused") {
+    failed(selectedTarget);
+  }
   const conversionIssue = csharpSelectedCallConversionIssue(policy, selectedTarget);
   if (conversionIssue !== undefined) issues?.push(conversionIssue);
   const target = conversionIssue === undefined ? selectedTarget : undefined;

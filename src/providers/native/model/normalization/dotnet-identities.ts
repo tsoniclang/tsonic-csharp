@@ -1,4 +1,4 @@
-import { requireNonEmptyString, requireOptionalNonEmptyString, requireString, requireSupportedDiscriminant, supportedDotnetRenderShapeKinds } from "./support.js";
+import { readContractRecord, requireNonEmptyString, requireOptionalNonEmptyString, requireString, requireSupportedDiscriminant, supportedDotnetRenderShapeKinds } from "./support.js";
 import type { DotnetAssemblyReference, DotnetConversionOperatorDeclaration, DotnetParameterDefaultValue, DotnetUnsupportedDefaultValueDeclaration } from "../index.js";
 import type { ContractCollector } from "./support.js";
 import type { DotnetRenderShape } from "../types.js";
@@ -22,8 +22,9 @@ export function validateDotnetAssemblyReference(
     collector.add(path, "Assembly reference must be an object.", reference);
     return;
   }
-  const record = reference as unknown as Readonly<Record<string, unknown>>;
-  requireNonEmptyString(record.name as string | undefined, `${path}.name`, collector);
+  const record = readContractRecord(reference, path, collector);
+  if (record === undefined) return;
+  requireNonEmptyString(record.name, `${path}.name`, collector);
   requireOptionalNonEmptyString(record.version, `${path}.version`, collector);
   requireOptionalNonEmptyString(record.publicKeyToken, `${path}.publicKeyToken`, collector);
   requireOptionalNonEmptyString(record.culture, `${path}.culture`, collector);
@@ -38,8 +39,10 @@ export function validateOptionalDotnetRenderShape(
   if (shape === undefined) {
     return;
   }
+  const record = readContractRecord(shape, path, collector);
+  if (record === undefined) return;
   requireSupportedDiscriminant(
-    (shape as unknown as Readonly<Record<string, unknown>>).kind,
+    record.kind,
     `${path}.kind`,
     collector,
     ".NET render shape kind",

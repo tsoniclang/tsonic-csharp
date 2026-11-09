@@ -18,7 +18,7 @@ import { csharpUnionLeaves } from "../../target-model/types/union-relations.js";
 import { csharpUnionProjectionPath, selectCsharpUnionArmMapping, selectCsharpUnionInjection } from "./union-relations.js";
 import { csharpNativeRepresentationMatches } from "./native-representation.js";
 import { csharpNativeCallableMemberKey, getCsharpCallableMembers } from "../../target-model/types/carriers/delegates.js";
-import { csharpObjectShapeImplicitlyAccepts, namedTargetTypeImplicitlyAccepts, namedTargetTypesAreRelated } from "../constraints/native-relations.js";
+import { csharpObjectShapeImplicitlyAccepts, csharpUnionReferenceImplicitlyAccepts, namedTargetTypeImplicitlyAccepts, namedTargetTypesAreRelated } from "../constraints/native-relations.js";
 
 export function selectCsharpConversion(
   input: Pick<

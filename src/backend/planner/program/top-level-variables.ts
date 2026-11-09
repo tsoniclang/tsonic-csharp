@@ -48,7 +48,7 @@ export function planTopLevelVariableStatement(
   const declarations = input.program.source.ast.children(declarationList)
     .filter((declaration): declaration is Node => declaration !== undefined && input.program.source.ast.is.IsVariableDeclaration(declaration));
   if (declarations.length === 0) {
-    topLevelStatements.push(...planStatements(statement, sourceFile, input, diagnostics, state));
+    topLevelStatements.push(...input.dispatch.planStatements(statement, sourceFile, input, diagnostics, state));
     return;
   }
   const reassignable = declarationKind === "let" || declarationKind === "var";

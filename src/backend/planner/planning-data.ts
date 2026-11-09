@@ -5,6 +5,7 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
 import type { CsharpGeneratorProtocol, CsharpTargetParameter } from "../../target-model/types/model.js";
 import type { CsharpTargetProgram } from "../../target-model/records/target-program.js";
+import type { CsharpDelegateAdapterIdentity } from "../../target-model/records/operations/conversions.js";
 import type { CsharpExpression, CsharpStatement, CsharpTypeNode, CsharpMethodDeclaration } from "../target-ast/syntax/index.js";
 import type { CsharpPlannedAddressOperand, CsharpPlannedArgument, CsharpPlannedValue } from "./expressions/planned-values.js";
 
