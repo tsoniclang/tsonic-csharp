@@ -225,22 +225,27 @@ function forbiddenNeutralAliasImports(path) {
   return failures;
 }
 
+test("Native evidence backing receives the same scoped Source proof and seals completed producer data", () => {
+  const analysis = readFileSync(join(sourceRoot, "analysis/source-evidence/analyze.ts"), "utf8");
+  assert.match(analysis, /createCsharpPointerBackingDemands\(policy\)/u);
+  assert.match(analysis, /const pointerBacking = backing\.seal\(\)/u);
+  assert.match(analysis, /pointerBackingUses: pointerBacking\.uses/u);
+  const collection = readFileSync(join(sourceRoot, "analysis/source-evidence/pointer-backing.ts"), "utf8");
+  assert.match(collection, /policy\.sourceStorage\.memory\.rawLocation\.resolve\(node, bindings\.bindings\)/u);
+  assert.match(collection, /policy\.sourceStorage\.memory\.pointerBacking\.value\(subject\.subject, bindings\.bindings\)/u);
+  assert.match(collection, /resolveCsharpPointerStoragePointee\(policy\.representation, producer\.storage\)/u);
+  assert.match(collection, /uses: Object\.freeze\(\[\.\.\.uses\]\), issues: Object\.freeze\(\[\.\.\.issues\]\)/u);
+  assert.match(collection, /layout: selected\.value\.value\.layout, typeBindings: selected\.value\.value\.typeBindings/u);
+  assert.doesNotMatch(collection, /uses:\s*\(\)\s*=>/u);
+  assert.doesNotMatch(collection, /createTsonicPointerBackingQueries|createTsonicPointerStorageRelation|typeFor\(|pointerStorageStates/u);
+});
+
 test("native backing uses one neutral identity relation without the legacy layout-demand API", () => {
   const forbidden = /\b(?:createTsonicPointerBackingDemands|TsonicPointerBackingDemand|TsonicPointerBackingDemands|createTsonicPointerBackingQueries|TsonicPointerBackingQueries|selectTsonicRawLocationOperation|selectTsonicMemoryFieldBinding|selectTsonicMemoryRecordBinding|createTsonicMemoryBindingIndex|readTsonicMemoryType|TsonicMemoryTypeIdentity|sameBackingLayout)\b/u;
   const failures = sourceFiles(sourceRoot)
     .filter(path => forbidden.test(readFileSync(path, "utf8")))
     .map(path => path.slice(repositoryRoot.length + 1));
   assert.deepEqual(failures, []);
-  const analysis = readFileSync(join(sourceRoot, "analysis/source-evidence/analyze.ts"), "utf8");
-  assert.match(analysis, /createCsharpPointerBackingDemands\(source, pointerStorage, types\)/u);
-  assert.match(analysis, /const pointerBackingRecords = pointerBacking\.seal\(\)/u);
-  assert.match(analysis, /pointerBackingUses: pointerBackingRecords\.uses/u);
-  const collection = readFileSync(join(sourceRoot, "analysis/source-evidence/pointer-backing.ts"), "utf8");
-  assert.match(collection, /storage\.value\(selected\.expression\)/u);
-  assert.match(collection, /types\.resolvePointerStoragePointee\(producer\.storage\)/u);
-  assert.match(collection, /seal\(\)\s*\{\s*return Object\.freeze\(\{ uses: Object\.freeze\(\[\.\.\.uses\]\), issues: Object\.freeze\(\[\.\.\.issues\]\) \}\)/u);
-  assert.doesNotMatch(collection, /uses:\s*\(\)\s*=>/u);
-  assert.doesNotMatch(collection, /createTsonicPointerBackingQueries|createTsonicPointerStorageRelation/u);
   const composition = readFileSync(join(sourceRoot, "analysis/program/analyze.ts"), "utf8");
   assert.equal([...composition.matchAll(/createTsonicPointerStorageRelation\(source, sourceStorage\)/gu)].length, 1);
   assert.match(composition, /createTsonicMemoryBindingFactsIndex\(source\)/u);

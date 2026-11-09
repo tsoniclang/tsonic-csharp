@@ -15,7 +15,7 @@ import { resolveCsharpPointerReturnContract } from "../callables/ownership/point
 import { csharpNativePropertyNameIssue } from "../objects/computed-field-names.js";
 import { represented, sourceOutcome } from "../../policy/types/source-type-flow/representation-results.js";
 import { csharpTargetTypeComponents } from "../../target-model/types/components.js";
-import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/equality.js";
+import { targetTypeRefKey } from "../../target-model/types/equality.js";
 
 interface CsharpNativeMarkers {
   readonly defaultValue: CsharpSourceDefaultValue | undefined;
@@ -63,7 +63,7 @@ export function createCsharpSourceEvidenceBuilder(policy: CsharpPolicyContext): 
       const type = pending.pop()!;
       if (visited.has(type)) continue;
       visited.add(type);
-      const key = targetTypeRefKey(type);
+      const key = targetTypeRefKey(type, "emission");
       if (targetTypes.has(key) || completed.has(key)) continue;
       completed.set(key, type);
       pending.push(...csharpTargetTypeComponents(type));
@@ -146,12 +146,8 @@ export function createCsharpSourceEvidenceBuilder(policy: CsharpPolicyContext): 
       if (selected.kind !== "represented") return selected;
       const place = sourceOutcome(facts.protocols.storage(occurrence));
       if (place.kind !== "represented") return place;
-      let stored: SourcePresence<{ readonly evidence: SourceTypeEvidence; readonly carrier: TargetTypeRef }> = { kind: "none" };
-      if (place.value.kind === "present") {
-        const type = represent(place.value.value.value, "storage", occurrence);
-        if (type.kind !== "represented") return type;
-        stored = Object.freeze({ kind: "present", value: Object.freeze({ evidence: place.value.value.value, carrier: type.value }) });
-      }
+      const stored: SourcePresence<SourceTypeEvidence> = place.value.kind === "none" ? place.value
+        : Object.freeze({ kind: "present", value: place.value.value.value });
       const context = sourceOutcome(facts.values.contextual(occurrence));
       if (context.kind !== "represented") return context;
       let contextual: CsharpContextualTypeEvidence | undefined;
@@ -163,11 +159,9 @@ export function createCsharpSourceEvidenceBuilder(policy: CsharpPolicyContext): 
       const marked = markers(occurrence, evidence.value);
       if (marked.kind !== "represented") return marked;
       const previous = values.get(occurrence);
-      if (previous !== undefined && !targetTypeRefEquals(previous, selected.value)) failTargetAnalysisInvariant("tsonic-csharp",
+      if (previous !== undefined && targetTypeRefKey(previous, "emission") !== targetTypeRefKey(selected.value, "emission")) failTargetAnalysisInvariant("tsonic-csharp",
         "One original Native value cannot publish different physical carriers in a representation iteration.", occurrence);
-      retain(selected.value, ...(stored.kind === "present" ? [stored.value.carrier] : []),
-        ...(contextual === undefined ? [] : [contextual.targetType]), ...markerCarriers(marked.value));
-      if (stored.kind === "present") storage.set(occurrence, stored.value.carrier);
+      retain(selected.value, ...(contextual === undefined ? [] : [contextual.targetType]), ...markerCarriers(marked.value));
       if (contextual !== undefined) {
         contexts.set(occurrence, contextual);
       }
@@ -190,6 +184,11 @@ export function createCsharpSourceEvidenceBuilder(policy: CsharpPolicyContext): 
     },
     parameter(declaration: Node): CsharpRepresentationOutcome<void> {
       assertOpen(declaration);
+      const original = sourceOutcome(facts.values.declaredSlot(declaration));
+      if (original.kind !== "represented") return original;
+      if (original.value.type.type.kind !== "parameter" || original.value.type.type.declaration !== declaration) {
+        failTargetAnalysisInvariant("tsonic-csharp", "Native parameter enrollment requires the exact registered Source binder.", declaration);
+      }
       const selected = representation.parameter(representation.source.typeParameter(declaration), declaration);
       if (selected.kind !== "represented") return selected;
       retain(selected.value);
@@ -300,6 +299,8 @@ export function createCsharpSourceEvidenceBuilder(policy: CsharpPolicyContext): 
     },
     eraseCompileTimeDeclaration(declaration: Node): void {
       assertOpen(declaration);
+      if (!storage.has(declaration)) failTargetAnalysisInvariant("tsonic-csharp",
+        "Native declaration erasure requires its completed admitted storage record.", declaration);
       erased.add(declaration);
     },
     seal(): CsharpSourceEvidenceIndex {
@@ -322,7 +323,7 @@ export function createCsharpSourceEvidenceBuilder(policy: CsharpPolicyContext): 
         sourceStruct: snapshotQueries(structs), typeParameterConstraints: snapshotQueries(constraints),
       });
     },
-  });
+  } satisfies CsharpSourceEvidenceBuilder);
 }
 
 function snapshotQueries<Value>(entries: ReadonlyMap<Node, Value>) {

@@ -25,6 +25,7 @@ export function createCsharpTypeParameterEnvironment(
     let resolution: CsharpTypeParameterConstraintResolution | undefined;
     if (active.has(parameter.identity)) resolution = { kind: "unsupported",
       reason: `Generic binder '${parameter.name}' constraint resolution reentered an unfinished native contract.` };
+    else if (formed.csharpConstraints !== undefined) resolution = formed.csharpConstraints;
     else {
       active.add(parameter.identity);
       try {

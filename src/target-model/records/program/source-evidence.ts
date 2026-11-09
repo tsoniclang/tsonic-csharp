@@ -13,19 +13,10 @@ export interface CsharpSourceArgumentClassification {
   };
 }
 
-export type CsharpContextualTupleClassification =
-  | {
-      readonly kind: "selected";
-      readonly elementTypes: readonly (TargetTypeRef | undefined)[];
-      readonly optionalElementIndexes: readonly number[];
-      readonly omittedOptionalElementIndexes: readonly number[];
-    }
-  | { readonly kind: "unavailable" };
-
 export type CsharpValueRefinementClassification = CsharpRepresentationOutcome<{
   readonly occurrence: Node;
   readonly selected: { readonly evidence: SourceTypeEvidence; readonly carrier: TargetTypeRef };
-  readonly storage: SourcePresence<{ readonly evidence: SourceTypeEvidence; readonly carrier: TargetTypeRef }>;
+  readonly storage: SourcePresence<SourceTypeEvidence>;
 }>;
 
 export type CsharpFlowReadProjection =

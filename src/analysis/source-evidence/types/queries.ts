@@ -30,5 +30,5 @@ export function createCsharpTypeQueries(facts: SourceProgramFacts, representatio
         : Object.freeze({ kind: "represented", value: value.value });
     },
     parameter: (original, site) => representation.parameter(original, site),
-  });
+  } satisfies CsharpTypeQueries);
 }
