@@ -3,9 +3,20 @@ import type { CsharpTargetNamedTypeRef } from "./model.js";
 import type { CsharpDelegateSignatureShape, CsharpNativeCallableMember } from "./native-type-data.js";
 import { csharpTargetTypeComponents } from "./components.js";
 import { csharpOptionalStorageDefinitionNames } from "./native-generics.js";
+import { createCsharpMetadataBudget } from "../metadata/immutable.js";
 
-export function targetTypeRefEquals(left: TargetTypeRef, right: TargetTypeRef): boolean {
-  return left === right || targetTypeRefKey(left) === targetTypeRefKey(right);
+export interface CsharpNativeTypeIdentity {
+  key(type: TargetTypeRef, purpose?: "physical" | "emission"): string;
+  scopedKey(type: TargetTypeRef, boundParameters: ReadonlyMap<string, number>, purpose?: "physical" | "emission"): string;
+  components(type: TargetTypeRef, purpose: "physical" | "emission"): readonly TargetTypeRef[];
+}
+
+export interface CsharpNativeTypeIdentityBuilder extends CsharpNativeTypeIdentity {
+  seal(): CsharpNativeTypeIdentity;
+}
+
+export function targetTypeRefEquals(identity: CsharpNativeTypeIdentity, left: TargetTypeRef, right: TargetTypeRef): boolean {
+  return identity.key(left) === identity.key(right);
 }
 
 export function targetTypeRefIsClosed(type: TargetTypeRef): boolean {
@@ -21,18 +32,69 @@ export function targetTypeRefIsClosed(type: TargetTypeRef): boolean {
   return true;
 }
 
-const noBoundTypeParameters: ReadonlyMap<string, number> = new Map();
-
-export function targetTypeRefKey(type: TargetTypeRef, purpose: "physical" | "emission" = "physical"): string {
-  return scopedTargetTypeRefKey(type, noBoundTypeParameters, purpose);
+export function targetTypeRefKey(identity: CsharpNativeTypeIdentity, type: TargetTypeRef, purpose: "physical" | "emission" = "physical"): string {
+  return identity.key(type, purpose);
 }
 
-export function scopedTargetTypeRefKey(type: TargetTypeRef, boundParameters: ReadonlyMap<string, number>,
+export function scopedTargetTypeRefKey(identity: CsharpNativeTypeIdentity, type: TargetTypeRef, boundParameters: ReadonlyMap<string, number>,
   purpose: "physical" | "emission" = "physical"): string {
-  const encoded = new Map<TargetTypeRef, number>();
-  const active = new Set<TargetTypeRef>();
+  return identity.scopedKey(type, boundParameters, purpose);
+}
+
+export function createCsharpNativeTypeIdentity(budget: ReturnType<typeof createCsharpMetadataBudget>): CsharpNativeTypeIdentityBuilder {
+  budget.reserve(7);
+  const noBoundTypeParameters: ReadonlyMap<string, number> = new Map();
+  const contexts = new Map<string, WeakMap<TargetTypeRef, number>>();
+  const environments = new WeakMap<ReadonlyMap<string, number>, string>();
+  const physicalComponents = new WeakMap<TargetTypeRef, readonly TargetTypeRef[]>();
+  const emissionComponents = new WeakMap<TargetTypeRef, readonly TargetTypeRef[]>();
   const positions = new Map<string, number>();
-  const entries: (readonly unknown[])[] = [];
+  let open = true;
+  const view: CsharpNativeTypeIdentity = Object.freeze({
+    key: (type: TargetTypeRef, purpose: "physical" | "emission" = "physical") => scopedKey(type, noBoundTypeParameters, purpose),
+    scopedKey,
+    components,
+  });
+  return Object.freeze({ ...view, seal(): CsharpNativeTypeIdentity {
+    if (!open) throw new TypeError("Native type identity seals exactly once per program.");
+    open = false;
+    return view;
+  } });
+
+  function components(type: TargetTypeRef, purpose: "physical" | "emission"): readonly TargetTypeRef[] {
+    const cache = purpose === "physical" ? physicalComponents : emissionComponents;
+    const previous = cache.get(type);
+    if (previous !== undefined) return previous;
+    if (!open) throw new TypeError("Sealed Native identity requires already-enrolled type components.");
+    budget.reserve(1);
+    const selected = purpose === "physical" ? physicalChildren(type) : csharpTargetTypeComponents(type, undefined, true, budget);
+    if (purpose === "physical") budget.reserve(selected.length);
+    const result = Object.freeze([...selected]);
+    cache.set(type, result);
+    return result;
+  }
+
+  function scopedKey(type: TargetTypeRef, boundParameters: ReadonlyMap<string, number>,
+  purpose: "physical" | "emission" = "physical"): string {
+  let environment = environments.get(boundParameters);
+  if (environment === undefined) {
+    if (!open) throw new TypeError("Sealed Native identity requires its identical enrolled binder environment.");
+    budget.reserve(boundParameters.size + 1);
+    environment = JSON.stringify([...boundParameters].sort(([left], [right]) => left.localeCompare(right)));
+    environments.set(boundParameters, environment);
+  }
+  const context = `${purpose}:${environment}`;
+  const existing = contexts.get(context);
+  if (existing === undefined) {
+    if (!open) throw new TypeError("Sealed Native identity requires its already-enrolled binder environment.");
+    budget.reserve(1);
+  }
+  const encoded = existing ?? new WeakMap<TargetTypeRef, number>();
+  if (existing === undefined) contexts.set(context, encoded);
+  const previous = encoded.get(type);
+  if (previous !== undefined) return `${purpose}:${previous}`;
+  if (!open) throw new TypeError("Sealed Native identity cannot produce a new type identity.");
+  const active = new Set<TargetTypeRef>();
   const pending: { readonly type: TargetTypeRef; readonly children: readonly TargetTypeRef[]; index: number }[] = [];
   enter(type);
   while (pending.length > 0) {
@@ -46,22 +108,23 @@ export function scopedTargetTypeRefKey(type: TargetTypeRef, boundParameters: Rea
     }
     const physical = physicalEntry(frame.type);
     const entry = purpose === "physical" ? physical : [physical, emissionEntry(frame.type, frame.children)];
-    const key = JSON.stringify(entry);
+    const key = JSON.stringify([purpose, entry]);
     let position = positions.get(key);
     if (position === undefined) {
-      position = entries.length;
-      entries.push(entry);
+      budget.reserve(1);
+      position = positions.size;
       positions.set(key, position);
     }
     encoded.set(frame.type, position);
     active.delete(frame.type);
     pending.pop();
   }
-  return JSON.stringify([positionOf(type), entries]);
+  return `${purpose}:${positionOf(type)}`;
 
   function enter(value: TargetTypeRef): void {
+    budget.reserve(1);
     active.add(value);
-    pending.push({ type: value, children: purpose === "physical" ? physicalChildren(value) : csharpTargetTypeComponents(value), index: 0 });
+    pending.push({ type: value, children: components(value, purpose), index: 0 });
   }
 
   function positionOf(value: TargetTypeRef): number {
@@ -81,7 +144,7 @@ export function scopedTargetTypeRefKey(type: TargetTypeRef, boundParameters: Rea
         return [value.kind, nullable, boundParameters.has(value.identity)
           ? ["bound", boundParameters.get(value.identity)] : ["free", value.identity]];
       case "array":
-        return [value.kind, nullable, value.rank ?? 1, positionOf(value.element)];
+        return [value.kind, nullable, value.rank ?? null, positionOf(value.element)];
       case "tuple":
         return [value.kind, nullable, value.elements.map(positionOf)];
       case "pointer":
@@ -129,6 +192,7 @@ export function scopedTargetTypeRefKey(type: TargetTypeRef, boundParameters: Rea
     return constraints.map(constraint => constraint.kind === "type" ? [constraint.kind, positionOf(constraint.type)]
       : constraint.kind === "keyword" ? [constraint.kind, constraint.keyword] : [constraint.kind]);
   }
+}
 }
 
 function physicalChildren(type: TargetTypeRef): readonly TargetTypeRef[] {

@@ -31,7 +31,7 @@ export function checkCsharpNativeTypeObligation(host: CsharpNativeTypeObligation
       if (constraint.kind === "implements") {
         if (!csharpNativeTypeImplements(host, obligation.source.carrier, constraint.contract)) return nativeRepresentationFailure(
           obligation.site, "CSHARP_NATIVE_CONSTRAINT_UNSATISFIED",
-          `Native type '${targetTypeRefKey(obligation.source.carrier)}' does not directly implement '${targetTypeRefKey(constraint.contract)}' with identical type arguments.`);
+          `Native type '${targetTypeRefKey(host.providers.typeIdentity, obligation.source.carrier)}' does not directly implement '${targetTypeRefKey(host.providers.typeIdentity, constraint.contract)}' with identical type arguments.`);
       } else {
         const failure = host.nativeConstraintFailure(obligation.source.carrier, constraint);
         if (failure.kind === "present") return nativeRepresentationFailure(obligation.site, "CSHARP_NATIVE_CONSTRAINT_UNSATISFIED", failure.value);
@@ -42,7 +42,7 @@ export function checkCsharpNativeTypeObligation(host: CsharpNativeTypeObligation
   view.source.assertEvidence(obligation.destination.evidence);
   if (obligation.kind === "contract") return csharpNativeTypeImplements(host, obligation.source.carrier, obligation.destination.carrier)
     ? represented(true) : nativeRepresentationFailure(obligation.site, "CSHARP_NATIVE_CONTRACT_MISMATCH",
-      `Native type '${targetTypeRefKey(obligation.source.carrier)}' does not implement the exact '${targetTypeRefKey(obligation.destination.carrier)}' contract.`);
+      `Native type '${targetTypeRefKey(host.providers.typeIdentity, obligation.source.carrier)}' does not implement the exact '${targetTypeRefKey(host.providers.typeIdentity, obligation.destination.carrier)}' contract.`);
   if (obligation.kind === "literal-admission") {
     if (obligation.construction.kind === "none") {
       const value = view.source.scalarLiteral(obligation.source.evidence);
@@ -51,7 +51,7 @@ export function checkCsharpNativeTypeObligation(host: CsharpNativeTypeObligation
           "A Native literal admission requires its original scalar value or complete physical construction receipt.");
     }
     const receipt = obligation.construction.value;
-    if (!targetTypeRefEquals(receipt.carrier, obligation.source.carrier)) throw new TypeError("Native literal admission requires the actual sealed construction carrier.");
+    if (!targetTypeRefEquals(host.providers.typeIdentity, receipt.carrier, obligation.source.carrier)) throw new TypeError("Native literal admission requires the actual sealed construction carrier.");
     if (receipt.kind === "array") {
       if (receipt.construction.kind !== "array" || receipt.construction.value !== obligation.source.evidence ||
         receipt.contributions.length !== receipt.construction.evaluation.length) {
@@ -83,8 +83,8 @@ function checkWrite(host: CsharpNativeTypeObligationHost, endpoints: CsharpNativ
   const literal = host.representation.source.scalarLiteral(endpoints.source.evidence);
   const admitted = endpoints.admission;
   if (admitted !== undefined) {
-    if (admitted.site !== site || !targetTypeRefEquals(admitted.source, endpoints.source.carrier) ||
-      !targetTypeRefEquals(admitted.target, endpoints.destination.carrier)) {
+    if (admitted.site !== site || !targetTypeRefEquals(host.providers.typeIdentity, admitted.source, endpoints.source.carrier) ||
+      !targetTypeRefEquals(host.providers.typeIdentity, admitted.target, endpoints.destination.carrier)) {
       throw new TypeError("An admitted Native write must retain its same expression and exact physical conversion endpoints.");
     }
     if (literal.kind === "present") {

@@ -46,7 +46,7 @@ function selectRawIdentity(input: CsharpMemoryAnalysisHost,
     const selected = input.nativeValue(operand.occurrence);
     if (selected.kind !== "represented") return selected;
     const value = getCsharpNullableElementTargetType(selected.value) ?? selected.value;
-    if (!isCsharpAbsenceTargetType(value) && !targetTypeRefEquals(value, carrier)) return represented(Object.freeze({
+    if (!isCsharpAbsenceTargetType(value) && !targetTypeRefEquals(input.typeIdentity, value, carrier)) return represented(Object.freeze({
       kind: "rejected", operation: source.operation, reason: "Raw pointer identity requires the exact acquired Native address carrier or absence." }));
   }
   return represented(Object.freeze({ kind: "raw-identity", method: source.operation === "equal-raw-pointer" ? "Same" : "Hash",
@@ -60,7 +60,7 @@ function selectNativePointer(input: CsharpMemoryAnalysisHost,
   const pointee = input.representation.represent(source.pointee, "storage", source.occurrence);
   if (pointee.kind !== "represented") return pointee;
   const pointerType = selected.value;
-  if (pointerType.kind !== "pointer" || !targetTypeRefEquals(pointerType.pointee, pointee.value.carrier)) {
+  if (pointerType.kind !== "pointer" || !targetTypeRefEquals(input.typeIdentity, pointerType.pointee, pointee.value.carrier)) {
     return represented(Object.freeze({ kind: "rejected", operation: source.operation,
       reason: "The original Native pointer operation requires its exact physical pointer and pointee ABI." }));
   }
@@ -73,7 +73,7 @@ function selectNativePointer(input: CsharpMemoryAnalysisHost,
   }
   const offset = input.nativeValue(source.offset.occurrence);
   if (offset.kind !== "represented") return offset;
-  return targetTypeRefEquals(offset.value, csharpSourcePrimitiveTargetType("native-int"))
+  return targetTypeRefEquals(input.typeIdentity, offset.value, csharpSourcePrimitiveTargetType("native-int"))
     ? represented(Object.freeze({ ...base, kind: "offset", offsetExpression: source.offset.occurrence, offsetType: offset.value }))
     : represented(Object.freeze({ kind: "rejected", operation: "offset", reason: "The selected Native pointer offset must retain its exact native-int carrier." }));
 }

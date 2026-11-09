@@ -16,7 +16,7 @@ export function selectCsharpMemoryObservation(input: CsharpMemoryAnalysisHost, o
   if (selected.value.kind === "none") return represented(undefined);
   const source = selected.value.value;
   if (source.occurrence !== occurrence) throw new TypeError("A scoped memory observation requires its identical original occurrence.");
-  const layout = selectCsharpNativeMemoryLayout(input, source.layout, source.typeBindings);
+  const layout = selectCsharpNativeMemoryLayout(input, source.layout, source.typeBindings, "observation");
   if (layout.kind !== "represented") return layout;
   let fieldOffset: bigint | undefined;
   if (source.operation === "field-offset") {

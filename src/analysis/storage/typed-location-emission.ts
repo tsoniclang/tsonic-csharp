@@ -10,12 +10,16 @@ import type { CsharpTypedLocationEmission, CsharpTypedStorageEmission } from "..
 import type { CsharpTypedLocationOperationKind } from "../../target-model/records/storage/typed-locations.js";
 import { csharpRuntimeLocationTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 import { objectShapeBoundStorageMemberName } from "../../target-model/names/object-members.js";
-import { selectCsharpTypeEmission } from "../../policy/types/resolution/type-emission.js";
+import { csharpTargetTypeRenderingRejection } from "../../policy/types/model/renderability.js";
 import { createCsharpTypedLocationEmissionRecords } from "../program/records/storage/typed-location-emission.js";
 import { csharpTypedLocationLoweringRefusal } from "../operations/typed-locations.js";
 import type { CsharpSourceMemberNameRecords } from "../../target-model/records/program/source-member-names.js";
+import type { CsharpPolicyContext } from "../../policy/model/context.js";
+import { selectCsharpMemoryRuntimeDefinition } from "../operations/pointers/runtime-definitions.js";
+import { csharpRepresentationDiagnostic } from "../source-evidence/representations.js";
 
 export function analyzeCsharpTypedLocationEmission(input: { readonly source: TargetSourceProgram; readonly nodes: readonly Node[];
+  readonly providers: CsharpPolicyContext["providers"];
   readonly storage: CsharpStorageClassifications; readonly operations: CsharpTargetOperationClassifications;
   readonly members: CsharpObjectMemberRecords; readonly memberNames: CsharpSourceMemberNameRecords;
   readonly admitted: (node: Node) => boolean }) {
@@ -28,9 +32,11 @@ export function analyzeCsharpTypedLocationEmission(input: { readonly source: Tar
     refuse(node, csharpTypedLocationLoweringRefusal(kind, reason));
   const admitStorage = (subject: CsharpTypedLocationStorage): void => {
     if (storage.has(subject)) return;
-    const carrier = csharpRuntimeLocationTargetType(subject.valueType);
+    const selected = selectCsharpMemoryRuntimeDefinition(input, "Location", subject.expression);
+    if (selected.kind !== "represented") { issues.push(csharpRepresentationDiagnostic(selected)); return; }
+    const carrier = csharpRuntimeLocationTargetType(subject.valueType, selected.value);
     carriers.push(carrier, subject.valueType);
-    if (!selectCsharpTypeEmission({ carrier })) locationIssue(subject.expression, "location-address", "The selected C# value-property location types are not renderable.");
+    if (csharpTargetTypeRenderingRejection(carrier) !== undefined) locationIssue(subject.expression, "location-address", "The selected C# value-property location types are not renderable.");
     const source = input.operations.sourceMember.get(subject.expression);
     const shape = source?.objectShape;
     const member = source?.shapeMember?.kind === "resolved" ? source.shapeMember.member : undefined;
@@ -51,7 +57,7 @@ export function analyzeCsharpTypedLocationEmission(input: { readonly source: Tar
       const selection = property?.selection;
       if (property?.receiverProjection === undefined &&
         (selection?.kind === "source-owned" || selection?.kind === "resolved") &&
-        selection.source.receiver.expression === subject.receiverStorage.expression) {
+        selection.source.receiver.occurrence === subject.receiverStorage.expression) {
         if (selection.kind === "source-owned") memberName = input.memberNames.sourceMemberName.get(subject.expression)?.read;
         else if (selection.receiver.kind === "instance" && selection.targetMember.kind === "field" &&
           !selection.targetMember.static && !selection.targetMember.readonly &&
@@ -77,7 +83,7 @@ export function analyzeCsharpTypedLocationEmission(input: { readonly source: Tar
       ...(selection.kind === "location-bind" || selection.kind === "location-view" || selection.kind === "location-project"
         ? [...selection.typeArguments, ...selection.arguments.map(argument => argument.type)] : [])];
     carriers.push(...types);
-    if (types.some(carrier => !selectCsharpTypeEmission({ carrier }))) { locationIssue(node, selection.kind, "The selected C# typed-location operation is not renderable."); continue; }
+    if (types.some(carrier => csharpTargetTypeRenderingRejection(carrier) !== undefined)) { locationIssue(node, selection.kind, "The selected C# typed-location operation is not renderable."); continue; }
     if (selection.kind === "location-address") admitStorage(selection.storage);
     const suspends = selection.kind === "location-store" && input.source.facts.navigation.expressionEffects(selection.valueExpression).suspends;
     const address = selection.kind === "location-store" && selection.location.kind === "native-ref-return"

@@ -6,6 +6,7 @@ import type { CsharpProviderNativeDeclarationResolution } from "../../target-mod
 import type { CsharpRuntimeProjectInstance, CsharpRuntimeSourceProject } from "../../target-model/project/runtime.js";
 import type { CsharpProjectConfiguration } from "../../target-model/configuration/model.js";
 import type { CsharpProjectProperty } from "../../target-model/project/model.js";
+import type { CsharpNativeTypeIdentityBuilder } from "../../target-model/types/equality.js";
 
 export interface CsharpProviderRuntimePreparation {
   readonly sources: readonly CsharpRuntimeSourceProject[];
@@ -58,6 +59,7 @@ export type CsharpProviderIdentityPublication<Value> =
   | Extract<CsharpProviderBindingResolution, { readonly kind: "rejected" }>;
 
 export interface CsharpProviderRelationResolver {
+  readonly typeIdentity: CsharpNativeTypeIdentityBuilder;
   acquireNativeDeclaration(identity: string): CsharpProviderNativeDeclarationResolution;
   publishNativeIdentities<Value>(value: Value): CsharpProviderIdentityPublication<Value>;
   validateReferences(): readonly ExtensionDiagnostic[];

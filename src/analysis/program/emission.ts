@@ -14,6 +14,7 @@ import type { CsharpDictionaryLiteralRecords } from "../../target-model/records/
 import { analyzeCsharpExpressionEmission } from "../operations/expression-emission.js";
 import { analyzeCsharpLambdaEmission } from "../callables/emission/lambda-emission.js";
 import { analyzeCsharpTypedLocationEmission } from "../storage/typed-location-emission.js";
+import { csharpRepresentationDiagnostic } from "../source-evidence/representations.js";
 import { createCsharpPromiseResultRecords } from "./records/callables/promise-results.js";
 import { admitCsharpLocationRetention } from "../storage/location-retention.js";
 
@@ -345,9 +346,13 @@ export function finalizeCsharpNativeEmission(
   if (classEmission.issues.length !== 0) return rejectedTargetStage(classEmission.issues);
   const sourceRoles = analysis.typeSystem.sourceRoles.seal();
   const nativeDelegates = analysis.typeSystem.nativeDelegates.seal();
-  const nativeLayouts = analyzeCsharpNativeMemoryEmission({ nodes: sourceStorage.nodes, storage: analysis.storage, operations: admittedOperations });
+  const nativeLayoutResult = analyzeCsharpNativeMemoryEmission({ nodes: sourceStorage.nodes, policy: analysis.policy,
+    site: sourceFiles[0] ?? failTargetAnalysisInvariant("tsonic-csharp", "A Native layout emission requires its actual program source file."),
+    storage: analysis.storage, operations: admittedOperations });
+  if (nativeLayoutResult.kind !== "represented") return rejectedTargetStage([csharpRepresentationDiagnostic(nativeLayoutResult)]);
+  const nativeLayouts = nativeLayoutResult.value;
   const typedLocationEmission = analyzeCsharpTypedLocationEmission({ source, nodes: sourceStorage.nodes,
-    storage: analysis.storage, operations: admittedOperations, members: objectMembers.records,
+    providers: analysis.policy.providers, storage: analysis.storage, operations: admittedOperations, members: objectMembers.records,
     memberNames: memberNames.records, admitted: admittedControlNode });
   if (typedLocationEmission.issues.length !== 0) return rejectedTargetStage(typedLocationEmission.issues);
   const binaryCarriers = (selection: CsharpResolvedBinaryOperation): readonly TargetTypeRef[] => [

@@ -14,8 +14,6 @@ import { createCsharpPointerBackingDemands } from "./pointer-backing.js";
 import { resolveCsharpPointerReturnContract } from "../callables/ownership/pointer-return.js";
 import { csharpNativePropertyNameIssue } from "../objects/computed-field-names.js";
 import { represented, sourceOutcome } from "../../policy/types/source-type-flow/representation-results.js";
-import { csharpTargetTypeComponents } from "../../target-model/types/components.js";
-import { targetTypeRefKey } from "../../target-model/types/equality.js";
 
 interface CsharpNativeMarkers {
   readonly defaultValue: CsharpSourceDefaultValue | undefined;
@@ -63,10 +61,10 @@ export function createCsharpSourceEvidenceBuilder(policy: CsharpPolicyContext): 
       const type = pending.pop()!;
       if (visited.has(type)) continue;
       visited.add(type);
-      const key = targetTypeRefKey(type, "emission");
+      const key = policy.typeIdentity.key(type, "emission");
       if (targetTypes.has(key) || completed.has(key)) continue;
       completed.set(key, type);
-      pending.push(...csharpTargetTypeComponents(type));
+      pending.push(...policy.typeIdentity.components(type, "emission"));
     }
     for (const [key, type] of completed) targetTypes.set(key, type);
   }
@@ -159,7 +157,7 @@ export function createCsharpSourceEvidenceBuilder(policy: CsharpPolicyContext): 
       const marked = markers(occurrence, evidence.value);
       if (marked.kind !== "represented") return marked;
       const previous = values.get(occurrence);
-      if (previous !== undefined && targetTypeRefKey(previous, "emission") !== targetTypeRefKey(selected.value, "emission")) failTargetAnalysisInvariant("tsonic-csharp",
+      if (previous !== undefined && policy.typeIdentity.key(previous, "emission") !== policy.typeIdentity.key(selected.value, "emission")) failTargetAnalysisInvariant("tsonic-csharp",
         "One original Native value cannot publish different physical carriers in a representation iteration.", occurrence);
       retain(selected.value, ...(contextual === undefined ? [] : [contextual.targetType]), ...markerCarriers(marked.value));
       if (contextual !== undefined) {

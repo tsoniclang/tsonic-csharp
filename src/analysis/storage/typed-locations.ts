@@ -28,7 +28,7 @@ export function selectCsharpTypedLocationStorage(input: CsharpMemoryAnalysisHost
       const type = input.storageTargetType.get(source.declaration);
       if (type === undefined) failTargetAnalysisInvariant("tsonic-csharp",
         "Addressable declaration storage requires its completed canonical physical slot.", source.declaration);
-      if (!targetTypeRefEquals(type, valueType)) return rejected("The completed declared slot and pointer pointee have different Native carriers.");
+      if (!targetTypeRefEquals(input.typeIdentity, type, valueType)) return rejected("The completed declared slot and pointer pointee have different Native carriers.");
       return directStorage(input, source.storage, type, source.declaration);
     }
     if (source.kind === "pointer") return rejected("A pointer place requires its own admitted Native ref-return storage operation.");
@@ -38,7 +38,7 @@ export function selectCsharpTypedLocationStorage(input: CsharpMemoryAnalysisHost
     if (receiverKind === "unknown") return rejected("The actual Native receiver is neither proven reference nor value storage.");
     if (source.kind === "element") {
       if (receiver.value.kind === "array") {
-        if (!targetTypeRefEquals(receiver.value.element, valueType)) return rejected("The actual Native array element and pointer pointee differ.");
+        if (!targetTypeRefEquals(input.typeIdentity, receiver.value.element, valueType)) return rejected("The actual Native array element and pointer pointee differ.");
         return resolved({ kind: "reference-element-storage", expression: source.storage, valueType });
       }
       const element = selectCsharpTargetElement(input, expression, sourceFile);
@@ -52,7 +52,7 @@ export function selectCsharpTypedLocationStorage(input: CsharpMemoryAnalysisHost
         element.receiver.kind !== "instance" || element.targetMember.kind !== "indexer" ||
         element.targetMember.readonly === true || element.targetMember.parameters.length !== 1 ||
         parameter?.passingMode !== "by-value" || element.targetMember.returnType === undefined ||
-        !targetTypeRefEquals(element.targetMember.returnType, valueType)) {
+        !targetTypeRefEquals(input.typeIdentity, element.targetMember.returnType, valueType)) {
         return rejected("The complete Native indexer does not expose the required exact writable location ABI.");
       }
       return resolved({ kind: "reference-indexed-storage", expression: source.storage, valueType,
@@ -93,7 +93,7 @@ export function selectCsharpTypedLocationStorage(input: CsharpMemoryAnalysisHost
       identity = `native-member:${shape.targetType.id}:${selected.targetName}`;
       isStatic = false;
     } else return rejected("The published member does not select one directly addressable Native member.");
-    if (!targetTypeRefEquals(physical, valueType)) return rejected("The actual member slot and pointer pointee have different Native carriers.");
+    if (!targetTypeRefEquals(input.typeIdentity, physical, valueType)) return rejected("The actual member slot and pointer pointee have different Native carriers.");
     if (isStatic) return resolved({ kind: "direct-storage", expression: source.storage, valueType,
       identity: { kind: "static-storage", identity } });
     if (receiverKind === "reference") return resolved({ kind: "reference-property-storage",

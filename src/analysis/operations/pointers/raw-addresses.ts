@@ -42,13 +42,13 @@ export function selectCsharpRawAddress(input: CsharpPolicyContext, operation: Op
     if (selected.kind !== "represented") return selected;
     const present = getCsharpNullableElementTargetType(selected.value) ?? selected.value;
     if (operation.operation !== "address-integer-to-raw" && index === 0 &&
-      !isCsharpAbsenceTargetType(present) && !targetTypeRefEquals(present, owner)) {
+      !isCsharpAbsenceTargetType(present) && !targetTypeRefEquals(input.typeIdentity, present, owner)) {
       return reject("The raw address operand must have its actual acquired Native address carrier.");
     }
     const parameterType = operation.operation === "address-integer-to-raw" ? csharpSourcePrimitiveTargetType("uint64")
       : index === 0 ? raw : csharpSourcePrimitiveTargetType(operation.integer.signedness === "unsigned" ? "uint128" : "int128");
     arguments_.push(Object.freeze({ expression: operand.occurrence, sourceType: selected.value, parameterType,
-      cast: !targetTypeRefEquals(selected.value, parameterType) }));
+      cast: !targetTypeRefEquals(input.typeIdentity, selected.value, parameterType) }));
   }
   return represented(Object.freeze({ kind: "raw-address", owner, width: abi.addressWidth,
     method: operation.operation === "raw-to-address-integer" ? "Address" : operation.operation === "address-integer-to-raw"

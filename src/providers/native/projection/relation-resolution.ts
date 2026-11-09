@@ -20,6 +20,8 @@ import type { CsharpProviderIdentityPublication } from "../../model/relation-res
 import { csharpExceptionTargetType, csharpRuntimeErrorTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import { csharpSourceErrorNames } from "../../../target-model/identities/source-errors.js";
 import { csharpNativeDeclarationKey, snapshotCsharpNativeDeclaration } from "../../../target-model/types/native-declaration-operations.js";
+import { createCsharpNativeTypeIdentity } from "../../../target-model/types/equality.js";
+import { createCsharpMetadataBudget } from "../../../target-model/metadata/immutable.js";
 
 export interface CsharpProviderRelationResolverInputs {
   readonly providers: readonly DotnetReflectionTypeDataProvider[];
@@ -29,6 +31,7 @@ export interface CsharpProviderRelationResolverInputs {
 export function createCsharpProviderRelationResolver(
   inputs: CsharpProviderRelationResolverInputs,
 ): CsharpProviderRelationResolver {
+  const typeIdentity = createCsharpNativeTypeIdentity(createCsharpMetadataBudget());
   const providers = Object.freeze([...inputs.providers]);
   const staticCatalogs = [
     ...csharpBuiltInProviderPolicies().map((policy) => ({
@@ -294,6 +297,7 @@ export function createCsharpProviderRelationResolver(
     return result;
   };
   return Object.freeze({
+    typeIdentity,
     publishNativeIdentities<Value>(value: Value): CsharpProviderIdentityPublication<Value> {
       const result = publish(value);
       if (result.kind === "rejected") retained(result);

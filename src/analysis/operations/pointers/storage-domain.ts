@@ -30,7 +30,7 @@ export function csharpPointerStorageDomainRejection(
     const type = resolveCsharpPointerStoragePointee(input, endpoint);
     if (type.kind !== "represented") return type;
     if (type.value.kind === "unresolved") return represented(type.value.reason);
-    if (!targetTypeRefEquals(type.value.type, pointee)) {
+    if (!targetTypeRefEquals(input.providers.typeIdentity, type.value.type, pointee)) {
       return represented("The selected location and bound field have different C# pointee carriers.");
     }
   }

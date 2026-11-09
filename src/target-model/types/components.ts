@@ -8,9 +8,9 @@ export function csharpTargetTypeComponents(
   type: TargetTypeRef,
   objectShape?: CsharpObjectShapeFact,
   includeSignatureLocalTypes = true,
+  budget = createCsharpMetadataBudget(),
 ): readonly TargetTypeRef[] {
   const components: TargetTypeRef[] = [];
-  const budget = createCsharpMetadataBudget();
   const add = (type: TargetTypeRef | undefined): void => {
     if (type !== undefined) {
       budget.reserve(1);
@@ -86,7 +86,7 @@ export function csharpTargetTypeComponents(
     add(target.csharpDelegateSignature?.receiver?.type);
     add(target.csharpExpressionTreeDelegateType);
     add(target.csharpDelegateSignature?.returnType);
-    if (includeSignatureLocalTypes) for (const member of target.csharpCallableMembers ?? []) addAll(csharpNativeCallableMemberComponents(member));
+    if (includeSignatureLocalTypes) for (const member of target.csharpCallableMembers ?? []) addAll(csharpNativeCallableMemberComponents(member, budget));
     const union = target as Partial<CsharpRuntimeUnionTargetTypeRef>;
     addAll(union.csharpRuntimeUnionArms);
     budget.reserve(union.csharpRuntimeUnionObjectShapes?.length ?? 0);
@@ -106,8 +106,8 @@ export function csharpTargetTypeComponents(
       if (includeSignatureLocalTypes && member.memberKind === "method") {
         budget.reserve(member.methods.length);
         for (const method of member.methods) {
-          addAll(csharpNativeCallableMemberComponents(method.member));
-          addAll(csharpNativeCallableMemberComponents(method.value));
+          addAll(csharpNativeCallableMemberComponents(method.member, budget));
+          addAll(csharpNativeCallableMemberComponents(method.value, budget));
         }
       }
     }
@@ -117,8 +117,8 @@ export function csharpTargetTypeComponents(
   }
 }
 
-export function csharpNativeCallableMemberComponents(member: CsharpNativeCallableMember): readonly TargetTypeRef[] {
-  const budget = createCsharpMetadataBudget();
+export function csharpNativeCallableMemberComponents(member: CsharpNativeCallableMember,
+  budget = createCsharpMetadataBudget()): readonly TargetTypeRef[] {
   budget.reserve(member.signature.parameters.length + member.typeParameters.length + 2);
   const values = [...member.signature.parameters, member.signature.returnType];
   if (member.signature.receiver !== undefined) values.push(member.signature.receiver.type);

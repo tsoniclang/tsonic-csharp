@@ -82,7 +82,7 @@ export function selectCsharpTypedLocationOperation(input: CsharpMemoryAnalysisHo
     if (selected.kind !== "represented") return selected;
     runtime = selected.value;
   }
-  return represented(selectCsharpNativeTypedLocationOperation(source, pointee.value.carrier,
+  return represented(selectCsharpNativeTypedLocationOperation(input.typeIdentity, source, pointee.value.carrier,
     definition.value, carriers, native, storage, sourcePointee, runtime));
 }
 

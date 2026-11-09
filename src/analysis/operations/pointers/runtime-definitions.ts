@@ -41,11 +41,12 @@ export function selectCsharpMemoryRuntimeMember(input: CsharpPolicyContext, owne
 
 export function selectCsharpMemoryRuntimeDefinition(
   input: Pick<CsharpPolicyContext, "providers">,
-  name: "Location" | "RawPointer" | "NativeLayout" | "NativeArray" | "RecordField",
+  name: "Location" | "RawPointer" | "NativeLayout" | "NativeArray" | "RecordField" | "NativeLocation" | "NativeLayoutFactory",
   site: Node,
 ): CsharpRepresentationOutcome<CsharpNativeGenericTypeDefinition> {
-  const arity = name === "RawPointer" ? 0 : 1;
+  const arity = name === "RawPointer" || name === "NativeLocation" || name === "NativeLayoutFactory" ? 0 : 1;
+  const metadataName = name === "NativeLayoutFactory" ? "NativeLayout" : name;
   return sourceNativeGenericDefinition({ providers: input.providers,
     acquireNativeDeclaration: identity => input.providers.acquireNativeDeclaration(identity) },
-  `Tsonic.CSharp.Runtime.${name}${arity === 0 ? "" : "`1"}`, arity, name === "RecordField" ? "struct" : "class", site);
+  `Tsonic.CSharp.Runtime.${metadataName}${arity === 0 ? "" : "`1"}`, arity, name === "RecordField" ? "struct" : "class", site);
 }

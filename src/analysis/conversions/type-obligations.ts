@@ -61,9 +61,9 @@ export function analyzeCsharpNativeTypeObligations(input: CsharpNativeTypeObliga
     }
     const carrier = use.kind === "converted" ? use.input.kind === "value" ? use.input.type : undefined : use.carrier;
     if (carrier === undefined) continue;
-    const identity = `${targetTypeRefKey(carrier)}:${targetTypeRefKey(request.targetType)}`;
+    const identity = `${targetTypeRefKey(policy.typeIdentity, carrier)}:${targetTypeRefKey(policy.typeIdentity, request.targetType)}`;
     const previous = completed.get(request.expression);
-    if (use.kind === "converted" && (use.mode !== "implicit" || !targetTypeRefEquals(use.target, request.targetType))) {
+    if (use.kind === "converted" && (use.mode !== "implicit" || !targetTypeRefEquals(policy.typeIdentity, use.target, request.targetType))) {
       failTargetAnalysisInvariant("tsonic-csharp", "A converted write obligation requires the exact admitted conversion use.", request.expression);
     }
     const admission = admittedConversion(request.expression, carrier, request.targetType, use.kind === "converted");
@@ -125,7 +125,7 @@ export function analyzeCsharpNativeTypeObligations(input: CsharpNativeTypeObliga
       return undefined;
     }
     const adapter = input.conversions.delegateAdapter.get(site, source, target);
-    if (adapter !== undefined && (!targetTypeRefEquals(adapter.source, source) || !targetTypeRefEquals(adapter.target, target) ||
+    if (adapter !== undefined && (!targetTypeRefEquals(policy.typeIdentity, adapter.source, source) || !targetTypeRefEquals(policy.typeIdentity, adapter.target, target) ||
       conversion.selection.kind !== "delegate-adapter")) {
       failTargetAnalysisInvariant("tsonic-csharp", "A converted callable write requires its identical admitted Native adapter.", site);
     }

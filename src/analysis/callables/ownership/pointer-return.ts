@@ -46,7 +46,7 @@ export function resolveCsharpPointerReturnContract(
     }
   }
   const first = pointees[0];
-  if (first === undefined || pointees.some(type => !targetTypeRefEquals(type, first))) return represented(undefined);
+  if (first === undefined || pointees.some(type => !targetTypeRefEquals(host.providers.typeIdentity, type, first))) return represented(undefined);
   const definition = selectCsharpMemoryRuntimeDefinition(host, "Location", declaration);
   if (definition.kind !== "represented") return definition;
   const location = csharpRuntimeLocationTargetType(first, definition.value);

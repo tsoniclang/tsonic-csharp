@@ -24,6 +24,7 @@ export function createCsharpAnalysisPolicyContext(
   const { input, sourceFiles, providers, sourceIdentities, typeSystem } = context;
   const source = input.source;
   const policy: CsharpPolicyContext = Object.freeze({
+    typeIdentity: providers.typeIdentity,
     facts: source.facts,
     representation: typeSystem.representation,
     moduleCallables: context.moduleCallables,

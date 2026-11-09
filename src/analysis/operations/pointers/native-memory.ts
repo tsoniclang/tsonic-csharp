@@ -26,8 +26,10 @@ interface PhysicalField {
   readonly member: CsharpObjectShapeMemberFact | undefined;
 }
 
+type LayoutPurpose = "raw-storage" | "observation";
+
 export function selectCsharpNativeMemoryLayout(host: CsharpMemoryAnalysisHost, root: SourceMemoryLayout,
-  bindings: readonly SourceTypeBinding[]): CsharpMemoryOutcome<CsharpNativeMemoryLayout> {
+  bindings: readonly SourceTypeBinding[], purpose: LayoutPurpose): CsharpMemoryOutcome<CsharpNativeMemoryLayout> {
   const completed = new Map<SourceMemoryLayout, CsharpNativeMemoryLayout>();
   const active = new Set<SourceMemoryLayout>();
   const budget = createCsharpMetadataBudget();
@@ -61,7 +63,7 @@ export function selectCsharpNativeMemoryLayout(host: CsharpMemoryAnalysisHost, r
         }
         const element = select(layout.element, depth + 1);
         if (element.kind !== "represented") return element;
-        if (!targetTypeRefEquals(carrier.element, element.value.pointeeType) ||
+        if (!targetTypeRefEquals(host.typeIdentity, carrier.element, element.value.pointeeType) ||
           element.value.width !== base.width || element.value.littleEndian !== base.littleEndian ||
           layout.byteSize !== layout.element.stride * layout.extent.length) {
           return reject(layout, "A Native array requires its complete exact element, extent, stride and address ABI.");
@@ -69,25 +71,29 @@ export function selectCsharpNativeMemoryLayout(host: CsharpMemoryAnalysisHost, r
         result = Object.freeze({ ...base, kind: "array", length: layout.extent.length.toString(),
           stride: layout.element.stride, element: element.value });
       } else if (carrier.kind === "source-primitive") {
-        if (layout.fields.length !== 0 || csharpNativeScalarByteSize(carrier, base.width) !== base.size) {
+        const size = purpose === "observation" && carrier.name === "bool" ? 1n
+          : purpose === "observation" && carrier.name === "char" ? 2n : csharpNativeScalarByteSize(carrier, base.width);
+        if (layout.fields.length !== 0 || size !== base.size) {
           return reject(layout, "The scalar layout must have its exact all-bit-pattern Native size and no fields.");
         }
         result = Object.freeze({ ...base, kind: "scalar", fields: Object.freeze([]) });
       } else {
         if (carrier.kind !== "target-named") return reject(layout, "Native record memory requires one exact physical struct carrier.");
-        const physical = physicalFields(host, carrier, layout);
+        const physical = physicalFields(host, carrier, layout, purpose);
         if (physical.kind !== "represented") return physical;
         if (physical.value.length !== layout.fields.length) return reject(layout, "Every actual Native field must occur exactly once in the memory layout.");
         budget.reserve(layout.fields.length);
         const selected = new Map<PhysicalField["identity"], CsharpNativeMemoryField>();
         for (const field of layout.fields) {
-          if (field.member.readonly || field.member.optional) return reject(layout, "Native memory fields require their complete mutable Source field contract.");
+          if (purpose === "raw-storage" && (field.member.readonly || field.member.optional)) {
+            return reject(layout, "Native memory fields require their complete mutable Source field contract.");
+          }
           const matches = physical.value.filter(candidate => physicalFieldMatches(candidate, field));
           if (matches.length !== 1) return reject(layout, "Each selected Source field must retain its exact complete physical declaration association.");
           const member = matches[0]!;
           const child = select(field.layout, depth + 1);
           if (child.kind !== "represented") return child;
-          if (selected.has(member.identity) || !targetTypeRefEquals(member.type, child.value.pointeeType) ||
+          if (selected.has(member.identity) || !targetTypeRefEquals(host.typeIdentity, member.type, child.value.pointeeType) ||
             child.value.width !== base.width || child.value.littleEndian !== base.littleEndian ||
             field.byteAlignment <= 0n || field.byteOffset < 0n || field.byteOffset + child.value.size > base.size ||
             field.byteOffset % field.byteAlignment !== 0n) {
@@ -108,17 +114,21 @@ export function selectCsharpNativeMemoryLayout(host: CsharpMemoryAnalysisHost, r
 }
 
 function physicalFields(host: CsharpMemoryAnalysisHost, carrier: Extract<TargetTypeRef, { readonly kind: "target-named" }>,
-  layout: Extract<SourceMemoryLayout, { readonly kind: "value" }>): CsharpMemoryOutcome<readonly PhysicalField[]> {
+  layout: Extract<SourceMemoryLayout, { readonly kind: "value" }>, purpose: LayoutPurpose): CsharpMemoryOutcome<readonly PhysicalField[]> {
   const shape = host.objectShapes.resolveTarget(carrier);
   if (shape !== undefined && csharpStructuralObjectShapeIdentity(carrier) !== undefined) {
-    if (!isCsharpValueTypeTargetType(carrier)) return nativeRepresentationFailure(layout.occurrence,
+    if (purpose === "raw-storage" && !isCsharpValueTypeTargetType(carrier)) return nativeRepresentationFailure(layout.occurrence,
       "CSHARP_NATIVE_MEMORY_LAYOUT_NOT_PROVEN", "Native record memory requires an actual emitted value-type declaration.");
     const declarations = host.objectMembers.objectMemberDeclarations.get(shape);
     if (declarations === undefined) failTargetAnalysisInvariant("tsonic-csharp", "Physical memory requires the completed canonical Native member declarations.", layout.occurrence);
     const fields: PhysicalField[] = [];
     for (const emission of declarations) {
       const declaration = emission.declaration;
-      if (declaration.kind !== "field" || emission.member.memberKind !== "property" || emission.member.readonly === true) {
+      if (purpose === "observation" && emission.member.memberKind === "method") continue;
+      if (!("type" in declaration) || (purpose === "raw-storage"
+        ? declaration.kind !== "field" || emission.member.memberKind !== "property" || emission.member.readonly === true
+        : declaration.kind !== "field" && declaration.kind !== "property" && declaration.kind !== "accessor" && declaration.kind !== "bound" &&
+          declaration.kind !== "native-backing")) {
         return nativeRepresentationFailure(layout.occurrence, "CSHARP_NATIVE_MEMORY_LAYOUT_NOT_PROVEN", "Native record memory requires its complete mutable physical field inventory.");
       }
       fields.push(Object.freeze({ identity: emission.member, member: emission.member, name: emission.member.targetName,
@@ -130,12 +140,13 @@ function physicalFields(host: CsharpMemoryAnalysisHost, carrier: Extract<TargetT
   if (acquired.kind === "rejected") return Object.freeze({ kind: "provider-refused", diagnostic: acquired.diagnostic });
   if (acquired.kind === "missing") failTargetAnalysisInvariant("tsonic-csharp", "Native memory requires its complete acquired physical declaration.", layout.occurrence);
   const application = applyCsharpNativeDeclaration(acquired.definition, carrier);
-  if (application === undefined || application.definition.kind !== "struct") return nativeRepresentationFailure(layout.occurrence,
+  if (application === undefined || purpose === "raw-storage" && application.definition.kind !== "struct") return nativeRepresentationFailure(layout.occurrence,
     "CSHARP_NATIVE_MEMORY_LAYOUT_NOT_PROVEN", "Native record memory requires its exact constructed struct definition.");
   const fields: PhysicalField[] = [];
   for (const slot of application.members) {
-    if (slot.kind !== "slot" || slot.member.static || slot.member.kind !== "field") continue;
-    if (slot.storage === undefined || slot.storage.readonly) return nativeRepresentationFailure(layout.occurrence,
+    if (slot.kind !== "slot" || slot.member.static || purpose === "raw-storage" && slot.member.kind !== "field") continue;
+    const type = slot.storage?.type ?? (purpose === "observation" ? slot.read?.type : undefined);
+    if (type === undefined || purpose === "raw-storage" && (slot.storage === undefined || slot.storage.readonly)) return nativeRepresentationFailure(layout.occurrence,
       "CSHARP_NATIVE_MEMORY_LAYOUT_NOT_PROVEN", "Native record memory cannot omit readonly or unknown physical field storage.");
     const declarations = new Set<Node>();
     for (const field of layout.fields) for (const declaration of field.selectedDeclarations) {
@@ -148,7 +159,7 @@ function physicalFields(host: CsharpMemoryAnalysisHost, carrier: Extract<TargetT
         relation.targetMember.id === slot.member.id)) declarations.add(declaration);
     }
     fields.push(Object.freeze({ identity: slot.member.id, member: undefined, name: slot.member.targetName,
-      type: slot.storage.type, declarations: Object.freeze([...declarations]) }));
+      type, declarations: Object.freeze([...declarations]) }));
   }
   return represented(Object.freeze(fields));
 }
@@ -167,7 +178,7 @@ export function selectCsharpNativeMemoryFieldOffset(host: CsharpMemoryAnalysisHo
     return nativeRepresentationFailure(field.occurrence, "CSHARP_NATIVE_MEMORY_FIELD_NOT_PROVEN",
       "The observed field must belong to the identical completed Source and physical record layout.");
   }
-  const physical = physicalFields(host, layout.pointeeType, source);
+  const physical = physicalFields(host, layout.pointeeType, source, "observation");
   if (physical.kind !== "represented") return physical;
   const selected = physical.value.filter(candidate => physicalFieldMatches(candidate, field));
   const member = selected[0];
@@ -189,7 +200,7 @@ export function selectCsharpRawLocation(host: CsharpMemoryAnalysisHost, node: No
   if (proof.kind === "unresolved") return proof;
   if (proof.value.kind === "none") return represented(undefined);
   const source = proof.value.value;
-  const layout = selectCsharpNativeMemoryLayout(host, source.layout, source.typeBindings);
+  const layout = selectCsharpNativeMemoryLayout(host, source.layout, source.typeBindings, "raw-storage");
   if (layout.kind !== "represented") return layout;
   const operand = source.operation.operation === "to-raw" ? source.operation.pointer : source.operation.raw;
   const selected = host.nativeValue(operand.occurrence);
@@ -198,8 +209,8 @@ export function selectCsharpRawLocation(host: CsharpMemoryAnalysisHost, node: No
   if (definition.kind !== "represented") return definition;
   const present = getCsharpNullableElementTargetType(selected.value) ?? selected.value;
   const physical = source.operation.operation === "to-raw" ? csharpRuntimeLocationPointee(present, definition.value)
-    : targetTypeRefEquals(present, csharpRuntimeRawPointerTargetType(definition.value)) ? layout.value.pointeeType : undefined;
-  if (!isCsharpAbsenceTargetType(present) && (physical === undefined || !targetTypeRefEquals(physical, layout.value.pointeeType))) {
+    : targetTypeRefEquals(host.typeIdentity, present, csharpRuntimeRawPointerTargetType(definition.value)) ? layout.value.pointeeType : undefined;
+  if (!isCsharpAbsenceTargetType(present) && (physical === undefined || !targetTypeRefEquals(host.typeIdentity, physical, layout.value.pointeeType))) {
     return nativeRepresentationFailure(node, "CSHARP_RAW_LOCATION_CARRIER_MISMATCH", "The completed Source raw proof requires the identical actual Native pointee carrier.");
   }
   return represented(Object.freeze({ kind: "raw-location", method: source.operation.operation === "to-raw" ? "ToRaw" : "Reinterpret",

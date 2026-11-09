@@ -38,7 +38,7 @@ export function selectCsharpMemoryBinding(
     const type = csharpRuntimeLocationTargetType(pointee.value, definition.value);
     const pointer = input.nativeValue(binding.pointer.occurrence);
     if (pointer.kind !== "represented") return pointer;
-    if (!targetTypeRefEquals(type, pointer.value)) {
+    if (!targetTypeRefEquals(input.typeIdentity, type, pointer.value)) {
       return reject("The selected location and bound field have different C# pointee carriers.");
     }
     const domain = csharpPointerStorageDomainRejection(input, binding.pointer.occurrence, pointee.value, binding.bindings);
@@ -62,7 +62,7 @@ export function selectCsharpMemoryBinding(
   const shape = isCsharpEmptyObjectTargetType(type) && operation.fields.length === 0
     ? Object.freeze({ targetType: type, members: Object.freeze([]) })
     : selectedShape.value.kind === "present" ? selectedShape.value.value : undefined;
-  if (shape === undefined || shape.members.length !== operation.fields.length || !targetTypeRefEquals(type, shape.targetType)) {
+  if (shape === undefined || shape.members.length !== operation.fields.length || !targetTypeRefEquals(input.typeIdentity, type, shape.targetType)) {
     return reject("The bound record requires one exact complete C# structural carrier.");
   }
   const declarations = input.objectMembers.objectMemberDeclarations.get(shape);
@@ -99,9 +99,9 @@ export function selectCsharpMemoryBinding(
     if (pointee.kind !== "represented") return pointee;
     const pointer = input.nativeValue(binding.pointer.occurrence);
     if (pointer.kind !== "represented") return pointer;
-    if (!targetTypeRefEquals(pointee.value, declaration.type) ||
-      !targetTypeRefEquals(pointer.value, csharpRuntimeLocationTargetType(declaration.type, location.value)) ||
-      !targetTypeRefEquals(declaration.storage, csharpRuntimeRecordFieldTargetType(declaration.type, recordField.value))) {
+    if (!targetTypeRefEquals(input.typeIdentity, pointee.value, declaration.type) ||
+      !targetTypeRefEquals(input.typeIdentity, pointer.value, csharpRuntimeLocationTargetType(declaration.type, location.value)) ||
+      !targetTypeRefEquals(input.typeIdentity, declaration.storage, csharpRuntimeRecordFieldTargetType(declaration.type, recordField.value))) {
       return reject("The bound member and supplied location have different C# pointee carriers.");
     }
     const domain = csharpPointerStorageDomainRejection(input, binding.pointer.occurrence, declaration.type, binding.bindings);

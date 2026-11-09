@@ -1,9 +1,6 @@
 import type { CsharpExpression, CsharpStatement } from "../../target-ast/syntax/index.js";
 import type { CsharpNativeMemoryLayout } from "../../../target-model/operations/native-memory.js";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";
-import { csharpRuntimeNativeArrayTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
-import { csharpNativeLayoutOwner, csharpNativeMemoryOwner } from "../../../target-model/names/native-memory.js";
-import { qualifiedCsharpType } from "../types/primitives.js";
 import type { CsharpNativeLayoutRecords } from "../../../target-model/records/native/native-layout-emission.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
@@ -13,9 +10,11 @@ export function planCsharpNativeMemoryCall(
   records: CsharpNativeLayoutRecords,
 ): CsharpExpression | undefined {
   const pointee = csharpTypeFromTargetTypeRef(layout.pointeeType, typeParameterNames);
-  const owner = qualifiedCsharpType(csharpNativeMemoryOwner.namespace, csharpNativeMemoryOwner.name);
+  const selected = records.nativeLayoutEmission.get(layout);
+  if (selected === undefined) failCsharpPlannerInvariant("An admitted native allocation requires its actual selected Runtime owner.");
+  const owner = csharpTypeFromTargetTypeRef(selected.memoryOwner, typeParameterNames);
   const codec = planCsharpNativeLayout(typeParameterNames, layout, records);
-  if (pointee === undefined || codec === undefined) failCsharpPlannerInvariant("An admitted native allocation requires its pointee and codec syntax.");
+  if (pointee === undefined || owner === undefined || codec === undefined) failCsharpPlannerInvariant("An admitted native allocation requires its pointee and codec syntax.");
   return { kind: "InvocationExpression", callee: {
     kind: "SimpleMemberAccessExpression",
     receiver: owner,
@@ -24,7 +23,9 @@ export function planCsharpNativeMemoryCall(
 }
 
 export function planCsharpNativeArray(typeParameterNames: ReadonlyMap<string, string> | undefined, initial: CsharpExpression, layout: CsharpNativeMemoryLayout, stride: bigint, records: CsharpNativeLayoutRecords): CsharpExpression | undefined {
-  const type = csharpTypeFromTargetTypeRef(csharpRuntimeNativeArrayTargetType(layout.pointeeType), typeParameterNames);
+  const selected = records.nativeLayoutEmission.get(layout);
+  if (selected?.arrayStorage === undefined) failCsharpPlannerInvariant("An admitted native array requires its exact acquired physical storage application.");
+  const type = csharpTypeFromTargetTypeRef(selected.arrayStorage, typeParameterNames);
   const codec = planCsharpNativeLayout(typeParameterNames, layout, records);
   return type === undefined || codec === undefined ? undefined : { kind: "ObjectCreationExpression", type,
     arguments: [initial, codec, csharpNativeSizeLiteral(stride)].map(expression => ({ kind: "Argument", expression })) };
@@ -34,8 +35,8 @@ function planCsharpNativeLayout(typeParameterNames: ReadonlyMap<string, string> 
   const selected = records.nativeLayoutEmission.get(layout);
   if (selected === undefined) failCsharpPlannerInvariant("An admitted native layout requires its exact emission plan.");
   const pointee = csharpTypeFromTargetTypeRef(layout.pointeeType, typeParameterNames);
-  const owner = layout.kind === "scalar" ? qualifiedCsharpType(csharpNativeLayoutOwner.namespace, csharpNativeLayoutOwner.name)
-    : csharpTypeFromTargetTypeRef(selected.owner, typeParameterNames);
+  const owner = layout.kind === "scalar" ? selected.scalarFactory === undefined ? undefined
+    : csharpTypeFromTargetTypeRef(selected.scalarFactory, typeParameterNames) : csharpTypeFromTargetTypeRef(selected.owner, typeParameterNames);
   if (pointee === undefined || owner === undefined) failCsharpPlannerInvariant("An admitted native layout requires its exact pointee and owner syntax.");
   const dimensions: CsharpExpression[] = [
     csharpNativeSizeLiteral(layout.size),

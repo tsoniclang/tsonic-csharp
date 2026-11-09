@@ -9,9 +9,9 @@ import type { CsharpTargetMember } from "../../../target-model/types/model.js";
 import { csharpRuntimeLocationPointee, csharpRuntimeLocationTargetType, isCsharpAbsenceTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { csharpNullableReferenceTargetType, isCsharpNullableReferenceTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { isCsharpValueTypeTargetType } from "../../../target-model/types/identity.js";
-import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
+import { targetTypeRefEquals, type CsharpNativeTypeIdentity } from "../../../target-model/types/equality.js";
 
-export function selectCsharpNativeTypedLocationOperation(source: SourceTypedLocationOperation,
+export function selectCsharpNativeTypedLocationOperation(identity: CsharpNativeTypeIdentity, source: SourceTypedLocationOperation,
   pointeeType: TargetTypeRef, definition: CsharpNativeGenericTypeDefinition, carriers: ReadonlyMap<Node, TargetTypeRef>,
   native: CsharpNativeRefReturnSelection | undefined, storage: CsharpTypedLocationStorageSelection | undefined,
   sourcePointee: TargetTypeRef | undefined, runtime: CsharpNativeCallableApplication | undefined): CsharpTypedLocationOperationSelection {
@@ -24,19 +24,19 @@ export function selectCsharpNativeTypedLocationOperation(source: SourceTypedLoca
   const reject = (reason: string): CsharpTypedLocationOperationSelection => Object.freeze({ kind: "rejected", operation, reason });
   const equalityOperand = (type: TargetTypeRef | undefined, pointee = pointeeType): boolean => {
     const selected = csharpRuntimeLocationPointee(type, definition);
-    return isCsharpAbsenceTargetType(type) || selected !== undefined && targetTypeRefEquals(selected, pointee);
+    return isCsharpAbsenceTargetType(type) || selected !== undefined && targetTypeRefEquals(identity, selected, pointee);
   };
   if (native?.kind === "rejected") return reject(native.reason);
   if (source.operation === "address-of") {
     if (storage === undefined || storage.kind === "rejected") return reject(storage?.reason ?? "The original writable place has no admitted physical Native address.");
-    if (!targetTypeRefEquals(storage.storage.valueType, pointeeType)) return reject("The actual storage and pointee must have identical Native carriers.");
+    if (!targetTypeRefEquals(identity, storage.storage.valueType, pointeeType)) return reject("The actual storage and pointee must have identical Native carriers.");
     return Object.freeze({ kind: "location-address", call, pointeeType, locationType, storage: storage.storage });
   }
   if (source.operation === "allocate") return carriers.has(source.initial.occurrence)
     ? Object.freeze({ kind: "location-allocate", call, pointeeType, locationType, initialExpression: source.initial.occurrence })
     : reject("The initial value requires its completed actual Native value record.");
   if (source.operation === "load" || source.operation === "store") {
-    const selected = locationOperand(source.pointer.occurrence, pointeeType, locationType, native, carriers.get(source.pointer.occurrence));
+    const selected = locationOperand(identity, source.pointer.occurrence, pointeeType, locationType, native, carriers.get(source.pointer.occurrence));
     if (selected.kind === "rejected") return reject(selected.reason);
     if (source.operation === "load") return Object.freeze({ kind: "location-load", call, pointeeType, locationType, location: selected.location });
     if (selected.location.kind === "native-ref-return" && selected.location.returnPassing === "byref-readonly") return reject(
@@ -76,13 +76,13 @@ export function selectCsharpNativeTypedLocationOperation(source: SourceTypedLoca
     arguments: Object.freeze(operands.map((operand, index) => Object.freeze({ expression: operand.occurrence, type: signature.parameters[index]! }))) });
 }
 
-function locationOperand(expression: Node, pointee: TargetTypeRef, location: TargetTypeRef,
+function locationOperand(identity: CsharpNativeTypeIdentity, expression: Node, pointee: TargetTypeRef, location: TargetTypeRef,
   native: CsharpNativeRefReturnSelection | undefined, carrier: TargetTypeRef | undefined):
   { readonly kind: "resolved"; readonly location: CsharpTypedLocationOperand } | { readonly kind: "rejected"; readonly reason: string } {
-  if (native?.kind === "resolved") return native.returnType !== undefined && targetTypeRefEquals(native.returnType, pointee)
+  if (native?.kind === "resolved") return native.returnType !== undefined && targetTypeRefEquals(identity, native.returnType, pointee)
     ? { kind: "resolved", location: { kind: "native-ref-return", expression, targetIdentity: native.targetIdentity, returnPassing: native.returnPassing } }
     : { kind: "rejected", reason: "The actual Native ref-return must retain the identical physical pointee ABI." };
-  return carrier !== undefined && targetTypeRefEquals(carrier, location)
+  return carrier !== undefined && targetTypeRefEquals(identity, carrier, location)
     ? { kind: "resolved", location: { kind: "runtime-location", expression } }
     : { kind: "rejected", reason: "The operand must have its exact acquired Native location or selected ref-return contract." };
 }
