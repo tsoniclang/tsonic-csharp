@@ -1,4 +1,4 @@
-import type { SourceMemoryLayout, SourceTypeBinding } from "@tsonic/target-api/source";
+import type { SourceMemoryField, SourceMemoryLayout, SourceTypeBinding } from "@tsonic/target-api/source";
 import type { Node } from "@tsonic/tsts";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpMemoryAnalysisHost, CsharpMemoryOutcome } from "../../../policy/model/memory.js";
@@ -45,7 +45,7 @@ export function selectCsharpNativeMemoryLayout(host: CsharpMemoryAnalysisHost, r
     active.add(layout);
     try {
       const carrier = representedType.value.carrier;
-      const base = { pointeeType: carrier, size: layout.byteSize, alignment: layout.byteAlignment,
+      const base = { pointeeType: carrier, size: layout.byteSize, alignment: layout.byteAlignment, valueStride: layout.stride,
         width: layout.dataLayout.addressWidth, littleEndian: layout.dataLayout.byteOrder === "little" };
       const maximum = (1n << BigInt(base.width)) - 1n;
       if (base.size < 0n || base.size > maximum || base.alignment <= 0n ||
@@ -82,13 +82,7 @@ export function selectCsharpNativeMemoryLayout(host: CsharpMemoryAnalysisHost, r
         const selected = new Map<PhysicalField["identity"], CsharpNativeMemoryField>();
         for (const field of layout.fields) {
           if (field.member.readonly || field.member.optional) return reject(layout, "Native memory fields require their complete mutable Source field contract.");
-          const origins = [...field.member.origins, ...field.member.readOrigins, ...field.member.writeOrigins];
-          const matches = physical.value.filter(candidate => {
-            const member = candidate.member;
-            return member === undefined
-              ? field.selectedDeclarations.length !== 0 && field.selectedDeclarations.every(declaration => candidate.declarations.includes(declaration))
-              : origins.length !== 0 && origins.every(origin => member.origins?.some(original => sourceMemberOriginsEqual(original, origin)) === true);
-          });
+          const matches = physical.value.filter(candidate => physicalFieldMatches(candidate, field));
           if (matches.length !== 1) return reject(layout, "Each selected Source field must retain its exact complete physical declaration association.");
           const member = matches[0]!;
           const child = select(field.layout, depth + 1);
@@ -157,6 +151,33 @@ function physicalFields(host: CsharpMemoryAnalysisHost, carrier: Extract<TargetT
       type: slot.storage.type, declarations: Object.freeze([...declarations]) }));
   }
   return represented(Object.freeze(fields));
+}
+
+function physicalFieldMatches(candidate: PhysicalField, field: SourceMemoryField): boolean {
+  const member = candidate.member;
+  const origins = [...field.member.origins, ...field.member.readOrigins, ...field.member.writeOrigins];
+  return member === undefined
+    ? field.selectedDeclarations.length !== 0 && field.selectedDeclarations.every(declaration => candidate.declarations.includes(declaration))
+    : origins.length !== 0 && origins.every(origin => member.origins?.some(original => sourceMemberOriginsEqual(original, origin)) === true);
+}
+
+export function selectCsharpNativeMemoryFieldOffset(host: CsharpMemoryAnalysisHost, source: SourceMemoryLayout,
+  layout: CsharpNativeMemoryLayout, field: SourceMemoryField): CsharpMemoryOutcome<bigint> {
+  if (source.kind !== "value" || !source.fields.includes(field) || layout.kind !== "record" || layout.pointeeType.kind !== "target-named") {
+    return nativeRepresentationFailure(field.occurrence, "CSHARP_NATIVE_MEMORY_FIELD_NOT_PROVEN",
+      "The observed field must belong to the identical completed Source and physical record layout.");
+  }
+  const physical = physicalFields(host, layout.pointeeType, source);
+  if (physical.kind !== "represented") return physical;
+  const selected = physical.value.filter(candidate => physicalFieldMatches(candidate, field));
+  const member = selected[0];
+  if (selected.length !== 1 || member === undefined) return nativeRepresentationFailure(field.occurrence,
+    "CSHARP_NATIVE_MEMORY_FIELD_NOT_PROVEN", "The observed field requires its complete unique physical declaration association.");
+  const offsets = layout.fields.filter(candidate => candidate.name === member.name);
+  const offset = offsets[0];
+  return offsets.length === 1 && offset !== undefined ? represented(offset.offset)
+    : nativeRepresentationFailure(field.occurrence, "CSHARP_NATIVE_MEMORY_FIELD_NOT_PROVEN",
+      "The observed physical field must retain its one admitted Native offset.");
 }
 
 export function selectCsharpRawLocation(host: CsharpMemoryAnalysisHost, node: Node): CsharpMemoryOutcome<CsharpRawLocationSelection | undefined> {

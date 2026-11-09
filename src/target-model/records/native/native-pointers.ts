@@ -16,7 +16,7 @@ export type CsharpNativePointerOperationKind = "load" | "store" | "offset" | "eq
 
 export type CsharpResolvedNativePointerOperation =
   | Extract<CsharpRawLocationSelection, { readonly kind: "raw-location" }>
-  | { readonly kind: "layout-query"; readonly value: bigint }
+  | { readonly kind: "layout-query"; readonly value: bigint; readonly resultType: TargetTypeRef }
   | Extract<CsharpRawAddressSelection, { readonly kind: "raw-address" }>
   | {
       readonly kind: "raw-identity";

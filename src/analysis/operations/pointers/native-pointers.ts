@@ -1,144 +1,79 @@
-import type { CsharpNativePointerOperationKind, CsharpNativePointerOperationSelection, CsharpResolvedNativePointerOperationBase } from "../../../target-model/records/native/native-pointers.js";
-import type { Node, SourceFile } from "@tsonic/tsts";
-import type { CsharpPolicyContext } from "../../../policy/model/context.js";
-
-import { csharpSourcePrimitiveTargetType, targetTypeRefEquals } from "../../../policy/types/index.js";
-import { readCsharpSourceNativePointerOperation } from "../../../source/extension/native-pointers.js";
-import { readCsharpSourceRawPointerIdentity } from "../../../source/extension/raw-pointers.js";
+import type { Node } from "@tsonic/tsts";
+import type { SourceNativePointerOperation, SourceRawAddressOperation } from "@tsonic/target-api/source";
+import type { CsharpMemoryAnalysisHost, CsharpMemoryOutcome } from "../../../policy/model/memory.js";
+import type { CsharpNativePointerOperationSelection, CsharpResolvedNativePointerOperationBase } from "../../../target-model/records/native/native-pointers.js";
+import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/carriers/scalar-types.js";
+import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { csharpRuntimeRawPointerTargetType, isCsharpAbsenceTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { csharpNullableReferenceTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
+import { represented, sourceOutcome } from "../../../policy/types/source-type-flow/representation-results.js";
 import { selectCsharpRawAddress } from "./raw-addresses.js";
-
-import { selectCsharpLayoutObservation } from "../../../policy/operations/pointers/layout-observations.js";
 import { selectCsharpRawLocation } from "./native-memory.js";
-import { selectTargetNativePointerOperation } from "@tsonic/target-api/analysis";
+import { selectCsharpMemoryRuntimeDefinition } from "./runtime-definitions.js";
+import { selectCsharpMemoryObservation } from "./layout-observations.js";
 
-export function selectCsharpNativePointerOperation(
-  input: CsharpPolicyContext,
-  node: Node,
-  sourceFile: SourceFile,
-): CsharpNativePointerOperationSelection {
-  const rawLocation = selectCsharpRawLocation(input, node, sourceFile);
-  const layout = selectCsharpLayoutObservation(input.sourceFacts, node);
-  const address = selectCsharpRawAddress(input, node, sourceFile);
-  return selectTargetNativePointerOperation(rawLocation, layout, address,
-    selectRawIdentity(input, node, sourceFile), selectNativePointer(input, node, sourceFile)) ?? { kind: "not-native-pointer" };
+export function selectCsharpNativePointerOperation(input: CsharpMemoryAnalysisHost,
+  node: Node): CsharpMemoryOutcome<CsharpNativePointerOperationSelection> {
+  const selected = sourceOutcome(input.facts.protocols.pointerOperation(node));
+  if (selected.kind !== "represented") return selected;
+  if (selected.value.kind === "none") {
+    const observation = selectCsharpMemoryObservation(input, node);
+    if (observation.kind !== "represented") return observation;
+    return represented(observation.value ?? Object.freeze({ kind: "not-native-pointer" }));
+  }
+  const source = selected.value.value;
+  if (source.occurrence !== node) throw new TypeError("A Native pointer operation must retain its identical original Source occurrence.");
+  if (source.family === "native-pointer") return selectNativePointer(input, source);
+  if (source.family === "raw-address") return selectRawIdentity(input, source);
+  if (source.family === "raw-memory") {
+    if (source.operation !== "to-raw" && source.operation !== "reinterpret") return selectCsharpRawAddress(input, source);
+    const selected = selectCsharpRawLocation(input, node);
+    if (selected.kind !== "represented") return selected;
+    if (selected.value === undefined) throw new TypeError("An authenticated raw operation requires its same scoped Source raw-location proof.");
+    return represented(selected.value);
+  }
+  return represented(Object.freeze({ kind: "not-native-pointer" }));
 }
 
-function selectRawIdentity(input: CsharpPolicyContext, node: Node, sourceFile: SourceFile):
-  Exclude<CsharpNativePointerOperationSelection, { readonly kind: "not-native-pointer" }> | undefined {
-  const identity = readCsharpSourceRawPointerIdentity(input.sourceFacts, node);
-  if (identity !== undefined) {
-    const arguments_ = input.ast.arguments(node);
-    const carrier = csharpRuntimeRawPointerTargetType();
-    if (identity.call !== node || identity.arguments.length !== arguments_.length ||
-      identity.arguments.some((argument, index) => argument.expression !== arguments_[index])) {
-      return rejected(identity.operation, "Raw pointer identity requires exact selected call arguments.");
-    }
-    for (const argument of identity.arguments) {
-      const selected = input.types.resolveSelectedValue(argument.expression, argument.type, sourceFile);
-      const value = getCsharpNullableElementTargetType(selected) ?? selected;
-      if (!isCsharpAbsenceTargetType(value) && (value === undefined || !targetTypeRefEquals(value, carrier))) {
-        return rejected(identity.operation, "Raw pointer identity requires the closed address carrier, not an arbitrary object.");
-      }
-    }
-    return { kind: "raw-identity", method: identity.operation === "equal-raw-pointer" ? "Same" : "Hash",
-      arguments: Object.freeze(identity.arguments.map(argument => argument.expression)), carrier,
-      parameterType: csharpNullableReferenceTargetType(carrier) };
+function selectRawIdentity(input: CsharpMemoryAnalysisHost,
+  source: SourceRawAddressOperation): CsharpMemoryOutcome<CsharpNativePointerOperationSelection> {
+  if (source.operation === "bind-raw-pointer") return represented(Object.freeze({ kind: "not-native-pointer" }));
+  const definition = selectCsharpMemoryRuntimeDefinition(input, "RawPointer", source.occurrence);
+  if (definition.kind !== "represented") return definition;
+  const carrier = csharpRuntimeRawPointerTargetType(definition.value);
+  const operands = source.operation === "equal-raw-pointer" ? [source.left, source.right] : [source.pointer];
+  for (const operand of operands) {
+    const selected = input.nativeValue(operand.occurrence);
+    if (selected.kind !== "represented") return selected;
+    const value = getCsharpNullableElementTargetType(selected.value) ?? selected.value;
+    if (!isCsharpAbsenceTargetType(value) && !targetTypeRefEquals(value, carrier)) return represented(Object.freeze({
+      kind: "rejected", operation: source.operation, reason: "Raw pointer identity requires the exact acquired Native address carrier or absence." }));
   }
-  return undefined;
+  return represented(Object.freeze({ kind: "raw-identity", method: source.operation === "equal-raw-pointer" ? "Same" : "Hash",
+    arguments: Object.freeze(operands.map(operand => operand.occurrence)), carrier, parameterType: csharpNullableReferenceTargetType(carrier) }));
 }
 
-function selectNativePointer(input: CsharpPolicyContext, node: Node, sourceFile: SourceFile):
-  Exclude<CsharpNativePointerOperationSelection, { readonly kind: "not-native-pointer" }> | undefined {
-  const source = readCsharpSourceNativePointerOperation(
-    input.sourceFacts,
-    node,
-  );
-  if (source === undefined) {
-    return undefined;
+function selectNativePointer(input: CsharpMemoryAnalysisHost,
+  source: SourceNativePointerOperation): CsharpMemoryOutcome<CsharpNativePointerOperationSelection> {
+  const selected = input.nativeValue(source.pointer.occurrence);
+  if (selected.kind !== "represented") return selected;
+  const pointee = input.representation.represent(source.pointee, "storage", source.occurrence);
+  if (pointee.kind !== "represented") return pointee;
+  const pointerType = selected.value;
+  if (pointerType.kind !== "pointer" || !targetTypeRefEquals(pointerType.pointee, pointee.value.carrier)) {
+    return represented(Object.freeze({ kind: "rejected", operation: source.operation,
+      reason: "The original Native pointer operation requires its exact physical pointer and pointee ABI." }));
   }
-  const pointerType = input.types.resolveSelectedValue(
-    source.pointerExpression,
-    source.pointerType,
-    sourceFile,
-  );
-  if (pointerType?.kind !== "pointer") {
-    return rejected(
-      source.operation,
-      "The selected native-pointer operand has no exact C# native-pointer representation.",
-    );
+  const base: CsharpResolvedNativePointerOperationBase = Object.freeze({ call: source.occurrence,
+    pointerExpression: source.pointer.occurrence, pointerType, pointeeType: pointerType.pointee });
+  if (source.operation === "load") return represented(Object.freeze({ ...base, kind: "load" }));
+  if (source.operation === "store") {
+    const value = input.nativeValue(source.value.occurrence);
+    return value.kind !== "represented" ? value : represented(Object.freeze({ ...base, kind: "store", valueExpression: source.value.occurrence }));
   }
-  if (source.explicitPointeeTypeNode !== undefined) {
-    const explicitPointee = input.types.resolveSelectedType(
-      source.explicitPointeeTypeNode,
-      source.pointeeType,
-      sourceFile,
-    );
-    if (
-      explicitPointee === undefined ||
-      !targetTypeRefEquals(explicitPointee, pointerType.pointee)
-    ) {
-      return rejected(
-        source.operation,
-        "The authored pointee type and selected native-pointer operand do not have one exact C# representation.",
-      );
-    }
-  }
-  const base: CsharpResolvedNativePointerOperationBase = {
-    call: node,
-    pointerExpression: source.pointerExpression,
-    pointerType,
-    pointeeType: pointerType.pointee,
-  };
-  switch (source.operation) {
-    case "load":
-      return { ...base, kind: source.operation };
-    case "store": {
-      const valueType = input.types.resolveSelectedValue(
-        source.valueExpression,
-        source.valueType,
-        sourceFile,
-      );
-      return valueType === undefined
-        ? rejected(
-            source.operation,
-            "The selected native-pointer store value has no closed C# representation.",
-          )
-        : {
-            ...base,
-            kind: source.operation,
-            valueExpression: source.valueExpression,
-          };
-    }
-    case "offset": {
-      const offsetType = input.types.resolveSelectedValue(
-        source.offsetExpression,
-        source.offsetType,
-        sourceFile,
-      );
-      return offsetType === undefined ||
-          !targetTypeRefEquals(
-            offsetType,
-            csharpSourcePrimitiveTargetType("native-int"),
-          )
-        ? rejected(
-            source.operation,
-            "The selected native-pointer element offset is not exactly native-int in C#.",
-          )
-        : {
-            ...base,
-            kind: source.operation,
-            offsetExpression: source.offsetExpression,
-            offsetType,
-          };
-    }
-  }
-}
-
-function rejected(
-  operation: CsharpNativePointerOperationKind,
-  reason: string,
-): Extract<CsharpNativePointerOperationSelection, { readonly kind: "rejected" }> {
-  return { kind: "rejected", operation, reason };
+  const offset = input.nativeValue(source.offset.occurrence);
+  if (offset.kind !== "represented") return offset;
+  return targetTypeRefEquals(offset.value, csharpSourcePrimitiveTargetType("native-int"))
+    ? represented(Object.freeze({ ...base, kind: "offset", offsetExpression: source.offset.occurrence, offsetType: offset.value }))
+    : represented(Object.freeze({ kind: "rejected", operation: "offset", reason: "The selected Native pointer offset must retain its exact native-int carrier." }));
 }

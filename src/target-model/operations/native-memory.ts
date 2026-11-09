@@ -5,6 +5,7 @@ interface CsharpNativeMemoryDimensions {
   readonly pointeeType: TargetTypeRef;
   readonly size: bigint;
   readonly alignment: bigint;
+  readonly valueStride: bigint;
   readonly width: 32 | 64;
   readonly littleEndian: boolean;
 }
@@ -31,7 +32,7 @@ export function csharpNativeMemoryLayoutsEqual(left: CsharpNativeMemoryLayout, r
     compared.add(second);
     visited.set(first, compared);
     if (first.kind !== second.kind || !targetTypeRefEquals(first.pointeeType, second.pointeeType) ||
-      first.size !== second.size || first.alignment !== second.alignment || first.width !== second.width ||
+      first.size !== second.size || first.alignment !== second.alignment || first.valueStride !== second.valueStride || first.width !== second.width ||
       first.littleEndian !== second.littleEndian) return false;
     if (first.kind === "array" || second.kind === "array") {
       if (first.kind !== "array" || second.kind !== "array" ||
