@@ -1,65 +1,103 @@
+import type { Node } from "@tsonic/tsts";
+import type { SourceMemoryFieldBinding, SourceStorageUnresolved } from "@tsonic/target-api/source";
 import type { CsharpMemoryBindingSelection } from "../../target-model/records/storage/memory-bindings.js";
-import type { Node, SourceFile } from "@tsonic/tsts";
-import { selectTsonicMemoryFieldBindingFacts, selectTsonicMemoryRecordBindingFacts } from "@tsonic/source-core/facts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpObjectShapeMemberFact } from "../../target-model/types/model.js";
+import type { CsharpRepresentationOutcome } from "../../target-model/types/representation.js";
+import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
 import { csharpRuntimeLocationTargetType, isCsharpEmptyObjectTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
-import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../target-model/types/object-shape-members.js";
-import { readCsharpSourceField } from "../../source/extension/markers.js";
+import { represented, sourceOutcome } from "../../policy/types/source-type-flow/representation-results.js";
 import { csharpPointerStorageDomainRejection } from "./pointers/storage-domain.js";
 
+type UnresolvedMemory = Extract<SourceStorageUnresolved, { readonly kind: "unresolved" }>;
+
 export function selectCsharpMemoryBinding(
-  input: CsharpPolicyContext, node: Node, file: SourceFile,
-): CsharpMemoryBindingSelection | undefined {
-  if (input.sourceFacts === undefined) return undefined;
-  const field = selectTsonicMemoryFieldBindingFacts(input.ast, input.sourceFacts, node);
-  const record = selectTsonicMemoryRecordBindingFacts(input.ast, input.sourceFacts, node);
-  if (field === undefined && record === undefined) return undefined;
-  const reject = (reason: string): CsharpMemoryBindingSelection => ({ kind: "rejected", reason });
-  if (field?.kind === "rejected") return reject(field.reason);
-  if (record?.kind === "rejected") return reject(record.reason);
-  if (field?.kind === "resolved") {
-    const operation = field.operation;
-    const typeNode = input.ast.typeNode(operation.field.selectedDeclaration) ??
-      readCsharpSourceField(input.sourceFacts, [operation.field.selectedDeclaration])?.sourceType;
-    const pointee = input.types.resolveSelectedType(typeNode, operation.pointeeType, file);
-    if (pointee === undefined) return reject("The bound field has no exact C# value carrier.");
-    const type = csharpRuntimeLocationTargetType(pointee);
-    const selectedPointer = input.types.resolveNode(operation.pointerExpression, file)?.sourceResult?.selectedType;
-    if (selectedPointer === undefined || !targetTypeRefEquals(type, selectedPointer)) {
+  input: CsharpPolicyContext,
+  node: Node,
+): CsharpRepresentationOutcome<CsharpMemoryBindingSelection | undefined> | UnresolvedMemory {
+  const queries = input.sourceStorage.memory.memoryBindings;
+  const field = queries.field(node, input.sourceStorage.emptyBindings);
+  if (field.kind === "refused") return Object.freeze({ kind: "source-refused", refusal: field });
+  if (field.kind === "unresolved") return field;
+  const reject = (reason: string): CsharpRepresentationOutcome<CsharpMemoryBindingSelection> =>
+    represented(Object.freeze({ kind: "rejected", reason }));
+  if (field.value.kind === "present") {
+    const binding = field.value.value;
+    const pointee = representedPointee(input, binding);
+    if (pointee.kind !== "represented") return pointee;
+    const type = csharpRuntimeLocationTargetType(pointee.value);
+    const pointer = input.nativeValue(binding.pointer.occurrence);
+    if (pointer.kind !== "represented") return pointer;
+    if (!targetTypeRefEquals(type, pointer.value)) {
       return reject("The selected location and bound field have different C# pointee carriers.");
     }
-    const domain = csharpPointerStorageDomainRejection(input, operation.pointerExpression, pointee);
-    if (domain !== undefined) return reject(domain);
-    return Object.freeze({ kind: "field", type, expression: operation.pointerExpression });
+    const domain = csharpPointerStorageDomainRejection(input, binding.pointer.occurrence, pointee.value, binding.bindings);
+    if (domain.kind !== "represented") return domain;
+    return domain.value === undefined
+      ? represented(Object.freeze({ kind: "field", type, expression: binding.pointer.occurrence }))
+      : reject(domain.value);
   }
-  if (record?.kind !== "resolved") return reject("The record binding has no finalized operation.");
-  const operation = record.operation;
-  const type = input.types.resolveSelectedType(operation.layout.explicitTypeNode, operation.sourceType, file);
-  const shape = type !== undefined && isCsharpEmptyObjectTargetType(type) && operation.fields.length === 0
+  const record = queries.record(node, input.sourceStorage.emptyBindings);
+  if (record.kind === "refused") return Object.freeze({ kind: "source-refused", refusal: record });
+  if (record.kind === "unresolved") return record;
+  if (record.value.kind === "none") return represented(undefined);
+  const operation = record.value.value;
+  const evidence = sourceOutcome(input.representation.source.substitute(operation.layout.source, operation.typeBindings));
+  if (evidence.kind !== "represented") return evidence;
+  const selectedType = input.representation.represent(evidence.value, "storage", node);
+  if (selectedType.kind !== "represented") return selectedType;
+  const type = selectedType.value.carrier;
+  const selectedShape = input.objectShapes.resolveEvidence(evidence.value, type, node);
+  if (selectedShape.kind !== "represented") return selectedShape;
+  const shape = isCsharpEmptyObjectTargetType(type) && operation.fields.length === 0
     ? Object.freeze({ targetType: type, members: Object.freeze([]) })
-    : input.objectShapes.resolveTarget(type);
-  if (type === undefined || shape === undefined || shape.members.length !== operation.fields.length ||
-    !targetTypeRefEquals(type, shape.targetType)) return reject("The bound record requires one exact complete C# structural carrier.");
+    : selectedShape.value.kind === "present" ? selectedShape.value.value : undefined;
+  if (shape === undefined || shape.members.length !== operation.fields.length || !targetTypeRefEquals(type, shape.targetType)) {
+    return reject("The bound record requires one exact complete C# structural carrier.");
+  }
   const used = new Set<CsharpObjectShapeMemberFact>();
-  const fields: { expression: Node; member: CsharpObjectShapeMemberFact }[] = [];
+  const fields: { readonly expression: Node; readonly member: CsharpObjectShapeMemberFact }[] = [];
   for (const entry of operation.fields) {
-    const selection = resolveCsharpObjectShapeMemberBySelectedSubject(shape,
-      [entry.binding.field.selectedDeclaration, entry.binding.field.selectedSymbol]);
-    if (selection.kind !== "resolved" || used.has(selection.member)) return reject("The bound field has no unique selected C# storage member.");
-    const member = selection.member;
-    if (member.bound !== true || member.memberKind !== "property" || member.optional || member.accessor !== undefined) {
+    const binding = entry.binding;
+    const owner = sourceOutcome(input.representation.source.substitute(binding.field.owner, binding.typeBindings));
+    if (owner.kind !== "represented") return owner;
+    let member: CsharpObjectShapeMemberFact | undefined;
+    for (const origin of binding.field.member.origins) {
+      const selection = input.objectShapes.resolveMember(owner.value, type, origin, binding.field.selection);
+      if (selection.kind !== "represented") return selection;
+      if (selection.value.kind === "none" || member !== undefined && member !== selection.value.value) {
+        return reject("The bound field has no unique selected C# storage member.");
+      }
+      member = selection.value.value;
+    }
+    if (member === undefined || used.has(member) || member.bound !== true || member.memberKind !== "property" ||
+      member.optional || member.accessor !== undefined) {
       return reject("The selected record member has no finalized live-location storage.");
     }
-    const selectedPointer = input.types.resolveNode(entry.binding.pointerExpression, file)?.sourceResult?.selectedType;
-    if (selectedPointer === undefined || !targetTypeRefEquals(selectedPointer, csharpRuntimeLocationTargetType(member.type))) {
+    const pointee = representedPointee(input, binding);
+    if (pointee.kind !== "represented") return pointee;
+    const pointer = input.nativeValue(binding.pointer.occurrence);
+    if (pointer.kind !== "represented") return pointer;
+    if (!targetTypeRefEquals(pointee.value, member.type) ||
+      !targetTypeRefEquals(pointer.value, csharpRuntimeLocationTargetType(member.type))) {
       return reject("The bound member and supplied location have different C# pointee carriers.");
     }
-    const domain = csharpPointerStorageDomainRejection(input, entry.binding.pointerExpression, member.type);
-    if (domain !== undefined) return reject(domain);
+    const domain = csharpPointerStorageDomainRejection(input, binding.pointer.occurrence, member.type, binding.bindings);
+    if (domain.kind !== "represented") return domain;
+    if (domain.value !== undefined) return reject(domain.value);
     used.add(member);
     fields.push(Object.freeze({ expression: entry.expression, member }));
   }
-  return Object.freeze({ kind: "record", type, shape, fields: Object.freeze(fields) });
+  return represented(Object.freeze({ kind: "record", type, shape, fields: Object.freeze(fields) }));
+}
+
+function representedPointee(
+  input: Pick<CsharpPolicyContext, "representation">,
+  binding: SourceMemoryFieldBinding,
+): CsharpRepresentationOutcome<TargetTypeRef> {
+  const evidence = sourceOutcome(input.representation.source.substitute(binding.pointee, binding.typeBindings));
+  if (evidence.kind !== "represented") return evidence;
+  const selected = input.representation.represent(evidence.value, "storage", binding.occurrence);
+  return selected.kind === "represented" ? represented(selected.value.carrier) : selected;
 }

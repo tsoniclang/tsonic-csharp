@@ -25,6 +25,7 @@ const missing = Symbol("csharp.source-evidence.missing");
 import { createTsonicMemoryMetadataIndex, createTsonicClosedArrayStorageQueries } from "@tsonic/source-core/facts";
 import type { TsonicPointerStorageRelation } from "@tsonic/source-core/facts";
 import { createCsharpPointerBackingDemands } from "./pointer-backing.js";
+import { csharpRepresentationDiagnostic } from "./representations.js";
 import type { CsharpPointerReturnContract } from "../../target-model/records/calls/pointer-return.js";
 import { analyzeCsharpTypeOnlyDeclarations } from "../declarations/type-only.js";
 import { selectCsharpClassFactoryType } from "../project-types/class-factory-types.js";
@@ -38,7 +39,7 @@ export function analyzeCsharpSourceEvidence(
   pointerStorage: TsonicPointerStorageRelation,
 ): CsharpSourceEvidenceResult {
   const memoryMetadata = createTsonicMemoryMetadataIndex(source);
-  const pointerBacking = createCsharpPointerBackingDemands(source, pointerStorage, types);
+  const pointerBacking = createCsharpPointerBackingDemands(policy);
   const arrayStorage = createTsonicClosedArrayStorageQueries(source, 131_072);
   const typeOnlyDeclarations = analyzeCsharpTypeOnlyDeclarations(source, sourceFiles);
   const compileTimeMetadata = new WeakSet<Node>(typeOnlyDeclarations);
@@ -162,7 +163,14 @@ export function analyzeCsharpSourceEvidence(
         return;
       }
     }
-    pointerBacking.record(node);
+    const backing = pointerBacking.record(node);
+    if (backing.kind === "unresolved") memoryMetadataIssues.push(Object.freeze({
+      node, code: "CSHARP_POINTER_BACKING_NOT_PROVEN", message: backing.reason,
+    }));
+    else if (backing.kind !== "represented") {
+      const diagnostic = csharpRepresentationDiagnostic(backing);
+      nativeExpressionIssues.set(node, { diagnostic, requiredBy: new Set([node]) });
+    }
     const declaration = memoryMetadata.declaration(node);
     if (declaration !== undefined || memoryMetadata.isCompileTimeExpression(node)) {
       compileTimeMetadata.add(node);

@@ -1,6 +1,6 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetSelection } from "@tsonic/target-api";
-import type { TargetSourceProgram } from "@tsonic/target-api/source";
+import type { SourceMemoryBindingInventory, TargetSourceProgram } from "@tsonic/target-api/source";
 import type { SourceStorageQueries } from "@tsonic/target-api/analysis";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpObjectShapeRegistry, CsharpTypeQueries } from "../../policy/model/type-resolution.js";
@@ -43,6 +43,7 @@ export interface CsharpTypeSystemHost {
   readonly target: TargetSelection;
   readonly providers: CsharpProviderRelationResolver;
   readonly sourceStorage: SourceStorageQueries;
+  readonly memoryBindings: SourceMemoryBindingInventory;
   readonly objectMethodSources: CsharpObjectMethodSources;
   readonly typeDefinitions: CsharpTypeDefinitionRegistry;
   nativeValue(occurrence: Node, services: CsharpNativeTypeServices): CsharpRepresentationOutcome<TargetTypeRef>;
@@ -79,6 +80,7 @@ export function createCsharpTypeAnalysis(host: CsharpTypeSystemHost, catalog: Cs
   const nativeDelegates = createCsharpNativeDelegateRegistry(host.typeDefinitions);
   representation = createCsharpRepresentationView(createCsharpNativeRepresentationHost({
     source: host.source, target: host.target, providers: host.providers, nativeDeclarations: host.typeDefinitions, catalog, nativeDelegates,
+    memoryBindings: host.memoryBindings,
     representation: () => initialized(representation, "The one representation view"),
     retainShape(shape, site) {
       const retained = initialized(objectShapes, "The Native physical-shape registry").retainShape(shape, site);

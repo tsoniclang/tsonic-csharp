@@ -176,3 +176,48 @@ test("Native emission identity encodes shared callable metadata without expandin
   assert.equal(lengths[1] < lengths[0] * 3, true,
     "doubling a shared Native metadata chain retains bounded graph data rather than an exponential signature tree");
 });
+
+test("Native physical and emission identity intern shared Pair arguments before encoding their parents", () => {
+  const integer = csharpSourcePrimitiveTargetType("int32");
+  const wider = csharpSourcePrimitiveTargetType("int64");
+  const pair = (left, right) => Object.freeze({ kind: "target-named", id: "test:Pair`2",
+    typeArguments: Object.freeze([left, right]), csharpAllowsRefLikeTypeArguments: Object.freeze([false, false]) });
+  const chain = (depth, leaf) => {
+    let value = leaf;
+    for (let level = 0; level < depth; level += 1) value = pair(value, value);
+    return value;
+  };
+  const depths = [16, 32, 64];
+  const purposes = ["physical", "emission"];
+  assert.deepEqual(depths, [16, 32, 64], "the complete shared-physical scaling domain is required");
+  assert.deepEqual(purposes, ["physical", "emission"], "both canonical identity modes are exercised");
+  for (const purpose of purposes) {
+    const lengths = [];
+    for (const depth of depths) {
+      const value = chain(depth, integer);
+      const key = targetTypeRefKey(value, purpose);
+      const [root, entries] = JSON.parse(key);
+      assert.equal(entries.length, depth + 1, `${purpose}/${depth}: each distinct physical node is encoded once`);
+      assert.equal(root, depth, `${purpose}/${depth}: the complete root remains present`);
+      for (let level = 1; level <= depth; level += 1) {
+        const physical = purpose === "physical" ? entries[level] : entries[level][0];
+        assert.deepEqual(physical[4], [level - 1, level - 1],
+          `${purpose}/${depth}/${level}: both ordered Pair arguments survive interning`);
+      }
+      assert.equal(key, targetTypeRefKey(chain(depth, { ...integer }), purpose),
+        `${purpose}/${depth}: equal data is independent of object identity`);
+      assert.notEqual(key, targetTypeRefKey(chain(depth, wider), purpose),
+        `${purpose}/${depth}: the actual leaf carrier is not erased`);
+      lengths.push(key.length);
+    }
+    assert.equal(lengths.length, depths.length, `${purpose}: every declared depth is measured`);
+    assert.equal(lengths[1] < lengths[0] * 3 && lengths[2] < lengths[1] * 3, true,
+      `${purpose}: doubling a physical shared graph does not expand its binary tree`);
+    const shared = chain(16, integer);
+    assert.equal(targetTypeRefKey(pair(shared, shared), purpose),
+      targetTypeRefKey(pair(chain(16, { ...integer }), chain(16, { ...integer })), purpose),
+      `${purpose}: equal separately allocated subgraphs share the same content identity`);
+    assert.notEqual(targetTypeRefKey(pair(shared, wider), purpose), targetTypeRefKey(pair(wider, shared), purpose),
+      `${purpose}: distinct Native generic argument order remains authoritative`);
+  }
+});

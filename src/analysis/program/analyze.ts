@@ -9,7 +9,6 @@ import { analyzeCsharpProjectCallableAdapters } from "../project-types/callable-
 
 import { createCsharpNativeLiteralQueries } from "../source-evidence/native-literals.js";
 
-import { createTsonicPointerStorageRelation, createTsonicMemoryBindingFactsIndex } from "@tsonic/source-core/facts";
 import { rejectedTargetStage, resolvedTargetStage, failTargetAnalysisInvariant, targetDiagnosticFromExtension } from "@tsonic/target-api/artifacts";
 import { resolveTargetContractFixedPoint } from "@tsonic/target-api/analysis";
 import type { TargetStageResult, TargetDiagnostic } from "@tsonic/target-api/artifacts";
@@ -78,7 +77,6 @@ function analyzeCsharpTargetProgramBeforeSeal(
   })));
   const nativeErrors = analyzeCsharpNativeErrorAdmission(source);
   if (nativeErrors.issues.length !== 0) return rejectedTargetStage(nativeErrors.issues);
-  const memoryBindings = createTsonicMemoryBindingFactsIndex(source);
   const sourceAttributes = createCsharpSourceAttributeApplicationIndex(source, source.facts.navigation.sourceFiles);
   if (sourceAttributes.kind === "refused") return rejectedTargetStage([forwardSourceRefusal(sourceAttributes)]);
   const sourceAttributeApplications = sourceAttributes.value;
@@ -104,6 +102,11 @@ function analyzeCsharpTargetProgramBeforeSeal(
   const sourceStorage = storageAnalysis.queries;
   if (sourceStorage.source !== source) return failTargetAnalysisInvariant("tsonic-csharp",
     "Native storage analysis requires the identical original Source program.");
+  const memoryBindings = sourceStorage.memory.memoryBindings.inventory();
+  if (memoryBindings.kind === "refused") return rejectedTargetStage([forwardSourceRefusal(memoryBindings)]);
+  if (memoryBindings.kind === "unresolved") return rejectedTargetStage([{
+    code: "CSHARP_MEMORY_BINDING_NOT_PROVEN", category: "error", source: "tsonic-csharp", message: memoryBindings.reason,
+  }]);
   const sourceIdentities = createCsharpSourceIdentityPolicy(
     source.ast,
     input.paths.projectRoot,
@@ -131,8 +134,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
     sourceFacts: source.sourceFacts,
     navigation: source.facts.navigation,
     providers,
-    pointerStorage: createTsonicPointerStorageRelation(source, sourceStorage),
-    memoryBindings,
+    memoryBindings: memoryBindings.value,
     target: input.target,
     semantics: source.semantics.forFile,
     semanticsFor: source.semantics.forNode,
@@ -230,7 +232,8 @@ function analyzeCsharpTargetProgramBeforeSeal(
   if (analysis.objectShapes.issues.length > 0) return rejectCsharpAnalysisIssues(analysis.objectShapes.issues);
   const analysisIssues = [
     ...callableAdapters.issues,
-    ...memoryBindings.issues.map(issue => ({ node: issue.node, message: issue.reason, code: "CSHARP_MEMORY_BINDING_NOT_PROVEN" })),
+    ...memoryBindings.value.records.flatMap(record => record.selection.kind === "rejected"
+      ? record.selection.issues.map(issue => ({ node: issue.node, message: issue.reason, code: "CSHARP_MEMORY_BINDING_NOT_PROVEN" })) : []),
     ...analysis.sourceEvidence.memoryMetadataIssues,
     ...analysis.typeSystem.projectTypes.issues,
     ...analysis.typeSystem.nativeConstruction.issues,

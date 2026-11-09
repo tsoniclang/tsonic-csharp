@@ -1,6 +1,6 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetSelection } from "@tsonic/target-api";
-import type { SourceMemberOrigin, TargetSourceProgram } from "@tsonic/target-api/source";
+import type { SourceMemberOrigin, SourceMemoryBindingInventory, TargetSourceProgram } from "@tsonic/target-api/source";
 import { csharpSourceNodeIdentity } from "../../source/extension/identities.js";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpProviderRelationResolver } from "../../providers/model/relation-resolver.js";
@@ -35,6 +35,7 @@ export interface CsharpNativeRepresentationPorts {
   readonly target: TargetSelection;
   readonly providers: CsharpProviderRelationResolver;
   readonly nativeDeclarations: Pick<CsharpTypeDefinitionRegistry, "acquireNativeDeclaration" | "nativeDeclarationKind">;
+  readonly memoryBindings: SourceMemoryBindingInventory;
   readonly catalog: CsharpProjectTypeCatalog;
   readonly representation: () => CsharpRepresentationView;
   readonly retainShape: (shape: CsharpObjectShapeFact, site: Node) => CsharpRepresentationOutcome<CsharpObjectShapeFact>;
@@ -46,6 +47,7 @@ export function createCsharpNativeRepresentationHost(ports: CsharpNativeRepresen
   const { source, providers, catalog } = ports;
   const { ast } = source;
   const sourceView = source.facts.descriptors;
+  const boundDeclarations = new Set(ports.memoryBindings.selectedDeclarations);
   const host: CsharpRepresentationHost = {
     source: sourceView,
     applications: source.facts.applications,
@@ -252,7 +254,7 @@ export function createCsharpNativeRepresentationHost(ports: CsharpNativeRepresen
     }
     if (ast.is.IsPropertyDeclaration(declaration) || ast.is.IsPropertySignatureDeclaration(declaration) ||
       ast.is.IsPropertyAssignment(declaration) || ast.is.IsShorthandPropertyAssignment(declaration) || ast.is.IsParameterDeclaration(declaration)) {
-      return represented(Object.freeze({ declarations: Object.freeze([declaration]), kind: "property", bound: false }));
+      return represented(Object.freeze({ declarations: Object.freeze([declaration]), kind: "property", bound: boundDeclarations.has(declaration) }));
     }
     return nativeRepresentationFailure(site, "CSHARP_MEMBER_ORIGIN_UNSUPPORTED", "The authenticated original member has no selected Native declaration form.");
   }

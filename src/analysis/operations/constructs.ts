@@ -13,6 +13,7 @@ import { csharpOperationConversionIssue, csharpSelectedCallConversionIssue } fro
 import { validateCsharpJsValueOperationSelection } from "../../policy/operations/js-values/selection.js";
 import { resolveCsharpInstanceType } from "../source-evidence/types/resolution/instance-tests.js";
 import { representCsharpSourceType } from "../../policy/types/source-type-flow/representation.js";
+import { csharpRepresentationDiagnostic } from "../source-evidence/representations.js";
 import { selectCsharpClosedTypeTestPlan } from "../../policy/operations/operators/type-tests.js";
 import { selectCsharpOperatorForm } from "../../policy/operations/operators/operator-forms.js";
 import { getCsharpTypeofResult } from "../../target-model/types/runtime-kind.js";
@@ -131,9 +132,17 @@ export function analyzeCsharpOperationConstruct(
     );
   }
   if (ast.is.IsCallExpression(node)) {
-    const memoryBinding = selectCsharpMemoryBinding(policy, node, sourceFile);
-    if (memoryBinding?.kind === "rejected") issues?.push(Object.freeze({ node, code: "CSHARP_UNSUPPORTED_AST", message: memoryBinding.reason }));
-    producer.memoryBinding.selected(node, memoryBinding);
+    const memoryBinding = selectCsharpMemoryBinding(policy, node);
+    if (memoryBinding.kind === "represented") {
+      if (memoryBinding.value?.kind === "rejected") issues?.push(Object.freeze({ node, code: "CSHARP_UNSUPPORTED_AST", message: memoryBinding.value.reason }));
+      producer.memoryBinding.selected(node, memoryBinding.value);
+    } else if (memoryBinding.kind === "unresolved") {
+      issues?.push(Object.freeze({ node, code: "CSHARP_MEMORY_BINDING_NOT_PROVEN", message: memoryBinding.reason }));
+    } else {
+      const diagnostic = csharpRepresentationDiagnostic(memoryBinding);
+      issues?.push(Object.freeze({ node: diagnostic.sourceNode ?? node, code: diagnostic.code,
+        source: diagnostic.source, message: diagnostic.message }));
+    }
     const stringConversion = selectCsharpJsStringConversion(policy, node, sourceFile);
     if (stringConversion.kind === "rejected") issues?.push(Object.freeze({ node, code: "CSHARP_JS_STRING_CONVERSION_REJECTED", message: stringConversion.reason }));
     producer.jsStringConversion.selected(node, stringConversion);
