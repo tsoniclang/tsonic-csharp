@@ -20,7 +20,7 @@ import { csharpTargetNamedType } from "../../../target-model/types/factories.js"
 import { selectCsharpGenericFrameClosures } from "../generics/generic-closures.js";
 import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
 import { getCsharpExpressionTreeDelegateType } from "../../../target-model/types/carriers/delegates.js";
-import { createCsharpSourceTypeParameterEnvironment } from "../../source-evidence/types/resolution/type-parameter-environment.js";
+import { createCsharpTypeParameterEnvironment } from "../../../policy/types/callables/parameter-environment.js";
 
 import { csharpCapturedMemberAccess } from "../values/captured-member-access.js";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
@@ -39,7 +39,8 @@ export function analyzeCsharpCaptureStorage(
   erasedStatement: CsharpTargetOperationClassifications["erasedStatement"],
   selectedCalls: Pick<CsharpTargetOperationClassifications, "selectedCall" | "selectedConstruction">,
 ): CsharpCaptureStorage {
-  const environment = createCsharpSourceTypeParameterEnvironment(source.ast, declaration => evidence.typeParameterConstraints.get(declaration));
+  const environment = createCsharpTypeParameterEnvironment(parameter => parameter.csharpConstraints ??
+    (parameter.csharpDeclaration === undefined ? undefined : evidence.typeParameterConstraints.get(parameter.csharpDeclaration)));
   const groups = new Map<Node, Map<Node, CsharpCapturedPlaceContract>>();
   const protocols = new Map<Node, CsharpCaptureProtocol[]>();
   const retainProtocol = (scope: Node, protocol: CsharpCaptureProtocol): void => {

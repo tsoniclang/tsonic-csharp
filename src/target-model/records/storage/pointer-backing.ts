@@ -1,5 +1,5 @@
 import type { Node } from "@tsonic/tsts";
-import type { SourceMemoryLayout, SourcePointerBackingProducer } from "@tsonic/target-api/source";
+import type { SourceMemoryLayout, SourcePointerBackingProducer, SourceTypeBinding } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../types/native-type-data.js";
 
 export interface CsharpPointerBackingProducer {
@@ -12,4 +12,5 @@ export interface CsharpPointerBackingUse {
   readonly producers: readonly CsharpPointerBackingProducer[];
   readonly includesAbsence: boolean;
   readonly layout: SourceMemoryLayout;
+  readonly typeBindings: readonly SourceTypeBinding[];
 }

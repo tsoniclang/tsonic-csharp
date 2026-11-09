@@ -14,7 +14,7 @@ import type { CsharpStorageIssue } from "../../target-model/records/storage/stor
 import type { CsharpNativeArrayStorage } from "../../target-model/records/native/storage-data.js";
 import type { CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
 import { createCsharpNativeFieldBacking } from "./native-field-backing.js";
-import { createCsharpSourceTypeParameterEnvironment } from "../source-evidence/types/resolution/type-parameter-environment.js";
+import { createCsharpTypeParameterEnvironment } from "../../policy/types/callables/parameter-environment.js";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 
 interface CsharpNativeFieldDemand {
@@ -212,7 +212,8 @@ function finalizeCsharpNativeFieldBacking(
     return Object.freeze({ ...demand, shape, member });
   });
   const fields = createCsharpNativeFieldBacking(objectShapes.knownShapes(),
-    createCsharpSourceTypeParameterEnvironment(policy.ast, declaration => evidence.typeParameterConstraints.get(declaration)));
+    createCsharpTypeParameterEnvironment(parameter => parameter.csharpConstraints ??
+      (parameter.csharpDeclaration === undefined ? undefined : evidence.typeParameterConstraints.get(parameter.csharpDeclaration))));
   const issues: CsharpStorageIssue[] = [];
   for (const demand of demands) {
     const { shape, member, layout } = demand;

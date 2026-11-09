@@ -7,8 +7,9 @@ const checkerQueries = new Set([
   "expressionType", "declaredValueType", "typeOfSymbol", "declaredSymbolType", "writeSymbolType",
   "selectValueTypeRefinement", "resolveTypeWithState", "resolveSemanticTypeArguments", "bindCsharpSourceTypeArguments",
 ]);
-const retiredProperties = new Set(["semantics", "semanticsFor", "effectiveTypes", "semanticType", "semanticTargetType",
+const retiredProperties = new Set(["semantics", "semanticsFor", "effectiveTypes", "sourceFacts", "semanticType", "semanticTargetType",
   "sourceSelectedSignatureParameters"]);
+const checkerTypes = new Set(["Type", "Symbol", "Signature", "TypeChecker"]);
 const resolverObjects = new Set(["types", "structuralTypes", "objectShapes", "host"]);
 
 export function sourceEvidenceBoundaryFindings(sourceFiles) {
@@ -46,6 +47,8 @@ export function sourceEvidenceBoundaryFindings(sourceFiles) {
       const dependency = publicModuleDependency(ast, node);
       if (dependency !== undefined) {
         const name = ast.text(dependency.specifier);
+        if (native && name === "@tsonic/tsts" && dependency.names !== "all" &&
+          dependency.names.some(imported => checkerTypes.has(imported))) add(node, "native-checker-type-import");
         if (native && (name === "@tsonic/host" || name.startsWith("@tsonic/host/") ||
           name === "@tsonic/source-core/host" || /(?:^|\/)tsonic\/packages\//u.test(name))) {
           add(node, "native-imports-private-host");
@@ -54,10 +57,20 @@ export function sourceEvidenceBoundaryFindings(sourceFiles) {
           add(node, "host-solver-imports-target-or-storage");
         }
       }
+      if (native && ast.is.IsIdentifier(node) && retiredProperties.has(ast.text(node))) {
+        add(node, "retired-source-query-channel");
+      }
+      if (native && ast.is.IsElementAccessExpression(node)) {
+        const argument = ast.as.AsElementAccessExpression(node).ArgumentExpression;
+        if (argument !== undefined && ["KindStringLiteral", "KindNoSubstitutionTemplateLiteral"].includes(ast.kindName(argument)) &&
+          retiredProperties.has(ast.text(argument))) add(node, "retired-source-query-channel");
+      }
+      const propertyName = native ? ast.name(node) : undefined;
+      if (propertyName !== undefined && ast.kindName(propertyName) === "KindStringLiteral" &&
+        retiredProperties.has(ast.text(propertyName))) add(node, "retired-source-query-channel");
       if (native && ast.is.IsPropertyAccessExpression(node)) {
         const property = ast.as.AsPropertyAccessExpression(node);
         const name = label(node);
-        if (retiredProperties.has(name)) add(node, "retired-source-query-channel");
         if (name === "resolveType" && resolverObjects.has(label(property?.Expression))) add(node, "raw-type-resolver-reference");
       }
       if (native && ast.is.IsCallExpression(node)) {

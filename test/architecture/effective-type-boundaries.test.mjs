@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
@@ -18,6 +18,25 @@ test("Native Source representation consumes published evidence without any check
 test("the superseded allowance and partial-publication APIs are not exported", () => {
   assert.equal(Object.hasOwn(boundary, "declarationConverterAllowances"), false);
   assert.equal(Object.hasOwn(boundary, "effectiveTypeBoundaryFindings"), false);
+});
+
+test("the Native evidence owner deletes the Source solver and seals only completed published-fact records", () => {
+  assert.equal(existsSync(join(root, "src/analysis/source-evidence/types/resolution")), false);
+  assert.equal(existsSync(join(root, "src/analysis/source-evidence/types/published-callable-interface.ts")), false);
+  const owner = readFileSync(join(root, "src/analysis/source-evidence/analyze.ts"), "utf8");
+  const data = readFileSync(join(root, "src/target-model/records/program/source-evidence.ts"), "utf8");
+  assert.match(owner, /export function createCsharpSourceEvidenceBuilder/u);
+  assert.match(owner, /policy\.nativeValue\(occurrence\)/u);
+  for (const query of ["memoryMetadata.declaration", "memoryMetadata.value", "closedArrayStorage.resolve"]) {
+    assert.equal(owner.includes(`sourceStorage.memory.${query}(occurrence, bindings)`), true, query);
+  }
+  assert.doesNotMatch(owner, /emptyBindings|values\.occurrences\(|resolveSelectedType|resolveSelectedValue|createTsonic/u);
+  assert.match(owner, /const snapshot = new Map\(entries\)/u);
+  assert.match(owner, /open = false/u);
+  assert.doesNotMatch(data, /\b(?:Signature|TypeChecker|ResolvedSourceGeneratorInfo|ResolvedSourceYieldInfo)\b/u);
+  const pointer = readFileSync(join(root, "src/analysis/source-evidence/pointer-backing.ts"), "utf8");
+  assert.match(pointer, /memory\.rawLocation\.resolve\(node, bindings\.bindings\)/u);
+  assert.doesNotMatch(pointer, /operation\.location|typeFor\(|pointerStorageStates/u);
 });
 
 test("Native representation policy inputs own their data below analysis implementations", () => {
@@ -83,13 +102,39 @@ for (const [label, text] of [
   ["checked program", 'import type { CheckedSourceProgram as Input } from "@tsonic/tsts";'],
   ["signature", 'import type { Signature } from "@tsonic/tsts";'],
   ["symbol", 'import type { Symbol } from "@tsonic/tsts";'],
+  ["checker", 'import type { TypeChecker } from "@tsonic/tsts";'],
   ["checker vocabulary record", 'import type { ResolvedSourceCallInfo } from "@tsonic/tsts";'],
   ["namespace", 'import * as Checked from "@tsonic/tsts";'],
   ["inline import type", 'type Cached = import("@tsonic/tsts").Type;'],
   ["transitive reexport", 'export type { Type as Input } from "@tsonic/tsts";'],
 ]) {
   test(`Source boundary rejects ${label} without a private resolver exemption`, () => {
-    assert.equal(findings(text).some(row => row.rule.startsWith("checker-")), true, label);
+    assert.equal(findings(text).some(row => row.rule.startsWith("checker-") || row.rule === "native-checker-type-import"), true, label);
+  });
+}
+
+for (const name of ["Type", "Symbol", "Signature", "TypeChecker"]) {
+  for (const text of [
+    `import type { ${name} as Renamed } from "@tsonic/tsts";`,
+    `export type { ${name} as Published } from "@tsonic/tsts";`,
+    `type Cached = import("@tsonic/tsts").${name};`,
+  ]) test(`permanent Native checker ban covers ${text}`, () => {
+    assert.equal(findings(text).some(row => row.rule === "native-checker-type-import"), true);
+  });
+}
+
+for (const name of ["effectiveTypes", "semanticsFor", "sourceFacts"]) {
+  for (const text of [
+    `const selected = input.${name};`,
+    `const selected = input?.${name};`,
+    `const selected = input["${name}"];`,
+    `const selected = input[\`${name}\`];`,
+    `const { ${name}: renamed } = input;`,
+    `interface Input { readonly ${name}: Query; }`,
+    `interface Input { readonly "${name}": Query; }`,
+    `function receive(${name}: Query) { return ${name}; }`,
+  ]) test(`permanent retired-accessor ban covers ${text}`, () => {
+    assert.equal(findings(text).some(row => row.rule === "retired-source-query-channel"), true);
   });
 }
 
@@ -173,6 +218,6 @@ test("C# has no remaining Source literal choosers local absence producers or cou
 function filesUnder(directory) {
   return readdirSync(directory, { withFileTypes: true }).flatMap(entry => {
     const file = join(directory, entry.name);
-    return entry.isDirectory() ? filesUnder(file) : entry.name.endsWith(".ts") && !entry.name.endsWith(".test.ts") ? [file] : [];
+    return entry.isDirectory() ? filesUnder(file) : /\.(?:[cm]?[jt]s|[jt]sx)$/u.test(entry.name) ? [file] : [];
   });
 }

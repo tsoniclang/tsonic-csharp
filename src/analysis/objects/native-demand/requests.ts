@@ -33,7 +33,7 @@ import { objectShapeProjectionConversions,
 import { prepareCsharpObjectShapeDeclarationNames } from "../../names/object-shapes.js";
 import { csharpJsonValueProjectionMethodName, csharpJsonValueWriterMethodName } from "../../../target-model/names/object-members.js";
 import { isCsharpRefLikeTargetType } from "../../../target-model/types/ref-like.js";
-import { createCsharpTypeParameterEnvironment } from "../../source-evidence/types/resolution/type-parameter-environment.js";
+import { createCsharpTypeParameterEnvironment } from "../../../policy/types/callables/parameter-environment.js";
 import {
   collectShapeDependencies,
   prepareObjectShapeBatch,

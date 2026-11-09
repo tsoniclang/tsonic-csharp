@@ -1,16 +1,16 @@
-import type { TargetTypeRef } from "../../../../target-model/types/native-type-data.js";
-import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact } from "../../../../target-model/types/model.js";
-import { targetTypeRefKey } from "../../../../target-model/types/equality.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact } from "../../../target-model/types/model.js";
+import { targetTypeRefKey } from "../../../target-model/types/equality.js";
 
-import { csharpMetadataDescriptors, createCsharpMetadataBudget } from "../../../../target-model/metadata/immutable.js";
-import { csharpTypeParameterConstraintResolutionKey } from "../../../../target-model/types/generic-constraints.js";
+import { csharpMetadataDescriptors, createCsharpMetadataBudget } from "../../../target-model/metadata/immutable.js";
+import { csharpTypeParameterConstraintResolutionKey } from "../../../target-model/types/generic-constraints.js";
 
 type TypeParameter = Extract<TargetTypeRef, { readonly kind: "type-parameter" }>;
 const noTypeParameters: readonly TypeParameter[] = Object.freeze([]);
 
-import type { CsharpTypeParameterEnvironment } from "../../../../target-model/records/types/type-parameter-constraints.js";
+import type { CsharpTypeParameterEnvironment } from "../../../target-model/records/types/type-parameter-constraints.js";
 
-import { visitCsharpTargetTypeParameters } from "../../../../target-model/types/generic-references.js";
+import { visitCsharpTargetTypeParameters } from "../../../target-model/types/generic-references.js";
 export function closeCsharpOwnerTypeParameterEnvironment(
   parameters: readonly TypeParameter[],
   environment: CsharpTypeParameterEnvironment,

@@ -4,7 +4,7 @@ import type { CsharpPointerBackingProducer, CsharpPointerBackingUse } from "../.
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpRepresentationOutcome } from "../../target-model/types/representation.js";
 import { resolveCsharpPointerStoragePointee } from "../storage/pointer-pointee.js";
-import { represented, sourceOutcome } from "../../policy/types/source-type-flow/representation-results.js";
+import { represented } from "../../policy/types/source-type-flow/representation-results.js";
 
 export function createCsharpPointerBackingDemands(
   policy: Pick<CsharpPolicyContext, "facts" | "sourceStorage" | "representation">,
@@ -20,21 +20,17 @@ export function createCsharpPointerBackingDemands(
     },
     record(node: Node): CsharpRepresentationOutcome<void> | Extract<SourceStorageUnresolved, { readonly kind: "unresolved" }> {
       if (!open) throw new TypeError("Pointer backing demand production is closed after sealing.");
-      const selected = sourceOutcome(policy.facts.protocols.pointerOperation(node));
-      if (selected.kind !== "represented") return selected;
-      if (selected.value.kind === "none" || selected.value.value.family !== "raw-memory" ||
-        selected.value.value.operation !== "to-raw") return represented(undefined);
-      const operation = selected.value.value;
-      if (operation.location.kind === "rejected") {
-        issues.push(Object.freeze({ node, reason: operation.location.reason }));
-        return represented(undefined);
-      }
-      const subject = policy.sourceStorage.subject(operation.pointer.occurrence);
-      if (subject.kind === "refused") return Object.freeze({ kind: "source-refused", refusal: subject });
-      if (subject.kind === "unresolved") return subject;
       const bindings = policy.sourceStorage.bindingsForLexicalOwner(node);
       if (bindings.kind === "refused") return Object.freeze({ kind: "source-refused", refusal: bindings });
       if (bindings.kind === "unresolved") return bindings;
+      const selected = policy.sourceStorage.memory.rawLocation.resolve(node, bindings.bindings);
+      if (selected.kind === "refused") return Object.freeze({ kind: "source-refused", refusal: selected });
+      if (selected.kind === "unresolved") return selected;
+      if (selected.value.kind === "none" || selected.value.value.operation.operation !== "to-raw") return represented(undefined);
+      const operation = selected.value.value.operation;
+      const subject = policy.sourceStorage.subject(operation.pointer.occurrence);
+      if (subject.kind === "refused") return Object.freeze({ kind: "source-refused", refusal: subject });
+      if (subject.kind === "unresolved") return subject;
       const backing = policy.sourceStorage.memory.pointerBacking.value(subject.subject, bindings.bindings);
       if (backing.kind === "refused") return Object.freeze({ kind: "source-refused", refusal: backing });
       if (backing.kind === "unresolved") return backing;
@@ -56,7 +52,7 @@ export function createCsharpPointerBackingDemands(
       }
       if (producers.length === backing.value.producers.length) uses.push(Object.freeze({
         call: node, producers: Object.freeze(producers), includesAbsence: backing.value.includesAbsence,
-        layout: operation.location.layout,
+        layout: selected.value.value.layout, typeBindings: selected.value.value.typeBindings,
       }));
       return represented(undefined);
     },
