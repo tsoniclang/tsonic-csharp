@@ -1,4 +1,4 @@
-import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
+import type { CsharpNativeCallableMember, TargetTypeRef } from "../../../target-model/types/native-type-data.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact } from "../../../target-model/types/model.js";
 import { targetTypeRefKey } from "../../../target-model/types/equality.js";
 
@@ -11,6 +11,7 @@ const noTypeParameters: readonly TypeParameter[] = Object.freeze([]);
 import type { CsharpTypeParameterEnvironment } from "../../../target-model/records/types/type-parameter-constraints.js";
 
 import { visitCsharpTargetTypeParameters } from "../../../target-model/types/generic-references.js";
+import { csharpNativeCallableMemberComponents } from "../../../target-model/types/components.js";
 export function closeCsharpOwnerTypeParameterEnvironment(
   parameters: readonly TypeParameter[],
   environment: CsharpTypeParameterEnvironment,
@@ -75,14 +76,20 @@ export function csharpObjectShapeTypeParameters(
       if (previous?.csharpConstraints === undefined) parameters.set(parameter.identity, parameter);
     }, budget);
   };
+  const callable = (member: CsharpNativeCallableMember): void => {
+    budget.reserve(member.typeParameters.length);
+    const bound = new Set(member.typeParameters.map(parameter => parameter.identity));
+    for (const component of csharpNativeCallableMemberComponents(member)) collect(component, bound);
+  };
   for (const member of members) {
-    budget.reserve(member.typeParameters?.length ?? 0);
-    const bound = new Set(member.typeParameters?.map(parameter => parameter.identity));
-    collect(member.type, bound);
+    collect(member.type);
     if (member.methodValueStorage !== undefined) collect(member.methodValueStorage.type);
-    for (const parameter of member.typeParameters ?? []) {
-      budget.reserve(parameter.constraints.length);
-      for (const constraint of parameter.constraints) if (constraint.kind === "type") collect(constraint.type, bound);
+    if (member.memberKind === "method") {
+      budget.reserve(member.methods.length);
+      for (const method of member.methods) {
+        callable(method.member);
+        callable(method.value);
+      }
     }
   }
   for (const type of implemented ?? []) collect(type);

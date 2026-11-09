@@ -136,14 +136,22 @@ test("generic semantic and storage identity never collapse equal spellings", () 
 
 test("quantified signatures remain alpha-equivalent without capturing free parameters", () => {
   const other = { ...inner, identity: "source:other/0", name: "U" };
-  const member = parameter => ({ sourceName: "pair", targetName: "pair", sourceKey: { kind: "property", name: "pair" },
-    memberKind: "method", type: csharpDelegateTargetType("System.Func", [parameter], { kind: "tuple", elements: [outer, parameter] }),
-    typeParameters: [{ csharpAllowsRefLike: false, ...parameter, declaration: {}, constraints: [] }] });
+  const member = parameter => {
+    const signature = { kind: "call", parameters: [parameter], parameterPassingModes: ["by-value"],
+      returnType: { kind: "tuple", elements: [outer, parameter] } };
+    const typeParameters = [{ identity: parameter.identity, name: parameter.name, constraints: [] }];
+    const value = { name: "Invoke", typeParameters, signature };
+    return { sourceName: "pair", targetName: "pair", sourceKey: { kind: "property", name: "pair" },
+      memberKind: "method", type: { kind: "target-named", id: "fixture.CallablePair", csharpAllowsRefLikeTypeArguments: [],
+        csharpCallableMembers: [value] }, methods: [{ member: { name: "pair", typeParameters, signature }, value }] };
+  };
+  assert.equal(member(inner).methods.length, 1, "the complete physical/value pair domain");
   assert.equal(csharpObjectShapeMemberTypeKey(member(inner)), csharpObjectShapeMemberTypeKey(member(other)));
   assert.deepEqual(csharpObjectShapeTypeParameters([member(inner)], []), [outer]);
   assert.notEqual(scopedTargetTypeRefKey(outer, new Map([[inner.identity, 0]])), scopedTargetTypeRefKey(inner, new Map([[inner.identity, 0]])));
   const changed = member(other);
-  changed.type = csharpDelegateTargetType("System.Func", [other], { kind: "tuple", elements: [inner, other] });
+  const changedSignature = { ...changed.methods[0].value.signature, returnType: { kind: "tuple", elements: [inner, other] } };
+  changed.methods[0] = { ...changed.methods[0], value: { ...changed.methods[0].value, signature: changedSignature } };
   assert.notEqual(csharpObjectShapeMemberTypeKey(member(inner)), csharpObjectShapeMemberTypeKey(changed));
 });
 

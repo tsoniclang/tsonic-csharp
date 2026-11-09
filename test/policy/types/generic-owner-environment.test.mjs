@@ -45,7 +45,7 @@ test("nongeneric owners do not allocate or query a generic constraint environmen
   const first = closeCsharpOwnerTypeParameterEnvironment([], environment);
   assert.equal(closeCsharpOwnerTypeParameterEnvironment([], environment) === first, true, "one immutable empty environment");
   assert.equal(Object.isFrozen(first), true);
-  const owner = createStructuralObjectShapeTarget([field(integer)], undefined, environment);
+  const owner = createStructuralObjectShapeTarget([field(integer)], undefined);
   assert.equal(owner.typeArguments === undefined, true, "no generic arguments manufactured for nongeneric storage");
 });
 
@@ -134,14 +134,65 @@ test("a captured binder retains transitive constraint parameters before native o
     calls.push(selected.identity);
     return resolved(selected.identity === outer.identity ? [typeConstraint(container(payload))] : []);
   });
-  const owner = createStructuralObjectShapeTarget([field(outer)], undefined, environment);
+  const completed = closeCsharpOwnerTypeParameterEnvironment(csharpObjectShapeTypeParameters([field(outer)], undefined), environment);
+  assert.deepEqual(completed.map(type => type.identity), ["outer", "payload"], "the complete transitive Native environment is finished before construction");
+  const completedOuter = substituteTargetTypeParameters(completed[0], new Map([[payload.identity, completed[1]]]));
+  const owner = createStructuralObjectShapeTarget([field(completedOuter)], undefined);
   assert.deepEqual(owner.typeArguments.map(type => type.identity), ["outer", "payload"]);
   assert.equal(owner.typeArguments[0].csharpConstraints.constraints[0].type.typeArguments[0].identity, payload.identity);
   assert.equal(Object.isFrozen(owner.typeArguments), true, "immutable owner argument environment");
   assert.equal(Object.isFrozen(owner.typeArguments[0].csharpConstraints.constraints[0].type.typeArguments), true);
   assert.equal(calls.includes(payload.identity), true, "constraint dependency classified at the producer");
-  const different = createStructuralObjectShapeTarget([field(outer)], undefined, createCsharpTypeParameterEnvironment(() => resolved([])));
+  const differentEnvironment = closeCsharpOwnerTypeParameterEnvironment([outer], createCsharpTypeParameterEnvironment(() => resolved([])));
+  assert.equal(differentEnvironment.length, 1, "the alternate complete contract has no transitive dependency");
+  const different = createStructuralObjectShapeTarget([field(differentEnvironment[0])], undefined);
   assert.notEqual(owner.id, different.id, "native constraints identify the generated owner contract");
+  assert.throws(() => createStructuralObjectShapeTarget([field(outer)], undefined), /completed Native constraint/u,
+    "physical construction cannot stand in for Native constraint completion");
+});
+
+test("physical owner inventory retains every method pair and independently scoped callable side", () => {
+  const expected = ["capture", "constraint", "implementation", "member-parameter", "property", "receiver", "second-value", "storage", "value-parameter"];
+  const free = new Map(expected.map(identity => [identity, { ...parameter(identity), csharpConstraints: resolved([]) }]));
+  const local = identity => parameter(identity);
+  const firstMember = local("local-member");
+  const firstValue = local("local-value");
+  const secondMember = local("local-second-member");
+  const secondValue = local("local-second-value");
+  const unused = { ...local("local-unused"), constraints: [typeConstraint(free.get("constraint"))] };
+  const callable = (name, locals, input, result, receiver) => ({ name,
+    typeParameters: locals.map(parameter => ({ identity: parameter.identity, name: parameter.name, constraints: parameter.constraints ?? [] })),
+    signature: { kind: "call", parameters: [input], parameterPassingModes: ["byref-readonly"], returnType: result,
+      returnPassing: "byref-readonly", ...(receiver === undefined ? {} : { receiver: { type: receiver, passingMode: "byref-readwrite" } }) } });
+  const methods = [
+    { member: callable("apply", [firstMember, unused], free.get("member-parameter"), firstMember, free.get("receiver")),
+      value: callable("Invoke", [firstValue], free.get("value-parameter"), firstValue) },
+    { member: callable("apply", [secondMember], secondMember, integer),
+      value: callable("Invoke", [secondValue], secondValue, free.get("second-value")) },
+  ];
+  const method = { sourceKey: { kind: "property", name: "apply" }, sourceName: "apply", targetName: "apply",
+    memberKind: "method", type: integer, methodValueStorage: { type: free.get("storage") }, methods };
+  const members = [field(free.get("property")), method];
+  const implemented = [container(free.get("implementation"))];
+  const implementation = { captures: [{ type: free.get("capture") }] };
+  assert.equal(members.length, 2, "complete property and method domain");
+  assert.equal(method.methods.length, 2, "both original physical/value pairs are present");
+  assert.deepEqual(method.methods.map(pair => [pair.member.typeParameters.length, pair.value.typeParameters.length]), [[2, 1], [1, 1]],
+    "the complete independent quantifier domain includes the unused constrained binder");
+  const selected = csharpObjectShapeTypeParameters(members, implemented, implementation);
+  assert.deepEqual(selected.map(type => type.identity), expected, "every free occurrence across both sides, storage, interfaces and captures");
+  assert.equal(selected.every(type => type.csharpConstraints.kind === "resolved"), true, "actual completed evidence is retained");
+  assert.equal(Object.isFrozen(selected), true, "the inventoried Native owner vector is immutable");
+  const pairedCarrier = { ...container(integer), csharpCallableMembers: methods.map(pair => pair.value) };
+  assert.deepEqual(csharpObjectShapeTypeParameters([{ ...method, type: pairedCarrier }], []).map(type => type.identity),
+    ["constraint", "member-parameter", "receiver", "second-value", "storage", "value-parameter"],
+    "carrier metadata and explicit pairs share the same scoped visitor without leaking local binders");
+  const independent = { ...method, methods: [{ ...methods[0], value: { ...methods[0].value,
+    signature: { ...methods[0].value.signature, receiver: { type: { ...firstMember, csharpConstraints: resolved([]) }, passingMode: "by-value" } } } }, methods[1]] };
+  assert.equal(independent.methods.length, 2, "both pairs remain present in the scoped-identity opposite");
+  assert.deepEqual(csharpObjectShapeTypeParameters([independent], []).map(type => type.identity),
+    ["constraint", "local-member", "member-parameter", "receiver", "second-value", "storage", "value-parameter"],
+    "a member-local identity is not incorrectly bound in the distinct value-side scope");
 });
 
 test("transitive dependency diamonds and self-bounds are finite and keep source identities separate", () => {
