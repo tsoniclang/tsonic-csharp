@@ -8,7 +8,7 @@ import { resolveCsharpPointerStoragePointee } from "../../storage/pointer-pointe
 import { represented } from "../../../policy/types/source-type-flow/representation-results.js";
 
 export function csharpPointerStorageDomainRejection(
-  input: Pick<CsharpPolicyContext, "sourceStorage" | "representation">,
+  input: Pick<CsharpPolicyContext, "sourceStorage" | "representation" | "providers">,
   expression: Node,
   pointee: TargetTypeRef,
   bindings: SourceStorageBindings,
@@ -27,7 +27,7 @@ export function csharpPointerStorageDomainRejection(
   ];
   if (endpoints.length === 0) return represented("The bound location has no checked native pointer producer or boundary.");
   for (const endpoint of endpoints) {
-    const type = resolveCsharpPointerStoragePointee(input.representation, endpoint);
+    const type = resolveCsharpPointerStoragePointee(input, endpoint);
     if (type.kind !== "represented") return type;
     if (type.value.kind === "unresolved") return represented(type.value.reason);
     if (!targetTypeRefEquals(type.value.type, pointee)) {

@@ -1,6 +1,6 @@
 import type { TargetTypeRef } from "../../types/native-type-data.js";
 import type { CsharpRawLocationSelection } from "./native-memory.js";
-import type { CsharpRawAddressSelection, CsharpSourceRawAddressOperation } from "../storage/raw-addresses.js";
+import type { CsharpRawAddressSelection, CsharpRawAddressOperationKind } from "../storage/raw-addresses.js";
 import type { Node } from "@tsonic/tsts";
 
 export type CsharpNativePointerOperationSelection =
@@ -12,7 +12,7 @@ export type CsharpNativePointerOperationSelection =
     }
   | CsharpResolvedNativePointerOperation;
 
-export type CsharpNativePointerOperationKind = "load" | "store" | "offset" | "equal-raw-pointer" | "hash-raw-pointer" | "layout-query" | "raw-location" | CsharpSourceRawAddressOperation["operation"];
+export type CsharpNativePointerOperationKind = "load" | "store" | "offset" | "equal-raw-pointer" | "hash-raw-pointer" | "layout-query" | "raw-location" | CsharpRawAddressOperationKind;
 
 export type CsharpResolvedNativePointerOperation =
   | Extract<CsharpRawLocationSelection, { readonly kind: "raw-location" }>

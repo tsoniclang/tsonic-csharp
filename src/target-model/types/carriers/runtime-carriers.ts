@@ -1,9 +1,10 @@
-import type { TargetTypeRef } from "../native-type-data.js";
+import type { CsharpNativeGenericTypeDefinition, TargetTypeRef } from "../native-type-data.js";
 import type { CsharpObjectShapeFact, CsharpTargetNamedTypeRef, CsharpRuntimeUnionTargetTypeRef } from "../model.js";
 import { csharpQualifiedTypeRenderShape } from "../render-shapes.js";
 import { csharpTargetNamedType } from "../factories.js";
 import { csharpNullableReferenceTargetType, getCsharpNullableElementTargetType } from "./nullable.js";
 import { getCsharpGenericOptionalParts } from "../projections.js";
+import { applyCsharpNativeGenericType } from "../native-generics.js";
 
 export function csharpAnyTargetType(): CsharpTargetNamedTypeRef {
   return csharpTsValueTargetType();
@@ -43,31 +44,33 @@ export function csharpAbsenceTargetType(): TargetTypeRef {
 
 export function csharpRuntimeLocationTargetType(
   pointee: TargetTypeRef,
+  definition: CsharpNativeGenericTypeDefinition,
 ): CsharpTargetNamedTypeRef {
-  return csharpTargetNamedType("Tsonic.CSharp.Runtime.Location`1", [pointee], csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "Location"), { allowsRefLikeTypeArguments: [false],});
+  return applyCsharpNativeGenericType(definition, [pointee]);
 }
 
-export function csharpRuntimeRecordFieldTargetType(pointee: TargetTypeRef): CsharpTargetNamedTypeRef {
-  return csharpTargetNamedType("Tsonic.CSharp.Runtime.RecordField`1", [pointee], csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "RecordField"), { allowsRefLikeTypeArguments: [false], valueType: true });
+export function csharpRuntimeRecordFieldTargetType(pointee: TargetTypeRef, definition: CsharpNativeGenericTypeDefinition): CsharpTargetNamedTypeRef {
+  return applyCsharpNativeGenericType(definition, [pointee]);
 }
 
-export function csharpRuntimeRawPointerTargetType(): CsharpTargetNamedTypeRef {
-  return csharpTargetNamedType("Tsonic.CSharp.Runtime.RawPointer", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "RawPointer"), { allowsRefLikeTypeArguments: [],});
+export function csharpRuntimeRawPointerTargetType(definition: CsharpNativeGenericTypeDefinition): CsharpTargetNamedTypeRef {
+  return applyCsharpNativeGenericType(definition, []);
 }
 
-export function csharpRuntimeNativeLayoutTargetType(pointee: TargetTypeRef): CsharpTargetNamedTypeRef {
-  return csharpTargetNamedType("Tsonic.CSharp.Runtime.NativeLayout`1", [pointee], csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "NativeLayout"), { allowsRefLikeTypeArguments: [false],});
+export function csharpRuntimeNativeLayoutTargetType(pointee: TargetTypeRef, definition: CsharpNativeGenericTypeDefinition): CsharpTargetNamedTypeRef {
+  return applyCsharpNativeGenericType(definition, [pointee]);
 }
 
-export function csharpRuntimeNativeArrayTargetType(pointee: TargetTypeRef): CsharpTargetNamedTypeRef {
-  return csharpTargetNamedType("Tsonic.CSharp.Runtime.NativeArray`1", [pointee], csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "NativeArray"), { allowsRefLikeTypeArguments: [false],});
+export function csharpRuntimeNativeArrayTargetType(pointee: TargetTypeRef, definition: CsharpNativeGenericTypeDefinition): CsharpTargetNamedTypeRef {
+  return applyCsharpNativeGenericType(definition, [pointee]);
 }
 
 export function csharpRuntimeLocationPointee(
   type: TargetTypeRef | undefined,
+  definition: CsharpNativeGenericTypeDefinition,
 ): TargetTypeRef | undefined {
   return type?.kind === "target-named" &&
-      type.id === "Tsonic.CSharp.Runtime.Location`1" &&
+      type.id === definition.carrier.id && definition.parameters.length === 1 &&
       type.typeArguments?.length === 1
     ? type.typeArguments[0]
     : undefined;

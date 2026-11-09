@@ -7,7 +7,7 @@ import { resolveCsharpPointerStoragePointee } from "../storage/pointer-pointee.j
 import { represented } from "../../policy/types/source-type-flow/representation-results.js";
 
 export function createCsharpPointerBackingDemands(
-  policy: Pick<CsharpPolicyContext, "sourceStorage" | "representation">,
+  policy: Pick<CsharpPolicyContext, "sourceStorage" | "representation" | "providers">,
 ) {
   const uses: CsharpPointerBackingUse[] = [];
   const issues: { readonly node: Node; readonly reason: string }[] = [];
@@ -47,7 +47,7 @@ export function createCsharpPointerBackingDemands(
       const producers: CsharpPointerBackingProducer[] = [];
       const unresolved: { readonly node: Node; readonly reason: string }[] = [];
       for (const producer of backing.value.producers) {
-        const pointee = resolveCsharpPointerStoragePointee(policy.representation, producer.storage);
+        const pointee = resolveCsharpPointerStoragePointee(policy, producer.storage);
         if (pointee.kind !== "represented") return pointee;
         if (pointee.value.kind === "unresolved") unresolved.push(Object.freeze({
           node: producer.operation.occurrence, reason: pointee.value.reason,

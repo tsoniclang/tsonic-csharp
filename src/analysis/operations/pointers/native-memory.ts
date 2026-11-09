@@ -1,277 +1,194 @@
-import { csharpProviderBindingFromResolution } from "../../../providers/model/relation-resolver.js";
-import type { CsharpRawLocationSelection } from "../../../target-model/records/native/native-memory.js";
-import type { Node, SourceFile, Type } from "@tsonic/tsts";
-import { countTsonicMemoryLayoutValues } from "@tsonic/source-core/facts";
-import type { TsonicDataLayoutFact, TsonicMemoryLayoutFact } from "@tsonic/source-core/facts";
-import { providerVirtualDeclarationFactKey } from "@tsonic/tsts";
-import { csharpFixedArrayRepresentationRejection } from "../../../policy/types/collections/fixed-arrays.js";
-import { readCsharpSourceStruct } from "../../../source/extension/markers.js";
-import { csharpTargetBindingSubstitutions, substituteCsharpTargetMember } from "../../../policy/types/callables/member-substitution.js";
-import { csharpRuntimeLocationPointee, csharpRuntimeLocationTargetType, csharpRuntimeRawPointerTargetType, isCsharpAbsenceTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
-import { getCsharpNullableElementTargetType, csharpNullableReferenceTargetType } from "../../../target-model/types/carriers/nullable.js";
-import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
-import type { CsharpPolicyContext } from "../../../policy/model/context.js";
-import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
-import { csharpTargetBindingFact } from "../../../target-model/types/model.js";
+import type { SourceMemoryLayout, SourceTypeBinding } from "@tsonic/target-api/source";
+import type { Node } from "@tsonic/tsts";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
+import type { CsharpMemoryAnalysisHost, CsharpMemoryOutcome } from "../../../policy/model/memory.js";
 import type { CsharpNativeMemoryField, CsharpNativeMemoryLayout } from "../../../target-model/operations/native-memory.js";
-import type { CsharpValueReadClassifications } from "../../../target-model/records/operations/conversions.js";
+import type { CsharpRawLocationSelection } from "../../../target-model/records/native/native-memory.js";
+import type { CsharpObjectShapeMemberFact } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
+import { applyCsharpNativeDeclaration } from "../../../target-model/types/native-declaration-operations.js";
+import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
+import { csharpRuntimeLocationPointee, csharpRuntimeRawPointerTargetType, isCsharpAbsenceTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
+import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
+import { represented, sourceOutcome, nativeRepresentationFailure } from "../../../policy/types/source-type-flow/representation-results.js";
+import { csharpFixedArrayRepresentationRejection } from "../../../policy/types/collections/fixed-arrays.js";
+import { createCsharpMetadataBudget } from "../../../target-model/metadata/immutable.js";
+import { selectCsharpMemoryRuntimeDefinition } from "./runtime-definitions.js";
+import { sourceMemberOriginsEqual } from "../../objects/shapes/member-origins.js";
+import { csharpStructuralObjectShapeIdentity } from "../../../target-model/types/object-shape-identity.js";
+import { isCsharpValueTypeTargetType } from "../../../target-model/types/identity.js";
 
-import { readCsharpRawLocation } from "../../../source/extension/native-memory.js";
-export function selectCsharpNativeMemoryLayout(
-  input: CsharpPolicyContext, layout: TsonicMemoryLayoutFact, sourceFile: SourceFile,
-  selected = new Map<TsonicMemoryLayoutFact, CsharpNativeMemoryLayout | undefined>(),
-): CsharpNativeMemoryLayout | undefined {
-  if (selected.size === 0 && countTsonicMemoryLayoutValues(layout, 131_072) === undefined) return undefined;
-  if (selected.has(layout)) return selected.get(layout);
-  selected.set(layout, undefined);
-  sourceFile = input.ast.getSourceFile(layout.call) ?? sourceFile;
-  const arrayElement = layout.kind === "array" ? input.types.resolveSelectedType(
-    layout.fixedArray.elementType, layout.fixedArray.elementSourceType, sourceFile) : undefined;
-  const pointeeType: TargetTypeRef | undefined = layout.kind === "array"
-    ? arrayElement === undefined ? undefined : { kind: "array", element: arrayElement }
-    : input.types.resolveSelectedType(layout.explicitTypeNode, layout.sourceType, sourceFile);
-  if (pointeeType === undefined) return undefined;
-  if (layout.kind === "array") {
-    if (csharpFixedArrayRepresentationRejection(layout.fixedArray.length) !== undefined ||
-      pointeeType.kind !== "array" || (pointeeType.rank ?? 1) !== 1) return undefined;
-    const element = selectCsharpNativeMemoryLayout(input, layout.elementLayout,
-      input.ast.getSourceFile(layout.elementLayout.call) ?? sourceFile, selected);
-    if (element === undefined || !targetTypeRefEquals(pointeeType.element, element.pointeeType) ||
-      element.width !== layout.dataLayout.addressWidth || element.littleEndian !== (layout.dataLayout.byteOrder === "little")) return undefined;
-    const result: CsharpNativeMemoryLayout = Object.freeze({
-      kind: "array", pointeeType, length: layout.fixedArray.length.toString(),
-      stride: layout.elementLayout.stride, element,
-      size: layout.byteSize, alignment: layout.byteAlignment,
-      width: layout.dataLayout.addressWidth, littleEndian: layout.dataLayout.byteOrder === "little",
-    });
-    selected.set(layout, result);
-    return result;
-  }
-  const fields: import("../../../target-model/operations/native-memory.js").CsharpNativeMemoryField[] = [];
-  if (pointeeType.kind === "source-primitive") {
-    if (layout.fields.length !== 0 || csharpNativeScalarByteSize(pointeeType, layout.dataLayout.addressWidth) !== layout.byteSize) return undefined;
-  } else {
-    if (pointeeType.kind !== "target-named") return undefined;
-    const queries = input.semantics(sourceFile);
-    const properties = queries.types.propertyInfos(layout.sourceType);
-    const project = input.projectTypes.catalog.definitionForTarget(pointeeType);
-    const sourceStruct = project?.kind === "struct"
-      ? readCsharpSourceStruct(input.sourceFacts, project.declaration) : undefined;
-    const usedFields = new Map<string, CsharpNativeMemoryField>();
-    const targetFields = csharpTargetBindingFact(csharpProviderBindingFromResolution(input.providers.findTargetBindingByTargetId(pointeeType.id, "ordinary")));
-    const completeFields: readonly string[] | undefined = sourceStruct?.valueType
-      ? sourceStruct.fields.map(field => field.sourceName)
-      : targetFields?.kind === "struct" ? targetFields.csharpNativeMemoryFieldIds : undefined;
-    if (completeFields === undefined || new Set(completeFields).size !== completeFields.length) return undefined;
-    for (const field of layout.fields) {
-      const property = properties.find(candidate => candidate.symbol === field.selectedSymbol ||
-        candidate.rootSymbols.includes(field.selectedSymbol!) ||
-        queries.declarations.symbolDeclarations(candidate.symbol).includes(field.selectedDeclaration));
-      if (property === undefined || property.optional) return undefined;
-      const child = selectCsharpNativeMemoryLayout(input, field.fieldLayout,
-        input.ast.getSourceFile(field.fieldLayout.call) ?? sourceFile, selected);
-      if (child === undefined) return undefined;
-      let name: string;
-      let identity: string;
-      let type: TargetTypeRef | undefined;
-      if (sourceStruct?.valueType) {
-        const sourceField = sourceStruct.fields.find(candidate => candidate.sourceName === property.name);
-        if (sourceField === undefined || sourceField.readonly) return undefined;
-        name = sourceField.sourceName;
-        identity = name;
-        type = input.types.resolveSelectedType(sourceField.sourceType, field.fieldType, sourceFile);
-      } else {
-        const declaration = input.sourceFacts?.getFact(field.selectedDeclaration, providerVirtualDeclarationFactKey);
-        const resolution = input.providers.resolveMember(declaration);
-        if (resolution.kind !== "resolved" || resolution.relations.length !== 1) return undefined;
-        const relation = resolution.relations[0]!;
-        if (relation.kind !== "member" || relation.targetBinding.kind !== "struct" ||
-          relation.targetBinding.id !== pointeeType.id || relation.receiver.kind !== "instance" ||
-          relation.targetMember.kind !== "field" || relation.targetMember.static || relation.targetMember.readonly) return undefined;
-        const ids = relation.targetBinding.csharpNativeMemoryFieldIds;
-        if (ids === undefined || new Set(ids).size !== ids.length ||
-          completeFields !== undefined && (completeFields.length !== ids.length || completeFields.some(id => !ids.includes(id)))) return undefined;
-        const substitutions = csharpTargetBindingSubstitutions(relation.targetBinding, pointeeType.typeArguments ?? []);
-        if (substitutions === undefined) return undefined;
-        const member = substituteCsharpTargetMember(relation.targetMember, substitutions);
-        identity = member.id;
-        name = member.targetName;
-        type = member.returnType;
-      }
-      if (usedFields.has(identity) || fields.some(field => field.name === name) ||
-        type === undefined || !targetTypeRefEquals(type, child.pointeeType)) return undefined;
-      const selectedField = Object.freeze({ name, offset: field.byteOffset, alignment: field.byteAlignment, layout: child });
-      usedFields.set(identity, selectedField);
-      fields.push(selectedField);
-    }
-    if (completeFields === undefined || completeFields.length !== fields.length ||
-      completeFields.some(identity => !usedFields.has(identity))) return undefined;
-    fields.splice(0, fields.length, ...completeFields.map(identity => usedFields.get(identity)!));
-  }
-  const result: CsharpNativeMemoryLayout = Object.freeze({ kind: pointeeType.kind === "source-primitive" ? "scalar" : "record",
-    pointeeType, size: layout.byteSize, alignment: layout.byteAlignment,
-    width: layout.dataLayout.addressWidth, littleEndian: layout.dataLayout.byteOrder === "little", fields: Object.freeze(fields) });
-  selected.set(layout, result);
-  return result;
+interface PhysicalField {
+  readonly identity: string | CsharpObjectShapeMemberFact;
+  readonly name: string;
+  readonly type: TargetTypeRef;
+  readonly declarations: readonly Node[];
+  readonly member: CsharpObjectShapeMemberFact | undefined;
 }
 
-type CsharpDeclaredNativeMemoryLayoutSelection =
-  | { readonly kind: "declared"; readonly layout: CsharpNativeMemoryLayout; readonly stride: bigint }
-  | { readonly kind: "rejected"; readonly reason: string };
-
-type CsharpDeclaredNativeMemoryWork =
-  | { readonly kind: "select"; readonly carrier: TargetTypeRef; readonly sourceType: Type; readonly sourceFile: SourceFile }
-  | { readonly kind: "array"; readonly carrier: Extract<TargetTypeRef, { readonly kind: "array" }>;
-      readonly sourceType: Type; readonly length: bigint }
-  | { readonly kind: "record"; readonly carrier: Extract<TargetTypeRef, { readonly kind: "target-named" }>;
-      readonly sourceType: Type; readonly fields: readonly string[] };
-
-export function selectCsharpDeclaredNativeMemoryLayout(
-  input: CsharpPolicyContext, pointeeType: TargetTypeRef, sourceType: Type,
-  sourceFile: SourceFile, dataLayout: TsonicDataLayoutFact, valueRead: CsharpValueReadClassifications["valueRead"],
-): CsharpDeclaredNativeMemoryLayoutSelection {
-  const active = new Set<Type>();
-  const pending: CsharpDeclaredNativeMemoryWork[] = [{ kind: "select", carrier: pointeeType, sourceType, sourceFile }];
-  const completed: { readonly layout: CsharpNativeMemoryLayout; readonly stride: bigint }[] = [];
-  const maximum = (1n << BigInt(dataLayout.addressWidth)) - 1n;
-  const reject = (reason: string): CsharpDeclaredNativeMemoryLayoutSelection => ({ kind: "rejected", reason });
-  while (pending.length > 0) {
-    const work = pending.pop()!;
-    if (work.kind === "array") {
-      const element = completed.pop();
-      if (element === undefined) return reject("The declared native array has no completed element footprint.");
-      const size = element.stride * work.length;
-      if (size > maximum) return reject("The declared native array backing exceeds its exact address width.");
-      completed.push({ layout: Object.freeze({ kind: "array", pointeeType: work.carrier,
-        length: work.length.toString(), stride: element.stride, element: element.layout,
-        size, alignment: element.layout.alignment, width: dataLayout.addressWidth,
-        littleEndian: dataLayout.byteOrder === "little" }), stride: size });
-      active.delete(work.sourceType);
-      continue;
-    }
-    if (work.kind === "record") {
-      if (completed.length < work.fields.length) return reject("The declared native struct has incomplete field footprints.");
-      const children = completed.splice(completed.length - work.fields.length, work.fields.length);
-      const fields: CsharpNativeMemoryField[] = [];
-      let size = 0n;
-      let alignment = 1n;
-      for (const [index, name] of work.fields.entries()) {
-        const child = children[index]!;
-        const fieldAlignment = child.layout.alignment;
-        const offset = (size + fieldAlignment - 1n) / fieldAlignment * fieldAlignment;
-        fields.push(Object.freeze({ name, offset, alignment: fieldAlignment, layout: child.layout }));
-        size = offset + child.stride;
-        if (fieldAlignment > alignment) alignment = fieldAlignment;
+export function selectCsharpNativeMemoryLayout(host: CsharpMemoryAnalysisHost, root: SourceMemoryLayout,
+  bindings: readonly SourceTypeBinding[]): CsharpMemoryOutcome<CsharpNativeMemoryLayout> {
+  const completed = new Map<SourceMemoryLayout, CsharpNativeMemoryLayout>();
+  const active = new Set<SourceMemoryLayout>();
+  const budget = createCsharpMetadataBudget();
+  const reject = (layout: SourceMemoryLayout, reason: string) =>
+    nativeRepresentationFailure(layout.occurrence, "CSHARP_NATIVE_MEMORY_LAYOUT_NOT_PROVEN", reason);
+  function select(layout: SourceMemoryLayout, depth: number): CsharpMemoryOutcome<CsharpNativeMemoryLayout> {
+    budget.reserve(1, depth);
+    const evidence = sourceOutcome(host.representation.source.substitute(layout.source, bindings));
+    if (evidence.kind !== "represented") return evidence;
+    const representedType = host.representation.represent(evidence.value, "storage", layout.occurrence);
+    if (representedType.kind !== "represented") return representedType;
+    const previous = completed.get(layout);
+    if (previous !== undefined) return represented(previous);
+    if (active.has(layout)) return reject(layout, "A Native memory layout requires finite physical storage.");
+    active.add(layout);
+    try {
+      const carrier = representedType.value.carrier;
+      const base = { pointeeType: carrier, size: layout.byteSize, alignment: layout.byteAlignment,
+        width: layout.dataLayout.addressWidth, littleEndian: layout.dataLayout.byteOrder === "little" };
+      const maximum = (1n << BigInt(base.width)) - 1n;
+      if (base.size < 0n || base.size > maximum || base.alignment <= 0n ||
+        (base.alignment & (base.alignment - 1n)) !== 0n || layout.stride < base.size || layout.stride % base.alignment !== 0n) {
+        return reject(layout, "The finalized layout dimensions must fit their exact Native address ABI.");
       }
-      size = (size + alignment - 1n) / alignment * alignment;
-      if (size > maximum) return reject("The declared native struct backing exceeds its exact address width.");
-      completed.push({ layout: Object.freeze({ kind: "record", pointeeType: work.carrier, size, alignment,
-        width: dataLayout.addressWidth, littleEndian: dataLayout.byteOrder === "little", fields: Object.freeze(fields) }), stride: size });
-      active.delete(work.sourceType);
-      continue;
-    }
-    const size = csharpNativeScalarByteSize(work.carrier, dataLayout.addressWidth);
-    if (size !== undefined) {
-      completed.push({ layout: Object.freeze({ kind: "scalar", pointeeType: work.carrier, size, alignment: size,
-        width: dataLayout.addressWidth, littleEndian: dataLayout.byteOrder === "little", fields: Object.freeze([]) }), stride: size });
-      continue;
-    }
-    if (active.has(work.sourceType)) return reject("The declared native backing requires a finite closed physical type.");
-    active.add(work.sourceType);
-    if (work.carrier.kind === "array" && (work.carrier.rank ?? 1) === 1) {
-      const selected = input.types.selectFixedArray(work.sourceType, work.sourceFile);
-      if (selected?.kind !== "selected") return reject("Native array backing requires its own exact declared fixed-array extent.");
-      const reason = csharpFixedArrayRepresentationRejection(selected.fact.length);
-      if (reason !== undefined) return reject(reason);
-      pending.push({ kind: "array", carrier: work.carrier, sourceType: work.sourceType, length: selected.fact.length });
-      pending.push({ kind: "select", carrier: work.carrier.element, sourceType: selected.fact.elementSourceType, sourceFile: work.sourceFile });
-      continue;
-    }
-    if (work.carrier.kind !== "target-named") return reject("Physical backing requires an exact closed declared native scalar, fixed-array or struct type.");
-    const project = input.projectTypes.catalog.definitionForTarget(work.carrier);
-    const declaration = project?.kind === "struct" ? readCsharpSourceStruct(input.sourceFacts, project.declaration) : undefined;
-    if (declaration?.valueType !== true) return reject("Declared raw storage requires a complete compiler-owned native struct field declaration.");
-    const fields: Extract<CsharpDeclaredNativeMemoryWork, { readonly kind: "select" }>[] = [];
-    for (const field of declaration.fields) {
-      const carrier = valueRead.get(field.sourceType)?.value;
-      const fieldFile = input.ast.getSourceFile(field.sourceType);
-      const checked = fieldFile === undefined ? undefined : input.semantics(fieldFile).types.authoredType(field.sourceType);
-      if (field.readonly || carrier === undefined || fieldFile === undefined || checked === undefined) {
-        return reject("Declared native struct backing requires complete mutable native field carriers and checked declaration identities.");
+      let result: CsharpNativeMemoryLayout;
+      if (layout.kind === "array") {
+        const reason = csharpFixedArrayRepresentationRejection(layout.extent.length);
+        if (reason !== undefined) return reject(layout, reason);
+        if (carrier.kind !== "array" || carrier.rank !== undefined) {
+          return reject(layout, "Native fixed-array backing requires the exact SZ-array storage carrier.");
+        }
+        const element = select(layout.element, depth + 1);
+        if (element.kind !== "represented") return element;
+        if (!targetTypeRefEquals(carrier.element, element.value.pointeeType) ||
+          element.value.width !== base.width || element.value.littleEndian !== base.littleEndian ||
+          layout.byteSize !== layout.element.stride * layout.extent.length) {
+          return reject(layout, "A Native array requires its complete exact element, extent, stride and address ABI.");
+        }
+        result = Object.freeze({ ...base, kind: "array", length: layout.extent.length.toString(),
+          stride: layout.element.stride, element: element.value });
+      } else if (carrier.kind === "source-primitive") {
+        if (layout.fields.length !== 0 || csharpNativeScalarByteSize(carrier, base.width) !== base.size) {
+          return reject(layout, "The scalar layout must have its exact all-bit-pattern Native size and no fields.");
+        }
+        result = Object.freeze({ ...base, kind: "scalar", fields: Object.freeze([]) });
+      } else {
+        if (carrier.kind !== "target-named") return reject(layout, "Native record memory requires one exact physical struct carrier.");
+        const physical = physicalFields(host, carrier, layout);
+        if (physical.kind !== "represented") return physical;
+        if (physical.value.length !== layout.fields.length) return reject(layout, "Every actual Native field must occur exactly once in the memory layout.");
+        budget.reserve(layout.fields.length);
+        const selected = new Map<PhysicalField["identity"], CsharpNativeMemoryField>();
+        for (const field of layout.fields) {
+          if (field.member.readonly || field.member.optional) return reject(layout, "Native memory fields require their complete mutable Source field contract.");
+          const origins = [...field.member.origins, ...field.member.readOrigins, ...field.member.writeOrigins];
+          const matches = physical.value.filter(candidate => {
+            const member = candidate.member;
+            return member === undefined
+              ? field.selectedDeclarations.length !== 0 && field.selectedDeclarations.every(declaration => candidate.declarations.includes(declaration))
+              : origins.length !== 0 && origins.every(origin => member.origins?.some(original => sourceMemberOriginsEqual(original, origin)) === true);
+          });
+          if (matches.length !== 1) return reject(layout, "Each selected Source field must retain its exact complete physical declaration association.");
+          const member = matches[0]!;
+          const child = select(field.layout, depth + 1);
+          if (child.kind !== "represented") return child;
+          if (selected.has(member.identity) || !targetTypeRefEquals(member.type, child.value.pointeeType) ||
+            child.value.width !== base.width || child.value.littleEndian !== base.littleEndian ||
+            field.byteAlignment <= 0n || field.byteOffset < 0n || field.byteOffset + child.value.size > base.size ||
+            field.byteOffset % field.byteAlignment !== 0n) {
+            return reject(layout, "Native field layouts require exact storage types, unique identities and admitted offsets/alignment.");
+          }
+          selected.set(member.identity, Object.freeze({ name: member.name, offset: field.byteOffset,
+            alignment: field.byteAlignment, layout: child.value }));
+        }
+        const fields = physical.value.map(field => selected.get(field.identity));
+        if (fields.some(field => field === undefined)) return reject(layout, "The complete Native field inventory cannot be truncated.");
+        result = Object.freeze({ ...base, kind: "record", fields: Object.freeze(fields.map(field => field!)) });
       }
-      fields.push({ kind: "select", carrier, sourceType: checked, sourceFile: fieldFile });
-    }
-    if (new Set(declaration.fields.map(field => field.sourceName)).size !== fields.length) {
-      return reject("Declared native struct backing requires unique checked field declarations.");
-    }
-    pending.push({ kind: "record", carrier: work.carrier, sourceType: work.sourceType,
-      fields: declaration.fields.map(field => field.sourceName) });
-    for (let index = fields.length - 1; index >= 0; index--) pending.push(fields[index]!);
+      completed.set(layout, result);
+      return represented(result);
+    } finally { active.delete(layout); }
   }
-  const selected = completed.pop();
-  return selected === undefined || completed.length !== 0 ? reject("The declared native backing has no unique completed footprint.")
-    : Object.freeze({ kind: "declared", ...selected });
+  return select(root, 0);
+}
+
+function physicalFields(host: CsharpMemoryAnalysisHost, carrier: Extract<TargetTypeRef, { readonly kind: "target-named" }>,
+  layout: Extract<SourceMemoryLayout, { readonly kind: "value" }>): CsharpMemoryOutcome<readonly PhysicalField[]> {
+  const shape = host.objectShapes.resolveTarget(carrier);
+  if (shape !== undefined && csharpStructuralObjectShapeIdentity(carrier) !== undefined) {
+    if (!isCsharpValueTypeTargetType(carrier)) return nativeRepresentationFailure(layout.occurrence,
+      "CSHARP_NATIVE_MEMORY_LAYOUT_NOT_PROVEN", "Native record memory requires an actual emitted value-type declaration.");
+    const declarations = host.objectMembers.objectMemberDeclarations.get(shape);
+    if (declarations === undefined) failTargetAnalysisInvariant("tsonic-csharp", "Physical memory requires the completed canonical Native member declarations.", layout.occurrence);
+    const fields: PhysicalField[] = [];
+    for (const emission of declarations) {
+      const declaration = emission.declaration;
+      if (declaration.kind !== "field" || emission.member.memberKind !== "property" || emission.member.readonly === true) {
+        return nativeRepresentationFailure(layout.occurrence, "CSHARP_NATIVE_MEMORY_LAYOUT_NOT_PROVEN", "Native record memory requires its complete mutable physical field inventory.");
+      }
+      fields.push(Object.freeze({ identity: emission.member, member: emission.member, name: emission.member.targetName,
+        type: declaration.type, declarations: emission.member.sourceDeclarations ?? Object.freeze([]) }));
+    }
+    return represented(Object.freeze(fields));
+  }
+  const acquired = host.providers.acquireNativeDeclaration(carrier.id);
+  if (acquired.kind === "rejected") return Object.freeze({ kind: "provider-refused", diagnostic: acquired.diagnostic });
+  if (acquired.kind === "missing") failTargetAnalysisInvariant("tsonic-csharp", "Native memory requires its complete acquired physical declaration.", layout.occurrence);
+  const application = applyCsharpNativeDeclaration(acquired.definition, carrier);
+  if (application === undefined || application.definition.kind !== "struct") return nativeRepresentationFailure(layout.occurrence,
+    "CSHARP_NATIVE_MEMORY_LAYOUT_NOT_PROVEN", "Native record memory requires its exact constructed struct definition.");
+  const fields: PhysicalField[] = [];
+  for (const slot of application.members) {
+    if (slot.kind !== "slot" || slot.member.static || slot.member.kind !== "field") continue;
+    if (slot.storage === undefined || slot.storage.readonly) return nativeRepresentationFailure(layout.occurrence,
+      "CSHARP_NATIVE_MEMORY_LAYOUT_NOT_PROVEN", "Native record memory cannot omit readonly or unknown physical field storage.");
+    const declarations = new Set<Node>();
+    for (const field of layout.fields) for (const declaration of field.selectedDeclarations) {
+      const source = host.facts.navigation.providerDeclaration(declaration);
+      if (source.kind === "none") continue;
+      const relations = host.providers.resolveMember(source.value);
+      if (relations.kind === "rejected") return Object.freeze({ kind: "provider-refused", diagnostic: relations.diagnostic });
+      if (relations.kind !== "resolved") continue;
+      if (relations.relations.some(relation => relation.kind === "member" && relation.targetBinding.id === carrier.id &&
+        relation.targetMember.id === slot.member.id)) declarations.add(declaration);
+    }
+    fields.push(Object.freeze({ identity: slot.member.id, member: undefined, name: slot.member.targetName,
+      type: slot.storage.type, declarations: Object.freeze([...declarations]) }));
+  }
+  return represented(Object.freeze(fields));
+}
+
+export function selectCsharpRawLocation(host: CsharpMemoryAnalysisHost, node: Node): CsharpMemoryOutcome<CsharpRawLocationSelection | undefined> {
+  const bindings = host.sourceStorage.bindingsForLexicalOwner(node);
+  if (bindings.kind === "refused") return Object.freeze({ kind: "source-refused", refusal: bindings });
+  if (bindings.kind === "unresolved") return bindings;
+  const proof = host.sourceStorage.memory.rawLocation.resolve(node, bindings.bindings);
+  if (proof.kind === "refused") return Object.freeze({ kind: "source-refused", refusal: proof });
+  if (proof.kind === "unresolved") return proof;
+  if (proof.value.kind === "none") return represented(undefined);
+  const source = proof.value.value;
+  const layout = selectCsharpNativeMemoryLayout(host, source.layout, source.typeBindings);
+  if (layout.kind !== "represented") return layout;
+  const operand = source.operation.operation === "to-raw" ? source.operation.pointer : source.operation.raw;
+  const selected = host.nativeValue(operand.occurrence);
+  if (selected.kind !== "represented") return selected;
+  const definition = selectCsharpMemoryRuntimeDefinition(host, source.operation.operation === "to-raw" ? "Location" : "RawPointer", node);
+  if (definition.kind !== "represented") return definition;
+  const present = getCsharpNullableElementTargetType(selected.value) ?? selected.value;
+  const physical = source.operation.operation === "to-raw" ? csharpRuntimeLocationPointee(present, definition.value)
+    : targetTypeRefEquals(present, csharpRuntimeRawPointerTargetType(definition.value)) ? layout.value.pointeeType : undefined;
+  if (!isCsharpAbsenceTargetType(present) && (physical === undefined || !targetTypeRefEquals(physical, layout.value.pointeeType))) {
+    return nativeRepresentationFailure(node, "CSHARP_RAW_LOCATION_CARRIER_MISMATCH", "The completed Source raw proof requires the identical actual Native pointee carrier.");
+  }
+  return represented(Object.freeze({ kind: "raw-location", method: source.operation.operation === "to-raw" ? "ToRaw" : "Reinterpret",
+    expression: operand.occurrence, inputType: selected.value, layout: layout.value }));
 }
 
 function csharpNativeScalarByteSize(carrier: TargetTypeRef, addressWidth: 32 | 64): bigint | undefined {
   if (carrier.kind !== "source-primitive") return undefined;
   if (carrier.name === "native-int" || carrier.name === "native-uint") return BigInt(addressWidth) / 8n;
-  const sizes: Readonly<Partial<Record<string, bigint>>> = {
-    int8: 1n, uint8: 1n, int16: 2n, uint16: 2n, int32: 4n, uint32: 4n,
-    int64: 8n, uint64: 8n, int128: 16n, uint128: 16n, float16: 2n, float32: 4n, float64: 8n,
-  };
+  const sizes: Readonly<Partial<Record<string, bigint>>> = { int8: 1n, uint8: 1n, int16: 2n, uint16: 2n,
+    int32: 4n, uint32: 4n, int64: 8n, uint64: 8n, int128: 16n, uint128: 16n, float16: 2n, float32: 4n, float64: 8n };
   return sizes[carrier.name];
-}
-
-export function csharpNativeArrayMemoryLayoutRejection(root: TsonicMemoryLayoutFact): string | undefined {
-  const pending = [root];
-  const visited = new Set<TsonicMemoryLayoutFact>();
-  while (pending.length !== 0) {
-    const layout = pending.pop()!;
-    if (visited.has(layout)) continue;
-    visited.add(layout);
-    if (layout.kind === "array") {
-      const reason = csharpFixedArrayRepresentationRejection(layout.fixedArray.length);
-      if (reason !== undefined) return reason;
-      pending.push(layout.elementLayout);
-      continue;
-    }
-    for (const field of layout.fields) pending.push(field.fieldLayout);
-  }
-  return undefined;
-}
-
-export function selectCsharpRawLocation(input: CsharpPolicyContext, node: Node, file: SourceFile): CsharpRawLocationSelection | undefined {
-  const selected = readCsharpRawLocation(input.ast, input.sourceFacts, node);
-  if (selected === undefined) return undefined;
-  const reject = (reason: string): CsharpRawLocationSelection => ({ kind: "rejected", operation: "raw-location", reason });
-  if (selected.kind === "rejected") return reject(selected.reason);
-  const layout = selectCsharpNativeMemoryLayout(input, selected.layout, file);
-  if (layout === undefined) return reject(csharpNativeArrayMemoryLayoutRejection(selected.layout) ??
-    "The selected layout has no closed all-bit-pattern C# native value representation.");
-  const operation = selected.operation;
-  const inputType = input.types.resolveSelectedValue(selected.expression,
-    operation.operation === "to-raw" ? operation.pointerType : operation.rawType, file);
-  if (inputType === undefined) return reject("The raw conversion operand has no exact native carrier.");
-  if (operation.operation === "to-raw") {
-    const pointee = csharpRuntimeLocationPointee(inputType);
-    if (!isCsharpAbsenceTargetType(inputType) &&
-      (pointee === undefined || !targetTypeRefEquals(pointee, layout.pointeeType))) {
-      return reject("The typed location and selected memory layout have different C# pointee representations.");
-    }
-  } else {
-    const raw = getCsharpNullableElementTargetType(inputType) ?? inputType;
-    if (!isCsharpAbsenceTargetType(raw) && !targetTypeRefEquals(raw, csharpRuntimeRawPointerTargetType())) {
-      return reject("Reinterpretation requires the exact raw address carrier.");
-    }
-    const pointee = operation.explicitPointeeTypeNode === undefined ? layout.pointeeType
-      : input.types.resolveSelectedType(operation.explicitPointeeTypeNode, operation.pointeeType, file);
-    if (pointee === undefined || !targetTypeRefEquals(pointee, layout.pointeeType)) {
-      return reject("Reinterpretation and its selected layout have different exact C# pointee types.");
-    }
-  }
-  return Object.freeze({ kind: "raw-location", method: operation.operation === "to-raw" ? "ToRaw" : "Reinterpret",
-    expression: selected.expression,
-    inputType: csharpNullableReferenceTargetType(operation.operation === "to-raw"
-      ? csharpRuntimeLocationTargetType(layout.pointeeType) : csharpRuntimeRawPointerTargetType()), layout });
 }
