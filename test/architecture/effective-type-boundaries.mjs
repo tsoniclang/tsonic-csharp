@@ -1,5 +1,5 @@
 import { readArchitectureTypeScript } from "../../../tsonic/test/architecture/tooling/typescript-source.mjs";
-import { checkerImportFindings } from "../../../tsonic/test/architecture/tooling/source-boundaries.mjs";
+import { checkerImportFindings, moduleLifetimeFindings } from "../../../tsonic/test/architecture/tooling/source-boundaries.mjs";
 import { publicModuleDependency } from "../../../tsonic/test/architecture/tooling/public-declarations.mjs";
 const checkerQueries = new Set([
   "getTypeAtLocation", "getTypeFromTypeNode", "getContextualType", "getResolvedSignature", "getResolvedCallInfo",
@@ -22,6 +22,7 @@ export function sourceEvidenceBoundaryFindings(sourceFiles) {
     const native = path.startsWith("src/");
     const hostFlow = path.startsWith("host/source-semantics/local-type-flow/");
     if (native || hostFlow) findings.push(...checkerImportFindings(source, file));
+    if (native) findings.push(...moduleLifetimeFindings(source, file));
     const text = ast.getSourceText(file);
     const add = (node, rule) => findings.push(Object.freeze({ file: path,
       line: text.slice(0, ast.authoredRange(node).start).split("\n").length, rule }));

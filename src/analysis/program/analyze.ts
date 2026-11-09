@@ -250,7 +250,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
   if (dictionaryLiterals.issues.length !== 0) return rejectedTargetStage(dictionaryLiterals.issues);
   const typeFlowIssues = analyzeCsharpNativeTypeObligations({ policy: analysis.policy,
     expected: analysis.expectedTypes, nativeDemand: analysis.nativeDemand,
-    compileTimeMetadata: analysis.sourceEvidence.compileTimeMetadata });
+    compileTimeMetadata: analysis.sourceEvidence.compileTimeMetadata, conversions: analysis.conversions });
   if (typeFlowIssues.length !== 0) return rejectedTargetStage(typeFlowIssues);
   const sourceModuleConstructions = analyzeCsharpSourceModuleConstructions({
     source,

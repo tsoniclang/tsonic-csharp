@@ -1,11 +1,12 @@
 import type { Node } from "@tsonic/tsts";
-import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import { failTargetAnalysisInvariant, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { SourceApplication, SourceConstruction, SourcePresence, SourceTypeEvidence } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpExpectedTypeAnalysis } from "../expected-types/model.js";
 import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native/native-demand.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
-import type { CsharpNativeConstructionReceipt } from "../../target-model/types/native-obligations.js";
+import type { CsharpNativeConstructionReceipt, CsharpNativeWriteAdmission } from "../../target-model/types/native-obligations.js";
+import type { CsharpConversionClassifications } from "../../target-model/records/operations/conversions.js";
 import type { CsharpRepresentationOutcome } from "../../target-model/types/representation.js";
 import type { CsharpRepresentedTypeParameter, TargetTypeRef } from "../../target-model/types/native-type-data.js";
 import type { TargetConstraint } from "../../target-model/types/model.js";
@@ -15,7 +16,7 @@ import { getCsharpArrayLiteralElementTargetType, getCsharpReadOnlyIndexableColle
   getCsharpCollectionElementTargetType } from "../../target-model/types/carriers/collections.js";
 import { csharpTargetTypeFailsConstraint } from "../operations/members/calls/constraint-satisfaction.js";
 import { csharpRepresentationDiagnostic } from "../source-evidence/representations.js";
-import { targetTypeRefKey } from "../../target-model/types/equality.js";
+import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/equality.js";
 import { substituteTargetTypeParameters } from "../../target-model/types/substitution.js";
 import { csharpNativeTypeArgumentSatisfiesConstraints } from "../../policy/conversions/generic-callable.js";
 
@@ -24,13 +25,13 @@ export interface CsharpNativeTypeObligationInput {
   readonly expected: CsharpExpectedTypeAnalysis;
   readonly nativeDemand: CsharpNativeDemandAnalysis;
   readonly compileTimeMetadata: CsharpSourceEvidenceIndex["compileTimeMetadata"];
+  readonly conversions: Pick<CsharpConversionClassifications, "expressionConversion" | "delegateAdapter">;
 }
 
 export function analyzeCsharpNativeTypeObligations(input: CsharpNativeTypeObligationInput): readonly TargetDiagnostic[] {
   const { policy } = input;
   const issues: TargetDiagnostic[] = [];
   const issueKeys = new Map<Node | undefined, Set<string>>();
-  const occurrences = new Set(policy.facts.values.occurrences());
   const completed = new Map<Node, Set<string>>();
   const applications = new Set<Node>();
   const host: CsharpNativeTypeObligationHost = Object.freeze({
@@ -45,16 +46,29 @@ export function analyzeCsharpNativeTypeObligations(input: CsharpNativeTypeObliga
   for (const request of input.expected.nativeUseSites.requests) {
     if (request.kind !== "requested" || request.mode !== "implicit") continue;
     const use = input.nativeDemand.nativeUse.get(request.site);
-    if (use === undefined || use.kind === "erased" || !occurrences.has(request.expression)) continue;
+    if (use === undefined || use.kind === "erased") continue;
+    if (use.expression !== request.expression) failTargetAnalysisInvariant("tsonic-csharp",
+      "A Native write obligation requires the identical admitted expression use.", request.expression);
     let owner: Node | undefined = request.expression;
     while (owner !== undefined && !input.compileTimeMetadata.get(owner)) owner = policy.ast.parent(owner);
     if (owner !== undefined) continue;
+    if (!applications.has(request.expression) && (policy.ast.is.IsCallExpression(request.expression) ||
+      policy.ast.is.IsNewExpression(request.expression))) {
+      const publication = sourceOutcome(policy.facts.applications.application(request.expression));
+      const constraints = publication.kind !== "represented" ? publication : applicationConstraints(publication.value);
+      if (constraints.kind !== "represented") reject(constraints);
+      else applications.add(request.expression);
+    }
     const carrier = use.kind === "converted" ? use.input.kind === "value" ? use.input.type : undefined : use.carrier;
     if (carrier === undefined) continue;
     const identity = `${targetTypeRefKey(carrier)}:${targetTypeRefKey(request.targetType)}`;
     const previous = completed.get(request.expression);
+    if (use.kind === "converted" && (use.mode !== "implicit" || !targetTypeRefEquals(use.target, request.targetType))) {
+      failTargetAnalysisInvariant("tsonic-csharp", "A converted write obligation requires the exact admitted conversion use.", request.expression);
+    }
+    const admission = admittedConversion(request.expression, carrier, request.targetType, use.kind === "converted");
     if (previous?.has(identity)) continue;
-    const outcome = admit(request.expression, carrier, request.targetType);
+    const outcome = admit(request.expression, carrier, request.targetType, admission);
     if (outcome.kind !== "represented") {
       reject(outcome);
       continue;
@@ -62,14 +76,6 @@ export function analyzeCsharpNativeTypeObligations(input: CsharpNativeTypeObliga
     const keys = previous ?? new Set<string>();
     keys.add(identity);
     completed.set(request.expression, keys);
-    if (!applications.has(request.expression) && (policy.ast.is.IsCallExpression(request.expression) ||
-      policy.ast.is.IsNewExpression(request.expression))) {
-      const publication = sourceOutcome(policy.facts.applications.application(request.expression));
-      const constraints = publication.kind !== "represented" ? publication
-        : applicationConstraints(publication.value);
-      if (constraints.kind !== "represented") reject(constraints);
-      else applications.add(request.expression);
-    }
   }
   return Object.freeze(issues);
 
@@ -110,14 +116,31 @@ export function analyzeCsharpNativeTypeObligations(input: CsharpNativeTypeObliga
     return represented(true);
   }
 
-  function admit(occurrence: Node, carrier: TargetTypeRef, target: TargetTypeRef): CsharpRepresentationOutcome<true> {
+  function admittedConversion(site: Node, source: TargetTypeRef, target: TargetTypeRef,
+    required: boolean): CsharpNativeWriteAdmission | undefined {
+    const conversion = input.conversions.expressionConversion.get(site, source, target, "implicit");
+    if (conversion === undefined) {
+      if (required) failTargetAnalysisInvariant("tsonic-csharp",
+        "A converted Native write requires its same already-admitted expression conversion.", site);
+      return undefined;
+    }
+    const adapter = input.conversions.delegateAdapter.get(site, source, target);
+    if (adapter !== undefined && (!targetTypeRefEquals(adapter.source, source) || !targetTypeRefEquals(adapter.target, target) ||
+      conversion.selection.kind !== "delegate-adapter")) {
+      failTargetAnalysisInvariant("tsonic-csharp", "A converted callable write requires its identical admitted Native adapter.", site);
+    }
+    return Object.freeze({ site, source, target, selection: adapter?.selection ?? conversion.selection });
+  }
+
+  function admit(occurrence: Node, carrier: TargetTypeRef, target: TargetTypeRef,
+    admission: CsharpNativeWriteAdmission | undefined): CsharpRepresentationOutcome<true> {
     const evidence = sourceOutcome(policy.facts.values.type(occurrence));
     if (evidence.kind !== "represented") return evidence;
     const destination = sourceOutcome(policy.facts.values.destination(occurrence));
     if (destination.kind !== "represented") return destination;
     const construction = sourceOutcome(policy.facts.values.construction(occurrence));
     if (construction.kind !== "represented") return construction;
-    const endpoints = { source: { evidence: construction.value.kind === "present" ? construction.value.value.value : evidence.value, carrier }, destination: {
+    const endpoints = { ...(admission === undefined ? {} : { admission }), source: { evidence: construction.value.kind === "present" ? construction.value.value.value : evidence.value, carrier }, destination: {
       evidence: destination.value.kind === "present" ? destination.value.value.applied : evidence.value, carrier: target } };
     if (construction.value.kind === "none") {
       return checkCsharpNativeTypeObligation(host, { kind: "write-fit", site: occurrence, ...endpoints });
@@ -172,7 +195,9 @@ export function analyzeCsharpNativeTypeObligations(input: CsharpNativeTypeObliga
         const evidence = sourceOutcome(policy.representation.source.component(definition.value,
           definition.value.type.kind === "tuple" ? { kind: "tuple-element", index: position } : { kind: "array-element" }));
         if (evidence.kind !== "represented") return evidence;
-        elements.push({ site: original.occurrence, source, destination: { evidence: evidence.value, carrier: target } });
+        const admission = admittedConversion(original.occurrence, source.carrier, target, false);
+        elements.push({ site: original.occurrence, source, destination: { evidence: evidence.value, carrier: target },
+          ...(admission === undefined ? {} : { admission }) });
         position += 1;
       }
       contributions.push({ original, elements: Object.freeze(elements) });

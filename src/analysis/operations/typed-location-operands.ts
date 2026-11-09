@@ -1,41 +1,44 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
+import type { CsharpMemoryOutcome } from "../../policy/model/memory.js";
 import type { CsharpOperationIssue } from "../../target-model/records/operations/operations.js";
-import { readCsharpSourceTypedLocationOperation } from "../../source/extension/typed-locations.js";
+import { represented, sourceOutcome } from "../../policy/types/source-type-flow/representation-results.js";
 import { selectCsharpTargetCall } from "./members/selected-members.js";
 import { csharpTargetCallRefusal } from "../callables/calls/call-refusals.js";
 
-// A typed-location operand whose value comes from a refused target call cannot resolve its pointee; that call's own
-// refusal is the root diagnostic (RULINGS 2026-10-23, option b). The operand is the call itself or an unwritten local
-// initialized by it, followed through further such locals.
 export function selectCsharpRefusedTypedLocationOperandCall(policy: CsharpPolicyContext, node: Node,
-  sourceFile: SourceFile): CsharpOperationIssue | undefined {
-  const source = readCsharpSourceTypedLocationOperation(policy.sourceFacts, node);
-  if (source === undefined) return undefined;
-  const operands = source.kind === "location-equal" ? [source.leftExpression, source.rightExpression]
-    : "locationExpression" in source ? [source.locationExpression] : [];
+  sourceFile: SourceFile): CsharpMemoryOutcome<CsharpOperationIssue | undefined> {
+  const selected = sourceOutcome(policy.facts.protocols.pointerOperation(node));
+  if (selected.kind !== "represented") return selected;
+  if (selected.value.kind === "none" || selected.value.value.family !== "typed-location") return represented(undefined);
+  const source = selected.value.value;
+  const operands = source.operation === "equal-pointer" ? [source.left, source.right]
+    : "pointer" in source ? [source.pointer] : [];
   const visited = new Set<Node>();
   for (const operand of operands) {
-    const root = refusedRoot(policy, operand, sourceFile, visited);
-    if (root !== undefined) return root;
+    const root = refusedRoot(policy, operand.occurrence, sourceFile, visited);
+    if (root.kind !== "represented" || root.value !== undefined) return root;
   }
-  return undefined;
+  return represented(undefined);
 }
 
-// A refused call whose own argument comes from another refused call reports that deeper call: its refusal is the root.
 function refusedRoot(policy: CsharpPolicyContext, expression: Node, sourceFile: SourceFile,
-  visited: Set<Node>): CsharpOperationIssue | undefined {
+  visited: Set<Node>): CsharpMemoryOutcome<CsharpOperationIssue | undefined> {
   const call = originatingCall(policy, expression);
-  if (call === undefined || visited.has(call)) return undefined;
+  if (call === undefined || visited.has(call)) return represented(undefined);
   visited.add(call);
+  const source = sourceOutcome(policy.facts.applications.application(call));
+  if (source.kind !== "represented") return source;
   const refusal = csharpTargetCallRefusal(selectCsharpTargetCall(policy, call, sourceFile));
-  if (refusal === undefined) return undefined;
-  for (const argument of policy.ast.arguments(call)) {
-    const deeper = argument === undefined ? undefined : refusedRoot(policy, argument, sourceFile, visited);
-    if (deeper !== undefined) return deeper;
+  if (refusal === undefined) return represented(undefined);
+  if (source.value.argumentDisposition !== "skip") for (const argument of source.value.sourceArguments) {
+    const operand = sourceOutcome(argument.operand);
+    if (operand.kind !== "represented") return operand;
+    const deeper = refusedRoot(policy, operand.value.occurrence, sourceFile, visited);
+    if (deeper.kind !== "represented" || deeper.value !== undefined) return deeper;
   }
-  return Object.freeze({ node: refusal.site ?? call, code: refusal.code, message: refusal.message,
-    ...(refusal.source === undefined ? {} : { source: refusal.source }) });
+  return represented(Object.freeze({ node: refusal.site ?? call, code: refusal.code, message: refusal.message,
+    ...(refusal.source === undefined ? {} : { source: refusal.source }) }));
 }
 
 function originatingCall(policy: CsharpPolicyContext, expression: Node): Node | undefined {
@@ -45,7 +48,7 @@ function originatingCall(policy: CsharpPolicyContext, expression: Node): Node | 
     visited.add(current);
     if (policy.ast.is.IsCallExpression(current)) return current;
     if (!policy.ast.is.IsIdentifier(current)) return undefined;
-    const declaration: Node | undefined = policy.facts.navigation.referenceFor(current)?.declaration;
+    const declaration: Node | undefined = policy.facts.navigation.sourceReferenceFor(current)?.declaration;
     if (declaration === undefined || !policy.ast.is.IsVariableDeclaration(declaration) ||
       policy.facts.navigation.declarationUseSummary(declaration).bindingWritten) return undefined;
     current = policy.ast.as.AsVariableDeclaration(declaration)?.Initializer;

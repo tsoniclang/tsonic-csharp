@@ -8,6 +8,7 @@ import { csharpNativeTypeImplements } from "./relations.js";
 import { selectCsharpConversion } from "../../conversions/core.js";
 import { selectCsharpScalarConversion } from "../../conversions/scalars.js";
 import { csharpConversionIsApplicable } from "../../conversions/applicability.js";
+import { selectCsharpExactLiteralConversion } from "../../conversions/literals.js";
 import { admitCsharpSourceConversion } from "../../conversions/source-admission.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../target-model/types/equality.js";
 import { nativeRepresentationFailure, represented } from "./representation-results.js";
@@ -80,10 +81,26 @@ export function checkCsharpNativeTypeObligation(host: CsharpNativeTypeObligation
 function checkWrite(host: CsharpNativeTypeObligationHost, endpoints: CsharpNativeTypeEndpoints,
   site: CsharpNativeTypeObligation["site"]): CsharpRepresentationOutcome<true> {
   const literal = host.representation.source.scalarLiteral(endpoints.source.evidence);
+  const admitted = endpoints.admission;
+  if (admitted !== undefined) {
+    if (admitted.site !== site || !targetTypeRefEquals(admitted.source, endpoints.source.carrier) ||
+      !targetTypeRefEquals(admitted.target, endpoints.destination.carrier)) {
+      throw new TypeError("An admitted Native write must retain its same expression and exact physical conversion endpoints.");
+    }
+    if (literal.kind === "present") {
+      const selected = selectCsharpExactLiteralConversion(literal.value, admitted.source, admitted.target);
+      if (selected.kind === "rejected") return nativeRepresentationFailure(site,
+        "CSHARP_NATIVE_WRITE_CARRIER_MISMATCH", selected.reason);
+    }
+    return csharpConversionIsApplicable(admitted.selection, "implicit") ? represented(true)
+      : nativeRepresentationFailure(site, "CSHARP_NATIVE_WRITE_CARRIER_MISMATCH",
+        admitted.selection.kind === "rejected" || admitted.selection.kind === "ambiguous" ? admitted.selection.reason
+          : "The admitted Native write does not retain an applicable implicit physical conversion.");
+  }
   const relation = selectCsharpScalarConversion(host, endpoints.source.carrier, endpoints.destination.carrier, "implicit", literal);
   if (!csharpConversionIsApplicable(relation, "implicit")) return nativeRepresentationFailure(site,
     "CSHARP_NATIVE_WRITE_CARRIER_MISMATCH", relation.kind === "rejected" || relation.kind === "ambiguous" ? relation.reason
       : "The write requires an actual implicit Native conversion without changing the existing storage ABI.");
-  const admitted = admitCsharpSourceConversion({ representation: host.representation, relation, ...endpoints, site });
-  return admitted.kind !== "represented" ? admitted : represented(true);
+  const selected = admitCsharpSourceConversion({ representation: host.representation, relation, ...endpoints, site });
+  return selected.kind !== "represented" ? selected : represented(true);
 }

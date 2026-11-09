@@ -20,6 +20,30 @@ test("the superseded allowance and partial-publication APIs are not exported", (
   assert.equal(Object.hasOwn(boundary, "effectiveTypeBoundaryFindings"), false);
 });
 
+for (const text of [
+  "const cache = new WeakMap<object, number>();",
+  "const cache = new WeakSet<object>();",
+  "const cache = new Map<object, number>(); export function retain(value: object) { cache.set(value, 1); }",
+  "const cache = new Set<object>(); export function retain(value: object) { cache.add(value); }",
+  "class Registry { static cache = new WeakMap<object, number>(); }",
+  "class Registry { static cache = new WeakSet<object>(); }",
+  "class Registry { static cache = new Map<object, number>(); static retain(value: object) { this.cache.set(value, 1); } }",
+  "class Registry { static cache = new Set<object>(); } export function retain(value: object) { Registry.cache.add(value); }",
+]) test(`Native uses the shared AST lifetime guard for ${text}`, () => {
+  assert.equal(findings(text).some(row => row.rule === "module-owned-mutable-cache"), true, text);
+});
+
+test("Native lifetime guards accept per-program factories, instance state and immutable metadata", () => {
+  assert.deepEqual(findings(`
+    const labels = new Map<string, string>([["kind", "value"]]);
+    const flags = new Set<string>(["physical", "emission"]);
+    export function createView() { const cache = new WeakMap<object, number>(); return { retain(value: object) { cache.set(value, 1); } }; }
+    class View { cache = new WeakMap<object, number>(); retain(value: object) { this.cache.set(value, 1); } }
+    class PrivateView { #cache = new WeakSet<object>(); retain(value: object) { this.#cache.add(value); } }
+    class Metadata { static labels = new Map<string, string>([["kind", "value"]]); }
+  `), []);
+});
+
 test("the Native evidence owner deletes the Source solver and seals only completed published-fact records", () => {
   const retired = join(root, "src/analysis/source-evidence/types/resolution");
   assert.deepEqual(existsSync(retired) ? filesUnder(retired).map(file => relative(root, file)) : [], []);

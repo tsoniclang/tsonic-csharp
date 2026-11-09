@@ -2,6 +2,14 @@ import type { Node } from "@tsonic/tsts";
 import type { SourceConstruction, SourcePresence, SourceTypeEvidence, SourceTypeParameter } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "./native-type-data.js";
 import type { TargetConstraint } from "./model.js";
+import type { CsharpConversionSelection } from "../conversions/selection.js";
+
+export interface CsharpNativeWriteAdmission {
+  readonly site: Node;
+  readonly source: TargetTypeRef;
+  readonly target: TargetTypeRef;
+  readonly selection: CsharpConversionSelection;
+}
 
 export interface CsharpNativeTypeValue {
   readonly evidence: SourceTypeEvidence;
@@ -11,6 +19,7 @@ export interface CsharpNativeTypeValue {
 export interface CsharpNativeTypeEndpoints {
   readonly source: CsharpNativeTypeValue;
   readonly destination: CsharpNativeTypeValue;
+  readonly admission?: CsharpNativeWriteAdmission;
 }
 
 export type CsharpNativeConstructionReceipt =

@@ -1,162 +1,143 @@
-import type { CsharpNativeRefReturnSelection, CsharpTypedLocationOperationSelection } from "../../target-model/records/storage/typed-locations.js";
-import type { Node, SourceFile, Type } from "@tsonic/tsts";
-import { AsVariableDeclaration } from "@tsonic/target-api/source";
+import type { Node, SourceFile } from "@tsonic/tsts";
+import type { SourceTypeEvidence, SourceValueOperand } from "@tsonic/target-api/source";
+import type { CsharpMemoryAnalysisHost, CsharpMemoryOutcome } from "../../policy/model/memory.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import { selectCsharpTargetCall, selectCsharpTargetElement, selectCsharpTargetProperty } from "./members/selected-members.js";
-import {
-  csharpRuntimeLocationPointee, getCsharpDelegateSignature, targetTypeRefEquals, targetTypeRefKey, type TargetTypeRef,
-} from "../../policy/types/index.js";
-import { readCsharpSourceTypedLocationOperation } from "../../source/extension/typed-locations.js";
-
-import { selectCsharpTypedLocationStorage } from "../storage/typed-locations.js";
-
-
+import type { CsharpNativeRefReturnSelection, CsharpTypedLocationOperationSelection } from "../../target-model/records/storage/typed-locations.js";
+import type { CsharpTypedLocationStorageSelection } from "../../target-model/records/storage/typed-location-storage.js";
+import type { CsharpNativeCallableApplication } from "../../target-model/conversions/selection.js";
+import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
+import { csharpRuntimeLocationTargetType, isCsharpAbsenceTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
+import { isCsharpNullableReferenceTargetType } from "../../target-model/types/carriers/nullable.js";
+import { represented, sourceOutcome, nativeRepresentationFailure } from "../../policy/types/source-type-flow/representation-results.js";
 import { selectCsharpNativeTypedLocationOperation, nativeRefReturnFromMember } from "../../policy/operations/typed-locations/selection.js";
+import { selectCsharpTypedLocationStorage } from "../storage/typed-locations.js";
+import { selectCsharpMemoryRuntimeDefinition, selectCsharpMemoryRuntimeMember } from "./pointers/runtime-definitions.js";
+import { selectCsharpProviderCall } from "./members/calls/selection.js";
+import { selectCsharpProviderProperty } from "./members/property-selection.js";
+import { selectCsharpProviderElement } from "./members/element-selection.js";
 
-/** The user-facing refusal of a typed-location operation the policy rejected. */
 export function csharpTypedLocationLoweringRefusal(operation: string, reason: string): string {
   return `C# '${operation}' lowering requires one exact finalized typed-location operation. ${reason}`;
 }
 
-export function selectCsharpTypedLocationOperation(
-  input: CsharpPolicyContext, node: Node, sourceFile: SourceFile,
-): CsharpTypedLocationOperationSelection {
-  const source = readCsharpSourceTypedLocationOperation(input.sourceFacts, node);
-  if (source === undefined) return { kind: "not-typed-location" };
-  const native = source.kind === "location-load" || source.kind === "location-store"
-    ? selectCsharpNativeRefReturn(input, source.locationExpression, sourceFile) : undefined;
-  if (native?.kind === "rejected") return { kind: "rejected", operation: source.kind, reason: native.reason };
-  const pointee = input.types.resolveTypedLocationOperationPointee(source, sourceFile) ??
-    (source.explicitPointeeTypeNode === undefined && native?.kind === "resolved" ? native.returnType : undefined);
-  if (pointee === undefined) return { kind: "rejected", operation: source.kind,
-    reason: "The exact selected pointee type has no closed C# representation." };
-  const carriers = new Map<Node, TargetTypeRef>();
-  const retain = (expression: Node, type: TargetTypeRef | undefined): void => {
-    if (type !== undefined) carriers.set(expression, type);
-  };
-  const selected = (expression: Node, type: Type): void =>
-    retain(expression, input.types.resolveSelectedValue(expression, type, sourceFile));
-  let storage: import("../../target-model/records/storage/typed-location-storage.js").CsharpTypedLocationStorageSelection | undefined;
-  switch (source.kind) {
-    case "location-view": {
-      const arguments_ = input.ast.arguments(node);
-      if (source.call !== node || arguments_.length !== 3 || arguments_[0] !== source.locationExpression ||
-        arguments_[1] !== source.readExpression || arguments_[2] !== source.writeExpression) {
-        return { kind: "rejected", operation: source.kind, reason: "Pointer views require the exact checked base, read and write arguments." };
-      }
-      selected(source.locationExpression, source.locationType);
-      if (csharpRuntimeLocationPointee(carriers.get(source.locationExpression)) === undefined) {
-        retain(source.call, input.types.resolveType(source.sourcePointeeType, sourceFile));
-      }
-      break;
-    }
-    case "location-project":
-      selected(source.locationExpression, source.locationType);
-      if (source.explicitSourcePointeeTypeNode !== undefined) retain(source.explicitSourcePointeeTypeNode,
-        input.types.resolveSelectedType(source.explicitSourcePointeeTypeNode, source.sourcePointeeType, sourceFile));
-      break;
-    case "location-hash": selected(source.locationExpression, source.locationType); break;
-    case "location-bind": selected(source.identityExpression, source.identityType); break;
-    case "location-address": {
-      const type = input.types.resolveReadStorage(source.storageExpression, sourceFile);
-      retain(source.storageExpression, type);
-      if (type !== undefined && targetTypeRefEquals(type, pointee)) storage = selectCsharpTypedLocationStorage(
-        input, source.storageExpression, type, sourceFile, new WeakSet<Node>(), source.storageDeclaration);
-      break;
-    }
-    case "location-allocate": selected(source.initialExpression, source.initialType); break;
-    case "location-load": case "location-store":
-      if (native?.kind !== "resolved") selected(source.locationExpression, source.locationType);
-      if (source.kind === "location-store" &&
-        !(native?.kind === "resolved" && native.returnPassing === "byref-readonly")) {
-        selected(source.valueExpression, source.valueType);
-      }
-      break;
-    case "location-equal":
-      selected(source.leftExpression, source.leftType); selected(source.rightExpression, source.rightType); break;
+export function selectCsharpTypedLocationOperation(input: CsharpMemoryAnalysisHost, node: Node,
+  sourceFile: SourceFile): CsharpMemoryOutcome<CsharpTypedLocationOperationSelection> {
+  const selected = sourceOutcome(input.facts.protocols.pointerOperation(node));
+  if (selected.kind !== "represented") return selected;
+  if (selected.value.kind === "none" || selected.value.value.family !== "typed-location") {
+    return represented(Object.freeze({ kind: "not-typed-location" }));
   }
-  return selectCsharpNativeTypedLocationOperation(source, pointee, carriers, native, storage);
+  const source = selected.value.value;
+  if (source.occurrence !== node) throw new TypeError("A typed location must retain its identical original Source occurrence.");
+  const pointee = input.representation.represent(source.pointee, "storage", node);
+  if (pointee.kind !== "represented") return pointee;
+  const definition = selectCsharpMemoryRuntimeDefinition(input, "Location", node);
+  if (definition.kind !== "represented") return definition;
+  const carriers = new Map<Node, TargetTypeRef>();
+  let native: CsharpNativeRefReturnSelection | undefined;
+  let storage: CsharpTypedLocationStorageSelection | undefined;
+  let sourcePointee: TargetTypeRef | undefined;
+  let runtime: CsharpNativeCallableApplication | undefined;
+  if (source.operation === "load" || source.operation === "store") {
+    const selected = selectCsharpNativeRefReturn(input, source.pointer.occurrence, sourceFile);
+    if (selected.kind !== "represented") return selected;
+    native = selected.value;
+  }
+  if (source.operation === "address-of") {
+    const selected = selectCsharpTypedLocationStorage(input, source.storage.occurrence,
+      pointee.value.carrier, sourceFile, new Set<Node>());
+    if (selected.kind !== "represented") return selected;
+    storage = selected.value;
+  }
+  const operands: readonly SourceValueOperand[] = source.operation === "address-of" ? []
+    : source.operation === "allocate" ? [source.initial]
+      : source.operation === "equal-pointer" ? [source.left, source.right]
+        : source.operation === "bind-pointer" ? [source.identity, source.read, source.write]
+          : source.operation === "project-pointer" ? [source.pointer, source.fromSource, source.toSource]
+            : source.operation === "view" ? [source.pointer, source.read, source.write]
+              : source.operation === "store" ? [source.pointer, source.value] : [source.pointer];
+  for (const operand of operands) {
+    if ((source.operation === "load" || source.operation === "store") && native?.kind === "resolved" && operand === source.pointer) continue;
+    if (source.operation === "store" && native?.kind === "resolved" && native.returnPassing === "byref-readonly" && operand === source.value) continue;
+    const selected = input.nativeValue(operand.occurrence);
+    if (selected.kind !== "represented") return selected;
+    carriers.set(operand.occurrence, selected.value);
+  }
+  if (source.operation === "bind-pointer" || source.operation === "project-pointer" || source.operation === "view") {
+    let arguments_: readonly TargetTypeRef[] = [];
+    let method: string;
+    if (source.operation === "bind-pointer") method = "Bind";
+    else {
+      const selected = representSourcePointee(input, source.sourcePointee, node);
+      if (selected.kind !== "represented") return selected;
+      sourcePointee = selected.value;
+      arguments_ = [sourcePointee];
+      const pointer = carriers.get(source.pointer.occurrence);
+      const optional = source.operation === "view" ? source.optional
+        : pointer !== undefined && (isCsharpAbsenceTargetType(pointer) || isCsharpNullableReferenceTargetType(pointer));
+      method = source.operation === "view" ? optional ? "ViewOptional" : "View" : optional ? "ProjectOptional" : "Project";
+    }
+    const selected = selectCsharpMemoryRuntimeMember(input,
+      csharpRuntimeLocationTargetType(pointee.value.carrier, definition.value), method, arguments_, node);
+    if (selected.kind !== "represented") return selected;
+    runtime = selected.value;
+  }
+  return represented(selectCsharpNativeTypedLocationOperation(source, pointee.value.carrier,
+    definition.value, carriers, native, storage, sourcePointee, runtime));
 }
 
-export function selectCsharpNativeRefReturn(
-  input: CsharpPolicyContext,
-  expression: Node,
-  sourceFile: SourceFile,
-  visited: WeakSet<Node> = new WeakSet<Node>(),
-): CsharpNativeRefReturnSelection {
-  if (visited.has(expression)) {
-    return {
-      kind: "rejected",
-      reason: "A C# native ref-return alias contains a declaration cycle.",
-    };
-  }
+function representSourcePointee(input: CsharpPolicyContext, evidence: SourceTypeEvidence,
+  site: Node): CsharpMemoryOutcome<TargetTypeRef> {
+  const selected = input.representation.represent(evidence, "storage", site);
+  return selected.kind !== "represented" ? selected : represented(selected.value.carrier);
+}
+
+export function selectCsharpNativeRefReturn(input: CsharpPolicyContext, expression: Node,
+  sourceFile: SourceFile, visited: Set<Node> = new Set<Node>()): CsharpMemoryOutcome<CsharpNativeRefReturnSelection> {
+  if (visited.has(expression)) return represented(Object.freeze({ kind: "rejected",
+    reason: "A C# native ref-return alias contains a declaration cycle." }));
   visited.add(expression);
   if (input.ast.is.IsIdentifier(expression)) {
-    const declaration = input.navigation.referenceFor(expression)?.declaration;
-    if (
-      declaration === undefined ||
-      !input.ast.is.IsVariableDeclaration(declaration) ||
-      input.ast.variableDeclarationKind(declaration) !== "const"
-    ) {
-      return { kind: "not-native" };
-    }
-    const initializer = AsVariableDeclaration(input.ast, declaration)?.Initializer;
-    return initializer === undefined
-      ? { kind: "not-native" }
+    const declaration = input.facts.navigation.sourceReferenceFor(expression)?.declaration;
+    if (declaration === undefined || !input.ast.is.IsVariableDeclaration(declaration) ||
+      input.ast.variableDeclarationKind(declaration) !== "const") return represented(Object.freeze({ kind: "not-native" }));
+    const initializer = input.ast.as.AsVariableDeclaration(declaration)?.Initializer;
+    return initializer === undefined ? represented(Object.freeze({ kind: "not-native" }))
       : selectCsharpNativeRefReturn(input, initializer, sourceFile, visited);
   }
   if (input.ast.is.IsCallExpression(expression)) {
-    const selection = selectCsharpTargetCall(input, expression, sourceFile);
-    if (selection.kind === "resolved" && selection.call.origin === "provider") {
-      return nativeRefReturnFromMember(
-        selection.call.targetMember,
-        selection.source.optionalChain,
-      );
-    }
-    if (selection.kind === "source-owned") {
-      const calleeType = input.types.resolveSelectedValue(
-        selection.source.sourceCallee.expression,
-        selection.source.sourceCallee.type,
-        sourceFile,
-      );
-      const signature = getCsharpDelegateSignature(calleeType);
-      if (signature?.returnPassing !== undefined && calleeType !== undefined) {
-        if (selection.source.optionalChain) {
-          return {
-            kind: "rejected",
-            reason:
-              `The selected C# ref-return delegate '${targetTypeRefKey(calleeType)}' cannot be invoked through an optional chain.`,
-          };
-        }
-        return {
-          kind: "resolved",
-          targetIdentity: `delegate:${targetTypeRefKey(calleeType)}`,
-          returnPassing: signature.returnPassing,
-          returnType: signature.returnType,
-        };
-      }
-    }
-    return { kind: "not-native" };
+    const selection = selectCsharpProviderCall(input, expression, sourceFile);
+    if (selection.kind === "resolved") return represented(nativeRefReturnFromMember(selection.call.targetMember, selection.source.optionalCall));
+    if (selection.kind === "source-refused" || selection.kind === "native-refused" || selection.kind === "provider-refused") return selection;
+    if (selection.kind === "rejected") return Object.freeze({ kind: "provider-refused", diagnostic: selection.diagnostic });
+    if (selection.kind !== "not-provider") return nativeRepresentationFailure(expression,
+      "CSHARP_NATIVE_REF_RETURN_NOT_PROVEN", selection.reason);
+    const callee = input.nativeValue(selection.source.callee.occurrence);
+    if (callee.kind !== "represented") return callee;
+    const member = input.nativeDelegates.member(callee.value, selection.source.identity.signature);
+    if (member?.signature.returnPassing === undefined) return represented(Object.freeze({ kind: "not-native" }));
+    return selection.source.optionalCall ? represented(Object.freeze({ kind: "rejected",
+      reason: "The exact Native ref-return callable cannot be invoked through an optional call." }))
+      : represented(Object.freeze({ kind: "resolved", targetIdentity: member.name,
+        returnPassing: member.signature.returnPassing, returnType: member.signature.returnType }));
   }
   if (input.ast.is.IsPropertyAccessExpression(expression)) {
-    const selection = selectCsharpTargetProperty(input, expression, sourceFile);
-    if (selection.kind !== "resolved" || selection.origin !== "provider") {
-      return { kind: "not-native" };
-    }
-    return nativeRefReturnFromMember(
-      selection.targetMember,
-      selection.source.optionalChain,
-    );
+    const selection = selectCsharpProviderProperty(input, expression, sourceFile);
+    if (selection.kind === "resolved") return represented(nativeRefReturnFromMember(selection.property.targetMember,
+      selection.property.source.optionalChain || selection.property.source.chainContinuation));
+    if (selection.kind === "source-refused" || selection.kind === "native-refused" || selection.kind === "provider-refused") return selection;
+    if (selection.kind === "rejected") return Object.freeze({ kind: "provider-refused", diagnostic: selection.diagnostic });
+    return selection.kind === "not-provider" ? represented(Object.freeze({ kind: "not-native" }))
+      : nativeRepresentationFailure(expression, "CSHARP_NATIVE_REF_RETURN_NOT_PROVEN", selection.reason);
   }
   if (input.ast.is.IsElementAccessExpression(expression)) {
-    const selection = selectCsharpTargetElement(input, expression, sourceFile);
-    if (selection.kind !== "resolved" || selection.origin !== "provider") {
-      return { kind: "not-native" };
-    }
-    return nativeRefReturnFromMember(
-      selection.targetMember,
-      selection.source.optionalChain,
-    );
+    const selection = selectCsharpProviderElement(input, expression, sourceFile);
+    if (selection.kind === "resolved") return represented(nativeRefReturnFromMember(selection.element.targetMember,
+      selection.element.source.optionalChain || selection.element.source.chainContinuation));
+    if (selection.kind === "source-refused" || selection.kind === "native-refused" || selection.kind === "provider-refused") return selection;
+    if (selection.kind === "rejected") return Object.freeze({ kind: "provider-refused", diagnostic: selection.diagnostic });
+    return selection.kind === "not-provider" ? represented(Object.freeze({ kind: "not-native" }))
+      : nativeRepresentationFailure(expression, "CSHARP_NATIVE_REF_RETURN_NOT_PROVEN", selection.reason);
   }
-  return { kind: "not-native" };
+  return represented(Object.freeze({ kind: "not-native" }));
 }
