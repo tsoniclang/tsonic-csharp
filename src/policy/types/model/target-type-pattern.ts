@@ -72,7 +72,7 @@ function matchTargetTypePattern(
       return actual.kind === "type-parameter" && pattern.identity === actual.identity;
     case "array":
       return actual.kind === "array" &&
-        (pattern.rank ?? 1) === (actual.rank ?? 1) &&
+        pattern.rank === actual.rank &&
         matchTargetTypePattern(
           pattern.element,
           actual.element,

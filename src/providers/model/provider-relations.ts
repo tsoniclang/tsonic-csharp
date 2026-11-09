@@ -8,6 +8,7 @@ import type {
 import type { ProviderMemberKey, ProviderVirtualDeclarationFact } from "@tsonic/tsts";
 import type { CsharpTargetMember } from "../../target-model/types/model.js";
 import { canonicalProviderValue } from "../../target-model/metadata/canonical-value.js";
+import { selectCsharpNativeParameterCompletion } from "../../policy/operations/members/native-parameter-completion.js";
 
 export type CsharpProviderIdentityResult<
   TIdentity extends CsharpProviderSourceIdentity = CsharpProviderSourceIdentity,
@@ -538,15 +539,6 @@ function assertParameterRelations(
   const receiverIndex = relation.receiver.kind === "target-parameter"
     ? relation.receiver.targetParameterIndex
     : undefined;
-  if (
-    relation.parameters.length !==
-      relation.targetMember.parameters.length -
-        (receiverIndex === undefined ? 0 : 1)
-  ) {
-    throw new Error(
-      "C# provider parameter relation does not cover the exact target signature.",
-    );
-  }
   const sourceIndexes = new Set<number>();
   const targetIndexes = new Set<number>();
   for (const parameter of relation.parameters) {
@@ -579,6 +571,12 @@ function assertParameterRelations(
     }
     sourceIndexes.add(parameter.sourceParameterIndex);
     targetIndexes.add(parameter.targetParameterIndex);
+  }
+  if (receiverIndex !== undefined) targetIndexes.add(receiverIndex);
+  for (const [index, parameter] of relation.targetMember.parameters.entries()) {
+    if (!targetIndexes.has(index) && selectCsharpNativeParameterCompletion(parameter).kind === "rejected") {
+      throw new Error("C# provider parameter relations require every physical slot or its original representable Native-only completion.");
+    }
   }
 }
 

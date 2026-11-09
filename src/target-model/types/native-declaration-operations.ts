@@ -75,7 +75,8 @@ export function csharpNativeDeclarationKey(definition: CsharpNativeDeclaration):
   const key = (type: TargetTypeRef): string => targetTypeRefKey(type, "emission");
   const memberKey = (member: CsharpTargetMember): readonly unknown[] => [member.id, member.kind, member.targetName,
     member.static === true, member.readonly === true, member.declaringType === undefined ? null : key(member.declaringType),
-    member.parameters.map(parameter => [parameter.name, key(parameter.type), parameter.passingMode, parameter.optional === true, parameter.paramsArray === true]),
+    member.parameters.map(parameter => [parameter.name, key(parameter.type), parameter.passingMode, parameter.optional === true,
+      parameter.paramsArray === true, parameter.defaultValue ?? null, parameter.unsupportedDefaultValue ?? null]),
     member.returnType === undefined ? null : key(member.returnType), member.csharpReturnPassing ?? null,
     member.typeParameters?.map(parameter => [parameter.identity, parameter.name, parameter.csharpAllowsRefLike,
       parameter.constraints?.map(constraint => constraint.kind === "implements" ? [constraint.kind, key(constraint.contract)] : constraint)]) ?? []];

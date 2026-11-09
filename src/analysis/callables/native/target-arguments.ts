@@ -16,7 +16,7 @@ import { csharpTargetParameterValueType, getCsharpDelegateSignature, getCsharpJs
   csharpObjectTargetType, getCsharpNullableElementTargetType, targetTypeRefEquals } from "../../../target-model/types/index.js";
 import { csharpArgumentVectorCallbackResultMatches } from "../../../policy/conversions/callable-completions.js";
 import { selectCsharpTypeEmission } from "../../../policy/types/resolution/type-emission.js";
-import { csharpPositionalArgumentsAreRepresentable } from "../../../policy/operations/members/call-arguments.js";
+import { selectCsharpNativeParameterCompletion } from "../../../policy/operations/members/native-parameter-completion.js";
 import { createCsharpTargetArgumentProducer } from "../../program/records/calls/target-arguments.js";
 import type { CsharpNativeArgumentRequest } from "../../../target-model/records/calls/argument-passing.js";
 
@@ -137,21 +137,30 @@ export function analyzeCsharpTargetArguments(input: { readonly policy: CsharpPol
         sequence: binding.place.sourceForm === "spread-sequence" });
     }
     const ordered = [...positions].sort((left, right) => left.parameterIndex - right.parameterIndex || left.binding - right.binding);
-    if (!csharpPositionalArgumentsAreRepresentable({
-      indexes: ordered.map(entry => entry.parameterIndex), parameters: selection.targetMember.parameters,
-    })) {
-      refuse(node, "The selected Native parameter relation cannot represent its exact omissions and positional bindings."); return;
-    }
     const groups: CsharpCallArgumentEmissionGroup[] = [];
-    for (let index = 0; index < ordered.length;) {
-      const first = ordered[index]!;
-      const group = [first];
-      index += 1;
-      while (index < ordered.length && ordered[index]!.parameterIndex === first.parameterIndex) group.push(ordered[index++]!);
-      if (group.length === 1) groups.push(Object.freeze({ kind: "value", index: first.binding }));
-      else groups.push(Object.freeze({ kind: "collect", arguments: Object.freeze(group.map(entry =>
-        Object.freeze({ index: entry.binding, spread: entry.sequence }))) }));
+    let selectedIndex = 0;
+    for (const [parameterIndex, parameter] of selection.targetMember.parameters.entries()) {
+      const entries: typeof ordered = [];
+      while (selectedIndex < ordered.length && ordered[selectedIndex]!.parameterIndex === parameterIndex) {
+        entries.push(ordered[selectedIndex++]!);
+      }
+      if (entries.length === 0) {
+        const completion = selectCsharpNativeParameterCompletion(parameter);
+        if (completion.kind === "rejected") { refuse(node, completion.reason); return; }
+        if (!selectCsharpTypeEmission({ carrier: completion.type })) {
+          refuse(node, "A Native-only completion requires its exact renderable physical parameter type."); return;
+        }
+        groups.push(completion.kind === "params" ? Object.freeze({ kind: "collect", arguments: Object.freeze([]) }) : completion);
+      } else if (parameter.paramsArray === true) {
+        if (selectCsharpNativeParameterCompletion(parameter).kind !== "params") {
+          refuse(node, "Native params arguments require their exact physical vector-array parameter."); return;
+        }
+        groups.push(Object.freeze({ kind: "collect", arguments: Object.freeze(entries.map(entry =>
+          Object.freeze({ index: entry.binding, spread: entry.sequence }))) }));
+      } else if (entries.length === 1) groups.push(Object.freeze({ kind: "value", index: entries[0]!.binding }));
+      else { refuse(node, "Every non-params Native physical slot requires exactly one authored binding."); return; }
     }
+    if (selectedIndex !== ordered.length) { refuse(node, "A selected Native argument has no original physical parameter slot."); return; }
     const operands = Object.freeze([...prefix, ...authored]);
     producer.call(node, { operands, suspends: Object.freeze(operands.map(suspends)), bindings: Object.freeze(parameters),
       groups: Object.freeze(groups), reordered: ordered.some((entry, index) => entry.binding !== index) });

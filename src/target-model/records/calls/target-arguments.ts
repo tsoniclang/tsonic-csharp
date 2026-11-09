@@ -1,6 +1,6 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../../types/native-type-data.js";
-import type { CsharpTargetParameter } from "../../types/model.js";
+import type { CsharpTargetAttributeValue, CsharpTargetParameter } from "../../types/model.js";
 import type { CsharpProviderArgumentMapping, CsharpSelectedCallArgument, CsharpCallArgumentProjection } from "../objects/members.js";
 import type { CsharpRestSequence } from "../objects/rest-sequences.js";
 import type { CsharpConversionSelection } from "../../conversions/selection.js";
@@ -35,6 +35,8 @@ export interface CsharpExpandedCallArgument {
 export type CsharpCallArgumentEmissionGroup =
   | { readonly kind: "collect"; readonly arguments: readonly { readonly index: number; readonly spread: boolean }[] }
   | { readonly kind: "value"; readonly index: number }
+  | { readonly kind: "native-default"; readonly type: TargetTypeRef;
+      readonly value: Extract<CsharpTargetAttributeValue, { readonly kind: "null" | "string" | "source-primitive" | "enum" }> }
   | { readonly kind: "absence"; readonly type: TargetTypeRef; readonly conversion: CsharpConversionSelection; readonly literal: boolean };
 
 export interface CsharpTargetArgumentsEmission {

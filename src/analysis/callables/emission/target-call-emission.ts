@@ -11,6 +11,7 @@ import { selectCsharpTargetCallEmission } from "../../../policy/operations/membe
 import { createCsharpTargetCallEmissionRecords } from "../../program/records/calls/target-call-emission.js";
 import type { CsharpNativeUseRecords } from "../../../target-model/records/native/native-demand.js";
 import type { CsharpTypeDefinitions } from "../../../target-model/types/native-definitions.js";
+import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 
 export function analyzeCsharpTargetCallEmission(input: { readonly nodes: readonly Node[]; readonly admitted: (node: Node) => boolean;
   readonly typeDefinitions: CsharpTypeDefinitions;
@@ -28,6 +29,16 @@ export function analyzeCsharpTargetCallEmission(input: { readonly nodes: readonl
     const arguments_ = input.arguments.targetArgumentsEmission.get(node);
     const optional = input.sources.callOptional.get(node);
     if (arguments_ === undefined || optional === undefined) { refuse(node, "Selected native call requires its exact physical argument and optional-receiver contract."); continue; }
+    if (arguments_.groups.length !== selected.call.targetMember.parameters.length ||
+      arguments_.groups.some((group, index) => {
+        const parameter = selected.call.targetMember.parameters[index]!;
+        if (group.kind === "native-default") return parameter.passingMode !== "by-value" || !targetTypeRefEquals(group.type, parameter.type);
+        if (group.kind === "collect") return parameter.paramsArray !== true || parameter.type.kind !== "array" ||
+          parameter.type.rank !== undefined || group.arguments.some(argument => arguments_.bindings[argument.index] !== parameter);
+        return group.kind !== "value" || arguments_.bindings[group.index] !== parameter;
+      })) {
+      failTargetAnalysisInvariant("tsonic-csharp", "Every Native call requires its complete pre-seal physical slot and carrier association.", node);
+    }
     const passing = arguments_.groups.map(group => {
       if (group.kind !== "value") return false;
       const parameter = arguments_.bindings[group.index];

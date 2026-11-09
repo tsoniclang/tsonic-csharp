@@ -20,6 +20,7 @@ import { planCsharpSourceUndefinedValue } from "../undefined-values.js";
 import { csharpVoidTargetType } from "../../../../target-model/types/carriers/scalar-types.js";
 import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
 import type { CsharpTargetArgumentOperand } from "../../../../target-model/records/calls/target-arguments.js";
+import { planCsharpNativeDefault } from "./native-defaults.js";
 
 export function translateSelectedTargetArguments(node: Node, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner, planCallArgument: CallArgumentPlanner): CsharpPlannedCallArguments | undefined {
@@ -76,10 +77,19 @@ export function translateSelectedTargetArguments(node: Node, sourceFile: SourceF
         : values[selected.index] ?? failCsharpPlannerInvariant("A Native argument lost its original ordered evaluation result.", node);
       return csharpPlannedArgumentSyntax(selected.argument, expression);
     };
-    return groups.map(group => group.kind === "value" ? binding(group.index) : {
-      kind: "Argument", expression: { kind: "CollectionExpression", elements: group.arguments.map(entry => ({
+    return groups.map((group, index): CsharpArgument => {
+      if (group.kind === "value") return binding(group.index);
+      if (group.kind === "native-default") return { kind: "Argument", expression: planCsharpNativeDefault(group, input.scope.typeParameterNames) };
+      const expression: CsharpExpression = { kind: "CollectionExpression", elements: group.arguments.map(entry => ({
         kind: entry.spread ? "SpreadElement" : "ExpressionElement", expression: binding(entry.index).expression,
-      })) },
+      })) };
+      const native = input.program.records.targetCallEmission.get(node);
+      if (native === undefined) return { kind: "Argument", expression };
+      const carrier = native.selection.targetMember.parameters[index]?.type
+        ?? failCsharpPlannerInvariant("A sealed Native collection argument retains its exact physical parameter slot.", node);
+      const type = csharpTypeFromTargetTypeRef(carrier, input.scope.typeParameterNames)
+        ?? failCsharpPlannerInvariant("A sealed Native collection argument requires its admitted physical array type.", node);
+      return { kind: "Argument", expression: { kind: "CastExpression", type, expression } };
     });
   } };
 }

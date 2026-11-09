@@ -367,14 +367,24 @@ function resolveStaticProviderPolicy(
   for (const relation of relations) {
     const owned = policy.targetBindings.filter(binding => binding.id === relation.targetBinding.id);
     const selected = owned.length === 0 ? acquire(relation.targetBinding)
-      : findUniqueTargetBinding([...owned, relation.targetBinding].map(binding =>
+      : findUniqueTargetBinding(owned.map(binding =>
         Object.freeze({ kind: "resolved" as const, binding })), relation.targetBinding.id);
     if (selected.kind === "rejected") return selected;
     if (selected.kind === "missing") return { kind: "missing",
       reason: "A source provider relation requires its exact physical binding from the declared native owner." };
     if (!isCsharpProviderTargetBinding(selected.binding)) return { kind: "missing",
       reason: "A source provider relation requires its complete C# native generic parameter permissions." };
-    const published = publish(Object.freeze({ ...relation, targetBinding: selected.binding }));
+    const definition = selected.binding;
+    const application = relation.targetBinding.csharpType;
+    const original = definition.csharpType;
+    if (canonicalProviderValue(relation.targetBinding) !== canonicalProviderValue(definition) &&
+      (canonicalProviderValue({ ...relation.targetBinding, csharpType: original }) !== canonicalProviderValue(definition) ||
+      application?.kind !== "target-named" || original?.kind !== "target-named" || application.id !== original.id ||
+      (application.typeArguments?.length ?? 0) !== (definition.typeParameters?.length ?? 0) ||
+      canonicalProviderValue({ ...application, typeArguments: original.typeArguments }) !== canonicalProviderValue(original))) {
+      return { kind: "missing", reason: "A provider application must retain its complete canonical open Native definition and original metadata." };
+    }
+    const published = publish(Object.freeze({ ...relation, targetBinding: Object.freeze({ ...definition, csharpType: application }) }));
     if (published.kind !== "resolved") return published;
     resolved.push(published.value);
   }

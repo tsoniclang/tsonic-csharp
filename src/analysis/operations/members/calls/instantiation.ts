@@ -14,6 +14,7 @@ import { validateCsharpProviderConstraints } from "./constraint-satisfaction.js"
 import { resolveProviderBindingTypeArguments, resolveMethodTypeArguments, resolveInvocationTypeArguments } from "./type-arguments.js";
 import { targetTypeParameterSubstitutions, relateCallArguments } from "../../../../policy/operations/members/instantiation-arguments.js";
 import { validateArgumentsTargetSelectedParameters } from "./arguments.js";
+import { selectCsharpNativeParameterCompletion } from "../../../../policy/operations/members/native-parameter-completion.js";
 
 type SignatureRelation = Extract<CsharpProviderTargetRelation, { readonly kind: "signature" }>;
 export type CsharpInstantiatedProviderCall = Extract<CsharpSelectedTargetCall, { readonly origin: "provider" }>;
@@ -115,8 +116,7 @@ function validateProviderCallRelation(
   host: CsharpProviderCallInstantiationHost, relation: SignatureRelation, application: SourceApplication,
   source: SourceTypeDescriptorSignature,
 ): CsharpRepresentationOutcome<true> {
-  if (relation.parameters.length !== source.parameters.length ||
-    relation.parameters.length !== relation.targetMember.parameters.length - (relation.receiver.kind === "target-parameter" ? 1 : 0)) {
+  if (relation.parameters.length !== source.parameters.length) {
     return refused(application, "The Native provider parameter relation must cover the complete original Source and physical Native signatures.");
   }
   const sourceIndexes = new Set<number>();
@@ -137,11 +137,16 @@ function validateProviderCallRelation(
       (target.optional === true || target.csharpOmittableOptionalArgument === true || target.paramsArray === true) !== parameter.targetAcceptsOmission ||
       (target.paramsArray === true) !== parameter.targetParamsArray) return refused(application, "The Native provider parameter relation contradicts an original Source slot or exact Native parameter law.");
   }
-  if (relation.receiver.kind === "none") return Object.freeze({ kind: "represented", value: true });
-  if (application.receiver.kind !== "value") return refused(application, "The selected Native instance/target-parameter call requires its canonical Source value receiver.");
+  if (relation.receiver.kind !== "none" && application.receiver.kind !== "value") return refused(application, "The selected Native instance/target-parameter call requires its canonical Source value receiver.");
   if (relation.receiver.kind === "target-parameter" &&
     (relation.targetMember.parameters[relation.receiver.targetParameterIndex] === undefined || targetIndexes.has(relation.receiver.targetParameterIndex))) {
     return refused(application, "The Native first-parameter receiver overlaps an authored Source argument or has no physical parameter.");
+  }
+  if (relation.receiver.kind === "target-parameter") targetIndexes.add(relation.receiver.targetParameterIndex);
+  for (const [index, parameter] of relation.targetMember.parameters.entries()) {
+    if (targetIndexes.has(index)) continue;
+    const completion = selectCsharpNativeParameterCompletion(parameter);
+    if (completion.kind === "rejected") return refused(application, completion.reason);
   }
   return Object.freeze({ kind: "represented", value: true });
 }
