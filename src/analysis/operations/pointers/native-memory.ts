@@ -1,4 +1,5 @@
 import type { SourceMemoryField, SourceMemoryLayout, SourceTypeBinding } from "@tsonic/target-api/source";
+import type { SourceStorageBindings } from "@tsonic/target-api/analysis";
 import type { Node } from "@tsonic/tsts";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpMemoryAnalysisHost, CsharpMemoryOutcome } from "../../../policy/model/memory.js";
@@ -191,11 +192,9 @@ export function selectCsharpNativeMemoryFieldOffset(host: CsharpMemoryAnalysisHo
       "The observed physical field must retain its one admitted Native offset.");
 }
 
-export function selectCsharpRawLocation(host: CsharpMemoryAnalysisHost, node: Node): CsharpMemoryOutcome<CsharpRawLocationSelection | undefined> {
-  const bindings = host.sourceStorage.bindingsForLexicalOwner(node);
-  if (bindings.kind === "refused") return Object.freeze({ kind: "source-refused", refusal: bindings });
-  if (bindings.kind === "unresolved") return bindings;
-  const proof = host.sourceStorage.memory.rawLocation.resolve(node, bindings.bindings);
+export function selectCsharpRawLocation(host: CsharpMemoryAnalysisHost, node: Node,
+  bindings: SourceStorageBindings): CsharpMemoryOutcome<CsharpRawLocationSelection | undefined> {
+  const proof = host.sourceStorage.memory.rawLocation.resolve(node, bindings);
   if (proof.kind === "refused") return Object.freeze({ kind: "source-refused", refusal: proof });
   if (proof.kind === "unresolved") return proof;
   if (proof.value.kind === "none") return represented(undefined);
@@ -215,6 +214,51 @@ export function selectCsharpRawLocation(host: CsharpMemoryAnalysisHost, node: No
   }
   return represented(Object.freeze({ kind: "raw-location", method: source.operation.operation === "to-raw" ? "ToRaw" : "Reinterpret",
     expression: operand.occurrence, inputType: selected.value, layout: layout.value }));
+}
+
+export function csharpNativeBackingLayoutRejection(root: CsharpNativeMemoryLayout): string | undefined {
+  const budget = createCsharpMetadataBudget();
+  const complete = new Set<CsharpNativeMemoryLayout>();
+  function check(layout: CsharpNativeMemoryLayout, depth: number): string | undefined {
+    if (complete.has(layout)) return undefined;
+    budget.reserve(1, depth);
+    const maximum = (1n << BigInt(layout.width)) - 1n;
+    if (layout.kind === "scalar") {
+      const size = csharpNativeScalarByteSize(layout.pointeeType, layout.width);
+      if (size === undefined || size !== layout.size || layout.alignment !== size || layout.valueStride !== size) {
+        return "Native scalar storage requires its exact size, natural alignment and stride.";
+      }
+    } else if (layout.kind === "array") {
+      const reason = check(layout.element, depth + 1);
+      if (reason !== undefined) return reason;
+      const size = layout.element.valueStride * BigInt(layout.length);
+      if (layout.stride !== layout.element.valueStride || layout.size !== size || layout.valueStride !== size ||
+        layout.alignment !== layout.element.alignment || size > maximum) {
+        return "Declared Native array storage requires its exact element footprint, extent and stride.";
+      }
+    } else {
+      let size = 0n;
+      let alignment = 1n;
+      for (const field of layout.fields) {
+        const reason = check(field.layout, depth + 1);
+        if (reason !== undefined) return reason;
+        const childAlignment = field.layout.alignment;
+        const offset = (size + childAlignment - 1n) / childAlignment * childAlignment;
+        if (field.alignment !== childAlignment || field.offset !== offset) {
+          return "Declared Native struct storage requires the exact physical field order, offset and natural alignment.";
+        }
+        size = offset + field.layout.valueStride;
+        if (childAlignment > alignment) alignment = childAlignment;
+      }
+      size = (size + alignment - 1n) / alignment * alignment;
+      if (layout.size !== size || layout.valueStride !== size || layout.alignment !== alignment || size > maximum) {
+        return "Declared Native struct storage requires its exact complete physical footprint and stride.";
+      }
+    }
+    complete.add(layout);
+    return undefined;
+  }
+  return check(root, 0);
 }
 
 function csharpNativeScalarByteSize(carrier: TargetTypeRef, addressWidth: 32 | 64): bigint | undefined {

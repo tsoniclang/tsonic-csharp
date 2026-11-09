@@ -5,18 +5,20 @@ import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/
 import { csharpNativeMemoryLayoutsEqual, type CsharpNativeMemoryLayout } from "../../target-model/operations/native-memory.js";
 import type { CsharpNativeObjectField } from "../../target-model/records/native/storage-data.js";
 import { createStructuralObjectShapeTarget } from "../objects/shapes/construction.js";
-import type { CsharpTypeParameterEnvironment } from "../../target-model/records/types/type-parameter-constraints.js";
+import type { CsharpMemoryAnalysisHost } from "../../policy/model/memory.js";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 
-export function createCsharpNativeFieldBacking(shapes: readonly CsharpObjectShapeFact[], environment: CsharpTypeParameterEnvironment) {
+export function createCsharpNativeFieldBacking(input: CsharpMemoryAnalysisHost, shapes: readonly CsharpObjectShapeFact[]) {
+  const identity = input.typeIdentity;
   const fields = new Map<string, CsharpNativeObjectField>();
   const closedContracts = new Map<string, TargetTypeRef>();
   const dependents = new Map<string, { readonly base: TargetTypeRef; readonly shape: CsharpObjectShapeFact }[]>();
   const usedNames = new Set(shapes.flatMap(shape => shape.members.map(member => member.targetName)));
   const storageNames = new Map<string, string>();
-  const fieldKey = (owner: TargetTypeRef, name: string): string => JSON.stringify([targetTypeRefKey(owner), name]);
+  const fieldKey = (owner: TargetTypeRef, name: string): string => JSON.stringify([targetTypeRefKey(identity, owner), name]);
   for (const shape of shapes) {
     for (const base of shape.implements ?? []) {
-      const key = targetTypeRefKey(base);
+      const key = targetTypeRefKey(identity, base);
       const edges = dependents.get(key) ?? [];
       edges.push({ base, shape });
       dependents.set(key, edges);
@@ -28,29 +30,33 @@ export function createCsharpNativeFieldBacking(shapes: readonly CsharpObjectShap
     get: (owner: TargetTypeRef, name: string) => fields.get(fieldKey(owner, name)),
     select(root: CsharpObjectShapeFact, member: CsharpObjectShapeMemberFact, layout: CsharpNativeMemoryLayout):
       { readonly kind: "resolved" } | { readonly kind: "rejected"; readonly reason: string } {
-      const memberKey = csharpObjectShapeMemberContractKey(member);
+      const memberKey = csharpObjectShapeMemberContractKey(identity, member);
       const pending = [root];
       const visited = new Set<string>();
       const selected: CsharpObjectShapeFact[] = [];
       for (let index = 0; index < pending.length; index++) {
         const shape = pending[index]!;
-        const key = targetTypeRefKey(shape.targetType);
+        const key = targetTypeRefKey(identity, shape.targetType);
         if (visited.has(key)) continue;
         visited.add(key);
-        const matches = shape.members.filter(candidate => csharpObjectShapeMemberContractKey(candidate) === memberKey);
+        const matches = shape.members.filter(candidate => csharpObjectShapeMemberContractKey(identity, candidate) === memberKey);
         const field = matches.length === 1 ? matches[0] : undefined;
+        const physical = field === undefined ? undefined : input.objectMembers.objectMember.get(shape, field);
+        if (field !== undefined && physical === undefined) failTargetAnalysisInvariant("tsonic-csharp",
+          "Native-backed fields require their completed canonical physical declaration.");
         if (csharpStructuralObjectShapeIdentity(shape.targetType) === undefined ||
           field === undefined || field.readonly === true || field.bound === true || field.optional === true ||
-          field.accessor !== undefined || field.memberKind !== "property" || !targetTypeRefEquals(field.type, layout.pointeeType)) {
+          field.accessor !== undefined || field.memberKind !== "property" || physical?.declaration.kind !== "field" ||
+          !targetTypeRefEquals(identity, physical.declaration.type, layout.pointeeType)) {
           return { kind: "rejected", reason: "Every implementation of a native-backed field must retain its exact mutable data-property contract." };
         }
         const previous = fields.get(fieldKey(shape.targetType, member.targetName));
-        if (previous !== undefined && !csharpNativeMemoryLayoutsEqual(previous.layout, layout)) {
+        if (previous !== undefined && !csharpNativeMemoryLayoutsEqual(identity, previous.layout, layout)) {
           return { kind: "rejected", reason: "One exact object field has incompatible native layout requirements." };
         }
         selected.push(shape);
         for (const edge of dependents.get(key) ?? []) {
-          if (targetTypeRefEquals(edge.base, shape.targetType)) pending.push(edge.shape);
+          if (targetTypeRefEquals(identity, edge.base, shape.targetType)) pending.push(edge.shape);
         }
       }
       let storageName = storageNames.get(memberKey);
@@ -63,8 +69,8 @@ export function createCsharpNativeFieldBacking(shapes: readonly CsharpObjectShap
       }
       for (const shape of selected) {
         if (shape.targetType.kind === "target-named" && (shape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract === true) {
-          const contract = createStructuralObjectShapeTarget(shape.members, undefined, environment, true);
-          closedContracts.set(targetTypeRefKey(contract), contract);
+          const contract = createStructuralObjectShapeTarget(identity, shape.members, undefined, true);
+          closedContracts.set(targetTypeRefKey(identity, contract), contract);
         }
         fields.set(fieldKey(shape.targetType, member.targetName), Object.freeze({
           owner: shape.targetType, memberName: member.targetName, storageName, layout,

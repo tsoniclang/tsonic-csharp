@@ -1,5 +1,9 @@
 import type { Node } from "@tsonic/tsts";
 import { targetTypeRefKey } from "../../target-model/types/equality.js";
+import type { CsharpNativeTypeIdentity } from "../../target-model/types/equality.js";
+import type { SourceFlowUnresolved } from "@tsonic/target-api/analysis";
+import type { CsharpRepresentationOutcome } from "../../target-model/types/representation.js";
+import { represented } from "../../policy/types/source-type-flow/representation-results.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { sourceDeclarationIsModuleScoped, sourceEnclosingCallable, sourceParameterIsProperty, type TargetSourceProgram } from "@tsonic/target-api/source";
 import type { CsharpCallableContractIndex } from "../../target-model/records/callables/callable-values.js";
@@ -8,6 +12,7 @@ import type { CsharpObjectShapeClassifications } from "../../target-model/record
 import type { CsharpCaptureStorage } from "../../target-model/records/callables/capture-storage.js";
 import type { CsharpClassFactory } from "../../target-model/records/objects/class-factories.js";
 import type { CsharpClassPropertyStorage } from "../../target-model/records/storage/class-property-storage.js";
+import type { CsharpObjectMemberRecords } from "../../target-model/records/objects/object-members.js";
 import type { CsharpNativeParticipationInput } from "../../target-model/records/native/native-demand.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
 import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
@@ -17,9 +22,9 @@ import { getCsharpTaskResultTargetType } from "../../target-model/types/carriers
 import { getCsharpGeneratorProtocol } from "../../target-model/types/carriers/generators.js";
 import { isCsharpRefLikeTargetType } from "../../target-model/types/ref-like.js";
 import { analyzeCsharpRefLikeLiveness, analyzeCsharpRefLikeEvaluation } from "./ref-like-liveness.js";
-import { selectCsharpSourceCallableGenericAbi } from "../callables/calls/source-callable-abi.js";
 
 export interface CsharpNativePlacementInput {
+  readonly typeIdentity: CsharpNativeTypeIdentity;
   readonly source: TargetSourceProgram;
   readonly nodes: readonly Node[];
   readonly callables: CsharpCallableContractIndex;
@@ -29,6 +34,7 @@ export interface CsharpNativePlacementInput {
   readonly nativeDemand: CsharpNativeDemandAnalysis;
   readonly operations: CsharpTargetOperationClassifications;
   readonly objectShapes: Pick<CsharpObjectShapeClassifications, "resolveTarget">;
+  readonly objectMembers: CsharpObjectMemberRecords;
   readonly definitions: CsharpTypeDefinitions;
   readonly classPropertyStorage: { readonly get: (declaration: Node) => CsharpClassPropertyStorage | undefined };
   readonly generatorFor: (declaration: Node) => boolean;
@@ -36,7 +42,8 @@ export interface CsharpNativePlacementInput {
   readonly expressionCarrierFor: (expression: Node) => TargetTypeRef | undefined;
 }
 
-export function analyzeCsharpRefLikePlacements(input: CsharpNativePlacementInput): readonly TargetDiagnostic[] {
+export function analyzeCsharpRefLikePlacements(input: CsharpNativePlacementInput):
+  CsharpRepresentationOutcome<readonly TargetDiagnostic[]> | SourceFlowUnresolved {
   const diagnostics: TargetDiagnostic[] = [];
   const rejected = new Map<Node, Set<string>>();
   const scopedBindings = new Map<Node, Set<Node>>();
@@ -74,12 +81,10 @@ export function analyzeCsharpRefLikePlacements(input: CsharpNativePlacementInput
   const inspect = (type: TargetTypeRef | undefined, node: Node, physicalShape?: CsharpObjectShapeFact): void => {
     if (type === undefined) return;
     const pending = [type];
-    // Visited by structural key: a recursive source union (type Tree = number | readonly Tree[]) instantiates fresh arm
-    // carriers on every expansion, so object identity would never close the walk.
     const visited = new Set<string>();
     while (pending.length > 0) {
       const current = pending.pop()!;
-      const key = targetTypeRefKey(current);
+      const key = targetTypeRefKey(input.typeIdentity, current);
       if (visited.has(key)) continue;
       visited.add(key);
       if (current.kind === "array" || current.kind === "tuple") {
@@ -108,21 +113,34 @@ export function analyzeCsharpRefLikePlacements(input: CsharpNativePlacementInput
           }
           pending.push(argument);
         }
-        const arms = input.definitions.sourceUnionArms(current);
-        if (arms !== undefined) {
-          if (arms.some(isCsharpRefLikeTargetType)) reject(node, "CSHARP_REFLIKE_FIELD",
-            "An ordinary source union cannot store a native ref-like payload.");
-          pending.push(...arms);
+        const declaration = input.definitions.nativeDeclaration(current);
+        for (const member of declaration?.members ?? []) {
+          if (member.kind !== "slot" || member.storage === undefined || member.member.static) continue;
+          if (isCsharpRefLikeTargetType(member.storage.type) && !isCsharpRefLikeTargetType(current)) reject(node,
+            "CSHARP_REFLIKE_FIELD", "An ordinary Native value cannot store a native ref-like payload.");
+          pending.push(member.storage.type);
         }
         const shape = current === type && physicalShape !== undefined ? physicalShape : input.objectShapes.resolveTarget(current);
         if (shape !== undefined && named.csharpStructuralContract !== true && named.csharpSourceDeclarationKind !== "interface" &&
           !isCsharpRefLikeTargetType(current)) {
-          for (const member of shape.members) {
-            if (member.memberKind !== "property" || member.sourceDeclarations !== undefined && member.sourceDeclarations.length > 0 &&
-              member.sourceDeclarations.every(declaration => !fieldHasStorage(declaration))) continue;
-            if (isCsharpRefLikeTargetType(member.type)) reject(member.sourceDeclarations?.[0] ?? node, "CSHARP_REFLIKE_FIELD",
-              "A native ref-like value cannot be retained in an ordinary object member.");
-            pending.push(member.type);
+          const emissions = input.objectMembers.objectMemberDeclarations.get(shape);
+          if (emissions === undefined || emissions.length !== shape.members.length) throw new TypeError(
+            "Native ref-like placement requires the complete canonical physical member inventory.");
+          for (const emission of emissions) {
+            const declaration = emission.declaration;
+            const stored = declaration.kind === "authored" ? declaration.value.kind === "stored" ? [declaration.value.type] : []
+              : declaration.kind === "method" || declaration.kind === "copied" ? [declaration.storage]
+                : declaration.kind === "accessor" ? [declaration.getter, ...(declaration.setter === undefined ? [] : [declaration.setter])]
+                  : declaration.kind === "native-backing" ? [declaration.location]
+                    : declaration.kind === "bound" ? [declaration.storage] : [declaration.type];
+            for (const carrier of stored) {
+              if (isCsharpRefLikeTargetType(carrier)) {
+                const originals = emission.member.sourceDeclarations ?? [];
+                if (originals.length === 0) reject(node, "CSHARP_REFLIKE_FIELD", "A native ref-like value cannot be retained in an ordinary object member.");
+                for (const original of originals) reject(original, "CSHARP_REFLIKE_FIELD", "A native ref-like value cannot be retained in an ordinary object member.");
+              }
+              pending.push(carrier);
+            }
           }
         }
       }
@@ -197,25 +215,19 @@ export function analyzeCsharpRefLikePlacements(input: CsharpNativePlacementInput
             "The selected native invocation slot does not allow ref struct arguments.");
         }
       } else if (ast.is.IsCallExpression(node)) {
-        const sourceCall = input.operations.selectedCall.get(node);
-        const callee = sourceCall?.sourceCall;
-        if (callee !== undefined && callee.kind !== "rejected" && sourceCall?.sourceTypeArguments !== undefined) {
-          if ((callee.kind === "function" || callee.kind === "method") &&
-            !input.source.facts.navigation.isProjectDeclaration(callee.declaration)) continue;
-          const allowed = callee.kind === "function" || callee.kind === "method"
-            ? [(ast.is.IsFunctionDeclaration(callee.declaration) && ast.body(callee.declaration) === undefined
-                ? selectCsharpSourceCallableGenericAbi(ast, callee.declaration)
-                : input.callables.get({ kind: "declaration", declaration: callee.declaration })?.nativeSignature)
-              ?.methodAllowsRefLikeTypeArguments]
-            : callee.kind === "union-method" && sourceCall.unionCall?.kind === "resolved"
-              ? sourceCall.unionCall.methods.map(method => input.callables.get({ kind: "declaration",
-                  declaration: method.declaration })?.nativeSignature.methodAllowsRefLikeTypeArguments)
-              : [sourceCall.sourceMethodValue?.allowsRefLikeTypeArguments];
-          for (const [index, argument] of sourceCall.sourceTypeArguments.entries()) {
-            if (allowed.length === 0 || allowed.some(parameters => typeof parameters?.[index] !== "boolean")) reject(node, "CSHARP_REFLIKE_METADATA_NOT_PROVEN",
-              "A selected source generic method requires its exact declared anti-constraint metadata.");
-            else if (isCsharpRefLikeTargetType(argument) && allowed.some(parameters => !parameters![index])) reject(node, "CSHARP_REFLIKE_GENERIC_ARGUMENT",
-              "The source generic method does not declare a native allows-ref-struct anti-constraint.");
+        const application = input.operations.selectedCall.get(node)?.callableApplication;
+        if (application !== undefined) {
+          const declaration = application.identity.signature.declaration;
+          const allowed = declaration === undefined ? undefined
+            : input.callables.get({ kind: "declaration", declaration })?.nativeSignature.methodAllowsRefLikeTypeArguments;
+          if (application.typeArguments.length !== application.original.typeParameters.length) throw new TypeError(
+            "Native ref-like placement requires the full already-admitted callable application vector.");
+          for (const [index, argument] of application.typeArguments.entries()) {
+            if (!isCsharpRefLikeTargetType(argument)) continue;
+            if (allowed?.length !== application.original.typeParameters.length || typeof allowed[index] !== "boolean") {
+              reject(node, "CSHARP_REFLIKE_METADATA_NOT_PROVEN", "A selected Native callable requires its full actual generic anti-constraint vector.");
+            } else if (!allowed[index]) reject(node, "CSHARP_REFLIKE_GENERIC_ARGUMENT",
+              "The selected Native callable parameter does not allow ref struct arguments.");
           }
         }
       }
@@ -235,7 +247,10 @@ export function analyzeCsharpRefLikePlacements(input: CsharpNativePlacementInput
     for (const parameter of contract.nativeParameters) if (isCsharpRefLikeTargetType(parameter.targetParameter.type)) reject(parameter.sourceParameter,
       "CSHARP_REFLIKE_ASYNC_PARAMETER", "A native async or iterator method cannot declare a ref-like parameter.");
     const owned = scopedBindings.get(declaration);
-    if (owned !== undefined && owned.size > 0) analyzeCsharpRefLikeLiveness(input.source, declaration, owned, reject);
+    if (owned !== undefined && owned.size > 0) {
+      const selected = analyzeCsharpRefLikeLiveness(input.source, declaration, owned, reject);
+      if (selected.kind !== "represented") return selected;
+    }
   }
   for (const { use } of input.nativeDemand.entries) {
     if (use.kind === "erased") continue;
@@ -243,5 +258,5 @@ export function analyzeCsharpRefLikePlacements(input: CsharpNativePlacementInput
     else if (use.kind === "constructed") inspect(use.carrier, use.expression);
   }
   analyzeCsharpRefLikeEvaluation(input.source, input.nativeDemand, reject);
-  return Object.freeze(diagnostics);
+  return represented(Object.freeze(diagnostics));
 }

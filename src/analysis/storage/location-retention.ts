@@ -6,6 +6,7 @@ import type { CsharpTargetOperationClassifications } from "../../target-model/re
 import type { CsharpElementAdmissionRecords } from "../../target-model/records/objects/element-admission.js";
 import type { CsharpArgumentPassingRecords } from "../../target-model/records/calls/argument-passing.js";
 import { isCsharpValueTypeTargetType } from "../../policy/types/index.js";
+import { forwardSourceRefusal } from "../source-evidence/representations.js";
 
 export function admitCsharpLocationRetention(input: { readonly source: TargetSourceProgram; readonly nodes: readonly Node[];
   readonly operations: CsharpTargetOperationClassifications; readonly storage: CsharpStorageClassifications;
@@ -22,11 +23,17 @@ export function admitCsharpLocationRetention(input: { readonly source: TargetSou
       if (location?.kind !== "resolved" || location.address === undefined) refuse(node,
         "A computed value-member write requires its exact native receiver address.");
     }
-    const arguments_ = input.operations.selectedCall.get(node)?.source?.sourceArguments;
-    if (arguments_ === undefined) continue;
+    const application = input.operations.selectedCall.get(node)?.source;
+    if (application === undefined || application.argumentDisposition === "skip") continue;
+    const arguments_ = application.sourceArguments;
     let suspends = false;
     for (let index = arguments_.length - 1; index >= 0; index--) {
-      const expression = arguments_[index]!.expression;
+      const argument = arguments_[index]!;
+      if (argument.operand.kind === "refused") {
+        issues.push(forwardSourceRefusal(argument.operand));
+        continue;
+      }
+      const expression = argument.occurrence;
       const passing = input.arguments.argumentPassing.get(expression);
       if (suspends && passing?.passing !== undefined && passing.location?.opaque === true) refuse(node,
         "An opaque native ref-return address cannot be held across asynchronous suspension.");

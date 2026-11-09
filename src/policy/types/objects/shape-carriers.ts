@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { csharpTargetNamedType } from "../../../target-model/types/factories.js";
 
 import { targetTypeRefKey } from "../../../target-model/types/equality.js";
+import type { CsharpNativeTypeIdentity } from "../../../target-model/types/equality.js";
 
 import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetNamedTypeRef } from "../../../target-model/types/model.js";
@@ -10,6 +11,7 @@ import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetNa
 import { csharpTypeParameterConstraintResolutionKey } from "../../../target-model/types/generic-constraints.js";
 
 export function selectCsharpStructuralObjectCarrier(
+  typeIdentity: CsharpNativeTypeIdentity,
   canonicalMembers: readonly CsharpObjectShapeMemberFact[],
   canonicalImplemented: readonly TargetTypeRef[],
   typeParameters: readonly Extract<TargetTypeRef, { kind: "type-parameter" }>[],
@@ -17,13 +19,13 @@ export function selectCsharpStructuralObjectCarrier(
   implementation: CsharpObjectShapeFact["methodImplementation"],
 ): TargetTypeRef {
   const key = JSON.stringify({
-    members: canonicalMembers.map(csharpObjectShapeMemberContractParts),
-    implements: canonicalImplemented.map(type => targetTypeRefKey(type)),
+    members: canonicalMembers.map(member => csharpObjectShapeMemberContractParts(typeIdentity, member)),
+    implements: canonicalImplemented.map(type => targetTypeRefKey(typeIdentity, type)),
     ...(typeParameters.length === 0 ? {} : { parameters: typeParameters.map(parameter => [parameter.identity,
-      csharpTypeParameterConstraintResolutionKey(parameter.csharpConstraints)]) }),
+      csharpTypeParameterConstraintResolutionKey(typeIdentity, parameter.csharpConstraints)]) }),
     ...(contract ? { contract: true } : {}),
     ...(implementation === undefined ? {} : { implementation: implementation.identity,
-      captures: implementation.captures.map(capture => [capture.fieldName, targetTypeRefKey(capture.type), capture.mutable, capture.initialization]),
+      captures: implementation.captures.map(capture => [capture.fieldName, targetTypeRefKey(typeIdentity, capture.type), capture.mutable, capture.initialization]),
     }),
   });
   const identity = createHash("sha256").update(key).digest("hex");

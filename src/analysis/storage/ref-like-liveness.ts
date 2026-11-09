@@ -1,21 +1,20 @@
 import type { Node } from "@tsonic/tsts";
-import { createSourceDeclarationControlFlow, solveSourceFlow } from "@tsonic/target-api/analysis";
+import { solveSourceFlow } from "@tsonic/target-api/analysis";
+import type { SourceFlowUnresolved } from "@tsonic/target-api/analysis";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
 import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native/native-demand.js";
 import type { CsharpNativeUse } from "../../target-model/records/native/native-demand.js";
 import { isCsharpRefLikeTargetType } from "../../target-model/types/ref-like.js";
+import type { CsharpRepresentationOutcome } from "../../target-model/types/representation.js";
+import { represented } from "../../policy/types/source-type-flow/representation-results.js";
 
 type Rejection = (node: Node, code: string, message: string) => void;
 
 export function analyzeCsharpRefLikeLiveness(source: TargetSourceProgram, declaration: Node,
-  ownedBindings: ReadonlySet<Node>, reject: Rejection): void {
-  const selected = createSourceDeclarationControlFlow(source, declaration, { domain: { kind: "source" } });
-  if (selected.kind === "unresolved") {
-    reject(declaration, selected.resource === undefined ? "CSHARP_REFLIKE_LIVENESS_NOT_PROVEN" : "TSONIC_COMPILER_RESOURCE_LIMIT",
-      selected.resource === undefined ? selected.reason :
-        `Control-flow analysis of ${source.ast.text(source.ast.name(declaration)) || "the selected declaration"} exceeded the compiler resource limit ${selected.resource.dimension}=${selected.resource.limit}.`);
-    return;
-  }
+  ownedBindings: ReadonlySet<Node>, reject: Rejection): CsharpRepresentationOutcome<void> | SourceFlowUnresolved {
+  const selected = source.facts.protocols.controlFlow.declaration(declaration, { domain: { kind: "source" } });
+  if (selected.kind === "refused") return Object.freeze({ kind: "source-refused", refusal: selected });
+  if (selected.kind === "unresolved") return selected;
   for (const binding of ownedBindings) if (!selected.graph.bindings.has(binding)) reject(binding,
     "CSHARP_REFLIKE_LIVENESS_NOT_PROVEN", "The exact native ref-like binding is absent from its checked control-flow graph.");
   const live = solveSourceFlow<ReadonlySet<Node>>(selected.graph, {
@@ -39,12 +38,7 @@ export function analyzeCsharpRefLikeLiveness(source: TargetSourceProgram, declar
       return result;
     },
   });
-  if (live.kind === "unresolved") {
-    reject(declaration, live.resource === undefined ? "CSHARP_REFLIKE_LIVENESS_NOT_PROVEN" : "TSONIC_COMPILER_RESOURCE_LIMIT",
-      live.resource === undefined ? live.reason :
-        `Control-flow analysis of ${source.ast.text(source.ast.name(declaration)) || "the selected declaration"} exceeded the compiler resource limit ${live.resource.dimension}=${live.resource.limit}.`);
-    return;
-  }
+  if (live.kind === "unresolved") return live;
   for (const point of selected.graph.points) {
     if (!live.reachable.has(point.id) || point.operation.kind !== "await" && point.operation.kind !== "yield") continue;
     const values = live.after.get(point.id);
@@ -55,6 +49,7 @@ export function analyzeCsharpRefLikeLiveness(source: TargetSourceProgram, declar
     for (const binding of values) reject(binding, "CSHARP_REFLIKE_ACROSS_SUSPENSION",
       "A native ref-like value cannot remain live across an await or yield suspension.");
   }
+  return represented(undefined);
 }
 
 export function analyzeCsharpRefLikeEvaluation(source: TargetSourceProgram, demand: CsharpNativeDemandAnalysis,

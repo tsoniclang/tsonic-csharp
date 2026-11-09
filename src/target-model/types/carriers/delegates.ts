@@ -4,6 +4,7 @@ import type { CsharpDelegateSignatureShape, CsharpNativeCallableMember } from ".
 import { isCsharpVoidTargetType } from "../identity.js";
 
 import { scopedTargetTypeRefKey, targetTypeRefEquals } from "../equality.js";
+import type { CsharpNativeTypeIdentity } from "../equality.js";
 import { csharpQualifiedTypeRenderShape } from "../render-shapes.js";
 import { csharpVoidTargetType } from "./scalar-types.js";
 import { csharpTargetNamedType } from "../factories.js";
@@ -96,11 +97,11 @@ export function getCsharpExpressionTreeDelegateType(type: TargetTypeRef | undefi
   return type?.kind === "target-named" ? (type as CsharpTargetNamedTypeRef).csharpExpressionTreeDelegateType : undefined;
 }
 
-export function csharpNativeCallableMemberKey(member: CsharpNativeCallableMember,
+export function csharpNativeCallableMemberKey(identity: CsharpNativeTypeIdentity, member: CsharpNativeCallableMember,
   enclosingParameters: ReadonlyMap<string, number> = new Map()): string {
   const bound = new Map(enclosingParameters);
   for (const [index, parameter] of member.typeParameters.entries()) bound.set(parameter.identity, enclosingParameters.size + index);
-  const key = (type: TargetTypeRef): string => scopedTargetTypeRefKey(type, bound);
+  const key = (type: TargetTypeRef): string => scopedTargetTypeRefKey(identity, type, bound);
   const signature = member.signature;
   return JSON.stringify([member.name,
     member.typeParameters.map(parameter => parameter.constraints.map(constraint => constraint.kind === "type"
@@ -111,8 +112,9 @@ export function csharpNativeCallableMemberKey(member: CsharpNativeCallableMember
   ]);
 }
 
-export function csharpNativeCallableMembersEqual(left: readonly CsharpNativeCallableMember[], right: readonly CsharpNativeCallableMember[]): boolean {
-  return left.length === right.length && left.every((member, index) => csharpNativeCallableMemberKey(member) === csharpNativeCallableMemberKey(right[index]!));
+export function csharpNativeCallableMembersEqual(identity: CsharpNativeTypeIdentity,
+  left: readonly CsharpNativeCallableMember[], right: readonly CsharpNativeCallableMember[]): boolean {
+  return left.length === right.length && left.every((member, index) => csharpNativeCallableMemberKey(identity, member) === csharpNativeCallableMemberKey(identity, right[index]!));
 }
 
 export function getCsharpLambdaSignature(type: TargetTypeRef | undefined): CsharpDelegateSignatureShape | undefined {
@@ -135,6 +137,7 @@ export function csharpDelegateSignatureHasSupportedPassingModes(signature: Cshar
 }
 
 export function csharpDelegateSignaturesMatchNativeBinding(
+  identity: CsharpNativeTypeIdentity,
   source: CsharpDelegateSignatureShape,
   target: CsharpDelegateSignatureShape,
 ): boolean {
@@ -142,21 +145,21 @@ export function csharpDelegateSignaturesMatchNativeBinding(
     csharpDelegateSignatureHasSupportedPassingModes(target) &&
     source.kind === target.kind &&
     (source.receiver === undefined ? target.receiver === undefined : target.receiver !== undefined &&
-      source.receiver.passingMode === target.receiver.passingMode && targetTypeRefEquals(source.receiver.type, target.receiver.type)) &&
+      source.receiver.passingMode === target.receiver.passingMode && targetTypeRefEquals(identity, source.receiver.type, target.receiver.type)) &&
     source.parameters.length === target.parameters.length &&
     source.returnPassing === target.returnPassing &&
-    source.parameters.every((parameter, index) => targetTypeRefEquals(parameter, target.parameters[index]!) &&
+    source.parameters.every((parameter, index) => targetTypeRefEquals(identity, parameter, target.parameters[index]!) &&
       source.parameterPassingModes[index] === target.parameterPassingModes[index]) &&
-    targetTypeRefEquals(source.returnType, target.returnType);
+    targetTypeRefEquals(identity, source.returnType, target.returnType);
 }
 
-export function isCsharpSourceDelegateTargetType(type: TargetTypeRef | undefined): boolean {
+export function isCsharpSourceDelegateTargetType(identity: CsharpNativeTypeIdentity, type: TargetTypeRef | undefined): boolean {
   const value = getCsharpNullableElementTargetType(type) ?? type;
   const signature = getCsharpDelegateSignature(value);
   if (value === undefined || signature === undefined || signature.kind !== "call" || signature.receiver !== undefined || signature.returnPassing !== undefined ||
     !csharpDelegateSignatureHasSupportedPassingModes(signature) ||
     signature.parameterPassingModes.some(mode => mode !== "by-value")) return false;
-  return targetTypeRefEquals(value, csharpDelegateTargetType(
+  return targetTypeRefEquals(identity, value, csharpDelegateTargetType(
     isCsharpVoidTargetType(signature.returnType) ? "System.Action" : "System.Func",
     signature.parameters,
     isCsharpVoidTargetType(signature.returnType) ? undefined : signature.returnType,

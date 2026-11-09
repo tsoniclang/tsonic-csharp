@@ -1,6 +1,7 @@
 import type { CsharpTargetNamedTypeRef } from "./model.js";
 import type { CsharpTypeParameterConstraint, CsharpTypeParameterConstraintResolution, TargetTypeRef } from "./native-type-data.js";
 import { targetTypeRefKey } from "./equality.js";
+import type { CsharpNativeTypeIdentity } from "./equality.js";
 
 export function csharpConstraintsRequireValue(
   constraints: readonly CsharpTypeParameterConstraint[],
@@ -32,18 +33,19 @@ export function csharpConstraintsRequireReference(
 }
 
 export function csharpTypeParameterConstraintResolutionKey(
+  identity: CsharpNativeTypeIdentity,
   resolution: CsharpTypeParameterConstraintResolution | undefined,
 ): string {
   return resolution === undefined ? "missing" : resolution.kind === "unsupported"
     ? JSON.stringify([resolution.kind, resolution.reason])
     : JSON.stringify([...resolution.constraints.map(constraint => constraint.kind === "type"
-      ? [constraint.kind, targetTypeRefKey(constraint.type)] : constraint.kind === "keyword"
+      ? [constraint.kind, targetTypeRefKey(identity, constraint.type)] : constraint.kind === "keyword"
         ? [constraint.kind, constraint.keyword] : [constraint.kind]),
       ...(csharpConstraintsRequireReference(resolution.constraints) ? [["reference-proof"]] : [])]);
 }
 
-export function csharpOwnerTypeParameterConstraintKey(type: TargetTypeRef): string {
+export function csharpOwnerTypeParameterConstraintKey(identity: CsharpNativeTypeIdentity, type: TargetTypeRef): string {
   return JSON.stringify((type.kind === "target-named" ? type.typeArguments ?? [] : [])
     .flatMap(argument => argument.kind === "type-parameter" ? [[argument.identity,
-      csharpTypeParameterConstraintResolutionKey(argument.csharpConstraints)]] : []));
+      csharpTypeParameterConstraintResolutionKey(identity, argument.csharpConstraints)]] : []));
 }

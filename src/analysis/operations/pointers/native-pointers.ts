@@ -27,7 +27,10 @@ export function selectCsharpNativePointerOperation(input: CsharpMemoryAnalysisHo
   if (source.family === "raw-address") return selectRawIdentity(input, source);
   if (source.family === "raw-memory") {
     if (source.operation !== "to-raw" && source.operation !== "reinterpret") return selectCsharpRawAddress(input, source);
-    const selected = selectCsharpRawLocation(input, node);
+    const bindings = input.sourceStorage.bindingsForLexicalOwner(node);
+    if (bindings.kind === "refused") return Object.freeze({ kind: "source-refused", refusal: bindings });
+    if (bindings.kind === "unresolved") return bindings;
+    const selected = selectCsharpRawLocation(input, node, bindings.bindings);
     if (selected.kind !== "represented") return selected;
     if (selected.value === undefined) throw new TypeError("An authenticated raw operation requires its same scoped Source raw-location proof.");
     return represented(selected.value);

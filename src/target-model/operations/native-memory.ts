@@ -1,5 +1,6 @@
 import type { TargetTypeRef } from "../types/native-type-data.js";
 import { targetTypeRefEquals } from "../types/equality.js";
+import type { CsharpNativeTypeIdentity } from "../types/equality.js";
 
 interface CsharpNativeMemoryDimensions {
   readonly pointeeType: TargetTypeRef;
@@ -22,7 +23,8 @@ export interface CsharpNativeMemoryField {
   readonly layout: CsharpNativeMemoryLayout;
 }
 
-export function csharpNativeMemoryLayoutsEqual(left: CsharpNativeMemoryLayout, right: CsharpNativeMemoryLayout): boolean {
+export function csharpNativeMemoryLayoutsEqual(identity: CsharpNativeTypeIdentity,
+  left: CsharpNativeMemoryLayout, right: CsharpNativeMemoryLayout): boolean {
   const pending = [[left, right] as const];
   const visited = new Map<CsharpNativeMemoryLayout, Set<CsharpNativeMemoryLayout>>();
   while (pending.length > 0) {
@@ -31,7 +33,7 @@ export function csharpNativeMemoryLayoutsEqual(left: CsharpNativeMemoryLayout, r
     const compared = visited.get(first) ?? new Set<CsharpNativeMemoryLayout>();
     compared.add(second);
     visited.set(first, compared);
-    if (first.kind !== second.kind || !targetTypeRefEquals(first.pointeeType, second.pointeeType) ||
+    if (first.kind !== second.kind || !targetTypeRefEquals(identity, first.pointeeType, second.pointeeType) ||
       first.size !== second.size || first.alignment !== second.alignment || first.valueStride !== second.valueStride || first.width !== second.width ||
       first.littleEndian !== second.littleEndian) return false;
     if (first.kind === "array" || second.kind === "array") {

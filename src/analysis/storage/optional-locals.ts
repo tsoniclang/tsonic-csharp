@@ -4,13 +4,13 @@ import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { csharpTypeParameterConstraintsImply } from "../../policy/constraints/type-parameter-constraints.js";
 import { csharpCarrierAdmitsSourceAbsence } from "../../target-model/types/carriers/runtime-carriers.js";
 import { isCsharpAbsenceTargetType } from "../../target-model/types/index.js";
-import { getCsharpGenericOptionalParts, csharpTypeProjection } from "../../target-model/types/projections.js";
+import { getCsharpOptionalProjection } from "../../target-model/types/projections.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import type { CsharpTypeParameterConstraint } from "../../target-model/types/native-type-data.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
 import type { CsharpOptionalLocalOperation, CsharpOptionalLocalPlacement, CsharpOptionalLocalValue } from "../../target-model/records/storage/local-bindings.js";
-import { csharpSourceTypeParameter, csharpSourceTypeParameters } from "../../source/extension/type-parameters.js";
+import type { TargetTypeRef } from "../../target-model/types/native-type-data.js";
 import type { CsharpSourceNameResolver } from "../names/index.js";
 
 export interface CsharpOptionalLocalPlan {
@@ -22,13 +22,14 @@ export interface CsharpOptionalLocalPlan {
 export function analyzeCsharpOptionalLocals(policy: CsharpPolicyContext, evidence: CsharpSourceEvidenceIndex,
   nodes: readonly Node[], names: CsharpSourceNameResolver,
   selectedOperations: Pick<CsharpTargetOperationClassifications, "typedLocation">): CsharpOptionalLocalPlan {
-  const { ast, navigation } = policy;
+  const { ast, typeIdentity } = policy;
+  const navigation = policy.facts.navigation;
   const candidates = new Map<Node, CsharpOptionalLocalPlacement>();
   const operations = new Map<Node, CsharpOptionalLocalOperation>();
   const removed = new Map<Node, Set<string>>();
   const dependencies = new Map<Node, Set<Node>>();
   const owners = new Map<Node, boolean>();
-  const constraintsByOwner = new Map<Node, ReadonlyMap<string, readonly CsharpTypeParameterConstraint[]>>();
+  const constraintsByOwner = new Map<TargetTypeRef, ReadonlyMap<string, readonly CsharpTypeParameterConstraint[]>>();
   const addressed = new Set<Node>();
   const unwrap = (node: Node): Node => {
     while (ast.is.IsParenthesizedExpression(node)) {
@@ -41,7 +42,7 @@ export function analyzeCsharpOptionalLocals(policy: CsharpPolicyContext, evidenc
   for (const node of nodes) {
     const passing = evidence.sourceArgument.get(node);
     if (passing?.kind === "resolved" && passing.argument.passingMode !== "by-value") {
-      const declaration = navigation.referenceFor(unwrap(passing.argument.storageExpression))?.declaration;
+      const declaration = navigation.sourceReferenceFor(unwrap(passing.argument.storageExpression))?.declaration;
       if (declaration !== undefined) addressed.add(declaration);
     }
     const operation = selectedOperations.typedLocation.get(node);
@@ -50,18 +51,24 @@ export function analyzeCsharpOptionalLocals(policy: CsharpPolicyContext, evidenc
     while (storage.kind === "value-property-storage") storage = storage.receiverStorage;
     if (storage.kind === "direct-storage" && storage.identity.kind === "local-storage") addressed.add(storage.identity.declaration);
   }
-  const constraintsFor = (node: Node): ReadonlyMap<string, readonly CsharpTypeParameterConstraint[]> => {
-    const existing = constraintsByOwner.get(node);
+  const constraintsFor = (root: TargetTypeRef): ReadonlyMap<string, readonly CsharpTypeParameterConstraint[]> => {
+    const existing = constraintsByOwner.get(root);
     if (existing !== undefined) return existing;
     const parameters = new Map<string, readonly CsharpTypeParameterConstraint[]>();
-    for (let owner: Node | undefined = node; owner !== undefined; owner = ast.parent(owner)) {
-      for (const parameter of csharpSourceTypeParameters(owner, ast)) {
-        const identity = parameter === undefined ? undefined : csharpSourceTypeParameter(parameter, ast)?.identity;
-        const constraints = parameter === undefined ? undefined : evidence.typeParameterConstraints.get(parameter);
-        if (identity !== undefined && constraints?.kind === "resolved") parameters.set(identity, constraints.constraints);
+    const pending = [root];
+    const complete = new Set<TargetTypeRef>();
+    while (pending.length !== 0) {
+      const type = pending.pop()!;
+      if (complete.has(type)) continue;
+      complete.add(type);
+      if (type.kind === "type-parameter") {
+        const constraints = type.csharpConstraints ?? (type.csharpDeclaration === undefined ? undefined
+          : evidence.typeParameterConstraints.get(type.csharpDeclaration));
+        if (constraints?.kind === "resolved") parameters.set(type.identity, constraints.constraints);
       }
+      pending.push(...typeIdentity.components(type, "emission"));
     }
-    constraintsByOwner.set(node, parameters);
+    constraintsByOwner.set(root, parameters);
     return parameters;
   };
   const hasSuspension = (owner: Node): boolean => {
@@ -87,11 +94,12 @@ export function analyzeCsharpOptionalLocals(policy: CsharpPolicyContext, evidenc
       statement === undefined || !ast.is.IsVariableStatement(statement) || hasSuspension(owner) ||
       !["let", "const"].includes(ast.variableDeclarationKind(node) ?? "")) continue;
     const storage = evidence.storageTargetType.get(node);
-    const parts = getCsharpGenericOptionalParts(storage);
-    if (storage === undefined || parts?.element.kind !== "type-parameter" || parts.element.csharpProjection !== undefined) continue;
-    const parameters = constraintsFor(owner);
-    const constraints = parameters.get(parts.element.identity) ?? (parts.element.csharpConstraints?.kind === "resolved"
-      ? parts.element.csharpConstraints.constraints : undefined);
+    const projection = getCsharpOptionalProjection(storage);
+    const element = projection?.csharpProjection.part === "storage" ? projection.csharpProjection.arguments[0] : undefined;
+    if (storage === undefined || element?.kind !== "type-parameter" || element.csharpProjection !== undefined) continue;
+    const parameters = constraintsFor(storage);
+    const constraints = parameters.get(element.identity) ?? (element.csharpConstraints?.kind === "resolved"
+      ? element.csharpConstraints.constraints : undefined);
     if (constraints === undefined || !csharpTypeParameterConstraintsImply(policy, constraints,
       [{ kind: "keyword", keyword: "notnull" }], parameters)) continue;
     const summary = navigation.declarationUseSummary(node);
@@ -99,22 +107,22 @@ export function analyzeCsharpOptionalLocals(policy: CsharpPolicyContext, evidenc
       summary.uses.some(use => use.captured || use.throughMember || sourceEnclosingCallable(use.reference, ast) !== owner)) continue;
     const name = names.resolve(ast.name(node), node);
     if (name.kind !== "resolved") continue;
-    candidates.set(node, Object.freeze({ declaration: node, storage, payload: parts.element,
+    candidates.set(node, Object.freeze({ declaration: node, storage, payload: element,
       payloadName: name.name, presenceName: names.temporaryName(`${name.name}_present`) }));
   }
   const sourceValue = (expression: Node | undefined, placement: CsharpOptionalLocalPlacement): CsharpOptionalLocalValue | undefined => {
     if (expression === undefined) return Object.freeze({ kind: "absence", expression });
     const current = unwrap(expression);
-    const source = evidence.valueRefinement.get(current)?.flowReadTargetType ?? evidence.nodeTargetType.get(current);
+    const source = evidence.nodeTargetType.get(current);
     if (source === undefined) return undefined;
     if (isCsharpAbsenceTargetType(source)) return Object.freeze({ kind: "absence", expression });
     if (ast.is.IsIdentifier(current)) {
-      const declaration = navigation.referenceFor(current)?.declaration;
+      const declaration = navigation.sourceReferenceFor(current)?.declaration;
       const copied = declaration === undefined ? undefined : candidates.get(declaration);
-      if (copied !== undefined && targetTypeRefEquals(copied.storage, placement.storage))
+      if (copied !== undefined && targetTypeRefEquals(typeIdentity, copied.storage, placement.storage))
         return Object.freeze({ kind: "copy", expression, placement: copied });
     }
-    if (csharpCarrierAdmitsSourceAbsence(source) || !targetTypeRefEquals(source, placement.payload)) return undefined;
+    if (csharpCarrierAdmitsSourceAbsence(source) || !targetTypeRefEquals(typeIdentity, source, placement.payload)) return undefined;
     return Object.freeze({ kind: "present", expression });
   };
   const privateNodes = new Map<Node, Set<Node>>();
@@ -172,7 +180,7 @@ export function analyzeCsharpOptionalLocals(policy: CsharpPolicyContext, evidenc
       if (binary?.Left === reference && binary.Right !== undefined && operator === "KindQuestionQuestionToken") {
         const value = sourceValue(binary.Right, placement);
         const contextual = evidence.contextualType.get(parent!)?.targetType;
-        if (value?.kind !== "present" || contextual === undefined || !targetTypeRefEquals(contextual, placement.payload)) { valid = false; break; }
+        if (value?.kind !== "present" || contextual === undefined || !targetTypeRefEquals(typeIdentity, contextual, placement.payload)) { valid = false; break; }
         selected.set(parent!, Object.freeze({ kind: "coalesce", placement, right: binary.Right, assignment: false }));
         privateUses.add(parent!);
         continue;
@@ -183,7 +191,7 @@ export function analyzeCsharpOptionalLocals(policy: CsharpPolicyContext, evidenc
         continue;
       }
       if (binary?.Right === reference && binary.Left !== undefined && operator === "KindEqualsToken") {
-        const target = navigation.referenceFor(unwrap(binary.Left))?.declaration;
+        const target = navigation.sourceReferenceFor(unwrap(binary.Left))?.declaration;
         if (target === undefined || !candidates.has(target)) { valid = false; break; }
         depends.add(target);
         continue;
@@ -193,16 +201,16 @@ export function analyzeCsharpOptionalLocals(policy: CsharpPolicyContext, evidenc
       const asserted = parent === undefined ? undefined : evidence.nodeTargetType.get(parent);
       if (parent !== undefined && ast.is.IsNonNullExpression(parent)) {
         const contextual = evidence.contextualType.get(parent)?.targetType;
-        if (asserted === undefined || !targetTypeRefEquals(asserted, placement.payload) ||
-          contextual === undefined || !targetTypeRefEquals(contextual, placement.payload)) { valid = false; break; }
+        if (asserted === undefined || !targetTypeRefEquals(typeIdentity, asserted, placement.payload) ||
+          contextual === undefined || !targetTypeRefEquals(typeIdentity, contextual, placement.payload)) { valid = false; break; }
         selected.set(parent, Object.freeze({ kind: "read", placement, guarded: true }));
         privateUses.add(parent);
         continue;
       }
-      const carrier = evidence.valueRefinement.get(use.reference)?.flowReadTargetType ?? evidence.nodeTargetType.get(use.reference);
+      const carrier = evidence.nodeTargetType.get(use.reference);
       const contextual = evidence.contextualType.get(use.reference)?.targetType;
-      if (carrier !== undefined && targetTypeRefEquals(carrier, placement.payload) &&
-        contextual !== undefined && targetTypeRefEquals(contextual, placement.payload)) {
+      if (carrier !== undefined && targetTypeRefEquals(typeIdentity, carrier, placement.payload) &&
+        contextual !== undefined && targetTypeRefEquals(typeIdentity, contextual, placement.payload)) {
         selected.set(reference, Object.freeze({ kind: "read", placement, guarded: false }));
         continue;
       }
@@ -225,7 +233,9 @@ export function analyzeCsharpOptionalLocals(policy: CsharpPolicyContext, evidenc
     for (const node of privateNodes.get(declaration)!) {
       let projections = removed.get(node);
       if (projections === undefined) { projections = new Set(); removed.set(node, projections); }
-      projections.add(csharpTypeProjection(placement.storage)!.identity);
+      const projection = getCsharpOptionalProjection(placement.storage);
+      if (projection === undefined) throw new TypeError("A scalarized Native optional local retains its admitted optional storage projection.");
+      projections.add(projection.identity);
     }
   }
   return Object.freeze({ entries: Object.freeze([...operations].map(([node, operation]) => Object.freeze({ node, operation }))),
