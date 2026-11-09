@@ -24,7 +24,10 @@ export function createCsharpProviderPackage(
       ]) });
     },
     createTargetContributions(context) {
-      return Object.freeze([snapshot.createPolicy(context.selectedSurfaceIds)]);
+      if (snapshot.policy.kind === "static") return Object.freeze([snapshot.policy.create(context.selectedSurfaceIds)]);
+      return Object.freeze([Object.freeze({ kind: "csharp-runtime-provider-policy",
+        providerId: snapshot.providerIdentity.id, providerVersion: snapshot.providerIdentity.version,
+        selectedSurfaceIds: Object.freeze([...context.selectedSurfaceIds]), policy: snapshot.policy })]);
     },
     runtimeContributions() {
       return snapshot.runtime;

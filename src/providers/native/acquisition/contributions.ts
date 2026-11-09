@@ -11,6 +11,8 @@ import type { CsharpProviderPolicyContribution } from "../../../target-model/met
 import type { CsharpTargetBinaryExecutionDriver } from "../../../target-model/types/model.js";
 import { csharpProviderPolicyContributionKind } from "../../../target-model/metadata/provider-metadata.js";
 import { hasExactContributionFields, isContributionRecord, nonEmptyContributionString } from "../../model/contribution-values.js";
+import type { CsharpRuntimeProviderPolicyContribution } from "../../model/runtime-policy.js";
+import { validateCsharpRuntimeProviderPolicyContribution } from "../../model/runtime-policy-contribution.js";
 
 export const csharpDotnetProviderContributionKind = "csharp-dotnet-provider";
 
@@ -26,6 +28,7 @@ export interface CsharpDotnetProviderContribution extends TargetCapabilityContri
 export interface CollectedCsharpCapabilityContributions {
   readonly dotnetProviders: readonly CsharpDotnetProviderContribution[];
   readonly providerPolicies: readonly CsharpProviderPolicyContribution[];
+  readonly runtimeProviderPolicies: readonly CsharpRuntimeProviderPolicyContribution[];
   readonly binaryExecutionDriver?: CsharpTargetBinaryExecutionDriver;
 }
 
@@ -45,6 +48,7 @@ export function collectCsharpCapabilityContributions(
 ): CollectedCsharpCapabilityContributions {
   const dotnetProviders: CsharpDotnetProviderContribution[] = [];
   const providerPolicies: CsharpProviderPolicyContribution[] = [];
+  const runtimeProviderPolicies: CsharpRuntimeProviderPolicyContribution[] = [];
   const binaryExecutionDrivers: CsharpTargetBinaryExecutionDriver[] = [];
   for (const capability of capabilities) {
     for (const contribution of capability.contributions) {
@@ -64,6 +68,10 @@ export function collectCsharpCapabilityContributions(
         if (policy.binaryExecutionDriver !== undefined) {
           binaryExecutionDrivers.push(policy.binaryExecutionDriver);
         }
+      } else if (contribution.kind === "csharp-runtime-provider-policy") {
+        runtimeProviderPolicies.push(validateCsharpRuntimeProviderPolicyContribution(
+          capability.capabilityId, capability.moduleOwnership, contribution,
+        ));
       } else {
         throw new Error(
           `C# target capability '${capability.capabilityId}' supplied unsupported target contribution kind '${contribution.kind}'.`,
@@ -76,6 +84,7 @@ export function collectCsharpCapabilityContributions(
   return Object.freeze({
     dotnetProviders: Object.freeze(dotnetProviders),
     providerPolicies: Object.freeze(providerPolicies),
+    runtimeProviderPolicies: Object.freeze(runtimeProviderPolicies),
     ...(binaryExecutionDriver === undefined
       ? {}
       : { binaryExecutionDriver }),

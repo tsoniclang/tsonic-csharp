@@ -1,6 +1,6 @@
 import type { ExtensionDiagnostic, ExtensionEvidence, ProviderExportDeclaration, ProviderIdentity } from "@tsonic/tsts";
 import type { TargetRuntimeContributions } from "@tsonic/target-api/artifacts";
-import type { CsharpProviderPolicyContribution } from "../../target-model/metadata/provider-metadata.js";
+import type { CsharpProviderPackagePolicy } from "../model/runtime-policy.js";
 
 export interface CsharpProviderModuleDefinition {
   readonly moduleSpecifier: string;
@@ -24,6 +24,6 @@ export interface CsharpProviderPackageDefinition {
   moduleDiagnostic(kind: "unowned" | "missing", moduleSpecifier: string): ExtensionDiagnostic;
   readonly resolutionEvidence?: readonly ExtensionEvidence[];
   readonly declarationEvidence?: readonly ExtensionEvidence[];
-  createPolicy(selectedSurfaceIds: readonly string[]): CsharpProviderPolicyContribution;
+  readonly policy: CsharpProviderPackagePolicy;
   readonly runtime: TargetRuntimeContributions;
 }

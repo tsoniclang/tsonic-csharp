@@ -61,6 +61,11 @@ export { createCsharpProviderPackage } from "../providers/packages/composition.j
 export { csharpCoreRuntimeSource, csharpJsRuntimeSource, csharpRuntimeSourceContributions } from "../providers/runtime/source-projects.js";
 export type { CsharpRuntimeProjectSource } from "../target-model/project/runtime.js";
 export type {
+  CsharpAcquiredRuntimeNativeDeclaration, CsharpRuntimeProviderNativeDomain,
+  CsharpAcquiredRuntimeProviderNativeDomain, CsharpRuntimeProviderNativeDomainResolution,
+  CsharpProviderPackagePolicy, CsharpRuntimeProviderPolicyContribution, CsharpRuntimeProviderNativeAcquisition,
+} from "../providers/model/runtime-policy.js";
+export type {
   CsharpProviderModuleDefinition,
   CsharpProviderModuleSpecifier,
   CsharpProviderPackageDefinition,

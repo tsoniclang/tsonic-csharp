@@ -14,7 +14,7 @@ import { validateDotnetModuleModelContract } from "../model/normalization/index.
 import { augmentDotnetModuleWithNativeArray } from "../projection/module-native-array.js";
 import type { DotnetProviderDeclarationContext, DotnetProviderDiagnostic, DotnetProviderModuleResult, DotnetProviderOwnership, DotnetTypeDataProvider } from "../model/provider.js";
 import { resolveDotnetProviderDeclarationProjection } from "../projection/provider.js";
-import { emptyIncrementalDotnetProviderMaterialization } from "../model/provider.js";
+import { completeDotnetProviderContext, emptyIncrementalDotnetProviderMaterialization } from "../model/provider.js";
 import { createDotnetProviderCache } from "./cache.js";
 import type { DotnetProviderCacheRequest } from "./cache.js";
 import type { DotnetReflectionProviderBroker } from "./broker.js";
@@ -36,6 +36,9 @@ import { dotnetReflectionProviderIdentity } from "./provider-identity.js";
 import { defaultCsharpTargetFramework } from "../../../target-model/configuration/framework.js";
 import { resolveDotnetProviderToolchain, type DotnetProviderToolchain } from "./toolchain.js";
 import { createDotnetReferenceSnapshot } from "./reference-snapshot.js";
+import { createCsharpRuntimeNativeDomainQuery } from "./runtime-domain.js";
+import type { CsharpRuntimeProviderNativeAcquisition, CsharpRuntimeProviderNativeDomain,
+  CsharpRuntimeProviderNativeDomainResolution } from "../../model/runtime-policy.js";
 
 export interface DotnetReflectionProviderStorage {
   readonly toolBuildRoot: string;
@@ -58,7 +61,7 @@ export interface DotnetReflectionTypeDataProviderOptions {
   readonly toolchain?: DotnetProviderToolchain;
 }
 
-export interface DotnetReflectionTypeDataProvider extends DotnetTypeDataProvider {
+export interface DotnetReflectionTypeDataProvider extends DotnetTypeDataProvider, CsharpRuntimeProviderNativeAcquisition {
   acquireNativeDeclaration(identity: string): CsharpProviderNativeDeclarationResolution;
   validateReferences(): ExtensionDiagnostic | undefined;
   prepareRuntimeSources(preparation: CsharpProviderRuntimePreparation): CsharpProviderRuntimeAcquisition;
@@ -81,6 +84,16 @@ export interface DotnetProviderTargetRelationRequest {
 export function createDotnetReflectionTypeDataProvider(
   options: DotnetReflectionTypeDataProviderOptions,
 ): DotnetReflectionTypeDataProvider {
+  return createDotnetReflectionProviderInstance(options).provider;
+}
+
+interface DotnetReflectionProviderInstance {
+  readonly provider: DotnetReflectionTypeDataProvider;
+  readonly runtimeDomain: (input: CsharpRuntimeProviderNativeDomain, preparation: CsharpProviderRuntimePreparation,
+    references: readonly string[]) => CsharpRuntimeProviderNativeDomainResolution;
+}
+
+function createDotnetReflectionProviderInstance(options: DotnetReflectionTypeDataProviderOptions): DotnetReflectionProviderInstance {
   const storage = validateProviderStorage(options?.storage);
   const providerIdentity = options.providerIdentity ?? dotnetReflectionProviderIdentity;
   const moduleSpecifierPolicy = options.moduleSpecifierPolicy ?? dotnetModuleSpecifierPolicy;
@@ -125,8 +138,10 @@ export function createDotnetReflectionTypeDataProvider(
   });
   let runtime: { readonly kind: "unprepared" }
     | { readonly kind: "prepared"; readonly preparation: CsharpProviderRuntimePreparation }
-    | { readonly kind: "resolved"; readonly references: readonly string[]; readonly provider: DotnetReflectionTypeDataProvider | undefined }
+    | { readonly kind: "resolved"; readonly references: readonly string[]; readonly provider: DotnetReflectionProviderInstance | undefined }
     | { readonly kind: "rejected"; readonly diagnostic: ExtensionDiagnostic } = { kind: "unprepared" };
+  let runtimePreparation: CsharpProviderRuntimePreparation | undefined;
+  let selectedRuntimeProvider: DotnetReflectionProviderInstance | undefined;
 
   function loadModule(specifier: string, context: DotnetProviderDeclarationContext): DotnetProviderModuleResult {
     telemetry.request("module");
@@ -348,7 +363,19 @@ export function createDotnetReflectionTypeDataProvider(
 
   const typeDataProvider: DotnetReflectionTypeDataProvider = {
     identity: providerIdentity,
+    acquireRuntimeNativeDomain(input): CsharpRuntimeProviderNativeDomainResolution {
+      if (runtimePreparation === undefined) throw new TypeError("A runtime Native domain requires the identical completed runtime preparation.");
+      const selected = acquirePreparedRuntime();
+      if (selected.kind === "rejected") return selected;
+      if (selected.kind !== "resolved" || selected.provider === undefined) return Object.freeze({ kind: "rejected",
+        diagnostic: dotnetProviderDiagnosticToExtensionDiagnostic(providerIdentity.id, diagnostic(
+          "DOTNET_RUNTIME_DOMAIN_REFERENCE_MISSING", "The selected runtime did not acquire an actual Native reference image.")) });
+      const domain = selected.provider.runtimeDomain(input, runtimePreparation, selected.references);
+      if (domain.kind === "resolved") selectedRuntimeProvider = selected.provider;
+      return domain;
+    },
     acquireNativeDeclaration(identity): CsharpProviderNativeDeclarationResolution {
+      if (selectedRuntimeProvider !== undefined) return selectedRuntimeProvider.provider.acquireNativeDeclaration(identity);
       const binding = typeDataProvider.findTargetBindingByTargetId(identity, "ordinary");
       if (binding.kind !== "resolved") return binding;
       const definition = targetBindingIndex.acquireNativeDeclaration(identity);
@@ -360,16 +387,17 @@ export function createDotnetReflectionTypeDataProvider(
     validateReferences(): ExtensionDiagnostic | undefined {
       const result = validateReferenceSnapshot();
       if (result !== undefined) return dotnetProviderDiagnosticToExtensionDiagnostic(providerIdentity.id, result);
-      return runtime.kind === "resolved" ? runtime.provider?.validateReferences()
+      return runtime.kind === "resolved" ? runtime.provider?.provider.validateReferences()
         : runtime.kind === "rejected" ? runtime.diagnostic : undefined;
     },
     prepareRuntimeSources(preparation: CsharpProviderRuntimePreparation): CsharpProviderRuntimeAcquisition {
       if (runtime.kind !== "unprepared") throw new TypeError("Native runtime metadata is prepared exactly once before analysis queries.");
-      runtime = Object.freeze({ kind: "prepared", preparation: Object.freeze({ ...preparation,
+      runtimePreparation = Object.freeze({ ...preparation,
         sources: Object.freeze([...preparation.sources]),
         projects: Object.freeze(preparation.projects.map(project => Object.freeze({ ...project }))),
         properties: Object.freeze([...preparation.properties]),
-      }) });
+      });
+      runtime = Object.freeze({ kind: "prepared", preparation: runtimePreparation });
       return Object.freeze({ kind: "resolved", references: Object.freeze([]) });
     },
     ownsModule(specifier: string): DotnetProviderOwnership {
@@ -391,6 +419,7 @@ export function createDotnetReflectionTypeDataProvider(
     },
     findTargetBindingByTargetId(targetId: string, purpose: CsharpProviderBindingLookupPurpose): CsharpProviderBindingResolution {
       assertCsharpProviderLookupPurpose(purpose);
+      if (selectedRuntimeProvider !== undefined) return selectedRuntimeProvider.provider.findTargetBindingByTargetId(targetId, purpose);
       telemetry.request("targetBindingByTargetId");
       const selected = findTargetBinding(
         dotnetModuleSpecifierForTargetId(targetId, moduleSpecifierPolicy),
@@ -405,6 +434,7 @@ export function createDotnetReflectionTypeDataProvider(
     },
     findTargetBindingByMetadataName(metadataName: string, purpose: CsharpProviderBindingLookupPurpose): CsharpProviderBindingResolution {
       assertCsharpProviderLookupPurpose(purpose);
+      if (selectedRuntimeProvider !== undefined) return selectedRuntimeProvider.provider.findTargetBindingByMetadataName(metadataName, purpose);
       telemetry.request("targetBindingByMetadataName");
       const selected = findTargetBinding(
         dotnetModuleSpecifierForMetadataName(metadataName, moduleSpecifierPolicy),
@@ -461,7 +491,38 @@ export function createDotnetReflectionTypeDataProvider(
       return telemetry.snapshot();
     },
   };
-  return typeDataProvider;
+  return Object.freeze({ provider: typeDataProvider, runtimeDomain: createCsharpRuntimeNativeDomainQuery({
+    providerId: providerIdentity.id, moduleSpecifierPolicy, getModule: typeDataProvider.getModule,
+    validateReferences: typeDataProvider.validateReferences, acquireDeclaration: targetBindingIndex.acquireRuntimeNativeDeclaration,
+    acquireReference(identity) {
+      const moduleSpecifier = dotnetModuleSpecifierForTargetId(identity, moduleSpecifierPolicy);
+      if (moduleSpecifier === undefined) return diagnostic("DOTNET_RUNTIME_DOMAIN_REFERENCE_NOT_PROVEN",
+        "A runtime Native reference requires its exact assembly-qualified original declaration identity.", { targetId: identity });
+      const module = loadModule(moduleSpecifier, completeDotnetProviderContext({ requestedTargetIds: [identity] }));
+      if (isDotnetProviderDiagnostic(module)) return module;
+      const originals = [...module.exports.filter((entry): entry is DotnetTypeDeclaration => entry.kind === "type"),
+        ...module.targetOnlyTypes ?? []].filter(original => original.targetId === identity);
+      if (originals.length !== 1) return diagnostic("DOTNET_RUNTIME_DOMAIN_REFERENCE_NOT_PROVEN",
+        "A runtime Native reference requires exactly its acquired complete original declaration.", { targetId: identity });
+      return targetBindingIndex.acquireRuntimeNativeDeclaration(originals[0]!);
+    },
+  }) });
+
+  function acquirePreparedRuntime() {
+    if (runtime.kind === "prepared") {
+      const preparation = runtime.preparation;
+      const acquired = preparation.project.kind !== "user-owned" && preparation.sources.length === 0
+        ? Object.freeze({ kind: "resolved" as const, references: Object.freeze([]) })
+        : acquireCsharpRuntimeSources(preparation, toolchain);
+      runtime = acquired.kind === "rejected" ? Object.freeze(acquired) : Object.freeze({ ...acquired,
+        provider: acquired.references.length === 0 ? undefined : createDotnetReflectionProviderInstance({
+          ...options, toolchain,
+          references: Object.freeze([...new Set([...(options.references ?? []), ...acquired.references])]),
+        }),
+      });
+    }
+    return runtime;
+  }
 
   function withRuntimeInheritance(
     selected: CsharpProviderBindingResolution,
@@ -469,20 +530,9 @@ export function createDotnetReflectionTypeDataProvider(
     query: (provider: DotnetReflectionTypeDataProvider) => CsharpProviderBindingResolution,
   ): CsharpProviderBindingResolution {
     if (purpose === "ordinary" || selected.kind !== "missing") return selected;
-    if (runtime.kind === "prepared") {
-      const preparation = runtime.preparation;
-      const acquired = preparation.project.kind !== "user-owned" && preparation.sources.length === 0
-        ? Object.freeze({ kind: "resolved" as const, references: Object.freeze([]) })
-        : acquireCsharpRuntimeSources(preparation, toolchain);
-      runtime = acquired.kind === "rejected" ? Object.freeze(acquired) : Object.freeze({ ...acquired,
-        provider: acquired.references.length === 0 ? undefined : createDotnetReflectionTypeDataProvider({
-          ...options, toolchain,
-          references: Object.freeze([...new Set([...(options.references ?? []), ...acquired.references])]),
-        }),
-      });
-    }
-    if (runtime.kind === "rejected") return runtime;
-    return runtime.kind === "resolved" && runtime.provider !== undefined ? query(runtime.provider) : selected;
+    const acquired = acquirePreparedRuntime();
+    if (acquired.kind === "rejected") return acquired;
+    return acquired.kind === "resolved" && acquired.provider !== undefined ? query(acquired.provider.provider) : selected;
   }
 
   function findTargetBinding(

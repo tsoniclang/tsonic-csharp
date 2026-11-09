@@ -15,6 +15,8 @@ import { csharpSourceSemanticsModules } from "../source/profiles/source-modules.
 import { csharpSourceProfileContributions } from "../source/profiles/declarations.js";
 import { csharpCoreRuntimeSource, csharpRuntimeSourceContributions } from "../providers/runtime/source-projects.js";
 import { resolveDotnetProviderToolchain } from "../providers/native/acquisition/toolchain.js";
+import { rejectedTargetStage, targetDiagnosticFromExtension } from "@tsonic/target-api/artifacts";
+import { composeCsharpBinaryExecutionDriver } from "../target-model/metadata/binary-execution-drivers.js";
 
 type CsharpCompilationSessionState =
   | "created"
@@ -36,8 +38,6 @@ export function createCsharpCompilationSession(
   const capabilityContributions = collectCsharpCapabilityContributions(
     context.capabilities,
   );
-  const binaryExecutionDriver =
-    capabilityContributions.binaryExecutionDriver;
   const toolchain = resolveDotnetProviderToolchain(context.projectDirectory, configuration.targetFramework);
   const providerStorage = Object.freeze({
     toolBuildRoot: resolve(
@@ -78,10 +78,6 @@ export function createCsharpCompilationSession(
         : { targetFramework: entry.targetFramework }),
     })),
   ]);
-  const relationResolver = createCsharpProviderRelationResolver({
-    providers,
-    providerPolicies: capabilityContributions.providerPolicies,
-  });
   let state: CsharpCompilationSessionState = "created";
   return Object.freeze({
     sourceProfileContributions(): TargetSourceProfileContributions {
@@ -108,13 +104,28 @@ export function createCsharpCompilationSession(
       state = "compiled";
       const project = classifyCsharpProjectConfiguration(configuration, input.runtimeReferences, input.paths.cacheRoot);
       if (project.kind === "rejected") return project;
-      const providerAcquisition = relationResolver.prepareRuntimeSources({
+      const providerAcquisition = builtInProvider.prepareRuntimeSources({
         sources: project.value.runtimeSources,
         projects: project.value.runtimeProjects.map(project => ({ ...project, text: printCsharpRuntimeProject(project) })),
         project: configuration.project,
         properties: project.value.properties,
         cacheRoot: input.paths.cacheRoot,
       });
+      if (providerAcquisition.kind === "rejected") return rejectedTargetStage([
+        targetDiagnosticFromExtension(undefined, providerAcquisition.diagnostic),
+      ]);
+      const providerPolicies = [...capabilityContributions.providerPolicies];
+      for (const contribution of capabilityContributions.runtimeProviderPolicies) {
+        const selected = builtInProvider.acquireRuntimeNativeDomain(contribution.policy.nativeDomain);
+        if (selected.kind === "rejected") return rejectedTargetStage([
+          targetDiagnosticFromExtension(undefined, selected.diagnostic),
+        ]);
+        providerPolicies.push(contribution.policy.create(Object.freeze({
+          selectedSurfaceIds: contribution.selectedSurfaceIds, domain: selected.domain,
+        })));
+      }
+      const relationResolver = createCsharpProviderRelationResolver({ providers, providerPolicies: Object.freeze(providerPolicies) });
+      const binaryExecutionDriver = composeCsharpBinaryExecutionDriver(...providerPolicies.map(policy => policy.binaryExecutionDriver));
       return compileRequest(Object.freeze({
         project: project.value,
         providerAcquisition,

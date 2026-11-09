@@ -18,12 +18,14 @@ import type { CsharpNativeDeclaration } from "../../../target-model/types/native
 import { csharpNativeDeclarationKey } from "../../../target-model/types/native-declaration-operations.js";
 import { snapshotCsharpMetadata } from "../../../target-model/metadata/immutable.js";
 import { dotnetTypeToNativeDeclaration } from "../projection/native-declarations.js";
+import type { CsharpAcquiredRuntimeNativeDeclaration } from "../../model/runtime-policy.js";
 
 export interface DotnetTargetBindingIndex extends DotnetTargetRelationLookup {
   readonly rememberModule: (module: DotnetModuleModel, request: DotnetProviderCacheRequest) => DotnetProviderDiagnostic | undefined;
   readonly getByTargetId: (targetId: string) => TargetBindingFact | undefined;
   readonly getCompleteCandidatesByMetadataName: (metadataName: string) => readonly TargetBindingFact[];
   readonly acquireNativeDeclaration: (targetId: string) => CsharpNativeDeclaration | DotnetProviderDiagnostic | undefined;
+  readonly acquireRuntimeNativeDeclaration: (original: DotnetTypeDeclaration) => CsharpAcquiredRuntimeNativeDeclaration | DotnetProviderDiagnostic;
 }
 
 export function createDotnetTargetBindingIndex(): DotnetTargetBindingIndex {
@@ -155,9 +157,7 @@ export function createDotnetTargetBindingIndex(): DotnetTargetBindingIndex {
     return undefined;
   }
 
-  return {
-    rememberModule,
-    acquireNativeDeclaration(targetId) {
+  function acquireNativeDeclaration(targetId: string): CsharpNativeDeclaration | DotnetProviderDiagnostic | undefined {
       const previous = nativeDeclarations.get(targetId);
       if (previous !== undefined) return previous;
       const originals = nativeOriginals.get(targetId);
@@ -175,6 +175,24 @@ export function createDotnetTargetBindingIndex(): DotnetTargetBindingIndex {
       }
       if (definition !== undefined) nativeDeclarations.set(targetId, definition);
       return definition;
+  }
+
+  return {
+    rememberModule,
+    acquireNativeDeclaration,
+    acquireRuntimeNativeDeclaration(original) {
+      const retained = nativeOriginals.get(original.targetId)?.get(canonicalProviderValue(original));
+      const binding = completeTargetIds.has(original.targetId) ? targetBindingsByTargetId.get(original.targetId) : undefined;
+      if (retained === undefined || binding === undefined || binding.target !== "csharp" || !isCsharpProviderTargetBinding(binding)) {
+        return diagnostic("DOTNET_REFLECTION_RUNTIME_DECLARATION_NOT_PROVEN",
+          "A runtime Native domain requires an original complete declaration and its identical acquired index binding.",
+          { targetId: original.targetId });
+      }
+      const definition = acquireNativeDeclaration(original.targetId);
+      if (definition === undefined) return diagnostic("DOTNET_REFLECTION_RUNTIME_DECLARATION_NOT_PROVEN",
+        "The original runtime Native declaration has no completed physical inventory.", { targetId: original.targetId });
+      if ("code" in definition) return definition;
+      return Object.freeze({ original: retained, binding, definition });
     },
     getByTargetId(targetId: string): TargetBindingFact | undefined {
       return completeTargetIds.has(targetId)

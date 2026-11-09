@@ -1,8 +1,10 @@
-import { nonEmptyContributionString } from "../model/contribution-values.js";
+import { hasExactContributionFields, isContributionRecord, nonEmptyContributionString } from "../model/contribution-values.js";
 import { snapshotCsharpMetadata } from "../../target-model/metadata/immutable.js";
 import { validateCsharpProviderPolicyContribution } from "../model/provider-policy-contribution.js";
 import { csharpProviderPolicyContributionKind, type CsharpProviderPolicyContribution } from "../../target-model/metadata/provider-metadata.js";
 import type { CsharpProviderPackageDefinition } from "./model.js";
+import type { CsharpAcquiredRuntimeProviderNativeDomain, CsharpProviderPackagePolicy,
+  CsharpRuntimeProviderNativeDomain } from "../model/runtime-policy.js";
 
 export function snapshotCsharpProviderPackage(
   definition: CsharpProviderPackageDefinition,
@@ -10,6 +12,7 @@ export function snapshotCsharpProviderPackage(
   const fail = (message: string): never => {
     throw new Error(`C# provider package '${definition.id}': ${message}`);
   };
+  if (Object.hasOwn(definition, "createPolicy")) fail("the removed createPolicy field is not a provider policy; supply policy.kind and policy.create.");
   const modules = Object.freeze(definition.modules.map((module) => Object.freeze({
     moduleSpecifier: module.moduleSpecifier,
     providerModuleId: module.providerModuleId,
@@ -50,21 +53,19 @@ export function snapshotCsharpProviderPackage(
   }
   if (
     typeof definition.virtualDeclarationFileName !== "function" ||
-    typeof definition.moduleDiagnostic !== "function" ||
-    typeof definition.createPolicy !== "function"
+    typeof definition.moduleDiagnostic !== "function"
   ) {
-    fail("virtual declaration filename, module diagnostic and policy callbacks are required.");
+    fail("virtual declaration filename and module diagnostic callbacks are required.");
   }
   const providerIdentity = snapshotCsharpMetadata(definition.providerIdentity);
-  const createPolicy = definition.createPolicy;
   const packageId = definition.id;
-  const policies = new Map<string, CsharpProviderPolicyContribution>();
-  function selectedPolicy(selectedSurfaceIds: readonly string[]): CsharpProviderPolicyContribution {
-    const surfaces = Object.freeze([...selectedSurfaceIds]);
-    const key = JSON.stringify(surfaces);
-    const existing = policies.get(key);
-    if (existing !== undefined) return existing;
-    const contribution = createPolicy(surfaces);
+  const inputPolicy = definition.policy;
+  if (!isContributionRecord(inputPolicy) || typeof inputPolicy.create !== "function" ||
+    inputPolicy.kind !== "static" && inputPolicy.kind !== "runtime-project" ||
+    !hasExactContributionFields(inputPolicy, inputPolicy.kind === "static" ? ["kind", "create"] : ["kind", "nativeDomain", "create"])) {
+    fail("policy callbacks require an exact static or runtime-project policy.");
+  }
+  function validate(contribution: CsharpProviderPolicyContribution): CsharpProviderPolicyContribution {
     if (contribution.kind !== csharpProviderPolicyContributionKind ||
       contribution.providerId !== providerIdentity.id || contribution.providerVersion !== providerIdentity.version) {
       fail("policy contribution must match the source provider identity and version.");
@@ -83,8 +84,45 @@ export function snapshotCsharpProviderPackage(
         }
       }
     }
-    policies.set(key, policy);
     return policy;
+  }
+  let policy: CsharpProviderPackagePolicy;
+  if (inputPolicy.kind === "static") {
+    const create = inputPolicy.create;
+    const policies = new Map<string, CsharpProviderPolicyContribution>();
+    policy = Object.freeze({ kind: "static", create(selectedSurfaceIds: readonly string[]) {
+      const surfaces = Object.freeze([...selectedSurfaceIds]);
+      const key = JSON.stringify(surfaces);
+      const existing = policies.get(key);
+      if (existing !== undefined) return existing;
+      const selected = validate(create(surfaces));
+      policies.set(key, selected);
+      return selected;
+    } });
+  } else {
+    const domain = inputPolicy.nativeDomain;
+    if (!isContributionRecord(domain) || !hasExactContributionFields(domain, ["source", "namespaces"]) ||
+      !isContributionRecord(domain.source) || !Array.isArray(domain.namespaces) || domain.namespaces.length === 0 ||
+      domain.namespaces.some(namespace => !nonEmptyContributionString(namespace)) ||
+      new Set(domain.namespaces).size !== domain.namespaces.length) fail("runtime-project policy requires a complete runtime source and nonempty unique namespace domain.");
+    const nativeDomain: CsharpRuntimeProviderNativeDomain = snapshotCsharpMetadata(domain);
+    const create = inputPolicy.create;
+    const policies = new WeakMap<CsharpAcquiredRuntimeProviderNativeDomain, Map<string, CsharpProviderPolicyContribution>>();
+    policy = Object.freeze({ kind: "runtime-project", nativeDomain, create(input: {
+      readonly selectedSurfaceIds: readonly string[]; readonly domain: CsharpAcquiredRuntimeProviderNativeDomain;
+    }) {
+      if (input.domain.input !== nativeDomain) throw new TypeError("A runtime policy requires its identical acquired runtime domain and selected image.");
+      const surfaces = Object.freeze([...input.selectedSurfaceIds]);
+      const key = JSON.stringify(surfaces);
+      const cached = policies.get(input.domain);
+      const existing = cached?.get(key);
+      if (existing !== undefined) return existing;
+      const selected = validate(create(Object.freeze({ selectedSurfaceIds: surfaces, domain: input.domain })));
+      const entries = cached ?? new Map<string, CsharpProviderPolicyContribution>();
+      entries.set(key, selected);
+      policies.set(input.domain, entries);
+      return selected;
+    } });
   }
   return Object.freeze({
     id: definition.id,
@@ -100,7 +138,7 @@ export function snapshotCsharpProviderPackage(
     ...(definition.declarationEvidence === undefined
       ? {}
       : { declarationEvidence: snapshotCsharpMetadata(definition.declarationEvidence) }),
-    createPolicy: selectedPolicy,
+    policy,
     runtime: snapshotCsharpMetadata(definition.runtime),
   });
 }
