@@ -1,0 +1,23 @@
+import type { SourceMemoryBoundary, SourceMemoryProducer } from "@tsonic/target-api/source";
+import type { CsharpRepresentationOutcome, CsharpRepresentationView } from "../../target-model/types/representation.js";
+import type { CsharpPointerStoragePointeeSelection } from "../../target-model/records/storage/pointer-storage.js";
+import { csharpRuntimeLocationPointee } from "../../target-model/types/carriers/runtime-carriers.js";
+import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
+import { getCsharpGenericOptionalParts } from "../../target-model/types/projections.js";
+import { represented, sourceOutcome } from "../../policy/types/source-type-flow/representation-results.js";
+
+export function resolveCsharpPointerStoragePointee(
+  representation: CsharpRepresentationView,
+  storage: SourceMemoryProducer | SourceMemoryBoundary,
+): CsharpRepresentationOutcome<CsharpPointerStoragePointeeSelection> {
+  const instantiated = sourceOutcome(representation.source.substitute(storage.type, storage.typeBindings));
+  if (instantiated.kind !== "represented") return instantiated;
+  const selected = representation.represent(instantiated.value, "storage", storage.subject.node);
+  if (selected.kind !== "represented") return selected;
+  const carrier = getCsharpNullableElementTargetType(selected.value.carrier) ??
+    getCsharpGenericOptionalParts(selected.value.carrier)?.element ?? selected.value.carrier;
+  const pointee = csharpRuntimeLocationPointee(carrier);
+  return represented(pointee === undefined
+    ? Object.freeze({ kind: "unresolved", reason: "The pointer producer does not have one exact native pointee carrier in every activation." })
+    : Object.freeze({ kind: "resolved", type: pointee }));
+}
