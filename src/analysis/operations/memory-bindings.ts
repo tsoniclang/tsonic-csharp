@@ -1,5 +1,6 @@
 import type { Node } from "@tsonic/tsts";
-import type { SourceMemoryFieldBinding, SourceStorageUnresolved } from "@tsonic/target-api/source";
+import type { SourceMemoryFieldBinding } from "@tsonic/target-api/source";
+import type { SourceStorageUnresolved } from "@tsonic/target-api/analysis";
 import type { CsharpMemoryBindingSelection } from "../../target-model/records/storage/memory-bindings.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpObjectShapeMemberFact } from "../../target-model/types/model.js";

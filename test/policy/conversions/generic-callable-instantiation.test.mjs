@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { applyCsharpNativeCallableMember } from "../../../dist/policy/conversions/generic-callable.js";
+import { applyCsharpNativeCallableMember, csharpNativeTypeArgumentSatisfiesConstraints } from "../../../dist/policy/conversions/generic-callable.js";
 import * as genericCallable from "../../../dist/policy/conversions/generic-callable.js";
 import { selectCsharpConversion } from "../../../dist/policy/conversions/core.js";
 import { csharpDelegateTargetType, getCsharpCallableMembers } from "../../../dist/target-model/types/carriers/delegates.js";
@@ -14,6 +14,25 @@ import { executeCsharpConstruction } from "../../helpers/native-construction.mjs
 
 const policy = createNativeConversionHost();
 const integer = { kind: "source-primitive", name: "int64" };
+
+test("Native callable and write-obligation constraints share one complete physical satisfaction law", () => {
+  const cases = [
+    ["unconstrained", [], true],
+    ["value", [{ kind: "keyword", keyword: "struct" }], true],
+    ["reference", [{ kind: "keyword", keyword: "class" }], false],
+    ["unmanaged", [{ kind: "keyword", keyword: "unmanaged" }], true],
+    ["constructor", [{ kind: "constructor" }], true],
+  ];
+  assert.deepEqual(cases.map(([name]) => name), ["unconstrained", "value", "reference", "unmanaged", "constructor"]);
+  for (const [name, constraints, accepted] of cases) {
+    const parameter = { kind: "type-parameter", identity: `constraint:${name}`, name: "Value",
+      csharpConstraints: { kind: "resolved", constraints } };
+    const selected = callable(parameter);
+    assert.equal(csharpNativeTypeArgumentSatisfiesConstraints(policy, integer, constraints), accepted, name);
+    assert.equal(applyCsharpNativeCallableMember(policy, selected.member, [integer]) !== undefined, accepted,
+      `${name}: the actual callable application uses that identical Native law`);
+  }
+});
 
 function callable(parameter, parameters = [parameter]) {
   const member = Object.freeze({ name: "Invoke", typeParameters: Object.freeze([Object.freeze({

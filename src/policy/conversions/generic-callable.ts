@@ -18,20 +18,12 @@ export function applyCsharpNativeCallableMember(policy: Policy, member: CsharpNa
   const parameters = member.typeParameters;
   if (parameters.length !== arguments_.length || new Set(parameters.map(parameter => parameter.identity)).size !== parameters.length ||
     parameters.some(parameter => parameter.identity.length === 0)) return undefined;
-  for (const argument of arguments_) if (argument === undefined || argument.kind === "pointer" ||
-    argument.kind === "function-pointer" || argument.kind === "opaque" || isCsharpVoidTargetType(argument) ||
-    isCsharpRefLikeTargetType(argument)) return undefined;
   const bindings = new Map(parameters.map((parameter, index) => [parameter.identity, arguments_[index]!]));
   for (const [index, parameter] of parameters.entries()) {
     const argument = arguments_[index]!;
     const required = parameter.constraints.map(constraint => constraint.kind === "type"
       ? { ...constraint, type: substituteTargetTypeParameters(constraint.type, bindings) } : constraint);
-    const evidence = nativeArgumentConstraints(argument);
-    if (evidence === undefined) return undefined;
-    const implied = argument.kind === "type-parameter" ? required : required.filter(constraint => constraint.kind !== "type");
-    if (!csharpTypeParameterConstraintsImply(policy, evidence, implied, new Map()) ||
-      argument.kind !== "type-parameter" && required.some(constraint => constraint.kind === "type" &&
-        !csharpTargetTypeSatisfiesNativeConstraint(policy, argument, constraint.type))) return undefined;
+    if (!csharpNativeTypeArgumentSatisfiesConstraints(policy, argument, required)) return undefined;
   }
   const signature = member.signature;
   return Object.freeze({ name: member.name, typeParameters: Object.freeze([]), signature: Object.freeze({
@@ -42,6 +34,18 @@ export function applyCsharpNativeCallableMember(policy: Policy, member: CsharpNa
     parameters: Object.freeze(signature.parameters.map(parameter => substituteTargetTypeParameters(parameter, bindings))),
     returnType: substituteTargetTypeParameters(signature.returnType, bindings),
   }) });
+}
+
+export function csharpNativeTypeArgumentSatisfiesConstraints(policy: Policy, argument: TargetTypeRef,
+  required: readonly CsharpTypeParameterConstraint[]): boolean {
+  if (argument === undefined || argument.kind === "pointer" || argument.kind === "function-pointer" ||
+    argument.kind === "opaque" || isCsharpVoidTargetType(argument) || isCsharpRefLikeTargetType(argument)) return false;
+  const evidence = nativeArgumentConstraints(argument);
+  if (evidence === undefined) return false;
+  const implied = argument.kind === "type-parameter" ? required : required.filter(constraint => constraint.kind !== "type");
+  return csharpTypeParameterConstraintsImply(policy, evidence, implied, new Map()) &&
+    (argument.kind === "type-parameter" || required.every(constraint => constraint.kind !== "type" ||
+      csharpTargetTypeSatisfiesNativeConstraint(policy, argument, constraint.type)));
 }
 
 export function csharpNativeCallableApplicationIsValid(policy: Policy,

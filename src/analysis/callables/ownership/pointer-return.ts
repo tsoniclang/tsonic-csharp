@@ -1,6 +1,6 @@
 import type { CsharpPointerReturnContract } from "../../../target-model/records/calls/pointer-return.js";
 import type { Node } from "@tsonic/tsts";
-import type { SourceStorageBindings, SourceStorageUnresolved } from "@tsonic/target-api/source";
+import type { SourceStorageBindings, SourceStorageUnresolved } from "@tsonic/target-api/analysis";
 import type { CsharpPolicyContext } from "../../../policy/model/context.js";
 import type { CsharpRepresentationOutcome } from "../../../target-model/types/representation.js";
 import type { TargetTypeRef } from "../../../target-model/types/native-type-data.js";

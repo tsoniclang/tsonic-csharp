@@ -31,7 +31,7 @@ import { analyzeCsharpNativeErrorAdmission } from "../objects/error-storage-dema
 
 import { analyzeCsharpNativeValueCarriers, analyzeCsharpObjectMethodSources } from "../objects/value-carriers.js";
 import { analyzeCsharpModuleCallables } from "../callables/module-callables.js";
-import { analyzeCsharpSourceTypeFlowObligations } from "../source-evidence/type-flow-obligations.js";
+import { analyzeCsharpNativeTypeObligations } from "../conversions/type-obligations.js";
 import { analyzeCsharpDictionaryLiterals } from "../objects/dictionary-literals.js";
 import { representCsharpSourceType } from "../../policy/types/source-type-flow/representation.js";
 import { csharpRepresentationDifference } from "./representation-differences.js";
@@ -248,8 +248,9 @@ function analyzeCsharpTargetProgramBeforeSeal(
   }
   const dictionaryLiterals = analyzeCsharpDictionaryLiterals(source.ast, analysis.nativeDemand);
   if (dictionaryLiterals.issues.length !== 0) return rejectedTargetStage(dictionaryLiterals.issues);
-  const typeFlowIssues = analyzeCsharpSourceTypeFlowObligations(analysis.policy, analysis.objectShapes,
-    analysis.typeSystem.nativeConstruction, dictionaryLiterals.records, analysis.sourceEvidence.compileTimeMetadata);
+  const typeFlowIssues = analyzeCsharpNativeTypeObligations({ policy: analysis.policy,
+    expected: analysis.expectedTypes, nativeDemand: analysis.nativeDemand,
+    compileTimeMetadata: analysis.sourceEvidence.compileTimeMetadata });
   if (typeFlowIssues.length !== 0) return rejectedTargetStage(typeFlowIssues);
   const sourceModuleConstructions = analyzeCsharpSourceModuleConstructions({
     source,

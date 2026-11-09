@@ -1,5 +1,5 @@
 import type { Node } from "@tsonic/tsts";
-import type { SourceStorageUnresolved } from "@tsonic/target-api/source";
+import type { SourceStorageUnresolved } from "@tsonic/target-api/analysis";
 import type { CsharpPointerBackingProducer, CsharpPointerBackingUse } from "../../target-model/records/storage/pointer-backing.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpRepresentationOutcome } from "../../target-model/types/representation.js";
