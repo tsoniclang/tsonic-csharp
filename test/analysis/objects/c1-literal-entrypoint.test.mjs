@@ -3,7 +3,7 @@ import test from "node:test";
 import { createCompilerSessionFromFiles } from "@tsonic/tsts";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { createCsharpObjectShapePolicy } from "../../../dist/analysis/objects/shapes/api.js";
-import { createCsharpTypeParameterEnvironment } from "../../../dist/analysis/source-evidence/types/resolution/type-parameter-environment.js";
+import { createCsharpTypeParameterEnvironment } from "../../../dist/policy/types/callables/parameter-environment.js";
 
 function fixture() {
   const checked = createCompilerSessionFromFiles({ currentDirectory: "/entrypoint", files: {

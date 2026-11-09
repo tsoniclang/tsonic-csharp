@@ -15,7 +15,13 @@ import { resolveCsharpPointerReturnContract } from "../callables/ownership/point
 import { csharpNativePropertyNameIssue } from "../objects/computed-field-names.js";
 import { represented, sourceOutcome } from "../../policy/types/source-type-flow/representation-results.js";
 import { csharpTargetTypeComponents } from "../../target-model/types/components.js";
-import { targetTypeRefKey } from "../../target-model/types/equality.js";
+import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/equality.js";
+
+interface CsharpNativeMarkers {
+  readonly defaultValue: CsharpSourceDefaultValue | undefined;
+  readonly field: CsharpSourceField | undefined;
+  readonly struct: CsharpSourceStruct | undefined;
+}
 
 export function createCsharpSourceEvidenceBuilder(policy: CsharpPolicyContext): CsharpSourceEvidenceBuilder {
   const { facts, representation, sourceStorage } = policy;
@@ -38,7 +44,10 @@ export function createCsharpSourceEvidenceBuilder(policy: CsharpPolicyContext): 
   const erased = new Set<Node>();
   const targetTypes = new Map<string, TargetTypeRef>();
   const metadataIssues: CsharpSourceEvidenceIndex["memoryMetadataIssues"][number][] = [];
-  const expressionIssues: CsharpSourceEvidenceBuilder["nativeExpressionIssues"][number][] = [];
+  const expressionIssues = new Map<Node, {
+    readonly diagnostic: NonNullable<ReturnType<typeof csharpNativePropertyNameIssue>>;
+    readonly requiredBy: Set<Node>;
+  }>();
   const backing = createCsharpPointerBackingDemands(policy);
   let open = true;
 
@@ -46,25 +55,26 @@ export function createCsharpSourceEvidenceBuilder(policy: CsharpPolicyContext): 
     if (!open) failTargetAnalysisInvariant("tsonic-csharp", "Native evidence production cannot continue after sealing.", node);
   }
 
-  function retain(carrier: TargetTypeRef): TargetTypeRef {
-    const pending = [carrier];
+  function retain(...carriers: readonly TargetTypeRef[]): void {
+    const pending = [...carriers];
     const visited = new Set<TargetTypeRef>();
+    const completed = new Map<string, TargetTypeRef>();
     while (pending.length !== 0) {
       const type = pending.pop()!;
       if (visited.has(type)) continue;
       visited.add(type);
       const key = targetTypeRefKey(type);
-      if (targetTypes.has(key)) continue;
-      targetTypes.set(key, type);
+      if (targetTypes.has(key) || completed.has(key)) continue;
+      completed.set(key, type);
       pending.push(...csharpTargetTypeComponents(type));
     }
-    return carrier;
+    for (const [key, type] of completed) targetTypes.set(key, type);
   }
 
   function represent(evidence: SourceTypeEvidence, position: CsharpRepresentationPosition,
     site: Node): CsharpRepresentationOutcome<TargetTypeRef> {
     const selected = representation.represent(evidence, position, site);
-    return selected.kind !== "represented" ? selected : represented(retain(selected.value.carrier));
+    return selected.kind !== "represented" ? selected : represented(selected.value.carrier);
   }
 
   function field(original: SourceFieldMarker, site: Node): CsharpRepresentationOutcome<CsharpSourceField> {
@@ -73,19 +83,22 @@ export function createCsharpSourceEvidenceBuilder(policy: CsharpPolicyContext): 
       typeNode: original.typeNode, evidence: original.value, carrier: type.value, readonly: original.readonly }));
   }
 
-  function markers(node: Node, evidence: SourceTypeEvidence): CsharpRepresentationOutcome<void> {
+  function markers(node: Node, evidence: SourceTypeEvidence): CsharpRepresentationOutcome<CsharpNativeMarkers> {
     const declaration = sourceOutcome(facts.protocols.declarationMarkers(node));
     if (declaration.kind !== "represented") return declaration;
+    let defaultValue: CsharpSourceDefaultValue | undefined;
+    let fieldValue: CsharpSourceField | undefined;
+    let struct: CsharpSourceStruct | undefined;
     if (declaration.value.defaultValue.kind === "present") {
       const selected = declaration.value.defaultValue.value;
       const type = represent(selected.value, "value", node);
       if (type.kind !== "represented") return type;
-      defaults.set(node, Object.freeze({ typeNode: selected.typeNode, evidence: selected.value, carrier: type.value }));
+      defaultValue = Object.freeze({ typeNode: selected.typeNode, evidence: selected.value, carrier: type.value });
     }
     if (declaration.value.field.kind === "present") {
       const selected = field(declaration.value.field.value, node);
       if (selected.kind !== "represented") return selected;
-      fields.set(node, selected.value);
+      fieldValue = selected.value;
     }
     const selected = sourceOutcome(facts.protocols.typeMarkers(evidence));
     if (selected.kind !== "represented") return selected;
@@ -96,38 +109,70 @@ export function createCsharpSourceEvidenceBuilder(policy: CsharpPolicyContext): 
         if (selectedField.kind !== "represented") return selectedField;
         result.push(selectedField.value);
       }
-      structs.set(node, Object.freeze({ valueType: selected.value.struct.value.valueType, fields: Object.freeze(result) }));
+      struct = Object.freeze({ valueType: selected.value.struct.value.valueType, fields: Object.freeze(result) });
     }
-    return represented(undefined);
+    return represented(Object.freeze({ defaultValue, field: fieldValue, struct }));
+  }
+
+  function markerCarriers(selected: CsharpNativeMarkers): readonly TargetTypeRef[] {
+    return [...(selected.defaultValue === undefined ? [] : [selected.defaultValue.carrier]),
+      ...(selected.field === undefined ? [] : [selected.field.carrier]),
+      ...(selected.struct?.fields.map(field => field.carrier) ?? [])];
+  }
+
+  function publishMarkers(node: Node, selected: CsharpNativeMarkers): void {
+    if (selected.defaultValue !== undefined) {
+      defaults.set(node, selected.defaultValue);
+    }
+    if (selected.field !== undefined) {
+      fields.set(node, selected.field);
+    }
+    if (selected.struct !== undefined) {
+      structs.set(node, selected.struct);
+    }
   }
 
   return Object.freeze({
-    get nativeExpressionIssues() { return Object.freeze([...expressionIssues]); },
+    get nativeExpressionIssues() {
+      return Object.freeze([...expressionIssues].map(([sourceNode, issue]) => Object.freeze({
+        ...issue.diagnostic, sourceNode, requiredBy: Object.freeze([...issue.requiredBy]),
+      })));
+    },
     value(occurrence: Node): CsharpRepresentationOutcome<TargetTypeRef> {
       assertOpen(occurrence);
-      const selected = policy.nativeValue(occurrence);
-      if (selected.kind !== "represented") return selected;
       const evidence = sourceOutcome(facts.values.type(occurrence));
       if (evidence.kind !== "represented") return evidence;
+      const selected = policy.nativeValue(occurrence);
+      if (selected.kind !== "represented") return selected;
       const place = sourceOutcome(facts.protocols.storage(occurrence));
       if (place.kind !== "represented") return place;
       let stored: SourcePresence<{ readonly evidence: SourceTypeEvidence; readonly carrier: TargetTypeRef }> = { kind: "none" };
       if (place.value.kind === "present") {
         const type = represent(place.value.value.value, "storage", occurrence);
         if (type.kind !== "represented") return type;
-        storage.set(occurrence, type.value);
         stored = Object.freeze({ kind: "present", value: Object.freeze({ evidence: place.value.value.value, carrier: type.value }) });
       }
       const context = sourceOutcome(facts.values.contextual(occurrence));
       if (context.kind !== "represented") return context;
+      let contextual: CsharpContextualTypeEvidence | undefined;
       if (context.value.kind === "present") {
         const type = represent(context.value.value, "storage", occurrence);
         if (type.kind !== "represented") return type;
-        contexts.set(occurrence, Object.freeze({ evidence: context.value.value, targetType: type.value }));
+        contextual = Object.freeze({ evidence: context.value.value, targetType: type.value });
       }
       const marked = markers(occurrence, evidence.value);
       if (marked.kind !== "represented") return marked;
-      values.set(occurrence, retain(selected.value));
+      const previous = values.get(occurrence);
+      if (previous !== undefined && !targetTypeRefEquals(previous, selected.value)) failTargetAnalysisInvariant("tsonic-csharp",
+        "One original Native value cannot publish different physical carriers in a representation iteration.", occurrence);
+      retain(selected.value, ...(stored.kind === "present" ? [stored.value.carrier] : []),
+        ...(contextual === undefined ? [] : [contextual.targetType]), ...markerCarriers(marked.value));
+      if (stored.kind === "present") storage.set(occurrence, stored.value.carrier);
+      if (contextual !== undefined) {
+        contexts.set(occurrence, contextual);
+      }
+      publishMarkers(occurrence, marked.value);
+      values.set(occurrence, selected.value);
       refinements.set(occurrence, represented(Object.freeze({ occurrence,
         selected: Object.freeze({ evidence: evidence.value, carrier: selected.value }), storage: stored })));
       return selected;
@@ -138,15 +183,17 @@ export function createCsharpSourceEvidenceBuilder(policy: CsharpPolicyContext): 
       if (declared.kind !== "represented") return declared;
       const selected = markers(node, declared.value.source.type);
       if (selected.kind !== "represented") return selected;
-      storage.set(node, retain(declared.value.value.carrier));
+      retain(declared.value.value.carrier, ...markerCarriers(selected.value));
+      publishMarkers(node, selected.value);
+      storage.set(node, declared.value.value.carrier);
       return represented(declared.value.value.carrier);
     },
     parameter(declaration: Node): CsharpRepresentationOutcome<void> {
       assertOpen(declaration);
       const selected = representation.parameter(representation.source.typeParameter(declaration), declaration);
       if (selected.kind !== "represented") return selected;
-      constraints.set(declaration, selected.value.csharpConstraints);
       retain(selected.value);
+      constraints.set(declaration, selected.value.csharpConstraints);
       return represented(undefined);
     },
     argument(occurrence: Node): CsharpRepresentationOutcome<void> {
@@ -173,6 +220,7 @@ export function createCsharpSourceEvidenceBuilder(policy: CsharpPolicyContext): 
       if (selected.value.kind === "none") return represented(undefined);
       const type = represent(selected.value.value.result, "return", declaration);
       if (type.kind !== "represented") return type;
+      retain(type.value);
       generators.set(declaration, selected.value.value);
       generatorTypes.set(declaration, type.value);
       return represented(undefined);
@@ -182,7 +230,8 @@ export function createCsharpSourceEvidenceBuilder(policy: CsharpPolicyContext): 
       if (signature.declaration !== declaration) throw new TypeError("A Native return record requires its exact original callable declaration.");
       const selected = policy.types.callableReturn(signature, declaration);
       if (selected.kind !== "represented") return selected;
-      returns.set(declaration, retain(selected.value.carrier));
+      retain(selected.value.carrier);
+      returns.set(declaration, selected.value.carrier);
       return represented(selected.value.carrier);
     },
     yielded(occurrence: Node): CsharpRepresentationOutcome<void> {
@@ -192,6 +241,7 @@ export function createCsharpSourceEvidenceBuilder(policy: CsharpPolicyContext): 
       if (selected.value.kind === "none") return represented(undefined);
       const type = represent(selected.value.value.resumed, "value", occurrence);
       if (type.kind !== "represented") return type;
+      retain(type.value);
       yields.set(occurrence, selected.value.value);
       yieldTypes.set(occurrence, type.value);
       return represented(undefined);
@@ -201,8 +251,9 @@ export function createCsharpSourceEvidenceBuilder(policy: CsharpPolicyContext): 
       const selected = resolveCsharpPointerReturnContract(policy, declaration, bindings);
       if (selected.kind !== "represented") return selected;
       if (selected.value !== undefined) {
+        retain(selected.value.type);
         pointerReturns.set(declaration, selected.value);
-        returns.set(declaration, retain(selected.value.type));
+        returns.set(declaration, selected.value.type);
       }
       return represented(undefined);
     },
@@ -211,8 +262,11 @@ export function createCsharpSourceEvidenceBuilder(policy: CsharpPolicyContext): 
       const selected = sourceOutcome(facts.objects.propertyName(name));
       if (selected.kind !== "represented") return selected;
       const diagnostic = csharpNativePropertyNameIssue(name, selected.value);
-      if (diagnostic !== undefined) expressionIssues.push(Object.freeze({ ...diagnostic, sourceNode: name,
-        requiredBy: Object.freeze([requiredBy]) }));
+      if (diagnostic !== undefined) {
+        const previous = expressionIssues.get(name);
+        if (previous === undefined) expressionIssues.set(name, { diagnostic, requiredBy: new Set([requiredBy]) });
+        else previous.requiredBy.add(requiredBy);
+      }
       return represented(undefined);
     },
     metadata(occurrence: Node, bindings: SourceStorageBindings) {
@@ -252,23 +306,31 @@ export function createCsharpSourceEvidenceBuilder(policy: CsharpPolicyContext): 
       assertOpen();
       open = false;
       const pointerBacking = backing.seal();
-      const get = <Value>(entries: ReadonlyMap<Node, Value>) => {
-        const snapshot = new Map(entries);
-        return Object.freeze({ get: (node: Node): Value | undefined => snapshot.get(node) });
-      };
-      const compileTime = new Set(erased);
       return Object.freeze({
         memoryMetadataIssues: Object.freeze([...metadataIssues, ...pointerBacking.issues.map(issue => Object.freeze({
           node: issue.node, code: "CSHARP_POINTER_BACKING_NOT_PROVEN", message: issue.reason }))]),
         pointerBackingUses: pointerBacking.uses,
-        compileTimeMetadata: Object.freeze({ get: (node: Node) => compileTime.has(node) }),
+        compileTimeMetadata: snapshotFlags(erased),
         targetTypes: Object.freeze([...targetTypes.values()]),
-        nodeTargetType: get(values), storageTargetType: get(storage), contextualType: get(contexts), constantValue: get(constants),
-        valueRefinement: get(refinements), generator: get(generators), generatorTargetType: get(generatorTypes),
-        yield: get(yields), yieldTargetType: get(yieldTypes), inferredCallableReturnType: get(returns),
-        pointerReturn: get(pointerReturns), sourceArgument: get(arguments_), sourceDefaultValue: get(defaults),
-        sourceField: get(fields), sourceStruct: get(structs), typeParameterConstraints: get(constraints),
+        nodeTargetType: snapshotQueries(values), storageTargetType: snapshotQueries(storage),
+        contextualType: snapshotQueries(contexts), constantValue: snapshotQueries(constants),
+        valueRefinement: snapshotQueries(refinements), generator: snapshotQueries(generators),
+        generatorTargetType: snapshotQueries(generatorTypes), yield: snapshotQueries(yields),
+        yieldTargetType: snapshotQueries(yieldTypes), inferredCallableReturnType: snapshotQueries(returns),
+        pointerReturn: snapshotQueries(pointerReturns), sourceArgument: snapshotQueries(arguments_),
+        sourceDefaultValue: snapshotQueries(defaults), sourceField: snapshotQueries(fields),
+        sourceStruct: snapshotQueries(structs), typeParameterConstraints: snapshotQueries(constraints),
       });
     },
   });
+}
+
+function snapshotQueries<Value>(entries: ReadonlyMap<Node, Value>) {
+  const snapshot = new Map(entries);
+  return Object.freeze({ get: (node: Node): Value | undefined => snapshot.get(node) });
+}
+
+function snapshotFlags(entries: ReadonlySet<Node>) {
+  const snapshot = new Set(entries);
+  return Object.freeze({ get: (node: Node): boolean => snapshot.has(node) });
 }

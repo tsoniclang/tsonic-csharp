@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createCsharpTypeParameterEnvironment } from "../../../dist/analysis/source-evidence/types/resolution/type-parameter-environment.js";
+import { createCsharpTypeParameterEnvironment } from "../../../dist/policy/types/callables/parameter-environment.js";
 import { CsharpMetadataResourceLimitFailure } from "../../../dist/target-model/metadata/immutable.js";
 import { TargetCompilerResourceLimitFailure } from "@tsonic/target-api/artifacts";
 import { csharpMetadataResourceFailure } from "../../../dist/backend/compile.js";

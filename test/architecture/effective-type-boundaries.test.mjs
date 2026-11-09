@@ -21,7 +21,8 @@ test("the superseded allowance and partial-publication APIs are not exported", (
 });
 
 test("the Native evidence owner deletes the Source solver and seals only completed published-fact records", () => {
-  assert.equal(existsSync(join(root, "src/analysis/source-evidence/types/resolution")), false);
+  const retired = join(root, "src/analysis/source-evidence/types/resolution");
+  assert.deepEqual(existsSync(retired) ? filesUnder(retired).map(file => relative(root, file)) : [], []);
   assert.equal(existsSync(join(root, "src/analysis/source-evidence/types/published-callable-interface.ts")), false);
   const owner = readFileSync(join(root, "src/analysis/source-evidence/analyze.ts"), "utf8");
   const data = readFileSync(join(root, "src/target-model/records/program/source-evidence.ts"), "utf8");

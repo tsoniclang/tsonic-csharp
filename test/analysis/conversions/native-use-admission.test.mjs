@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createCsharpTypeParameterEnvironment } from "../../../dist/analysis/source-evidence/types/resolution/type-parameter-environment.js";
+import { createCsharpTypeParameterEnvironment } from "../../../dist/policy/types/callables/parameter-environment.js";
 import { createTargetSourceProgram, analyzeSourceLiteralValues } from "@tsonic/target-api/source";
 import { compileCsharpSource, checkCsharpSource, assertCsharpCheckingSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { analyzeCsharpExpectedTypes } from "../../../dist/analysis/expected-types/analyze.js";

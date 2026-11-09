@@ -7,10 +7,11 @@ import { resolveCsharpPointerStoragePointee } from "../storage/pointer-pointee.j
 import { represented } from "../../policy/types/source-type-flow/representation-results.js";
 
 export function createCsharpPointerBackingDemands(
-  policy: Pick<CsharpPolicyContext, "facts" | "sourceStorage" | "representation">,
+  policy: Pick<CsharpPolicyContext, "sourceStorage" | "representation">,
 ) {
   const uses: CsharpPointerBackingUse[] = [];
   const issues: { readonly node: Node; readonly reason: string }[] = [];
+  const completed = new Set<Node>();
   let open = true;
   return Object.freeze({
     seal() {
@@ -26,6 +27,7 @@ export function createCsharpPointerBackingDemands(
       const selected = policy.sourceStorage.memory.rawLocation.resolve(node, bindings.bindings);
       if (selected.kind === "refused") return Object.freeze({ kind: "source-refused", refusal: selected });
       if (selected.kind === "unresolved") return selected;
+      if (completed.has(node)) return represented(undefined);
       if (selected.value.kind === "none" || selected.value.value.operation.operation !== "to-raw") return represented(undefined);
       const operation = selected.value.value.operation;
       const subject = policy.sourceStorage.subject(operation.pointer.occurrence);
@@ -39,21 +41,25 @@ export function createCsharpPointerBackingDemands(
           node: boundary.exposure,
           reason: `Physical pointer backing requires a closed source storage domain (${boundary.kind}).`,
         }));
+        completed.add(node);
         return represented(undefined);
       }
       const producers: CsharpPointerBackingProducer[] = [];
+      const unresolved: { readonly node: Node; readonly reason: string }[] = [];
       for (const producer of backing.value.producers) {
         const pointee = resolveCsharpPointerStoragePointee(policy.representation, producer.storage);
         if (pointee.kind !== "represented") return pointee;
-        if (pointee.value.kind === "unresolved") issues.push(Object.freeze({
+        if (pointee.value.kind === "unresolved") unresolved.push(Object.freeze({
           node: producer.operation.occurrence, reason: pointee.value.reason,
         }));
         else producers.push(Object.freeze({ source: producer, pointeeType: pointee.value.type }));
       }
+      issues.push(...unresolved);
       if (producers.length === backing.value.producers.length) uses.push(Object.freeze({
         call: node, producers: Object.freeze(producers), includesAbsence: backing.value.includesAbsence,
         layout: selected.value.value.layout, typeBindings: selected.value.value.typeBindings,
       }));
+      completed.add(node);
       return represented(undefined);
     },
   });
