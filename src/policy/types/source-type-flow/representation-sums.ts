@@ -56,7 +56,7 @@ export function representSourceSum(
       optional = true;
       continue;
     }
-    let index = slots.findIndex(slot => targetTypeRefEquals(slot.carrier, result.value.carrier) &&
+    let index = slots.findIndex(slot => targetTypeRefEquals(host.typeIdentity, slot.carrier, result.value.carrier) &&
       sourceCategoriesEqual(slot.category, arm.category));
     if (index === -1) {
       index = slots.length;
@@ -72,7 +72,7 @@ export function representSourceSum(
   if (optionalStorage !== undefined && optionalStorage.kind !== "represented") return optionalStorage;
   const storageOptional = optionalStorage?.value;
   const carrier = storageOptional?.carrier ?? valueCarrier;
-  const requirements = representationRequirements([...arms.map(arm => arm.requirements), storageOptional?.requirements ?? []]);
+  const requirements = representationRequirements(host.typeIdentity, [...arms.map(arm => arm.requirements), storageOptional?.requirements ?? []]);
   const roleRequirements = [requirements];
   const roles: CsharpSourceRoleWitness[] = [];
   for (const source of application.roles) {
@@ -103,7 +103,7 @@ export function representSourceSum(
     const valueType = valueOptional?.carrier ?? payload;
     roleRequirements.push(valueOptional?.requirements ?? []);
     let witness: CsharpRepresentationOutcome<TargetTypeRef>;
-    if (targetTypeRefEquals(carrier, valueType) && roleSlots.length === slots.length &&
+    if (targetTypeRefEquals(host.typeIdentity, carrier, valueType) && roleSlots.length === slots.length &&
       roleMap.every((entry, index) => entry.kind === "slot" && entry.index === index) && roleOptional === optional) {
       witness = sourceRuntimeType(host, "SourceUnionIdentity", [carrier], "struct", site);
     } else if (!optional && !roleOptional && roleMap.length === 1 && roleMap[0]?.kind === "slot" && slots.length >= 2) {
@@ -112,13 +112,13 @@ export function representSourceSum(
       witness = host.retainRoleWitness(Object.freeze({ storage: carrier, value: valueType,
         storageSlots: Object.freeze([...slots]), valueSlots: Object.freeze(roleSlots), valueToStorage: Object.freeze(roleMap),
         storageOptional, valueOptional,
-        requirements: representationRequirements([requirements, valueOptional?.requirements ?? []]) }), site);
+        requirements: representationRequirements(host.typeIdentity, [requirements, valueOptional?.requirements ?? []]) }), site);
     }
     if (witness.kind !== "represented") return witness;
     roles.push(Object.freeze({ source, valueType, witnessType: witness.value }));
   }
   return represented(Object.freeze({ kind: "closed-source-sum", evidence, application, carrier,
-    requirements: representationRequirements(roleRequirements),
+    requirements: representationRequirements(host.typeIdentity, roleRequirements),
     slots: Object.freeze(slots), armStorage: Object.freeze(armStorage), roles: Object.freeze(roles) }));
 }
 
@@ -139,7 +139,7 @@ function representOpenSum(
     const value = view.represent(binding.value, "type-argument", site);
     if (value.kind !== "represented") return value;
     bindings.push(JSON.stringify([host.identity(binding.declaration).identity, evidenceIdentity(host, binding.value),
-      targetTypeRefKey(value.value.carrier)]));
+      targetTypeRefKey(host.typeIdentity, value.value.carrier)]));
   }
   const identity = JSON.stringify(["source-sum", family, component, bindings, application.arms.map(arm => evidenceIdentity(host, arm)),
     application.freeParameters.map(parameter => host.identity(parameter.declaration).identity)]);
@@ -163,7 +163,7 @@ function representOpenSum(
     roles.push(Object.freeze({ source, valueType, witnessType: witness }));
   }
   return represented(Object.freeze({ kind: "open-source-sum", evidence, application, carrier,
-    requirements: representationRequirements([requirements]), roles: Object.freeze(roles) }));
+    requirements: representationRequirements(host.typeIdentity, [requirements]), roles: Object.freeze(roles) }));
 }
 
 function representOpenOptional(host: CsharpRepresentationHost, view: CsharpRepresentationView, recipes: CsharpRepresentationRequirements,
@@ -175,7 +175,7 @@ function representOpenOptional(host: CsharpRepresentationHost, view: CsharpRepre
   const selectedLayout = representCsharpOptionalStorage(host, payload.value.carrier, site);
   if (selectedLayout.kind !== "represented") return selectedLayout;
   const layout = selectedLayout.value;
-  const identity = JSON.stringify(["source-optional", evidenceIdentity(host, evidence), targetTypeRefKey(layout.carrier)]);
+  const identity = JSON.stringify(["source-optional", evidenceIdentity(host, evidence), targetTypeRefKey(host.typeIdentity, layout.carrier)]);
   const requirements = [payload.value.requirements, layout.requirements];
   const roles: CsharpSourceRoleWitness[] = [];
   for (const source of application.roles) {
@@ -186,9 +186,9 @@ function representOpenOptional(host: CsharpRepresentationHost, view: CsharpRepre
     let selected: CsharpRepresentationOutcome<TargetTypeRef>;
     if (isCsharpAbsenceTargetType(roleType)) selected = sourceRuntimeType(host, "SourceUnionOptionalAbsence",
       [layout.payload, layout.carrier, layout.operations], "struct", site);
-    else if (targetTypeRefEquals(roleType, layout.carrier) && source.armIndexes.length === application.arms.length) {
+    else if (targetTypeRefEquals(host.typeIdentity, roleType, layout.carrier) && source.armIndexes.length === application.arms.length) {
       selected = sourceRuntimeType(host, "SourceUnionIdentity", [layout.carrier], "struct", site);
-    } else if (targetTypeRefEquals(roleType, layout.payload)) {
+    } else if (targetTypeRefEquals(host.typeIdentity, roleType, layout.payload)) {
       const inner = sourceRuntimeType(host, "SourceUnionIdentity", [roleType], "struct", site);
       if (inner.kind !== "represented") return inner;
       selected = sourceRuntimeType(host, "SourceUnionOptionalRole",
@@ -211,7 +211,7 @@ function representOpenOptional(host: CsharpRepresentationHost, view: CsharpRepre
     roles.push(Object.freeze({ source, valueType: roleType, witnessType: witness }));
   }
   return represented(Object.freeze({ kind: "open-source-sum", evidence, application, carrier: layout.carrier,
-    requirements: representationRequirements(requirements), roles: Object.freeze(roles) }));
+    requirements: representationRequirements(host.typeIdentity, requirements), roles: Object.freeze(roles) }));
 }
 
 function openRoleValue(host: CsharpRepresentationHost, view: CsharpRepresentationView, recipes: CsharpRepresentationRequirements, evidence: SourceTypeEvidence,

@@ -66,7 +66,7 @@ export function representSourceCategory(
         "CSHARP_SOURCE_CATEGORY_STORAGE_MISMATCH", "The authenticated Source category cannot be represented by the actual Native carrier.");
       const logical = view.represent(evidence, "value", site);
       if (logical.kind !== "represented") return logical;
-      if (!targetTypeRefEquals(logical.value.carrier, physicalCarrier)) return nativeRepresentationFailure(site,
+      if (!targetTypeRefEquals(host.typeIdentity, logical.value.carrier, physicalCarrier)) return nativeRepresentationFailure(site,
         "CSHARP_SOURCE_CATEGORY_STORAGE_MISMATCH", "The authenticated Source category cannot be represented by the actual Native carrier.");
       return represented(Object.freeze({ ...base, requirements: logical.value.requirements, kind: "known", category: category.category }));
     }
@@ -78,13 +78,13 @@ export function representSourceCategory(
     const contract = sourceRuntimeType(host, "ISourceValueCategory", [physicalCarrier], "interface", site);
     if (contract.kind !== "represented") return contract;
     const witness = sourceRepresentationParameter(JSON.stringify(["source-category", host.identity(category.declaration).identity,
-      targetTypeRefKey(physicalCarrier)]), "SourceCategory", [
+      targetTypeRefKey(host.typeIdentity, physicalCarrier)]), "SourceCategory", [
       { kind: "keyword", keyword: "struct" },
       { kind: "type", type: contract.value },
     ], sourceRepresentationDependencies(host, evidence));
     recipes.retain(witness, { kind: "category", evidence, physicalCarrier });
     return represented(Object.freeze({ ...base, kind: "witness", witnessType: witness,
-      requirements: representationRequirements([original.value.requirements, [witness]]) }));
+      requirements: representationRequirements(host.typeIdentity, [original.value.requirements, [witness]]) }));
   }
   if (category.kind === "dynamic") {
     if (!isCsharpJsValueTargetType(physicalCarrier)) return nativeRepresentationFailure(site, "CSHARP_SOURCE_CATEGORY_STORAGE_MISMATCH",
@@ -107,27 +107,27 @@ export function representSourceCategory(
     const selectedLayout = representCsharpOptionalStorage(host, valueType, site);
     if (selectedLayout.kind !== "represented") return selectedLayout;
     const layout = selectedLayout.value;
-    if (!targetTypeRefEquals(layout.carrier, physicalCarrier)) return nativeRepresentationFailure(site,
+    if (!targetTypeRefEquals(host.typeIdentity, layout.carrier, physicalCarrier)) return nativeRepresentationFailure(site,
       "CSHARP_SOURCE_CATEGORY_STORAGE_MISMATCH", "The optional Source category requires its actual Native storage and operations contract.");
     const witness = sourceRuntimeType(host, "SourceOptionalValueCategory", [valueType, physicalCarrier, layout.operations, valueWitness.value], "struct", site);
     return witness.kind !== "represented" ? witness : represented(Object.freeze({ ...base, kind: "witness", witnessType: witness.value,
-      requirements: representationRequirements([value.value.requirements, layout.requirements]) }));
+      requirements: representationRequirements(host.typeIdentity, [value.value.requirements, layout.requirements]) }));
   }
 
   const representedType = view.represent(evidence, "value", site);
   if (representedType.kind !== "represented") return representedType;
   const layout = representedType.value;
-  if (layout.kind === "open-source-sum" && targetTypeRefEquals(physicalCarrier, layout.carrier)) {
+  if (layout.kind === "open-source-sum" && targetTypeRefEquals(host.typeIdentity, physicalCarrier, layout.carrier)) {
     const contract = sourceRuntimeType(host, "ISourceValueCategory", [physicalCarrier], "interface", site);
     if (contract.kind !== "represented") return contract;
-    const witness = sourceRepresentationParameter(JSON.stringify(["source-category", targetTypeRefKey(layout.carrier)]), "SourceCategory", [
+    const witness = sourceRepresentationParameter(JSON.stringify(["source-category", targetTypeRefKey(host.typeIdentity, layout.carrier)]), "SourceCategory", [
       { kind: "keyword", keyword: "struct" }, { kind: "type", type: contract.value },
     ], sourceRepresentationDependencies(host, evidence));
     recipes.retain(witness, { kind: "category", evidence, physicalCarrier });
     return represented(Object.freeze({ ...base, kind: "witness", witnessType: witness,
-      requirements: representationRequirements([layout.requirements, [witness]]) }));
+      requirements: representationRequirements(host.typeIdentity, [layout.requirements, [witness]]) }));
   }
-  if (layout.kind !== "closed-source-sum" || !targetTypeRefEquals(layout.carrier, physicalCarrier)) {
+  if (layout.kind !== "closed-source-sum" || !targetTypeRefEquals(host.typeIdentity, layout.carrier, physicalCarrier)) {
     return nativeRepresentationFailure(site, "CSHARP_SOURCE_CATEGORY_STORAGE_MISMATCH",
       "A mixed Source category requires an authenticated correspondence to the actual Native immediate slot vector.");
   }
@@ -154,7 +154,7 @@ export function representSourceCategory(
     const selectedStorage = representCsharpOptionalStorage(host, valueType, site);
     if (selectedStorage.kind !== "represented") return selectedStorage;
     const storage = selectedStorage.value;
-    if (!targetTypeRefEquals(storage.carrier, physicalCarrier)) return nativeRepresentationFailure(site,
+    if (!targetTypeRefEquals(host.typeIdentity, storage.carrier, physicalCarrier)) return nativeRepresentationFailure(site,
       "CSHARP_SOURCE_CATEGORY_STORAGE_MISMATCH", "The optional Source category requires its actual Native storage and operations contract.");
     const optionalWitness = sourceRuntimeType(host, "SourceOptionalValueCategory", [valueType, physicalCarrier, storage.operations, witness], "struct", site);
     if (optionalWitness.kind !== "represented") return optionalWitness;
@@ -162,5 +162,5 @@ export function representSourceCategory(
     requirements.push(storage.requirements);
   }
   return represented(Object.freeze({ ...base, kind: "witness", witnessType: witness,
-    requirements: representationRequirements(requirements) }));
+    requirements: representationRequirements(host.typeIdentity, requirements) }));
 }

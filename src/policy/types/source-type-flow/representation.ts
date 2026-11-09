@@ -123,7 +123,7 @@ export function createCsharpRepresentationView(host: CsharpRepresentationHost): 
   function direct(evidence: SourceTypeEvidence, carrier: TargetTypeRef,
     children: readonly CsharpRepresentedType[] = []): CsharpRepresentationOutcome<CsharpRepresentedType> {
     return represented(Object.freeze({ kind: "direct", evidence, carrier,
-      requirements: representationRequirements(children.map(child => child.requirements)) }));
+      requirements: representationRequirements(host.typeIdentity, children.map(child => child.requirements)) }));
   }
 
   function child(evidence: SourceTypeEvidence, selector: SourceComponentSelector,
@@ -154,7 +154,7 @@ export function createCsharpRepresentationView(host: CsharpRepresentationHost): 
       if (original.kind !== "represented") return original;
       typeParameters.push(original.value);
     }
-    const requirements = representationRequirements([...children.map(child => child.requirements), completion.value.requirements,
+    const requirements = representationRequirements(host.typeIdentity, [...children.map(child => child.requirements), completion.value.requirements,
       receiver?.requirements ?? []]);
     const bound = new Set(typeParameters.map(parameter => parameter.identity));
     let changed = true;
@@ -187,7 +187,7 @@ export function createCsharpRepresentationView(host: CsharpRepresentationHost): 
     if (carrier.kind !== "represented") return carrier;
     const bound = new Set(values.flatMap(value => value.typeParameters.map(parameter => parameter.identity)));
     return represented(Object.freeze({ kind: "direct", evidence, carrier: carrier.value,
-      requirements: Object.freeze(representationRequirements(children.map(child => child.requirements)).filter(parameter => !bound.has(parameter.identity))) }));
+      requirements: Object.freeze(representationRequirements(host.typeIdentity, children.map(child => child.requirements)).filter(parameter => !bound.has(parameter.identity))) }));
   }
 
   function representDirect(evidence: SourceTypeEvidence, position: CsharpRepresentationPosition,
@@ -226,7 +226,7 @@ export function createCsharpRepresentationView(host: CsharpRepresentationHost): 
         if (value.kind !== "represented") return value;
         const layout = representCsharpOptionalStorage(host, value.value.carrier, site);
         return layout.kind !== "represented" ? layout : represented(Object.freeze({ kind: "direct", evidence, carrier: layout.value.carrier,
-          requirements: representationRequirements([value.value.requirements, layout.value.requirements]) }));
+          requirements: representationRequirements(host.typeIdentity, [value.value.requirements, layout.value.requirements]) }));
       }
       case "tuple": {
         const children: CsharpRepresentedType[] = [];
@@ -247,7 +247,7 @@ export function createCsharpRepresentationView(host: CsharpRepresentationHost): 
           selectedCsharpSourceProfileOwner(host.target) === "js");
         return carrier === undefined ? nativeRepresentationFailure(site, "CSHARP_TUPLE_STORAGE_UNSUPPORTED",
           "This Source tuple requires a Native storage layout that preserves every fixed and rest element.") : represented(Object.freeze({
-            kind: "direct", evidence, carrier, requirements: representationRequirements(requirements) }));
+            kind: "direct", evidence, carrier, requirements: representationRequirements(host.typeIdentity, requirements) }));
       }
       case "declared": {
         const arguments_: CsharpRepresentedType[] = [];
@@ -260,7 +260,7 @@ export function createCsharpRepresentationView(host: CsharpRepresentationHost): 
         if (native.kind !== "represented") return native;
         if (native.value.kind === "present") return represented(Object.freeze({ kind: "direct", evidence,
           carrier: native.value.value.carrier,
-          requirements: representationRequirements([...arguments_.map(value => value.requirements), native.value.value.requirements]) }));
+          requirements: representationRequirements(host.typeIdentity, [...arguments_.map(value => value.requirements), native.value.value.requirements]) }));
         const definition = sourceOutcome(host.source.definition(evidence));
         if (definition.kind !== "represented") return definition;
         if (definition.value === evidence) return nativeRepresentationFailure(site, "CSHARP_DECLARED_CARRIER_MISSING",

@@ -5,6 +5,7 @@ import type { CsharpNativeMethodTypeParameter } from "../../../target-model/type
 import type { CsharpRepresentationOutcome, CsharpRepresentationPosition, CsharpRepresentationView } from "../../../target-model/types/representation.js";
 import type { CsharpRepresentationHost } from "./representation-host.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
+import type { CsharpNativeTypeIdentity } from "../../../target-model/types/equality.js";
 import { csharpTypeParameterConstraintResolutionKey } from "../../../target-model/types/generic-constraints.js";
 import { csharpFreeTypeParameterIdentities } from "../../../target-model/types/generic-references.js";
 import { substituteTargetTypeParameters } from "../../../target-model/types/substitution.js";
@@ -42,12 +43,12 @@ export function createCsharpRepresentationRequirements(host: CsharpRepresentatio
       recipes.set(parameter.identity, { parameter, recipes: [recipe] });
       return;
     }
-    if (!sameParameter(previous.parameter, {
+    if (!sameParameter(host.typeIdentity, previous.parameter, {
       identity: parameter.identity, name: parameter.name,
       ...(parameter.csharpDeclaration === undefined ? {} : { declaration: parameter.csharpDeclaration }),
       constraints: parameter.csharpConstraints.constraints,
     })) throw new TypeError("A Native requirement recipe cannot replace its original binder contract.");
-    if (!previous.recipes.some(original => sameRecipe(original, recipe))) previous.recipes.push(recipe);
+    if (!previous.recipes.some(original => sameRecipe(host.typeIdentity, original, recipe))) previous.recipes.push(recipe);
   }
 
   function retainNative(parameters: readonly CsharpRepresentedTypeParameter[]): void {
@@ -143,7 +144,7 @@ export function createCsharpRepresentationRequirements(host: CsharpRepresentatio
         for (const recipe of entry.recipes) {
           const value = select(entry.parameter, recipe);
           if (value.kind !== "represented") return value;
-          if (selected !== undefined && !targetTypeRefEquals(selected, value.value)) return nativeRepresentationFailure(site,
+          if (selected !== undefined && !targetTypeRefEquals(host.typeIdentity, selected, value.value)) return nativeRepresentationFailure(site,
             "CSHARP_NATIVE_REQUIREMENT_APPLICATION_CONFLICT", "One original Native binder has incompatible applied physical requirements.");
           selected = value.value;
         }
@@ -162,7 +163,7 @@ export function createCsharpRepresentationRequirements(host: CsharpRepresentatio
       seen.add(parameter.identity);
       const entry = recipes.get(parameter.identity);
       if (entry === undefined) return missing(parameter.identity);
-      if (!sameParameter(entry.parameter, parameter)) throw new TypeError("A Native application cannot replace its retained original binder contract.");
+      if (!sameParameter(host.typeIdentity, entry.parameter, parameter)) throw new TypeError("A Native application cannot replace its retained original binder contract.");
       const value = resolve(parameter.identity);
       if (value.kind !== "represented") return value;
       result.push(value.value);
@@ -173,13 +174,13 @@ export function createCsharpRepresentationRequirements(host: CsharpRepresentatio
   return Object.freeze({ retain, retainNative, apply });
 }
 
-function sameParameter(original: CsharpRepresentedTypeParameter, parameter: CsharpNativeMethodTypeParameter): boolean {
+function sameParameter(identity: CsharpNativeTypeIdentity, original: CsharpRepresentedTypeParameter, parameter: CsharpNativeMethodTypeParameter): boolean {
   return original.identity === parameter.identity && original.name === parameter.name &&
-    original.csharpDeclaration === parameter.declaration && csharpTypeParameterConstraintResolutionKey(original.csharpConstraints) ===
-    csharpTypeParameterConstraintResolutionKey({ kind: "resolved", constraints: parameter.constraints });
+    original.csharpDeclaration === parameter.declaration && csharpTypeParameterConstraintResolutionKey(identity, original.csharpConstraints) ===
+    csharpTypeParameterConstraintResolutionKey(identity, { kind: "resolved", constraints: parameter.constraints });
 }
 
-function sameRecipe(left: CsharpRepresentationRequirementRecipe, right: CsharpRepresentationRequirementRecipe): boolean {
+function sameRecipe(identity: CsharpNativeTypeIdentity, left: CsharpRepresentationRequirementRecipe, right: CsharpRepresentationRequirementRecipe): boolean {
   if (left.kind !== right.kind) return false;
   switch (left.kind) {
     case "parameter": return right.kind === "parameter" && left.original === right.original;
@@ -187,6 +188,6 @@ function sameRecipe(left: CsharpRepresentationRequirementRecipe, right: CsharpRe
     case "value": return right.kind === "value" && left.evidence === right.evidence && left.position === right.position;
     case "role": case "role-value": return (right.kind === "role" || right.kind === "role-value") && left.evidence === right.evidence && left.role === right.role;
     case "category": case "collection-key": return (right.kind === "category" || right.kind === "collection-key") &&
-      left.evidence === right.evidence && targetTypeRefEquals(left.physicalCarrier, right.physicalCarrier);
+      left.evidence === right.evidence && targetTypeRefEquals(identity, left.physicalCarrier, right.physicalCarrier);
   }
 }

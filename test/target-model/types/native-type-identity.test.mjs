@@ -7,7 +7,7 @@ const primitive = name => Object.freeze({ kind: "source-primitive", name });
 const named = (id, typeArguments) => Object.freeze({ kind: "target-named", id,
   typeArguments: Object.freeze(typeArguments), csharpAllowsRefLikeTypeArguments: Object.freeze(typeArguments.map(() => false)) });
 
-for (const purpose of ["physical", "emission"]) {
+for (const purpose of ["physical", "emission", "storage"]) {
   test(`${purpose} program identity charges first work once across shared Pair children and distinct wrappers`, () => {
     const dimensions = [16, 32, 64];
     assert.deepEqual(dimensions, [16, 32, 64], "the complete scaling domain precedes actual inventory checks");
@@ -15,6 +15,7 @@ for (const purpose of ["physical", "emission"]) {
     for (const dimension of dimensions) {
       const budget = createCsharpMetadataBudget();
       const owner = createCsharpNativeTypeIdentity(budget);
+      const key = value => purpose === "storage" ? owner.storageKey(value) : owner.key(value, purpose);
       const leaf = primitive("int32");
       const nodes = [leaf];
       let child = leaf;
@@ -26,18 +27,18 @@ for (const purpose of ["physical", "emission"]) {
       assert.equal(nodes.length, dimension + 1, "every shared physical Pair level remains present");
       assert.equal(wrappers.length, dimension, "every separately requested wrapper remains present");
       const initial = budget.remaining();
-      const keys = wrappers.map(wrapper => owner.key(wrapper, purpose));
-      const domain = [...nodes, ...wrappers].map(node => owner.key(node, purpose));
+      const keys = wrappers.map(key);
+      const domain = [...nodes, ...wrappers].map(key);
       assert.equal(new Set(domain).size, 2 * dimension + 1,
         "the complete expected leaf/Pair/wrapper key domain must exist before work is compared");
       work.push(initial - budget.remaining());
       const completed = budget.remaining();
-      assert.deepEqual(wrappers.map(wrapper => owner.key(wrapper, purpose)), keys);
+      assert.deepEqual(wrappers.map(key), keys);
       assert.equal(budget.remaining(), completed, "completed graph lookup does not charge or re-expand a shared subtree");
-      assert.equal(owner.key(named("fixture.Pair`2", [child, child]), purpose),
-        owner.key(named("fixture.Pair`2", [child, child]), purpose), "equal separate parent objects have one content identity");
-      assert.notEqual(owner.key(named("fixture.Pair`2", [child, primitive("int64")]), purpose),
-        owner.key(named("fixture.Pair`2", [primitive("int64"), child]), purpose), "both ordered Native child positions are authoritative");
+      assert.equal(key(named("fixture.Pair`2", [child, child])),
+        key(named("fixture.Pair`2", [child, child])), "equal separate parent objects have one content identity");
+      assert.notEqual(key(named("fixture.Pair`2", [child, primitive("int64")])),
+        key(named("fixture.Pair`2", [primitive("int64"), child])), "both ordered Native child positions are authoritative");
     }
     assert.equal(work.length, dimensions.length);
     assert.equal(work[1] < work[0] * 3 && work[2] < work[1] * 3, true,
@@ -57,6 +58,11 @@ test("one program identity preserves scoped binders, SZ-array rank presence and 
   const vector = Object.freeze({ kind: "array", element });
   const rectangular = Object.freeze({ kind: "array", element, rank: 1 });
   assert.notEqual(owner.key(vector), owner.key(rectangular), "SZ vector is not CLR rank-one [*]");
+  const annotated = Object.freeze({ ...named("fixture.Reference`1", [element]), csharpNullableReference: true });
+  const present = named("fixture.Reference`1", [element]);
+  assert.notEqual(owner.key(annotated), owner.key(present), "physical admission retains the reference annotation");
+  assert.equal(owner.storageKey(annotated), owner.storageKey(present), "the same canonical storage comparison ignores only CLR reference annotations");
+  assert.notEqual(owner.storageKey(vector), owner.storageKey(rectangular), "storage identity retains the actual CLR array kind");
   assert.equal(targetTypeRefEquals(owner, vector, vector), true);
   assert.equal(targetTypeRefKey(owner, vector), owner.key(vector));
   const completed = owner.key(vector, "emission");

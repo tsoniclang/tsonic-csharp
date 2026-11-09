@@ -32,14 +32,14 @@ export function representCsharpSourceCollectionKey(host: CsharpRepresentationHos
     const selectedStorage = representCsharpOptionalStorage(host, payload, site);
     if (selectedStorage.kind !== "represented") return selectedStorage;
     const storage = selectedStorage.value;
-    if (!targetTypeRefEquals(storage.carrier, physicalCarrier)) return nativeRepresentationFailure(site,
+    if (!targetTypeRefEquals(host.typeIdentity, storage.carrier, physicalCarrier)) return nativeRepresentationFailure(site,
       "CSHARP_SOURCE_KEY_OPTIONAL_STORAGE_MISMATCH", "The Source optional key requires its actual Native payload, storage and operations contract.");
     const selected = view.collectionKey(original.value, payload, site);
     if (selected.kind !== "represented") return selected;
     const type = collectionKey(host, "OptionalCollectionKey", [storage.payload, storage.carrier, storage.operations, selected.value.type], site);
     return type.kind !== "represented" ? type : represented(Object.freeze({
       type: type.value,
-      requirements: representationRequirements([storage.requirements, selected.value.requirements]),
+      requirements: representationRequirements(host.typeIdentity, [storage.requirements, selected.value.requirements]),
     }));
   }
   const logical = view.represent(evidence, "type-argument", site);
@@ -47,7 +47,7 @@ export function representCsharpSourceCollectionKey(host: CsharpRepresentationHos
   const key = logical.value;
   const requirements = [key.requirements];
   let selected: TargetTypeRef;
-  if (key.kind === "closed-source-sum" && targetTypeRefEquals(key.carrier, physicalCarrier) && key.slots.length >= 2) {
+  if (key.kind === "closed-source-sum" && targetTypeRefEquals(host.typeIdentity, key.carrier, physicalCarrier) && key.slots.length >= 2) {
     const arguments_: TargetTypeRef[] = [];
     for (const [index, slot] of key.slots.entries()) {
       const original = key.armStorage.findIndex(storage => storage.kind === "slot" && storage.index === index);
@@ -63,7 +63,7 @@ export function representCsharpSourceCollectionKey(host: CsharpRepresentationHos
     const type = collectionKey(host, "UnionCollectionKey", Object.freeze(arguments_), site);
     if (type.kind !== "represented") return type;
     selected = type.value;
-  } else if (key.kind === "closed-source-sum" && targetTypeRefEquals(key.carrier, physicalCarrier) && key.slots.length === 1) {
+  } else if (key.kind === "closed-source-sum" && targetTypeRefEquals(host.typeIdentity, key.carrier, physicalCarrier) && key.slots.length === 1) {
     const original = key.armStorage.findIndex(storage => storage.kind === "slot");
     const arm = key.application.arms[original];
     if (arm === undefined) throw new TypeError("A collection payload requires its original Source arm evidence.");
@@ -83,7 +83,7 @@ export function representCsharpSourceCollectionKey(host: CsharpRepresentationHos
     if (categoryWitness.kind !== "represented") return categoryWitness;
     const categoryType = categoryWitness.value;
     if (view.source.freeParameters(evidence).length !== 0) {
-      const identity = JSON.stringify(["collection-key", targetTypeRefKey(physicalCarrier), targetTypeRefKey(categoryType)]);
+      const identity = JSON.stringify(["collection-key", targetTypeRefKey(host.typeIdentity, physicalCarrier), targetTypeRefKey(host.typeIdentity, categoryType)]);
       const dependencies = key.requirements;
       const shell = sourceRepresentationParameterReference(identity, "CollectionKey", dependencies);
       const contract = collectionKey(host, "ICollectionKey", [physicalCarrier, shell], site);
@@ -92,25 +92,25 @@ export function representCsharpSourceCollectionKey(host: CsharpRepresentationHos
         { kind: "keyword", keyword: "struct" }, { kind: "type", type: contract.value },
       ], dependencies);
       recipes.retain(type, { kind: "collection-key", evidence, physicalCarrier });
-      return represented(Object.freeze({ type, requirements: representationRequirements([...requirements, [type]]) }));
+      return represented(Object.freeze({ type, requirements: representationRequirements(host.typeIdentity, [...requirements, [type]]) }));
     }
     const type = collectionKey(host, "SourceCollectionKey", [physicalCarrier, categoryType], site);
     if (type.kind !== "represented") return type;
     selected = type.value;
   }
-  if (key.kind === "closed-source-sum" && targetTypeRefEquals(key.carrier, physicalCarrier) && key.armStorage.some(storage => storage.kind === "absence")) {
+  if (key.kind === "closed-source-sum" && targetTypeRefEquals(host.typeIdentity, key.carrier, physicalCarrier) && key.armStorage.some(storage => storage.kind === "absence")) {
     const payload = getCsharpNullableElementTargetType(physicalCarrier) ?? getCsharpGenericOptionalParts(physicalCarrier)?.element;
     if (payload === undefined) return nativeRepresentationFailure(site, "CSHARP_SOURCE_KEY_OPTIONAL_STORAGE_MISMATCH",
       "The Source optional key requires its actual Native payload, storage and operations contract.");
     const selectedStorage = representCsharpOptionalStorage(host, payload, site);
     if (selectedStorage.kind !== "represented") return selectedStorage;
     const storage = selectedStorage.value;
-    if (!targetTypeRefEquals(storage.carrier, physicalCarrier)) return nativeRepresentationFailure(site,
+    if (!targetTypeRefEquals(host.typeIdentity, storage.carrier, physicalCarrier)) return nativeRepresentationFailure(site,
       "CSHARP_SOURCE_KEY_OPTIONAL_STORAGE_MISMATCH", "The Source optional key requires its actual Native payload, storage and operations contract.");
     const type = collectionKey(host, "OptionalCollectionKey", [payload, physicalCarrier, storage.operations, selected], site);
     if (type.kind !== "represented") return type;
     selected = type.value;
     requirements.push(storage.requirements);
   }
-  return represented(Object.freeze({ type: selected, requirements: representationRequirements(requirements) }));
+  return represented(Object.freeze({ type: selected, requirements: representationRequirements(host.typeIdentity, requirements) }));
 }

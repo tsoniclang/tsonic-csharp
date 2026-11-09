@@ -7,6 +7,7 @@ import { createCsharpMetadataBudget } from "../metadata/immutable.js";
 
 export interface CsharpNativeTypeIdentity {
   key(type: TargetTypeRef, purpose?: "physical" | "emission"): string;
+  storageKey(type: TargetTypeRef): string;
   scopedKey(type: TargetTypeRef, boundParameters: ReadonlyMap<string, number>, purpose?: "physical" | "emission"): string;
   components(type: TargetTypeRef, purpose: "physical" | "emission"): readonly TargetTypeRef[];
 }
@@ -52,6 +53,7 @@ export function createCsharpNativeTypeIdentity(budget: ReturnType<typeof createC
   let open = true;
   const view: CsharpNativeTypeIdentity = Object.freeze({
     key: (type: TargetTypeRef, purpose: "physical" | "emission" = "physical") => scopedKey(type, noBoundTypeParameters, purpose),
+    storageKey: (type: TargetTypeRef) => scopedKey(type, noBoundTypeParameters, "storage"),
     scopedKey,
     components,
   });
@@ -75,7 +77,7 @@ export function createCsharpNativeTypeIdentity(budget: ReturnType<typeof createC
   }
 
   function scopedKey(type: TargetTypeRef, boundParameters: ReadonlyMap<string, number>,
-  purpose: "physical" | "emission" = "physical"): string {
+  purpose: "physical" | "emission" | "storage" = "physical"): string {
   let environment = environments.get(boundParameters);
   if (environment === undefined) {
     if (!open) throw new TypeError("Sealed Native identity requires its identical enrolled binder environment.");
@@ -107,7 +109,7 @@ export function createCsharpNativeTypeIdentity(budget: ReturnType<typeof createC
       continue;
     }
     const physical = physicalEntry(frame.type);
-    const entry = purpose === "physical" ? physical : [physical, emissionEntry(frame.type, frame.children)];
+    const entry = purpose !== "emission" ? physical : [physical, emissionEntry(frame.type, frame.children)];
     const key = JSON.stringify([purpose, entry]);
     let position = positions.get(key);
     if (position === undefined) {
@@ -124,7 +126,7 @@ export function createCsharpNativeTypeIdentity(budget: ReturnType<typeof createC
   function enter(value: TargetTypeRef): void {
     budget.reserve(1);
     active.add(value);
-    pending.push({ type: value, children: components(value, purpose), index: 0 });
+    pending.push({ type: value, children: components(value, purpose === "storage" ? "physical" : purpose), index: 0 });
   }
 
   function positionOf(value: TargetTypeRef): number {
@@ -134,7 +136,7 @@ export function createCsharpNativeTypeIdentity(budget: ReturnType<typeof createC
   }
 
   function physicalEntry(value: TargetTypeRef): readonly unknown[] {
-    const nullable = isCsharpNullableReferenceTargetType(value);
+    const nullable = purpose !== "storage" && isCsharpNullableReferenceTargetType(value);
     switch (value.kind) {
       case "source-primitive":
         return [value.kind, nullable, value.name];

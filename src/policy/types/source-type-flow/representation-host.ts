@@ -20,6 +20,7 @@ import type {
 import type { CsharpNativeStorageCategory, CsharpNativeStorageDefinition, CsharpNativeStorageKey } from "../../../target-model/types/native-storage.js";
 import type { CsharpProviderRelationResolver } from "../../../providers/model/relation-resolver.js";
 import type { CsharpProviderNativeDeclarationResolution } from "../../../target-model/metadata/provider-metadata.js";
+import type { CsharpNativeTypeIdentity } from "../../../target-model/types/equality.js";
 
 export interface CsharpSourceMemberDeclaration {
   readonly declarations: readonly Node[];
@@ -29,6 +30,7 @@ export interface CsharpSourceMemberDeclaration {
 }
 
 export interface CsharpRepresentationHost {
+  readonly typeIdentity: CsharpNativeTypeIdentity;
   readonly source: SourceDescriptorView;
   readonly applications: SourceApplicationFacts;
   readonly target: TargetSelection;

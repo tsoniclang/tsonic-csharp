@@ -49,6 +49,7 @@ export function createCsharpNativeRepresentationHost(ports: CsharpNativeRepresen
   const sourceView = source.facts.descriptors;
   const boundDeclarations = new Set(ports.memoryBindings.selectedDeclarations);
   const host: CsharpRepresentationHost = {
+    typeIdentity: providers.typeIdentity,
     source: sourceView,
     applications: source.facts.applications,
     providers,
@@ -78,11 +79,11 @@ export function createCsharpNativeRepresentationHost(ports: CsharpNativeRepresen
       if (evidence.type.kind !== "declared") throw new TypeError("A Native declared carrier requires original declared evidence.");
       const { declaration, extent } = evidence.type;
       const argumentsCarriers = arguments_.map(argument => argument.carrier);
-      const requirements = representationRequirements(arguments_.map(argument => argument.requirements));
+      const requirements = representationRequirements(host.typeIdentity, arguments_.map(argument => argument.requirements));
       const present = (carrier: TargetTypeRef, additional: CsharpDeclaredRepresentation["requirements"] = []):
         CsharpRepresentationOutcome<{ readonly kind: "present"; readonly value: CsharpDeclaredRepresentation }> =>
         represented(Object.freeze({ kind: "present", value: Object.freeze({ carrier,
-          requirements: representationRequirements([requirements, additional]) }) }));
+          requirements: representationRequirements(host.typeIdentity, [requirements, additional]) }) }));
       if (extent !== undefined) {
         if (extent.length < 0n || extent.length > 2_147_483_647n || arguments_.length !== 2 || arguments_[0] === undefined) {
           return nativeRepresentationFailure(site, "CSHARP_FIXED_ARRAY_EXTENT_UNSUPPORTED",
@@ -112,7 +113,7 @@ export function createCsharpNativeRepresentationHost(ports: CsharpNativeRepresen
         const result = ports.representation().represent(selected.result, "return", site);
         if (result.kind !== "represented") return result;
         return present(Object.freeze({ kind: "function-pointer", args: Object.freeze(parameters.map(parameter => parameter.carrier)),
-          result: result.value.carrier, abi: selected.abi }), representationRequirements([
+          result: result.value.carrier, abi: selected.abi }), representationRequirements(host.typeIdentity, [
           result.value.requirements, ...parameters.map(parameter => parameter.requirements),
         ]));
       }
@@ -204,7 +205,7 @@ export function createCsharpNativeRepresentationHost(ports: CsharpNativeRepresen
           name: "receiver", type: signature.receiver.carrier, passingMode: receiverMode.value,
         });
         const typeParameters = signature.typeParameters;
-        const requirements = representationRequirements([signature.result.requirements,
+        const requirements = representationRequirements(host.typeIdentity, [signature.result.requirements,
           ...signature.parameters.map(parameter => parameter.requirements), ...(signature.receiver === undefined ? [] : [signature.receiver.requirements]),
           typeParameters]);
         requests.push(Object.freeze({ source: signature.source.identity, receiver, parameters: Object.freeze(parameters),
@@ -212,7 +213,7 @@ export function createCsharpNativeRepresentationHost(ports: CsharpNativeRepresen
       }
       const first = signatures[0]!;
       if (storage === "value" && signatures.every(signature => signature.source.identity.kind === "construct" &&
-          targetTypeRefEquals(signature.result.carrier, first.result.carrier))) {
+          targetTypeRefEquals(host.typeIdentity, signature.result.carrier, first.result.carrier))) {
         const factory = selectCsharpClassFactoryType(ast, catalog, first.result.carrier);
         if (factory !== undefined) return represented(factory);
       }

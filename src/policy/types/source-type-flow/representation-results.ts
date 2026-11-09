@@ -3,6 +3,7 @@ import type { SourceResult } from "@tsonic/target-api/source";
 import type { CsharpRepresentationOutcome } from "../../../target-model/types/representation.js";
 import type { CsharpRepresentedTypeParameter } from "../../../target-model/types/native-type-data.js";
 import { targetTypeRefKey } from "../../../target-model/types/equality.js";
+import type { CsharpNativeTypeIdentity } from "../../../target-model/types/equality.js";
 import { csharpTypeParameterConstraintResolutionKey } from "../../../target-model/types/generic-constraints.js";
 
 export function represented<Value>(value: Value): Extract<CsharpRepresentationOutcome<Value>, { readonly kind: "represented" }> {
@@ -22,16 +23,17 @@ export function nativeRepresentationFailure(
 }
 
 export function representationRequirements(
+  identity: CsharpNativeTypeIdentity,
   groups: readonly (readonly CsharpRepresentedTypeParameter[])[],
 ): readonly CsharpRepresentedTypeParameter[] {
   const byIdentity = new Map<string, CsharpRepresentedTypeParameter>();
   for (const parameters of groups) for (const parameter of parameters) {
     const previous = byIdentity.get(parameter.identity);
-    if (previous !== undefined && (targetTypeRefKey(previous) !== targetTypeRefKey(parameter) ||
+    if (previous !== undefined && (targetTypeRefKey(identity, previous) !== targetTypeRefKey(identity, parameter) ||
       previous.csharpDeclaration !== parameter.csharpDeclaration ||
-      JSON.stringify(previous.csharpRequirementDependencies?.map(type => targetTypeRefKey(type)) ?? []) !==
-        JSON.stringify(parameter.csharpRequirementDependencies?.map(type => targetTypeRefKey(type)) ?? []) ||
-      csharpTypeParameterConstraintResolutionKey(previous.csharpConstraints) !== csharpTypeParameterConstraintResolutionKey(parameter.csharpConstraints))) {
+      JSON.stringify(previous.csharpRequirementDependencies?.map(type => targetTypeRefKey(identity, type)) ?? []) !==
+        JSON.stringify(parameter.csharpRequirementDependencies?.map(type => targetTypeRefKey(identity, type)) ?? []) ||
+      csharpTypeParameterConstraintResolutionKey(identity, previous.csharpConstraints) !== csharpTypeParameterConstraintResolutionKey(identity, parameter.csharpConstraints))) {
       throw new TypeError("A Native representation parameter requires one physical identity.");
     }
     byIdentity.set(parameter.identity, parameter);

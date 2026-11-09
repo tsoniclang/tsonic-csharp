@@ -37,13 +37,13 @@ export function representSourceShape(host: CsharpRepresentationHost, view: Cshar
       indexes.push({ key: representedKey.value, value: representedValue.value, readonly: index.readonly });
     }
     const first = indexes[0]!;
-    if (indexes.some(index => !targetTypeRefEquals(index.key.carrier, first.key.carrier) ||
-      !targetTypeRefEquals(index.value.carrier, first.value.carrier) || index.readonly !== first.readonly)) {
+    if (indexes.some(index => !targetTypeRefEquals(host.typeIdentity, index.key.carrier, first.key.carrier) ||
+      !targetTypeRefEquals(host.typeIdentity, index.value.carrier, first.value.carrier) || index.readonly !== first.readonly)) {
       return nativeRepresentationFailure(site, "CSHARP_INDEX_STORAGE_UNSUPPORTED", "Native indexed storage must preserve every original index key, payload and write contract.");
     }
     const carrier = host.indexType(first.key.carrier, first.value.carrier, first.readonly, site);
     return carrier.kind !== "represented" ? carrier : represented(Object.freeze({ kind: "direct", evidence, carrier: carrier.value,
-      requirements: representationRequirements(indexes.flatMap(index => [index.key.requirements, index.value.requirements])) }));
+      requirements: representationRequirements(host.typeIdentity, indexes.flatMap(index => [index.key.requirements, index.value.requirements])) }));
   }
   const members: CsharpObjectShapeMemberFact[] = [];
   const children: CsharpRepresentedType[] = callable === undefined ? [] : [callable];
@@ -93,12 +93,12 @@ export function representSourceShape(host: CsharpRepresentationHost, view: Cshar
       members.push(Object.freeze({ ...physicalMember, memberKind: "method", methods: Object.freeze(methods) }));
     } else members.push(Object.freeze({ ...physicalMember, memberKind: "property" }));
   }
-  const requirements = representationRequirements(children.map(value => value.requirements));
-  const canonical = Object.freeze(canonicalCsharpObjectShapeMembers(members));
+  const requirements = representationRequirements(host.typeIdentity, children.map(value => value.requirements));
+  const canonical = Object.freeze(canonicalCsharpObjectShapeMembers(host.typeIdentity, members));
   const contract = host.shapeKind(evidence.component.root) === "contract";
   const interfaces = callable === undefined ? [] : [callable.carrier];
   const physical = canonical.length === 0 && callable === undefined ? csharpEmptyObjectTargetType()
-    : selectCsharpStructuralObjectCarrier(canonical, interfaces, requirements, contract, undefined);
+    : selectCsharpStructuralObjectCarrier(host.typeIdentity, canonical, interfaces, requirements, contract, undefined);
   const callableMembers = callable === undefined ? undefined : getCsharpCallableMembers(callable.carrier);
   if (callable !== undefined && (callable.carrier.kind !== "target-named" ||
     (callable.carrier as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind !== "interface" || callableMembers === undefined)) {
@@ -110,7 +110,7 @@ export function representSourceShape(host: CsharpRepresentationHost, view: Cshar
     ...(interfaces.length === 0 ? {} : { implements: Object.freeze(interfaces) }) });
   const retained = host.retainShape(shape, site);
   if (retained.kind !== "represented") return retained;
-  if (csharpObjectShapeContractKey(retained.value) !== csharpObjectShapeContractKey(shape)) {
+  if (csharpObjectShapeContractKey(host.typeIdentity, retained.value) !== csharpObjectShapeContractKey(host.typeIdentity, shape)) {
     throw new TypeError("A retained Native structural shape must preserve its complete canonical physical member contract.");
   }
   return represented(Object.freeze({ kind: "direct", evidence, carrier: retained.value.targetType, requirements }));

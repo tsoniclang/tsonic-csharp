@@ -139,7 +139,7 @@ export function analyzeCsharpStorage(input: CsharpMemoryAnalysisHost, evidence: 
   for (const contract of contracts.values()) {
     const selected = contract.targetType ?? evidence.storageTargetType.get(contract.declaration);
     if (selected === undefined) failTargetAnalysisInvariant("tsonic-csharp", "Demanded Native declaration storage requires its completed canonical physical slot.", contract.declaration);
-    if (contract.nullableWrittenType !== undefined && !csharpTargetStorageIdentityEquals(contract.nullableWrittenType, selected)) {
+    if (contract.nullableWrittenType !== undefined && !csharpTargetStorageIdentityEquals(identity, contract.nullableWrittenType, selected)) {
       issues.push(issue(contract.declaration, "CSHARP_STORAGE_NULLABLE_WRITE_CONFLICT",
         `Selected Native output writes '${key(contract.nullableWrittenType)}', but its declared storage resolves to '${key(selected)}'.`));
       continue;
@@ -215,7 +215,7 @@ export function analyzeCsharpStorage(input: CsharpMemoryAnalysisHost, evidence: 
     if (targetTypeRefEquals(identity, csharpNullableReferenceTargetType(target), target)) return;
     const contract = contractFor(expression, declaration);
     if (contract === undefined) return;
-    if (contract.nullableWrittenType !== undefined && !csharpTargetStorageIdentityEquals(contract.nullableWrittenType, target)) {
+    if (contract.nullableWrittenType !== undefined && !csharpTargetStorageIdentityEquals(identity, contract.nullableWrittenType, target)) {
       issues.push(issue(expression, "CSHARP_STORAGE_NULLABLE_TYPE_CONFLICT", `One declaration receives incompatible nullable Native output types '${key(contract.nullableWrittenType)}' and '${key(target)}'.`));
     } else contract.nullableWrittenType = target;
   }
